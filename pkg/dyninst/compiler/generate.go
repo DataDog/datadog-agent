@@ -8,8 +8,10 @@
 package compiler
 
 import (
+	"cmp"
 	"fmt"
 	"math"
+	"slices"
 	"time"
 
 	"github.com/pkg/errors"
@@ -93,6 +95,17 @@ func GenerateProgram(program *ir.Program) (Program, error) {
 			})
 		}
 	}
+	// Add all the types for which we know the Go runtime type to the
+	// queue for processing.
+	for _, t := range program.Types {
+		if _, ok := t.GetGoRuntimeType(); ok {
+			g.typeQueue = append(g.typeQueue, t)
+		}
+	}
+	// Sort the queue to make sure we process types in a deterministic order.
+	slices.SortFunc(g.typeQueue, func(a, b ir.Type) int {
+		return cmp.Compare(a.GetID(), b.GetID())
+	})
 	for len(g.typeQueue) > 0 {
 		_, _, err := g.addTypeHandler(g.typeQueue[0])
 		if err != nil {

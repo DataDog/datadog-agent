@@ -10,7 +10,7 @@ Probes:
       subprogram: {subprogram: 1}
       events:
         - ID: 1
-          Type: 184 EventRootType Probe[main.HandleHTTP]
+          Type: 206 EventRootType Probe[main.HandleHTTP]
           InjectionPoints: [{PC: "0xd289f3", Frameless: false}]
           Condition: null
     - id: look_at_the_request
@@ -23,7 +23,7 @@ Probes:
       subprogram: {subprogram: 2}
       events:
         - ID: 2
-          Type: 185 EventRootType Probe[main.LookAtTheRequest]
+          Type: 207 EventRootType Probe[main.LookAtTheRequest]
           InjectionPoints: [{PC: "0xd28d6e", Frameless: false}]
           Condition: null
 Subprograms:
@@ -240,11 +240,11 @@ Types:
       RawFields:
         - Name: str
           Offset: 0
-          Type: 133 PointerType *string.str
+          Type: 155 PointerType *string.str
         - Name: len
           Offset: 8
           Type: 8 BaseType int
-      Data: 132 GoStringDataType string.str
+      Data: 154 GoStringDataType string.str
     - __kind: PointerType
       ID: 6
       Name: '*uint8'
@@ -385,7 +385,7 @@ Types:
           Offset: 40
           Type: 27 PointerType *runtime.mapextra
       BucketType: 20 GoHMapBucketType bucket<string,[]string>
-      BucketsType: 144 GoSliceDataType []bucket<string,[]string>.array
+      BucketsType: 166 GoSliceDataType []bucket<string,[]string>.array
     - __kind: BaseType
       ID: 17
       Name: uint16
@@ -461,7 +461,7 @@ Types:
         - Name: cap
           Offset: 16
           Type: 8 BaseType int
-      Data: 135 GoSliceDataType []string.array
+      Data: 157 GoSliceDataType []string.array
     - __kind: PointerType
       ID: 25
       Name: '*string'
@@ -521,7 +521,7 @@ Types:
         - Name: cap
           Offset: 16
           Type: 8 BaseType int
-      Data: 137 GoSliceDataType []*runtime.bmap.array
+      Data: 159 GoSliceDataType []*runtime.bmap.array
     - __kind: PointerType
       ID: 31
       Name: '**runtime.bmap'
@@ -648,7 +648,7 @@ Types:
           Offset: 40
           Type: 27 PointerType *runtime.mapextra
       BucketType: 45 GoHMapBucketType bucket<string,[]*mime/multipart.FileHeader>
-      BucketsType: 141 GoSliceDataType []bucket<string,[]*mime/multipart.FileHeader>.array
+      BucketsType: 163 GoSliceDataType []bucket<string,[]*mime/multipart.FileHeader>.array
     - __kind: PointerType
       ID: 44
       Name: '*bucket<string,[]*mime/multipart.FileHeader>'
@@ -696,7 +696,7 @@ Types:
         - Name: cap
           Offset: 16
           Type: 8 BaseType int
-      Data: 142 GoSliceDataType []*mime/multipart.FileHeader.array
+      Data: 164 GoSliceDataType []*mime/multipart.FileHeader.array
     - __kind: PointerType
       ID: 48
       Name: '**mime/multipart.FileHeader'
@@ -761,7 +761,7 @@ Types:
         - Name: cap
           Offset: 16
           Type: 8 BaseType int
-      Data: 145 GoSliceDataType []uint8.array
+      Data: 167 GoSliceDataType []uint8.array
     - __kind: PointerType
       ID: 53
       Name: '*crypto/tls.ConnectionState'
@@ -840,7 +840,7 @@ Types:
         - Name: cap
           Offset: 16
           Type: 8 BaseType int
-      Data: 147 GoSliceDataType []*crypto/x509.Certificate.array
+      Data: 169 GoSliceDataType []*crypto/x509.Certificate.array
     - __kind: PointerType
       ID: 56
       Name: '**crypto/x509.Certificate'
@@ -1056,7 +1056,7 @@ Types:
         - Name: cap
           Offset: 16
           Type: 8 BaseType int
-      Data: 149 GoSliceDataType math/big.nat.array
+      Data: 171 GoSliceDataType math/big.nat.array
     - __kind: PointerType
       ID: 65
       Name: '*math/big.Word'
@@ -1126,7 +1126,7 @@ Types:
         - Name: cap
           Offset: 16
           Type: 8 BaseType int
-      Data: 151 GoSliceDataType []crypto/x509/pkix.AttributeTypeAndValue.array
+      Data: 173 GoSliceDataType []crypto/x509/pkix.AttributeTypeAndValue.array
     - __kind: PointerType
       ID: 69
       Name: '*crypto/x509/pkix.AttributeTypeAndValue'
@@ -1163,7 +1163,7 @@ Types:
         - Name: cap
           Offset: 16
           Type: 8 BaseType int
-      Data: 153 GoSliceDataType encoding/asn1.ObjectIdentifier.array
+      Data: 175 GoSliceDataType encoding/asn1.ObjectIdentifier.array
     - __kind: PointerType
       ID: 72
       Name: '*int'
@@ -1244,7 +1244,7 @@ Types:
         - Name: cap
           Offset: 16
           Type: 8 BaseType int
-      Data: 155 GoSliceDataType []time.zone.array
+      Data: 177 GoSliceDataType []time.zone.array
     - __kind: PointerType
       ID: 78
       Name: '*time.zone'
@@ -1284,7 +1284,7 @@ Types:
         - Name: cap
           Offset: 16
           Type: 8 BaseType int
-      Data: 157 GoSliceDataType []time.zoneTrans.array
+      Data: 179 GoSliceDataType []time.zoneTrans.array
     - __kind: PointerType
       ID: 81
       Name: '*time.zoneTrans'
@@ -1333,7 +1333,7 @@ Types:
         - Name: cap
           Offset: 16
           Type: 8 BaseType int
-      Data: 159 GoSliceDataType []crypto/x509/pkix.Extension.array
+      Data: 181 GoSliceDataType []crypto/x509/pkix.Extension.array
     - __kind: PointerType
       ID: 85
       Name: '*crypto/x509/pkix.Extension'
@@ -1373,7 +1373,7 @@ Types:
         - Name: cap
           Offset: 16
           Type: 8 BaseType int
-      Data: 161 GoSliceDataType []encoding/asn1.ObjectIdentifier.array
+      Data: 183 GoSliceDataType []encoding/asn1.ObjectIdentifier.array
     - __kind: PointerType
       ID: 88
       Name: '*encoding/asn1.ObjectIdentifier'
@@ -1397,7 +1397,7 @@ Types:
         - Name: cap
           Offset: 16
           Type: 8 BaseType int
-      Data: 163 GoSliceDataType []crypto/x509.ExtKeyUsage.array
+      Data: 185 GoSliceDataType []crypto/x509.ExtKeyUsage.array
     - __kind: PointerType
       ID: 90
       Name: '*crypto/x509.ExtKeyUsage'
@@ -1427,7 +1427,7 @@ Types:
         - Name: cap
           Offset: 16
           Type: 8 BaseType int
-      Data: 165 GoSliceDataType []net.IP.array
+      Data: 187 GoSliceDataType []net.IP.array
     - __kind: PointerType
       ID: 93
       Name: '*net.IP'
@@ -1451,7 +1451,7 @@ Types:
         - Name: cap
           Offset: 16
           Type: 8 BaseType int
-      Data: 167 GoSliceDataType net.IP.array
+      Data: 189 GoSliceDataType net.IP.array
     - __kind: GoSliceHeaderType
       ID: 95
       Name: '[]*net/url.URL'
@@ -1468,7 +1468,7 @@ Types:
         - Name: cap
           Offset: 16
           Type: 8 BaseType int
-      Data: 169 GoSliceDataType []*net/url.URL.array
+      Data: 191 GoSliceDataType []*net/url.URL.array
     - __kind: PointerType
       ID: 96
       Name: '**net/url.URL'
@@ -1491,7 +1491,7 @@ Types:
         - Name: cap
           Offset: 16
           Type: 8 BaseType int
-      Data: 171 GoSliceDataType []*net.IPNet.array
+      Data: 193 GoSliceDataType []*net.IPNet.array
     - __kind: PointerType
       ID: 98
       Name: '**net.IPNet'
@@ -1534,7 +1534,7 @@ Types:
         - Name: cap
           Offset: 16
           Type: 8 BaseType int
-      Data: 173 GoSliceDataType net.IPMask.array
+      Data: 195 GoSliceDataType net.IPMask.array
     - __kind: GoSliceHeaderType
       ID: 102
       Name: '[]crypto/x509.OID'
@@ -1551,7 +1551,7 @@ Types:
         - Name: cap
           Offset: 16
           Type: 8 BaseType int
-      Data: 175 GoSliceDataType []crypto/x509.OID.array
+      Data: 197 GoSliceDataType []crypto/x509.OID.array
     - __kind: PointerType
       ID: 103
       Name: '*crypto/x509.OID'
@@ -1585,7 +1585,7 @@ Types:
         - Name: cap
           Offset: 16
           Type: 8 BaseType int
-      Data: 177 GoSliceDataType [][]*crypto/x509.Certificate.array
+      Data: 199 GoSliceDataType [][]*crypto/x509.Certificate.array
     - __kind: PointerType
       ID: 106
       Name: '*[]*crypto/x509.Certificate'
@@ -1608,7 +1608,7 @@ Types:
         - Name: cap
           Offset: 16
           Type: 8 BaseType int
-      Data: 179 GoSliceDataType [][]uint8.array
+      Data: 201 GoSliceDataType [][]uint8.array
     - __kind: PointerType
       ID: 108
       Name: '*[]uint8'
@@ -1747,7 +1747,7 @@ Types:
         - Name: cap
           Offset: 16
           Type: 8 BaseType int
-      Data: 181 GoSliceDataType []net/http.segment.array
+      Data: 203 GoSliceDataType []net/http.segment.array
     - __kind: PointerType
       ID: 118
       Name: '*net/http.segment'
@@ -1816,7 +1816,7 @@ Types:
           Offset: 40
           Type: 27 PointerType *runtime.mapextra
       BucketType: 124 GoHMapBucketType bucket<string,string>
-      BucketsType: 183 GoSliceDataType []bucket<string,string>.array
+      BucketsType: 205 GoSliceDataType []bucket<string,string>.array
     - __kind: PointerType
       ID: 123
       Name: '*bucket<string,string>'
@@ -1905,267 +1905,419 @@ Types:
       GoRuntimeType: 1.399456e+06
       GoKind: 25
       RawFields: []
-    - __kind: GoStringDataType
+    - __kind: PointerType
       ID: 132
+      Name: '*bool'
+      ByteSize: 8
+      GoRuntimeType: 372640
+      GoKind: 22
+      Pointee: 13 BaseType bool
+    - __kind: PointerType
+      ID: 133
+      Name: '*uintptr'
+      ByteSize: 8
+      GoRuntimeType: 372320
+      GoKind: 22
+      Pointee: 26 BaseType uintptr
+    - __kind: BaseType
+      ID: 134
+      Name: int32
+      ByteSize: 4
+      GoRuntimeType: 533888
+      GoKind: 5
+    - __kind: BaseType
+      ID: 135
+      Name: int8
+      ByteSize: 1
+      GoRuntimeType: 533632
+      GoKind: 3
+    - __kind: BaseType
+      ID: 136
+      Name: uint
+      ByteSize: 8
+      GoRuntimeType: 534208
+      GoKind: 7
+    - __kind: BaseType
+      ID: 137
+      Name: float32
+      ByteSize: 4
+      GoRuntimeType: 534464
+      GoKind: 13
+    - __kind: BaseType
+      ID: 138
+      Name: float64
+      ByteSize: 8
+      GoRuntimeType: 534528
+      GoKind: 14
+    - __kind: GoInterfaceType
+      ID: 139
+      Name: error
+      ByteSize: 16
+      GoRuntimeType: 987456
+      GoKind: 20
+      RawFields:
+        - Name: tab
+          Offset: 0
+          Type: 2 VoidPointerType unsafe.Pointer
+        - Name: data
+          Offset: 8
+          Type: 2 VoidPointerType unsafe.Pointer
+    - __kind: PointerType
+      ID: 140
+      Name: '*int32'
+      ByteSize: 8
+      GoRuntimeType: 371936
+      GoKind: 22
+      Pointee: 134 BaseType int32
+    - __kind: PointerType
+      ID: 141
+      Name: '*uint32'
+      ByteSize: 8
+      GoRuntimeType: 372000
+      GoKind: 22
+      Pointee: 18 BaseType uint32
+    - __kind: BaseType
+      ID: 142
+      Name: complex64
+      ByteSize: 8
+      GoRuntimeType: 534336
+      GoKind: 15
+    - __kind: BaseType
+      ID: 143
+      Name: complex128
+      ByteSize: 16
+      GoRuntimeType: 534400
+      GoKind: 16
+    - __kind: PointerType
+      ID: 144
+      Name: '*float64'
+      ByteSize: 8
+      GoRuntimeType: 372576
+      GoKind: 22
+      Pointee: 138 BaseType float64
+    - __kind: PointerType
+      ID: 145
+      Name: '*int64'
+      ByteSize: 8
+      GoRuntimeType: 372064
+      GoKind: 22
+      Pointee: 36 BaseType int64
+    - __kind: PointerType
+      ID: 146
+      Name: '*uint64'
+      ByteSize: 8
+      GoRuntimeType: 372128
+      GoKind: 22
+      Pointee: 74 BaseType uint64
+    - __kind: PointerType
+      ID: 147
+      Name: '*uint16'
+      ByteSize: 8
+      GoRuntimeType: 371872
+      GoKind: 22
+      Pointee: 17 BaseType uint16
+    - __kind: PointerType
+      ID: 148
+      Name: '*int16'
+      ByteSize: 8
+      GoRuntimeType: 371808
+      GoKind: 22
+      Pointee: 149 BaseType int16
+    - __kind: BaseType
+      ID: 149
+      Name: int16
+      ByteSize: 2
+      GoRuntimeType: 533760
+      GoKind: 4
+    - __kind: PointerType
+      ID: 150
+      Name: '*int8'
+      ByteSize: 8
+      GoRuntimeType: 371680
+      GoKind: 22
+      Pointee: 135 BaseType int8
+    - __kind: PointerType
+      ID: 151
+      Name: '*error'
+      ByteSize: 8
+      GoRuntimeType: 371552
+      GoKind: 22
+      Pointee: 139 GoInterfaceType error
+    - __kind: PointerType
+      ID: 152
+      Name: '*uint'
+      ByteSize: 8
+      GoRuntimeType: 372256
+      GoKind: 22
+      Pointee: 136 BaseType uint
+    - __kind: PointerType
+      ID: 153
+      Name: '*float32'
+      ByteSize: 8
+      GoRuntimeType: 372512
+      GoKind: 22
+      Pointee: 137 BaseType float32
+    - __kind: GoStringDataType
+      ID: 154
       Name: string.str
       ByteSize: 2048
     - __kind: PointerType
-      ID: 133
+      ID: 155
       Name: '*string.str'
       ByteSize: 8
-      Pointee: 132 GoStringDataType string.str
+      Pointee: 154 GoStringDataType string.str
     - __kind: GoSliceDataType
-      ID: 134
+      ID: 156
       Name: '[]bucket<string,[]string>.array'
       ByteSize: 2048
       Element: 20 GoHMapBucketType bucket<string,[]string>
     - __kind: GoSliceDataType
-      ID: 135
+      ID: 157
       Name: '[]string.array'
       ByteSize: 2048
       Element: 5 GoStringHeaderType string
     - __kind: PointerType
-      ID: 136
+      ID: 158
       Name: '*[]string.array'
       ByteSize: 8
-      Pointee: 135 GoSliceDataType []string.array
+      Pointee: 157 GoSliceDataType []string.array
     - __kind: GoSliceDataType
-      ID: 137
+      ID: 159
       Name: '[]*runtime.bmap.array'
       ByteSize: 2048
       Element: 32 PointerType *runtime.bmap
     - __kind: PointerType
-      ID: 138
+      ID: 160
       Name: '*[]*runtime.bmap.array'
       ByteSize: 8
-      Pointee: 137 GoSliceDataType []*runtime.bmap.array
+      Pointee: 159 GoSliceDataType []*runtime.bmap.array
     - __kind: GoSliceDataType
-      ID: 139
+      ID: 161
       Name: '[]bucket<string,[]string>.array'
       ByteSize: 2048
       Element: 20 GoHMapBucketType bucket<string,[]string>
     - __kind: GoSliceDataType
-      ID: 140
+      ID: 162
       Name: '[]bucket<string,[]string>.array'
       ByteSize: 2048
       Element: 20 GoHMapBucketType bucket<string,[]string>
     - __kind: GoSliceDataType
-      ID: 141
+      ID: 163
       Name: '[]bucket<string,[]*mime/multipart.FileHeader>.array'
       ByteSize: 2048
       Element: 45 GoHMapBucketType bucket<string,[]*mime/multipart.FileHeader>
     - __kind: GoSliceDataType
-      ID: 142
+      ID: 164
       Name: '[]*mime/multipart.FileHeader.array'
       ByteSize: 2048
       Element: 49 PointerType *mime/multipart.FileHeader
     - __kind: PointerType
-      ID: 143
+      ID: 165
       Name: '*[]*mime/multipart.FileHeader.array'
       ByteSize: 8
-      Pointee: 142 GoSliceDataType []*mime/multipart.FileHeader.array
+      Pointee: 164 GoSliceDataType []*mime/multipart.FileHeader.array
     - __kind: GoSliceDataType
-      ID: 144
+      ID: 166
       Name: '[]bucket<string,[]string>.array'
       ByteSize: 2048
       Element: 20 GoHMapBucketType bucket<string,[]string>
     - __kind: GoSliceDataType
-      ID: 145
+      ID: 167
       Name: '[]uint8.array'
       ByteSize: 2048
       Element: 7 BaseType uint8
     - __kind: PointerType
-      ID: 146
+      ID: 168
       Name: '*[]uint8.array'
       ByteSize: 8
-      Pointee: 145 GoSliceDataType []uint8.array
+      Pointee: 167 GoSliceDataType []uint8.array
     - __kind: GoSliceDataType
-      ID: 147
+      ID: 169
       Name: '[]*crypto/x509.Certificate.array'
       ByteSize: 2048
       Element: 57 PointerType *crypto/x509.Certificate
     - __kind: PointerType
-      ID: 148
+      ID: 170
       Name: '*[]*crypto/x509.Certificate.array'
       ByteSize: 8
-      Pointee: 147 GoSliceDataType []*crypto/x509.Certificate.array
+      Pointee: 169 GoSliceDataType []*crypto/x509.Certificate.array
     - __kind: GoSliceDataType
-      ID: 149
+      ID: 171
       Name: math/big.nat.array
       ByteSize: 2048
       Element: 66 BaseType math/big.Word
     - __kind: PointerType
-      ID: 150
+      ID: 172
       Name: '*math/big.nat.array'
       ByteSize: 8
-      Pointee: 149 GoSliceDataType math/big.nat.array
+      Pointee: 171 GoSliceDataType math/big.nat.array
     - __kind: GoSliceDataType
-      ID: 151
+      ID: 173
       Name: '[]crypto/x509/pkix.AttributeTypeAndValue.array'
       ByteSize: 2048
       Element: 70 StructureType crypto/x509/pkix.AttributeTypeAndValue
     - __kind: PointerType
-      ID: 152
+      ID: 174
       Name: '*[]crypto/x509/pkix.AttributeTypeAndValue.array'
       ByteSize: 8
-      Pointee: 151 GoSliceDataType []crypto/x509/pkix.AttributeTypeAndValue.array
+      Pointee: 173 GoSliceDataType []crypto/x509/pkix.AttributeTypeAndValue.array
     - __kind: GoSliceDataType
-      ID: 153
+      ID: 175
       Name: encoding/asn1.ObjectIdentifier.array
       ByteSize: 2048
       Element: 8 BaseType int
     - __kind: PointerType
-      ID: 154
+      ID: 176
       Name: '*encoding/asn1.ObjectIdentifier.array'
       ByteSize: 8
-      Pointee: 153 GoSliceDataType encoding/asn1.ObjectIdentifier.array
+      Pointee: 175 GoSliceDataType encoding/asn1.ObjectIdentifier.array
     - __kind: GoSliceDataType
-      ID: 155
+      ID: 177
       Name: '[]time.zone.array'
       ByteSize: 2048
       Element: 79 StructureType time.zone
     - __kind: PointerType
-      ID: 156
+      ID: 178
       Name: '*[]time.zone.array'
       ByteSize: 8
-      Pointee: 155 GoSliceDataType []time.zone.array
+      Pointee: 177 GoSliceDataType []time.zone.array
     - __kind: GoSliceDataType
-      ID: 157
+      ID: 179
       Name: '[]time.zoneTrans.array'
       ByteSize: 2048
       Element: 82 StructureType time.zoneTrans
     - __kind: PointerType
-      ID: 158
+      ID: 180
       Name: '*[]time.zoneTrans.array'
       ByteSize: 8
-      Pointee: 157 GoSliceDataType []time.zoneTrans.array
+      Pointee: 179 GoSliceDataType []time.zoneTrans.array
     - __kind: GoSliceDataType
-      ID: 159
+      ID: 181
       Name: '[]crypto/x509/pkix.Extension.array'
       ByteSize: 2048
       Element: 86 StructureType crypto/x509/pkix.Extension
     - __kind: PointerType
-      ID: 160
+      ID: 182
       Name: '*[]crypto/x509/pkix.Extension.array'
       ByteSize: 8
-      Pointee: 159 GoSliceDataType []crypto/x509/pkix.Extension.array
+      Pointee: 181 GoSliceDataType []crypto/x509/pkix.Extension.array
     - __kind: GoSliceDataType
-      ID: 161
+      ID: 183
       Name: '[]encoding/asn1.ObjectIdentifier.array'
       ByteSize: 2048
       Element: 71 GoSliceHeaderType encoding/asn1.ObjectIdentifier
     - __kind: PointerType
-      ID: 162
+      ID: 184
       Name: '*[]encoding/asn1.ObjectIdentifier.array'
       ByteSize: 8
-      Pointee: 161 GoSliceDataType []encoding/asn1.ObjectIdentifier.array
+      Pointee: 183 GoSliceDataType []encoding/asn1.ObjectIdentifier.array
     - __kind: GoSliceDataType
-      ID: 163
+      ID: 185
       Name: '[]crypto/x509.ExtKeyUsage.array'
       ByteSize: 2048
       Element: 91 BaseType crypto/x509.ExtKeyUsage
     - __kind: PointerType
-      ID: 164
+      ID: 186
       Name: '*[]crypto/x509.ExtKeyUsage.array'
       ByteSize: 8
-      Pointee: 163 GoSliceDataType []crypto/x509.ExtKeyUsage.array
+      Pointee: 185 GoSliceDataType []crypto/x509.ExtKeyUsage.array
     - __kind: GoSliceDataType
-      ID: 165
+      ID: 187
       Name: '[]net.IP.array'
       ByteSize: 2048
       Element: 94 GoSliceHeaderType net.IP
     - __kind: PointerType
-      ID: 166
+      ID: 188
       Name: '*[]net.IP.array'
       ByteSize: 8
-      Pointee: 165 GoSliceDataType []net.IP.array
+      Pointee: 187 GoSliceDataType []net.IP.array
     - __kind: GoSliceDataType
-      ID: 167
+      ID: 189
       Name: net.IP.array
       ByteSize: 2048
       Element: 7 BaseType uint8
     - __kind: PointerType
-      ID: 168
+      ID: 190
       Name: '*net.IP.array'
       ByteSize: 8
-      Pointee: 167 GoSliceDataType net.IP.array
+      Pointee: 189 GoSliceDataType net.IP.array
     - __kind: GoSliceDataType
-      ID: 169
+      ID: 191
       Name: '[]*net/url.URL.array'
       ByteSize: 2048
       Element: 9 PointerType *net/url.URL
     - __kind: PointerType
-      ID: 170
+      ID: 192
       Name: '*[]*net/url.URL.array'
       ByteSize: 8
-      Pointee: 169 GoSliceDataType []*net/url.URL.array
+      Pointee: 191 GoSliceDataType []*net/url.URL.array
     - __kind: GoSliceDataType
-      ID: 171
+      ID: 193
       Name: '[]*net.IPNet.array'
       ByteSize: 2048
       Element: 99 PointerType *net.IPNet
     - __kind: PointerType
-      ID: 172
+      ID: 194
       Name: '*[]*net.IPNet.array'
       ByteSize: 8
-      Pointee: 171 GoSliceDataType []*net.IPNet.array
+      Pointee: 193 GoSliceDataType []*net.IPNet.array
     - __kind: GoSliceDataType
-      ID: 173
+      ID: 195
       Name: net.IPMask.array
       ByteSize: 2048
       Element: 7 BaseType uint8
     - __kind: PointerType
-      ID: 174
+      ID: 196
       Name: '*net.IPMask.array'
       ByteSize: 8
-      Pointee: 173 GoSliceDataType net.IPMask.array
+      Pointee: 195 GoSliceDataType net.IPMask.array
     - __kind: GoSliceDataType
-      ID: 175
+      ID: 197
       Name: '[]crypto/x509.OID.array'
       ByteSize: 2048
       Element: 104 StructureType crypto/x509.OID
     - __kind: PointerType
-      ID: 176
+      ID: 198
       Name: '*[]crypto/x509.OID.array'
       ByteSize: 8
-      Pointee: 175 GoSliceDataType []crypto/x509.OID.array
+      Pointee: 197 GoSliceDataType []crypto/x509.OID.array
     - __kind: GoSliceDataType
-      ID: 177
+      ID: 199
       Name: '[][]*crypto/x509.Certificate.array'
       ByteSize: 2048
       Element: 55 GoSliceHeaderType []*crypto/x509.Certificate
     - __kind: PointerType
-      ID: 178
+      ID: 200
       Name: '*[][]*crypto/x509.Certificate.array'
       ByteSize: 8
-      Pointee: 177 GoSliceDataType [][]*crypto/x509.Certificate.array
+      Pointee: 199 GoSliceDataType [][]*crypto/x509.Certificate.array
     - __kind: GoSliceDataType
-      ID: 179
+      ID: 201
       Name: '[][]uint8.array'
       ByteSize: 2048
       Element: 52 GoSliceHeaderType []uint8
     - __kind: PointerType
-      ID: 180
+      ID: 202
       Name: '*[][]uint8.array'
       ByteSize: 8
-      Pointee: 179 GoSliceDataType [][]uint8.array
+      Pointee: 201 GoSliceDataType [][]uint8.array
     - __kind: GoSliceDataType
-      ID: 181
+      ID: 203
       Name: '[]net/http.segment.array'
       ByteSize: 2048
       Element: 119 StructureType net/http.segment
     - __kind: PointerType
-      ID: 182
+      ID: 204
       Name: '*[]net/http.segment.array'
       ByteSize: 8
-      Pointee: 181 GoSliceDataType []net/http.segment.array
+      Pointee: 203 GoSliceDataType []net/http.segment.array
     - __kind: GoSliceDataType
-      ID: 183
+      ID: 205
       Name: '[]bucket<string,string>.array'
       ByteSize: 2048
       Element: 124 GoHMapBucketType bucket<string,string>
     - __kind: EventRootType
-      ID: 184
+      ID: 206
       Name: Probe[main.HandleHTTP]
       ByteSize: 25
       PresenceBitsetSize: 1
@@ -2189,7 +2341,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 185
+      ID: 207
       Name: Probe[main.LookAtTheRequest]
       ByteSize: 17
       PresenceBitsetSize: 1
@@ -2203,5 +2355,5 @@ Types:
                   Variable: {subprogram: 2, index: 0, name: path}
                   Offset: 0
                   ByteSize: 16
-MaxTypeID: 185
+MaxTypeID: 207
 Issues: []

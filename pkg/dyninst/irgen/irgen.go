@@ -30,6 +30,7 @@ import (
 	"maps"
 	"math"
 	"reflect"
+	"regexp"
 	"runtime/debug"
 	"slices"
 	"strings"
@@ -556,8 +557,8 @@ func completeGoTypes(tc *typeCatalog) error {
 				// Nothing to do.
 			default:
 				return fmt.Errorf(
-					"unexpected Go kind for structure type: %v",
-					t.GoTypeAttributes.GoKind,
+					"unexpected Go kind for structure type %q: %v",
+					t.Name, t.GoTypeAttributes.GoKind,
 				)
 			}
 		case *ir.GoMapType:
@@ -1073,9 +1074,28 @@ func (v *unitChildVisitor) push(
 		dwarf.TagStructType,
 		dwarf.TagTypedef,
 		dwarf.TagSubroutineType:
-		// TODO: We've already parsed this node, it's wasteful to parse it
-		// again, but we're not going to know whether we need it until later. so
-		// for now we'll just skip over all types and come back to them lazily.
+
+		// Use this as a heuristic to determine if this is a base type or a
+		// pointer to a base type. This is handy because these things are
+		// sometimes found underneath interfaces. Also, generally it's nice to
+		// have some types eagerly added.
+		name, ok, err := maybeGetAttr[string](entry, dwarf.AttrName)
+		if err != nil || !ok {
+			return nil, err
+		}
+		nameWithoutStar := name
+		if entry.Tag == dwarf.TagPointerType {
+			nameWithoutStar = name[1:]
+		}
+		if !primitiveTypeNameRegexp.MatchString(nameWithoutStar) &&
+			// error is a special case that is not a primitive type and it
+			// itself is an interface, so we don't need to add it eagerly.
+			nameWithoutStar != "error" {
+			return nil, nil
+		}
+		if _, err := v.root.typeCatalog.addType(entry.Offset); err != nil {
+			return nil, fmt.Errorf("failed to add type %q: %w", name, err)
+		}
 		return nil, nil
 
 	case dwarf.TagVariable:
@@ -1088,6 +1108,11 @@ func (v *unitChildVisitor) push(
 		return nil, fmt.Errorf("unexpected tag for unit child: %s", entry.Tag)
 	}
 }
+
+// primitiveTypeNameRegexp is a regex that matches the names of primitive types.
+// It doesn't match anything with a package or any of the odd internal types
+// used by the runtime like sudog<T>.
+var primitiveTypeNameRegexp = regexp.MustCompile(`^[a-z]+[0-9]*$`)
 
 func (v *unitChildVisitor) pop(_ *dwarf.Entry, childVisitor visitor) error {
 	switch t := childVisitor.(type) {

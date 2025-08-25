@@ -14,7 +14,7 @@ Probes:
       subprogram: {subprogram: 2}
       events:
         - ID: 11
-          Type: 63 EventRootType Probe[main.PointerChainArg]
+          Type: 87 EventRootType Probe[main.PointerChainArg]
           InjectionPoints: [{PC: 741836, Frameless: false}]
           Condition: null
     - id: PointerSmallChainArg
@@ -31,7 +31,7 @@ Probes:
       subprogram: {subprogram: 3}
       events:
         - ID: 12
-          Type: 64 EventRootType Probe[main.PointerSmallChainArg]
+          Type: 88 EventRootType Probe[main.PointerSmallChainArg]
           InjectionPoints: [{PC: 741892, Frameless: false}]
           Condition: null
     - id: bigMapArg
@@ -44,7 +44,7 @@ Probes:
       subprogram: {subprogram: 12}
       events:
         - ID: 9
-          Type: 61 EventRootType Probe[main.bigMapArg]
+          Type: 85 EventRootType Probe[main.bigMapArg]
           InjectionPoints: [{PC: 743056, Frameless: true}]
           Condition: null
     - id: inlined
@@ -58,7 +58,7 @@ Probes:
       subprogram: {subprogram: 1}
       events:
         - ID: 10
-          Type: 62 EventRootType Probe[main.inlined]
+          Type: 86 EventRootType Probe[main.inlined]
           InjectionPoints:
             - PC: 742748
               Frameless: true
@@ -75,7 +75,7 @@ Probes:
       subprogram: {subprogram: 4}
       events:
         - ID: 1
-          Type: 53 EventRootType Probe[main.intArg]
+          Type: 77 EventRootType Probe[main.intArg]
           InjectionPoints: [{PC: 741980, Frameless: true}]
           Condition: null
     - id: intArrayArg
@@ -88,7 +88,7 @@ Probes:
       subprogram: {subprogram: 7}
       events:
         - ID: 4
-          Type: 56 EventRootType Probe[main.intArrayArg]
+          Type: 80 EventRootType Probe[main.intArrayArg]
           InjectionPoints: [{PC: 742348, Frameless: true}]
           Condition: null
     - id: intArrayArgFrameless
@@ -101,7 +101,7 @@ Probes:
       subprogram: {subprogram: 10}
       events:
         - ID: 7
-          Type: 59 EventRootType Probe[main.stringArrayArgFrameless]
+          Type: 83 EventRootType Probe[main.stringArrayArgFrameless]
           InjectionPoints: [{PC: 742720, Frameless: true}]
           Condition: null
     - id: intSliceArg
@@ -114,7 +114,7 @@ Probes:
       subprogram: {subprogram: 6}
       events:
         - ID: 3
-          Type: 55 EventRootType Probe[main.intSliceArg]
+          Type: 79 EventRootType Probe[main.intSliceArg]
           InjectionPoints: [{PC: 742220, Frameless: true}]
           Condition: null
     - id: mapArg
@@ -127,7 +127,7 @@ Probes:
       subprogram: {subprogram: 11}
       events:
         - ID: 8
-          Type: 60 EventRootType Probe[main.mapArg]
+          Type: 84 EventRootType Probe[main.mapArg]
           InjectionPoints: [{PC: 742940, Frameless: true}]
           Condition: null
     - id: stringArg
@@ -140,7 +140,7 @@ Probes:
       subprogram: {subprogram: 5}
       events:
         - ID: 2
-          Type: 54 EventRootType Probe[main.stringArg]
+          Type: 78 EventRootType Probe[main.stringArg]
           InjectionPoints: [{PC: 742092, Frameless: true}]
           Condition: null
     - id: stringArrayArg
@@ -153,7 +153,7 @@ Probes:
       subprogram: {subprogram: 9}
       events:
         - ID: 6
-          Type: 58 EventRootType Probe[main.stringArrayArg]
+          Type: 82 EventRootType Probe[main.stringArrayArg]
           InjectionPoints: [{PC: 742604, Frameless: true}]
           Condition: null
     - id: stringSliceArg
@@ -166,7 +166,7 @@ Probes:
       subprogram: {subprogram: 8}
       events:
         - ID: 5
-          Type: 57 EventRootType Probe[main.stringSliceArg]
+          Type: 81 EventRootType Probe[main.stringSliceArg]
           InjectionPoints: [{PC: 742476, Frameless: true}]
           Condition: null
 Subprograms:
@@ -391,11 +391,11 @@ Types:
       RawFields:
         - Name: str
           Offset: 0
-          Type: 44 PointerType *string.str
+          Type: 68 PointerType *string.str
         - Name: len
           Offset: 8
           Type: 1 BaseType int
-      Data: 43 GoStringDataType string.str
+      Data: 67 GoStringDataType string.str
     - __kind: PointerType
       ID: 8
       Name: '*uint8'
@@ -425,7 +425,7 @@ Types:
         - Name: cap
           Offset: 16
           Type: 1 BaseType int
-      Data: 45 GoSliceDataType []int.array
+      Data: 69 GoSliceDataType []int.array
     - __kind: ArrayType
       ID: 11
       Name: '[3]int'
@@ -451,7 +451,7 @@ Types:
         - Name: cap
           Offset: 16
           Type: 1 BaseType int
-      Data: 47 GoSliceDataType []string.array
+      Data: 71 GoSliceDataType []string.array
     - __kind: PointerType
       ID: 13
       Name: '*string'
@@ -510,7 +510,7 @@ Types:
         - Name: clearSeq
           Offset: 40
           Type: 18 BaseType uint64
-      TablePtrSliceType: 49 GoSliceDataType []*table<string,int>.array
+      TablePtrSliceType: 73 GoSliceDataType []*table<string,int>.array
       GroupType: 26 StructureType noalg.map.group[string]int
     - __kind: BaseType
       ID: 18
@@ -577,7 +577,7 @@ Types:
           Offset: 8
           Type: 18 BaseType uint64
       GroupType: 26 StructureType noalg.map.group[string]int
-      GroupSliceType: 50 GoSliceDataType []noalg.map.group[string]int.array
+      GroupSliceType: 74 GoSliceDataType []noalg.map.group[string]int.array
     - __kind: PointerType
       ID: 25
       Name: '*noalg.map.group[string]int'
@@ -660,7 +660,7 @@ Types:
         - Name: clearSeq
           Offset: 40
           Type: 18 BaseType uint64
-      TablePtrSliceType: 51 GoSliceDataType []*table<string,main.bigStruct>.array
+      TablePtrSliceType: 75 GoSliceDataType []*table<string,main.bigStruct>.array
       GroupType: 37 StructureType noalg.map.group[string]main.bigStruct
     - __kind: PointerType
       ID: 32
@@ -709,7 +709,7 @@ Types:
           Offset: 8
           Type: 18 BaseType uint64
       GroupType: 37 StructureType noalg.map.group[string]main.bigStruct
-      GroupSliceType: 52 GoSliceDataType []noalg.map.group[string]main.bigStruct.array
+      GroupSliceType: 76 GoSliceDataType []noalg.map.group[string]main.bigStruct.array
     - __kind: PointerType
       ID: 36
       Name: '*noalg.map.group[string]main.bigStruct'
@@ -797,57 +797,219 @@ Types:
       Count: 128
       HasCount: true
       Element: 9 BaseType uint8
-    - __kind: GoStringDataType
+    - __kind: BaseType
       ID: 43
+      Name: uint32
+      ByteSize: 4
+      GoRuntimeType: 41728
+      GoKind: 10
+    - __kind: BaseType
+      ID: 44
+      Name: bool
+      ByteSize: 1
+      GoRuntimeType: 42368
+      GoKind: 1
+    - __kind: BaseType
+      ID: 45
+      Name: uint
+      ByteSize: 8
+      GoRuntimeType: 41984
+      GoKind: 7
+    - __kind: PointerType
+      ID: 46
+      Name: '*bool'
+      ByteSize: 8
+      GoRuntimeType: 29536
+      GoKind: 22
+      Pointee: 44 BaseType bool
+    - __kind: BaseType
+      ID: 47
+      Name: int32
+      ByteSize: 4
+      GoRuntimeType: 41664
+      GoKind: 5
+    - __kind: BaseType
+      ID: 48
+      Name: int64
+      ByteSize: 8
+      GoRuntimeType: 41792
+      GoKind: 6
+    - __kind: GoInterfaceType
+      ID: 49
+      Name: error
+      ByteSize: 16
+      GoRuntimeType: 63040
+      GoKind: 20
+      RawFields:
+        - Name: tab
+          Offset: 0
+          Type: 50 VoidPointerType unsafe.Pointer
+        - Name: data
+          Offset: 8
+          Type: 50 VoidPointerType unsafe.Pointer
+    - __kind: VoidPointerType
+      ID: 50
+      Name: unsafe.Pointer
+      ByteSize: 8
+      GoRuntimeType: 42432
+      GoKind: 26
+    - __kind: BaseType
+      ID: 51
+      Name: int8
+      ByteSize: 1
+      GoRuntimeType: 41408
+      GoKind: 3
+    - __kind: BaseType
+      ID: 52
+      Name: float32
+      ByteSize: 4
+      GoRuntimeType: 42240
+      GoKind: 13
+    - __kind: BaseType
+      ID: 53
+      Name: float64
+      ByteSize: 8
+      GoRuntimeType: 42304
+      GoKind: 14
+    - __kind: PointerType
+      ID: 54
+      Name: '*uintptr'
+      ByteSize: 8
+      GoRuntimeType: 29216
+      GoKind: 22
+      Pointee: 19 BaseType uintptr
+    - __kind: PointerType
+      ID: 55
+      Name: '*int32'
+      ByteSize: 8
+      GoRuntimeType: 28832
+      GoKind: 22
+      Pointee: 47 BaseType int32
+    - __kind: PointerType
+      ID: 56
+      Name: '*uint32'
+      ByteSize: 8
+      GoRuntimeType: 28896
+      GoKind: 22
+      Pointee: 43 BaseType uint32
+    - __kind: BaseType
+      ID: 57
+      Name: int16
+      ByteSize: 2
+      GoRuntimeType: 41536
+      GoKind: 4
+    - __kind: BaseType
+      ID: 58
+      Name: complex64
+      ByteSize: 8
+      GoRuntimeType: 42112
+      GoKind: 15
+    - __kind: BaseType
+      ID: 59
+      Name: complex128
+      ByteSize: 16
+      GoRuntimeType: 42176
+      GoKind: 16
+    - __kind: PointerType
+      ID: 60
+      Name: '*float64'
+      ByteSize: 8
+      GoRuntimeType: 29472
+      GoKind: 22
+      Pointee: 53 BaseType float64
+    - __kind: PointerType
+      ID: 61
+      Name: '*int64'
+      ByteSize: 8
+      GoRuntimeType: 28960
+      GoKind: 22
+      Pointee: 48 BaseType int64
+    - __kind: PointerType
+      ID: 62
+      Name: '*uint64'
+      ByteSize: 8
+      GoRuntimeType: 29024
+      GoKind: 22
+      Pointee: 18 BaseType uint64
+    - __kind: PointerType
+      ID: 63
+      Name: '*error'
+      ByteSize: 8
+      GoRuntimeType: 28448
+      GoKind: 22
+      Pointee: 49 GoInterfaceType error
+    - __kind: PointerType
+      ID: 64
+      Name: '*float32'
+      ByteSize: 8
+      GoRuntimeType: 29408
+      GoKind: 22
+      Pointee: 52 BaseType float32
+    - __kind: PointerType
+      ID: 65
+      Name: '*uint'
+      ByteSize: 8
+      GoRuntimeType: 29152
+      GoKind: 22
+      Pointee: 45 BaseType uint
+    - __kind: PointerType
+      ID: 66
+      Name: '*uint16'
+      ByteSize: 8
+      GoRuntimeType: 28768
+      GoKind: 22
+      Pointee: 23 BaseType uint16
+    - __kind: GoStringDataType
+      ID: 67
       Name: string.str
       ByteSize: 2048
     - __kind: PointerType
-      ID: 44
+      ID: 68
       Name: '*string.str'
       ByteSize: 8
-      Pointee: 43 GoStringDataType string.str
+      Pointee: 67 GoStringDataType string.str
     - __kind: GoSliceDataType
-      ID: 45
+      ID: 69
       Name: '[]int.array'
       ByteSize: 2048
       Element: 1 BaseType int
     - __kind: PointerType
-      ID: 46
+      ID: 70
       Name: '*[]int.array'
       ByteSize: 8
-      Pointee: 45 GoSliceDataType []int.array
+      Pointee: 69 GoSliceDataType []int.array
     - __kind: GoSliceDataType
-      ID: 47
+      ID: 71
       Name: '[]string.array'
       ByteSize: 2048
       Element: 7 GoStringHeaderType string
     - __kind: PointerType
-      ID: 48
+      ID: 72
       Name: '*[]string.array'
       ByteSize: 8
-      Pointee: 47 GoSliceDataType []string.array
+      Pointee: 71 GoSliceDataType []string.array
     - __kind: GoSliceDataType
-      ID: 49
+      ID: 73
       Name: '[]*table<string,int>.array'
       ByteSize: 8192
       Element: 21 PointerType *table<string,int>
     - __kind: GoSliceDataType
-      ID: 50
+      ID: 74
       Name: '[]noalg.map.group[string]int.array'
       ByteSize: 2048
       Element: 26 StructureType noalg.map.group[string]int
     - __kind: GoSliceDataType
-      ID: 51
+      ID: 75
       Name: '[]*table<string,main.bigStruct>.array'
       ByteSize: 8192
       Element: 33 PointerType *table<string,main.bigStruct>
     - __kind: GoSliceDataType
-      ID: 52
+      ID: 76
       Name: '[]noalg.map.group[string]main.bigStruct.array'
       ByteSize: 2048
       Element: 37 StructureType noalg.map.group[string]main.bigStruct
     - __kind: EventRootType
-      ID: 53
+      ID: 77
       Name: Probe[main.intArg]
       ByteSize: 9
       PresenceBitsetSize: 1
@@ -862,7 +1024,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 54
+      ID: 78
       Name: Probe[main.stringArg]
       ByteSize: 17
       PresenceBitsetSize: 1
@@ -877,7 +1039,7 @@ Types:
                   Offset: 0
                   ByteSize: 16
     - __kind: EventRootType
-      ID: 55
+      ID: 79
       Name: Probe[main.intSliceArg]
       ByteSize: 25
       PresenceBitsetSize: 1
@@ -892,7 +1054,7 @@ Types:
                   Offset: 0
                   ByteSize: 24
     - __kind: EventRootType
-      ID: 56
+      ID: 80
       Name: Probe[main.intArrayArg]
       ByteSize: 25
       PresenceBitsetSize: 1
@@ -907,7 +1069,7 @@ Types:
                   Offset: 0
                   ByteSize: 24
     - __kind: EventRootType
-      ID: 57
+      ID: 81
       Name: Probe[main.stringSliceArg]
       ByteSize: 25
       PresenceBitsetSize: 1
@@ -922,7 +1084,7 @@ Types:
                   Offset: 0
                   ByteSize: 24
     - __kind: EventRootType
-      ID: 58
+      ID: 82
       Name: Probe[main.stringArrayArg]
       ByteSize: 49
       PresenceBitsetSize: 1
@@ -937,7 +1099,7 @@ Types:
                   Offset: 0
                   ByteSize: 48
     - __kind: EventRootType
-      ID: 59
+      ID: 83
       Name: Probe[main.stringArrayArgFrameless]
       ByteSize: 49
       PresenceBitsetSize: 1
@@ -952,7 +1114,7 @@ Types:
                   Offset: 0
                   ByteSize: 48
     - __kind: EventRootType
-      ID: 60
+      ID: 84
       Name: Probe[main.mapArg]
       ByteSize: 9
       PresenceBitsetSize: 1
@@ -967,7 +1129,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 61
+      ID: 85
       Name: Probe[main.bigMapArg]
       ByteSize: 9
       PresenceBitsetSize: 1
@@ -982,7 +1144,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 62
+      ID: 86
       Name: Probe[main.inlined]
       ByteSize: 9
       PresenceBitsetSize: 1
@@ -997,7 +1159,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 63
+      ID: 87
       Name: Probe[main.PointerChainArg]
       ByteSize: 9
       PresenceBitsetSize: 1
@@ -1012,7 +1174,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 64
+      ID: 88
       Name: Probe[main.PointerSmallChainArg]
       ByteSize: 9
       PresenceBitsetSize: 1
@@ -1026,5 +1188,5 @@ Types:
                   Variable: {subprogram: 3, index: 0, name: ptr}
                   Offset: 0
                   ByteSize: 8
-MaxTypeID: 64
+MaxTypeID: 88
 Issues: []
