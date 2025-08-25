@@ -9,6 +9,7 @@
 package probe
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -17,6 +18,7 @@ import (
 	"net/netip"
 	"os"
 	"path/filepath"
+	"runtime/pprof"
 	"slices"
 	"sort"
 	"strings"
@@ -129,10 +131,11 @@ type EBPFProbe struct {
 	eventPool      *ddsync.TypedPool[model.Event]
 	numCPU         int
 
-	ctx       context.Context
-	cancelFnc context.CancelFunc
-	wg        sync.WaitGroup
-	ipc       ipc.Component
+	ctx                    context.Context
+	cancelFnc              context.CancelFunc
+	wg                     sync.WaitGroup
+	ipc                    ipc.Component
+	deadlockMonitorRefresh chan struct{}
 
 	// TC Classifier & raw packets
 	newTCNetDevices           chan model.NetDevice
@@ -690,6 +693,8 @@ func (p *EBPFProbe) Start() error {
 	// start new tc classifier loop
 	go p.startSetupNewTCClassifierLoop()
 
+	go p.startDeadlockMonitor()
+
 	if p.config.RuntimeSecurity.SysCtlEnabled && p.config.RuntimeSecurity.SysCtlSnapshotEnabled {
 		// start sysctl snapshot loop
 		go p.startSysCtlSnapshotLoop()
@@ -958,6 +963,8 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		// do not notify consumers as we are replaying the snapshot after a ruleset reload
 		p.playSnapshot(false)
 	}
+
+	p.refreshDeadlockMonitor()
 
 	var (
 		offset        = 0
@@ -2535,23 +2542,24 @@ func NewEBPFProbe(probe *Probe, config *config.Config, ipc ipc.Component, opts O
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
 	p := &EBPFProbe{
-		probe:                probe,
-		config:               config,
-		opts:                 opts,
-		statsdClient:         opts.StatsdClient,
-		discarderRateLimiter: rate.NewLimiter(rate.Every(time.Second/5), 100),
-		kfilters:             make(map[eval.EventType]kfilters.KFilters),
-		Erpc:                 nerpc,
-		erpcRequest:          erpc.NewERPCRequest(0),
-		isRuntimeDiscarded:   !probe.Opts.DontDiscardRuntime,
-		ctx:                  ctx,
-		cancelFnc:            cancelFnc,
-		newTCNetDevices:      make(chan model.NetDevice, 16),
-		onDemandRateLimiter:  rate.NewLimiter(onDemandRate, onDemandBurst),
-		playSnapShotState:    atomic.NewBool(false),
-		dnsLayer:             new(layers.DNS),
-		ipc:                  ipc,
-		BPFFilterTruncated:   atomic.NewUint64(0),
+		probe:                  probe,
+		config:                 config,
+		opts:                   opts,
+		statsdClient:           opts.StatsdClient,
+		discarderRateLimiter:   rate.NewLimiter(rate.Every(time.Second/5), 100),
+		kfilters:               make(map[eval.EventType]kfilters.KFilters),
+		Erpc:                   nerpc,
+		erpcRequest:            erpc.NewERPCRequest(0),
+		isRuntimeDiscarded:     !probe.Opts.DontDiscardRuntime,
+		ctx:                    ctx,
+		cancelFnc:              cancelFnc,
+		deadlockMonitorRefresh: make(chan struct{}, 1),
+		newTCNetDevices:        make(chan model.NetDevice, 16),
+		onDemandRateLimiter:    rate.NewLimiter(onDemandRate, onDemandBurst),
+		playSnapShotState:      atomic.NewBool(false),
+		dnsLayer:               new(layers.DNS),
+		ipc:                    ipc,
+		BPFFilterTruncated:     atomic.NewUint64(0),
 	}
 
 	if err := p.detectKernelVersion(); err != nil {
@@ -3069,6 +3077,50 @@ func (p *EBPFProbe) addToDNSResolver(dnsLayer *layers.DNS) {
 				p.Resolvers.DNSResolver.AddNew(string(answer.Name), ip)
 			} else {
 				seclog.Errorf("DNS response with an invalid IP received: %v", ip)
+			}
+		}
+	}
+}
+
+func (p *EBPFProbe) refreshDeadlockMonitor() {
+	select {
+	case p.deadlockMonitorRefresh <- struct{}{}:
+	default:
+		// deadlock monitor channel is full, we can ignore
+	}
+}
+
+func (p *EBPFProbe) startDeadlockMonitor() {
+	// if we don't get any events for a while, we might be deadlocked
+	// let's log a warning and print the stack traces of all goroutines
+	const deadlockMonitorInterval = 30 * time.Second
+
+	// after 3 deadlock errors, let's panic to give a chance to restart and recover
+	const maxDeadlockErrors = 3
+
+	var counter = 0
+
+	for {
+		select {
+		case <-p.ctx.Done():
+			return
+		case <-p.deadlockMonitorRefresh:
+			if counter != 0 {
+				seclog.Errorf("deadlock monitor recovered")
+				counter = 0
+			}
+			continue
+		case <-time.After(deadlockMonitorInterval):
+			var buff bytes.Buffer
+			if err := pprof.Lookup("goroutine").WriteTo(&buff, 2); err != nil {
+				seclog.Errorf("potential deadlock detected in the eBPF probe, but failed to write goroutine profile: %v", err)
+			} else {
+				seclog.Errorf("potential deadlock detected in the eBPF probe goroutines: %s", buff.String())
+			}
+
+			counter++
+			if counter >= maxDeadlockErrors {
+				panic("restarting system-probe because of potential deadlock")
 			}
 		}
 	}
