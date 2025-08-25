@@ -151,11 +151,6 @@ func (c *memoryCollector) collectDeviceMemoryV2Metrics() ([]Metric, error) {
 			Type:  metrics.GaugeType,
 		},
 		{
-			Name:  "memory.used",
-			Value: float64(memInfo.Used),
-			Type:  metrics.GaugeType,
-		},
-		{
 			Name:  "memory.reserved",
 			Value: float64(memInfo.Reserved),
 			Type:  metrics.GaugeType,
@@ -174,11 +169,6 @@ func (c *memoryCollector) collectDeviceMemoryV1Metrics() ([]Metric, error) {
 		{
 			Name:  "memory.free",
 			Value: float64(memInfo.Free),
-			Type:  metrics.GaugeType,
-		},
-		{
-			Name:  "memory.used",
-			Value: float64(memInfo.Used),
 			Type:  metrics.GaugeType,
 		},
 	}, nil
