@@ -49,7 +49,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var loclistErrorLogLimiter = rate.NewLimiter(rate.Every(1*time.Minute), 1)
+var loclistErrorLogLimiter = rate.NewLimiter(rate.Every(10*time.Minute), 10)
+var invalidGoRuntimeTypeLogLimiter = rate.NewLimiter(rate.Every(10*time.Minute), 10)
 
 // TODO: This code creates a lot of allocations, but we could greatly reduce
 // the number of distinct allocations by using a batched allocation scheme.
@@ -250,7 +251,22 @@ func generateIR(
 	for tid := range typeIndex.allGoTypes() {
 		goType, err := typeTab.ParseGoType(tid)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse go type: %w", err)
+			if !invalidGoRuntimeTypeLogLimiter.Allow() {
+				continue
+			}
+			// We've seen situations where the GoRuntimeType values are bogus.
+			// That shouldn't prevent us from generating IR.
+			dwarfOffset, offsetOk := typeIndex.resolveDwarfOffset(tid)
+			irTypeID, idOk := typeCatalog.typesByDwarfType[dwarfOffset]
+			var typeName string
+			if t, ok := typeCatalog.typesByID[irTypeID]; offsetOk && idOk && ok {
+				typeName = t.GetName()
+			}
+			log.Warnf(
+				"invalid go runtime type id for %q (%d) (dwarf offset: %#x): %v",
+				typeName, irTypeID, dwarfOffset, err,
+			)
+			continue
 		}
 		methodBuf, err = goType.Methods(methodBuf[:0])
 		if err != nil {
