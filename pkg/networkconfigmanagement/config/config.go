@@ -22,6 +22,8 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+var checkName = "network_config_management"
+
 // AuthCredentials holds the authentication credentials to connect to a network device.
 type AuthCredentials struct { // auth_credentials
 	Username string `yaml:"username"`
@@ -30,9 +32,9 @@ type AuthCredentials struct { // auth_credentials
 	Protocol string `yaml:"remote"`
 	// SSH-specific configurations
 	// TODO: Move to separate struct if needed (e.g., SSHConfig)
-	SSHCiphers      []string `yaml:"ssh_ciphers,omitempty"`
-	SSHKeyExchanges []string `yaml:"ssh_key_exchanges,omitempty"`
-	SSHHostKeyAlgos []string `yaml:"ssh_host_key_algorithms,omitempty"`
+	SSHCiphers      []string `yaml:"ssh_ciphers"`
+	SSHKeyExchanges []string `yaml:"ssh_key_exchanges"`
+	SSHHostKeyAlgos []string `yaml:"ssh_host_key_algorithms"`
 	// TODO: Uncomment and implement SSH key support
 	//SshKeyPath       string `yaml:"sshKeyPath"`       // path to the SSH key file
 	//SshKeyPassphrase string `yaml:"sshKeyPassphrase"` // passphrase for SSH key if needed
@@ -43,8 +45,8 @@ type AuthCredentials struct { // auth_credentials
 // DeviceConfig holds the info to connect to a network device, including its IP address and authentication credentials.
 type DeviceConfig struct {
 	Namespace            string          `yaml:"namespace"`
-	IPAddress            string          `yaml:"ip_address"`                       // ip address of the network device, e.g., "10.0.0.1"
-	CollectStartupConfig bool            `yaml:"collect_startup_config,omitempty"` // whether to collect the startup config (default: false)
+	IPAddress            string          `yaml:"ip_address"`             // ip address of the network device, e.g., "10.0.0.1"
+	CollectStartupConfig bool            `yaml:"collect_startup_config"` // whether to collect the startup config (default: false)
 	Auth                 AuthCredentials `yaml:"auth"`
 }
 
@@ -56,8 +58,8 @@ type NcmConfig struct {
 
 // InitConfig holds the initial configuration for the NCM component, including the namespace and check interval.
 type InitConfig struct {
-	Namespace     string `yaml:"namespace"`      // Namespace for the NCM devices where configs are retrieved from, to help match a device on DD
-	CheckInterval int    `yaml:"check_interval"` // Interval in seconds to check for config changes
+	Namespace             string `yaml:"namespace"`               // Namespace for the NCM devices where configs are retrieved from, to help match a device on DD
+	MinCollectionInterval int    `yaml:"min_collection_interval"` // Interval in seconds to check for config changes
 }
 
 // GetNCMConfigsFromAgent retrieves the NCM configurations from the agent's config check endpoint (from core check)
@@ -82,7 +84,7 @@ func GetNCMConfigsFromAgent(client ipc.HTTPClient) (*NcmConfig, error) {
 	// Iterate through the instances (devices) and parse the device configs
 	var deviceConfigs []DeviceConfig
 	for _, c := range cr.Configs {
-		if c.Config.Name == "network_config_management" { // Check name for NCM
+		if c.Config.Name == checkName { // Check name for NCM
 			// Parse each instance / device
 			for _, instance := range c.Config.Instances {
 				var deviceConfig DeviceConfig

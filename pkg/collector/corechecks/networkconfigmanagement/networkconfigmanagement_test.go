@@ -11,17 +11,17 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	"github.com/stretchr/testify/mock"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	agentconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	ncmremote "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/remote"
 )
 

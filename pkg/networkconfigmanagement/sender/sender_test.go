@@ -10,9 +10,10 @@ package sender
 import (
 	"bytes"
 	"encoding/json"
-	"github.com/stretchr/testify/mock"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/mock"
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"

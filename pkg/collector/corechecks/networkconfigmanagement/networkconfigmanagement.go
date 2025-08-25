@@ -10,10 +10,9 @@ package networkconfigmanagement
 
 import (
 	"fmt"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/snmp/utils"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -24,6 +23,7 @@ import (
 	ncmremote "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/remote"
 	ncmreport "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/report"
 	ncmsender "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/sender"
+	"github.com/DataDog/datadog-agent/pkg/snmp/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 
@@ -154,8 +154,8 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 
 // Interval returns the interval at which the check should run (default 15 minutes for now)
 func (c *Check) Interval() time.Duration {
-	if c.initConfig != nil && c.initConfig.CheckInterval > 0 {
-		return time.Duration(c.initConfig.CheckInterval)
+	if c.initConfig != nil && c.initConfig.MinCollectionInterval > 0 {
+		return time.Duration(c.initConfig.MinCollectionInterval)
 	}
 	return defaultCheckInterval
 }
