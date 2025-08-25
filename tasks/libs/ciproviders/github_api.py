@@ -15,7 +15,6 @@ from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import GITHUB_REPO_NAME
 from tasks.libs.common.git import get_default_branch
 from tasks.libs.common.user_interactions import yes_no_question
-from tasks.libs.common.utils import running_in_ci
 
 try:
     import semver
@@ -523,6 +522,8 @@ class GithubAPI:
             - A fake login user/password to reach public repositories
             - An app token through the GITHUB_APP_ID & GITHUB_KEY_B64 environment variables (required for CI)
         """
+        from tasks.libs.common.utils import running_in_ci
+
         if "GITHUB_TOKEN" in os.environ:
             return Auth.Token(os.environ["GITHUB_TOKEN"])
         elif not running_in_ci():
