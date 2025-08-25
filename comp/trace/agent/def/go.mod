@@ -1,8 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/trace/agent/def
 
-go 1.24
-
-toolchain go1.24.6
+go 1.24.0
 
 require (
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.71.0-devel.0.20250820180704-be0d2d237646

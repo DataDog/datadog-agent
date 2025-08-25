@@ -1,8 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter
 
-go 1.24
-
-toolchain go1.24.6
+go 1.24.0
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.67.0
