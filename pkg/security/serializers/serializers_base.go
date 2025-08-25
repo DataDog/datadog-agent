@@ -448,7 +448,7 @@ func NewBaseEventSerializer(event *model.Event, rule *rules.Rule) *BaseEventSeri
 		}
 	}
 
-	s.Category = model.GetEventTypeCategory(eventType.String())
+	s.Category = string(model.GetEventTypeCategoryUserFacing(eventType.String()))
 
 	switch eventType {
 	case model.ExitEventType:
