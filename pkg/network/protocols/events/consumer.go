@@ -377,3 +377,23 @@ func pointerToElement[V any](b *Batch, elementIdx int) *V {
 	offset := elementIdx * int(b.Event_size)
 	return (*V)(unsafe.Pointer(uintptr(unsafe.Pointer(&b.Data[0])) + uintptr(offset)))
 }
+
+// KernelAdaptiveConsumer wraps either DirectConsumer or BatchConsumer based on kernel version
+// and provides both Consumer interface and Modifier interface in a single struct
+type KernelAdaptiveConsumer[V any] struct {
+	Consumer[V]                   // Embedded interface for Start/Sync/Stop
+	modifiers   []ddebpf.Modifier // Modifiers for eBPF manager
+}
+
+// Modifiers implements the ModifierProvider interface
+func (k *KernelAdaptiveConsumer[V]) Modifiers() []ddebpf.Modifier {
+	return k.modifiers
+}
+
+// NewKernelAdaptiveConsumer creates a new KernelAdaptiveConsumer with the given consumer and modifiers
+func NewKernelAdaptiveConsumer[V any](consumer Consumer[V], modifiers []ddebpf.Modifier) *KernelAdaptiveConsumer[V] {
+	return &KernelAdaptiveConsumer[V]{
+		Consumer:  consumer,
+		modifiers: modifiers,
+	}
+}

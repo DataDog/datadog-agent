@@ -45,23 +45,30 @@ static __always_inline void http_batch_enqueue_wrapper(void *ctx, conn_tuple_t *
     bpf_memcpy(&event->tuple, tuple, sizeof(conn_tuple_t));
     bpf_memcpy(&event->http, http, sizeof(http_transaction_t));
 
-    // http_batch_enqueue(event);
+    // Check which consumer type to use based on kernel version capability
+    __u64 use_direct_consumer = 0;
+    LOAD_CONSTANT("use_direct_consumer", use_direct_consumer);
 
-    // Check the ringbuffers_enabled constant to decide which output method to use
-    __u64 ringbuffers_enabled = 0;
-    LOAD_CONSTANT("ringbuffers_enabled", ringbuffers_enabled);
-    
-    long perf_ret;
-    if (ringbuffers_enabled) {
-        perf_ret = bpf_ringbuf_output(&http_batch_events, event, sizeof(http_event_t), 0);
+    if (use_direct_consumer) {
+        // Direct consumer path - use perf/ring buffer output (kernel >= 5.4)
+        __u64 ringbuffers_enabled = 0;
+        LOAD_CONSTANT("ringbuffers_enabled", ringbuffers_enabled);
+        
+        long perf_ret;
+        if (ringbuffers_enabled) {
+            perf_ret = bpf_ringbuf_output(&http_batch_events, event, sizeof(http_event_t), 0);
+        } else {
+            u32 cpu = bpf_get_smp_processor_id();
+            perf_ret = bpf_perf_event_output(ctx, &http_batch_events, cpu, event, sizeof(http_event_t));
+        }
+        
+        if (perf_ret < 0) {
+            log_debug("http flush error: %ld", perf_ret);
+            return;
+        }
     } else {
-        u32 cpu = bpf_get_smp_processor_id();
-        perf_ret = bpf_perf_event_output(ctx, &http_batch_events, cpu, event, sizeof(http_event_t));
-    }
-    
-    if (perf_ret < 0) {
-        log_debug("http flush error: %ld", perf_ret);
-        return;
+        // Batch consumer path - use map-based batching (kernel < 5.4)
+        http_batch_enqueue(event);
     }
 }
 
