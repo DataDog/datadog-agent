@@ -18,11 +18,11 @@ import (
 )
 
 type nvlinkCollector struct {
-	device       ddnvml.SafeDevice
+	device       ddnvml.Device
 	totalNVLinks int
 }
 
-func newNVLinkCollector(device ddnvml.SafeDevice) (Collector, error) {
+func newNVLinkCollector(device ddnvml.Device) (Collector, error) {
 	fields := []nvml.FieldValue{
 		{
 			FieldId: nvml.FI_DEV_NVLINK_LINK_COUNT,
@@ -46,8 +46,7 @@ func newNVLinkCollector(device ddnvml.SafeDevice) (Collector, error) {
 }
 
 func (c *nvlinkCollector) DeviceUUID() string {
-	uuid, _ := c.device.GetUUID()
-	return uuid
+	return c.device.GetDeviceInfo().UUID
 }
 
 func (c *nvlinkCollector) Name() CollectorName {

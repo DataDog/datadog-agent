@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
+	utilTypes "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
@@ -39,7 +40,7 @@ type RoleBindingCollector struct {
 // NewRoleBindingCollector creates a new collector for the Kubernetes
 // RoleBinding resource.
 func NewRoleBindingCollector(metadataAsTags utils.MetadataAsTags) *RoleBindingCollector {
-	resourceType := getResourceType(roleBindingName, roleBindingVersion)
+	resourceType := utilTypes.GetResourceType(utilTypes.RoleBindingName, utilTypes.RoleBindingVersion)
 	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
 	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
 
@@ -50,10 +51,10 @@ func NewRoleBindingCollector(metadataAsTags utils.MetadataAsTags) *RoleBindingCo
 			IsMetadataProducer:                   true,
 			IsManifestProducer:                   true,
 			SupportsManifestBuffering:            true,
-			Name:                                 roleBindingName,
+			Name:                                 utilTypes.RoleBindingName,
 			Kind:                                 kubernetes.RoleBindingKind,
 			NodeType:                             orchestrator.K8sRoleBinding,
-			Version:                              roleBindingVersion,
+			Version:                              utilTypes.RoleBindingVersion,
 			LabelsAsTags:                         labelsAsTags,
 			AnnotationsAsTags:                    annotationsAsTags,
 			SupportsTerminatedResourceCollection: true,

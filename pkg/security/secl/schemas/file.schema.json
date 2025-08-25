@@ -49,7 +49,7 @@
         },
         "mount_origin": {
             "type": "string",
-            "enum": ["procfs", "event", "unshare"]
+            "enum": ["procfs", "event", "unshare", "fsmount", "open_tree"]
         }
     },
     "required": [

@@ -8,8 +8,7 @@
 package kubelet
 
 import (
-	"reflect"
-	"regexp"
+	"fmt"
 	"strconv"
 	"testing"
 
@@ -22,6 +21,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -29,7 +29,7 @@ import (
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	commontesting "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common/testing"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -165,12 +165,14 @@ func (suite *ProviderTestSuite) SetupTest() {
 		},
 	}
 
+	mockConfig := configmock.New(suite.T())
+	mockConfig.SetWithoutSource("dd_container_exclude", "name:agent-excluded")
+	mockConfig.SetWithoutSource("dd_container_exclude_metrics", "image:^hkaj/demo-app$")
+	mockConfig.SetWithoutSource("dd_container_exclude_logs", "name:*") // should not affect metrics
+	mockFilterStore := workloadfilterfxmock.SetupMockFilter(suite.T())
+
 	p, err := NewProvider(
-		&containers.Filter{
-			Enabled:          true,
-			NameExcludeList:  []*regexp.Regexp{regexp.MustCompile("agent-excluded")},
-			ImageExcludeList: []*regexp.Regexp{regexp.MustCompile("^hkaj/demo-app$")},
-		},
+		mockFilterStore,
 		config,
 		store,
 		podUtils,
@@ -228,7 +230,7 @@ func (suite *ProviderTestSuite) TestExpectedMetricsShowUp() {
 			}
 
 			err = suite.provider.Provide(kubeletMock, suite.mockSender)
-			if !reflect.DeepEqual(err, tt.want.err) {
+			if err != tt.want.err {
 				t.Errorf("Collect() error = %v, wantErr %v", err, tt.want.err)
 				return
 			}
@@ -282,10 +284,9 @@ func (suite *ProviderTestSuite) TestPVCMetricsExcludedByNamespace() {
 		suite.T().Fatalf("error created kubelet mock: %v", err)
 	}
 
-	suite.provider.filter = &containers.Filter{
-		NamespaceExcludeList: []*regexp.Regexp{regexp.MustCompile("default")},
-		Enabled:              true,
-	}
+	mockConfig := configmock.New(suite.T())
+	mockConfig.SetWithoutSource("container_exclude", "kube_namespace:default")
+	suite.provider.filterStore = workloadfilterfxmock.SetupMockFilter(suite.T())
 
 	err = suite.provider.Provide(kubeletMock, suite.mockSender)
 	if err != nil {
@@ -337,10 +338,96 @@ func (suite *ProviderTestSuite) TestSendAlwaysCounter() {
 		suite.T().Fatalf("unexpected error returned by call to provider.Provide: %v", err)
 	}
 
-	// expected counters show up
-	suite.mockSender.AssertMetric(suite.T(), "MonotonicCount", common.KubeletMetricsPrefix+"kubelet.evictions", 3, "", append(commontesting.InstanceTags, "eviction_signal:allocatableMemory.available"))
-	suite.mockSender.AssertMetric(suite.T(), "MonotonicCount", common.KubeletMetricsPrefix+"kubelet.evictions", 3, "", append(commontesting.InstanceTags, "eviction_signal:memory.available"))
-	suite.mockSender.AssertMetric(suite.T(), "MonotonicCount", common.KubeletMetricsPrefix+"kubelet.pleg.discard_events", 0, "", commontesting.InstanceTags)
+	// expected counters show up with flushFirstValue=false on first run
+	suite.mockSender.AssertMonotonicCount(suite.T(), "MonotonicCountWithFlushFirstValue", common.KubeletMetricsPrefix+"kubelet.evictions", 3, "", append(commontesting.InstanceTags, "eviction_signal:allocatableMemory.available"), false)
+	suite.mockSender.AssertMonotonicCount(suite.T(), "MonotonicCountWithFlushFirstValue", common.KubeletMetricsPrefix+"kubelet.evictions", 3, "", append(commontesting.InstanceTags, "eviction_signal:memory.available"), false)
+	suite.mockSender.AssertMonotonicCount(suite.T(), "MonotonicCountWithFlushFirstValue", common.KubeletMetricsPrefix+"kubelet.pleg.discard_events", 0, "", commontesting.InstanceTags, false)
+}
+
+func (suite *ProviderTestSuite) TestFirstRunTracking() {
+	response := commontesting.NewEndpointResponse(
+		"../../testdata/kubelet_metrics_1_21.txt", 200, nil)
+
+	kubeletMock, err := commontesting.CreateKubeletMock(response, endpoint)
+	if err != nil {
+		suite.T().Fatalf("error created kubelet mock: %v", err)
+	}
+
+	// Verify initial state
+	assert.True(suite.T(), suite.provider.firstRun, "Provider should start with firstRun = true")
+
+	// First run - flushFirstValue should be false (!firstRun = !true = false)
+	err = suite.provider.Provide(kubeletMock, suite.mockSender)
+	if err != nil {
+		suite.T().Fatalf("unexpected error returned by call to provider.Provide: %v", err)
+	}
+
+	// Verify firstRun is now false after successful call
+	assert.False(suite.T(), suite.provider.firstRun, "Provider should have firstRun = false after successful call")
+
+	// Reset mock sender for second run
+	suite.mockSender.ResetCalls()
+
+	// Second run - flushFirstValue should be true (!firstRun = !false = true)
+	err = suite.provider.Provide(kubeletMock, suite.mockSender)
+	if err != nil {
+		suite.T().Fatalf("unexpected error returned by call to provider.Provide: %v", err)
+	}
+
+	// Verify firstRun remains false
+	assert.False(suite.T(), suite.provider.firstRun, "Provider should keep firstRun = false after subsequent successful calls")
+}
+
+func (suite *ProviderTestSuite) TestSendAlwaysCounterSubsequentRuns() {
+	response := commontesting.NewEndpointResponse(
+		"../../testdata/kubelet_metrics_1_21.txt", 200, nil)
+
+	kubeletMock, err := commontesting.CreateKubeletMock(response, endpoint)
+	if err != nil {
+		suite.T().Fatalf("error created kubelet mock: %v", err)
+	}
+
+	// First run to set firstRun = false
+	err = suite.provider.Provide(kubeletMock, suite.mockSender)
+	if err != nil {
+		suite.T().Fatalf("unexpected error returned by call to provider.Provide: %v", err)
+	}
+
+	// Reset mock calls for second run
+	suite.mockSender.ResetCalls()
+
+	// Second run - flushFirstValue should be true (!firstRun = !false = true)
+	err = suite.provider.Provide(kubeletMock, suite.mockSender)
+	if err != nil {
+		suite.T().Fatalf("unexpected error returned by call to provider.Provide: %v", err)
+	}
+
+	// expected counters show up with flushFirstValue=true on subsequent runs
+	suite.mockSender.AssertMonotonicCount(suite.T(), "MonotonicCountWithFlushFirstValue", common.KubeletMetricsPrefix+"kubelet.evictions", 3, "", append(commontesting.InstanceTags, "eviction_signal:allocatableMemory.available"), true)
+	suite.mockSender.AssertMonotonicCount(suite.T(), "MonotonicCountWithFlushFirstValue", common.KubeletMetricsPrefix+"kubelet.evictions", 3, "", append(commontesting.InstanceTags, "eviction_signal:memory.available"), true)
+	suite.mockSender.AssertMonotonicCount(suite.T(), "MonotonicCountWithFlushFirstValue", common.KubeletMetricsPrefix+"kubelet.pleg.discard_events", 0, "", commontesting.InstanceTags, true)
+}
+
+func (suite *ProviderTestSuite) TestFirstRunRemainsOnError() {
+	// Create a mock that returns an error
+	testError := fmt.Errorf("kubelet connection failed")
+	errorResponse := commontesting.NewEndpointResponse(
+		"", 500, testError)
+
+	kubeletMock, err := commontesting.CreateKubeletMock(errorResponse, endpoint)
+	if err != nil {
+		suite.T().Fatalf("error created kubelet mock: %v", err)
+	}
+
+	// Verify initial state
+	assert.True(suite.T(), suite.provider.firstRun, "Provider should start with firstRun = true")
+
+	// Call should fail
+	err = suite.provider.Provide(kubeletMock, suite.mockSender)
+	assert.Error(suite.T(), err, "Provider.Provide should return error on kubelet failure")
+
+	// Verify firstRun remains true after failed call
+	assert.True(suite.T(), suite.provider.firstRun, "Provider should keep firstRun = true after failed call")
 }
 
 func (suite *ProviderTestSuite) TestKubeletContainerLogFilesystemUsedBytes() {

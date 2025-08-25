@@ -19,6 +19,7 @@ import (
 	"sync"
 	"time"
 
+	cerrdefs "github.com/containerd/errdefs"
 	dcontainer "github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
@@ -220,7 +221,7 @@ func (d *DockerUtil) ResolveImageName(ctx context.Context, image string) (string
 	if err != nil {
 		// Only log errors that aren't "not found" because some images may
 		// just not be available in docker inspect.
-		if !client.IsErrNotFound(err) {
+		if !cerrdefs.IsNotFound(err) {
 			d.Unlock()
 			return image, err
 		}
@@ -335,7 +336,7 @@ func (d *DockerUtil) InspectNoCache(ctx context.Context, id string, withSize boo
 	defer cancel()
 
 	container, _, err := d.cli.ContainerInspectWithRaw(ctx, id, withSize)
-	if client.IsErrNotFound(err) {
+	if cerrdefs.IsNotFound(err) {
 		return container, dderrors.NewNotFound(fmt.Sprintf("docker container %s", id))
 	}
 	if err != nil {

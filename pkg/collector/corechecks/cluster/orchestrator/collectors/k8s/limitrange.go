@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
+	utilTypes "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
@@ -39,7 +40,7 @@ type LimitRangeCollector struct {
 // NewLimitRangeCollector creates a new collector for the Kubernetes
 // LimitRange resource.
 func NewLimitRangeCollector(metadataAsTags utils.MetadataAsTags) *LimitRangeCollector {
-	resourceType := getResourceType(limitRangeName, limitRangeVersion)
+	resourceType := utilTypes.GetResourceType(utilTypes.LimitRangeName, utilTypes.LimitRangeVersion)
 	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
 	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
 
@@ -50,10 +51,10 @@ func NewLimitRangeCollector(metadataAsTags utils.MetadataAsTags) *LimitRangeColl
 			IsMetadataProducer:                   true,
 			IsManifestProducer:                   true,
 			SupportsManifestBuffering:            true,
-			Name:                                 limitRangeName,
+			Name:                                 utilTypes.LimitRangeName,
 			Kind:                                 kubernetes.LimitRangeKind,
 			NodeType:                             orchestrator.K8sLimitRange,
-			Version:                              limitRangeVersion,
+			Version:                              utilTypes.LimitRangeVersion,
 			LabelsAsTags:                         labelsAsTags,
 			AnnotationsAsTags:                    annotationsAsTags,
 			SupportsTerminatedResourceCollection: true,

@@ -8,24 +8,17 @@
 package module
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
 )
 
 type processHandler struct {
-	controller     *controller
-	actuator       *actuator.Tenant
+	controller     *Controller
 	scraperHandler procmon.Handler
 }
 
 var _ procmon.Handler = (*processHandler)(nil)
 
 func (c *processHandler) HandleUpdate(update procmon.ProcessesUpdate) {
-	c.controller.store.remove(update.Removals)
-	if len(update.Removals) > 0 {
-		c.actuator.HandleUpdate(actuator.ProcessesUpdate{
-			Removals: update.Removals,
-		})
-	}
+	c.controller.handleRemovals(update.Removals)
 	c.scraperHandler.HandleUpdate(update)
 }

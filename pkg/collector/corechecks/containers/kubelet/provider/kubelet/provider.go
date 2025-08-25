@@ -18,11 +18,13 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadmetafilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/workloadmeta"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/prometheus"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	prom "github.com/DataDog/datadog-agent/pkg/util/prometheus"
 )
@@ -91,15 +93,16 @@ var (
 
 // Provider provides the metrics related to data collected from the `/metrics` Kubelet endpoint
 type Provider struct {
-	filter   *containers.Filter
-	store    workloadmeta.Component
-	podUtils *common.PodUtils
-	tagger   tagger.Component
+	filterStore workloadfilter.Component
+	store       workloadmeta.Component
+	podUtils    *common.PodUtils
+	tagger      tagger.Component
+	firstRun    bool
 	prometheus.Provider
 }
 
 // NewProvider creates and returns a new Provider, configured based on the values passed in.
-func NewProvider(filter *containers.Filter, config *common.KubeletConfig, store workloadmeta.Component, podUtils *common.PodUtils, tagger tagger.Component) (*Provider, error) {
+func NewProvider(filterStore workloadfilter.Component, config *common.KubeletConfig, store workloadmeta.Component, podUtils *common.PodUtils, tagger tagger.Component) (*Provider, error) {
 	// clone instance configuration so we can set our default metrics
 	kubeletConfig := *config
 
@@ -113,10 +116,11 @@ func NewProvider(filter *containers.Filter, config *common.KubeletConfig, store 
 	}
 
 	provider := &Provider{
-		filter:   filter,
-		store:    store,
-		podUtils: podUtils,
-		tagger:   tagger,
+		filterStore: filterStore,
+		store:       store,
+		podUtils:    podUtils,
+		tagger:      tagger,
+		firstRun:    true,
 	}
 
 	transformers := prometheus.Transformers{
@@ -146,13 +150,23 @@ func NewProvider(filter *containers.Filter, config *common.KubeletConfig, store 
 	return provider, nil
 }
 
+// Provide sends the metrics collected and handles first run tracking
+func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) error {
+	err := p.Provider.Provide(kc, sender)
+	if err == nil {
+		// Only set firstRun to false if the call was successful
+		p.firstRun = false
+	}
+	return err
+}
+
 func (p *Provider) sendAlwaysCounter(metricFam *prom.MetricFamily, sender sender.Sender) {
 	metricName := metricFam.Name
 	nameWithNamespace := common.KubeletMetricsPrefix + counterMetrics[metricName]
 
 	for _, metric := range metricFam.Samples {
 		tags := p.MetricTags(metric)
-		sender.MonotonicCount(nameWithNamespace, float64(metric.Value), "", tags)
+		sender.MonotonicCountWithFlushFirstValue(nameWithNamespace, float64(metric.Value), "", tags, !p.firstRun)
 	}
 }
 
@@ -166,9 +180,12 @@ func (p *Provider) appendPodTagsToVolumeMetrics(metricFam *prom.MetricFamily, se
 	for _, metric := range metricFam.Samples {
 		pvcName := metric.Metric["persistentvolumeclaim"]
 		namespace := metric.Metric["namespace"]
-		if pvcName == "" || namespace == "" || p.filter.IsExcluded(nil, "", "", string(namespace)) {
+		filterablePod := workloadmetafilter.CreatePod(&workloadmeta.KubernetesPod{EntityMeta: workloadmeta.EntityMeta{Namespace: string(namespace)}})
+		selectedFilters := workloadfilter.GetPodSharedMetricFilters()
+		if pvcName == "" || namespace == "" || p.filterStore.IsPodExcluded(filterablePod, selectedFilters) {
 			continue
 		}
+
 		tags := p.MetricTags(metric)
 		if podTags := p.podUtils.GetPodTagsByPVC(string(namespace), string(pvcName)); len(podTags) > 0 {
 			tags = utils.ConcatenateTags(tags, podTags)
@@ -180,7 +197,7 @@ func (p *Provider) appendPodTagsToVolumeMetrics(metricFam *prom.MetricFamily, se
 func (p *Provider) kubeletContainerLogFilesystemUsedBytes(metricFam *prom.MetricFamily, sender sender.Sender) {
 	metricName := common.KubeletMetricsPrefix + "kubelet.container.log_filesystem.used_bytes"
 	for _, metric := range metricFam.Samples {
-		cID, err := common.GetContainerID(p.store, metric.Metric, p.filter)
+		cID, err := common.GetContainerID(p.store, metric.Metric, p.filterStore)
 
 		if err == common.ErrContainerExcluded {
 			log.Debugf("Skipping excluded container: %s/%s/%s:%s", metric.Metric["namespace"], metric.Metric["pod"], metric.Metric["container"], cID)

@@ -253,7 +253,10 @@ func (c *typeCatalog) buildType(
 				Pointee:          pointee,
 			}, nil
 		}
-		return &ir.BaseType{
+		// unsafe.Pointer is a special case where the type is represented
+		// in DWARF as a PointerType, but without a pointee or specified Go kind.
+		goAttrs.GoKind = reflect.UnsafePointer
+		return &ir.VoidPointerType{
 			TypeCommon:       common,
 			GoTypeAttributes: goAttrs,
 		}, nil
@@ -271,7 +274,7 @@ func (c *typeCatalog) buildType(
 		return &ir.StructureType{
 			TypeCommon:       common,
 			GoTypeAttributes: goAttrs,
-			Fields:           fields,
+			RawFields:        fields,
 		}, nil
 	case dwarf.TagTypedef:
 		getUnderlyingType := func() (ir.Type, error) {
@@ -325,6 +328,7 @@ func (c *typeCatalog) buildType(
 			if err != nil {
 				return nil, err
 			}
+			common.ByteSize = underlyingType.GetByteSize()
 			headerPtrType, ok := underlyingType.(*ir.PointerType)
 			if !ok {
 				return nil, fmt.Errorf(

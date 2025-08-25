@@ -36,6 +36,8 @@ type FileSerializer struct {
 	Path string `json:"path,omitempty"`
 	// File basename
 	Name string `json:"name,omitempty"`
+	// File extension
+	Extension string `json:"extension,omitempty"`
 	// Error message from path resolution
 	PathResolutionError string `json:"path_resolution_error,omitempty"`
 	// File inode number
@@ -82,6 +84,10 @@ type FileSerializer struct {
 	MountSource string `json:"mount_source,omitempty"`
 	// MountOrigin origin of the mount
 	MountOrigin string `json:"mount_origin,omitempty"`
+	// MountVisible origin of the mount
+	MountVisible *bool `json:"mount_visible,omitempty"`
+	// MountDetached origin of the mount
+	MountDetached *bool `json:"mount_detached,omitempty"`
 
 	FileMetadata *FileMetadataSerializer `json:"metadata,omitempty"`
 }
@@ -493,6 +499,10 @@ type MountEventSerializer struct {
 	MountRootPathResolutionError string `json:"mountpoint.path_error,omitempty"`
 	// Mount source path error
 	MountSourcePathResolutionError string `json:"source.path_error,omitempty"`
+	// Mount is not attached to the VFS tree
+	Detached bool `json:"detached,omitempty"`
+	// Mount is not visible in the VFS tree
+	Visible bool `json:"visible,omitempty"`
 }
 
 // SecurityProfileContextSerializer serializes the security profile context in an event
@@ -756,6 +766,7 @@ func newFileSerializer(fe *model.FileEvent, e *model.Event, forceInode uint64, m
 		Path:                e.FieldHandlers.ResolveFilePath(e, fe),
 		PathResolutionError: fe.GetPathResolutionError(),
 		Name:                e.FieldHandlers.ResolveFileBasename(e, fe),
+		Extension:           e.FieldHandlers.ResolveFileExtension(e, fe),
 		Inode:               createNumPointer(inode),
 		MountID:             createNumPointer(fe.MountID),
 		Filesystem:          e.FieldHandlers.ResolveFileFilesystem(e, fe),
@@ -773,6 +784,13 @@ func newFileSerializer(fe *model.FileEvent, e *model.Event, forceInode uint64, m
 		MountPath:           fe.MountPath,
 		MountSource:         model.MountSourceToString(fe.MountSource),
 		MountOrigin:         model.MountOriginToString(fe.MountOrigin),
+	}
+
+	if fe.MountVisibilityResolved {
+		visible := fe.MountVisible
+		detached := fe.MountDetached
+		fs.MountVisible = &visible
+		fs.MountDetached = &detached
 	}
 
 	if metadata != nil {
@@ -887,8 +905,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 
 		if len(ps.CGroup.CGroupID) > 0 {
 			psSerializer.CGroup = &CGroupContextSerializer{
-				ID:      string(ps.CGroup.CGroupID),
-				Manager: ps.CGroup.CGroupManager,
+				ID: string(ps.CGroup.CGroupID),
 			}
 		}
 
@@ -1089,9 +1106,6 @@ func newConnectEventSerializer(e *model.Event) *ConnectEventSerializer {
 func newMountEventSerializer(e *model.Event) *MountEventSerializer {
 	fh := e.FieldHandlers
 
-	//src, srcErr := , e.Mount.MountPointPathResolutionError
-	//resolvers.PathResolver.ResolveMountRoot(e, &e.Mount.Mount)
-	//dst, dstErr := resolvers.PathResolver.ResolveMountPoint(e, &e.Mount.Mount)
 	mountPointPath := fh.ResolveMountPointPath(e, &e.Mount)
 	mountSourcePath := fh.ResolveMountSourcePath(e, &e.Mount)
 
@@ -1113,6 +1127,8 @@ func newMountEventSerializer(e *model.Event) *MountEventSerializer {
 		FSType:          e.Mount.GetFSType(),
 		MountPointPath:  mountPointPath,
 		MountSourcePath: mountSourcePath,
+		Detached:        e.Mount.Detached,
+		Visible:         e.Mount.Visible,
 	}
 
 	// potential errors retrieved from ResolveMountPointPath and ResolveMountSourcePath
@@ -1135,12 +1151,19 @@ func newNetworkDeviceSerializer(deviceCtx *model.NetworkDeviceContext, e *model.
 }
 
 func newRawPacketEventSerializer(rp *model.RawPacketEvent, e *model.Event) *RawPacketSerializer {
-	return &RawPacketSerializer{
+	rps := &RawPacketSerializer{
 		NetworkContextSerializer: newNetworkContextSerializer(e, &rp.NetworkContext),
 		TLSContext: &TLSContextSerializer{
 			Version: model.TLSVersion(rp.TLSContext.Version).String(),
 		},
 	}
+
+	if e.GetEventType() == model.RawPacketActionEventType {
+		rps.Dropped = new(bool)
+		*rps.Dropped = true
+	}
+
+	return rps
 }
 
 func newNetworkStatsSerializer(networkStats *model.NetworkStats, _ *model.Event) *NetworkStatsSerializer {
@@ -1324,69 +1347,29 @@ func newSecurityProfileContextSerializer(event *model.Event, e *model.SecurityPr
 }
 
 func newSetSockOptEventSerializer(e *model.Event) *SetSockOptEventSerializer {
-
+	SetSockOptEventSerializer := SetSockOptEventSerializer{
+		SocketType:         model.SocketType(e.SetSockOpt.SocketType).String(),
+		SocketProtocol:     model.SocketProtocol(e.SetSockOpt.SocketProtocol).String(),
+		SocketFamily:       model.SocketFamily(e.SetSockOpt.SocketFamily).String(),
+		Level:              model.SetSockOptLevel(e.SetSockOpt.Level).String(),
+		IsFilterTruncated:  e.SetSockOpt.IsFilterTruncated,
+		FilterLen:          e.SetSockOpt.FilterLen,
+		FilterInstructions: e.FieldHandlers.ResolveSetSockOptFilterInstructions(e, &e.SetSockOpt),
+		FilterHash:         e.FieldHandlers.ResolveSetSockOptFilterHash(e, &e.SetSockOpt),
+	}
 	switch e.SetSockOpt.Level {
 	case syscall.SOL_SOCKET:
-		return &SetSockOptEventSerializer{
-			SocketType:         model.SocketType(e.SetSockOpt.SocketType).String(),
-			SocketProtocol:     model.SocketProtocol(e.SetSockOpt.SocketProtocol).String(),
-			SocketFamily:       model.SocketFamily(e.SetSockOpt.SocketFamily).String(),
-			Level:              model.SetSockOptLevel(e.SetSockOpt.Level).String(),
-			OptName:            model.SetSockOptOptNameSolSocket(e.SetSockOpt.OptName).String(),
-			IsFilterTruncated:  e.SetSockOpt.IsFilterTruncated,
-			FilterLen:          e.SetSockOpt.FilterLen,
-			FilterInstructions: e.FieldHandlers.ResolveSetSockOptFilterInstructions(e, &e.SetSockOpt),
-			FilterHash:         e.FieldHandlers.ResolveSetSockOptFilterHash(e, &e.SetSockOpt),
-		}
+		SetSockOptEventSerializer.OptName = model.SetSockOptOptNameSolSocket(e.SetSockOpt.OptName).String()
 	case syscall.SOL_TCP:
-		return &SetSockOptEventSerializer{
-			SocketType:         model.SocketType(e.SetSockOpt.SocketType).String(),
-			SocketProtocol:     model.SocketProtocol(e.SetSockOpt.SocketProtocol).String(),
-			SocketFamily:       model.SocketFamily(e.SetSockOpt.SocketFamily).String(),
-			Level:              model.SetSockOptLevel(e.SetSockOpt.Level).String(),
-			OptName:            model.SetSockOptOptNameTCP(e.SetSockOpt.OptName).String(),
-			IsFilterTruncated:  e.SetSockOpt.IsFilterTruncated,
-			FilterLen:          e.SetSockOpt.FilterLen,
-			FilterInstructions: e.FieldHandlers.ResolveSetSockOptFilterInstructions(e, &e.SetSockOpt),
-			FilterHash:         e.FieldHandlers.ResolveSetSockOptFilterHash(e, &e.SetSockOpt),
-		}
+		SetSockOptEventSerializer.OptName = model.SetSockOptOptNameTCP(e.SetSockOpt.OptName).String()
 	case syscall.SOL_IP:
-		return &SetSockOptEventSerializer{
-			SocketType:         model.SocketType(e.SetSockOpt.SocketType).String(),
-			SocketProtocol:     model.SocketProtocol(e.SetSockOpt.SocketProtocol).String(),
-			SocketFamily:       model.SocketFamily(e.SetSockOpt.SocketFamily).String(),
-			Level:              model.SetSockOptLevel(e.SetSockOpt.Level).String(),
-			OptName:            model.SetSockOptOptNameIP(e.SetSockOpt.OptName).String(),
-			IsFilterTruncated:  e.SetSockOpt.IsFilterTruncated,
-			FilterLen:          e.SetSockOpt.FilterLen,
-			FilterInstructions: e.FieldHandlers.ResolveSetSockOptFilterInstructions(e, &e.SetSockOpt),
-			FilterHash:         e.FieldHandlers.ResolveSetSockOptFilterHash(e, &e.SetSockOpt),
-		}
+		SetSockOptEventSerializer.OptName = model.SetSockOptOptNameIP(e.SetSockOpt.OptName).String()
 	case syscall.SOL_IPV6:
-		return &SetSockOptEventSerializer{
-			SocketType:         model.SocketType(e.SetSockOpt.SocketType).String(),
-			SocketProtocol:     model.SocketProtocol(e.SetSockOpt.SocketProtocol).String(),
-			SocketFamily:       model.SocketFamily(e.SetSockOpt.SocketFamily).String(),
-			Level:              model.SetSockOptLevel(e.SetSockOpt.Level).String(),
-			OptName:            model.SetSockOptOptNameIPv6(e.SetSockOpt.OptName).String(),
-			IsFilterTruncated:  e.SetSockOpt.IsFilterTruncated,
-			FilterLen:          e.SetSockOpt.FilterLen,
-			FilterInstructions: e.FieldHandlers.ResolveSetSockOptFilterInstructions(e, &e.SetSockOpt),
-			FilterHash:         e.FieldHandlers.ResolveSetSockOptFilterHash(e, &e.SetSockOpt),
-		}
+		SetSockOptEventSerializer.OptName = model.SetSockOptOptNameIPv6(e.SetSockOpt.OptName).String()
 	default:
-		return &SetSockOptEventSerializer{
-			SocketType:         model.SocketType(e.SetSockOpt.SocketType).String(),
-			SocketProtocol:     model.SocketProtocol(e.SetSockOpt.SocketProtocol).String(),
-			SocketFamily:       model.SocketFamily(e.SetSockOpt.SocketFamily).String(),
-			Level:              model.SetSockOptLevel(e.SetSockOpt.Level).String(),
-			OptName:            fmt.Sprintf("%d", e.SetSockOpt.OptName),
-			IsFilterTruncated:  e.SetSockOpt.IsFilterTruncated,
-			FilterLen:          e.SetSockOpt.FilterLen,
-			FilterInstructions: e.FieldHandlers.ResolveSetSockOptFilterInstructions(e, &e.SetSockOpt),
-			FilterHash:         e.FieldHandlers.ResolveSetSockOptFilterHash(e, &e.SetSockOpt),
-		}
+		SetSockOptEventSerializer.OptName = fmt.Sprintf("%d", e.SetSockOpt.OptName)
 	}
+	return &SetSockOptEventSerializer
 }
 
 func newCGroupWriteEventSerializer(e *model.Event) *CGroupWriteEventSerializer {
@@ -1443,10 +1426,8 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule) *EventSerializer {
 	}
 
 	if cgroupID := event.FieldHandlers.ResolveCGroupID(event, event.CGroupContext); cgroupID != "" {
-		manager := event.FieldHandlers.ResolveCGroupManager(event, event.CGroupContext)
 		s.CGroupContextSerializer = &CGroupContextSerializer{
 			ID:        string(event.CGroupContext.CGroupID),
-			Manager:   manager,
 			Variables: newVariablesContext(event, rule, "cgroup."),
 		}
 	}
@@ -1692,7 +1673,7 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule) *EventSerializer {
 		s.SyscallContextSerializer = newSyscallContextSerializer(&event.Exec.SyscallContext, event, func(ctx *SyscallContextSerializer, args *SyscallArgsSerializer) {
 			ctx.Exec = args
 		})
-	case model.RawPacketEventType:
+	case model.RawPacketFilterEventType, model.RawPacketActionEventType:
 		s.RawPacketSerializer = newRawPacketEventSerializer(&event.RawPacket, event)
 	case model.NetworkFlowMonitorEventType:
 		s.NetworkFlowMonitorSerializer = newNetworkFlowMonitorSerializer(&event.NetworkFlowMonitor, event)

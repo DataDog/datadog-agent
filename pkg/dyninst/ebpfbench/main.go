@@ -27,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
-	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
 func getSampleBinaryPath() (string, error) {
@@ -63,17 +62,13 @@ func runBenchmark() error {
 
 	fmt.Printf("loading binary %s\n", binPath)
 	// Load the binary and generate the IR.
-	binary, err := safeelf.Open(binPath)
+	obj, err := object.OpenElfFile(binPath)
 	if err != nil {
 		return err
 	}
-	defer func() { binary.Close() }()
+	defer func() { _ = obj.Close() }()
 
 	probes, err := testprogs.GetProbeDefinitions("busyloop")
-	if err != nil {
-		return err
-	}
-	obj, err := object.NewElfObject(binary)
 	if err != nil {
 		return err
 	}
@@ -126,7 +121,7 @@ func runBenchmark() error {
 		return err
 	}
 
-	textSection, err := object.FindTextSectionHeader(obj.File)
+	textSection, err := object.FindTextSectionHeader(obj.Underlying.Elf)
 	if err != nil {
 		return err
 	}

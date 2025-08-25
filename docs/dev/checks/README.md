@@ -61,6 +61,10 @@ inherits from `AgentCheck` and implements the `check` method:
 from datadog_checks.checks import AgentCheck
 
 class MyCheck(AgentCheck):
+    def __init__(self, name, init_config, instances):
+        super().__init__(name, init_config, instances)
+        # Read config, set up instances, initialize checks
+        # ...
     def check(self, instance):
         # Collect metrics, emit events, submit service checks,
         # ...
@@ -135,11 +139,21 @@ checks code.
 Scenario: You have implemented a custom check called `hello_world` and you would
 like to run this with a local Agent build.
 
+Example contents of `hello_world.yaml`:
+```yaml
+instances:
+  - only_one_instance: true
+```
+
+The contents of the instance item are not important, but if an instance is not present the agent will not run the check.
+
 Example contents of `hello_world.py`:
 ```python
 from datadog_checks.checks import AgentCheck
 
 class MyCheck(AgentCheck):
+    def __init__(self, name, init_config, instances):
+        super().__init__(name, init_config, instances)
     def check(self, instance):
         self.gauge('hello.world', 1.23, tags=['foo:bar'])
 ```
@@ -176,7 +190,8 @@ In order for python to find this package, we must do two things:
 correctly.
 
 #### Example for virtualenv
-(see also the notes in [../agent_dev_env.md](../agent_dev_env.md#python-dependencies)):
+
+(see also the notes in [manual setup](https://datadoghq.dev/datadog-agent/setup/manual/#python-dependencies)):
 
 1. `python3 -m pip install virtualenv`
 1. `virtualenv $GOPATH/src/github.com/DataDog/datadog-agent/venv`

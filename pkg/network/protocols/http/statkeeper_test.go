@@ -298,6 +298,30 @@ func TestHTTPCorrectness(t *testing.T) {
 		require.Len(t, stats, 0)
 	})
 
+	t.Run("invalid status code", func(t *testing.T) {
+		cfg := config.New()
+		cfg.MaxHTTPStatsBuffered = 1000
+		libtelemetry.Clear()
+		tel := NewTelemetry("http")
+		sk := NewStatkeeper(cfg, tel, NewIncompleteBuffer(cfg, tel))
+		tx := generateIPv4HTTPTransaction(
+			util.AddressFromString("1.1.1.1"),
+			util.AddressFromString("2.2.2.2"),
+			1234,
+			8080,
+			"/get",
+			700,
+			30*time.Millisecond,
+		)
+
+		sk.Process(tx)
+		tel.Log()
+		require.Equal(t, int64(1), tel.invalidStatusCode.Get())
+
+		stats := sk.GetAndResetAllStats()
+		require.Len(t, stats, 0)
+	})
+
 	t.Run("Empty path", func(t *testing.T) {
 		cfg := config.New()
 		cfg.MaxHTTPStatsBuffered = 1000

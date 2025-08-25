@@ -11,11 +11,12 @@ package loader
 import (
 	"errors"
 	"fmt"
-	"io"
 	"path/filepath"
 	"unsafe"
 
 	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/asm"
+	"github.com/cilium/ebpf/btf"
 	"github.com/cilium/ebpf/features"
 	"github.com/cilium/ebpf/ringbuf"
 
@@ -98,7 +99,6 @@ func (l *Loader) Load(program compiler.Program) (*Program, error) {
 	opts := ebpf.CollectionOptions{}
 	opts.MapReplacements = maps
 	opts.MapReplacements[ringbufMapName] = l.ringbufMap
-
 	collection, err := ebpf.NewCollectionWithOptions(spec, opts)
 	if err != nil {
 		var ve *ebpf.VerifierError
@@ -118,6 +118,30 @@ func (l *Loader) Load(program compiler.Program) (*Program, error) {
 		BpfProgram:   bpfProgram,
 		Attachpoints: serialized.bpfAttachPoints,
 	}, nil
+}
+
+// stripRelocations removes the relocation metadata from the instructions.
+// These are not needed for pt_regs as long as we're not trying to build
+// cross-architecture programs (which we're not).
+func stripRelocations(spec *ebpf.CollectionSpec) {
+	for _, p := range spec.Programs {
+		for i := range p.Instructions {
+			insn := &p.Instructions[i]
+			relo := btf.CORERelocationMetadata(insn)
+			if relo == nil {
+				continue
+			}
+			// These are the other metadata fields that we want to keep.
+			// See [1] for the fields we decide to keep.
+			//
+			// [1]: https://github.com/cilium/ebpf/blob/49ae13c6/btf/ext_info.go#L119-L125
+			funcMetadata := btf.FuncMetadata(insn)
+			source := insn.Source()
+			*insn = insn.WithMetadata(asm.Metadata{})
+			*insn = btf.WithFuncMetadata(*insn, funcMetadata)
+			*insn = insn.WithSource(source)
+		}
+	}
 }
 
 // OutputReader returns the ringbuffer reader for the loader.
@@ -220,26 +244,30 @@ func (l *Loader) init(opts ...Option) error {
 	if err != nil {
 		return fmt.Errorf("failed to create ringbuffer reader: %w", err)
 	}
-	var obj io.ReaderAt
-	if l.config.dyninstDebugEnabled {
-		obj, err = bytecode.GetReader(filepath.Join(l.ebpfConfig.BPFDir, "co-re"), "dyninst_event-debug.o")
-	} else {
-		obj, err = bytecode.GetReader(filepath.Join(l.ebpfConfig.BPFDir, "co-re"), "dyninst_event.o")
-	}
+	obj, err := getBpfObject(&l.config)
 	if err != nil {
 		return fmt.Errorf("failed to get eBPF object: %w", err)
 	}
+	defer obj.Close()
 	l.ebpfSpec, err = ebpf.LoadCollectionSpecFromReader(obj)
 	if err != nil {
 		return fmt.Errorf("failed to load eBPF object: %w", err)
 	}
+	stripRelocations(l.ebpfSpec)
 	ringbufMapSpec, ok := l.ebpfSpec.Maps[ringbufMapName]
 	if !ok {
 		return fmt.Errorf("ringbuffer map not found in eBPF spec")
 	}
 	ringbufMapSpec.MaxEntries = uint32(l.config.ringBufSize)
 	return nil
+}
 
+func getBpfObject(cfg *config) (bytecode.AssetReader, error) {
+	baseDir := filepath.Join(cfg.ebpfConfig.BPFDir, "co-re")
+	if cfg.dyninstDebugEnabled {
+		return bytecode.GetReader(baseDir, "dyninst_event-debug.o")
+	}
+	return bytecode.GetReader(baseDir, "dyninst_event.o")
 }
 
 func (l *Loader) loadData(

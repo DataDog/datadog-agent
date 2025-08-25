@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2025-present Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 //go:build test
 
@@ -13,6 +13,7 @@ import (
 
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -83,12 +84,12 @@ func (a *Auditor) run() {
 // Registry does nothing
 type Registry struct {
 	sync.Mutex
-
-	tailingMode string
-
-	StoredOffsets map[string]string
-	KeepAlives    map[string]bool
-	TailedSources map[string]bool
+	tailingMode       string
+	fingerprint       uint64
+	fingerprintConfig *types.FingerprintConfig
+	StoredOffsets     map[string]string
+	KeepAlives        map[string]bool
+	TailedSources     map[string]bool
 }
 
 // NewMockRegistry returns a new mock registry.
@@ -129,6 +130,28 @@ func (r *Registry) SetTailingMode(tailingMode string) {
 	r.Lock()
 	defer r.Unlock()
 	r.tailingMode = tailingMode
+}
+
+// GetFingerprint returns the fingerprint for a given identifier
+func (r *Registry) GetFingerprint(_ string) *types.Fingerprint {
+	if r.fingerprint == 0 && r.fingerprintConfig == nil {
+		return nil
+	}
+	return &types.Fingerprint{
+		Value:  r.fingerprint,
+		Config: r.fingerprintConfig,
+	}
+}
+
+// SetFingerprint sets the fingerprint
+func (r *Registry) SetFingerprint(fingerprint *types.Fingerprint) {
+	if fingerprint == nil {
+		r.fingerprint = 0
+		r.fingerprintConfig = nil
+	} else {
+		r.fingerprint = fingerprint.Value
+		r.fingerprintConfig = fingerprint.Config
+	}
 }
 
 // SetTailed stores the tailed status of the identifier.

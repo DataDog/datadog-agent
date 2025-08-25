@@ -85,7 +85,7 @@ func TestAcceptRedirection(t *testing.T) {
 
 	ddURL := ts.URL
 
-	client := clientWithOneRedirects(mockConfig, 1, mockLog)
+	client := getClient(mockConfig, 1, mockLog, withOneRedirect())
 
 	url := ddURL + "/support/flare"
 	statusCode, err := sendHTTPHEADRequestToEndpoint(url, client)

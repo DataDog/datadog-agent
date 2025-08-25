@@ -12,7 +12,6 @@ import (
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
 )
@@ -22,9 +21,6 @@ type kindSuite struct {
 }
 
 func TestKindSuite(t *testing.T) {
-	// #incident-40502
-	flake.Mark(t)
-
 	helmValues := `
 clusterAgent:
     envDict:

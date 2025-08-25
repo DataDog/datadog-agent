@@ -1,6 +1,8 @@
 #include "crashdump.h"
 #include "_cgo_export.h"
 
+#include <stdio.h>
+
 #define INITGUID
 #include "guiddef.h"
 DEFINE_GUID(IID_IDebugControl, 0x5182e668, 0x105e, 0x416e,
@@ -55,58 +57,84 @@ STDMETHODIMP StdioOutputCallbacks::Output(THIS_ IN ULONG, IN PCSTR Text) {
  * by the enum), and store the actual hresult in the error parameter
  *  for logging by the caller
 */
-READ_CRASH_DUMP_ERROR readCrashDump(char *fname, void *ctx, long * extendedError)
+READ_CRASH_DUMP_ERROR readCrashDump(char* fname, void* ctx, BUGCHECK_INFO* bugCheckInfo, long* extendedError)
 {
     IDebugClient* iClient = NULL;
     IDebugControl* iControl = NULL;
     StdioOutputCallbacks iOutputCb(ctx);
     READ_CRASH_DUMP_ERROR ret = RCD_NONE;
-    HRESULT hr = DebugCreate(IID_IDebugClient, (void**)&iClient);
-    if(S_OK != hr) {
+    HRESULT hr = E_FAIL;
+
+    if ((NULL == fname) || (NULL == bugCheckInfo) || (NULL == extendedError)) {
+        ret = RCD_INVALID_ARG;
+        goto end;
+    }
+
+    ZeroMemory(bugCheckInfo, sizeof(*bugCheckInfo));
+
+    hr = DebugCreate(IID_IDebugClient, (void**)&iClient);
+    if (S_OK != hr) {
         *extendedError = hr;
         ret = RCD_DEBUG_CREATE_FAILED;
-        goto rcd_end;
+        goto end;
     }
+
     hr = iClient->QueryInterface(IID_IDebugControl, (void**)&iControl);
-    if(S_OK != hr) {
+    if (S_OK != hr) {
         *extendedError = hr;
         ret = RCD_QUERY_INTERFACE_FAILED;
-        goto rcd_release_client;
-    }    
-    
+        goto end;
+    }
+
     hr = iClient->SetOutputCallbacks(&iOutputCb);
-    if(S_OK != hr) {
+    if (S_OK != hr) {
         *extendedError = hr;
         ret = RCD_SET_OUTPUT_CALLBACKS_FAILED;
-        goto rcd_release_control;
+        goto end;
     }
+
     hr = iClient->OpenDumpFile(fname);
-    if(S_OK != hr) {
+    if (S_OK != hr) {
         *extendedError = hr;
         ret = RCD_OPEN_DUMP_FILE_FAILED;
-        goto rcd_release_control;
+        goto end;
     }
+
     hr = iControl->WaitForEvent(0, INFINITE);
-    if(S_OK != hr) {
+    if (S_OK != hr) {
         *extendedError = hr;
         ret = RCD_WAIT_FOR_EVENT_FAILED;
-        goto rcd_release_control;
+        goto end;
     }
+
+    hr = iControl->ReadBugCheckData(
+             &bugCheckInfo->code,
+             &bugCheckInfo->arg1,
+             &bugCheckInfo->arg2,
+             &bugCheckInfo->arg3,
+             &bugCheckInfo->arg4);
+    if (S_OK != hr) {
+        // OK to fail. This may not be a proper kernel dump and will fail with user-mode dumps.
+        // Continue and try get other data.
+        *extendedError = hr;
+    }
+
     hr = iControl->Execute(DEBUG_OUTCTL_THIS_CLIENT, "kb", DEBUG_EXECUTE_DEFAULT);
-    if(S_OK != hr) {
+    if (S_OK != hr) {
         *extendedError = hr;
         ret = RCD_EXECUTE_FAILED;
-        goto rcd_release_control;
+        goto end;
     }
-    // release intentionally left unchecked.
-rcd_release_control:
-    if(iControl){
+
+end:
+
+    if (NULL != iControl) {
         iControl->Release();
     }
-rcd_release_client:
-    if(iClient){
+
+    if (NULL != iClient) {
         iClient->Release();
     }
-rcd_end:
-    return ret;   
+
+    return ret;
 }

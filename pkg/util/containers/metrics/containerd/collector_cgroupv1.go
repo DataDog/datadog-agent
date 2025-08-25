@@ -67,8 +67,12 @@ func getMemoryStatsCgroupV1(memStat *v1.MemoryStat) *provider.ContainerMemStats 
 
 	if memStat.Usage != nil {
 		res.UsageTotal = pointer.Ptr(float64(memStat.Usage.Usage))
-		res.WorkingSet = pointer.Ptr(float64(memStat.Usage.Usage - memStat.InactiveFile))
 		res.Limit = pointer.Ptr(float64(memStat.Usage.Limit))
+
+		// guard against buffer overflows
+		if memStat.InactiveFile < memStat.Usage.Usage {
+			res.WorkingSet = pointer.Ptr(float64(memStat.Usage.Usage - memStat.InactiveFile))
+		}
 	}
 
 	if memStat.Kernel != nil {

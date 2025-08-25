@@ -87,3 +87,30 @@ func TestWritePersistentCacheInvalidChar(t *testing.T) {
 	_, err = os.Stat(expectPathFile)
 	require.Nil(t, err)
 }
+
+func TestExistsPersistentCache(t *testing.T) {
+	testDir := t.TempDir()
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("run_path", testDir)
+
+	err := Write("mykey", "myvalue")
+	assert.Nil(t, err)
+
+	assert.True(t, Exists("mykey"))
+	assert.False(t, Exists("myotherkey"))
+}
+
+func TestRenamePersistentCache(t *testing.T) {
+	testDir := t.TempDir()
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("run_path", testDir)
+
+	err := Write("mykey", "myvalue")
+	assert.Nil(t, err)
+
+	err = Rename("mykey", "myotherkey")
+	assert.Nil(t, err)
+
+	assert.False(t, Exists("mykey"))
+	assert.True(t, Exists("myotherkey"))
+}

@@ -130,6 +130,7 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 				hookFunc("hook_do_coredump"),
 				hookFunc("hook_audit_set_loginuid"),
 				hookFunc("rethook_audit_set_loginuid"),
+				hookFunc("hook_security_inode_follow_link"),
 			}},
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
 				hookFunc("hook_cgroup_procs_write"),
@@ -214,12 +215,14 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 				hookFunc("hook_propagate_mnt"),
 				hookFunc("hook_security_sb_umount"),
 				hookFunc("hook_clone_mnt"),
+				hookFunc("rethook_clone_mnt"),
 			}},
 			&manager.BestEffort{Selectors: []manager.ProbesSelector{
 				hookFunc("rethook_alloc_vfsmnt"),
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "mount", fentry, EntryAndExit, true)},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "fsmount", fentry, EntryAndExit, false)},
+			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "open_tree", fentry, EntryAndExit, false)},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "umount", fentry, Exit)},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "unshare", fentry, EntryAndExit)},
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
@@ -557,7 +560,10 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 
 	// Add probes required to track network interfaces and map network flows to processes
 	// networkEventTypes: dns, imds, packet, network_monitor
+	// add packet_action as not exposed through SECL thus not repoted by GetEventTypePerCategory
 	networkEventTypes := model.GetEventTypePerCategory(model.NetworkCategory)[model.NetworkCategory]
+	networkEventTypes = append(networkEventTypes, model.RawPacketActionEventType.String())
+
 	for _, networkEventType := range networkEventTypes {
 		selectorsPerEventTypeStore[networkEventType] = []manager.ProbesSelector{
 			&manager.AllOf{Selectors: []manager.ProbesSelector{

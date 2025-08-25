@@ -57,7 +57,7 @@ func FullKeyPath(pieces ...string) string {
 	return strings.Join(pieces, ".")
 }
 
-// wcdNS addes 'windows_crash_detection' namespace to config key
+// wcdNS adds 'windows_crash_detection' namespace to config key
 func wcdNS(k ...string) string {
 	return NSkey("windows_crash_detection", k...)
 }

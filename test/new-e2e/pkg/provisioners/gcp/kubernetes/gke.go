@@ -90,5 +90,14 @@ func GKERunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 	} else {
 		env.Agent = nil
 	}
+
+	// Deploy workloads
+	for _, appFunc := range params.workloadAppFuncs {
+		_, err := appFunc(&gcpEnv, cluster.KubeProvider)
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }

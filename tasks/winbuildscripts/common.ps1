@@ -139,12 +139,10 @@ function Install-Deps() {
         Write-Error "Failed to install python requirements"
         exit 1
     }
-    Write-Host "Installing go dependencies"
-    dda inv -- -e deps
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error "Failed to install dependencies"
-        exit 1
-    }
+    # Note on Go dependencies
+    # CI: downloaded in the CI via the modcache archive, see Expand-ModCache
+    # Locally: go automatically downloads deps when running go build/test.
+    #          if you want to pre-download everything, see `dda inv deps`
 }
 
 function Install-TestingDeps() {
@@ -306,8 +304,6 @@ function Invoke-BuildScript {
         Enable-DevEnv
 
         # Expand modcache
-        # TODO: Can these be moved inside the Install-Deps/Install-TestingDeps functions,
-        #       or is it important that they both be run before `dda inv deps` ?
         if ($InstallDeps) {
             Expand-ModCache -modcache modcache
         }

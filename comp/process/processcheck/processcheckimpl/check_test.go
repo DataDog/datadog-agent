@@ -8,6 +8,7 @@ package processcheckimpl
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
@@ -25,21 +26,63 @@ import (
 
 func TestProcessChecksIsEnabled(t *testing.T) {
 	tests := []struct {
-		name    string
-		configs map[string]interface{}
-		enabled bool
+		name            string
+		configs         map[string]interface{}
+		sysProbeConfigs map[string]interface{}
+		enabled         bool
 	}{
 		{
-			name: "enabled",
+			name: "check enabled: collection enabled, discovery enabled",
 			configs: map[string]interface{}{
 				"process_config.process_collection.enabled": true,
+				"process_config.process_collection.use_wlm": true, // temporarily used to gate discovery check
+			},
+			sysProbeConfigs: map[string]interface{}{
+				"discovery.enabled": true,
 			},
 			enabled: true,
 		},
 		{
-			name: "disabled",
+			name: "check enabled: collection enabled, discovery disabled",
+			configs: map[string]interface{}{
+				"process_config.process_collection.enabled": true,
+				"process_config.process_collection.use_wlm": false, // temporarily used to gate discovery check
+			},
+			sysProbeConfigs: map[string]interface{}{
+				"discovery.enabled": false,
+			},
+			enabled: true,
+		},
+		{
+			name: "check enabled: collection disabled, discovery enabled",
 			configs: map[string]interface{}{
 				"process_config.process_collection.enabled": false,
+				"process_config.process_collection.use_wlm": true, // temporarily used to gate discovery check
+			},
+			sysProbeConfigs: map[string]interface{}{
+				"discovery.enabled": true,
+			},
+			enabled: true,
+		},
+		{
+			name: "check disabled: collection disabled, discovery enabled but use_wlm disabled",
+			configs: map[string]interface{}{
+				"process_config.process_collection.enabled": false,
+				"process_config.process_collection.use_wlm": false, // temporarily used to gate discovery check
+			},
+			sysProbeConfigs: map[string]interface{}{
+				"discovery.enabled": true,
+			},
+			enabled: false,
+		},
+		{
+			name: "check disabled: collection disabled, discovery disabled",
+			configs: map[string]interface{}{
+				"process_config.process_collection.enabled": false,
+				"process_config.process_collection.use_wlm": false, // temporarily used to gate discovery check
+			},
+			sysProbeConfigs: map[string]interface{}{
+				"discovery.enabled": false,
 			},
 			enabled: false,
 		},
@@ -50,6 +93,7 @@ func TestProcessChecksIsEnabled(t *testing.T) {
 			c := fxutil.Test[processcheck.Component](t, fx.Options(
 				core.MockBundle(),
 				fx.Replace(config.MockParams{Overrides: tc.configs}),
+				fx.Replace(sysprobeconfigimpl.MockParams{Overrides: tc.sysProbeConfigs}),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 				gpusubscriberfxmock.MockModule(),
 				fx.Provide(func() statsd.ClientInterface {

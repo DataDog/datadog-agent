@@ -117,7 +117,7 @@ func (docker *Docker) ExecuteCommandStdoutStdErr(containerName string, commands 
 		return "", "", fmt.Errorf("error when running command %v on container %v:\n   exit code: %d\n   stdout: %v\n   stderr: %v", commands, containerName, execInspectResp.ExitCode, stdout, stderr)
 	}
 
-	return stdout, stderr, err
+	return stdout, suppressGoCoverWarning(stderr), err
 }
 
 // ListContainers returns a list of container names.

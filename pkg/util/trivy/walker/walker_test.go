@@ -9,6 +9,7 @@
 package walker
 
 import (
+	"context"
 	"errors"
 	"io"
 	"os"
@@ -33,7 +34,7 @@ func TestFS_Walk(t *testing.T) {
 		{
 			name:    "happy path",
 			rootDir: "testdata/fs",
-			analyzeFn: func(filePath string, _ os.FileInfo, opener analyzer.Opener) error {
+			analyzeFn: func(_ context.Context, filePath string, _ os.FileInfo, opener analyzer.Opener) error {
 				if filePath == "bar" {
 					got, err := opener()
 					require.NoError(t, err)
@@ -52,7 +53,7 @@ func TestFS_Walk(t *testing.T) {
 			option: walker.Option{
 				SkipFiles: []string{"bar"},
 			},
-			analyzeFn: func(filePath string, _ os.FileInfo, _ analyzer.Opener) error {
+			analyzeFn: func(_ context.Context, filePath string, _ os.FileInfo, _ analyzer.Opener) error {
 				if filePath == "bar" {
 					assert.Fail(t, "skip files error", "%s should be skipped", filePath)
 				}
@@ -65,7 +66,7 @@ func TestFS_Walk(t *testing.T) {
 			option: walker.Option{
 				SkipDirs: []string{"/app"},
 			},
-			analyzeFn: func(filePath string, _ os.FileInfo, _ analyzer.Opener) error {
+			analyzeFn: func(_ context.Context, filePath string, _ os.FileInfo, _ analyzer.Opener) error {
 				if strings.Contains(filePath, "app") {
 					assert.Fail(t, "skip dirs error", "%s should be skipped", filePath)
 				}
@@ -75,7 +76,7 @@ func TestFS_Walk(t *testing.T) {
 		{
 			name:    "sad path",
 			rootDir: "testdata/fs",
-			analyzeFn: func(string, os.FileInfo, analyzer.Opener) error {
+			analyzeFn: func(context.Context, string, os.FileInfo, analyzer.Opener) error {
 				return errors.New("error")
 			},
 			wantErr: "failed to analyze file",
@@ -84,7 +85,7 @@ func TestFS_Walk(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			w := NewFSWalker()
-			err := w.Walk(tt.rootDir, tt.option, tt.analyzeFn)
+			err := w.Walk(context.TODO(), tt.rootDir, tt.option, tt.analyzeFn)
 			if tt.wantErr != "" {
 				assert.ErrorContains(t, err, tt.wantErr)
 				return

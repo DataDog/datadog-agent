@@ -44,6 +44,8 @@ service AgentSecure {
 
     rpc GetConfigStateHA(google.protobuf.Empty) returns (datadog.config.GetStateConfigResponse);
 
+    rpc ResetConfigState(google.protobuf.Empty) returns (datadog.config.ResetStateConfigResponse);
+
     // Subscribes to added, removed, or changed entities in the Workloadmeta and
     // streams them to clients as events.
     rpc WorkloadmetaStreamEntities(datadog.workloadmeta.WorkloadmetaStreamRequest) returns (stream datadog.workloadmeta.WorkloadmetaStreamResponse);
@@ -69,4 +71,8 @@ service RemoteAgent {
 
   // Gets the telemetry data of a remote agent.
   rpc GetTelemetry(datadog.remoteagent.GetTelemetryRequest) returns (datadog.remoteagent.GetTelemetryResponse);
+
+  // Streams config events to the remote agent.
+  rpc StreamConfigEvents(stream datadog.remoteagent.ConfigEvent) returns (google.protobuf.Empty);
+
 }

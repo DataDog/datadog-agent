@@ -76,3 +76,79 @@ func GetMappedValue(index string, mapping map[string]string) (string, error) {
 	}
 	return index, nil
 }
+
+// VPNTunnelMetrics contains VPN tunnels metrics
+var VPNTunnelMetrics = []profiledefinition.MetricsConfig{
+	{
+		MIB: "CISCO-IPSEC-FLOW-MONITOR-MIB",
+		Table: profiledefinition.SymbolConfig{
+			OID:  "1.3.6.1.4.1.9.9.171.1.3.2",
+			Name: "cipSecTunnelTable",
+		},
+		Symbols: []profiledefinition.SymbolConfig{
+			{
+				OID:  "1.3.6.1.4.1.9.9.171.1.3.2.1.10",
+				Name: "cipSecTunActiveTime",
+			},
+			{
+				OID:  "1.3.6.1.4.1.9.9.171.1.3.2.1.27",
+				Name: "cipSecTunHcInOctets",
+			},
+			{
+				OID:  "1.3.6.1.4.1.9.9.171.1.3.2.1.40",
+				Name: "cipSecTunHcOutOctets",
+			},
+			{
+				OID:  "1.3.6.1.4.1.9.9.171.1.3.2.1.32",
+				Name: "cipSecTunInPkts",
+			},
+			{
+				OID:  "1.3.6.1.4.1.9.9.171.1.3.2.1.45",
+				Name: "cipSecTunOutPkts",
+			},
+			{
+				OID:  "1.3.6.1.4.1.9.9.171.1.3.2.1.36",
+				Name: "cipSecTunInAuthFails",
+			},
+			{
+				OID:  "1.3.6.1.4.1.9.9.171.1.3.2.1.48",
+				Name: "cipSecTunOutAuthFails",
+			},
+			{
+				OID:  "1.3.6.1.4.1.9.9.171.1.3.2.1.38",
+				Name: "cipSecTunInDecryptFails",
+			},
+			{
+				OID:  "1.3.6.1.4.1.9.9.171.1.3.2.1.50",
+				Name: "cipSecTunOutEncryptFails",
+			},
+		},
+		MetricTags: profiledefinition.MetricTagConfigList{
+			{
+				Tag:   "tunnel_index",
+				Index: 1,
+			},
+			{
+				Tag: "local_outside_ip",
+				Symbol: profiledefinition.SymbolConfigCompat{
+					OID:  "1.3.6.1.4.1.9.9.171.1.3.2.1.4",
+					Name: "cipSecTunLocalAddr",
+				},
+			},
+			{
+				Tag: "remote_outside_ip",
+				Symbol: profiledefinition.SymbolConfigCompat{
+					OID:  "1.3.6.1.4.1.9.9.171.1.3.2.1.5",
+					Name: "cipSecTunRemoteAddr",
+				},
+			},
+		},
+	},
+}
+
+func updateMetricsDefinitionWithDefaults(metrics []profiledefinition.MetricsConfig, collectVPN bool) []profiledefinition.MetricsConfig {
+	if collectVPN {
+		metrics = append(metrics, VPNTunnelMetrics...)
+	}
+	return metrics
+}

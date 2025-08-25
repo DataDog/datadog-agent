@@ -17,18 +17,27 @@ import (
 
 // New returns a new parser which will parse raw JSON lines as found in docker log files.
 //
-// For example:
+// The parser handles Docker's JSON log format where each line represents output
+// from a container.  A trailing newline (\n) indicates a complete line and is
+// stripped from the content.  The absence of a trailing newline indicates a
+// partial line (e.g., a prompt waiting for input).
 //
-//	`{"log":"a message","stream":"stderr","time":"2019-06-06T16:35:55.930852911Z"}`
+// Examples:
 //
-// returns:
-//
-//	parsers.Message {
-//	    Content: []byte("a message"),
+//	`{"log":"a message\n","stream":"stderr","time":"2019-06-06T16:35:55.930852911Z"}`
+//	returns:
+//	    Content: []byte("a message"),  // newline stripped
 //	    Status: "error",
-//	    Timestamp: "2019-06-06T16:35:55.930852911Z",
-//	    IsPartial: false,
-//	}
+//	    IsPartial: false,              // complete line
+//
+//	`{"log":"a prompt: ","stream":"stdout","time":"2019-06-06T16:35:55.930852911Z"}`
+//	returns:
+//	    Content: []byte("a prompt: "), // no newline to strip
+//	    Status: "info",
+//	    IsPartial: true,               // partial line
+//
+// Note: Only the final newline is stripped. Multiple newlines (e.g., "\n\n")
+// represent content with empty lines, so "\n\n" becomes "\n" after parsing.
 func New() parsers.Parser {
 	return &dockerFileFormat{}
 }
@@ -48,6 +57,12 @@ func (p *dockerFileFormat) Parse(msg *message.Message) (*message.Message, error)
 	if err != nil {
 		msg.Status = message.StatusInfo
 		return msg, fmt.Errorf("cannot parse docker message, invalid JSON: %v", err)
+	}
+
+	// Check if log is nil (e.g., when input is the JSON literal null)
+	if log == nil {
+		msg.Status = message.StatusInfo
+		return msg, fmt.Errorf("cannot parse docker message, invalid format: got null")
 	}
 
 	var status string

@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
+	utilTypes "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
@@ -39,7 +40,7 @@ type StorageClassCollector struct {
 // NewStorageClassCollector creates a new collector for the Kubernetes
 // StorageClass resource.
 func NewStorageClassCollector(metadataAsTags utils.MetadataAsTags) *StorageClassCollector {
-	resourceType := getResourceType(storageClassName, storageClassVersion)
+	resourceType := utilTypes.GetResourceType(utilTypes.StorageClassName, utilTypes.StorageClassVersion)
 	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
 	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
 
@@ -50,10 +51,10 @@ func NewStorageClassCollector(metadataAsTags utils.MetadataAsTags) *StorageClass
 			IsMetadataProducer:                   true,
 			IsManifestProducer:                   true,
 			SupportsManifestBuffering:            true,
-			Name:                                 storageClassName,
+			Name:                                 utilTypes.StorageClassName,
 			Kind:                                 kubernetes.StorageClassKind,
 			NodeType:                             orchestrator.K8sStorageClass,
-			Version:                              storageClassVersion,
+			Version:                              utilTypes.StorageClassVersion,
 			LabelsAsTags:                         labelsAsTags,
 			AnnotationsAsTags:                    annotationsAsTags,
 			SupportsTerminatedResourceCollection: true,

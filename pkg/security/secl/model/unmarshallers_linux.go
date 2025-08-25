@@ -22,7 +22,6 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts"
 )
 
@@ -40,30 +39,15 @@ type BinaryUnmarshaler interface {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *CGroupContext) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 8+16 {
+	if len(data) < 16 {
 		return 0, ErrNotEnoughData
 	}
 
-	e.CGroupFlags = containerutils.CGroupFlags(binary.NativeEndian.Uint64(data[:8]))
-
-	n, err := e.CGroupFile.UnmarshalBinary(data[8:])
+	n, err := e.CGroupFile.UnmarshalBinary(data)
 	if err != nil {
 		return 0, err
 	}
-
-	return 8 + n, nil
-}
-
-// UnmarshalBinary unmarshalls a binary representation of itself
-func (e *ContainerContext) UnmarshalBinary(data []byte) (int, error) {
-	id, err := UnmarshalString(data, ContainerIDLen)
-	if err != nil {
-		return 0, err
-	}
-
-	e.ContainerID = containerutils.ContainerID(id)
-
-	return ContainerIDLen, nil
+	return n, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
@@ -259,7 +243,7 @@ func (e *Process) UnmarshalPidCacheBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *Process) UnmarshalBinary(data []byte) (int, error) {
-	const size = 288 // size of struct exec_event_t starting from process_entry_t, inclusive
+	const size = 292 // size of struct exec_event_t starting from process_entry_t, inclusive
 	if len(data) < size {
 		return 0, ErrNotEnoughData
 	}
@@ -303,6 +287,8 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 	e.EnvsTruncated = binary.NativeEndian.Uint32(data[read+4:read+8]) == 1
 	read += 8
 
+	e.IsThroughSymLink = (binary.NativeEndian.Uint32(data[read:read+4]) > 0)
+	read += 4
 	return validateReadSize(size, read)
 }
 
@@ -442,7 +428,7 @@ func (e *MkdirEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (m *Mount) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 56 {
+	if len(data) < 64 {
 		return 0, ErrNotEnoughData
 	}
 
@@ -466,53 +452,34 @@ func (m *Mount) UnmarshalBinary(data []byte) (int, error) {
 	}
 
 	m.MountID = m.RootPathKey.MountID
-	m.Origin = MountOriginEvent
+	m.Visible = binary.NativeEndian.Uint16(data[24:26]) != 0
+	m.Detached = binary.NativeEndian.Uint16(data[26:28]) != 0
 
-	return 56, nil
+	return 64, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *MountEvent) UnmarshalBinary(data []byte) (int, error) {
-	return UnmarshalBinary(data, &e.SyscallEvent, &e.SyscallContext, &e.Mount)
-}
-
-// ToMount transforms an fsmount event to be used with the mount resolver
-func (e *FsmountEvent) ToMount() *Mount {
-	return &Mount{
-		Origin:      MountOriginFsmount,
-		MountID:     e.MountID,
-		Device:      e.Device,
-		RootPathKey: e.RootPathKey,
-		RootStr:     "/",
-	}
-}
-
-// UnmarshalBinary unmarshalls a binary representation of itself
-func (e *FsmountEvent) UnmarshalBinary(data []byte) (int, error) {
-	read, err := e.SyscallEvent.UnmarshalBinary(data)
+	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.SyscallContext, &e.Mount)
 	if err != nil {
-		return 0, err
+		return n, err
 	}
-	data = data[read:]
-	n, err := e.RootPathKey.UnmarshalBinary(data)
-	if err != nil {
-		return read, err
-	}
-
-	read += n
 	data = data[n:]
-
-	if len(data) < 16 {
+	if len(data) < 4 {
 		return n, ErrNotEnoughData
 	}
+	origin := binary.NativeEndian.Uint32(data[0:4])
 
-	e.Fd = int32(binary.NativeEndian.Uint32(data[0:4]))
-	e.Flags = binary.NativeEndian.Uint32(data[4:8])
-	e.Device = binary.NativeEndian.Uint32(data[8:12])
-	e.MountAttrs = binary.NativeEndian.Uint32(data[12:16])
-	e.MountID = e.RootPathKey.MountID
-	read += 16
-	return read, nil
+	switch origin {
+	case MountEventSourceMountSyscall:
+		e.Origin = MountOriginEvent
+	case MountEventSourceOpenTreeSyscall:
+		e.Origin = MountOriginOpenTree
+	case MountEventSourceFsmountSyscall:
+		e.Origin = MountOriginFsmount
+	}
+
+	return n + 4, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
@@ -1004,17 +971,11 @@ func (e *SpliceEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *CgroupTracingEvent) UnmarshalBinary(data []byte) (int, error) {
-	read, err := UnmarshalBinary(data, &e.ContainerContext)
+	read, err := UnmarshalBinary(data, &e.CGroupContext)
 	if err != nil {
 		return 0, err
 	}
 	cursor := read
-
-	read, err = UnmarshalBinary(data[cursor:], &e.CGroupContext)
-	if err != nil {
-		return 0, err
-	}
-	cursor += read
 
 	read, err = e.Config.EventUnmarshalBinary(data[cursor:])
 	if err != nil {
@@ -1045,15 +1006,12 @@ func (e *CgroupWriteEvent) UnmarshalBinary(data []byte) (int, error) {
 	e.Pid = binary.NativeEndian.Uint32(data[read : read+4])
 	read += 4
 
-	e.CGroupFlags = binary.NativeEndian.Uint32(data[read : read+4])
-	read += 4
-
 	return read, nil
 }
 
 // EventUnmarshalBinary unmarshals a binary representation of itself
 func (adlc *ActivityDumpLoadConfig) EventUnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 56 {
+	if len(data) < 48 {
 		return 0, ErrNotEnoughData
 	}
 
@@ -1070,9 +1028,7 @@ func (adlc *ActivityDumpLoadConfig) EventUnmarshalBinary(data []byte) (int, erro
 	adlc.Rate = binary.NativeEndian.Uint16(data[40:42])
 	// 2 bytes of padding
 	adlc.Paused = binary.NativeEndian.Uint32(data[44:48])
-	adlc.CGroupFlags = containerutils.CGroupFlags(binary.NativeEndian.Uint32(data[48:52]))
-	// +4 bytes of padding
-	return 56, nil
+	return 48, nil
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself

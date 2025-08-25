@@ -55,6 +55,7 @@ The payload is a JSON dict with the following fields
     This is different for each cloud provider (for now, ony AWS is supported).
     - On AWS: the instance ID returned by querying the IMDSv2 endpoint. An empty string is returned if we can't reach
       IMDSv2 (even if IMDSv1 is available).
+  - `ccrid` - **string**: the Canonical Cloud Resource Identifier for the host provided by the cloud provider.
   - `hypervisor_guest_uuid` - **string**: the hypervisor guest UUID (Unix only, empty string on Windows or if we can't
     read the data). On `ec2` instances, this might start with "ec2". This was introduced in `7.41.0`/`6.41.0`.
   - `dmi_product_uuid` - **string**: the DMI product UUID (Unix only, empty string on Windows or if we can't read the

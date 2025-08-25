@@ -304,6 +304,7 @@ func testCheckCancel(t *testing.T) {
 	assert.Equal(t, check.instance, C.run_check_instance)
 
 	check.Cancel()
+	assert.True(t, check.cancelled)
 
 	// Check that the lock was acquired
 	assert.Equal(t, C.int(2), C.gil_locked_calls)
@@ -663,6 +664,34 @@ func testGetDiagnoses(t *testing.T) {
 	assert.Zero(t, len(diagnoses[1].Category))
 	assert.Zero(t, len(diagnoses[1].Description))
 	assert.Zero(t, len(diagnoses[1].Remediation))
+}
+
+func testRunAfterCancel(t *testing.T) {
+	mockRtloader(t)
+
+	check, err := NewPythonFakeCheck(aggregator.NewNoOpSenderManager())
+	require.Nil(t, err)
+
+	check.instance = newMockPyObjectPtr()
+
+	C.reset_check_mock()
+	C.run_check_return = C.CString("")
+
+	err = check.runCheck(false)
+	assert.Nil(t, err)
+
+	check.Cancel()
+	assert.True(t, check.cancelled)
+
+	err = check.runCheck(false)
+	assert.EqualError(t, err, "check fake_check is already cancelled")
+
+	// the lock is acquired to run, cancel, and again to run
+	// but run_check is only called the first time
+	assert.Equal(t, C.int(3), C.gil_locked_calls)
+	assert.Equal(t, C.int(3), C.gil_unlocked_calls)
+	assert.Equal(t, C.int(1), C.run_check_calls)
+
 }
 
 // NewPythonFakeCheck create a fake PythonCheck

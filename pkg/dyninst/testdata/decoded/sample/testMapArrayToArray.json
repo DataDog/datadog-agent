@@ -1,0 +1,180 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testMapArrayToArray",
+      "version": 0,
+      "thread_id": 0,
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.testMapArrayToArray",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/maps.go",
+            "lineNumber": 34
+          },
+          {
+            "function": "main.executeMapFuncs",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/maps.go",
+            "lineNumber": 151
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 45
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "testMapArrayToArray",
+          "location": {
+            "method": "main.testMapArrayToArray"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "m": {
+                "type": "map[[4]string][2]int",
+                "size": "3",
+                "entries": [
+                  [
+                    {
+                      "type": "[4]string",
+                      "size": "4",
+                      "elements": [
+                        {
+                          "type": "string",
+                          "value": "bluh"
+                        },
+                        {
+                          "type": "string",
+                          "value": "blur"
+                        },
+                        {
+                          "type": "string",
+                          "value": "baw23"
+                        },
+                        {
+                          "type": "string",
+                          "value": "aaaa"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "[2]int",
+                      "size": "2",
+                      "elements": [
+                        {
+                          "type": "int",
+                          "value": "5"
+                        },
+                        {
+                          "type": "int",
+                          "value": "6"
+                        }
+                      ]
+                    }
+                  ],
+                  [
+                    {
+                      "type": "[4]string",
+                      "size": "4",
+                      "elements": [
+                        {
+                          "type": "string",
+                          "value": "foo"
+                        },
+                        {
+                          "type": "string",
+                          "value": "bar"
+                        },
+                        {
+                          "type": "string",
+                          "value": "baz"
+                        },
+                        {
+                          "type": "string",
+                          "value": "qux"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "[2]int",
+                      "size": "2",
+                      "elements": [
+                        {
+                          "type": "int",
+                          "value": "1"
+                        },
+                        {
+                          "type": "int",
+                          "value": "2"
+                        }
+                      ]
+                    }
+                  ],
+                  [
+                    {
+                      "type": "[4]string",
+                      "size": "4",
+                      "elements": [
+                        {
+                          "type": "string",
+                          "value": "quux"
+                        },
+                        {
+                          "type": "string",
+                          "value": "quuz"
+                        },
+                        {
+                          "type": "string",
+                          "value": "corge"
+                        },
+                        {
+                          "type": "string",
+                          "value": "grault"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "[2]int",
+                      "size": "2",
+                      "elements": [
+                        {
+                          "type": "int",
+                          "value": "3"
+                        },
+                        {
+                          "type": "int",
+                          "value": "4"
+                        }
+                      ]
+                    }
+                  ]
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]"
+  }
+]

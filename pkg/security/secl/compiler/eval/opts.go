@@ -82,6 +82,7 @@ type Opts struct {
 	Constants     map[string]interface{}
 	VariableStore *VariableStore
 	MacroStore    *MacroStore
+	Telemetry     *Telemetry
 }
 
 // WithConstants set constants
@@ -135,5 +136,11 @@ func (o *Opts) AddVariable(name string, variable SECLVariable) *Opts {
 		o.VariableStore = &VariableStore{}
 	}
 	o.VariableStore.Add(name, variable)
+	return o
+}
+
+// WithTelemetry sets the telemetry
+func (o *Opts) WithTelemetry(telemetry *Telemetry) *Opts {
+	o.Telemetry = telemetry
 	return o
 }

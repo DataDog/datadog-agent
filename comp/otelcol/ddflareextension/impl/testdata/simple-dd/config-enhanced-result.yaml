@@ -7,7 +7,7 @@ exporters:
       site: datadoghq.com
     headers: {}
     host_metadata:
-      enabled: false
+      enabled: true
       hostname_source: config_or_system
       reporter_period: 30m0s
       tags: []
@@ -122,6 +122,8 @@ receivers:
     config:
       global:
         evaluation_interval: 1m
+        metric_name_escaping_scheme: allow-utf-8
+        metric_name_validation_scheme: utf8
         scrape_interval: 1m
         scrape_protocols:
           - OpenMetricsText1.0.0
@@ -129,10 +131,13 @@ receivers:
           - PrometheusText1.0.0
           - PrometheusText0.0.4
         scrape_timeout: 10s
+      otlp:
+        translation_strategy: UnderscoreEscapingWithSuffixes
       runtime:
         gogc: 75
       scrape_configs:
-        - convert_classic_histograms_to_nhcb: false
+        - always_scrape_classic_histograms: false
+          convert_classic_histograms_to_nhcb: false
           enable_compression: true
           enable_http2: true
           fallback_scrape_protocol: PrometheusText0.0.4

@@ -261,6 +261,134 @@ Test-ConfigUpdate -TestName "Update-DatadogConfigFile replacing content in file 
     ) `
     -AssertMessage "Config should match expected content with api_key replaced in file without EOL"
 
+# Test: Adds tags block to fresh config
+Test-ConfigUpdate -TestName "Adds tags block to fresh config" `
+    -InitialConfig @(
+        "#"
+    ) `
+    -EnvironmentVariables @{ DD_TAGS = "env:prod,team:sre" } `
+    -ExpectedConfig @(
+        "#",
+        "tags:",
+        "  - env:prod",
+        "  - team:sre"
+    ) `
+    -AssertMessage "Should add new tags block when none exists"
+
+# Test: Replaces existing tags block
+Test-ConfigUpdate -TestName "Replaces existing tags block" `
+    -InitialConfig @(
+        "# Existing install",
+        "tags:",
+        "  - oldtag:legacy",
+        "  - team:old"
+    ) `
+    -EnvironmentVariables @{ DD_TAGS = "env:qa,team:platform" } `
+    -ExpectedConfig @(
+        "# Existing install",
+        "tags:",
+        "  - env:qa",
+        "  - team:platform"
+    ) `
+    -AssertMessage "Should replace existing tags block with new values"
+
+# Test: Rerun updates tags block
+Test-ConfigUpdate -TestName "Rerun updates tags block" `
+    -InitialConfig @(
+        "# Config from earlier run",
+        "tags:",
+        "  - env:staging",
+        "  - team:infra"
+    ) `
+    -EnvironmentVariables @{ DD_TAGS = "env:prod,team:core" } `
+    -ExpectedConfig @(
+        "# Config from earlier run",
+        "tags:",
+        "  - env:prod",
+        "  - team:core"
+    ) `
+    -AssertMessage "Should overwrite tags block on rerun"
+
+# Test: Update-DatadogAgentConfig with DD_LOGS_ENABLED set
+Test-ConfigUpdate -TestName "Update-DatadogAgentConfig with DD_LOGS_ENABLED set" `
+    -InitialConfig $defaultInitialConfig `
+    -EnvironmentVariables @{ DD_LOGS_ENABLED = "true" } `
+    -ExpectedConfig @(
+        "# Test datadog.yaml configuration file",
+        "# api_key: placeholder_key",
+        "# site: datadoghq.com",
+        "# dd_url: https://app.datadoghq.com",
+        "# remote_updates: false",
+        "logs_enabled: true"
+    ) `
+    -AssertMessage "Config should match expected content with logs_enabled set to true"
+
+
+# Test: does not modify indented tags block
+Test-ConfigUpdate -TestName "does not modify indented tags blocks" `
+    -InitialConfig @(
+        "# Config from earlier run",
+        "other_data:",
+        "  tags:",
+        "    - other tags",
+        "tags:",
+        "  - env:staging",
+        "  - team:infra"
+    ) `
+    -EnvironmentVariables @{ DD_TAGS = "env:prod,team:core" } `
+    -ExpectedConfig @(
+        "# Config from earlier run",
+        "other_data:",
+        "  tags:",
+        "    - other tags",
+        "tags:",
+        "  - env:prod",
+        "  - team:core"
+    ) `
+    -AssertMessage "Should not modify indented tags blocks"
+
+
+# Test: replaces inline array form of tags
+Test-ConfigUpdate -TestName "replaces inline array form of tags" `
+    -InitialConfig @(
+        "# YAML with inline tags array",
+        "tags: ['env:staging', 'team:infra']"
+    ) `
+    -EnvironmentVariables @{ DD_TAGS = "env:prod,team:core" } `
+    -ExpectedConfig @(
+        "# YAML with inline tags array",
+        "tags:",
+        "  - env:prod",
+        "  - team:core"
+    ) `
+    -AssertMessage "Should replace inline tags array with YAML block format"
+
+
+#Test: tags after comment block
+Test-ConfigUpdate -TestName "tags after comment block" `
+    -InitialConfig @(
+        "# Config from earlier run",
+        "# tags:",
+        "#   - team:infra",
+        "#   - <TAG_KEY>:<TAG_VALUE>",
+        "tags:",
+        "  - env:staging",
+        "  - team:infra"
+    ) `
+    -EnvironmentVariables @{ DD_TAGS = "env:prod,team:core" } `
+    -ExpectedConfig @(
+        "# Config from earlier run",
+        "# tags:",
+        "#   - team:infra",
+        "#   - <TAG_KEY>:<TAG_VALUE>",
+        "tags:",
+        "  - env:prod",
+        "  - team:core"
+    ) `
+    -AssertMessage "Should not modify tags in comment blocks"
+
+
+
 # Cleanup
 Cleanup-Tests
 

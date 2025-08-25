@@ -14,7 +14,7 @@ struct process_entry_t {
 };
 
 struct proc_cache_t {
-    struct container_context_t container;
+    struct cgroup_context_t cgroup;
     struct process_entry_t entry;
 };
 

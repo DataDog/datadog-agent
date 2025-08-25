@@ -37,5 +37,5 @@ func TestAll(t *testing.T) {
 	// We only care about parsing the test file and run the analyzer.
 	analyzer.RunDespiteErrors = true
 
-	analysistest.Run(t, testdata, analyzer, "comp/...")
+	analysistest.Run(t, testdata, analyzer, "./...")
 }

@@ -25,7 +25,7 @@ func BenchmarkParseGoSymbolTable(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	mef, err := object.NewMMappingElfFile(binPath)
+	mef, err := object.OpenMMappingElfFile(binPath)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -45,7 +45,7 @@ func BenchmarkParseGoSymbolTable(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	goVersion, err := object.ParseGoVersion(mef)
+	goVersion, err := object.ReadGoVersion(mef)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -59,8 +59,8 @@ func BenchmarkParseGoSymbolTable(b *testing.B) {
 	b.Run("ParseGoSymbolTable", func(b *testing.B) {
 		for b.Loop() {
 			_, err := ParseGoSymbolTable(
-				goDebugSections.PcLnTab.Data,
-				goDebugSections.GoFunc.Data,
+				goDebugSections.PcLnTab.Data(),
+				goDebugSections.GoFunc.Data(),
 				moduledata.Text,
 				moduledata.EText,
 				moduledata.MinPC,
@@ -74,8 +74,8 @@ func BenchmarkParseGoSymbolTable(b *testing.B) {
 	})
 
 	symtab, err := ParseGoSymbolTable(
-		goDebugSections.PcLnTab.Data,
-		goDebugSections.GoFunc.Data,
+		goDebugSections.PcLnTab.Data(),
+		goDebugSections.GoFunc.Data(),
 		moduledata.Text,
 		moduledata.EText,
 		moduledata.MinPC,

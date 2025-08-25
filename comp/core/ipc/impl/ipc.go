@@ -18,6 +18,7 @@ import (
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	pkgtoken "github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/security/cert"
+	pkgapiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -58,27 +59,7 @@ func NewReadOnlyComponent(reqs Requires) (Provides, error) {
 		return Provides{}, fmt.Errorf("unable to fetch IPC certificate (please check that the Agent is running, this file is normally generated during the first run of the Agent service): %s", err)
 	}
 
-	tlsClientConfig, tlsServerConfig, err := cert.GetTLSConfigFromCert(ipccert, ipckey)
-	if err != nil {
-		return Provides{}, fmt.Errorf("error while setting TLS configs: %w", err)
-	}
-
-	// printing the fingerprint of the loaded auth stack is useful to troubleshoot IPC issues
-	printAuthSignature(reqs.Log, token, ipccert, ipckey)
-
-	httpClient := ipchttp.NewClient(token, tlsClientConfig, reqs.Conf)
-
-	return Provides{
-		Comp: &ipcComp{
-			logger:          reqs.Log,
-			conf:            reqs.Conf,
-			client:          httpClient,
-			token:           token,
-			tlsClientConfig: tlsClientConfig,
-			tlsServerConfig: tlsServerConfig,
-		},
-		HTTPClient: httpClient,
-	}, nil
+	return buildIPCComponent(reqs, token, ipccert, ipckey)
 }
 
 // NewReadWriteComponent creates a new ipc component by trying to read the auth artifacts on filesystem,
@@ -100,27 +81,7 @@ func NewReadWriteComponent(reqs Requires) (Provides, error) {
 		return Provides{}, fmt.Errorf("error while creating or fetching IPC cert: %w", err)
 	}
 
-	tlsClientConfig, tlsServerConfig, err := cert.GetTLSConfigFromCert(ipccert, ipckey)
-	if err != nil {
-		return Provides{}, fmt.Errorf("error while setting TLS configs: %w", err)
-	}
-
-	// printing the fingerprint of the loaded auth stack is useful to troubleshoot IPC issues
-	printAuthSignature(reqs.Log, token, ipccert, ipckey)
-
-	httpClient := ipchttp.NewClient(token, tlsClientConfig, reqs.Conf)
-
-	return Provides{
-		Comp: &ipcComp{
-			logger:          reqs.Log,
-			conf:            reqs.Conf,
-			client:          httpClient,
-			token:           token,
-			tlsClientConfig: tlsClientConfig,
-			tlsServerConfig: tlsServerConfig,
-		},
-		HTTPClient: httpClient,
-	}, nil
+	return buildIPCComponent(reqs, token, ipccert, ipckey)
 }
 
 // NewInsecureComponent creates an IPC component instance suitable for specific commands
@@ -185,6 +146,41 @@ func (ipc *ipcComp) HTTPMiddleware(next http.Handler) http.Handler {
 
 func (ipc *ipcComp) GetClient() ipc.HTTPClient {
 	return ipc.client
+}
+
+func buildIPCComponent(reqs Requires, token string, ipccert, ipckey []byte) (Provides, error) {
+	tlsClientConfig, tlsServerConfig, err := cert.GetTLSConfigFromCert(ipccert, ipckey)
+	if err != nil {
+		return Provides{}, fmt.Errorf("error while setting TLS configs: %w", err)
+	}
+
+	// printing the fingerprint of the loaded auth stack is useful to troubleshoot IPC issues
+	printAuthSignature(reqs.Log, token, ipccert, ipckey)
+
+	httpClient := ipchttp.NewClient(token, tlsClientConfig, reqs.Conf)
+
+	// Enable cross-node TLS verification if configured
+	var crossNodeClientTLSConfig *tls.Config
+	if reqs.Conf.GetBool("cluster_agent.enable_tls_verification") {
+		crossNodeClientTLSConfig = tlsClientConfig
+	} else {
+		crossNodeClientTLSConfig = &tls.Config{
+			InsecureSkipVerify: true,
+		}
+	}
+	pkgapiutil.SetCrossNodeClientTLSConfig(crossNodeClientTLSConfig)
+
+	return Provides{
+		Comp: &ipcComp{
+			logger:          reqs.Log,
+			conf:            reqs.Conf,
+			client:          httpClient,
+			token:           token,
+			tlsClientConfig: tlsClientConfig,
+			tlsServerConfig: tlsServerConfig,
+		},
+		HTTPClient: httpClient,
+	}, nil
 }
 
 // printAuthSignature computes and logs the authentication signature for the given token and IPC certificate/key.

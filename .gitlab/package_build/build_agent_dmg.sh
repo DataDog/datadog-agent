@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 set -eo pipefail
 
@@ -10,10 +10,9 @@ fi
 
 # --- Setup environment ---
 unset OMNIBUS_BASE_DIR
-WORKDIR="/tmp"
-export INSTALL_DIR="$WORKDIR/datadog-agent-build/bin"
-export CONFIG_DIR="$WORKDIR/datadog-agent-build/config"
-export OMNIBUS_DIR="$WORKDIR/omnibus_build"
+export INSTALL_DIR="$TMPDIR/datadog-agent-build/bin"
+export CONFIG_DIR="$TMPDIR/datadog-agent-build/config"
+export OMNIBUS_DIR="$TMPDIR/omnibus_build"
 export OMNIBUS_PACKAGE_DIR="$PWD"/omnibus/pkg
 
 rm -rf "$INSTALL_DIR" "$CONFIG_DIR" "$OMNIBUS_DIR"
@@ -94,6 +93,33 @@ if [ "$SIGN" = "true" ]; then
 else
     dda inv -- -e omnibus.build --skip-sign --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR" --base-dir "$OMNIBUS_DIR" || exit 1
 fi
+
+#TODO(regis): consider moving the following check to `DataDog/omnibus-ruby` to benefit other OSes
+declare -i dangling=0
+real_install=$(readlink -f "$INSTALL_DIR")
+while read -r link; do
+    target=$(readlink "$link")
+    if [ ! -e "$link" ]; then
+        dangling+=1
+        echo >&2 "Dangling symlink: $link -❌> $target (must resolve to an existing target)"
+        continue
+    fi
+    real_target=$(readlink -f "$link")
+    if [[ ! $real_target = $real_install/* ]]; then
+        dangling+=1
+        echo >&2 "Outbound symlink: $link -❌> $target (must resolve inside install prefix)"
+        continue
+    fi
+    if [[ $target = /* ]]; then
+        dangling+=1
+        echo >&2 "Absolute symlink: $link -❌> $target (must be relative to symlink's directory)"
+        continue
+    fi
+done < <(find "$INSTALL_DIR" -type l)
+if [ $dangling -gt 0 ]; then
+    exit $dangling
+fi
+
 echo Built packages using omnibus
 
 # --- Notarization ---

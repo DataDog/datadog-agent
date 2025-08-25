@@ -1,0 +1,85 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testEsotericStack",
+      "version": 0,
+      "thread_id": 0,
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.testEsotericStack",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/esoteric.go",
+            "lineNumber": 42
+          },
+          {
+            "function": "main.executeEsoteric",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/esoteric.go",
+            "lineNumber": 60
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 43
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "testEsotericStack",
+          "location": {
+            "method": "main.testEsotericStack"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "e": {
+                "type": "main.esotericStack",
+                "fields": {
+                  "_valid": {
+                    "type": "int32",
+                    "value": "77"
+                  },
+                  "c": {
+                    "type": "chan struct {}",
+                    "notCapturedReason": "unimplemented"
+                  },
+                  "val": {
+                    "type": "interface {}",
+                    "notCapturedReason": "unimplemented"
+                  },
+                  "work": {
+                    "type": "main.something",
+                    "notCapturedReason": "unimplemented"
+                  },
+                  "foo": {
+                    "type": "func()",
+                    "notCapturedReason": "unimplemented"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]"
+  }
+]

@@ -400,12 +400,15 @@ func TestForwarderEndtoEnd(t *testing.T) {
 	// reseting DroppedOnInput
 	highPriorityQueueFull.Set(0)
 
+	var wg sync.WaitGroup
 	requests := atomic.NewInt64(0)
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Printf("%#v\n", r.URL)
 		requests.Inc()
 		w.WriteHeader(http.StatusOK)
+		wg.Done()
 	}))
+	defer ts.Close()
 	mockConfig := mock.New(t)
 	mockConfig.SetWithoutSource("dd_url", ts.URL)
 
@@ -413,6 +416,11 @@ func TestForwarderEndtoEnd(t *testing.T) {
 	r, err := resolver.NewSingleDomainResolvers(map[string][]configUtils.APIKeys{ts.URL: {configUtils.NewAPIKeys("path", "api_key1", "api_key2")}, "invalid": {}, "invalid2": nil})
 	require.NoError(t, err)
 	f := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, r))
+
+	// when the forwarder is started, the health checker will send 2 requests to check the
+	// validity of the two api_keys
+	numReqs := int64(2)
+	wg.Add(2)
 
 	f.Start()
 	defer f.Stop()
@@ -423,38 +431,49 @@ func TestForwarderEndtoEnd(t *testing.T) {
 	headers := http.Header{}
 	headers.Set("key", "value")
 
-	// - 2 requests to check the validity of the two api_key
-	numReqs := int64(2)
+	incRequests := func(num int64) {
+		numReqs += num
+		wg.Add(int(num))
+	}
 
 	// for each call, we send 2 payloads * 2 api_keys
+	incRequests(4)
 	assert.Nil(t, f.SubmitV1Series(payload, headers))
-	numReqs += 4
 
+	incRequests(4)
 	assert.Nil(t, f.SubmitSeries(payload, headers))
-	numReqs += 4
 
+	incRequests(4)
 	assert.Nil(t, f.SubmitV1Intake(payload, transaction.Series, headers))
-	numReqs += 4
 
+	incRequests(4)
 	assert.Nil(t, f.SubmitV1CheckRuns(payload, headers))
-	numReqs += 4
 
+	incRequests(4)
 	assert.Nil(t, f.SubmitSketchSeries(payload, headers))
-	numReqs += 4
 
+	incRequests(4)
 	assert.Nil(t, f.SubmitHostMetadata(payload, headers))
-	numReqs += 4
 
+	incRequests(4)
 	assert.Nil(t, f.SubmitMetadata(payload, headers))
-	numReqs += 4
 
-	// let's wait a second for every channel communication to trigger
-	<-time.After(1 * time.Second)
+	// Wait for all the requests to have been received.
+	// Timeout after 5 seconds.
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
 
-	// We should receive the following requests:
-	// - 9 transactions * 2 payloads per transactions * 2 api_keys
-	ts.Close()
-	assert.Equal(t, numReqs, requests.Load())
+	select {
+	case <-done:
+		// We should receive the following requests:
+		// - 9 transactions * 2 payloads per transactions * 2 api_keys
+		assert.Equal(t, numReqs, requests.Load())
+	case <-time.After(5 * time.Second):
+		assert.Fail(t, "timed out waiting for requests")
+	}
 }
 
 func TestTransactionEventHandlers(t *testing.T) {

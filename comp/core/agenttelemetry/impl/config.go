@@ -191,11 +191,20 @@ var defaultProfiles = `
   profiles:
   - name: checks
     metric:
+      exclude:
+        zero_metric: true
       metrics:
         - name: checks.execution_time
           aggregate_tags:
             - check_name
             - check_loader
+        - name: checks.delay
+          aggregate_tags:
+            - check_name
+        - name: checks.runs
+          aggregate_tags:
+            - check_name
+            - state
         - name: pymem.inuse
     schedule:
       start_after: 30
@@ -230,6 +239,10 @@ var defaultProfiles = `
         - name: transactions.input_count
         - name: transactions.requeued
         - name: transactions.retries
+        - name: transactions.http_errors
+          aggregate_tags:
+            - code
+            - endpoint
     schedule:
       start_after: 30
       iterations: 0
@@ -303,6 +316,55 @@ var defaultProfiles = `
         zero_metric: true
       metrics:
         - name: runtime.running
+  - name: hostname
+    metric:
+      exclude:
+        zero_metric: true
+      metrics:
+        - name: hostname.drift_detected
+          aggregate_tags:
+            - state
+            - provider
+        - name: hostname.drift_resolution_time_ms
+          aggregate_tags:
+            - state
+            - provider
+    schedule:
+      start_after: 1800 # 30 minutes
+      iterations: 0
+      period: 21600 # 6 hours
+  - name: rtloader
+    metric:
+      exclude:
+        zero_metric: true
+      metrics:
+        - name: rtloader.inuse_bytes
+        - name: rtloader.frees
+        - name: rtloader.allocations
+  - name: otlp
+    metric:
+      exclude:
+        zero_metric: true
+      metrics:
+        - name: runtime.datadog_agent_otlp_ingest_metrics
+          aggregate_tags:
+            - version
+            - command
+            - host
+        - name: runtime.datadog_agent_ddot_metrics
+          aggregate_tags:
+            - version
+            - command
+            - host
+        - name: runtime.datadog_agent_ddot_traces
+          aggregate_tags:
+            - version
+            - command
+            - host
+    schedule:
+      start_after: 30
+      iterations: 0
+      period: 900
 `
 
 func compileMetricsExclude(p *Profile) error {

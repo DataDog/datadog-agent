@@ -27,6 +27,7 @@ The payload is a JSON dict with the following fields
   Each instance is composed of:
     - `config.hash` - **string**: the instance ID for this instance (as shown in the status page).
     - `config.provider` - **string**: where the configuration came from for this instance (disk, docker labels, ...).
+    - `config.source` - **string**: the file path if it exists.
     - `init_config` - **string**: the `init_config` part of the configuration for this check instance.
     - `instance_config` - **string**: the YAML configuration for this check instance
     - Any other metadata registered by the instance (instance version, version of the software monitored, ...).

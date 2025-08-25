@@ -250,18 +250,19 @@ func (e *FileEvent) IsOverlayFS() bool {
 type MountOrigin = uint32
 
 const (
-	MountOriginUnknown MountOrigin = iota // MountOriginUnknown unknown mount origin
-	MountOriginProcfs                     // MountOriginProcfs mount point info from procfs
-	MountOriginEvent                      // MountOriginEvent mount point info from an event
-	MountOriginUnshare                    // MountOriginUnshare mount point info from an event
-	MountOriginFsmount                    // MountOriginFsmount mount point info from the fsmount syscall
+	MountOriginUnknown  MountOrigin = iota // MountOriginUnknown unknown mount origin
+	MountOriginProcfs                      // MountOriginProcfs mount point info from procfs
+	MountOriginEvent                       // MountOriginEvent mount point info from an event
+	MountOriginUnshare                     // MountOriginUnshare mount point info from an event
+	MountOriginFsmount                     // MountOriginFsmount mount point info from the fsmount syscall
+	MountOriginOpenTree                    // MountOriginOpenTree mount point created from the open_tree syscall
 )
 
 // MountSource source of the mount
 type MountSource = uint32
 
 const (
-	MountSourceUnknown  MountSource = iota // MountSourceUnknown mount resolved from unknow source
+	MountSourceUnknown  MountSource = iota // MountSourceUnknown mount resolved from unknown source
 	MountSourceMountID                     // MountSourceMountID mount resolved with the mount id
 	MountSourceDevice                      // MountSourceDevice mount resolved with the device
 	MountSourceSnapshot                    // MountSourceSnapshot mount resolved from the snapshot
@@ -275,6 +276,16 @@ var MountSources = [...]string{
 	"snapshot",
 }
 
+// MountEventSource source syscall of the mount event
+type MountEventSource = uint32
+
+const (
+	MountEventSourceInvalid         MountEventSource = iota // MountEventSourceInvalid the source of the mount event is invalid
+	MountEventSourceMountSyscall                            // MountEventSourceMountSyscall the source of the mount event is the `mount` syscall
+	MountEventSourceFsmountSyscall                          // MountEventSourceFsmountSyscall the source of the mount event is the `fsmount` syscall
+	MountEventSourceOpenTreeSyscall                         // MountEventSourceOpenTreeSyscall the source of the mount event is the `open_tree` syscall
+)
+
 // MountSourceToString returns the string corresponding to a mount source
 func MountSourceToString(source MountSource) string {
 	return MountSources[source]
@@ -287,6 +298,7 @@ var MountOrigins = [...]string{
 	"event",
 	"unshare",
 	"fsmount",
+	"open_tree",
 }
 
 // MountOriginToString returns the string corresponding to a mount origin

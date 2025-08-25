@@ -154,11 +154,6 @@ func NewRequestStats() *RequestStats {
 	}
 }
 
-// isValid checks is the status code is in the range of valid HTTP responses.
-func (r *RequestStats) isValid(status uint16) bool {
-	return status >= 100 && status < 600
-}
-
 // CombineWith merges the data in 2 RequestStats objects
 // newStats is kept as it is, while the method receiver gets mutated
 func (r *RequestStats) CombineWith(newStats *RequestStats) {
@@ -205,7 +200,7 @@ func (r *RequestStats) CombineWith(newStats *RequestStats) {
 
 // AddRequest takes information about a HTTP transaction and adds it to the request stats
 func (r *RequestStats) AddRequest(statusCode uint16, latency float64, staticTags uint64, dynamicTags []string) {
-	if !r.isValid(statusCode) {
+	if !isValidStatusCode(statusCode) {
 		return
 	}
 
@@ -261,4 +256,9 @@ func (r *RequestStats) Close() {
 			stats.close()
 		}
 	}
+}
+
+// isValidStatusCode checks if the status code is in the range of valid HTTP responses
+func isValidStatusCode(statusCode uint16) bool {
+	return statusCode >= 100 && statusCode < 600
 }

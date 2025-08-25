@@ -25,6 +25,7 @@ type processState struct {
 	symbolicator     symbol.Symbolicator
 	symbolicatorFile io.Closer
 	symbolicatorErr  error
+	gitInfo          procmon.GitInfo
 }
 
 type processStore struct {
@@ -67,6 +68,13 @@ func (ps *processStore) ensureExists(update *rcscrape.ProcessUpdate) procRuntime
 				service:   update.Service,
 			},
 			executable: update.Executable,
+			gitInfo:    update.GitInfo,
+		}
+		if update.GitInfo != (procmon.GitInfo{}) {
+			proc.procRuntimeID.gitInfo = &proc.gitInfo
+		}
+		if update.Container != (procmon.ContainerInfo{}) {
+			proc.procRuntimeID.containerInfo = &update.Container
 		}
 		ps.processes[update.ProcessID] = proc
 	}

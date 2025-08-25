@@ -32,7 +32,7 @@ build do
 
     if mac_os_x?
       python_configure_options.push("--enable-ipv6",
-                            "--with-universal-archs=intel",
+                            "--with-universal-archs=#{arm_target? ? "universal2" : "intel"}",
                             "--enable-shared")
     elsif linux_target?
       python_configure_options.push("--enable-shared",
@@ -69,6 +69,9 @@ build do
     end
   else
     dependency "vc_redist_14"
+
+    # Apply CVE-2025-6965 patch to upgrade SQLite to 3.50.4
+    patch source: "CVE-2025-6965-sqlite-3.50.4.patch"
 
     ###############################
     # Setup openssl dependency... #

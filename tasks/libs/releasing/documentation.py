@@ -18,7 +18,7 @@ NON_RELEASING_TEAMS = {
     'serverless',
     'agent-platform',
     'agent-release-management',
-    'container-ecosystems',
+    'agent-onboarding',
     'apm-trace-storage',
     '@iglendd',  # Not a team but he's in the codeowners file
     'sdlc-security',

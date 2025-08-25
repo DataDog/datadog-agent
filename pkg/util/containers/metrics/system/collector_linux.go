@@ -351,6 +351,18 @@ func buildMemoryStats(cgs *cgroups.MemoryStats) *provider.ContainerMemStats {
 	convertField(cgs.Peak, &cs.Peak)
 	convertField(cgs.Pgfault, &cs.Pgfault)
 	convertField(cgs.Pgmajfault, &cs.Pgmajfault)
+	convertField(cgs.Shmem, &cs.Shmem)
+	convertField(cgs.FileMapped, &cs.FileMapped)
+	convertField(cgs.FileDirty, &cs.FileDirty)
+	convertField(cgs.FileWriteback, &cs.FileWriteback)
+	convertField(cgs.RefaultAnon, &cs.RefaultAnon)
+	convertField(cgs.RefaultFile, &cs.RefaultFile)
+	convertField(cgs.ActiveAnon, &cs.ActiveAnon)
+	convertField(cgs.InactiveAnon, &cs.InactiveAnon)
+	convertField(cgs.ActiveFile, &cs.ActiveFile)
+	convertField(cgs.InactiveFile, &cs.InactiveFile)
+	convertField(cgs.Unevictable, &cs.Unevictable)
+	convertField(cgs.PageTables, &cs.PageTables)
 	convertFieldAndUnit(cgs.PSISome.Total, &cs.PartialStallTime, float64(time.Microsecond))
 
 	// Compute complex fields

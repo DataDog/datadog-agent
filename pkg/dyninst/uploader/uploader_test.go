@@ -14,6 +14,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
@@ -22,9 +23,10 @@ import (
 )
 
 type testServer struct {
-	requests <-chan receivedRequest
-	server   *httptest.Server
-	close    chan struct{}
+	requests  <-chan receivedRequest
+	server    *httptest.Server
+	serverURL *url.URL
+	close     chan struct{}
 }
 
 func (s *testServer) Close() {
@@ -56,10 +58,12 @@ func newTestServer() *testServer {
 			return
 		}
 	}))
+	serverURL, _ := url.Parse(server.URL)
 	ts := &testServer{
-		server:   server,
-		requests: requestsC,
-		close:    closeC,
+		server:    server,
+		serverURL: serverURL,
+		requests:  requestsC,
+		close:     closeC,
 	}
 	return ts
 }
@@ -120,7 +124,7 @@ func TestDiagnosticsUploader(t *testing.T) {
 		defer ts.Close()
 
 		uploader := NewDiagnosticsUploader(
-			WithURL(ts.server.URL),
+			WithURL(ts.serverURL),
 			WithMaxBatchItems(2),
 			WithMaxBufferDuration(0), // disable timers
 		)
@@ -162,7 +166,7 @@ func TestDiagnosticsUploader(t *testing.T) {
 		defer ts.Close()
 
 		uploader := NewDiagnosticsUploader(
-			WithURL(ts.server.URL),
+			WithURL(ts.serverURL),
 			WithMaxBatchItems(2),
 			WithMaxBufferDuration(10*time.Millisecond),
 		)
@@ -203,7 +207,7 @@ func TestDiagnosticsUploader(t *testing.T) {
 		defer ts.Close()
 
 		uploader := NewDiagnosticsUploader(
-			WithURL(ts.server.URL),
+			WithURL(ts.serverURL),
 			WithMaxBatchItems(1),
 		)
 		defer uploader.Stop()
@@ -234,11 +238,14 @@ func TestLogsUploader(t *testing.T) {
 		ts := newTestServer()
 		defer ts.Close()
 
-		uploader := NewLogsUploader(
-			WithURL(ts.server.URL),
+		uploaderFactory := NewLogsUploaderFactory(
+			WithURL(ts.serverURL),
 			WithMaxBatchItems(2),
 		)
-		defer uploader.Stop()
+		defer uploaderFactory.Stop()
+		uploader := uploaderFactory.GetUploader(LogsUploaderMetadata{
+			Tags: "service:test",
+		})
 
 		msg1 := json.RawMessage(`{"key":"value1"}`)
 		msg2 := json.RawMessage(`{"key":"value2"}`)
@@ -260,7 +267,7 @@ func TestLogsUploader(t *testing.T) {
 				"bytes_sent":   int64(len(msg1) + len(msg2)),
 				"items_sent":   2,
 				"errors":       0,
-			}, uploader.Stats())
+			}, uploaderFactory.Stats())
 		}, 1*time.Second, 10*time.Millisecond)
 	})
 
@@ -268,10 +275,14 @@ func TestLogsUploader(t *testing.T) {
 		ts := newTestServer()
 		defer ts.Close()
 
-		uploader := NewLogsUploader(
-			WithURL(ts.server.URL),
+		uploaderFactory := NewLogsUploaderFactory(
+			WithURL(ts.serverURL),
 			WithMaxBatchItems(1),
 		)
+		defer uploaderFactory.Stop()
+		uploader := uploaderFactory.GetUploader(LogsUploaderMetadata{
+			Tags: "service:test",
+		})
 
 		msg1 := json.RawMessage(`{"key":"value1"}`)
 		uploader.Enqueue(msg1)
@@ -290,7 +301,7 @@ func TestLogsUploader(t *testing.T) {
 				"bytes_sent":   0,
 				"items_sent":   0,
 				"errors":       1,
-			}, uploader.Stats())
+			}, uploaderFactory.Stats())
 		}, 1*time.Second, 10*time.Millisecond)
 	})
 }

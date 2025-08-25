@@ -14,6 +14,8 @@ import (
 	"time"
 	"unsafe"
 
+	"golang.org/x/sys/unix"
+
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
@@ -163,7 +165,7 @@ func (c *cudaEventConsumer) Start() {
 }
 
 func isStreamSpecificEvent(eventType gpuebpf.CudaEventType) bool {
-	return eventType != gpuebpf.CudaEventTypeSetDevice
+	return eventType != gpuebpf.CudaEventTypeSetDevice && eventType != gpuebpf.CudaEventTypeVisibleDevicesSet
 }
 
 func (c *cudaEventConsumer) handleEvent(header *gpuebpf.CudaEventHeader, dataPtr unsafe.Pointer, dataLen int) error {
@@ -222,11 +224,19 @@ func (c *cudaEventConsumer) handleSetDevice(csde *gpuebpf.CudaSetDeviceEvent) {
 	c.sysCtx.setDeviceSelection(int(pid), int(tid), csde.Device)
 }
 
+func (c *cudaEventConsumer) handleVisibleDevicesSet(vds *gpuebpf.CudaVisibleDevicesSetEvent) {
+	pid, _ := getPidTidFromHeader(&vds.Header)
+
+	c.sysCtx.setUpdatedVisibleDevicesEnvVar(int(pid), unix.ByteSliceToString(vds.Devices[:]))
+}
+
 func (c *cudaEventConsumer) handleGlobalEvent(header *gpuebpf.CudaEventHeader, data unsafe.Pointer, dataLen int) error {
 	eventType := gpuebpf.CudaEventType(header.Type)
 	switch eventType {
 	case gpuebpf.CudaEventTypeSetDevice:
 		return handleTypedEvent(c, c.handleSetDevice, eventType, data, dataLen, gpuebpf.SizeofCudaSetDeviceEvent)
+	case gpuebpf.CudaEventTypeVisibleDevicesSet:
+		return handleTypedEvent(c, c.handleVisibleDevicesSet, eventType, data, dataLen, gpuebpf.SizeofCudaVisibleDevicesSetEvent)
 	default:
 		c.telemetry.eventErrors.Inc(telemetryEventTypeUnknown, telemetryEventErrorUnknownType)
 		return fmt.Errorf("unknown event type: %d", header.Type)

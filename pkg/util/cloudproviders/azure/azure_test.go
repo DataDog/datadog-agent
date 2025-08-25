@@ -199,3 +199,24 @@ func TestGetPublicIPv4(t *testing.T) {
 	assert.Equal(t, expected, val)
 	assert.True(t, strings.HasPrefix(lastRequest.URL.Path, pathPrefix))
 }
+
+func TestGetCCRID(t *testing.T) {
+	ctx := context.Background()
+	fakeResponse := "/subscriptions/1234abcd-78ef-ab12-cd45-10abc2345def/resourceGroups/MYRESOURCES/providers/Microsoft.Compute/virtualMachines/my-vm-name"
+	expected := strings.ToLower(fakeResponse)
+
+	var lastRequest *http.Request
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		io.WriteString(w, fakeResponse)
+		lastRequest = r
+	}))
+	defer ts.Close()
+	metadataURL = ts.URL
+
+	ccrid, err := GetHostCCRID(ctx)
+	assert.NoError(t, err)
+	assert.Equal(t, expected, ccrid)
+	assert.Equal(t, "/metadata/instance/compute/resourceId", lastRequest.URL.Path)
+	assert.Equal(t, "api-version=2021-02-01&format=text", lastRequest.URL.RawQuery)
+}

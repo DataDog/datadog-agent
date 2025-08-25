@@ -57,12 +57,12 @@ fi
 
 echo "Downloading the Datadog installer..."
 if command -v curl >/dev/null; then
-  if ! curl -L --retry 3 "$installer_url" | "${sudo_cmd[@]+"${sudo_cmd[@]}"}" tee "$tmp_bin" >/dev/null; then
+  if ! "${sudo_cmd[@]+"${sudo_cmd[@]}"}" curl -L --retry 3 "$installer_url" --output "$tmp_bin" >/dev/null; then
     echo "Error: Download failed with curl." >&2
     exit 1
   fi
 else
-  if ! wget --tries=3 -O - "$installer_url" | "${sudo_cmd[@]+"${sudo_cmd[@]}"}" tee "$tmp_bin" >/dev/null; then
+  if ! "${sudo_cmd[@]+"${sudo_cmd[@]}"}" wget --tries=3 -O "$tmp_bin" "$installer_url" >/dev/null; then
     echo "Error: Download failed with wget." >&2
     exit 1
   fi

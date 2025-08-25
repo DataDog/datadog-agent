@@ -49,7 +49,7 @@ func (i *ServiceInfo) ToModelService(pid int32, out *model.Service) *model.Servi
 
 	*out = i.Service
 	out.PID = int(pid)
-	out.Type = string(servicetype.Detect(i.Ports))
+	out.Type = string(servicetype.Detect(i.TCPPorts, i.UDPPorts))
 
 	return out
 }
@@ -288,7 +288,8 @@ func (c *Discovery) updateCacheInfo(response *model.ServicesResponse, now time.T
 		}
 
 		info.LastHeartbeat = now.Unix()
-		info.Ports = service.Ports
+		info.TCPPorts = service.TCPPorts
+		info.UDPPorts = service.UDPPorts
 		info.RSS = service.RSS
 	}
 

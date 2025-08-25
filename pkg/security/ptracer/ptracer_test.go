@@ -57,7 +57,7 @@ func child() {
 	signal.Notify(sigs)
 	defer signal.Reset()
 	for sig := range sigs {
-		_, err := fifo.Write([]byte(fmt.Sprintf("%v", sig)))
+		_, err := fmt.Fprintf(fifo, "%v", sig)
 		if err != nil {
 			os.Exit(1)
 		}

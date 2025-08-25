@@ -10,37 +10,23 @@ import (
 	"path/filepath"
 	"testing"
 
-	"go.uber.org/fx"
-
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
-	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestRealConfig(t *testing.T) {
 	// point the ConfFilePath to a valid, but empty config file so that it does
 	// not use the config file on the developer's system
 	dir := t.TempDir()
-	_ = os.WriteFile(filepath.Join(dir, "datadog.yaml"), []byte("{}"), 0o666)
+	configFilePath := filepath.Join(dir, "datadog.yaml")
+	_ = os.WriteFile(configFilePath, []byte("{}"), 0o666)
+
+	config := NewMockFromYAMLFile(t, configFilePath)
 
 	os.Setenv("DD_DD_URL", "https://example.com")
 	defer func() { os.Unsetenv("DD_DD_URL") }()
 
-	config := fxutil.Test[Component](t, fx.Options(
-		fx.Supply(NewParams(
-			"",
-			WithConfigMissingOK(true),
-			WithConfFilePath(dir),
-		)),
-		fxutil.ProvideOptional[secrets.Component](),
-		secretsimpl.MockModule(),
-		nooptelemetry.Module(),
-		Module(),
-	))
 	require.Equal(t, "https://example.com", config.GetString("dd_url"))
 }
 
@@ -48,10 +34,8 @@ func TestMockConfig(t *testing.T) {
 	t.Setenv("DD_APP_KEY", "abc1234")
 	t.Setenv("DD_URL", "https://example.com")
 
-	config := fxutil.Test[Component](t, fx.Options(
-		fx.Supply(Params{}),
-		MockModule(),
-	))
+	config := NewMock(t)
+
 	// values are set from env..
 	require.Equal(t, "abc1234", config.GetString("app_key"))
 	require.Equal(t, "https://example.com", config.GetString("dd_url"))

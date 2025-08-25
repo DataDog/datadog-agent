@@ -154,10 +154,21 @@ Error: <nil>
 ----------- PodAutoscaler Status -----------
 Error: test error
 --------------------------------
-Horizontal Last Action: Timestamp: %[1]s
+Horizontal Last Action: Timestamp: %[2]s
 From Replicas: 2
 To Replicas: 3
 Recommended Replicas: 3
+Horizontal Last Action: Timestamp: %[1]s
+From Replicas: 3
+To Replicas: 4
+Recommended Replicas: 4
+--------------------------------
+Horizontal Last Recommendation: Source: Autoscaling
+Timestamp: %[1]s
+Replicas: 100
+Horizontal Last Recommendation: Source: Autoscaling
+Timestamp: %[1]s
+Replicas: 102
 --------------------------------
 Vertical Last Action Error: test vertical last action error
 Vertical Last Action: Timestamp: %[1]s
@@ -169,7 +180,7 @@ Endpoint: https://custom-recommender.com
 Settings: map[key:value]
 
 ===
-`, testTime.String())
+`, testTime.String(), testTime.Add(-1*time.Second).String())
 	compareTestOutput(t, expectedOutput, output)
 }
 
@@ -373,10 +384,28 @@ func createFakePodAutoscaler(testTime time.Time) model.FakePodAutoscalerInternal
 		},
 		HorizontalLastActions: []datadoghqcommon.DatadogPodAutoscalerHorizontalAction{
 			{
-				Time:                metav1.Time{Time: testTime},
+				Time:                metav1.Time{Time: testTime.Add(-1 * time.Second)},
 				FromReplicas:        2,
 				ToReplicas:          3,
 				RecommendedReplicas: ptr.To(int32(3)),
+			},
+			{
+				Time:                metav1.Time{Time: testTime},
+				FromReplicas:        3,
+				ToReplicas:          4,
+				RecommendedReplicas: ptr.To(int32(4)),
+			},
+		},
+		HorizontalLastRecommendations: []model.HorizontalScalingValues{
+			{
+				Source:    datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+				Timestamp: testTime,
+				Replicas:  100,
+			},
+			{
+				Source:    datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+				Timestamp: testTime,
+				Replicas:  102,
 			},
 		},
 		VerticalLastAction: &datadoghqcommon.DatadogPodAutoscalerVerticalAction{
@@ -391,10 +420,6 @@ func createFakePodAutoscaler(testTime time.Time) model.FakePodAutoscalerInternal
 
 func compareTestOutput(t *testing.T, expected, actual string) {
 	expected = strings.ReplaceAll(expected, " ", "")
-	expected = strings.ReplaceAll(expected, "GMT", "UTC")
-
 	actual = strings.ReplaceAll(actual, " ", "")
-	actual = strings.ReplaceAll(actual, "GMT", "UTC")
-
 	assert.Equal(t, expected, actual)
 }

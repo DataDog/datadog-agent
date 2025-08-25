@@ -12,16 +12,14 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 )
 
-const cudaVisibleDevicesEnvVar = "CUDA_VISIBLE_DEVICES"
+// CudaVisibleDevicesEnvVar is the name of the environment variable that controls the visible GPUs for CUDA applications
+const CudaVisibleDevicesEnvVar = "CUDA_VISIBLE_DEVICES"
 
-// GetVisibleDevicesForProcess modifies the list of GPU devices according to the
-// value of the CUDA_VISIBLE_DEVICES environment variable for the specified
-// process. Reference:
+// ParseVisibleDevices modifies the list of GPU devices according to the
+// value of the CUDA_VISIBLE_DEVICES environment variable. Reference:
 // https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#env-vars.
 //
 // As a summary, the CUDA_VISIBLE_DEVICES environment variable should be a comma
@@ -36,18 +34,7 @@ const cudaVisibleDevicesEnvVar = "CUDA_VISIBLE_DEVICES"
 // devices whose index precedes the invalid index are visible to CUDA
 // applications." If an invalid index is found, an error is returned together
 // with the list of valid devices found up until that point.
-func GetVisibleDevicesForProcess(devices []ddnvml.Device, pid int, procfs string) ([]ddnvml.Device, error) {
-	cudaVisibleDevicesForProcess, err := kernel.GetProcessEnvVariable(pid, procfs, cudaVisibleDevicesEnvVar)
-	if err != nil {
-		return nil, fmt.Errorf("cannot get env var %s for process %d: %w", cudaVisibleDevicesEnvVar, pid, err)
-	}
-
-	return getVisibleDevices(devices, cudaVisibleDevicesForProcess)
-}
-
-// getVisibleDevices processes the list of GPU devices according to the value of
-// the CUDA_VISIBLE_DEVICES environment variable
-func getVisibleDevices(devices []ddnvml.Device, cudaVisibleDevicesForProcess string) ([]ddnvml.Device, error) {
+func ParseVisibleDevices(devices []ddnvml.Device, cudaVisibleDevicesForProcess string) ([]ddnvml.Device, error) {
 	// First, we adjust the list of devices to take into account how CUDA presents MIG devices in order. This
 	// list will not be used when searching by prefix because prefix matching is done against *all* devices,
 	// but index filtering is done against the adjusted list where devices with MIG children are replaced by

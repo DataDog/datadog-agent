@@ -13,6 +13,7 @@ import (
 	"time"
 
 	agentmodel "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
@@ -55,14 +56,10 @@ func (s *windowsTestSuite) SetupSuite() {
 	// Install chocolatey - https://chocolatey.org/install
 	// This may be due to choco rate limits - https://datadoghq.atlassian.net/browse/ADXT-950
 	stdout, err := s.Env().RemoteHost.Execute("Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iwr https://community.chocolatey.org/install.ps1 -UseBasicParsing | iex")
-	if err != nil {
-		s.T().Logf("Failed to install chocolatey: %s, err: %s", stdout, err)
-	}
+	require.NoErrorf(s.T(), err, "Failed to install chocolatey: %s, err: %s", stdout, err)
 	// Install diskspd for IO tests - https://learn.microsoft.com/en-us/azure/azure-local/manage/diskspd-overview
 	stdout, err = s.Env().RemoteHost.Execute("C:\\ProgramData\\chocolatey\\bin\\choco.exe install -y diskspd")
-	if err != nil {
-		s.T().Logf("Failed to install diskspd: %s, err: %s", stdout, err)
-	}
+	require.NoErrorf(s.T(), err, "Failed to install diskspd: %s, err: %s", stdout, err)
 }
 
 func (s *windowsTestSuite) TestAPIKeyRefresh() {
@@ -244,9 +241,11 @@ func (s *windowsTestSuite) TestUnprotectedProcessCheckIO() {
 }
 
 func (s *windowsTestSuite) TestManualProcessCheck() {
+	flake.Mark(s.T())
+	// test can be flaky due to missing CPU stats when cpu usage is extremely low (json output omits 0 values), so we want to re-run a full scan to ensure we have CPU stats
+	s.Env().RemoteHost.MustExecute("Start-MpScan -ScanType FullScan -AsJob")
 	check := s.Env().RemoteHost.
 		MustExecute("& \"C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent\\process-agent.exe\" check process --json")
-
 	assertManualProcessCheck(s.T(), check, false, "MsMpEng.exe")
 }
 

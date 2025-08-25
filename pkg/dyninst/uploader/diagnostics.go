@@ -73,7 +73,7 @@ type Diagnostic struct {
 	RuntimeID    string `json:"runtimeId"`
 	ProbeID      string `json:"probeId"`
 	Status       Status `json:"status"`
-	ProbeVersion int    `json:"probeVersion,omitempty"`
+	ProbeVersion int    `json:"probeVersion"`
 
 	*DiagnosticException `json:"exception,omitempty"`
 }
@@ -93,11 +93,11 @@ type DiagnosticsUploader struct {
 func NewDiagnosticsUploader(opts ...Option) *DiagnosticsUploader {
 	cfg := defaultConfig()
 	for _, opt := range opts {
-		opt(cfg)
+		opt(&cfg)
 	}
-	sender := newDiagnosticsSender(cfg.client, cfg.url)
+	sender := newDiagnosticsSender(cfg.client, cfg.url.String())
 	return &DiagnosticsUploader{
-		batcher: newBatcher("diagnostics", sender, opts...),
+		batcher: newBatcher("diagnostics", sender, cfg.batcherConfig),
 	}
 }
 

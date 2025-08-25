@@ -31,8 +31,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	pkgconfigsetup.Datadog().SetConfigFile(*cfgpath)
-	if _, err := pkgconfigsetup.LoadWithoutSecret(pkgconfigsetup.Datadog(), nil); err != nil {
+	ddcfg := pkgconfigsetup.GlobalConfigBuilder()
+	ddcfg.SetConfigFile(*cfgpath)
+	if _, err := pkgconfigsetup.LoadWithoutSecret(ddcfg, nil); err != nil {
 		fmt.Fprintf(os.Stderr, "%s\n", err)
 		os.Exit(1)
 	}

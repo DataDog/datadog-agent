@@ -13,25 +13,14 @@ import (
 
 // JSONMarshaler is a AbstractMarshaler that implement JSON marshaling.
 type JSONMarshaler interface {
-	AbstractMarshaler
-
+	// SplitPayload breaks the payload into times number of pieces
+	SplitPayload(int) ([]AbstractMarshaler, error)
 	// MarshalJSON serialization a Payload to JSON
 	MarshalJSON() ([]byte, error)
 }
 
-// ProtoMarshaler is a AbstractMarshaler that implement proto marshaling.
-type ProtoMarshaler interface {
-	AbstractMarshaler
-
-	// Marshal serialize objects using agent-payload definition.
-	Marshal() ([]byte, error)
-}
-
-// AbstractMarshaler is an abstract marshaler.
-type AbstractMarshaler interface {
-	// SplitPayload breaks the payload into times number of pieces
-	SplitPayload(int) ([]AbstractMarshaler, error)
-}
+// AbstractMarshaler is deprecated.
+type AbstractMarshaler JSONMarshaler
 
 // StreamJSONMarshaler is an interface for metrics that are able to serialize themselves in a stream
 type StreamJSONMarshaler interface {

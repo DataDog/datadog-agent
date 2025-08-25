@@ -81,6 +81,9 @@ func (ts *telemetrySender) newEvent(t eventType, service model.Service) *event {
 		}
 	}
 
+	// Combine TCP and UDP ports for backward compatibility
+	allPorts := combinePorts(service.TCPPorts, service.UDPPorts)
+
 	return &event{
 		RequestType: t,
 		APIVersion:  "v2",
@@ -103,7 +106,7 @@ func (ts *telemetrySender) newEvent(t eventType, service model.Service) *event {
 			LastSeen:                   service.LastHeartbeat,
 			APMInstrumentation:         service.APMInstrumentation,
 			ServiceNameSource:          nameSource,
-			Ports:                      service.Ports,
+			Ports:                      allPorts,
 			PID:                        service.PID,
 			CommandLine:                service.CommandLine,
 			RSSMemory:                  service.RSS,
@@ -117,6 +120,32 @@ func (ts *telemetrySender) newEvent(t eventType, service model.Service) *event {
 	}
 }
 
+// combinePorts combines TCP and UDP ports into a single slice, removing duplicates
+func combinePorts(tcpPorts, udpPorts []uint16) []uint16 {
+	if len(tcpPorts) == 0 && len(udpPorts) == 0 {
+		return nil
+	}
+
+	allPorts := make([]uint16, 0, len(tcpPorts)+len(udpPorts))
+	seenPorts := make(map[uint16]struct{})
+
+	for _, port := range tcpPorts {
+		if _, seen := seenPorts[port]; !seen {
+			allPorts = append(allPorts, port)
+			seenPorts[port] = struct{}{}
+		}
+	}
+
+	for _, port := range udpPorts {
+		if _, seen := seenPorts[port]; !seen {
+			allPorts = append(allPorts, port)
+			seenPorts[port] = struct{}{}
+		}
+	}
+
+	return allPorts
+}
+
 func newTelemetrySender(sender sender.Sender) *telemetrySender {
 	return &telemetrySender{
 		sender:   sender,
@@ -125,11 +154,12 @@ func newTelemetrySender(sender sender.Sender) *telemetrySender {
 }
 
 func (ts *telemetrySender) sendStartServiceEvent(service model.Service) {
-	log.Debugf("[pid: %d | ddservice: %s | generated: %s | ports: %v] start-service",
+	log.Debugf("[pid: %d | ddservice: %s | generated: %s | tcp: %v | udp: %v] start-service",
 		service.PID,
 		service.DDService,
 		service.GeneratedName,
-		service.Ports,
+		service.TCPPorts,
+		service.UDPPorts,
 	)
 
 	e := ts.newEvent(eventTypeStartService, service)

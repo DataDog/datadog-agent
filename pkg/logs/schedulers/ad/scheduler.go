@@ -77,7 +77,9 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 				log.Warnf("Invalid configuration: %v", err)
 				continue
 			}
-			for _, source := range sources {
+
+			filtered := s.filterConflictingSources(sources, config.Provider)
+			for _, source := range filtered {
 				s.mgr.AddSource(source)
 			}
 		default:
@@ -85,6 +87,53 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 			continue
 		}
 	}
+}
+
+// filterConflictingSources filters out sources that conflict with existing
+// sources based on priority.  Manually configured logs (file provider) take
+// precedence over dynamically discovered logs (process_log provider).
+//
+// Note that this makes an assumption that manually configured logs are added
+// before dynamically discovered logs, which should be true since parsing of
+// configuration files is done before discovery of running services.
+func (s *Scheduler) filterConflictingSources(sources []*sourcesPkg.LogSource, provider string) []*sourcesPkg.LogSource {
+	if provider != names.ProcessLog {
+		// For non-process_log providers, add all sources without filtering
+		return sources
+	}
+
+	paths := make(map[string]struct{}, len(sources))
+	for _, source := range sources {
+		if source.Config.Type == logsConfig.FileType {
+			paths[source.Config.Path] = struct{}{}
+		}
+	}
+
+	// Check for conflicts with existing sources
+	for _, source := range s.mgr.GetSources() {
+		if source.Config.Type != logsConfig.FileType {
+			continue
+		}
+
+		path := source.Config.Path
+		if _, exists := paths[path]; exists {
+			log.Debugf("Ignoring %s config for %s due to existing manual configuration", names.ProcessLog, path)
+			delete(paths, path)
+		}
+	}
+
+	filtered := make([]*sourcesPkg.LogSource, 0, len(sources))
+
+	for _, source := range sources {
+		if source.Config.Type != logsConfig.FileType {
+			filtered = append(filtered, source)
+		} else if _, exists := paths[source.Config.Path]; exists {
+			// This file source wasn't removed due to conflicts
+			filtered = append(filtered, source)
+		}
+	}
+
+	return filtered
 }
 
 // Unschedule removes all the sources and services matching the integration configs.
@@ -150,7 +199,7 @@ func CreateSources(config integration.Config) ([]*sourcesPkg.LogSource, error) {
 	case names.File:
 		// config defined in a file
 		configs, err = logsConfig.ParseYAML(config.LogsConfig)
-	case names.Container, names.Kubernetes, names.KubeContainer:
+	case names.Container, names.Kubernetes, names.KubeContainer, names.ProcessLog:
 		// config attached to a container label or a pod annotation
 		configs, err = logsConfig.ParseJSON(config.LogsConfig)
 	case names.RemoteConfig:
@@ -161,7 +210,9 @@ func CreateSources(config integration.Config) ([]*sourcesPkg.LogSource, error) {
 			log.Warnf("parsing logs config from %v is disabled. You can enable it by setting remote_configuration.agent_integrations.allow_log_config_scheduling to true", names.RemoteConfig)
 		}
 	case names.DataStreamsLiveMessages:
-		configs, err = logsConfig.ParseJSON(config.LogsConfig)
+		// Live messages provides a default (Json) logs config for the kafka_consumer integration when there is no config.
+		// However, if there is already a logs config, live messages will not override it, so it can be a yaml config in this case.
+		configs, err = logsConfig.ParseJSONOrYAML(config.LogsConfig)
 	default:
 		// invalid provider
 		err = fmt.Errorf("parsing logs config from %v is not supported yet", config.Provider)
@@ -202,7 +253,7 @@ func CreateSources(config integration.Config) ([]*sourcesPkg.LogSource, error) {
 		if service != nil {
 			// a config defined in a container label or a pod annotation does not always contain a type,
 			// override it here to ensure that the config won't be dropped at validation.
-			if (cfg.Type == logsConfig.FileType || cfg.Type == logsConfig.TCPType || cfg.Type == logsConfig.UDPType) && (config.Provider == names.Kubernetes || config.Provider == names.Container || config.Provider == names.KubeContainer || config.Provider == logsConfig.FileType) {
+			if (cfg.Type == logsConfig.FileType || cfg.Type == logsConfig.TCPType || cfg.Type == logsConfig.UDPType || cfg.Type == logsConfig.IntegrationType) && (config.Provider == names.Kubernetes || config.Provider == names.Container || config.Provider == names.KubeContainer || config.Provider == logsConfig.FileType || config.Provider == names.ProcessLog || config.Provider == names.DataStreamsLiveMessages) {
 				// cfg.Type is not overwritten as tailing a file from a Docker or Kubernetes AD configuration
 				// is explicitly supported (other combinations may be supported later)
 				cfg.Identifier = service.Identifier

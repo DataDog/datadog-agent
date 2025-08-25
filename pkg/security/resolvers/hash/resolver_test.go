@@ -465,22 +465,27 @@ func BenchmarkHashFunctions(b *testing.B) {
 		},
 	}
 
+	tmpDir := b.TempDir()
+
 	for _, bb := range benchmarks {
 		for _, fc := range bb.fileSizes {
 			b.Run(bb.name+"/"+fc.name, func(caseB *testing.B) {
 				caseB.Helper()
 
 				// reset file
-				f, err := os.Create("/tmp/hash_bench")
+				f, err := os.CreateTemp(tmpDir, "hash_bench")
 				if err != nil {
 					caseB.Errorf("couldn't create benchmark file: %v", err)
 					return
 				}
-				if _, err = f.Write(generateFileData(fc.fileSize)); err != nil {
+				if _, err := f.Write(generateFileData(fc.fileSize)); err != nil {
 					caseB.Errorf("couldn't write file content: %v", err)
 					return
 				}
-				_ = f.Close()
+				if err := f.Close(); err != nil {
+					caseB.Errorf("couldn't close benchmark file: %v", err)
+					return
+				}
 
 				resolver, err := NewResolver(bb.config, client, nil)
 				if err != nil {
@@ -503,7 +508,7 @@ func BenchmarkHashFunctions(b *testing.B) {
 							},
 						},
 					}, &model.FileEvent{
-						PathnameStr:           "/tmp/hash_bench",
+						PathnameStr:           f.Name(),
 						IsPathnameStrResolved: true,
 					})
 					if len(got) == 0 {
@@ -512,10 +517,5 @@ func BenchmarkHashFunctions(b *testing.B) {
 				}
 			})
 		}
-	}
-
-	// delete test file
-	if err := os.Remove("/tmp/hash_bench"); err != nil {
-		b.Errorf("couldn't delete benchmark file: %v", err)
 	}
 }

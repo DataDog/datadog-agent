@@ -49,7 +49,7 @@ func TestPTraceEvent(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	test.Run(t, "ptrace-cont", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "ptrace-cont", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{"ptrace-traceme"}
 		envs := []string{}
 
@@ -75,7 +75,7 @@ func TestPTraceEvent(t *testing.T) {
 		}
 	})
 
-	test.Run(t, "ptrace-me", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "ptrace-me", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{"ptrace-traceme"}
 		envs := []string{}
 
@@ -101,7 +101,7 @@ func TestPTraceEvent(t *testing.T) {
 		}
 	})
 
-	test.Run(t, "ptrace-attach", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "ptrace-attach", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{"sleep", "2", ";", "ptrace-attach"}
 		envs := []string{}
 

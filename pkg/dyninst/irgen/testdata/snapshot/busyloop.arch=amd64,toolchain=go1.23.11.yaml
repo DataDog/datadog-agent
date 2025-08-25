@@ -1,0 +1,27 @@
+ID: 1
+Probes:
+    - id: a
+      version: 0
+      type: LOG_PROBE
+      where: {methodName: main.noop}
+      template: ""
+      segments: []
+      captureSnapshot: true
+      subprogram: {subprogram: 1}
+      events:
+        - ID: 1
+          Type: 1 EventRootType Probe[main.noop]
+          InjectionPoints: [{PC: "0x4a5f60", Frameless: true}]
+          Condition: null
+Subprograms:
+    - ID: 1
+      Name: main.noop
+      OutOfLinePCRanges: [0x4a5f60..0x4a5f61]
+      InlinePCRanges: []
+      Variables: []
+Types:
+    - __kind: EventRootType
+      ID: 1
+      Name: Probe[main.noop]
+MaxTypeID: 1
+Issues: []

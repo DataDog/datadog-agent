@@ -27,26 +27,50 @@ import (
 )
 
 func TestBuildURLShouldReturnHTTPSWithUseSSL(t *testing.T) {
-	url := buildURL(config.NewEndpoint("bar", "", "foo", 0, true))
+	url := buildURL(config.NewEndpoint("bar", "", "foo", 0, config.EmptyPathPrefix, true))
 	assert.Equal(t, "https://foo/v1/input", url)
 }
 
 func TestBuildURLShouldReturnHTTPWithoutUseSSL(t *testing.T) {
-	url := buildURL(config.NewEndpoint("bar", "", "foo", 0, false))
+	url := buildURL(config.NewEndpoint("bar", "", "foo", 0, config.EmptyPathPrefix, false))
 	assert.Equal(t, "http://foo/v1/input", url)
 }
 
 func TestBuildURLShouldReturnAddressWithPortWhenDefined(t *testing.T) {
-	url := buildURL(config.NewEndpoint("bar", "", "foo", 1234, false))
+	url := buildURL(config.NewEndpoint("bar", "", "foo", 1234, config.EmptyPathPrefix, false))
 	assert.Equal(t, "http://foo:1234/v1/input", url)
 }
 
 func TestBuildURLShouldReturnAddressForVersion2(t *testing.T) {
-	e := config.NewEndpoint("bar", "", "foo", 0, false)
+	e := config.NewEndpoint("bar", "", "foo", 0, config.EmptyPathPrefix, false)
 	e.Version = config.EPIntakeVersion2
 	e.TrackType = "test-track"
 	url := buildURL(e)
 	assert.Equal(t, "http://foo/api/v2/test-track", url)
+}
+
+func TestBuildURLPathPrefix(t *testing.T) {
+	e := config.NewEndpoint("bar", "", "foo", 0, "/prefix/url", false)
+	e.Version = config.EPIntakeVersion2
+	e.TrackType = "test-track"
+	url := buildURL(e)
+	assert.Equal(t, "http://foo/prefix/url/api/v2/test-track", url)
+}
+
+func TestBuildURLPathPrefixSSLPort(t *testing.T) {
+	e := config.NewEndpoint("bar", "", "foo", 8080, "/prefix/url", true)
+	e.Version = config.EPIntakeVersion2
+	e.TrackType = "test-track"
+	url := buildURL(e)
+	assert.Equal(t, "https://foo:8080/prefix/url/api/v2/test-track", url)
+}
+
+func TestBuildURLPathPrefixV1(t *testing.T) {
+	e := config.NewEndpoint("bar", "", "foo", 8080, "/prefix/url", true)
+	e.Version = config.EPIntakeVersion1
+	e.TrackType = "test-track"
+	url := buildURL(e)
+	assert.Equal(t, "https://foo:8080/prefix/url/v1/input", url)
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
@@ -390,7 +414,7 @@ func TestTransportProtocol_HTTP1(t *testing.T) {
 	defer s.Close()
 
 	c.SetWithoutSource("logs_config.http_timeout", 5)
-	client := httpClientFactory(c)()
+	client := httpClientFactory(c, NoTimeoutOverride)()
 
 	assert.Equal(t, 5*time.Second, client.Timeout)
 	// Create an HTTP/1.1 request
@@ -423,7 +447,7 @@ func TestTransportProtocol_HTTP2(t *testing.T) {
 	defer s.Close()
 
 	c.SetWithoutSource("logs_config.http_timeout", 5)
-	client := httpClientFactory(c)()
+	client := httpClientFactory(c, NoTimeoutOverride)()
 
 	assert.Equal(t, 5*time.Second, client.Timeout)
 	req, err := http.NewRequest("POST", s.URL, nil)
@@ -456,7 +480,7 @@ func TestTransportProtocol_InvalidProtocol(t *testing.T) {
 	defer server.Close()
 
 	c.SetWithoutSource("logs_config.http_timeout", 5)
-	client := httpClientFactory(c)()
+	client := httpClientFactory(c, NoTimeoutOverride)()
 
 	assert.Equal(t, 5*time.Second, client.Timeout)
 	req, err := http.NewRequest("POST", server.URL, nil)
@@ -488,7 +512,7 @@ func TestTransportProtocol_HTTP1FallBack(t *testing.T) {
 	defer server.Close()
 
 	c.SetWithoutSource("logs_config.http_timeout", 5)
-	client := httpClientFactory(c)()
+	client := httpClientFactory(c, NoTimeoutOverride)()
 
 	assert.Equal(t, 5*time.Second, client.Timeout)
 	req, err := http.NewRequest("POST", server.URL, nil)
@@ -521,7 +545,7 @@ func TestTransportProtocol_HTTP2WhenUsingProxy(t *testing.T) {
 	defer server.Close()
 
 	c.SetWithoutSource("logs_config.http_timeout", 5)
-	client := httpClientFactory(c)()
+	client := httpClientFactory(c, NoTimeoutOverride)()
 
 	assert.Equal(t, 5*time.Second, client.Timeout)
 	req, err := http.NewRequest("POST", server.URL, nil)
@@ -554,7 +578,7 @@ func TestTransportProtocol_HTTP1FallBackWhenUsingProxy(t *testing.T) {
 	defer server.Close()
 
 	c.SetWithoutSource("logs_config.http_timeout", 5)
-	client := httpClientFactory(c)()
+	client := httpClientFactory(c, NoTimeoutOverride)()
 
 	assert.Equal(t, 5*time.Second, client.Timeout)
 	req, err := http.NewRequest("POST", server.URL, nil)
@@ -696,4 +720,11 @@ func TestDestinationCompression(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, metric, 2)
 	assert.Equal(t, "gzip", metric[0].Tags()["compression_kind"])
+}
+
+func TestHTTPTimeoutOverride(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetWithoutSource("logs_config.http_timeout", 1)
+	client := httpClientFactory(cfg, 15*time.Second)()
+	assert.Equal(t, 15*time.Second, client.Timeout)
 }

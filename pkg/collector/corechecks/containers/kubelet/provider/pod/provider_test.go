@@ -12,11 +12,11 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
-	"regexp"
 	"strconv"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/assert"
@@ -27,12 +27,12 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	commontesting "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common/testing"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -147,15 +147,10 @@ func (suite *ProviderTestSuite) SetupTest() {
 
 	suite.tagger = fakeTagger
 
-	suite.provider = &Provider{
-		config: config,
-		filter: &containers.Filter{
-			Enabled:         true,
-			NameExcludeList: []*regexp.Regexp{regexp.MustCompile("agent-excluded")},
-		},
-		podUtils: common.NewPodUtils(fakeTagger),
-		tagger:   fakeTagger,
-	}
+	mockConfig.SetWithoutSource("container_exclude", "name:agent-excluded")
+	mockFilterStore := workloadfilterfxmock.SetupMockFilter(suite.T())
+
+	suite.provider = NewProvider(mockFilterStore, config, common.NewPodUtils(fakeTagger), fakeTagger)
 }
 
 func (suite *ProviderTestSuite) TearDownTest() {
@@ -309,4 +304,38 @@ func (suite *ProviderTestSuite) TestNoMetricNoKubeletData() {
 	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"containers.running", append(config.Tags, "kube_container_name:prometheus-to-sd-exporter-no-namespace", "kube_deployment:fluentd-gcp-v2.0.10"))
 	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"containers.running", append(config.Tags, "pod_name:demo-app-success-c485bc67b-klj45-no-namespace"))
 	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"containers.running", append(config.Tags, "kube_container_name:fluentd-gcp-no-namespace", "kube_deployment:fluentd-gcp-v2.0.10"))
+}
+
+func (suite *ProviderTestSuite) TestNoPodMetricsIfDurationIsNegative() {
+	// termination time: 2018-02-14T14:57:17Z
+	err := suite.dummyKubelet.loadPodList("../../testdata/pods_termination.json")
+	require.Nil(suite.T(), err)
+	config := suite.provider.config
+
+	suite.provider.now = func() time.Time {
+		t, _ := time.Parse(time.RFC3339, "2018-02-14T10:57:17Z")
+		return t
+	}
+
+	err = suite.provider.Provide(suite.kubeUtil, suite.mockSender)
+	require.Nil(suite.T(), err)
+	// ensure that metrics are not emitted when there are no kubelet tags
+	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"pod.terminating.duration", config.Tags)
+}
+
+func (suite *ProviderTestSuite) TestPodMetricsIfDurationIsPositive() {
+	// termination time: 2018-02-14T14:57:17Z
+	err := suite.dummyKubelet.loadPodList("../../testdata/pods_termination.json")
+	require.Nil(suite.T(), err)
+	config := suite.provider.config
+
+	suite.provider.now = func() time.Time {
+		t, _ := time.Parse(time.RFC3339, "2018-02-15T14:57:17Z")
+		return t
+	}
+
+	err = suite.provider.Provide(suite.kubeUtil, suite.mockSender)
+	require.Nil(suite.T(), err)
+	// ensure that metrics are not emitted when there are no kubelet tags
+	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"pod.terminating.duration", 86400, "", config.Tags)
 }

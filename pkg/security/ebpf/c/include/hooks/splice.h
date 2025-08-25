@@ -104,7 +104,7 @@ int __attribute__((always_inline)) sys_splice_ret(void *ctx, int retval) {
     fill_file(syscall->splice.dentry, &event.file);
 
     struct proc_cache_t *entry = fill_process_context(&event.process);
-    fill_container_context(entry, &event.container);
+    fill_cgroup_context(entry, &event.cgroup);
     fill_span_context(&event.span);
 
     send_event(ctx, EVENT_SPLICE, event);

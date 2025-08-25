@@ -175,7 +175,8 @@
                         "procfs",
                         "event",
                         "unshare",
-                        "fsmount"
+                        "fsmount",
+                        "open_tree"
                     ]
                 }
             },

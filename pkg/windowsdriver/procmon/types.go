@@ -21,9 +21,9 @@ import "C"
 const Signature = C.DD_PROCMONDRIVER_SIGNATURE
 
 const (
-	ProcmonStartIOCTL = C.DDPROCMONDRIVER_IOCTL_START
-	ProcmonStopIOCTL  = C.DDPROCMONDRIVER_IOCTL_STOP
-	ProcmonStatsIOCTL = C.DDPROCMONDRIVER_IOCTL_GETSTATS
+	ProcmonStartIOCTL = C.DD_PROCMONDRIVER_IOCTL_START
+	ProcmonStopIOCTL  = C.DD_PROCMONDRIVER_IOCTL_STOP
+	ProcmonStatsIOCTL = C.DD_PROCMONDRIVER_IOCTL_GETSTATS
 
 	ProcmonSignature = C.DD_PROCMONDRIVER_SIGNATURE
 )
@@ -33,10 +33,10 @@ const (
 	ProcmonNotifyStart = C.DD_NOTIFY_START
 )
 
-type DDProcmonStats C.struct__dd_procmon_stats
+type DDProcmonStats C.struct__DD_PROCMON_STATS
 
-type DDProcessNotifyType C.enum__dd_notify_type
-type DDProcessNotification C.struct__dd_process_notification
+type DDProcessNotifyType C.enum__DD_NOTIFY_TYPE
+type DDProcessNotification C.struct__DD_PROCESS_NOTIFICATION
 
-const DDProcessNotificationSize = C.sizeof_struct__dd_process_notification
-const DDProcmonStatsSize = C.sizeof_struct__dd_procmon_stats
+const DDProcessNotificationSize = C.sizeof_struct__DD_PROCESS_NOTIFICATION
+const DDProcmonStatsSize = C.sizeof_struct__DD_PROCMON_STATS

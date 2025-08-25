@@ -54,11 +54,13 @@ func osinit() {
 		defaultSystemProbeLogFilePath = filepath.Join(pd, "logs", "system-probe.log")
 		DefaultProcessAgentLogFile = filepath.Join(pd, "logs", "process-agent.log")
 		DefaultUpdaterLogFile = filepath.Join(pd, "logs", "updater.log")
+		DefaultOTelAgentLogFile = filepath.Join(pd, "logs", "otel-agent.log")
 	}
 
-	// Process Agent
+	// Agent binary
 	if _here, err := executable.Folder(); err == nil {
-		agentFilePath := filepath.Join(_here, "..", "..", "embedded", "agent.exe")
+		InstallPath = filepath.Join(_here, "..", "..")
+		agentFilePath := filepath.Join(InstallPath, "embedded", "agent.exe")
 		if _, err := os.Stat(agentFilePath); err == nil {
 			DefaultDDAgentBin = agentFilePath
 		}

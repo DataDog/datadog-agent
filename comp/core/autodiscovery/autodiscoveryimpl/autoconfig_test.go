@@ -27,7 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -401,6 +401,38 @@ func countLoadedConfigs(ac *AutoConfig) int {
 		return 0
 	}
 	return len(ac.GetAllConfigs())
+}
+
+func TestGetUnresolvedConfigs(t *testing.T) {
+	deps := createDeps(t)
+	mockResolver := MockSecretResolver{t, []mockSecretScenario{
+		{
+			expectedData:   []byte{},
+			expectedOrigin: "kafka",
+			returnedData:   []byte{},
+			returnedError:  nil,
+		},
+		{
+			expectedData:   []byte("param1: ENC[foo]\n"),
+			expectedOrigin: "kafka",
+			returnedData:   []byte("param1: foo\n"),
+			returnedError:  nil,
+		},
+	}}
+	ac := getAutoConfig(scheduler.NewControllerAndStart(), &mockResolver, deps.WMeta, deps.TaggerComp, deps.LogsComp, deps.Telemetry, deps.FilterComp)
+	c := integration.Config{
+		Name:       "kafka",
+		InitConfig: []byte("param1: ENC[foo]\n"),
+	}
+	ac.processNewConfig(c)
+	assert.Equal(t, []integration.Config{c}, ac.GetUnresolvedConfigs())
+	assert.Equal(t, []integration.Config{{
+		Name:         "kafka",
+		Instances:    []integration.Data{},
+		InitConfig:   []byte("param1: foo\n"),
+		MetricConfig: integration.Data{},
+		LogsConfig:   integration.Data{},
+	}}, ac.GetAllConfigs())
 }
 
 func TestRemoveTemplate(t *testing.T) {

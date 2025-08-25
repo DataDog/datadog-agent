@@ -89,14 +89,18 @@ func (ds *DataScrubber) ScrubAnnotationValue(annotationValue string) string {
 
 // ScrubSimpleCommand hides the argument value for any key which matches a "sensitive word" pattern.
 // It returns the updated cmdline, as well as a boolean representing whether it was scrubbed.
-func (ds *DataScrubber) ScrubSimpleCommand(cmdline []string) ([]string, bool) {
+func (ds *DataScrubber) ScrubSimpleCommand(cmd, args []string) ([]string, []string, bool) {
+	if len(cmd) == 0 && len(args) == 0 {
+		return cmd, args, false
+	}
+
 	changed := false
 	regexChanged := false
 	var wordReplacesIndexes []int
 
-	if len(cmdline) == 0 {
-		return cmdline, false
-	}
+	separator := "cmd_separator"
+	cmdline := append(cmd, separator)
+	cmdline = append(cmdline, args...)
 
 	// in case we have custom regexes we have to join them and perform regex find and replace
 	rawCmdline := strings.Join(cmdline, " ")
@@ -111,6 +115,20 @@ func (ds *DataScrubber) ScrubSimpleCommand(cmdline []string) ([]string, bool) {
 	// and non-whitespace terms followed by quotation enclosed subcomponents as tokens EX: "agent --pass="secret house"" > ["agent", "--pass="secret house""]
 	r := regexp.MustCompile(`([^\s"']+("([^"]*)")*('([^']*)')*)`)
 	newCmdline := r.FindAllString(rawCmdline, -1)
+
+	// remove the separator from the cmdline
+	cmIndex := 0
+	for i := 0; i < len(newCmdline); i++ {
+		if newCmdline[i] == separator {
+			cmIndex = i
+			break
+		}
+	}
+	if cmIndex == len(newCmdline)-1 {
+		newCmdline = newCmdline[:cmIndex]
+	} else {
+		newCmdline = append(newCmdline[:cmIndex], newCmdline[cmIndex+1:]...)
+	}
 
 	// preprocess, without the preprocessing we would need to strip until whitespaces.
 	// the first index can be skipped because it should be the program name.
@@ -168,10 +186,10 @@ func (ds *DataScrubber) ScrubSimpleCommand(cmdline []string) ([]string, bool) {
 
 	// if nothing changed, just return the input
 	if !(changed || regexChanged) {
-		return cmdline, false
+		return cmd, args, false
 	}
 
-	return newCmdline, changed || regexChanged
+	return newCmdline[:cmIndex], newCmdline[cmIndex:], changed || regexChanged
 }
 
 // AddCustomSensitiveWords adds custom sensitive words on the DataScrubber object

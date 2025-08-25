@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+upgrade:
+  - |
+    GPUM: GPU workload metadata and autodiscovery are now enabled by default. If you want to disable this functionality, add "nvml" to the ``autoconfig_exclude_features`` configuration flag in your datadog.yaml file.
+
+features:
+  - |
+    GPUM: Add new configuration flag ``gpu.enabled`` to agent config to control the GPU Core-Check component, disabled by default.

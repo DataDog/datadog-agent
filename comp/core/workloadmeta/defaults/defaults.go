@@ -6,8 +6,8 @@
 package defaults
 
 import (
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetainit "github.com/DataDog/datadog-agent/comp/core/workloadmeta/init"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
@@ -16,7 +16,7 @@ import (
 func DefaultParams() workloadmeta.Params {
 	params := workloadmeta.Params{
 		AgentType:  workloadmeta.NodeAgent,
-		InitHelper: common.GetWorkloadmetaInit(),
+		InitHelper: workloadmetainit.GetWorkloadmetaInit(),
 	}
 	if flavor.GetFlavor() == flavor.ClusterAgent {
 		params.AgentType = workloadmeta.ClusterAgent

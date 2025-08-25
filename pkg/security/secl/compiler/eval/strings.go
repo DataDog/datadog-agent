@@ -204,9 +204,9 @@ func (g *GlobStringMatcher) Matches(value string) bool {
 	return g.glob.Matches(value)
 }
 
-// Contains returns whether the pattern contains the value
-func (g *GlobStringMatcher) Contains(value string) bool {
-	return g.glob.Contains(value)
+// IsPrefix returns whether the pattern is a prefix of the value
+func (g *GlobStringMatcher) IsPrefix(value string) bool {
+	return g.glob.IsPrefix(value)
 }
 
 // PatternStringMatcher defines a pattern matcher

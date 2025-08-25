@@ -14,15 +14,16 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 )
 
 func TestValidateShouldSucceedWithValidConfigs(t *testing.T) {
 	validConfigs := []*LogsConfig{
-		{Type: FileType, Path: "/var/log/foo.log"},
-		{Type: TCPType, Port: 1234},
-		{Type: UDPType, Port: 5678},
-		{Type: DockerType},
-		{Type: JournaldType, ProcessingRules: []*ProcessingRule{{Name: "foo", Type: ExcludeAtMatch, Pattern: ".*"}}},
+		{Type: FileType, Path: "/var/log/foo.log", FingerprintConfig: &types.FingerprintConfig{MaxBytes: 256, Count: 1, CountToSkip: 0, FingerprintStrategy: "line_checksum"}},
+		{Type: TCPType, Port: 1234, FingerprintConfig: &types.FingerprintConfig{MaxBytes: 256, Count: 1, CountToSkip: 0, FingerprintStrategy: "line_checksum"}},
+		{Type: UDPType, Port: 5678, FingerprintConfig: &types.FingerprintConfig{MaxBytes: 256, Count: 1, CountToSkip: 0, FingerprintStrategy: "line_checksum"}},
+		{Type: DockerType, FingerprintConfig: &types.FingerprintConfig{MaxBytes: 256, Count: 1, CountToSkip: 0, FingerprintStrategy: "line_checksum"}},
+		{Type: JournaldType, ProcessingRules: []*ProcessingRule{{Name: "foo", Type: ExcludeAtMatch, Pattern: ".*"}}, FingerprintConfig: &types.FingerprintConfig{MaxBytes: 256, Count: 1, CountToSkip: 0, FingerprintStrategy: "line_checksum"}},
 	}
 
 	for _, config := range validConfigs {
@@ -155,4 +156,29 @@ func TestPublicJSON(t *testing.T) {
 
 	expectedJSON := `{"type":"file","path":"/var/log/foo.log","encoding":"utf-8","service":"foo","source":"bar","tags":["foo:bar"]}`
 	assert.Equal(t, expectedJSON, string(ret))
+}
+
+func TestFingerprintConfig(t *testing.T) {
+	validConfigs := []*types.FingerprintConfig{
+		{Count: 30, CountToSkip: 0, FingerprintStrategy: "byte_checksum"},
+		{MaxBytes: 1024, Count: 10, CountToSkip: 2, FingerprintStrategy: "line_checksum"},
+		{Count: 50, CountToSkip: 0, FingerprintStrategy: "byte_checksum"},
+	}
+
+	for _, config := range validConfigs {
+		err := ValidateFingerprintConfig(config)
+		assert.Nil(t, err)
+	}
+
+	invalidConfigs := []*types.FingerprintConfig{
+		{MaxBytes: 0, Count: 0, CountToSkip: 0},
+		{MaxBytes: -1, Count: 0, CountToSkip: 0},
+		{MaxBytes: 256, Count: -1, CountToSkip: 0},
+		{MaxBytes: 256, Count: 0, CountToSkip: -1},
+	}
+
+	for _, config := range invalidConfigs {
+		err := ValidateFingerprintConfig(config)
+		assert.NotNil(t, err)
+	}
 }

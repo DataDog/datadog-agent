@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
@@ -31,6 +32,22 @@ func MockModule() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(newMock),
 		fx.Provide(func(m telemetry.Mock) telemetry.Component { return m }))
+}
+
+// NewMock returns a new mock for telemetry
+func NewMock(t testing.TB) telemetry.Mock {
+	reg := prometheus.NewRegistry()
+
+	telemetry := &telemetryImplMock{
+		telemetryImpl{
+			mutex:           &mutex,
+			registry:        reg,
+			defaultRegistry: prometheus.NewRegistry(),
+		},
+	}
+
+	t.Cleanup(telemetry.Reset)
+	return telemetry
 }
 
 type telemetryImplMock struct {

@@ -86,12 +86,13 @@ type hostMetadata struct {
 	Interfaces  string `json:"interfaces"`
 
 	// from the agent itself
-	AgentVersion           string `json:"agent_version"`
-	CloudProvider          string `json:"cloud_provider"`
-	CloudProviderSource    string `json:"cloud_provider_source"`
-	CloudProviderAccountID string `json:"cloud_provider_account_id"`
-	CloudProviderHostID    string `json:"cloud_provider_host_id"`
-	OsVersion              string `json:"os_version"`
+	AgentVersion             string `json:"agent_version"`
+	CloudProvider            string `json:"cloud_provider"`
+	CloudProviderSource      string `json:"cloud_provider_source"`
+	CloudProviderAccountID   string `json:"cloud_provider_account_id"`
+	CloudProviderHostID      string `json:"cloud_provider_host_id"`
+	CanonicalCloudResourceID string `json:"ccrid"`
+	OsVersion                string `json:"os_version"`
 
 	// from file system
 	HypervisorGuestUUID string `json:"hypervisor_guest_uuid"`
@@ -266,6 +267,7 @@ func (ih *invHost) fillData() {
 
 	ih.data.CloudProviderSource = cloudproviders.GetSource(cloudProvider)
 	ih.data.CloudProviderHostID = cloudproviders.GetHostID(context.Background(), cloudProvider)
+	ih.data.CanonicalCloudResourceID = cloudproviders.GetHostCCRID(context.Background(), cloudProvider)
 	ih.data.OsVersion = osVersionGet()
 
 	gpgcheck, repoGPGCheck := pkgSigningGet(ih.log)

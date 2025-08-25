@@ -255,3 +255,11 @@ func TestSubscriptionManagerDuplicateSubscriberID(t *testing.T) {
 	_, err = sm.Subscribe(lowCardSubID, types.NewFilterBuilder().Include(types.ContainerID).Build(types.LowCardinality), nil)
 	require.Error(t, err)
 }
+
+func TestUnsubscribe(t *testing.T) {
+	tel := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	telemetryStore := taggerTelemetry.NewStore(tel)
+	sm := NewSubscriptionManager(telemetryStore)
+
+	assert.NotPanics(t, func() { sm.Unsubscribe("non-existing-id") })
+}

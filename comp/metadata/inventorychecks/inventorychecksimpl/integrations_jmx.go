@@ -49,11 +49,22 @@ func (ic *inventorychecksImpl) getJMXChecksMetadata() (jmxMetadata map[string][]
 					configHash = fmt.Sprintf("%s:%s", jmxName, fmt.Sprint(instance["name"]))
 				}
 
+				source, ok := jmxIntegration["config.source"].(string)
+				if !ok {
+					source = "unknown"
+				}
+				provider, ok := jmxIntegration["config.provider"].(string)
+				if !ok {
+					// Default is file
+					provider = "file"
+				}
+
 				jmxMetadata[jmxName] = append(jmxMetadata[jmxName], metadata{
 					"init_config":     string(initConfigYaml),
 					"instance":        string(instanceYaml),
-					"config.provider": "file",
+					"config.provider": provider,
 					"config.hash":     configHash,
+					"config.source":   source,
 				})
 			}
 		}

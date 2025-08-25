@@ -86,7 +86,7 @@ func TestAPMStats_OTelAgent(t *testing.T) {
 	statsIn := make(chan []byte, 1000)
 	factory := NewFactoryForOTelAgent(&metricRecorder{}, &MockTagEnricher{}, func(context.Context) (string, error) {
 		return "", nil
-	}, statsIn, otel.NewDisabledGatewayUsage())
+	}, statsIn, otel.NewDisabledGatewayUsage(), TelemetryStore{}, nil)
 	testAPMStats(t, factory, statsIn)
 }
 

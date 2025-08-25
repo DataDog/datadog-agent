@@ -176,17 +176,43 @@ func addPrometheusReceiver(conf *confmap.Conf, promServerAddr string) {
 	onlyStaticConfigMap["targets"] = []any{promServerAddr}
 
 	addComponentToConfig(conf, comp)
-	addDDExpToInternalPipeline(conf, comp, datadogExportersMap)
+
+	processorInternalPipeline := getProcessorInternalPipeline()
+	addComponentToConfig(conf, processorInternalPipeline)
+	addDDExpToInternalPipeline(conf, []component{comp, processorInternalPipeline}, datadogExportersMap)
 }
 
-func addDDExpToInternalPipeline(conf *confmap.Conf, comp component, datadogExportersMap map[string]any) {
+func addDDExpToInternalPipeline(conf *confmap.Conf, comps []component, datadogExportersMap map[string]any) {
 	for ddExporterName := range datadogExportersMap {
 		pipelineName := "metrics" + "/" + ddAutoconfiguredSuffix + "/" + ddExporterName
-		addComponentToPipeline(conf, comp, pipelineName)
+		for _, comp := range comps {
+			addComponentToPipeline(conf, comp, pipelineName)
+		}
 		addComponentToPipeline(conf, component{
 			Type:         "exporters",
 			EnhancedName: ddExporterName,
 		}, pipelineName)
+	}
+}
+
+func getProcessorInternalPipeline() component {
+	name := "filter/drop-prometheus-internal-metrics"
+	return component{
+		Type:         "processors",
+		Name:         name,
+		EnhancedName: name + "/" + ddAutoconfiguredSuffix,
+		Config: map[string]any{
+			"metrics": map[string]any{
+				"exclude": map[string]any{
+					"match_type": "regexp",
+					"metric_names": []any{
+						"^scrape_.*$",
+						"^up$",
+						"^promhttp_metric_handler_errors_total$",
+					},
+				},
+			},
+		},
 	}
 }
 

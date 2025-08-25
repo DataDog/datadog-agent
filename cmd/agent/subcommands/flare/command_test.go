@@ -25,7 +25,7 @@ import (
 	profiler "github.com/DataDog/datadog-agent/comp/core/profiler/def"
 	profilerfx "github.com/DataDog/datadog-agent/comp/core/profiler/fx"
 	profilermock "github.com/DataDog/datadog-agent/comp/core/profiler/mock"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"

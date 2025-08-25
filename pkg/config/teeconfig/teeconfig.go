@@ -23,8 +23,8 @@ import (
 
 // teeConfig is a combination of two configs, both get written to but only baseline is read
 type teeConfig struct {
-	baseline model.Config
-	compare  model.Config
+	baseline model.BuildableConfig
+	compare  model.BuildableConfig
 }
 
 func getLocation(nbStack int) string {
@@ -34,8 +34,17 @@ func getLocation(nbStack int) string {
 }
 
 // NewTeeConfig constructs a new teeConfig
-func NewTeeConfig(baseline, compare model.Config) model.Config {
+func NewTeeConfig(baseline, compare model.BuildableConfig) model.BuildableConfig {
 	return &teeConfig{baseline: baseline, compare: compare}
+}
+
+// RevertFinishedBackToBuilder returns an interface that can build more on the
+// current config, instead of treating it as sealed
+// NOTE: Only used by OTel, no new uses please!
+func (t *teeConfig) RevertFinishedBackToBuilder() model.BuildableConfig {
+	t.baseline.RevertFinishedBackToBuilder()
+	t.compare.RevertFinishedBackToBuilder()
+	return t
 }
 
 // OnUpdate adds a callback to the list receivers to be called each time a value is changed in the configuration

@@ -3,6 +3,11 @@ name: test devcontainer
 on:
   workflow_call:
   workflow_dispatch:
+  pull_request:
+    branches:
+    - main
+    paths:
+    - .github/workflows/test-devcontainer.yml
 
 permissions: {}
 
@@ -26,14 +31,13 @@ jobs:
     - name: Install dda
       uses: ./.github/actions/install-dda
       with:
-        version: "0.13.0"
         features: legacy-tasks
 
     - name: Build image
       run: |
         git clone https://github.com/DataDog/datadog-agent-buildimages.git
         cd datadog-agent-buildimages
-        dda run build devcontainer --tag legacy-devenv
+        dda run build devcontainer legacy-devenv
 
     - name: Create Dev Container config
       run: dda inv -- devcontainer.setup --image legacy-devenv

@@ -10,6 +10,7 @@ package config
 import (
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf/kernelbugs"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -30,6 +31,15 @@ func CheckGPUSupported() error {
 
 	if kversion < MinimumKernelVersion {
 		return fmt.Errorf("%w: a Linux kernel version of %s or higher is required; we detected %s", ErrNotSupported, MinimumKernelVersion, kversion)
+	}
+
+	hasUretprobeSyscallSeccompBug, err := kernelbugs.HasUretprobeSyscallSeccompBug()
+	if err != nil {
+		return fmt.Errorf("%w: could not determine if the kernel has a bug that might cause segmentation faults when using uretprobe: %w", ErrNotSupported, err)
+	}
+
+	if hasUretprobeSyscallSeccompBug {
+		return fmt.Errorf("%w: the kernel has a bug that might cause segmentation faults when using uretprobe; please upgrade to a kernel version that has been patched", ErrNotSupported)
 	}
 
 	return nil

@@ -13,12 +13,13 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"sort"
 	"strconv"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
@@ -54,29 +55,26 @@ func runTest(
 ) {
 	binPath := testprogs.MustGetBinary(t, caseName, cfg)
 	probesCfgs := testprogs.MustGetProbeDefinitions(t, caseName)
-	mef, err := object.NewMMappingElfFile(binPath)
-	require.NoError(t, err)
-	defer func() { require.NoError(t, mef.Close()) }()
-	obj, err := object.NewElfObject(mef.Elf)
+	obj, err := object.OpenElfFile(binPath)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, obj.Close()) }()
-	ir, err := irgen.GenerateIR(1, obj, probesCfgs)
+	iro, err := irgen.GenerateIR(1, obj, probesCfgs)
 	require.NoError(t, err)
-	require.Empty(t, ir.Issues)
+	require.Empty(t, iro.Issues)
 
-	moduledata, err := object.ParseModuleData(mef)
-	require.NoError(t, err)
-
-	goVersion, err := object.ParseGoVersion(mef)
+	moduledata, err := object.ParseModuleData(obj.Underlying)
 	require.NoError(t, err)
 
-	goDebugSections, err := moduledata.GoDebugSections(mef)
+	goVersion, err := object.ReadGoVersion(obj.Underlying)
+	require.NoError(t, err)
+
+	goDebugSections, err := moduledata.GoDebugSections(obj.Underlying)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, goDebugSections.Close()) }()
 
 	symtab, err := ParseGoSymbolTable(
-		goDebugSections.PcLnTab.Data,
-		goDebugSections.GoFunc.Data,
+		goDebugSections.PcLnTab.Data(),
+		goDebugSections.GoFunc.Data(),
 		moduledata.Text,
 		moduledata.EText,
 		moduledata.MinPC,
@@ -86,21 +84,42 @@ func runTest(
 	require.NoError(t, err)
 
 	var out bytes.Buffer
-	for _, sp := range ir.Subprograms {
+	var inlinedSp *ir.Subprogram
+	for _, sp := range iro.Subprograms {
 		pcs := make([]uint64, 0, len(sp.OutOfLinePCRanges)*2)
 		for _, pcr := range sp.OutOfLinePCRanges {
 			pcs = append(pcs, pcr[0], (pcr[0]+pcr[1])/2)
 		}
+		for _, inlined := range sp.InlinePCRanges {
+			inlinedSp = sp
+			for _, pcr := range inlined.Ranges {
+				pcs = append(pcs, pcr[0], (pcr[0]+pcr[1])/2)
+			}
+		}
 		for _, pc := range pcs {
 			locations := symtab.LocatePC(pc)
 			require.NotEmpty(t, locations)
-			fmt.Fprintf(&out, "pc: 0x%x\n", pc)
+			fmt.Fprintf(&out, "LocatePC: 0x%x\n", pc)
 			for _, location := range locations {
-				// Hide path prefixes that depends on toolchain,repository, and GOPATH locations.
-				// Just use the file name, which is the last path component, replaces the leading path with *
-				i := strings.LastIndex(location.File, "/")
-				fmt.Fprintf(&out, "\t%s@*%s:%d\n", location.Function, location.File[i:], location.Line)
+				fmt.Fprintf(&out, "\t%s@%s:%d\n", location.Function, location.File, location.Line)
 			}
+		}
+	}
+	require.NotNil(t, inlinedSp)
+	pc := inlinedSp.InlinePCRanges[0].Ranges[0][0]
+	fmt.Fprintf(&out, "FunctionLines: 0x%x\n", pc)
+	lines, err := symtab.FunctionLines(pc)
+	require.NoError(t, err)
+	names := make([]string, 0, len(lines))
+	for name := range lines {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		lines := lines[name]
+		fmt.Fprintf(&out, "\t%s\n", name)
+		for _, line := range lines.Lines {
+			fmt.Fprintf(&out, "\t\t[0x%x, 0x%x) %s@%s:%d\n", line.PCLo, line.PCHi, name, lines.File, line.Line)
 		}
 	}
 

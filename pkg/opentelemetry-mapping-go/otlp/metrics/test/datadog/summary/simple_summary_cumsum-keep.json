@@ -1,0 +1,46 @@
+{
+  "Metrics": {
+    "Sketches": null,
+    "TimeSeries": [
+      {
+        "Name": "summary.example.count",
+        "Tags": [],
+        "Host": "hostname",
+        "OriginID": "",
+        "OriginProduct": 10,
+        "OriginSubProduct": 17,
+        "OriginProductDetail": 0,
+        "Type": "count",
+        "Timestamp": 1669802348455623075,
+        "Value": 1
+      },
+      {
+        "Name": "summary.example.count",
+        "Tags": [],
+        "Host": "hostname",
+        "OriginID": "",
+        "OriginProduct": 10,
+        "OriginSubProduct": 17,
+        "OriginProductDetail": 0,
+        "Type": "count",
+        "Timestamp": 1669802350921840070,
+        "Value": 10
+      },
+      {
+        "Name": "summary.example.sum",
+        "Tags": [],
+        "Host": "hostname",
+        "OriginID": "",
+        "OriginProduct": 10,
+        "OriginSubProduct": 17,
+        "OriginProductDetail": 0,
+        "Type": "count",
+        "Timestamp": 1669802350921840070,
+        "Value": 100
+      }
+    ]
+  },
+  "Hosts": {
+    "hostname": {}
+  }
+}

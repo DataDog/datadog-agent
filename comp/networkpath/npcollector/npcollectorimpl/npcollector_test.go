@@ -371,6 +371,11 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 	defaultagentConfigs := map[string]any{
 		"network_path.connections_monitoring.enabled": true,
 	}
+	icmpModeConfigs := map[string]any{
+		"network_path.connections_monitoring.enabled": true,
+		"network_path.collector.icmp_mode":            "all",
+	}
+
 	tests := []struct {
 		name              string
 		conns             []*model.Connection
@@ -532,6 +537,21 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 			},
 			dns: map[string]*model.DNSEntry{
 				"10.0.0.4": {Names: []string{"known-hostname"}},
+			},
+		},
+		{
+			name:         "tcp connection in ICMP mode",
+			agentConfigs: icmpModeConfigs,
+			conns: []*model.Connection{
+				{
+					Laddr:     &model.Addr{Ip: "10.0.0.5", Port: int32(30000), ContainerId: "testId1"},
+					Raddr:     &model.Addr{Ip: "10.0.0.6", Port: int32(80)},
+					Direction: model.ConnectionDirection_outgoing,
+					Type:      model.ConnectionType_tcp,
+				},
+			},
+			expectedPathtests: []*common.Pathtest{
+				{Hostname: "10.0.0.6", Protocol: payload.ProtocolICMP, SourceContainerID: "testId1"},
 			},
 		},
 	}

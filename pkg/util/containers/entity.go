@@ -36,12 +36,6 @@ func SplitEntityName(name string) (string, string) {
 	return parts[0], parts[1]
 }
 
-// ContainerIDForEntity extracts the container ID portion of a container entity name
-func ContainerIDForEntity(name string) string {
-	_, id := SplitEntityName(name)
-	return id
-}
-
 // IsEntityName tests whether a given entity name is valid
 func IsEntityName(name string) bool {
 	return strings.Contains(name, EntitySeparator)

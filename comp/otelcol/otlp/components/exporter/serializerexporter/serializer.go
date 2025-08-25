@@ -67,10 +67,6 @@ func setupForwarder(config pkgconfigmodel.Config) {
 
 func setupSerializer(config pkgconfigmodel.Config, cfg *ExporterConfig) {
 	// Serializer
-	config.Set("enable_stream_payload_serialization", true, pkgconfigmodel.SourceDefault)
-	config.Set("enable_service_checks_stream_payload_serialization", true, pkgconfigmodel.SourceDefault)
-	config.Set("enable_events_stream_payload_serialization", true, pkgconfigmodel.SourceDefault)
-	config.Set("enable_sketch_stream_payload_serialization", true, pkgconfigmodel.SourceDefault)
 	config.Set("enable_json_stream_shared_compressor_buffers", true, pkgconfigmodel.SourceDefault)
 
 	// Warning: do not change the following values. Your payloads will get dropped by Datadog's intake.
@@ -113,7 +109,8 @@ func setupSerializer(config pkgconfigmodel.Config, cfg *ExporterConfig) {
 	config.Set("proxy.no_proxy", noProxy, pkgconfigmodel.SourceEnvVar)
 }
 
-func initSerializer(logger *zap.Logger, cfg *ExporterConfig, sourceProvider source.Provider) (*serializer.Serializer, *defaultforwarder.DefaultForwarder, error) {
+// InitSerializer initializes the serializer and forwarder for sending metrics. Should only be used in OSS Datadog exporter or in tests.
+func InitSerializer(logger *zap.Logger, cfg *ExporterConfig, sourceProvider source.Provider) (*serializer.Serializer, *defaultforwarder.DefaultForwarder, error) {
 	var f defaultforwarder.Component
 	var s *serializer.Serializer
 	app := fx.New(

@@ -172,12 +172,27 @@ func (t *Tailer) tail(ctx context.Context, bookmark string) {
 		}
 	}
 	if t.bookmark == nil {
-		// new bookmark
-		t.bookmark, err = evtbookmark.New(
-			evtbookmark.WithWindowsEventLogAPI(t.evtapi))
+		// Create initial bookmark from the most recent event in the log
+		// This ensures we have a valid starting position even if no events are processed
+		log.Debug("Creating initial bookmark from most recent event")
+		t.bookmark, err = evtbookmark.FromLatestEvent(t.evtapi, t.config.ChannelPath, t.config.Query)
 		if err != nil {
-			t.logErrorAndSetStatus(fmt.Errorf("error creating new bookmark: %w", err))
+			t.logErrorAndSetStatus(fmt.Errorf("error creating initial bookmark: %w", err))
 			return
+		}
+
+		// Save the initial bookmark to the registry immediately using direct SetOffset
+		// This ensures the bookmark is persisted even if no real events are processed
+		if t.bookmark != nil {
+			offset, err := t.bookmark.Render()
+			if err == nil {
+				log.Debugf("Saving initial bookmark to registry: %s", offset)
+				// Use direct SetOffset call for immediate persistence
+				t.registry.SetOffset(t.Identifier(), offset)
+				log.Debug("Initial bookmark saved to registry")
+			} else {
+				log.Warnf("Failed to render initial bookmark: %v", err)
+			}
 		}
 	}
 
@@ -312,18 +327,18 @@ func (t *Tailer) enrichEvent(m *windowsevent.Map, event evtapi.EventRecordHandle
 
 	vals, err := t.evtapi.EvtRenderEventValues(t.systemRenderContext, event)
 	if err != nil {
-		return fmt.Errorf("Error rendering event values: %v", err)
+		return fmt.Errorf("error rendering event values: %v", err)
 	}
 	defer vals.Close()
 
 	providerName, err := vals.String(evtapi.EvtSystemProviderName)
 	if err != nil {
-		return fmt.Errorf("Failed to get provider name: %v", err)
+		return fmt.Errorf("failed to get provider name: %v", err)
 	}
 
 	pm, err := t.evtapi.EvtOpenPublisherMetadata(providerName, "")
 	if err != nil {
-		return fmt.Errorf("Failed to get publisher metadata for provider '%s': %v", providerName, err)
+		return fmt.Errorf("failed to get publisher metadata for provider '%s': %v", providerName, err)
 	}
 	defer evtapi.EvtClosePublisherMetadata(t.evtapi, pm)
 

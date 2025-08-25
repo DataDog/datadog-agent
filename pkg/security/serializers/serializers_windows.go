@@ -26,6 +26,8 @@ type FileSerializer struct {
 	DevicePath string `json:"device_path,omitempty"`
 	// File basename
 	Name string `json:"name,omitempty"`
+	// File extension
+	Extension string `json:"extension,omitempty"`
 }
 
 // UserContextSerializer serializes a user context to JSON
@@ -113,8 +115,9 @@ type EventSerializer struct {
 
 func newFileSerializer(fe *model.FileEvent, e *model.Event, _ uint64, _ *model.FileMetadata) *FileSerializer {
 	return &FileSerializer{
-		Path: e.FieldHandlers.ResolveFilePath(e, fe),
-		Name: e.FieldHandlers.ResolveFileBasename(e, fe),
+		Path:      e.FieldHandlers.ResolveFilePath(e, fe),
+		Name:      e.FieldHandlers.ResolveFileBasename(e, fe),
+		Extension: e.FieldHandlers.ResolveFileExtension(e, fe),
 	}
 }
 
@@ -123,6 +126,7 @@ func newFimFileSerializer(fe *model.FimFileEvent, e *model.Event, _ ...uint64) *
 		Path:       e.FieldHandlers.ResolveFileUserPath(e, fe),
 		DevicePath: e.FieldHandlers.ResolveFimFilePath(e, fe),
 		Name:       e.FieldHandlers.ResolveFimFileBasename(e, fe),
+		Extension:  e.FieldHandlers.ResolveFimFileExtension(e, fe),
 	}
 }
 

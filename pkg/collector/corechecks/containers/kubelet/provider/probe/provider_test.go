@@ -12,7 +12,6 @@ import (
 	"errors"
 	"os"
 	"reflect"
-	"regexp"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -22,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -29,7 +29,7 @@ import (
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	commontesting "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common/testing"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet/mock"
 )
@@ -306,11 +306,12 @@ func TestProvider_Provide(t *testing.T) {
 				ProbesMetricsEndpoint: tt.probesEndpoint,
 			}
 
+			mockConfig := configmock.New(t)
+			mockConfig.SetWithoutSource("container_exclude", "name:fluentbit-gke")
+			mockFilterStore := workloadfilterfxmock.SetupMockFilter(t)
+
 			p, err := NewProvider(
-				&containers.Filter{
-					Enabled:         true,
-					NameExcludeList: []*regexp.Regexp{regexp.MustCompile("fluentbit-gke")},
-				},
+				mockFilterStore,
 				config,
 				store,
 				fakeTagger,

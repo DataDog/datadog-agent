@@ -42,7 +42,7 @@ func processActivityNodeToProto(pan *ProcessNode) *adproto.ProcessActivityNode {
 		DnsNames:       make([]*adproto.DNSNode, 0, len(pan.DNSNames)),
 		ImdsEvents:     make([]*adproto.IMDSNode, 0, len(pan.IMDSEvents)),
 		Sockets:        make([]*adproto.SocketNode, 0, len(pan.Sockets)),
-		ImageTags:      pan.ImageTags,
+		NodeBase:       nodeBaseToProto(&pan.NodeBase),
 		SyscallNodes:   make([]*adproto.SyscallNode, 0, len(pan.Syscalls)),
 		NetworkDevices: make([]*adproto.NetworkDeviceNode, 0, len(pan.NetworkDevices)),
 	}
@@ -100,15 +100,15 @@ func networkDeviceToProto(device *NetworkDeviceNode) *adproto.NetworkDeviceNode 
 	}
 
 	for _, flowNode := range device.FlowNodes {
-		ndn.FlowNodes = append(ndn.FlowNodes, flowNodeToProto(flowNode.Flow, flowNode.ImageTags))
+		ndn.FlowNodes = append(ndn.FlowNodes, flowNodeToProto(flowNode.Flow, &flowNode.NodeBase))
 	}
 
 	return ndn
 }
 
-func flowNodeToProto(flow model.Flow, tags []string) *adproto.FlowNode {
+func flowNodeToProto(flow model.Flow, nodeBase *NodeBase) *adproto.FlowNode {
 	return &adproto.FlowNode{
-		ImageTags:   tags,
+		NodeBase:    nodeBaseToProto(nodeBase),
 		L3Protocol:  uint32(flow.L3Protocol),
 		L4Protocol:  uint32(flow.L4Protocol),
 		Source:      ipPortContextToProto(&flow.Source),
@@ -144,8 +144,8 @@ func syscallNodeToProto(sysc *SyscallNode) *adproto.SyscallNode {
 	}
 
 	return &adproto.SyscallNode{
-		ImageTags: sysc.ImageTags,
-		Syscall:   int32(sysc.Syscall),
+		NodeBase: nodeBaseToProto(&sysc.NodeBase),
+		Syscall:  int32(sysc.Syscall),
 	}
 }
 
@@ -251,10 +251,9 @@ func fileActivityNodeToProto(fan *FileNode) *adproto.FileActivityNode {
 		Name:           escape(fan.Name),
 		File:           fileEventToProto(fan.File),
 		GenerationType: adproto.GenerationType(fan.GenerationType),
-		FirstSeen:      TimestampToProto(&fan.FirstSeen),
 		Open:           openNodeToProto(fan.Open),
 		Children:       make([]*adproto.FileActivityNode, 0, len(fan.Children)),
-		ImageTags:      fan.ImageTags,
+		NodeBase:       nodeBaseToProto(&fan.NodeBase),
 	}
 
 	for _, rule := range fan.MatchedRules {
@@ -290,7 +289,6 @@ func dnsNodeToProto(dn *DNSNode) *adproto.DNSNode {
 	pdn := &adproto.DNSNode{
 		MatchedRules: make([]*adproto.MatchedRule, 0, len(dn.MatchedRules)),
 		Requests:     make([]*adproto.DNSInfo, 0, len(dn.Requests)),
-		ImageTags:    dn.ImageTags,
 	}
 
 	for _, rule := range dn.MatchedRules {
@@ -300,6 +298,8 @@ func dnsNodeToProto(dn *DNSNode) *adproto.DNSNode {
 	for _, req := range dn.Requests {
 		pdn.Requests = append(pdn.Requests, dnsEventToProto(&req))
 	}
+
+	pdn.NodeBase = nodeBaseToProto(&dn.NodeBase)
 
 	return pdn
 }
@@ -325,7 +325,7 @@ func imdsNodeToProto(in *IMDSNode) *adproto.IMDSNode {
 
 	pin := &adproto.IMDSNode{
 		MatchedRules: make([]*adproto.MatchedRule, 0, len(in.MatchedRules)),
-		ImageTags:    in.ImageTags,
+		NodeBase:     nodeBaseToProto(&in.NodeBase),
 		Event:        imdsEventToProto(in.Event),
 	}
 
@@ -376,7 +376,7 @@ func socketNodeToProto(sn *SocketNode) *adproto.SocketNode {
 			Port:         uint32(bn.Port),
 			Ip:           bn.IP,
 			Protocol:     uint32(bn.Protocol),
-			ImageTags:    bn.ImageTags,
+			NodeBase:     nodeBaseToProto(&bn.NodeBase),
 		}
 
 		for _, rule := range bn.MatchedRules {
@@ -425,4 +425,23 @@ func copyAndEscape(in []string) []string {
 func escape(in string) string {
 	transformer := runes.ReplaceIllFormed()
 	return transformer.String(in)
+}
+
+func nodeBaseToProto(nb *NodeBase) *adproto.NodeBase {
+	if nb == nil {
+		return nil
+	}
+
+	pnb := &adproto.NodeBase{
+		Seen: make(map[string]*adproto.ImageTagTimes, len(nb.Seen)),
+	}
+
+	for imageTag, times := range nb.Seen {
+		pnb.Seen[imageTag] = &adproto.ImageTagTimes{
+			FirstSeen: TimestampToProto(&times.FirstSeen),
+			LastSeen:  TimestampToProto(&times.LastSeen),
+		}
+	}
+
+	return pnb
 }

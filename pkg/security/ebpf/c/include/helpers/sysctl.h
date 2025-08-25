@@ -3,7 +3,6 @@
 
 #include "constants/custom.h"
 #include "helpers/approvers.h"
-#include "helpers/container.h"
 #include "helpers/process.h"
 
 #include "maps.h"
@@ -30,9 +29,9 @@ __attribute__((always_inline)) struct sysctl_event_t *reset_sysctl_event() {
     evt->flags = 0;
     evt->sysctl_buffer[0] = 0;
 
-    // process, container, span contexts
+    // process, cgroup, span contexts
     struct proc_cache_t *entry = fill_process_context(&evt->process);
-    fill_container_context(entry, &evt->container);
+    fill_cgroup_context(entry, &evt->cgroup);
     fill_span_context(&evt->span);
 
     return evt;

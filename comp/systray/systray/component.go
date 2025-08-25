@@ -7,7 +7,7 @@
 // Package systray provides a component for the system tray application
 package systray
 
-// team: windows-agent
+// team: windows-products
 
 // Params for ddtray component
 type Params struct {

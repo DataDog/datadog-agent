@@ -1,0 +1,14 @@
+# HELP container_cpu_usage_seconds_total Cumulative cpu time consumed in seconds.
+# TYPE container_cpu_usage_seconds_total counter
+container_cpu_usage_seconds_total{container_name="agent",id="/kubepods/burstable/pod123/pause-ctr",image="k8s.gcr.io/pause:3.1",name="k8s_POD_pause-pod_default_pod123_0",namespace="default",pod_name="pause-pod"} 1.5
+container_cpu_usage_seconds_total{container_name="fluentd-gcp",id="/kubepods/burstable/pod456/fluentd-ctr",image="gcr.io/google-containers/fluentd-gcp:2.0.10",name="k8s_fluentd-gcp_fluentd-pod_kube-system_pod456_0",namespace="kube-system",pod_name="fluentd-pod"} 25.8
+container_cpu_usage_seconds_total{container_name="excluded-by-annotation",id="/kubepods/burstable/pod789/excluded-ctr",image="test:latest",name="k8s_excluded-by-annotation_excluded-pod_default_pod789_0",namespace="default",pod_name="excluded-pod"} 15.3
+container_cpu_usage_seconds_total{container_name="agent",id="/kubepods/burstable/pod999/pause2-ctr",image="gcr.io/google_containers/pause-amd64:3.0",name="k8s_POD_pause-pod2_default_pod999_0",namespace="default",pod_name="pause-pod2"} 2.1
+container_cpu_usage_seconds_total{container_name="pause-container",id="/kubepods/burstable/pod111/pause3-ctr",image="registry.k8s.io/pause:3.2",name="k8s_pause-container_pause-pod3_default_pod111_0",namespace="default",pod_name="pause-pod3"} 1.8
+# HELP container_memory_usage_bytes Current memory usage in bytes, including all memory regardless of when it was accessed
+# TYPE container_memory_usage_bytes gauge
+container_memory_usage_bytes{container_name="agent",id="/kubepods/burstable/pod123/pause-ctr",image="k8s.gcr.io/pause:3.1",name="k8s_POD_pause-pod_default_pod123_0",namespace="default",pod_name="pause-pod"} 204800
+container_memory_usage_bytes{container_name="fluentd-gcp",id="/kubepods/burstable/pod456/fluentd-ctr",image="gcr.io/google-containers/fluentd-gcp:2.0.10",name="k8s_fluentd-gcp_fluentd-pod_kube-system_pod456_0",namespace="kube-system",pod_name="fluentd-pod"} 8388608
+container_memory_usage_bytes{container_name="excluded-by-annotation",id="/kubepods/burstable/pod789/excluded-ctr",image="test:latest",name="k8s_excluded-by-annotation_excluded-pod_default_pod789_0",namespace="default",pod_name="excluded-pod"} 4194304
+container_memory_usage_bytes{container_name="agent",id="/kubepods/burstable/pod999/pause2-ctr",image="gcr.io/google_containers/pause-amd64:3.0",name="k8s_POD_pause-pod2_default_pod999_0",namespace="default",pod_name="pause-pod2"} 102400
+container_memory_usage_bytes{container_name="pause-container",id="/kubepods/burstable/pod111/pause3-ctr",image="registry.k8s.io/pause:3.2",name="k8s_pause-container_pause-pod3_default_pod111_0",namespace="default",pod_name="pause-pod3"} 153600

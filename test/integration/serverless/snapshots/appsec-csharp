@@ -6,6 +6,7 @@
           "rule": {
             "id": "crs-942-100",
             "name": "SQL Injection Attack Detected via libinjection",
+            "on_match": [],
             "tags": {
               "capec": "1000/152/248/66",
               "category": "attack_attempt",
@@ -39,6 +40,7 @@
           "rule": {
             "id": "ua0-600-12x",
             "name": "Arachni",
+            "on_match": [],
             "tags": {
               "capec": "1000/118/169",
               "category": "attack_attempt",
@@ -89,6 +91,7 @@
           "rule": {
             "id": "crs-942-100",
             "name": "SQL Injection Attack Detected via libinjection",
+            "on_match": [],
             "tags": {
               "capec": "1000/152/248/66",
               "category": "attack_attempt",
@@ -122,6 +125,7 @@
           "rule": {
             "id": "ua0-600-12x",
             "name": "Arachni",
+            "on_match": [],
             "tags": {
               "capec": "1000/118/169",
               "category": "attack_attempt",

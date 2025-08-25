@@ -102,7 +102,7 @@ type MetricSample struct {
 	Tags            []string
 	Host            string
 	SampleRate      float64
-	Timestamp       float64
+	Timestamp       float64 // Seconds since epoch (accepts fractional seconds)
 	FlushFirstValue bool
 	OriginInfo      taggertypes.OriginInfo
 	ListenerID      string

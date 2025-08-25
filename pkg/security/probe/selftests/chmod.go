@@ -15,7 +15,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ChmodSelfTest defines a chmod self test
@@ -44,8 +43,7 @@ func (o *ChmodSelfTest) GenerateEvent(ctx context.Context) error {
 	// so the events would not be generated
 	cmd := exec.CommandContext(ctx, "chmod", "777", o.filename)
 	if err := cmd.Run(); err != nil {
-		log.Debugf("error running chmod: %v", err)
-		return err
+		return fmt.Errorf("error running chmod: %w", err)
 	}
 
 	return nil

@@ -22,7 +22,7 @@ import (
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/sbomutil"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -375,7 +375,7 @@ func (c *collector) createOrUpdateImageMetadata(ctx context.Context,
 	// not be able to inject them. For example, if we use the scanner from filesystem or
 	// if the `imgMeta` object does not contain all the metadata when it is sent.
 	// We add them here to make sure they are present.
-	wlmImage.SBOM = util.UpdateSBOMRepoMetadata(wlmImage.SBOM, wlmImage.RepoTags, wlmImage.RepoDigests)
+	wlmImage.SBOM = sbomutil.UpdateSBOMRepoMetadata(wlmImage.SBOM, wlmImage.RepoTags, wlmImage.RepoDigests)
 	return &wlmImage, nil
 }
 

@@ -3,7 +3,7 @@
    Downloads and installs Datadog on the machine.
 #>
 [CmdletBinding(DefaultParameterSetName = 'Default')]
-$SCRIPT_VERSION = "1.1.0"
+$SCRIPT_VERSION = "1.1.1"
 $GENERAL_ERROR_CODE = 1
 
 # Set some defaults if not provided
@@ -139,12 +139,14 @@ function Start-ProcessWithOutput {
    $stderr = Register-ObjectEvent -InputObject $process -EventName 'ErrorDataReceived' `
       -Action {
       if (![String]::IsNullOrEmpty($EventArgs.Data)) {
-         # Print stderr from process into host stderr
-         # Unfortunately that means this output cannot be captured from within PowerShell
-         # and it won't work within PowerShell ISE because it is not a console host.
-         [Console]::ForegroundColor = 'red'
-         [Console]::Error.WriteLine($EventArgs.Data)
-         [Console]::ResetColor()
+         # Different environments seem to show/hide different output streams
+         # PSRemoting and ISE won't see console
+         # PSRemoting sees Write-Error but neither console nor ISE do
+         # Write-Host seems pretty universal, though we lose the stdout/stderr distinction
+         # The only thing we're doing with the output right now is displaying to
+         # the user, so this seems okay. If we need the distinction later we can
+         # figure out how to output it.
+         Write-Host $EventArgs.Data -ForegroundColor 'red'
       }
    }
    [void]$process.Start()
@@ -167,25 +169,87 @@ function Test-DatadogAgentPresence() {
 }
 
 function Update-DatadogAgentConfig() {
-   if ($env:DD_API_KEY) {
-      Write-Host "Writing DD_API_KEY"
-      Update-DatadogConfigFile "^[ #]*api_key:.*" "api_key: $env:DD_API_KEY"
-   }
+    if ($env:DD_API_KEY) {
+        Write-Host "Writing DD_API_KEY"
+        Update-DatadogConfigFile "^[ #]*api_key:.*" "api_key: $env:DD_API_KEY"
+    }
 
-   if ($env:DD_SITE) {
-      Write-Host "Writing DD_SITE"
-      Update-DatadogConfigFile "^[ #]*site:.*" "site: $env:DD_SITE"
-   }
+    if ($env:DD_SITE) {
+        Write-Host "Writing DD_SITE"
+        Update-DatadogConfigFile "^[ #]*site:.*" "site: $env:DD_SITE"
+    }
 
-   if ($env:DD_URL) {
-      Write-Host "Writing DD_URL"
-      Update-DatadogConfigFile "^[ #]*dd_url:.*" "dd_url: $env:DD_URL"
-   }
+    if ($env:DD_URL) {
+        Write-Host "Writing DD_URL"
+        Update-DatadogConfigFile "^[ #]*dd_url:.*" "dd_url: $env:DD_URL"
+    }
 
-   if ($env:DD_REMOTE_UPDATES) {
-      Write-Host "Writing DD_REMOTE_UPDATES"
-      Update-DatadogConfigFile "^[ #]*remote_updates:.*" "remote_updates: $($env:DD_REMOTE_UPDATES.ToLower())"
-   }
+    if ($env:DD_REMOTE_UPDATES) {
+        Write-Host "Writing DD_REMOTE_UPDATES"
+        Update-DatadogConfigFile "^[ #]*remote_updates:.*" "remote_updates: $($env:DD_REMOTE_UPDATES.ToLower())"
+    }
+
+    if ($env:DD_LOGS_ENABLED) {
+        Write-Host "Writing DD_LOGS_ENABLED"
+        Update-DatadogConfigFile "^[ #]*logs_enabled:.*" "logs_enabled: $($env:DD_LOGS_ENABLED.ToLower())"
+    }
+
+    if ($env:DD_TAGS) {
+        Write-Host "Writing DD_TAGS"
+
+        $tags = $env:DD_TAGS -split ","
+        $yamlTags = @("tags:") + ($tags | ForEach-Object { "  - $_" })
+
+        $configFile = Get-DatadogConfigPath
+        $lines = Get-Content $configFile
+        $output = @()
+
+        $inTagsBlock = $false
+        $didReplace = $false
+
+        for ($i = 0; $i -lt $lines.Count; $i++) {
+            $line = $lines[$i]
+
+            # Skip commented tag blocks
+            if ($line -match '^\s*#\s*tags:') {
+                $output += $line
+                continue
+            }
+
+            # Handle inline array: tags: ['env:staging', 'team:infra']
+            if (-not $didReplace -and $line -match '^\s*tags:\s*\[.*\]') {
+                $output += $yamlTags
+                $didReplace = $true
+                continue
+            }
+
+            # Only replace top-level tags:
+            if (-not $didReplace -and $line -match '^tags:\s*$') {
+                $output += $yamlTags
+                $didReplace = $true
+                $inTagsBlock = $true
+                continue
+            }
+
+            # If inside a tags block, skip original tag lines
+            if ($inTagsBlock) {
+                if ($line -match '^\s*-\s*\S+:') {
+                    continue
+                } else {
+                    $inTagsBlock = $false
+                }
+            }
+
+            $output += $line
+        }
+
+        # If no tags block found, append it
+        if (-not $didReplace) {
+            $output += $yamlTags
+        }
+
+        Set-Content -Path $configFile -Value $output
+    }
 }
 
 if ($env:SCRIPT_IMPORT_ONLY) {

@@ -15,6 +15,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
@@ -213,7 +214,7 @@ func (at *ActivityTree) AppendChild(node *ProcessNode) {
 }
 
 // AppendImageTag appends the given image tag
-func (at *ActivityTree) AppendImageTag(_ string) {
+func (at *ActivityTree) AppendImageTag(_ string, _ time.Time) {
 }
 
 // GetParent returns nil for the ActivityTree
@@ -842,9 +843,9 @@ func (at *ActivityTree) SendStats(client statsd.ClientInterface) error {
 }
 
 // TagAllNodes tags all the activity tree's nodes with the given image tag
-func (at *ActivityTree) TagAllNodes(imageTag string) {
+func (at *ActivityTree) TagAllNodes(imageTag string, timestamp time.Time) {
 	for _, rootNode := range at.ProcessNodes {
-		rootNode.TagAllNodes(imageTag)
+		rootNode.TagAllNodes(imageTag, timestamp)
 	}
 }
 

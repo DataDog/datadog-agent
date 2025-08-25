@@ -13,6 +13,7 @@ import (
 // Service represents a listening process.
 type Service struct {
 	PID                        int                             `json:"pid"`
+	LogFiles                   []string                        `json:"log_files,omitempty"`
 	GeneratedName              string                          `json:"generated_name"`
 	GeneratedNameSource        string                          `json:"generated_name_source"`
 	AdditionalGeneratedNames   []string                        `json:"additional_generated_names"`
@@ -23,7 +24,8 @@ type Service struct {
 	DDService                  string                          `json:"dd_service"`
 	DDServiceInjected          bool                            `json:"dd_service_injected"`
 	CheckedContainerData       bool                            `json:"checked_container_data"`
-	Ports                      []uint16                        `json:"ports"`
+	TCPPorts                   []uint16                        `json:"tcp_ports,omitempty"`
+	UDPPorts                   []uint16                        `json:"udp_ports,omitempty"`
 	APMInstrumentation         string                          `json:"apm_instrumentation"`
 	Language                   string                          `json:"language"`
 	Type                       string                          `json:"service_type"`

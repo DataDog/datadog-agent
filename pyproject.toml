@@ -78,6 +78,10 @@ disable_error_code = [
     "return-value",
 ]
 
+[[tool.mypy.overrides]]
+module = "tasks.kernel_matrix_testing.*,tasks.kmt"
+disable_error_code = []
+
 [tool.vulture]
 ignore_decorators = ["@task"]
 ignore_names = ["test_*", "Test*"]
@@ -85,4 +89,3 @@ paths = ["tasks"]
 
 [tool.ddev]
 repo = "agent"
-

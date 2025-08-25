@@ -22,6 +22,7 @@ import (
 	filelauncher "github.com/DataDog/datadog-agent/pkg/logs/launchers/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/DataDog/datadog-agent/pkg/serverless/streamlogs"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -37,6 +38,7 @@ func (a *logAgent) SetupPipeline(
 	processingRules []*config.ProcessingRule,
 	wmeta option.Option[workloadmeta.Component],
 	_ integrations.Component,
+	fingerprintConfig types.FingerprintConfig,
 ) {
 	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver(streamlogs.Formatter{}, nil)
 	destinationsCtx := client.NewDestinationsContext()
@@ -70,7 +72,8 @@ func (a *logAgent) SetupPipeline(
 		fileScanPeriod,
 		fileWildcardSelectionMode,
 		a.flarecontroller,
-		a.tagger))
+		a.tagger,
+		fingerprintConfig))
 	a.schedulers = schedulers.NewSchedulers(a.sources, a.services)
 	a.destinationsCtx = destinationsCtx
 	a.pipelineProvider = pipelineProvider

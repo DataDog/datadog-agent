@@ -18,7 +18,7 @@ typedef struct binary_search_ctx {
 #define LOG2_32(n) ((n) >= (1ULL << 32) ? 32 + LOG2_16((n) >> 32) : LOG2_16(n))
 
 #define LOG2(n) LOG2_32((uint64_t)(n))
-#define CEIL_LOG2(n) (LOG2(n) + ((n) > (1ULL << LOG2(n)) ? 1 : 0))
+#define UNINITIALIZED_N 0xFFFFFFFF
 
 #define DEFINE_BINARY_SEARCH(prefix, target_type, target_name, array_name,     \
                              bound_name)                                       \
@@ -55,6 +55,8 @@ typedef struct binary_search_ctx {
     return 0;                                                                  \
   }                                                                            \
                                                                                \
+  static uint32_t prefix##_by_##target_name##_n = UNINITIALIZED_N;             \
+                                                                               \
   uint32_t prefix##_by_##target_name(target_type target_name) {                \
     prefix##_by_##target_name##_ctx_t ctx = {                                  \
         .target_##target_name = target_name,                                   \
@@ -64,7 +66,14 @@ typedef struct binary_search_ctx {
                 .right = bound_name,                                           \
             },                                                                 \
     };                                                                         \
-    const int n = CEIL_LOG2(bound_name);                                       \
+    if (prefix##_by_##target_name##_n == UNINITIALIZED_N) {                    \
+      prefix##_by_##target_name##_n = LOG2(bound_name);                        \
+      if (bound_name > (1ULL << prefix##_by_##target_name##_n)) {              \
+        prefix##_by_##target_name##_n++;                                       \
+      }                                                                        \
+    }                                                                          \
+    /* bound the number of iterations to 128 for the verifier */               \
+    const int n = prefix##_by_##target_name##_n & 0x7F;                        \
     bpf_loop(n, prefix##_by_##target_name##_loop, &ctx, 0);                    \
     return ctx.search_ctx.left;                                                \
   }

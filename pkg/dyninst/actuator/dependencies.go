@@ -65,3 +65,13 @@ type Loader interface {
 	OutputReader() *ringbuf.Reader
 	Close() error
 }
+
+// IRGenerator is an interface that abstracts ir generation.
+type IRGenerator interface {
+	// GenerateIR generates the IR for the given executable and probes.
+	GenerateIR(
+		programID ir.ProgramID,
+		binaryPath string,
+		probes []ir.ProbeDefinition,
+	) (*ir.Program, error)
+}

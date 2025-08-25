@@ -4,7 +4,7 @@
 
 .agent_release_management_trigger:
   stage: trigger_release
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64"]
   # We don't directly depend/need the package deploy jobs, because
   # that would make us deploy even when there are e2e tests failures etc
@@ -64,7 +64,7 @@ trigger_manual_prod_release:
 
 generate_windows_gitlab_runner_bump_pr:
   stage: trigger_release
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_23_ARM64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   needs: ["trigger_auto_staging_release"]
   tags: ["arch:arm64"]
   rules:
@@ -74,8 +74,7 @@ generate_windows_gitlab_runner_bump_pr:
   script:
     # We are using the agent platform auto PR github app to access the ci-platform-machine-images repository
     - !reference [.setup_github_app_agent_platform_auto_pr]
-    - python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)"
-    - python3 -m dda self dep sync -f legacy-tasks
+    - dda self dep sync -f legacy-tasks
     - $S3_CP_CMD $S3_ARTIFACTS_URI/agent-version.cache .
     - SLACK_DATADOG_AGENT_BOT_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SLACK_AGENT token) || exit $?; export SLACK_DATADOG_AGENT_BOT_TOKEN
     - dda inv -- -e github.update-windows-runner-version
@@ -83,7 +82,7 @@ generate_windows_gitlab_runner_bump_pr:
 # Manual job to generate the gitlab bump pr on ci-platform-machine-images if trigger_auto_staging_release fails
 generate_windows_gitlab_runner_bump_pr_manual:
   stage: trigger_release
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_23_ARM64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   needs: ["trigger_auto_staging_release"]
   tags: ["arch:arm64"]
   rules:
@@ -94,8 +93,7 @@ generate_windows_gitlab_runner_bump_pr_manual:
   script:
     # We are using the agent platform auto PR github app to access the ci-platform-machine-images repository
     - !reference [.setup_github_app_agent_platform_auto_pr]
-    - python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)"
-    - python3 -m dda self dep sync -f legacy-tasks
+    - dda self dep sync -f legacy-tasks
     - $S3_CP_CMD $S3_ARTIFACTS_URI/agent-version.cache .
     - SLACK_DATADOG_AGENT_BOT_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SLACK_AGENT token) || exit $?; export SLACK_DATADOG_AGENT_BOT_TOKEN
     - dda inv -- -e github.update-windows-runner-version

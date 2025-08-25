@@ -1,0 +1,23 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+upgrade:
+  - |
+    None. This change is backward-compatible and does not modify behavior unless users explicitly set new environment variables.
+
+features:
+  - |
+    The Windows Agent install script (`Install-Datadog.ps1`) now supports setting host tags and enabling logs collection at install time via the `DD_TAGS` and `DD_LOGS_ENABLED` environment variables. This allows users to configure tags and logs without post-install edits to `datadog.yaml`.
+
+enhancements:
+  - |
+    Added detection and replacement of `tags:` blocks in `datadog.yaml` to ensure only top-level, uncommented, and non-nested tags are modified during install.
+
+fixes:
+  - |
+    Fixed an issue where `DD_TAGS` and `DD_LOGS_ENABLED` were silently ignored during install, requiring manual configuration edits.

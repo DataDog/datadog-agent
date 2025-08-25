@@ -7,6 +7,7 @@ package agenttests
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
@@ -26,6 +27,9 @@ type testInstallScriptWithAgentUserSuite struct {
 
 // TestInstallScriptWithAgentUser tests the Datadog Install script with a custom user
 func TestInstallScriptWithAgentUser(t *testing.T) {
+	// TODO(WINA-1733): Fix race condition between service management by Agent and script
+	flake.Mark(t)
+
 	agentUser := "customuser"
 	require.NotEqual(t, windowsAgent.DefaultAgentUserName, agentUser, "the custom user should be different from the default user")
 

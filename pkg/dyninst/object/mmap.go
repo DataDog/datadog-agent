@@ -25,26 +25,48 @@ type MMappingElfFile struct {
 // MMappedData is a portion of a file that has been mmapped into memory.
 // Call Close() to release resources.
 type MMappedData struct {
-	Data   []byte
-	mmaped []byte
+	data    []byte
+	mmaped  []byte
+	cleanup runtime.Cleanup
 }
 
-// NewMMappingElfFile creates a new MMappingElfFile for the given path.
-func NewMMappingElfFile(path string) (*MMappingElfFile, error) {
+// Data returns the data of the mmapped section.
+//
+// The returned data is valid until the MMappedData is closed; users must take
+// care to retain a reference to the MMappedData in order to call Close.
+func (m *MMappedData) Data() []byte {
+	return m.data
+}
+
+// OpenMMappingElfFile creates a new MMappingElfFile for the given path.
+func OpenMMappingElfFile(path string) (*MMappingElfFile, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
-	elfFile, err := safeelf.NewFile(f)
+	ef, err := newMMappingElfFile(f)
 	if err != nil {
 		return nil, err
 	}
-	mef := &MMappingElfFile{
+	return ef, nil
+}
+
+// newMMappingElfFile creates a new MMappingElfFile for the given file.
+//
+// Note that this passes ownership of the file to the returned MMappingElfFile:
+// calling Close on the MMappingElfFile will close the file.
+func newMMappingElfFile(f *os.File) (*MMappingElfFile, error) {
+	elfFile, err := safeelf.NewFile(f)
+	if err != nil {
+		if closeErr := f.Close(); closeErr != nil {
+			return nil, fmt.Errorf("%w: (failed to close file: %w)", err, closeErr)
+		}
+		return nil, err
+	}
+	return &MMappingElfFile{
 		Elf: elfFile,
 		f:   f,
-	}
-	runtime.SetFinalizer(mef, (*MMappingElfFile).Close)
-	return mef, nil
+	}, nil
 }
 
 // Close closes the underlying file descriptor.
@@ -54,7 +76,8 @@ func (m *MMappingElfFile) Close() error {
 
 // MMap mmaps a portion of the file into memory.
 func (m *MMappingElfFile) MMap(
-	section *safeelf.Section, offset, size uint64) (*MMappedData, error) {
+	section *safeelf.Section, offset, size uint64,
+) (*MMappedData, error) {
 	if section.Flags&safeelf.SHF_COMPRESSED != 0 {
 		return nil, fmt.Errorf("mmapping compressed sections is not supported")
 	}
@@ -63,6 +86,10 @@ func (m *MMappingElfFile) MMap(
 	}
 	offset += section.Offset
 
+	return m.mmap(offset, size)
+}
+
+func (m *MMappingElfFile) mmap(offset uint64, size uint64) (*MMappedData, error) {
 	// The offset must be page-aligned for mmap to work
 	pageSize := uint64(syscall.Getpagesize())
 	alignedOffset := (offset / pageSize) * pageSize
@@ -77,12 +104,20 @@ func (m *MMappingElfFile) MMap(
 	if err != nil {
 		return nil, fmt.Errorf("failed to mmap section: %w", err)
 	}
+	return newMMappedData(mmaped[offsetDelta:], mmaped), nil
+}
+
+func newMMappedData(data, mmaped []byte) *MMappedData {
 	md := &MMappedData{
-		Data:   mmaped[offsetDelta:],
+		data:   data,
 		mmaped: mmaped,
 	}
-	runtime.SetFinalizer(md, (*MMappedData).Close)
-	return md, nil
+	md.cleanup = runtime.AddCleanup(md, munmapCleanup, md.mmaped)
+	return md
+}
+
+func munmapCleanup(m []byte) {
+	_ = syscall.Munmap(m) // ignore errors
 }
 
 // Close unmaps the section from memory.
@@ -90,6 +125,8 @@ func (m *MMappedData) Close() error {
 	if m.mmaped == nil {
 		return nil
 	}
+	m.cleanup.Stop()
+	runtime.KeepAlive(m) // out of an abundance of caution
 	err := syscall.Munmap(m.mmaped)
 	m.mmaped = nil
 	return err

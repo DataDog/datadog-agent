@@ -42,54 +42,6 @@ func check(t *testing.T, in metrics.SketchPoint, pb gogen.SketchPayload_Sketch_D
 	require.Equal(t, b.Sum, pb.Sum)
 }
 
-func TestSketchSeriesListMarshal(t *testing.T) {
-	sl := metrics.NewSketchesSourceTest()
-
-	for i := 0; i < 2; i++ {
-		sl.Append(Makeseries(i))
-	}
-
-	serializer := SketchSeriesList{SketchesSource: sl}
-	b, err := serializer.Marshal()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	pl := new(gogen.SketchPayload)
-	if err := pl.Unmarshal(b); err != nil {
-		t.Fatal(err)
-	}
-
-	require.Len(t, pl.Sketches, int(sl.Count()))
-
-	for i, pb := range pl.Sketches {
-		in := sl.Get(i)
-		require.Equal(t, Makeseries(i), in, "make sure we don't modify input")
-
-		assert.Equal(t, in.Host, pb.Host)
-		assert.Equal(t, in.Name, pb.Metric)
-		metrics.AssertCompositeTagsEqual(t, in.Tags, tagset.CompositeTagsFromSlice(pb.Tags))
-		assert.Len(t, pb.Distributions, 0)
-
-		require.Len(t, pb.Dogsketches, len(in.Points))
-		for j, pointPb := range pb.Dogsketches {
-
-			check(t, in.Points[j], pointPb)
-			// require.Equal(t, pointIn.Ts, pointPb.Ts)
-			// require.Equal(t, pointIn.Ts, pointPb.Ts)
-
-			// fmt.Printf("%#v %#v\n", pin, s)
-		}
-	}
-}
-
-func TestSketchSeriesSplitEmptyPayload(t *testing.T) {
-	sl := SketchSeriesList{SketchesSource: metrics.NewSketchesSourceTest()}
-	pieces, err := sl.SplitPayload(10)
-	require.Len(t, pieces, 0)
-	require.Nil(t, err)
-}
-
 func TestSketchSeriesMarshalSplitCompressEmpty(t *testing.T) {
 	tests := map[string]struct {
 		kind string
@@ -103,7 +55,6 @@ func TestSketchSeriesMarshalSplitCompressEmpty(t *testing.T) {
 			mockConfig := mock.New(t)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 			sl := SketchSeriesList{SketchesSource: metrics.NewSketchesSourceTest()}
-			payload, _ := sl.Marshal()
 
 			compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp
 			payloads, err := sl.MarshalSplitCompress(marshaler.NewBufferContext(), mockConfig, compressor, logger)
@@ -114,8 +65,8 @@ func TestSketchSeriesMarshalSplitCompressEmpty(t *testing.T) {
 			assert.Equal(t, 0, firstPayload.GetPointCount())
 
 			decompressed, _ := compressor.Decompress(firstPayload.GetContent())
-			// Check that we encoded the protobuf correctly
-			assert.Equal(t, decompressed, payload)
+			// 0b00010 010 - field 2 (metadata) type 2 (bytes), 0 length
+			assert.Equal(t, []byte{0x12, 0x00}, decompressed)
 		})
 	}
 }
@@ -333,35 +284,4 @@ func TestSketchSeriesMarshalSplitCompressMultiple(t *testing.T) {
 			assert.Equal(t, 5, firstFilteredPayload.GetPointCount())
 		})
 	}
-
-}
-
-func TestSketchSeriesListMarshalWithOriginMapping(t *testing.T) {
-	sl := metrics.NewSketchesSourceTest()
-
-	// Create a sketch series with a specific source
-	ss := Makeseries(0)
-	ss.Source = metrics.MetricSourceDogstatsd
-	sl.Append(ss)
-
-	serializer := SketchSeriesList{SketchesSource: sl}
-	b, err := serializer.Marshal()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	pl := new(gogen.SketchPayload)
-	if err := pl.Unmarshal(b); err != nil {
-		t.Fatal(err)
-	}
-
-	require.Len(t, pl.Sketches, 1)
-	pb := pl.Sketches[0]
-
-	// Verify the metadata and origin mapping
-	require.NotNil(t, pb.Metadata)
-	require.NotNil(t, pb.Metadata.Origin)
-	assert.Equal(t, uint32(metricSourceToOriginProduct(metrics.MetricSourceDogstatsd)), pb.Metadata.Origin.OriginProduct)
-	assert.Equal(t, uint32(metricSourceToOriginCategory(metrics.MetricSourceDogstatsd)), pb.Metadata.Origin.OriginCategory)
-	assert.Equal(t, uint32(metricSourceToOriginService(metrics.MetricSourceDogstatsd)), pb.Metadata.Origin.OriginService)
 }

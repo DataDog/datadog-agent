@@ -1,5 +1,7 @@
 {{ with .remoteConfiguration }}
-{{ if not .disabledReason }}
+{{ if $.remoteConfigStartup.startupFailureReason }}
+Startup Failure Reason: {{ $.remoteConfigStartup.startupFailureReason }}
+{{ else if not .disabledReason }}
 Organization enabled: {{ if and .orgEnabled (eq .orgEnabled "true") }}True{{ else }}False{{ end }}
 API Key: {{ if and .apiKeyScoped (eq .apiKeyScoped "true") }}Authorized{{ else }}Not authorized, add the Remote Configuration Read permission to enable it for this agent.{{ end }}
 Last error: {{ if .lastError }}{{ .lastError }}{{ else }}None{{ end }}

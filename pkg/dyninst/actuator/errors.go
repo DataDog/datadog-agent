@@ -23,6 +23,20 @@ type NoSuccessfulProbesError struct {
 // Error implements the error interface.
 func (e *NoSuccessfulProbesError) Error() string {
 	return fmt.Sprintf(
-		"has no successful probes, contains %d issues", len(e.Issues),
+		"has no successful probes, contains %d issue(s)", len(e.Issues),
 	)
+}
+
+// Format implements the fmt.Formatter interface.
+func (e *NoSuccessfulProbesError) Format(f fmt.State, _ rune) {
+	fmt.Fprintf(f, "has no successful probes, %d issue(s): ", len(e.Issues))
+	for i := 0; i < min(len(e.Issues), 3); i++ {
+		fmt.Fprintf(f, "%s: %s", e.Issues[i].Kind.String(), e.Issues[i].Message)
+		if i < len(e.Issues)-1 {
+			fmt.Fprintf(f, ", ")
+		}
+	}
+	if len(e.Issues) > 3 {
+		fmt.Fprintf(f, "...")
+	}
 }

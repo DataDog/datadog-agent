@@ -1,0 +1,138 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testEsotericHeap",
+      "version": 0,
+      "thread_id": 0,
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.testEsotericHeap",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/esoteric.go",
+            "lineNumber": 47
+          },
+          {
+            "function": "main.executeEsoteric",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/esoteric.go",
+            "lineNumber": 68
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 43
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "testEsotericHeap",
+          "location": {
+            "method": "main.testEsotericHeap"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "e": {
+                "type": "*main.esotericHeap",
+                "address": "[addr]",
+                "fields": {
+                  "esotericStack": {
+                    "type": "main.esotericStack",
+                    "fields": {
+                      "_valid": {
+                        "type": "int32",
+                        "value": "77"
+                      },
+                      "c": {
+                        "type": "chan struct {}",
+                        "notCapturedReason": "unimplemented"
+                      },
+                      "val": {
+                        "type": "interface {}",
+                        "notCapturedReason": "unimplemented"
+                      },
+                      "work": {
+                        "type": "main.something",
+                        "notCapturedReason": "unimplemented"
+                      },
+                      "foo": {
+                        "type": "func()",
+                        "notCapturedReason": "unimplemented"
+                      }
+                    }
+                  },
+                  "mu": "[sync.Mutex (different in different versions)]",
+                  "once": {
+                    "type": "sync.Once",
+                    "fields": {
+                      "done": {
+                        "type": "sync/atomic.Uint32",
+                        "fields": {
+                          "v": {
+                            "type": "uint32",
+                            "value": "0"
+                          }
+                        }
+                      },
+                      "m": "[sync.Mutex (different in different versions)]"
+                    }
+                  },
+                  "wg": {
+                    "type": "sync.WaitGroup",
+                    "fields": {
+                      "noCopy": {
+                        "type": "sync.noCopy",
+                        "fields": {}
+                      },
+                      "state": {
+                        "type": "sync/atomic.Uint64",
+                        "fields": {
+                          "v": {
+                            "type": "uint64",
+                            "value": "0"
+                          }
+                        }
+                      },
+                      "sema": {
+                        "type": "uint32",
+                        "value": "0"
+                      }
+                    }
+                  },
+                  "a": {
+                    "type": "sync/atomic.Int32",
+                    "fields": {
+                      "v": {
+                        "type": "int32",
+                        "value": "0"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]"
+  }
+]

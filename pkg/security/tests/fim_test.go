@@ -177,7 +177,7 @@ func TestFIMPermError(t *testing.T) {
 		t.Fatalf("couldn't set %s: %v", fsProcHardlinks, err)
 	}
 
-	test.Run(t, "open", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "open", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{
 			"process-credentials", "setuid", "4001", "4001", ";",
 			"open", testFile,
@@ -194,7 +194,7 @@ func TestFIMPermError(t *testing.T) {
 		})
 	})
 
-	test.Run(t, "unlink", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "unlink", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{
 			"process-credentials", "setuid", "4001", "4001", ";",
 			"unlink", testFile,
@@ -211,7 +211,7 @@ func TestFIMPermError(t *testing.T) {
 		})
 	})
 
-	test.Run(t, "chmod", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "chmod", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{
 			"process-credentials", "setuid", "4001", "4001", ";",
 			"chmod", testFile, "0600",
@@ -228,7 +228,7 @@ func TestFIMPermError(t *testing.T) {
 		})
 	})
 
-	test.Run(t, "chown", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "chown", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{
 			"process-credentials", "setuid", "4001", "4001", ";",
 			"chown", testFile, "0", "0",
@@ -245,7 +245,7 @@ func TestFIMPermError(t *testing.T) {
 		})
 	})
 
-	test.Run(t, "rename", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "rename", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{
 			"process-credentials", "setuid", "4001", "4001", ";",
 			"rename", renameFile, testFile,
@@ -262,7 +262,7 @@ func TestFIMPermError(t *testing.T) {
 		})
 	})
 
-	test.Run(t, "utimes", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "utimes", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{
 			"process-credentials", "setuid", "4001", "4001", ";",
 			"utimes", testFile,
@@ -279,7 +279,7 @@ func TestFIMPermError(t *testing.T) {
 		})
 	})
 
-	test.Run(t, "link", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "link", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{
 			"process-credentials", "setuid", "4001", "4001", ";",
 			"link", testFile, linkFile,

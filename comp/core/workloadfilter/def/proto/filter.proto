@@ -38,3 +38,7 @@ message FilterKubeEndpoint {
   string namespace = 2;
   map<string, string> annotations = 3;
 }
+
+message FilterImage {
+  string name = 1;
+}

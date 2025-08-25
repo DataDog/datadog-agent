@@ -10,14 +10,16 @@ package run
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/collector/confmap"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	agentConfig "github.com/DataDog/datadog-agent/cmd/otel-agent/config"
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
+	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
@@ -27,13 +29,16 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
 	logtracefx "github.com/DataDog/datadog-agent/comp/core/log/fx-trace"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/pid"
+	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	remoteTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
 	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
+	workloadmetainit "github.com/DataDog/datadog-agent/comp/core/workloadmeta/init"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface"
@@ -67,16 +72,28 @@ import (
 	"go.uber.org/fx"
 )
 
+type cliParams struct {
+	*subcommands.GlobalParams
+
+	// pidfilePath contains the value of the --pidfile flag.
+	pidfilePath string
+}
+
 // MakeCommand creates the `run` command
 func MakeCommand(globalConfGetter func() *subcommands.GlobalParams) *cobra.Command {
+	params := &cliParams{}
+
 	cmd := &cobra.Command{
 		Use:   "run",
 		Short: "Starting OpenTelemetry Collector",
 		RunE: func(_ *cobra.Command, _ []string) error {
 			globalParams := globalConfGetter()
-			return runOTelAgentCommand(context.Background(), globalParams)
+			params.GlobalParams = globalParams
+			return runOTelAgentCommand(context.Background(), params)
 		},
 	}
+	cmd.Flags().StringVarP(&params.pidfilePath, "pidfile", "p", "", "path to the pidfile")
+
 	return cmd
 }
 
@@ -98,7 +115,7 @@ func (o *orchestratorinterfaceimpl) Reset() {
 	o.f = nil
 }
 
-func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, opts ...fx.Option) error {
+func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Option) error {
 	acfg, err := agentConfig.NewConfigComponent(context.Background(), params.CoreConfPath, params.ConfPaths)
 	if err != nil && err != agentConfig.ErrNoDDExporter {
 		return err
@@ -107,7 +124,9 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 		fmt.Println("*** OpenTelemetry Collector is not enabled, exiting application ***. Set the config option `otelcollector.enabled` or the environment variable `DD_OTELCOLLECTOR_ENABLED` at true to enable it.")
 		return nil
 	}
-	uris := append(params.ConfPaths, params.Sets...)
+
+	uris := buildConfigURIs(params)
+
 	if err == agentConfig.ErrNoDDExporter {
 		return fxutil.Run(
 			fx.Supply(uris),
@@ -120,6 +139,8 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 			logfx.Module(),
 			ipcfx.ModuleReadWrite(),
 			configsyncimpl.Module(configsyncimpl.NewParams(params.SyncTimeout, true, params.SyncOnInitTimeout)),
+			pidimpl.Module(),
+			fx.Supply(pidimpl.NewParams(params.pidfilePath)),
 			converterfx.Module(),
 			fx.Provide(func(cp converter.Component, _ configsync.Component) confmap.Converter {
 				return cp
@@ -127,7 +148,7 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 			collectorcontribFx.Module(),
 			collectorfx.ModuleNoAgent(),
 			fx.Options(opts...),
-			fx.Invoke(func(_ collectordef.Component) {
+			fx.Invoke(func(_ collectordef.Component, _ pid.Component) {
 			}),
 		)
 	}
@@ -155,7 +176,7 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 		fxutil.ProvideNoneOptional[secrets.Component](),
 		workloadmetafx.Module(workloadmeta.Params{
 			AgentType:  workloadmeta.NodeAgent,
-			InitHelper: common.GetWorkloadmetaInit(),
+			InitHelper: workloadmetainit.GetWorkloadmetaInit(),
 		}),
 		fx.Supply(uris),
 		fx.Provide(func(h hostnameinterface.Component) (serializerexporter.SourceProviderFunc, error) {
@@ -192,16 +213,17 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 			return hn, nil
 		}),
 
+		pidimpl.Module(),
+		fx.Supply(pidimpl.NewParams(params.pidfilePath)),
 		fx.Provide(func(c defaultforwarder.Component) (defaultforwarder.Forwarder, error) {
 			return defaultforwarder.Forwarder(c), nil
 		}),
 		fx.Provide(newOrchestratorinterfaceimpl),
 		fx.Options(opts...),
-		fx.Invoke(func(_ collectordef.Component, _ defaultforwarder.Forwarder, _ option.Option[logsagentpipeline.Component]) {
+		fx.Invoke(func(_ collectordef.Component, _ defaultforwarder.Forwarder, _ option.Option[logsagentpipeline.Component], _ pid.Component) {
 		}),
 
 		configsyncimpl.Module(configsyncimpl.NewParams(params.SyncTimeout, true, params.SyncOnInitTimeout)),
-
 		remoteTaggerFx.Module(tagger.RemoteParams{
 			RemoteTarget: func(c coreconfig.Component) (string, error) { return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil },
 			RemoteFilter: taggerTypes.NewMatchAllFilter(),
@@ -232,6 +254,7 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 			DisableInternalProfiling: true,
 		}),
 		traceagentfx.Module(),
+		agenttelemetryfx.Module(),
 	)
 }
 
@@ -246,4 +269,48 @@ func ForwarderBundle() fx.Option {
 		fx.Provide(func(_ configsync.Component) defaultforwarder.Params {
 			return defaultforwarder.NewParams()
 		}))
+}
+
+func buildConfigURIs(params *cliParams) []string {
+	// Apply overrides
+	uris := append([]string{}, params.ConfPaths...)
+
+	// Add fleet policy config if DD_FLEET_POLICIES_DIR is set
+	if fleetPoliciesDir := os.Getenv("DD_FLEET_POLICIES_DIR"); fleetPoliciesDir != "" {
+		resolvedFleetPoliciesDir, err := filepath.EvalSymlinks(fleetPoliciesDir)
+		if err != nil {
+			if os.IsNotExist(err) {
+				// Expected behavior
+				fmt.Printf("Fleet policies directory does not exist: %s\n", fleetPoliciesDir)
+			} else {
+				fmt.Printf("Warning: failed to resolve symlinks for fleet policies dir %s: %v\n", fleetPoliciesDir, err)
+			}
+			resolvedFleetPoliciesDir = fleetPoliciesDir
+		}
+
+		// Make it absolute
+		absFleetPoliciesDir, err := filepath.Abs(resolvedFleetPoliciesDir)
+		if err != nil {
+			fmt.Printf("Warning: failed to get absolute path for fleet policies dir %s: %v\n", resolvedFleetPoliciesDir, err)
+			uris = append(uris, params.Sets...)
+			return uris
+		}
+
+		fleetConfigPath := filepath.Join(absFleetPoliciesDir, "otel-config.yaml")
+
+		_, err = os.Stat(fleetConfigPath)
+		if err != nil && !os.IsNotExist(err) {
+			fmt.Printf("Warning: failed to access fleet policy config %s: %v\n", fleetConfigPath, err)
+		}
+
+		if err == nil {
+			uris = append(uris, "file:"+fleetConfigPath)
+			fmt.Printf("Using fleet policy config: %s\n", fleetConfigPath)
+		}
+
+	}
+
+	uris = append(uris, params.Sets...)
+
+	return uris
 }

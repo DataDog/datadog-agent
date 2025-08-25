@@ -47,6 +47,7 @@ type factory struct {
 	traceagentcmp  traceagent.Component
 	mclientwrapper *metricsclient.StatsdClientWrapper
 	gatewayUsage   otel.GatewayUsage
+	store          serializerexporter.TelemetryStore
 }
 
 // setupTraceAgentCmp sets up the trace agent component.
@@ -72,6 +73,7 @@ func newFactoryWithRegistry(
 	h serializerexporter.SourceProviderFunc,
 	mclientwrapper *metricsclient.StatsdClientWrapper,
 	gatewayUsage otel.GatewayUsage,
+	store serializerexporter.TelemetryStore,
 ) exporter.Factory {
 	f := &factory{
 		registry:       registry,
@@ -81,6 +83,7 @@ func newFactoryWithRegistry(
 		h:              h,
 		mclientwrapper: mclientwrapper,
 		gatewayUsage:   gatewayUsage,
+		store:          store,
 	}
 
 	return exporter.NewFactory(
@@ -114,8 +117,9 @@ func NewFactory(
 	h serializerexporter.SourceProviderFunc,
 	mclientwrapper *metricsclient.StatsdClientWrapper,
 	gatewayUsage otel.GatewayUsage,
+	store serializerexporter.TelemetryStore,
 ) exporter.Factory {
-	return newFactoryWithRegistry(featuregate.GlobalRegistry(), traceagentcmp, s, logsAgent, h, mclientwrapper, gatewayUsage)
+	return newFactoryWithRegistry(featuregate.GlobalRegistry(), traceagentcmp, s, logsAgent, h, mclientwrapper, gatewayUsage, store)
 }
 
 // CreateDefaultConfig creates the default exporter configuration
@@ -123,7 +127,6 @@ func CreateDefaultConfig() component.Config {
 	ddcfg := datadogconfig.CreateDefaultConfig().(*datadogconfig.Config)
 	ddcfg.Traces.TracesConfig.ComputeTopLevelBySpanKind = true
 	ddcfg.Logs.Endpoint = "https://agent-http-intake.logs.datadoghq.com"
-	ddcfg.HostMetadata.Enabled = false
 	return ddcfg
 }
 
@@ -143,9 +146,6 @@ func logWarnings(cfg *datadogconfig.Config, logger *zap.Logger) {
 	cfg.LogWarnings(logger)
 	if cfg.Hostname != "" {
 		logger.Warn(fmt.Sprintf("hostname \"%s\" is ignored in the embedded collector", cfg.Hostname))
-	}
-	if cfg.HostMetadata.Enabled {
-		logger.Warn("host_metadata should not be enabled and is ignored in the embedded collector")
 	}
 	if cfg.OnlyMetadata {
 		logger.Warn("only_metadata should not be enabled and is ignored in the embedded collector")
@@ -178,7 +178,7 @@ func (f *factory) createTracesExporter(
 		return nil, fmt.Errorf("datadog::only_metadata should not be set in OTel Agent")
 	}
 
-	tracex := newTracesExporter(ctx, set, cfg, f.traceagentcmp, f.gatewayUsage)
+	tracex := newTracesExporter(ctx, set, cfg, f.traceagentcmp, f.gatewayUsage, f.store.DDOTTraces)
 
 	return exporterhelper.NewTraces(
 		ctx,
@@ -213,7 +213,7 @@ func (f *factory) createMetricsExporter(
 	statsv := set.BuildInfo.Command + set.BuildInfo.Version
 	ctx, cancel := context.WithCancel(ctx) // cancel() runs on shutdown
 	f.consumeStatsPayload(ctx, &wg, statsIn, statsv, fmt.Sprintf("datadogexporter-%s-%s", set.BuildInfo.Command, set.BuildInfo.Version), set.Logger)
-	sf := serializerexporter.NewFactoryForOTelAgent(f.s, &tagEnricher{}, f.h, statsIn, f.gatewayUsage)
+	sf := serializerexporter.NewFactoryForOTelAgent(f.s, &tagEnricher{}, f.h, statsIn, f.gatewayUsage, f.store, nil)
 	ex := &serializerexporter.ExporterConfig{
 		Metrics: serializerexporter.MetricsConfig{
 			Metrics: cfg.Metrics,

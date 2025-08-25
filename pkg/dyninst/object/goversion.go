@@ -29,8 +29,8 @@ type GoVersion struct {
 	PatchOrRC PatchOrReleaseCandidate
 }
 
-// ParseGoVersion extracts the Go version from an object file
-func ParseGoVersion(mef *MMappingElfFile) (*GoVersion, error) {
+// ReadGoVersion extracts the Go version from an object file
+func ReadGoVersion(mef *MMappingElfFile) (*GoVersion, error) {
 	// Find the runtime.buildVersion symbol
 	symbols, err := mef.Elf.Symbols()
 	if err != nil {
@@ -68,7 +68,11 @@ func ParseGoVersion(mef *MMappingElfFile) (*GoVersion, error) {
 		return nil, fmt.Errorf("failed to read version: %w", err)
 	}
 
-	return parseGoVersion(versionStr), nil
+	version, ok := ParseGoVersion(versionStr)
+	if !ok {
+		return nil, fmt.Errorf("failed to parse version: %s", versionStr)
+	}
+	return &version, nil
 }
 
 func readString(mef *MMappingElfFile, section *safeelf.Section, address, size uint64) (string, error) {
@@ -77,9 +81,10 @@ func readString(mef *MMappingElfFile, section *safeelf.Section, address, size ui
 		return "", fmt.Errorf("failed to load section data: %w", err)
 	}
 	defer ms.Close()
+	msData := ms.Data()
 
 	offset := address - section.Addr
-	if offset+size > uint64(len(ms.Data)) {
+	if offset+size > uint64(len(msData)) {
 		return "", fmt.Errorf("string data out of bounds")
 	}
 
@@ -87,18 +92,18 @@ func readString(mef *MMappingElfFile, section *safeelf.Section, address, size ui
 	var dataAddr, dataSize uint64
 	if size == 8 {
 		// 32-bit pointers
-		if offset+8 > uint64(len(ms.Data)) {
+		if offset+8 > uint64(len(msData)) {
 			return "", fmt.Errorf("not enough data for 32-bit string header")
 		}
-		dataAddr = uint64(binary.LittleEndian.Uint32(ms.Data[offset:]))
-		dataSize = uint64(binary.LittleEndian.Uint32(ms.Data[offset+4:]))
+		dataAddr = uint64(binary.LittleEndian.Uint32(msData[offset:]))
+		dataSize = uint64(binary.LittleEndian.Uint32(msData[offset+4:]))
 	} else if size == 16 {
 		// 64-bit pointers
-		if offset+16 > uint64(len(ms.Data)) {
+		if offset+16 > uint64(len(msData)) {
 			return "", fmt.Errorf("not enough data for 64-bit string header")
 		}
-		dataAddr = binary.LittleEndian.Uint64(ms.Data[offset:])
-		dataSize = binary.LittleEndian.Uint64(ms.Data[offset+8:])
+		dataAddr = binary.LittleEndian.Uint64(msData[offset:])
+		dataSize = binary.LittleEndian.Uint64(msData[offset+8:])
 	} else {
 		return "", fmt.Errorf("invalid string header size: %d", size)
 	}
@@ -121,51 +126,53 @@ func readString(mef *MMappingElfFile, section *safeelf.Section, address, size ui
 		return "", fmt.Errorf("failed to load data section: %w", err)
 	}
 	defer mds.Close()
+	mdsData := mds.Data()
 
 	dataOffset := dataAddr - dataSection.Addr
-	if dataOffset+dataSize > uint64(len(mds.Data)) {
+	if dataOffset+dataSize > uint64(len(mdsData)) {
 		return "", fmt.Errorf("string data out of bounds in data section")
 	}
 
-	return string(mds.Data[dataOffset : dataOffset+dataSize]), nil
+	return string(mdsData[dataOffset : dataOffset+dataSize]), nil
 }
 
 var goVersionRegex = regexp.MustCompile(`^go(\d+)\.(\d+)(\.(\d+)|rc(\d+))`)
 
-func parseGoVersion(version string) *GoVersion {
+// ParseGoVersion parses a Go version string into a GoVersion struct.
+func ParseGoVersion(version string) (GoVersion, bool) {
 	matches := goVersionRegex.FindStringSubmatch(version)
 	if matches == nil {
-		return nil
+		return GoVersion{}, false
 	}
 
 	major, err := strconv.ParseUint(matches[1], 10, 16)
 	if err != nil {
-		return nil
+		return GoVersion{}, false
 	}
 
 	minor, err := strconv.ParseUint(matches[2], 10, 16)
 	if err != nil {
-		return nil
+		return GoVersion{}, false
 	}
 
 	var patchOrRC PatchOrReleaseCandidate
 	if matches[4] != "" { // patch version
 		patch, err := strconv.ParseUint(matches[4], 10, 16)
 		if err != nil {
-			return nil
+			return GoVersion{}, false
 		}
 		patchOrRC = PatchOrReleaseCandidate{IsPatch: true, Version: uint16(patch)}
 	} else if matches[5] != "" { // release candidate
 		rc, err := strconv.ParseUint(matches[5], 10, 16)
 		if err != nil {
-			return nil
+			return GoVersion{}, false
 		}
 		patchOrRC = PatchOrReleaseCandidate{IsPatch: false, Version: uint16(rc)}
 	}
 
-	return &GoVersion{
+	return GoVersion{
 		Major:     uint16(major),
 		Minor:     uint16(minor),
 		PatchOrRC: patchOrRC,
-	}
+	}, true
 }

@@ -64,7 +64,7 @@ func TestContainerdCheckGenericPart(t *testing.T) {
 	}
 
 	// Inject mock processor in check
-	mockSender, processor, _ := generic.CreateTestProcessor(containersMeta, containersStats, metricsAdapter{}, getProcessorFilter(nil, nil), fakeTagger)
+	mockSender, processor, _ := generic.CreateTestProcessor(containersMeta, containersStats, metricsAdapter{}, getProcessorFilter(nil, nil), fakeTagger, false)
 	processor.RegisterExtension("containerd-custom-metrics", &containerdCustomMetricsExtension{})
 
 	// Mock the containerd endpoint

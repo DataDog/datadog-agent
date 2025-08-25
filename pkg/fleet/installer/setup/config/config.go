@@ -146,7 +146,14 @@ type DatadogConfig struct {
 	DDURL                string                     `yaml:"dd_url,omitempty"`
 	LogsConfig           LogsConfig                 `yaml:"logs_config,omitempty"`
 	CollectGPUTags       bool                       `yaml:"collect_gpu_tags,omitempty"`
-	EnableNVMLDetection  bool                       `yaml:"enable_nvml_detection,omitempty"`
+	GPUCheck             GPUCheckConfig             `yaml:"gpu,omitempty"`
+	SBOM                 SBOMConfig                 `yaml:"sbom,omitempty"`
+}
+
+// GPUCheckConfig represents the configuration for the GPU check
+type GPUCheckConfig struct {
+	Enabled     bool   `yaml:"enabled,omitempty"`
+	NvmlLibPath string `yaml:"nvml_lib_path,omitempty"`
 }
 
 // DatadogConfigProxy represents the configuration for the proxy
@@ -230,6 +237,24 @@ type SystemProbeConfig struct {
 
 // RuntimeSecurityConfig represents the configuration for the runtime security
 type RuntimeSecurityConfig struct {
+	Enabled bool       `yaml:"enabled,omitempty"`
+	SBOM    SBOMConfig `yaml:"sbom,omitempty"`
+}
+
+// SBOMConfig represents the configuration for the SBOM
+type SBOMConfig struct {
+	Enabled        bool                     `yaml:"enabled,omitempty"`
+	ContainerImage SBOMContainerImageConfig `yaml:"container_image,omitempty"`
+	Host           SBOMHostConfig           `yaml:"host,omitempty"`
+}
+
+// SBOMContainerImageConfig represents the configuration for the SBOM container image
+type SBOMContainerImageConfig struct {
+	Enabled bool `yaml:"enabled,omitempty"`
+}
+
+// SBOMHostConfig represents the configuration for the SBOM host
+type SBOMHostConfig struct {
 	Enabled bool `yaml:"enabled,omitempty"`
 }
 

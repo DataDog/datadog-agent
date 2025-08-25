@@ -264,6 +264,7 @@ type RawPacketSerializer struct {
 	*NetworkContextSerializer
 
 	TLSContext *TLSContextSerializer `json:"tls,omitempty"`
+	Dropped    *bool                 `json:"dropped,omitempty"`
 }
 
 // NetworkStatsSerializer defines a new network stats serializer
@@ -448,7 +449,7 @@ func NewBaseEventSerializer(event *model.Event, rule *rules.Rule) *BaseEventSeri
 		}
 	}
 
-	s.Category = model.GetEventTypeCategory(eventType.String())
+	s.Category = string(model.GetEventTypeCategoryUserFacing(eventType.String()))
 
 	switch eventType {
 	case model.ExitEventType:

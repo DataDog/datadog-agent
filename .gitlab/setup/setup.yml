@@ -1,7 +1,7 @@
 ---
 setup_agent_version:
   stage: setup
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64"]
   script:
     - |
@@ -22,17 +22,13 @@ setup_agent_version:
 
 github_rate_limit_info:
   stage: .pre
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64"]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
   script:
-    # Python 3.12 changes default behavior how packages are installed.
-    # In particular, --break-system-packages command line option is
-    # required to use the old behavior or use a virtual env. https://github.com/actions/runner-images/issues/8615
-    - python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)" --break-system-packages
-    - python3 -m dda self dep sync -f legacy-tasks
+    - dda self dep sync -f legacy-tasks
     # Send stats for app 1
     - GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_GITHUB_APP_1 key_b64) || exit $?; export GITHUB_KEY_B64
     - GITHUB_APP_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_GITHUB_APP_1 app_id) || exit $?; export GITHUB_APP_ID

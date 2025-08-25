@@ -3,7 +3,6 @@
 
 #include "constants/enums.h"
 #include "helpers/activity_dump.h"
-#include "helpers/container.h"
 #include "helpers/process.h"
 
 #include "context.h"
@@ -42,12 +41,7 @@ __attribute__((always_inline)) struct dns_event_t *reset_dns_event(struct __sk_b
     fill_network_context(&evt->network, skb, pkt);
 
     struct proc_cache_t *entry = get_proc_cache(evt->process.pid);
-    if (entry == NULL) {
-        evt->container.container_id[0] = 0;
-    } else {
-        copy_container_id_no_tracing(entry->container.container_id, &evt->container.container_id);
-        evt->container.cgroup_context = entry->container.cgroup_context;
-    }
+    fill_cgroup_context(entry, &evt->cgroup);
 
     // should we sample this event for activity dumps ?
     struct activity_dump_config *config = lookup_or_delete_traced_pid(evt->process.pid, bpf_ktime_get_ns(), NULL);

@@ -6,10 +6,11 @@
 package config
 
 import (
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"regexp"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestParseJSONWithValidFormatShouldSucceed(t *testing.T) {
@@ -406,6 +407,226 @@ logs:
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			configs, err := ParseYAML(tt.yaml)
+			tt.assert(t, configs, err)
+		})
+	}
+}
+
+func TestParseJSONOrYAML(t *testing.T) {
+	tests := []struct {
+		name   string
+		data   []byte
+		assert func(t *testing.T, configs []*LogsConfig, err error)
+	}{
+		{
+			name: "Test JSON parsing succeeds first",
+			data: []byte(`[{"source":"json_source","service":"json_service","tags":["json_tag"]}]`),
+			assert: func(t *testing.T, configs []*LogsConfig, err error) {
+				assert.Nil(t, err)
+				require.Equal(t, len(configs), 1)
+				config := configs[0]
+				assert.Equal(t, "json_source", config.Source)
+				assert.Equal(t, "json_service", config.Service)
+				require.Equal(t, len(config.Tags), 1)
+				assert.Equal(t, "json_tag", config.Tags[0])
+			},
+		},
+		{
+			name: "Test YAML parsing succeeds when JSON fails",
+			data: []byte(`
+logs:
+  - type: file
+    path: /var/log/app.log
+    source: yaml_source
+    service: yaml_service
+    tags: yaml_tag
+`),
+			assert: func(t *testing.T, configs []*LogsConfig, err error) {
+				assert.Nil(t, err)
+				require.Equal(t, len(configs), 1)
+				config := configs[0]
+				assert.Equal(t, "file", config.Type)
+				assert.Equal(t, "/var/log/app.log", config.Path)
+				assert.Equal(t, "yaml_source", config.Source)
+				assert.Equal(t, "yaml_service", config.Service)
+				require.Equal(t, len(config.Tags), 1)
+				assert.Equal(t, "yaml_tag", config.Tags[0])
+			},
+		},
+		{
+			name: "Test multiple configs in JSON",
+			data: []byte(`[{"source":"source1","service":"service1"},{"source":"source2","service":"service2"}]`),
+			assert: func(t *testing.T, configs []*LogsConfig, err error) {
+				assert.Nil(t, err)
+				require.Equal(t, len(configs), 2)
+				assert.Equal(t, "source1", configs[0].Source)
+				assert.Equal(t, "service1", configs[0].Service)
+				assert.Equal(t, "source2", configs[1].Source)
+				assert.Equal(t, "service2", configs[1].Service)
+			},
+		},
+		{
+			name: "Test multiple configs in YAML when JSON fails",
+			data: []byte(`
+logs:
+  - type: file
+    path: /var/log/app1.log
+    source: source1
+    service: service1
+  - type: file
+    path: /var/log/app2.log
+    source: source2
+    service: service2
+`),
+			assert: func(t *testing.T, configs []*LogsConfig, err error) {
+				assert.Nil(t, err)
+				require.Equal(t, len(configs), 2)
+				assert.Equal(t, "file", configs[0].Type)
+				assert.Equal(t, "/var/log/app1.log", configs[0].Path)
+				assert.Equal(t, "source1", configs[0].Source)
+				assert.Equal(t, "service1", configs[0].Service)
+				assert.Equal(t, "file", configs[1].Type)
+				assert.Equal(t, "/var/log/app2.log", configs[1].Path)
+				assert.Equal(t, "source2", configs[1].Source)
+				assert.Equal(t, "service2", configs[1].Service)
+			},
+		},
+		{
+			name: "Test empty JSON array",
+			data: []byte(`[]`),
+			assert: func(t *testing.T, configs []*LogsConfig, err error) {
+				assert.Nil(t, err)
+				assert.Equal(t, len(configs), 0)
+			},
+		},
+		{
+			name: "Test empty YAML logs array when JSON fails",
+			data: []byte(`
+logs: []
+`),
+			assert: func(t *testing.T, configs []*LogsConfig, err error) {
+				assert.Nil(t, err)
+				assert.Equal(t, len(configs), 0)
+			},
+		},
+		{
+			name: "Test invalid input that fails both JSON and YAML",
+			data: []byte(`invalid data that is neither json nor yaml`),
+			assert: func(t *testing.T, configs []*LogsConfig, err error) {
+				assert.NotNil(t, err)
+				assert.Nil(t, configs)
+				assert.Contains(t, err.Error(), "could not parse logs config as JSON or YAML")
+			},
+		},
+		{
+			name: "Test YAML without logs wrapper that fails both",
+			data: []byte(`
+- type: file
+  path: /var/log/app.log
+`),
+			assert: func(t *testing.T, configs []*LogsConfig, err error) {
+				// This should fail both JSON and YAML because:
+				// - JSON expects array of LogsConfig objects
+				// - YAML expects "logs:" wrapper
+				assert.NotNil(t, err)
+				assert.Nil(t, configs)
+				assert.Contains(t, err.Error(), "could not parse logs config as JSON or YAML")
+			},
+		},
+		{
+			name: "Test JSON with empty object in array",
+			data: []byte(`[{}]`),
+			assert: func(t *testing.T, configs []*LogsConfig, err error) {
+				assert.Nil(t, err)
+				require.Equal(t, len(configs), 1)
+				assert.NotNil(t, configs[0])
+			},
+		},
+		{
+			name: "Test YAML with empty object when JSON fails",
+			data: []byte(`
+logs:
+  - {}
+`),
+			assert: func(t *testing.T, configs []*LogsConfig, err error) {
+				assert.Nil(t, err)
+				require.Equal(t, len(configs), 1)
+				assert.NotNil(t, configs[0])
+			},
+		},
+		{
+			name: "Test comprehensive JSON config",
+			data: []byte(`[{"type":"file","path":"/var/log/test.log","source":"test_source","service":"test_service","tags":["tag1","tag2"],"encoding":"utf-8","port":8080,"container_mode":true,"log_processing_rules":[{"type":"multi_line","name":"test_rule","pattern":"^\\d{4}"}]}]`),
+			assert: func(t *testing.T, configs []*LogsConfig, err error) {
+				assert.Nil(t, err)
+				require.Equal(t, len(configs), 1)
+				config := configs[0]
+				assert.Equal(t, "file", config.Type)
+				assert.Equal(t, "/var/log/test.log", config.Path)
+				assert.Equal(t, "test_source", config.Source)
+				assert.Equal(t, "test_service", config.Service)
+				require.Equal(t, len(config.Tags), 2)
+				assert.Equal(t, "tag1", config.Tags[0])
+				assert.Equal(t, "tag2", config.Tags[1])
+				assert.Equal(t, "utf-8", config.Encoding)
+				assert.Equal(t, 8080, config.Port)
+				assert.Equal(t, true, config.ContainerMode)
+				require.Equal(t, len(config.ProcessingRules), 1)
+				assert.Equal(t, "multi_line", config.ProcessingRules[0].Type)
+				assert.Equal(t, "test_rule", config.ProcessingRules[0].Name)
+				assert.Equal(t, `^\d{4}`, config.ProcessingRules[0].Pattern)
+			},
+		},
+		{
+			name: "Test comprehensive YAML config when JSON fails",
+			data: []byte(`
+logs:
+  - type: journald
+    path: /var/log/journal/
+    source: comprehensive_source
+    service: comprehensive_service
+    tags: comprehensive_tag1, comprehensive_tag2
+    encoding: utf-16-be
+    port: 9090
+    container_mode: false
+    include_units: systemd-unit.service
+    exclude_units: datadog-agent.service
+    log_processing_rules:
+    - type: mask_sequences
+      name: mask_test
+      pattern: (password|secret)
+      replace_placeholder: "[MASKED]"
+`),
+			assert: func(t *testing.T, configs []*LogsConfig, err error) {
+				assert.Nil(t, err)
+				require.Equal(t, len(configs), 1)
+				config := configs[0]
+				assert.Equal(t, "journald", config.Type)
+				assert.Equal(t, "/var/log/journal/", config.Path)
+				assert.Equal(t, "comprehensive_source", config.Source)
+				assert.Equal(t, "comprehensive_service", config.Service)
+				require.Equal(t, len(config.Tags), 2)
+				assert.Equal(t, "comprehensive_tag1", config.Tags[0])
+				assert.Equal(t, " comprehensive_tag2", config.Tags[1])
+				assert.Equal(t, "utf-16-be", config.Encoding)
+				assert.Equal(t, 9090, config.Port)
+				assert.Equal(t, false, config.ContainerMode)
+				require.Equal(t, len(config.IncludeSystemUnits), 1)
+				assert.Equal(t, "systemd-unit.service", config.IncludeSystemUnits[0])
+				require.Equal(t, len(config.ExcludeSystemUnits), 1)
+				assert.Equal(t, "datadog-agent.service", config.ExcludeSystemUnits[0])
+				require.Equal(t, len(config.ProcessingRules), 1)
+				assert.Equal(t, "mask_sequences", config.ProcessingRules[0].Type)
+				assert.Equal(t, "mask_test", config.ProcessingRules[0].Name)
+				assert.Equal(t, "(password|secret)", config.ProcessingRules[0].Pattern)
+				assert.Equal(t, "[MASKED]", config.ProcessingRules[0].ReplacePlaceholder)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			configs, err := ParseJSONOrYAML(tt.data)
 			tt.assert(t, configs, err)
 		})
 	}

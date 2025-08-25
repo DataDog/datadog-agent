@@ -3,9 +3,10 @@ from __future__ import annotations
 import io
 import os
 import shutil
+import sys
 from pathlib import Path
 
-from invoke import Context
+from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.runners import Local, Result
 
@@ -46,6 +47,7 @@ def go_build(
     cmd = "go build"
     if coverage:
         cmd += " -cover -covermode=atomic"
+        build_tags = build_tags or []
         build_tags.append("e2ecoverage")
     if mod:
         cmd += f" -mod={mod}"
@@ -67,7 +69,7 @@ def go_build(
         ldflags = (ldflags or "") + " -dumpdep"
     if ldflags:
         cmd += f" -ldflags=\"{ldflags}\""
-    if trimpath:
+    if trimpath and 'DELVE' not in os.environ:
         cmd += " -trimpath"
 
     cmd += f" {entrypoint}"
@@ -84,7 +86,7 @@ def go_build(
     # -dumpdep is very verbose so we hide that
     # any unrecognized log line is shown by whydeadcode anyway
     res = runner.run(cmd, env=env, hide="stderr" if check_deadcode else None)
-
+    assert res is not None
     if check_deadcode:
         if not shutil.which("whydeadcode"):
             with ctx.cd("internal/tools"):
@@ -94,12 +96,24 @@ def go_build(
         # it returns non-zero if non-expected input is passed, and 0 otherwise, even if dead code elimination is disabled
         # so we check whether stdout is empty to know if dead code elimination is disabled
         whydeadcoderes = runner.run("whydeadcode", in_stream=CustomReader(res.stderr), warn=True, hide="out")
+        assert whydeadcoderes is not None
         if whydeadcoderes.stdout:
             raise Exit(
                 f"dead code elimination is disabled by the following call stack (only the first one is guaranteed to be a true positive):\n{whydeadcoderes.stdout}"
             )
 
-    return res
+    if bin_path and os.path.exists(bin_path):
+        uid = os.environ.get("HOST_UID", "-1")
+        gid = os.environ.get("HOST_GID", "-1")
+        if uid != "-1" and gid != "-1":
+            os.chown(bin_path, int(uid), int(gid))
+
+    result = ctx.run(cmd, env=env)
+    assert result is not None
+    if sys.platform == "win32" or result.exited != 0 or bin_path is None:
+        return result
+
+    return result
 
 
 # reading from stdin in invoke is super slow, see https://github.com/pyinvoke/invoke/issues/819
