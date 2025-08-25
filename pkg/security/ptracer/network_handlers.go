@@ -319,6 +319,23 @@ func handleSetsockopt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg
 		}
 		return nil
 	}
+
+	optLen := int(tracer.ReadArgUint32(regs, 4))
+	// Check if optLen matches sock_fprog (16 bytes: 2 bytes for length, 6 bytes for padding, 8 bytes for pointer)
+	if optLen != 16 {
+		// Send incomplete event because there is an invalid filter / len
+		msg.Type = ebpfless.SyscallTypeSetsockopt
+		msg.Setsockopt = &ebpfless.SetsockoptSyscallMsg{
+			Level:          level,
+			OptName:        optname,
+			Filter:         nil,
+			FilterLen:      0,
+			SocketFamily:   socketFamily,
+			SocketProtocol: socketProtocol,
+			SocketType:     socketType,
+		}
+		return errors.New("invalid optLen")
+	}
 	// Read the sock_fprog header from argument 3 (optval)
 	// Expected size on 64-bit: 16 bytes (2 bytes length, 6 bytes padding, 8 bytes pointer)
 	hdr, err := tracer.ReadArgData(process.Pid, regs, 3, 16)
