@@ -389,7 +389,7 @@ def check_all_replace(ctx: Context):
         raise Exit(
             code=1,
             message=color_message(
-                "ERROR: Some go.mod files are missing replace rules. Please commit the changes and try again. ",
+                "ERROR: Some go.mod files are missing replace rules. Please commit the changes from 'dda inv modules.add-all-replace' and try again. ",
                 Color.RED,
             ),
         )
