@@ -13,7 +13,7 @@ from tasks.flavor import AgentFlavor
 from tasks.go import GOARCH_MAPPING, GOOS_MAPPING
 from tasks.go import version as dot_go_version
 from tasks.libs.common.color import color_message
-from tasks.libs.common.datadog_api import create_count, create_gauge, send_metrics
+from tasks.libs.common.datadog_api import create_gauge, send_metrics
 from tasks.libs.common.git import check_uncommitted_changes, get_commit_sha, get_current_branch
 from tasks.release import _get_release_json_value
 
@@ -83,7 +83,7 @@ BINARIES: dict[str, dict] = {
     },
 }
 
-METRIC_GO_DEPS_DIFF = "datadog.agent.go_dependencies.diff"
+METRIC_GO_DEPS_DIFF = "datadog.agent.go_dependencies.difference"
 
 
 @task
@@ -212,7 +212,7 @@ def diff(
                         if git_ref:
                             tags.append(f"git_ref:{git_ref}")
 
-                        dependency_diff = create_count(METRIC_GO_DEPS_DIFF, timestamp, (add - remove), tags)
+                        dependency_diff = create_gauge(METRIC_GO_DEPS_DIFF, timestamp, (add - remove), tags)
                         send_metrics([dependency_diff])
 
                     color_add = color_message(f"+{add}", "green")
