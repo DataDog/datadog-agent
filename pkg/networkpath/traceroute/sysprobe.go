@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
@@ -32,7 +33,9 @@ func getTraceroute(client *http.Client, clientID string, host string, port uint1
 	req.Header.Set("Accept", "application/json")
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, err
+		if strings.Contains(err.Error(), "sysprobe.sock: connect: no such file or directory") {
+			return nil, fmt.Errorf("%w, please check that the traceroute module is enabled in the system-probe.yaml config file and that system-probe is running", err)
+		}
 	}
 	defer resp.Body.Close()
 
@@ -42,6 +45,8 @@ func getTraceroute(client *http.Client, clientID string, host string, port uint1
 			return nil, fmt.Errorf("traceroute request failed: url: %s, status code: %d", req.URL, resp.StatusCode)
 		}
 		return nil, fmt.Errorf("traceroute request failed: url: %s, status code: %d, error: %s", req.URL, resp.StatusCode, string(body))
+	} else if resp.StatusCode == http.StatusNotFound {
+		return nil, fmt.Errorf("traceroute request failed: url: %s, status code: %d, please check that the traceroute module is enabled in the system-probe.yaml config file", req.URL, resp.StatusCode)
 	} else if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("traceroute request failed: url: %s, status code: %d", req.URL, resp.StatusCode)
 	}
