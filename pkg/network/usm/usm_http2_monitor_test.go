@@ -1556,7 +1556,7 @@ func (s *usmHTTP2Suite) TestIncompleteFrameTable() {
 				// need to be bigger then 9 to create the incomplete state.
 				return [][]byte{msg[:10], msg[10:]}
 			},
-			mapSize: 0, // FIXED: No more leak - PRIORITY data splits don't create spurious incomplete entries
+			mapSize: 0, // FIXED: PRIORITY frames don't create incomplete entries to prevent leak
 		},
 	}
 	for _, tt := range tests {
