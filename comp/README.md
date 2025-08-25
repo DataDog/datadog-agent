@@ -441,7 +441,7 @@ It does not expose any public methods.
 
 ## [comp/networkpath](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/networkpath) (Component Bundle)
 
-*Datadog Team*: Networks
+*Datadog Team*: cloud-network-monitoring
 
 Package networkpath implements the "networkpath" bundle,
 
@@ -499,6 +499,8 @@ Package agent contains a process-agent component
 Package apiserver initializes the api server that powers many subcommands.
 
 ### [comp/process/connectionscheck](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process/connectionscheck)
+
+*Datadog Team*: networks universal-service-monitoring
 
 Package connectionscheck implements a component to handle Connections data collection in the Process Agent.
 

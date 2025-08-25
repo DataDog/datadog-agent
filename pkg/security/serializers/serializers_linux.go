@@ -1151,12 +1151,19 @@ func newNetworkDeviceSerializer(deviceCtx *model.NetworkDeviceContext, e *model.
 }
 
 func newRawPacketEventSerializer(rp *model.RawPacketEvent, e *model.Event) *RawPacketSerializer {
-	return &RawPacketSerializer{
+	rps := &RawPacketSerializer{
 		NetworkContextSerializer: newNetworkContextSerializer(e, &rp.NetworkContext),
 		TLSContext: &TLSContextSerializer{
 			Version: model.TLSVersion(rp.TLSContext.Version).String(),
 		},
 	}
+
+	if e.GetEventType() == model.RawPacketActionEventType {
+		rps.Dropped = new(bool)
+		*rps.Dropped = true
+	}
+
+	return rps
 }
 
 func newNetworkStatsSerializer(networkStats *model.NetworkStats, _ *model.Event) *NetworkStatsSerializer {
@@ -1666,7 +1673,7 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule) *EventSerializer {
 		s.SyscallContextSerializer = newSyscallContextSerializer(&event.Exec.SyscallContext, event, func(ctx *SyscallContextSerializer, args *SyscallArgsSerializer) {
 			ctx.Exec = args
 		})
-	case model.RawPacketEventType:
+	case model.RawPacketFilterEventType, model.RawPacketActionEventType:
 		s.RawPacketSerializer = newRawPacketEventSerializer(&event.RawPacket, event)
 	case model.NetworkFlowMonitorEventType:
 		s.NetworkFlowMonitorSerializer = newNetworkFlowMonitorSerializer(&event.NetworkFlowMonitor, event)

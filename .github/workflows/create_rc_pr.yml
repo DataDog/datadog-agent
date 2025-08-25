@@ -94,9 +94,14 @@ jobs:
           WARNING: ${{ needs.find_release_branches.outputs.warning }}
         run: |
           if [ -n "${{ needs.find_release_branches.outputs.warning }}" ]; then
-            echo "CHANGES=$(dda inv -- -e release.check-for-changes -r "$MATRIX" "$WARNING")" >> $GITHUB_OUTPUT
+            dda inv -- -e release.check-for-changes -r "$MATRIX" "$WARNING"
           else
-            echo "CHANGES=$(dda inv -- -e release.check-for-changes -r "$MATRIX")" >> $GITHUB_OUTPUT
+            dda inv -- -e release.check-for-changes -r "$MATRIX"
+          fi
+          if [ $? -ne 0 ]; then
+            echo "CHANGES=true" >> $GITHUB_OUTPUT
+          else
+            echo "CHANGES=false" >> $GITHUB_OUTPUT
           fi
 
       - name: Check if agent 6 is in qualification phase
