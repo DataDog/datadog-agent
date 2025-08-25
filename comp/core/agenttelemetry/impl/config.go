@@ -189,23 +189,15 @@ type Event struct {
 // Note: If "aggregate_tags" are not specified, metric will be aggregated without any tags.
 var defaultProfiles = `
   profiles:
-  - name: checks-execution-time
+  - name: checks
     metric:
+      exclude:
+        zero_metric: true
       metrics:
         - name: checks.execution_time
           aggregate_tags:
             - check_name
             - check_loader
-        - name: pymem.inuse
-    schedule:
-      start_after: 30
-      iterations: 0
-      period: 900
-  - name: checks-delay-and-runs
-    metric:
-      exclude:
-        zero_metric: true
-      metrics:
         - name: checks.delay
           aggregate_tags:
             - check_name
@@ -213,6 +205,11 @@ var defaultProfiles = `
           aggregate_tags:
             - check_name
             - state
+        - name: pymem.inuse
+    schedule:
+      start_after: 30
+      iterations: 0
+      period: 900
   - name: logs-and-metrics
     metric:
       exclude:
@@ -220,12 +217,6 @@ var defaultProfiles = `
       metrics:
         - name: dogstatsd.udp_packets_bytes
         - name: dogstatsd.uds_packets_bytes
-        - name: dogstatsd.metric_type_count
-          aggregate_tags:
-            - metric_type
-        - name: aggregator.dogstatsd_contexts_by_mtype
-          aggregate_tags:
-            - metric_type
         - name: logs.bytes_missed
         - name: logs.bytes_sent
         - name: logs.decoded
