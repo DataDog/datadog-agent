@@ -8,4 +8,4 @@
 ---
 deprecations:
   - |
-    Remove the deprecated routing processor from DDOT.
+    Remove the deprecated routing processor from DDOT. Use the routing connector instead.
