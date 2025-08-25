@@ -245,6 +245,8 @@ func (t EventType) String() string {
 		return "net_device"
 	case VethPairEventType:
 		return "veth_pair"
+	case VethPairNsEventType:
+		return "veth_pair_ns"
 	case BindEventType:
 		return "bind"
 	case AcceptEventType:
