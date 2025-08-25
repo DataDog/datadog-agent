@@ -9,6 +9,8 @@
 package rawpacket
 
 import (
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
@@ -72,4 +74,9 @@ type Filter struct {
 	Policy        Policy
 	Pid           uint32
 	CGroupPathKey model.PathKey
+}
+
+// Key returns a key representing the filter
+func (f *Filter) Key() string {
+	return fmt.Sprintf("%s:%d:%d", f.RuleID, f.Pid, f.CGroupPathKey.Inode)
 }

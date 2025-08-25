@@ -739,7 +739,7 @@ func (p *EBPFProbe) addRawPacketActionFilter(actionFilter rawpacket.Filter) erro
 	seclog.Infof("add raw packet action filter: %+v\n", actionFilter)
 
 	if slices.ContainsFunc(p.rawPacketActionFilters, func(af rawpacket.Filter) bool {
-		return actionFilter.RuleID == af.RuleID
+		return actionFilter.Key() == af.Key()
 	}) {
 		return nil
 	}
