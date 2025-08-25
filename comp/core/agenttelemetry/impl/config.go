@@ -203,9 +203,17 @@ var defaultProfiles = `
       period: 900
   - name: logs-and-metrics
     metric:
+      exclude:
+        zero_metric: true
       metrics:
         - name: dogstatsd.udp_packets_bytes
         - name: dogstatsd.uds_packets_bytes
+        - name: dogstatsd.metric_type_count
+          aggregate_tags:
+            - metric_type
+        - name: aggregator.dogstatsd_contexts_by_mtype
+          aggregate_tags:
+            - metric_type
         - name: logs.bytes_missed
         - name: logs.bytes_sent
         - name: logs.decoded
@@ -322,6 +330,14 @@ var defaultProfiles = `
       start_after: 1800 # 30 minutes
       iterations: 0
       period: 21600 # 6 hours
+  - name: rtloader
+    metric:
+      exclude:
+        zero_metric: true
+      metrics:
+        - name: rtloader.inuse_bytes
+        - name: rtloader.frees
+        - name: rtloader.allocations
   - name: otlp
     metric:
       exclude:

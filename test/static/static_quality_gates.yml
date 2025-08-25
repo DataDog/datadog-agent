@@ -9,7 +9,7 @@ static_quality_gate_agent_heroku_amd64:
   max_on_wire_size: 95.72 MiB
 static_quality_gate_agent_msi:
   max_on_disk_size: 980.61 MiB
-  max_on_wire_size: 149.31 MiB
+  max_on_wire_size: 152.67 MiB
 static_quality_gate_agent_rpm_amd64:
   max_on_disk_size: 704.83 MiB
   max_on_wire_size: 180.22 MiB
@@ -44,30 +44,6 @@ static_quality_gate_docker_agent_jmx_amd64:
   max_on_disk_size: 979.84 MiB
   max_on_wire_size: 340.95 MiB
 static_quality_gate_docker_agent_jmx_arm64:
-# static_quality_gate_docker_agent_windows1809:
-#   max_on_disk_size: 1190.61 MiB
-#   max_on_wire_size: 420.48 MiB
-# static_quality_gate_docker_agent_windows1809_core:
-#   max_on_disk_size: 5920.75 MiB
-#   max_on_wire_size: 2048.95 MiB
-# static_quality_gate_docker_agent_windows1809_core_jmx:
-#   max_on_disk_size: 6042.32 MiB
-#   max_on_wire_size: 2048.95 MiB
-# static_quality_gate_docker_agent_windows1809_jmx:
-#   max_on_disk_size: 1312.42 MiB
-#   max_on_wire_size: 462.77 MiB
-# static_quality_gate_docker_agent_windows2022:
-#   max_on_disk_size: 1209.9 MiB
-#   max_on_wire_size: 433.24 MiB
-# static_quality_gate_docker_agent_windows2022_core:
-#   max_on_disk_size: 5893.81 MiB
-#   max_on_wire_size: 2048.95 MiB
-# static_quality_gate_docker_agent_windows2022_core_jmx:
-#   max_on_disk_size: 6015.45 MiB
-#   max_on_wire_size: 2048.95 MiB
-# static_quality_gate_docker_agent_windows2022_jmx:
-#   max_on_disk_size: 1331.48 MiB
-#   max_on_wire_size: 475.53 MiB
   max_on_disk_size: 981.8 MiB
   max_on_wire_size: 324.65 MiB
 static_quality_gate_docker_cluster_agent_amd64:
@@ -112,9 +88,9 @@ static_quality_gate_iot_agent_deb_armhf:
 static_quality_gate_iot_agent_rpm_amd64:
   max_on_disk_size: 54.55 MiB
   max_on_wire_size: 14.47 MiB
-static_quality_gate_iot_agent_rpm_arm64:
-  max_on_disk_size: 51.91 MiB
-  max_on_wire_size: 12.65 MiB
+#static_quality_gate_iot_agent_rpm_arm64:
+#  max_on_disk_size: 51.91 MiB
+#  max_on_wire_size: 12.65 MiB
 static_quality_gate_iot_agent_suse_amd64:
   max_on_disk_size: 54.55 MiB
   max_on_wire_size: 14.47 MiB

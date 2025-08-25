@@ -8,12 +8,15 @@
 package setup
 
 import (
+	"fmt"
+	"os"
 	"path/filepath"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/executable"
 )
 
-// Variables to initialize at build time
+// Variables that are overridden at init
 var (
 	// InstallPath is the default install path for the agent
 	// It might be overridden at build time
@@ -56,6 +59,18 @@ const (
 // called by init in config.go, to ensure any os-specific config is done
 // in time
 func osinit() {
+	// Agent binary
+	_here, err := executable.Folder()
+	if err != nil {
+		panic(fmt.Sprintf("Failed to get executable path: %v", err))
+	}
+	InstallPath = getInstallPathFromExecutable(_here)
+
+	DefaultDDAgentBin = filepath.Join(InstallPath, "bin", "agent")
+	DefaultSystemProbeAddress = filepath.Join(InstallPath, "run/sysprobe.sock")
+	defaultEventMonitorAddress = filepath.Join(InstallPath, "run/event-monitor.sock")
+	defaultSystemProbeBPFDir = filepath.Join(InstallPath, "embedded/share/system-probe/ebpf")
+
 	if defaultRunPath == "" {
 		defaultRunPath = filepath.Join(InstallPath, "run")
 	}
@@ -63,4 +78,26 @@ func osinit() {
 
 // FleetConfigOverride is a no-op on Linux
 func FleetConfigOverride(_ pkgconfigmodel.Config) {
+}
+
+// getInstallPathFromExecutable will go up the directory chain from start in search of a .install_root file.
+// That directory will become the install path.
+//
+// If not found, returns the default InstallPath.
+func getInstallPathFromExecutable(start string) string {
+	// Start from the current directory
+	currentDir := start
+
+	for {
+		installRoot := filepath.Join(currentDir, ".install_root")
+		if _, err := os.Stat(installRoot); err == nil {
+			return currentDir
+		}
+		parentDir := filepath.Dir(currentDir)
+		if parentDir == currentDir {
+			break
+		}
+		currentDir = parentDir
+	}
+	return InstallPath // Fallback to the default install path
 }

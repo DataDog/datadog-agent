@@ -27,7 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
-func confFromYAML(t *testing.T, yamlConfig string) pkgconfigmodel.Config {
+func confFromYAML(t *testing.T, yamlConfig string) pkgconfigmodel.BuildableConfig {
 	conf := newTestConf(t)
 	conf.SetConfigType("yaml")
 	err := conf.ReadConfig(strings.NewReader(yamlConfig))
@@ -749,6 +749,7 @@ skip_ssl_validation: true
 apm_config:
   apm_dd_url: https://somehost:1234
   profiling_dd_url: https://somehost:1234
+  profiling_receiver_timeout: 30
   telemetry:
     dd_url: https://somehost:1234
 
