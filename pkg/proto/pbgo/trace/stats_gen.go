@@ -149,10 +149,10 @@ func (z *ClientGroupedStats) DecodeMsg(dc *msgp.Reader) (err error) {
 				err = msgp.WrapError(err, "HTTPMethod")
 				return
 			}
-		case "Endpoint":
-			z.Endpoint, err = dc.ReadString()
+		case "HTTPEndpoint":
+			z.HTTPEndpoint, err = dc.ReadString()
 			if err != nil {
-				err = msgp.WrapError(err, "Endpoint")
+				err = msgp.WrapError(err, "HTTPEndpoint")
 				return
 			}
 		default:
@@ -356,14 +356,14 @@ func (z *ClientGroupedStats) EncodeMsg(en *msgp.Writer) (err error) {
 		err = msgp.WrapError(err, "HTTPMethod")
 		return
 	}
-	// write "Endpoint"
-	err = en.Append(0xa8, 0x45, 0x6e, 0x64, 0x70, 0x6f, 0x69, 0x6e, 0x74)
+	// write "HTTPEndpoint"
+	err = en.Append(0xac, 0x48, 0x54, 0x54, 0x50, 0x45, 0x6e, 0x64, 0x70, 0x6f, 0x69, 0x6e, 0x74)
 	if err != nil {
 		return
 	}
-	err = en.WriteString(z.Endpoint)
+	err = en.WriteString(z.HTTPEndpoint)
 	if err != nil {
-		err = msgp.WrapError(err, "Endpoint")
+		err = msgp.WrapError(err, "HTTPEndpoint")
 		return
 	}
 	return
@@ -430,9 +430,9 @@ func (z *ClientGroupedStats) MarshalMsg(b []byte) (o []byte, err error) {
 	// string "HTTPMethod"
 	o = append(o, 0xaa, 0x48, 0x54, 0x54, 0x50, 0x4d, 0x65, 0x74, 0x68, 0x6f, 0x64)
 	o = msgp.AppendString(o, z.HTTPMethod)
-	// string "Endpoint"
-	o = append(o, 0xa8, 0x45, 0x6e, 0x64, 0x70, 0x6f, 0x69, 0x6e, 0x74)
-	o = msgp.AppendString(o, z.Endpoint)
+	// string "HTTPEndpoint"
+	o = append(o, 0xac, 0x48, 0x54, 0x54, 0x50, 0x45, 0x6e, 0x64, 0x70, 0x6f, 0x69, 0x6e, 0x74)
+	o = msgp.AppendString(o, z.HTTPEndpoint)
 	return
 }
 
@@ -579,10 +579,10 @@ func (z *ClientGroupedStats) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "HTTPMethod")
 				return
 			}
-		case "Endpoint":
-			z.Endpoint, bts, err = msgp.ReadStringBytes(bts)
+		case "HTTPEndpoint":
+			z.HTTPEndpoint, bts, err = msgp.ReadStringBytes(bts)
 			if err != nil {
-				err = msgp.WrapError(err, "Endpoint")
+				err = msgp.WrapError(err, "HTTPEndpoint")
 				return
 			}
 		default:
@@ -603,7 +603,7 @@ func (z *ClientGroupedStats) Msgsize() (s int) {
 	for za0001 := range z.PeerTags {
 		s += msgp.StringPrefixSize + len(z.PeerTags[za0001])
 	}
-	s += 12 + msgp.Int32Size + 15 + msgp.StringPrefixSize + len(z.GRPCStatusCode) + 11 + msgp.StringPrefixSize + len(z.HTTPMethod) + 9 + msgp.StringPrefixSize + len(z.Endpoint)
+	s += 12 + msgp.Int32Size + 15 + msgp.StringPrefixSize + len(z.GRPCStatusCode) + 11 + msgp.StringPrefixSize + len(z.HTTPMethod) + 13 + msgp.StringPrefixSize + len(z.HTTPEndpoint)
 	return
 }
 

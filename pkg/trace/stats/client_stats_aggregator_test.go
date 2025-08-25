@@ -84,7 +84,7 @@ func payloadWithCounts(ts time.Time, k BucketsAggregationKey, containerID, versi
 						Duration:       duration,
 						GRPCStatusCode: k.GRPCStatusCode,
 						HTTPMethod:     k.HTTPMethod,
-						Endpoint:       k.Endpoint,
+						HTTPEndpoint:   k.HTTPEndpoint,
 					},
 				},
 			},
@@ -404,8 +404,8 @@ func TestCountAggregation(t *testing.T) {
 			"name",
 		},
 		{
-			BucketsAggregationKey{Endpoint: "/"},
-			&pb.ClientGroupedStats{Endpoint: "/"},
+			BucketsAggregationKey{HTTPEndpoint: "/"},
+			&pb.ClientGroupedStats{HTTPEndpoint: "/"},
 			"name",
 		},
 	}
@@ -929,7 +929,7 @@ func deepCopyGroupedStats(s []*pb.ClientGroupedStats) []*pb.ClientGroupedStats {
 			IsTraceRoot:    b.GetIsTraceRoot(),
 			GRPCStatusCode: b.GetGRPCStatusCode(),
 			HTTPMethod:     b.GetHTTPMethod(),
-			Endpoint:       b.GetEndpoint(),
+			HTTPEndpoint:   b.GetHTTPEndpoint(),
 		}
 		if b.OkSummary != nil {
 			stats[i].OkSummary = make([]byte, len(b.OkSummary))

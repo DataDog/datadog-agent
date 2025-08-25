@@ -43,8 +43,8 @@ type StatSpan struct {
 	matchingPeerTags []string
 	grpcStatusCode   string
 
-	httpMethod string
-	endpoint   string
+	httpMethod   string
+	httpEndpoint string
 }
 
 func matchingPeerTags(meta map[string]string, peerTagKeys []string) []string {
@@ -130,7 +130,7 @@ func (sc *SpanConcentrator) NewStatSpan(
 	metrics map[string]float64,
 	peerTags []string,
 	httpMethod string,
-	endpoint string,
+	httpEndpoint string,
 ) (statSpan *StatSpan, ok bool) {
 	if meta == nil {
 		meta = make(map[string]string)
@@ -162,8 +162,8 @@ func (sc *SpanConcentrator) NewStatSpan(
 
 		grpcStatusCode: getGRPCStatusCode(meta, metrics),
 
-		httpMethod: httpMethod,
-		endpoint:   endpoint,
+		httpMethod:   httpMethod,
+		httpEndpoint: httpEndpoint,
 	}, true
 }
 

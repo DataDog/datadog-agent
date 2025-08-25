@@ -80,7 +80,7 @@ func (s *groupedStats) export(a Aggregation) (*pb.ClientGroupedStats, error) {
 		IsTraceRoot:    a.IsTraceRoot,
 		GRPCStatusCode: a.GRPCStatusCode,
 		HTTPMethod:     a.HTTPMethod,
-		Endpoint:       a.Endpoint,
+		HTTPEndpoint:   a.HTTPEndpoint,
 	}, nil
 }
 

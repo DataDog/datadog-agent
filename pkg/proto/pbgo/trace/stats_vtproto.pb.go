@@ -344,10 +344,10 @@ func (m *ClientGroupedStats) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
-	if len(m.Endpoint) > 0 {
-		i -= len(m.Endpoint)
-		copy(dAtA[i:], m.Endpoint)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Endpoint)))
+	if len(m.HTTPEndpoint) > 0 {
+		i -= len(m.HTTPEndpoint)
+		copy(dAtA[i:], m.HTTPEndpoint)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.HTTPEndpoint)))
 		i--
 		dAtA[i] = 0x1
 		i--
@@ -691,7 +691,7 @@ func (m *ClientGroupedStats) SizeVT() (n int) {
 	if l > 0 {
 		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
-	l = len(m.Endpoint)
+	l = len(m.HTTPEndpoint)
 	if l > 0 {
 		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
@@ -2122,7 +2122,7 @@ func (m *ClientGroupedStats) UnmarshalVT(dAtA []byte) error {
 			iNdEx = postIndex
 		case 20:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Endpoint", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field HTTPEndpoint", wireType)
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
@@ -2150,7 +2150,7 @@ func (m *ClientGroupedStats) UnmarshalVT(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Endpoint = string(dAtA[iNdEx:postIndex])
+			m.HTTPEndpoint = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
