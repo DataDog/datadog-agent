@@ -3,9 +3,7 @@ from __future__ import annotations
 import base64
 import json
 import os
-import platform
 import re
-import subprocess
 from collections.abc import Iterable
 from datetime import datetime, timedelta
 from functools import lru_cache
@@ -225,7 +223,7 @@ class GithubAPI:
             protection_url = f"{self.repo.url}/branches/{branch_name}/protection"
             headers = {
                 "Accept": "application/vnd.github+json",
-                "Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}",
+                "Authorization": f"Bearer {self._auth.token}",
                 "X-GitHub-Api-Version": "2022-11-28",
             }
             payload = self.protection_to_payload(current_protection.raw_data)
@@ -521,71 +519,34 @@ class GithubAPI:
         """
         Attempt to find a working authentication, in order:
             - Personal access token through GITHUB_TOKEN environment variable
-            - An app token through the GITHUB_APP_ID & GITHUB_KEY_B64 environment
-              variables (can also use GITHUB_INSTALLATION_ID to save a request)
-            - A token from macOS keychain
+            - Short lived token generated locally
             - A fake login user/password to reach public repositories
+            - An app token through the GITHUB_APP_ID & GITHUB_KEY_B64 environment variables (required for CI)
         """
-        if not running_in_ci():
-            ctx = Context()
-            # Try without login first, then with login
-            for login in False, True:
-                if login:
-                    ctx.run('ddtool auth github login')
-
-                try:
-                    token = ctx.run('ddtool auth github token', hide=True).stdout.strip()
-
-                    if verbose:
-                        print(token)
-
-                    return token
-                except Exception:
-                    # Try with log in this time
-                    if not login:
-                        continue
-
-                    raise
         if "GITHUB_TOKEN" in os.environ:
             return Auth.Token(os.environ["GITHUB_TOKEN"])
-        if "GITHUB_APP_ID" in os.environ and "GITHUB_KEY_B64" in os.environ:
-            appAuth = Auth.AppAuth(
-                os.environ['GITHUB_APP_ID'], base64.b64decode(os.environ['GITHUB_KEY_B64']).decode('ascii')
-            )
-            installation_id = os.environ.get('GITHUB_INSTALLATION_ID', None)
-            if installation_id is None:
-                # Even if we don't know the installation id, there's an API endpoint to
-                # retrieve it, given the other credentials (app id + key).
-                integration = GithubIntegration(auth=appAuth)
-                installations = integration.get_installations()
-                if len(installations) == 0:
-                    raise Exit(message='No usable installation found', code=1)
-                installation_id = installations[0]
-            return appAuth.get_installation_auth(int(installation_id))
-        if public_repo:
+        elif not running_in_ci():
+            return Auth.Token(generate_local_github_token(Context()))
+        elif public_repo:
             return Auth.Login("user", "password")
-        if platform.system() == "Darwin":
-            try:
-                output = (
-                    subprocess.check_output(
-                        ['security', 'find-generic-password', '-a', os.environ["USER"], '-s', 'GITHUB_TOKEN', '-w']
-                    )
-                    .decode()
-                    .strip()
-                )
 
-                if output:
-                    return Auth.Token(output)
-            except subprocess.CalledProcessError:
-                print("GITHUB_TOKEN not found in keychain...")
-                pass
-        raise Exit(
-            message="Please create a 'repo' access token at "
-            "https://github.com/settings/tokens and "
-            "add it as GITHUB_TOKEN in your keychain "
-            "or export it from your .bashrc or equivalent.",
-            code=1,
+        assert "GITHUB_APP_ID" in os.environ and "GITHUB_KEY_B64" in os.environ, (
+            "For private repositories on CI, you need to set the GITHUB_APP_ID and GITHUB_KEY_B64 environment variables"
         )
+
+        appAuth = Auth.AppAuth(
+            os.environ['GITHUB_APP_ID'], base64.b64decode(os.environ['GITHUB_KEY_B64']).decode('ascii')
+        )
+        installation_id = os.environ.get('GITHUB_INSTALLATION_ID', None)
+        if installation_id is None:
+            # Even if we don't know the installation id, there's an API endpoint to
+            # retrieve it, given the other credentials (app id + key).
+            integration = GithubIntegration(auth=appAuth)
+            installations = integration.get_installations()
+            if len(installations) == 0:
+                raise Exit(message='No usable installation found', code=1)
+            installation_id = installations[0]
+        return appAuth.get_installation_auth(int(installation_id))
 
     @staticmethod
     def get_token_from_app(app_id_env='GITHUB_APP_ID', pkey_env='GITHUB_KEY_B64'):
@@ -816,3 +777,25 @@ def ask_review_actor(pr):
     for event in pr.get_issue_events():
         if event.event == "labeled" and event.label.name == "ask-review":
             return event.actor.name or event.actor.login
+
+
+def generate_local_github_token(ctx):
+    """
+    Generates a github token locally.
+    """
+
+    # Try without login first, then with login
+    for login in False, True:
+        if login:
+            ctx.run('ddtool auth github login')
+
+        try:
+            token = ctx.run('ddtool auth github token', hide=True).stdout.strip()
+
+            return token
+        except Exception:
+            # Try with log in this time
+            if not login:
+                continue
+
+            raise
