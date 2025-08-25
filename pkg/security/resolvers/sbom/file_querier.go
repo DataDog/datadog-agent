@@ -13,7 +13,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
-	"github.com/DataDog/datadog-agent/pkg/util/trivy"
+	"github.com/aquasecurity/trivy/pkg/types"
 	"github.com/twmb/murmur3"
 )
 
@@ -34,7 +34,7 @@ and each part group is at the index of the given package
 for example here hash5 would match pkgs[2]
 */
 
-func newFileQuerier(report *trivy.Report) fileQuerier {
+func newFileQuerier(report *types.Report) fileQuerier {
 	fileCount := 0
 	pkgCount := 0
 	for _, result := range report.Results {

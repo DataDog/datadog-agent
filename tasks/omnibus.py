@@ -36,7 +36,7 @@ def omnibus_run_task(ctx, task, target_project, base_dir, env, log_level="info",
         if host_distribution:
             overrides.append(f"--override=host_distribution:{host_distribution}")
 
-        omnibus = f"bundle exec {"omnibus.bat" if sys.platform == "win32" else "omnibus"}"
+        omnibus = f"bundle exec {'omnibus.bat' if sys.platform == 'win32' else 'omnibus'}"
         cmd = "{omnibus} {task} {project_name} --log-level={log_level} {overrides}"
         args = {
             "omnibus": omnibus,
@@ -90,19 +90,27 @@ def get_omnibus_env(
 ):
     env = load_dependencies(ctx)
 
+    windows_only_vars = [
+        'WINDOWS_DDNPM_DRIVER',
+        'WINDOWS_DDNPM_VERSION',
+        'WINDOWS_DDNPM_SHASUM',
+        'WINDOWS_DDPROCMON_DRIVER',
+        'WINDOWS_DDPROCMON_VERSION',
+        'WINDOWS_DDPROCMON_SHASUM',
+    ]
     # Discard windows variables when not on Windows
     if sys.platform != 'win32':
-        windows_only_vars = [
-            'WINDOWS_DDNPM_DRIVER',
-            'WINDOWS_DDNPM_VERSION',
-            'WINDOWS_DDNPM_SHASUM',
-            'WINDOWS_DDPROCMON_DRIVER',
-            'WINDOWS_DDPROCMON_VERSION',
-            'WINDOWS_DDPROCMON_SHASUM',
-        ]
         for var in windows_only_vars:
             if var in env:
                 del env[var]
+
+    else:
+        # if any of windows vars set in env keep them
+        for key in windows_only_vars:
+            value = os.environ.get(key)
+            # Only overrides the env var if the value is a non-empty string.
+            if value:
+                env[key] = value
 
     # If the host has a GOMODCACHE set, try to reuse it
     if not go_mod_cache and os.environ.get('GOMODCACHE'):

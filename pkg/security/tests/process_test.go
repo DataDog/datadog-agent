@@ -34,6 +34,7 @@ import (
 	"github.com/avast/retry-go/v4"
 	"github.com/oliveagle/jsonpath"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/syndtr/gocapability/capability"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -2452,4 +2453,39 @@ func TestProcessFilelessExecution(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSymLinkResolution(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "symlink_true_exec",
+			Expression: `exec.file.name == "true"`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	t.Run("exec true via symlink", func(t *testing.T) {
+		tmpLink := filepath.Join(t.TempDir(), "my_symlink")
+		err := os.Symlink("/bin/true", tmpLink)
+		require.NoError(t, err)
+
+		test.WaitSignal(t, func() error {
+			cmd := exec.Command(tmpLink)
+			cmd.Stdout = io.Discard
+			cmd.Stderr = io.Discard
+			_ = cmd.Run()
+			return nil
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "symlink_true_exec")
+			assert.True(t, event.Exec.IsThroughSymLink, "event.Process.IsThroughSymLink not matching")
+		})
+		assert.NoError(t, err)
+	})
 }
