@@ -301,7 +301,6 @@ require (
 	k8s.io/metrics v0.28.6
 	k8s.io/utils v0.0.0-20231127182322-b307cd553661
 	sigs.k8s.io/custom-metrics-apiserver v1.28.0
-
 )
 
 require (

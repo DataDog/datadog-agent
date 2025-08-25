@@ -31,9 +31,9 @@ require (
 	// `TEST_INFRA_DEFINITIONS_BUILDIMAGES` matches the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0123456789AB
-	github.com/DataDog/test-infra-definitions v0.0.4-0.20250710131718-7cdc477d053f
-	github.com/aws/aws-sdk-go-v2 v1.32.7
-	github.com/aws/aws-sdk-go-v2/config v1.28.7
+	github.com/DataDog/test-infra-definitions v0.0.4-0.20250822082435-f9c444a17bdc
+	github.com/aws/aws-sdk-go-v2 v1.36.5
+	github.com/aws/aws-sdk-go-v2/config v1.29.17
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.138.1
 	github.com/aws/aws-sdk-go-v2/service/eks v1.35.1
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.44.1
@@ -75,23 +75,23 @@ require (
 	github.com/agext/levenshtein v1.2.3 // indirect
 	github.com/alessio/shellescape v1.4.2 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
-	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.6.7 // indirect
-	github.com/aws/aws-sdk-go-v2/credentials v1.17.48 // indirect
-	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.22 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.26 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.26 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.1 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/v4a v1.3.26 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ecs v1.53.2
-	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.12.1 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.4.7 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.12.7 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.18.7 // indirect
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.72.0
-	github.com/aws/aws-sdk-go-v2/service/sso v1.24.8 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.28.7 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sts v1.33.3 // indirect
-	github.com/aws/smithy-go v1.22.1 // indirect
+	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.6.11 // indirect
+	github.com/aws/aws-sdk-go-v2/credentials v1.17.70 // indirect
+	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.32 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.36 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.36 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.3 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/v4a v1.3.36 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ecs v1.58.1
+	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.12.4 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.7.4 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.12.17 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.18.17 // indirect
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.83.0
+	github.com/aws/aws-sdk-go-v2/service/sso v1.25.5 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.30.3 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sts v1.34.0 // indirect
+	github.com/aws/smithy-go v1.22.4 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/blang/semver v3.5.1+incompatible // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
@@ -249,7 +249,7 @@ require (
 require (
 	github.com/BurntSushi/toml v1.2.1 // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ecr v1.38.1 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ecr v1.45.1 // indirect
 	github.com/iwdgo/sigintwindows v0.2.2 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/authorization/v2 v2.81.0 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/compute/v2 v2.81.0 // indirect

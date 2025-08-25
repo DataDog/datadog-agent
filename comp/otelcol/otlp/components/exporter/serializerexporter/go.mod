@@ -49,7 +49,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/testutil => ../../../../../../pkg/util/testutil/
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../../../../pkg/util/winutil/
 	github.com/DataDog/datadog-agent/pkg/version => ../../../../../../pkg/version
-
 )
 
 require (
