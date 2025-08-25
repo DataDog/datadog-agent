@@ -370,14 +370,23 @@ def get_version_numeric_only(ctx, major_version='7'):
     return version
 
 
-def load_dependencies(_):
-    with open("release.json") as f:
-        versions = json.load(f)
-        if RELEASE_JSON_DEPENDENCIES not in versions:
-            raise Exception(f"Could not find '{RELEASE_JSON_DEPENDENCIES}' in release.json")
-        # windows runners don't accepts anything else than strings in the
-        # environment when running a subprocess.
-        return {str(k): str(v) for k, v in versions[RELEASE_JSON_DEPENDENCIES].items()}
+def load_overridden_dependencies(_):
+    from tasks.libs.releasing.json import load_release_json  # delayed to avoid circular imports
+
+    release = load_release_json()
+    if not (dependencies := release.get(RELEASE_JSON_DEPENDENCIES)):
+        raise Exit(f"Could not find {RELEASE_JSON_DEPENDENCIES!r} in release.json")
+    env = {}
+    for key, value in dependencies.items():
+        if key.startswith("WINDOWS_") and sys.platform != "win32":
+            print(f"Ignoring {key!r} on {sys.platform}", file=sys.stderr)
+            continue
+        if override := os.getenv(key):
+            print(f"Overriding {key!r}: {value!r} -> {override!r}", file=sys.stderr)
+            value = override
+        # windows runners don't accept anything else than strings in the environment when running a subprocess.
+        env[key] = str(value)
+    return env
 
 
 def create_version_json(ctx, git_sha_length=7):
