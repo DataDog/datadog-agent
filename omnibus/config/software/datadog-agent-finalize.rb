@@ -47,7 +47,7 @@ build do
             delete "#{install_dir}/embedded/bin/python"
             block 'create relative symlinks within embedded Python distribution' do
               Dir.chdir "#{install_dir}/embedded/bin" do
-                File.symlink 'pip3.12', 'pip3'
+                File.symlink 'pip3.13', 'pip3'
                 File.symlink 'pip3', 'pip'
                 File.symlink 'python3', 'python'
               end
