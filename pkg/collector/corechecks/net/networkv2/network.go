@@ -370,7 +370,7 @@ var queueRegex = regexp.MustCompile(`queue_(?P<number>\d+)_(?P<part>.*)`)
 var queueRegexParts = queueRegex.SubexpNames()
 var cpuRegex = regexp.MustCompile(`cpu_(?P<number>\d+)_(?P<part>.*)`)
 var cpuRegexParts = cpuRegex.SubexpNames()
-var bracketRegex = regexp.MustCompile(`(?P<part>.*)\[(?P<number>\d+)].*`)
+var bracketRegex = regexp.MustCompile(`(?P<part>.*)\[(?P<number>\d+)]`)
 var bracketRegexParts = bracketRegex.SubexpNames()
 
 func getEthtoolMetrics(driverName string, statsMap map[string]uint64) map[string]map[string]uint64 {
@@ -398,21 +398,17 @@ func getEthtoolMetrics(driverName string, statsMap map[string]uint64) map[string
 			tag = "queue:" + queuematches[0]
 			keyName = queuematches[1]
 			prefix = ".queue."
-		}
-
-		if cpumatches := cpuRegex.FindStringSubmatch(key); cpumatches != nil && len(cpumatches) == len(cpuRegexParts) {
+		} else if cpumatches := cpuRegex.FindStringSubmatch(key); cpumatches != nil && len(cpumatches) == len(cpuRegexParts) {
 			tag = "cpu:" + cpumatches[0]
 			keyName = cpumatches[1]
 			prefix = ".cpu."
-		}
-
-		if bracketmacthes := bracketRegex.FindStringSubmatch(key); bracketmacthes != nil && len(bracketmacthes) == len(bracketRegexParts) {
+		} else if bracketmacthes := bracketRegex.FindStringSubmatch(key); bracketmacthes != nil && len(bracketmacthes) == len(bracketRegexParts) {
 			tag = "queue:" + bracketmacthes[1]
 			keyName = bracketmacthes[0]
 			prefix = ".queue."
 		}
 
-		if key != "" {
+		if keyName == "" && key != "" {
 			if slices.Contains(ethtoolGlobalMetrics, key) {
 				tag = "global"
 				keyName = key
