@@ -403,9 +403,9 @@ func getEthtoolMetrics(driverName string, statsMap map[string]uint64) map[string
 			tag = "cpu:" + cpumatches[1]
 			keyName = cpumatches[2]
 			prefix = ".cpu."
-		} else if bracketmacthes := bracketRegex.FindStringSubmatch(key); bracketmacthes != nil && len(bracketmacthes) == len(bracketRegexParts) {
-			tag = "queue:" + bracketmacthes[2]
-			keyName = bracketmacthes[1]
+		} else if bracketmatches := bracketRegex.FindStringSubmatch(key); bracketmatches != nil && len(bracketmatches) == len(bracketRegexParts) {
+			tag = "queue:" + bracketmatches[2]
+			keyName = bracketmatches[1]
 			prefix = ".queue."
 		}
 
