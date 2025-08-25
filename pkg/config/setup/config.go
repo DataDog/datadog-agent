@@ -1109,8 +1109,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("remote_agent_registry.config_stream_retry_interval", time.Duration(1*time.Second))
 
 	// Shared libraries check
-	config.BindEnvAndSetDefault("shared_libraries_check", true)
-	config.BindEnvAndSetDefault("shared_libraries_check_lazy_loading", true)
+	config.BindEnvAndSetDefault("shared_libraries_check.enabled", true)
 }
 
 func agent(config pkgconfigmodel.Setup) {

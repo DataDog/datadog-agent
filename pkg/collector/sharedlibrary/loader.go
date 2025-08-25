@@ -139,7 +139,6 @@ import (
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
@@ -174,10 +173,6 @@ func (sl *SharedLibraryCheckLoader) String() string {
 
 // Load returns a Shared Library check
 func (sl *SharedLibraryCheckLoader) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data) (check.Check, error) {
-	if pkgconfigsetup.Datadog().GetBool("shared_libraries_check_lazy_loading") {
-		sharedlibraryOnce.Do(InitSharedLibrary)
-	}
-
 	var cErr *C.char
 
 	// the prefix "libdatadog-agent-" is required to avoid possible name conflicts with other shared libraries in the include path
