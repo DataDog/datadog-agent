@@ -84,8 +84,7 @@ ARG PACKAGE_TYPE
 RUN if [ -n "$PACKAGE_TYPE" ]; then \
     ARCH=$(dpkg --print-architecture) && \
     if [ "$ARCH" = "amd64" ]; then ARCH="x86_64"; fi && \
-    curl -sL -o /usr/local/bin/nfpm https://github.com/goreleaser/nfpm/releases/download/v2.43.0/nfpm_2.43.0_linux_${ARCH}.tar.gz && \
-    tar -xzf /usr/local/bin/nfpm -C /usr/local/bin/ && \
+    curl -fsSL "https://github.com/goreleaser/nfpm/releases/download/v2.43.0/nfpm_2.43.0_linux_${ARCH}.tar.gz" | tar -xzf - -C /usr/local/bin/ && \
     chmod +x /usr/local/bin/nfpm; \
     fi
 
