@@ -54,7 +54,7 @@ func registerNetworkHandlers(handlers map[int]syscallHandler) []string {
 		{
 			ID:         syscallID{ID: SetsockoptNr, Name: "setsockopt"},
 			Func:       handleSetsockopt,
-			ShouldSend: shouldSendSetsockopt,
+			ShouldSend: isAcceptedRetval,
 			RetFunc:    nil,
 		},
 	}
@@ -290,15 +290,13 @@ func readRemote(pid int, addr uintptr, dst []byte) error {
 }
 
 func handleSetsockopt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, _ bool) error {
-	fd := int32(tracer.ReadArgUint32(regs, 0))
-	socketInfo, ok := process.FdToSocket[fd]
-	if !ok {
-		return errors.New("unable to find socket")
-	}
-
 	level := tracer.ReadArgUint32(regs, 1)
 	optname := tracer.ReadArgUint32(regs, 2)
 
+	if optname != unix.SO_ATTACH_FILTER {
+		// not supported yet
+		return nil
+	}
 	// Read the sock_fprog header from argument 3 (optval)
 	// Expected size on 64-bit: 16 bytes (2 bytes length, 6 bytes padding, 8 bytes pointer)
 	hdr, err := tracer.ReadArgData(process.Pid, regs, 3, 16)
@@ -307,20 +305,34 @@ func handleSetsockopt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg
 	}
 	fLen := binary.NativeEndian.Uint16(hdr[0:2])
 
-	// Pointer at offset 8..15 (due to padding)
 	ptrFilter := binary.NativeEndian.Uint64(hdr[8:16])
+	var socketFamily uint16
+	var socketProtocol uint16
+	var socketType uint16
+
+	fd := int32(tracer.ReadArgUint32(regs, 0))
+	socketInfo, ok := process.FdToSocket[fd]
+	if !ok {
+		socketFamily = 0
+		socketProtocol = 0
+		socketType = 0
+	}
+	socketFamily = socketInfo.AddressFamily
+	socketProtocol = socketInfo.Protocol
+	socketType = socketInfo.SocketType
 
 	// Nothing to do if no filters
 	if fLen == 0 || ptrFilter == 0 {
+
 		msg.Type = ebpfless.SyscallTypeSetsockopt
 		msg.Setsockopt = &ebpfless.SetsockoptSyscallMsg{
 			Level:          level,
 			OptName:        optname,
 			Filter:         nil,
 			FilterLen:      0,
-			SocketFamily:   socketInfo.AddressFamily,
-			SocketProtocol: socketInfo.Protocol,
-			SocketType:     socketInfo.SocketType,
+			SocketFamily:   socketFamily,
+			SocketProtocol: socketProtocol,
+			SocketType:     socketType,
 		}
 		return nil
 	}
@@ -340,13 +352,9 @@ func handleSetsockopt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg
 		OptName:        optname,
 		Filter:         raw,
 		FilterLen:      fLen,
-		SocketFamily:   socketInfo.AddressFamily,
-		SocketProtocol: socketInfo.Protocol,
-		SocketType:     socketInfo.SocketType,
+		SocketFamily:   socketFamily,
+		SocketProtocol: socketProtocol,
+		SocketType:     socketType,
 	}
 	return nil
-}
-
-func shouldSendSetsockopt(msg *ebpfless.SyscallMsg) bool {
-	return msg.Retval >= 0 || msg.Retval == -int64(syscall.EACCES) || msg.Retval == -int64(syscall.EPERM) || msg.Retval == -int64(syscall.EINVAL)
 }
