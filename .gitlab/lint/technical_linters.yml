@@ -17,7 +17,6 @@ lint_licenses:
 lint_shell:
   extends: .lint
   script:
-    - dda inv -- -e install-shellcheck
     - shellcheck --version
     #Excludes:
     #SC2028: echo may not expand escape sequences. Use printf.

@@ -3,181 +3,181 @@
 # Agent v7
 #
 deploy_packages_deb-x64-7:
-  extends: .deploy_packages_deb-7
+  extends: .deploy_packages_deb
   needs: [ agent_deb-x64-a7 ]
   variables:
     PACKAGE_ARCH: amd64
 
 deploy_packages_deb-arm64-7:
-  extends: .deploy_packages_deb-7
+  extends: .deploy_packages_deb
   needs: [ agent_deb-arm64-a7 ]
   variables:
     PACKAGE_ARCH: arm64
 
 deploy_packages_deb-x64-7-fips:
-  extends: .deploy_packages_deb-7
+  extends: .deploy_packages_deb
   needs: [ agent_deb-x64-a7-fips ]
   variables:
     PACKAGE_ARCH: amd64
 
 deploy_packages_deb-arm64-7-fips:
-  extends: .deploy_packages_deb-7
+  extends: .deploy_packages_deb
   needs: [ agent_deb-arm64-a7-fips ]
   variables:
     PACKAGE_ARCH: arm64
 
 deploy_packages_heroku_deb-x64-7:
-  extends: .deploy_packages_deb-7
+  extends: .deploy_packages_deb
   needs: [ agent_heroku_deb-x64-a7 ]
   variables:
     PACKAGE_ARCH: amd64
 
 deploy_packages_iot_deb-x64-7:
-  extends: .deploy_packages_deb-7
+  extends: .deploy_packages_deb
   needs: [ iot_agent_deb-x64 ]
   variables:
     PACKAGE_ARCH: amd64
 
 deploy_packages_iot_deb-arm64-7:
-  extends: .deploy_packages_deb-7
+  extends: .deploy_packages_deb
   needs: [ iot_agent_deb-arm64 ]
   variables:
     PACKAGE_ARCH: arm64
 
 deploy_packages_iot_deb-armhf-7:
-  extends: .deploy_packages_deb-7
+  extends: .deploy_packages_deb
   needs: [ iot_agent_deb-armhf ]
   variables:
     PACKAGE_ARCH: armhf
 
 deploy_packages_dogstatsd_deb-x64-7:
-  extends: .deploy_packages_deb-7
+  extends: .deploy_packages_deb
   needs: [ dogstatsd_deb-x64 ]
   variables:
     PACKAGE_ARCH: amd64
 
 deploy_packages_dogstatsd_deb-arm64-7:
-  extends: .deploy_packages_deb-7
+  extends: .deploy_packages_deb
   needs: [ dogstatsd_deb-arm64 ]
   variables:
     PACKAGE_ARCH: arm64
 
 deploy_packages_ddot_deb-x64:
-  extends: .deploy_packages_deb-7
+  extends: .deploy_packages_deb
   needs: [ ddot_deb-x64 ]
   variables:
     PACKAGE_ARCH: amd64
 
 deploy_packages_ddot_deb-arm64:
-  extends: .deploy_packages_deb-7
+  extends: .deploy_packages_deb
   needs: [ ddot_deb-arm64 ]
   variables:
     PACKAGE_ARCH: arm64
 
 deploy_packages_rpm-x64-7:
-  extends: .deploy_packages_rpm-7
+  extends: .deploy_packages_rpm
   needs: [ agent_rpm-x64-a7 ]
   variables:
     PACKAGE_ARCH: x86_64
 
 deploy_packages_rpm-arm64-7:
-  extends: .deploy_packages_rpm-7
+  extends: .deploy_packages_rpm
   needs: [ agent_rpm-arm64-a7 ]
   variables:
     PACKAGE_ARCH: aarch64
 
 deploy_packages_rpm-x64-7-fips:
-  extends: .deploy_packages_rpm-7
+  extends: .deploy_packages_rpm
   needs: [ agent_rpm-x64-a7-fips ]
   variables:
     PACKAGE_ARCH: x86_64
 
 deploy_packages_rpm-arm64-7-fips:
-  extends: .deploy_packages_rpm-7
+  extends: .deploy_packages_rpm
   needs: [ agent_rpm-arm64-a7-fips ]
   variables:
     PACKAGE_ARCH: aarch64
 
 deploy_packages_iot_rpm-x64-7:
-  extends: .deploy_packages_rpm-7
+  extends: .deploy_packages_rpm
   needs: [ iot_agent_rpm-x64 ]
   variables:
     PACKAGE_ARCH: x86_64
 
 deploy_packages_iot_rpm-arm64-7:
-  extends: .deploy_packages_rpm-7
+  extends: .deploy_packages_rpm
   needs: [ iot_agent_rpm-arm64 ]
   variables:
     PACKAGE_ARCH: aarch64
 
 deploy_packages_iot_rpm-armhf-7:
-  extends: .deploy_packages_rpm-7
+  extends: .deploy_packages_rpm
   needs: [ iot_agent_rpm-armhf ]
   variables:
     PACKAGE_ARCH: armv7hl
 
 deploy_packages_dogstatsd_rpm-x64-7:
-  extends: .deploy_packages_rpm-7
+  extends: .deploy_packages_rpm
   needs: [ dogstatsd_rpm-x64 ]
   variables:
     PACKAGE_ARCH: x86_64
 
 deploy_packages_ddot_rpm-x64:
-  extends: .deploy_packages_rpm-7
+  extends: .deploy_packages_rpm
   needs: [ ddot_rpm-x64 ]
   variables:
     PACKAGE_ARCH: x86_64
 
 deploy_packages_ddot_rpm-arm64:
-  extends: .deploy_packages_rpm-7
+  extends: .deploy_packages_rpm
   needs: [ ddot_rpm-arm64 ]
   variables:
     PACKAGE_ARCH: aarch64
 
 deploy_packages_suse_rpm-x64-7:
-  extends: .deploy_packages_suse_rpm-7
+  extends: .deploy_packages_suse_rpm
   needs: [ agent_suse-x64-a7 ]
   variables:
     PACKAGE_ARCH: x86_64
 
 deploy_packages_suse_rpm-arm64-7:
-  extends: .deploy_packages_suse_rpm-7
+  extends: .deploy_packages_suse_rpm
   needs: [ agent_suse-arm64-a7 ]
   variables:
     PACKAGE_ARCH: aarch64
 
 deploy_packages_suse_rpm-x64-7-fips:
-  extends: .deploy_packages_suse_rpm-7
+  extends: .deploy_packages_suse_rpm
   needs: [ agent_suse-x64-a7-fips ]
   variables:
     PACKAGE_ARCH: x86_64
 
 deploy_packages_suse_rpm-arm64-7-fips:
-  extends: .deploy_packages_suse_rpm-7
+  extends: .deploy_packages_suse_rpm
   needs: [ agent_suse-arm64-a7-fips ]
   variables:
     PACKAGE_ARCH: aarch64
 
 deploy_packages_iot_suse_rpm-x64-7:
-  extends: .deploy_packages_suse_rpm-7
+  extends: .deploy_packages_suse_rpm
   needs: [ iot_agent_suse-x64 ]
   variables:
     PACKAGE_ARCH: x86_64
 
 deploy_packages_dogstatsd_suse_rpm-x64-7:
-  extends: .deploy_packages_suse_rpm-7
+  extends: .deploy_packages_suse_rpm
   needs: [ dogstatsd_suse-x64 ]
   variables:
     PACKAGE_ARCH: x86_64
 
 deploy_packages_ddot_suse_rpm-x64:
-  extends: .deploy_packages_suse_rpm-7
+  extends: .deploy_packages_suse_rpm
   needs: [ ddot_suse_rpm-x64 ]
   variables:
     PACKAGE_ARCH: x86_64
 
 deploy_packages_ddot_suse_rpm-arm64:
-  extends: .deploy_packages_suse_rpm-7
+  extends: .deploy_packages_suse_rpm
   needs: [ ddot_suse_rpm-arm64 ]
   variables:
     PACKAGE_ARCH: aarch64

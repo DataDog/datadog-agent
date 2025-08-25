@@ -2,6 +2,62 @@
 Release Notes
 =============
 
+.. _Release Notes_7.69.2:
+
+7.69.2
+======
+
+.. _Release Notes_7.69.2_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-08-20
+Pinned to datadog-agent v7.69.2: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7692>`_.
+
+.. _Release Notes_7.69.1:
+
+7.69.1
+======
+
+.. _Release Notes_7.69.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-08-18
+Pinned to datadog-agent v7.69.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7691>`_.
+
+.. _Release Notes_7.69.0:
+
+7.69.0
+======
+
+.. _Release Notes_7.69.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-08-14
+Pinned to datadog-agent v7.69.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7690>`_.
+
+.. _Release Notes_7.69.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- The auto-instrumentation webhook supports labels and annotations as tags configuration.
+  If any of the label or annotation mappings for the incoming pod correspond to Universal
+  Service Tags (``service``, ``env``, or ``version``), the webhook will also add the corresponding
+  UST environment variable to the pod (``DD_SERVICE``, ``DD_ENV``, or ``DD_VERSION``).
+
+- The autoinstrumentation webhook will now set a default security context for init containers
+  if the pod is in a namespace with a restricted security context.  This can still be overridden by setting
+  the environment variable ``DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_INIT_SECURITY_CONTEXT``.
+
+- Collect agent version in orchestrator check.
+
+
 .. _Release Notes_7.68.3:
 
 7.68.3

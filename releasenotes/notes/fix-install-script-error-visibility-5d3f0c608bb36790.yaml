@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    ``Install-Datadog.ps1`` now displays error messages when run in environments
+    without a proper console, such as PSRemoting or PowerShell ISE.

@@ -18,7 +18,7 @@ import (
 
 // NewConfig returns a config with the given name. Implementation of the
 // config is chosen by an env var
-func NewConfig(name string) model.Config {
+func NewConfig(name string) model.BuildableConfig {
 	// Configure Datadog global configuration
 	envvar := os.Getenv("DD_CONF_NODETREEMODEL")
 	// Possible values for DD_CONF_NODETREEMODEL:

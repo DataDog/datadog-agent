@@ -1768,3 +1768,28 @@ func TestProcessServiceInferenceWindows(t *testing.T) {
 		require.False(t, mockSystemProbe.GetBool("system_probe_config.process_service_inference.use_windows_service_name"))
 	})
 }
+
+func TestExpectedTagsDuration(t *testing.T) {
+	t.Run("default value", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		cfg := New()
+
+		assert.Equal(t, 5*time.Minute, cfg.ExpectedTagsDuration)
+	})
+
+	t.Run("via YAML", func(t *testing.T) {
+		mockSystemProbe := mock.NewSystemProbe(t)
+		mockSystemProbe.SetWithoutSource("system_probe_config.expected_tags_duration", 20*time.Second)
+		cfg := New()
+
+		assert.Equal(t, 20*time.Second, cfg.ExpectedTagsDuration)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		t.Setenv("DD_SYSTEM_PROBE_EXPECTED_TAGS_DURATION", "30s")
+		cfg := New()
+
+		assert.Equal(t, 30*time.Second, cfg.ExpectedTagsDuration)
+	})
+}

@@ -31,11 +31,7 @@ func FlareProvider(fb flaretypes.FlareBuilder) error {
 		return scanResult.Error
 	}
 
-	cycloneDX, err := scanResult.Report.ToCycloneDX()
-	if err != nil {
-		return err
-	}
-
+	cycloneDX := scanResult.Report.ToCycloneDX()
 	jsonContent, err := json.MarshalIndent(cycloneDX, "", "  ")
 	if err != nil {
 		return err

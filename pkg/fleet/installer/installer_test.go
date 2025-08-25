@@ -900,3 +900,32 @@ func TestWriteAndRemoveConfigFiles(t *testing.T) {
 		assert.True(t, os.IsNotExist(err))
 	})
 }
+
+// Test that only files older than 24 hours are deleted
+func TestTmpDirectoryCleanup(t *testing.T) {
+	tempDir := t.TempDir()
+
+	oldFile := filepath.Join(tempDir, "old.txt")
+	newFile := filepath.Join(tempDir, "new.txt")
+
+	err := os.WriteFile(oldFile, []byte("old"), 0644)
+	assert.NoError(t, err)
+
+	err = os.WriteFile(newFile, []byte("new"), 0644)
+	assert.NoError(t, err)
+
+	oldTime := time.Now().Add(-25 * time.Hour)
+	newTime := time.Now().Add(-1 * time.Hour)
+
+	err = os.Chtimes(oldFile, oldTime, oldTime)
+	assert.NoError(t, err)
+
+	err = os.Chtimes(newFile, newTime, newTime)
+	assert.NoError(t, err)
+
+	err = cleanupTmpDirectory(tempDir)
+	assert.NoError(t, err)
+
+	assert.NoFileExists(t, oldFile, "old file should be deleted")
+	assert.FileExists(t, newFile, "new file should be kept")
+}
