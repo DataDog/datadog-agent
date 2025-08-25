@@ -93,6 +93,8 @@ const (
 	NetDeviceEventType
 	// VethPairEventType is sent when a new veth pair is created
 	VethPairEventType
+	// VethPairNsEventType is sent when a veth pair is moved to a new network namespace
+	VethPairNsEventType
 	// AcceptEventType Accept event
 	AcceptEventType
 	// BindEventType Bind event
@@ -243,6 +245,8 @@ func (t EventType) String() string {
 		return "net_device"
 	case VethPairEventType:
 		return "veth_pair"
+	case VethPairNsEventType:
+		return "veth_pair_ns"
 	case BindEventType:
 		return "bind"
 	case AcceptEventType:
