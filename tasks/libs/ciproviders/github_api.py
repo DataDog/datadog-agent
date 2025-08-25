@@ -520,7 +520,9 @@ class GithubAPI:
             - Personal access token through GITHUB_TOKEN environment variable
             - Short lived token generated locally
             - A fake login user/password to reach public repositories
-            - An app token through the GITHUB_APP_ID & GITHUB_KEY_B64 environment variables (required for CI)
+            - An app token through the GITHUB_APP_ID & GITHUB_KEY_B64 environment
+              variables (can also use GITHUB_INSTALLATION_ID to save a request).
+              This is required for Gitlab CI.
         """
         from tasks.libs.common.utils import running_in_ci
 
