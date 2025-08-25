@@ -109,7 +109,7 @@ func (s *server) BuildServer() http.Handler {
 		remoteAgentRegistry: s.remoteAgentRegistry,
 		autodiscovery:       s.autodiscovery,
 		configComp:          s.configComp,
-		configStreamServer:  configstreamServer.NewServer(s.configStream),
+		configStreamServer:  configstreamServer.NewServer(s.configComp, s.configStream),
 	})
 
 	return grpcServer
