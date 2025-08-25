@@ -1398,7 +1398,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		}
 
 		request := tcClassifierRequest{
-			device: event.NetDevice.Device,
+			device: event.VethPair.PeerDevice,
 		}
 
 		if eventType == model.VethPairEventType {
@@ -2038,11 +2038,11 @@ func (p *EBPFProbe) startSetupNewTCClassifierLoop() {
 					seclog.Debugf("%v", err)
 				} else if errors.As(err, &linkNotFound) {
 					seclog.Debugf("link not found while setting up new tc classifier: %v", err)
-				} else if err == manager.ErrIdentificationPairInUse {
+				} else if errors.Is(err, manager.ErrIdentificationPairInUse) {
 					if request.requestType != tcDeviceUpdateRequestType {
-						seclog.Debugf("tc classifier already exists: %v", err)
-					} else {
 						seclog.Errorf("tc classifier already exists: %v", err)
+					} else {
+						seclog.Debugf("tc classifier already exists: %v", err)
 					}
 				} else {
 					seclog.Errorf("error setting up new tc classifier on %+v: %v", request.device, err)
