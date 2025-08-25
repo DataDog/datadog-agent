@@ -277,7 +277,13 @@ func (s *linuxTestSuite) testProcessCheckWithServiceDiscovery(agentConfigStr str
 
 				procs := process.FilterProcessPayloadsByName(payloads, tc.processName)
 				assert.NotEmpty(c, procs, "'%s' process not found in payloads: \n%+v", tc.processName, payloads)
-				assertProcessServiceDiscoveryData(t, procs, tc.expectedLanguage, tc.expectedPortInfo, tc.expectedService)
+				assert.True(c, matchingProcessServiceDiscoveryData(procs, tc.expectedLanguage, tc.expectedPortInfo, tc.expectedService),
+					"no process was found with the expected service discovery data. processes:\n%+v", procs)
+				// processes that exist < 1 minute are ignored by service discovery and the service collection interval is 1 minute
+				// therefore we should wait for 2 minutes to ensure service discovery is run at least once
+				// start --> process collection, service discovery ignoring
+				// 1 min --> process collection + service discovery collection ignores processes/may capture some
+				// 2 min --> process collection + service discovery collection should capture everythinf
 			}, 2*time.Minute, 10*time.Second)
 		})
 		if !ok {
@@ -286,6 +292,9 @@ func (s *linuxTestSuite) testProcessCheckWithServiceDiscovery(agentConfigStr str
 			// interface between the agent and system-probe.
 			discoveredServices := s.Env().RemoteHost.MustExecute("sudo curl -s --unix /opt/datadog-agent/run/sysprobe.sock http://unix/discovery/debug")
 			t.Log("system-probe services", discoveredServices)
+
+			workloadmetaStore := s.Env().RemoteHost.MustExecute("sudo datadog-agent workload-list")
+			t.Log("workloadmeta store", workloadmetaStore)
 		}
 	}
 
@@ -329,11 +338,9 @@ func assertNotRunningCheck(t *assert.CollectT, remoteHost *components.RemoteHost
 	assert.NotContains(t, status.RunnerStats.Checks, check)
 }
 
-// assertProcessServiceDiscoveryData asserts that the given processes contain at least 1 process with the expected service discovery data
+// matchingProcessServiceDiscoveryData checks that the given processes contain at least 1 process with the expected service discovery data
 // we cannot fail fast because many processes with the same name are not instrumented with service discovery data
-func assertProcessServiceDiscoveryData(t *testing.T, procs []*agentmodel.Process, expectedLanguage agentmodel.Language, expectedPortInfo *agentmodel.PortInfo, expectedServiceDiscovery *agentmodel.ServiceDiscovery) {
-	t.Helper()
-
+func matchingProcessServiceDiscoveryData(procs []*agentmodel.Process, expectedLanguage agentmodel.Language, expectedPortInfo *agentmodel.PortInfo, expectedServiceDiscovery *agentmodel.ServiceDiscovery) bool {
 	for _, proc := range procs {
 		// check language
 		if proc.Language != expectedLanguage {
@@ -365,9 +372,9 @@ func assertProcessServiceDiscoveryData(t *testing.T, procs []*agentmodel.Process
 		if !matchingServiceNames(expectedServiceDiscovery.AdditionalGeneratedNames, proc.ServiceDiscovery.AdditionalGeneratedNames) {
 			continue
 		}
-		return
+		return true
 	}
-	assert.Failf(t, "no process was found with expected service discovery data", "processes: %+v", procs)
+	return false
 }
 
 func matchingServiceName(a, b *agentmodel.ServiceName) bool {
