@@ -10,7 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 )
 
-func initCWSSystemProbeConfig(cfg pkgconfigmodel.Config) {
+func initCWSSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// CWS - general config
 	// the following entries are platform specific
 	// - runtime_security_config.policies.dir

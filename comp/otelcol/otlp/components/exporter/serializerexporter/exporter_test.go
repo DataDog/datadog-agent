@@ -214,7 +214,7 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 			ctx := context.Background()
 			f := NewFactoryForOTelAgent(rec, &MockTagEnricher{}, func(context.Context) (string, error) {
 				return "", nil
-			}, nil, otel.NewDisabledGatewayUsage(), TelemetryStore{})
+			}, nil, otel.NewDisabledGatewayUsage(), TelemetryStore{}, nil)
 			cfg := f.CreateDefaultConfig().(*ExporterConfig)
 			cfg.Metrics.Metrics.ExporterConfig.InstrumentationScopeMetadataAsTags = tt.instrumentationScopeMetadataAsTags
 			cfg.Metrics.Tags = strings.Join(tt.extraTags, ",")
@@ -331,7 +331,7 @@ func Test_ConsumeMetrics_MetricOrigins(t *testing.T) {
 			ctx := context.Background()
 			f := NewFactoryForOTelAgent(rec, &MockTagEnricher{}, func(context.Context) (string, error) {
 				return "", nil
-			}, nil, otel.NewDisabledGatewayUsage(), TelemetryStore{})
+			}, nil, otel.NewDisabledGatewayUsage(), TelemetryStore{}, nil)
 			cfg := f.CreateDefaultConfig().(*ExporterConfig)
 			exp, err := f.CreateMetrics(
 				ctx,
@@ -382,7 +382,7 @@ func testMetricPrefixWithFeatureGates(t *testing.T, disablePrefix bool, inName s
 	ctx := context.Background()
 	f := NewFactoryForOTelAgent(rec, &MockTagEnricher{}, func(context.Context) (string, error) {
 		return "", nil
-	}, nil, otel.NewDisabledGatewayUsage(), TelemetryStore{})
+	}, nil, otel.NewDisabledGatewayUsage(), TelemetryStore{}, nil)
 	cfg := f.CreateDefaultConfig().(*ExporterConfig)
 	exp, err := f.CreateMetrics(
 		ctx,
@@ -517,7 +517,7 @@ func TestUsageMetric_DDOT(t *testing.T) {
 	}
 	f := NewFactoryForOTelAgent(rec, &MockTagEnricher{}, func(context.Context) (string, error) {
 		return "agent-host", nil
-	}, nil, otel.NewDisabledGatewayUsage(), store)
+	}, nil, otel.NewDisabledGatewayUsage(), store, nil)
 	cfg := f.CreateDefaultConfig().(*ExporterConfig)
 	exp, err := f.CreateMetrics(
 		ctx,

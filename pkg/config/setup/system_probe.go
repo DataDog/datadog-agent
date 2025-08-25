@@ -69,7 +69,7 @@ var (
 )
 
 // InitSystemProbeConfig declares all the configuration values normally read from system-probe.yaml.
-func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
+func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("ignore_host_etc", false)
 	cfg.BindEnvAndSetDefault("go_core_dump", false)
 	cfg.BindEnvAndSetDefault(join(spNS, "disable_thp"), true)
@@ -312,6 +312,8 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnv(join(netNS, "http_max_request_fragment"))
 	cfg.BindEnv(join(smNS, "http_max_request_fragment"))
 
+	cfg.BindEnvAndSetDefault(join(spNS, "expected_tags_duration"), 5*time.Minute, "DD_SYSTEM_PROBE_EXPECTED_TAGS_DURATION")
+
 	// list of DNS query types to be recorded
 	cfg.BindEnvAndSetDefault(join(netNS, "dns_recorded_query_types"), []string{})
 	// (temporary) enable submitting DNS stats by query type.
@@ -473,7 +475,7 @@ func suffixHostEtc(suffix string) string {
 // eventMonitorBindEnvAndSetDefault is a helper function that generates both "DD_RUNTIME_SECURITY_CONFIG_" and "DD_EVENT_MONITORING_CONFIG_"
 // prefixes from a key. We need this helper function because the standard BindEnvAndSetDefault can only generate one prefix, but we want to
 // support both for backwards compatibility.
-func eventMonitorBindEnvAndSetDefault(config pkgconfigmodel.Config, key string, val interface{}) {
+func eventMonitorBindEnvAndSetDefault(config pkgconfigmodel.Setup, key string, val interface{}) {
 	// Uppercase, replace "." with "_" and add "DD_" prefix to key so that we follow the same environment
 	// variable convention as the core agent.
 	emConfigKey := "DD_" + strings.ReplaceAll(strings.ToUpper(key), ".", "_")
@@ -484,7 +486,7 @@ func eventMonitorBindEnvAndSetDefault(config pkgconfigmodel.Config, key string, 
 }
 
 // eventMonitorBindEnv is the same as eventMonitorBindEnvAndSetDefault, but without setting a default.
-func eventMonitorBindEnv(config pkgconfigmodel.Config, key string) {
+func eventMonitorBindEnv(config pkgconfigmodel.Setup, key string) {
 	emConfigKey := "DD_" + strings.ReplaceAll(strings.ToUpper(key), ".", "_")
 	runtimeSecKey := strings.Replace(emConfigKey, "EVENT_MONITORING_CONFIG", "RUNTIME_SECURITY_CONFIG", 1)
 
