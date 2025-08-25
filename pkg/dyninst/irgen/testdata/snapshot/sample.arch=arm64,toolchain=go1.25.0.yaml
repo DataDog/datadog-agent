@@ -2343,15 +2343,6 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 1, Shift: 0}}]
           IsParameter: true
           IsReturn: false
-        - Name: z
-          Type: 7 BaseType int
-          Locations:
-            - Range: 0x80755c..0x80756c
-              Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
-            - Range: 0x80756c..0x807600
-              Pieces: [{Size: 8, Op: {CfaOffset: -48}}]
-          IsParameter: false
-          IsReturn: false
     - ID: 48
       Name: main.testInlinedBBA
       OutOfLinePCRanges: [0x807600..0x807670]
@@ -2368,25 +2359,7 @@ Subprograms:
       Name: main.testInlinedBC
       OutOfLinePCRanges: [0x807670..0x807780]
       InlinePCRanges: []
-      Variables:
-        - Name: s
-          Type: 7 BaseType int
-          Locations:
-            - Range: 0x80768c..0x8076f8
-              Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
-            - Range: 0x8076f8..0x807700
-              Pieces: [{Size: 8, Op: {RegNo: 1, Shift: 0}}]
-          IsParameter: false
-          IsReturn: false
-        - Name: i
-          Type: 7 BaseType int
-          Locations:
-            - Range: 0x80768c..0x8076f8
-              Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
-            - Range: 0x8076f8..0x8076fc
-              Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
-          IsParameter: false
-          IsReturn: false
+      Variables: []
     - ID: 50
       Name: main.testFrameless
       OutOfLinePCRanges: [0x807780..0x807790]

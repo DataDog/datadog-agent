@@ -657,8 +657,12 @@ func materializePending(
 			if parseLocs {
 				ranges = p.outOfLinePCRanges
 			}
+			isParameter := die.Tag == dwarf.TagFormalParameter
+			if !isParameter {
+				continue
+			}
 			v, err := processVariable(
-				p.unit, die, die.Tag == dwarf.TagFormalParameter,
+				p.unit, die, isParameter,
 				parseLocs, ranges,
 				loclistReader, pointerSize, tc,
 			)
@@ -677,6 +681,10 @@ func materializePending(
 				ranges = inl.inlinedPCRanges.Ranges
 			}
 			for _, inlVar := range inl.variables {
+				isParameter := inlVar.Tag == dwarf.TagFormalParameter
+				if !isParameter {
+					continue
+				}
 				abstractOrigin, ok, err := maybeGetAttr[dwarf.Offset](
 					inlVar, dwarf.AttrAbstractOrigin,
 				)
@@ -696,9 +704,10 @@ func materializePending(
 						baseVar.Locations = append(baseVar.Locations, locs...)
 					}
 				} else {
+
 					// Fully defined var in the inlined instance.
 					v, err := processVariable(
-						p.unit, inlVar, inlVar.Tag == dwarf.TagFormalParameter,
+						p.unit, inlVar, isParameter,
 						true /* parseLocations */, ranges,
 						loclistReader, pointerSize, tc,
 					)
@@ -1114,8 +1123,8 @@ func resolvePointeeType[T ir.Type](tc *typeCatalog, t ir.Type) (T, error) {
 	pointee, ok := ptrType.Pointee.(T)
 	if !ok {
 		return *new(T), fmt.Errorf(
-			"pointee type %q is not a %T, got %T",
-			ptrType.Pointee.GetName(), new(T), ptrType.Pointee,
+			"pointee type %d %q of %d (%q) is not a %T, got %T",
+			ptrType.ID, ptrType.Pointee.GetName(), ptrType.ID, ptrType.Name, new(T), ptrType.Pointee,
 		)
 	}
 	return pointee, nil
