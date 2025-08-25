@@ -54,7 +54,7 @@ func (m *mockComp) Subscribe(req *pb.ConfigStreamRequest) (<-chan *pb.ConfigEven
 	return args.Get(0).(<-chan *pb.ConfigEvent), args.Get(1).(func())
 }
 
-func setupTest(t *testing.T, ctx context.Context) (*Server, *mockComp, *mockStream, chan *pb.ConfigEvent) {
+func setupTest(ctx context.Context, t *testing.T) (*Server, *mockComp, *mockStream, chan *pb.ConfigEvent) {
 	cfg := configmock.New(t)
 	cfg.Set("config_stream.sleep_interval", 10*time.Millisecond, model.SourceAgentRuntime)
 
@@ -66,12 +66,13 @@ func setupTest(t *testing.T, ctx context.Context) (*Server, *mockComp, *mockStre
 
 	return server, comp, stream, eventsCh
 }
+
 func TestStreamConfigEventsErrors(t *testing.T) {
 	testReq := &pb.ConfigStreamRequest{}
 	testEvent := &pb.ConfigEvent{}
 
 	t.Run("returns error on terminal error from stream Send", func(t *testing.T) {
-		server, comp, stream, eventsCh := setupTest(t, context.Background())
+		server, comp, stream, eventsCh := setupTest(context.Background(), t)
 		unsubscribe := func() {}
 		comp.On("Subscribe", testReq).Return((<-chan *pb.ConfigEvent)(eventsCh), unsubscribe).Once()
 
@@ -98,7 +99,7 @@ func TestStreamConfigEventsErrors(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		server, comp, stream, eventsCh := setupTest(t, ctx)
+		server, comp, stream, eventsCh := setupTest(ctx, t)
 		var unsubscribeCalled bool
 		unsubscribe := func() { unsubscribeCalled = true }
 		comp.On("Subscribe", testReq).Return((<-chan *pb.ConfigEvent)(eventsCh), unsubscribe).Once()
@@ -108,12 +109,12 @@ func TestStreamConfigEventsErrors(t *testing.T) {
 		secondSendSignal := make(chan struct{})
 
 		// First call fails and sends a signal that it has been processed
-		stream.On("Send", testEvent).Return(nonTerminalError).Run(func(args mock.Arguments) {
+		stream.On("Send", testEvent).Return(nonTerminalError).Run(func(_ mock.Arguments) {
 			firstSendSignal <- struct{}{}
 		}).Once()
 
 		// Second call succeeds and also sends a signal
-		stream.On("Send", testEvent).Return(nil).Run(func(args mock.Arguments) {
+		stream.On("Send", testEvent).Return(nil).Run(func(_ mock.Arguments) {
 			secondSendSignal <- struct{}{}
 		}).Once()
 
