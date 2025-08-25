@@ -222,6 +222,7 @@ func (a *Agent) Run() {
 		go a.work()
 	}
 
+	log.Infof("trace-agent running...")
 	a.loop()
 }
 
@@ -597,8 +598,13 @@ func mergeDuplicates(s *pb.ClientStatsBucket) {
 }
 
 // ProcessStats processes incoming client stats in from the given tracer.
-func (a *Agent) ProcessStats(in *pb.ClientStatsPayload, lang, tracerVersion, containerID, obfuscationVersion string) {
-	a.ClientStatsAggregator.In <- a.processStats(in, lang, tracerVersion, containerID, obfuscationVersion)
+func (a *Agent) ProcessStats(ctx context.Context, in *pb.ClientStatsPayload, lang, tracerVersion, containerID, obfuscationVersion string) error {
+	select {
+	case a.ClientStatsAggregator.In <- a.processStats(in, lang, tracerVersion, containerID, obfuscationVersion):
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // sample performs all sampling on the processedTrace modifying it as needed and returning if the trace should be kept
