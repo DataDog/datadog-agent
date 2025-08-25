@@ -102,11 +102,13 @@ func (r *AttachRule) canTarget(target AttachTarget) bool {
 	return r.Targets&target != 0
 }
 
-func (r *AttachRule) matchesLibrary(path string) bool {
+// MatchesLibrary returns true if the rule matches the given library path
+func (r *AttachRule) MatchesLibrary(path string) bool {
 	return r.canTarget(AttachToSharedLibraries) && r.LibraryNameRegex != nil && r.LibraryNameRegex.MatchString(path)
 }
 
-func (r *AttachRule) matchesExecutable(path string, procInfo *ProcInfo) bool {
+// MatchesExecutable returns true if the rule matches the given executable path
+func (r *AttachRule) MatchesExecutable(path string, procInfo *ProcInfo) bool {
 	return r.canTarget(AttachToExecutable) && (r.ExecutableFilter == nil || r.ExecutableFilter(path, procInfo))
 }
 
@@ -703,7 +705,7 @@ func (ua *UprobeAttacher) getRulesForLibrary(path string) []*AttachRule {
 	var matchedRules []*AttachRule
 
 	for _, rule := range ua.config.Rules {
-		if rule.matchesLibrary(path) {
+		if rule.MatchesLibrary(path) {
 			matchedRules = append(matchedRules, rule)
 		}
 	}
@@ -715,7 +717,7 @@ func (ua *UprobeAttacher) getRulesForExecutable(path string, procInfo *ProcInfo)
 	var matchedRules []*AttachRule
 
 	for _, rule := range ua.config.Rules {
-		if rule.matchesExecutable(path, procInfo) {
+		if rule.MatchesExecutable(path, procInfo) {
 			matchedRules = append(matchedRules, rule)
 		}
 	}
