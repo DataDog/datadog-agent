@@ -67,8 +67,8 @@ type ClientStatsAggregator struct {
 // NewClientStatsAggregator initializes a new aggregator ready to be started
 func NewClientStatsAggregator(conf *config.AgentConfig, writer Writer, statsd statsd.ClientInterface) *ClientStatsAggregator {
 	flushInterval := conf.ClientStatsFlushInterval
-	if flushInterval == 0 { // default to 1s if not set to ensure users of this outside the agent aren't broken by this change
-		flushInterval = 1 * time.Second
+	if flushInterval == 0 { // default to 2s if not set to ensure users of this outside the agent aren't broken by this change
+		flushInterval = 2 // bucketDuration
 	}
 	c := &ClientStatsAggregator{
 		flushTicker:   time.NewTicker(flushInterval),
