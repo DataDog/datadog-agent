@@ -10,8 +10,8 @@ cloud.google.com/go/compute v1.37.0/go.mod h1:AsK4VqrSyXBo4SMbRtfAO1VfaMjUEjEwv1
 cloud.google.com/go/compute/metadata v0.7.0 h1:PBWF+iiAerVNe8UCHxdOt6eHLVc3ydFeOCw78U8ytSU=
 cloud.google.com/go/compute/metadata v0.7.0/go.mod h1:j5MvL9PprKL39t166CoB1uVHfQMs4tFQZZcKwksXUjo=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
-github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata v0.29.1 h1:La4jmC38Pv1CMlUhIMYl7uTZoH33FjplK+faeO7LK+c=
-github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata v0.29.1/go.mod h1:7g86HsKmsUkON9d8LfiPZRZiS1+ucuvVB3SEwPuuF3c=
+github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata v0.31.0 h1:jYkbxbh063O15NYxhUY3wedUURNrYpaLI8ra1GCsuk0=
+github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata v0.31.0/go.mod h1:KzMc/SWTFReO6WTkKucJ3qxHUSzLYuz7GrRfXjRFMDo=
 github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.31.0 h1:GAjMnaFCUT2Q+4jVFJ+r3SYIupqCc66NkU1Gm6AvHIg=
 github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.31.0/go.mod h1:A3oj/VbBPuJ0ssrZS3B7hv0IuF7hy854TQ2XMjHwPnw=
 github.com/DataDog/sketches-go v1.4.7 h1:eHs5/0i2Sdf20Zkj0udVFWuCrXGRFig2Dcfm5rtcTxc=

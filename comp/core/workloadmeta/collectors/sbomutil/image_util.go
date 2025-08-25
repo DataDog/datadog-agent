@@ -5,7 +5,7 @@
 
 //go:build trivy
 
-package util
+package sbomutil
 
 import (
 	"slices"

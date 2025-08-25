@@ -2961,6 +2961,79 @@ func TestMergeDuplicates(t *testing.T) {
 	assert.Equal(t, expected, in)
 }
 
+func TestProcessStatsTimeout(t *testing.T) {
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	ctx, cancel := context.WithCancel(context.Background())
+	agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+	defer cancel()
+
+	statsPayload := testutil.StatsPayloadSample()
+
+	t.Run("context_timeout", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+		defer cancel()
+
+		agnt.ClientStatsAggregator.In = make(chan *pb.ClientStatsPayload) // unbuffered channel, will block
+
+		start := time.Now()
+		err := agnt.ProcessStats(ctx, statsPayload, "go", "v1.2.3", "test-container", "v1")
+		elapsed := time.Since(start)
+
+		assert.Error(t, err)
+		assert.Equal(t, context.DeadlineExceeded, err)
+
+		// Should timeout around 50ms, not hang indefinitely
+		assert.Less(t, elapsed, 100*time.Millisecond, "ProcessStats should respect context timeout")
+		assert.Greater(t, elapsed, 45*time.Millisecond, "ProcessStats should wait for context timeout")
+	})
+
+	t.Run("context_cancelled", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+
+		agnt.ClientStatsAggregator.In = make(chan *pb.ClientStatsPayload) // unbuffered channel, will block
+
+		// Cancel the context after a short delay
+		go func() {
+			time.Sleep(30 * time.Millisecond)
+			cancel()
+		}()
+
+		start := time.Now()
+		err := agnt.ProcessStats(ctx, statsPayload, "go", "v1.2.3", "test-container", "v1")
+		elapsed := time.Since(start)
+
+		assert.Error(t, err)
+		assert.Equal(t, context.Canceled, err)
+
+		// Should be cancelled around 30ms
+		assert.Less(t, elapsed, 60*time.Millisecond, "ProcessStats should respect context cancellation")
+		assert.Greater(t, elapsed, 25*time.Millisecond, "ProcessStats should wait for context cancellation")
+	})
+
+	t.Run("successful_processing", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+		defer cancel()
+
+		agnt.ClientStatsAggregator.In = make(chan *pb.ClientStatsPayload, 10)
+
+		err := agnt.ProcessStats(ctx, statsPayload, "go", "v1.2.3", "test-container", "v1")
+
+		// Should succeed without error
+		assert.NoError(t, err)
+
+		// Verify stats were actually processed
+		select {
+		case stats := <-agnt.ClientStatsAggregator.In:
+			assert.NotNil(t, stats)
+			assert.Equal(t, "go", stats.Lang)
+			assert.Equal(t, "test-container", stats.ContainerID)
+		case <-time.After(100 * time.Millisecond):
+			t.Fatal("Expected stats to be sent to ClientStatsAggregator.In channel")
+		}
+	})
+}
+
 func TestSampleWithPriorityNone(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cfg := config.New()

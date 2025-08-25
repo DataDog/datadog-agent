@@ -8,57 +8,36 @@ package datastreams
 import (
 	"context"
 	"encoding/json"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
-	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	noopautoconfig "github.com/DataDog/datadog-agent/comp/core/autodiscovery/noopimpl"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 type mockedRcClient struct{}
 
 func (m *mockedRcClient) SubscribeAgentTask() {}
 
-func (m *mockedRcClient) Subscribe(_ data.Product, _ func(map[string]state.RawConfig, func(string, state.ApplyStatus))) {
+func (m *mockedRcClient) Subscribe(data.Product, func(map[string]state.RawConfig, func(string, state.ApplyStatus))) {
 }
 
 type mockedAutodiscovery struct {
+	autodiscovery.Component
 }
 
-func (m *mockedAutodiscovery) AddConfigProvider(_ types.ConfigProvider, _ bool, _ time.Duration) {
-}
-func (m *mockedAutodiscovery) LoadAndRun(_ context.Context) {}
-func (m *mockedAutodiscovery) ForceRanOnceFlag()            {}
-func (m *mockedAutodiscovery) HasRunOnce() bool {
-	return true
-}
-func (m *mockedAutodiscovery) AddListeners(_ []pkgconfigsetup.Listeners)            {}
-func (m *mockedAutodiscovery) AddScheduler(_ string, _ scheduler.Scheduler, _ bool) {}
-func (m *mockedAutodiscovery) RemoveScheduler(_ string)                             {}
-func (m *mockedAutodiscovery) GetIDOfCheckWithEncryptedSecrets(checkID checkid.ID) checkid.ID {
-	return checkID
-}
-func (m *mockedAutodiscovery) GetAutodiscoveryErrors() map[string]map[string]types.ErrorMsgSet {
-	return nil
-}
-func (m *mockedAutodiscovery) GetProviderCatalog() map[string]types.ConfigProviderFactory {
-	return nil
-}
-func (m *mockedAutodiscovery) GetTelemetryStore() *telemetry.Store {
-	return nil
-}
-func (m *mockedAutodiscovery) Start() {}
-func (m *mockedAutodiscovery) Stop()  {}
-func (m *mockedAutodiscovery) GetConfigCheck() integration.ConfigCheckResponse {
-	return integration.ConfigCheckResponse{}
+func getMockedAutodiscovery(t *testing.T) autodiscovery.Component {
+	return &mockedAutodiscovery{
+		fxutil.Test[autodiscovery.Component](
+			t,
+			noopautoconfig.Module(),
+		),
+	}
 }
 
 const initialConfig = `
@@ -99,20 +78,30 @@ topics:
 - my-topic
 `
 
-// return a Kafka consumer integration config
-func (m *mockedAutodiscovery) GetAllConfigs() []integration.Config {
+func (m *mockedAutodiscovery) GetUnresolvedConfigs() []integration.Config {
 	return []integration.Config{{
 		Name:       kafkaConsumerIntegrationName,
 		Instances:  []integration.Data{integration.Data(initialConfig)},
 		InitConfig: integration.Data{},
 	}}
 }
+func (m *mockedAutodiscovery) GetAllConfigs() []integration.Config {
+	return []integration.Config{{
+		Name:      kafkaConsumerIntegrationName,
+		Instances: []integration.Data{integration.Data(initialConfig)},
+	}}
+}
 
 func TestController(t *testing.T) {
 	c := &controller{
-		ac:            &mockedAutodiscovery{},
+		ac:            getMockedAutodiscovery(t),
 		rcclient:      &mockedRcClient{},
 		configChanges: make(chan integration.ConfigChanges, 10),
+	}
+	originalCfg := integration.Config{
+		Name:       kafkaConsumerIntegrationName,
+		Instances:  []integration.Data{integration.Data(initialConfig)},
+		InitConfig: integration.Data{},
 	}
 	config := liveMessagesConfig{
 		ID: "config_2_id",
@@ -145,19 +134,14 @@ func TestController(t *testing.T) {
 	}, updateStatus)
 	updates := c.Stream(context.Background())
 	cfg := <-updates
-	assert.Len(t, cfg.Schedule, 1)
-	assert.Len(t, cfg.Unschedule, 1)
-	expectedUnscheduled := integration.Config{
-		Name:       kafkaConsumerIntegrationName,
-		Instances:  []integration.Data{integration.Data(initialConfig)},
-		InitConfig: integration.Data{},
-	}
-	expectedScheduled := integration.Config{
+	updatedConfig := integration.Config{
 		Name:       kafkaConsumerIntegrationName,
 		Instances:  []integration.Data{integration.Data(modifiedConfig)},
 		InitConfig: integration.Data{},
 		LogsConfig: integration.Data(logsConfig),
 	}
-	assert.Equal(t, expectedUnscheduled, cfg.Unschedule[0])
-	assert.Equal(t, expectedScheduled, cfg.Schedule[0])
+	assert.Len(t, cfg.Schedule, 1)
+	assert.Len(t, cfg.Unschedule, 1)
+	assert.Equal(t, originalCfg, cfg.Unschedule[0])
+	assert.Equal(t, updatedConfig, cfg.Schedule[0])
 }

@@ -191,11 +191,20 @@ var defaultProfiles = `
   profiles:
   - name: checks
     metric:
+      exclude:
+        zero_metric: true
       metrics:
         - name: checks.execution_time
           aggregate_tags:
             - check_name
             - check_loader
+        - name: checks.delay
+          aggregate_tags:
+            - check_name
+        - name: checks.runs
+          aggregate_tags:
+            - check_name
+            - state
         - name: pymem.inuse
     schedule:
       start_after: 30

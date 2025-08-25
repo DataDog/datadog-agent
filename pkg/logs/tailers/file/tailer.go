@@ -389,7 +389,6 @@ func (t *Tailer) forwardMessages() {
 
 		// Preserve ParsingExtra information from decoder output (including IsTruncated flag)
 		msg := message.NewMessageWithParsingExtra(output.GetContent(), origin, output.Status, output.IngestionTimestamp, output.ParsingExtra)
-
 		// Make the write to the output chan cancellable to be able to stop the tailer
 		// after a file rotation when it is stuck on it.
 		// We don't return directly to keep the same shutdown sequence that in the
