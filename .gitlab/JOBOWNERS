@@ -148,6 +148,7 @@ trigger_distribution*         @DataDog/agent-delivery
 integration_tests_windows*    @DataDog/windows-products
 integration_tests_otel        @DataDog/opentelemetry-agent
 docker_image_build_otel       @DataDog/opentelemetry-agent
+ddot_byoc_package_*           @DataDog/opentelemetry-agent
 datadog_otel_components_ocb_build  @DataDog/opentelemetry-agent
 docker_integration_tests      @DataDog/container-integrations
 trace_agent_integration_tests @DataDog/agent-apm

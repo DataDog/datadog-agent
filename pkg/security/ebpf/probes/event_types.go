@@ -130,6 +130,7 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 				hookFunc("hook_do_coredump"),
 				hookFunc("hook_audit_set_loginuid"),
 				hookFunc("rethook_audit_set_loginuid"),
+				hookFunc("hook_security_inode_follow_link"),
 			}},
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
 				hookFunc("hook_cgroup_procs_write"),
