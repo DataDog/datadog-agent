@@ -169,9 +169,8 @@ func (d *DockerPermissionsCheck) canReadDockerLogs() bool {
 					if _, err := os.Open(logFile); err == nil {
 						log.Infof("Successfully opened Docker log file: %s", logFile)
 						return true
-					} else {
-						log.Debugf("Could not open log file %s: %v", logFile, err)
 					}
+					log.Debugf("Could not open log file %s: %v", logFile, err)
 				}
 			}
 		}
