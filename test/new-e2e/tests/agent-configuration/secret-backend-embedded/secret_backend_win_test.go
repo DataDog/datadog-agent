@@ -34,11 +34,10 @@ func TestWindowsRuntimeSecretSuite(t *testing.T) {
 }
 
 func (v *windowsRuntimeSecretSuite) TestPullSecret() {
-	// Escape file_path for YAML
 	config := `api_key: ENC[fake_yaml_key]
 secret_backend_type: file.yaml
 secret_backend_config:
-  file_path: /tmp/secrets.yaml`
+  file_path: C:/TestFolder/secrets.yaml`
 
 	windowsPermission := perms.NewWindowsPermissions(
 		perms.WithIcaclsCommand(`/grant "ddagentuser:(RX)"`),
@@ -49,7 +48,7 @@ secret_backend_config:
 		awshost.Provisioner(
 			awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
 			awshost.WithAgentOptions(
-				agentparams.WithFileWithPermissions("/tmp/secrets.yaml", secretScript, true, windowsPermission),
+				agentparams.WithFileWithPermissions("C:/TestFolder/secrets.yaml", secretScript, true, windowsPermission),
 				agentparams.WithAgentConfig(config),
 				agentparams.WithSkipAPIKeyInConfig(),
 			),
