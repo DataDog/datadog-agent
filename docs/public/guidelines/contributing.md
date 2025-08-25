@@ -21,7 +21,7 @@ In order to ease/speed up our review, here are some items you can check/improve 
 - [X] Sign your commits.
 - [X] Write tests for the code you wrote.
 - [X] Preferably make sure that all tests pass locally.
-- [X] Summarize your PR with an explanatory title and a message describing your changes, cross-referencing any related bugs/PRs.  Commit titles should be prefixed with general area of pull request's change.
+- [X] Summarize your PR with an explanatory title and a message describing your changes, cross-referencing any related bugs/PRs.  Commit titles should be prefixed with general area of pull request's change. You can use [conventional commits](https://www.conventionalcommits.org/en/v1.0.0/) for the PR title.
 - [X] Use [Reno](#reno) to create a release note.
 - [X] Open your PR as a Draft against the `main` branch.
 - [X] Sign the Contributor Licence Agreement.
