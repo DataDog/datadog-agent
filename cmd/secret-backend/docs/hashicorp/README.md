@@ -58,14 +58,7 @@ We HIGHLY recommend that you authenticate using this method if you are running y
   ]
 }
 ```
-After following the General Instructions, you will aslo need to write an authentication-specific vault policy. Run:
-```
-vault write auth/aws/role/<Name of AWS IAM Role> \
-  auth_type=iam \
-  bound_iam_principal_arn=arn:aws:iam::<AWS Account ID>:role/<Name of AWS IAM Role> \
-  policies=<name of *.hcl file policy> \
-  max_ttl=768h
-```
+After this has been set up, write an [authentication-specific vault policy](https://developer.hashicorp.com/vault/docs/auth/aws#iam-authentication-inferences).
 
 ## Vault Session Settings
 
@@ -96,7 +89,7 @@ secret_backend_config:
   vault_session:
     vault_auth_type: aws
     vault_aws_role: Name-of-IAM-role-attached-to-machine
-    aws_region: us-east-1
+    aws_region: us-east-1 // this field is optional, and will default to us-east-1 if not set
 ```
 
 Review the [hashicorp.vault](vault.md) backend documentation examples of configurations for Datadog Agent secrets.
