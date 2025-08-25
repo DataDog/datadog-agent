@@ -49,6 +49,9 @@ func TestDecoderManually(t *testing.T) {
 			var e eventCaptures
 			require.NoError(t, json.Unmarshal(buf.Bytes(), &e))
 			require.Equal(t, c.expected, e.Debugger.Snapshot.Captures.Entry.Arguments)
+			require.Empty(t, decoder.dataItems)
+			require.Empty(t, decoder.currentlyEncoding)
+			require.Zero(t, decoder.snapshotMessage)
 		})
 	}
 }
