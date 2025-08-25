@@ -539,7 +539,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "cgroup_write.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -551,7 +551,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "cgroup_write.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -596,7 +596,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "cgroup_write.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -608,7 +608,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "cgroup_write.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -807,7 +807,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "chdir.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -819,7 +819,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "chdir.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -864,7 +864,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "chdir.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -876,7 +876,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "chdir.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -1108,7 +1108,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "chmod.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -1120,7 +1120,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "chmod.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -1165,7 +1165,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "chmod.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -1177,7 +1177,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "chmod.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -1442,7 +1442,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "chown.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -1454,7 +1454,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "chown.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -1499,7 +1499,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "chown.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -1511,7 +1511,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "chown.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -1754,7 +1754,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "dns.question.name":
 		return &eval.StringEvaluator{
-			OpOverrides: eval.CaseInsensitiveCmp,
+			OpOverrides: []*eval.OpOverrides{eval.CaseInsensitiveCmp},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -1766,7 +1766,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "dns.question.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: eval.CaseInsensitiveCmp,
+			OpOverrides: []*eval.OpOverrides{eval.CaseInsensitiveCmp},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -2414,7 +2414,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "exec.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -2429,7 +2429,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "exec.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -2483,7 +2483,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "exec.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -2498,7 +2498,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "exec.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -2800,7 +2800,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "exec.interpreter.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -2815,7 +2815,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "exec.interpreter.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -2869,7 +2869,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "exec.interpreter.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -2884,7 +2884,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "exec.interpreter.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -3538,7 +3538,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "exit.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -3553,7 +3553,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "exit.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -3607,7 +3607,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "exit.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -3622,7 +3622,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "exit.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -3924,7 +3924,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "exit.interpreter.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -3939,7 +3939,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "exit.interpreter.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -3993,7 +3993,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "exit.interpreter.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -4008,7 +4008,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "exit.interpreter.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -4436,7 +4436,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "link.file.destination.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -4448,7 +4448,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "link.file.destination.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -4493,7 +4493,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "link.file.destination.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -4505,7 +4505,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "link.file.destination.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -4682,7 +4682,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "link.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -4694,7 +4694,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "link.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -4739,7 +4739,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "link.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -4751,7 +4751,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "link.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -5005,7 +5005,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "load_module.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -5017,7 +5017,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "load_module.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -5062,7 +5062,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "load_module.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -5074,7 +5074,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "load_module.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -5317,7 +5317,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "mkdir.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -5329,7 +5329,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "mkdir.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -5374,7 +5374,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "mkdir.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -5386,7 +5386,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "mkdir.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -5607,7 +5607,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "mmap.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -5619,7 +5619,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "mmap.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -5664,7 +5664,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "mmap.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -5676,7 +5676,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "mmap.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -6496,7 +6496,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "ondemand.name":
 		return &eval.StringEvaluator{
-			OpOverrides: OnDemandNameOverrides,
+			OpOverrides: []*eval.OpOverrides{OnDemandNameOverrides},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -6662,7 +6662,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "open.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -6674,7 +6674,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "open.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -6719,7 +6719,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "open.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -6731,7 +6731,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "open.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -6875,7 +6875,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "packet.filter":
 		return &eval.StringEvaluator{
-			OpOverrides: PacketFilterMatching,
+			OpOverrides: []*eval.OpOverrides{PacketFilterMatching},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -7989,7 +7989,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "process.ancestors.file.name":
 		return &eval.StringArrayEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -8022,7 +8022,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "process.ancestors.file.name.length":
 		return &eval.IntArrayEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) []int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -8145,7 +8145,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "process.ancestors.file.path":
 		return &eval.StringArrayEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -8178,7 +8178,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "process.ancestors.file.path.length":
 		return &eval.IntArrayEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) []int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -8873,7 +8873,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "process.ancestors.interpreter.file.name":
 		return &eval.StringArrayEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -8906,7 +8906,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "process.ancestors.interpreter.file.name.length":
 		return &eval.IntArrayEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) []int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -9029,7 +9029,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "process.ancestors.interpreter.file.path":
 		return &eval.StringArrayEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -9062,7 +9062,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "process.ancestors.interpreter.file.path.length":
 		return &eval.IntArrayEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) []int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -9943,7 +9943,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "process.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -9958,7 +9958,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "process.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -10012,7 +10012,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "process.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -10027,7 +10027,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "process.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -10329,7 +10329,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "process.interpreter.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -10344,7 +10344,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "process.interpreter.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -10398,7 +10398,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "process.interpreter.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -10413,7 +10413,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "process.interpreter.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -11043,7 +11043,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "process.parent.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -11061,7 +11061,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "process.parent.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -11124,7 +11124,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "process.parent.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -11142,7 +11142,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "process.parent.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -11510,7 +11510,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "process.parent.interpreter.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -11528,7 +11528,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "process.parent.interpreter.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -11591,7 +11591,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "process.parent.interpreter.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -11609,7 +11609,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "process.parent.interpreter.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -12975,7 +12975,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "ptrace.tracee.ancestors.file.name":
 		return &eval.StringArrayEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -13008,7 +13008,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "ptrace.tracee.ancestors.file.name.length":
 		return &eval.IntArrayEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) []int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -13131,7 +13131,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "ptrace.tracee.ancestors.file.path":
 		return &eval.StringArrayEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -13164,7 +13164,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "ptrace.tracee.ancestors.file.path.length":
 		return &eval.IntArrayEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) []int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -13859,7 +13859,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "ptrace.tracee.ancestors.interpreter.file.name":
 		return &eval.StringArrayEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -13892,7 +13892,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "ptrace.tracee.ancestors.interpreter.file.name.length":
 		return &eval.IntArrayEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) []int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -14015,7 +14015,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "ptrace.tracee.ancestors.interpreter.file.path":
 		return &eval.StringArrayEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -14048,7 +14048,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "ptrace.tracee.ancestors.interpreter.file.path.length":
 		return &eval.IntArrayEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) []int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -14929,7 +14929,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "ptrace.tracee.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -14944,7 +14944,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "ptrace.tracee.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -14998,7 +14998,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "ptrace.tracee.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -15013,7 +15013,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "ptrace.tracee.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -15315,7 +15315,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "ptrace.tracee.interpreter.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -15330,7 +15330,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "ptrace.tracee.interpreter.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -15384,7 +15384,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "ptrace.tracee.interpreter.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -15399,7 +15399,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "ptrace.tracee.interpreter.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -16029,7 +16029,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "ptrace.tracee.parent.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -16047,7 +16047,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "ptrace.tracee.parent.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -16110,7 +16110,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "ptrace.tracee.parent.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -16128,7 +16128,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "ptrace.tracee.parent.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -16496,7 +16496,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "ptrace.tracee.parent.interpreter.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -16514,7 +16514,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "ptrace.tracee.parent.interpreter.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -16577,7 +16577,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "ptrace.tracee.parent.interpreter.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -16595,7 +16595,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "ptrace.tracee.parent.interpreter.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -17090,7 +17090,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "removexattr.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -17102,7 +17102,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "removexattr.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -17147,7 +17147,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "removexattr.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -17159,7 +17159,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "removexattr.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -17369,7 +17369,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "rename.file.destination.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -17381,7 +17381,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "rename.file.destination.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -17426,7 +17426,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "rename.file.destination.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -17438,7 +17438,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "rename.file.destination.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -17615,7 +17615,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "rename.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -17627,7 +17627,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "rename.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -17672,7 +17672,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "rename.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -17684,7 +17684,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "rename.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -17905,7 +17905,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "rmdir.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -17917,7 +17917,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "rmdir.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -17962,7 +17962,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "rmdir.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -17974,7 +17974,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "rmdir.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -19209,7 +19209,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "setrlimit.target.ancestors.file.name":
 		return &eval.StringArrayEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -19242,7 +19242,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "setrlimit.target.ancestors.file.name.length":
 		return &eval.IntArrayEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) []int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -19365,7 +19365,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "setrlimit.target.ancestors.file.path":
 		return &eval.StringArrayEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -19398,7 +19398,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "setrlimit.target.ancestors.file.path.length":
 		return &eval.IntArrayEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) []int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -20093,7 +20093,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "setrlimit.target.ancestors.interpreter.file.name":
 		return &eval.StringArrayEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -20126,7 +20126,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "setrlimit.target.ancestors.interpreter.file.name.length":
 		return &eval.IntArrayEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) []int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -20249,7 +20249,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "setrlimit.target.ancestors.interpreter.file.path":
 		return &eval.StringArrayEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -20282,7 +20282,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "setrlimit.target.ancestors.interpreter.file.path.length":
 		return &eval.IntArrayEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) []int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -21163,7 +21163,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "setrlimit.target.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -21178,7 +21178,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "setrlimit.target.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -21232,7 +21232,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "setrlimit.target.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -21247,7 +21247,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "setrlimit.target.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -21549,7 +21549,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "setrlimit.target.interpreter.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -21564,7 +21564,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "setrlimit.target.interpreter.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -21618,7 +21618,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "setrlimit.target.interpreter.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -21633,7 +21633,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "setrlimit.target.interpreter.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -22263,7 +22263,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "setrlimit.target.parent.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -22281,7 +22281,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "setrlimit.target.parent.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -22344,7 +22344,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "setrlimit.target.parent.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -22362,7 +22362,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "setrlimit.target.parent.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -22730,7 +22730,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "setrlimit.target.parent.interpreter.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -22748,7 +22748,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "setrlimit.target.parent.interpreter.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -22811,7 +22811,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "setrlimit.target.parent.interpreter.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -22829,7 +22829,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "setrlimit.target.parent.interpreter.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -23511,7 +23511,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "setxattr.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -23523,7 +23523,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "setxattr.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -23568,7 +23568,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "setxattr.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -23580,7 +23580,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "setxattr.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -24672,7 +24672,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "signal.target.ancestors.file.name":
 		return &eval.StringArrayEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -24705,7 +24705,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "signal.target.ancestors.file.name.length":
 		return &eval.IntArrayEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) []int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -24828,7 +24828,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "signal.target.ancestors.file.path":
 		return &eval.StringArrayEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -24861,7 +24861,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "signal.target.ancestors.file.path.length":
 		return &eval.IntArrayEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) []int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -25556,7 +25556,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "signal.target.ancestors.interpreter.file.name":
 		return &eval.StringArrayEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -25589,7 +25589,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "signal.target.ancestors.interpreter.file.name.length":
 		return &eval.IntArrayEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) []int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -25712,7 +25712,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "signal.target.ancestors.interpreter.file.path":
 		return &eval.StringArrayEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -25745,7 +25745,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "signal.target.ancestors.interpreter.file.path.length":
 		return &eval.IntArrayEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) []int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -26626,7 +26626,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "signal.target.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -26641,7 +26641,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "signal.target.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -26695,7 +26695,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "signal.target.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -26710,7 +26710,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "signal.target.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -27012,7 +27012,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "signal.target.interpreter.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -27027,7 +27027,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "signal.target.interpreter.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -27081,7 +27081,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "signal.target.interpreter.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -27096,7 +27096,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "signal.target.interpreter.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -27726,7 +27726,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "signal.target.parent.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -27744,7 +27744,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "signal.target.parent.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -27807,7 +27807,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "signal.target.parent.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -27825,7 +27825,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "signal.target.parent.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -28193,7 +28193,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "signal.target.parent.interpreter.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -28211,7 +28211,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "signal.target.parent.interpreter.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -28274,7 +28274,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "signal.target.parent.interpreter.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -28292,7 +28292,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "signal.target.parent.interpreter.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -28776,7 +28776,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "splice.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -28788,7 +28788,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "splice.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -28833,7 +28833,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "splice.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -28845,7 +28845,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "splice.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -29154,7 +29154,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "unlink.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -29166,7 +29166,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "unlink.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -29211,7 +29211,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "unlink.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -29223,7 +29223,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "unlink.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -29488,7 +29488,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "utimes.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -29500,7 +29500,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "utimes.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -29545,7 +29545,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "utimes.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -29557,7 +29557,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "utimes.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)

@@ -175,7 +175,7 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID, offset int) (Eva
 		return &StringEvaluator{
 			EvalFnc:     func(ctx *Context) string { return ctx.Event.(*testEvent).process.name },
 			Field:       field,
-			OpOverrides: GlobCmp,
+			OpOverrides: []*OpOverrides{GlobCmp},
 			Offset:      offset,
 		}, nil
 
@@ -483,27 +483,28 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID, offset int) (Eva
 				return ctx.Event.(*testEvent).process.orName
 			},
 			Field: field,
-			OpOverrides: &OpOverrides{
-				StringValuesContains: func(a *StringEvaluator, _ *StringValuesEvaluator, state *State) (*BoolEvaluator, error) {
-					evaluator := StringValuesEvaluator{
-						EvalFnc: func(ctx *Context) *StringValues {
-							return ctx.Event.(*testEvent).process.orNameValues()
-						},
-					}
+			OpOverrides: []*OpOverrides{
+				{
+					StringValuesContains: func(a *StringEvaluator, _ *StringValuesEvaluator, state *State) (*BoolEvaluator, error) {
+						evaluator := StringValuesEvaluator{
+							EvalFnc: func(ctx *Context) *StringValues {
+								return ctx.Event.(*testEvent).process.orNameValues()
+							},
+						}
 
-					return StringValuesContains(a, &evaluator, state)
-				},
-				StringEquals: func(a *StringEvaluator, _ *StringEvaluator, state *State) (*BoolEvaluator, error) {
-					evaluator := StringValuesEvaluator{
-						EvalFnc: func(ctx *Context) *StringValues {
-							return ctx.Event.(*testEvent).process.orNameValues()
-						},
-					}
+						return StringValuesContains(a, &evaluator, state)
+					},
+					StringEquals: func(a *StringEvaluator, _ *StringEvaluator, state *State) (*BoolEvaluator, error) {
+						evaluator := StringValuesEvaluator{
+							EvalFnc: func(ctx *Context) *StringValues {
+								return ctx.Event.(*testEvent).process.orNameValues()
+							},
+						}
 
-					return StringValuesContains(a, &evaluator, state)
+						return StringValuesContains(a, &evaluator, state)
+					},
 				},
-			},
-		}, nil
+			}}, nil
 
 	case "process.or_array.value":
 
@@ -518,27 +519,28 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID, offset int) (Eva
 				return values
 			},
 			Field: field,
-			OpOverrides: &OpOverrides{
-				StringArrayContains: func(_ *StringEvaluator, b *StringArrayEvaluator, state *State) (*BoolEvaluator, error) {
-					evaluator := StringValuesEvaluator{
-						EvalFnc: func(ctx *Context) *StringValues {
-							return ctx.Event.(*testEvent).process.orArrayValues()
-						},
-					}
+			OpOverrides: []*OpOverrides{
+				{
+					StringArrayContains: func(_ *StringEvaluator, b *StringArrayEvaluator, state *State) (*BoolEvaluator, error) {
+						evaluator := StringValuesEvaluator{
+							EvalFnc: func(ctx *Context) *StringValues {
+								return ctx.Event.(*testEvent).process.orArrayValues()
+							},
+						}
 
-					return StringArrayMatches(b, &evaluator, state)
-				},
-				StringArrayMatches: func(a *StringArrayEvaluator, _ *StringValuesEvaluator, state *State) (*BoolEvaluator, error) {
-					evaluator := StringValuesEvaluator{
-						EvalFnc: func(ctx *Context) *StringValues {
-							return ctx.Event.(*testEvent).process.orArrayValues()
-						},
-					}
+						return StringArrayMatches(b, &evaluator, state)
+					},
+					StringArrayMatches: func(a *StringArrayEvaluator, _ *StringValuesEvaluator, state *State) (*BoolEvaluator, error) {
+						evaluator := StringValuesEvaluator{
+							EvalFnc: func(ctx *Context) *StringValues {
+								return ctx.Event.(*testEvent).process.orArrayValues()
+							},
+						}
 
-					return StringArrayMatches(a, &evaluator, state)
+						return StringArrayMatches(a, &evaluator, state)
+					},
 				},
-			},
-		}, nil
+			}}, nil
 
 	case "open.filename":
 
