@@ -18,12 +18,14 @@ from pathlib import Path
 from typing import Any, Literal
 
 import gitlab
+import requests
 import yaml
 from gitlab.v4.objects import Project, ProjectCommit, ProjectPipeline
 from invoke import Context
 from invoke.exceptions import Exit
 
 from tasks import auth
+from tasks.libs.common.auth import datadog_infra_token
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.git import get_common_ancestor, get_current_branch, get_default_branch
 from tasks.libs.common.utils import retry_function
@@ -38,6 +40,24 @@ CONFIG_SPECIAL_OBJECTS = {
     "variables",
     "workflow",
 }
+
+
+def get_gitlab_token(ctx, repo='datadog-agent', verbose=False) -> str:
+    infra_token = datadog_infra_token(ctx, audience="sdm")
+    url = f"https://bti-ci-api.us1.ddbuild.io/internal/ci/gitlab/token?owner=DataDog&repository={repo}"
+
+    res = requests.get(url, headers={'Authorization': infra_token}, timeout=10)
+
+    if not res.ok:
+        raise RuntimeError(f'Failed to retrieve Gitlab token, request failed with code {res.status_code}:\n{res.text}')
+
+    if verbose:
+        # Prints also the scopes + the expiration date
+        print('Got Gitlab token:', res.json())
+
+    token = res.json()['token']
+
+    return token
 
 
 def get_gitlab_api(token=None, repo='datadog-agent') -> gitlab.Gitlab:
