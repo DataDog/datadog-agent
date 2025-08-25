@@ -354,7 +354,7 @@ func exporGroupedStats(aggrKey BucketsAggregationKey, stats *aggregatedStats) (*
 		IsTraceRoot:    aggrKey.IsTraceRoot,
 		GRPCStatusCode: aggrKey.GRPCStatusCode,
 		HTTPMethod:     aggrKey.HTTPMethod,
-		Endpoint:       aggrKey.Endpoint,
+		HTTPEndpoint:   aggrKey.HTTPEndpoint,
 		PeerTags:       stats.peerTags,
 		TopLevelHits:   stats.topLevelHits,
 		Hits:           stats.hits,
@@ -390,7 +390,7 @@ func newBucketAggregationKey(b *pb.ClientGroupedStats) BucketsAggregationKey {
 		GRPCStatusCode: b.GRPCStatusCode,
 		IsTraceRoot:    b.IsTraceRoot,
 		HTTPMethod:     b.HTTPMethod,
-		Endpoint:       b.Endpoint,
+		HTTPEndpoint:   b.HTTPEndpoint,
 	}
 	if tags := b.GetPeerTags(); len(tags) > 0 {
 		k.PeerTagsHash = tagsFnvHash(tags)
