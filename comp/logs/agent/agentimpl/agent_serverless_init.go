@@ -40,7 +40,7 @@ func (a *logAgent) SetupPipeline(
 	_ integrations.Component,
 	fingerprintConfig types.FingerprintConfig,
 ) {
-	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver(streamlogs.Formatter{}, nil)
+	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver(streamlogs.Formatter{}, a.hostname)
 	destinationsCtx := client.NewDestinationsContext()
 
 	// setup the pipeline provider that provides pairs of processor and sender

@@ -30,7 +30,7 @@ func TestElfObject(t *testing.T) {
 	cfgs := testprogs.MustGetCommonConfigs(t)
 	for _, cfg := range cfgs {
 		binaryPath := testprogs.MustGetBinary(t, "simple", cfg)
-		obj, err := object.OpenElfFile(binaryPath)
+		obj, err := object.OpenElfFileWithDwarf(binaryPath)
 		require.NoError(t, err)
 		// Assert that some symbol we expect to exist is in there.
 		const targetFunction = "main.main"
@@ -90,7 +90,8 @@ func BenchmarkLoadElfFile(b *testing.B) {
 		var ds *object.DebugSections
 		b.Run(binary.name, func(b *testing.B) {
 			b.Run("in-memory", func(b *testing.B) {
-				ds = benchmarkLoadElfFile(b, binary.path, object.OpenElfFile)
+				loader := object.NewInMemoryLoader()
+				ds = benchmarkLoadElfFile(b, binary.path, loader.Load)
 				logOnce.Do(func() {
 					if ds != nil {
 						logDebugSections(b, ds)
@@ -115,7 +116,7 @@ func BenchmarkLoadElfFile(b *testing.B) {
 func benchmarkLoadElfFile(
 	b *testing.B,
 	binaryPath string,
-	openF func(string) (*object.ElfFile, error),
+	openF func(string) (object.FileWithDwarf, error),
 ) *object.DebugSections {
 	f, err := os.Open(binaryPath)
 	require.NoError(b, err)
@@ -125,7 +126,7 @@ func benchmarkLoadElfFile(
 	for b.Loop() {
 		obj, err := openF(binaryPath)
 		require.NoError(b, err)
-		ds = obj.DwarfSections()
+		ds = obj.DebugSections()
 		var total int
 		for _, data := range ds.Sections() {
 			total += len(data)

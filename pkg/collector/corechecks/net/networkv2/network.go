@@ -398,13 +398,16 @@ func getEthtoolMetrics(driverName string, statsMap map[string]uint64) map[string
 				}
 			}
 			if queueIndex == -1 {
+				// The metric name contains the string "queue" but does not have a queue index
+				// In this case, this is not actually a queue metric and we should keep trying
 				continueCase = true
+			} else {
+				queueNum := parts[queueIndex+1]
+				parts = append(parts[:queueIndex], parts[queueIndex+2:]...)
+				queueTag = "queue:" + queueNum
+				newKey = strings.Join(parts, "_")
+				metricPrefix = ".queue."
 			}
-			queueNum := parts[queueIndex+1]
-			parts = append(parts[:queueIndex], parts[queueIndex+2:]...)
-			queueTag = "queue:" + queueNum
-			newKey = strings.Join(parts, "_")
-			metricPrefix = ".queue."
 		} else {
 			continueCase = true
 		}
