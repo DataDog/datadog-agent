@@ -24,3 +24,8 @@ def datadog_infra(ctx, audience, datacenter="us1.ddbuild.io", verbose=False):
         print(token)
 
     return token
+
+
+@task
+def github(ctx, verbose=False) -> str:
+    """Get a github token."""

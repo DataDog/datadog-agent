@@ -11,11 +11,13 @@ from datetime import datetime, timedelta
 from functools import lru_cache
 
 import requests
+from invoke import Context
 
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import GITHUB_REPO_NAME
 from tasks.libs.common.git import get_default_branch
 from tasks.libs.common.user_interactions import yes_no_question
+from tasks.libs.common.utils import running_in_ci
 
 try:
     import semver
@@ -524,6 +526,26 @@ class GithubAPI:
             - A token from macOS keychain
             - A fake login user/password to reach public repositories
         """
+        if not running_in_ci():
+            ctx = Context()
+            # Try without login first, then with login
+            for login in False, True:
+                if login:
+                    ctx.run('ddtool auth github login')
+
+                try:
+                    token = ctx.run('ddtool auth github token', hide=True).stdout.strip()
+
+                    if verbose:
+                        print(token)
+
+                    return token
+                except Exception:
+                    # Try with log in this time
+                    if not login:
+                        continue
+
+                    raise
         if "GITHUB_TOKEN" in os.environ:
             return Auth.Token(os.environ["GITHUB_TOKEN"])
         if "GITHUB_APP_ID" in os.environ and "GITHUB_KEY_B64" in os.environ:
