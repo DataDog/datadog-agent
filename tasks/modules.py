@@ -103,9 +103,9 @@ def for_each(
     """
     Run the given command in the directory of each module.
     """
-    assert not (
-        use_targets_path and use_lint_targets_path
-    ), "Only one of use_targets_path and use_lint_targets_path can be set"
+    assert not (use_targets_path and use_lint_targets_path), (
+        "Only one of use_targets_path and use_lint_targets_path can be set"
+    )
 
     for mod in get_default_modules().values():
         if skip_untagged and not mod.should_tag:
@@ -389,8 +389,7 @@ def check_all_replace(ctx: Context):
         raise Exit(
             code=1,
             message=color_message(
-                "ERROR: Some go.mod files are missing replace rules. "
-                "Please run 'dda inv modules.add-all-replace' to fix them.",
+                "ERROR: Some go.mod files are missing replace rules. Please commit the changes and try again. ",
                 Color.RED,
             ),
         )
