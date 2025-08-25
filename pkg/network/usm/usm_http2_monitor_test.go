@@ -1502,38 +1502,38 @@ func (s *usmHTTP2Suite) TestIncompleteFrameTable() {
 		messageBuilder func() [][]byte
 		mapSize        int
 	}{
-		// {
-		// 	name: "validate clean with remainder and header zero",
-		// 	// The purpose of this test is to validate that we cannot handle reassembled tcp segments.
-		// 	messageBuilder: func() [][]byte {
-		// 		data := []byte("test12345")
-		// 		a := newFramer().
-		// 			writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: generateTestHeaderFields(headersGenerationOptions{overrideContentLength: len(data)})}).bytes()
-		// 		b := newFramer().writeData(t, 1, true, data).bytes()
-		// 		message := append(a, b[:11]...)
-		// 		return [][]byte{
-		// 			// we split it in 11 bytes in order to split the payload itself.
-		// 			message,
-		// 			b[11:],
-		// 		}
-		// 	},
-		// 	mapSize: 0,
-		// },
-		// {
-		// 	name: "validate remainder in map",
-		// 	// The purpose of this test is to validate that we cannot handle reassembled tcp segments.
-		// 	messageBuilder: func() [][]byte {
-		// 		a := newFramer().
-		// 			writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}).
-		// 			writeData(t, 1, true, emptyBody).bytes()
-		// 		return [][]byte{
-		// 			// we split it in 10 bytes in order to split the payload itself.
-		// 			a[:10],
-		// 			a[10:],
-		// 		}
-		// 	},
-		// 	mapSize: 1,
-		// },
+		{
+			name: "validate clean with remainder and header zero",
+			// The purpose of this test is to validate that we cannot handle reassembled tcp segments.
+			messageBuilder: func() [][]byte {
+				data := []byte("test12345")
+				a := newFramer().
+					writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: generateTestHeaderFields(headersGenerationOptions{overrideContentLength: len(data)})}).bytes()
+				b := newFramer().writeData(t, 1, true, data).bytes()
+				message := append(a, b[:11]...)
+				return [][]byte{
+					// we split it in 11 bytes in order to split the payload itself.
+					message,
+					b[11:],
+				}
+			},
+			mapSize: 0,
+		},
+		{
+			name: "validate remainder in map",
+			// The purpose of this test is to validate that we cannot handle reassembled tcp segments.
+			messageBuilder: func() [][]byte {
+				a := newFramer().
+					writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}).
+					writeData(t, 1, true, emptyBody).bytes()
+				return [][]byte{
+					// we split it in 10 bytes in order to split the payload itself.
+					a[:10],
+					a[10:],
+				}
+			},
+			mapSize: 1,
+		},
 		{
 			name: "validate remainder in map with PRIORITY flag on HEADERS",
 			// Same flow as the existing remainder test, but HEADERS carries the PRIORITY flag
