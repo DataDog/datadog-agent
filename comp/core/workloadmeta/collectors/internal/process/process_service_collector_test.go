@@ -29,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/server/testutil"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
 const (
@@ -206,6 +205,7 @@ func TestServiceStoreLifetimeProcessCollectionDisabled(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			c := setUpCollectorTest(t, configOverrides, sysConfigOverrides, nil)
+			defer c.cleanup()
 			ctx := t.Context()
 
 			socketPath, _ := startTestServer(t, tc.httpResponse, tc.shouldError)
@@ -247,9 +247,6 @@ func TestServiceStoreLifetimeProcessCollectionDisabled(t *testing.T) {
 
 			// When process collection is disabled, ignored PIDs and error cases don't create process entities
 			// since they only get created when services are successfully discovered
-
-			// needed to reset the global telemetry registry as the start function registers a new gauge when discovery is enabled for each run
-			telemetry.GetCompatComponent().Reset()
 		})
 	}
 }
@@ -364,6 +361,7 @@ func TestServiceStoreLifetime(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Collector setup
 			c := setUpCollectorTest(t, configOverrides, sysConfigOverrides, nil)
+			defer c.cleanup()
 			ctx := t.Context()
 
 			// Create test server & override collector client
@@ -434,9 +432,6 @@ func TestServiceStoreLifetime(t *testing.T) {
 				assertStoredServices(t, c.mockStore, tc.expectStored)
 			}
 			assertProcessWithoutServices(t, c.mockStore, tc.ignoredPids)
-
-			// needed to reset the global telemetry registry as the start function registers a new gauge when discovery is enabled for each run
-			telemetry.GetCompatComponent().Reset()
 		})
 	}
 }
