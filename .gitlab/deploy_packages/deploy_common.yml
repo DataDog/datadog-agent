@@ -13,7 +13,7 @@
     - ls ${OMNIBUS_PACKAGE_DIR}/${ARTIFACT_NAME_PATTERN}
   script:
     - !reference [.setup_dd_pkg]
-    - dd-pkg upload "${OMNIBUS_PACKAGE_DIR}" "${DD_PKG_EXTRA_ARGS}"
+    - dd-pkg upload "${OMNIBUS_PACKAGE_DIR}" ${DD_PKG_EXTRA_ARGS}
 
 .deploy_packages_deb:
   extends: .deploy_packages
@@ -49,7 +49,7 @@
     !reference [.on_deploy_installer]
   resource_group: deb_bucket
   variables:
-    DD_PKG_EXTRA_ARGS: --project-name "datadog-installer"
+    DD_PKG_EXTRA_ARGS: --project-name datadog-installer
     ARTIFACT_NAME_PATTERN: "*_7.*${PACKAGE_ARCH}.deb"
 
 .deploy_installer_rpm:
@@ -58,13 +58,13 @@
     !reference [.on_deploy_installer]
   resource_group: rpm_bucket
   variables:
-    DD_PKG_EXTRA_ARGS: --project-name "datadog-installer"
+    DD_PKG_EXTRA_ARGS: --project-name datadog-installer
     ARTIFACT_NAME_PATTERN: "*-7.*${PACKAGE_ARCH}.rpm"
 
 .deploy_installer_suse_rpm:
   extends: .deploy_installer_rpm
   variables:
-    DD_PKG_EXTRA_ARGS: --suse --project-name "datadog-installer"
+    DD_PKG_EXTRA_ARGS: --suse --project-name datadog-installer
     OMNIBUS_PACKAGE_DIR: $OMNIBUS_PACKAGE_DIR_SUSE
 
 deploy_installer_install_scripts:
