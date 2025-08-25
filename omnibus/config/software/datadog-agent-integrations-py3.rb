@@ -234,6 +234,7 @@ build do
     'bs4/tests',
     'Cryptodome/SelfTest',
     'gssapi/tests',
+    'kazoo/tests',
     'keystoneauth1/tests',
     'lazy_loader/tests',
     'openstack/tests',
