@@ -27,22 +27,21 @@ def datadog_infra(ctx, audience, datacenter="us1.ddbuild.io", verbose=False):
     return token
 
 
-# TODO: cache?
 @task
-def gitlab(ctx, repo='datadog-agent'):
+def gitlab(ctx, repo='datadog-agent', verbose=False):
     """Get a gitlab token."""
 
-    token = datadog_infra(ctx, audience="sdm")
+    infra_token = datadog_infra(ctx, audience="sdm")
     url = f"https://bti-ci-api.us1.ddbuild.io/internal/ci/gitlab/token?owner=DataDog&repository={repo}"
 
-    res = requests.get(url, headers={'Authorization': token}, timeout=10)
+    res = requests.get(url, headers={'Authorization': infra_token}, timeout=10)
 
     if not res.ok:
         raise RuntimeError(f'Failed to retrieve Gitlab token, request failed with code {res.status_code}:\n{res.text}')
 
-    return res.json()['token']
+    token = res.json()['token']
 
-    # if running_in_ci():
+    if verbose:
+        print(token)
 
-
-# http "https://bti-ci-api.us1.ddbuild.io/internal/ci/gitlab/token?owner=DataDog&repository=ddci-project-test" "$(ddtool auth token sdm --datacenter us1.ddbuild.io --http-header)"
+    return token
