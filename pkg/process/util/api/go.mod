@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/process/util/api
 go 1.23.0
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.162
+	github.com/DataDog/agent-payload/v5 v5.0.163
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.64.1
 	github.com/gogo/protobuf v1.3.2
@@ -185,6 +185,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ../../../../pkg/logs/sources
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ../../../../pkg/logs/status/statusinterface
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils => ../../../../pkg/logs/status/utils
+	github.com/DataDog/datadog-agent/pkg/logs/types => ../../../../pkg/logs/types
 	github.com/DataDog/datadog-agent/pkg/logs/util/testutils => ../../../../pkg/logs/util/testutils
 	github.com/DataDog/datadog-agent/pkg/metrics => ../../../../pkg/metrics
 	github.com/DataDog/datadog-agent/pkg/network/payload => ../../../../pkg/network/payload

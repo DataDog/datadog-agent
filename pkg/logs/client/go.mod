@@ -36,6 +36,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/fips v0.0.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils v0.61.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/types v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.61.0 // indirect
@@ -192,6 +193,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ../../../pkg/logs/sources
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ../../../pkg/logs/status/statusinterface
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils => ../../../pkg/logs/status/utils
+	github.com/DataDog/datadog-agent/pkg/logs/types => ../../../pkg/logs/types
 	github.com/DataDog/datadog-agent/pkg/logs/util/testutils => ../../../pkg/logs/util/testutils
 	github.com/DataDog/datadog-agent/pkg/metrics => ../../../pkg/metrics
 	github.com/DataDog/datadog-agent/pkg/network/payload => ../../../pkg/network/payload

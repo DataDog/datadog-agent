@@ -8,6 +8,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.61.0
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.61.0
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.61.0
+	github.com/DataDog/datadog-agent/pkg/logs/types v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/log v0.64.1
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.61.0
@@ -173,6 +174,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ../../../../pkg/logs/sources
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ../../../../pkg/logs/status/statusinterface
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils => ../../../../pkg/logs/status/utils
+	github.com/DataDog/datadog-agent/pkg/logs/types => ../../../../pkg/logs/types
 	github.com/DataDog/datadog-agent/pkg/logs/util/testutils => ../../../../pkg/logs/util/testutils
 	github.com/DataDog/datadog-agent/pkg/metrics => ../../../../pkg/metrics
 	github.com/DataDog/datadog-agent/pkg/network/payload => ../../../../pkg/network/payload

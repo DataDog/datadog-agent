@@ -769,7 +769,7 @@ def gen_config_for_stack(
 
     if setup == "remote":
         for vmset in vm_config["vmsets"]:
-            if vmset["arch"] == "local":
+            if vmset.get("arch") == "local":
                 raise Exit(
                     "KMT initialized for remote only usage. Local VMs not supported. To use KMT locally run `dda inv -e kmt.init`"
                 )
@@ -864,7 +864,7 @@ def gen_config(
 
     print("Generated VMSets with tags:")
     for vmset in vm_config["vmsets"]:
-        tags = vmset["tags"]
+        tags = vmset.get("tags", [])
         tags.sort()
         print(f"- {', '.join(tags)}")
 
@@ -898,7 +898,7 @@ def get_image_age(manifest_path: str) -> str:
     return "Unknown"
 
 
-def has_checksum_changed(url_base: str, rootfs_dir: str, image: str, branch: str) -> bool:
+def has_checksum_changed(url_base: str, rootfs_dir: PathOrStr, image: str, branch: str) -> bool:
     import requests
 
     if requests is None:
@@ -930,7 +930,7 @@ def has_checksum_changed(url_base: str, rootfs_dir: str, image: str, branch: str
     return False
 
 
-def is_image_up_to_date_hash(url_base: str, rootfs_dir: str, image: str, branch: str) -> str:
+def is_image_up_to_date_hash(url_base: str, rootfs_dir: PathOrStr, image: str, branch: str) -> str:
     try:
         needs_update = has_checksum_changed(url_base, rootfs_dir, image, branch)
         return CROSS if needs_update else TICK

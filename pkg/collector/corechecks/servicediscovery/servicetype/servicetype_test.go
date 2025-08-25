@@ -45,7 +45,7 @@ func TestDetect(t *testing.T) {
 	}
 	for _, d := range data {
 		t.Run(d.name, func(t *testing.T) {
-			serviceType := servicetype.Detect(d.ports)
+			serviceType := servicetype.Detect(d.ports, []uint16{})
 			if serviceType != d.serviceType {
 				t.Errorf("expected %v, got %v", d.serviceType, serviceType)
 			}

@@ -414,8 +414,8 @@ func batchConnections(
 		namemap := make(map[string]int32)
 		namedb := make([]string, 0)
 
-		connectionsTagsEncoder := model.NewV2TagEncoder()
-		tagsEncoder := model.NewV2TagEncoder()
+		connectionsTagsEncoder := model.NewV3TagEncoder()
+		tagsEncoder := model.NewV3TagEncoder()
 		// Adding a dummy tag to ensure the indices we get are always >= 0.
 		_ = tagsEncoder.Encode([]string{"-"})
 

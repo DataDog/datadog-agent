@@ -5,8 +5,7 @@ struct pid_route_t {
     u64 addr[2];
     u32 netns;
     u16 port;
-    // TODO: wait for implementation on security_socket_bind to be ready first
-    // u16 l4_protocol;
+    u16 l4_protocol;
 };
 
 struct sock_meta_t {
@@ -112,6 +111,7 @@ struct packet_t {
     s64 pid;
     u32 payload_len;
     u32 network_direction;
+    u64 cgroup_id;
 };
 
 struct network_device_context_t {

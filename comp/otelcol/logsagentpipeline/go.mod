@@ -5,7 +5,7 @@ go 1.23.0
 require github.com/DataDog/datadog-agent/pkg/logs/pipeline v0.64.0-rc.3
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.162 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.163 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.64.0-rc.3 // indirect
@@ -34,6 +34,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/sources v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils v0.64.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/types v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/backoff v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/compression v0.64.0-rc.3 // indirect
@@ -201,6 +202,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ../../../pkg/logs/sources
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ../../../pkg/logs/status/statusinterface
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils => ../../../pkg/logs/status/utils
+	github.com/DataDog/datadog-agent/pkg/logs/types => ../../../pkg/logs/types
 	github.com/DataDog/datadog-agent/pkg/logs/util/testutils => ../../../pkg/logs/util/testutils
 	github.com/DataDog/datadog-agent/pkg/metrics => ../../../pkg/metrics
 	github.com/DataDog/datadog-agent/pkg/network/payload => ../../../pkg/network/payload

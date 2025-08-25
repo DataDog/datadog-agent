@@ -2,6 +2,29 @@
 Release Notes
 =============
 
+.. _Release Notes_7.69.2:
+
+7.69.2
+======
+
+.. _Release Notes_7.69.2_Prelude:
+
+Prelude
+-------
+
+Release on: 2025-08-20
+
+- Please refer to the `7.69.2 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7692>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.69.2_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- Upgrade libxml2 to 2.14.5.
+
+
 .. _Release Notes_7.69.1:
 
 7.69.1
@@ -827,6 +850,8 @@ Upgrade Notes
   Fleet Automation then you must provide the ``DDAGENTUSER_PASSWORD``
   option when upgrading to 7.66 or later. For more information see the features release notes.
 
+- Breaking change: Added a new feature flag `disable_operation_and_resource_name_logic_v2` in DD_APM_FEATURES that replaces `enable_operation_and_resource_name_logic_v2`. The [new operation name logic](https://docs.datadoghq.com/opentelemetry/migrate/migrate_operation_names/?tab=opentelemetrycollector) for OTLP is now opt-out instead of opt-in.
+
 
 .. _Release Notes_7.66.0_New Features:
 
@@ -883,8 +908,6 @@ Enhancement Notes
 - Get the k8s cluster name from an AKS node label if present
 
 - APM: Improve debug logging for ignore_resources configuration by showing what rule resulted in a trace being ignored.
-
-- Added a new feature flag `disable_operation_and_resource_name_logic_v2` in DD_APM_FEATURES that replaces `enable_operation_and_resource_name_logic_v2`. The new operation name logic for OTLP is now opt-out instead of opt-in.
 
 - Added an option for the Oracle integration to template the database instance identifier.
 

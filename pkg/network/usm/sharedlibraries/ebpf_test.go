@@ -44,6 +44,76 @@ func TestEbpfProgram(t *testing.T) {
 	})
 }
 
+func (s *EbpfProgramSuite) TestExpectedLibrariesAreDetected() {
+	t := s.T()
+
+	cfg := ebpf.NewConfig()
+	require.NotNil(t, cfg)
+
+	libsetToSampleLibraries := map[Libset][]string{
+		LibsetCrypto: {
+			"libssl.so",
+			"libcrypto.so",
+		},
+		LibsetLibc: {
+			"libc.so",
+		},
+		LibsetGPU: {
+			"libcudart.so",
+			"libnd4jcuda.so",
+		},
+	}
+
+	for libset, libraries := range libsetToSampleLibraries {
+		t.Run(string(libset), func(t *testing.T) {
+			cfg := ebpf.NewConfig()
+			require.NotNil(t, cfg)
+
+			prog := GetEBPFProgram(cfg)
+			require.NotNil(t, prog)
+			t.Cleanup(prog.Stop)
+
+			require.NoError(t, prog.InitWithLibsets(libset))
+
+			for _, library := range libraries {
+				t.Run(library, func(t *testing.T) {
+					// Add foo prefix to ensure we only get opens from our test file
+					filename := "foo-" + library
+					tempFile, _ := createTempTestFile(t, filename)
+
+					var receivedEventMutex sync.Mutex
+					var receivedEvent *LibPath
+					unsub, err := prog.Subscribe(func(path LibPath) {
+						receivedEventMutex.Lock()
+						defer receivedEventMutex.Unlock()
+						if strings.Contains(path.String(), filename) {
+							receivedEvent = &path
+						}
+					}, libset)
+					require.NoError(t, err)
+					t.Cleanup(unsub)
+
+					command, err := fileopener.OpenFromAnotherProcess(t, tempFile)
+					require.NoError(t, err)
+					require.NotNil(t, command.Process)
+					t.Cleanup(func() {
+						command.Process.Kill()
+					})
+
+					require.Eventually(t, func() bool {
+						receivedEventMutex.Lock()
+						defer receivedEventMutex.Unlock()
+						return receivedEvent != nil
+					}, 1*time.Second, 10*time.Millisecond)
+
+					require.Equal(t, tempFile, receivedEvent.String())
+					require.Equal(t, command.Process.Pid, int(receivedEvent.Pid))
+				})
+			}
+		})
+	}
+}
+
 func (s *EbpfProgramSuite) TestCanInstantiateMultipleTimes() {
 	t := s.T()
 	cfg := ebpf.NewConfig()

@@ -336,6 +336,34 @@ func (s *Sender) SendDIAMetrics(diaMetrics []client.DIAMetrics, deviceNameToIDMa
 	}
 }
 
+// SendAnalyticsInterfaceMetrics sends analytics interface metrics retrieved from Versa Analytics
+func (s *Sender) SendAnalyticsInterfaceMetrics(analyticsInterfaceMetrics []client.AnalyticsInterfaceMetrics, deviceNameToIDMap map[string]string) {
+	for _, ifaceMetric := range analyticsInterfaceMetrics {
+		var tags = []string{
+			"site:" + ifaceMetric.Site,
+			"access_circuit:" + ifaceMetric.AccessCkt,
+			"interface:" + ifaceMetric.Interface,
+		}
+		if deviceIP, ok := deviceNameToIDMap[ifaceMetric.Site]; ok {
+			tags = append(tags, s.GetDeviceTags(defaultIPTag, deviceIP)...)
+		}
+
+		// Send bandwidth utilization metrics
+		s.Gauge(versaMetricPrefix+"interface.rx_util", ifaceMetric.RxUtil, "", tags)
+		s.Gauge(versaMetricPrefix+"interface.tx_util", ifaceMetric.TxUtil, "", tags)
+
+		// Send volume metrics
+		s.Gauge(versaMetricPrefix+"interface.volume_rx", ifaceMetric.VolumeRx, "", tags)
+		s.Gauge(versaMetricPrefix+"interface.volume_tx", ifaceMetric.VolumeTx, "", tags)
+		s.Gauge(versaMetricPrefix+"interface.volume", ifaceMetric.Volume, "", tags)
+
+		// Send bandwidth metrics
+		s.Gauge(versaMetricPrefix+"interface.bandwidth_rx", ifaceMetric.BandwidthRx, "", tags)
+		s.Gauge(versaMetricPrefix+"interface.bandwidth_tx", ifaceMetric.BandwidthTx, "", tags)
+		s.Gauge(versaMetricPrefix+"interface.bandwidth", ifaceMetric.Bandwidth, "", tags)
+	}
+}
+
 // SendInterfaceMetrics sends interface metrics
 func (s *Sender) SendInterfaceMetrics(interfaceMetricsByDevice map[string][]client.InterfaceMetrics) {
 	for deviceIP, interfaceMetrics := range interfaceMetricsByDevice {
