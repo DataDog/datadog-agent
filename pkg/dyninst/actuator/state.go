@@ -597,12 +597,12 @@ func handleProgramAttachingFailed(
 func handleProgramAttached(
 	sm *state, effects effectHandler, ev eventProgramAttached,
 ) error {
-	prog, ok := sm.programs[ev.program.ir.ID]
+	prog, ok := sm.programs[ev.program.programID]
 	if !ok {
-		return fmt.Errorf("program %v not found in programs", ev.program.ir.ID)
+		return fmt.Errorf("program %v not found in programs", ev.program.programID)
 	}
 	key := processKey{
-		ProcessID: ev.program.procID,
+		ProcessID: ev.program.processID,
 		tenantID:  prog.tenantID,
 	}
 	proc, ok := sm.processes[key]
