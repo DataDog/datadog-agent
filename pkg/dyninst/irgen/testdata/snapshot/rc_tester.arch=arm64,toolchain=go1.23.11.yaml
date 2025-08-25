@@ -11,7 +11,7 @@ Probes:
       events:
         - ID: 1
           Type: 268 EventRootType Probe[main.HandleHTTP]
-          InjectionPoints: [{PC: "0x8dfb70", Frameless: true}]
+          InjectionPoints: [{PC: "0x8dff40", Frameless: true}]
           Condition: null
     - id: look_at_the_request
       version: 0
@@ -24,30 +24,30 @@ Probes:
       events:
         - ID: 2
           Type: 269 EventRootType Probe[main.LookAtTheRequest]
-          InjectionPoints: [{PC: "0x8dfe8c", Frameless: true}]
+          InjectionPoints: [{PC: "0x8e025c", Frameless: true}]
           Condition: null
 Subprograms:
     - ID: 1
       Name: main.HandleHTTP
-      OutOfLinePCRanges: [0x8dfb60..0x8dfda0]
+      OutOfLinePCRanges: [0x8dff30..0x8e0170]
       InlinePCRanges: []
       Variables:
         - Name: w
           Type: 1 GoInterfaceType net/http.ResponseWriter
           Locations:
-            - Range: 0x8dfb60..0x8dfbb8
+            - Range: 0x8dff30..0x8dff88
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}
                 - Size: 8
                   Op: {RegNo: 1, Shift: 0}
-            - Range: 0x8dfbb8..0x8dfbbc
+            - Range: 0x8dff88..0x8dff8c
               Pieces:
                 - Size: 8
                   Op: {CfaOffset: 8}
                 - Size: 8
                   Op: {CfaOffset: 16}
-            - Range: 0x8dfbbc..0x8dfda0
+            - Range: 0x8dff8c..0x8e0170
               Pieces:
                 - Size: 8
                   Op: {CfaOffset: 8}
@@ -58,44 +58,44 @@ Subprograms:
         - Name: r
           Type: 25 PointerType *net/http.Request
           Locations:
-            - Range: 0x8dfb60..0x8dfbc4
+            - Range: 0x8dff30..0x8dff94
               Pieces: [{Size: 8, Op: {RegNo: 2, Shift: 0}}]
-            - Range: 0x8dfbc4..0x8dfda0
+            - Range: 0x8dff94..0x8e0170
               Pieces: [{Size: 8, Op: {CfaOffset: 24}}]
           IsParameter: true
           IsReturn: false
         - Name: span
           Type: 144 PointerType *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.Span
           Locations:
-            - Range: 0x8dfbd8..0x8dfc08
+            - Range: 0x8dffa8..0x8dffd8
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           IsParameter: false
           IsReturn: false
         - Name: '&buf'
           Type: 197 PointerType *bytes.Buffer
           Locations:
-            - Range: 0x8dfcac..0x8dfcc8
+            - Range: 0x8e007c..0x8e0098
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
-            - Range: 0x8dfcc8..0x8dfda0
+            - Range: 0x8e0098..0x8e0170
               Pieces: [{Size: 8, Op: {CfaOffset: -120}}]
           IsParameter: false
           IsReturn: false
         - Name: .autotmp_14
           Type: 200 StructureType context.backgroundCtx
           Locations:
-            - Range: 0x8dfb60..0x8dfda0
+            - Range: 0x8dff30..0x8e0170
               Pieces: [{Size: 0, Op: {CfaOffset: 0}}]
           IsParameter: false
           IsReturn: false
     - ID: 2
       Name: main.LookAtTheRequest
-      OutOfLinePCRanges: [0x8dfe80..0x8dff40]
+      OutOfLinePCRanges: [0x8e0250..0x8e0310]
       InlinePCRanges: []
       Variables:
         - Name: path
           Type: 27 GoStringHeaderType string
           Locations:
-            - Range: 0x8dfe80..0x8dfea4
+            - Range: 0x8e0250..0x8e0274
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}
@@ -108,7 +108,7 @@ Types:
       ID: 1
       Name: net/http.ResponseWriter
       ByteSize: 16
-      GoRuntimeType: 1.125568e+06
+      GoRuntimeType: 1.125472e+06
       GoKind: 20
       UnderlyingStructure: 2 StructureType runtime.iface
     - __kind: StructureType
@@ -127,14 +127,14 @@ Types:
       ID: 3
       Name: '*internal/abi.ITab'
       ByteSize: 8
-      GoRuntimeType: 397632
+      GoRuntimeType: 399136
       GoKind: 22
       Pointee: 4 StructureType internal/abi.ITab
     - __kind: StructureType
       ID: 4
       Name: internal/abi.ITab
       ByteSize: 32
-      GoRuntimeType: 1.677792e+06
+      GoRuntimeType: 1.678976e+06
       GoKind: 25
       RawFields:
         - Name: Inter
@@ -153,14 +153,14 @@ Types:
       ID: 5
       Name: '*internal/abi.InterfaceType'
       ByteSize: 8
-      GoRuntimeType: 2.11904e+06
+      GoRuntimeType: 2.119104e+06
       GoKind: 22
       Pointee: 6 StructureType internal/abi.InterfaceType
     - __kind: StructureType
       ID: 6
       Name: internal/abi.InterfaceType
       ByteSize: 80
-      GoRuntimeType: 1.481312e+06
+      GoRuntimeType: 1.483072e+06
       GoKind: 25
       RawFields:
         - Name: Type
@@ -176,7 +176,7 @@ Types:
       ID: 7
       Name: internal/abi.Type
       ByteSize: 48
-      GoRuntimeType: 2.043424e+06
+      GoRuntimeType: 2.04464e+06
       GoKind: 25
       RawFields:
         - Name: Size_
@@ -216,62 +216,62 @@ Types:
       ID: 8
       Name: uintptr
       ByteSize: 8
-      GoRuntimeType: 543200
+      GoRuntimeType: 543232
       GoKind: 12
     - __kind: BaseType
       ID: 9
       Name: uint32
       ByteSize: 4
-      GoRuntimeType: 542880
+      GoRuntimeType: 542912
       GoKind: 10
     - __kind: BaseType
       ID: 10
       Name: internal/abi.TFlag
       ByteSize: 1
-      GoRuntimeType: 545824
+      GoRuntimeType: 546112
       GoKind: 8
     - __kind: BaseType
       ID: 11
       Name: uint8
       ByteSize: 1
-      GoRuntimeType: 542624
+      GoRuntimeType: 542656
       GoKind: 8
     - __kind: BaseType
       ID: 12
       Name: internal/abi.Kind
       ByteSize: 1
-      GoRuntimeType: 780576
+      GoRuntimeType: 780704
       GoKind: 8
     - __kind: GoSubroutineType
       ID: 13
       Name: func(unsafe.Pointer, unsafe.Pointer) bool
       ByteSize: 8
-      GoRuntimeType: 797792
+      GoRuntimeType: 797824
       GoKind: 19
     - __kind: PointerType
       ID: 14
       Name: '*uint8'
       ByteSize: 8
-      GoRuntimeType: 376192
+      GoRuntimeType: 376224
       GoKind: 22
       Pointee: 11 BaseType uint8
     - __kind: BaseType
       ID: 15
       Name: internal/abi.NameOff
       ByteSize: 4
-      GoRuntimeType: 545888
+      GoRuntimeType: 546176
       GoKind: 5
     - __kind: BaseType
       ID: 16
       Name: internal/abi.TypeOff
       ByteSize: 4
-      GoRuntimeType: 545952
+      GoRuntimeType: 546240
       GoKind: 5
     - __kind: StructureType
       ID: 17
       Name: internal/abi.Name
       ByteSize: 8
-      GoRuntimeType: 1.885376e+06
+      GoRuntimeType: 1.886304e+06
       GoKind: 25
       RawFields:
         - Name: Bytes
@@ -281,7 +281,7 @@ Types:
       ID: 18
       Name: '[]internal/abi.Imethod'
       ByteSize: 24
-      GoRuntimeType: 484960
+      GoRuntimeType: 486272
       GoKind: 23
       RawFields:
         - Name: array
@@ -298,14 +298,14 @@ Types:
       ID: 19
       Name: '*internal/abi.Imethod'
       ByteSize: 8
-      GoRuntimeType: 397568
+      GoRuntimeType: 399072
       GoKind: 22
       Pointee: 20 StructureType internal/abi.Imethod
     - __kind: StructureType
       ID: 20
       Name: internal/abi.Imethod
       ByteSize: 8
-      GoRuntimeType: 1.335776e+06
+      GoRuntimeType: 1.336768e+06
       GoKind: 25
       RawFields:
         - Name: Name
@@ -318,20 +318,20 @@ Types:
       ID: 21
       Name: int
       ByteSize: 8
-      GoRuntimeType: 543072
+      GoRuntimeType: 543104
       GoKind: 2
     - __kind: PointerType
       ID: 22
       Name: '*internal/abi.Type'
       ByteSize: 8
-      GoRuntimeType: 2.119488e+06
+      GoRuntimeType: 2.119552e+06
       GoKind: 22
       Pointee: 7 StructureType internal/abi.Type
     - __kind: ArrayType
       ID: 23
       Name: '[1]uintptr'
       ByteSize: 8
-      GoRuntimeType: 636736
+      GoRuntimeType: 636768
       GoKind: 17
       Count: 1
       HasCount: true
@@ -340,20 +340,20 @@ Types:
       ID: 24
       Name: unsafe.Pointer
       ByteSize: 8
-      GoRuntimeType: 543584
+      GoRuntimeType: 543616
       GoKind: 26
     - __kind: PointerType
       ID: 25
       Name: '*net/http.Request'
       ByteSize: 8
-      GoRuntimeType: 2.219904e+06
+      GoRuntimeType: 2.219968e+06
       GoKind: 22
       Pointee: 26 StructureType net/http.Request
     - __kind: StructureType
       ID: 26
       Name: net/http.Request
       ByteSize: 304
-      GoRuntimeType: 2.256224e+06
+      GoRuntimeType: 2.256288e+06
       GoKind: 25
       RawFields:
         - Name: Method
@@ -438,7 +438,7 @@ Types:
       ID: 27
       Name: string
       ByteSize: 16
-      GoRuntimeType: 542496
+      GoRuntimeType: 542528
       GoKind: 24
       RawFields:
         - Name: str
@@ -452,14 +452,14 @@ Types:
       ID: 28
       Name: '*net/url.URL'
       ByteSize: 8
-      GoRuntimeType: 2.002432e+06
+      GoRuntimeType: 2.002496e+06
       GoKind: 22
       Pointee: 29 StructureType net/url.URL
     - __kind: StructureType
       ID: 29
       Name: net/url.URL
       ByteSize: 144
-      GoRuntimeType: 2.041504e+06
+      GoRuntimeType: 2.041568e+06
       GoKind: 25
       RawFields:
         - Name: Scheme
@@ -499,14 +499,14 @@ Types:
       ID: 30
       Name: '*net/url.Userinfo'
       ByteSize: 8
-      GoRuntimeType: 1.141696e+06
+      GoRuntimeType: 1.1416e+06
       GoKind: 22
       Pointee: 31 StructureType net/url.Userinfo
     - __kind: StructureType
       ID: 31
       Name: net/url.Userinfo
       ByteSize: 40
-      GoRuntimeType: 1.4696e+06
+      GoRuntimeType: 1.469632e+06
       GoKind: 25
       RawFields:
         - Name: username
@@ -522,13 +522,13 @@ Types:
       ID: 32
       Name: bool
       ByteSize: 1
-      GoRuntimeType: 543520
+      GoRuntimeType: 543552
       GoKind: 1
     - __kind: GoMapType
       ID: 33
       Name: net/http.Header
       ByteSize: 8
-      GoRuntimeType: 1.964224e+06
+      GoRuntimeType: 1.964288e+06
       GoKind: 21
       HeaderType: 35 GoHMapHeaderType hash<string,[]string>
     - __kind: PointerType
@@ -574,7 +574,7 @@ Types:
       ID: 36
       Name: uint16
       ByteSize: 2
-      GoRuntimeType: 542752
+      GoRuntimeType: 542784
       GoKind: 9
     - __kind: PointerType
       ID: 37
@@ -604,7 +604,7 @@ Types:
       ID: 39
       Name: '[8]uint8'
       ByteSize: 8
-      GoRuntimeType: 632800
+      GoRuntimeType: 632832
       GoKind: 17
       Count: 8
       HasCount: true
@@ -627,7 +627,7 @@ Types:
       ID: 42
       Name: '[]string'
       ByteSize: 24
-      GoRuntimeType: 469056
+      GoRuntimeType: 469152
       GoKind: 23
       RawFields:
         - Name: array
@@ -644,21 +644,21 @@ Types:
       ID: 43
       Name: '*string'
       ByteSize: 8
-      GoRuntimeType: 376064
+      GoRuntimeType: 376096
       GoKind: 22
       Pointee: 27 GoStringHeaderType string
     - __kind: PointerType
       ID: 44
       Name: '*runtime.mapextra'
       ByteSize: 8
-      GoRuntimeType: 379968
+      GoRuntimeType: 380000
       GoKind: 22
       Pointee: 45 StructureType runtime.mapextra
     - __kind: StructureType
       ID: 45
       Name: runtime.mapextra
       ByteSize: 24
-      GoRuntimeType: 1.465568e+06
+      GoRuntimeType: 1.4656e+06
       GoKind: 25
       RawFields:
         - Name: overflow
@@ -674,14 +674,14 @@ Types:
       ID: 46
       Name: '*[]*runtime.bmap'
       ByteSize: 8
-      GoRuntimeType: 470720
+      GoRuntimeType: 470816
       GoKind: 22
       Pointee: 47 GoSliceHeaderType []*runtime.bmap
     - __kind: GoSliceHeaderType
       ID: 47
       Name: '[]*runtime.bmap'
       ByteSize: 24
-      GoRuntimeType: 470656
+      GoRuntimeType: 470752
       GoKind: 23
       RawFields:
         - Name: array
@@ -703,14 +703,14 @@ Types:
       ID: 49
       Name: '*runtime.bmap'
       ByteSize: 8
-      GoRuntimeType: 1.137344e+06
+      GoRuntimeType: 1.137248e+06
       GoKind: 22
       Pointee: 50 StructureType runtime.bmap
     - __kind: StructureType
       ID: 50
       Name: runtime.bmap
       ByteSize: 8
-      GoRuntimeType: 1.137216e+06
+      GoRuntimeType: 1.13712e+06
       GoKind: 25
       RawFields:
         - Name: tophash
@@ -720,40 +720,40 @@ Types:
       ID: 51
       Name: io.ReadCloser
       ByteSize: 16
-      GoRuntimeType: 1.093184e+06
+      GoRuntimeType: 1.093088e+06
       GoKind: 20
       UnderlyingStructure: 2 StructureType runtime.iface
     - __kind: GoSubroutineType
       ID: 52
       Name: func() (io.ReadCloser, error)
       ByteSize: 8
-      GoRuntimeType: 645568
+      GoRuntimeType: 645600
       GoKind: 19
     - __kind: BaseType
       ID: 53
       Name: int64
       ByteSize: 8
-      GoRuntimeType: 542944
+      GoRuntimeType: 542976
       GoKind: 6
     - __kind: GoMapType
       ID: 54
       Name: net/url.Values
       ByteSize: 8
-      GoRuntimeType: 1.712384e+06
+      GoRuntimeType: 1.712416e+06
       GoKind: 21
       HeaderType: 35 GoHMapHeaderType hash<string,[]string>
     - __kind: PointerType
       ID: 55
       Name: '*mime/multipart.Form'
       ByteSize: 8
-      GoRuntimeType: 853824
+      GoRuntimeType: 853856
       GoKind: 22
       Pointee: 56 StructureType mime/multipart.Form
     - __kind: StructureType
       ID: 56
       Name: mime/multipart.Form
       ByteSize: 16
-      GoRuntimeType: 1.326016e+06
+      GoRuntimeType: 1.326048e+06
       GoKind: 25
       RawFields:
         - Name: Value
@@ -766,14 +766,14 @@ Types:
       ID: 57
       Name: map[string][]string
       ByteSize: 8
-      GoRuntimeType: 899328
+      GoRuntimeType: 899360
       GoKind: 21
       HeaderType: 35 GoHMapHeaderType hash<string,[]string>
     - __kind: GoMapType
       ID: 58
       Name: map[string][]*mime/multipart.FileHeader
       ByteSize: 8
-      GoRuntimeType: 904128
+      GoRuntimeType: 904160
       GoKind: 21
       HeaderType: 60 GoHMapHeaderType hash<string,[]*mime/multipart.FileHeader>
     - __kind: PointerType
@@ -850,7 +850,7 @@ Types:
       ID: 64
       Name: '[]*mime/multipart.FileHeader'
       ByteSize: 24
-      GoRuntimeType: 461632
+      GoRuntimeType: 461664
       GoKind: 23
       RawFields:
         - Name: array
@@ -873,14 +873,14 @@ Types:
       ID: 66
       Name: '*mime/multipart.FileHeader'
       ByteSize: 8
-      GoRuntimeType: 853728
+      GoRuntimeType: 853760
       GoKind: 22
       Pointee: 67 StructureType mime/multipart.FileHeader
     - __kind: StructureType
       ID: 67
       Name: mime/multipart.FileHeader
       ByteSize: 88
-      GoRuntimeType: 1.881632e+06
+      GoRuntimeType: 1.881696e+06
       GoKind: 25
       RawFields:
         - Name: Filename
@@ -908,14 +908,14 @@ Types:
       ID: 68
       Name: net/textproto.MIMEHeader
       ByteSize: 8
-      GoRuntimeType: 1.637888e+06
+      GoRuntimeType: 1.63792e+06
       GoKind: 21
       HeaderType: 35 GoHMapHeaderType hash<string,[]string>
     - __kind: GoSliceHeaderType
       ID: 69
       Name: '[]uint8'
       ByteSize: 24
-      GoRuntimeType: 467904
+      GoRuntimeType: 468000
       GoKind: 23
       RawFields:
         - Name: array
@@ -932,14 +932,14 @@ Types:
       ID: 70
       Name: '*crypto/tls.ConnectionState'
       ByteSize: 8
-      GoRuntimeType: 852288
+      GoRuntimeType: 852320
       GoKind: 22
       Pointee: 71 StructureType crypto/tls.ConnectionState
     - __kind: StructureType
       ID: 71
       Name: crypto/tls.ConnectionState
       ByteSize: 192
-      GoRuntimeType: 2.160896e+06
+      GoRuntimeType: 2.16096e+06
       GoKind: 25
       RawFields:
         - Name: Version
@@ -994,7 +994,7 @@ Types:
       ID: 72
       Name: '[]*crypto/x509.Certificate'
       ByteSize: 24
-      GoRuntimeType: 473824
+      GoRuntimeType: 473920
       GoKind: 23
       RawFields:
         - Name: array
@@ -1016,14 +1016,14 @@ Types:
       ID: 74
       Name: '*crypto/x509.Certificate'
       ByteSize: 8
-      GoRuntimeType: 1.953376e+06
+      GoRuntimeType: 1.95344e+06
       GoKind: 22
       Pointee: 75 StructureType crypto/x509.Certificate
     - __kind: StructureType
       ID: 75
       Name: crypto/x509.Certificate
       ByteSize: 1352
-      GoRuntimeType: 2.300928e+06
+      GoRuntimeType: 2.300992e+06
       GoKind: 25
       RawFields:
         - Name: Raw
@@ -1165,19 +1165,19 @@ Types:
       ID: 76
       Name: crypto/x509.SignatureAlgorithm
       ByteSize: 8
-      GoRuntimeType: 1.097408e+06
+      GoRuntimeType: 1.09744e+06
       GoKind: 2
     - __kind: BaseType
       ID: 77
       Name: crypto/x509.PublicKeyAlgorithm
       ByteSize: 8
-      GoRuntimeType: 780768
+      GoRuntimeType: 780896
       GoKind: 2
     - __kind: GoEmptyInterfaceType
       ID: 78
       Name: interface {}
       ByteSize: 16
-      GoRuntimeType: 797984
+      GoRuntimeType: 798016
       GoKind: 20
       UnderlyingStructure: 79 StructureType runtime.eface
     - __kind: StructureType
@@ -1196,14 +1196,14 @@ Types:
       ID: 80
       Name: '*math/big.Int'
       ByteSize: 8
-      GoRuntimeType: 2.297376e+06
+      GoRuntimeType: 2.29744e+06
       GoKind: 22
       Pointee: 81 StructureType math/big.Int
     - __kind: StructureType
       ID: 81
       Name: math/big.Int
       ByteSize: 32
-      GoRuntimeType: 1.339776e+06
+      GoRuntimeType: 1.340768e+06
       GoKind: 25
       RawFields:
         - Name: neg
@@ -1216,7 +1216,7 @@ Types:
       ID: 82
       Name: math/big.nat
       ByteSize: 24
-      GoRuntimeType: 2.28048e+06
+      GoRuntimeType: 2.280544e+06
       GoKind: 23
       RawFields:
         - Name: array
@@ -1233,20 +1233,20 @@ Types:
       ID: 83
       Name: '*math/big.Word'
       ByteSize: 8
-      GoRuntimeType: 402048
+      GoRuntimeType: 403552
       GoKind: 22
       Pointee: 84 BaseType math/big.Word
     - __kind: BaseType
       ID: 84
       Name: math/big.Word
       ByteSize: 8
-      GoRuntimeType: 546592
+      GoRuntimeType: 546880
       GoKind: 7
     - __kind: StructureType
       ID: 85
       Name: crypto/x509/pkix.Name
       ByteSize: 248
-      GoRuntimeType: 2.105632e+06
+      GoRuntimeType: 2.105696e+06
       GoKind: 25
       RawFields:
         - Name: Country
@@ -1286,7 +1286,7 @@ Types:
       ID: 86
       Name: '[]crypto/x509/pkix.AttributeTypeAndValue'
       ByteSize: 24
-      GoRuntimeType: 485984
+      GoRuntimeType: 487296
       GoKind: 23
       RawFields:
         - Name: array
@@ -1303,14 +1303,14 @@ Types:
       ID: 87
       Name: '*crypto/x509/pkix.AttributeTypeAndValue'
       ByteSize: 8
-      GoRuntimeType: 414592
+      GoRuntimeType: 417504
       GoKind: 22
       Pointee: 88 StructureType crypto/x509/pkix.AttributeTypeAndValue
     - __kind: StructureType
       ID: 88
       Name: crypto/x509/pkix.AttributeTypeAndValue
       ByteSize: 40
-      GoRuntimeType: 1.347456e+06
+      GoRuntimeType: 1.349408e+06
       GoKind: 25
       RawFields:
         - Name: Type
@@ -1323,7 +1323,7 @@ Types:
       ID: 89
       Name: encoding/asn1.ObjectIdentifier
       ByteSize: 24
-      GoRuntimeType: 1.035264e+06
+      GoRuntimeType: 1.0376e+06
       GoKind: 23
       RawFields:
         - Name: array
@@ -1340,14 +1340,14 @@ Types:
       ID: 90
       Name: '*int'
       ByteSize: 8
-      GoRuntimeType: 376640
+      GoRuntimeType: 376672
       GoKind: 22
       Pointee: 21 BaseType int
     - __kind: StructureType
       ID: 91
       Name: time.Time
       ByteSize: 24
-      GoRuntimeType: 2.281408e+06
+      GoRuntimeType: 2.281472e+06
       GoKind: 25
       RawFields:
         - Name: wall
@@ -1363,20 +1363,20 @@ Types:
       ID: 92
       Name: uint64
       ByteSize: 8
-      GoRuntimeType: 543008
+      GoRuntimeType: 543040
       GoKind: 11
     - __kind: PointerType
       ID: 93
       Name: '*time.Location'
       ByteSize: 8
-      GoRuntimeType: 1.458464e+06
+      GoRuntimeType: 1.458496e+06
       GoKind: 22
       Pointee: 94 StructureType time.Location
     - __kind: StructureType
       ID: 94
       Name: time.Location
       ByteSize: 104
-      GoRuntimeType: 1.877888e+06
+      GoRuntimeType: 1.877952e+06
       GoKind: 25
       RawFields:
         - Name: name
@@ -1404,7 +1404,7 @@ Types:
       ID: 95
       Name: '[]time.zone'
       ByteSize: 24
-      GoRuntimeType: 463232
+      GoRuntimeType: 463264
       GoKind: 23
       RawFields:
         - Name: array
@@ -1421,14 +1421,14 @@ Types:
       ID: 96
       Name: '*time.zone'
       ByteSize: 8
-      GoRuntimeType: 370944
+      GoRuntimeType: 370976
       GoKind: 22
       Pointee: 97 StructureType time.zone
     - __kind: StructureType
       ID: 97
       Name: time.zone
       ByteSize: 32
-      GoRuntimeType: 1.458272e+06
+      GoRuntimeType: 1.458304e+06
       GoKind: 25
       RawFields:
         - Name: name
@@ -1444,7 +1444,7 @@ Types:
       ID: 98
       Name: '[]time.zoneTrans'
       ByteSize: 24
-      GoRuntimeType: 463296
+      GoRuntimeType: 463328
       GoKind: 23
       RawFields:
         - Name: array
@@ -1461,14 +1461,14 @@ Types:
       ID: 99
       Name: '*time.zoneTrans'
       ByteSize: 8
-      GoRuntimeType: 371008
+      GoRuntimeType: 371040
       GoKind: 22
       Pointee: 100 StructureType time.zoneTrans
     - __kind: StructureType
       ID: 100
       Name: time.zoneTrans
       ByteSize: 16
-      GoRuntimeType: 1.66416e+06
+      GoRuntimeType: 1.664192e+06
       GoKind: 25
       RawFields:
         - Name: when
@@ -1487,13 +1487,13 @@ Types:
       ID: 101
       Name: crypto/x509.KeyUsage
       ByteSize: 8
-      GoRuntimeType: 546272
+      GoRuntimeType: 546560
       GoKind: 2
     - __kind: GoSliceHeaderType
       ID: 102
       Name: '[]crypto/x509/pkix.Extension'
       ByteSize: 24
-      GoRuntimeType: 485472
+      GoRuntimeType: 486784
       GoKind: 23
       RawFields:
         - Name: array
@@ -1510,14 +1510,14 @@ Types:
       ID: 103
       Name: '*crypto/x509/pkix.Extension'
       ByteSize: 8
-      GoRuntimeType: 414784
+      GoRuntimeType: 417696
       GoKind: 22
       Pointee: 104 StructureType crypto/x509/pkix.Extension
     - __kind: StructureType
       ID: 104
       Name: crypto/x509/pkix.Extension
       ByteSize: 56
-      GoRuntimeType: 1.492064e+06
+      GoRuntimeType: 1.494976e+06
       GoKind: 25
       RawFields:
         - Name: Id
@@ -1533,7 +1533,7 @@ Types:
       ID: 105
       Name: '[]encoding/asn1.ObjectIdentifier'
       ByteSize: 24
-      GoRuntimeType: 485536
+      GoRuntimeType: 486848
       GoKind: 23
       RawFields:
         - Name: array
@@ -1550,14 +1550,14 @@ Types:
       ID: 106
       Name: '*encoding/asn1.ObjectIdentifier'
       ByteSize: 8
-      GoRuntimeType: 1.035136e+06
+      GoRuntimeType: 1.037472e+06
       GoKind: 22
       Pointee: 89 GoSliceHeaderType encoding/asn1.ObjectIdentifier
     - __kind: GoSliceHeaderType
       ID: 107
       Name: '[]crypto/x509.ExtKeyUsage'
       ByteSize: 24
-      GoRuntimeType: 475104
+      GoRuntimeType: 475200
       GoKind: 23
       RawFields:
         - Name: array
@@ -1574,20 +1574,20 @@ Types:
       ID: 108
       Name: '*crypto/x509.ExtKeyUsage'
       ByteSize: 8
-      GoRuntimeType: 399232
+      GoRuntimeType: 400736
       GoKind: 22
       Pointee: 109 BaseType crypto/x509.ExtKeyUsage
     - __kind: BaseType
       ID: 109
       Name: crypto/x509.ExtKeyUsage
       ByteSize: 8
-      GoRuntimeType: 546336
+      GoRuntimeType: 546624
       GoKind: 2
     - __kind: GoSliceHeaderType
       ID: 110
       Name: '[]net.IP'
       ByteSize: 24
-      GoRuntimeType: 458368
+      GoRuntimeType: 458400
       GoKind: 23
       RawFields:
         - Name: array
@@ -1604,14 +1604,14 @@ Types:
       ID: 111
       Name: '*net.IP'
       ByteSize: 8
-      GoRuntimeType: 2.029056e+06
+      GoRuntimeType: 2.02912e+06
       GoKind: 22
       Pointee: 112 GoSliceHeaderType net.IP
     - __kind: GoSliceHeaderType
       ID: 112
       Name: net.IP
       ByteSize: 24
-      GoRuntimeType: 2.001376e+06
+      GoRuntimeType: 2.00144e+06
       GoKind: 23
       RawFields:
         - Name: array
@@ -1628,7 +1628,7 @@ Types:
       ID: 113
       Name: '[]*net/url.URL'
       ByteSize: 24
-      GoRuntimeType: 485600
+      GoRuntimeType: 486912
       GoKind: 23
       RawFields:
         - Name: array
@@ -1650,7 +1650,7 @@ Types:
       ID: 115
       Name: '[]*net.IPNet'
       ByteSize: 24
-      GoRuntimeType: 485664
+      GoRuntimeType: 486976
       GoKind: 23
       RawFields:
         - Name: array
@@ -1673,14 +1673,14 @@ Types:
       ID: 117
       Name: '*net.IPNet'
       ByteSize: 8
-      GoRuntimeType: 1.123008e+06
+      GoRuntimeType: 1.122912e+06
       GoKind: 22
       Pointee: 118 StructureType net.IPNet
     - __kind: StructureType
       ID: 118
       Name: net.IPNet
       ByteSize: 48
-      GoRuntimeType: 1.307136e+06
+      GoRuntimeType: 1.307168e+06
       GoKind: 25
       RawFields:
         - Name: IP
@@ -1693,7 +1693,7 @@ Types:
       ID: 119
       Name: net.IPMask
       ByteSize: 24
-      GoRuntimeType: 999424
+      GoRuntimeType: 999456
       GoKind: 23
       RawFields:
         - Name: array
@@ -1710,7 +1710,7 @@ Types:
       ID: 120
       Name: '[]crypto/x509.OID'
       ByteSize: 24
-      GoRuntimeType: 485728
+      GoRuntimeType: 487040
       GoKind: 23
       RawFields:
         - Name: array
@@ -1727,14 +1727,14 @@ Types:
       ID: 121
       Name: '*crypto/x509.OID'
       ByteSize: 8
-      GoRuntimeType: 1.761856e+06
+      GoRuntimeType: 1.762368e+06
       GoKind: 22
       Pointee: 122 StructureType crypto/x509.OID
     - __kind: StructureType
       ID: 122
       Name: crypto/x509.OID
       ByteSize: 24
-      GoRuntimeType: 1.76208e+06
+      GoRuntimeType: 1.762592e+06
       GoKind: 25
       RawFields:
         - Name: der
@@ -1744,7 +1744,7 @@ Types:
       ID: 123
       Name: '[][]*crypto/x509.Certificate'
       ByteSize: 24
-      GoRuntimeType: 473952
+      GoRuntimeType: 474048
       GoKind: 23
       RawFields:
         - Name: array
@@ -1767,7 +1767,7 @@ Types:
       ID: 125
       Name: '[][]uint8'
       ByteSize: 24
-      GoRuntimeType: 457152
+      GoRuntimeType: 457184
       GoKind: 23
       RawFields:
         - Name: array
@@ -1784,38 +1784,38 @@ Types:
       ID: 126
       Name: '*[]uint8'
       ByteSize: 8
-      GoRuntimeType: 456896
+      GoRuntimeType: 456928
       GoKind: 22
       Pointee: 69 GoSliceHeaderType []uint8
     - __kind: GoSubroutineType
       ID: 127
       Name: func(string, []uint8, int) ([]uint8, error)
       ByteSize: 8
-      GoRuntimeType: 983168
+      GoRuntimeType: 983200
       GoKind: 19
     - __kind: BaseType
       ID: 128
       Name: crypto/tls.CurveID
       ByteSize: 2
-      GoRuntimeType: 778560
+      GoRuntimeType: 778592
       GoKind: 9
     - __kind: GoChannelType
       ID: 129
       Name: <-chan struct {}
-      GoRuntimeType: 555488
+      GoRuntimeType: 555520
       GoKind: 18
     - __kind: PointerType
       ID: 130
       Name: '*net/http.Response'
       ByteSize: 8
-      GoRuntimeType: 1.632704e+06
+      GoRuntimeType: 1.632736e+06
       GoKind: 22
       Pointee: 131 StructureType net/http.Response
     - __kind: StructureType
       ID: 131
       Name: net/http.Response
       ByteSize: 144
-      GoRuntimeType: 2.123968e+06
+      GoRuntimeType: 2.124032e+06
       GoKind: 25
       RawFields:
         - Name: Status
@@ -1864,21 +1864,21 @@ Types:
       ID: 132
       Name: context.Context
       ByteSize: 16
-      GoRuntimeType: 1.215872e+06
+      GoRuntimeType: 1.215776e+06
       GoKind: 20
       UnderlyingStructure: 2 StructureType runtime.iface
     - __kind: PointerType
       ID: 133
       Name: '*net/http.pattern'
       ByteSize: 8
-      GoRuntimeType: 1.453472e+06
+      GoRuntimeType: 1.453504e+06
       GoKind: 22
       Pointee: 134 StructureType net/http.pattern
     - __kind: StructureType
       ID: 134
       Name: net/http.pattern
       ByteSize: 88
-      GoRuntimeType: 1.745728e+06
+      GoRuntimeType: 1.745568e+06
       GoKind: 25
       RawFields:
         - Name: str
@@ -1900,7 +1900,7 @@ Types:
       ID: 135
       Name: '[]net/http.segment'
       ByteSize: 24
-      GoRuntimeType: 459136
+      GoRuntimeType: 459168
       GoKind: 23
       RawFields:
         - Name: array
@@ -1917,14 +1917,14 @@ Types:
       ID: 136
       Name: '*net/http.segment'
       ByteSize: 8
-      GoRuntimeType: 367872
+      GoRuntimeType: 367904
       GoKind: 22
       Pointee: 137 StructureType net/http.segment
     - __kind: StructureType
       ID: 137
       Name: net/http.segment
       ByteSize: 24
-      GoRuntimeType: 1.45328e+06
+      GoRuntimeType: 1.453312e+06
       GoKind: 25
       RawFields:
         - Name: s
@@ -1940,7 +1940,7 @@ Types:
       ID: 138
       Name: map[string]string
       ByteSize: 8
-      GoRuntimeType: 900960
+      GoRuntimeType: 900992
       GoKind: 21
       HeaderType: 140 GoHMapHeaderType hash<string,string>
     - __kind: PointerType
@@ -2017,14 +2017,14 @@ Types:
       ID: 144
       Name: '*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.Span'
       ByteSize: 8
-      GoRuntimeType: 2.187616e+06
+      GoRuntimeType: 2.18768e+06
       GoKind: 22
       Pointee: 145 StructureType github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.Span
     - __kind: StructureType
       ID: 145
       Name: github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.Span
       ByteSize: 288
-      GoRuntimeType: 2.251936e+06
+      GoRuntimeType: 2.252e+06
       GoKind: 25
       RawFields:
         - Name: mu
@@ -2106,7 +2106,7 @@ Types:
       ID: 146
       Name: sync.RWMutex
       ByteSize: 24
-      GoRuntimeType: 1.751328e+06
+      GoRuntimeType: 1.751168e+06
       GoKind: 25
       RawFields:
         - Name: w
@@ -2128,7 +2128,7 @@ Types:
       ID: 147
       Name: sync.Mutex
       ByteSize: 8
-      GoRuntimeType: 1.314176e+06
+      GoRuntimeType: 1.314208e+06
       GoKind: 25
       RawFields:
         - Name: state
@@ -2141,13 +2141,13 @@ Types:
       ID: 148
       Name: int32
       ByteSize: 4
-      GoRuntimeType: 542816
+      GoRuntimeType: 542848
       GoKind: 5
     - __kind: StructureType
       ID: 149
       Name: sync/atomic.Int32
       ByteSize: 4
-      GoRuntimeType: 1.315616e+06
+      GoRuntimeType: 1.315648e+06
       GoKind: 25
       RawFields:
         - Name: _
@@ -2159,14 +2159,14 @@ Types:
     - __kind: StructureType
       ID: 150
       Name: sync/atomic.noCopy
-      GoRuntimeType: 965984
+      GoRuntimeType: 966016
       GoKind: 25
       RawFields: []
     - __kind: GoMapType
       ID: 151
       Name: github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.metaStructMap
       ByteSize: 8
-      GoRuntimeType: 1.007488e+06
+      GoRuntimeType: 1.00752e+06
       GoKind: 21
       HeaderType: 153 GoHMapHeaderType hash<string,interface {}>
     - __kind: PointerType
@@ -2243,7 +2243,7 @@ Types:
       ID: 157
       Name: map[string]float64
       ByteSize: 8
-      GoRuntimeType: 904992
+      GoRuntimeType: 905024
       GoKind: 21
       HeaderType: 159 GoHMapHeaderType hash<string,float64>
     - __kind: PointerType
@@ -2320,13 +2320,13 @@ Types:
       ID: 163
       Name: float64
       ByteSize: 8
-      GoRuntimeType: 543456
+      GoRuntimeType: 543488
       GoKind: 14
     - __kind: GoSliceHeaderType
       ID: 164
       Name: '[]github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanLink'
       ByteSize: 24
-      GoRuntimeType: 463552
+      GoRuntimeType: 463584
       GoKind: 23
       RawFields:
         - Name: array
@@ -2343,14 +2343,14 @@ Types:
       ID: 165
       Name: '*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanLink'
       ByteSize: 8
-      GoRuntimeType: 1.129536e+06
+      GoRuntimeType: 1.12944e+06
       GoKind: 22
       Pointee: 166 StructureType github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanLink
     - __kind: StructureType
       ID: 166
       Name: github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanLink
       ByteSize: 56
-      GoRuntimeType: 1.822528e+06
+      GoRuntimeType: 1.822592e+06
       GoKind: 25
       RawFields:
         - Name: TraceID
@@ -2375,7 +2375,7 @@ Types:
       ID: 167
       Name: '[]github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEvent'
       ByteSize: 24
-      GoRuntimeType: 463744
+      GoRuntimeType: 463776
       GoKind: 23
       RawFields:
         - Name: array
@@ -2392,14 +2392,14 @@ Types:
       ID: 168
       Name: '*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEvent'
       ByteSize: 8
-      GoRuntimeType: 1.129664e+06
+      GoRuntimeType: 1.129568e+06
       GoKind: 22
       Pointee: 169 StructureType github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEvent
     - __kind: StructureType
       ID: 169
       Name: github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEvent
       ByteSize: 40
-      GoRuntimeType: 1.664352e+06
+      GoRuntimeType: 1.664384e+06
       GoKind: 25
       RawFields:
         - Name: Name
@@ -2418,7 +2418,7 @@ Types:
       ID: 170
       Name: map[string]*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute
       ByteSize: 8
-      GoRuntimeType: 905088
+      GoRuntimeType: 905120
       GoKind: 21
       HeaderType: 172 GoHMapHeaderType hash<string,*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute>
     - __kind: PointerType
@@ -2495,14 +2495,14 @@ Types:
       ID: 176
       Name: '*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute'
       ByteSize: 8
-      GoRuntimeType: 1.130432e+06
+      GoRuntimeType: 1.130336e+06
       GoKind: 22
       Pointee: 177 StructureType github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute
     - __kind: StructureType
       ID: 177
       Name: github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute
       ByteSize: 56
-      GoRuntimeType: 1.822784e+06
+      GoRuntimeType: 1.822848e+06
       GoKind: 25
       RawFields:
         - Name: Type
@@ -2527,20 +2527,20 @@ Types:
       ID: 178
       Name: github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttributeType
       ByteSize: 4
-      GoRuntimeType: 965216
+      GoRuntimeType: 965248
       GoKind: 5
     - __kind: PointerType
       ID: 179
       Name: '*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventArrayAttribute'
       ByteSize: 8
-      GoRuntimeType: 1.130304e+06
+      GoRuntimeType: 1.130208e+06
       GoKind: 22
       Pointee: 180 StructureType github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventArrayAttribute
     - __kind: StructureType
       ID: 180
       Name: github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventArrayAttribute
       ByteSize: 24
-      GoRuntimeType: 1.130176e+06
+      GoRuntimeType: 1.13008e+06
       GoKind: 25
       RawFields:
         - Name: Values
@@ -2550,7 +2550,7 @@ Types:
       ID: 181
       Name: '[]*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventArrayAttributeValue'
       ByteSize: 24
-      GoRuntimeType: 463616
+      GoRuntimeType: 463648
       GoKind: 23
       RawFields:
         - Name: array
@@ -2573,14 +2573,14 @@ Types:
       ID: 183
       Name: '*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventArrayAttributeValue'
       ByteSize: 8
-      GoRuntimeType: 1.130048e+06
+      GoRuntimeType: 1.129952e+06
       GoKind: 22
       Pointee: 184 StructureType github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventArrayAttributeValue
     - __kind: StructureType
       ID: 184
       Name: github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventArrayAttributeValue
       ByteSize: 48
-      GoRuntimeType: 1.74864e+06
+      GoRuntimeType: 1.74848e+06
       GoKind: 25
       RawFields:
         - Name: Type
@@ -2602,27 +2602,27 @@ Types:
       ID: 185
       Name: github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventArrayAttributeValueType
       ByteSize: 4
-      GoRuntimeType: 965312
+      GoRuntimeType: 965344
       GoKind: 5
     - __kind: GoMapType
       ID: 186
       Name: map[string]interface {}
       ByteSize: 8
-      GoRuntimeType: 896448
+      GoRuntimeType: 896480
       GoKind: 21
       HeaderType: 153 GoHMapHeaderType hash<string,interface {}>
     - __kind: PointerType
       ID: 187
       Name: '*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanContext'
       ByteSize: 8
-      GoRuntimeType: 1.917216e+06
+      GoRuntimeType: 1.91728e+06
       GoKind: 22
       Pointee: 188 StructureType github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanContext
     - __kind: StructureType
       ID: 188
       Name: github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanContext
       ByteSize: 168
-      GoRuntimeType: 2.125312e+06
+      GoRuntimeType: 2.125376e+06
       GoKind: 25
       RawFields:
         - Name: updated
@@ -2671,14 +2671,14 @@ Types:
       ID: 189
       Name: '*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.trace'
       ByteSize: 8
-      GoRuntimeType: 2.13248e+06
+      GoRuntimeType: 2.132544e+06
       GoKind: 22
       Pointee: 190 StructureType github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.trace
     - __kind: StructureType
       ID: 190
       Name: github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.trace
       ByteSize: 104
-      GoRuntimeType: 2.017472e+06
+      GoRuntimeType: 2.017536e+06
       GoKind: 25
       RawFields:
         - Name: mu
@@ -2715,7 +2715,7 @@ Types:
       ID: 191
       Name: '[]*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.Span'
       ByteSize: 24
-      GoRuntimeType: 464000
+      GoRuntimeType: 464032
       GoKind: 23
       RawFields:
         - Name: array
@@ -2738,20 +2738,20 @@ Types:
       ID: 193
       Name: '*float64'
       ByteSize: 8
-      GoRuntimeType: 377024
+      GoRuntimeType: 377056
       GoKind: 22
       Pointee: 163 BaseType float64
     - __kind: BaseType
       ID: 194
       Name: github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.samplingDecision
       ByteSize: 4
-      GoRuntimeType: 542304
+      GoRuntimeType: 542336
       GoKind: 10
     - __kind: ArrayType
       ID: 195
       Name: github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.traceID
       ByteSize: 16
-      GoRuntimeType: 847680
+      GoRuntimeType: 847712
       GoKind: 17
       Count: 16
       HasCount: true
@@ -2760,20 +2760,20 @@ Types:
       ID: 196
       Name: func()
       ByteSize: 8
-      GoRuntimeType: 455488
+      GoRuntimeType: 455520
       GoKind: 19
     - __kind: PointerType
       ID: 197
       Name: '*bytes.Buffer'
       ByteSize: 8
-      GoRuntimeType: 2.176832e+06
+      GoRuntimeType: 2.176896e+06
       GoKind: 22
       Pointee: 198 StructureType bytes.Buffer
     - __kind: StructureType
       ID: 198
       Name: bytes.Buffer
       ByteSize: 40
-      GoRuntimeType: 1.451168e+06
+      GoRuntimeType: 1.4512e+06
       GoKind: 25
       RawFields:
         - Name: buf
@@ -2789,12 +2789,12 @@ Types:
       ID: 199
       Name: bytes.readOp
       ByteSize: 1
-      GoRuntimeType: 541728
+      GoRuntimeType: 541760
       GoKind: 3
     - __kind: StructureType
       ID: 200
       Name: context.backgroundCtx
-      GoRuntimeType: 1.7088e+06
+      GoRuntimeType: 1.708832e+06
       GoKind: 25
       RawFields:
         - Name: emptyCtx
@@ -2803,7 +2803,7 @@ Types:
     - __kind: StructureType
       ID: 201
       Name: context.emptyCtx
-      GoRuntimeType: 1.435072e+06
+      GoRuntimeType: 1.435104e+06
       GoKind: 25
       RawFields: []
     - __kind: GoSliceDataType
