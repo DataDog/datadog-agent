@@ -26,6 +26,8 @@ import (
 	"golang.org/x/sys/unix"
 	yaml "gopkg.in/yaml.v2"
 
+	"github.com/safchain/ethtool"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -33,7 +35,6 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
-	"github.com/safchain/ethtool"
 )
 
 const (
@@ -365,6 +366,13 @@ func getEnaMetrics(statsMap map[string]uint64) map[string]uint64 {
 	return metrics
 }
 
+var queueRegex = regexp.MustCompile(`queue_(?P<number>\d+)_(?P<part>.*)`)
+var queueRegexParts = queueRegex.SubexpNames()
+var cpuRegex = regexp.MustCompile(`cpu(?P<number>\d+)_(?P<part>.*)`)
+var cpuRegexParts = cpuRegex.SubexpNames()
+var bracketRegex = regexp.MustCompile(`(?P<part>.*)\[(?P<number>\d+)]`)
+var bracketRegexParts = bracketRegex.SubexpNames()
+
 func getEthtoolMetrics(driverName string, statsMap map[string]uint64) map[string]map[string]uint64 {
 	result := map[string]map[string]uint64{}
 	if _, ok := ethtoolMetricNames[driverName]; !ok {
@@ -380,85 +388,43 @@ func getEthtoolMetrics(driverName string, statsMap map[string]uint64) map[string
 		keys = append(keys, key)
 		values = append(values, value)
 	}
-	for keyIndex := 0; keyIndex < len(keys); keyIndex++ {
-		statName := keys[keyIndex]
-		continueCase := false
-		queueTag := ""
-		newKey := ""
-		metricPrefix := ""
-		if strings.Contains(statName, "queue_") {
-			parts := strings.Split(statName, "_")
-			queueIndex := -1
-			for i, part := range parts {
-				if part == "queue" && i+1 < len(parts) {
-					if _, err := strconv.Atoi(parts[i+1]); err == nil {
-						queueIndex = i
-						break
-					}
-				}
-			}
-			if queueIndex == -1 {
-				continueCase = true
-			}
-			queueNum := parts[queueIndex+1]
-			parts = append(parts[:queueIndex], parts[queueIndex+2:]...)
-			queueTag = "queue:" + queueNum
-			newKey = strings.Join(parts, "_")
-			metricPrefix = ".queue."
-		} else {
-			continueCase = true
+
+	for i, key := range keys {
+		var tag string
+		var keyName string
+		var prefix string
+
+		// the first element (index `0`) of the match is the full string
+		if queuematches := queueRegex.FindStringSubmatch(key); queuematches != nil && len(queuematches) == len(queueRegexParts) {
+			tag = "queue:" + queuematches[1]
+			keyName = queuematches[2]
+			prefix = ".queue."
+		} else if cpumatches := cpuRegex.FindStringSubmatch(key); cpumatches != nil && len(cpumatches) == len(cpuRegexParts) {
+			tag = "cpu:" + cpumatches[1]
+			keyName = cpumatches[2]
+			prefix = ".cpu."
+		} else if bracketmatches := bracketRegex.FindStringSubmatch(key); bracketmatches != nil && len(bracketmatches) == len(bracketRegexParts) {
+			tag = "queue:" + bracketmatches[2]
+			keyName = bracketmatches[1]
+			prefix = ".queue."
 		}
-		if continueCase {
-			if strings.HasPrefix(statName, "cpu") {
-				parts := strings.Split(statName, "_")
-				if len(parts) < 2 {
-					continueCase = true
-				}
-				cpuNum := parts[0][3:]
-				if _, err := strconv.Atoi(cpuNum); err != nil {
-					continueCase = true
-				}
-				queueTag = "cpu:" + cpuNum
-				newKey = strings.Join(parts[1:], "_")
-				metricPrefix = ".cpu."
-			} else {
-				continueCase = true
+
+		if keyName == "" && key != "" {
+			if slices.Contains(ethtoolGlobalMetrics, key) {
+				tag = "global"
+				keyName = key
+				prefix = "."
 			}
 		}
-		if continueCase {
-			if strings.Contains(statName, "[") && strings.HasSuffix(statName, "]") {
-				parts := strings.SplitN(statName, "[", 2)
-				if len(parts) != 2 {
-					continueCase = true
-				}
-				metricName := parts[0]
-				queueNum := strings.TrimSuffix(parts[1], "]")
-				if _, err := strconv.Atoi(queueNum); err != nil {
-					continueCase = true
-				}
-				queueTag = "queue:" + queueNum
-				newKey = metricName
-				metricPrefix = ".queue."
-			} else {
-				continueCase = true
+
+		if keyName != "" && tag != "" && prefix != "" {
+			if result[tag] == nil {
+				result[tag] = make(map[string]uint64)
 			}
-		}
-		if continueCase {
-			if statName != "" {
-				if slices.Contains(ethtoolGlobalMetrics, statName) {
-					queueTag = "global"
-					newKey = statName
-					metricPrefix = "."
-				}
-			}
-		}
-		if newKey != "" && queueTag != "" && metricPrefix != "" {
-			if result[queueTag] == nil {
-				result[queueTag] = make(map[string]uint64)
-			}
-			result[queueTag][driverName+metricPrefix+newKey] = values[keyIndex]
+			result[tag][driverName+prefix+keyName] = values[i]
 		}
 	}
+
 	return result
 }
 
