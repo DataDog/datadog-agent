@@ -13,18 +13,32 @@ import (
 )
 
 // EventCategory category type
-type EventCategory = string
+type EventCategory int
 
 // Event categories
 const (
 	// FIMCategory FIM events
-	FIMCategory EventCategory = "File Activity"
+	FIMCategory EventCategory = iota
 	// ProcessCategory process events
-	ProcessCategory EventCategory = "Process Activity"
+	ProcessCategory
 	// KernelCategory Kernel events
-	KernelCategory EventCategory = "Kernel Activity"
+	KernelCategory
 	// NetworkCategory network events
-	NetworkCategory EventCategory = "Network Activity"
+	NetworkCategory
+)
+
+// EventCategoryUserFacing user facing category type
+type EventCategoryUserFacing string
+
+const (
+	// FIMCategoryUserFacing FIM events
+	FIMCategoryUserFacing EventCategoryUserFacing = "File Activity"
+	// ProcessCategoryUserFacing process events
+	ProcessCategoryUserFacing EventCategoryUserFacing = "Process Activity"
+	// KernelCategoryUserFacing Kernel events
+	KernelCategoryUserFacing EventCategoryUserFacing = "Kernel Activity"
+	// NetworkCategoryUserFacing network events
+	NetworkCategoryUserFacing EventCategoryUserFacing = "Network Activity"
 )
 
 // GetAllCategories returns all categories
@@ -75,6 +89,29 @@ func GetEventTypeCategory(eventType eval.EventType) EventCategory {
 	}
 
 	return FIMCategory
+}
+
+// GetEventTypeCategoryUserFacing returns the category for the given event type
+func GetEventTypeCategoryUserFacing(eventType eval.EventType) EventCategoryUserFacing {
+	switch eventType {
+	case
+		BindEventType.String(),
+		ConnectEventType.String():
+		return NetworkCategoryUserFacing
+	}
+
+	switch GetEventTypeCategory(eventType) {
+	case FIMCategory:
+		return FIMCategoryUserFacing
+	case ProcessCategory:
+		return ProcessCategoryUserFacing
+	case KernelCategory:
+		return KernelCategoryUserFacing
+	case NetworkCategory:
+		return NetworkCategoryUserFacing
+	}
+
+	panic("unknown category for given event type")
 }
 
 // GetEventTypePerCategory returns the event types per category
