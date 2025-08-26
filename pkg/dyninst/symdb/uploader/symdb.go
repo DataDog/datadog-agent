@@ -31,6 +31,8 @@ const (
 	ScopeTypePackage ScopeType = "package"
 	// ScopeTypeStruct represents Go structs (or other types with methods).
 	ScopeTypeStruct ScopeType = "struct"
+	// ScopeTypeFunction represents Go functions.
+	ScopeTypeFunction ScopeType = "function"
 	// ScopeTypeMethod represents Go methods (i.e. functions with a receiver).
 	ScopeTypeMethod ScopeType = "method"
 	// ScopeTypeLocal represents lexical scopes (pairs of {} brackets) inside go
@@ -248,7 +250,7 @@ func ConvertPackageToScope(pkg symdb.Package) Scope {
 func convertFunctionToScope(fn symdb.Function, isMethod bool) Scope {
 	scopeType := ScopeTypeMethod
 	if !isMethod {
-		scopeType = ScopeTypeMethod // Functions are treated as methods in the schema
+		scopeType = ScopeTypeFunction
 	}
 
 	scope := Scope{
