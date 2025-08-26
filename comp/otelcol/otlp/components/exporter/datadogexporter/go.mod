@@ -20,7 +20,7 @@ require (
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.31.0
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.31.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.131.0
-	github.com/stretchr/testify v1.10.0
+	github.com/stretchr/testify v1.11.0
 	go.opentelemetry.io/collector/component v1.37.0
 	go.opentelemetry.io/collector/config/confignet v1.37.0
 	go.opentelemetry.io/collector/config/configretry v1.37.0
