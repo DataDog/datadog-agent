@@ -44,7 +44,7 @@ echo "INSTALL_USER: $INSTALL_USER"
 
 echo "# Preparing log dir"
 chown -vR "${INSTALL_USER}:admin" "$LOG_DIR"
-chmod -v 755 $LOG_DIR
+chmod -v 750 $LOG_DIR
 
 echo "# Installing the app"
 mv -v "$OPT_APP_DIR" /Applications || echo "App already installed"

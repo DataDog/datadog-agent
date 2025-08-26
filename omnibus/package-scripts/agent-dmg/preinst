@@ -12,6 +12,7 @@ SYSTEM_LOG_DIR=/var/log/datadog
 SYSTEM_LOG_BASE_DIR=/var/log
 
 mkdir -p $LOG_DIR
+chmod 750 $LOG_DIR
 
 CONF_DIR="$INSTALL_DIR/etc"
 APP_DIR="/Applications/Datadog Agent.app"
