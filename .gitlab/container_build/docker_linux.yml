@@ -82,13 +82,13 @@
         --label "org.opencontainers.image.vendor=Datadog, Inc." \
         --label "target=none" \
         $BUILD_CONTEXT
-    - FLATTEN_IMAGE=${FLATTEN_IMAGE:-true}
+    #- FLATTEN_IMAGE=${FLATTEN_IMAGE:-true}
     # Squash image if FLATTEN_IMAGE is true
-    - |
-      if [[ "$FLATTEN_IMAGE" == "true" ]]; then
-        crane flatten -t ${TARGET_TAG} ${TARGET_TAG}
-        docker rmi ${TARGET_TAG} || true # Ignore errors for now
-      fi
+    #- |
+    #  if [[ "$FLATTEN_IMAGE" == "true" ]]; then
+    #    crane flatten -t ${TARGET_TAG} ${TARGET_TAG}
+    #    docker rmi ${TARGET_TAG} || true # Ignore errors for now
+    #  fi
     - !reference [.static_quality_gate_docker]
   # Workaround for temporary network failures
   retry: 2
@@ -239,7 +239,7 @@ docker_build_fips_agent7_arm64_jmx:
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/agent-base-image
     BUILD_CONTEXT: Dockerfiles/base-image
-    TARGET_ARG: --target release
+    TARGET_ARG: --target flattened-release
     CACHE_TARGET: release
 
 docker_build_base_image_amd64:
@@ -260,7 +260,7 @@ docker_build_base_image_arm64:
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/otel-agent
     BUILD_CONTEXT: Dockerfiles/otel-agent
-    FLATTEN_IMAGE: false
+    #FLATTEN_IMAGE: false
     BUILD_ARG: --target release
     TAG_SUFFIX: -7
 
