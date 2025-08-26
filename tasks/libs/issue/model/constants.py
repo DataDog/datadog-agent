@@ -2,7 +2,7 @@ MODEL = "/issue_auto_assign_model"
 BASE_MODEL = "distilbert-base-uncased-finetuned-sst-2-english"
 ## THIS LIST SHOULD NOT BE UPDATED UNLESS THE MODEL IS RE-TRAINED. THE ONLY ALLOWED CHANGE IS THE RENAME OF AN EXISTING TEAM.
 TEAMS = (
-    'container-ecosystems',
+    'agent-onboarding',
     'windows-products',
     'remote-config',
     'container-platform',
@@ -40,4 +40,5 @@ TEAMS = (
     'apm-onboarding',
     'fleet',
     'agent-logs-pipelines',
+    'data-streams-monitoring',
 )

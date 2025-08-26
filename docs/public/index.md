@@ -1,9 +1,7 @@
 # Datadog Agent
 
-[![Windows unit tests](https://github.com/DataDog/datadog-agent/actions/workflows/windows-unittests.yml/badge.svg)](https://github.com/DataDog/datadog-agent/actions/workflows/windows-unittests.yml)
 [![Coverage status](https://codecov.io/github/DataDog/datadog-agent/coverage.svg?branch=main)](https://codecov.io/github/DataDog/datadog-agent?branch=main)
 [![GoDoc](https://godoc.org/github.com/DataDog/datadog-agent?status.svg)](https://godoc.org/github.com/DataDog/datadog-agent)
-[![Go Report Card](https://goreportcard.com/badge/github.com/DataDog/datadog-agent)](https://goreportcard.com/report/github.com/DataDog/datadog-agent)
 
 -----
 
@@ -13,11 +11,11 @@ If you are intrigued, continue reading. If not, continue all the same :point_dow
 
 ## Getting started
 
-First, you'll want to [set up](setup.md) your development environment.
+First, you'll want to set up the [development requirements](setup/required.md).
 
 ## Agent development guidelines
 
-To know more about the general design of the Agent and how to add code and feature read our section on [Components](https://datadoghq.dev/datadog-agent/components/overview/).
+To know more about the general design of the Agent and how to add code and features read our section on [Components](components/overview.md).
 
 ## Navigation
 

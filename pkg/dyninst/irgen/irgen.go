@@ -78,10 +78,15 @@ func NewGenerator(options ...Option) *Generator {
 // and any probes that failed during generation.
 func (g *Generator) GenerateIR(
 	programID ir.ProgramID,
-	objFile *object.ElfFile,
+	binaryPath string,
 	probeDefs []ir.ProbeDefinition,
 ) (*ir.Program, error) {
-	return generateIR(g.config, programID, objFile, probeDefs)
+	elfFile, err := g.config.objectLoader.Load(binaryPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load elf file: %w", err)
+	}
+	defer elfFile.Close()
+	return generateIR(g.config, programID, elfFile, probeDefs)
 }
 
 // GenerateIR generates an IR program from a binary and a list of probes.
@@ -89,7 +94,7 @@ func (g *Generator) GenerateIR(
 // and any probes that failed during generation.
 func GenerateIR(
 	programID ir.ProgramID,
-	objFile object.File,
+	objFile object.FileWithDwarf,
 	probeDefs []ir.ProbeDefinition,
 	options ...Option,
 ) (_ *ir.Program, retErr error) {
@@ -103,7 +108,7 @@ func GenerateIR(
 func generateIR(
 	cfg config,
 	programID ir.ProgramID,
-	objFile object.File,
+	objFile object.FileWithDwarf,
 	probeDefs []ir.ProbeDefinition,
 ) (_ *ir.Program, retErr error) {
 	// Ensure deterministic output.
@@ -132,7 +137,7 @@ func generateIR(
 
 	// Prepare the main DWARF visitor that will gather all the information we
 	// need from the binary.
-	ptrSize := objFile.PointerSize()
+	ptrSize := uint8(objFile.Architecture().PointerSize())
 	d := objFile.DwarfData()
 	typeCatalog := newTypeCatalog(
 		d,
@@ -227,7 +232,7 @@ type prologueEndLocation struct {
 // are indexed by the start of the pc range. Provided ranges must be non-overlapping
 // but may contain duplicates.
 func findProloguesEnds(
-	objFile object.File,
+	objFile object.Dwarf,
 	searchParams []prologueSeachParams,
 ) (map[uint64]prologueEndLocation, error) {
 	if len(searchParams) == 0 {
@@ -281,7 +286,7 @@ func findProloguesEnds(
 // createProbes instantiates probes for each pending sub-program and gathers any
 // probe-specific issues encountered in the process.
 func createProbes(
-	objFile object.File,
+	objFile object.FileWithDwarf,
 	pending []*pendingSubprogram,
 	prologueLocs map[uint64]prologueEndLocation,
 ) ([]*ir.Probe, []*ir.Subprogram, []ir.ProbeIssue, error) {
@@ -347,7 +352,7 @@ func processDwarf(
 	interests interests,
 	d *dwarf.Data,
 	typeCatalog *typeCatalog,
-	objFile object.File,
+	objFile object.FileWithDwarf,
 ) ([]*pendingSubprogram, error) {
 	v := &rootVisitor{
 		interests:           interests,
@@ -356,7 +361,7 @@ func processDwarf(
 		abstractSubprograms: make(map[dwarf.Offset]*abstractSubprogram),
 		inlinedSubprograms:  make(map[*dwarf.Entry][]*inlinedSubprogram),
 		typeCatalog:         typeCatalog,
-		pointerSize:         objFile.PointerSize(),
+		pointerSize:         uint8(objFile.Architecture().PointerSize()),
 		loclistReader:       objFile.LoclistReader(),
 	}
 
@@ -1107,7 +1112,7 @@ func (v *unitChildVisitor) pop(_ *dwarf.Entry, childVisitor visitor) error {
 }
 
 func newProbe(
-	objFile object.File,
+	objFile object.FileWithDwarf,
 	probeCfg ir.ProbeDefinition,
 	subprogram *ir.Subprogram,
 	eventIDAlloc *idAllocator[ir.EventID],

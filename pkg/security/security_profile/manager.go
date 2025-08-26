@@ -35,7 +35,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
@@ -61,6 +60,22 @@ var (
 	TracedEventTypesReductionOrder = []model.EventType{model.BindEventType, model.IMDSEventType, model.DNSEventType, model.SyscallsEventType, model.FileOpenEventType}
 )
 
+// WorkloadEventType represents the type of workload event
+type WorkloadEventType int
+
+const (
+	// WorkloadEventResolved indicates a workload selector was resolved
+	WorkloadEventResolved WorkloadEventType = iota
+	// WorkloadEventDeleted indicates a workload was deleted
+	WorkloadEventDeleted
+)
+
+// WorkloadEvent represents an ordered workload event
+type WorkloadEvent struct {
+	Type     WorkloadEventType
+	Workload *tags.Workload
+}
+
 // Manager is the manager for activity dumps and security profiles
 type Manager struct {
 	m sync.Mutex
@@ -73,11 +88,12 @@ type Manager struct {
 	pathsReducer  *activity_tree.PathsReducer
 
 	// fields from ActivityDumpManager
-	activityDumpLoadConfig map[containerutils.CGroupManager]*model.ActivityDumpLoadConfig
+	activityDumpLoadConfig *model.ActivityDumpLoadConfig
 
 	// ebpf maps
 	tracedPIDsMap              *ebpf.Map
 	tracedCgroupsMap           *ebpf.Map
+	tracedCgroupsDiscardedMap  *ebpf.Map
 	cgroupWaitList             *ebpf.Map
 	activityDumpsConfigMap     *ebpf.Map
 	activityDumpConfigDefaults *ebpf.Map
@@ -131,8 +147,8 @@ type Manager struct {
 	// chan used to move an ActivityDump profile to a SecurityProfile profile
 	newProfiles chan *profile.Profile
 
-	workloadSelectorResolved chan *tags.Workload
-	workloadDeleted          chan *tags.Workload
+	// Single ordered channel for workload events to ensure proper ordering
+	workloadEvents chan *WorkloadEvent
 }
 
 // NewManager returns a new instance of the security profile manager
@@ -143,6 +159,11 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 	}
 
 	tracedCgroupsMap, err := managerhelper.Map(ebpf, "traced_cgroups")
+	if err != nil {
+		return nil, err
+	}
+
+	tracedCgroupsDiscardedMap, err := managerhelper.Map(ebpf, "traced_cgroups_discarded")
 	if err != nil {
 		return nil, err
 	}
@@ -269,6 +290,7 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 
 		tracedPIDsMap:              tracedPIDs,
 		tracedCgroupsMap:           tracedCgroupsMap,
+		tracedCgroupsDiscardedMap:  tracedCgroupsDiscardedMap,
 		cgroupWaitList:             cgroupWaitList,
 		activityDumpsConfigMap:     activityDumpsConfigMap,
 		activityDumpConfigDefaults: activityDumpConfigDefaultsMap,
@@ -307,35 +329,18 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 
 		newProfiles: make(chan *profile.Profile, 100),
 
-		workloadSelectorResolved: make(chan *tags.Workload, 100),
-		workloadDeleted:          make(chan *tags.Workload, 100),
+		workloadEvents: make(chan *WorkloadEvent, 100),
 	}
 
 	m.initMetricsMap()
 
-	defaultLoadConfigs, err := m.getDefaultLoadConfigs()
-	if err != nil {
-		return nil, fmt.Errorf("couldn't get default load configs: %w", err)
-	}
-
+	defaultConfig := m.getDefaultLoadConfig()
 	// push default load config values
-	for cgroupManager, defaultConfig := range defaultLoadConfigs {
-		if err := m.activityDumpConfigDefaults.Put(uint32(cgroupManager), defaultConfig); err != nil {
-			return nil, fmt.Errorf("couldn't update default activity dump load config for manager %s: %w", cgroupManager.String(), err)
-		}
+	if err := m.activityDumpConfigDefaults.Put(uint32(0), defaultConfig); err != nil {
+		return nil, fmt.Errorf("couldn't update default activity dump load config: %w", err)
 	}
 
 	return m, nil
-}
-
-// queueWorkloadEvent attempts to queue a workload event to the specified channel
-func (m *Manager) queueWorkloadEvent(ch chan<- *tags.Workload, workload *tags.Workload, eventType string) {
-	select {
-	case ch <- workload:
-		// Successfully queued
-	default:
-		seclog.Warnf("Failed to queue %s event for %v", eventType, workload.Selector.String())
-	}
 }
 
 func (m *Manager) initMetricsMap() {
@@ -387,10 +392,16 @@ func (m *Manager) Start(ctx context.Context) {
 
 	if m.config.RuntimeSecurity.SecurityProfileEnabled {
 		_ = m.resolvers.TagsResolver.RegisterListener(tags.WorkloadSelectorResolved, func(workload *tags.Workload) {
-			m.queueWorkloadEvent(m.workloadSelectorResolved, workload, "workload selector resolved")
+			m.workloadEvents <- &WorkloadEvent{
+				Type:     WorkloadEventResolved,
+				Workload: workload,
+			}
 		})
 		_ = m.resolvers.TagsResolver.RegisterListener(tags.WorkloadSelectorDeleted, func(workload *tags.Workload) {
-			m.queueWorkloadEvent(m.workloadDeleted, workload, "workload deleted")
+			m.workloadEvents <- &WorkloadEvent{
+				Type:     WorkloadEventDeleted,
+				Workload: workload,
+			}
 		})
 	}
 
@@ -417,10 +428,8 @@ func (m *Manager) Start(ctx context.Context) {
 			m.handleSilentWorkloads()
 		case newProfile := <-m.newProfiles:
 			m.onNewProfile(newProfile)
-		case workload := <-m.workloadSelectorResolved:
-			m.onWorkloadSelectorResolvedEvent(workload)
-		case workload := <-m.workloadDeleted:
-			m.onWorkloadDeletedEvent(workload)
+		case workloadEvent := <-m.workloadEvents:
+			m.onWorkloadEvent(workloadEvent)
 		}
 	}
 }

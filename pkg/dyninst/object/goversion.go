@@ -30,9 +30,9 @@ type GoVersion struct {
 }
 
 // ReadGoVersion extracts the Go version from an object file
-func ReadGoVersion(mef *MMappingElfFile) (*GoVersion, error) {
+func ReadGoVersion(mef File) (*GoVersion, error) {
 	// Find the runtime.buildVersion symbol
-	symbols, err := mef.Elf.Symbols()
+	symbols, err := mef.Symbols()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get symbols: %w", err)
 	}
@@ -50,8 +50,8 @@ func ReadGoVersion(mef *MMappingElfFile) (*GoVersion, error) {
 	}
 
 	// Find the section containing the symbol
-	var section *safeelf.Section
-	for _, s := range mef.Elf.Sections {
+	var section *safeelf.SectionHeader
+	for _, s := range mef.SectionHeaders() {
 		if s.Addr <= buildVersionSym.Value && buildVersionSym.Value < s.Addr+s.Size {
 			section = s
 			break
@@ -75,15 +75,16 @@ func ReadGoVersion(mef *MMappingElfFile) (*GoVersion, error) {
 	return &version, nil
 }
 
-func readString(mef *MMappingElfFile, section *safeelf.Section, address, size uint64) (string, error) {
-	ms, err := mef.MMap(section, 0, section.Size)
+func readString(mef SectionLoader, section *safeelf.SectionHeader, address, size uint64) (string, error) {
+	ms, err := mef.SectionDataRange(section, 0, section.Size)
 	if err != nil {
 		return "", fmt.Errorf("failed to load section data: %w", err)
 	}
 	defer ms.Close()
+	msData := ms.Data()
 
 	offset := address - section.Addr
-	if offset+size > uint64(len(ms.Data)) {
+	if offset+size > uint64(len(msData)) {
 		return "", fmt.Errorf("string data out of bounds")
 	}
 
@@ -91,25 +92,25 @@ func readString(mef *MMappingElfFile, section *safeelf.Section, address, size ui
 	var dataAddr, dataSize uint64
 	if size == 8 {
 		// 32-bit pointers
-		if offset+8 > uint64(len(ms.Data)) {
+		if offset+8 > uint64(len(msData)) {
 			return "", fmt.Errorf("not enough data for 32-bit string header")
 		}
-		dataAddr = uint64(binary.LittleEndian.Uint32(ms.Data[offset:]))
-		dataSize = uint64(binary.LittleEndian.Uint32(ms.Data[offset+4:]))
+		dataAddr = uint64(binary.LittleEndian.Uint32(msData[offset:]))
+		dataSize = uint64(binary.LittleEndian.Uint32(msData[offset+4:]))
 	} else if size == 16 {
 		// 64-bit pointers
-		if offset+16 > uint64(len(ms.Data)) {
+		if offset+16 > uint64(len(msData)) {
 			return "", fmt.Errorf("not enough data for 64-bit string header")
 		}
-		dataAddr = binary.LittleEndian.Uint64(ms.Data[offset:])
-		dataSize = binary.LittleEndian.Uint64(ms.Data[offset+8:])
+		dataAddr = binary.LittleEndian.Uint64(msData[offset:])
+		dataSize = binary.LittleEndian.Uint64(msData[offset+8:])
 	} else {
 		return "", fmt.Errorf("invalid string header size: %d", size)
 	}
 
 	// Find the section containing the actual string data
-	var dataSection *safeelf.Section
-	for _, s := range mef.Elf.Sections {
+	var dataSection *safeelf.SectionHeader
+	for _, s := range mef.SectionHeaders() {
 		if s.Addr <= dataAddr && dataAddr < s.Addr+s.Size {
 			dataSection = s
 			break
@@ -120,18 +121,19 @@ func readString(mef *MMappingElfFile, section *safeelf.Section, address, size ui
 		return "", fmt.Errorf("failed to find data section")
 	}
 
-	mds, err := mef.MMap(dataSection, 0, dataSection.Size)
+	mds, err := mef.SectionData(dataSection)
 	if err != nil {
 		return "", fmt.Errorf("failed to load data section: %w", err)
 	}
 	defer mds.Close()
+	mdsData := mds.Data()
 
 	dataOffset := dataAddr - dataSection.Addr
-	if dataOffset+dataSize > uint64(len(mds.Data)) {
+	if dataOffset+dataSize > uint64(len(mdsData)) {
 		return "", fmt.Errorf("string data out of bounds in data section")
 	}
 
-	return string(mds.Data[dataOffset : dataOffset+dataSize]), nil
+	return string(mdsData[dataOffset : dataOffset+dataSize]), nil
 }
 
 var goVersionRegex = regexp.MustCompile(`^go(\d+)\.(\d+)(\.(\d+)|rc(\d+))`)

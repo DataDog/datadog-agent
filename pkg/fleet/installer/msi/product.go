@@ -9,6 +9,7 @@ package msi
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"golang.org/x/sys/windows/registry"
@@ -68,9 +69,14 @@ func RemoveProduct(ctx context.Context, productName string, opts ...MsiexecOptio
 	if err != nil {
 		return fmt.Errorf("failed to remove product: %w", err)
 	}
-	output, err := cmd.Run(ctx)
+	err = cmd.Run(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to remove product: %w\n%s", err, string(output))
+		err = fmt.Errorf("failed to remove product: %w", err)
+		var msiErr *MsiexecError
+		if errors.As(err, &msiErr) {
+			err = fmt.Errorf("%w\n%s", err, msiErr.ProcessedLog)
+		}
+		return err
 	}
 	return nil
 }

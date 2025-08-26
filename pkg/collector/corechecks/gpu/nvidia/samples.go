@@ -33,11 +33,11 @@ type sampleMetric struct {
 }
 
 type samplesCollector struct {
-	device           ddnvml.SafeDevice
+	device           ddnvml.Device
 	samplesToCollect []sampleMetric
 }
 
-func newSamplesCollector(device ddnvml.SafeDevice) (Collector, error) {
+func newSamplesCollector(device ddnvml.Device) (Collector, error) {
 	c := &samplesCollector{
 		device: device,
 	}
@@ -52,8 +52,7 @@ func newSamplesCollector(device ddnvml.SafeDevice) (Collector, error) {
 }
 
 func (c *samplesCollector) DeviceUUID() string {
-	uuid, _ := c.device.GetUUID()
-	return uuid
+	return c.device.GetDeviceInfo().UUID
 }
 
 func (c *samplesCollector) removeUnsupportedSamples() {

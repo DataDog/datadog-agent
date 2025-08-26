@@ -132,7 +132,6 @@ func (s *scraperSink) HandleEvent(ev output.Event) error {
 	switch d := d.(type) {
 	case *remoteConfigEventDecoder:
 		rcFile, err := d.decodeRemoteConfigFile(ev)
-		log.Infof("decodeRemoteConfigFile: %+v, %+v", rcFile, err)
 		if err != nil {
 			return err
 		}

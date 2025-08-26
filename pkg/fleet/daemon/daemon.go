@@ -443,6 +443,7 @@ func (d *daemonImpl) StartConfigExperiment(ctx context.Context, url string, vers
 	d.m.Lock()
 	defer d.m.Unlock()
 	return d.startConfigExperiment(ctx, url, version, []experimentConfigAction{
+		{ActionType: "remove_all"},
 		{ActionType: "write", ConfigID: version},
 	})
 }

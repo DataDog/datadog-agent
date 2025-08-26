@@ -270,13 +270,14 @@ func TestBasic(t *testing.T) {
 
 	var expectedPIDs []int
 	var unexpectedPIDs []int
-	expectedPorts := make(map[int]int)
+	expectedTCPPorts := make(map[int]int)
+	expectedUDPPorts := make(map[int]int)
 
 	startTCP := func(proto string) {
 		f, server := startTCPServer(t, proto, "")
 		cmd := startProcessWithFile(t, f)
 		expectedPIDs = append(expectedPIDs, cmd.Process.Pid)
-		expectedPorts[cmd.Process.Pid] = server.Port
+		expectedTCPPorts[cmd.Process.Pid] = server.Port
 
 		f, _ = startTCPClient(t, proto, server)
 		cmd = startProcessWithFile(t, f)
@@ -287,7 +288,7 @@ func TestBasic(t *testing.T) {
 		f, server := startUDPServer(t, proto, ":8083")
 		cmd := startProcessWithFile(t, f)
 		expectedPIDs = append(expectedPIDs, cmd.Process.Pid)
-		expectedPorts[cmd.Process.Pid] = server.Port
+		expectedUDPPorts[cmd.Process.Pid] = server.Port
 
 		f, _ = startUDPClient(t, proto, server)
 		cmd = startProcessWithFile(t, f)
@@ -309,7 +310,12 @@ func TestBasic(t *testing.T) {
 
 		for _, pid := range expectedPIDs {
 			require.Contains(collect, seen, pid)
-			require.Contains(collect, seen[pid].Ports, uint16(expectedPorts[pid]))
+			if port, ok := expectedTCPPorts[pid]; ok {
+				require.Contains(collect, seen[pid].TCPPorts, uint16(port))
+			}
+			if port, ok := expectedUDPPorts[pid]; ok {
+				require.Contains(collect, seen[pid].UDPPorts, uint16(port))
+			}
 			require.Equal(collect, seen[pid].LastHeartbeat, mockedTime.Unix())
 			assertStat(collect, seen[pid])
 		}
@@ -324,7 +330,8 @@ func TestPorts(t *testing.T) {
 	discovery := setupDiscoveryModule(t)
 	discovery.mockTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 
-	var expectedPorts []uint16
+	var expectedTCPPorts []uint16
+	var expectedUDPPorts []uint16
 	var unexpectedPorts []uint16
 
 	startTCP := func(proto string) {
@@ -333,7 +340,7 @@ func TestPorts(t *testing.T) {
 		clientf, client := startTCPClient(t, proto, server)
 		t.Cleanup(func() { clientf.Close() })
 
-		expectedPorts = append(expectedPorts, uint16(server.Port))
+		expectedTCPPorts = append(expectedTCPPorts, uint16(server.Port))
 		unexpectedPorts = append(unexpectedPorts, uint16(client.Port))
 	}
 
@@ -343,7 +350,7 @@ func TestPorts(t *testing.T) {
 		clientf, client := startUDPClient(t, proto, server)
 		t.Cleanup(func() { clientf.Close() })
 
-		expectedPorts = append(expectedPorts, uint16(server.Port))
+		expectedUDPPorts = append(expectedUDPPorts, uint16(server.Port))
 		unexpectedPorts = append(unexpectedPorts, uint16(client.Port))
 
 		ephemeralf, ephemeral := startUDPServer(t, proto, "")
@@ -366,7 +373,13 @@ func TestPorts(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { logFile.Close() })
 
-	expectedPortsMap := make(map[uint16]struct{}, len(expectedPorts))
+	expectedPortsMap := make(map[uint16]struct{}, len(expectedTCPPorts)+len(expectedUDPPorts))
+	for _, port := range expectedTCPPorts {
+		expectedPortsMap[port] = struct{}{}
+	}
+	for _, port := range expectedUDPPorts {
+		expectedPortsMap[port] = struct{}{}
+	}
 
 	pid := os.Getpid()
 	// First call will not return anything, as all services will be potentials.
@@ -375,10 +388,14 @@ func TestPorts(t *testing.T) {
 	startEvent := findService(pid, resp.StartedServices)
 	require.NotNilf(t, startEvent, "could not find start event for pid %v", pid)
 
-	for _, port := range expectedPorts {
-		expectedPortsMap[port] = struct{}{}
-		assert.Contains(t, startEvent.Ports, port)
+	for _, port := range expectedTCPPorts {
+		assert.Contains(t, startEvent.TCPPorts, port)
 	}
+
+	for _, port := range expectedUDPPorts {
+		assert.Contains(t, startEvent.UDPPorts, port)
+	}
+
 	for _, port := range unexpectedPorts {
 		// An unexpected port number can also be expected since UDP and TCP and
 		// v4 and v6 are all in the same list. Just skip the extra check in that
@@ -391,7 +408,7 @@ func TestPorts(t *testing.T) {
 		// the test infrastructure opens a listening TCP socket on an ephimeral
 		// port, and since we mix the different protocols we could find that on
 		// the unexpected port list.
-		if slices.Contains(startEvent.Ports, port) {
+		if slices.Contains(startEvent.TCPPorts, port) || slices.Contains(startEvent.UDPPorts, port) {
 			t.Logf("unexpected port %v also found", port)
 		}
 	}
@@ -432,11 +449,11 @@ func TestPortsLimits(t *testing.T) {
 	startEvent := findService(pid, resp.StartedServices)
 	require.NotNilf(t, startEvent, "could not find start event for pid %v", pid)
 
-	assert.Contains(t, startEvent.Ports, uint16(8081))
-	assert.Contains(t, startEvent.Ports, uint16(8082))
-	assert.Len(t, startEvent.Ports, maxNumberOfPorts)
+	assert.Contains(t, startEvent.TCPPorts, uint16(8081))
+	assert.Contains(t, startEvent.TCPPorts, uint16(8082))
+	assert.Len(t, startEvent.TCPPorts, maxNumberOfPorts)
 	for i := 0; i < maxNumberOfPorts-2; i++ {
-		assert.Contains(t, startEvent.Ports, uint16(expectedPorts[i]))
+		assert.Contains(t, startEvent.TCPPorts, uint16(expectedPorts[i]))
 	}
 }
 
@@ -972,7 +989,7 @@ func TestNamespaces(t *testing.T) {
 
 		for _, pid := range pids {
 			require.Contains(collect, seen, pid)
-			assert.Contains(collect, seen[pid].Ports, uint16(expectedPorts[pid]))
+			require.Contains(collect, seen[pid].TCPPorts, uint16(expectedPorts[pid]))
 		}
 	}, 30*time.Second, 100*time.Millisecond)
 }
@@ -1033,7 +1050,7 @@ func TestDocker(t *testing.T) {
 	// Assert events
 	startEvent := findService(pid1111, resp.StartedServices)
 	require.NotNilf(t, startEvent, "could not find start event for pid %v", pid1111)
-	require.Contains(t, startEvent.Ports, uint16(1234))
+	require.Contains(t, startEvent.TCPPorts, uint16(1234))
 	require.Contains(t, startEvent.ContainerID, "dummyCID")
 	require.Contains(t, startEvent.GeneratedName, "http.server")
 	require.Contains(t, startEvent.GeneratedNameSource, string(usm.CommandLine))
@@ -1227,15 +1244,17 @@ func getNsInfoOld(pid int) (*namespaceInfo, error) {
 	TCP6, _ := proc.NetTCP6()
 	UDP6, _ := proc.NetUDP6()
 
-	listeningSockets := make(map[uint64]socketInfo)
+	tcpSockets := make(map[uint64]socketInfo)
+	udpSockets := make(map[uint64]socketInfo)
 
-	addSockets(listeningSockets, TCP, network.AFINET, network.TCP, tcpListen)
-	addSockets(listeningSockets, TCP6, network.AFINET6, network.TCP, tcpListen)
-	addSockets(listeningSockets, UDP, network.AFINET, network.UDP, udpListen)
-	addSockets(listeningSockets, UDP6, network.AFINET6, network.UDP, udpListen)
+	addSockets(tcpSockets, TCP, network.AFINET, network.TCP, tcpListen)
+	addSockets(tcpSockets, TCP6, network.AFINET6, network.TCP, tcpListen)
+	addSockets(udpSockets, UDP, network.AFINET, network.UDP, udpListen)
+	addSockets(udpSockets, UDP6, network.AFINET6, network.UDP, udpListen)
 
 	return &namespaceInfo{
-		listeningSockets: listeningSockets,
+		tcpSockets: tcpSockets,
+		udpSockets: udpSockets,
 	}, nil
 }
 

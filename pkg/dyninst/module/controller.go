@@ -15,7 +15,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
 )
 
@@ -47,6 +46,7 @@ func NewController[AT ActuatorTenant, LU LogsUploader](
 	diagUploader DiagnosticsUploader,
 	rcScraper Scraper,
 	decoderFactory DecoderFactory,
+	irGenerator actuator.IRGenerator,
 ) *Controller {
 	c := &Controller{
 		logUploader:    logsUploaderFactoryImpl[LU]{factory: logUploader},
@@ -57,7 +57,7 @@ func NewController[AT ActuatorTenant, LU LogsUploader](
 		decoderFactory: decoderFactory,
 	}
 	c.actuator = a.NewTenant(
-		"dyninst", (*controllerReporter)(c), irgen.NewGenerator(),
+		"dyninst", (*controllerReporter)(c), irGenerator,
 	)
 	return c
 }

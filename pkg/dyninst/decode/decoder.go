@@ -33,10 +33,10 @@ type Decoder struct {
 	program      *ir.Program
 	decoderTypes map[ir.TypeID]decoderType
 	probeEvents  map[ir.TypeID]probeEvent
+	stackFrames  map[uint64][]symbol.StackFrame
 
 	// These fields are initialized and reset for each message.
 	snapshotMessage   snapshotMessage
-	stackFrames       map[uint64][]symbol.StackFrame
 	dataItems         map[typeAndAddr]output.DataItem
 	currentlyEncoding map[typeAndAddr]struct{}
 }
@@ -53,7 +53,6 @@ func NewDecoder(
 		stackFrames:       make(map[uint64][]symbol.StackFrame),
 		probeEvents:       make(map[ir.TypeID]probeEvent),
 		snapshotMessage: snapshotMessage{
-			DDSource: "dd_debugger",
 			Logger: logger{
 				Name:   "",
 				Method: "",
@@ -91,13 +90,18 @@ func (d *Decoder) Decode(
 	symbolicator symbol.Symbolicator,
 	out io.Writer,
 ) (probe ir.ProbeDefinition, err error) {
+	defer d.resetForNextMessage()
 	probe, err = d.snapshotMessage.init(d, event, symbolicator)
 	if err != nil {
 		return nil, err
 	}
-	defer d.snapshotMessage.clear()
 	err = json.MarshalWrite(out, &d.snapshotMessage)
 	return probe, err
+}
+
+func (d *Decoder) resetForNextMessage() {
+	clear(d.dataItems)
+	d.snapshotMessage = snapshotMessage{}
 }
 
 // Event wraps the output Event from the BPF program. It also adds fields
@@ -108,11 +112,11 @@ type Event struct {
 }
 
 type snapshotMessage struct {
-	Service   string       `json:"service"`
-	DDSource  string       `json:"ddsource"`
-	Logger    logger       `json:"logger"`
-	Debugger  debuggerData `json:"debugger"`
-	Timestamp int          `json:"timestamp"`
+	Service   string           `json:"service"`
+	DDSource  ddDebuggerSource `json:"ddsource"`
+	Logger    logger           `json:"logger"`
+	Debugger  debuggerData     `json:"debugger"`
+	Timestamp int              `json:"timestamp"`
 
 	rootData []byte
 }
@@ -213,8 +217,4 @@ func (s *snapshotMessage) init(
 		decoder:  decoder,
 	}
 	return probe, nil
-}
-
-func (s *snapshotMessage) clear() {
-	s.Debugger.Snapshot = snapshotData{}
 }

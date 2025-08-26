@@ -372,7 +372,7 @@ func NewMessageFromLambda(content []byte, origin *Origin, status string, utcTime
 // if status is not set, StatusInfo will be returned.
 func (m *MessageMetadata) GetStatus() string {
 	if m.Status == "" {
-		m.Status = StatusInfo
+		return StatusInfo
 	}
 	return m.Status
 }
