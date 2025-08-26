@@ -58,7 +58,7 @@ public:
     bool getAttrString(RtLoaderPyObject *obj, const char *attributeName, char *&value) const;
     bool getAttrBool(RtLoaderPyObject *obj, const char *attributeName, bool &value) const;
     bool getCheck(RtLoaderPyObject *py_class, const char *init_config_str, const char *instance_str,
-                  const char *check_id_str, const char *check_name, const char *agent_config_str,
+                  const char *check_id_str, const char *check_name, const char *agent_config_str, const char *source,
                   RtLoaderPyObject *&check);
 
     char *runCheck(RtLoaderPyObject *check);
