@@ -2677,6 +2677,124 @@ func TestParseJSONValue(t *testing.T) {
 	}
 }
 
+func TestHandleKubelet(t *testing.T) {
+	tests := []struct {
+		name          string
+		kubeletConfig map[string]interface{}
+		expectedTags  []string
+		returnsTags   bool
+	}{
+		{
+			name: "static cpu manager policy results in a static tag",
+			kubeletConfig: map[string]interface{}{
+				"kubeletconfig": map[string]interface{}{
+					"cpuManagerPolicy": "static",
+				},
+			},
+			expectedTags: []string{"cpu_manager_policy:static"},
+			returnsTags:  true,
+		},
+		{
+			name: "none cpu manager policy results in a none tag",
+			kubeletConfig: map[string]interface{}{
+				"kubeletconfig": map[string]interface{}{
+					"cpuManagerPolicy": "none",
+				},
+			},
+			expectedTags: []string{"cpu_manager_policy:none"},
+			returnsTags:  true,
+		},
+		{
+			name: "invalid cpu manager policy results in no tag",
+			kubeletConfig: map[string]interface{}{
+				"kubeletconfig": map[string]interface{}{
+					"cpuManagerPolicy": "invalid",
+				},
+			},
+		},
+		{
+			name: "missing kubeletconfig key results in no tag",
+			kubeletConfig: map[string]interface{}{
+				"otherconfig": map[string]interface{}{
+					"cpuManagerPolicy": "static",
+				},
+			},
+		},
+		{
+			name: "missing cpuManagerPolicy key results in no tag",
+			kubeletConfig: map[string]interface{}{
+				"kubeletconfig": map[string]interface{}{
+					"otherPolicy": "static",
+				},
+			},
+		},
+		{
+			name: "cpuManagerPolicy is not a string results in no tag",
+			kubeletConfig: map[string]interface{}{
+				"kubeletconfig": map[string]interface{}{
+					"cpuManagerPolicy": 123,
+				},
+			},
+		},
+		{
+			name: "kubeletconfig is not a map results in no tag",
+			kubeletConfig: map[string]interface{}{
+				"kubeletconfig": "not-a-map",
+			},
+		},
+		{
+			name: "empty kubeletconfig map results in no tag",
+			kubeletConfig: map[string]interface{}{
+				"kubeletconfig": map[string]interface{}{},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+				fx.Provide(func() log.Component { return logmock.New(t) }),
+				config.MockModule(),
+				fx.Supply(context.Background()),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+			))
+
+			collector := &WorkloadMetaCollector{
+				store: store,
+			}
+
+			kubeletEntity := &workloadmeta.Kubelet{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubelet,
+					ID:   "test-kubelet",
+				},
+				Config: workloadmeta.KubeletConfig(tt.kubeletConfig),
+			}
+
+			ev := workloadmeta.Event{
+				Type:   workloadmeta.EventTypeSet,
+				Entity: kubeletEntity,
+			}
+
+			result := collector.handleKubelet(ev)
+
+			if tt.returnsTags {
+				require.Len(t, result, 1, "should return exactly one TagInfo")
+
+				tagInfo := result[0]
+				assert.Equal(t, kubeletSource, tagInfo.Source)
+				assert.Equal(t, types.GetGlobalEntityID(), tagInfo.EntityID)
+				assert.Empty(t, tagInfo.HighCardTags)
+				assert.Empty(t, tagInfo.OrchestratorCardTags)
+				assert.Empty(t, tagInfo.StandardTags)
+				assert.ElementsMatch(t, tt.expectedTags, tagInfo.LowCardTags)
+			} else {
+				assert.Nil(t, result, "should return nil when config is invalid")
+			}
+		})
+	}
+}
+
 func Test_mergeMaps(t *testing.T) {
 	tests := []struct {
 		name   string

@@ -655,14 +655,19 @@ func (c *WorkloadMetaCollector) handleKubelet(ev workloadmeta.Event) []*types.Ta
 		return nil
 	}
 
-	cpuManagerPolicy, ok := cpuManagerPolicyInterface.(string) // Assert to string
+	cpuManagerPolicy, ok := cpuManagerPolicyInterface.(string)
 	if !ok {
 		log.Errorf("Error when parsing kubelet config, type assertion failed for cpuManagerPolicy")
 		return nil
 	}
 
+	if cpuManagerPolicy != "none" && cpuManagerPolicy != "static" {
+		log.Errorf("Error when parsing kubelet config, unexpected value for cpuManagerPolicy: %s", cpuManagerPolicy)
+		return nil
+	}
+
 	tagList := taglist.NewTagList()
-	tagList.AddLow(tags.CpuManagerPolicy, strings.ToLower(cpuManagerPolicy))
+	tagList.AddLow(tags.CpuManagerPolicy, cpuManagerPolicy)
 
 	low, orch, high, standard := tagList.Compute()
 
