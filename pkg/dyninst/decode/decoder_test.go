@@ -389,7 +389,7 @@ var simpleBigMapArgExpected = map[string]any{
 				map[string]any{"type": "string", "value": "b"},
 				map[string]any{
 					"type":    "*main.bigStruct", // This shouldn't be a pointer
-					"address": "0x0",             // and the address is suspect.
+					"address": "0x700000007",     // or carry this address.
 					"fields": map[string]any{
 						"Field1": map[string]any{"type": "int", "value": "1"},
 						"Field2": map[string]any{"type": "int", "value": "0"},
@@ -571,7 +571,7 @@ func simpleBigMapArgEvent(t testing.TB, irProg *ir.Program) []byte {
 var simplePointerChainArgExpected = map[string]any{
 	"ptr": map[string]any{
 		"type":    "*****int",
-		"address": "0x0",
+		"address": "0xa0000005",
 		"value":   "17",
 	},
 }

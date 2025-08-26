@@ -15,6 +15,7 @@ import (
 	"io"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -204,7 +205,7 @@ var defaultRedactors = []jsonRedactor{
 	),
 	redactor(
 		prefixSuffixMatcher{"/debugger/snapshot/captures/", "/address"},
-		replacement(`"[addr]"`),
+		replacerFunc(redactNonZeroAddress),
 	),
 	redactor(
 		prefixSuffixMatcher{"/debugger/snapshot/captures/entry/arguments/redactMyEntries", "/entries"},
@@ -218,6 +219,29 @@ var defaultRedactors = []jsonRedactor{
 		(*reMatcher)(regexp.MustCompile(`^/debugger/snapshot/captures/entry/arguments/.*`)),
 		replacerFunc(redactMutex),
 	),
+}
+
+func redactNonZeroAddress(v jsontext.Value) jsontext.Value {
+	if v.Kind() != '"' {
+		return v
+	}
+	var s string
+	if err := json.Unmarshal(v, &s); err != nil {
+		return v
+	}
+	addr, err := strconv.ParseUint(s, 0, 64)
+	if err != nil {
+		return v
+	}
+	if addr == 0 {
+		return v
+	}
+	s = "[addr]"
+	buf, err := json.Marshal(s)
+	if err != nil {
+		return v
+	}
+	return jsontext.Value(buf)
 }
 
 func redactMutex(v jsontext.Value) jsontext.Value {
