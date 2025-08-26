@@ -1398,8 +1398,6 @@ github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedete
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor v0.131.0/go.mod h1:N7fZpxyvPLusT15HEGXWtW+yF8xWY+x1uaHYbXZ3jHU=
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourceprocessor v0.131.0 h1:RkpPtwe0B6eFR46XQ6eIXDIkpD9IFnZfjCJOW44YelA=
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourceprocessor v0.131.0/go.mod h1:zy16qPh5/PIyjWa0c52W+w4jjpEw85vFXHKyaxdcIr4=
-github.com/open-telemetry/opentelemetry-collector-contrib/processor/routingprocessor v0.131.0 h1:w7LNvJbNt8L7EmQKSPFVLv8WeHVRD0uxMcRGeSAgCo4=
-github.com/open-telemetry/opentelemetry-collector-contrib/processor/routingprocessor v0.131.0/go.mod h1:z+d2a6En6/GazZl6QJKlSwBgykbkAyd6gSPv3/DO9Wg=
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor v0.131.0 h1:HOIRR7CXVuM433YyuHFIm6ODESNNYeOMehzNYW6LCZo=
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor v0.131.0/go.mod h1:B9yGMCACiR/hp/b8yWwq4MnYBDwj4xvIAktoeiVsVFc=
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor v0.131.0 h1:yZ2u46ANXX1GK6M2snbQ+JdIq802l9npqJzGPAKZHLg=
