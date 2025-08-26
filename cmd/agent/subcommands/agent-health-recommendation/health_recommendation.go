@@ -18,39 +18,60 @@ import (
 )
 
 // runHealthRecommendation runs health checks from all subcomponents and displays the issues found
-func runHealthRecommendation(_ log.Component, healthPlatform healthplatform.Component, cliParams *cliParams) error {
+func runHealthRecommendation(logComponent log.Component, healthPlatform healthplatform.Component, cliParams *cliParams) error {
 	ctx := context.Background()
+
+	logComponent.Info("Starting agent health recommendation process")
+	logComponent.Info("Starting health platform...")
 
 	// Start the health platform if it's not already running
 	if err := healthPlatform.Start(ctx); err != nil {
+		logComponent.Errorf("Failed to start health platform: %v", err)
 		return fmt.Errorf("failed to start health platform: %w", err)
 	}
+	logComponent.Info("Health platform started successfully")
+
 	defer func() {
+		logComponent.Info("Stopping health platform...")
 		if err := healthPlatform.Stop(); err != nil {
+			logComponent.Warnf("Failed to stop health platform: %v", err)
 			// Note: We can't use the log component here as it's not in scope
 			// Just ignore the error for now as this is a cleanup operation
 			_ = err // explicitly ignore the error to avoid empty block
+		} else {
+			logComponent.Info("Health platform stopped successfully")
 		}
 	}()
 
+	logComponent.Info("Running health checks to collect issues...")
 	// Run health checks to collect issues
 	report, err := healthPlatform.Run(ctx)
 	if err != nil {
+		logComponent.Errorf("Failed to run health checks: %v", err)
 		return fmt.Errorf("failed to run health checks: %w", err)
 	}
+	logComponent.Infof("Health checks completed successfully. Found %d issues", len(report.Issues))
 
 	// Display the health report
+	logComponent.Info("Displaying health report...")
 	if cliParams.jsonOutput {
+		logComponent.Info("Outputting results in JSON format")
 		// Output as JSON
 		jsonData, err := json.MarshalIndent(report, "", "  ")
 		if err != nil {
+			logComponent.Errorf("Failed to marshal health report: %v", err)
 			return fmt.Errorf("failed to marshal health report: %w", err)
 		}
 		fmt.Println(string(jsonData))
+		logComponent.Info("JSON output completed")
 	} else {
+		logComponent.Info("Outputting results in formatted text")
 		// Output as formatted text
 		displayHealthReport(report)
+		logComponent.Info("Formatted text output completed")
 	}
+
+	logComponent.Info("Agent health recommendation process completed successfully")
 
 	return nil
 }

@@ -41,11 +41,17 @@ This tool helps identify potential problems with the agent's health and provides
 recommendations for improvement.`,
 		SilenceUsage: true,
 		RunE: func(_ *cobra.Command, _ []string) error {
+			// Determine log level based on verbose flag
+			logLevel := "info"
+			if cliParams.verbose {
+				logLevel = "debug"
+			}
+
 			return fxutil.OneShot(runHealthRecommendation,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithConfigName(command.ConfigName), config.WithExtraConfFiles(globalParams.ExtraConfFilePath)),
-					LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, logLevel, true)}),
 				core.Bundle(),
 				healthplatformfx.Module(),
 			)
