@@ -1,0 +1,8 @@
+load("@@//bazel/multitool:extension.bzl", "tool_repo")
+
+TOOLS = {
+{tool_labels}
+}
+
+def register_tools():
+{tool_repos}

@@ -1,0 +1,19 @@
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+
+exports_files([
+    "run_in.template.bat",
+    "run_in.template.sh",
+])
+
+bzl_library(
+    name = "lockfile",
+    srcs = ["lockfile.bzl"],
+    visibility = ["//bazel/multitool:__subpackages__"],
+)
+
+bzl_library(
+    name = "templates",
+    srcs = ["templates.bzl"],
+    visibility = ["//bazel/multitool:__subpackages__"],
+    deps = ["@platforms//host:constraints_lib"],
+)
