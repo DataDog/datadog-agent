@@ -370,6 +370,11 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// (Linux only)
 	config.BindEnvAndSetDefault("hostname_trust_uts_namespace", false)
 
+	// Internal hostname drift detection configuration
+	// These options are not exposed to customers and are used for testing purposes
+	config.BindEnvAndSetDefault("hostname_drift_initial_delay", 20*time.Minute)
+	config.BindEnvAndSetDefault("hostname_drift_recurring_interval", 6*time.Hour)
+
 	config.BindEnvAndSetDefault("cluster_name", "")
 	config.BindEnvAndSetDefault("disable_cluster_name_tag_key", false)
 	config.BindEnvAndSetDefault("enabled_rfc1123_compliant_cluster_name_tag", true)
@@ -1153,7 +1158,9 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("remote_agent_registry.idle_timeout", time.Duration(30*time.Second))
 	config.BindEnvAndSetDefault("remote_agent_registry.query_timeout", time.Duration(3*time.Second))
 	config.BindEnvAndSetDefault("remote_agent_registry.recommended_refresh_interval", time.Duration(10*time.Second))
-	config.BindEnvAndSetDefault("remote_agent_registry.config_stream_retry_interval", time.Duration(1*time.Second))
+
+	// Config Stream
+	config.BindEnvAndSetDefault("config_stream.sleep_interval", 3*time.Second)
 }
 
 func agent(config pkgconfigmodel.Setup) {
@@ -1874,6 +1881,11 @@ func kubernetes(config pkgconfigmodel.Setup) {
 		defaultPodresourcesSocket = `\\.\pipe\kubelet-pod-resources`
 	}
 	config.BindEnvAndSetDefault("kubernetes_kubelet_podresources_socket", defaultPodresourcesSocket)
+
+	// Temporary option. When enabled, workloadmeta uses the Kubelet pod watcher
+	// to fetch pod information (old behavior). Useful as a fallback if the new
+	// behavior causes issues. This option will be removed.
+	config.BindEnvAndSetDefault("kubelet_use_pod_watcher", false)
 }
 
 func podman(config pkgconfigmodel.Setup) {
