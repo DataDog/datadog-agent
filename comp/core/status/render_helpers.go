@@ -95,7 +95,6 @@ func TextFmap() pkgtexttemplate.FuncMap {
 }
 
 const timeFormat = "2006-01-02 15:04:05.999 MST"
-const timeLayout = "2006-01-02T15:04:05.999999-07:00"
 
 // RenderHTML reads, parse and execute template from embed.FS
 func RenderHTML(templateFS embed.FS, template string, buffer io.Writer, data any) error {
