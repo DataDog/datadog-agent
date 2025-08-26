@@ -74,12 +74,13 @@ func (c *Check) Run() error {
 	}
 	configs = append(configs, ncmreport.ToNetworkDeviceConfig(deviceID, c.deviceConfig.IPAddress, ncmreport.RUNNING, c.clock.Now().Unix(), tags, runningConfig))
 
-	if c.deviceConfig.CollectStartupConfig {
-		// TODO: validate the startup config to make sure it's valid, extract other information from it, etc.
-		startupConfig, checkErr := c.remoteClient.RetrieveStartupConfig()
-		if checkErr != nil {
-			return checkErr
-		}
+	// TODO: validate the startup config to make sure it's valid, extract other information from it, etc.
+	startupConfig, checkErr := c.remoteClient.RetrieveStartupConfig()
+	if checkErr != nil {
+		// If the startup config cannot be retrieved, log a warning but continue
+		log.Warnf("unable to retrieve startup config for %s, will not send: %s", deviceID, checkErr)
+	} else {
+		// add the startup config to the payload if it was retrieved successfully
 		configs = append(configs, ncmreport.ToNetworkDeviceConfig(deviceID, c.deviceConfig.IPAddress, ncmreport.STARTUP, c.clock.Now().Unix(), tags, startupConfig))
 	}
 

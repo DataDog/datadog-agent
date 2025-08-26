@@ -147,6 +147,14 @@ var expectedEvent = []byte(`
       "timestamp": 1754043600,
       "tags": ["device_ip:10.0.0.1"],
       "content": "interface GigabitEthernet0/1\n ip address 192.168.1.1 255.255.255.0"
+    },
+    {
+      "device_id": "default:10.0.0.1",
+      "device_ip": "10.0.0.1",
+      "config_type": "startup",
+      "timestamp": 1754043600,
+      "tags": ["device_ip:10.0.0.1"],
+      "content": "interface GigabitEthernet0/1\n ip address 192.168.1.1 255.255.255.0"
     }
   ],
   "collect_timestamp": 1754043600

@@ -44,10 +44,9 @@ type AuthCredentials struct { // auth_credentials
 
 // DeviceConfig holds the info to connect to a network device, including its IP address and authentication credentials.
 type DeviceConfig struct {
-	Namespace            string          `yaml:"namespace"`
-	IPAddress            string          `yaml:"ip_address"`             // ip address of the network device, e.g., "10.0.0.1"
-	CollectStartupConfig bool            `yaml:"collect_startup_config"` // whether to collect the startup config (default: false)
-	Auth                 AuthCredentials `yaml:"auth"`
+	Namespace string          `yaml:"namespace"`
+	IPAddress string          `yaml:"ip_address"` // ip address of the network device, e.g., "10.0.0.1"
+	Auth      AuthCredentials `yaml:"auth"`
 }
 
 // NcmConfig is the processed config structure for Network Config Management (NCM) to be used by the component
