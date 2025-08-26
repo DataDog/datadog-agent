@@ -22,7 +22,6 @@ import (
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
@@ -122,7 +121,7 @@ func (cr *Resolver) syncOrDeleteCgroup(cgroup *cgroupModel.CacheEntry, deletedPi
 	// check if the cgroup still contains pids
 	pids, err := cr.cgroupFS.GetCgroupPids(string(cgroup.CGroupContext.CGroupID))
 	if err != nil {
-		seclog.Errorf("GetCgroupPids for cgroup %+v, ERROR: %v", cgroup.CGroupContext, err)
+		cr.removeCgroup(cgroup)
 		return
 	}
 
