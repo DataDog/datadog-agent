@@ -1,7 +1,7 @@
 # 3rd party dependencies
 
 # Defines a "bz2" target for the lib, "bzip2" for the CLI tool
-bazel_dep(name = "bzip2", version = "1.0.8")
+bazel_dep(name = "bzip2", version = "1.0.8.bcr.2")
 
 # Defines a "libyaml" target for the lib
 bazel_dep(name = "libyaml", version = "0.2.5")

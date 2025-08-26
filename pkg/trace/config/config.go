@@ -588,7 +588,7 @@ func New() *AgentConfig {
 		TraceWriter:              new(WriterConfig),
 		ConnectionResetInterval:  0, // disabled
 		MaxSenderRetries:         4,
-		ClientStatsFlushInterval: 1 * time.Second,
+		ClientStatsFlushInterval: 2 * time.Second, // bucket duration (2s)
 
 		StatsdHost:    "localhost",
 		StatsdPort:    8125,
