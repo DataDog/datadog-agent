@@ -1,0 +1,21 @@
+{
+  "repositoryName": "dd-lib-python-init",
+  "repositoryURL": "gcr.io/datadoghq/dd-lib-python-init",
+  "images": [
+    {
+      "tag": "latest",
+      "digest": "sha256:abc123",
+      "canonicalVersion": "v3.1.0"
+    },
+    {
+      "tag": "v3",
+      "digest": "sha256:def456",
+      "canonicalVersion": "v3.0.0"
+    },
+    {
+      "tag": "v3.1",
+      "digest": "sha256:xyz789",
+      "canonicalVersion": "v3.1.0"
+    }
+  ]
+}

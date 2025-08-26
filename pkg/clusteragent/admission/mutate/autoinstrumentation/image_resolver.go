@@ -72,21 +72,23 @@ func (r *remoteConfigImageResolver) Resolve(repository string, tag string) (stri
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
+	originalImageRef := fmt.Sprintf("%s:%s", repository, tag)
+
 	if len(r.imageMappings) == 0 {
 		log.Debugf("Cache empty, no resolution available")
-		return "", false
+		return originalImageRef, false
 	}
 
 	repoCache, exists := r.imageMappings[repository]
 	if !exists {
 		log.Debugf("No mapping found for repository %s", repository)
-		return "", false
+		return originalImageRef, false
 	}
 
 	resolved, exists := repoCache[tag]
 	if !exists {
 		log.Debugf("No mapping found for %s:%s", repository, tag)
-		return "", false
+		return originalImageRef, false
 	}
 
 	log.Debugf("Resolved %s:%s -> %s", repository, tag, resolved.FullImageRef)
