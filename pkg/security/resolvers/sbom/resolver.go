@@ -226,6 +226,7 @@ func (r *Resolver) Start(ctx context.Context) error {
 						seclog.Warnf("Failed to generate SBOM for '%s': %v", sbom.ContainerID, err)
 					}
 				}
+				r.removePendingScan(sbom.ContainerID)
 			}
 		}
 	}()
@@ -369,23 +370,21 @@ func (r *Resolver) analyzeWorkload(sbom *SBOM) error {
 
 	seclog.Infof("analyzing sbom '%s'", sbom.ContainerID)
 
-	if currentState := sbom.state.Load(); currentState != pendingState {
-		r.removePendingScan(sbom.ContainerID)
-
-		if currentState != stoppedState {
-			// should not append, ignore
-			seclog.Warnf("trying to analyze a sbom not in pending state for '%s': %d", sbom.ContainerID, currentState)
-			return nil
-		}
+	switch sbom.state.Load() {
+	case stoppedState:
+		// the SBOM was stopped before it could be scanned, ignore it
+		return nil
+	case computedState:
+		seclog.Warnf("trying to analyze a sbom already in computed state '%s'", sbom.ContainerID)
+		return nil
 	}
+	// here sbom.state should be pendingState
 
 	// bail out if the workload has been analyzed while queued up
 	r.dataCacheLock.RLock()
 	if data, exists := r.dataCache.Get(sbom.workloadKey); exists {
 		r.dataCacheLock.RUnlock()
 		sbom.data = data
-
-		r.removePendingScan(sbom.ContainerID)
 
 		return nil
 	}
@@ -408,8 +407,6 @@ func (r *Resolver) analyzeWorkload(sbom *SBOM) error {
 	r.dataCacheLock.Lock()
 	r.dataCache.Add(sbom.workloadKey, data)
 	r.dataCacheLock.Unlock()
-
-	r.removePendingScan(sbom.ContainerID)
 
 	seclog.Infof("new sbom generated for '%s': %d files added", sbom.ContainerID, data.files.len())
 	return nil
