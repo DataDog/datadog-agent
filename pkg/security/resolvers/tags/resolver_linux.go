@@ -30,8 +30,13 @@ type Workload struct {
 }
 
 // GetWorkloadID returns the workload ID for a workload
-func (w *Workload) GetWorkloadID() interface{} {
-	return utils.GetWorkloadID(w.ContainerID, w.CGroupID)
+func (w *Workload) GetWorkloadID() containerutils.WorkloadID {
+	if w.ContainerID != "" {
+		return w.ContainerID
+	} else if w.CGroupID != "" {
+		return w.CGroupID
+	}
+	return nil
 }
 
 // Type returns the type of the workload
@@ -185,12 +190,12 @@ func NewResolver(tagger Tagger, cgroupsResolver *cgroup.Resolver, versionResolve
 }
 
 // ResolveWithErr overrides the default implementation to use Linux-specific workload resolution
-func (t *LinuxResolver) ResolveWithErr(id interface{}) ([]string, error) {
+func (t *LinuxResolver) ResolveWithErr(id containerutils.WorkloadID) ([]string, error) {
 	return t.resolveWorkloadTags(id)
 }
 
 // resolveWorkloadTags overrides the default implementation to handle CGroup resolution on Linux
-func (t *LinuxResolver) resolveWorkloadTags(id interface{}) ([]string, error) {
+func (t *LinuxResolver) resolveWorkloadTags(id containerutils.WorkloadID) ([]string, error) {
 	if id == nil {
 		return nil, fmt.Errorf("nil workload id")
 	}

@@ -15,6 +15,7 @@ import (
 
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
@@ -261,7 +262,7 @@ func fillProfileContextFromProfile(ctx *model.SecurityProfileContext, p *profile
 }
 
 // FillProfileContextFromWorkloadID fills the given ctx with workload id infos
-func (m *Manager) FillProfileContextFromWorkloadID(id interface{}, ctx *model.SecurityProfileContext, imageTag string) {
+func (m *Manager) FillProfileContextFromWorkloadID(id containerutils.WorkloadID, ctx *model.SecurityProfileContext, imageTag string) {
 	if !m.config.RuntimeSecurity.SecurityProfileEnabled {
 		return
 	}

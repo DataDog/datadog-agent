@@ -647,7 +647,8 @@ func (p *Profile) MatchesSelector(entry *model.ProcessCacheEntry) bool {
 
 	for _, workload := range p.Instances {
 		// Check if the workload IDs match
-		if entry.GetWorkloadID() != nil && workload.GetWorkloadID() != nil && entry.GetWorkloadID() == workload.GetWorkloadID() {
+		workloadID := workload.GetWorkloadID()
+		if workloadID != nil && (workloadID == entry.ContainerID || workloadID == entry.CGroup.CGroupID) {
 			return true
 		}
 	}

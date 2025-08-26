@@ -41,7 +41,7 @@ func HostToNetworkShort(short uint16) uint16 {
 }
 
 // GetWorkloadID returns an ID that represents the workload, preferring container ID over cgroup ID
-func GetWorkloadID(containerID containerutils.ContainerID, cgroupID containerutils.CGroupID) interface{} {
+func GetWorkloadID(containerID containerutils.ContainerID, cgroupID containerutils.CGroupID) containerutils.WorkloadID {
 	if containerID != "" {
 		return containerID
 	}

@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/utils"
-	securityUtils "github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 const (
@@ -1017,9 +1016,4 @@ type SetSockOptEvent struct {
 	FilterInstructions string `field:"filter_instructions,handler:ResolveSetSockOptFilterInstructions"`     // SECLDoc[filter_instructions] Definition:`Filter instructions`
 	FilterHash         string `field:"filter_hash,handler:ResolveSetSockOptFilterHash:"`                    // SECLDoc[filter_hash] Definition:`Hash of the socket filter using sha256`
 	UsedImmediates     []int  `field:"used_immediates,handler:ResolveSetSockOptUsedImmediates, weight:999"` // SECLDoc[used_immediates] Definition:`List of immediate values used in the filter`
-}
-
-// GetWorkloadID returns an ID that represents the workload
-func (pc *ProcessCacheEntry) GetWorkloadID() interface{} {
-	return securityUtils.GetWorkloadID(pc.ContainerID, pc.CGroup.CGroupID)
 }

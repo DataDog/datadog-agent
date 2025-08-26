@@ -792,7 +792,7 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 
 	// handle anomaly detections
 	if event.IsAnomalyDetectionEvent() {
-		var workloadID interface{}
+		var workloadID containerutils.WorkloadID
 		var imageTag string
 		if containerID := event.FieldHandlers.ResolveContainerID(event, event.ContainerContext); containerID != "" {
 			workloadID = containerID

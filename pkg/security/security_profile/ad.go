@@ -204,7 +204,7 @@ func (m *Manager) resolveTags(ad *dump.ActivityDump) error {
 		return nil
 	}
 
-	var workloadID interface{}
+	var workloadID containerutils.WorkloadID
 	if len(ad.Profile.Metadata.ContainerID) > 0 {
 		workloadID = containerutils.ContainerID(ad.Profile.Metadata.ContainerID)
 	} else if len(ad.Profile.Metadata.CGroupContext.CGroupID) > 0 {
