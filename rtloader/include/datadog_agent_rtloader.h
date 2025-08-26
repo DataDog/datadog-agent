@@ -143,10 +143,10 @@ DATADOG_AGENT_RTLOADER_API int get_attr_bool(rtloader_t *rtloader, rtloader_pyob
                                              bool *value);
 
 /*! \fn int get_check(rtloader_t *rtloader, rtloader_pyobject_t *py_class, const char *init_config, const char
-   *instance, const char *check_id, const char *check_name, const char *source, rtloader_pyobject_t **check) \brief Attempts to instantiate
-   a datadog python check with the supplied configuration parameters. \param rtloader_t A rtloader_t * pointer to the
-   RtLoader instance. \param py_class A rtloader_pyobject_t * pointer to the python check class we wish to instantiate.
-    \param init_config A constant C-string with the init config for the check instance.
+   *instance, const char *check_id, const char *check_name, const char *source, rtloader_pyobject_t **check) \brief
+   Attempts to instantiate a datadog python check with the supplied configuration parameters. \param rtloader_t A
+   rtloader_t * pointer to the RtLoader instance. \param py_class A rtloader_pyobject_t * pointer to the python check
+   class we wish to instantiate. \param init_config A constant C-string with the init config for the check instance.
     \param instance A constant C-string with the instance-specific config for the check instance.
     \param check_id A constant C-string unique identifier for the check instance.
     \param check_name A constant C-string with the check name.
