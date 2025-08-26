@@ -5,7 +5,7 @@ go 1.23.0
 require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.60.0
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.60.0
-	github.com/stretchr/testify v1.10.0
+	github.com/stretchr/testify v1.11.0
 )
 
 require (
