@@ -22,9 +22,9 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor v0.131.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver v0.131.0
 	github.com/stretchr/testify v1.10.0
-	go.opentelemetry.io/collector/component v1.37.0
+	go.opentelemetry.io/collector/component v1.38.0
 	go.opentelemetry.io/collector/component/componentstatus v0.131.0
-	go.opentelemetry.io/collector/component/componenttest v0.131.0
+	go.opentelemetry.io/collector/component/componenttest v0.132.0
 	go.opentelemetry.io/collector/config/confighttp v0.131.0
 	go.opentelemetry.io/collector/confmap v1.37.0
 	go.opentelemetry.io/collector/confmap/provider/envprovider v1.37.0
@@ -140,7 +140,7 @@ require (
 
 require (
 	go.opentelemetry.io/collector/confmap/xconfmap v0.131.0 // indirect
-	go.opentelemetry.io/collector/internal/telemetry v0.131.0 // indirect
+	go.opentelemetry.io/collector/internal/telemetry v0.132.0 // indirect
 	go.uber.org/zap/exp v0.3.0 // indirect
 )
 
@@ -301,7 +301,7 @@ require (
 	github.com/DataDog/go-sqllexer v0.1.6 // indirect
 	github.com/DataDog/go-tuf v1.1.0-0.5.2 // indirect
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.31.0 // indirect
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.32.0 // indirect
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.31.0 // indirect
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.31.0 // indirect
 	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.31.0 // indirect
@@ -472,11 +472,11 @@ require (
 	go.opentelemetry.io/collector/config/configtls v1.37.0 // indirect
 	go.opentelemetry.io/collector/consumer v1.37.0 // indirect
 	go.opentelemetry.io/collector/consumer/consumertest v0.131.0 // indirect
-	go.opentelemetry.io/collector/featuregate v1.37.0 // indirect
-	go.opentelemetry.io/collector/pdata v1.37.0 // indirect
+	go.opentelemetry.io/collector/featuregate v1.38.0 // indirect
+	go.opentelemetry.io/collector/pdata v1.38.0 // indirect
 	go.opentelemetry.io/collector/pdata/pprofile v0.131.0 // indirect
 	go.opentelemetry.io/collector/pdata/testdata v0.131.0 // indirect
-	go.opentelemetry.io/collector/pipeline v0.131.0 // indirect
+	go.opentelemetry.io/collector/pipeline v1.38.0 // indirect
 	go.opentelemetry.io/collector/service v0.131.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.62.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.62.0 // indirect
