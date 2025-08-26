@@ -291,7 +291,7 @@ bool Three::getClass(const char *module, RtLoaderPyObject *&pyModule, RtLoaderPy
 
 bool Three::getCheck(RtLoaderPyObject *py_class, const char *init_config_str, const char *instance_str,
                      const char *check_id_str, const char *check_name, const char *agent_config_str,
-                     const char *source, RtLoaderPyObject *&check)
+                     const char *source_str, RtLoaderPyObject *&check)
 {
 
     PyObject *klass = reinterpret_cast<PyObject *>(py_class);
@@ -304,7 +304,7 @@ bool Three::getCheck(RtLoaderPyObject *py_class, const char *init_config_str, co
     PyObject *kwargs = NULL;
     PyObject *check_id = NULL;
     PyObject *name = NULL;
-    PyObject *py_source = NULL;
+    PyObject *source = NULL;
 
     char load_config[] = "load_config";
     char format[] = "(s)"; // use parentheses to force Tuple creation
@@ -398,13 +398,13 @@ bool Three::getCheck(RtLoaderPyObject *py_class, const char *init_config_str, co
         }
     }
 
-    py_source = PyUnicode_FromString(source);
-    if (source != NULL) {
-        if (py_source == NULL) {
+    if (source_str != NULL && strlen(source_str) != 0) {
+        source = PyUnicode_FromString(source_str);
+        if (source == NULL) {
             setError("error 'source' can't be initialized: " + _fetchPythonError());
             goto done;
         }
-        if (PyDict_SetItemString(kwargs, "source", py_source) == -1) {
+        if (PyDict_SetItemString(kwargs, "source", source) == -1) {
             setError("error 'source' key can't be set: " + _fetchPythonError());
             goto done;
         }
@@ -440,13 +440,13 @@ done:
     // We purposefully avoid calling Py_XDECREF on instance because we lost ownership earlier by
     // calling PyTuple_SetItem. More details are available in the comment above this PyTuple_SetItem
     // call
+    Py_XDECREF(source);
     Py_XDECREF(name);
     Py_XDECREF(check_id);
     Py_XDECREF(init_config);
     Py_XDECREF(instances);
     Py_XDECREF(agent_config);
     Py_XDECREF(args);
-    Py_XDECREF(py_source);
     Py_XDECREF(kwargs);
 
     if (py_check == NULL) {
