@@ -55,7 +55,13 @@
                 "fields": {
                   "data": {
                     "type": "*errors.errorString",
-                    "notCapturedReason": "missing type information"
+                    "address": "[addr]",
+                    "fields": {
+                      "s": {
+                        "type": "string",
+                        "value": "blah"
+                      }
+                    }
                   }
                 }
               }

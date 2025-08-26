@@ -75,7 +75,8 @@
                     "fields": {
                       "data": {
                         "type": "*main.somethingImpl",
-                        "notCapturedReason": "missing type information"
+                        "address": "[addr]",
+                        "fields": {}
                       }
                     }
                   },

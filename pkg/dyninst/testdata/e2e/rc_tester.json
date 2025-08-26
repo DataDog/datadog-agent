@@ -28,8 +28,45 @@
                 "type": "net/http.ResponseWriter",
                 "fields": {
                   "data": {
-                    "type": "struct { httptrace.monitoredResponseWriter; http.Flusher; http.CloseNotifier; http.Hijacker }",
-                    "notCapturedReason": "missing type information"
+                    "type": "struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.CloseNotifier; net/http.Hijacker }",
+                    "fields": {
+                      "monitoredResponseWriter": {
+                        "type": "github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1",
+                        "fields": {
+                          "data": {
+                            "type": "*github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.responseWriter",
+                            "notCapturedReason": "depth"
+                          }
+                        }
+                      },
+                      "Flusher": {
+                        "type": "net/http.Flusher",
+                        "fields": {
+                          "data": {
+                            "type": "*net/http.response",
+                            "notCapturedReason": "depth"
+                          }
+                        }
+                      },
+                      "CloseNotifier": {
+                        "type": "net/http.CloseNotifier",
+                        "fields": {
+                          "data": {
+                            "type": "*net/http.response",
+                            "notCapturedReason": "depth"
+                          }
+                        }
+                      },
+                      "Hijacker": {
+                        "type": "net/http.Hijacker",
+                        "fields": {
+                          "data": {
+                            "type": "*net/http.response",
+                            "notCapturedReason": "depth"
+                          }
+                        }
+                      }
+                    }
                   }
                 }
               },
@@ -225,8 +262,45 @@
                 "type": "net/http.ResponseWriter",
                 "fields": {
                   "data": {
-                    "type": "struct { httptrace.monitoredResponseWriter; http.Flusher; http.CloseNotifier; http.Hijacker }",
-                    "notCapturedReason": "missing type information"
+                    "type": "struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.CloseNotifier; net/http.Hijacker }",
+                    "fields": {
+                      "monitoredResponseWriter": {
+                        "type": "github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1",
+                        "fields": {
+                          "data": {
+                            "type": "*github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.responseWriter",
+                            "notCapturedReason": "depth"
+                          }
+                        }
+                      },
+                      "Flusher": {
+                        "type": "net/http.Flusher",
+                        "fields": {
+                          "data": {
+                            "type": "*net/http.response",
+                            "notCapturedReason": "depth"
+                          }
+                        }
+                      },
+                      "CloseNotifier": {
+                        "type": "net/http.CloseNotifier",
+                        "fields": {
+                          "data": {
+                            "type": "*net/http.response",
+                            "notCapturedReason": "depth"
+                          }
+                        }
+                      },
+                      "Hijacker": {
+                        "type": "net/http.Hijacker",
+                        "fields": {
+                          "data": {
+                            "type": "*net/http.response",
+                            "notCapturedReason": "depth"
+                          }
+                        }
+                      }
+                    }
                   }
                 }
               },
@@ -422,8 +496,45 @@
                 "type": "net/http.ResponseWriter",
                 "fields": {
                   "data": {
-                    "type": "struct { httptrace.monitoredResponseWriter; http.Flusher; http.CloseNotifier; http.Hijacker }",
-                    "notCapturedReason": "missing type information"
+                    "type": "struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.CloseNotifier; net/http.Hijacker }",
+                    "fields": {
+                      "monitoredResponseWriter": {
+                        "type": "github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1",
+                        "fields": {
+                          "data": {
+                            "type": "*github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.responseWriter",
+                            "notCapturedReason": "depth"
+                          }
+                        }
+                      },
+                      "Flusher": {
+                        "type": "net/http.Flusher",
+                        "fields": {
+                          "data": {
+                            "type": "*net/http.response",
+                            "notCapturedReason": "depth"
+                          }
+                        }
+                      },
+                      "CloseNotifier": {
+                        "type": "net/http.CloseNotifier",
+                        "fields": {
+                          "data": {
+                            "type": "*net/http.response",
+                            "notCapturedReason": "depth"
+                          }
+                        }
+                      },
+                      "Hijacker": {
+                        "type": "net/http.Hijacker",
+                        "fields": {
+                          "data": {
+                            "type": "*net/http.response",
+                            "notCapturedReason": "depth"
+                          }
+                        }
+                      }
+                    }
                   }
                 }
               },

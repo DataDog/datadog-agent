@@ -13,12 +13,14 @@ type config struct {
 	maxDynamicTypeSize uint32
 	maxHashBucketsSize uint32
 	objectLoader       object.Loader
+	typeIndexFactory   goTypeIndexFactory
 }
 
 var defaultConfig = config{
 	maxDynamicTypeSize: defaultMaxDynamicTypeSize,
 	maxHashBucketsSize: defaultMaxHashBucketsSize,
 	objectLoader:       object.NewInMemoryLoader(),
+	typeIndexFactory:   &inMemoryTypeIndexFactory{},
 }
 
 // This is an arbitrary limit for how much data will be captured for

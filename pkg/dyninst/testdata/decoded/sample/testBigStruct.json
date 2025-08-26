@@ -73,7 +73,7 @@
                     "fields": {
                       "data": {
                         "type": "io.discard",
-                        "notCapturedReason": "missing type information"
+                        "fields": {}
                       }
                     }
                   }

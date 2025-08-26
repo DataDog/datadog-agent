@@ -102,13 +102,6 @@ func runTest(t *testing.T, cfg testprogs.Config, prog string) {
 		if i == 1 {
 			irWithLimit1 = irWithLimit
 		}
-		if len(irWithLimit.Types) < len(irWithDefaultLimits.Types) {
-			t.Logf(
-				"IR with limit %d has %d types < %d types",
-				i, len(irWithLimit.Types), len(irWithDefaultLimits.Types),
-			)
-			continue
-		}
 		typeNames := func(p *ir.Program) []string {
 			var names []string
 			for _, t := range p.Types {
@@ -117,8 +110,15 @@ func runTest(t *testing.T, cfg testprogs.Config, prog string) {
 			slices.Sort(names)
 			return names
 		}
-		require.Equal(t, typeNames(irWithDefaultLimits), typeNames(irWithLimit))
-		break
+		if slices.Equal(typeNames(irWithDefaultLimits), typeNames(irWithLimit)) {
+			t.Logf("types converged with limit %d", i)
+			break
+		}
+		require.Less(t, i, 100, "types did not converge in 100 iterations")
+		t.Logf(
+			"limit %d has %d types < %d types",
+			i, len(irWithLimit.Types), len(irWithDefaultLimits.Types),
+		)
 	}
 
 	// Use the default probe definitions so it's less noisy.
