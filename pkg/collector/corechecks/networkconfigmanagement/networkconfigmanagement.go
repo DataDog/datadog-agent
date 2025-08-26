@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"time"
 
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/benbjohnson/clock"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -24,22 +23,17 @@ import (
 	ncmremote "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/remote"
 	ncmreport "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/report"
 	ncmsender "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/sender"
-	"github.com/DataDog/datadog-agent/pkg/snmp/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
-
-	"gopkg.in/yaml.v2"
 )
 
 // CheckName is the name of the check
 const CheckName = "network_config_management"
-const defaultCheckInterval = 15 * time.Minute
 
 // Check is the main struct for the network configuration management check
 type Check struct {
 	core.CheckBase
-	deviceConfig *ncmconfig.DeviceConfig
-	initConfig   *ncmconfig.InitConfig
+	checkContext *ncmconfig.NcmCheckContext
 	sender       *ncmsender.NCMSender
 	agentConfig  config.Component
 	remoteClient ncmremote.Client
@@ -53,7 +47,7 @@ func (c *Check) Run() error {
 
 	checkErr = c.remoteClient.Connect()
 	if checkErr != nil {
-		log.Errorf("unable to connect to remote device %s: %s", c.deviceConfig.IPAddress, checkErr)
+		log.Errorf("unable to connect to remote device %s: %s", c.checkContext.Device.IPAddress, checkErr)
 		return checkErr
 	}
 	defer func() {
@@ -68,11 +62,11 @@ func (c *Check) Run() error {
 		return checkErr
 	}
 
-	deviceID := fmt.Sprintf("%s:%s", c.deviceConfig.Namespace, c.deviceConfig.IPAddress)
+	deviceID := fmt.Sprintf("%s:%s", c.checkContext.Namespace, c.checkContext.Device.IPAddress)
 	tags := []string{
-		"device_ip:" + c.deviceConfig.IPAddress,
+		"device_ip:" + c.checkContext.Device.IPAddress,
 	}
-	configs = append(configs, ncmreport.ToNetworkDeviceConfig(deviceID, c.deviceConfig.IPAddress, ncmreport.RUNNING, c.clock.Now().Unix(), tags, runningConfig))
+	configs = append(configs, ncmreport.ToNetworkDeviceConfig(deviceID, c.checkContext.Device.IPAddress, ncmreport.RUNNING, c.clock.Now().Unix(), tags, runningConfig))
 
 	// TODO: validate the startup config to make sure it's valid, extract other information from it, etc.
 	startupConfig, checkErr := c.remoteClient.RetrieveStartupConfig()
@@ -81,10 +75,10 @@ func (c *Check) Run() error {
 		log.Warnf("unable to retrieve startup config for %s, will not send: %s", deviceID, checkErr)
 	} else {
 		// add the startup config to the payload if it was retrieved successfully
-		configs = append(configs, ncmreport.ToNetworkDeviceConfig(deviceID, c.deviceConfig.IPAddress, ncmreport.STARTUP, c.clock.Now().Unix(), tags, startupConfig))
+		configs = append(configs, ncmreport.ToNetworkDeviceConfig(deviceID, c.checkContext.Device.IPAddress, ncmreport.STARTUP, c.clock.Now().Unix(), tags, startupConfig))
 	}
 
-	checkErr = c.sender.SendNCMConfig(ncmreport.ToNCMPayload(c.deviceConfig.Namespace, "", configs, c.clock.Now().Unix()))
+	checkErr = c.sender.SendNCMConfig(ncmreport.ToNCMPayload(c.checkContext.Namespace, "", configs, c.clock.Now().Unix()))
 	if checkErr != nil {
 		return checkErr
 	}
@@ -99,6 +93,13 @@ func (c *Check) Run() error {
 // Configure sets up the check with the provided configuration and sender manager
 func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, rawInstance integration.Data, rawInitConfig integration.Data, source string) error {
 	var err error
+
+	// Load/parse the configuration for the device instance
+	c.checkContext, err = ncmconfig.NewNcmCheckContext(rawInstance, rawInitConfig)
+	if err != nil {
+		return fmt.Errorf("build config failed: %s", err)
+	}
+
 	// Must be called before v.CommonConfigure
 	c.BuildID(integrationConfigDigest, rawInstance, rawInitConfig)
 	err = c.CommonConfigure(senderManager, rawInitConfig, rawInstance, source)
@@ -106,48 +107,16 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 		return fmt.Errorf("common configure failed: %s", err)
 	}
 
-	var deviceConfig ncmconfig.DeviceConfig
-	var initConfig ncmconfig.InitConfig
-
-	err = yaml.Unmarshal(rawInstance, &deviceConfig)
-	if err != nil {
-		return fmt.Errorf("failed to unmarshal device config: %s", err)
-	}
-	err = deviceConfig.ValidateConfig()
-	if err != nil {
-		return err
-	}
-	c.deviceConfig = &deviceConfig
-
-	err = yaml.Unmarshal(rawInitConfig, &initConfig)
-	if err != nil {
-		return fmt.Errorf("failed to unmarshal init config: %s", err)
-	}
-	c.initConfig = &initConfig
-
-	var namespace string
-	if c.deviceConfig.Namespace != "" {
-		namespace = c.deviceConfig.Namespace
-	} else if c.initConfig.Namespace != "" {
-		namespace = c.initConfig.Namespace
-	} else {
-		namespace = pkgconfigsetup.Datadog().GetString("network_devices.namespace")
-	}
-	namespace, err = utils.NormalizeNamespace(namespace)
-	if err != nil {
-		return err
-	}
-	c.deviceConfig.Namespace = namespace
-
+	// Initialize the Sender
 	s, err := c.GetSender()
 	if err != nil {
 		return err
 	}
-	ncmSender := ncmsender.NewNCMSender(s, c.deviceConfig.Namespace)
+	ncmSender := ncmsender.NewNCMSender(s, c.checkContext.Namespace)
 	c.sender = ncmSender
 
 	// TODO: add check to see the device's credentials type (SSH/Telnet) and create appropriate client factory
-	c.remoteClient = ncmremote.NewSSHClient(c.deviceConfig)
+	c.remoteClient = ncmremote.NewSSHClient(c.checkContext.Device)
 
 	// Initialize the clock
 	c.clock = clock.New()
@@ -157,10 +126,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 
 // Interval returns the interval at which the check should run (default 15 minutes for now)
 func (c *Check) Interval() time.Duration {
-	if c.initConfig != nil && c.initConfig.MinCollectionInterval > 0 {
-		return time.Duration(c.initConfig.MinCollectionInterval)
-	}
-	return defaultCheckInterval
+	return c.checkContext.MinCollectionInterval
 }
 
 // Factory creates a new check factory

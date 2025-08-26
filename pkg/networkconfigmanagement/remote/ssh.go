@@ -22,7 +22,7 @@ import (
 // SSHClient implements Client using SSH
 type SSHClient struct {
 	client *ssh.Client
-	device *ncmconfig.DeviceConfig // Device configuration for authentication
+	device *ncmconfig.DeviceInstance // Device configuration for authentication
 }
 
 // SSHSession implements Session using an SSH session
@@ -40,7 +40,7 @@ type SSHClientConfig struct {
 }
 
 // NewSSHClient creates a new SSH client for the given device configuration
-func NewSSHClient(device *ncmconfig.DeviceConfig) *SSHClient {
+func NewSSHClient(device *ncmconfig.DeviceInstance) *SSHClient {
 	return &SSHClient{
 		device: device,
 	}

@@ -18,13 +18,13 @@ import (
 func TestDeviceConfig_Validation(t *testing.T) {
 	tests := []struct {
 		name        string
-		config      DeviceConfig
+		config      DeviceInstance
 		expectValid bool
 		errorMsg    string
 	}{
 		{
 			name: "valid config",
-			config: DeviceConfig{
+			config: DeviceInstance{
 				IPAddress: "100.1.1.1",
 				Auth: AuthCredentials{
 					Username: "admin",
@@ -37,7 +37,7 @@ func TestDeviceConfig_Validation(t *testing.T) {
 		},
 		{
 			name: "missing IP address",
-			config: DeviceConfig{
+			config: DeviceInstance{
 				Auth: AuthCredentials{
 					Username: "admin",
 					Password: "password",
@@ -50,7 +50,7 @@ func TestDeviceConfig_Validation(t *testing.T) {
 		},
 		{
 			name: "invalid IP address",
-			config: DeviceConfig{
+			config: DeviceInstance{
 				IPAddress: "not-an-ip",
 				Auth: AuthCredentials{
 					Username: "admin",
@@ -64,7 +64,7 @@ func TestDeviceConfig_Validation(t *testing.T) {
 		},
 		{
 			name: "missing username",
-			config: DeviceConfig{
+			config: DeviceInstance{
 				IPAddress: "100.1.1.1",
 				Auth: AuthCredentials{
 					Password: "password",
@@ -77,7 +77,7 @@ func TestDeviceConfig_Validation(t *testing.T) {
 		},
 		{
 			name: "missing password",
-			config: DeviceConfig{
+			config: DeviceInstance{
 				IPAddress: "100.1.1.1",
 				Auth: AuthCredentials{
 					Username: "admin",
@@ -90,7 +90,7 @@ func TestDeviceConfig_Validation(t *testing.T) {
 		},
 		{
 			name: "invalid port",
-			config: DeviceConfig{
+			config: DeviceInstance{
 				IPAddress: "100.1.1.1",
 				Auth: AuthCredentials{
 					Username: "admin",
@@ -104,7 +104,7 @@ func TestDeviceConfig_Validation(t *testing.T) {
 		},
 		{
 			name: "port out of range",
-			config: DeviceConfig{
+			config: DeviceInstance{
 				IPAddress: "100.1.1.1",
 				Auth: AuthCredentials{
 					Username: "admin",
@@ -120,7 +120,7 @@ func TestDeviceConfig_Validation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.config.ValidateConfig()
+			err := tt.config.ValidateDeviceInstance()
 			if tt.expectValid {
 				assert.NoError(t, err)
 			} else {
@@ -134,8 +134,7 @@ func TestDeviceConfig_Validation(t *testing.T) {
 }
 
 func TestDeviceConfig_YAML_Marshaling(t *testing.T) {
-	config := DeviceConfig{
-		Namespace: "test",
+	config := DeviceInstance{
 		IPAddress: "10.100.1.1",
 		Auth: AuthCredentials{
 			Username: "admin",
@@ -152,7 +151,7 @@ func TestDeviceConfig_YAML_Marshaling(t *testing.T) {
 	assert.Contains(t, string(data), "username: admin")
 
 	// Test unmarshaling
-	var parsed DeviceConfig
+	var parsed DeviceInstance
 	err = yaml.Unmarshal(data, &parsed)
 	require.NoError(t, err)
 	assert.Equal(t, config.IPAddress, parsed.IPAddress)
@@ -161,7 +160,7 @@ func TestDeviceConfig_YAML_Marshaling(t *testing.T) {
 }
 
 func TestAuthCredentials_DefaultValues(t *testing.T) {
-	config := DeviceConfig{
+	config := DeviceInstance{
 		IPAddress: "10.100.1.1",
 		Auth: AuthCredentials{
 			Username: "admin",

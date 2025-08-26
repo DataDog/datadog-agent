@@ -170,9 +170,9 @@ func TestCheck_Configure_ValidConfig(t *testing.T) {
 	err := check.Configure(senderManager, integration.FakeConfigHash, validConfig, []byte{}, "test")
 
 	require.NoError(t, err)
-	assert.NotNil(t, check.deviceConfig)
-	assert.Equal(t, "10.0.0.1", check.deviceConfig.IPAddress)
-	assert.Equal(t, "admin", check.deviceConfig.Auth.Username)
+	assert.NotNil(t, check.checkContext)
+	assert.Equal(t, "10.0.0.1", check.checkContext.Device.IPAddress)
+	assert.Equal(t, "admin", check.checkContext.Device.Auth.Username)
 	assert.NotNil(t, check.sender)
 	assert.NotNil(t, check.remoteClient)
 }
