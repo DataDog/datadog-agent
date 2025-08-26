@@ -245,7 +245,6 @@ func TestSymDBUploader(t *testing.T) {
 			uploader := NewSymDBUploader(
 				ts.serverURL.String(),
 				"service1",
-				"env",
 				"1.0.0",
 				"dummy-runtime-id",
 			)
