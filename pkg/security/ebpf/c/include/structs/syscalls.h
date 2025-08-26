@@ -270,6 +270,9 @@ struct syscall_cache_t {
             u32 truncated;
             struct sock_fprog *fprog;
         } setsockopt;
+        struct {
+            int option;
+        } prctl;
     };
 };
 

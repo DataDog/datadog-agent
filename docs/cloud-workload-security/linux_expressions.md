@@ -52,6 +52,7 @@ Triggers are events that correspond to types of activity seen by the system. The
 | `network_flow_monitor` | Network | A network monitor event was sent | 7.63 |
 | `open` | File | A file was opened | 7.27 |
 | `packet` | Network | A raw network packet was captured | 7.60 |
+| `prctl` | Process | A prctl command was executed | 7.71 |
 | `ptrace` | Kernel | A ptrace command was executed | 7.35 |
 | `removexattr` | File | Remove extended attributes | 7.27 |
 | `rename` | File | A file/directory was renamed | 7.27 |
@@ -1212,6 +1213,15 @@ A raw network packet was captured
 | [`packet.source.port`](#common-ipportcontext-port-doc) | Port number |
 | [`packet.tls.version`](#packet-tls-version-doc) | TLS version |
 | [`packet.type`](#common-networkcontext-type-doc) | Type of the network packet |
+
+### Event `prctl`
+
+A prctl command was executed
+
+| Property | Definition |
+| -------- | ------------- |
+| [`prctl.option`](#prctl-option-doc) | prctl option |
+| [`prctl.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
 
 ### Event `ptrace`
 
@@ -3077,8 +3087,8 @@ Type: int
 
 Definition: Return value of the syscall
 
-`*.retval` has 26 possible prefixes:
-`accept` `bind` `bpf` `chdir` `chmod` `chown` `connect` `link` `load_module` `mkdir` `mmap` `mount` `mprotect` `open` `ptrace` `removexattr` `rename` `rmdir` `setrlimit` `setsockopt` `setxattr` `signal` `splice` `unlink` `unload_module` `utimes`
+`*.retval` has 27 possible prefixes:
+`accept` `bind` `bpf` `chdir` `chmod` `chown` `connect` `link` `load_module` `mkdir` `mmap` `mount` `mprotect` `open` `prctl` `ptrace` `removexattr` `rename` `rmdir` `setrlimit` `setsockopt` `setxattr` `signal` `splice` `unlink` `unload_module` `utimes`
 
 Constants: [Error constants](#error-constants)
 
@@ -3984,6 +3994,13 @@ Definition: pcap filter expression
 Type: int
 
 Definition: TLS version
+
+
+
+### `prctl.option` {#prctl-option-doc}
+Type: int
+
+Definition: prctl option
 
 
 
@@ -5417,6 +5434,73 @@ Pipe buffer flags are the supported flags for a pipe buffer.
 | `PIPE_BUF_FLAG_CAN_MERGE` | all |
 | `PIPE_BUF_FLAG_WHOLE` | all |
 | `PIPE_BUF_FLAG_LOSS` | all |
+
+### `PrCtl Options` {#prctl-options}
+PrCtl Options are the supported options for the prctl event
+
+| Name | Architectures |
+| ---- |---------------|
+| `PR_CAP_AMBIENT` | all |
+| `PR_CAPBSET_READ` | all |
+| `PR_CAPBSET_DROP` | all |
+| `PR_SET_CHILD_SUBREAPER` | all |
+| `PR_GET_CHILD_SUBREAPER` | all |
+| `PR_SET_DUMPABLE` | all |
+| `PR_GET_DUMPABLE` | all |
+| `PR_SET_ENDIAN` | all |
+| `PR_GET_ENDIAN` | all |
+| `PR_SET_FP_MODE` | all |
+| `PR_GET_FP_MODE` | all |
+| `PR_SET_FPEMU` | all |
+| `PR_GET_FPEMU` | all |
+| `PR_SET_FPEXC` | all |
+| `PR_GET_FPEXC` | all |
+| `PR_SET_IO_FLUSHER` | all |
+| `PR_GET_IO_FLUSHER` | all |
+| `PR_SET_KEEPCAPS` | all |
+| `PR_GET_KEEPCAPS` | all |
+| `PR_MCE_KILL` | all |
+| `PR_MCE_KILL_GET` | all |
+| `PR_SET_MM` | all |
+| `PR_SET_VMA` | all |
+| `PR_MPX_ENABLE_MANAGEMENT` | all |
+| `PR_MPX_DISABLE_MANAGEMENT` | all |
+| `PR_SET_NAME` | all |
+| `PR_GET_NAME` | all |
+| `PR_SET_NO_NEW_PRIVS` | all |
+| `PR_GET_NO_NEW_PRIVS` | all |
+| `PR_PAC_RESET_KEYS` | all |
+| `PR_SET_PDEATHSIG` | all |
+| `PR_GET_PDEATHSIG` | all |
+| `PR_SET_PTRACER` | all |
+| `PR_SET_SECCOMP` | all |
+| `PR_GET_SECCOMP` | all |
+| `PR_SET_SECUREBITS` | all |
+| `PR_GET_SECUREBITS` | all |
+| `PR_GET_SPECULATION_CTRL` | all |
+| `PR_SET_SPECULATION_CTRL` | all |
+| `PR_SVE_SET_VL` | all |
+| `PR_SVE_GET_VL` | all |
+| `PR_SET_SYSCALL_USER_DISPATCH` | all |
+| `PR_SET_TAGGED_ADDR_CTRL` | all |
+| `PR_GET_TAGGED_ADDR_CTRL` | all |
+| `PR_TASK_PERF_EVENTS_DISABLE` | all |
+| `PR_TASK_PERF_EVENTS_ENABLE` | all |
+| `PR_SET_THP_DISABLE` | all |
+| `PR_GET_THP_DISABLE` | all |
+| `PR_GET_TID_ADDRESS` | all |
+| `PR_SET_TIMERSLACK` | all |
+| `PR_GET_TIMERSLACK` | all |
+| `PR_SET_TIMING` | all |
+| `PR_GET_TIMING` | all |
+| `PR_SET_TSC` | all |
+| `PR_GET_TSC` | all |
+| `PR_SET_UNALIGN` | all |
+| `PR_GET_UNALIGN` | all |
+| `PR_GET_AUXV` | all |
+| `PR_SET_MDWE` | all |
+| `PR_GET_MDWE` | all |
+| `PR_RISCV_SET_ICACHE_FLUSH_CTX` | all |
 
 ### `Protection constants` {#protection-constants}
 Protection constants are the supported protections for the mmap syscall.
