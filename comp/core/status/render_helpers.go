@@ -95,6 +95,7 @@ func TextFmap() pkgtexttemplate.FuncMap {
 }
 
 const timeFormat = "2006-01-02 15:04:05.999 MST"
+const timeLayout = "2006-01-02T15:04:05.999999-07:00"
 
 // RenderHTML reads, parse and execute template from embed.FS
 func RenderHTML(templateFS embed.FS, template string, buffer io.Writer, data any) error {
@@ -198,6 +199,14 @@ func parseUnixTime(value any) (time.Time, error) {
 		raw = v
 	case float64:
 		raw = int64(v)
+	// Case where the unix time is a time.Time that has converted into a string date due to a JSON marshall
+	case string:
+		t, err := time.Parse(timeLayout, v)
+		if err != nil {
+			return time.Time{}, fmt.Errorf("error while parsing time %q", v)
+		}
+
+		return t, nil
 	default:
 		return time.Time{}, fmt.Errorf("invalid time parameter %T", v)
 	}
