@@ -280,8 +280,10 @@ type socketInfo struct {
 
 // namespaceInfo stores information related to each network namespace.
 type namespaceInfo struct {
-	// listeningSockets maps socket inode numbers to socket information for listening sockets.
-	listeningSockets map[uint64]socketInfo
+	// tcpSockets maps socket inode numbers to socket information for listening TCP sockets.
+	tcpSockets map[uint64]socketInfo
+	// udpSockets maps socket inode numbers to socket information for listening UDP sockets.
+	udpSockets map[uint64]socketInfo
 }
 
 // Lifted from pkg/network/proc_net.go
@@ -414,16 +416,28 @@ func getNsInfo(pid int) (*namespaceInfo, error) {
 		log.Debugf("couldn't snapshot UDP6 sockets: %v", err)
 	}
 
-	listeningSockets := make(map[uint64]socketInfo, len(tcp)+len(udp)+len(tcpv6)+len(udpv6))
-	for _, mmap := range []map[uint64]uint16{tcp, udp, tcpv6, udpv6} {
-		for inode, info := range mmap {
-			listeningSockets[inode] = socketInfo{
-				port: info,
+	tcpSockets := make(map[uint64]socketInfo, len(tcp)+len(tcpv6))
+	udpSockets := make(map[uint64]socketInfo, len(udp)+len(udpv6))
+
+	for _, ports := range []map[uint64]uint16{tcp, tcpv6} {
+		for inode, port := range ports {
+			tcpSockets[inode] = socketInfo{
+				port: port,
 			}
 		}
 	}
+
+	for _, ports := range []map[uint64]uint16{udp, udpv6} {
+		for inode, port := range ports {
+			udpSockets[inode] = socketInfo{
+				port: port,
+			}
+		}
+	}
+
 	return &namespaceInfo{
-		listeningSockets: listeningSockets,
+		tcpSockets: tcpSockets,
+		udpSockets: udpSockets,
 	}, nil
 }
 
@@ -525,14 +539,15 @@ func (s *discovery) getServiceInfo(pid int32) (*core.ServiceInfo, error) {
 // service.
 const maxNumberOfPorts = 50
 
-func (s *discovery) getPorts(context parsingContext, pid int32, sockets []uint64) ([]uint16, error) {
+// getPorts gets the list of open ports for the provided process.
+func (s *discovery) getPorts(context parsingContext, pid int32, sockets []uint64) ([]uint16, []uint16, error) {
 	if len(sockets) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	ns, err := netns.GetNetNsInoFromPid(context.procRoot, int(pid))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// The socket and network address information are different for each
@@ -543,41 +558,54 @@ func (s *discovery) getPorts(context parsingContext, pid int32, sockets []uint64
 	if !ok {
 		nsInfo, err = getNsInfo(int(pid))
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		context.netNsInfo[ns] = nsInfo
 	}
 
-	var ports []uint16
-	seenPorts := make(map[uint16]struct{})
+	var tcpPorts, udpPorts []uint16
+	seenTCPPorts := make(map[uint16]struct{})
+	seenUDPPorts := make(map[uint16]struct{})
+
 	for _, socket := range sockets {
-		if info, ok := nsInfo.listeningSockets[socket]; ok {
+		if info, ok := nsInfo.tcpSockets[socket]; ok {
 			port := info.port
-			if _, seen := seenPorts[port]; seen {
+			if _, seen := seenTCPPorts[port]; seen {
 				continue
 			}
+			tcpPorts = append(tcpPorts, port)
+			seenTCPPorts[port] = struct{}{}
+			continue
+		}
 
-			ports = append(ports, port)
-			seenPorts[port] = struct{}{}
+		if info, ok := nsInfo.udpSockets[socket]; ok {
+			port := info.port
+			if _, seen := seenUDPPorts[port]; seen {
+				continue
+			}
+			udpPorts = append(udpPorts, port)
+			seenUDPPorts[port] = struct{}{}
+			continue
 		}
 	}
 
-	if len(ports) == 0 {
-		return nil, nil
+	// Sort the list so that non-ephemeral ports are given preference when we
+	// trim the list.
+	portCmp := func(a, b uint16) int {
+		return cmp.Compare(a, b)
+	}
+	if len(tcpPorts) > maxNumberOfPorts {
+		slices.SortFunc(tcpPorts, portCmp)
+		tcpPorts = tcpPorts[:maxNumberOfPorts]
 	}
 
-	if len(ports) > maxNumberOfPorts {
-		// Sort the list so that non-ephemeral ports are given preference when
-		// we trim the list.
-		portCmp := func(a, b uint16) int {
-			return cmp.Compare(a, b)
-		}
-		slices.SortFunc(ports, portCmp)
-		ports = ports[:maxNumberOfPorts]
+	if len(udpPorts) > maxNumberOfPorts {
+		slices.SortFunc(udpPorts, portCmp)
+		udpPorts = udpPorts[:maxNumberOfPorts]
 	}
 
-	return ports, nil
+	return tcpPorts, udpPorts, nil
 }
 
 // addIgnoredPid stores excluded pid.
@@ -605,11 +633,13 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 	if err != nil {
 		return nil
 	}
-	ports, err := s.getPorts(context, pid, openFileInfo.sockets)
+	tcpPorts, udpPorts, err := s.getPorts(context, pid, openFileInfo.sockets)
 	if err != nil {
 		return nil
 	}
-	if len(ports) == 0 {
+
+	totalPorts := len(tcpPorts) + len(udpPorts)
+	if totalPorts == 0 {
 		tries := s.noPortTries[pid]
 		tries++
 		s.noPortTries[pid] = tries
@@ -649,7 +679,10 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 
 	service := &model.Service{}
 	info.ToModelService(pid, service)
-	service.Ports = ports
+
+	service.TCPPorts = tcpPorts
+	service.UDPPorts = udpPorts
+
 	service.LogFiles = getLogFiles(pid, openFileInfo.logs)
 
 	return service
@@ -707,11 +740,13 @@ func (s *discovery) getServiceWithoutRetry(context parsingContext, pid int32) *m
 	if err != nil {
 		return nil
 	}
-	ports, err := s.getPorts(context, pid, openFileInfo.sockets)
+	tcpPorts, udpPorts, err := s.getPorts(context, pid, openFileInfo.sockets)
 	if err != nil {
 		return nil
 	}
-	if len(ports) == 0 {
+
+	totalPorts := len(tcpPorts) + len(udpPorts)
+	if totalPorts == 0 {
 		return nil
 	}
 
@@ -721,11 +756,14 @@ func (s *discovery) getServiceWithoutRetry(context parsingContext, pid int32) *m
 		return nil
 	}
 
-	info.Ports = ports
 	info.LogFiles = getLogFiles(pid, openFileInfo.logs)
 
 	out := &model.Service{}
 	info.ToModelService(pid, out)
+
+	out.TCPPorts = tcpPorts
+	out.UDPPorts = udpPorts
+
 	return out
 }
 
