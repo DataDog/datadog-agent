@@ -467,15 +467,20 @@ type memoryLayoutPiece struct {
 func (g *generator) typeMemoryLayout(t ir.Type) ([]memoryLayoutPiece, error) {
 	var pieces []memoryLayoutPiece
 	var collectPieces func(t ir.Type, offset uint32) error
+	collectFields := func(fields []ir.Field, offset uint32) error {
+		for _, field := range fields {
+			if err := collectPieces(field.Type, offset+field.Offset); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
 	collectPieces = func(t ir.Type, offset uint32) error {
 		var err error
 		switch t := t.(type) {
 		case *ir.StructureType:
-			for _, field := range t.RawFields {
-				err = collectPieces(field.Type, offset+field.Offset)
-				if err != nil {
-					return err
-				}
+			if err := collectFields(t.RawFields, offset); err != nil {
+				return err
 			}
 
 		case *ir.ArrayType:
@@ -495,13 +500,13 @@ func (g *generator) typeMemoryLayout(t ir.Type) ([]memoryLayoutPiece, error) {
 
 		// Structure-like types.
 		case *ir.GoEmptyInterfaceType:
-			err = collectPieces(t.UnderlyingStructure, offset)
+			err = collectFields(t.RawFields, offset)
 		case *ir.GoHMapBucketType:
 			err = collectPieces(t.StructureType, offset)
 		case *ir.GoHMapHeaderType:
 			err = collectPieces(t.StructureType, offset)
 		case *ir.GoInterfaceType:
-			err = collectPieces(t.UnderlyingStructure, offset)
+			err = collectFields(t.RawFields, offset)
 		case *ir.GoSliceHeaderType:
 			err = collectPieces(t.StructureType, offset)
 		case *ir.GoStringHeaderType:
