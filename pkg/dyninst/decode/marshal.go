@@ -76,6 +76,14 @@ type argumentsData struct {
 	decoder  *Decoder
 }
 
+var ddDebuggerString = jsontext.String("dd_debugger")
+
+type ddDebuggerSource struct{}
+
+func (ddDebuggerSource) MarshalJSONTo(enc *jsontext.Encoder) error {
+	return enc.WriteToken(ddDebuggerString)
+}
+
 // In the root data item, before the expressions, there is a bitset
 // which conveys if expression values are present in the data.
 // The rootType.PresenceBitsetSize conveys the size of the bitset in
