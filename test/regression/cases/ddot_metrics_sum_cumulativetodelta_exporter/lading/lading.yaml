@@ -16,6 +16,9 @@ generator:
                   gauge: 0
                   sum_delta: 100
                   sum_cumulative: 0
+              contexts:
+                total_contexts:
+                  constant: 10000              
 
 blackhole:
   - http:
