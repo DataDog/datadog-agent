@@ -28,13 +28,12 @@ class SizeMixin:
     Classes using this mixin must have a size_bytes attribute.
     """
 
-    # Type hint for the attribute that implementers must provide
     size_bytes: int
 
     def _validate_size_bytes(self, size_bytes: int) -> None:
         """Validate that size_bytes is non-negative"""
         if size_bytes < 0:
-            raise ValueError("size_bytes must be non-negative")
+            raise ValueError("size_bytes must be strictly non-negative")
 
     @property
     def size_mb(self) -> float:
@@ -103,25 +102,20 @@ class DockerImageInfo:
     def __post_init__(self):
         """Validate Docker image info data"""
         if not self.image_ref:
-            raise ValueError("image_id cannot be empty")
+            raise ValueError("image_ref cannot be empty")
         if not self.architecture:
             raise ValueError("architecture cannot be empty")
         if not self.os:
             raise ValueError("os cannot be empty")
         if self.config_size < 0:
-            raise ValueError("config_size must be non-negative")
+            raise ValueError("config_size must be strictly non-negative")
         if self.manifest_size < 0:
-            raise ValueError("manifest_size must be non-negative")
+            raise ValueError("manifest_size must be strictly non-negative")
 
     @property
     def total_layers_size_bytes(self) -> int:
         """Total size of all layers in bytes"""
         return sum(layer.size_bytes for layer in self.layers)
-
-    # @property
-    # def total_layers_size_mb(self) -> float:
-    #    """Total size of all layers in megabytes"""
-    #    return self.total_layers_size_bytes / (1024 * 1024)
 
     @property
     def non_empty_layers(self) -> list[DockerLayerInfo]:
@@ -138,6 +132,7 @@ class DockerImageInfo:
 class InPlaceArtifactReport:
     """
     Complete measurement report for a single artifact, generated in-place.
+    Shared across package and docker image measurements.
     """
 
     # Core identification
@@ -154,6 +149,7 @@ class InPlaceArtifactReport:
     file_inventory: list[FileInfo]
 
     # Metadata
+    # TODO: integrate GateMetricHandler metadata
     measurement_timestamp: str
     pipeline_id: str
     commit_sha: str
@@ -171,9 +167,9 @@ class InPlaceArtifactReport:
         if not self.gate_name:
             raise ValueError("gate_name cannot be empty")
         if self.on_wire_size < 0:
-            raise ValueError("on_wire_size must be non-negative")
+            raise ValueError("on_wire_size must be strictly non-negative")
         if self.on_disk_size < 0:
-            raise ValueError("on_disk_size must be non-negative")
+            raise ValueError("on_disk_size must be strictly non-negative")
 
     @property
     def largest_files(self) -> list[FileInfo]:
@@ -181,9 +177,8 @@ class InPlaceArtifactReport:
         return self.file_inventory[:10]
 
 
-# Protocols for composition-based design
 class ArtifactProcessor(Protocol):
-    """Protocol for processing different types of artifacts (packages, Docker images, etc.)"""
+    """Protocol for processing different types of artifacts (packages, docker images, etc.)"""
 
     def measure_artifact(
         self,
@@ -314,8 +309,7 @@ class FileUtilities:
                         print(f"📋 Processed {files_processed} files...")
 
                 except (OSError, PermissionError) as e:
-                    if debug:
-                        print(f"⚠️  Skipping file {file_path}: {e}")
+                    print(f"⚠️  Skipping file {file_path}: {e}")
                     continue
 
         # Sort by size (descending) for easier analysis
@@ -339,8 +333,8 @@ class FileUtilities:
                 file_path = os.path.join(dirpath, filename)
                 try:
                     total_size += os.path.getsize(file_path)
-                except (OSError, FileNotFoundError):
-                    # Skip files that can't be accessed
+                except (OSError, FileNotFoundError) as e:
+                    print(f"⚠️  Skipping file {file_path}: {e}")
                     continue
         return total_size
 
@@ -454,9 +448,7 @@ class ReportBuilder:
 
 class UniversalArtifactMeasurer:
     """
-    Universal artifact measurer using composition and protocols.
-
-    This class can measure any type of artifact by accepting different
+    Artifact measurer that can measure any type of artifact by accepting different
     ArtifactProcessor implementations.
     """
 
@@ -470,7 +462,6 @@ class UniversalArtifactMeasurer:
         """
         self.processor = processor
         self.config_manager = ConfigurationManager(config_path)
-        # self.file_utils = FileUtilities()
         self.report_builder = ReportBuilder()
 
     def measure_artifact(
@@ -524,7 +515,6 @@ class UniversalArtifactMeasurer:
         self.report_builder.save_report_to_yaml(report, output_path)
 
 
-# Specific processor implementations
 class PackageProcessor:
     """Package artifact processor implementing the ArtifactProcessor protocol."""
 
@@ -538,17 +528,14 @@ class PackageProcessor:
         debug: bool,
     ) -> tuple[int, int, list[FileInfo], Any]:
         """Measure package artifact using extraction and analysis."""
-        # Verify package exists
         if not os.path.exists(artifact_ref):
             raise ValueError(f"Package file not found: {artifact_ref}")
 
         if debug:
             print(f"📦 Measuring package: {artifact_ref}")
 
-        # Measure wire size (compressed package file)
         wire_size = file_size(artifact_ref)
 
-        # Extract package and measure disk size + file inventory
         with tempfile.TemporaryDirectory() as extract_dir:
             if debug:
                 print(f"📁 Extracting package to: {extract_dir}")
@@ -569,8 +556,9 @@ class PackageProcessor:
 class DockerProcessor:
     """Docker image processor implementing the ArtifactProcessor protocol.
 
-    Uses docker save to create a tarball, then extracts and analyzes layers directly
-    from the tarball structure instead of using docker create/export.
+    Uses docker manifest inspect for wire size calculation and docker save for
+    disk analysis and file inventory. This provides consistent wire size measurements
+    regardless of image layer structure while maintaining detailed file analysis.
     """
 
     def measure_artifact(
@@ -582,15 +570,15 @@ class DockerProcessor:
         generate_checksums: bool,
         debug: bool,
     ) -> tuple[int, int, list[FileInfo], DockerImageInfo]:
-        """Measure Docker image using docker save and tarball extraction."""
+        """Measure Docker image using manifest inspection for wire size and docker save for disk analysis."""
         if debug:
             print(f"🐳 Measuring Docker image: {artifact_ref}")
 
-        # Ensure image is available locally
         self._ensure_image_available(ctx, artifact_ref, debug)
 
-        # Measure wire size and analyze image using docker save tarball
-        wire_size, disk_size, file_inventory, docker_info = self._analyze_image_with_docker_save(
+        wire_size = self._get_wire_size(ctx, artifact_ref, debug)
+
+        disk_size, file_inventory, docker_info = self._measure_on_disk_size(
             ctx, artifact_ref, max_files, generate_checksums, debug
         )
 
@@ -599,14 +587,12 @@ class DockerProcessor:
     def _ensure_image_available(self, ctx: Context, image_ref: str, debug: bool = False) -> None:
         """Ensure the Docker image is available locally."""
         try:
-            # Check if image exists locally
             result = ctx.run(f"docker image inspect {image_ref}", hide=True, warn=True)
             if result.exited == 0:
                 if debug:
                     print(f"✅ Image {image_ref} found locally")
                 return
 
-            # Try to pull the image
             if debug:
                 print(f"📥 Pulling image {image_ref}...")
 
@@ -620,35 +606,27 @@ class DockerProcessor:
         except Exception as e:
             raise RuntimeError(f"Failed to ensure image {image_ref} is available: {e}") from e
 
-    def _analyze_image_with_docker_save(
+    def _measure_on_disk_size(
         self,
         ctx: Context,
         image_ref: str,
         max_files: int,
         generate_checksums: bool,
         debug: bool = False,
-    ) -> tuple[int, int, list[FileInfo], DockerImageInfo | None]:
-        """Analyze Docker image using docker save and tarball extraction."""
+    ) -> tuple[int, list[FileInfo], DockerImageInfo | None]:
+        """Measure disk size and generate file inventory using docker save extraction."""
         try:
             if debug:
-                print(f"🔍 Analyzing image {image_ref} using docker save...")
+                print(f"🔍 Measuring on disk size of image {image_ref}...")
 
             with tempfile.NamedTemporaryFile(suffix='.tar', delete=False) as temp_tarball:
-                # Save image to temporary file
                 save_result = ctx.run(f"docker save {image_ref} -o {temp_tarball.name}", warn=True)
                 if save_result.exited != 0:
                     raise RuntimeError(f"Docker save failed for {image_ref}")
 
-                # Get wire size (compressed tarball size)
-                wire_size = os.path.getsize(temp_tarball.name)
-
-                if debug:
-                    print(f"✅ Wire size measurement: {wire_size:,} bytes ({wire_size / 1024 / 1024:.2f} MB)")
-
                 try:
                     # Extract tarball and analyze layers
                     with tempfile.TemporaryDirectory() as extract_dir:
-                        # Extract the docker save tarball
                         extract_result = ctx.run(f"tar -xf {temp_tarball.name} -C {extract_dir}", warn=True)
                         if extract_result.exited != 0:
                             raise RuntimeError("Failed to extract Docker save tarball")
@@ -656,28 +634,20 @@ class DockerProcessor:
                         if debug:
                             print(f"📁 Extracted tarball to: {extract_dir}")
 
-                        # Analyze the extracted content
                         disk_size, file_inventory = self._analyze_extracted_docker_layers(
                             extract_dir, max_files, generate_checksums, debug
                         )
 
-                        # Extract Docker metadata - try tarball first, fallback to docker inspect
-                        docker_info = self._extract_docker_metadata_from_tarball(extract_dir, image_ref, debug)
-                        if docker_info is None:
-                            if debug:
-                                print("🔄 Tarball metadata extraction failed, falling back to docker inspect")
-                            docker_info = self._extract_docker_metadata(ctx, image_ref, debug)
+                        docker_info = self._extract_docker_metadata(extract_dir, image_ref, debug)
 
                         if debug:
-                            print("✅ Image analysis completed:")
-                            print(f"   • Wire size: {wire_size:,} bytes ({wire_size / 1024 / 1024:.2f} MB)")
+                            print("✅ Disk analysis completed:")
                             print(f"   • Disk size: {disk_size:,} bytes ({disk_size / 1024 / 1024:.2f} MB)")
                             print(f"   • Files inventoried: {len(file_inventory):,}")
 
-                        return wire_size, disk_size, file_inventory, docker_info
+                        return disk_size, file_inventory, docker_info
 
                 finally:
-                    # Clean up the temporary tarball
                     try:
                         os.unlink(temp_tarball.name)
                     except Exception:
@@ -685,6 +655,34 @@ class DockerProcessor:
 
         except Exception as e:
             raise RuntimeError(f"Failed to analyze image {image_ref}: {e}") from e
+
+    def _get_wire_size(self, ctx: Context, image_ref: str, debug: bool = False) -> int:
+        """Calculate Docker image compressed size using manifest inspection."""
+        try:
+            if debug:
+                print(f"📋 Calculating wire size from manifest for {image_ref}...")
+
+            manifest_output = ctx.run(
+                "DOCKER_CLI_EXPERIMENTAL=enabled docker manifest inspect -v "
+                + image_ref
+                + " | grep size | awk -F ':' '{sum+=$NF} END {printf(\"%d\",sum)}'",
+                hide=True,
+            )
+
+            if manifest_output.exited != 0:
+                raise RuntimeError(f"Docker manifest inspect failed for {image_ref}")
+
+            wire_size = int(manifest_output.stdout.strip())
+
+            if debug:
+                print(f"✅ Wire size from manifest: {wire_size:,} bytes ({wire_size / 1024 / 1024:.2f} MB)")
+
+            return wire_size
+
+        except ValueError as e:
+            raise RuntimeError(f"Failed to parse manifest size output for {image_ref}: {e}") from e
+        except Exception as e:
+            raise RuntimeError(f"Failed to calculate wire size from manifest for {image_ref}: {e}") from e
 
     def _analyze_extracted_docker_layers(
         self,
@@ -700,7 +698,6 @@ class DockerProcessor:
         all_files = {}  # Use dict to handle overwrites from different layers
 
         try:
-            # Read manifest.json to get layer information
             manifest_path = os.path.join(extract_dir, "manifest.json")
             if not os.path.exists(manifest_path):
                 raise RuntimeError("manifest.json not found in Docker save tarball")
@@ -720,9 +717,7 @@ class DockerProcessor:
                 if debug:
                     print(f"📦 Processing layer {i + 1}/{len(layer_files)}: {layer_file}")
 
-                # Create temporary directory for this layer
                 with tempfile.TemporaryDirectory() as layer_extract_dir:
-                    # Extract layer tarball
                     extract_result = os.system(f"tar -xf '{layer_path}' -C '{layer_extract_dir}' 2>/dev/null")
                     if extract_result != 0:
                         if debug:
@@ -738,7 +733,7 @@ class DockerProcessor:
 
                             file_path = os.path.join(root, file)
                             relative_path = os.path.relpath(file_path, layer_extract_dir)
-                            # Skip special Docker files
+                            # Skip whiteout files (Those are marking files from lower layers that are removed in this layer)
                             if relative_path.startswith('.wh.') or '/.wh.' in relative_path:
                                 continue
 
@@ -767,7 +762,7 @@ class DockerProcessor:
 
                     if debug and layer_files_processed > 0:
                         print(f"   • Processed {layer_files_processed} files from this layer")
-            # Convert to list and calculate total size
+
             file_inventory = list(all_files.values())
             total_disk_size = sum(file_info.size_bytes for file_info in file_inventory)
 
@@ -789,73 +784,13 @@ class DockerProcessor:
             return total_disk_size, file_inventory
 
         except Exception as e:
-            if debug:
-                print(f"⚠️  Error analyzing layers: {e}")
-            # Fallback: just analyze the extract_dir as-is
-            return self._fallback_layer_analysis(extract_dir, max_files, generate_checksums, debug)
+            raise RuntimeError(f"Failed to analyze layers: {e}") from e
 
-    def _fallback_layer_analysis(
-        self,
-        extract_dir: str,
-        max_files: int,
-        generate_checksums: bool,
-        debug: bool = False,
-    ) -> tuple[int, list[FileInfo]]:
-        """Fallback method that treats the extracted directory as a simple filesystem."""
-        if debug:
-            print("🔄 Using fallback analysis method")
-
-        disk_size = FileUtilities.calculate_directory_size(extract_dir)
-        file_inventory = FileUtilities.walk_files(extract_dir, max_files, generate_checksums, debug)
-
-        return disk_size, file_inventory
-
-    def _extract_docker_metadata(self, ctx: Context, image_ref: str, debug: bool = False) -> DockerImageInfo | None:
-        """Extract Docker image metadata using docker inspect and docker history."""
-        try:
-            if debug:
-                print(f"🔍 Extracting Docker metadata for {image_ref}...")
-
-            # Get image inspection data
-            inspect_result = ctx.run(f"docker inspect {image_ref}", hide=True)
-            import json
-
-            inspect_data = json.loads(inspect_result.stdout)[0]
-
-            # Extract basic metadata
-            image_id = inspect_data["Id"]
-            architecture = inspect_data["Architecture"]
-            os_name = inspect_data["Os"]
-            config_size = len(json.dumps(inspect_data["Config"]).encode('utf-8'))
-
-            # Calculate manifest size (approximation)
-            manifest_size = len(inspect_result.stdout.encode('utf-8'))
-
-            # Get layer information
-            layers = self._analyze_docker_layers(ctx, image_ref, debug)
-
-            return DockerImageInfo(
-                image_ref=image_id,
-                architecture=architecture,
-                os=os_name,
-                layers=layers,
-                config_size=config_size,
-                manifest_size=manifest_size,
-            )
-
-        except Exception as e:
-            if debug:
-                print(f"⚠️  Failed to extract Docker metadata: {e}")
-            return None
-
-    def _extract_docker_metadata_from_tarball(
-        self, extract_dir: str, image_ref: str, debug: bool = False
-    ) -> DockerImageInfo | None:
-        """Extract Docker metadata from the extracted tarball contents."""
+    def _extract_docker_metadata(self, extract_dir: str, image_ref: str, debug: bool = False) -> DockerImageInfo | None:
+        """Extract Docker metadata from the tarball contents."""
         try:
             import json
 
-            # Read manifest.json
             manifest_path = os.path.join(extract_dir, "manifest.json")
             if not os.path.exists(manifest_path):
                 return None
@@ -863,7 +798,6 @@ class DockerProcessor:
             with open(manifest_path) as f:
                 manifest = json.load(f)[0]
 
-            # Read config file
             config_file = manifest.get("Config", "")
             config_path = os.path.join(extract_dir, config_file)
 
@@ -873,7 +807,6 @@ class DockerProcessor:
             with open(config_path) as f:
                 config_data = json.load(f)
 
-            # Extract layer information from manifest and calculate sizes
             layer_files = manifest.get("Layers", [])
             layers = []
 
@@ -881,7 +814,6 @@ class DockerProcessor:
                 layer_path = os.path.join(extract_dir, layer_file)
                 layer_size = os.path.getsize(layer_path) if os.path.exists(layer_path) else 0
 
-                # Try to get creation command from history if available
                 created_by = None
                 if "history" in config_data and i < len(config_data["history"]):
                     history_entry = config_data["history"][i]
@@ -918,78 +850,6 @@ class DockerProcessor:
             if debug:
                 print(f"⚠️  Failed to extract metadata from tarball: {e}")
             return None
-
-    def _analyze_docker_layers(self, ctx: Context, image_ref: str, debug: bool = False) -> list[DockerLayerInfo]:
-        """Analyze Docker image layers using docker history."""
-        try:
-            if debug:
-                print(f"📊 Analyzing layers for {image_ref}...")
-
-            # Get layer history with size information
-            history_result = ctx.run(
-                f'docker history {image_ref} --format "table {{{{.ID}}}}\\t{{{{.Size}}}}\\t{{{{.CreatedBy}}}}"',
-                hide=True,
-            )
-
-            layers = []
-            lines = history_result.stdout.strip().split('\n')[1:]  # Skip header
-
-            for line in lines:
-                parts = line.split('\t', 2)
-                if len(parts) >= 3:
-                    layer_id = parts[0].strip()
-                    size_str = parts[1].strip()
-                    created_by = parts[2].strip() if len(parts) > 2 else None
-
-                    # Parse size (handle formats like "0B", "123MB", "1.2GB")
-                    size_bytes = self._parse_docker_size(size_str)
-                    empty_layer = size_bytes == 0
-
-                    layers.append(
-                        DockerLayerInfo(
-                            layer_id=layer_id,
-                            size_bytes=size_bytes,
-                            created_by=created_by,
-                            empty_layer=empty_layer,
-                        )
-                    )
-
-            if debug:
-                print(f"✅ Found {len(layers)} layers")
-
-            return layers
-
-        except Exception as e:
-            if debug:
-                print(f"⚠️  Failed to analyze layers: {e}")
-            return []
-
-    def _parse_docker_size(self, size_str: str) -> int:
-        """Parse Docker size string (e.g., "123MB", "1.2GB", "0B") to bytes."""
-        size_str = size_str.strip()
-        if size_str == "0B" or size_str == "0":
-            return 0
-
-        # Extract number and unit
-        import re
-
-        match = re.match(r'([0-9.]+)([A-Za-z]*)', size_str)
-        if not match:
-            return 0
-
-        value = float(match.group(1))
-        unit = match.group(2).upper()
-
-        # Convert to bytes
-        multipliers = {
-            'B': 1,
-            'KB': 1024,
-            'MB': 1024**2,
-            'GB': 1024**3,
-            'TB': 1024**4,
-        }
-
-        return int(value * multipliers.get(unit, 1))
 
 
 class InPlacePackageMeasurer:
@@ -1060,8 +920,8 @@ class InPlaceDockerMeasurer:
     Measures Docker image artifacts in-place and generates detailed reports.
 
     This class handles measurement of Docker images directly in build jobs or locally,
-    using 'docker save' to create a tarball, then extracting and analyzing the layers
-    directly from the tarball structure for both wire size and comprehensive file analysis.
+    using docker manifest inspect for wire size and docker save for disk analysis
+    and comprehensive file inventory.
 
     Uses composition with UniversalArtifactMeasurer and DockerProcessor.
     """

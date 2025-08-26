@@ -53,7 +53,7 @@ class TestFileInfo(unittest.TestCase):
         """Test FileInfo validation with negative size."""
         with self.assertRaises(ValueError) as cm:
             FileInfo(relative_path="test/file", size_bytes=-1)
-        self.assertIn("size_bytes must be non-negative", str(cm.exception))
+        self.assertIn("size_bytes must be strictly non-negative", str(cm.exception))
 
 
 class TestInPlaceArtifactReport(unittest.TestCase):
@@ -127,7 +127,7 @@ class TestInPlaceArtifactReport(unittest.TestCase):
                 os="debian",
                 build_job_name="test_job",
             )
-        self.assertIn("on_wire_size must be non-negative", str(cm.exception))
+        self.assertIn("on_wire_size must be strictly non-negative", str(cm.exception))
 
 
 class TestInPlacePackageMeasurer(unittest.TestCase):
@@ -459,7 +459,7 @@ class TestDockerLayerInfo(unittest.TestCase):
         """Test DockerLayerInfo validation with negative size."""
         with self.assertRaises(ValueError) as cm:
             DockerLayerInfo(layer_id="sha256:test123", size_bytes=-1)
-        self.assertIn("size_bytes must be non-negative", str(cm.exception))
+        self.assertIn("size_bytes must be strictly non-negative", str(cm.exception))
 
     def test_docker_layer_info_size_properties(self):
         """Test DockerLayerInfo size conversion properties."""
@@ -521,7 +521,7 @@ class TestDockerImageInfo(unittest.TestCase):
                 config_size=1024,
                 manifest_size=512,
             )
-        self.assertIn("image_id cannot be empty", str(cm.exception))
+        self.assertIn("image_ref cannot be empty", str(cm.exception))
 
     def test_docker_image_info_validation_negative_config_size(self):
         """Test DockerImageInfo validation with negative config_size."""
@@ -534,7 +534,7 @@ class TestDockerImageInfo(unittest.TestCase):
                 config_size=-1,
                 manifest_size=512,
             )
-        self.assertIn("config_size must be non-negative", str(cm.exception))
+        self.assertIn("config_size must be strictly non-negative", str(cm.exception))
 
     def test_docker_image_info_validation_negative_manifest_size(self):
         """Test DockerImageInfo validation with negative manifest_size."""
@@ -547,7 +547,7 @@ class TestDockerImageInfo(unittest.TestCase):
                 config_size=1024,
                 manifest_size=-1,
             )
-        self.assertIn("manifest_size must be non-negative", str(cm.exception))
+        self.assertIn("manifest_size must be strictly non-negative", str(cm.exception))
 
     def test_docker_image_info_total_layers_size(self):
         """Test calculation of total layers size."""
@@ -643,13 +643,13 @@ class TestInPlaceDockerMeasurer(unittest.TestCase):
         os.unlink(self.temp_config_file.name)
 
     @patch('tasks.static_quality_gates.experimental_gates.DockerProcessor._ensure_image_available')
-    @patch('tasks.static_quality_gates.experimental_gates.DockerProcessor._measure_wire_size_with_docker_save')
-    @patch('tasks.static_quality_gates.experimental_gates.DockerProcessor._analyze_image_with_docker_export')
-    def test_measure_image_success(self, mock_analyze_export, mock_measure_wire, mock_ensure_available):
+    @patch('tasks.static_quality_gates.experimental_gates.DockerProcessor._get_wire_size')
+    @patch('tasks.static_quality_gates.experimental_gates.DockerProcessor._measure_on_disk_size')
+    def test_measure_image_success(self, mock_measure_disk, mock_get_wire_size, mock_ensure_available):
         """Test successful Docker image measurement."""
         # Setup mocks
         mock_ensure_available.return_value = None
-        mock_measure_wire.return_value = 104857600  # 100 MiB
+        mock_get_wire_size.return_value = 104857600  # 100 MiB
 
         # Mock file inventory
         mock_file_inventory = [
@@ -669,7 +669,7 @@ class TestInPlaceDockerMeasurer(unittest.TestCase):
             manifest_size=512,
         )
 
-        mock_analyze_export.return_value = (
+        mock_measure_disk.return_value = (
             314572800,
             mock_file_inventory,
             mock_docker_info,
@@ -707,8 +707,8 @@ class TestInPlaceDockerMeasurer(unittest.TestCase):
 
         # Verify mocks were called
         mock_ensure_available.assert_called_once()
-        mock_measure_wire.assert_called_once()
-        mock_analyze_export.assert_called_once()
+        mock_get_wire_size.assert_called_once()
+        mock_measure_disk.assert_called_once()
 
     @patch('tasks.static_quality_gates.experimental_gates.DockerProcessor._ensure_image_available')
     def test_measure_image_ensure_available_failure(self, mock_ensure_available):
@@ -727,11 +727,11 @@ class TestInPlaceDockerMeasurer(unittest.TestCase):
         self.assertIn("Image not found locally", str(cm.exception))
 
     @patch('tasks.static_quality_gates.experimental_gates.DockerProcessor._ensure_image_available')
-    @patch('tasks.static_quality_gates.experimental_gates.DockerProcessor._measure_wire_size_with_docker_save')
-    def test_measure_image_wire_size_failure(self, mock_measure_wire, mock_ensure_available):
+    @patch('tasks.static_quality_gates.experimental_gates.DockerProcessor._get_wire_size')
+    def test_measure_image_wire_size_failure(self, mock_get_wire_size, mock_ensure_available):
         """Test Docker image measurement when wire size measurement fails."""
         mock_ensure_available.return_value = None
-        mock_measure_wire.side_effect = RuntimeError("Docker save failed")
+        mock_get_wire_size.side_effect = RuntimeError("Docker manifest inspect failed")
         mock_ctx = Mock()
 
         with self.assertRaises(RuntimeError) as cm:
@@ -742,7 +742,7 @@ class TestInPlaceDockerMeasurer(unittest.TestCase):
                 build_job_name="test_build",
             )
 
-        self.assertIn("Docker save failed", str(cm.exception))
+        self.assertIn("Docker manifest inspect failed", str(cm.exception))
 
     def test_measure_image_missing_config(self):
         """Test Docker image measurement with missing gate configuration."""
@@ -756,13 +756,13 @@ class TestInPlaceDockerMeasurer(unittest.TestCase):
         self.assertIn("Gate configuration not found: nonexistent_gate", str(cm.exception))
 
     @patch('tasks.static_quality_gates.experimental_gates.DockerProcessor._ensure_image_available')
-    @patch('tasks.static_quality_gates.experimental_gates.DockerProcessor._measure_wire_size_with_docker_save')
-    @patch('tasks.static_quality_gates.experimental_gates.DockerProcessor._analyze_image_with_docker_export')
-    def test_measure_image_no_layer_analysis(self, mock_analyze_export, mock_measure_wire, mock_ensure_available):
+    @patch('tasks.static_quality_gates.experimental_gates.DockerProcessor._get_wire_size')
+    @patch('tasks.static_quality_gates.experimental_gates.DockerProcessor._measure_on_disk_size')
+    def test_measure_image_no_layer_analysis(self, mock_measure_disk, mock_get_wire_size, mock_ensure_available):
         """Test Docker image measurement without layer analysis."""
         # Setup mocks
         mock_ensure_available.return_value = None
-        mock_measure_wire.return_value = 52428800  # 50 MiB
+        mock_get_wire_size.return_value = 52428800  # 50 MiB
 
         mock_file_inventory = [FileInfo("app/main", 1048576, "sha256:test123")]
         # Mock minimal Docker metadata (no layers)
@@ -775,7 +775,7 @@ class TestInPlaceDockerMeasurer(unittest.TestCase):
             manifest_size=256,
         )
 
-        mock_analyze_export.return_value = (
+        mock_measure_disk.return_value = (
             104857600,
             mock_file_inventory,
             mock_docker_info,
@@ -853,7 +853,7 @@ class TestInPlaceDockerMeasurer(unittest.TestCase):
             self.assertEqual(saved_data['on_wire_size'], 1048576)
             self.assertEqual(saved_data['on_disk_size'], 2097152)
             self.assertIn('docker_info', saved_data)
-            self.assertEqual(saved_data['docker_info']['image_id'], "sha256:save_test123")
+            self.assertEqual(saved_data['docker_info']['image_ref'], "sha256:save_test123")
 
         finally:
             if os.path.exists(temp_path):
