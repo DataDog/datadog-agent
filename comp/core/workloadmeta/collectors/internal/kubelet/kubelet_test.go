@@ -8,6 +8,11 @@
 package kubelet
 
 import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -16,6 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
+	mock "github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -254,4 +260,101 @@ func TestPodParser(t *testing.T) {
 	expectedEntities := []workloadmeta.Entity{expectedContainer, expectedEphemeralContainer, expectedPod}
 
 	assert.ElementsMatch(t, expectedEntities, parsedEntities)
+}
+
+func TestPullKubeletConfig(t *testing.T) {
+	var config workloadmeta.KubeletConfig = map[string]interface{}{
+		"kubelet": "config",
+	}
+	configBytes, _ := json.Marshal(config)
+
+	expected := workloadmeta.CollectorEvent{
+		Type:   workloadmeta.EventTypeSet,
+		Source: workloadmeta.SourceNodeOrchestrator,
+		Entity: &workloadmeta.Kubelet{
+			EntityID: workloadmeta.EntityID{
+				ID:   "kubelet",
+				Kind: workloadmeta.KindKubelet,
+			},
+			EntityMeta: workloadmeta.EntityMeta{
+				Name: "kubelet",
+			},
+			Config: config,
+		},
+	}
+
+	tests := []struct {
+		name     string
+		response *mock.HTTPReplyMock
+		expected workloadmeta.CollectorEvent
+		wantErr  bool
+	}{
+		{
+			name: "should return expected kubelet config",
+			response: &mock.HTTPReplyMock{
+				Data:         configBytes,
+				ResponseCode: http.StatusOK,
+			},
+			expected: expected,
+		},
+		{
+			name: "should return error if kubelet API returns non-200 status code",
+			response: &mock.HTTPReplyMock{
+				ResponseCode: http.StatusInternalServerError,
+			},
+			expected: workloadmeta.CollectorEvent{},
+			wantErr:  true,
+		},
+		{
+			name: "should return error if kubelet API returns invalid JSON",
+			response: &mock.HTTPReplyMock{
+				Data:         []byte("invalid json content"),
+				ResponseCode: http.StatusOK,
+			},
+			expected: workloadmeta.CollectorEvent{},
+			wantErr:  true,
+		},
+		{
+			name: "should return error if kubelet API returns empty response",
+			response: &mock.HTTPReplyMock{
+				Data:         []byte{},
+				ResponseCode: http.StatusOK,
+			},
+			expected: workloadmeta.CollectorEvent{},
+			wantErr:  true,
+		},
+		{
+			name: "should return error if kubelet API returns malformed JSON",
+			response: &mock.HTTPReplyMock{
+				Data:         []byte(`{"incomplete": "json`),
+				ResponseCode: http.StatusOK,
+			},
+			expected: workloadmeta.CollectorEvent{},
+			wantErr:  true,
+		},
+		{
+			name: "should return error if kubelet client returns network error",
+			response: &mock.HTTPReplyMock{
+				Error: fmt.Errorf("connection refused"),
+			},
+			expected: workloadmeta.CollectorEvent{},
+			wantErr:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			kMock := mock.NewKubeletMock()
+			kMock.MockReplies[configPath] = tt.response
+
+			actual, err := pullKubeletConfig(context.Background(), kMock)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("pullKubeletConfig() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			assert.Truef(t, reflect.DeepEqual(tt.expected, actual), fmt.Sprintf(
+				"Expected: %v, actual %v", tt.expected, actual))
+		})
+	}
 }

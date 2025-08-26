@@ -12,8 +12,10 @@ import (
 	"context"
 	"encoding/json"
 	stdErrors "errors"
+	"net/http"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"go.uber.org/fx"
@@ -35,8 +37,9 @@ const (
 	collectorID         = "kubelet"
 	componentName       = "workloadmeta-kubelet"
 	expireFreq          = 15 * time.Second
-	configExpireFreq    = 15 * time.Second
+	configExpireFreq    = 15 * time.Minute
 	dockerImageIDPrefix = "docker-pullable://"
+	configPath          = "/configz"
 )
 
 type dependencies struct {
@@ -56,6 +59,7 @@ type collector struct {
 	expireFreq                 time.Duration
 	configExpireFreq           time.Duration
 	collectEphemeralContainers bool
+	once                       sync.Once
 }
 
 // NewCollector returns a kubelet CollectorProvider that instantiates its collector
@@ -102,6 +106,43 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 	return nil
 }
 
+func pullKubeletConfig(ctx context.Context, client kubelet.KubeUtilInterface) (workloadmeta.CollectorEvent, error) {
+	configBytes, statusCode, err := client.QueryKubelet(ctx, configPath)
+	log.Debugf("Received status code: %d from kubelet when querying /configz", statusCode)
+	if err != nil {
+		e := log.Errorf("There was an error when querying the kubelet config: %v", err)
+		return workloadmeta.CollectorEvent{}, e
+	}
+
+	if statusCode != http.StatusOK {
+		e := log.Errorf("Received unexpected status code when querying the kubelet config: %d", statusCode)
+		return workloadmeta.CollectorEvent{}, e
+	}
+
+	var config workloadmeta.KubeletConfig
+	err = json.Unmarshal(configBytes, &config)
+	if err != nil {
+		log.Errorf("Failed to marshal the kubelet config: %v", err)
+		return workloadmeta.CollectorEvent{}, err
+	}
+
+	log.Debugf("Unmarshalled config is: %+v", config)
+	return workloadmeta.CollectorEvent{
+		Type:   workloadmeta.EventTypeSet,
+		Source: workloadmeta.SourceNodeOrchestrator,
+		Entity: &workloadmeta.Kubelet{
+			EntityID: workloadmeta.EntityID{
+				ID:   "kubelet",
+				Kind: workloadmeta.KindKubelet,
+			},
+			EntityMeta: workloadmeta.EntityMeta{
+				Name: "kubelet",
+			},
+			Config: config,
+		},
+	}, nil
+}
+
 func (c *collector) Pull(ctx context.Context) error {
 	updatedPods, err := c.watcher.PullChanges(ctx)
 	if err != nil {
@@ -109,6 +150,16 @@ func (c *collector) Pull(ctx context.Context) error {
 	}
 
 	events := parsePods(updatedPods, c.collectEphemeralContainers)
+
+	// Force the kubelet config pull because its interval is much longer
+	// than a normal check
+	c.once.Do(func() {
+		var configEvent workloadmeta.CollectorEvent
+		configEvent, err = pullKubeletConfig(ctx, c.kubeclient)
+		if err == nil {
+			events = append(events, configEvent)
+		}
+	})
 
 	if time.Since(c.lastExpire) >= c.expireFreq {
 		var expiredIDs []string
@@ -120,34 +171,10 @@ func (c *collector) Pull(ctx context.Context) error {
 	}
 
 	if time.Since(c.configLastExpire) >= c.configExpireFreq {
-		log.Debugf("Getting kubelet config...")
-		configBytes, code, err := c.kubeclient.QueryKubelet(ctx, "/configz")
-		log.Debugf("Received status code: %d from kubelet when querying /configz", code)
-		if err != nil {
-			log.Errorf("There was an error when querying the kubelet config: %v", err)
-			return err
-		}
-
-		var config workloadmeta.KubeletConfig
-		err = json.Unmarshal(configBytes, &config)
+		var configEvent workloadmeta.CollectorEvent
+		configEvent, err = pullKubeletConfig(ctx, c.kubeclient)
 		if err == nil {
-			log.Debugf("Unmarshalled config is: %+v", config)
-			events = append(events, workloadmeta.CollectorEvent{
-				Type:   workloadmeta.EventTypeSet,
-				Source: workloadmeta.SourceNodeOrchestrator,
-				Entity: &workloadmeta.Kubelet{
-					EntityID: workloadmeta.EntityID{
-						ID:   "kubelet",
-						Kind: workloadmeta.KindKubelet,
-					},
-					EntityMeta: workloadmeta.EntityMeta{
-						Name: "kubelet",
-					},
-					Config: config,
-				},
-			})
-		} else {
-			log.Errorf("Failed to marshal the kubelet config: %v", err)
+			events = append(events, configEvent)
 		}
 	}
 

@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	pkgcontainersimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // TODO(component): it might make more sense to move the store into its own
@@ -931,7 +930,6 @@ func (ku Kubelet) DeepCopy() Entity {
 }
 
 func (ku *Kubelet) String(verbose bool) string {
-	log.Debug("CALLING KUBELET ENTITY STRING METHOD")
 	var sb strings.Builder
 	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
 	_, _ = fmt.Fprintln(&sb, ku.EntityID.String(verbose))
