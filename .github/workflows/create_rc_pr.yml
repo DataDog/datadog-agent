@@ -94,7 +94,7 @@ jobs:
           MATRIX: ${{ matrix.value }}
           WARNING: ${{ needs.find_release_branches.outputs.warning }}
         run: |
-          if [ $(dda inv -- -e release.check-for-changes -r "$MATRIX" $WARNING) -ne 0 ]; then
+          if ! dda inv -- -e release.check-for-changes -r "$MATRIX" $WARNING; then
             echo "CHANGES=true" >> $GITHUB_OUTPUT
           else
             echo "CHANGES=false" >> $GITHUB_OUTPUT
