@@ -13,7 +13,7 @@ require (
 	github.com/jellydator/ttlcache/v3 v3.4.0
 	github.com/skydive-project/go-debouncer v1.0.1
 	github.com/spf13/cast v1.9.2
-	github.com/stretchr/testify v1.10.0
+	github.com/stretchr/testify v1.11.0
 	github.com/xeipuuv/gojsonschema v1.2.0
 	go.uber.org/atomic v1.11.0
 	golang.org/x/sys v0.35.0
