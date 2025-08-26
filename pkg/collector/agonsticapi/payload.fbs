@@ -11,4 +11,8 @@ table Payload {
    metrics:[Metric];
 }
 
+table Configuration {
+	value: string;
+}
+
 root_type Payload;

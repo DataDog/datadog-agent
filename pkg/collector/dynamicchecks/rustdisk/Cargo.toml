@@ -6,6 +6,8 @@ edition = "2024"
 [dependencies]
 sysinfo = "0.37.0"
 flatbuffers = "25.2.10"
+serde = { version = "1.0", features = ["derive"] }
+serde_yaml = "0.9"
 
 [lib]
 crate-type = ["dylib"]

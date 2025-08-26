@@ -27,7 +27,7 @@ extern void close_library(void *handle, const char **error)
 	}
 }
 
-extern Result* run_agnostic_check(void *handle, const char **error)
+extern Result* run_agnostic_check(void *handle, const char *id, const char **error)
 {
 	// Load the shared library
 	if (!handle) {
@@ -39,7 +39,7 @@ extern Result* run_agnostic_check(void *handle, const char **error)
   dlerror();
 
 	// Load the function symbol
-	Result* (*run)();
+	Result* (*run)(const char*);
   *(void **)(&run) = dlsym(handle, "Run");
 
 	// Check for errors
@@ -54,7 +54,7 @@ extern Result* run_agnostic_check(void *handle, const char **error)
 
 
 	// Call the function and get the result
-  Result *result = run();
+  Result *result = run(id);
 
 	return result;
 }
@@ -96,8 +96,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 	"unsafe"
+
+	flatbuffers "github.com/google/flatbuffers/go"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
@@ -112,11 +116,14 @@ import (
 )
 
 type agnosticCheck struct {
-	sendermanager sender.SenderManager
-	tagger        tagger.Component
-	name          string
-	libHandle     unsafe.Pointer
-	id            checkid.ID
+	sendermanager     sender.SenderManager
+	tagger            tagger.Component
+	name              string
+	libHandle         unsafe.Pointer
+	id                checkid.ID
+	initConfig        integration.Data
+	instanceConfig    integration.Data
+	configInitWritten bool
 }
 
 func newCheck(sendermanager sender.SenderManager, tagger tagger.Component, name string, lib unsafe.Pointer) (check.Check, error) {
@@ -131,7 +138,10 @@ func newCheck(sendermanager sender.SenderManager, tagger tagger.Component, name 
 func (c *agnosticCheck) Run() error {
 	var cErr *C.char
 
-	result := C.run_agnostic_check(c.libHandle, &cErr)
+	idCStr := C.CString(string(c.id))
+	defer C.free(unsafe.Pointer(idCStr))
+
+	result := C.run_agnostic_check(c.libHandle, idCStr, &cErr)
 
 	if cErr != nil {
 		errorString := C.GoString(cErr)
@@ -244,11 +254,11 @@ func (*agnosticCheck) Loader() string {
 }
 
 func (c *agnosticCheck) InitConfig() string {
-	return ""
+	return string(c.initConfig)
 }
 
 func (c *agnosticCheck) InstanceConfig() string {
-	return ""
+	return string(c.instanceConfig)
 }
 
 func (c *agnosticCheck) GetWarnings() []error {
@@ -258,7 +268,51 @@ func (c *agnosticCheck) GetWarnings() []error {
 func (c *agnosticCheck) Configure(_senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, _source string) error {
 	// Generate check ID
 	c.id = checkid.BuildID(c.String(), integrationConfigDigest, data, initConfig)
+	c.initConfig = initConfig
+	c.instanceConfig = data
 
+	// Write configuration to file once
+	if !c.configInitWritten {
+		if err := c.writeConfigToFile(initConfig, "init"); err != nil {
+			return fmt.Errorf("failed to write init configuration file: %v", err)
+		}
+		c.configInitWritten = true
+	}
+
+	if err := c.writeConfigToFile(data, fmt.Sprintf("%s_instance", c.id)); err != nil {
+		return fmt.Errorf("failed to write init configuration file: %v", err)
+	}
+
+	return nil
+}
+
+// writeConfigToFile writes the configuration as a FlatBuffer to a file
+func (c *agnosticCheck) writeConfigToFile(data integration.Data, fileName string) error {
+	builder := flatbuffers.NewBuilder(1024)
+
+	// Create the string first, before starting the object
+	configValue := builder.CreateString(string(data))
+
+	// Now build the Configuration object
+	Integrations.ConfigurationStart(builder)
+	Integrations.ConfigurationAddValue(builder, configValue)
+	conf := Integrations.ConfigurationEnd(builder)
+	builder.Finish(conf)
+	buf := builder.FinishedBytes()
+
+	// Create a configuration file path in a system-accessible location
+	configDir := filepath.Join("/tmp/datadog-agent-checks", c.name)
+
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		return fmt.Errorf("failed to create config directory: %v", err)
+	}
+
+	configFile := filepath.Join(configDir, fmt.Sprintf("%s.bin", fileName))
+	if err := os.WriteFile(configFile, buf, 0644); err != nil {
+		return fmt.Errorf("failed to write config file: %v", err)
+	}
+
+	fmt.Printf("Configuration written to: %s\n", configFile)
 	return nil
 }
 
