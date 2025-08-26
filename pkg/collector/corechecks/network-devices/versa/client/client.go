@@ -46,18 +46,20 @@ type Client struct {
 	directorToken       string
 	directorTokenExpiry time.Time
 	// Session token for Analytics endpoints (always uses session auth)
-	sessionToken        string
-	sessionTokenExpiry  time.Time
-	username            string
-	password            string
-	clientID            string
-	clientSecret        string
-	authMethod          authMethod
-	authenticationMutex *sync.Mutex
-	maxAttempts         int
-	maxPages            int
-	maxCount            string // Stored as string to be passed as an HTTP param
-	lookback            string
+	sessionToken           string
+	sessionTokenExpiry     time.Time
+	username               string
+	password               string
+	clientID               string
+	clientSecret           string
+	authMethod             authMethod
+	authenticationMutex    *sync.Mutex
+	maxAttempts            int
+	maxPages               int
+	maxCount               string // Stored as string to be passed as an HTTP param
+	lookback               string
+	useStartPagination     bool // Use "start" instead of "offset" for pagination (necessary for some deployments)
+	useAlternateAppliances bool // Use GetAppliances instead of GetChildAppliancesDetail for appliance collection
 }
 
 // ClientOptions are the functional options for the Versa client
@@ -206,6 +208,28 @@ func WithLookback(lookback int) ClientOptions {
 	}
 }
 
+// WithStartPagination is a functional option to enable using "start" instead of "offset" for pagination
+func WithStartPagination(useStart bool) ClientOptions {
+	return func(c *Client) {
+		c.useStartPagination = useStart
+	}
+}
+
+// WithAlternateAppliances is a functional option to enable using GetAppliances instead of GetChildAppliancesDetail
+func WithAlternateAppliances(useAlternate bool) ClientOptions {
+	return func(c *Client) {
+		c.useAlternateAppliances = useAlternate
+	}
+}
+
+// getOffsetParamName returns the pagination parameter name based on the feature flag
+func (client *Client) getOffsetParamName() string {
+	if client.useStartPagination {
+		return "start"
+	}
+	return "offset"
+}
+
 // GetOrganizations retrieves a list of organizations
 func (client *Client) GetOrganizations() ([]Organization, error) {
 	var organizations []Organization
@@ -220,8 +244,8 @@ func (client *Client) GetOrganizations() ([]Organization, error) {
 	totalPages := (resp.TotalCount + maxCount - 1) / maxCount // calculate total pages, rounding up if there's any remainder
 	for i := 1; i < totalPages; i++ {                         // start from 1 to skip the first page
 		params := map[string]string{
-			"limit":  client.maxCount,
-			"offset": strconv.Itoa(i * maxCount),
+			"limit":                     client.maxCount,
+			client.getOffsetParamName(): strconv.Itoa(i * maxCount),
 		}
 		resp, err := get[OrganizationListResponse](client, "/vnms/organization/orgs", params, false)
 		if err != nil {
@@ -243,9 +267,9 @@ func (client *Client) GetChildAppliancesDetail(tenant string) ([]Appliance, erro
 	uri := "/vnms/dashboard/childAppliancesDetail/" + tenant
 	var appliances []Appliance
 	params := map[string]string{
-		"fetch":  "count",
-		"limit":  client.maxCount,
-		"offset": "0",
+		"fetch":                     "count",
+		"limit":                     client.maxCount,
+		client.getOffsetParamName(): "0",
 	}
 
 	// Get the total count of appliances
@@ -262,7 +286,7 @@ func (client *Client) GetChildAppliancesDetail(tenant string) ([]Appliance, erro
 	totalPages := (*totalCount + maxCount - 1) / maxCount // calculate total pages, rounding up if there's any remainder
 	for i := 0; i < totalPages; i++ {
 		params["fetch"] = "all"
-		params["offset"] = fmt.Sprintf("%d", i*maxCount)
+		params[client.getOffsetParamName()] = fmt.Sprintf("%d", i*maxCount)
 		resp, err := get[[]Appliance](client, uri, params, false)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get appliance detail response: %v", err)
@@ -280,8 +304,8 @@ func (client *Client) GetChildAppliancesDetail(tenant string) ([]Appliance, erro
 func (client *Client) GetAppliances() ([]Appliance, error) {
 	var allAppliances []Appliance
 	params := map[string]string{
-		"limit":  client.maxCount,
-		"offset": "0",
+		"limit":                     client.maxCount,
+		client.getOffsetParamName(): "0",
 	}
 
 	// Make the first request to get the first page and total count
@@ -306,7 +330,7 @@ func (client *Client) GetAppliances() ([]Appliance, error) {
 
 	// Paginate through the remaining pages
 	for i := 1; i < totalPages; i++ {
-		params["offset"] = strconv.Itoa(i * maxCount)
+		params[client.getOffsetParamName()] = strconv.Itoa(i * maxCount)
 
 		pageResp, err := get[ApplianceListResponse](client, "/vnms/appliance/appliance", params, false)
 		if err != nil {
