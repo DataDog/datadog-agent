@@ -80,14 +80,14 @@ type TextSect struct {
 }
 
 // ParseModuleData parses module data from a Go object file
-func ParseModuleData(mef *MMappingElfFile) (*ModuleData, error) {
-	return parseModuleData(mef)
+func ParseModuleData(obj File) (*ModuleData, error) {
+	return parseModuleData(obj)
 }
 
 // GoDebugSections represents the go debug sections.
 type GoDebugSections struct {
-	PcLnTab *MMappedData
-	GoFunc  *MMappedData
+	PcLnTab SectionData
+	GoFunc  SectionData
 }
 
 // Close closes the go debug sections
@@ -96,27 +96,28 @@ func (m *GoDebugSections) Close() error {
 }
 
 // GoDebugSections returns the go debug sections
-func (m *ModuleData) GoDebugSections(mef *MMappingElfFile) (*GoDebugSections, error) {
-	pclntabSection := mef.Elf.Section(".gopclntab")
+func (m *ModuleData) GoDebugSections(mef File) (*GoDebugSections, error) {
+	pclntabSection := mef.Section(".gopclntab")
 	if pclntabSection == nil {
 		return nil, fmt.Errorf("no pclntab section")
 	}
 
-	pclntab, err := mef.MMap(pclntabSection, 0, pclntabSection.Size)
+	pclntab, err := mef.SectionDataRange(pclntabSection, 0, pclntabSection.Size)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load pclntab: %w", err)
 	}
 
-	var gofunc *MMappedData
+	var gofunc SectionData
 	if m.GoFunc != 0 && m.GcData != 0 {
-		rodataSection := mef.Elf.Section(".rodata")
+		rodataSection := mef.Section(".rodata")
 		if rodataSection.Addr > m.GoFunc || m.GcData > rodataSection.Addr+rodataSection.Size {
 			return nil, fmt.Errorf("gofunc outside rodata section")
 		}
 		offset := m.GoFunc - rodataSection.Addr
 		size := m.GcData - m.GoFunc
-		gofunc, err = mef.MMap(rodataSection, offset, size)
+		gofunc, err = mef.SectionDataRange(rodataSection, offset, size)
 		if err != nil {
+			_ = pclntab.Close()
 			return nil, fmt.Errorf("failed to load gofunc: %w", err)
 		}
 	}
@@ -127,34 +128,34 @@ func (m *ModuleData) GoDebugSections(mef *MMappingElfFile) (*GoDebugSections, er
 	}, nil
 }
 
-func parseModuleData(mef *MMappingElfFile) (*ModuleData, error) {
-	pclntabSection := mef.Elf.Section(".gopclntab")
+func parseModuleData(obj SectionLoader) (*ModuleData, error) {
+	pclntabSection := obj.Section(".gopclntab")
 	if pclntabSection == nil {
 		return nil, fmt.Errorf("no pclntab section")
 	}
 
-	noptrdataSection := mef.Elf.Section(".noptrdata")
+	noptrdataSection := obj.Section(".noptrdata")
 	if noptrdataSection == nil {
 		return nil, fmt.Errorf("no noptrdata section")
 	}
 
-	rodataSection := mef.Elf.Section(".rodata")
+	rodataSection := obj.Section(".rodata")
 	if rodataSection == nil {
 		return nil, fmt.Errorf("no rodata section")
 	}
 
-	textSection := mef.Elf.Section(".text")
+	textSection := obj.Section(".text")
 	if textSection == nil {
 		return nil, fmt.Errorf("no text section")
 	}
 
-	noptrdataSectionData, err := mef.MMap(noptrdataSection, 0, noptrdataSection.Size)
+	noptrdataSectionData, err := obj.SectionDataRange(noptrdataSection, 0, noptrdataSection.Size)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load noptrdata: %w", err)
 	}
 	defer noptrdataSectionData.Close()
 
-	rodataSectionData, err := mef.MMap(rodataSection, 0, rodataSection.Size)
+	rodataSectionData, err := obj.SectionDataRange(rodataSection, 0, rodataSection.Size)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load rodata: %w", err)
 	}
@@ -188,7 +189,7 @@ func tryParseModuleDataAt(
 	noptrdataData, rodataData []byte,
 	offset int,
 	textRange, rodataRange [2]uint64,
-	noptrdataSection, rodataSection, textSection *safeelf.Section,
+	noptrdataSection, rodataSection, textSection *safeelf.SectionHeader,
 ) (*ModuleData, error) {
 
 	// Parse types range

@@ -58,6 +58,9 @@ service AgentSecure {
     // Get the host tags
     rpc GetHostTags(datadog.model.v1.HostTagRequest) returns (datadog.model.v1.HostTagReply);
 
+    // Streams config events to the remote agent.
+    rpc StreamConfigEvents(datadog.model.v1.ConfigStreamRequest) returns (stream datadog.model.v1.ConfigEvent);
+
 }
 
 // Service exposed by remote agents to allow querying by the Core Agent.
@@ -71,7 +74,5 @@ service RemoteAgent {
   // Gets the telemetry data of a remote agent.
   rpc GetTelemetry(datadog.remoteagent.GetTelemetryRequest) returns (datadog.remoteagent.GetTelemetryResponse);
 
-  // Streams config events to the remote agent.
-  rpc StreamConfigEvents(stream datadog.remoteagent.ConfigEvent) returns (google.protobuf.Empty);
 
 }
