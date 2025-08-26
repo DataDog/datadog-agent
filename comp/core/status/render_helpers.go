@@ -199,7 +199,7 @@ func parseUnixTime(value any) (time.Time, error) {
 		raw = v
 	case float64:
 		raw = int64(v)
-	// Case where the unix time is a time.Time that has converted into a string date due to a JSON marshall
+	// Case where the unix time is a time.Time and has been converted into a string date due to a JSON marshall
 	case string:
 		t, err := time.Parse(timeLayout, v)
 		if err != nil {

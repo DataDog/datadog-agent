@@ -55,7 +55,7 @@ func TestParseUnixTimeError(t *testing.T) {
 		expectedErrorMsg string
 	}{
 		{false, "invalid time parameter bool"},
-		{"wrong date format", "error while parsing time: wrong date format"},
+		{"Tue Aug 26 11:43:16 CEST 2025", "error while parsing time: Tue Aug 26 11:43:16 CEST 2025"},
 	}
 
 	for _, tc := range cases {
