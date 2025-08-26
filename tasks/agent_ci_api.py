@@ -7,7 +7,7 @@ import subprocess
 import requests
 from invoke import task
 
-from tasks.auth import datadog_infra
+from tasks.libs.common.auth import datadog_infra_token
 
 
 def get_datacenter(env):
@@ -97,7 +97,7 @@ def run(
 
     token = ''
     if not is_local:
-        token = datadog_infra(ctx, audience="rapid-agent-devx", datacenter=dc)
+        token = datadog_infra_token(ctx, audience="rapid-agent-devx", datacenter=dc)
     origin_header = os.environ["CI_JOB_ID"] if from_ci else "curl-authanywhere"
     url = (
         f"http://localhost:{localport}/{prefix}{endpoint}"

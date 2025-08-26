@@ -5,28 +5,17 @@ import os
 from invoke import task
 
 from tasks.libs.ciproviders.github_api import generate_local_github_token
+from tasks.libs.common.auth import datadog_infra_token
 from tasks.libs.common.utils import running_in_ci
 
 
 @task
-def datadog_infra(ctx, audience, datacenter="us1.ddbuild.io", verbose=False):
+def datadog_infra(ctx, audience, datacenter="us1.ddbuild.io"):
     """Returns the http token for the given audience."""
 
-    token = (
-        ctx.run(
-            f'authanywhere --audience {audience}'
-            if running_in_ci()
-            else f'ddtool auth token {audience} --datacenter "{datacenter}" --http-header',
-            hide=True,
-        )
-        .stdout.strip()
-        .removeprefix('Authorization: ')
-    )
+    token = datadog_infra_token(ctx, audience, datacenter)
 
-    if verbose:
-        print(token)
-
-    return token
+    print(token)
 
 
 @task
