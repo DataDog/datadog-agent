@@ -73,14 +73,16 @@ def go_build(
 
     cmd += f" {entrypoint}"
 
-    # use a custom runner to read stderr in bigger chunks as dumpdep output is huge
-    # and invoke is super slow by default when writing to stdout/stderr
-    # https://github.com/pyinvoke/invoke/issues/774
-    runner = Local(ctx)
-    runner.read_chunk_size = 1024 * 1024 * 10
-    _ = runner.read_chunk_size  # please linters
-    runner.input_sleep = 0
-    _ = runner.input_sleep  # please linters
+    runner = ctx
+    if check_deadcode:
+        # use a custom runner to read stderr in bigger chunks as dumpdep output is huge
+        # and invoke is super slow by default when writing to stdout/stderr
+        # https://github.com/pyinvoke/invoke/issues/774
+        runner = Local(ctx)
+        runner.read_chunk_size = 1024 * 1024 * 10
+        _ = runner.read_chunk_size  # please linters
+        runner.input_sleep = 0
+        _ = runner.input_sleep  # please linters
 
     # -dumpdep is very verbose so we hide that
     # any unrecognized log line is shown by whydeadcode anyway
