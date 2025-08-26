@@ -127,6 +127,8 @@ func (ms *MetricSender) reportScalarMetrics(metric profiledefinition.MetricsConf
 
 func (ms *MetricSender) reportColumnMetrics(metricConfig profiledefinition.MetricsConfig, values *valuestore.ResultValueStore, tags []string, deviceID string) map[string]map[string]MetricSample {
 	rowTagsCache := make(map[string][]string)
+	skippedIndexes := make(map[string]bool)
+
 	samples := map[string]map[string]MetricSample{}
 
 	for _, symbol := range metricConfig.Symbols {
@@ -143,6 +145,11 @@ func (ms *MetricSender) reportColumnMetrics(metricConfig profiledefinition.Metri
 			}
 		}
 		for fullIndex, value := range metricValues {
+			_, skip := skippedIndexes[fullIndex]
+			if skip {
+				continue
+			}
+
 			// cache row tags by fullIndex to avoid rebuilding it for every column rows
 			if _, ok := rowTagsCache[fullIndex]; !ok {
 				tmpTags := utils.CopyStrings(tags)
@@ -152,6 +159,10 @@ func (ms *MetricSender) reportColumnMetrics(metricConfig profiledefinition.Metri
 					interfaceCfg, err := getInterfaceConfig(ms.interfaceConfigs, fullIndex, tmpTags)
 					if err != nil {
 						log.Tracef("unable to tag snmp.%s metric with interface_config data: %s", symbol.Name, err.Error())
+					}
+					if interfaceCfg.Disabled {
+						skippedIndexes[fullIndex] = true
+						continue
 					}
 					tmpTags = append(tmpTags, interfaceCfg.Tags...)
 
