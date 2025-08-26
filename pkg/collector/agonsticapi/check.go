@@ -290,8 +290,8 @@ func (c *agnosticCheck) Configure(_senderManager sender.SenderManager, integrati
 func (c *agnosticCheck) writeConfigToFile(data integration.Data, fileName string) error {
 	builder := flatbuffers.NewBuilder(1024)
 
-	// Create the string first, before starting the object
-	configValue := builder.CreateString(string(data))
+	// Create the byte vector first, before starting the object
+	configValue := builder.CreateByteVector(data)
 
 	// Now build the Configuration object
 	Integrations.ConfigurationStart(builder)

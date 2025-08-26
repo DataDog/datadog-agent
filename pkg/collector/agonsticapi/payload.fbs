@@ -12,7 +12,7 @@ table Payload {
 }
 
 table Configuration {
-	value: string;
+	value: [uint8];
 }
 
 root_type Payload;

@@ -129,12 +129,14 @@ fn load_init_configuration() -> Option<DiskInitConfig> {
     let config_file = Path::new("/tmp/datadog-agent-checks/rustdisk/init.bin");
     if let Ok(config_data) = fs::read(config_file) {
         if let Ok(config) = flatbuffers::root::<Configuration>(&config_data) {
-            if let Some(yaml_str) = config.value() {
-                match serde_yaml::from_str::<DiskInitConfig>(yaml_str) {
-                    Ok(parsed_config) => return Some(parsed_config),
-                    Err(e) => {
-                        eprintln!("Failed to parse YAML init configuration: {}", e);
-                        return None;
+            if let Some(yaml_bytes) = config.value() {
+                if let Ok(yaml_str) = std::str::from_utf8(yaml_bytes.bytes()) {
+                    match serde_yaml::from_str::<DiskInitConfig>(yaml_str) {
+                        Ok(parsed_config) => return Some(parsed_config),
+                        Err(e) => {
+                            eprintln!("Failed to parse YAML init configuration: {}", e);
+                            return None;
+                        }
                     }
                 }
             }
@@ -148,12 +150,14 @@ fn load_instance_configuration(id: &str) -> Option<DiskInstanceConfig> {
     let config_file = Path::new(&config_path);
     if let Ok(config_data) = fs::read(config_file) {
         if let Ok(config) = flatbuffers::root::<Configuration>(&config_data) {
-            if let Some(yaml_str) = config.value() {
-                match serde_yaml::from_str::<DiskInstanceConfig>(yaml_str) {
-                    Ok(parsed_config) => return Some(parsed_config),
-                    Err(e) => {
-                        eprintln!("Failed to parse YAML instance configuration: {}", e);
-                        return None;
+            if let Some(yaml_bytes) = config.value() {
+                if let Ok(yaml_str) = std::str::from_utf8(yaml_bytes.bytes()) {
+                    match serde_yaml::from_str::<DiskInstanceConfig>(yaml_str) {
+                        Ok(parsed_config) => return Some(parsed_config),
+                        Err(e) => {
+                            eprintln!("Failed to parse YAML instance configuration: {}", e);
+                            return None;
+                        }
                     }
                 }
             }
