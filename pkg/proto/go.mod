@@ -12,7 +12,6 @@ require (
 	github.com/stretchr/testify v1.10.0
 	github.com/tinylib/msgp v1.3.0
 	github.com/vmihailenco/msgpack/v4 v4.3.13
-	google.golang.org/genproto/googleapis/api v0.0.0-20250603155806-513f23925822
 	google.golang.org/grpc v1.74.2
 	google.golang.org/protobuf v1.36.6
 )
@@ -133,6 +132,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ../../pkg/logs/sources
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ../../pkg/logs/status/statusinterface
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils => ../../pkg/logs/status/utils
+	github.com/DataDog/datadog-agent/pkg/logs/types => ../../pkg/logs/types
 	github.com/DataDog/datadog-agent/pkg/logs/util/testutils => ../../pkg/logs/util/testutils
 	github.com/DataDog/datadog-agent/pkg/metrics => ../../pkg/metrics
 	github.com/DataDog/datadog-agent/pkg/network/payload => ../../pkg/network/payload
@@ -144,6 +144,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes => ../../pkg/opentelemetry-mapping-go/otlp/attributes
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/logs => ../../pkg/opentelemetry-mapping-go/otlp/logs
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics => ../../pkg/opentelemetry-mapping-go/otlp/metrics
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/rum => ../../pkg/opentelemetry-mapping-go/otlp/rum
 	github.com/DataDog/datadog-agent/pkg/orchestrator/model => ../../pkg/orchestrator/model
 	github.com/DataDog/datadog-agent/pkg/process/util/api => ../../pkg/process/util/api
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state => ../../pkg/remoteconfig/state

@@ -1,13 +1,13 @@
 module github.com/DataDog/datadog-agent/test/new-e2e
 
-go 1.24.5
+go 1.24.0
 
 // Do not upgrade Pulumi plugins to versions different from `test-infra-definitions`.
 // The plugin versions NEED to be aligned.
 // TODO: Implement hard check in CI
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.162
+	github.com/DataDog/agent-payload/v5 v5.0.163
 	github.com/DataDog/datadog-agent/pkg/util/option v0.67.0
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.67.0
@@ -15,16 +15,16 @@ require (
 	github.com/DataDog/datadog-agent/pkg/version v0.67.0
 	github.com/DataDog/datadog-agent/test/fakeintake v0.56.0-rc.3
 	github.com/DataDog/datadog-api-client-go v1.16.0
-	github.com/DataDog/datadog-api-client-go/v2 v2.42.0
+	github.com/DataDog/datadog-api-client-go/v2 v2.43.0
 	// Are you bumping github.com/DataDog/test-infra-definitions ?
 	// You should bump `TEST_INFRA_DEFINITIONS_BUILDIMAGES` in `.gitlab/common/test_infra_version.yml`
 	// `TEST_INFRA_DEFINITIONS_BUILDIMAGES` matches the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0123456789AB
-	github.com/DataDog/test-infra-definitions v0.0.4-0.20250806155249-e08d46a2674a
-	github.com/aws/aws-sdk-go-v2 v1.36.6
-	github.com/aws/aws-sdk-go-v2/config v1.29.18
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.236.0
+	github.com/DataDog/test-infra-definitions v0.0.4-0.20250825110350-35566b154e19
+	github.com/aws/aws-sdk-go-v2 v1.38.1
+	github.com/aws/aws-sdk-go-v2/config v1.31.2
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.245.2
 	github.com/aws/aws-sdk-go-v2/service/eks v1.58.0
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.56.12
 	github.com/cenkalti/backoff v2.2.1+incompatible
@@ -72,22 +72,22 @@ require (
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.6.11 // indirect
-	github.com/aws/aws-sdk-go-v2/credentials v1.17.71 // indirect
-	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.33 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.37 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.37 // indirect
+	github.com/aws/aws-sdk-go-v2/credentials v1.18.6 // indirect
+	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.4 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.4 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.4 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.3 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.3.37 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.45.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ecs v1.60.1
-	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.12.4 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.7.5 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.12.18 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.18.18 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sso v1.25.6 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.30.4 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sts v1.34.1 // indirect
-	github.com/aws/smithy-go v1.22.4 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sso v1.28.2 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.33.2 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sts v1.38.0 // indirect
+	github.com/aws/smithy-go v1.22.5 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/blang/semver v3.5.1+incompatible // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0
@@ -179,7 +179,7 @@ require (
 	github.com/pulumi/pulumi-libvirt/sdk v0.5.4 // indirect
 	github.com/pulumi/pulumi-random/sdk/v4 v4.16.8 // indirect
 	github.com/pulumi/pulumi-tls/sdk/v4 v4.11.1 // indirect
-	github.com/pulumiverse/pulumi-time/sdk v0.1.0 // indirect
+	github.com/pulumiverse/pulumi-time/sdk v0.1.0
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
@@ -262,7 +262,7 @@ require (
 	github.com/DataDog/go-runtime-metrics-internal v0.0.4-0.20250721125240-fdf1ef85b633 // indirect
 	github.com/DataDog/go-sqllexer v0.1.6 // indirect
 	github.com/DataDog/go-tuf v1.1.0-0.5.2 // indirect
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.29.1 // indirect
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.31.0 // indirect
 	github.com/DataDog/sketches-go v1.4.7 // indirect
 	github.com/Masterminds/semver/v3 v3.4.0 // indirect
 	github.com/aws/aws-sdk-go v1.55.7 // indirect
@@ -318,7 +318,7 @@ require (
 	github.com/puzpuzpuz/xsync/v3 v3.5.1 // indirect
 	github.com/rs/zerolog v1.34.0 // indirect
 	github.com/secure-systems-lab/go-securesystemslib v0.9.0 // indirect
-	github.com/shirou/gopsutil/v4 v4.25.6 // indirect
+	github.com/shirou/gopsutil/v4 v4.25.8-0.20250809033336-ffcdc2b7662f // indirect
 	github.com/tklauser/go-sysconf v0.3.15 // indirect
 	github.com/tklauser/numcpus v0.10.0 // indirect
 	github.com/twinj/uuid v0.0.0-20151029044442-89173bcdda19 // indirect
@@ -445,6 +445,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ../../pkg/logs/sources
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ../../pkg/logs/status/statusinterface
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils => ../../pkg/logs/status/utils
+	github.com/DataDog/datadog-agent/pkg/logs/types => ../../pkg/logs/types
 	github.com/DataDog/datadog-agent/pkg/logs/util/testutils => ../../pkg/logs/util/testutils
 	github.com/DataDog/datadog-agent/pkg/metrics => ../../pkg/metrics
 	github.com/DataDog/datadog-agent/pkg/network/payload => ../../pkg/network/payload
@@ -456,6 +457,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes => ../../pkg/opentelemetry-mapping-go/otlp/attributes
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/logs => ../../pkg/opentelemetry-mapping-go/otlp/logs
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics => ../../pkg/opentelemetry-mapping-go/otlp/metrics
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/rum => ../../pkg/opentelemetry-mapping-go/otlp/rum
 	github.com/DataDog/datadog-agent/pkg/orchestrator/model => ../../pkg/orchestrator/model
 	github.com/DataDog/datadog-agent/pkg/process/util/api => ../../pkg/process/util/api
 	github.com/DataDog/datadog-agent/pkg/proto => ../../pkg/proto

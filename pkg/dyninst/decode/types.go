@@ -544,6 +544,14 @@ func (h *goHMapHeaderType) encodeValueFields(
 	if err := writeTokens(enc, jsontext.EndArray); err != nil {
 		return err
 	}
+	if uint64(encodedItems) < count {
+		if err := writeTokens(enc,
+			tokenNotCapturedReason,
+			tokenNotCapturedReasonPruned,
+		); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -766,7 +774,6 @@ func encodePointer(
 		return nil
 	}
 
-	var address uint64
 	pointedValue, dataItemExists := d.dataItems[pointeeKey]
 	if !dataItemExists {
 		return writeTokens(enc,
@@ -777,7 +784,7 @@ func encodePointer(
 	if writeAddress {
 		if err := writeTokens(enc,
 			jsontext.String("address"),
-			jsontext.String("0x"+strconv.FormatInt(int64(address), 16)),
+			jsontext.String("0x"+strconv.FormatUint(addr, 16)),
 		); err != nil {
 			return err
 		}

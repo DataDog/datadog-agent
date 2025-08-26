@@ -27,7 +27,6 @@ import (
 	probabilisticsamplerprocessor "github.com/open-telemetry/opentelemetry-collector-contrib/processor/probabilisticsamplerprocessor"
 	resourcedetectionprocessor "github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor"
 	resourceprocessor "github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourceprocessor"
-	routingprocessor "github.com/open-telemetry/opentelemetry-collector-contrib/processor/routingprocessor"
 	tailsamplingprocessor "github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor"
 	transformprocessor "github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor"
 	filelogreceiver "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/filelogreceiver"
@@ -137,7 +136,6 @@ func components() (otelcol.Factories, error) {
 		probabilisticsamplerprocessor.NewFactory(),
 		resourcedetectionprocessor.NewFactory(),
 		resourceprocessor.NewFactory(),
-		routingprocessor.NewFactory(),
 		tailsamplingprocessor.NewFactory(),
 		transformprocessor.NewFactory(),
 	)
@@ -155,7 +153,6 @@ func components() (otelcol.Factories, error) {
 	factories.ProcessorModules[probabilisticsamplerprocessor.NewFactory().Type()] = "github.com/open-telemetry/opentelemetry-collector-contrib/processor/probabilisticsamplerprocessor v0.131.0"
 	factories.ProcessorModules[resourcedetectionprocessor.NewFactory().Type()] = "github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor v0.131.0"
 	factories.ProcessorModules[resourceprocessor.NewFactory().Type()] = "github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourceprocessor v0.131.0"
-	factories.ProcessorModules[routingprocessor.NewFactory().Type()] = "github.com/open-telemetry/opentelemetry-collector-contrib/processor/routingprocessor v0.131.0"
 	factories.ProcessorModules[tailsamplingprocessor.NewFactory().Type()] = "github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor v0.131.0"
 	factories.ProcessorModules[transformprocessor.NewFactory().Type()] = "github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor v0.131.0"
 
