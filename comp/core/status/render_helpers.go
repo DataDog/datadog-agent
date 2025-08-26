@@ -203,9 +203,8 @@ func parseUnixTime(value any) (time.Time, error) {
 	case string:
 		t, err := time.Parse(timeLayout, v)
 		if err != nil {
-			return time.Time{}, fmt.Errorf("error while parsing time %q", v)
+			return time.Time{}, fmt.Errorf("error while parsing time: %s", v)
 		}
-
 		return t, nil
 	default:
 		return time.Time{}, fmt.Errorf("invalid time parameter %T", v)
