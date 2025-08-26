@@ -22,7 +22,7 @@ func Module() fxutil.Module {
 			payloadmodifierimpl.NewComponent,
 		),
 		fx.Provide(func(comp payloadmodifier.Component) pkgagent.TracerPayloadModifier {
-			return comp.GetModifier()
+			return comp
 		}),
 	)
 }
