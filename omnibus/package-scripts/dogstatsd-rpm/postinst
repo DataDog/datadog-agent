@@ -14,4 +14,7 @@ chown -R dd-agent:dd-agent ${CONFIG_DIR}
 chown -R dd-agent:dd-agent ${LOG_DIR}
 chown -R dd-agent:dd-agent ${INSTALL_DIR}
 
+# Set stricter permissions to the log directory
+chmod -v 750 ${LOG_DIR}
+
 exit 0
