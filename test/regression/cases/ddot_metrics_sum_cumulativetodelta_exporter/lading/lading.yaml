@@ -14,8 +14,8 @@ generator:
             opentelemetry_metrics:
               metric_weights:
                   gauge: 0
-                  sum_delta: 100
-                  sum_cumulative: 0
+                  sum_delta: 0
+                  sum_cumulative: 100
               contexts:
                 total_contexts:
                   constant: 10000              
