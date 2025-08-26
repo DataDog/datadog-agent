@@ -1,5 +1,6 @@
 import os
 import re
+import subprocess
 import sys
 import tempfile
 import warnings
@@ -130,16 +131,18 @@ def get_omnibus_env(
             env[key] = value
         ref = env[key]
         if not re.fullmatch(r"[0-9a-f]{4,40}", ref):  # resolve only "moving" refs, such as `own/branch`
-            candidates = [line.split() for line in ctx.run(f"git ls-remote --refs {url} '{ref}'").stdout.splitlines()]
+            candidates = [
+                line.split()
+                for line in subprocess.check_output(["git", "ls-remote", "--refs", url, ref], text=True).splitlines()
+            ]
             if not candidates:
-                warnings.warn(f"No candidate for {url}@{ref} - leaving untouched", stacklevel=1)
-                continue
-            sha1, shortest_ref = min(candidates, key=lambda c: len(c[1]))
+                raise Exit(f"{key!r}: no candidate for {ref!r} @ {url}!")
             if len(candidates) > 1:  # happens when a branch name mimics its base or target, such as `my/own/branch`
                 warnings.warn(
-                    f"Multiple candidates for {url}@{ref}: {[c[1] for c in candidates]} - choosing shortest: {shortest_ref} -> {sha1}",
-                    stacklevel=1,
+                    f"{key!r}: multiple candidates for {ref!r} @ {url} {[c[1] for c in candidates]}", stacklevel=1
                 )
+            sha1, shortest_ref = min(candidates, key=lambda c: len(c[1]))
+            print(f"{key!r}: {ref!r} @ {url} resolves to {shortest_ref!r} -> {sha1}")
             env[key] = sha1
 
     if sys.platform == 'darwin':
