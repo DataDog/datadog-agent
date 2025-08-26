@@ -43,9 +43,9 @@ func TestParseUnixTime(t *testing.T) {
 
 	for _, tc := range cases {
 		output, err := parseUnixTime(tc.value)
-
-		assert.WithinDuration(t, tc.expectedOutput, output, 0)
-		assert.Nil(t, err)
+		if assert.NoError(t, err) {
+			assert.WithinDuration(t, tc.expectedOutput, output, 0)
+		}
 	}
 }
 
@@ -60,9 +60,7 @@ func TestParseUnixTimeError(t *testing.T) {
 
 	for _, tc := range cases {
 		output, err := parseUnixTime(tc.value)
-
-		assert.WithinDuration(t, time.Time{}, output, 0)
-		assert.NotNil(t, err)
-		assert.Equal(t, err.Error(), tc.expectedErrorMsg)
+		assert.EqualError(t, err, tc.expectedErrorMsg)
+		assert.Zero(t, output)
 	}
 }
