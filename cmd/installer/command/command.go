@@ -104,5 +104,16 @@ Datadog Installer installs datadog-packages based on your commands.`,
 		}
 	}
 
+	// Run the default command when no subcommands are provided
+	// Intended as shortcut for running the executable as the install script.
+	// default: setup --flavor default
+	agentCmd.RunE = func(cmd *cobra.Command, args []string) error {
+		if len(args) == 0 {
+			cmd.SetArgs([]string{"setup", "--flavor", "default"})
+			return cmd.Execute()
+		}
+		return nil
+	}
+
 	return agentCmd
 }
