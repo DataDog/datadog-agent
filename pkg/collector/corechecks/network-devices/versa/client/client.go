@@ -23,14 +23,15 @@ import (
 )
 
 const (
-	defaultBasicPort   = 9182
-	defaultOAuthPort   = 9183
-	defaultMaxAttempts = 3
-	defaultMaxPages    = 100
-	defaultMaxCount    = "2000"
-	defaultLookback    = "30minutesAgo"
-	defaultHTTPTimeout = 10
-	defaultHTTPScheme  = "https"
+	defaultBasicPort        = 9182
+	defaultOAuthPort        = 9183
+	defaultMaxAttempts      = 3
+	defaultMaxPages         = 100
+	defaultMaxCount         = "2000"
+	defaultLookback         = "30minutesAgo"
+	defaultExtendedLookback = "1daysAgo"
+	defaultHTTPTimeout      = 10
+	defaultHTTPScheme       = "https"
 )
 
 // Useful for mocking
@@ -58,8 +59,9 @@ type Client struct {
 	maxPages               int
 	maxCount               string // Stored as string to be passed as an HTTP param
 	lookback               string
-	useStartPagination     bool // Use "start" instead of "offset" for pagination (necessary for some deployments)
-	useAlternateAppliances bool // Use GetAppliances instead of GetChildAppliancesDetail for appliance collection
+	extendedLookback       string // Use for endpoints that require longer lookback windows
+	useStartPagination     bool   // Use "start" instead of "offset" for pagination (necessary for some deployments)
+	useAlternateAppliances bool   // Use GetAppliances instead of GetChildAppliancesDetail for appliance collection
 }
 
 // ClientOptions are the functional options for the Versa client
@@ -127,6 +129,7 @@ func NewClient(directorEndpoint string, directorPort int, analyticsEndpoint stri
 		maxPages:            defaultMaxPages,
 		maxCount:            defaultMaxCount,
 		lookback:            defaultLookback,
+		extendedLookback:    defaultExtendedLookback,
 	}
 
 	for _, opt := range options {
@@ -202,9 +205,16 @@ func WithMaxPages(maxPages int) ClientOptions {
 }
 
 // WithLookback is a functional option to set the client lookback interval
-func WithLookback(lookback int) ClientOptions {
+func WithLookback(lookback string) ClientOptions {
 	return func(c *Client) {
-		c.lookback = createLookbackString(lookback)
+		c.lookback = lookback
+	}
+}
+
+// WithExtendedLookback is a functional option to set the client extended lookback interval
+func WithExtendedLookback(extendedLookback string) ClientOptions {
+	return func(c *Client) {
+		c.extendedLookback = extendedLookback
 	}
 }
 
@@ -495,7 +505,7 @@ func (client *Client) GetPathQoSMetrics(tenant string) ([]QoSMetrics, error) {
 		client,
 		tenant,
 		"SDWAN",
-		client.lookback,
+		client.extendedLookback,
 		"pathcos(localsitename,remotesitename)",
 		"",
 		"",
@@ -581,12 +591,12 @@ func (client *Client) GetSiteMetrics(tenant string) ([]SiteMetrics, error) {
 
 // GetApplicationsByAppliance retrieves applications by appliance metrics from the Versa Analytics API
 func (client *Client) GetApplicationsByAppliance(tenant string) ([]ApplicationsByApplianceMetrics, error) {
-	// TODO: should the lookback be configurable for these? no data is returned for 30min lookback
+	// Uses extended lookback since no data is returned for short lookback periods
 	return getPaginatedAnalytics(
 		client,
 		tenant,
 		"SDWAN",
-		"1daysAgo",
+		client.extendedLookback,
 		"app(site,appId)",
 		"",
 		"",
@@ -604,12 +614,11 @@ func (client *Client) GetApplicationsByAppliance(tenant string) ([]ApplicationsB
 
 // GetTopUsers retrieves top users of applications by appliance from the Versa Analytics API
 func (client *Client) GetTopUsers(tenant string) ([]TopUserMetrics, error) {
-	// TODO: should the lookback be configurable for these? no data is returned for 30min lookback
 	return getPaginatedAnalytics(
 		client,
 		tenant,
 		"SDWAN",
-		"1daysAgo",
+		client.extendedLookback,
 		"appUser(site,user)",
 		"",
 		"",
@@ -635,7 +644,7 @@ func (client *Client) GetTunnelMetrics(tenant string) ([]TunnelMetrics, error) {
 		client,
 		tenant,
 		"SYSTEM",
-		client.lookback,
+		client.extendedLookback,
 		"tunnelstats(appliance,ipsecLocalIp,ipsecPeerIp,ipsecVpnProfName)",
 		"",
 		"",
@@ -657,7 +666,7 @@ func (client *Client) GetDIAMetrics(tenant string) ([]DIAMetrics, error) {
 		client,
 		tenant,
 		"SDWAN",
-		"1daysAgo",
+		client.extendedLookback,
 		"usage(site,accckt,accckt.ip)",
 		"(accessType:DIA)",
 		"",
@@ -741,8 +750,4 @@ func buildAnalyticsPath(tenant string, feature string, lookback string, query st
 		params.Add("metrics", m)
 	}
 	return path + "?" + params.Encode()
-}
-
-func createLookbackString(lookbackMinutes int) string {
-	return fmt.Sprintf("%dminutesAgo", lookbackMinutes)
 }

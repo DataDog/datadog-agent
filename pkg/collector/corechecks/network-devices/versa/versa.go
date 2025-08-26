@@ -44,7 +44,8 @@ type checkCfg struct {
 	MaxAttempts                           int      `yaml:"max_attempts"`
 	MaxPages                              int      `yaml:"max_pages"`
 	MaxCount                              int      `yaml:"max_count"`
-	LookbackTimeWindowMinutes             int      `yaml:"lookback_time_window_minutes"`
+	LookbackWindow                        string   `yaml:"lookback_window"`
+	ExtendedLookbackWindow                string   `yaml:"extended_lookback_window"`
 	UseHTTP                               bool     `yaml:"use_http"`
 	Insecure                              bool     `yaml:"insecure"`
 	CAFile                                string   `yaml:"ca_file"`
@@ -502,8 +503,12 @@ func (v *VersaCheck) buildClientOptions() ([]client.ClientOptions, error) {
 		clientOptions = append(clientOptions, client.WithMaxCount(v.config.MaxCount))
 	}
 
-	if v.config.LookbackTimeWindowMinutes > 0 {
-		clientOptions = append(clientOptions, client.WithLookback(v.config.LookbackTimeWindowMinutes))
+	if v.config.LookbackWindow != "" {
+		clientOptions = append(clientOptions, client.WithLookback(v.config.LookbackWindow))
+	}
+
+	if v.config.ExtendedLookbackWindow != "" {
+		clientOptions = append(clientOptions, client.WithExtendedLookback(v.config.ExtendedLookbackWindow))
 	}
 
 	if v.config.UseStartPagination != nil && *v.config.UseStartPagination {
