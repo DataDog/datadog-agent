@@ -173,8 +173,10 @@ func getFakeCheck() (string, error) {
 	defer C._free(unsafe.Pointer(configStr))
 	classStr = (*C.char)(helpers.TrackedCString("fake_check"))
 	defer C._free(unsafe.Pointer(classStr))
+	sourceStr := (*C.char)(helpers.TrackedCString("fake_source"))
+	defer C._free(unsafe.Pointer(sourceStr))
 
-	ret = C.get_check(rtloader, class, emptyStr, configStr, checkIDStr, classStr, &check)
+	ret = C.get_check(rtloader, class, emptyStr, configStr, checkIDStr, classStr, sourceStr, &check)
 	if ret != 1 || check == nil {
 		return "", errors.New(C.GoString(C.get_error(rtloader)))
 	}
@@ -212,8 +214,10 @@ func runFakeCheck() (string, error) {
 	defer C._free(unsafe.Pointer(configStr))
 	classStr = (*C.char)(helpers.TrackedCString("fake_check"))
 	defer C._free(unsafe.Pointer(classStr))
+	sourceStr := (*C.char)(helpers.TrackedCString("fake_source"))
+	defer C._free(unsafe.Pointer(sourceStr))
 
-	C.get_check(rtloader, class, emptyStr, configStr, checkIDStr, classStr, &check)
+	C.get_check(rtloader, class, emptyStr, configStr, checkIDStr, classStr, sourceStr, &check)
 
 	checkResultStr := C.run_check(rtloader, check)
 	defer C._free(unsafe.Pointer(checkResultStr))
@@ -245,8 +249,10 @@ func cancelFakeCheck() error {
 	defer C._free(unsafe.Pointer(configStr))
 	classStr = (*C.char)(helpers.TrackedCString("fake_check"))
 	defer C._free(unsafe.Pointer(classStr))
+	sourceStr := (*C.char)(helpers.TrackedCString("fake_source"))
+	defer C._free(unsafe.Pointer(sourceStr))
 
-	C.get_check(rtloader, class, emptyStr, configStr, checkIDStr, classStr, &check)
+	C.get_check(rtloader, class, emptyStr, configStr, checkIDStr, classStr, sourceStr, &check)
 
 	C.cancel_check(rtloader, check)
 
@@ -277,8 +283,10 @@ func runFakeGetWarnings() ([]string, error) {
 	defer C._free(unsafe.Pointer(configStr))
 	classStr = (*C.char)(helpers.TrackedCString("fake_check"))
 	defer C._free(unsafe.Pointer(classStr))
+	sourceStr := (*C.char)(helpers.TrackedCString("fake_source"))
+	defer C._free(unsafe.Pointer(sourceStr))
 
-	C.get_check(rtloader, class, emptyStr, configStr, checkIDStr, classStr, &check)
+	C.get_check(rtloader, class, emptyStr, configStr, checkIDStr, classStr, sourceStr, &check)
 
 	warns := C.get_checks_warnings(rtloader, check)
 
