@@ -43,7 +43,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/testutil => ../../../../pkg/util/testutil
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../../pkg/util/winutil
 	github.com/DataDog/datadog-agent/pkg/version => ../../../../pkg/version
-
 )
 
 require github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder v0.53.2-rc.15
