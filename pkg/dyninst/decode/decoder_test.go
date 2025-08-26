@@ -56,6 +56,27 @@ func TestDecoderManually(t *testing.T) {
 	}
 }
 
+func BenchmarkDecoder(b *testing.B) {
+	for _, c := range cases {
+		b.Run(c.probeName, func(b *testing.B) {
+			irProg := generateIrForProbes(b, "simple", c.probeName)
+			decoder, err := NewDecoder(irProg)
+			require.NoError(b, err)
+			buf := bytes.NewBuffer(nil)
+			symbolicator := &noopSymbolicator{}
+			event := Event{
+				Event:       output.Event(c.eventConstructor(b, irProg)),
+				ServiceName: "foo",
+			}
+			b.ResetTimer()
+			for b.Loop() {
+				_, err := decoder.Decode(event, symbolicator, buf)
+				require.NoError(b, err)
+			}
+		})
+	}
+}
+
 type testCase struct {
 	probeName        string
 	eventConstructor func(testing.TB, *ir.Program) []byte
