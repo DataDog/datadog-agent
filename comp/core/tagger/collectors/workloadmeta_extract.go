@@ -116,6 +116,8 @@ var (
 	highCardOrchestratorLabels = map[string]string{
 		"io.rancher.container.name": tags.RancherContainer,
 	}
+
+	cpuManagerPolicies = []string{"static", "none"}
 )
 
 func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle) {
@@ -661,7 +663,7 @@ func (c *WorkloadMetaCollector) handleKubelet(ev workloadmeta.Event) []*types.Ta
 		return nil
 	}
 
-	if cpuManagerPolicy != "none" && cpuManagerPolicy != "static" {
+	if slices.Contains(cpuManagerPolicies, cpuManagerPolicy) {
 		log.Errorf("Error when parsing kubelet config, unexpected value for cpuManagerPolicy: %s", cpuManagerPolicy)
 		return nil
 	}
