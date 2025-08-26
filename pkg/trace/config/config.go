@@ -246,6 +246,8 @@ type ProfilingProxyConfig struct {
 	DDURL string
 	// AdditionalEndpoints ...
 	AdditionalEndpoints map[string][]string
+	// ReceiverTimeout is the timeout in seconds for profile upload requests
+	ReceiverTimeout int
 }
 
 // EVPProxy contains the settings for the EVPProxy proxy.
@@ -587,7 +589,7 @@ func New() *AgentConfig {
 		TraceWriter:              new(WriterConfig),
 		ConnectionResetInterval:  0, // disabled
 		MaxSenderRetries:         4,
-		ClientStatsFlushInterval: 1 * time.Second,
+		ClientStatsFlushInterval: 2 * time.Second, // bucket duration (2s)
 
 		StatsdHost:    "localhost",
 		StatsdPort:    8125,

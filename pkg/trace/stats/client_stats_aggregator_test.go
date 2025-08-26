@@ -831,6 +831,26 @@ func TestNewBucketAggregationKeyPeerTags(t *testing.T) {
 	})
 }
 
+func TestGoroutineShutdown(t *testing.T) {
+	a := NewClientStatsAggregator(&config.AgentConfig{}, &mockStatsWriter{}, &statsd.NoOpClient{})
+
+	a.Start()
+
+	// Test graceful shutdown
+	done := make(chan bool)
+	go func() {
+		a.Stop() // Should signal both goroutines to exit and wait for them
+		done <- true
+	}()
+
+	select {
+	case <-done:
+		// Success - both goroutines stopped properly
+	case <-time.After(time.Second):
+		t.Fatal("Goroutines did not stop within timeout")
+	}
+}
+
 func deepCopy(p *pb.ClientStatsPayload) *pb.ClientStatsPayload {
 	payload := &pb.ClientStatsPayload{
 		Hostname:         p.GetHostname(),
