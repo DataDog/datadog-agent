@@ -20,6 +20,8 @@ import (
 
 	dto "github.com/prometheus/client_model/go"
 
+	"github.com/DataDog/zstd"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -27,7 +29,6 @@ import (
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/DataDog/zstd"
 )
 
 const (
@@ -177,10 +178,11 @@ func buildURL(endpoint logconfig.Endpoint) string {
 	} else {
 		address = endpoint.Host
 	}
+
 	url := url.URL{
 		Scheme: "https",
 		Host:   address,
-		Path:   telemetryPath,
+		Path:   endpoint.PathPrefix + telemetryPath,
 	}
 
 	return url.String()
@@ -465,9 +467,9 @@ func (s *senderImpl) flushSession(ss *senderSession) error {
 
 		// Log return status (and URL if unsuccessful)
 		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-			s.logComp.Debugf("Telemetery enpoint response status:%s, request type:%s, status code:%d", resp.Status, reqType, resp.StatusCode)
+			s.logComp.Debugf("Telemetery endpoint response status:%s, request type:%s, status code:%d", resp.Status, reqType, resp.StatusCode)
 		} else {
-			s.logComp.Debugf("Telemetery enpoint response status:%s, request type:%s, status code:%d, url:%s", resp.Status, reqType, resp.StatusCode, url)
+			s.logComp.Debugf("Telemetery endpoint response status:%s, request type:%s, status code:%d, url:%s", resp.Status, reqType, resp.StatusCode, url)
 		}
 	}
 

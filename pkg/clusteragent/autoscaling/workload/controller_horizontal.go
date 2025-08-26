@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 	"time"
 
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
@@ -108,12 +109,7 @@ func (hr *horizontalController) performScaling(ctx context.Context, podAutoscale
 		autoscalerInternal.UpdateFromHorizontalAction(nil, err)
 		return autoscaling.NoRequeue, nil
 	}
-	// We are already scaled
-	if horizontalAction == nil {
-		autoscalerInternal.UpdateFromHorizontalAction(nil, nil)
-		return autoscaling.NoRequeue, nil
-	}
-	// Target replicas has not changed due to scaling rules
+	// Target replicas has not changed because we are already scaled or due to scaling rules
 	if horizontalAction.FromReplicas == horizontalAction.ToReplicas {
 		autoscalerInternal.UpdateFromHorizontalAction(horizontalAction, nil)
 		if nextEvalAfter > 0 {
@@ -176,22 +172,6 @@ func (hr *horizontalController) computeScaleAction(
 		outsideBoundaries = true
 	}
 
-	// Checking scale direction
-	scaleDirection := common.GetScaleDirection(currentDesiredReplicas, targetDesiredReplicas)
-
-	// No scaling needed
-	if scaleDirection == common.NoScale {
-		return nil, 0, nil
-	}
-
-	// Checking if scaling constraints allow this scaling
-	autoscalerSpec := autoscalerInternal.Spec()
-	allowed, reason := isScalingAllowed(autoscalerSpec, source, scaleDirection)
-	if !allowed {
-		log.Debugf("Scaling not allowed for autoscaler id: %s, scale direction: %s, scale reason: %s", autoscalerInternal.ID(), scaleDirection, reason)
-		return nil, 0, errors.New(reason)
-	}
-
 	// Going back inside requested boundaries in one shot.
 	// TODO: Should we apply scaling rules in this case?
 	if outsideBoundaries {
@@ -205,34 +185,9 @@ func (hr *horizontalController) computeScaleAction(
 		}, 0, nil
 	}
 
+	autoscalerSpec := autoscalerInternal.Spec()
 	var evalAfter time.Duration
 	var limitReason string
-
-	// Scaling is allowed, applying Min/Max replicas constraints from Spec
-	if targetDesiredReplicas > maxReplicas {
-		targetDesiredReplicas = maxReplicas
-		limitReason = fmt.Sprintf("desired replica count limited to %d (originally %d) due to max replicas constraint", maxReplicas, originalTargetDesiredReplicas)
-	} else if targetDesiredReplicas < minReplicas {
-		targetDesiredReplicas = minReplicas
-		limitReason = fmt.Sprintf("desired replica count limited to %d (originally %d) due to min replicas constraint", minReplicas, originalTargetDesiredReplicas)
-	}
-
-	// Applying scaling rules if any
-	var rulesLimitReason string
-	var rulesLimitedReplicas int32
-	var rulesNextEvalAfter time.Duration
-	if scaleDirection == common.ScaleUp && autoscalerSpec.ApplyPolicy != nil {
-		rulesLimitedReplicas, rulesNextEvalAfter, rulesLimitReason = applyScaleUpPolicy(scalingTimestamp, autoscalerInternal.HorizontalLastActions(), autoscalerSpec.ApplyPolicy.ScaleUp, currentDesiredReplicas, targetDesiredReplicas)
-	} else if scaleDirection == common.ScaleDown && autoscalerSpec.ApplyPolicy != nil {
-		rulesLimitedReplicas, rulesNextEvalAfter, rulesLimitReason = applyScaleDownPolicy(scalingTimestamp, autoscalerInternal.HorizontalLastActions(), autoscalerSpec.ApplyPolicy.ScaleDown, currentDesiredReplicas, targetDesiredReplicas)
-	}
-	// If rules had any effect, use values from rules
-	if rulesLimitReason != "" {
-		limitReason = rulesLimitReason
-		targetDesiredReplicas = rulesLimitedReplicas
-		// To make sure event has expired and not have sub-second requeue, will be rounded to the next second
-		evalAfter = rulesNextEvalAfter.Truncate(time.Second) + time.Second
-	}
 
 	// Stabilize recommendation
 	var stabilizationLimitReason string
@@ -249,10 +204,43 @@ func (hr *horizontalController) computeScaleAction(
 		}
 	}
 
-	stabilizationLimitedReplicas, stabilizationLimitReason = stabilizeRecommendations(scalingTimestamp, autoscalerInternal.HorizontalLastActions(), currentDesiredReplicas, targetDesiredReplicas, scaleUpStabilizationSeconds, scaleDownStabilizationSeconds, scaleDirection)
+	stabilizationLimitedReplicas, stabilizationLimitReason = stabilizeRecommendations(scalingTimestamp, autoscalerInternal.HorizontalLastRecommendations(), currentDesiredReplicas, targetDesiredReplicas, scaleUpStabilizationSeconds, scaleDownStabilizationSeconds)
 	if stabilizationLimitReason != "" {
 		limitReason = stabilizationLimitReason
 		targetDesiredReplicas = stabilizationLimitedReplicas
+	}
+
+	// Applying Min/Max replicas constraints from Spec
+	if targetDesiredReplicas > maxReplicas {
+		targetDesiredReplicas = maxReplicas
+		limitReason = fmt.Sprintf("desired replica count limited to %d (originally %d) due to max replicas constraint", maxReplicas, originalTargetDesiredReplicas)
+	} else if targetDesiredReplicas < minReplicas {
+		targetDesiredReplicas = minReplicas
+		limitReason = fmt.Sprintf("desired replica count limited to %d (originally %d) due to min replicas constraint", minReplicas, originalTargetDesiredReplicas)
+	}
+
+	// Now that we have applied all modifications to targetDesiredReplicas, we can compute the scale direction
+	scaleDirection := common.GetScaleDirection(currentDesiredReplicas, targetDesiredReplicas)
+
+	// If we need to scale, we apply scaling rules if any
+	if scaleDirection != common.NoScale {
+		// Applying scaling rules if any
+		var rulesLimitReason string
+		var rulesLimitedReplicas int32
+		var rulesNextEvalAfter time.Duration
+		if scaleDirection == common.ScaleUp && autoscalerSpec.ApplyPolicy != nil {
+			rulesLimitedReplicas, rulesNextEvalAfter, rulesLimitReason = applyScaleUpPolicy(scalingTimestamp, autoscalerInternal.HorizontalLastActions(), autoscalerSpec.ApplyPolicy.ScaleUp, currentDesiredReplicas, targetDesiredReplicas)
+		} else if scaleDirection == common.ScaleDown && autoscalerSpec.ApplyPolicy != nil {
+			rulesLimitedReplicas, rulesNextEvalAfter, rulesLimitReason = applyScaleDownPolicy(scalingTimestamp, autoscalerInternal.HorizontalLastActions(), autoscalerSpec.ApplyPolicy.ScaleDown, currentDesiredReplicas, targetDesiredReplicas)
+		}
+
+		// If rules had any effect, use values from rules
+		if rulesLimitReason != "" {
+			limitReason = rulesLimitReason
+			targetDesiredReplicas = rulesLimitedReplicas
+			// To make sure event has expired and not have sub-second requeue, will be rounded to the next second
+			evalAfter = rulesNextEvalAfter.Truncate(time.Second) + time.Second
+		}
 	}
 
 	horizontalAction := &datadoghqcommon.DatadogPodAutoscalerHorizontalAction{
@@ -265,6 +253,14 @@ func (hr *horizontalController) computeScaleAction(
 		log.Debugf("Scaling limited for autoscaler id: %s, scale direction: %s, limit reason: %s", autoscalerInternal.ID(), scaleDirection, limitReason)
 		horizontalAction.LimitedReason = pointer.Ptr(limitReason)
 	}
+
+	// Finally checking if scaling is allowed
+	allowed, reason := isScalingAllowed(autoscalerSpec, source, scaleDirection)
+	if !allowed {
+		log.Debugf("Scaling not allowed for autoscaler id: %s, scale direction: %s, scale reason: %s (would have scaled to %d replicas)", autoscalerInternal.ID(), scaleDirection, reason, horizontalAction.ToReplicas)
+		return nil, 0, errors.New(reason)
+	}
+
 	return horizontalAction, evalAfter, nil
 }
 
@@ -304,6 +300,43 @@ func isScalingAllowed(autoscalerSpec *datadoghq.DatadogPodAutoscalerSpec, source
 
 	// No specific policy defined, defaulting to allow
 	return true, ""
+}
+
+func stabilizeRecommendations(currentTime time.Time, recHist []model.HorizontalScalingValues, currentReplicas int32, targetDesiredReplicas int32, stabilizationWindowScaleUpSeconds int32, stabilizationWindowScaleDownSeconds int32) (int32, string) {
+	limitReason := ""
+
+	upRecommendation := targetDesiredReplicas
+	upCutoff := currentTime.Add(-time.Duration(stabilizationWindowScaleUpSeconds) * time.Second)
+
+	downRecommendation := targetDesiredReplicas
+	downCutoff := currentTime.Add(-time.Duration(stabilizationWindowScaleDownSeconds) * time.Second)
+
+	for _, a := range slices.Backward(recHist) {
+		if a.Timestamp.After(upCutoff) {
+			upRecommendation = min(upRecommendation, a.Replicas)
+		}
+
+		if a.Timestamp.After(downCutoff) {
+			downRecommendation = max(downRecommendation, a.Replicas)
+		}
+
+		if a.Timestamp.Before(upCutoff) && a.Timestamp.Before(downCutoff) {
+			break
+		}
+	}
+
+	recommendation := currentReplicas
+	if recommendation < upRecommendation {
+		recommendation = upRecommendation
+	}
+	if recommendation > downRecommendation {
+		recommendation = downRecommendation
+	}
+	if recommendation != targetDesiredReplicas {
+		limitReason = fmt.Sprintf("desired replica count adjusted to %d (originally %d) due to stabilization window", recommendation, targetDesiredReplicas)
+	}
+
+	return recommendation, limitReason
 }
 
 func applyScaleUpPolicy(
@@ -456,45 +489,4 @@ func accumulateReplicasChange(currentTime time.Time, events []datadoghqcommon.Da
 		expireIn = periodDuration
 	}
 	return
-}
-
-func stabilizeRecommendations(currentTime time.Time, pastActions []datadoghqcommon.DatadogPodAutoscalerHorizontalAction, currentReplicas int32, originalTargetDesiredReplicas int32, stabilizationWindowScaleUpSeconds int32, stabilizationWindowScaleDownSeconds int32, scaleDirection common.ScaleDirection) (int32, string) {
-	limitReason := ""
-
-	if len(pastActions) == 0 {
-		return originalTargetDesiredReplicas, limitReason
-	}
-
-	upRecommendation := originalTargetDesiredReplicas
-	upCutoff := currentTime.Add(-time.Duration(stabilizationWindowScaleUpSeconds) * time.Second)
-
-	downRecommendation := originalTargetDesiredReplicas
-	downCutoff := currentTime.Add(-time.Duration(stabilizationWindowScaleDownSeconds) * time.Second)
-
-	for _, a := range pastActions {
-		if scaleDirection == common.ScaleUp && a.Time.Time.After(upCutoff) {
-			upRecommendation = min(upRecommendation, *a.RecommendedReplicas)
-		}
-
-		if scaleDirection == common.ScaleDown && a.Time.Time.After(downCutoff) {
-			downRecommendation = max(downRecommendation, *a.RecommendedReplicas)
-		}
-
-		if (scaleDirection == common.ScaleUp && a.Time.Time.Before(upCutoff)) || (scaleDirection == common.ScaleDown && a.Time.Time.Before(downCutoff)) {
-			break
-		}
-	}
-
-	recommendation := currentReplicas
-	if recommendation < upRecommendation {
-		recommendation = upRecommendation
-	}
-	if recommendation > downRecommendation {
-		recommendation = downRecommendation
-	}
-	if recommendation != originalTargetDesiredReplicas {
-		limitReason = fmt.Sprintf("desired replica count limited to %d (originally %d) due to stabilization window", recommendation, originalTargetDesiredReplicas)
-	}
-
-	return recommendation, limitReason
 }

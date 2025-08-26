@@ -61,11 +61,14 @@ func TestRecommendedRefreshInterval(t *testing.T) {
 
 	component := provides.Comp
 
+	remoteAgentServer := &testRemoteAgentServer{}
+	server, port := buildRemoteAgentServer(t, remoteAgentServer)
+	defer server.Stop()
+
 	registrationData := &remoteagent.RegistrationData{
 		AgentID:     "test-agent",
 		DisplayName: "Test Agent",
-		APIEndpoint: "localhost:1234",
-		AuthToken:   "",
+		APIEndpoint: fmt.Sprintf("localhost:%d", port),
 	}
 
 	actualRefreshIntervalSecs, err := component.RegisterRemoteAgent(registrationData)
@@ -81,11 +84,14 @@ func TestGetRegisteredAgents(t *testing.T) {
 	provides, _, _, _ := buildComponent(t)
 	component := provides.Comp
 
+	remoteAgentServer := &testRemoteAgentServer{}
+	server, port := buildRemoteAgentServer(t, remoteAgentServer)
+	defer server.Stop()
+
 	registrationData := &remoteagent.RegistrationData{
 		AgentID:     "test-agent",
 		DisplayName: "Test Agent",
-		APIEndpoint: "localhost:1234",
-		AuthToken:   "",
+		APIEndpoint: fmt.Sprintf("localhost:%d", port),
 	}
 
 	_, err := component.RegisterRemoteAgent(registrationData)
@@ -94,6 +100,7 @@ func TestGetRegisteredAgents(t *testing.T) {
 	agents := component.GetRegisteredAgents()
 	require.Len(t, agents, 1)
 	require.Equal(t, "Test Agent", agents[0].DisplayName)
+	require.Equal(t, "test-agent", agents[0].SanatizedDisplayName)
 }
 
 func TestGetRegisteredAgentStatuses(t *testing.T) {
@@ -297,10 +304,11 @@ func buildComponentWithConfig(t *testing.T, config configmodel.Config) (Provides
 }
 
 type testRemoteAgentServer struct {
-	StatusMain  map[string]string
-	StatusNamed map[string]map[string]string
-	FlareFiles  map[string][]byte
-	PromText    string
+	StatusMain   map[string]string
+	StatusNamed  map[string]map[string]string
+	FlareFiles   map[string][]byte
+	PromText     string
+	ConfigEvents chan *pbgo.ConfigEvent
 	pbgo.UnimplementedRemoteAgentServer
 }
 

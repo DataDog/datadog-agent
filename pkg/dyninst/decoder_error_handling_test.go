@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/decode"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/module"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
@@ -54,13 +55,15 @@ func TestDecoderErrorHandling(t *testing.T) {
 	require.NotEqual(t, -1, idx)
 	cfg := cfgs[idx]
 
-	sampleServicePath := testprogs.MustGetBinary(t, "rc_tester", cfg)
+	const binaryName = "rc_tester"
+
+	sampleServicePath := testprogs.MustGetBinary(t, binaryName, cfg)
 	_, sampleServicePID, serverPort, err := startSampleService(t, sampleServiceConfig{
 		binaryPath: sampleServicePath,
 		tmpDir:     tmpDir,
 	})
 	require.NoError(t, err)
-	probes := testprogs.MustGetProbeDefinitions(t, "rc_tester")
+	probes := testprogs.MustGetProbeDefinitions(t, binaryName)
 
 	loader, err := loader.NewLoader()
 	require.NoError(t, err)
@@ -79,6 +82,7 @@ func TestDecoderErrorHandling(t *testing.T) {
 		&failOnceDecoderFactory{
 			underlying: module.DefaultDecoderFactory{},
 		},
+		irgen.NewGenerator(),
 	)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

@@ -11,6 +11,7 @@ from tasks import (
     agent,
     agent_ci_api,
     ami,
+    auth,
     bench,
     buildimages,
     cluster_agent,
@@ -167,6 +168,7 @@ ns.add_task(build_and_upload_fuzz)
 ns.add_task(lint_go)
 
 # add namespaced tasks to the root
+ns.add_collection(auth)
 ns.add_collection(agent)
 ns.add_collection(ami)
 ns.add_collection(agent_ci_api)

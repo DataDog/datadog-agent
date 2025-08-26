@@ -105,6 +105,7 @@ func handleInstallerConfigUpdate(h handleConfigsUpdate) func(map[string]state.Ra
 					SecurityAgentYAML json.RawMessage `json:"security-agent.yaml,omitempty"`
 					SystemProbeYAML   json.RawMessage `json:"system-probe.yaml,omitempty"`
 					APMLibrariesYAML  json.RawMessage `json:"application_monitoring.yaml,omitempty"`
+					OTelConfigYAML    json.RawMessage `json:"otel-config.yaml,omitempty"`
 				} `json:"configs"`
 			}
 			err = json.Unmarshal(config.Config, &legacyConfigs)
@@ -124,6 +125,9 @@ func handleInstallerConfigUpdate(h handleConfigsUpdate) func(map[string]state.Ra
 			}
 			if len(legacyConfigs.Configs.APMLibrariesYAML) > 0 {
 				installerConfig.Files = append(installerConfig.Files, installerConfigFile{Path: "/application_monitoring.yaml", Contents: legacyConfigs.Configs.APMLibrariesYAML})
+			}
+			if len(legacyConfigs.Configs.OTelConfigYAML) > 0 {
+				installerConfig.Files = append(installerConfig.Files, installerConfigFile{Path: "/otel-config.yaml", Contents: legacyConfigs.Configs.OTelConfigYAML})
 			}
 			installerConfigs[installerConfig.ID] = installerConfig
 		}
@@ -261,10 +265,16 @@ type expectedState struct {
 	ExperimentConfig string `json:"experiment_config"`
 }
 
+type experimentConfigAction struct {
+	ActionType string `json:"action_type"`
+	Path       string `json:"path"`
+	ConfigID   string `json:"config_id"`
+}
+
 type experimentTaskParams struct {
-	Version     string   `json:"version"`
-	InstallArgs []string `json:"install_args"`
-	ConfigOrder []string `json:"config_order"`
+	Version     string                   `json:"version"`
+	InstallArgs []string                 `json:"install_args"`
+	Actions     []experimentConfigAction `json:"actions"`
 }
 
 type installPackageTaskParams struct {

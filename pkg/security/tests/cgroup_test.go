@@ -22,7 +22,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -100,11 +99,11 @@ func TestCGroup(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_cgroup_id",
-			Expression: `open.file.path == "{{.Root}}/test-open" && cgroup.id =~ "*/cg1"`, // "/cpu/cg1" or "/cg1"
+			Expression: `open.file.path == "{{.Root}}/test-open" && cgroup.id =~ "*/cg1"`,
 		},
 		{
 			ID:         "test_cgroup_systemd",
-			Expression: `open.file.path == "{{.Root}}/test-open2" && cgroup.id == "/system.slice/cws-test.service"`, // && cgroup.manager == "systemd"
+			Expression: `open.file.path == "{{.Root}}/test-open2" && cgroup.id == "/system.slice/cws-test.service"`,
 		},
 	}
 	test, err := newTestModule(t, nil, ruleDefs)
@@ -113,7 +112,7 @@ func TestCGroup(t *testing.T) {
 	}
 	defer test.Close()
 
-	testCGroup, err := newCGroup("cg1", "cpu")
+	testCGroup, err := newCGroup("cg1", "systemd")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -150,9 +149,7 @@ func TestCGroup(t *testing.T) {
 			assertTriggeredRule(t, rule, "test_cgroup_id")
 			assertFieldEqual(t, event, "open.file.path", testFile)
 			assertFieldEqual(t, event, "container.id", "")
-			assertFieldEqual(t, event, "container.runtime", "")
-			assert.Equal(t, containerutils.CGroupFlags(0), event.CGroupContext.CGroupFlags)
-			assertFieldIsOneOf(t, event, "cgroup.id", "/cpu/cg1")
+			assertFieldIsOneOf(t, event, "cgroup.id", []string{"/cg1", "/systemd/cg1"})
 			assertFieldIsOneOf(t, event, "cgroup.version", []int{1, 2})
 
 			test.validateOpenSchema(t, event)
@@ -192,7 +189,6 @@ ExecStart=/usr/bin/touch %s`, testFile2)
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_cgroup_systemd")
 			assertFieldEqual(t, event, "open.file.path", testFile2)
-			assertFieldEqual(t, event, "cgroup.manager", "systemd")
 			assertFieldNotEqual(t, event, "cgroup.id", "")
 
 			test.validateOpenSchema(t, event)
@@ -231,7 +227,6 @@ ExecStart=/usr/bin/touch %s`, testFile2)
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_cgroup_systemd")
 			assertFieldEqual(t, event, "open.file.path", testFile2)
-			assertFieldEqual(t, event, "cgroup.manager", "systemd")
 			assertFieldNotEqual(t, event, "cgroup.id", "")
 
 			test.validateOpenSchema(t, event)
@@ -314,13 +309,7 @@ func TestCGroupSnapshot(t *testing.T) {
 	var cmd *exec.Cmd
 	test.WaitSignal(t, func() error {
 		cmd = exec.Command(syscallTester, "open", testFile)
-		pipe, err := cmd.StdinPipe()
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer pipe.Close()
-
-		if err := cmd.Start(); err != nil {
+		if err := cmd.Run(); err != nil {
 			t.Fatal(err)
 		}
 
@@ -378,10 +367,6 @@ func TestCGroupSnapshot(t *testing.T) {
 			assert.Equal(t, stats.Ino, newEntry.CGroup.CGroupFile.Inode)
 		}
 	})
-
-	if cmd != nil {
-		cmd.Process.Kill()
-	}
 }
 
 func TestCGroupVariables(t *testing.T) {

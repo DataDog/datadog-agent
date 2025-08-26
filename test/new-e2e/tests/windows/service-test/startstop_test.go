@@ -495,8 +495,20 @@ func (s *baseStartStopSuite) SetupSuite() {
 
 	host := s.Env().RemoteHost
 
+	// Disable failure actions (auto restart service) so they don't interfere with the tests
+	for _, serviceName := range s.getInstalledServices() {
+		cmd := fmt.Sprintf(`sc.exe failure "%s" reset= 0 actions= none`, serviceName)
+		_, err := host.Execute(cmd)
+		s.Require().NoError(err, "should disable failure actions for %s", serviceName)
+	}
+
 	// Enable driver verifier and reboot. Tests will require more generous timeouts.
 	if s.enableDriverVerifier {
+		// Set Agent to manual start mode so we can control when it starts after the reboot
+		cmd := `sc.exe config datadogagent start= demand`
+		_, err := host.Execute(cmd)
+		s.Require().NoError(err, "should set datadogagent to manual start mode")
+
 		out, err := windowsCommon.EnableDriverVerifier(host, s.getInstalledKernelServices())
 		if err != nil {
 			s.T().Logf("Driver verifier error output:\n%s", err)
@@ -521,13 +533,6 @@ func (s *baseStartStopSuite) SetupSuite() {
 	for _, svc := range s.getInstalledUserServices() {
 		err := windowsCommon.SetServiceEnvironment(host, svc, env)
 		s.Require().NoError(err, "should set environment for %s", svc)
-	}
-
-	// Disable failure actions (auto restart service) so they don't interfere with the tests
-	for _, serviceName := range s.getInstalledServices() {
-		cmd := fmt.Sprintf(`sc.exe failure "%s" reset= 0 actions= none`, serviceName)
-		_, err := host.Execute(cmd)
-		s.Require().NoError(err, "should disable failure actions for %s", serviceName)
 	}
 
 	// Setup default expected services
@@ -870,8 +875,6 @@ type dvAgentServiceDisabledInstallerSuite struct {
 // TestDriverVerifierOnServiceBehaviorAgentCommand tests the same as TestServiceBehaviorAgentCommand
 // with driver verifier enabled.
 func TestDriverVerifierOnServiceBehaviorAgentCommand(t *testing.T) {
-	// incident-40498
-	flake.Mark(t)
 	s := &dvAgentServiceCommandSuite{}
 	s.enableDriverVerifier = true
 	s.timeoutScale = driverVerifierTimeoutScale
@@ -881,8 +884,6 @@ func TestDriverVerifierOnServiceBehaviorAgentCommand(t *testing.T) {
 // TestDriverVerifierOnServiceBehaviorPowerShell tests the the same as TestServiceBehaviorPowerShell
 // with driver verifier enabled.
 func TestDriverVerifierOnServiceBehaviorPowerShell(t *testing.T) {
-	// incident-40498
-	flake.Mark(t)
 	s := &dvPowerShellServiceCommandSuite{}
 	s.enableDriverVerifier = true
 	s.timeoutScale = driverVerifierTimeoutScale
@@ -923,8 +924,6 @@ func TestDriverVerifierOnServiceBehaviorWhenDisabledProcessAgent(t *testing.T) {
 // TestDriverVerifierOnServiceBehaviorWhenDisabledTraceAgent tests the same as TestServiceBehaviorWhenDisabledTraceAgent
 // with driver verifier enabled.
 func TestDriverVerifierOnServiceBehaviorWhenDisabledTraceAgent(t *testing.T) {
-	// incident-40498
-	flake.Mark(t)
 	s := &dvAgentServiceDisabledTraceAgentSuite{}
 	s.disabledServices = []string{
 		"datadog-trace-agent",
@@ -937,8 +936,6 @@ func TestDriverVerifierOnServiceBehaviorWhenDisabledTraceAgent(t *testing.T) {
 // TestDriverVerifierOnServiceBehaviorWhenDisabledInstaller tests the same as TestServiceBehaviorWhenDisabledInstaller
 // with driver verifier enabled.
 func TestDriverVerifierOnServiceBehaviorWhenDisabledInstaller(t *testing.T) {
-	// incident-40498
-	flake.Mark(t)
 	s := &dvAgentServiceDisabledInstallerSuite{}
 	s.disabledServices = []string{
 		"Datadog Installer",

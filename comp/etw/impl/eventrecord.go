@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
-// team: windows-agent
+// team: windows-products
 
 type userInfo struct {
 	data []byte

@@ -88,7 +88,7 @@ int __attribute__((always_inline)) sys_ptrace_ret(void *ctx, int retval) {
     };
 
     struct proc_cache_t *entry = fill_process_context(&event.process);
-    fill_container_context(entry, &event.container);
+    fill_cgroup_context(entry, &event.cgroup);
     fill_span_context(&event.span);
 
     send_event(ctx, EVENT_PTRACE, event);

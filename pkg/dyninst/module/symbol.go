@@ -69,8 +69,8 @@ func newSymbolicator(executable actuator.Executable) (_ symbol.Symbolicator, _ i
 	}
 	closer.closers = append(closer.closers, goDebugSections)
 	symbolTable, err := gosym.ParseGoSymbolTable(
-		goDebugSections.PcLnTab.Data,
-		goDebugSections.GoFunc.Data,
+		goDebugSections.PcLnTab.Data(),
+		goDebugSections.GoFunc.Data(),
 		moduledata.Text,
 		moduledata.EText,
 		moduledata.MinPC,

@@ -25,6 +25,7 @@
       ${WINBUILDIMAGE}
       powershell.exe -c "c:\mnt\tasks\winbuildscripts\Invoke-Linters.ps1 -BuildOutOfSource 1 -CheckGoVersion 1 -InstallDeps 1"
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+  retry: !reference [.retry_only_infra_failure, retry]
 
 lint_windows-x64:
   extends: .lint_windows_base

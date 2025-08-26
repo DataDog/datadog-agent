@@ -465,6 +465,7 @@ func (mr *Resolver) resolveMountPath(mountID uint32, device uint32, pid uint32, 
 	}
 
 	// force a resolution here to make sure the LRU keeps doing its job and doesn't evict important entries
+	// TODO: DO NOT rely on containerID, but resolve the pid namespace instead to get namespaced PIDs
 	workload, _ := mr.cgroupsResolver.GetWorkload(containerID)
 
 	path, source, origin, err := mr.getMountPath(mountID, device, pid)

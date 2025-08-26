@@ -186,7 +186,7 @@ message MetadataMessage {
     uint64 Size = 13;
     string Serialization = 14;
     string CGroupID = 15;
-    string CGroupManager = 16;
+    string CGroupManager = 16 [deprecated = true];
 }
 
 message StorageRequestMessage {

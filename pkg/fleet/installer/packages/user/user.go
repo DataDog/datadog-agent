@@ -14,7 +14,9 @@ import (
 	"fmt"
 	"os/exec"
 	"os/user"
+	"slices"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -32,8 +34,12 @@ func EnsureAgentUserAndGroup(ctx context.Context, installPath string) error {
 	return nil
 }
 
-func ensureGroup(ctx context.Context, groupName string) error {
-	_, err := user.LookupGroup(groupName)
+func ensureGroup(ctx context.Context, groupName string) (err error) {
+	span, ctx := telemetry.StartSpanFromContext(ctx, "ensure_group")
+	defer func() {
+		span.Finish(err)
+	}()
+	_, err = user.LookupGroup(groupName)
 	if err == nil {
 		return nil
 	}
@@ -48,8 +54,12 @@ func ensureGroup(ctx context.Context, groupName string) error {
 	return nil
 }
 
-func ensureUser(ctx context.Context, userName string, installPath string) error {
-	_, err := user.Lookup(userName)
+func ensureUser(ctx context.Context, userName string, installPath string) (err error) {
+	span, ctx := telemetry.StartSpanFromContext(ctx, "ensure_user")
+	defer func() {
+		span.Finish(err)
+	}()
+	_, err = user.Lookup(userName)
 	if err == nil {
 		return nil
 	}
@@ -64,8 +74,30 @@ func ensureUser(ctx context.Context, userName string, installPath string) error 
 	return nil
 }
 
-func ensureUserInGroup(ctx context.Context, userName string, groupName string) error {
-	err := exec.CommandContext(ctx, "usermod", "-g", groupName, userName).Run()
+func ensureUserInGroup(ctx context.Context, userName string, groupName string) (err error) {
+	span, ctx := telemetry.StartSpanFromContext(ctx, "ensure_user_in_group")
+	defer func() {
+		span.Finish(err)
+	}()
+	// Check if user is already in group and abort if it is -- this allows us
+	// to skip where the user / group are set in LDAP / AD
+	group, err := user.LookupGroup(groupName)
+	if err != nil {
+		return fmt.Errorf("error looking up %s group: %w", groupName, err)
+	}
+	user, err := user.Lookup(userName)
+	if err != nil {
+		return fmt.Errorf("error looking up %s user: %w", userName, err)
+	}
+	userGroups, err := user.GroupIds()
+	if err != nil {
+		return fmt.Errorf("error getting groups for user %s: %w", userName, err)
+	}
+	if slices.Contains(userGroups, group.Gid) {
+		// User is already in the group, nothing to do
+		return nil
+	}
+	err = exec.CommandContext(ctx, "usermod", "-g", groupName, userName).Run()
 	if err != nil {
 		return fmt.Errorf("error adding %s user to %s group: %w", userName, groupName, err)
 	}

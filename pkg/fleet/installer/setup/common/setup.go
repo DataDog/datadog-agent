@@ -119,7 +119,7 @@ func (s *Setup) Run() (err error) {
 		s.Out.WriteString(fmt.Sprintf("  - %s / %s\n", p.name, p.version))
 	}
 
-	err = installinfo.WriteInstallInfo(fmt.Sprintf("install-script-%s", s.flavor))
+	err = installinfo.WriteInstallInfo(s.Ctx, fmt.Sprintf("install-script-%s", s.flavor))
 	if err != nil {
 		return fmt.Errorf("failed to write install info: %w", err)
 	}

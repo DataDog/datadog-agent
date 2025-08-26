@@ -23,7 +23,7 @@ include:
     - dda inv -- -e invoke-unit-tests
   after_script:
     - !reference [.vault_login]
-    - !reference [.select_python_env_commands]
+    - !reference [.install_python_dependencies]
     - !reference [.upload_junit_source]
     - !reference [.upload_coverage]
   artifacts:
@@ -36,6 +36,7 @@ include:
       junit: "**/junit-out-*.xml"
       annotations:
         - $EXTERNAL_LINKS_PATH
+  retry: !reference [.retry_only_infra_failure, retry]
 
 tests_macos_gitlab_amd64:
   extends: .tests_macos_gitlab

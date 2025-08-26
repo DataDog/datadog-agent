@@ -42,6 +42,16 @@ type Program struct {
 	Issues []ProbeIssue
 }
 
+// InlinePCRanges represent the pc ranges for a single instance of an inlined subprogram.
+// Ranges correspond to the inlined instance itself. RootRanges correspond to the pc ranges
+// of a subprogram at the root of the tree formed by inlined subroutines. E.g. if this is a
+// subprogram A, that has been inlined into subprogram B, and subprogram B has been inlined
+// to a subprogram C, and C is not inlined, then these are pc ranges of C.
+type InlinePCRanges struct {
+	Ranges     []PCRange
+	RootRanges []PCRange
+}
+
 // Subprogram represents a function or method in the program.
 type Subprogram struct {
 	// ID is the ID of the subprogram.
@@ -51,11 +61,11 @@ type Subprogram struct {
 	// OutOfLinePCRanges are the ranges of PC values that will be probed for the
 	// out-of-line-instances of the subprogram. These are sorted by start PC.
 	// Some functions may be inlined only in certain callers, in which case
-	// both OutOfLinePCRanges and InlinePCRanges will be non-empty.
+	// both OutOfLinePCRanges and InlinedPCRanges will be non-empty.
 	OutOfLinePCRanges []PCRange
 	// InlinePCRanges are the ranges of PC values that will be probed for the
 	// inlined instances of the subprogram. These are sorted by start PC.
-	InlinePCRanges [][]PCRange
+	InlinePCRanges []InlinePCRanges
 	// Variables are the variables that are used in the subprogram.
 	Variables []*Variable
 }
