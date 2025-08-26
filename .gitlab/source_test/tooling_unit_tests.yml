@@ -8,5 +8,5 @@ invoke_unit_tests:
   rules:
     - !reference [.on_invoke_tasks_changes]
   script:
-    - dda self dep sync -f legacy-tasks
+    - dda self dep sync -f legacy-tasks -f legacy-kernel-matrix-testing
     - dda inv -- -e invoke-unit-tests.run
