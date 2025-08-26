@@ -134,7 +134,7 @@
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
-    TARGET_ARG: --target test
+    TARGET_ARG: --target flattened-test
     CACHE_TARGET: release-base
 
 docker_build_agent7:
