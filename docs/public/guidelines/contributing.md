@@ -97,7 +97,7 @@ You must open the PR when the code is reviewable or you must set the PR as draft
 Reviewers and future maintainers will not see your individual commit history, so the PR description should incorporate everything that they will need.
 
 - A description of what is changed.
-- Often, a reason why the change is made. Pointing to an issue is usually a good reason.
+- A reason why the change is made. Pointing to an issue is usually a good reason.
 - When testing had to include work not covered by test suites, a description of how you validated your change.
 - Any relevant benchmarks.
 - Additional notes that make code understanding easier.
