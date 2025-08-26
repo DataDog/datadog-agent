@@ -321,7 +321,7 @@ func newDecoderType(
 			return nil, fmt.Errorf("malformed hmap header type: %w", err)
 		}
 		return &goHMapHeaderType{
-			GoHMapHeaderType: &ir.GoHMapHeaderType{},
+			GoHMapHeaderType: s,
 			countOffset:      countField.Offset,
 			bucketsTypeID:    s.BucketsType.GetID(),
 			bucketsOffset:    bucketsField.Offset,
@@ -567,8 +567,21 @@ func encodeHMapBucket(
 		emptyOne       = 1 // this cell is empty
 		evacuatedX     = 2 // key/elem is valid.  Entry has been evacuated to first half of larger table.
 		evacuatedEmpty = 4 // cell is empty, bucket is evacuated.
+		topHashSize    = 8
 	)
-	topHash := bucketData[h.tophashOfset : h.tophashOfset+8]
+	upperBound := max(
+		h.keysOffset+h.keyTypeSize*topHashSize,
+		h.valuesOffset+h.valueTypeSize*topHashSize,
+		h.tophashOfset+topHashSize,
+		h.overflowOffset+8,
+	)
+	if upperBound > uint32(len(bucketData)) {
+		return encodedItems, fmt.Errorf(
+			"hmap bucket data for %q is too short to contain all fields: %d > %d",
+			h.Name, upperBound, len(bucketData),
+		)
+	}
+	topHash := bucketData[h.tophashOfset : h.tophashOfset+topHashSize]
 	for i, b := range topHash {
 		if b == emptyRest || (b >= evacuatedX && b <= evacuatedEmpty) {
 			break
@@ -774,7 +787,6 @@ func encodePointer(
 		return nil
 	}
 
-	var address uint64
 	pointedValue, dataItemExists := d.dataItems[pointeeKey]
 	if !dataItemExists {
 		return writeTokens(enc,
@@ -785,7 +797,7 @@ func encodePointer(
 	if writeAddress {
 		if err := writeTokens(enc,
 			jsontext.String("address"),
-			jsontext.String("0x"+strconv.FormatInt(int64(address), 16)),
+			jsontext.String("0x"+strconv.FormatUint(addr, 16)),
 		); err != nil {
 			return err
 		}
