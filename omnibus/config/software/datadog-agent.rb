@@ -95,7 +95,7 @@ build do
     command "dda inv -- -e rtloader.clean", log_level: :debug
     command "dda inv -- -e rtloader.make --install-prefix \"#{windows_safe_path(python_3_embedded)}\" --cmake-options \"-G \\\"Unix Makefiles\\\" \\\"-DPython3_EXECUTABLE=#{windows_safe_path(python_3_embedded)}\\python.exe\\\" \\\"-DCMAKE_BUILD_TYPE=RelWithDebInfo\\\"\"", :env => env, log_level: :debug
     command "mv rtloader/bin/*.dll  #{install_dir}/bin/agent/"
-    command "dda inv -- -e agent.build --exclude-rtloader --major-version #{major_version_arg} --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded #{do_windows_sysprobe} --flavor #{flavor_arg}", env: env, log_level: :debug
+    command "dda inv -- -e agent.build --exclude-rtloader --major-version #{major_version_arg} --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded #{do_windows_sysprobe} --flavor #{flavor_arg}", env: env, log_level: :debug, live_stream: log.live_stream(:info)
     command "dda inv -- -e systray.build --major-version #{major_version_arg}", env: env, log_level: :debug
   else
     command "dda inv -- -e rtloader.clean", log_level: :debug
