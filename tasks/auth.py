@@ -2,7 +2,7 @@
 
 import os
 
-from invoke import task
+from invoke import Exit, task
 
 from tasks.libs.ciproviders.github_api import generate_local_github_token
 from tasks.libs.common.auth import datadog_infra_token
@@ -22,7 +22,8 @@ def datadog_infra(ctx, audience, datacenter="us1.ddbuild.io"):
 def github(ctx):
     """Get a github token."""
 
-    assert not running_in_ci(), 'This task is meant to be run locally, not in CI'
+    if running_in_ci():
+        raise Exit(message='This task is meant to be run locally, not in CI', code=1)
 
     if "GITHUB_TOKEN" in os.environ:
         print(os.environ["GITHUB_TOKEN"])

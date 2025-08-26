@@ -533,9 +533,11 @@ class GithubAPI:
         elif public_repo:
             return Auth.Login("user", "password")
 
-        assert "GITHUB_APP_ID" in os.environ and "GITHUB_KEY_B64" in os.environ, (
-            "For private repositories on CI, you need to set the GITHUB_APP_ID and GITHUB_KEY_B64 environment variables"
-        )
+        if "GITHUB_APP_ID" not in os.environ or "GITHUB_KEY_B64" not in os.environ:
+            raise Exit(
+                message="For private repositories on CI, you need to set the GITHUB_APP_ID and GITHUB_KEY_B64 environment variables",
+                code=1,
+            )
 
         appAuth = Auth.AppAuth(
             os.environ['GITHUB_APP_ID'], base64.b64decode(os.environ['GITHUB_KEY_B64']).decode('ascii')
@@ -787,18 +789,13 @@ def generate_local_github_token(ctx):
     Generates a github token locally.
     """
 
-    # Try without login first, then with login
-    for login in False, True:
-        if login:
-            ctx.run('ddtool auth github login')
+    try:
+        token = ctx.run('ddtool auth github token', hide=True).stdout.strip()
 
-        try:
-            token = ctx.run('ddtool auth github token', hide=True).stdout.strip()
+        return token
+    except Exception:
+        # Try to login and then get a token
+        ctx.run('ddtool auth github login')
+        token = ctx.run('ddtool auth github token', hide=True).stdout.strip()
 
-            return token
-        except Exception:
-            # Try with log in this time
-            if not login:
-                continue
-
-            raise
+        return token
