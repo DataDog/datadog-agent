@@ -31,12 +31,7 @@ type Workload struct {
 
 // GetWorkloadID returns the workload ID for a workload
 func (w *Workload) GetWorkloadID() interface{} {
-	if w.ContainerID != "" {
-		return w.ContainerID
-	} else if w.CGroupID != "" {
-		return w.CGroupID
-	}
-	return nil
+	return utils.GetWorkloadID(w.ContainerID, w.CGroupID)
 }
 
 // Type returns the type of the workload

@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/utils"
+	securityUtils "github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 const (
@@ -1020,11 +1021,5 @@ type SetSockOptEvent struct {
 
 // GetWorkloadID returns an ID that represents the workload
 func (pc *ProcessCacheEntry) GetWorkloadID() interface{} {
-	if pc.ContainerID != "" {
-		return pc.ContainerID
-	}
-	if pc.CGroup.CGroupID != "" {
-		return pc.CGroup.CGroupID
-	}
-	return nil
+	return securityUtils.GetWorkloadID(pc.ContainerID, pc.CGroup.CGroupID)
 }

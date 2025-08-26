@@ -11,6 +11,7 @@ import (
 
 	"github.com/Masterminds/semver/v3"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -37,4 +38,15 @@ func HostToNetworkShort(short uint16) uint16 {
 	b := make([]byte, 2)
 	binary.NativeEndian.PutUint16(b, short)
 	return binary.BigEndian.Uint16(b)
+}
+
+// GetWorkloadID returns an ID that represents the workload, preferring container ID over cgroup ID
+func GetWorkloadID(containerID containerutils.ContainerID, cgroupID containerutils.CGroupID) interface{} {
+	if containerID != "" {
+		return containerID
+	}
+	if cgroupID != "" {
+		return cgroupID
+	}
+	return nil
 }
