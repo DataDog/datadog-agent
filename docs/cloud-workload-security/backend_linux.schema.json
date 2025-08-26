@@ -1198,6 +1198,20 @@
       ],
       "description": "PTraceEventSerializer serializes a mmap event to JSON"
     },
+    "PrCtlEvent": {
+      "properties": {
+        "option": {
+          "type": "integer",
+          "description": "PrCtl Option"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "option"
+      ],
+      "description": "PrCtlEventSerializer serializes a prctl event"
+    },
     "Process": {
       "properties": {
         "pid": {
@@ -1981,6 +1995,9 @@
         },
         "setsockopt": {
           "$ref": "#/$defs/SyscallArgs"
+        },
+        "prctl": {
+          "$ref": "#/$defs/SyscallArgs"
         }
       },
       "additionalProperties": false,
@@ -2167,6 +2184,9 @@
     },
     "cgroup_write": {
       "$ref": "#/$defs/CGroupWriteEvent"
+    },
+    "prctl": {
+      "$ref": "#/$defs/PrCtlEvent"
     }
   },
   "additionalProperties": false,

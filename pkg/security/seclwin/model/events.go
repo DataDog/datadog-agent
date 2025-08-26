@@ -117,6 +117,8 @@ const (
 	RawPacketFilterEventType
 	// NetworkFlowMonitorEventType is sent to monitor network activity
 	NetworkFlowMonitorEventType
+	// PrCtlEventType is sent when a prctl event is captured
+	PrCtlEventType
 	// StatEventType stat event (used kernel side only)
 	StatEventType
 	// SysCtlEventType sysctl event
@@ -301,6 +303,8 @@ func (t EventType) String() string {
 		return "dns_response"
 	case SetSockOptEventType:
 		return "setsockopt"
+	case PrCtlEventType:
+		return "prctl"
 	default:
 		return "unknown"
 	}

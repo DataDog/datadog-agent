@@ -1550,3 +1550,16 @@ func (e *SetrlimitEvent) UnmarshalBinary(data []byte) (int, error) {
 
 	return read + 24, nil
 }
+
+func (e *PrCtlEvent) UnmarshalBinary(data []byte) (int, error) {
+	read, err := UnmarshalBinary(data, &e.SyscallEvent)
+	if err != nil {
+		return 0, err
+	}
+	data = data[read:]
+	if len(data) < 4 {
+		return 0, ErrNotEnoughData
+	}
+	e.Option = int(binary.NativeEndian.Uint32(data[0:4]))
+	return 4, nil
+}

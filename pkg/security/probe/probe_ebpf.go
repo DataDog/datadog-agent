@@ -1630,6 +1630,11 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		}
 		event.Setrlimit.Target = &pce.ProcessContext
 
+	case model.PrCtlEventType:
+		if _, err = event.PrCtl.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode prctl event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
 	}
 
 	// send related events
