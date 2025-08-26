@@ -94,7 +94,7 @@ You must open the PR when the code is reviewable or you must set the PR as draft
 
 #### Write a good PR description
 
-Reviewers and future maintainers will not see your individual commit history, so the PR description should incorporate everything that they will need.
+Reviewers and future maintainers only see the PR description, not your individual commit history, so the description should incorporate everything that they will need. The merge commit may include PR descriptions from multiple PRs, so the description should tie back to the changed code in some way. For example `run mdformat on iot-agent team docs` rather than just `mdformat the docs`.```
 
 - A description of what is changed.
 - A reason why the change is made. Pointing to an issue is usually a good reason.
