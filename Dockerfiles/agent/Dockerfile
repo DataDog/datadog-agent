@@ -253,7 +253,7 @@ COPY --chmod=755 entrypoint.d /opt/entrypoints
 
 CMD ["/bin/entrypoint.sh"]
 
-FROM release as flattened-release
+FROM scratch as flattened-release
 COPY --from=release / /
 
 FROM release AS test
