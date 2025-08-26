@@ -509,7 +509,7 @@ func (rs *RuleSet) WithExcludedRuleFromDiscarders(excludedRuleFromDiscarders map
 }
 
 // AddRule creates the rule evaluator and adds it to the bucket of its events
-func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, pRule *PolicyRule) (model.EventCategory, error) {
+func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, pRule *PolicyRule) (model.EventCategoryUserFacing, error) {
 	if pRule.Def.Disabled {
 		return "", nil
 	}
@@ -530,7 +530,7 @@ func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, pRule *PolicyRule
 
 	expandedRules := expandFim(pRule.Def.ID, pRule.Def.GroupID, pRule.Def.Expression)
 
-	categories := make([]model.EventCategory, 0)
+	categories := make([]model.EventCategoryUserFacing, 0)
 	for _, er := range expandedRules {
 		category, err := rs.innerAddExpandedRule(parsingContext, pRule, er, tags)
 		if err != nil {
@@ -545,7 +545,7 @@ func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, pRule *PolicyRule
 	return categories[0], nil
 }
 
-func (rs *RuleSet) innerAddExpandedRule(parsingContext *ast.ParsingContext, pRule *PolicyRule, exRule expandedRule, tags []string) (model.EventCategory, error) {
+func (rs *RuleSet) innerAddExpandedRule(parsingContext *ast.ParsingContext, pRule *PolicyRule, exRule expandedRule, tags []string) (model.EventCategoryUserFacing, error) {
 	evalRule, err := eval.NewRule(exRule.id, exRule.expr, parsingContext, rs.evalOpts, tags...)
 	if err != nil {
 		return "", &ErrRuleLoad{Rule: pRule, Err: &ErrRuleSyntax{Err: err}}
@@ -641,7 +641,7 @@ func (rs *RuleSet) innerAddExpandedRule(parsingContext *ast.ParsingContext, pRul
 
 	rs.rules[pRule.Def.ID] = rule
 
-	return model.GetEventTypeCategory(eventType), nil
+	return model.GetEventTypeCategoryUserFacing(eventType), nil
 }
 
 // NotifyRuleMatch notifies all the ruleset listeners that an event matched a rule
