@@ -663,7 +663,7 @@ func (c *WorkloadMetaCollector) handleKubelet(ev workloadmeta.Event) []*types.Ta
 		return nil
 	}
 
-	if slices.Contains(cpuManagerPolicies, cpuManagerPolicy) {
+	if !slices.Contains(cpuManagerPolicies, cpuManagerPolicy) {
 		log.Errorf("Error when parsing kubelet config, unexpected value for cpuManagerPolicy: %s", cpuManagerPolicy)
 		return nil
 	}
