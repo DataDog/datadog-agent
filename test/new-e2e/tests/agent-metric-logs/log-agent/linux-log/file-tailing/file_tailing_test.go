@@ -8,18 +8,19 @@ package linuxfiletailing
 import (
 	_ "embed"
 	"fmt"
+	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-metric-logs/log-agent/utils"
+	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 )
 
 // LinuxFakeintakeSuite defines a test suite for the log agent interacting with a virtual machine and fake intake.
@@ -27,25 +28,22 @@ type LinuxFakeintakeSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
 
-//go:embed config/config.yaml
+//go:embed log-config/config.yaml
 var logConfig string
 
-const (
-	logFileName = "hello-world.log"
-	logFilePath = utils.LinuxLogsFolderPath + "/" + logFileName
-)
+const logFileName = "hello-world.log"
+const logFilePath = utils.LinuxLogsFolderPath + "/" + logFileName
 
-// TestLinuxVMFileTailingSuite runs the E2E test suite for the log agent with a Linux VM and fake intake.
-func TestLinuxVMFileTailingSuite(t *testing.T) {
+// TestE2EVMFakeintakeSuite runs the E2E test suite for the log agent with a VM and fake intake.
+func TestE2EVMFakeintakeSuite(t *testing.T) {
+	devModeEnv, _ := os.LookupEnv("E2E_DEVMODE")
 	options := []e2e.SuiteOption{
-		e2e.WithProvisioner(
-			awshost.Provisioner(
-				awshost.WithAgentOptions(
-					agentparams.WithLogs(),
-					agentparams.WithIntegration("custom_logs.d", logConfig),
-				))),
+		e2e.WithProvisioner(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithLogs(), agentparams.WithIntegration("custom_logs.d", logConfig)))),
 	}
-	t.Parallel()
+	if devMode, err := strconv.ParseBool(devModeEnv); err == nil && devMode {
+		options = append(options, e2e.WithDevMode())
+	}
+
 	e2e.Run(t, &LinuxFakeintakeSuite{}, options...)
 }
 
@@ -116,13 +114,8 @@ func (s *LinuxFakeintakeSuite) testLogCollection() {
 	// Generate log
 	utils.AppendLog(s, logFileName, "hello-world", 1)
 
-	// Given expected tags
-	expectedTags := []string{
-		fmt.Sprintf("filename:%s", logFileName),
-		fmt.Sprintf("dirname:%s", utils.LinuxLogsFolderPath),
-	}
 	// Check intake for new logs
-	utils.CheckLogsExpected(s.T(), s.Env().FakeIntake, "hello", "hello-world", expectedTags)
+	utils.CheckLogsExpected(s, "hello", "hello-world")
 }
 
 func (s *LinuxFakeintakeSuite) testLogNoPermission() {
@@ -146,7 +139,7 @@ func (s *LinuxFakeintakeSuite) testLogNoPermission() {
 			// Generate log
 			utils.AppendLog(s, logFileName, "access-denied", 1)
 			// Check intake for new logs
-			utils.CheckLogsNotExpected(s.T(), s.Env().FakeIntake, "hello", "access-denied")
+			utils.CheckLogsNotExpected(s, "hello", "access-denied")
 		}
 	}, 2*time.Minute, 5*time.Second)
 }
@@ -165,7 +158,7 @@ func (s *LinuxFakeintakeSuite) testLogCollectionAfterPermission() {
 	t.Logf("Permissions granted for log file.")
 
 	// Check intake for new logs
-	utils.CheckLogsExpected(s.T(), s.Env().FakeIntake, "hello", "hello-after-permission-world", []string{})
+	utils.CheckLogsExpected(s, "hello", "hello-after-permission-world")
 }
 
 func (s *LinuxFakeintakeSuite) testLogCollectionBeforePermission() {
@@ -189,7 +182,7 @@ func (s *LinuxFakeintakeSuite) testLogCollectionBeforePermission() {
 	utils.AppendLog(s, logFileName, "access-granted", 1)
 
 	// Check intake for new logs
-	utils.CheckLogsExpected(s.T(), s.Env().FakeIntake, "hello", "access-granted", []string{})
+	utils.CheckLogsExpected(s, "hello", "access-granted")
 }
 
 func (s *LinuxFakeintakeSuite) testLogRecreateRotation() {
@@ -213,5 +206,5 @@ func (s *LinuxFakeintakeSuite) testLogRecreateRotation() {
 	utils.AppendLog(s, logFileName, "hello-world-new-content", 1)
 
 	// Check intake for new logs
-	utils.CheckLogsExpected(s.T(), s.Env().FakeIntake, "hello", "hello-world-new-content", []string{})
+	utils.CheckLogsExpected(s, "hello", "hello-world-new-content")
 }

@@ -9,11 +9,10 @@ package config
 import (
 	"testing"
 
-	"github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
-
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
+	"github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 )
 
 type windowsConfigSuite struct {
@@ -22,6 +21,5 @@ type windowsConfigSuite struct {
 
 func TestWindowsConfigSuite(t *testing.T) {
 	osOption := awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault))
-	t.Parallel()
 	e2e.Run(t, &windowsConfigSuite{baseConfigSuite: baseConfigSuite{osOption: osOption}}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)))))
 }

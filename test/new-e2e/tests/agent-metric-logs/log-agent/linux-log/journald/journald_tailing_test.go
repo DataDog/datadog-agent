@@ -8,6 +8,8 @@ package journaldlog
 import (
 	_ "embed"
 	"fmt"
+	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -15,15 +17,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-metric-logs/log-agent/utils"
+	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 )
-
-const eventuallyWithTickDuration = 5 * time.Second
 
 // LinuxJournaldFakeintakeSuite defines a test suite for the log agent interacting with a virtual machine and fake intake.
 type LinuxJournaldFakeintakeSuite struct {
@@ -45,13 +44,17 @@ var pythonScript []byte
 //go:embed log-config/logger-service.sh
 var randomLogger []byte
 
-// TestVMJournaldTailingSuite returns the stack definition required for the log agent test suite.
-func TestVMJournaldTailingSuite(t *testing.T) {
+// TestE2EVMFakeintakeSuite returns the stack definition required for the log agent test suite.
+func TestE2EVMFakeintakeSuite(t *testing.T) {
+	devModeEnv, _ := os.LookupEnv("E2E_DEVMODE")
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awshost.Provisioner(
 			awshost.WithAgentOptions(
 				agentparams.WithLogs(),
 				agentparams.WithIntegration("custom_logs.d", string(logBasicConfig))))),
+	}
+	if devMode, err := strconv.ParseBool(devModeEnv); err == nil && devMode {
+		options = append(options, e2e.WithDevMode())
 	}
 
 	e2e.Run(t, &LinuxJournaldFakeintakeSuite{}, options...)
@@ -85,19 +88,14 @@ func (s *LinuxJournaldFakeintakeSuite) journaldLogCollection() {
 	_, err := s.Env().RemoteHost.Execute("sudo usermod -a -G systemd-journal dd-agent")
 	require.NoErrorf(t, err, "Unable to adjust permissions for dd-agent user: %s", err)
 
-	// Restart agent and make sure it's ready before adding logs
-	_, err = s.Env().RemoteHost.Execute("sudo systemctl restart datadog-agent")
-	assert.NoErrorf(t, err, "Failed to restart the agent: %s", err)
-	s.EventuallyWithT(func(t *assert.CollectT) {
-		agentReady := s.Env().Agent.Client.IsReady()
-		assert.True(t, agentReady)
-	}, utils.WaitFor, eventuallyWithTickDuration, "Agent was not ready")
+	// Restart agent
+	s.Env().RemoteHost.Execute("sudo systemctl restart datadog-agent")
 
 	// Generate log
 	appendJournaldLog(s, "hello-world", 1)
 
 	// Check that the generated log is collected
-	utils.CheckLogsExpected(s.T(), s.Env().FakeIntake, "hello", "hello-world", []string{})
+	utils.CheckLogsExpected(s, "hello", "hello-world")
 }
 
 func (s *LinuxJournaldFakeintakeSuite) journaldIncludeServiceLogCollection() {
@@ -141,11 +139,11 @@ func (s *LinuxJournaldFakeintakeSuite) journaldIncludeServiceLogCollection() {
 
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		agentReady := s.Env().Agent.Client.IsReady()
-		assert.Truef(c, agentReady, "Agent is not ready after restart")
-	}, utils.WaitFor, eventuallyWithTickDuration)
-
-	// Check that the agent service log is collected
-	utils.CheckLogsExpected(s.T(), s.Env().FakeIntake, "random-logger", "less important", []string{})
+		if assert.Truef(c, agentReady, "Agent is not ready after restart") {
+			// Check that the agent service log is collected
+			utils.CheckLogsExpected(s, "random-logger", "less important")
+		}
+	}, 1*time.Minute, 5*time.Second)
 
 	// Disable journald log generation service
 	_, err = vm.Execute("sudo systemctl disable --now random-logger.service")
@@ -162,11 +160,11 @@ func (s *LinuxJournaldFakeintakeSuite) journaldExcludeServiceCollection() {
 
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		agentReady := s.Env().Agent.Client.IsReady()
-		assert.Truef(c, agentReady, "Agent is not ready after restart")
-	}, utils.WaitFor, eventuallyWithTickDuration)
-
-	// Check that the datadog-agent.service log is not collected, specifically logs from the check runners
-	utils.CheckLogsNotExpected(s.T(), s.Env().FakeIntake, "no-datadog", "running check")
+		if assert.Truef(c, agentReady, "Agent is not ready after restart") {
+			// Check that the datadog-agent.service log is not collected, specifically logs from the check runners
+			utils.CheckLogsNotExpected(s, "no-datadog", "running check")
+		}
+	}, 1*time.Minute, 5*time.Second)
 }
 
 // appendJournaldLog appends a log to journald.
@@ -190,5 +188,5 @@ func appendJournaldLog(s *LinuxJournaldFakeintakeSuite, content string, recurren
 		if assert.Contains(c, output, content, "Journald log not properly generated.") {
 			t.Log("Finished generating journald log.")
 		}
-	}, utils.WaitFor, eventuallyWithTickDuration)
+	}, 1*time.Minute, 5*time.Second)
 }

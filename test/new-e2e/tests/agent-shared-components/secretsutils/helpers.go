@@ -9,7 +9,7 @@ package secretsutils
 import (
 	_ "embed"
 
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	perms "github.com/DataDog/test-infra-definitions/components/datadog/agentparams/filepermissions"
 )
@@ -23,7 +23,7 @@ func WithUnixSecretSetupScript(path string, allowGroupExec bool) func(*agentpara
 }
 
 // WithUnixSecretPermissions returns an UnixPermissions object containing correct permissions for a secret backend script.
-func WithUnixSecretPermissions(allowGroupExec bool) optional.Option[perms.FilePermissions] {
+func WithUnixSecretPermissions(allowGroupExec bool) option.Option[perms.FilePermissions] {
 	if allowGroupExec {
 		return perms.NewUnixPermissions(perms.WithPermissions("0750"), perms.WithOwner("dd-agent"), perms.WithGroup("root"))
 	}

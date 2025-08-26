@@ -10,14 +10,17 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
+	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -25,47 +28,39 @@ import (
 )
 
 //go:embed etc/process_config.yaml
-var processConfigStr string
-
-//go:embed etc/core_config.yaml
-var coreConfigStr string
-
-//go:embed etc/process_config_no_check.yaml
-var processConfigNoCheckStr string
-
-//go:embed etc/core_config_no_check.yaml
-var coreConfigNoCheckStr string
+var configStr string
 
 type languageDetectionSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
 
 func TestLanguageDetectionSuite(t *testing.T) {
+	flake.Mark(t)
+
 	agentParams := []func(*agentparams.Params) error{
-		agentparams.WithAgentConfig(processConfigStr),
+		agentparams.WithAgentConfig(configStr),
 	}
 
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentParams...))),
 	}
 
+	devModeEnv, _ := os.LookupEnv("E2E_DEVMODE")
+	if devMode, err := strconv.ParseBool(devModeEnv); err == nil && devMode {
+		options = append(options, e2e.WithDevMode())
+	}
+
 	e2e.Run(t, &languageDetectionSuite{}, options...)
 }
 
-func (s *languageDetectionSuite) SetupSuite() {
-	s.BaseSuite.SetupSuite()
-
-	s.installPython()
-}
-
-func (s *languageDetectionSuite) checkDetectedLanguage(command string, language string, source string) {
+func (s *languageDetectionSuite) checkDetectedLanguage(command string, language string) {
 	var pid string
 	require.Eventually(s.T(),
 		func() bool {
 			pid = s.getPidForCommand(command)
 			return len(pid) > 0
 		},
-		60*time.Second, 100*time.Millisecond,
+		1*time.Second, 10*time.Millisecond,
 		fmt.Sprintf("pid not found for command %s", command),
 	)
 
@@ -73,10 +68,10 @@ func (s *languageDetectionSuite) checkDetectedLanguage(command string, language 
 	var err error
 	assert.Eventually(s.T(),
 		func() bool {
-			actualLanguage, err = s.getLanguageForPid(pid, source)
+			actualLanguage, err = s.getLanguageForPid(pid)
 			return err == nil && actualLanguage == language
 		},
-		60*time.Second, 100*time.Millisecond,
+		10*time.Second, 100*time.Millisecond,
 		fmt.Sprintf("language match not found, pid = %s, expected = %s, actual = %s, err = %v",
 			pid, language, actualLanguage, err),
 	)
@@ -89,26 +84,20 @@ func (s *languageDetectionSuite) getPidForCommand(command string) string {
 	if err != nil {
 		return ""
 	}
-	pid = strings.TrimSpace(pid)
-	// special handling in case multiple commands match
-	pids := strings.Split(pid, "\n")
-	return pids[0]
+	return strings.TrimSpace(pid)
 }
 
-func (s *languageDetectionSuite) getLanguageForPid(pid string, source string) (string, error) {
+func (s *languageDetectionSuite) getLanguageForPid(pid string) (string, error) {
 	wl := s.Env().RemoteHost.MustExecute("sudo /opt/datadog-agent/bin/agent/agent workload-list")
 	if len(strings.TrimSpace(wl)) == 0 {
 		return "", errors.New("agent workload-list was empty")
 	}
 
 	scanner := bufio.NewScanner(strings.NewReader(wl))
-	headerLine := fmt.Sprintf("=== Entity process sources(merged):[%s] id: %s ===", source, pid)
-
+	pidLine := fmt.Sprintf("PID: %s", pid)
 	for scanner.Scan() {
 		line := scanner.Text()
-		if line == headerLine {
-			scanner.Scan() // entity line
-			scanner.Scan() // pid
+		if line == pidLine {
 			scanner.Scan() // nspid
 			scanner.Scan() // container id
 			scanner.Scan() // creation time

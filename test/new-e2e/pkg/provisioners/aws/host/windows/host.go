@@ -41,7 +41,6 @@ type ProvisionerParams struct {
 	fakeintakeOptions      []fakeintake.Option
 	activeDirectoryOptions []activedirectory.Option
 	defenderoptions        []defender.Option
-	installerOptions       []installer.Option
 }
 
 // ProvisionerOption is a provisioner option.
@@ -115,15 +114,6 @@ func WithActiveDirectoryOptions(opts ...activedirectory.Option) ProvisionerOptio
 func WithDefenderOptions(opts ...defender.Option) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.defenderoptions = append(params.defenderoptions, opts...)
-		return nil
-	}
-}
-
-// WithInstaller configures Datadog Installer on an EC2 VM.
-func WithInstaller(opts ...installer.Option) ProvisionerOption {
-	return func(params *ProvisionerParams) error {
-		params.installerOptions = []installer.Option{}
-		params.installerOptions = append(params.installerOptions, opts...)
 		return nil
 	}
 }

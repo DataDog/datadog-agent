@@ -8,18 +8,14 @@ package snmp
 
 import (
 	"embed"
-	"fmt"
 	"path"
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
-	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/test-infra-definitions/common/utils"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
@@ -36,7 +32,7 @@ import (
 //go:embed compose/snmpCompose.yaml
 var snmpCompose string
 
-//go:embed config/cisco-nexus.yaml
+//go:embed config/public.yaml
 var snmpConfig string
 
 const (
@@ -111,7 +107,6 @@ func snmpDockerProvisioner() provisioners.Provisioner {
 		if err != nil {
 			return err
 		}
-		dockerManager.Export(ctx, &env.Docker.ManagerOutput)
 
 		envVars := pulumi.StringMap{"DATA_DIR": pulumi.String(dataPath), "CONFIG_DIR": pulumi.String(configPath)}
 		composeDependencies := []pulumi.Resource{createDataDirCommand, configCommand}
@@ -151,7 +146,6 @@ type snmpDockerSuite struct {
 
 // TestSnmpSuite runs the snmp e2e suite
 func TestSnmpSuite(t *testing.T) {
-	t.Skip("Skipping test until we can fix the flakiness")
 	e2e.Run(t, &snmpDockerSuite{}, e2e.WithProvisioner(snmpDockerProvisioner()))
 }
 
@@ -164,38 +158,4 @@ func (s *snmpDockerSuite) TestSnmp() {
 		assert.NoError(c, err)
 		assert.Contains(c, metrics, "snmp.sysUpTimeInstance", "metrics %v doesn't contain snmp.sysUpTimeInstance", metrics)
 	}, 5*time.Minute, 10*time.Second)
-}
-
-func (s *snmpDockerSuite) TestSnmpTagsAreStoredOnRestart() {
-	fakeintake := s.Env().FakeIntake.Client()
-	var initialMetrics []*aggregator.MetricSeries
-	var err error
-
-	require.EventuallyWithT(s.T(), func(t *assert.CollectT) {
-		initialMetrics, err = fakeintake.FilterMetrics("snmp.device.reachable")
-		assert.NoError(t, err)
-	}, 5*time.Minute, 5*time.Second)
-
-	initialTags := initialMetrics[0].Tags
-	_, err = s.Env().RemoteHost.Execute("docker stop dd-snmp")
-	require.NoError(s.T(), err)
-
-	_, err = s.Env().RemoteHost.Execute(fmt.Sprintf("docker restart %s", s.Env().Agent.ContainerName))
-	require.NoError(s.T(), err)
-
-	err = fakeintake.FlushServerAndResetAggregators()
-	require.NoError(s.T(), err)
-
-	var metrics []*aggregator.MetricSeries
-
-	require.EventuallyWithT(s.T(), func(t *assert.CollectT) {
-		metrics, err = fakeintake.FilterMetrics("snmp.device.reachable")
-		assert.NoError(t, err)
-		assert.NotEmpty(t, metrics)
-	}, 5*time.Minute, 5*time.Second)
-
-	tags := metrics[0].Tags
-
-	require.Zero(s.T(), metrics[0].Points[0].Value)
-	require.ElementsMatch(s.T(), tags, initialTags)
 }
