@@ -37,108 +37,47 @@ func TestNewImageResolver(t *testing.T) {
 }
 
 func TestNoOpImageResolver(t *testing.T) {
-	resolver := NewNoOpImageResolver()
+	resolver := newNoOpImageResolver()
 
 	testCases := []struct {
 		name           string
-		imageRef       string
+		registry       string
+		repository     string
+		tag            string
 		expectedResult string
 		expectedOK     bool
 	}{
 		{
 			name:           "full_image_reference",
-			imageRef:       "gcr.io/datadoghq/dd-lib-python-init:latest",
-			expectedResult: "",
+			registry:       "gcr.io/datadoghq",
+			repository:     "dd-lib-python-init",
+			tag:            "latest",
+			expectedResult: "gcr.io/datadoghq/dd-lib-python-init:latest",
 			expectedOK:     false,
 		},
 		{
-			name:           "empty_image",
-			imageRef:       "",
-			expectedResult: "",
+			name:           "versioned_tag",
+			registry:       "gcr.io/datadoghq",
+			repository:     "dd-lib-java-init",
+			tag:            "v1.2.3",
+			expectedResult: "gcr.io/datadoghq/dd-lib-java-init:v1.2.3",
 			expectedOK:     false,
 		},
 		{
-			name:           "image_without_tag",
-			imageRef:       "gcr.io/datadoghq/dd-lib-python-init",
-			expectedResult: "",
+			name:           "simple_registry",
+			registry:       "docker.io",
+			repository:     "my-app",
+			tag:            "latest",
+			expectedResult: "docker.io/my-app:latest",
 			expectedOK:     false,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result, ok := resolver.Resolve(tc.imageRef)
+			result, ok := resolver.Resolve(tc.repository, tc.tag)
 			assert.Equal(t, tc.expectedResult, result)
 			assert.Equal(t, tc.expectedOK, ok)
-		})
-	}
-}
-
-func TestParseImageReference(t *testing.T) {
-	testCases := []struct {
-		name         string
-		imageRef     string
-		expectedRepo string
-		expectedTag  string
-		expectError  bool
-	}{
-		{
-			name:         "full_gcr_image",
-			imageRef:     "gcr.io/datadoghq/dd-lib-python-init:latest",
-			expectedRepo: "dd-lib-python-init",
-			expectedTag:  "latest",
-			expectError:  false,
-		},
-		{
-			name:         "versioned_tag",
-			imageRef:     "gcr.io/datadoghq/dd-lib-java-init:v1.2.3",
-			expectedRepo: "dd-lib-java-init",
-			expectedTag:  "v1.2.3",
-			expectError:  false,
-		},
-		{
-			name:         "simple_image",
-			imageRef:     "dd-lib-python-init:latest",
-			expectedRepo: "dd-lib-python-init",
-			expectedTag:  "latest",
-			expectError:  false,
-		},
-		{
-			name:         "no_tag_separator",
-			imageRef:     "gcr.io/datadoghq/dd-lib-python-init",
-			expectedRepo: "",
-			expectedTag:  "",
-			expectError:  true,
-		},
-		{
-			name:         "port_in_registry",
-			imageRef:     "localhost:5000/my-image/test",
-			expectedRepo: "",
-			expectedTag:  "",
-			expectError:  true,
-		},
-		{
-			name:         "empty_image",
-			imageRef:     "",
-			expectedRepo: "",
-			expectedTag:  "",
-			expectError:  true,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			repo, tag, err := parseImageReference(tc.imageRef)
-
-			if tc.expectError {
-				assert.Error(t, err)
-				assert.Empty(t, repo)
-				assert.Empty(t, tag)
-			} else {
-				assert.NoError(t, err)
-				assert.Equal(t, tc.expectedRepo, repo)
-				assert.Equal(t, tc.expectedTag, tag)
-			}
 		})
 	}
 }
@@ -279,43 +218,41 @@ func TestRemoteConfigImageResolver_Resolve(t *testing.T) {
 
 	testCases := []struct {
 		name           string
-		imageRef       string
+		registry       string
+		repository     string
+		tag            string
 		expectedResult string
 		expectedOK     bool
 	}{
 		{
 			name:           "successful_resolution_latest",
-			imageRef:       "gcr.io/datadoghq/dd-lib-python-init:latest",
+			registry:       "gcr.io/datadoghq",
+			repository:     "dd-lib-python-init",
+			tag:            "latest",
 			expectedResult: "gcr.io/datadoghq/dd-lib-python-init@sha256:abc123",
 			expectedOK:     true,
 		},
 		{
 			name:           "successful_resolution_versioned",
-			imageRef:       "gcr.io/datadoghq/dd-lib-python-init:v3",
+			registry:       "gcr.io/datadoghq",
+			repository:     "dd-lib-python-init",
+			tag:            "v3",
 			expectedResult: "gcr.io/datadoghq/dd-lib-python-init@sha256:def456",
 			expectedOK:     true,
 		},
 		{
 			name:           "non_existent_repository",
-			imageRef:       "gcr.io/datadoghq/dd-lib-java-init:latest",
+			registry:       "gcr.io/datadoghq",
+			repository:     "dd-lib-java-init",
+			tag:            "latest",
 			expectedResult: "",
 			expectedOK:     false,
 		},
 		{
 			name:           "non_existent_tag",
-			imageRef:       "gcr.io/datadoghq/dd-lib-python-init:v2",
-			expectedResult: "",
-			expectedOK:     false,
-		},
-		{
-			name:           "invalid_image_format",
-			imageRef:       "invalid-image",
-			expectedResult: "",
-			expectedOK:     false,
-		},
-		{
-			name:           "empty_image",
-			imageRef:       "",
+			registry:       "gcr.io/datadoghq",
+			repository:     "dd-lib-python-init",
+			tag:            "v2",
 			expectedResult: "",
 			expectedOK:     false,
 		},
@@ -323,7 +260,7 @@ func TestRemoteConfigImageResolver_Resolve(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result, ok := resolver.Resolve(tc.imageRef)
+			result, ok := resolver.Resolve(tc.repository, tc.tag)
 			assert.Equal(t, tc.expectedResult, result)
 			assert.Equal(t, tc.expectedOK, ok)
 		})
@@ -334,18 +271,8 @@ func TestRemoteConfigImageResolver_Resolve(t *testing.T) {
 		emptyResolver := &remoteConfigImageResolver{
 			imageMappings: make(map[string]map[string]ResolvedImage),
 		}
-		result, ok := emptyResolver.Resolve("gcr.io/datadoghq/dd-lib-python-init:latest")
+		result, ok := emptyResolver.Resolve("dd-lib-python-init", "latest")
 		assert.Equal(t, "", result)
 		assert.Equal(t, false, ok)
 	})
-}
-
-func TestImageParseError(t *testing.T) {
-	err := &ImageParseError{
-		imageRef: "invalid-image",
-		reason:   "test reason",
-	}
-
-	expected := "failed to parse image reference 'invalid-image': test reason"
-	assert.Equal(t, expected, err.Error())
 }

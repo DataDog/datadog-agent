@@ -175,16 +175,17 @@ func (l *libInfoLanguageDetection) containerMutator(v version) containerMutator 
 
 // getAllLatestDefaultLibraries returns all supported by APM Instrumentation tracing libraries
 // that should be enabled by default
-func getAllLatestDefaultLibraries(containerRegistry string, imageResolver ImageResolver) []libInfo {
+func getAllLatestDefaultLibraries(imageResolver ImageResolver) []libInfo {
 	var libsToInject []libInfo
 	for _, lang := range supportedLanguages {
 		// Construct the full image reference (e.g., "gcr.io/datadoghq/dd-lib-python-init:v3")
-		imageRef := lang.libImageName(containerRegistry, lang.defaultLibVersion())
+		repository := fmt.Sprintf("dd-lib-%s-init", lang)
+		tag := lang.defaultLibVersion()
 
 		// Try to resolve it to a digest-based reference via remote config
-		resolvedImage, resolved := imageResolver.Resolve(imageRef)
+		resolvedImage, resolved := imageResolver.Resolve(repository, tag)
 		if !resolved {
-			log.Warnf("Failed to resolve image %s", imageRef)
+			log.Warnf("Failed to resolve image %s:%s", repository, tag)
 			continue
 		}
 

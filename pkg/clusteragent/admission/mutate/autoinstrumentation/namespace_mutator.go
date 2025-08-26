@@ -135,23 +135,6 @@ func (m *mutatorCore) mutatePodContainers(pod *corev1.Pod, cm containerMutator) 
 	return mutatePodContainers(pod, filteredContainerMutator(m.config.containerFilter, cm))
 }
 
-func (m *mutatorCore) resolveLibraryImage(lib libInfo) libInfo {
-	resolvedImage, resolved := m.imageResolver.Resolve(lib.image)
-	if !resolved {
-		log.Warnf("Failed to resolve image %s", lib.image)
-		return lib
-	}
-
-	if resolvedImage != "" {
-		return libInfo{
-			ctrName: lib.ctrName,
-			lang:    lib.lang,
-			image:   resolvedImage,
-		}
-	}
-	return lib
-}
-
 func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo) error {
 	if len(config.libs) == 0 {
 		return nil
@@ -208,18 +191,17 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 	}
 
 	for _, lib := range config.libs {
-		resolvedImage := m.resolveLibraryImage(lib)
 		injected := false
-		langStr := string(resolvedImage.lang)
+		langStr := string(lib.lang)
 		defer func() {
 			metrics.LibInjectionAttempts.Inc(langStr, strconv.FormatBool(injected), strconv.FormatBool(autoDetected), injectionType)
 		}()
 
-		if err := resolvedImage.podMutator(m.config.version, libRequirementOptions{
+		if err := lib.podMutator(m.config.version, libRequirementOptions{
 			containerFilter:       m.config.containerFilter,
 			containerMutators:     containerMutators,
 			initContainerMutators: initContainerMutators,
-			podMutators:           []podMutator{configInjector.podMutator(resolvedImage.lang)},
+			podMutators:           []podMutator{configInjector.podMutator(lib.lang)},
 		}).mutatePod(pod); err != nil {
 			metrics.LibInjectionErrors.Inc(langStr, strconv.FormatBool(autoDetected), injectionType)
 			lastError = err
@@ -326,10 +308,9 @@ func (m *mutatorCore) newInitContainerMutators(
 func (m *mutatorCore) newInjector(pod *corev1.Pod, startTime time.Time, lopts libRequirementOptions) *injector {
 	imageTag := m.config.Instrumentation.InjectorImageTag
 	// Construct full image reference for the injector
-	fullImageRef := m.config.containerRegistry + "/dd-lib-init:" + m.config.Instrumentation.InjectorImageTag
-	resolvedImage, resolved := m.imageResolver.Resolve(fullImageRef)
+	resolvedImage, resolved := m.imageResolver.Resolve("", m.config.Instrumentation.InjectorImageTag)
 	if !resolved {
-		log.Warnf("Failed to resolve image %s", fullImageRef)
+		log.Warnf("Failed to resolve image %s/%s:%s", m.config.containerRegistry, "", m.config.Instrumentation.InjectorImageTag)
 		return nil
 	}
 
@@ -373,7 +354,7 @@ func (m *NamespaceMutator) isPodEligible(pod *corev1.Pod) bool {
 func (m *NamespaceMutator) extractLibInfo(pod *corev1.Pod) extractedPodLibInfo {
 	extracted := m.core.initExtractedLibInfo(pod)
 
-	libs := extractLibrariesFromAnnotations(pod, m.config.containerRegistry)
+	libs := resolveLibrariesFromAnnotations(pod, m.config.containerRegistry, m.core.imageResolver)
 	if len(libs) > 0 {
 		return extracted.withLibs(libs)
 	}
@@ -397,7 +378,7 @@ func (m *NamespaceMutator) extractLibInfo(pod *corev1.Pod) extractedPodLibInfo {
 	}
 
 	if extracted.source.isSingleStep() {
-		return extracted.withLibs(getAllLatestDefaultLibraries(m.config.containerRegistry, m.core.imageResolver))
+		return extracted.withLibs(getAllLatestDefaultLibraries(m.core.imageResolver))
 	}
 
 	// Get libraries to inject for Remote Instrumentation
@@ -411,10 +392,37 @@ func (m *NamespaceMutator) extractLibInfo(pod *corev1.Pod) extractedPodLibInfo {
 			log.Warnf("Ignoring version %q. To inject all libs, the only supported version is latest for now", version)
 		}
 
-		return extracted.withLibs(getAllLatestDefaultLibraries(m.config.containerRegistry, m.core.imageResolver))
+		return extracted.withLibs(getAllLatestDefaultLibraries(m.core.imageResolver))
 	}
 
 	return extractedPodLibInfo{}
+}
+
+func resolveLibrariesFromAnnotations(pod *corev1.Pod, containerRegistry string, imageResolver ImageResolver) []libInfo {
+	var (
+		libList        []libInfo
+		extractLibInfo = func(e annotationExtractor[libInfo]) {
+			i, err := e.extract(pod)
+			if err != nil {
+				if !isErrAnnotationNotFound(err) {
+					log.Warnf("error extracting annotation for key %s", e.key)
+				}
+			} else {
+				libList = append(libList, i)
+			}
+		}
+	)
+
+	for _, l := range supportedLanguages {
+		extractLibInfo(l.customLibAnnotationExtractor())
+		extractLibInfo(l.libVersionAnnotationExtractorWithResolver(containerRegistry, imageResolver))
+		for _, ctr := range pod.Spec.Containers {
+			extractLibInfo(l.ctrCustomLibAnnotationExtractor(ctr.Name))
+			extractLibInfo(l.ctrLibVersionAnnotationExtractorWithResolver(ctr.Name, containerRegistry, imageResolver))
+		}
+	}
+
+	return libList
 }
 
 func extractLibrariesFromAnnotations(pod *corev1.Pod, containerRegistry string) []libInfo {

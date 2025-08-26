@@ -14,6 +14,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -28,7 +29,6 @@ const (
 // language is lang-library we might be injecting.
 type language string
 
-// ERIKA: Consolidate this with ImageResolver
 func (l language) defaultLibInfo(registry, ctrName string) libInfo {
 	return l.libInfo(ctrName, l.libImageName(registry, l.defaultLibVersion()))
 }
@@ -74,6 +74,23 @@ func (l language) libVersionAnnotationExtractor(registry string) annotationExtra
 	}
 }
 
+func (l language) libVersionAnnotationExtractorWithResolver(registry string, imageResolver ImageResolver) annotationExtractor[libInfo] {
+	return annotationExtractor[libInfo]{
+		key: fmt.Sprintf(libVersionAnnotationKeyFormat, l),
+		do: func(version string) (libInfo, error) {
+			image, resolved := imageResolver.Resolve(fmt.Sprintf("dd-lib-%s-init", l), version)
+			if !resolved {
+				log.Warnf("failed to resolve image %s/%s:%s, skipping resolution", registry, fmt.Sprintf("dd-lib-%s-init", l), version)
+			}
+			return libInfo{
+				ctrName: "",
+				lang:    l,
+				image:   image,
+			}, nil
+		},
+	}
+}
+
 func (l language) ctrCustomLibAnnotationExtractor(ctr string) annotationExtractor[libInfo] {
 	return annotationExtractor[libInfo]{
 		key: fmt.Sprintf(customLibAnnotationKeyCtrFormat, ctr, l),
@@ -88,6 +105,23 @@ func (l language) ctrLibVersionAnnotationExtractor(ctr, registry string) annotat
 		key: fmt.Sprintf(libVersionAnnotationKeyCtrFormat, ctr, l),
 		do: func(version string) (libInfo, error) {
 			return l.libInfo(ctr, l.libImageName(registry, version)), nil
+		},
+	}
+}
+
+func (l language) ctrLibVersionAnnotationExtractorWithResolver(ctr, registry string, imageResolver ImageResolver) annotationExtractor[libInfo] {
+	return annotationExtractor[libInfo]{
+		key: fmt.Sprintf(libVersionAnnotationKeyCtrFormat, ctr, l),
+		do: func(version string) (libInfo, error) {
+			image, resolved := imageResolver.Resolve(fmt.Sprintf("dd-lib-%s-init", l), version)
+			if !resolved {
+				log.Warnf("failed to resolve image %s/%s:%s, skipping resolution", registry, fmt.Sprintf("dd-lib-%s-init", l), version)
+			}
+			return libInfo{
+				ctrName: ctr,
+				lang:    l,
+				image:   image,
+			}, nil
 		},
 	}
 }

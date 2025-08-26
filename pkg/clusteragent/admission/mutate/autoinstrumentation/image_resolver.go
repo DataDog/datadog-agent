@@ -9,7 +9,7 @@ package autoinstrumentation
 
 import (
 	"encoding/json"
-	"strings"
+	"fmt"
 	"sync"
 
 	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
@@ -19,25 +19,25 @@ import (
 
 // ImageResolver resolves container image references from tag-based to digest-based.
 type ImageResolver interface {
-	// Resolve takes a full image reference (e.g., "gcr.io/datadoghq/dd-lib-python-init:latest")
+	// Resolve takes a registry, repository, and tag string (e.g., "gcr.io/datadoghq", "dd-lib-python-init", "v3")
 	// and returns a resolved image reference (e.g., "gcr.io/datadoghq/dd-lib-python-init@sha256:abc123")
-	// If resolution fails or is not available, it returns ("", false).
-	Resolve(imageRef string) (string, bool)
+	// If resolution fails or is not available, it returns the original image reference ("gcr.io/datadoghq/dd-lib-python-init:v3", false).
+	Resolve(repository string, tag string) (string, bool)
 }
 
 // noOpImageResolver is a simple implementation that returns the original image unchanged.
 // This is used when no remote config client is available.
 type noOpImageResolver struct{}
 
-// NewNoOpImageResolver creates a new noOpImageResolver.
-func NewNoOpImageResolver() ImageResolver {
+// newNoOpImageResolver creates a new noOpImageResolver.
+func newNoOpImageResolver() ImageResolver {
 	return &noOpImageResolver{}
 }
 
 // ResolveImage returns the original image reference.
-func (r *noOpImageResolver) Resolve(imageRef string) (string, bool) {
-	log.Debugf("No resolution available for %s", imageRef)
-	return "", false
+func (r *noOpImageResolver) Resolve(repository string, tag string) (string, bool) {
+	log.Debugf("No resolution available, returning original image reference %s:%s", repository, tag)
+	return fmt.Sprintf("%s:%s", repository, tag), false
 }
 
 // remoteConfigImageResolver resolves image references using remote configuration data.
@@ -49,40 +49,31 @@ type remoteConfigImageResolver struct {
 	imageMappings map[string]map[string]ResolvedImage // repository -> tag -> resolved image
 }
 
-// NewRemoteConfigImageResolver creates a new remoteConfigImageResolver.
-func NewRemoteConfigImageResolver(rcClient *rcclient.Client) ImageResolver {
-	if rcClient == nil {
-		log.Debugf("No remote config client available to resolve images")
-		return NewNoOpImageResolver()
-	}
-
+// newRemoteConfigImageResolver creates a new remoteConfigImageResolver.
+// Assumes rcClient is non-nil.
+func newRemoteConfigImageResolver(rcClient *rcclient.Client) ImageResolver {
 	resolver := &remoteConfigImageResolver{
 		rcClient:      rcClient,
 		imageMappings: make(map[string]map[string]ResolvedImage),
 	}
 
 	rcClient.Subscribe(state.ProductGradualRollout, resolver.processUpdate)
-	log.Debugf("Subscribed to remote configuration")
+	log.Debugf("Subscribed to %s", state.ProductGradualRollout)
 
 	return resolver
 }
 
-// ResolveImage resolves a full image reference to a digest-based reference.
+// Resolve resolves a registry, repository, and tag to a digest-based reference.
+// Input: "gcr.io/datadoghq", "dd-lib-python-init", "v3"
+// Output: "gcr.io/datadoghq/dd-lib-python-init@sha256:abc123...", true
 // If resolution fails or is not available, it returns the original image reference.
-// Input: "gcr.io/datadoghq/dd-lib-python-init:latest"
-// Output: "gcr.io/datadoghq/dd-lib-python-init@sha256:abc123..."
-func (r *remoteConfigImageResolver) ResolveImageRef(imageRef string) (string, bool) {
-	repository, tag, err := parseImageReference(imageRef)
-	if err != nil {
-		log.Debugf("Failed to parse image reference %s: %v", imageRef, err)
-		return "", false
-	}
-
+// Output: "gcr.io/datadoghq/dd-lib-python-init:v3", false
+func (r *remoteConfigImageResolver) Resolve(repository string, tag string) (string, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
 	if len(r.imageMappings) == 0 {
-		log.Debugf("Cache empty, no resolution available for %s", imageRef)
+		log.Debugf("Cache empty, no resolution available")
 		return "", false
 	}
 
@@ -98,84 +89,8 @@ func (r *remoteConfigImageResolver) ResolveImageRef(imageRef string) (string, bo
 		return "", false
 	}
 
-	log.Debugf("Resolved %s -> %s", imageRef, resolved.FullImageRef)
+	log.Debugf("Resolved %s:%s -> %s", repository, tag, resolved.FullImageRef)
 	return resolved.FullImageRef, true
-}
-
-func (r *remoteConfigImageResolver) Resolve(imageRef string) (string, bool) {
-	repository, tag, err := parseImageReference(imageRef)
-	if err != nil {
-		log.Debugf("Failed to parse image reference %s: %v", imageRef, err)
-		return "", false
-	}
-
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	if len(r.imageMappings) == 0 {
-		log.Debugf("Cache empty, no resolution available for %s", imageRef)
-		return "", false
-	}
-
-	repoCache, exists := r.imageMappings[repository]
-	if !exists {
-		log.Debugf("No mapping found for repository %s", repository)
-		return "", false
-	}
-
-	resolved, exists := repoCache[tag]
-	if !exists {
-		log.Debugf("No mapping found for %s:%s", repository, tag)
-		return "", false
-	}
-
-	log.Debugf("Resolved %s -> %s", imageRef, resolved.FullImageRef)
-	return resolved.FullImageRef, true
-}
-
-// parseImageReference parses a full image reference into repository and tag.
-// Examples:
-//
-//	"gcr.io/datadoghq/dd-lib-python-init:latest" -> ("dd-lib-python-init", "latest", nil)
-//	"dd-lib-java-init:v1.0" -> ("dd-lib-java-init", "v1.0", nil)
-//	"invalid-image" -> ("", "", error)
-func parseImageReference(imageRef string) (repository, tag string, err error) {
-	lastColon := strings.LastIndex(imageRef, ":")
-	if lastColon == -1 {
-		return "", "", &ImageParseError{imageRef: imageRef, reason: "no tag separator found"}
-	}
-
-	// Check if the part after ":" contains "/" which would indicate it's part of the repository (port number)
-	potentialTag := imageRef[lastColon+1:]
-	if strings.Contains(potentialTag, "/") {
-		return "", "", &ImageParseError{imageRef: imageRef, reason: "tag contains slash, likely a port number"}
-	}
-
-	// Extract repository name from the full repository URL
-	// For "gcr.io/datadoghq/dd-lib-python-init:latest", we want just "dd-lib-python-init"
-	fullRepo := imageRef[:lastColon]
-
-	// Find the last "/" to get just the repository name
-	lastSlash := strings.LastIndex(fullRepo, "/")
-	if lastSlash != -1 {
-		repository = fullRepo[lastSlash+1:]
-	} else {
-		repository = fullRepo
-	}
-
-	tag = potentialTag
-	return repository, tag, nil
-}
-
-// ImageParseError represents an error parsing an image reference.
-type ImageParseError struct {
-	imageRef string
-	reason   string
-}
-
-// Error returns the image reference and the reason for the error.
-func (e *ImageParseError) Error() string {
-	return "failed to parse image reference '" + e.imageRef + "': " + e.reason
 }
 
 // processUpdate handles remote configuration updates for image resolution.
@@ -260,7 +175,8 @@ type ResolvedImage struct {
 // a remote config client is available.
 func NewImageResolver(rcClient *rcclient.Client) ImageResolver {
 	if rcClient != nil {
-		return NewRemoteConfigImageResolver(rcClient)
+		return newRemoteConfigImageResolver(rcClient)
 	}
-	return NewNoOpImageResolver()
+	log.Debugf("No remote config client available")
+	return newNoOpImageResolver()
 }

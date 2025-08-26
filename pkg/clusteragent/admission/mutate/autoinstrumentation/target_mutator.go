@@ -93,7 +93,7 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolve
 		// Get the library versions to inject. If no versions are specified, we inject all libraries.
 		var libVersions []libInfo
 		if len(t.TracerVersions) == 0 {
-			libVersions = getAllLatestDefaultLibraries(config.containerRegistry, imageResolver)
+			libVersions = getAllLatestDefaultLibraries(imageResolver)
 		} else {
 			libVersions = getPinnedLibraries(t.TracerVersions, config.containerRegistry, false).libs
 		}
