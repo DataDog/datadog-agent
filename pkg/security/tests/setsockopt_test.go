@@ -65,6 +65,14 @@ func TestSetSockOpt(t *testing.T) {
 			&& setsockopt.is_filter_truncated == true
 			&& 12 in setsockopt.used_immediates`,
 		},
+		{
+			ID: "test_rule_setsockopt_reuseaddr",
+			Expression: `setsockopt.level == SOL_SOCKET
+			&& setsockopt.optname == SO_REUSEADDR
+			&& setsockopt.socket_type == SOCK_STREAM
+			&& setsockopt.socket_protocol == IPPROTO_TCP
+			&& setsockopt.socket_family == AF_INET`,
+		},
 	}
 
 	test, err := newTestModule(t, nil, ruleDefs)
@@ -1276,6 +1284,37 @@ func TestSetSockOpt(t *testing.T) {
 			return nil
 		}, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_setsockopt_truncated_filter")
+		})
+	})
+	t.Run("setsockopt-reuseaddr", func(t *testing.T) {
+		var fd int
+
+		test.WaitSignal(t, func() error {
+			var err error
+			fd, err = syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM, 0)
+			if err != nil {
+				return err
+			}
+			defer syscall.Close(fd)
+
+			reuseAddr := 1
+			_, _, errno := syscall.Syscall6(
+				syscall.SYS_SETSOCKOPT,
+				uintptr(fd),
+				uintptr(syscall.SOL_SOCKET),
+				uintptr(syscall.SO_REUSEADDR),
+				uintptr(unsafe.Pointer(&reuseAddr)),
+				uintptr(unsafe.Sizeof(reuseAddr)),
+				0,
+			)
+
+			if errno != 0 {
+				return fmt.Errorf("setsockopt failed: %v", errno)
+			}
+
+			return nil
+		}, func(_ *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_rule_setsockopt_reuseaddr")
 		})
 	})
 

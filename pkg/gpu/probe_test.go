@@ -260,3 +260,24 @@ func (s *probeTestSuite) TestDetectsContainer() {
 	require.Greater(t, pidStats.UsedCores, 0.0) // core usage depends on the time this took to run, so it's not deterministic
 	require.Equal(t, pidStats.Memory.MaxBytes, uint64(110))
 }
+
+func TestCudaLibraryAttacherRule(t *testing.T) {
+	rule := getCudaLibraryAttacherRule()
+
+	expectedLibraries := []string{
+		"libcudart.so",
+		"libnd4jcuda.so",
+	}
+
+	for _, library := range expectedLibraries {
+		t.Run(library, func(t *testing.T) {
+			require.True(t, rule.MatchesLibrary(library))
+			// Test with a suffix too
+			require.True(t, rule.MatchesLibrary(library+".10-2"))
+
+			// And test with a path before the library name
+			require.True(t, rule.MatchesLibrary("/usr/lib/x86_64-linux-gnu/"+library))
+			require.True(t, rule.MatchesLibrary("/usr/lib/x86_64-linux-gnu/"+library+".10-2"))
+		})
+	}
+}

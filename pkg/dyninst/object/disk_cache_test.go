@@ -64,7 +64,7 @@ func testDiskCache(
 	require.NoError(t, err)
 
 	// Load the same binary with the standard in-memory loader.
-	directObj, err := object.OpenElfFile(binaryPath)
+	directObj, err := object.OpenElfFileWithDwarf(binaryPath)
 	require.NoError(t, err)
 
 	// Compare all debug section bytes.
@@ -126,10 +126,10 @@ func testDiskCache(
 	validateCacheVsProcMaps(t, nil, procMaps, cacheDir)
 }
 
-func requireEqualDwarfSections(t *testing.T, a, b *object.ElfFile) {
-	aSections, stopA := iter.Pull2(a.DwarfSections().Sections())
+func requireEqualDwarfSections(t *testing.T, a, b object.FileWithDwarf) {
+	aSections, stopA := iter.Pull2(a.DebugSections().Sections())
 	defer stopA()
-	bSections, stopB := iter.Pull2(b.DwarfSections().Sections())
+	bSections, stopB := iter.Pull2(b.DebugSections().Sections())
 	defer stopB()
 	for {
 		aName, aData, aOk := aSections()
