@@ -9,8 +9,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/samber/lo"
-
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/sbomutil"
 	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -28,14 +26,16 @@ with workloadmeta to dump its state.
 func (w *workloadmeta) sbomFlareProvider(fb flaretypes.FlareBuilder) error {
 	images := w.ListImages()
 
-	fields := lo.SliceToMap(images, func(image *wmdef.ContainerImageMetadata) (string, *wmdef.SBOM) {
+	fields := make(map[string]*wmdef.SBOM, len(images))
+	for _, image := range images {
 		sbom, err := sbomutil.UncompressSBOM(image.SBOM)
 		if err != nil {
 			log.Errorf("Failed to uncompress SBOM for image %s: %v", image.ID, err)
+			continue
 		}
 
-		return image.ID, sbom
-	})
+		fields[image.ID] = sbom
+	}
 
 	// Using indent or splitting the file is necessary. Otherwise the scrubber will understand
 	// the file as a single very large token and it will exceed the max buffer size.
