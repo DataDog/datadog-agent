@@ -9,9 +9,11 @@ package logsagenthealthimpl
 import (
 	"context"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	healthplatform "github.com/DataDog/datadog-agent/comp/core/health-platform/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -20,9 +22,13 @@ import (
 const (
 	// DockerLogsDir is the default Docker logs directory
 	DockerLogsDir = "/var/lib/docker"
+	// DockerSocketPath is the default Docker socket path
+	DockerSocketPath = "/var/run/docker.sock"
 
 	// IssueIDDockerFileTailingDisabled is the ID for the Docker file tailing disabled issue
 	IssueIDDockerFileTailingDisabled = "docker-file-tailing-disabled"
+	// IssueIDDockerSocketInaccessible is the ID for the Docker socket inaccessible issue
+	IssueIDDockerSocketInaccessible = "docker-socket-inaccessible"
 )
 
 // DockerPermissionsCheck groups all Docker-related permission and access checks
@@ -45,6 +51,15 @@ func (d *DockerPermissionsCheck) Check(_ context.Context) ([]healthplatform.Issu
 	log.Info("Starting Docker permissions health check")
 	var issues []healthplatform.Issue
 
+	// Check Docker socket accessibility
+	log.Info("Checking Docker socket accessibility")
+	if issue := d.checkDockerSocketAccess(); issue != nil {
+		log.Infof("Docker socket accessibility issue detected: %s", issue.ID)
+		issues = append(issues, *issue)
+	} else {
+		log.Info("No Docker socket accessibility issues detected")
+	}
+
 	// Check Docker file tailing permissions
 	log.Info("Checking Docker file tailing permissions")
 	if issue := d.checkDockerFileTailing(); issue != nil {
@@ -56,6 +71,76 @@ func (d *DockerPermissionsCheck) Check(_ context.Context) ([]healthplatform.Issu
 
 	log.Infof("Docker permissions check completed with %d issues found", len(issues))
 	return issues, nil
+}
+
+// checkDockerSocketAccess checks if the Docker socket is accessible
+func (d *DockerPermissionsCheck) checkDockerSocketAccess() *healthplatform.Issue {
+	log.Info("Checking Docker socket accessibility")
+
+	// Check if Docker socket exists
+	log.Infof("Checking if Docker socket exists: %s", DockerSocketPath)
+	if _, err := os.Stat(DockerSocketPath); os.IsNotExist(err) {
+		log.Infof("Docker socket does not exist: %s - no issues to report", DockerSocketPath)
+		return nil
+	}
+	log.Info("Docker socket exists, checking accessibility")
+
+	// Check if we can connect to the Docker socket (similar to socket.IsAvailable)
+	log.Info("Attempting to connect to Docker socket")
+	conn, err := net.DialTimeout("unix", DockerSocketPath, 500*time.Millisecond)
+	if err != nil {
+		log.Warnf("Failed to connect to Docker socket: %v", err)
+		// Check if this is a permission denied error
+		if strings.Contains(err.Error(), "permission denied") {
+			log.Warn("Permission denied when accessing Docker socket - creating issue")
+			return d.createDockerSocketInaccessibleIssue()
+		}
+		log.Infof("Error connecting to Docker socket (not permission related): %v", err)
+		return nil
+	}
+
+	if conn != nil {
+		conn.Close()
+		log.Info("Successfully connected to Docker socket")
+	}
+
+	return nil
+}
+
+// createDockerSocketInaccessibleIssue creates the issue for Docker socket being inaccessible
+func (d *DockerPermissionsCheck) createDockerSocketInaccessibleIssue() *healthplatform.Issue {
+	log.Info("Creating Docker socket inaccessible issue")
+	issue := &healthplatform.Issue{
+		ID:                 IssueIDDockerSocketInaccessible,
+		IssueName:          "docker_socket_inaccessible",
+		Title:              "Docker Socket Not Accessible",
+		Description:        fmt.Sprintf("The agent cannot access the Docker socket at %s due to permission restrictions. This prevents the agent from collecting Docker metrics and container information.", DockerSocketPath),
+		Category:           "permissions",
+		Location:           "logs-agent",
+		Severity:           "high",
+		DetectedAt:         "", // Will be filled by the platform
+		Integration:        nil,
+		Extra:              fmt.Sprintf("Docker socket %s is not accessible due to permission restrictions. The agent cannot collect Docker metrics or container information.", DockerSocketPath),
+		IntegrationFeature: "docker",
+		Remediation: &healthplatform.Remediation{
+			Summary: "Add the dd-agent user to the docker group to enable Docker socket access",
+			Steps: []healthplatform.RemediationStep{
+				{Order: 1, Text: "Add the dd-agent user to the docker group: usermod -aG docker dd-agent"},
+				{Order: 2, Text: "Verify the user was added to the docker group: groups dd-agent"},
+				{Order: 3, Text: "Restart the datadog-agent service: systemctl restart datadog-agent"},
+				{Order: 4, Text: "Verify Docker socket access by checking agent logs"},
+			},
+			Script: &healthplatform.Script{
+				Language:     "bash",
+				Filename:     "fix_docker_socket_access.sh",
+				RequiresRoot: true,
+				Content:      "usermod -aG docker dd-agent && systemctl restart datadog-agent",
+			},
+		},
+		Tags: []string{"docker", "socket", "permissions", "access-control", "metrics"},
+	}
+	log.Infof("Created Docker socket inaccessible issue with ID: %s", issue.ID)
+	return issue
 }
 
 // checkDockerFileTailing checks if Docker file tailing is disabled due to permission issues
