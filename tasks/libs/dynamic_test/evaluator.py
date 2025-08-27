@@ -332,7 +332,7 @@ This indicates an issue with the dynamic test system that may affect CI performa
     def _evaluate_job(
         self, job: str, current_job_tests: list[ExecutedTest], predicted_tests: set[str]
     ) -> EvaluationResult:
-        # Only consider indexed tests, other tests are test the system is currently not able to determine whether they should be executed or not.
+        # Only consider indexed tests, the system is currently not able to determine whether other tests should be executed or not.
         indexed_tests = self.index.get_indexed_tests_for_job(job)
         actual_executed_tests = {test.name for test in current_job_tests if test.name in indexed_tests}
         predicted_executed_tests = predicted_tests & indexed_tests
@@ -381,13 +381,13 @@ class DatadogDynTestEvaluator(DynTestEvaluator):
             - Sets unreliable_status=True for tests marked as flaky by Datadog
             - Queries up to 3 days of historical data
         """
-        response = get_ci_test_events(
+        events = get_ci_test_events(
             f'@ci.pipeline.name:DataDog/datadog-agent @ci.pipeline.id:{self.pipeline_id} @ci.job.name:"{job_name.replace('"', '\\"')}"',
             3,
         )
 
         tests: list[ExecutedTest] = []
-        for item in response.get("data", []):
+        for item in events:
             attrs = item.get("attributes", {})
             attrs = attrs.get("attributes", {})
             test_attrs = attrs.get("test", {})
