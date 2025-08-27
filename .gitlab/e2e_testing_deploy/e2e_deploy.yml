@@ -295,4 +295,4 @@ deploy_macos_testing_x64-a7:
       fi
       dmg_src=$(ls -1 "$OMNIBUS_PACKAGE_DIR"/datadog-agent-7.*.dmg 2>/dev/null)
       echo "Found single DMG file: $dmg_src"
-      $S3_CP_CMD "$dmg_src" "s3://$MACOS_S3_BUCKET/ci/datadog-agent/pipeline-$CI_PIPELINE_ID/datadog-agent-7-latest.dmg"
+      $S3_CP_CMD --acl public-read "$dmg_src" "s3://$MACOS_S3_BUCKET/ci/datadog-agent/pipeline-$CI_PIPELINE_ID/datadog-agent-7-latest.dmg"
