@@ -577,18 +577,16 @@ static __always_inline bool pktbuf_find_relevant_frames(pktbuf_t pkt, http2_tail
         is_data_end_of_stream = ((current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) && (current_frame.type == kDataFrame);
         if (iteration_value->frames_count < HTTP2_MAX_FRAMES_ITERATIONS) {
             if (is_headers_or_rst_frame || is_data_end_of_stream) {
-                iteration_value->frames_array[iteration_value->frames_count].frame = current_frame;
+                // Skip HEADERS frames that are PRIORITY-only (no actual header data)
+                bool skip_priority_only = (current_frame.type == kHeadersFrame && 
+                                         (current_frame.flags & HTTP2_PRIORITY_FLAG) && 
+                                         current_frame.length <= HTTP2_PRIORITY_BUFFER_LEN);
                 
-                // For HEADERS frames with PRIORITY flag, offset should point to header data, not PRIORITY section
-                __u32 frame_offset = pktbuf_data_offset(pkt);
-                if (current_frame.type == kHeadersFrame && 
-                    (current_frame.flags & HTTP2_PRIORITY_FLAG) && 
-                    current_frame.length > HTTP2_PRIORITY_BUFFER_LEN) {
-                    frame_offset += HTTP2_PRIORITY_BUFFER_LEN;
+                if (!skip_priority_only) {
+                    iteration_value->frames_array[iteration_value->frames_count].frame = current_frame;
+                    iteration_value->frames_array[iteration_value->frames_count].offset = pktbuf_data_offset(pkt);
+                    iteration_value->frames_count++;
                 }
-                
-                iteration_value->frames_array[iteration_value->frames_count].offset = frame_offset;
-                iteration_value->frames_count++;
             } else if (current_frame.type == kContinuationFrame) {
                 __sync_fetch_and_add(&http2_tel->continuation_frames, 1);
             }
