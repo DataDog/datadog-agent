@@ -101,11 +101,11 @@ single-machine-performance-regression_detector:
   script:
     # `datadog-ci` relies on `DATADOG_API_KEY` so we get that here.
     - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
-    # Start by tagging the failure mode as `unknown`. At each smp command we will catch any failure exit codes and update this tag properly.
+    # Start by tagging the failure mode as `timeout`. At each smp command we will catch any failure exit codes and update this tag properly.
     # If we successfully get to the end of the script with no failures we will update the `smp_failure_mode` tag to `none` to convey this.
-    # Note, we cannot apply a tag for timeouts with this approach. In order to identify jobs failed by timing out you can filter by error type or duration.
-    # Note, in situations where the job times out the value of `smp_failure_mode` tag will be `unknown`.
-    - datadog-ci tag --level job --tags smp_failure_mode:"unknown"
+    #
+    # Note, in situations where the job times out, this initial value is visible, hence why it defaults to `timeout`
+    - datadog-ci tag --level job --tags smp_failure_mode:"timeout"
     # Ensure output files exist for artifact downloads step
     - mkdir outputs # Also needed for smp job sync step
     # Setup AWS credentials for single-machine-performance AWS account
