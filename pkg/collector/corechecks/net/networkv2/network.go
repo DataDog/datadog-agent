@@ -501,7 +501,7 @@ func getEthtoolMetrics(driverName string, statsMap map[string]uint64) map[string
 				// we already guard against parsing unsupported NICs
 				queueMetrics := ethtoolMetricNames[driverName]
 				// skip queues metrics we don't support for the NIC
-				if !slices.Contains(queueMetrics, statName) {
+				if !slices.Contains(queueMetrics, newKey) {
 					continue
 				}
 			}
