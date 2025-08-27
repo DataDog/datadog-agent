@@ -2439,26 +2439,32 @@ func newProbe(
 	}
 	segments := []ir.TemplateSegment{}
 	probeTemplate := probeCfg.GetTemplate()
-	for seg := range probeTemplate.GetSegments() {
-		switch s := seg.(type) {
-		case rcjson.StringSegment:
-			segments = append(segments, ir.StringSegment{Value: s.GetString()})
-		case rcjson.JSONSegment:
-			segments = append(segments, ir.JSONSegment{
-				JSON:                       s.GetJSON(),
-				DSL:                        s.GetDSL(),
-				RootTypeExpressionIndicies: make(map[ir.TypeID]int),
-			})
-		default:
-			return nil, ir.Issue{
-				Kind:    ir.IssueKindInvalidProbeDefinition,
-				Message: fmt.Sprintf("invalid template segment: %T", seg),
-			}, nil
+	if probeTemplate != nil {
+		for seg := range probeTemplate.GetSegments() {
+			switch s := seg.(type) {
+			case rcjson.StringSegment:
+				segments = append(segments, ir.StringSegment{Value: s.GetString()})
+			case rcjson.JSONSegment:
+				segments = append(segments, ir.JSONSegment{
+					JSON:                       s.GetJSON(),
+					DSL:                        s.GetDSL(),
+					RootTypeExpressionIndicies: make(map[ir.TypeID]int),
+				})
+			default:
+				return nil, ir.Issue{
+					Kind:    ir.IssueKindInvalidProbeDefinition,
+					Message: fmt.Sprintf("invalid template segment: %T", seg),
+				}, nil
+			}
 		}
 	}
 
+	var templateString string
+	if probeTemplate != nil {
+		templateString = probeTemplate.GetTemplateString()
+	}
 	template := &ir.Template{
-		TemplateString: probeCfg.GetTemplate().GetTemplateString(),
+		TemplateString: templateString,
 		Segments:       segments,
 	}
 	probe := &ir.Probe{
