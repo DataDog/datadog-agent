@@ -9,6 +9,7 @@ from invoke.context import Context
 
 from tasks.kernel_matrix_testing.compiler import CompilerImage
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
+from tasks.kernel_matrix_testing.vars import AWS_ACCOUNT
 from tasks.libs.common.status import Status
 from tasks.libs.common.utils import get_repo_root, is_installed
 from tasks.libs.types.arch import Arch
@@ -28,6 +29,7 @@ def get_requirements() -> list[Requirement]:
         KMTSSHKey(),
         Compiler(),
         Docker(),
+        AWSConfig(),
     ]
 
 
@@ -317,3 +319,19 @@ class Compiler(Requirement):
             return RequirementState(Status.FAIL, "Compiler has not been correctly prepared.", fixable=True)
 
         return RequirementState(Status.OK, "Compiler is running.")
+
+
+class AWSConfig(Requirement):
+    def check(self, ctx: Context, fix: bool) -> RequirementState:
+        aws_config = Path("~/.aws/config").expanduser()
+        if not aws_config.exists():
+            return RequirementState(Status.FAIL, "AWS config not found.")
+
+        profile_header = f"[profile {AWS_ACCOUNT}]"
+        if profile_header not in aws_config.read_text():
+            return RequirementState(
+                Status.FAIL,
+                f"AWS config for account {AWS_ACCOUNT} not found. Check https://datadoghq.atlassian.net/wiki/spaces/ENG/pages/2498068557/AWS+SSO+Getting+Started to setup your AWS config.",
+            )
+
+        return RequirementState(Status.OK, "AWS config is set up.")
