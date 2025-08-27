@@ -6,9 +6,8 @@
 package types
 
 import (
+	"encoding/json"
 	"fmt"
-
-	jsoniter "github.com/json-iterator/go"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/utils"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions"
@@ -50,7 +49,6 @@ func (task *Task) Validate() error {
 
 func ExtractInputs[T any](task *Task) (T, error) {
 	var res T
-	var json = jsoniter.ConfigCompatibleWithStandardLibrary
 	jsonInputs, err := json.Marshal(task.Data.Attributes.Inputs)
 	if err != nil {
 		return res, fmt.Errorf("error marshaling inputs to JSON: %w, inputs: %v", err, task.Data.Attributes.Inputs)
