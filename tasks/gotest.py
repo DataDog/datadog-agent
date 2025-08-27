@@ -40,7 +40,7 @@ from tasks.libs.testing.result_json import ActionType, ResultJson
 from tasks.modules import GoModule, get_module_by_path
 from tasks.test_core import DEFAULT_TEST_OUTPUT_JSON, TestResult, process_input_args, process_result
 from tasks.testwasher import TestWasher
-from tasks.update_go import PATTERN_MAJOR_MINOR_BUGFIX, update_file
+from tasks.update_go import PATTERN_MAJOR_MINOR, PATTERN_MAJOR_MINOR_BUGFIX, update_file
 
 WINDOWS_MAX_PACKAGES_NUMBER = 150
 WINDOWS_MAX_CLI_LENGTH = 8000  # Windows has a max command line length of 8192 characters
@@ -48,6 +48,10 @@ TRIGGER_ALL_TESTS_PATHS = ["tasks/gotest.py", "tasks/build_tags.py", ".gitlab/so
 # TODO(songy23): contrib and OCB versions do not match in 0.122. Revert this once 0.123 is released
 OTEL_UPSTREAM_GO_MOD_PATH = (
     "https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector-contrib/v0.123.0/go.mod"
+)
+# TODO(jackgopack4): move back to OCB_VERSION match once collector v0.133.0 with go 1.24 is used in datadog-agent
+OTEL_UPSTREAM_GO_MOD_PATH_MAIN = (
+    "https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector-contrib/refs/heads/main/go.mod"
 )
 
 
@@ -941,30 +945,79 @@ def check_otel_build(ctx):
 
 @task
 def check_otel_module_versions(ctx, fix=False):
-    pattern = f"^go {PATTERN_MAJOR_MINOR_BUGFIX}\r?$"
-    r = requests.get(OTEL_UPSTREAM_GO_MOD_PATH)
-    matches = re.findall(pattern, r.text, flags=re.MULTILINE)
-    if len(matches) != 1:
-        raise Exit(f"Error parsing upstream go.mod version: {OTEL_UPSTREAM_GO_MOD_PATH}")
-    upstream_version = matches[0]
+    # Get allowed upstream versions from both sources
+    allowed_versions = []
+
+    # Try to get go version from the first upstream (v0.123.0 with bugfix pattern)
+    try:
+        r = requests.get(OTEL_UPSTREAM_GO_MOD_PATH)
+        r.raise_for_status()
+        bugfix_pattern = f"^go {PATTERN_MAJOR_MINOR_BUGFIX}\r?$"
+        matches = re.findall(bugfix_pattern, r.text, flags=re.MULTILINE)
+        if len(matches) == 1:
+            allowed_versions.append(matches[0])
+            print(f"Found upstream go version: {matches[0]} from {OTEL_UPSTREAM_GO_MOD_PATH}")
+    except Exception as e:
+        print(f"Warning: Could not fetch upstream go.mod from {OTEL_UPSTREAM_GO_MOD_PATH}: {e}")
+
+    # Try to get go version from the second upstream (main branch with major.minor pattern)
+    try:
+        r = requests.get(OTEL_UPSTREAM_GO_MOD_PATH_MAIN)
+        r.raise_for_status()
+        major_minor_pattern = f"^go {PATTERN_MAJOR_MINOR}\r?$"
+        matches = re.findall(major_minor_pattern, r.text, flags=re.MULTILINE)
+        if len(matches) == 1:
+            allowed_versions.append(matches[0])
+            print(f"Found upstream go version: {matches[0]} from {OTEL_UPSTREAM_GO_MOD_PATH_MAIN}")
+    except Exception as e:
+        print(f"Warning: Could not fetch upstream go.mod from {OTEL_UPSTREAM_GO_MOD_PATH_MAIN}: {e}")
+
+    # If no upstream versions could be determined, raise an error
+    if not allowed_versions:
+        raise Exit("Error: Could not determine go version from either upstream source")
+
+    print(f"Allowed upstream go versions: {allowed_versions}")
 
     for path, module in get_default_modules().items():
         if module.used_by_otel:
             mod_file = f"./{path}/go.mod"
             with open(mod_file, newline='', encoding='utf-8') as reader:
                 content = reader.read()
-                matches = re.findall(pattern, content, flags=re.MULTILINE)
-                if len(matches) != 1:
-                    raise Exit(f"{mod_file} does not match expected go directive format")
-                if matches[0] != upstream_version:
+
+                # Try to match with both patterns to find the current version format
+                bugfix_pattern = f"^go {PATTERN_MAJOR_MINOR_BUGFIX}\r?$"
+                major_minor_pattern = f"^go {PATTERN_MAJOR_MINOR}\r?$"
+
+                bugfix_matches = re.findall(bugfix_pattern, content, flags=re.MULTILINE)
+                major_minor_matches = re.findall(major_minor_pattern, content, flags=re.MULTILINE)
+
+                current_version = None
+                current_pattern = None
+
+                if len(bugfix_matches) == 1:
+                    current_version = bugfix_matches[0]
+                    current_pattern = bugfix_pattern
+                elif len(major_minor_matches) == 1:
+                    current_version = major_minor_matches[0]
+                    current_pattern = major_minor_pattern
+                else:
+                    raise Exit(
+                        f"{mod_file} does not match expected go directive format (neither major.minor.bugfix nor major.minor)"
+                    )
+
+                # Check if current version matches any of the allowed upstream versions
+                if current_version not in allowed_versions:
                     if fix:
+                        # Use the first allowed version for fixing
+                        target_version = allowed_versions[0]
                         update_file(
                             True,
                             mod_file,
-                            f"^go {PATTERN_MAJOR_MINOR_BUGFIX}\r?$",
-                            f"go {upstream_version}",
+                            current_pattern,
+                            f"go {target_version}",
                         )
+                        print(f"Updated {mod_file} from {current_version} to {target_version}")
                     else:
                         raise Exit(
-                            f"{mod_file} version {matches[0]} does not match upstream version: {upstream_version}"
+                            f"{mod_file} version {current_version} does not match any allowed upstream versions: {allowed_versions}"
                         )
