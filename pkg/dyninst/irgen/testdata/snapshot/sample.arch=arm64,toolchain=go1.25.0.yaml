@@ -321,7 +321,7 @@ Probes:
       events:
         - ID: 111
           Type: 1271 EventRootType Probe[main.testEmptyStruct]
-          InjectionPoints: [{PC: "0x80a320", Frameless: true}]
+          InjectionPoints: [{PC: "0x80a310", Frameless: true}]
           Condition: null
     - id: testEmptyStructPointer
       version: 0
@@ -334,7 +334,7 @@ Probes:
       events:
         - ID: 112
           Type: 1272 EventRootType Probe[main.testEmptyStructPointer]
-          InjectionPoints: [{PC: "0x80a330", Frameless: true}]
+          InjectionPoints: [{PC: "0x80a320", Frameless: true}]
           Condition: null
     - id: testError
       version: 0
@@ -1142,8 +1142,9 @@ Probes:
       type: LOG_PROBE
       where: {methodName: main.testSingleInt16}
       tags: ['foo:bar']
+      message: hello {x}
       template: ""
-      segments: []
+      segments: [hello, {json: null, dsl: x}]
       captureSnapshot: true
       subprogram: {subprogram: 24}
       events:
@@ -1184,8 +1185,9 @@ Probes:
       type: LOG_PROBE
       where: {methodName: main.testSingleInt8}
       tags: ['foo:bar']
+      message: hello {x}
       template: ""
-      segments: []
+      segments: [hello, {json: null, dsl: x}]
       captureSnapshot: true
       subprogram: {subprogram: 23}
       events:
@@ -1401,7 +1403,7 @@ Probes:
       events:
         - ID: 110
           Type: 1270 EventRootType Probe[main.testStruct]
-          InjectionPoints: [{PC: "0x80a250", Frameless: true}]
+          InjectionPoints: [{PC: "0x80a240", Frameless: true}]
           Condition: null
     - id: testStructSlice
       version: 0
@@ -3293,13 +3295,13 @@ Subprograms:
           IsReturn: false
     - ID: 107
       Name: main.testStruct
-      OutOfLinePCRanges: [0x80a250..0x80a270]
+      OutOfLinePCRanges: [0x80a240..0x80a260]
       InlinePCRanges: []
       Variables:
         - Name: x
           Type: 244 StructureType main.aStruct
           Locations:
-            - Range: 0x80a250..0x80a270
+            - Range: 0x80a240..0x80a260
               Pieces:
                 - Size: 1
                   Op: {RegNo: 0, Shift: 0}
@@ -3319,23 +3321,23 @@ Subprograms:
           IsReturn: false
     - ID: 108
       Name: main.testEmptyStruct
-      OutOfLinePCRanges: [0x80a320..0x80a330]
+      OutOfLinePCRanges: [0x80a310..0x80a320]
       InlinePCRanges: []
       Variables:
         - Name: e
           Type: 246 StructureType main.emptyStruct
-          Locations: [{Range: 0x80a320..0x80a330, Pieces: []}]
+          Locations: [{Range: 0x80a310..0x80a320, Pieces: []}]
           IsParameter: true
           IsReturn: false
     - ID: 109
       Name: main.testEmptyStructPointer
-      OutOfLinePCRanges: [0x80a330..0x80a340]
+      OutOfLinePCRanges: [0x80a320..0x80a330]
       InlinePCRanges: []
       Variables:
         - Name: e
           Type: 247 PointerType *main.emptyStruct
           Locations:
-            - Range: 0x80a330..0x80a340
+            - Range: 0x80a320..0x80a330
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           IsParameter: true
           IsReturn: false

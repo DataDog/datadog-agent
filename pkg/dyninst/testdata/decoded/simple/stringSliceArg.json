@@ -48,26 +48,15 @@
               "s": {
                 "type": "[]string",
                 "size": "3",
-                "elements": [
-                  {
-                    "type": "string",
-                    "value": "a"
-                  },
-                  {
-                    "type": "string",
-                    "value": "b"
-                  },
-                  {
-                    "type": "string",
-                    "value": "c"
-                  }
-                ]
+                "elements": [],
+                "notCapturedReason": "collectionSize"
               }
             }
           }
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": ""
   }
 ]

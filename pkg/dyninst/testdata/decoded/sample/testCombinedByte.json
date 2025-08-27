@@ -58,15 +58,14 @@
                 "type": "uint8",
                 "value": "3"
               },
-              "y": {
-                "type": "float32",
-                "notCapturedReason": "unavailable"
-              }
+              "type": "float32",
+              "notCapturedReason": "unavailable"
             }
           }
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": ""
   }
 ]

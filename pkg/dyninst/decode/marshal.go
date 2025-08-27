@@ -8,7 +8,9 @@
 package decode
 
 import (
+	"bytes"
 	"errors"
+	"fmt"
 
 	"github.com/go-json-experiment/json"
 	"github.com/go-json-experiment/json/jsontext"
@@ -30,6 +32,35 @@ type logger struct {
 type debuggerData struct {
 	Snapshot         snapshotData `json:"snapshot"`
 	EvaluationErrors []string     `json:"evaluationErrors,omitempty"`
+}
+
+type message struct {
+	probe         *ir.Probe
+	argumentsData *argumentsData
+}
+
+func (m *message) MarshalJSONTo(enc *jsontext.Encoder) error {
+	b := bytes.NewBuffer([]byte{})
+	strEnc := jsontext.NewEncoder(b)
+
+	// Go through each template segment, if its a string, write it directly to the encoder, if its a json segment, process the expression
+	// and write the result to the encoder.
+	for _, seg := range m.probe.TemplateSegments {
+		switch segTyped := seg.(type) {
+		case ir.JSONSegment:
+			err := m.argumentsData.processExpressionValue(strEnc, m.argumentsData.rootType.Expressions[segTyped.Index], m.argumentsData.rootData, segTyped.Index)
+			if err != nil {
+				return err
+			}
+		case ir.StringSegment:
+			if err := writeTokens(strEnc, jsontext.String(segTyped.Value)); err != nil {
+				return err
+			}
+		default:
+			return fmt.Errorf("unsupported segment type: %T", seg)
+		}
+	}
+	return enc.WriteToken(jsontext.String(b.String()))
 }
 
 type snapshotData struct {
@@ -169,6 +200,49 @@ func (ad *argumentsData) processExpression(
 	return nil
 }
 
+func (ad *argumentsData) processExpressionValue(
+	enc *jsontext.Encoder,
+	expr *ir.RootExpression,
+	presenceBitSet []byte,
+	expressionIndex int,
+) error {
+	parameterType := expr.Expression.Type
+	parameterSize := parameterType.GetByteSize()
+	ub := expr.Offset + parameterSize
+	if int(ub) > len(ad.rootData) {
+		*ad.evaluationErrors = append(*ad.evaluationErrors, "could not read parameter data from root data, length mismatch")
+		return errEvaluation
+	}
+	parameterData := ad.rootData[expr.Offset:ub]
+	if err := writeTokens(enc, jsontext.String(expr.Name)); err != nil {
+		return err
+	}
+	if !expressionIsPresent(presenceBitSet, expressionIndex) && parameterSize != 0 {
+		// Set not capture reason
+		if err := writeTokens(enc,
+			jsontext.BeginObject,
+			jsontext.String("type"),
+			jsontext.String(parameterType.GetName()),
+			tokenNotCapturedReason,
+			tokenNotCapturedReasonUnavailable,
+			jsontext.EndObject,
+		); err != nil {
+			return err
+		}
+		return nil
+	}
+	decoderType, ok := ad.decoder.decoderTypes[parameterType.GetID()]
+	if !ok {
+		return fmt.Errorf("no decoder type found for type %s", parameterType.GetName())
+	}
+	err := decoderType.encodeValueFields(ad.decoder, enc, parameterData)
+	if err != nil {
+		*ad.evaluationErrors = append(*ad.evaluationErrors, ad.rootType.Name+err.Error())
+		return errEvaluation
+	}
+	return nil
+}
+
 func (ad *argumentsData) MarshalJSONTo(enc *jsontext.Encoder) error {
 	if err := writeTokens(enc, jsontext.BeginObject); err != nil {
 		return err
@@ -181,21 +255,39 @@ func (ad *argumentsData) MarshalJSONTo(enc *jsontext.Encoder) error {
 	// We iterate over the 'Expressions' of the EventRoot which contains
 	// metadata and raw bytes of the parameters of this function.
 	for i, expr := range ad.rootType.Expressions {
-		if isSkipped(ad.skipIndicies, i) {
-			continue
-		}
-		if err := ad.processExpression(enc, expr, presenceBitSet, i); errors.Is(err, errEvaluation) {
-			// This expression resulted in an evaluation error, we mark it to be skipped
-			// and will try again
-			setSkipped(ad.skipIndicies, i)
-			return err
-		} else if err != nil {
-			return err
+		if !isSkipped(ad.skipIndicies, i) {
+			parameterType := expr.Expression.Type
+			parameterSize := parameterType.GetByteSize()
+			ub := expr.Offset + parameterSize
+			if int(ub) > len(ad.rootData) {
+				return fmt.Errorf("expression %s is out of bounds", expr.Name)
+			}
+			if !expressionIsPresent(presenceBitSet, i) && parameterSize != 0 {
+				// Set not capture reason
+				if err := writeTokens(enc,
+					jsontext.String("type"),
+					jsontext.String(parameterType.GetName()),
+					tokenNotCapturedReason,
+					tokenNotCapturedReasonUnavailable,
+				); err != nil {
+					return err
+				}
+				continue
+			}
+			if err := ad.processExpression(enc, expr, presenceBitSet, i); errors.Is(err, errEvaluation) {
+				// This expression resulted in an evaluation error, we mark it to be skipped
+				// and will try again
+				setSkipped(ad.skipIndicies, i)
+				return errEvaluation
+			} else if err != nil {
+				return err
+			}
 		}
 	}
 	if err := writeTokens(enc, jsontext.EndObject); err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -227,14 +319,15 @@ func (sd *stackData) MarshalJSONTo(enc *jsontext.Encoder) error {
 type stackLine gosym.GoLocation
 
 func (sl *stackLine) MarshalJSONTo(enc *jsontext.Encoder) error {
+	goLoc := (*gosym.GoLocation)(sl)
 	if err := writeTokens(enc,
 		jsontext.BeginObject,
 		jsontext.String("function"),
-		jsontext.String(sl.Function),
+		jsontext.String(goLoc.Function),
 		jsontext.String("fileName"),
-		jsontext.String(sl.File),
+		jsontext.String(goLoc.File),
 		jsontext.String("lineNumber"),
-		jsontext.Int(int64(sl.Line)),
+		jsontext.Int(int64(goLoc.Line)),
 		jsontext.EndObject,
 	); err != nil {
 		return err

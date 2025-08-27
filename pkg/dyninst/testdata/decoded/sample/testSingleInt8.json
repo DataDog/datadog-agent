@@ -59,6 +59,7 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "\"hello\"\n\"x\"\n{\"type\":\"int8\",\"value\":\"-8\"}\n"
   }
 ]
