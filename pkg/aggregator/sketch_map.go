@@ -8,9 +8,10 @@ package aggregator
 import (
 	"math"
 
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/quantile"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/quantile"
 )
 
 type sketchMap map[int64]map[ckey.ContextKey]*quantile.Agent
@@ -44,8 +45,9 @@ func (m sketchMap) insertInterp(ts int64, ck ckey.ContextKey, lower float64, upp
 		return false
 	}
 
-	m.getOrCreate(ts, ck).InsertInterpolate(lower, upper, count)
-	return true
+	// Use the error to indicate whether the insertion happened.
+	err := m.getOrCreate(ts, ck).InsertInterpolate(lower, upper, count)
+	return err == nil
 }
 
 func (m sketchMap) getOrCreate(ts int64, ck ckey.ContextKey) *quantile.Agent {
