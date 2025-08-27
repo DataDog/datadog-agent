@@ -2611,6 +2611,7 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "<map[uint8]uint8>"
   }
 ]

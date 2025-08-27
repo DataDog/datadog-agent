@@ -76,7 +76,8 @@
       }
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "<interface {}>"
   },
   {
     "service": "sample",
@@ -157,7 +158,8 @@
       }
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "<interface {}>"
   },
   {
     "service": "sample",
@@ -240,6 +242,7 @@
       }
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "<interface {}>"
   }
 ]

@@ -7,3 +7,5 @@ probes:
     captureSnapshot: true
     capture:
       maxReferenceDepth: 1
+    template: ""
+    segments:
