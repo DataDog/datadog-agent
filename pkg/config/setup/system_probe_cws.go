@@ -88,6 +88,7 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.use_v2_collector", true)
 
 	// CWS - Security Profiles
+	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.v2.enabled", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.enabled", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.max_image_tags", 20)
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.dir", GetDefaultSecurityProfilesDir())

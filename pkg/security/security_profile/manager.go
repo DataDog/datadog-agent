@@ -357,6 +357,70 @@ func (m *Manager) initMetricsMap() {
 	}
 }
 
+// StartV2 runs the manager
+func (m *Manager) StartV2(ctx context.Context) {
+	var sendTickerChan <-chan time.Time
+
+	if m.config.RuntimeSecurity.ActivityDumpEnabled || m.config.RuntimeSecurity.SecurityProfileEnabled {
+		sendTicker := time.NewTicker(m.config.RuntimeSecurity.ActivityDumpCgroupDumpTimeout)
+		defer sendTicker.Stop()
+		sendTickerChan = sendTicker.C
+	} else {
+		sendTickerChan = make(chan time.Time)
+	}
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	seclog.Infof("security profile manager started")
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-sendTickerChan:
+			for _, p := range m.profiles {
+				format := config.Protobuf
+				requests := m.configuredStorageRequests[format]
+
+				// encode profile
+				data, err := p.Encode(format)
+				if err != nil {
+					seclog.Errorf("couldn't encode profile [%s] to %s format: %v", p.GetSelectorStr(), format, err)
+					continue
+				}
+
+				for _, request := range requests {
+					var storage storage.ActivityDumpStorage
+					switch request.Type {
+					case config.LocalStorage:
+						storage = m.localStorage
+					case config.RemoteStorage:
+						storage = m.remoteStorage
+					default:
+						seclog.Errorf("couldn't persist [%s] to %s format: unknown storage type: %s", p.GetSelectorStr(), format, request.Type)
+						continue
+					}
+
+					if err := storage.Persist(request, p, data); err != nil {
+						seclog.Errorf("couldn't persist [%s] to %s storage: %v", p.GetSelectorStr(), request.Type, err)
+					} else {
+						tags := []string{"format:" + request.Format.String(), "storage_type:" + request.Type.String(), fmt.Sprintf("compression:%v", request.Compression)}
+						if err := m.statsdClient.Count(metrics.MetricActivityDumpSizeInBytes, int64(data.Len()), tags, 1.0); err != nil {
+							seclog.Warnf("couldn't send %s metric: %v", metrics.MetricActivityDumpSizeInBytes, err)
+						}
+						if err := m.statsdClient.Count(metrics.MetricActivityDumpPersistedDumps, 1, tags, 1.0); err != nil {
+							seclog.Warnf("couldn't send %s metric: %v", metrics.MetricActivityDumpPersistedDumps, err)
+						}
+					}
+				}
+
+				p.SetHasAlreadyBeenSent()
+			}
+		}
+	}
+}
+
 // Start runs the manager
 func (m *Manager) Start(ctx context.Context) {
 	var adCleanupTickerChan <-chan time.Time

@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -212,4 +213,9 @@ func (fh *FieldHandlers) ResolveFimFileExtension(ev *model.Event, f *model.FimFi
 		}
 	}
 	return f.Extension
+}
+
+// ResolveContainerTagsByID stub implementation
+func (fh *FieldHandlers) ResolveContainerTagsByID(ev *model.Event, id containerutils.ContainerID) []string {
+	return nil
 }

@@ -9,6 +9,7 @@
 package probe
 
 import (
+	"container/list"
 	"context"
 	"errors"
 	"fmt"
@@ -25,6 +26,7 @@ import (
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
+	"github.com/vmihailenco/msgpack/v5"
 
 	lib "github.com/cilium/ebpf"
 	"github.com/hashicorp/go-multierror"
@@ -106,6 +108,11 @@ var (
 
 var _ PlatformProbe = (*EBPFProbe)(nil)
 
+type pendingProfile struct {
+	firstSeen time.Time
+	events    *list.List
+}
+
 // EBPFProbe defines a platform probe
 type EBPFProbe struct {
 	Resolvers *resolvers.EBPFResolvers
@@ -170,7 +177,7 @@ type EBPFProbe struct {
 	useMmapableMaps    bool
 	cgroup2MountPath   string
 
-	// On demand1
+	// On demand
 	onDemandManager     *OnDemandProbesManager
 	onDemandRateLimiter *rate.Limiter
 
@@ -189,6 +196,13 @@ type EBPFProbe struct {
 
 	// PrCtl and name truncation
 	MetricNameTruncated *atomic.Uint64
+
+	// security profile v2
+	profilePendingEvents map[containerutils.CGroupID]*pendingProfile
+
+	pendingTimeout  *atomic.Uint64
+	queueSize       *atomic.Uint64
+	pendingProfiles *atomic.Uint64
 }
 
 // GetUseRingBuffers returns p.useRingBuffers
@@ -578,7 +592,12 @@ func (p *EBPFProbe) Init() error {
 		p.wg.Add(1)
 		go func() {
 			defer p.wg.Done()
-			p.profileManager.Start(p.ctx)
+
+			if p.config.RuntimeSecurity.SecurityProfileV2Enabled {
+				p.profileManager.StartV2(p.ctx)
+			} else {
+				p.profileManager.Start(p.ctx)
+			}
 		}()
 	}
 
@@ -859,17 +878,129 @@ func (p *EBPFProbe) AddActivityDumpHandler(handler backend.ActivityDumpHandler) 
 	p.activityDumpHandler = handler
 }
 
+func (p *EBPFProbe) processSecProfV2(event *model.Event) {
+	if !event.IsActivityDumpSample() {
+		return
+	}
+
+	processEvent := func(event *model.Event) {
+		if profile, inserted := p.profileManager.ProcessEventV2(event); inserted && profile.HasAlreadyBeenSent() {
+			var workloadID containerutils.WorkloadID
+			var imageTag string
+			if containerID := event.FieldHandlers.ResolveContainerID(event, event.ContainerContext); containerID != "" {
+				workloadID = containerID
+				imageTag = utils.GetTagValue("image_tag", event.ContainerContext.Tags)
+			} else if cgroupID := event.FieldHandlers.ResolveCGroupID(event, event.CGroupContext); cgroupID != "" {
+				workloadID = containerutils.CGroupID(cgroupID)
+				tags, err := p.Resolvers.TagsResolver.ResolveWithErr(workloadID)
+				if err != nil {
+					seclog.Errorf("failed to resolve tags for cgroup %s: %v", workloadID, err)
+					return
+				}
+				imageTag = utils.GetTagValue("version", tags)
+			}
+
+			if workloadID != nil {
+				p.profileManager.FillProfileContextFromWorkloadID(workloadID, &event.SecurityProfileContext, imageTag)
+			}
+
+			if p.config.RuntimeSecurity.AnomalyDetectionEnabled {
+				p.sendAnomalyDetection(event)
+			}
+		}
+	}
+
+	// purge silent cgroups
+	for cgroupID, pendingEvents := range p.profilePendingEvents {
+		if event.Timestamp.Sub(pendingEvents.firstSeen) > 60*time.Second {
+			delete(p.profilePendingEvents, cgroupID)
+			p.pendingProfiles.Dec()
+		}
+	}
+
+	pendingEvents := p.profilePendingEvents[event.CGroupContext.CGroupID]
+
+	// tags already resolved, no need to queue the event
+	event.FieldHandlers.ResolveContainerTags(event, event.ContainerContext)
+	if len(event.ContainerContext.Tags) != 0 {
+		// dequeue the events
+		if pendingEvents != nil {
+
+			l := pendingEvents.events.Len()
+			for e := pendingEvents.events.Front(); e != nil; e = e.Next() {
+				processEvent(e.Value.(*model.Event))
+				l--
+			}
+			p.queueSize.Sub(uint64(l))
+
+			delete(p.profilePendingEvents, event.CGroupContext.CGroupID)
+		}
+
+		processEvent(event)
+
+		return
+	}
+
+	if pendingEvents == nil {
+		pendingEvents = &pendingProfile{
+			firstSeen: event.Timestamp,
+			events:    list.New(),
+		}
+		p.profilePendingEvents[event.CGroupContext.CGroupID] = pendingEvents
+
+		p.pendingProfiles.Inc()
+	}
+
+	event.ResolveEventTime()
+
+	if event.Timestamp.Sub(pendingEvents.firstSeen) > 10*time.Second {
+		// ignore the event, it is already too late.
+		// keep the pending struct entry a bit to avoid reintroducing late events in the queue
+
+		if pendingEvents.events.Len() > 0 {
+			pendingEvents.events.Init()
+			p.pendingTimeout.Inc()
+		}
+		return
+	}
+
+	// resolve the fields to prepare the copy, required to put the event in the queue
+	event.ResolveFieldsForAD()
+
+	// marshal the event in JSON
+	data, err := msgpack.Marshal(event)
+	if err != nil {
+		return
+	}
+
+	// unmarshal the event
+	var cpy model.Event
+	if err := msgpack.Unmarshal(data, &cpy); err != nil {
+		return
+	}
+
+	pendingEvents.events.PushBack(cpy)
+
+	p.queueSize.Inc()
+}
+
 // DispatchEvent sends an event to the probe event handler
 func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 	logTraceEvent(event.GetEventType(), event)
 
 	// filter out event if already present on a profile
-	p.profileManager.LookupEventInProfiles(event)
+	if !p.config.RuntimeSecurity.SecurityProfileV2Enabled {
+		p.profileManager.LookupEventInProfiles(event)
 
-	// mark the events that have an associated activity dump
-	// this is needed for auto suppressions performed by the CWS rule engine
-	if p.profileManager.HasActiveActivityDump(event) {
-		event.AddToFlags(model.EventFlagsHasActiveActivityDump)
+		// mark the events that have an associated activity dump
+		// this is needed for auto suppressions performed by the CWS rule engine
+		if p.profileManager.HasActiveActivityDump(event) {
+			event.AddToFlags(model.EventFlagsHasActiveActivityDump)
+		}
+	} else {
+		if event.Error == nil {
+			p.processSecProfV2(event)
+		}
 	}
 
 	// send event to wildcard handlers, like the CWS rule engine, first
@@ -881,32 +1012,31 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 	}
 
 	// handle anomaly detections
-	if event.IsAnomalyDetectionEvent() {
-		var workloadID containerutils.WorkloadID
-		var imageTag string
-		if containerID := event.FieldHandlers.ResolveContainerID(event, event.ContainerContext); containerID != "" {
-			workloadID = containerID
-			imageTag = utils.GetTagValue("image_tag", event.ContainerContext.Tags)
-		} else if cgroupID := event.FieldHandlers.ResolveCGroupID(event, event.CGroupContext); cgroupID != "" {
-			workloadID = containerutils.CGroupID(cgroupID)
-			tags, err := p.Resolvers.TagsResolver.ResolveWithErr(workloadID)
-			if err != nil {
-				seclog.Errorf("failed to resolve tags for cgroup %s: %v", workloadID, err)
-				return
+	if !p.config.RuntimeSecurity.SecurityProfileV2Enabled {
+		if event.IsAnomalyDetectionEvent() {
+			var workloadID containerutils.WorkloadID
+			var imageTag string
+			if containerID := event.FieldHandlers.ResolveContainerID(event, event.ContainerContext); containerID != "" {
+				workloadID = containerID
+				imageTag = utils.GetTagValue("image_tag", event.ContainerContext.Tags)
+			} else if cgroupID := event.FieldHandlers.ResolveCGroupID(event, event.CGroupContext); cgroupID != "" {
+				workloadID = containerutils.CGroupID(cgroupID)
+				tags, err := p.Resolvers.TagsResolver.ResolveWithErr(workloadID)
+				if err != nil {
+					seclog.Errorf("failed to resolve tags for cgroup %s: %v", workloadID, err)
+					return
+				}
+				imageTag = utils.GetTagValue("version", tags)
 			}
-			imageTag = utils.GetTagValue("version", tags)
-		}
 
-		if workloadID != nil {
-			p.profileManager.FillProfileContextFromWorkloadID(workloadID, &event.SecurityProfileContext, imageTag)
-		}
+			if workloadID != nil {
+				p.profileManager.FillProfileContextFromWorkloadID(workloadID, &event.SecurityProfileContext, imageTag)
+			}
 
-		if p.config.RuntimeSecurity.AnomalyDetectionEnabled {
-			p.sendAnomalyDetection(event)
+			if p.config.RuntimeSecurity.AnomalyDetectionEnabled {
+				p.sendAnomalyDetection(event)
+			}
 		}
-	} else if event.Error == nil {
-		// Process event after evaluation because some monitors need the DentryResolver to have been called first.
-		p.profileManager.ProcessEvent(event)
 	}
 	p.monitors.ProcessEvent(event)
 }
@@ -928,6 +1058,21 @@ func (p *EBPFProbe) SendStats() error {
 
 	valueNameTruncated := p.MetricNameTruncated.Swap(0)
 	if err := p.statsdClient.Count(metrics.MetricNameTruncated, int64(valueNameTruncated), []string{}, 1.0); err != nil {
+		return err
+	}
+
+	valuePendingTimeout := p.pendingTimeout.Swap(0)
+	if err := p.statsdClient.Count(metrics.MetricSecurityProfileV2TagResolutionTimeout, int64(valuePendingTimeout), []string{}, 1.0); err != nil {
+		return err
+	}
+
+	valuePendingProfiles := p.pendingProfiles.Load()
+	if err := p.statsdClient.Gauge(metrics.MetricSecurityProfileV2ProfilePending, float64(valuePendingProfiles), []string{}, 1.0); err != nil {
+		return err
+	}
+
+	valueQueueSize := p.queueSize.Load()
+	if err := p.statsdClient.Gauge(metrics.MetricSecurityProfileV2QueueSize, float64(valueQueueSize), []string{}, 1.0); err != nil {
 		return err
 	}
 
@@ -2840,6 +2985,10 @@ func NewEBPFProbe(probe *Probe, config *config.Config, ipc ipc.Component, opts O
 		ipc:                  ipc,
 		BPFFilterTruncated:   atomic.NewUint64(0),
 		MetricNameTruncated:  atomic.NewUint64(0),
+		profilePendingEvents: make(map[containerutils.CGroupID]*pendingProfile),
+		pendingTimeout:       atomic.NewUint64(0),
+		queueSize:            atomic.NewUint64(0),
+		pendingProfiles:      atomic.NewUint64(0),
 	}
 
 	if err := p.detectKernelVersion(); err != nil {

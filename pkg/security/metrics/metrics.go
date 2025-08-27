@@ -597,6 +597,20 @@ var (
 	// MetricNameTruncated is the name of the metric used to report truncated name used in prctl
 	// Tags: -
 	MetricNameTruncated = newRuntimeMetric(".prctl.name_truncated")
+
+	// Security Profile V2 metrics
+
+	// MetricSecurityProfileV2QueueSize is the name of the metric used to report the size of the Security Profile V2 queue
+	// Tags: -
+	MetricSecurityProfileV2QueueSize = newRuntimeMetric(".security_profile_v2.queue_size")
+
+	// MetricSecurityProfileV2ProfilePending is the name of the metric used to report the count of Security Profiles V2 pending
+	// Tags: -
+	MetricSecurityProfileV2ProfilePending = newRuntimeMetric(".security_profile_v2.pending")
+
+	// MetricSecurityProfileV2TagResolutionTimeout is the name of the metric used to report the count of Security Profiles V2 tag resolution timeout
+	// Tags: -
+	MetricSecurityProfileV2TagResolutionTimeout = newRuntimeMetric(".security_profile_v2.tag.timeout")
 )
 
 var (
