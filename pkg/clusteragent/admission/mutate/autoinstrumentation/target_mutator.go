@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
+	"github.com/DataDog/datadog-agent/pkg/servicemonitor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -42,11 +43,13 @@ type TargetMutator struct {
 	containerRegistry             string
 	mutateUnlabelled              bool
 	defaultLibVersions            []libInfo
+	serviceMonitorUpdates         chan []servicemonitor.DatadogServiceMonitor
+	wmeta                         workloadmeta.Component
 }
 
 // NewTargetMutator creates a new mutator for target based workload selection. We convert the targets to a more
 // efficient internal format for quick lookups.
-func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolver ImageResolver) (*TargetMutator, error) {
+func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolver ImageResolver, serviceMonitorUpdates chan []servicemonitor.DatadogServiceMonitor) (*TargetMutator, error) {
 	// Determine default disabled namespaces.
 	defaultDisabled := mutatecommon.DefaultDisabledNamespaces()
 
@@ -147,14 +150,28 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolve
 
 	m := &TargetMutator{
 		enabled:                       config.Instrumentation.Enabled,
-		targets:                       internalTargets,
 		disabledNamespaces:            disabledNamespacesMap,
 		securityClientLibraryMutator:  config.securityClientLibraryMutator,
 		profilingClientLibraryMutator: config.profilingClientLibraryMutator,
 		containerRegistry:             config.containerRegistry,
 		mutateUnlabelled:              config.mutateUnlabelled,
 		defaultLibVersions:            defaultLibVersions,
+		serviceMonitorUpdates:         serviceMonitorUpdates,
+		wmeta:                         wmeta,
 	}
+
+	// Convert the targets to internal format.
+	internalTargets = make([]targetInternal, len(config.Instrumentation.Targets))
+	var err error
+	for i, t := range config.Instrumentation.Targets {
+		internalTargets[i], err = m.convertToInternalTarget(t)
+		if err != nil {
+			return nil, fmt.Errorf("could not convert target to internal target: %w", err)
+		}
+	}
+
+	m.targets = internalTargets
+	m.Run(make(chan struct{}))
 
 	// Create the core mutator. This is a bit gross.
 	// The target mutator is also the filter which we are passing in.
@@ -162,6 +179,126 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolve
 	m.core = core
 
 	return m, nil
+}
+
+func (m *TargetMutator) Run(stopCh <-chan struct{}) {
+	go func() {
+		for {
+			select {
+			case <-stopCh:
+				return
+			case serviceMonitors := <-m.serviceMonitorUpdates:
+				m.handleServiceMonitorUpdates(serviceMonitors)
+			}
+		}
+	}()
+}
+
+func (m *TargetMutator) handleServiceMonitorUpdates(serviceMonitors []servicemonitor.DatadogServiceMonitor) {
+	// Convert the service monitors to targets.
+	targets := make([]targetInternal, 0, len(serviceMonitors))
+	for _, sm := range serviceMonitors {
+		t := convertToTarget(sm)
+		internalTarget, err := m.convertToInternalTarget(t)
+		targets = append(targets, internalTarget)
+		if err != nil {
+			log.Errorf("error converting service monitor %q to internal target: %v", sm.Name, err)
+			continue
+		}
+		log.Debugf("Converted service monitor %q to internal target %q", sm.Name, targets[len(targets)-1].name)
+	}
+
+	// Update the targets.
+	m.targets = targets
+}
+
+func convertToTarget(sm servicemonitor.DatadogServiceMonitor) Target {
+	tracerConfigs := make([]TracerConfig, len(sm.Spec.TracerConfigs))
+	for i, tc := range sm.Spec.TracerConfigs {
+		tracerConfigs[i] = TracerConfig{
+			Name:  tc.Name,
+			Value: tc.Value,
+		}
+	}
+	return Target{
+		Name: sm.Name,
+		NamespaceSelector: &NamespaceSelector{
+			MatchNames:  sm.Spec.NamespaceSelector.MatchNames,
+			MatchLabels: sm.Spec.NamespaceSelector.MatchLabels,
+			// MatchExpressions: sm.Spec.NamespaceSelector.MatchExpressions,
+		},
+		PodSelector: &PodSelector{
+			MatchLabels: sm.Spec.PodSelector.MatchLabels,
+			//MatchExpressions: sm.Spec.PodSelector.MatchExpressions,
+		},
+		TracerConfigs:  tracerConfigs,
+		TracerVersions: sm.Spec.TracerVersions,
+	}
+}
+
+func (m *TargetMutator) convertToInternalTarget(t Target) (targetInternal, error) {
+	// Convert the pod selector to a label selector.
+	podSelector := labels.Everything()
+	var err error
+	if t.PodSelector != nil {
+		podSelector, err = t.PodSelector.AsLabelSelector()
+		if err != nil {
+			return targetInternal{}, fmt.Errorf("could not convert selector to label selector: %w", err)
+		}
+	}
+
+	// Determine if we should use the namespace selector or if we should use enabledNamespaces.
+	useNamespaceSelector := t.NamespaceSelector != nil && len(t.NamespaceSelector.MatchLabels)+len(t.NamespaceSelector.MatchExpressions) > 0
+
+	// Convert the namespace selector to a label selector.
+	namespaceSelector := labels.Everything()
+	if useNamespaceSelector && t.NamespaceSelector != nil {
+		namespaceSelector, err = t.NamespaceSelector.AsLabelSelector()
+		if err != nil {
+			return targetInternal{}, fmt.Errorf("could not convert selector to label selector: %w", err)
+		}
+	}
+
+	// Create a map of enabled namespaces for quick lookups.
+	var enabledNamespaces map[string]bool
+	if !useNamespaceSelector && t.NamespaceSelector != nil {
+		enabledNamespaces = make(map[string]bool, len(t.NamespaceSelector.MatchNames))
+		for _, ns := range t.NamespaceSelector.MatchNames {
+			enabledNamespaces[ns] = true
+		}
+	}
+
+	// Get the library versions to inject. If no versions are specified, we inject all libraries.
+	var libVersions []libInfo
+	if len(t.TracerVersions) == 0 {
+		libVersions = getAllLatestDefaultLibraries(m.containerRegistry)
+	} else {
+		libVersions = getPinnedLibraries(t.TracerVersions, m.containerRegistry, false).libs
+	}
+
+	// Convert the tracer configs to env vars. We check that the env var names start with the DD_ prefix to avoid
+	// this from being used as a generic env var injector. If there is a product requirement to allow arbitrary env
+	// vars in the future, we could relax this requirement.
+	envVars := make([]corev1.EnvVar, len(t.TracerConfigs))
+	for i, tc := range t.TracerConfigs {
+		if !strings.HasPrefix(tc.Name, "DD_") {
+			return targetInternal{}, fmt.Errorf("tracer config %q does not start with DD_", tc.Name)
+		}
+		envVars[i] = tc.AsEnvVar()
+	}
+
+	// Store the target in the internal format.
+	return targetInternal{
+		name:                 t.Name,
+		podSelector:          podSelector,
+		useNamespaceSelector: useNamespaceSelector,
+		nameSpaceSelector:    namespaceSelector,
+		wmeta:                m.wmeta,
+		enabledNamespaces:    enabledNamespaces,
+		libVersions:          libVersions,
+		envVars:              envVars,
+		json:                 createJSON(t),
+	}, nil
 }
 
 // MutatePod mutates the pod if it matches the target based workload selection or has the appropriate annotations.
