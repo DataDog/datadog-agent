@@ -716,7 +716,7 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     } else {
       switch (regnum) {
       // We need to switch over the regnum, as DWARF_REGISTER macro for amd64 requires
-      // paramter to be a literal number.
+      // parameter to be a literal number.
       case 0:
         *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(0);
         break;

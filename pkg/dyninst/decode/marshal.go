@@ -2,14 +2,18 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
-
 //go:build linux_bpf
 
 package decode
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
+	"math"
+	"reflect"
+	"strconv"
+	"strings"
 
 	"github.com/go-json-experiment/json"
 	"github.com/go-json-experiment/json/jsontext"
@@ -32,6 +36,50 @@ type logger struct {
 type debuggerData struct {
 	Snapshot         snapshotData `json:"snapshot"`
 	EvaluationErrors []string     `json:"evaluationErrors,omitempty"`
+}
+
+type message struct {
+	probe        *ir.Probe
+	captureEvent *captureEvent
+}
+
+// MarshalJSONTo is used to marshal the expression template of the user specified probe
+// There are two types of segments in the template: string segments and json segments.
+// String segments are string literals and are written directly, while
+// JSON segments are formatted and the result is written to the encoder.
+// The following logic is followed, meant to emulate the behavior of %#v string format:
+//
+// Integers, floats, booleans, strings: Printed as literals in Go syntax.
+// Pointers: Printed as "0x" followed by the hexadecimal representation of the pointer address.
+// Structs: Printed as "typeName{field1: value1, field2: value2, ...}".
+// Arrays: Printed as "[numElements]typeName{element1, element2, ...}".
+// Slices: Printed as "[]slice{element1, element2, ...}".
+// Other types: Printed as "<type name>".
+func (m *message) MarshalJSONTo(enc *jsontext.Encoder) error {
+	var sb strings.Builder
+
+	// Go through each template segment, if its a string, write it directly to the encoder, if its a json segment, process the expression
+	// and write the result to the encoder.
+	for _, seg := range m.probe.Template.Segments {
+		switch segTyped := seg.(type) {
+		case ir.JSONSegment:
+			// Extract raw value from expression (no JSON encoding)
+			value, err := m.captureEvent.extractExpressionRawValue(segTyped.ExpressionIndex)
+			if err != nil {
+				*m.captureEvent.evaluationErrors = append(*m.captureEvent.evaluationErrors, err.Error())
+				continue
+			}
+			sb.WriteString(value)
+		case ir.StringSegment:
+			if _, err := sb.WriteString(segTyped.Value); err != nil {
+				*m.captureEvent.evaluationErrors = append(*m.captureEvent.evaluationErrors, err.Error())
+				continue
+			}
+		default:
+			*m.captureEvent.evaluationErrors = append(*m.captureEvent.evaluationErrors, fmt.Sprintf("unsupported segment type: %T", seg))
+		}
+	}
+	return enc.WriteToken(jsontext.String(sb.String()))
 }
 
 type snapshotData struct {
@@ -200,15 +248,347 @@ func (ce *captureEvent) processExpression(
 	return nil
 }
 
+// extractExpressionRawValue extracts the raw string value of an expression without JSON encoding
+func (ce *captureEvent) extractExpressionRawValue(expressionIndex int) (string, error) {
+	if expressionIndex >= len(ce.rootType.Expressions) {
+		return "", fmt.Errorf("expression index %d out of bounds", expressionIndex)
+	}
+	if ce.skippedIndices.get(expressionIndex) {
+		return "", fmt.Errorf("expression skipped")
+	}
+	expr := ce.rootType.Expressions[expressionIndex]
+	parameterType := expr.Expression.Type
+	parameterSize := parameterType.GetByteSize()
+	ub := expr.Offset + parameterSize
+	if int(ub) > len(ce.rootData) {
+		return "", fmt.Errorf("could not read parameter data from root data, length mismatch")
+	}
+
+	parameterData := ce.rootData[expr.Offset:ub]
+	presenceBitSet := bitset(ce.rootData[:ce.rootType.PresenceBitsetSize])
+	if !presenceBitSet.get(expressionIndex) && parameterSize != 0 {
+		return "", fmt.Errorf("expression not captured")
+	}
+
+	// Convert binary data to raw string value based on type
+	decoderType, ok := ce.encodingContext.typesByID[parameterType.GetID()]
+	if !ok {
+		return "", fmt.Errorf("no decoder type found for type %s", parameterType.GetName())
+	}
+
+	return extractRawValue(decoderType, &ce.encodingContext, parameterData)
+}
+
+// extractRawValue converts binary data to raw string representation
+func extractRawValue(dt decoderType, c *encodingContext, data []byte) (string, error) {
+	switch t := dt.(type) {
+	case *baseType:
+		return extractBaseTypeValue(t, data)
+	case *goStringHeaderType:
+		return extractStringValue(t, c, data)
+	case *pointerType:
+		// For template values, we typically want the pointed-to value
+		return "0x" + strconv.FormatUint(binary.NativeEndian.Uint64(data), 16), nil
+	case *structureType:
+		// Format struct fields as readable string
+		return extractStructureTypeValue(t, c, data)
+	case *arrayType:
+		// Format array elements as readable string
+		return extractArrayTypeValue(t, c, data)
+	case *goSliceHeaderType:
+		// Format slice elements as readable string
+		return extractSliceTypeValue(t, c, data)
+	default:
+		// Fallback: return type name for unsupported types
+		return "<" + dt.irType().GetName() + ">", nil
+	}
+}
+
+func extractStructureTypeValue(s *structureType, c *encodingContext, data []byte) (string, error) {
+	var fieldParts []string
+
+	structType := s.irType().(*ir.StructureType)
+	for field := range structType.Fields() {
+		fieldEnd := field.Offset + field.Type.GetByteSize()
+		if fieldEnd > uint32(len(data)) {
+			// Field extends beyond available data - skip it
+			continue
+		}
+
+		fieldData := data[field.Offset:fieldEnd]
+
+		// Get the decoder type for this field
+		fieldDecoderType, ok := c.typesByID[field.Type.GetID()]
+		if !ok {
+			// Unknown field type - show type name
+			fieldParts = append(fieldParts, fmt.Sprintf("%s = <%s>", field.Name, field.Type.GetName()))
+			continue
+		}
+
+		// Extract the raw value for this field
+		fieldValue, err := extractRawValue(fieldDecoderType, c, fieldData)
+		if err != nil {
+			// Error extracting field - show error
+			fieldParts = append(fieldParts, fmt.Sprintf("%s = <error: %v>", field.Name, err))
+			continue
+		}
+
+		// Format as "fieldName = value"
+		fieldParts = append(fieldParts, fmt.Sprintf("%s = %s", field.Name, fieldValue))
+	}
+
+	if len(fieldParts) == 0 {
+		return fmt.Sprintf("<%s{}>", structType.GetName()), nil
+	}
+
+	return fmt.Sprintf("%s{%s}", structType.GetName(), strings.Join(fieldParts, ", ")), nil
+}
+
+// extractArrayTypeValue formats array elements as a readable string: "[element1, element2, ...]"
+func extractArrayTypeValue(a *arrayType, c *encodingContext, data []byte) (string, error) {
+	arrayType := a.irType().(*ir.ArrayType)
+	elementSize := int(arrayType.Element.GetByteSize())
+	numElements := int(arrayType.Count)
+
+	// Limit output for very large arrays
+	maxElementsToShow := 10
+	if numElements > maxElementsToShow {
+		numElements = maxElementsToShow
+	}
+
+	// Get the decoder type for array elements
+	var elementParts []string
+	elementDecoderType, ok := c.typesByID[arrayType.Element.GetID()]
+	if !ok {
+		return fmt.Sprintf("[%d]<%s>", arrayType.Count, arrayType.Element.GetName()), nil
+	}
+
+	for i := 0; i < numElements; i++ {
+		offset := i * elementSize
+		endIdx := offset + elementSize
+		if endIdx > len(data) {
+			break
+		}
+
+		elementData := data[offset:endIdx]
+		elementValue, err := extractRawValue(elementDecoderType, c, elementData)
+		if err != nil {
+			elementParts = append(elementParts, fmt.Sprintf("<error: %v>", err))
+			continue
+		}
+
+		elementParts = append(elementParts, elementValue)
+	}
+
+	result := fmt.Sprintf("[%d]%s{%s}", numElements, elementDecoderType.irType().GetName(), strings.Join(elementParts, ", "))
+	if int(arrayType.Count) > maxElementsToShow {
+		result += fmt.Sprintf(" ...(%d more)", arrayType.Count-uint32(maxElementsToShow))
+	}
+
+	return result, nil
+}
+
+// extractSliceTypeValue formats slice elements as a readable string: "[element1, element2, ...]"
+func extractSliceTypeValue(s *goSliceHeaderType, c *encodingContext, data []byte) (string, error) {
+	sliceType := s.irType().(*ir.GoSliceHeaderType)
+	if len(data) < 16 {
+		return "[]", nil
+	}
+	// Extract slice header: pointer (8 bytes) + length (8 bytes) + capacity (8 bytes)
+	address := binary.NativeEndian.Uint64(data[0:8])
+	length := binary.NativeEndian.Uint64(data[8:16])
+
+	if address == 0 || length == 0 {
+		return "[]", nil
+	}
+
+	// Get the slice data
+	sliceDataItem, ok := c.dataItems[typeAndAddr{
+		irType: uint32(sliceType.Data.GetID()),
+		addr:   address,
+	}]
+	if !ok {
+		return fmt.Sprintf("slice[%d]", length), nil
+	}
+
+	sliceData, ok := sliceDataItem.Data()
+	if !ok {
+		return fmt.Sprintf("slice[%d]", length), nil
+	}
+
+	elementSize := int(sliceType.Data.Element.GetByteSize())
+	sliceLength := int(len(sliceData)) / elementSize
+
+	// Limit output for very large slices
+	maxElementsToShow := 10
+	if sliceLength > maxElementsToShow {
+		sliceLength = maxElementsToShow
+	}
+
+	var elementParts []string
+
+	// Get the decoder type for slice elements
+	elementDecoderType, ok := c.typesByID[sliceType.Data.Element.GetID()]
+	if !ok {
+		return fmt.Sprintf("slice[%d]<%s>", length, sliceType.Data.Element.GetName()), nil
+	}
+
+	elementByteSize := int(sliceType.Data.Element.GetByteSize())
+	for i := 0; i < sliceLength; i++ {
+		elementData := sliceData[i*elementByteSize : (i+1)*elementByteSize]
+		elementValue, err := extractRawValue(elementDecoderType, c, elementData)
+		if err != nil {
+			elementParts = append(elementParts, fmt.Sprintf("<error: %v>", err))
+			continue
+		}
+
+		elementParts = append(elementParts, elementValue)
+	}
+
+	result := fmt.Sprintf("[]%s{%s}", sliceType.Data.Element.GetName(), strings.Join(elementParts, ", "))
+	if int(length) > maxElementsToShow {
+		result += fmt.Sprintf(" ...(%d more)", length-uint64(maxElementsToShow))
+	}
+
+	return result, nil
+}
+
+// extractBaseTypeValue converts base type binary data to string
+func extractBaseTypeValue(b *baseType, data []byte) (string, error) {
+	kind, ok := (*ir.BaseType)(b).GetGoKind()
+	if !ok {
+		return "", fmt.Errorf("no go kind for type %s", (*ir.BaseType)(b).GetName())
+	}
+
+	switch kind {
+	case reflect.Bool:
+		if len(data) < 1 {
+			return "", errors.New("data too short for bool")
+		}
+		if data[0] == 1 {
+			return "true", nil
+		}
+		return "false", nil
+
+	case reflect.Int, reflect.Int64:
+		if len(data) < 8 {
+			return "", errors.New("data too short for int64")
+		}
+		val := int64(binary.NativeEndian.Uint64(data))
+		return strconv.FormatInt(val, 10), nil
+
+	case reflect.Int32:
+		if len(data) < 4 {
+			return "", errors.New("data too short for int32")
+		}
+		val := int32(binary.NativeEndian.Uint32(data))
+		return strconv.FormatInt(int64(val), 10), nil
+
+	case reflect.Int16:
+		if len(data) < 2 {
+			return "", errors.New("data too short for int16")
+		}
+		val := int16(binary.NativeEndian.Uint16(data))
+		return strconv.FormatInt(int64(val), 10), nil
+
+	case reflect.Int8:
+		if len(data) < 1 {
+			return "", errors.New("data too short for int8")
+		}
+		val := int8(data[0])
+		return strconv.FormatInt(int64(val), 10), nil
+
+	case reflect.Uint, reflect.Uint64:
+		if len(data) < 8 {
+			return "", errors.New("data too short for uint64")
+		}
+		val := binary.NativeEndian.Uint64(data)
+		return strconv.FormatUint(val, 10), nil
+
+	case reflect.Uint32:
+		if len(data) < 4 {
+			return "", errors.New("data too short for uint32")
+		}
+		val := binary.NativeEndian.Uint32(data)
+		return strconv.FormatUint(uint64(val), 10), nil
+
+	case reflect.Uint16:
+		if len(data) < 2 {
+			return "", errors.New("data too short for uint16")
+		}
+		val := binary.NativeEndian.Uint16(data)
+		return strconv.FormatUint(uint64(val), 10), nil
+
+	case reflect.Uint8:
+		if len(data) < 1 {
+			return "", errors.New("data too short for uint8")
+		}
+		return strconv.FormatUint(uint64(data[0]), 10), nil
+
+	case reflect.Float32:
+		if len(data) < 4 {
+			return "", errors.New("data too short for float32")
+		}
+		bits := binary.NativeEndian.Uint32(data)
+		val := math.Float32frombits(bits)
+		return strconv.FormatFloat(float64(val), 'g', -1, 32), nil
+
+	case reflect.Float64:
+		if len(data) < 8 {
+			return "", errors.New("data too short for float64")
+		}
+		bits := binary.NativeEndian.Uint64(data)
+		val := math.Float64frombits(bits)
+		return strconv.FormatFloat(val, 'g', -1, 64), nil
+
+	case reflect.String:
+		// Go strings are not stored as baseType, this shouldn't happen
+		return string(data), nil
+
+	default:
+		return "", fmt.Errorf("unsupported base type kind: %v", kind)
+	}
+}
+
+// extractStringValue extracts string value from Go string header
+func extractStringValue(s *goStringHeaderType, c *encodingContext, data []byte) (string, error) {
+	fieldEnd := s.strFieldOffset + uint32(s.strFieldSize)
+	if fieldEnd >= uint32(len(data)) {
+		return "", nil
+	}
+	strLen := binary.NativeEndian.Uint64(data[s.lenFieldOffset : s.lenFieldOffset+uint32(s.lenFieldSize)])
+	address := binary.NativeEndian.Uint64(data[s.strFieldOffset : s.strFieldOffset+uint32(s.strFieldSize)])
+	if address == 0 || strLen == 0 {
+		return "", nil
+	}
+	stringValue, ok := c.dataItems[typeAndAddr{
+		irType: uint32(s.GoStringHeaderType.Data.GetID()),
+		addr:   address,
+	}]
+	if !ok {
+		return "", nil
+	}
+	stringData, ok := stringValue.Data()
+	if !ok {
+		return "", nil
+	}
+	if len(stringData) < int(strLen) {
+		return "", nil
+	}
+
+	return string(stringData[:strLen]), nil
+}
+
 func (ce *captureEvent) MarshalJSONTo(enc *jsontext.Encoder) error {
+	if err := writeTokens(enc, jsontext.BeginObject); err != nil {
+		return err
+	}
+
 	if ce.rootType.PresenceBitsetSize > uint32(len(ce.rootData)) {
 		return errors.New("presence bitset is out of bounds")
 	}
 	presenceBitSet := ce.rootData[:ce.rootType.PresenceBitsetSize]
 
-	if err := writeTokens(enc, jsontext.BeginObject); err != nil {
-		return err
-	}
 	for _, kind := range []struct {
 		kind  ir.RootExpressionKind
 		token jsontext.Token
@@ -247,6 +627,7 @@ func (ce *captureEvent) MarshalJSONTo(enc *jsontext.Encoder) error {
 				return err
 			}
 		}
+
 	}
 	if err := writeTokens(enc, jsontext.EndObject); err != nil {
 		return err
@@ -282,14 +663,15 @@ func (sd *stackData) MarshalJSONTo(enc *jsontext.Encoder) error {
 type stackLine gosym.GoLocation
 
 func (sl *stackLine) MarshalJSONTo(enc *jsontext.Encoder) error {
+	goLoc := (*gosym.GoLocation)(sl)
 	if err := writeTokens(enc,
 		jsontext.BeginObject,
 		jsontext.String("function"),
-		jsontext.String(sl.Function),
+		jsontext.String(goLoc.Function),
 		jsontext.String("fileName"),
-		jsontext.String(sl.File),
+		jsontext.String(goLoc.File),
 		jsontext.String("lineNumber"),
-		jsontext.Int(int64(sl.Line)),
+		jsontext.Int(int64(goLoc.Line)),
 		jsontext.EndObject,
 	); err != nil {
 		return err
