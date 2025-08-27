@@ -22,6 +22,8 @@ import (
 
 // symdbManager deals with uploading symbols to the SymDB backend.
 type symdbManager struct {
+	// If enabled is false, we never upload anything.
+	enabled   bool
 	uploadURL *url.URL
 	cfg       symdbManagerConfig
 	mu        struct {
@@ -61,6 +63,8 @@ type uploadRequest struct {
 }
 
 // newSymdbManager creates a new symdbManager and starts the upload worker.
+//
+// If uploadURL is nil, the manager is disabled and no uploads are performed.
 func newSymdbManager(uploadURL *url.URL, opts ...option) *symdbManager {
 	cfg := symdbManagerConfig{
 		maxBufferFuncs: 10000,
@@ -71,6 +75,7 @@ func newSymdbManager(uploadURL *url.URL, opts ...option) *symdbManager {
 
 	workerCtx, cancel := context.WithCancelCause(context.Background())
 	m := &symdbManager{
+		enabled:      uploadURL != nil,
 		uploadURL:    uploadURL,
 		cfg:          cfg,
 		workerCancel: cancel,
@@ -122,6 +127,10 @@ func (m *symdbManager) stop() {
 // The upload will be performed asynchronously. A single upload can be in
 // progress at a time. Returns an error if the manager has been stopped.
 func (m *symdbManager) queueUpload(runtimeID procRuntimeID, executablePath string) error {
+	if !m.enabled {
+		return nil
+	}
+
 	// Queue the upload request. The worker will pick it up.
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -289,8 +298,8 @@ func (m *symdbManager) worker(ctx context.Context) {
 }
 
 func (m *symdbManager) performUpload(ctx context.Context, procID processKey, runtimeID string, executablePath string) error {
-	log.Infof("SymDB: uploading symbols for process %v (executable: %s)",
-		procID.pid, executablePath)
+	log.Infof("SymDB: uploading symbols for process %v (service: %s, version: %s, executable: %s)",
+		procID.pid, procID.service, procID.version, executablePath)
 	it, err := symdb.PackagesIterator(executablePath,
 		symdb.ExtractOptions{
 			Scope:                   symdb.ExtractScopeModulesFromSameOrg,
@@ -347,7 +356,7 @@ func (m *symdbManager) performUpload(ctx context.Context, procID processKey, run
 		return err
 	}
 
-	log.Infof("SymDB: Successfully uploaded symbols for process %v (executable: %s)",
-		procID.pid, executablePath)
+	log.Infof("SymDB: Successfully uploaded symbols for process %v (service: %s, version: %s, executable: %s)",
+		procID.pid, procID.service, procID.version, executablePath)
 	return nil
 }

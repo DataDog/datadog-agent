@@ -68,9 +68,12 @@ func NewModule(
 	}
 	diagsUploader := uploader.NewDiagnosticsUploader(uploader.WithURL(diagsUploaderURL))
 
-	symdbUploaderURL, err := url.Parse(config.SymDBUploaderURL)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing SymDB uploader URL: %w", err)
+	var symdbUploaderURL *url.URL
+	if config.SymDBUploadEnabled {
+		symdbUploaderURL, err = url.Parse(config.SymDBUploaderURL)
+		if err != nil {
+			return nil, fmt.Errorf("error parsing SymDB uploader URL: %w", err)
+		}
 	}
 
 	loader, err := loader.NewLoader()

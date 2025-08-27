@@ -52,6 +52,8 @@ type Controller struct {
 }
 
 // NewController creates a new Controller.
+//
+// symdbUploaderURL can be nil, in which case there will be no SymDB uploads.
 func NewController[AT ActuatorTenant, LU LogsUploader](
 	a Actuator[AT],
 	logUploader LogsUploaderFactory[LU],
