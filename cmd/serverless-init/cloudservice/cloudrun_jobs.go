@@ -79,6 +79,12 @@ func (c *CloudRunJobs) GetTags() map[string]string {
 	return tags
 }
 
+// GetDefaultLogsSource returns the default logs source if `DD_SOURCE` is not set
+func (c *CloudRunJobs) GetDefaultLogsSource() string {
+	// Use the default log pipeline for Cloud Run.
+	return CloudRunOrigin
+}
+
 // GetOrigin returns the `origin` attribute type for the given cloud service.
 func (c *CloudRunJobs) GetOrigin() string {
 	return CloudRunJobsOrigin
