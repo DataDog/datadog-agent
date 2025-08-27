@@ -387,6 +387,9 @@ func getEthtoolMetrics(driverName string, statsMap map[string]uint64) map[string
 		newKey := ""
 		metricPrefix := ""
 		if strings.Contains(statName, "queue_") {
+			// Extract the queue and the metric name from ethtool stat name:
+			//   queue_0_tx_cnt -> (queue:0, tx_cnt)
+			//   tx_queue_0_bytes -> (queue:0, tx_bytes)
 			parts := strings.Split(statName, "_")
 			queueIndex := -1
 			for i, part := range parts {
@@ -412,6 +415,8 @@ func getEthtoolMetrics(driverName string, statsMap map[string]uint64) map[string
 			continueCase = true
 		}
 		if continueCase {
+			// Extract the cpu and the metric name from ethtool stat name:
+			//   cpu0_rx_bytes -> (cpu:0, rx_bytes)
 			if strings.HasPrefix(statName, "cpu") {
 				parts := strings.Split(statName, "_")
 				if len(parts) < 2 {
@@ -424,12 +429,15 @@ func getEthtoolMetrics(driverName string, statsMap map[string]uint64) map[string
 				queueTag = "cpu:" + cpuNum
 				newKey = strings.Join(parts[1:], "_")
 				metricPrefix = ".cpu."
+				continueCase = false
 			} else {
 				continueCase = true
 			}
 		}
 		if continueCase {
 			if strings.Contains(statName, "[") && strings.HasSuffix(statName, "]") {
+				// Extract the queue and the metric name from ethtool stat name:
+				//   tx_stop[0] -> (queue:0, tx_stop)
 				parts := strings.SplitN(statName, "[", 2)
 				if len(parts) != 2 {
 					continueCase = true
@@ -442,6 +450,37 @@ func getEthtoolMetrics(driverName string, statsMap map[string]uint64) map[string
 				queueTag = "queue:" + queueNum
 				newKey = metricName
 				metricPrefix = ".queue."
+				continueCase = false
+			} else {
+				continueCase = true
+			}
+		}
+		if continueCase {
+			if strings.HasPrefix(statName, "rx") || strings.HasPrefix(statName, "tx") {
+				// Extract the queue and the metric name from ethtool stat name:
+				//   tx0_bytes -> (queue:0, tx_bytes)
+				//   rx1_packets -> (queue:1, rx_packets)
+				parts := strings.SplitN(statName, "_")
+				queueIndex := -1
+				for i, part := range parts {
+					if !strings.HasPrefix(part, "rx") || !strings.HasPrefix(part, "tx") {
+						continue
+					}
+					if cur, err := strconv.Atoi(part[2:]); err == nil {
+						queueIndex = i
+						queueNum = cur
+						break
+					}
+				}
+				if queueIndex == -1 {
+					continueCase = true
+				} else {
+					parts = append(parts[queueIndex][:2], parts[queueIndex+1:]...)
+					queueTag = "queue:" + queueNum
+					newKey = strings.Join(parts, "_")
+					metricPrefix = ".queue."
+					continueCase = false
+				}
 			} else {
 				continueCase = true
 			}
