@@ -149,7 +149,6 @@ def get_ci_test_events(query, days):
                 kwargs["page_cursor"] = page_cursor
 
             response = api.list_ci_app_test_events(**kwargs)
-            print(response)
             # Add events from this page to our collection
             if hasattr(response, 'data') and response.data:
                 all_events.extend(response.data)
