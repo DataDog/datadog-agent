@@ -487,6 +487,7 @@ func getEthtoolMetrics(driverName string, statsMap map[string]uint64) map[string
 			}
 		}
 		if continueCase {
+			// if we've made it this far, check if the stat name is a global metric for the NIC
 			if statName != "" {
 				if slices.Contains(ethtoolGlobalMetrics, statName) {
 					queueTag = "global"
@@ -496,6 +497,14 @@ func getEthtoolMetrics(driverName string, statsMap map[string]uint64) map[string
 			}
 		}
 		if newKey != "" && queueTag != "" && metricPrefix != "" {
+			if queueTag != "global" {
+				// we already guard against parsing unsupported NICs
+				queueMetrics := ethtoolMetricNames[driverName]
+				// skip queues metrics we don't support for the NIC
+				if !slices.Contains(queueMetrics, statName) {
+					continue
+				}
+			}
 			if result[queueTag] == nil {
 				result[queueTag] = make(map[string]uint64)
 			}
