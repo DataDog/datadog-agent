@@ -165,7 +165,6 @@ variables:
   AGENT_QA_E2E: agent-qa-e2e  # agent-devx
   ATLASSIAN_WRITE: atlassian-write  # agent-devx
   DOCKER_REGISTRY_RO: dockerhub-readonly  # agent-delivery
-  GITLAB_TOKEN: gitlab-token  # agent-devx
   INSTALL_SCRIPT_API_KEY_ORG2: install-script-api-key-org-2  # agent-devx
   MACOS_GITHUB_APP_1: macos-github-app-one  # agent-devx
   MACOS_GITHUB_APP_2: macos-github-app-two  # agent-devx

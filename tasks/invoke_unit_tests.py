@@ -7,7 +7,6 @@ from tasks.libs.common.color import Color, color_message
 
 TEST_ENV = {
     'INVOKE_UNIT_TESTS': '1',
-    'GITLAB_TOKEN': 'fake_token',
     'CI_COMMIT_REF_NAME': 'mybranch',
     'CI_COMMIT_SHA': 'abcdef42',
     'CI_DEFAULT_BRANCH': 'themainbranch',

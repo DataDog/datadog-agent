@@ -97,9 +97,6 @@ def auto_cancel_previous_pipelines(ctx):
     Automatically cancel previous pipelines running on the same ref
     """
 
-    if not os.environ.get('GITLAB_TOKEN'):
-        raise Exit("GITLAB_TOKEN variable needed to cancel pipelines on the same ref.", 1)
-
     git_ref = os.environ["CI_COMMIT_REF_NAME"]
     if git_ref == "":
         raise Exit("CI_COMMIT_REF_NAME is empty, skipping pipeline cancellation", 0)
@@ -328,7 +325,7 @@ def trigger_child_pipeline(_, git_ref, project_name, variable=None, follow=True,
     Use --variable to specify the environment variables that should be passed to the child pipeline.
     You can pass the argument multiple times for each new variable you wish to forward
 
-    Use --follow to make this task wait for the pipeline to finish, and return 1 if it fails. (requires GITLAB_TOKEN).
+    Use --follow to make this task wait for the pipeline to finish, and return 1 if it fails.
 
     Use --timeout to set up a timeout shorter than the default 2 hours, to anticipate failures if any.
 
@@ -340,14 +337,6 @@ def trigger_child_pipeline(_, git_ref, project_name, variable=None, follow=True,
 
     if not os.environ.get('CI_JOB_TOKEN'):
         raise Exit("CI_JOB_TOKEN variable needed to create child pipelines.", 1)
-
-    if not os.environ.get('GITLAB_TOKEN'):
-        if follow:
-            raise Exit("GITLAB_TOKEN variable needed to follow child pipelines.", 1)
-        else:
-            # The Gitlab lib requires `GITLAB_TOKEN` to be
-            # set, but trigger_pipeline doesn't use it
-            os.environ["GITLAB_TOKEN"] = os.environ['CI_JOB_TOKEN']
 
     repo = get_gitlab_repo(project_name)
 
@@ -694,9 +683,9 @@ def trigger_external(ctx, owner_branch_name: str, no_verify=False):
     branch_re = re.compile(r'^(?P<owner>[a-zA-Z0-9_-]+):(?P<branch_name>[a-zA-Z0-9_/-]+)$')
     match = branch_re.match(owner_branch_name)
 
-    assert (
-        match is not None
-    ), f'owner_branch_name should be "<owner-name>:<prefix>/<branch-name>" or "<owner-name>:<branch-name>" but is {owner_branch_name}'
+    assert match is not None, (
+        f'owner_branch_name should be "<owner-name>:<prefix>/<branch-name>" or "<owner-name>:<branch-name>" but is {owner_branch_name}'
+    )
     assert "'" not in owner_branch_name
 
     owner, branch = match.group('owner'), match.group('branch_name')
@@ -706,9 +695,9 @@ def trigger_external(ctx, owner_branch_name: str, no_verify=False):
     status_res = ctx.run('git status --porcelain')
     assert status_res.stdout.strip() == '', 'Cannot run this task if changes have not been committed'
     branch_res = ctx.run('git branch', hide='stdout')
-    assert (
-        re.findall(f'\\b{owner_branch_name}\\b', branch_res.stdout) == []
-    ), f'{owner_branch_name} branch already exists'
+    assert re.findall(f'\\b{owner_branch_name}\\b', branch_res.stdout) == [], (
+        f'{owner_branch_name} branch already exists'
+    )
     remote_res = ctx.run('git remote', hide='stdout')
     assert re.findall(f'\\b{owner}\\b', remote_res.stdout) == [], f'{owner} remote already exists'
 
