@@ -182,7 +182,7 @@ class CompilerImage:
             Result,
             self.ctx.run(
                 f"docker exec -u {user} -i {color_env} {self.name} bash -l -c \"{cmd}\"",
-                hide=self.ctx.config.run["echo"],
+                hide=not self.ctx.config.run["echo"],
                 warn=allow_fail,
             ),
         )

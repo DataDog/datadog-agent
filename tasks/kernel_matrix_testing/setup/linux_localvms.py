@@ -37,7 +37,7 @@ class LinuxPackages(Requirement):
             "nfs-kernel-server",
             "rpcbind",
             "ssh-askpass",
-            "xsltproc",
+            "clang",  # required to build libvirt-python
         ]
 
         if platform.machine() == "aarch64":

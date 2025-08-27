@@ -309,10 +309,29 @@ class PipPackageManager(_BasePackageManager):
     @property
     def pip_command(self) -> str:
         # quote the executable to avoid issues with spaces in the path
+        # we use the python executable currently running the script, so that we
+        # always install in the same environment as the script
         return f"\"{sys.executable}\" -m pip"
 
     def _package_exists(self, package: str) -> bool:
-        return cast(Result, self.ctx.run(f"{self.pip_command} list --format=columns | grep {package}", warn=True)).ok
+        if "==" in package:
+            version = package.split("==")[1]
+            package = package.split("==")[0]
+        else:
+            version = None
+
+        res = self.ctx.run(f"{self.pip_command} list --format=columns | grep {package}")
+        if res is None or not res.ok:
+            return False
+
+        if version is None:
+            return True
+
+        parts = res.stdout.strip().splitlines()[0].split()
+        if len(parts) < 2:
+            return False
+
+        return parts[1] == version
 
     def _install_packages(self, packages: list[str]) -> None:
         self.ctx.run(f"{self.pip_command} install {' '.join(packages)}")
