@@ -960,15 +960,20 @@ def check_otel_module_versions(ctx, fix=False):
     except Exception as e:
         print(f"Warning: Could not fetch upstream go.mod from {OTEL_UPSTREAM_GO_MOD_PATH}: {e}")
 
-    # Try to get go version from the second upstream (main branch with major.minor pattern)
+    # Try to get go version from the second upstream (main branch with major.minor pattern, convert to major.minor.0)
     try:
         r = requests.get(OTEL_UPSTREAM_GO_MOD_PATH_MAIN)
         r.raise_for_status()
         major_minor_pattern = f"^go {PATTERN_MAJOR_MINOR}\r?$"
         matches = re.findall(major_minor_pattern, r.text, flags=re.MULTILINE)
         if len(matches) == 1:
-            allowed_versions.append(matches[0])
-            print(f"Found upstream go version: {matches[0]} from {OTEL_UPSTREAM_GO_MOD_PATH_MAIN}")
+            # Convert "go 1.24" to "go 1.24.0"
+            upstream_version = matches[0]
+            version_with_bugfix = upstream_version + ".0"
+            allowed_versions.append(version_with_bugfix)
+            print(
+                f"Found upstream go version: {upstream_version} from {OTEL_UPSTREAM_GO_MOD_PATH_MAIN}, using {version_with_bugfix} for comparison"
+            )
     except Exception as e:
         print(f"Warning: Could not fetch upstream go.mod from {OTEL_UPSTREAM_GO_MOD_PATH_MAIN}: {e}")
 
