@@ -4,7 +4,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.stringArrayArgFrameless",
+      "method": "main.stringArg",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -16,14 +16,14 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.stringArrayArgFrameless",
+            "function": "main.stringArg",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 75
+            "lineNumber": 49
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 25
+            "lineNumber": 20
           },
           {
             "function": "runtime.main",
@@ -37,31 +37,17 @@
           }
         ],
         "probe": {
-          "id": "intArrayArgFrameless",
+          "id": "testTemplateDSLAndStringSegments",
           "location": {
-            "method": "main.stringArrayArgFrameless"
+            "method": "main.stringArg"
           }
         },
         "captures": {
           "entry": {
             "arguments": {
               "s": {
-                "type": "[3]string",
-                "size": "3",
-                "elements": [
-                  {
-                    "type": "string",
-                    "value": "foo"
-                  },
-                  {
-                    "type": "string",
-                    "value": "bar"
-                  },
-                  {
-                    "type": "string",
-                    "value": "baz"
-                  }
-                ]
+                "type": "string",
+                "value": "d"
               }
             }
           }
@@ -69,6 +55,6 @@
       }
     },
     "timestamp": "[ts]",
-    "message": ""
+    "message": "hello d, and hello to d"
   }
 ]

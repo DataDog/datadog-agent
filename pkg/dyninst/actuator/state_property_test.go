@@ -10,7 +10,6 @@ package actuator
 import (
 	"bytes"
 	"cmp"
-	"encoding/json"
 	"fmt"
 	"math/rand"
 	"os"
@@ -229,8 +228,10 @@ func (pts *propertyTestState) generateProcessUpdate() event {
 							Language: "go",
 						},
 						Template: "test log message",
-						Segments: []json.RawMessage{
-							json.RawMessage(`"test log message"`),
+						Segments: rcjson.SegmentList{
+							rcjson.Segment{
+								StringSegment: newStringSegment("test log message"),
+							},
 						},
 					},
 				}
@@ -373,4 +374,9 @@ func (pts *propertyTestState) completeRandomEffect() event {
 		panic(fmt.Sprintf("unknown effect: %T", eff))
 	}
 
+}
+
+func newStringSegment(value string) *rcjson.StringSegment {
+	s := rcjson.StringSegment(value)
+	return &s
 }

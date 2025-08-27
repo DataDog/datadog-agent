@@ -77,3 +77,60 @@ probes:
   captureSnapshot: true
   where:
     methodName: main.usesMapsOfMapsThatDoNotAppearAsArguments
+- id: testTemplateStringSegment
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.stringArg
+  captureSnapshot: true
+  message: "hello"
+  segments:
+    - str: "hello"
+- id: testTemplateMultipleStringSegments
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.stringArg
+  captureSnapshot: true
+  message: "hello world!"
+  segments:
+    - str: "hello "
+    - str: "world"
+    - str: "!"
+- id: testTemplateStringAndDSLSegment
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.stringArg
+  captureSnapshot: true
+  message: "hello {x}"
+  segments:
+    - str: "hello "
+    - dsl: "x"
+- id: testTemplateMultipleDSLSegment
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.stringArg
+  captureSnapshot: true
+  message: "{s}{s}"
+  segments:
+    - dsl: "s"
+    - dsl: "s"
+- id: testTemplateDSLAndStringSegments
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.stringArg
+  captureSnapshot: true
+  message: "hello {x}, and hello to {x}"
+  segments:
+    - str: "hello "
+    - dsl: "x"
+    - str: ", and hello to "
+    - dsl: "x"

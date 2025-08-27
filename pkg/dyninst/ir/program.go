@@ -134,8 +134,8 @@ type Probe struct {
 	Subprogram *Subprogram
 	// The events that trigger the probe.
 	Events []*Event
-	// TODO: Add template support:
-	//	TemplateSegments []TemplateSegment
+	// Segments are the segments of the template that are populated when the probe is triggered.
+	Segments []TemplateSegment
 }
 
 // Event corresponds to an action that will occur when a PC is hit.

@@ -195,8 +195,8 @@ type snapshotMessage struct {
 	Logger    logger           `json:"logger"`
 	Debugger  debuggerData     `json:"debugger"`
 	Timestamp int              `json:"timestamp"`
-
-	rootData []byte
+	Message   message          `json:"message"`
+	rootData  []byte
 }
 
 func (s *snapshotMessage) init(
@@ -213,7 +213,7 @@ func (s *snapshotMessage) init(
 		EvaluationErrors: []string{},
 	}
 	var rootType *ir.EventRootType
-	var probe ir.ProbeDefinition
+	var probe *ir.Probe
 
 	for item, err := range event.Event.DataItems() {
 		if err != nil {
@@ -286,7 +286,6 @@ func (s *snapshotMessage) init(
 			probe.GetID(), where,
 		)
 	}
-
 	s.Logger.Version = probe.GetVersion()
 	s.Logger.ThreadID = int(header.Goid)
 	s.Debugger.Snapshot.Probe.ID = probe.GetID()
@@ -300,6 +299,10 @@ func (s *snapshotMessage) init(
 		decoder:          decoder,
 		evaluationErrors: &s.Debugger.EvaluationErrors,
 		skippedIndices:   &decoder.skippedArgumentExpressions,
+	}
+	s.Message = message{
+		probe:         probe,
+		argumentsData: &s.Debugger.Snapshot.Captures.Entry.Arguments,
 	}
 	return probe, nil
 }

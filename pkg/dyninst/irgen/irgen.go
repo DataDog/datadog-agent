@@ -46,6 +46,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/gotype"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -1361,28 +1362,48 @@ func populateEventExpressions(
 	typeCatalog *typeCatalog,
 ) ir.Issue {
 	id := typeCatalog.idAlloc.next()
-	var expressions []*ir.RootExpression
-	for _, variable := range probe.Subprogram.Variables {
-		if !variable.IsParameter || variable.IsReturn {
+	var (
+		expressions   []*ir.RootExpression
+		expressionSet = make(map[string]int) // name -> expression index
+	)
+
+	// Snapshot probe variables
+	if probe.ProbeDefinition.GetKind() == ir.ProbeKindSnapshot {
+		for _, variable := range probe.Subprogram.Variables {
+			if !variable.IsParameter || variable.IsReturn {
+				continue
+			}
+			expr := createVariableExpression(variable)
+			expressions = append(expressions, expr)
+			expressionSet[variable.Name] = len(expressions) - 1
+		}
+	}
+
+	for i := range probe.Segments {
+		segment, ok := (probe.Segments[i]).(ir.JSONSegment)
+		if !ok {
 			continue
 		}
-		variableSize := variable.Type.GetByteSize()
-		expr := &ir.RootExpression{
-			Name:   variable.Name,
-			Offset: uint32(0),
-			Expression: ir.Expression{
-				Type: variable.Type,
-				Operations: []ir.ExpressionOp{
-					&ir.LocationOp{
-						Variable: variable,
-						Offset:   0,
-						ByteSize: uint32(variableSize),
-					},
-				},
-			},
+		// Check if the DSL segment is the name of a parameter.
+		// TODO: this is stop gap functionality, we'll eventually want to support actual expression parsing
+		if variableIndex := isParameter(segment.DSL, probe.Subprogram.Variables); variableIndex != -1 {
+			// If the DSL segment is the name of a parameter, find the corresponding variable
+			variable := probe.Subprogram.Variables[variableIndex]
+			if expressionIndex, ok := expressionSet[variable.Name]; ok {
+				// The expression for capturing this variable already exists, so we don't need to create another one.
+				// Just set the index of the expression that corresponds to this template segment for use in decoding.
+				segment.ExpressionIndex = expressionIndex
+			} else {
+				// The expression for capturing this variable doesn't exist, so we need to create it.
+				expr := createVariableExpression(variable)
+				expressions = append(expressions, expr)
+				// Store the index of the expression that corresponds to this template segment for use in decoding.
+				segment.ExpressionIndex = len(expressions) - 1
+				probe.Segments[i] = segment
+			}
 		}
-		expressions = append(expressions, expr)
 	}
+
 	presenceBitsetSize := uint32((len(expressions) + 7) / 8)
 	byteSize := uint64(presenceBitsetSize)
 	for _, e := range expressions {
@@ -1406,6 +1427,24 @@ func populateEventExpressions(
 	}
 	typeCatalog.typesByID[event.Type.ID] = event.Type
 	return ir.Issue{}
+}
+
+func createVariableExpression(variable *ir.Variable) *ir.RootExpression {
+	variableSize := variable.Type.GetByteSize()
+	return &ir.RootExpression{
+		Name:   variable.Name,
+		Offset: uint32(0),
+		Expression: ir.Expression{
+			Type: variable.Type,
+			Operations: []ir.ExpressionOp{
+				&ir.LocationOp{
+					Variable: variable,
+					Offset:   0,
+					ByteSize: uint32(variableSize),
+				},
+			},
+		},
+	}
 }
 
 type rootVisitor struct {
@@ -1828,10 +1867,30 @@ func newProbe(
 			Type: nil,
 		},
 	}
+
+	segments := make([]ir.Segment, len(probeCfg.GetSegments()))
+	for i, seg := range probeCfg.GetSegments() {
+		if s, ok := seg.(rcjson.Segment); ok && (s.JSONSegment != nil || s.StringSegment != nil) {
+			if s.JSONSegment != nil {
+				segments[i] = ir.JSONSegment{
+					JSON: s.JSONSegment.JSON,
+					DSL:  s.JSONSegment.DSL,
+				}
+			} else if s.StringSegment != nil {
+				segments[i] = ir.StringSegment{Value: string(*s.StringSegment)}
+			}
+		} else {
+			return nil, ir.Issue{
+				Kind:    ir.IssueKindInvalidProbeDefinition,
+				Message: fmt.Sprintf("creating probe: unsupported segment type: %T", s),
+			}, fmt.Errorf("creating probe: unsupported segment type: %T", s)
+		}
+	}
 	probe := &ir.Probe{
 		ProbeDefinition: probeCfg,
 		Subprogram:      subprogram,
 		Events:          events,
+		Segments:        segments,
 	}
 	return probe, ir.Issue{}, nil
 }
@@ -2237,4 +2296,13 @@ func compileUnitFromName(name string) string {
 		return runtimePackageName
 	}
 	return name[:packageNameEnd]
+}
+
+func isParameter(dsl string, variables []*ir.Variable) int {
+	for i, variable := range variables {
+		if variable.Name == dsl && variable.IsParameter {
+			return i
+		}
+	}
+	return -1
 }
