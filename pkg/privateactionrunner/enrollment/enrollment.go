@@ -171,12 +171,12 @@ func runEnrollmentToConfig(enrollmentToken, datadogSite string) error {
 	return nil
 }
 
-func getPkcs7FromEC2() (string, error) {
+func getEC2Identity() (*opms.Ec2Identity, error) {
 	ctx := context.Background()
 
 	cfg, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
-		return "", fmt.Errorf("unable to load AWS SDK config: %w", err)
+		return nil, fmt.Errorf("unable to load AWS SDK config: %w", err)
 	}
 	client := imds.NewFromConfig(cfg)
 
@@ -184,29 +184,39 @@ func getPkcs7FromEC2() (string, error) {
 		Path: "dynamic/instance-identity/pkcs7",
 	})
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	pkcs7Raw, err := io.ReadAll(output.Content)
 	if err != nil {
-		return "", fmt.Errorf("failed to read PKCS7 content: %w", err)
+		return nil, fmt.Errorf("failed to read PKCS7 content: %w", err)
 	}
 	pkcs7 := "-----BEGIN PKCS7-----\n" + strings.TrimSpace(string(pkcs7Raw)) + "\n-----END PKCS7-----\n"
 
 	// TODO: remove this print
 	fmt.Println("PKCS7 PEM:\n", pkcs7[0:20]+"...")
-	return pkcs7, nil
+
+	doc, err := client.GetInstanceIdentityDocument(ctx, &imds.GetInstanceIdentityDocumentInput{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get instance identity document: %w", err)
+	}
+
+	return &opms.Ec2Identity{
+		Region: doc.Region,
+		Pkcs7:  pkcs7,
+	}, nil
 }
 
 // runSelfEnrollmentToConfig performs self-enrollment with API key and outputs configuration to stdout
 func runSelfEnrollmentToConfig(apiKey, appKey, datadogSite string, selfAuth bool) error {
-	// Get pkcs7 with EC2 identity document
-	pkcs7 := ""
+	// Get EC2 identity with region and PKCS7
+	var ec2Identity *opms.Ec2Identity
+
 	if selfAuth {
 		var err error
-		pkcs7, err = getPkcs7FromEC2()
+		ec2Identity, err = getEC2Identity()
 		if err != nil {
-			return fmt.Errorf("failed to get PKCS7 from EC2: %w", err)
+			return fmt.Errorf("failed to get EC2 identity: %w", err)
 		}
 	}
 
@@ -237,7 +247,7 @@ func runSelfEnrollmentToConfig(apiKey, appKey, datadogSite string, selfAuth bool
 	// Send self-enrollment request using OPMS client with API key
 	ddHost := strings.Join([]string{"api", datadogSite}, ".")
 	enrollmentClient := opms.NewEnrollmentClient(ddHost)
-	response, err := enrollmentClient.SendSelfEnrollmentRequest(context.Background(), apiKey, appKey, string(publicKeyJSON), pkcs7)
+	response, err := enrollmentClient.SendSelfEnrollmentRequest(context.Background(), apiKey, appKey, string(publicKeyJSON), ec2Identity)
 	if err != nil {
 		return fmt.Errorf("self-enrollment request failed: %w", err)
 	}
