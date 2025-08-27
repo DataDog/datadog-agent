@@ -7,9 +7,10 @@ package traceroute
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
@@ -33,9 +34,11 @@ func getTraceroute(client *http.Client, clientID string, host string, port uint1
 	req.Header.Set("Accept", "application/json")
 	resp, err := client.Do(req)
 	if err != nil {
-		if strings.Contains(err.Error(), "sysprobe.sock: connect: no such file or directory") {
+		var opErr *net.OpError
+		if errors.As(err, &opErr) && opErr.Op == "dial" {
 			return nil, fmt.Errorf("%w, please check that the traceroute module is enabled in the system-probe.yaml config file and that system-probe is running", err)
 		}
+		return nil, err
 	}
 	defer resp.Body.Close()
 
