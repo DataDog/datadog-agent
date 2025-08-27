@@ -165,6 +165,9 @@ class S3Backend(DynTestBackend):
             if not os.path.isdir(os.path.join(tmp_dir, folder)):
                 continue
             index_file = os.path.join(tmp_dir, folder, "index.json")
+            if not os.path.exists(index_file):
+                print("WARNING: Index file not found", index_file)
+                continue
             with open(index_file) as f:
                 index = DynamicTestIndex.from_dict(json.load(f))
             consolidated_index.merge(index)
@@ -182,4 +185,12 @@ class S3Backend(DynTestBackend):
     def list_indexed_keys(self, kind: IndexKind) -> list[str]:
         keys = list_sorted_keys_in_s3(f"{self.s3_base_path}/{kind.value}", "index.json")
 
-        return [key.split("/")[0] for key in keys if len(key.split("/")) == 2]
+        commit_keys = []
+        for key in keys:
+            path_parts = key.split("/")
+            # A consolidated index path is: <commit_sha>/index.json
+            # A partial per-job index path is: <commit_sha>/<job_id>/index.json
+            # We must only use the consolidated indices to have a complete dataset.
+            if len(path_parts) == 2:
+                commit_keys.append(path_parts[0])
+        return commit_keys

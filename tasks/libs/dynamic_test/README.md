@@ -1,5 +1,7 @@
 # Dynamic Test Index Utilities
 
+**Please see the [documentation](https://datadoghq.atlassian.net/wiki/x/q4h2PgE)**.
+
 This package provides utilities to compute indexes that determine which tests should be executed based on code changes, enabling intelligent test selection in CI/CD pipelines.
 
 ## Overview

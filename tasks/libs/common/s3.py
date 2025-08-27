@@ -195,15 +195,30 @@ def list_sorted_keys_in_s3(s3_path: str, filename: str) -> list[str]:
 
     try:
         s3_client = boto3.client('s3')
-        # List all objects in the S3 prefix
-        response = s3_client.list_objects_v2(Bucket=s3_bucket_name, Prefix=s3_prefix)
 
         # Group by folder and find latest date per folder
         keys_date = {}
-        for obj in response.get('Contents', []):
-            if obj['Key'].endswith(filename):
-                if obj['Key'] not in keys_date or obj['LastModified'] > keys_date[obj['Key']]:
-                    keys_date[obj['Key']] = obj['LastModified']
+        continuation_token = None
+
+        while True:
+            # List objects with pagination
+            kwargs = {'Bucket': s3_bucket_name, 'Prefix': s3_prefix}
+            if continuation_token:
+                kwargs['ContinuationToken'] = continuation_token
+
+            response = s3_client.list_objects_v2(**kwargs)
+
+            # Process objects from this page
+            for obj in response.get('Contents', []):
+                if obj['Key'].endswith(filename):
+                    if obj['Key'] not in keys_date or obj['LastModified'] > keys_date[obj['Key']]:
+                        keys_date[obj['Key']] = obj['LastModified']
+
+            # Check if there are more pages
+            if response.get('IsTruncated', False):
+                continuation_token = response.get('NextContinuationToken')
+            else:
+                break
 
         sorted_keys = sorted(keys_date.items(), key=lambda x: x[1], reverse=True)
         return [key.removeprefix(s3_prefix) for key, _ in sorted_keys]
