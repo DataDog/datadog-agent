@@ -152,7 +152,8 @@ Go build tags control feature inclusion, some examples are:
 ### GitHub Actions
 - Secondary CI for specific workflows
 - Windows unit tests
-- Code coverage reporting
+- Tests about the pull-request settings or repository configuration
+- Release automation workflows
 
 ## Security Considerations
 
