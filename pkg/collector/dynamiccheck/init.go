@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package agonsticapi
+package dynamiccheck
 
 import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"

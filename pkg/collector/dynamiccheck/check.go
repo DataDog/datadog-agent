@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package agonsticapi
+package dynamiccheck
 
 /*
 #include <stdio.h>
@@ -108,14 +108,14 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/collector/agonsticapi/Integrations"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
+	"github.com/DataDog/datadog-agent/pkg/collector/dynamiccheck/Integrations"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
-type agnosticCheck struct {
+type dynamicCheck struct {
 	sendermanager     sender.SenderManager
 	tagger            tagger.Component
 	name              string
@@ -127,7 +127,7 @@ type agnosticCheck struct {
 }
 
 func newCheck(sendermanager sender.SenderManager, tagger tagger.Component, name string, lib unsafe.Pointer) (check.Check, error) {
-	return &agnosticCheck{
+	return &dynamicCheck{
 		sendermanager: sendermanager,
 		tagger:        tagger,
 		name:          name,
@@ -135,7 +135,7 @@ func newCheck(sendermanager sender.SenderManager, tagger tagger.Component, name 
 	}, nil
 }
 
-func (c *agnosticCheck) Run() error {
+func (c *dynamicCheck) Run() error {
 	var cErr *C.char
 
 	idCStr := C.CString(string(c.id))
@@ -218,9 +218,9 @@ func (c *agnosticCheck) Run() error {
 	return nil
 }
 
-func (c *agnosticCheck) Stop() {}
+func (c *dynamicCheck) Stop() {}
 
-func (c *agnosticCheck) Cancel() {
+func (c *dynamicCheck) Cancel() {
 	var cErr *C.char
 
 	C.close_library(c.libHandle, &cErr)
@@ -233,39 +233,39 @@ func (c *agnosticCheck) Cancel() {
 	}
 }
 
-func (c *agnosticCheck) String() string {
+func (c *dynamicCheck) String() string {
 	return c.name
 }
 
-func (c *agnosticCheck) Version() string {
+func (c *dynamicCheck) Version() string {
 	return ""
 }
 
-func (c *agnosticCheck) IsTelemetryEnabled() bool {
+func (c *dynamicCheck) IsTelemetryEnabled() bool {
 	return false
 }
 
-func (c *agnosticCheck) ConfigSource() string {
+func (c *dynamicCheck) ConfigSource() string {
 	return ""
 }
 
-func (*agnosticCheck) Loader() string {
+func (*dynamicCheck) Loader() string {
 	return loaderName
 }
 
-func (c *agnosticCheck) InitConfig() string {
+func (c *dynamicCheck) InitConfig() string {
 	return string(c.initConfig)
 }
 
-func (c *agnosticCheck) InstanceConfig() string {
+func (c *dynamicCheck) InstanceConfig() string {
 	return string(c.instanceConfig)
 }
 
-func (c *agnosticCheck) GetWarnings() []error {
+func (c *dynamicCheck) GetWarnings() []error {
 	return []error{}
 }
 
-func (c *agnosticCheck) Configure(_senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, _source string) error {
+func (c *dynamicCheck) Configure(_senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, _source string) error {
 	// Generate check ID
 	c.id = checkid.BuildID(c.String(), integrationConfigDigest, data, initConfig)
 	c.initConfig = initConfig
@@ -287,7 +287,7 @@ func (c *agnosticCheck) Configure(_senderManager sender.SenderManager, integrati
 }
 
 // writeConfigToFile writes the configuration as a FlatBuffer to a file
-func (c *agnosticCheck) writeConfigToFile(data integration.Data, fileName string) error {
+func (c *dynamicCheck) writeConfigToFile(data integration.Data, fileName string) error {
 	builder := flatbuffers.NewBuilder(1024)
 
 	// Create the byte vector first, before starting the object
@@ -316,22 +316,22 @@ func (c *agnosticCheck) writeConfigToFile(data integration.Data, fileName string
 	return nil
 }
 
-func (c *agnosticCheck) GetSenderStats() (stats.SenderStats, error) {
+func (c *dynamicCheck) GetSenderStats() (stats.SenderStats, error) {
 	return stats.SenderStats{}, nil
 }
 
-func (c *agnosticCheck) Interval() time.Duration {
+func (c *dynamicCheck) Interval() time.Duration {
 	return time.Hour
 }
 
-func (c *agnosticCheck) ID() checkid.ID {
+func (c *dynamicCheck) ID() checkid.ID {
 	return c.id
 }
 
-func (c *agnosticCheck) GetDiagnoses() ([]diagnose.Diagnosis, error) {
+func (c *dynamicCheck) GetDiagnoses() ([]diagnose.Diagnosis, error) {
 	return []diagnose.Diagnosis{}, nil
 }
 
-func (c *agnosticCheck) IsHASupported() bool {
+func (c *dynamicCheck) IsHASupported() bool {
 	return false
 }

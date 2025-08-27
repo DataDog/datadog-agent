@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package agonsticapi
+package dynamiccheck
 
 /*
 #include <stdio.h>
@@ -38,29 +38,29 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
-const loaderName string = "agnosticapi"
+const loaderName string = "dynamiccheck"
 
-type agonsticAPILoader struct {
+type dynamicCheckLoader struct {
 	tagger tagger.Component
 }
 
 func newLoader(_ sender.SenderManager, _ option.Option[integrations.Component], tagger tagger.Component) (check.Loader, error) {
-	return &agonsticAPILoader{
+	return &dynamicCheckLoader{
 		tagger: tagger,
 	}, nil
 }
 
 // Name returns Shared Library loader name
-func (*agonsticAPILoader) Name() string {
+func (*dynamicCheckLoader) Name() string {
 	return loaderName
 }
 
-func (sl *agonsticAPILoader) String() string {
-	return "Agnostic API Loader"
+func (sl *dynamicCheckLoader) String() string {
+	return "Dynamic Check Loader"
 }
 
 // Load returns a Shared Library check
-func (sl *agonsticAPILoader) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data) (check.Check, error) {
+func (sl *dynamicCheckLoader) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data) (check.Check, error) {
 	var cErr *C.char
 
 	name := "lib" + config.Name + ".dylib"
