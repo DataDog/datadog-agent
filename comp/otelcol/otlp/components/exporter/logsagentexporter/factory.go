@@ -10,16 +10,18 @@ import (
 	"context"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/otel"
 
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configretry"
 	exp "go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
+
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 )
 
 const (
@@ -37,6 +39,20 @@ type Config struct {
 	OtelSource    string
 	LogSourceName string
 	QueueSettings exporterhelper.QueueBatchConfig
+
+	OrchestratorConfig OrchestratorConfig
+}
+
+type OrchestratorConfig struct {
+	// ClusterName is the name of the Kubernetes cluster to associate with the orchestrator data.
+	ClusterName string
+	Hostname    hostnameinterface.Component
+	Key         string
+	Site        string
+
+	// Endpoints is a map of orchestrator endpoints to send data to.
+	// The key is the endpoint URL, the value is the API key to use for that
+	Endpoints map[string]string
 }
 
 type factory struct {
