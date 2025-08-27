@@ -42,19 +42,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 )
 
-// TODO: Validate the probes in the config and report things that are
-// not supported without just bailing out.
-
 // TODO: This code creates a lot of allocations, but we could greatly reduce
 // the number of distinct allocations by using a batched allocation scheme.
 // Such an approach makes sense because we know the lifetimes of all the
 // objects are going to be the same.
 
 // TODO: Handle creating return events.
-
-// TODO: Properly set up the presence bitset.
-
-// TODO: Support hmaps.
 
 // Generator is used to generate IR programs from binary files and probe
 // configurations.
@@ -1221,12 +1214,13 @@ func findPrologueEnd(
 		}
 	}
 	if err != nil {
-		// TODO(XXX): We hit this whenever the function prologue
-		// begins.
+		// Reset the reader to the previous position which is more efficient
+		// than starting from 0 for the next seek given the caller is exploring
+		// in PC order.
 		lineReader.Seek(prevPos)
-		return
+		return 0, false, err
 	}
-	// for whatever reason the entrypoint of a function is marked as a
+	// For whatever reason the entrypoint of a function is marked as a
 	// statement and then should come the prologue end. If we see two
 	// statements in a row then we're not going to find the prologue end.
 	stmtsSeen := 0
@@ -1238,7 +1232,8 @@ func findPrologueEnd(
 			stmtsSeen++
 		}
 		if err := lineReader.Next(&lineEntry); err != nil {
-			// TODO(XXX): Should this bail out?
+			// Should this return an error?
+			//
 			// In general, if we don't have the proper prologue end
 			// and it's not a frameless subprogram, then we're going
 			// to have a problem on x86 because we won't know the
