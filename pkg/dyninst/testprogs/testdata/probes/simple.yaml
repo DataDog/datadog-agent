@@ -77,3 +77,70 @@ probes:
   captureSnapshot: true
   where:
     methodName: main.usesMapsOfMapsThatDoNotAppearAsArguments
+- id: testTemplateStringSegment
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.stringArg
+  captureSnapshot: true
+  message: "hello"
+  segments:
+    - str: "hello"
+- id: testTemplateMultipleStringSegments
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.stringArg
+  captureSnapshot: true
+  message: "hello world!"
+  segments:
+    - str: "hello "
+    - str: "world"
+    - str: "!"
+- id: testTemplateStringAndDSLSegment
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.stringArg
+  captureSnapshot: true
+  message: "hello {s}"
+  segments:
+    - str: "hello "
+    - dsl: "s"
+      json:
+        ref: "s"
+- id: testTemplateMultipleDSLSegment
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.stringArg
+  captureSnapshot: true
+  message: "{s}{s}"
+  segments:
+    - dsl: "s"
+      json:
+        ref: "s"
+    - dsl: "s"
+      json:
+        ref: "s"
+- id: testTemplateDSLAndStringSegments
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.stringArg
+  captureSnapshot: true
+  message: "hello {s}, and hello to {s}"
+  segments:
+    - str: "hello "
+    - dsl: "s"
+      json:
+        ref: "s"
+    - str: ", and hello to "
+    - dsl: "s"
+      json:
+        ref: "s"
