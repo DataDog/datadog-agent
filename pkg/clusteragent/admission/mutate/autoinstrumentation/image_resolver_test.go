@@ -22,11 +22,9 @@ import (
 
 func TestNewImageResolver(t *testing.T) {
 	t.Run("with_remote_config_client", func(t *testing.T) {
-		// Mock client (nil is fine for this test)
 		mockClient := (*rcclient.Client)(nil)
 		resolver := NewImageResolver(mockClient)
 
-		// Should return noOpImageResolver since mockClient is nil
 		_, ok := resolver.(*noOpImageResolver)
 		assert.True(t, ok, "Should return noOpImageResolver when rcClient is nil")
 	})
@@ -43,70 +41,57 @@ func TestNoOpImageResolver(t *testing.T) {
 	resolver := newNoOpImageResolver()
 
 	testCases := []struct {
-		name           string
-		registry       string
-		repository     string
-		tag            string
-		expectedResult string
-		expectedOK     bool
+		name       string
+		registry   string
+		repository string
+		tag        string
 	}{
 		{
-			name:           "full_image_reference",
-			registry:       "gcr.io/datadoghq",
-			repository:     "dd-lib-python-init",
-			tag:            "latest",
-			expectedResult: "gcr.io/datadoghq/dd-lib-python-init:latest",
-			expectedOK:     false,
+			name:       "full_image_reference",
+			registry:   "gcr.io/datadoghq",
+			repository: "dd-lib-python-init",
+			tag:        "latest",
 		},
 		{
-			name:           "versioned_tag",
-			registry:       "gcr.io/datadoghq",
-			repository:     "dd-lib-java-init",
-			tag:            "v1.2.3",
-			expectedResult: "gcr.io/datadoghq/dd-lib-java-init:v1.2.3",
-			expectedOK:     false,
+			name:       "versioned_tag",
+			registry:   "gcr.io/datadoghq",
+			repository: "dd-lib-java-init",
+			tag:        "v1.2.3",
 		},
 		{
-			name:           "simple_registry",
-			registry:       "docker.io",
-			repository:     "my-app",
-			tag:            "latest",
-			expectedResult: "docker.io/my-app:latest",
-			expectedOK:     false,
+			name:       "simple_registry",
+			registry:   "docker.io",
+			repository: "my-app",
+			tag:        "latest",
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result, ok := resolver.Resolve(tc.repository, tc.tag)
-			assert.Equal(t, tc.expectedResult, result)
-			assert.Equal(t, tc.expectedOK, ok)
+			resolved, ok := resolver.Resolve(tc.registry, tc.repository, tc.tag)
+			assert.Nil(t, resolved, "NoOpImageResolver should never return a resolved image")
+			assert.False(t, ok, "NoOpImageResolver should always return false")
 		})
 	}
 }
 
-// loadRepositoryConfig loads a repository configuration from a JSON file
-func loadRepositoryConfig(t *testing.T, filename string) RepositoryConfig {
-	data, err := os.ReadFile(filepath.Join("testdata", filename))
-	require.NoError(t, err, "Failed to read test data file %s", filename)
-
-	var config RepositoryConfig
-	err = json.Unmarshal(data, &config)
-	require.NoError(t, err, "Failed to unmarshal repository config from %s", filename)
-
-	return config
-}
-
-// loadMultiRepositoryConfig loads multiple repository configurations from a JSON file
-func loadMultiRepositoryConfig(t *testing.T, filename string) []RepositoryConfig {
+// loadRepositoryConfigs loads repository configurations from a JSON file.
+// Supports both single config objects and arrays of configs, always returns a slice.
+func loadRepositoryConfigs(t *testing.T, filename string) []RepositoryConfig {
 	data, err := os.ReadFile(filepath.Join("testdata", filename))
 	require.NoError(t, err, "Failed to read test data file %s", filename)
 
 	var configs []RepositoryConfig
-	err = json.Unmarshal(data, &configs)
-	require.NoError(t, err, "Failed to unmarshal repository configs from %s", filename)
+	if err = json.Unmarshal(data, &configs); err == nil {
+		return configs
+	}
 
-	return configs
+	// If that fails, try as single config
+	var config RepositoryConfig
+	err = json.Unmarshal(data, &config)
+	require.NoError(t, err, "Failed to unmarshal repository config(s) from %s", filename)
+
+	return []RepositoryConfig{config}
 }
 
 func TestRemoteConfigImageResolver_processUpdate(t *testing.T) {
@@ -115,11 +100,19 @@ func TestRemoteConfigImageResolver_processUpdate(t *testing.T) {
 		imageMappings: make(map[string]map[string]ResolvedImage),
 	}
 
-	// Load test data from files
-	pythonConfig := loadRepositoryConfig(t, "image_resolver_python_repo.json")
-	javaConfig := loadRepositoryConfig(t, "image_resolver_java_repo.json")
+	allConfigs := loadRepositoryConfigs(t, "image_resolver_multi_repo.json")
+	require.Len(t, allConfigs, 3) // python, java, js
 
-	// Marshal configs to JSON
+	var pythonConfig, javaConfig RepositoryConfig
+	for _, config := range allConfigs {
+		switch config.RepositoryName {
+		case "dd-lib-python-init":
+			pythonConfig = config
+		case "dd-lib-java-init":
+			javaConfig = config
+		}
+	}
+
 	pythonJSON, err := json.Marshal(pythonConfig)
 	require.NoError(t, err)
 	javaJSON, err := json.Marshal(javaConfig)
@@ -143,22 +136,20 @@ func TestRemoteConfigImageResolver_processUpdate(t *testing.T) {
 		assert.Contains(t, resolver.imageMappings, "dd-lib-python-init")
 		assert.Contains(t, resolver.imageMappings, "dd-lib-java-init")
 
-		// Verify python repo content (from testdata/image_resolver_python_repo.json)
+		// Verify python repo content (from testdata/image_resolver_multi_repo.json)
 		pythonRepo := resolver.imageMappings["dd-lib-python-init"]
-		assert.Len(t, pythonRepo, 3) // latest, v3, v3.1
+		assert.Len(t, pythonRepo, 2) // latest, v3
 		assert.Contains(t, pythonRepo, "latest")
 		assert.Contains(t, pythonRepo, "v3")
-		assert.Contains(t, pythonRepo, "v3.1")
 		assert.Equal(t, "gcr.io/datadoghq/dd-lib-python-init@sha256:abc123", pythonRepo["latest"].FullImageRef)
 		assert.Equal(t, "gcr.io/datadoghq/dd-lib-python-init@sha256:def456", pythonRepo["v3"].FullImageRef)
 
-		// Verify java repo content (from testdata/image_resolver_java_repo.json)
+		// Verify java repo content (from testdata/image_resolver_multi_repo.json)
 		javaRepo := resolver.imageMappings["dd-lib-java-init"]
-		assert.Len(t, javaRepo, 3) // latest, v1, v1.5.2
+		assert.Len(t, javaRepo, 2) // latest, v1
 		assert.Contains(t, javaRepo, "latest")
 		assert.Contains(t, javaRepo, "v1")
-		assert.Contains(t, javaRepo, "v1.5.2")
-		assert.Equal(t, "gcr.io/datadoghq/dd-lib-java-init@sha256:java123", javaRepo["latest"].FullImageRef)
+		assert.Equal(t, "gcr.io/datadoghq/dd-lib-java-init@sha256:ghi789", javaRepo["latest"].FullImageRef)
 
 		// Verify apply statuses
 		assert.Len(t, appliedStatuses, 2)
@@ -183,7 +174,7 @@ func TestRemoteConfigImageResolver_processUpdate(t *testing.T) {
 
 	t.Run("multi_repository_from_testdata", func(t *testing.T) {
 		// Load multi-repository configuration from testdata
-		configs := loadMultiRepositoryConfig(t, "image_resolver_multi_repo.json")
+		configs := loadRepositoryConfigs(t, "image_resolver_multi_repo.json")
 		require.Len(t, configs, 3) // python, java, js
 
 		// Convert to update format
@@ -248,53 +239,57 @@ func TestRemoteConfigImageResolver_processUpdate(t *testing.T) {
 // This follows the same pattern as target_mutator_test.go
 func TestImageResolverWithTestData(t *testing.T) {
 	testCases := map[string]struct {
-		configFile       string
 		registry         string
 		repository       string
 		tag              string
 		expectedImage    string
 		expectedResolved bool
 	}{
-		"python_latest_from_testdata": {
-			configFile:       "image_resolver_python_repo.json",
+		"python_latest": {
 			registry:         "gcr.io/datadoghq",
 			repository:       "dd-lib-python-init",
 			tag:              "latest",
 			expectedImage:    "gcr.io/datadoghq/dd-lib-python-init@sha256:abc123",
 			expectedResolved: true,
 		},
-		"python_v3_from_testdata": {
-			configFile:       "image_resolver_python_repo.json",
+		"python_v3": {
 			registry:         "gcr.io/datadoghq",
 			repository:       "dd-lib-python-init",
 			tag:              "v3",
 			expectedImage:    "gcr.io/datadoghq/dd-lib-python-init@sha256:def456",
 			expectedResolved: true,
 		},
-		"java_latest_from_testdata": {
-			configFile:       "image_resolver_java_repo.json",
+		"java_latest": {
 			registry:         "gcr.io/datadoghq",
 			repository:       "dd-lib-java-init",
 			tag:              "latest",
-			expectedImage:    "gcr.io/datadoghq/dd-lib-java-init@sha256:java123",
+			expectedImage:    "gcr.io/datadoghq/dd-lib-java-init@sha256:ghi789",
+			expectedResolved: true,
+		},
+		"js_v5": {
+			registry:         "gcr.io/datadoghq",
+			repository:       "dd-lib-js-init",
+			tag:              "v5",
+			expectedImage:    "gcr.io/datadoghq/dd-lib-js-init@sha256:js456",
 			expectedResolved: true,
 		},
 		"nonexistent_tag": {
-			configFile:       "image_resolver_python_repo.json",
 			registry:         "gcr.io/datadoghq",
 			repository:       "dd-lib-python-init",
 			tag:              "nonexistent",
 			expectedImage:    "gcr.io/datadoghq/dd-lib-python-init:nonexistent",
 			expectedResolved: false,
 		},
-		"empty_config": {
-			configFile:       "image_resolver_empty.json",
-			registry:         "gcr.io/datadoghq",
-			repository:       "dd-lib-python-init",
-			tag:              "latest",
-			expectedImage:    "gcr.io/datadoghq/dd-lib-python-init:latest",
-			expectedResolved: false,
-		},
+	}
+
+	// Load the multi-repo configuration once for all test cases
+	configs := loadRepositoryConfigs(t, "image_resolver_multi_repo.json")
+	update := make(map[string]state.RawConfig)
+
+	for i, config := range configs {
+		configJSON, err := json.Marshal(config)
+		require.NoError(t, err)
+		update[fmt.Sprintf("config_%d", i)] = state.RawConfig{Config: configJSON}
 	}
 
 	for name, tc := range testCases {
@@ -304,27 +299,36 @@ func TestImageResolverWithTestData(t *testing.T) {
 				imageMappings: make(map[string]map[string]ResolvedImage),
 			}
 
-			// Load and process config from testdata
-			if tc.configFile == "image_resolver_empty.json" {
-				// For empty config test, just process empty update
-				resolver.processUpdate(map[string]state.RawConfig{}, nil)
-			} else {
-				config := loadRepositoryConfig(t, tc.configFile)
-				configJSON, err := json.Marshal(config)
-				require.NoError(t, err)
-
-				update := map[string]state.RawConfig{
-					"test_config": {Config: configJSON},
-				}
-				resolver.processUpdate(update, nil)
-			}
+			// Process the complete remote config state
+			resolver.processUpdate(update, func(string, state.ApplyStatus) {})
 
 			// Test resolution
-			result, resolved := resolver.Resolve(tc.repository, tc.tag)
-			assert.Equal(t, tc.expectedResolved, resolved, "Resolution success should match expected")
-			assert.Equal(t, tc.expectedImage, result, "Resolved image should match expected")
+			resolved, ok := resolver.Resolve(tc.registry, tc.repository, tc.tag)
+			assert.Equal(t, tc.expectedResolved, ok, "Resolution success should match expected")
+
+			if tc.expectedResolved {
+				require.NotNil(t, resolved, "Should have resolved image when expectedResolved is true")
+				assert.Equal(t, tc.expectedImage, resolved.FullImageRef, "Resolved image should match expected")
+			} else {
+				assert.Nil(t, resolved, "Should not have resolved image when expectedResolved is false")
+			}
 		})
 	}
+}
+
+// TestImageResolverEmptyConfig tests the behavior with no remote config data
+func TestImageResolverEmptyConfig(t *testing.T) {
+	resolver := &remoteConfigImageResolver{
+		imageMappings: make(map[string]map[string]ResolvedImage),
+	}
+
+	// Process empty update (no remote config data available)
+	resolver.processUpdate(map[string]state.RawConfig{}, func(string, state.ApplyStatus) {})
+
+	// Test resolution should fail with empty cache
+	resolved, ok := resolver.Resolve("gcr.io/datadoghq", "dd-lib-python-init", "latest")
+	assert.False(t, ok, "Resolution should fail with empty config")
+	assert.Nil(t, resolved, "Should not return resolved image with empty cache")
 }
 
 func TestRemoteConfigImageResolver_Resolve(t *testing.T) {
@@ -334,12 +338,12 @@ func TestRemoteConfigImageResolver_Resolve(t *testing.T) {
 				"latest": {
 					FullImageRef:     "gcr.io/datadoghq/dd-lib-python-init@sha256:abc123",
 					Digest:           "sha256:abc123",
-					CanonicalVersion: "1.0.0",
+					CanonicalVersion: "3.0.0",
 				},
 				"v3": {
 					FullImageRef:     "gcr.io/datadoghq/dd-lib-python-init@sha256:def456",
 					Digest:           "sha256:def456",
-					CanonicalVersion: "1.0.0",
+					CanonicalVersion: "3.0.0",
 				},
 			},
 		},
@@ -370,28 +374,32 @@ func TestRemoteConfigImageResolver_Resolve(t *testing.T) {
 			expectedOK:     true,
 		},
 		{
-			name:           "non_existent_repository",
-			registry:       "gcr.io/datadoghq",
-			repository:     "dd-lib-java-init",
-			tag:            "latest",
-			expectedResult: "",
-			expectedOK:     false,
+			name:       "non_existent_repository",
+			registry:   "gcr.io/datadoghq",
+			repository: "dd-lib-java-init",
+			tag:        "latest",
+			expectedOK: false,
 		},
 		{
-			name:           "non_existent_tag",
-			registry:       "gcr.io/datadoghq",
-			repository:     "dd-lib-python-init",
-			tag:            "v2",
-			expectedResult: "",
-			expectedOK:     false,
+			name:       "non_existent_tag",
+			registry:   "gcr.io/datadoghq",
+			repository: "dd-lib-python-init",
+			tag:        "v2",
+			expectedOK: false,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result, ok := resolver.Resolve(tc.repository, tc.tag)
-			assert.Equal(t, tc.expectedResult, result)
+			resolved, ok := resolver.Resolve(tc.registry, tc.repository, tc.tag)
 			assert.Equal(t, tc.expectedOK, ok)
+
+			if tc.expectedOK {
+				require.NotNil(t, resolved, "Should have resolved image when expectedOK is true")
+				assert.Equal(t, tc.expectedResult, resolved.FullImageRef, "Resolved image should match expected")
+			} else {
+				assert.Nil(t, resolved, "Should not have resolved image when expectedOK is false")
+			}
 		})
 	}
 
@@ -400,8 +408,8 @@ func TestRemoteConfigImageResolver_Resolve(t *testing.T) {
 		emptyResolver := &remoteConfigImageResolver{
 			imageMappings: make(map[string]map[string]ResolvedImage),
 		}
-		result, ok := emptyResolver.Resolve("dd-lib-python-init", "latest")
-		assert.Equal(t, "", result)
-		assert.Equal(t, false, ok)
+		resolved, ok := emptyResolver.Resolve("gcr.io/datadoghq", "dd-lib-python-init", "latest")
+		assert.False(t, ok, "Resolution should fail with empty cache")
+		assert.Nil(t, resolved, "Should not return resolved image with empty cache")
 	})
 }

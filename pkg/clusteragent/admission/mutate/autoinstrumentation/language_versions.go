@@ -78,14 +78,23 @@ func (l language) libVersionAnnotationExtractorWithResolver(registry string, ima
 	return annotationExtractor[libInfo]{
 		key: fmt.Sprintf(libVersionAnnotationKeyFormat, l),
 		do: func(version string) (libInfo, error) {
-			image, resolved := imageResolver.Resolve(fmt.Sprintf("dd-lib-%s-init", l), version)
-			if !resolved {
-				log.Warnf("failed to resolve image %s/%s:%s, skipping resolution", registry, fmt.Sprintf("dd-lib-%s-init", l), version)
+			resolved, ok := imageResolver.Resolve(registry, fmt.Sprintf("dd-lib-%s-init", l), version)
+			var imageRef string
+			if ok && resolved != nil {
+				imageRef = resolved.FullImageRef
+			} else {
+				// Map "default" to actual default version for fallback
+				actualVersion := version
+				if version == "default" {
+					actualVersion = l.defaultLibVersion()
+				}
+				log.Warnf("failed to resolve image %s/%s:%s, using fallback", registry, fmt.Sprintf("dd-lib-%s-init", l), version)
+				imageRef = fmt.Sprintf("%s/dd-lib-%s-init:%s", registry, l, actualVersion)
 			}
 			return libInfo{
 				ctrName: "",
 				lang:    l,
-				image:   image,
+				image:   imageRef,
 			}, nil
 		},
 	}
@@ -113,14 +122,23 @@ func (l language) ctrLibVersionAnnotationExtractorWithResolver(ctr, registry str
 	return annotationExtractor[libInfo]{
 		key: fmt.Sprintf(libVersionAnnotationKeyCtrFormat, ctr, l),
 		do: func(version string) (libInfo, error) {
-			image, resolved := imageResolver.Resolve(fmt.Sprintf("dd-lib-%s-init", l), version)
-			if !resolved {
-				log.Warnf("failed to resolve image %s/%s:%s, skipping resolution", registry, fmt.Sprintf("dd-lib-%s-init", l), version)
+			resolved, ok := imageResolver.Resolve(registry, fmt.Sprintf("dd-lib-%s-init", l), version)
+			var imageRef string
+			if ok && resolved != nil {
+				imageRef = resolved.FullImageRef
+			} else {
+				// Map "default" to actual default version for fallback
+				actualVersion := version
+				if version == "default" {
+					actualVersion = l.defaultLibVersion()
+				}
+				log.Warnf("failed to resolve image %s/%s:%s, using fallback", registry, fmt.Sprintf("dd-lib-%s-init", l), version)
+				imageRef = fmt.Sprintf("%s/dd-lib-%s-init:%s", registry, l, actualVersion)
 			}
 			return libInfo{
 				ctrName: ctr,
 				lang:    l,
-				image:   image,
+				image:   imageRef,
 			}, nil
 		},
 	}

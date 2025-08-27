@@ -1,49 +1,49 @@
 [
   {
-    "repositoryName": "dd-lib-python-init",
-    "repositoryURL": "gcr.io/datadoghq/dd-lib-python-init",
+    "repository_name": "dd-lib-python-init",
+    "repository_url": "gcr.io/datadoghq/dd-lib-python-init",
     "images": [
       {
         "tag": "latest",
         "digest": "sha256:abc123",
-        "canonicalVersion": "v3.1.0"
+        "canonical_version": "v3.1.0"
       },
       {
         "tag": "v3",
         "digest": "sha256:def456",
-        "canonicalVersion": "v3.0.0"
+        "canonical_version": "v3.0.0"
       }
     ]
   },
   {
-    "repositoryName": "dd-lib-java-init",
-    "repositoryURL": "gcr.io/datadoghq/dd-lib-java-init",
+    "repository_name": "dd-lib-java-init",
+    "repository_url": "gcr.io/datadoghq/dd-lib-java-init",
     "images": [
       {
         "tag": "latest",
         "digest": "sha256:ghi789",
-        "canonicalVersion": "v1.5.2"
+        "canonical_version": "v1.5.2"
       },
       {
         "tag": "v1",
         "digest": "sha256:java456",
-        "canonicalVersion": "v1.0.0"
+        "canonical_version": "v1.0.0"
       }
     ]
   },
   {
-    "repositoryName": "dd-lib-js-init",
-    "repositoryURL": "gcr.io/datadoghq/dd-lib-js-init",
+    "repository_name": "dd-lib-js-init",
+    "repository_url": "gcr.io/datadoghq/dd-lib-js-init",
     "images": [
       {
         "tag": "latest",
         "digest": "sha256:js123",
-        "canonicalVersion": "v5.2.1"
+        "canonical_version": "v5.2.1"
       },
       {
         "tag": "v5",
         "digest": "sha256:js456",
-        "canonicalVersion": "v5.0.0"
+        "canonical_version": "v5.0.0"
       }
     ]
   }

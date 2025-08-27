@@ -308,17 +308,9 @@ func (m *mutatorCore) newInitContainerMutators(
 func (m *mutatorCore) newInjector(pod *corev1.Pod, startTime time.Time, lopts libRequirementOptions) *injector {
 	imageTag := m.config.Instrumentation.InjectorImageTag
 	// Construct full image reference for the injector
-	resolvedImage, resolved := m.imageResolver.Resolve("", m.config.Instrumentation.InjectorImageTag)
-	if !resolved {
-		log.Warnf("Failed to resolve image %s/%s:%s", m.config.containerRegistry, "", m.config.Instrumentation.InjectorImageTag)
-		return nil
-	}
-
-	// Extract just the tag/digest part from the resolved image
-	if parts := strings.Split(resolvedImage, ":"); len(parts) >= 2 {
-		imageTag = parts[len(parts)-1]
-	} else if parts := strings.Split(resolvedImage, "@"); len(parts) >= 2 {
-		imageTag = "@" + parts[len(parts)-1]
+	resolvedImage, resolved := m.imageResolver.Resolve(m.config.containerRegistry, "apm-inject", imageTag)
+	if resolved && resolvedImage != nil {
+		imageTag = "@" + resolvedImage.Digest
 	}
 
 	opts := []injectorOption{
@@ -378,7 +370,7 @@ func (m *NamespaceMutator) extractLibInfo(pod *corev1.Pod) extractedPodLibInfo {
 	}
 
 	if extracted.source.isSingleStep() {
-		return extracted.withLibs(getAllLatestDefaultLibraries(m.core.imageResolver))
+		return extracted.withLibs(getAllLatestDefaultLibraries(m.config.containerRegistry, m.core.imageResolver))
 	}
 
 	// Get libraries to inject for Remote Instrumentation
@@ -392,7 +384,7 @@ func (m *NamespaceMutator) extractLibInfo(pod *corev1.Pod) extractedPodLibInfo {
 			log.Warnf("Ignoring version %q. To inject all libs, the only supported version is latest for now", version)
 		}
 
-		return extracted.withLibs(getAllLatestDefaultLibraries(m.core.imageResolver))
+		return extracted.withLibs(getAllLatestDefaultLibraries(m.config.containerRegistry, m.core.imageResolver))
 	}
 
 	return extractedPodLibInfo{}
