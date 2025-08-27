@@ -25,6 +25,7 @@ import (
 	"cmp"
 	"container/heap"
 	"debug/dwarf"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -1315,28 +1316,47 @@ func populateEventExpressions(
 	typeCatalog *typeCatalog,
 ) ir.Issue {
 	id := typeCatalog.idAlloc.next()
-	var expressions []*ir.RootExpression
-	for _, variable := range probe.Subprogram.Variables {
-		if !variable.IsParameter || variable.IsReturn {
-			continue
+	var (
+		expressions    []*ir.RootExpression
+		expressionsSet = make(map[string]struct{})
+	)
+
+	// Snapshot probe variables
+	if probe.ProbeDefinition.GetKind() == ir.ProbeKindSnapshot {
+		for _, variable := range probe.Subprogram.Variables {
+			if !variable.IsParameter || variable.IsReturn {
+				continue
+			}
+			expr := createVariableExpression(variable)
+			expressions = append(expressions, expr)
 		}
-		variableSize := variable.Type.GetByteSize()
-		expr := &ir.RootExpression{
-			Name:   variable.Name,
-			Offset: uint32(0),
-			Expression: ir.Expression{
-				Type: variable.Type,
-				Operations: []ir.ExpressionOp{
-					&ir.LocationOp{
-						Variable: variable,
-						Offset:   0,
-						ByteSize: uint32(variableSize),
-					},
-				},
-			},
-		}
-		expressions = append(expressions, expr)
 	}
+
+	// Probe template segments
+	for _, segment := range probe.ProbeDefinition.GetSegments() {
+		switch seg := segment.(type) {
+		case ir.JSONSegment:
+			// At this moment we're only supporting capturing
+			// of parameters listed explictly in segment JSON
+			var parameterName string
+			if json.Unmarshal(seg.JSON, &parameterName) != nil {
+				return ir.Issue{
+					Kind:    ir.IssueKindUnsupportedFeature,
+					Message: "failed to unmarshal segment JSON, only strings are currently supported",
+				}
+			}
+			for _, variable := range probe.Subprogram.Variables {
+				if variable.Name == parameterName {
+					expr := createVariableExpression(variable)
+					if _, ok := expressionsSet[expr.Name]; !ok { // Avoid duplicates
+						expressions = append(expressions, expr)
+						expressionsSet[expr.Name] = struct{}{}
+					}
+				}
+			}
+		}
+	}
+
 	presenceBitsetSize := uint32((len(expressions) + 7) / 8)
 	byteSize := uint64(presenceBitsetSize)
 	for _, e := range expressions {
@@ -1360,6 +1380,24 @@ func populateEventExpressions(
 	}
 	typeCatalog.typesByID[event.Type.ID] = event.Type
 	return ir.Issue{}
+}
+
+func createVariableExpression(variable *ir.Variable) *ir.RootExpression {
+	variableSize := variable.Type.GetByteSize()
+	return &ir.RootExpression{
+		Name:   variable.Name,
+		Offset: uint32(0),
+		Expression: ir.Expression{
+			Type: variable.Type,
+			Operations: []ir.ExpressionOp{
+				&ir.LocationOp{
+					Variable: variable,
+					Offset:   0,
+					ByteSize: uint32(variableSize),
+				},
+			},
+		},
+	}
 }
 
 type rootVisitor struct {

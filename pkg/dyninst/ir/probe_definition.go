@@ -5,7 +5,10 @@
 
 package ir
 
-import "cmp"
+import (
+	"cmp"
+	"encoding/json"
+)
 
 // ProbeIDer is an interface that allows for comparison of probe definitions.
 type ProbeIDer interface {
@@ -28,6 +31,10 @@ type ProbeDefinition interface {
 	GetCaptureConfig() CaptureConfig
 	// ThrottleConfig returns the throttle configuration of the probe.
 	GetThrottleConfig() ThrottleConfig
+	// GetTemplate returns the template of the probe.
+	GetTemplate() string
+	// GetSegments returns the segments of the probe template.
+	GetSegments() []Segment
 }
 
 // CompareProbeIDs compares two probe definitions by their ID and version.
@@ -42,6 +49,28 @@ func CompareProbeIDs[A, B ProbeIDer](a A, b B) int {
 type Where interface {
 	Where() // marker method
 }
+
+// Segment is a segment of a probe template.
+type Segment interface {
+	Segment() // marker method
+}
+
+// StringSegment is a string literal to be used as a segment of a probe template.
+type StringSegment string
+
+// Segment implements the Segment interface.
+func (s StringSegment) Segment() {}
+
+// JSONSegment is a JSON object to be used as a segment of a probe template.
+type JSONSegment struct {
+	// JSON is the AST of the DSL segment.
+	JSON json.RawMessage
+	// DSL is the raw expression language segment.
+	DSL string
+}
+
+// Segment implements the Segment interface.
+func (s JSONSegment) Segment() {}
 
 // FunctionWhere is a where clause of a probe that is a function.
 type FunctionWhere interface {

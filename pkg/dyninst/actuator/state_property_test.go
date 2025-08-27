@@ -10,7 +10,6 @@ package actuator
 import (
 	"bytes"
 	"cmp"
-	"encoding/json"
 	"fmt"
 	"math/rand"
 	"os"
@@ -229,8 +228,8 @@ func (pts *propertyTestState) generateProcessUpdate() event {
 							Language: "go",
 						},
 						Template: "test log message",
-						Segments: []json.RawMessage{
-							json.RawMessage(`"test log message"`),
+						Segments: rcjson.SegmentList{
+							rcjson.StringSegment("test log message"),
 						},
 					},
 				}
