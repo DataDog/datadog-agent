@@ -603,6 +603,7 @@ func (ts *testState) initializeModule(t *testing.T) {
 	))
 	require.NoError(t, err)
 
+	cfg.SymDBUploadEnabled = true
 	cfg.LogUploaderURL = ts.backendServer.URL + "/logs"
 	cfg.DiagsUploaderURL = ts.backendServer.URL + "/diags"
 	cfg.SymDBUploaderURL = ts.symdbURL
