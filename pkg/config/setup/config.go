@@ -1158,7 +1158,9 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("remote_agent_registry.idle_timeout", time.Duration(30*time.Second))
 	config.BindEnvAndSetDefault("remote_agent_registry.query_timeout", time.Duration(3*time.Second))
 	config.BindEnvAndSetDefault("remote_agent_registry.recommended_refresh_interval", time.Duration(10*time.Second))
-	config.BindEnvAndSetDefault("remote_agent_registry.config_stream_retry_interval", time.Duration(1*time.Second))
+
+	// Config Stream
+	config.BindEnvAndSetDefault("config_stream.sleep_interval", 3*time.Second)
 
 	// Shared libraries check
 	config.BindEnvAndSetDefault("hared_libraries_check.enabled", true)
