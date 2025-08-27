@@ -464,7 +464,7 @@ func getEthtoolMetrics(driverName string, statsMap map[string]uint64) map[string
 				queueIndex := -1
 				queueNum := -1
 				for i, part := range parts {
-					if !strings.HasPrefix(part, "rx") || !strings.HasPrefix(part, "tx") {
+					if !strings.HasPrefix(part, "rx") && !strings.HasPrefix(part, "tx") {
 						continue
 					}
 					if cur, err := strconv.Atoi(part[2:]); err == nil {
