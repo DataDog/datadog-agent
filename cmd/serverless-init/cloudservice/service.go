@@ -61,7 +61,7 @@ func (l *LocalService) GetTags() map[string]string {
 
 // GetDefaultLogsSource is a default implementation that returns an empty logs source
 func (l *LocalService) GetDefaultLogsSource() string {
-	return ""
+	return "unknown"
 }
 
 // GetOrigin is a default implementation that returns a local empty origin
