@@ -195,6 +195,7 @@
       }
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "main.largeStruct{ a = 101 b = 102 c = 103 d = 104 e = 105 f = 106 g = 107 h = 108 i = 109 j = 110 }, main.largeStruct{ a = 111 b = 112 c = 113 d = 114 e = 115 f = 116 g = 117 h = 118 i = 119 j = 120 }"
   }
 ]

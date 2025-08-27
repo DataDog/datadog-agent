@@ -76,6 +76,7 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "main.deepMap1{ a = <map[int]*main.deepMap2> }"
   }
 ]

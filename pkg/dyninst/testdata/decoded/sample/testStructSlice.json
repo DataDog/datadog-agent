@@ -91,6 +91,7 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "[]main.structWithNoStrings{main.structWithNoStrings{ aUint8 = 42 aBool = true }, main.structWithNoStrings{ aUint8 = 24 aBool = true }}, 3"
   }
 ]

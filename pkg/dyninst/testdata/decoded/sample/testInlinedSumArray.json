@@ -81,7 +81,8 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "[5]int{1, 2, 3, 4, 5}"
   },
   {
     "service": "sample",
@@ -170,6 +171,7 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "[5]int{1, 2, 3, 4, 5}"
   }
 ]

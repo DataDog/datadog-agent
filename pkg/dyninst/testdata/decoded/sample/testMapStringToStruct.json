@@ -99,6 +99,7 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "<map[string]main.nestedStruct>"
   }
 ]

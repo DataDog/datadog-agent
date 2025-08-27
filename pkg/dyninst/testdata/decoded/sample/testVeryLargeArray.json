@@ -461,6 +461,7 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "[100]uint{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}"
   }
 ]

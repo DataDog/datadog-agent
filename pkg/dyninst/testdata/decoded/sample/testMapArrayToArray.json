@@ -175,6 +175,7 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "<map[[4]string][2]int>"
   }
 ]
