@@ -1142,8 +1142,9 @@ Probes:
       type: LOG_PROBE
       where: {methodName: main.testSingleInt16}
       tags: ['foo:bar']
+      message: hello {x}
       template: ""
-      segments: []
+      segments: [hello, {json: null, dsl: x}]
       captureSnapshot: true
       subprogram: {subprogram: 24}
       events:
@@ -1184,8 +1185,9 @@ Probes:
       type: LOG_PROBE
       where: {methodName: main.testSingleInt8}
       tags: ['foo:bar']
+      message: hello {x}
       template: ""
-      segments: []
+      segments: [hello, {json: null, dsl: x}]
       captureSnapshot: true
       subprogram: {subprogram: 23}
       events:

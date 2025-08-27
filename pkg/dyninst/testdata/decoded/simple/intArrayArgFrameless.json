@@ -51,15 +51,21 @@
                 "elements": [
                   {
                     "type": "string",
-                    "value": "foo"
+                    "size": "3",
+                    "truncated": true,
+                    "value": "fo"
                   },
                   {
                     "type": "string",
-                    "value": "bar"
+                    "size": "3",
+                    "truncated": true,
+                    "value": "ba"
                   },
                   {
                     "type": "string",
-                    "value": "baz"
+                    "size": "3",
+                    "truncated": true,
+                    "value": "ba"
                   }
                 ]
               }
@@ -68,6 +74,7 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": ""
   }
 ]

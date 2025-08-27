@@ -26,6 +26,11 @@
             "lineNumber": 26
           },
           {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
+            "lineNumber": 25
+          },
+          {
             "function": "runtime.main",
             "fileName": "runtime/proc.go",
             "lineNumber": "[lineNumber]"
@@ -45,16 +50,15 @@
         "captures": {
           "entry": {
             "arguments": {
-              "x": {
-                "type": "int",
-                "notCapturedReason": "unavailable"
-              }
+              "type": "int",
+              "notCapturedReason": "unavailable"
             }
           }
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": ""
   },
   {
     "service": "simple",
@@ -116,6 +120,7 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": ""
   }
 ]
