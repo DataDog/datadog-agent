@@ -30,6 +30,7 @@ import (
 	"maps"
 	"math"
 	"reflect"
+	"regexp"
 	"runtime/debug"
 	"slices"
 	"strings"
@@ -42,19 +43,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 )
 
-// TODO: Validate the probes in the config and report things that are
-// not supported without just bailing out.
-
 // TODO: This code creates a lot of allocations, but we could greatly reduce
 // the number of distinct allocations by using a batched allocation scheme.
 // Such an approach makes sense because we know the lifetimes of all the
 // objects are going to be the same.
 
 // TODO: Handle creating return events.
-
-// TODO: Properly set up the presence bitset.
-
-// TODO: Support hmaps.
 
 // Generator is used to generate IR programs from binary files and probe
 // configurations.
@@ -78,10 +72,15 @@ func NewGenerator(options ...Option) *Generator {
 // and any probes that failed during generation.
 func (g *Generator) GenerateIR(
 	programID ir.ProgramID,
-	objFile *object.ElfFile,
+	binaryPath string,
 	probeDefs []ir.ProbeDefinition,
 ) (*ir.Program, error) {
-	return generateIR(g.config, programID, objFile, probeDefs)
+	elfFile, err := g.config.objectLoader.Load(binaryPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load elf file: %w", err)
+	}
+	defer elfFile.Close()
+	return generateIR(g.config, programID, elfFile, probeDefs)
 }
 
 // GenerateIR generates an IR program from a binary and a list of probes.
@@ -89,7 +88,7 @@ func (g *Generator) GenerateIR(
 // and any probes that failed during generation.
 func GenerateIR(
 	programID ir.ProgramID,
-	objFile object.File,
+	objFile object.FileWithDwarf,
 	probeDefs []ir.ProbeDefinition,
 	options ...Option,
 ) (_ *ir.Program, retErr error) {
@@ -103,7 +102,7 @@ func GenerateIR(
 func generateIR(
 	cfg config,
 	programID ir.ProgramID,
-	objFile object.File,
+	objFile object.FileWithDwarf,
 	probeDefs []ir.ProbeDefinition,
 ) (_ *ir.Program, retErr error) {
 	// Ensure deterministic output.
@@ -132,7 +131,7 @@ func generateIR(
 
 	// Prepare the main DWARF visitor that will gather all the information we
 	// need from the binary.
-	ptrSize := objFile.PointerSize()
+	ptrSize := uint8(objFile.Architecture().PointerSize())
 	d := objFile.DwarfData()
 	typeCatalog := newTypeCatalog(
 		d,
@@ -140,24 +139,38 @@ func generateIR(
 		cfg.maxDynamicTypeSize,
 		cfg.maxHashBucketsSize,
 	)
-	dwarfRes, err := processDwarf(interests, d, typeCatalog, objFile)
+	pendingSubprograms, goModuledataInfo, err := processDwarf(interests, d, typeCatalog, objFile)
 	if err != nil {
 		return nil, err
 	}
-	pendingSubprograms := dwarfRes.pendingSubprograms
-	abstractIdx := dwarfRes.firstAbstractIdx
 
-	// Determine injection points right after each subprogram's prologue.
-	prologueResults, err := computePrologueResults(
-		objFile, pendingSubprograms, abstractIdx,
-	)
+	// Find prologues need to determine injection points. We make an assumption
+	// that prologue, if function has a frame, should be contained within the
+	// first pc range of a subprogram. This simplifies the logic slightly.
+	prologueSearch := make([]prologueSeachParams, 0, len(pendingSubprograms))
+	for _, sp := range pendingSubprograms {
+		if len(sp.subprogram.OutOfLinePCRanges) > 0 {
+			prologueSearch = append(prologueSearch, prologueSeachParams{
+				unit:    sp.unit,
+				pcRange: sp.subprogram.OutOfLinePCRanges[0],
+			})
+		}
+		for _, inlined := range sp.subprogram.InlinePCRanges {
+			prologueSearch = append(prologueSearch, prologueSeachParams{
+				unit:    sp.unit,
+				pcRange: inlined.RootRanges[0],
+			})
+		}
+	}
+
+	prologueLocs, err := findProloguesEnds(objFile, prologueSearch)
 	if err != nil {
 		return nil, err
 	}
 
 	// Instantiate probes and gather any probe-related issues.
 	probes, subprograms, probeIssues, err := createProbes(
-		pendingSubprograms, prologueResults,
+		objFile, pendingSubprograms, prologueLocs,
 	)
 	if err != nil {
 		return nil, err
@@ -187,61 +200,58 @@ func generateIR(
 	slices.SortFunc(issues, ir.CompareProbeIDs)
 
 	return &ir.Program{
-		ID:          programID,
-		Subprograms: subprograms,
-		Probes:      probes,
-		Types:       typeCatalog.typesByID,
-		MaxTypeID:   typeCatalog.idAlloc.alloc,
-		Issues:      issues,
+		ID:               programID,
+		Subprograms:      subprograms,
+		Probes:           probes,
+		Types:            typeCatalog.typesByID,
+		MaxTypeID:        typeCatalog.idAlloc.alloc,
+		Issues:           issues,
+		GoModuledataInfo: goModuledataInfo,
 	}, nil
 }
 
-type processDwarfResult struct {
-	pendingSubprograms []*pendingSubprogram
-	firstAbstractIdx   int
+type prologueSeachParams struct {
+	unit    *dwarf.Entry
+	pcRange ir.PCRange
 }
 
-// prologueResult captures the outcome of prologue discovery for a given
-// subprogram. If err is non-nil, the location should be considered invalid.
-type prologueResult struct {
-	loc ir.InjectionPoint
-	err error
+type prologueEndLocation struct {
+	err       error
+	frameless bool
+	// If not frameless, the pc of the prologue end, otherwise the first pc
+	// of the subprogram.
+	pc uint64
 }
 
-// computePrologueResults walks each interesting sub-program and determines the
-// appropriate injection point at the end of its prologue. The returned slice is
-// indexed the same way as the pending slice.
-func computePrologueResults(
-	objFile object.File,
-	pending []*pendingSubprogram,
-	abstractStartIdx int,
-) ([]prologueResult, error) {
-	ranks := make([]uint32, len(pending))
-	for i := range pending {
-		ranks[i] = uint32(i)
+// findPrologues searches for prologue for each given search param. Results
+// are indexed by the start of the pc range. Provided ranges must be non-overlapping
+// but may contain duplicates.
+func findProloguesEnds(
+	objFile object.Dwarf,
+	searchParams []prologueSeachParams,
+) (map[uint64]prologueEndLocation, error) {
+	if len(searchParams) == 0 {
+		return make(map[uint64]prologueEndLocation), nil
 	}
-
-	getPC := func(i uint32) uint64 {
-		if ool := pending[i].subprogram.OutOfLinePCRanges; len(ool) > 0 {
-			return ool[0][0]
-		}
-		return math.MaxUint64
-	}
-
-	slices.SortFunc(ranks, func(a, b uint32) int {
-		return cmp.Or(
-			cmp.Compare(pending[a].unit.Offset, pending[b].unit.Offset),
-			cmp.Compare(getPC(a), getPC(b)),
-		)
+	slices.SortFunc(searchParams, func(a, b prologueSeachParams) int {
+		return cmp.Compare(a.pcRange[0], b.pcRange[0])
 	})
+	// Remove duplicates.
+	i := 1
+	for j := 1; j < len(searchParams); j++ {
+		if searchParams[i-1].pcRange != searchParams[j].pcRange {
+			searchParams[i] = searchParams[j]
+			i++
+		}
+	}
+	searchParams = searchParams[:i]
 
-	results := make([]prologueResult, len(pending))
+	res := make(map[uint64]prologueEndLocation, len(searchParams))
 	var prevUnit *dwarf.Entry
 	var lineReader *dwarf.LineReader
-
-	for _, r := range ranks {
-		if prevUnit != pending[r].unit {
-			prevUnit = pending[r].unit
+	for _, sp := range searchParams {
+		if prevUnit != sp.unit {
+			prevUnit = sp.unit
 			lr, err := objFile.DwarfData().LineReader(prevUnit)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get line reader: %w", err)
@@ -249,36 +259,31 @@ func computePrologueResults(
 			lineReader = lr
 		}
 
-		sp := pending[r]
-		ool := sp.subprogram.OutOfLinePCRanges
-		if len(ool) == 0 {
-			if r < uint32(abstractStartIdx) {
-				results[r] = prologueResult{
-					err: fmt.Errorf("no out-of-line PC ranges for subprogram %q", sp.subprogram.Name),
-				}
-			}
-			continue
-		}
-
-		pc, ok, err := findPrologueEnd(lineReader, ool[0:1])
+		pc, ok, err := findPrologueEnd(lineReader, sp.pcRange)
 		switch {
 		case err != nil:
-			results[r] = prologueResult{err: err}
+			res[sp.pcRange[0]] = prologueEndLocation{err: err}
 		case ok:
-			results[r] = prologueResult{loc: ir.InjectionPoint{PC: pc, Frameless: false}}
+			res[sp.pcRange[0]] = prologueEndLocation{
+				frameless: false,
+				pc:        pc,
+			}
 		default:
-			results[r] = prologueResult{loc: ir.InjectionPoint{PC: ool[0][0], Frameless: true}}
+			res[sp.pcRange[0]] = prologueEndLocation{
+				frameless: true,
+				pc:        sp.pcRange[0],
+			}
 		}
 	}
-
-	return results, nil
+	return res, nil
 }
 
 // createProbes instantiates probes for each pending sub-program and gathers any
 // probe-specific issues encountered in the process.
 func createProbes(
+	objFile object.FileWithDwarf,
 	pending []*pendingSubprogram,
-	prologueResults []prologueResult,
+	prologueLocs map[uint64]prologueEndLocation,
 ) ([]*ir.Probe, []*ir.Subprogram, []ir.ProbeIssue, error) {
 	var (
 		probes       []*ir.Probe
@@ -287,16 +292,7 @@ func createProbes(
 		eventIDAlloc idAllocator[ir.EventID]
 	)
 
-	for i, p := range pending {
-		// Surface earlier issues (including prologue lookup failures) on all
-		// probe definitions tied to this sub-program.
-		if p.issue.IsNone() && prologueResults[i].err != nil {
-			p.issue = ir.Issue{
-				Kind:    ir.IssueKindInvalidDWARF,
-				Message: prologueResults[i].err.Error(),
-			}
-		}
-
+	for _, p := range pending {
 		if !p.issue.IsNone() {
 			for _, cfg := range p.probesCfgs {
 				issues = append(issues, ir.ProbeIssue{ProbeDefinition: cfg, Issue: p.issue})
@@ -306,7 +302,7 @@ func createProbes(
 
 		var haveProbe bool
 		for _, cfg := range p.probesCfgs {
-			probe, iss, err := newProbe(cfg, p.subprogram, &eventIDAlloc, prologueResults[i].loc)
+			probe, iss, err := newProbe(objFile, cfg, p.subprogram, &eventIDAlloc, prologueLocs)
 			if err != nil {
 				return nil, nil, nil, err
 			}
@@ -351,8 +347,8 @@ func processDwarf(
 	interests interests,
 	d *dwarf.Data,
 	typeCatalog *typeCatalog,
-	objFile object.File,
-) (processDwarfResult, error) {
+	objFile object.FileWithDwarf,
+) ([]*pendingSubprogram, ir.GoModuledataInfo, error) {
 	v := &rootVisitor{
 		interests:           interests,
 		dwarf:               d,
@@ -360,18 +356,17 @@ func processDwarf(
 		abstractSubprograms: make(map[dwarf.Offset]*abstractSubprogram),
 		inlinedSubprograms:  make(map[*dwarf.Entry][]*inlinedSubprogram),
 		typeCatalog:         typeCatalog,
-		pointerSize:         objFile.PointerSize(),
+		pointerSize:         uint8(objFile.Architecture().PointerSize()),
 		loclistReader:       objFile.LoclistReader(),
 	}
 
 	// Visit the entire DWARF tree.
 	if err := visitDwarf(d.Reader(), v); err != nil {
-		return processDwarfResult{}, err
+		return nil, ir.GoModuledataInfo{}, err
 	}
 
 	// Concrete subprograms are already in v.pendingSubprograms.
 	pending := v.subprograms
-	firstAbstractIdx := len(pending)
 
 	// Propagate details from each inlined instance to its abstract origin.
 	inlinedByUnit := iterMapSorted(v.inlinedSubprograms, cmpEntry)
@@ -406,10 +401,10 @@ func processDwarf(
 		})
 	}
 
-	return processDwarfResult{
-		pendingSubprograms: pending,
-		firstAbstractIdx:   firstAbstractIdx,
-	}, nil
+	if v.goRuntimeInformation == (ir.GoModuledataInfo{}) {
+		return nil, ir.GoModuledataInfo{}, fmt.Errorf("runtime.firstmoduledata not found")
+	}
+	return pending, v.goRuntimeInformation, nil
 }
 
 func findUnusedConfigs(
@@ -447,17 +442,22 @@ func applyInlineToAbstractSubprogram(
 	pointerSize uint8,
 	typeCatalog *typeCatalog,
 ) ir.Issue {
-	if inlinedSubprogram.outOfLineInstance {
+	var ranges []ir.PCRange
+	if inlinedSubprogram.outOfLinePCRanges != nil {
+		// Out-of-line instance.
 		if abstractSubprogram.subprogram.OutOfLinePCRanges != nil {
 			return ir.Issue{
 				Kind:    ir.IssueKindMalformedExecutable,
 				Message: "multiple out-of-line instances of abstract subprogram",
 			}
 		}
-		abstractSubprogram.subprogram.OutOfLinePCRanges = inlinedSubprogram.ranges
+		abstractSubprogram.subprogram.OutOfLinePCRanges = inlinedSubprogram.outOfLinePCRanges
+		ranges = inlinedSubprogram.outOfLinePCRanges
 	} else {
+		// Inlined instance.
 		abstractSubprogram.subprogram.InlinePCRanges = append(
-			abstractSubprogram.subprogram.InlinePCRanges, inlinedSubprogram.ranges)
+			abstractSubprogram.subprogram.InlinePCRanges, inlinedSubprogram.inlinedPCRanges)
+		ranges = inlinedSubprogram.inlinedPCRanges.Ranges
 	}
 	for _, inlinedVariable := range inlinedSubprogram.variables {
 		// Inlined subprograms usually have variables with abstract origin
@@ -488,7 +488,7 @@ func applyInlineToAbstractSubprogram(
 			locField := inlinedVariable.AttrField(dwarf.AttrLocation)
 			if locField != nil {
 				locations, err = computeLocations(
-					unit, inlinedSubprogram.ranges, variable.Type, locField,
+					unit, ranges, variable.Type, locField,
 					loclistReader, pointerSize,
 				)
 				if err != nil {
@@ -521,7 +521,7 @@ func applyInlineToAbstractSubprogram(
 			variable, err = processVariable(
 				unit, inlinedVariable, isParameter,
 				true, /* parseLocations */
-				inlinedSubprogram.ranges,
+				ranges,
 				loclistReader, pointerSize, typeCatalog,
 			)
 			if err != nil {
@@ -554,8 +554,8 @@ func completeGoTypes(tc *typeCatalog) error {
 				// Nothing to do.
 			default:
 				return fmt.Errorf(
-					"unexpected Go kind for structure type: %v",
-					t.GoTypeAttributes.GoKind,
+					"unexpected Go kind for structure type %q: %v",
+					t.Name, t.GoTypeAttributes.GoKind,
 				)
 			}
 		case *ir.GoMapType:
@@ -637,7 +637,12 @@ func fieldType[T ir.Type](st *ir.StructureType, name string) (T, error) {
 	}
 	fieldType, ok := f.Type.(T)
 	if !ok {
-		return *new(T), fmt.Errorf("field %q is not a %T, got %T", name, new(T), f.Type)
+		ret := *new(T)
+		err := fmt.Errorf(
+			"field %q of type %q is not a %T, got %T",
+			name, st.Name, ret, f.Type,
+		)
+		return ret, err
 	}
 	return fieldType, nil
 }
@@ -724,9 +729,47 @@ func completeSwissMapHeaderType(tc *typeCatalog, st *ir.StructureType) error {
 	return nil
 }
 
-func completeHMapHeaderType(_ *typeCatalog, _ *ir.StructureType) error {
-	// TODO: Implement this and test it on older versions of Go.
-	return fmt.Errorf("hmap support is not implemented")
+func completeHMapHeaderType(tc *typeCatalog, st *ir.StructureType) error {
+	bucketsField, err := field(st, "buckets")
+	if err != nil {
+		return err
+	}
+	bucketsStructType, err := pointeeType[*ir.StructureType](bucketsField.Type)
+	if err != nil {
+		return err
+	}
+	keysArrayType, err := fieldType[*ir.ArrayType](bucketsStructType, "keys")
+	if err != nil {
+		return err
+	}
+	keyType := keysArrayType.Element
+	valuesArrayType, err := fieldType[*ir.ArrayType](bucketsStructType, "values")
+	if err != nil {
+		return err
+	}
+	valueType := valuesArrayType.Element
+	bucketsType := &ir.GoHMapBucketType{
+		StructureType: bucketsStructType,
+		KeyType:       keyType,
+		ValueType:     valueType,
+	}
+	bucketsSliceDataType := &ir.GoSliceDataType{
+		TypeCommon: ir.TypeCommon{
+			ID:       tc.idAlloc.next(),
+			Name:     fmt.Sprintf("[]%s.array", bucketsType.GetName()),
+			ByteSize: tc.maxDynamicTypeSize,
+		},
+		Element: bucketsType,
+	}
+	headerType := &ir.GoHMapHeaderType{
+		StructureType: st,
+		BucketType:    bucketsType,
+		BucketsType:   bucketsSliceDataType,
+	}
+	tc.typesByID[bucketsSliceDataType.ID] = bucketsSliceDataType
+	tc.typesByID[headerType.ID] = headerType
+	tc.typesByID[bucketsType.ID] = bucketsType
+	return nil
 }
 
 func completeGoStringType(tc *typeCatalog, st *ir.StructureType) error {
@@ -889,6 +932,8 @@ type rootVisitor struct {
 	typeCatalog        *typeCatalog
 	loclistReader      *loclist.Reader
 
+	goRuntimeInformation ir.GoModuledataInfo
+
 	// This is used to avoid allocations of unitChildVisitor for each
 	// compile unit.
 	freeUnitChildVisitor *unitChildVisitor
@@ -963,7 +1008,7 @@ func (v *unitChildVisitor) push(
 		}
 		if !ok {
 			// This is expected to be an out-of-line instance of an abstract program.
-			childVisitor, err = processInlinedSubroutineEntry(v.root, v.unit, entry, true /* outOfLineInstance */)
+			childVisitor, err = processInlinedSubroutineEntry(v.root, v.unit, true /* outOfLineInstance */, nil, entry)
 			if err != nil {
 				return nil, fmt.Errorf("unnamed, non-inline subprogram: %w", err)
 			}
@@ -996,23 +1041,26 @@ func (v *unitChildVisitor) push(
 		}
 
 		var subprogram *ir.Subprogram
+		var subprogramPCRanges []ir.PCRange
 		if len(probesCfgs) > 0 {
-			ranges, err := v.root.dwarf.Ranges(entry)
+			var err error
+			subprogramPCRanges, err = v.root.dwarf.Ranges(entry)
 			if err != nil {
 				return nil, fmt.Errorf("failed to parse pc ranges: %w", err)
 			}
 			subprogram = &ir.Subprogram{
 				ID:                v.root.subprogramIDAlloc.next(),
 				Name:              name,
-				OutOfLinePCRanges: ranges,
+				OutOfLinePCRanges: subprogramPCRanges,
 			}
 		}
 		return &subprogramChildVisitor{
-			root:            v.root,
-			subprogramEntry: entry,
-			unit:            v.unit,
-			subprogram:      subprogram,
-			probesCfgs:      probesCfgs,
+			root:                     v.root,
+			subprogramEntry:          entry,
+			unit:                     v.unit,
+			subprogram:               subprogram,
+			cachedSubprogramPCRanges: subprogramPCRanges,
+			probesCfgs:               probesCfgs,
 		}, nil
 
 	case dwarf.TagUnspecifiedType:
@@ -1025,20 +1073,154 @@ func (v *unitChildVisitor) push(
 		dwarf.TagStructType,
 		dwarf.TagTypedef,
 		dwarf.TagSubroutineType:
-		// TODO: We've already parsed this node, it's wasteful to parse it
-		// again, but we're not going to know whether we need it until later. so
-		// for now we'll just skip over all types and come back to them lazily.
+
+		// Use this as a heuristic to determine if this is a base type or a
+		// pointer to a base type. This is handy because these things are
+		// sometimes found underneath interfaces. Also, generally it's nice to
+		// have some types eagerly added.
+		name, ok, err := maybeGetAttr[string](entry, dwarf.AttrName)
+		if err != nil || !ok {
+			return nil, err
+		}
+		nameWithoutStar := name
+		if entry.Tag == dwarf.TagPointerType {
+			nameWithoutStar = name[1:]
+		}
+		if !primitiveTypeNameRegexp.MatchString(nameWithoutStar) &&
+			// error is a special case that is not a primitive type and it
+			// itself is an interface, so we don't need to add it eagerly.
+			nameWithoutStar != "error" {
+			return nil, nil
+		}
+		if _, err := v.root.typeCatalog.addType(entry.Offset); err != nil {
+			return nil, fmt.Errorf("failed to add type %q: %w", name, err)
+		}
 		return nil, nil
 
 	case dwarf.TagVariable:
-		// TODO: Handle variables.
+		name, ok, err := maybeGetAttr[string](entry, dwarf.AttrName)
+		if err != nil {
+			return nil, err
+		}
+		if !ok || name != "runtime.firstmoduledata" {
+			return nil, nil
+		}
+
+		typeOffset, err := getAttr[dwarf.Offset](entry, dwarf.AttrType)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get type for runtime.firstmoduledata: %w", err)
+		}
+
+		// See https://github.com/golang/go/blob/5a56d884/src/runtime/symtab.go#L414
+		byteSize, memberOffset, err := findStructSizeAndMemberOffset(v.root.dwarf, typeOffset, "types")
+		if err != nil {
+			return nil, fmt.Errorf("failed to find struct size and member offset: %w", err)
+		}
+		location, err := getAttr[[]byte](entry, dwarf.AttrLocation)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get location for runtime.firstmoduledata: %w", err)
+		}
+		instructions, err := loclist.ParseInstructions(location, v.root.pointerSize, byteSize)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse location for runtime.firstmoduledata: %w", err)
+		}
+		if len(instructions) != 1 {
+			return nil, fmt.Errorf("runtime.firstmoduledata has %d instructions, expected 1", len(instructions))
+		}
+		addr, ok := instructions[0].Op.(ir.Addr)
+		if !ok {
+			return nil, fmt.Errorf("runtime.firstmoduledata is not an address, got %T", instructions[0].Op)
+		}
+		v.root.goRuntimeInformation = ir.GoModuledataInfo{
+			FirstModuledataAddr: addr.Addr,
+			TypesOffset:         memberOffset,
+		}
 		return nil, nil
+
 	case dwarf.TagConstant:
 		// TODO: Handle constants.
 		return nil, nil
 	default:
 		return nil, fmt.Errorf("unexpected tag for unit child: %s", entry.Tag)
 	}
+}
+
+// primitiveTypeNameRegexp is a regex that matches the names of primitive types.
+// It doesn't match anything with a package or any of the odd internal types
+// used by the runtime like sudog<T>.
+var primitiveTypeNameRegexp = regexp.MustCompile(`^[a-z]+[0-9]*$`)
+
+// findStructMemberOffset finds the offset of a member in a struct type.
+func findStructSizeAndMemberOffset(
+	dwarfData *dwarf.Data,
+	typeOffset dwarf.Offset,
+	memberName string,
+) (size uint32, memberOffset uint32, retErr error) {
+	reader := dwarfData.Reader()
+	reader.Seek(typeOffset)
+	entry, err := reader.Next()
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to get entry: %w", err)
+	}
+	if entry.Tag != dwarf.TagTypedef {
+		return 0, 0, fmt.Errorf("expected typedef type, got %s", entry.Tag)
+	}
+	underlyingOffset, err := getAttr[dwarf.Offset](entry, dwarf.AttrType)
+	if err != nil {
+		return 0, 0, fmt.Errorf("missing type for typedef: %w", err)
+	}
+	reader.Seek(underlyingOffset)
+	entry, err = reader.Next()
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to get entry: %w", err)
+	}
+	if entry.Tag != dwarf.TagStructType {
+		return 0, 0, fmt.Errorf("expected struct type, got %s", entry.Tag)
+	}
+	if !entry.Children {
+		return 0, 0, fmt.Errorf("struct type has no children")
+	}
+	structSize, err := getAttr[int64](entry, dwarf.AttrByteSize)
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to get size for struct type: %w", err)
+	}
+	if structSize < 0 || structSize > math.MaxUint32 {
+		return 0, 0, fmt.Errorf("invalid struct size %d", structSize)
+	}
+	size = uint32(structSize)
+	for {
+		child, err := reader.Next()
+		if err != nil {
+			return 0, 0, fmt.Errorf("failed to get next child: %w", err)
+		}
+		if child == nil {
+			return 0, 0, fmt.Errorf("unexpected EOF while reading struct type")
+		}
+		if child.Tag == 0 {
+			break
+		}
+		if child.Tag == dwarf.TagMember {
+			name, err := getAttr[string](child, dwarf.AttrName)
+			if err != nil {
+				return 0, 0, fmt.Errorf("failed to get name for member: %w", err)
+			}
+			if name != memberName {
+				continue
+			}
+			offset, err := getAttr[int64](child, dwarf.AttrDataMemberLoc)
+			if err != nil {
+				return 0, 0, fmt.Errorf("failed to get offset for member: %w", err)
+			}
+			if offset > math.MaxUint32 {
+				return 0, 0, fmt.Errorf("member offset is too large: %d", offset)
+			}
+			return size, uint32(offset), nil
+		}
+		if child.Children {
+			reader.SkipChildren()
+		}
+	}
+	return 0, 0, fmt.Errorf("member %q not found", memberName)
 }
 
 func (v *unitChildVisitor) pop(_ *dwarf.Entry, childVisitor visitor) error {
@@ -1064,10 +1246,11 @@ func (v *unitChildVisitor) pop(_ *dwarf.Entry, childVisitor visitor) error {
 }
 
 func newProbe(
+	objFile object.FileWithDwarf,
 	probeCfg ir.ProbeDefinition,
 	subprogram *ir.Subprogram,
 	eventIDAlloc *idAllocator[ir.EventID],
-	prologueEnd ir.InjectionPoint,
+	prologueLocs map[uint64]prologueEndLocation,
 ) (*ir.Probe, ir.Issue, error) {
 	kind := probeCfg.GetKind()
 	if !kind.IsValid() {
@@ -1085,14 +1268,41 @@ func newProbe(
 		}, nil
 	}
 	if subprogram.OutOfLinePCRanges != nil {
-		injectionPoints = append(injectionPoints, prologueEnd)
-	}
-	for _, inlinedInstanceRanges := range subprogram.InlinePCRanges {
+		pc := subprogram.OutOfLinePCRanges[0][0]
+		loc, ok := prologueLocs[pc]
+		if !ok {
+			return nil, ir.Issue{}, fmt.Errorf("missing prologue loc for: %d", pc)
+		}
+		if loc.err != nil {
+			return nil, ir.Issue{
+				Kind:    ir.IssueKindInvalidDWARF,
+				Message: loc.err.Error(),
+			}, nil
+		}
+		arch := objFile.Architecture()
+		switch arch {
+		case "amd64":
+			// Do nothing
+		case "arm64":
+			// On arm, the prologue end is marked before the stack allocation.
+			loc.frameless = true
+		default:
+			return nil, ir.Issue{}, fmt.Errorf("unsupported architecture: %s", arch)
+		}
 		injectionPoints = append(injectionPoints, ir.InjectionPoint{
-			PC: inlinedInstanceRanges[0][0],
-			// TODO: We need to determine from the inlined parent whether the
-			// inlined instance is frameless.
-			Frameless: true,
+			PC:        loc.pc,
+			Frameless: loc.frameless,
+		})
+	}
+	for _, inlined := range subprogram.InlinePCRanges {
+		pc := inlined.RootRanges[0][0]
+		loc, ok := prologueLocs[pc]
+		if !ok {
+			return nil, ir.Issue{}, fmt.Errorf("missing prologue loc for: %d", pc)
+		}
+		injectionPoints = append(injectionPoints, ir.InjectionPoint{
+			PC:        inlined.Ranges[0][0],
+			Frameless: loc.frameless,
 		})
 	}
 
@@ -1116,64 +1326,60 @@ func newProbe(
 }
 
 func findPrologueEnd(
-	lineReader *dwarf.LineReader, ranges []ir.PCRange,
+	lineReader *dwarf.LineReader, r ir.PCRange,
 ) (injectionPC uint64, ok bool, err error) {
 	var lineEntry dwarf.LineEntry
-	// Note: this is assuming that the ranges are sorted.
-	if len(ranges) == 0 {
-		return 0, false, fmt.Errorf("expected at least one range for subprogram")
-	}
 	prevPos := lineReader.Tell()
-	for _, r := range ranges {
-		// In general, SeekPC is not the function we're looking for.  We
-		// want to seek to the next line entry that's in the range but
-		// not necessarily the first one. We add some hacks here that
-		// work unless we're at the beginning of a sequence.
-		//
-		// TODO: Find a way to seek to the first entry in a range rather
-		// than just
-		err := lineReader.SeekPC(r[0], &lineEntry)
-		// If we find that we have a hole, then we'll have our hands on
-		// a reader that's positioned after our PC. We can then seek to
-		// the instruction prior to that which should be in range of a
-		// real sequence. This is grossly inefficient.
-		if err != nil &&
-			errors.Is(err, dwarf.ErrUnknownPC) &&
-			lineEntry.Address < r[0] {
-			nextErr := lineReader.Next(&lineEntry)
-			if nextErr == nil {
-				lineReader.Seek(prevPos)
-				nextErr = lineReader.SeekPC(lineEntry.Address-1, &lineEntry)
-			}
-			if nextErr == nil && lineEntry.Address >= r[0] {
-				err = nil
-			}
-		}
-		if err != nil {
-			// TODO(XXX): We hit this whenever the function prologue
-			// begins.
+	// In general, SeekPC is not the function we're looking for.  We
+	// want to seek to the next line entry that's in the range but
+	// not necessarily the first one. We add some hacks here that
+	// work unless we're at the beginning of a sequence.
+	//
+	// TODO: Find a way to seek to the first entry in a range rather
+	// than just
+	err = lineReader.SeekPC(r[0], &lineEntry)
+	// If we find that we have a hole, then we'll have our hands on
+	// a reader that's positioned after our PC. We can then seek to
+	// the instruction prior to that which should be in range of a
+	// real sequence. This is grossly inefficient.
+	if err != nil &&
+		errors.Is(err, dwarf.ErrUnknownPC) &&
+		lineEntry.Address < r[0] {
+		nextErr := lineReader.Next(&lineEntry)
+		if nextErr == nil {
 			lineReader.Seek(prevPos)
-			break
+			nextErr = lineReader.SeekPC(lineEntry.Address-1, &lineEntry)
 		}
-		// for whatever reason the entrypoint of a function is marked as a
-		// statement and then should come the prologue end. If we see two
-		// statements in a row then we're not going to find the prologue end.
-		stmtsSeen := 0
-		for lineEntry.Address < r[1] && stmtsSeen < 2 {
-			if lineEntry.PrologueEnd {
-				return lineEntry.Address, true, nil
-			}
-			if lineEntry.IsStmt {
-				stmtsSeen++
-			}
-			if err := lineReader.Next(&lineEntry); err != nil {
-				// TODO(XXX): Should this bail out?
-				// In general, if we don't have the proper prologue end
-				// and it's not a frameless subprogram, then we're going
-				// to have a problem on x86 because we won't know the
-				// real cfa. On ARM things may be better.
-				break
-			}
+		if nextErr == nil && lineEntry.Address >= r[0] {
+			err = nil
+		}
+	}
+	if err != nil {
+		// Reset the reader to the previous position which is more efficient
+		// than starting from 0 for the next seek given the caller is exploring
+		// in PC order.
+		lineReader.Seek(prevPos)
+		return 0, false, err
+	}
+	// For whatever reason the entrypoint of a function is marked as a
+	// statement and then should come the prologue end. If we see two
+	// statements in a row then we're not going to find the prologue end.
+	stmtsSeen := 0
+	for lineEntry.Address < r[1] && stmtsSeen < 2 {
+		if lineEntry.PrologueEnd {
+			return lineEntry.Address, true, nil
+		}
+		if lineEntry.IsStmt {
+			stmtsSeen++
+		}
+		if err := lineReader.Next(&lineEntry); err != nil {
+			// Should this return an error?
+			//
+			// In general, if we don't have the proper prologue end
+			// and it's not a frameless subprogram, then we're going
+			// to have a problem on x86 because we won't know the
+			// real cfa. On ARM things may be better.
+			break
 		}
 	}
 	return 0, false, nil
@@ -1186,7 +1392,22 @@ type subprogramChildVisitor struct {
 	// May be nil if the subprogram is not interesting. We still need to visit it
 	// to collect possibly interesting inlined subprograms instances.
 	subprogram *ir.Subprogram
-	probesCfgs []ir.ProbeDefinition
+	// Cached pc ranges of the subprogram. Calculated on demand from subprogramEntry
+	// or when subprogram is set.
+	cachedSubprogramPCRanges []ir.PCRange
+	probesCfgs               []ir.ProbeDefinition
+}
+
+func (v *subprogramChildVisitor) subprogramPCRanges() ([]ir.PCRange, error) {
+	if v.cachedSubprogramPCRanges != nil {
+		return v.cachedSubprogramPCRanges, nil
+	}
+	ranges, err := v.root.dwarf.Ranges(v.subprogramEntry)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse pc ranges: %w", err)
+	}
+	v.cachedSubprogramPCRanges = ranges
+	return ranges, nil
 }
 
 func (v *subprogramChildVisitor) push(
@@ -1195,7 +1416,11 @@ func (v *subprogramChildVisitor) push(
 	var isParameter bool
 	switch entry.Tag {
 	case dwarf.TagInlinedSubroutine:
-		return processInlinedSubroutineEntry(v.root, v.unit, entry, false /* outOfLineInstance */)
+		rootPCRanges, err := v.subprogramPCRanges()
+		if err != nil {
+			return nil, err
+		}
+		return processInlinedSubroutineEntry(v.root, v.unit, false /* outOfLineInstance */, rootPCRanges, entry)
 	case dwarf.TagFormalParameter:
 		isParameter = true
 		fallthrough
@@ -1235,8 +1460,9 @@ func (v *subprogramChildVisitor) pop(_ *dwarf.Entry, _ visitor) error {
 func processInlinedSubroutineEntry(
 	root *rootVisitor,
 	unit *dwarf.Entry,
-	subroutine *dwarf.Entry,
 	outOfLineInstance bool,
+	rootPCRanges []ir.PCRange,
+	subroutine *dwarf.Entry,
 ) (childVisitor visitor, err error) {
 	abstractOrigin, err := getAttr[dwarf.Offset](subroutine, dwarf.AttrAbstractOrigin)
 	if err != nil {
@@ -1247,15 +1473,24 @@ func processInlinedSubroutineEntry(
 		return nil, fmt.Errorf("failed to parse pc ranges %w", err)
 	}
 	sp := &inlinedSubprogram{
-		outOfLineInstance: outOfLineInstance,
-		abstractOrigin:    abstractOrigin,
-		ranges:            ranges,
+		abstractOrigin: abstractOrigin,
+		rootPCRanges:   rootPCRanges,
+	}
+	if outOfLineInstance {
+		sp.outOfLinePCRanges = ranges
+		rootPCRanges = ranges
+	} else {
+		sp.inlinedPCRanges = ir.InlinePCRanges{
+			Ranges:     ranges,
+			RootRanges: rootPCRanges,
+		}
 	}
 	root.inlinedSubprograms[unit] = append(root.inlinedSubprograms[unit], sp)
 	return &inlinedSubroutineChildVisitor{
-		root: root,
-		unit: unit,
-		sp:   sp,
+		root:         root,
+		unit:         unit,
+		rootPCRanges: rootPCRanges,
+		sp:           sp,
 	}, nil
 }
 
@@ -1353,16 +1588,20 @@ func (v *abstractSubprogramVisitor) pop(_ *dwarf.Entry, _ visitor) error {
 }
 
 type inlinedSubprogram struct {
-	outOfLineInstance bool
-	abstractOrigin    dwarf.Offset
-	ranges            []ir.PCRange
+	abstractOrigin dwarf.Offset
+	// Exactly one of the following is non-nil. If this is an out-of-line instance,
+	// outOfLinePCRanges are set. Otherwise, inlinedPCRanges are set.
+	outOfLinePCRanges []ir.PCRange
+	inlinedPCRanges   ir.InlinePCRanges
+	rootPCRanges      []ir.PCRange
 	variables         []*dwarf.Entry
 }
 
 type inlinedSubroutineChildVisitor struct {
-	root *rootVisitor
-	unit *dwarf.Entry
-	sp   *inlinedSubprogram
+	root         *rootVisitor
+	unit         *dwarf.Entry
+	rootPCRanges []ir.PCRange
+	sp           *inlinedSubprogram
 }
 
 func (v *inlinedSubroutineChildVisitor) push(
@@ -1370,7 +1609,7 @@ func (v *inlinedSubroutineChildVisitor) push(
 ) (childVisitor visitor, err error) {
 	switch entry.Tag {
 	case dwarf.TagInlinedSubroutine:
-		return processInlinedSubroutineEntry(v.root, v.unit, entry, false /* outOfLineInstance */)
+		return processInlinedSubroutineEntry(v.root, v.unit, false /* outOfLineInstance */, v.rootPCRanges, entry)
 	case dwarf.TagFormalParameter:
 		fallthrough
 	case dwarf.TagVariable:

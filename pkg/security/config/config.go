@@ -21,7 +21,6 @@ import (
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	pconfig "github.com/DataDog/datadog-agent/pkg/security/probe/config"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -235,8 +234,8 @@ type RuntimeSecurityConfig struct {
 	// ActivityDumpTracedCgroupsCount defines the maximum count of cgroups that should be monitored concurrently. Leave this parameter to 0 to prevent the generation
 	// of activity dumps based on cgroups.
 	ActivityDumpTracedCgroupsCount int
-	// ActivityDumpCgroupsManagers defines the cgroup managers we generate dumps for.
-	ActivityDumpCgroupsManagers []string
+	// ActivityDumpTraceSystemdCgroups defines if you want to trace systemd cgroups
+	ActivityDumpTraceSystemdCgroups bool
 
 	// ActivityDumpTracedEventTypes defines the list of events that should be captured in an activity dump. Leave this
 	// parameter empty to monitor all event types. If not already present, the `exec` event will automatically be added
@@ -460,23 +459,38 @@ func NewConfig() (*Config, error) {
 func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 	sysconfig.Adjust(pkgconfigsetup.SystemProbe())
 
-	eventTypeStrings := map[string]model.EventType{}
+	allEventTypes := make([]model.EventType, 0, model.MaxKernelEventType)
 
 	var eventType model.EventType
 	for i := uint64(0); i != uint64(model.MaxKernelEventType); i++ {
 		eventType = model.EventType(i)
-		eventTypeStrings[eventType.String()] = eventType
+		allEventTypes = append(allEventTypes, eventType)
 	}
 
 	// parseEventTypeStringSlice converts a string list to a list of event types
 	parseEventTypeStringSlice := func(eventTypes []string) []model.EventType {
 		var output []model.EventType
 		for _, eventTypeStr := range eventTypes {
-			if eventType := eventTypeStrings[eventTypeStr]; eventType != model.UnknownEventType {
-				output = append(output, eventType)
+			if eventTypeStr == "*" {
+				return allEventTypes
 			}
+			eventType, err := model.ParseEvalEventType(eventTypeStr)
+			if err != nil {
+				seclog.Errorf("failed to parse event type '%s': %v", eventTypeStr, err)
+				continue
+			}
+			if eventType == model.UnknownEventType {
+				seclog.Errorf("unknown event type '%s'", eventTypeStr)
+				continue
+			}
+			output = append(output, eventType)
 		}
 		return output
+	}
+
+	anomalyDetectionMinimumStablePeriods, err := parseEventTypeDurations(pkgconfigsetup.SystemProbe(), "runtime_security_config.security_profile.anomaly_detection.minimum_stable_period")
+	if err != nil {
+		return nil, err
 	}
 
 	rsConfig := &RuntimeSecurityConfig{
@@ -520,12 +534,12 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 
 		// activity dump
 		ActivityDumpEnabled:                   pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.activity_dump.enabled"),
+		ActivityDumpTraceSystemdCgroups:       pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.activity_dump.trace_systemd_cgroups"),
 		ActivityDumpCleanupPeriod:             pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.activity_dump.cleanup_period"),
 		ActivityDumpTagsResolutionPeriod:      pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.activity_dump.tags_resolution_period"),
 		ActivityDumpLoadControlPeriod:         pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.activity_dump.load_controller_period"),
 		ActivityDumpLoadControlMinDumpTimeout: pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.activity_dump.min_timeout"),
 		ActivityDumpTracedCgroupsCount:        pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.activity_dump.traced_cgroups_count"),
-		ActivityDumpCgroupsManagers:           pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.activity_dump.cgroup_managers"),
 		ActivityDumpTracedEventTypes:          parseEventTypeStringSlice(pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.activity_dump.traced_event_types")),
 		ActivityDumpCgroupDumpTimeout:         pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.activity_dump.dump_duration"),
 		ActivityDumpCgroupWaitListTimeout:     pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.activity_dump.cgroup_wait_list_timeout"),
@@ -584,7 +598,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		// anomaly detection
 		AnomalyDetectionEventTypes:                   parseEventTypeStringSlice(pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.security_profile.anomaly_detection.event_types")),
 		AnomalyDetectionDefaultMinimumStablePeriod:   pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.anomaly_detection.default_minimum_stable_period"),
-		AnomalyDetectionMinimumStablePeriods:         parseEventTypeDurations(pkgconfigsetup.SystemProbe(), "runtime_security_config.security_profile.anomaly_detection.minimum_stable_period"),
+		AnomalyDetectionMinimumStablePeriods:         anomalyDetectionMinimumStablePeriods,
 		AnomalyDetectionWorkloadWarmupPeriod:         pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.anomaly_detection.workload_warmup_period"),
 		AnomalyDetectionUnstableProfileTimeThreshold: pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.anomaly_detection.unstable_profile_time_threshold"),
 		AnomalyDetectionUnstableProfileSizeThreshold: pkgconfigsetup.SystemProbe().GetInt64("runtime_security_config.security_profile.anomaly_detection.unstable_profile_size_threshold"),
@@ -769,26 +783,18 @@ func ActivityDumpRemoteStorageEndpoints(endpointPrefix string, intakeTrackType l
 	return endpoints, nil
 }
 
-// ParseEvalEventType convert a eval.EventType (string) to its uint64 representation
-// the current algorithm is not efficient but allows us to reduce the number of conversion functions
-func ParseEvalEventType(eventType eval.EventType) model.EventType {
-	for i := uint64(0); i != uint64(model.MaxAllEventType); i++ {
-		if model.EventType(i).String() == eventType {
-			return model.EventType(i)
-		}
-	}
-
-	return model.UnknownEventType
-}
-
 // parseEventTypeDurations converts a map of durations indexed by event types
-func parseEventTypeDurations(cfg pkgconfigmodel.Config, prefix string) map[model.EventType]time.Duration {
+func parseEventTypeDurations(cfg pkgconfigmodel.Config, prefix string) (map[model.EventType]time.Duration, error) {
 	eventTypeMap := cfg.GetStringMap(prefix)
 	eventTypeDurations := make(map[model.EventType]time.Duration, len(eventTypeMap))
-	for eventType := range eventTypeMap {
-		eventTypeDurations[ParseEvalEventType(eventType)] = cfg.GetDuration(prefix + "." + eventType)
+	for eventTypeName := range eventTypeMap {
+		eventType, err := model.ParseEvalEventType(eventTypeName)
+		if err != nil {
+			return nil, err
+		}
+		eventTypeDurations[eventType] = cfg.GetDuration(prefix + "." + eventTypeName)
 	}
-	return eventTypeDurations
+	return eventTypeDurations, nil
 }
 
 // parseHashAlgorithmStringSlice converts a string list to a list of hash algorithms

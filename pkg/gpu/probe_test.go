@@ -93,7 +93,7 @@ func (s *probeTestSuite) TestCanReceiveEvents() {
 			}
 		}
 
-		return len(probe.streamHandlers.globalStreams) == 1 && len(probe.streamHandlers.streams) == 1 && handlerStream != nil && handlerGlobal != nil && len(handlerStream.kernelSpans) > 0 && len(handlerGlobal.allocations) > 0
+		return len(probe.streamHandlers.globalStreams) == 1 && len(probe.streamHandlers.streams) == 1 && handlerStream != nil && handlerGlobal != nil && len(handlerStream.pendingKernelSpans) > 0 && len(handlerGlobal.pendingMemorySpans) > 0
 	}, 3*time.Second, 100*time.Millisecond, "stream and global handlers not found: existing is %v", probe.consumer.streamHandlers)
 
 	// Check that we're receiving the events we expect
@@ -131,14 +131,18 @@ func (s *probeTestSuite) TestCanReceiveEvents() {
 	require.Len(t, tidMap, 1)
 	require.ElementsMatch(t, []int{cmd.Process.Pid}, maps.Keys(tidMap))
 
-	require.Equal(t, 1, len(handlerStream.kernelSpans))
-	span := handlerStream.kernelSpans[0]
+	streamPastData := handlerStream.getPastData()
+	require.NotNil(t, streamPastData)
+	require.Equal(t, 1, len(streamPastData.kernels))
+	span := streamPastData.kernels[0]
 	require.Equal(t, uint64(1), span.numKernels)
 	require.Equal(t, uint64(1*2*3*4*5*6), span.avgThreadCount)
 	require.Greater(t, span.endKtime, span.startKtime)
 
-	require.Equal(t, 1, len(handlerGlobal.allocations))
-	alloc := handlerGlobal.allocations[0]
+	globalPastData := handlerGlobal.getPastData()
+	require.NotNil(t, globalPastData)
+	require.Equal(t, 1, len(globalPastData.allocations))
+	alloc := globalPastData.allocations[0]
 	require.Equal(t, uint64(100), alloc.size)
 	require.False(t, alloc.isLeaked)
 	require.Greater(t, alloc.endKtime, alloc.startKtime)
@@ -255,4 +259,25 @@ func (s *probeTestSuite) TestDetectsContainer() {
 
 	require.Greater(t, pidStats.UsedCores, 0.0) // core usage depends on the time this took to run, so it's not deterministic
 	require.Equal(t, pidStats.Memory.MaxBytes, uint64(110))
+}
+
+func TestCudaLibraryAttacherRule(t *testing.T) {
+	rule := getCudaLibraryAttacherRule()
+
+	expectedLibraries := []string{
+		"libcudart.so",
+		"libnd4jcuda.so",
+	}
+
+	for _, library := range expectedLibraries {
+		t.Run(library, func(t *testing.T) {
+			require.True(t, rule.MatchesLibrary(library))
+			// Test with a suffix too
+			require.True(t, rule.MatchesLibrary(library+".10-2"))
+
+			// And test with a path before the library name
+			require.True(t, rule.MatchesLibrary("/usr/lib/x86_64-linux-gnu/"+library))
+			require.True(t, rule.MatchesLibrary("/usr/lib/x86_64-linux-gnu/"+library+".10-2"))
+		})
+	}
 }

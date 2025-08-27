@@ -23,6 +23,8 @@ import (
 const (
 	agentUnit      = "datadog-agent.service"
 	agentUnitXP    = "datadog-agent-exp.service"
+	ddotUnit       = "datadog-agent-ddot.service"
+	ddotUnitXP     = "datadog-agent-ddot-exp.service"
 	traceUnit      = "datadog-agent-trace.service"
 	traceUnitXP    = "datadog-agent-trace-exp.service"
 	processUnit    = "datadog-agent-process.service"
@@ -208,7 +210,6 @@ func (s *packageAgentSuite) TestExperimentIgnoringSigterm() {
 		SetStopWithSigkill("trace-agent")
 
 	defer func() { s.host.Run("sudo rm -rf /etc/systemd/system/datadog*.d/override.conf") }()
-
 	for _, unit := range []string{traceUnitXP, agentUnitXP} {
 		s.T().Logf("Testing timeoutStop of unit %s", unit)
 		s.host.Run(fmt.Sprintf("sudo rm -rf /etc/systemd/system/%s.d/override.conf", unit))
@@ -428,6 +429,18 @@ func (s *packageAgentSuite) TestInstallWithGroupPreviouslyCreated() {
 
 	assert.True(s.T(), s.host.UserExists("dd-agent"), "dd-agent user should exist")
 	assert.True(s.T(), s.host.GroupExists("dd-agent"), "dd-agent group should exist")
+}
+
+func (s *packageAgentSuite) TestInstallWithFapolicyd() {
+	if s.os != e2eos.RedHat9 {
+		s.T().Skip("fapolicyd is only supported on RedHat 9")
+	}
+	defer func() {
+		s.host.Run("sudo yum remove -y fapolicyd")
+	}()
+	s.host.Run("sudo yum install -y fapolicyd")
+
+	s.TestInstall()
 }
 
 func (s *packageAgentSuite) purgeAgentDebInstall() {

@@ -101,31 +101,7 @@ func (pa podPatcher) ApplyRecommendations(pod *corev1.Pod) (bool, error) {
 
 	// Even if annotation matches, we still verify the resources are correct, in case the POD was modified.
 	for _, reco := range autoscaler.ScalingValues().Vertical.ContainerResources {
-		for i := range pod.Spec.Containers {
-			cont := &pod.Spec.Containers[i]
-			if cont.Name != reco.Name {
-				continue
-			}
-			if cont.Resources.Limits == nil {
-				cont.Resources.Limits = corev1.ResourceList{}
-			}
-			if cont.Resources.Requests == nil {
-				cont.Resources.Requests = corev1.ResourceList{}
-			}
-			for resource, limit := range reco.Limits {
-				if limit != cont.Resources.Limits[resource] {
-					cont.Resources.Limits[resource] = limit
-					patched = true
-				}
-			}
-			for resource, request := range reco.Requests {
-				if request != cont.Resources.Requests[resource] {
-					cont.Resources.Requests[resource] = request
-					patched = true
-				}
-			}
-			break
-		}
+		patched = patchPod(reco, pod) || patched
 	}
 
 	return patched, nil
@@ -207,4 +183,52 @@ func (pa podPatcher) observedPodCallback(ctx context.Context, pod *workloadmeta.
 		log.Warnf("Failed to patch POD %s/%s with event emitted annotation, event may be generated multiple times, err: %v", pod.Namespace, pod.Name, err)
 	}
 	log.Debugf("Event sent and POD %s/%s patched with event annotation", pod.Namespace, pod.Name)
+}
+
+// K8s guarantees that the name for an init container or normal container are unique among all containers.
+// It means that dispatching recommendations just by container names is sufficient
+func patchPod(reco datadoghqcommon.DatadogPodAutoscalerContainerResources, pod *corev1.Pod) (patched bool) {
+	for i := range pod.Spec.Containers {
+		cont := &pod.Spec.Containers[i]
+		if cont.Name == reco.Name {
+			return patchContainerResources(reco, cont)
+		}
+	}
+
+	// recommendation can be also applied to sidecar containers
+	// kubernetes implements sidecar containers as a special case of init containers (see https://kubernetes.io/docs/concepts/workloads/pods/sidecar-containers/)
+	for i := range pod.Spec.InitContainers {
+		cont := &pod.Spec.InitContainers[i]
+		// sidecar container by definition is an init container with `restartPolicy: Always`
+		isInitSidecarContainer := cont.RestartPolicy != nil && *cont.RestartPolicy == corev1.ContainerRestartPolicyAlways
+		if cont.Name == reco.Name && isInitSidecarContainer {
+			return patchContainerResources(reco, cont)
+		}
+	}
+
+	return false
+}
+
+func patchContainerResources(reco datadoghqcommon.DatadogPodAutoscalerContainerResources, cont *corev1.Container) (patched bool) {
+	patched = false
+
+	if cont.Resources.Limits == nil {
+		cont.Resources.Limits = corev1.ResourceList{}
+	}
+	if cont.Resources.Requests == nil {
+		cont.Resources.Requests = corev1.ResourceList{}
+	}
+	for resource, limit := range reco.Limits {
+		if limit != cont.Resources.Limits[resource] {
+			cont.Resources.Limits[resource] = limit
+			patched = true
+		}
+	}
+	for resource, request := range reco.Requests {
+		if request != cont.Resources.Requests[resource] {
+			cont.Resources.Requests[resource] = request
+			patched = true
+		}
+	}
+	return patched
 }

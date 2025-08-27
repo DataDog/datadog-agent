@@ -62,6 +62,8 @@ type Actuator[T ActuatorTenant] interface {
 		reporter actuator.Reporter,
 		irGenerator actuator.IRGenerator,
 	) T
+
+	Shutdown() error
 }
 
 // ActuatorTenant is an interface that enables the Controller to handle updates

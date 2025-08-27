@@ -453,7 +453,7 @@ func TestActivityDumps(t *testing.T) {
 			t.Fatal("Can't stop all running activity dumps")
 		}
 
-		// then, launch enough docker instances to reach the testActivityDumpCgroupDumpTimeout
+		// then, launch enough docker instances to reach the testActivityDumpTracedCgroupsCount
 		var startedDumps []*activityDumpIdentifier
 		for i := 0; i < testActivityDumpTracedCgroupsCount; i++ {
 			dockerInstance, dump, err := test.StartADockerGetDump()

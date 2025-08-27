@@ -35,6 +35,7 @@ func TestGetCloudRunJobsTagsWithEnvironmentVariables(t *testing.T) {
 		"location":            "test_region",
 		"_dd.origin":          "cloudrun",
 		"project_id":          "test_project",
+		"job_name":            "test_job",
 		"gcrj.job_name":       "test_job",
 		"gcrj.execution_name": "test_execution",
 		"gcrj.task_index":     "0",
@@ -47,11 +48,6 @@ func TestGetCloudRunJobsTagsWithEnvironmentVariables(t *testing.T) {
 func TestCloudRunJobsGetOrigin(t *testing.T) {
 	service := &CloudRunJobs{}
 	assert.Equal(t, "cloudrun", service.GetOrigin())
-}
-
-func TestCloudRunJobsGetPrefix(t *testing.T) {
-	service := &CloudRunJobs{}
-	assert.Equal(t, "gcp.run.job", service.GetPrefix())
 }
 
 func TestCloudRunJobsInit(t *testing.T) {

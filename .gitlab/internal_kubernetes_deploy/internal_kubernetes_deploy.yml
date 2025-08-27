@@ -36,7 +36,7 @@ internal_kubernetes_deploy_experimental:
     - job: k8s-e2e-main # Currently only require container Argo workflow
       artifacts: false
       optional: true
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64"]
   variables:
     OPTION_AUTOMATIC_ROLLOUT: "true"
@@ -61,7 +61,7 @@ internal_kubernetes_deploy_experimental:
 
 notify-slack:
   stage: internal_kubernetes_deploy
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_23_ARM64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   rules:
     - !reference [.on_scheduled_main]
   tags: ["arch:arm64"]
@@ -69,7 +69,6 @@ notify-slack:
   allow_failure: true
   script:
     - export SDM_JWT=$(vault read -field=token identity/oidc/token/sdm)
-    - python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)"
     - dda self dep sync -f legacy-tasks -f legacy-notifications
     - SLACK_DATADOG_AGENT_BOT_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SLACK_AGENT token) || exit $?; export SLACK_DATADOG_AGENT_BOT_TOKEN
     - dda inv -- pipeline.changelog ${CI_COMMIT_SHORT_SHA} || exit $?

@@ -26,6 +26,7 @@ import (
 	lru "github.com/hashicorp/golang-lru/v2"
 	"golang.org/x/time/rate"
 
+	"github.com/DataDog/datadog-agent/pkg/dyninst/htlhash"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -298,9 +299,10 @@ func isGoElfBinaryWithDDTraceGo(f *os.File) (bool, error) {
 	}
 	defer elfFile.Close() // no-op, but why not
 
-	var symtabSection *safeelf.Section
+	var symtabSection *safeelf.SectionHeader
 	var hasDebugInfo, hasGoSections bool
-	for _, section := range elfFile.Elf.Sections {
+	sectionHeaders := elfFile.SectionHeaders()
+	for _, section := range sectionHeaders {
 		if _, ok := goSections[section.Name]; ok {
 			hasGoSections = true
 		}
@@ -325,16 +327,16 @@ func isGoElfBinaryWithDDTraceGo(f *os.File) (bool, error) {
 	// find the string table for the symbol table and then scan it for the
 	// strings corresponding to the symbols we might care about.
 	symtabStringsSectionIdx := symtabSection.Link
-	if symtabStringsSectionIdx >= uint32(len(elfFile.Elf.Sections)) {
+	if symtabStringsSectionIdx >= uint32(len(sectionHeaders)) {
 		return false, nil
 	}
-	symtabStringsSection := elfFile.Elf.Sections[symtabStringsSectionIdx]
-	symtabStrings, err := elfFile.MMap(symtabStringsSection, 0, symtabStringsSection.Size)
+	symtabStringsSection := sectionHeaders[symtabStringsSectionIdx]
+	symtabStrings, err := elfFile.SectionData(symtabStringsSection)
 	if err != nil {
 		return false, fmt.Errorf("failed to get symbols: %w", err)
 	}
 	defer symtabStrings.Close()
-	return bytes.Contains(symtabStrings.Data, ddTraceSymbolSuffix), nil
+	return bytes.Contains(symtabStrings.Data(), ddTraceSymbolSuffix), nil
 }
 
 var ddTraceSymbolSuffix = []byte("ddtrace/tracer.passProbeConfiguration")
@@ -406,7 +408,7 @@ func (a *fileKeyCacheExecutableAnalyzer) isInteresting(
 
 type htlHashCacheExecutableAnalyzer struct {
 	inner        executableAnalyzer
-	htlHashCache *lru.Cache[string, bool]
+	htlHashCache *lru.Cache[htlhash.Hash, bool]
 }
 
 func newHtlHashCacheExecutableAnalyzer(
@@ -415,7 +417,7 @@ func newHtlHashCacheExecutableAnalyzer(
 ) executableAnalyzer {
 	return &htlHashCacheExecutableAnalyzer{
 		inner:        inner,
-		htlHashCache: mustNewLruCache[string, bool](cacheSize),
+		htlHashCache: mustNewLruCache[htlhash.Hash, bool](cacheSize),
 	}
 }
 
@@ -423,7 +425,7 @@ func (a *htlHashCacheExecutableAnalyzer) isInteresting(
 	f *os.File,
 	key FileKey,
 ) (bool, error) {
-	hash, err := computeHtlHash(f)
+	hash, err := htlhash.Compute(f)
 	if err != nil {
 		return false, err
 	}

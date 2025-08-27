@@ -265,6 +265,39 @@ func (s *testAgentMSIInstallsDotnetLibrary) TestUninstallKeepsLibrary() {
 	s.Require().Contains(oldLibraryPath, version.Version())
 }
 
+// TestUninstallScript validates that instrumentation is disabled after we run the uninstall script
+func (s *testAgentMSIInstallsDotnetLibrary) TestUninstallScript() {
+	// Arrange
+	version := s.currentDotnetLibraryVersion
+
+	// Act
+	s.installCurrentAgentVersion(
+		installerwindows.WithMSIArg("DD_APM_INSTRUMENTATION_ENABLED=iis"),
+		// TODO: remove override once image is published in prod
+		installerwindows.WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com.internal.dda-testing.com"),
+		installerwindows.WithMSIArg(fmt.Sprintf("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:%s", version.PackageVersion())),
+		installerwindows.WithMSILogFile("install.log"),
+	)
+	// Start the IIS app to load the library
+	defer s.stopIISApp()
+	s.startIISApp(webConfigFile, aspxFile)
+
+	// Assert
+	s.assertSuccessfulPromoteExperiment(version.Version())
+	// Check that the expected version of the library is loaded
+	oldLibraryPath := s.getLibraryPathFromInstrumentedIIS()
+	s.Require().Contains(oldLibraryPath, version.Version())
+
+	output, err := s.Env().RemoteHost.Execute(`&"C:\Program Files\Datadog\Datadog Agent\bin\scripts\iis-instrumentation.bat" --uninstall`)
+	s.Require().NoErrorf(err, "failed to run uninstall script: %s", output)
+
+	s.stopIISApp()
+	defer s.stopIISApp()
+	s.startIISApp(webConfigFile, aspxFile)
+	newLibraryPath := s.getLibraryPathFromInstrumentedIIS()
+	s.Require().Empty(newLibraryPath)
+}
+
 func (s *testAgentMSIInstallsDotnetLibrary) setAgentConfig() {
 	err := s.Env().RemoteHost.MkdirAll("C:\\ProgramData\\Datadog")
 	s.Require().NoError(err)

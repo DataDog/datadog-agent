@@ -254,7 +254,7 @@ func GetAllSymbolsByName(elfFile *safeelf.File, filter symbolFilter) (map[string
 
 	if len(symbolByName) != numWanted {
 		missingSymbols := filter.findMissing(symbolByName)
-		return nil, fmt.Errorf("failed to find symbols %#v", missingSymbols)
+		return symbolByName, fmt.Errorf("failed to find symbols %#v", missingSymbols)
 	}
 
 	return symbolByName, nil
@@ -262,7 +262,7 @@ func GetAllSymbolsByName(elfFile *safeelf.File, filter symbolFilter) (map[string
 
 // GetAllSymbolsInSetByName returns all symbols (from the symbolSet) in the
 // given elf file, mapped by the symbol names.  In case of a missing symbol, an
-// error is returned.
+// error is returned and the map is returned with the symbols that were found.
 func GetAllSymbolsInSetByName(elfFile *safeelf.File, symbolSet common.StringSet) (map[string]safeelf.Symbol, error) {
 	filter := newStringSetSymbolFilter(symbolSet)
 	return GetAllSymbolsByName(elfFile, filter)

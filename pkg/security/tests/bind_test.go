@@ -53,7 +53,7 @@ func TestBindEvent(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	test.Run(t, "bind-af-inet-any-success-tcp", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "bind-af-inet-any-success-tcp", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{"bind", "AF_INET", "any", "tcp"}
 		envs := []string{}
 
@@ -76,7 +76,7 @@ func TestBindEvent(t *testing.T) {
 		})
 	})
 
-	test.Run(t, "bind-af-inet-any-success-tcp-io-uring", func(t *testing.T, _ wrapperType, _ func(cmd string, args []string, envs []string) *exec.Cmd) {
+	t.Run("bind-af-inet-any-success-tcp-io-uring", func(t *testing.T) {
 		fd, err := unix.Socket(unix.AF_INET, unix.SOCK_STREAM, unix.IPPROTO_TCP)
 		if err != nil {
 			t.Fatal(err)
@@ -135,7 +135,7 @@ func TestBindEvent(t *testing.T) {
 		})
 	})
 
-	test.Run(t, "bind-af-inet-any-success-udp", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "bind-af-inet-any-success-udp", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{"bind", "AF_INET", "any", "udp"}
 		envs := []string{}
 
@@ -158,7 +158,7 @@ func TestBindEvent(t *testing.T) {
 		})
 	})
 
-	test.Run(t, "bind-af-inet6-any-success", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "bind-af-inet6-any-success", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{"bind", "AF_INET6", "any"}
 		envs := []string{}
 
@@ -180,7 +180,7 @@ func TestBindEvent(t *testing.T) {
 		})
 	})
 
-	test.Run(t, "bind-af-unknown-unix", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "bind-af-unknown-unix", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{"bind", "AF_UNIX"}
 		envs := []string{}
 

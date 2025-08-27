@@ -100,6 +100,13 @@ message ContainerAllocatedResource {
   string ID = 2;
 }
 
+message ContainerResources {
+  optional double cpuRequest = 1;
+  optional double cpuLimit = 2;
+  optional uint64 memoryRequest = 3;
+  optional uint64 memoryLimit = 4;
+}
+
 message Container {
   WorkloadmetaEntityId entityId = 1;
   EntityMeta entityMeta = 2;
@@ -114,6 +121,8 @@ message Container {
   repeated string collectorTags = 11;
   string cgroupPath = 12;
   repeated ContainerAllocatedResource resolvedAllocatedResources = 13;
+  ContainerResources resources = 14;
+  WorkloadmetaEntityId owner = 15;
 }
 
 message KubernetesPodOwner {

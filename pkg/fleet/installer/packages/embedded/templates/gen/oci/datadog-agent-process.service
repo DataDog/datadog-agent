@@ -14,6 +14,7 @@ Environment="DD_FLEET_POLICIES_DIR=/etc/datadog-agent/managed/datadog-agent/stab
 ExecStart=/opt/datadog-packages/datadog-agent/stable/embedded/bin/process-agent --cfgpath=/etc/datadog-agent/datadog.yaml --sysprobe-config=/etc/datadog-agent/system-probe.yaml --pid=/opt/datadog-packages/datadog-agent/stable/run/process-agent.pid
 StartLimitInterval=10
 StartLimitBurst=5
+AmbientCapabilities=CAP_NET_BIND_SERVICE
 
 [Install]
 WantedBy=multi-user.target

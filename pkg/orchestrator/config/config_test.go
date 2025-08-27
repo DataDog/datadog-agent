@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/suite"
 
@@ -318,4 +319,229 @@ func (suite *YamlConfigTestSuite) TestOnlyEnvContainsConfigArgsScrubbing() {
 
 func TestYamlConfigTestSuite(t *testing.T) {
 	suite.Run(t, new(YamlConfigTestSuite))
+}
+
+func (suite *YamlConfigTestSuite) TestLoadFunction() {
+	// Test basic Load functionality with default values
+	orchestratorCfg := NewDefaultOrchestratorConfig([]string{"env:test"})
+	err := orchestratorCfg.Load()
+	suite.NoError(err)
+
+	// Check that default URL is set
+	expectedURL, _ := url.Parse("https://orchestrator.datadoghq.com")
+	suite.Equal(expectedURL, orchestratorCfg.OrchestratorEndpoints[0].Endpoint)
+
+	// Check that extra tags are preserved
+	suite.Equal([]string{"env:test"}, orchestratorCfg.ExtraTags)
+
+	// Check default values
+	suite.Equal(100, orchestratorCfg.MaxPerMessage)
+	suite.Equal(10000000, orchestratorCfg.MaxWeightPerMessageBytes)
+	suite.Equal(15*1000*1000, orchestratorCfg.PodQueueBytes)
+}
+
+func (suite *YamlConfigTestSuite) TestLoadWithAPIKey() {
+	suite.config.SetWithoutSource("api_key", "test-api-key-123")
+
+	orchestratorCfg := NewDefaultOrchestratorConfig(nil)
+	err := orchestratorCfg.Load()
+	suite.NoError(err)
+
+	// Check that API key is set (it will be sanitized/hashed)
+	suite.NotEmpty(orchestratorCfg.OrchestratorEndpoints[0].APIKey)
+	suite.Equal("api_key", orchestratorCfg.OrchestratorEndpoints[0].ConfigSettingPath)
+}
+
+func (suite *YamlConfigTestSuite) TestLoadWithCustomURL() {
+	suite.config.SetWithoutSource("orchestrator_explorer.orchestrator_dd_url", "https://custom-orchestrator.com")
+
+	orchestratorCfg := NewDefaultOrchestratorConfig(nil)
+	err := orchestratorCfg.Load()
+	suite.NoError(err)
+
+	expectedURL, _ := url.Parse("https://custom-orchestrator.com")
+	suite.Equal(expectedURL, orchestratorCfg.OrchestratorEndpoints[0].Endpoint)
+}
+
+func (suite *YamlConfigTestSuite) TestLoadWithCustomSensitiveWords() {
+	suite.config.SetWithoutSource("orchestrator_explorer.custom_sensitive_words", []string{"secret", "password"})
+
+	orchestratorCfg := NewDefaultOrchestratorConfig(nil)
+	err := orchestratorCfg.Load()
+	suite.NoError(err)
+
+	// Check that custom sensitive words are added to the scrubber
+	suite.Contains(orchestratorCfg.Scrubber.LiteralSensitivePatterns, "secret")
+	suite.Contains(orchestratorCfg.Scrubber.LiteralSensitivePatterns, "password")
+}
+
+func (suite *YamlConfigTestSuite) TestLoadWithCustomSensitiveAnnotationsLabels() {
+	suite.config.SetWithoutSource("orchestrator_explorer.custom_sensitive_annotations_labels", []string{"sensitive-annotation", "secret-label"})
+
+	orchestratorCfg := NewDefaultOrchestratorConfig(nil)
+	err := orchestratorCfg.Load()
+	suite.NoError(err)
+
+	// Check that sensitive annotations and labels are updated
+	sensitiveItems := redact.GetSensitiveAnnotationsAndLabels()
+	suite.Contains(sensitiveItems, "sensitive-annotation")
+	suite.Contains(sensitiveItems, "secret-label")
+}
+
+func (suite *YamlConfigTestSuite) TestLoadWithCustomMaxPerMessage() {
+	suite.config.SetWithoutSource("orchestrator_explorer.max_per_message", 50)
+
+	orchestratorCfg := NewDefaultOrchestratorConfig(nil)
+	err := orchestratorCfg.Load()
+	suite.NoError(err)
+
+	suite.Equal(50, orchestratorCfg.MaxPerMessage)
+}
+
+func (suite *YamlConfigTestSuite) TestLoadWithInvalidMaxPerMessage() {
+	// Test with value that's too high
+	suite.config.SetWithoutSource("orchestrator_explorer.max_per_message", 150)
+
+	orchestratorCfg := NewDefaultOrchestratorConfig(nil)
+	err := orchestratorCfg.Load()
+	suite.NoError(err)
+
+	// Should remain at default value due to bounds checking
+	suite.Equal(100, orchestratorCfg.MaxPerMessage)
+}
+
+func (suite *YamlConfigTestSuite) TestLoadWithCustomMaxMessageBytes() {
+	suite.config.SetWithoutSource("orchestrator_explorer.max_message_bytes", 25000000) // 25 MB
+
+	orchestratorCfg := NewDefaultOrchestratorConfig(nil)
+	err := orchestratorCfg.Load()
+	suite.NoError(err)
+
+	suite.Equal(25000000, orchestratorCfg.MaxWeightPerMessageBytes)
+}
+
+func (suite *YamlConfigTestSuite) TestLoadWithCustomPodQueueBytes() {
+	suite.config.SetWithoutSource("process_config.pod_queue_bytes", 20*1000*1000)
+
+	orchestratorCfg := NewDefaultOrchestratorConfig(nil)
+	err := orchestratorCfg.Load()
+	suite.NoError(err)
+
+	suite.Equal(20*1000*1000, orchestratorCfg.PodQueueBytes)
+}
+
+func (suite *YamlConfigTestSuite) TestLoadWithInvalidPodQueueBytes() {
+	// Test with invalid value (≤ 0)
+	suite.config.SetWithoutSource("process_config.pod_queue_bytes", -100)
+
+	orchestratorCfg := NewDefaultOrchestratorConfig(nil)
+	err := orchestratorCfg.Load()
+	suite.NoError(err)
+
+	// Should remain at default value
+	suite.Equal(15*1000*1000, orchestratorCfg.PodQueueBytes)
+}
+
+func (suite *YamlConfigTestSuite) TestLoadWithOrchestratorEnabled() {
+	suite.config.SetWithoutSource("orchestrator_explorer.enabled", true)
+
+	orchestratorCfg := NewDefaultOrchestratorConfig(nil)
+	err := orchestratorCfg.Load()
+	suite.NoError(err)
+
+	suite.True(orchestratorCfg.OrchestrationCollectionEnabled)
+	// Note: KubeClusterName may be empty in test environment due to hostname resolution
+}
+
+func (suite *YamlConfigTestSuite) TestLoadWithCollectorDiscoveryEnabled() {
+	suite.config.SetWithoutSource("orchestrator_explorer.collector_discovery.enabled", true)
+
+	orchestratorCfg := NewDefaultOrchestratorConfig(nil)
+	err := orchestratorCfg.Load()
+	suite.NoError(err)
+
+	suite.True(orchestratorCfg.CollectorDiscoveryEnabled)
+}
+
+func (suite *YamlConfigTestSuite) TestLoadWithScrubbingEnabled() {
+	suite.config.SetWithoutSource("orchestrator_explorer.container_scrubbing.enabled", true)
+
+	orchestratorCfg := NewDefaultOrchestratorConfig(nil)
+	err := orchestratorCfg.Load()
+	suite.NoError(err)
+
+	suite.True(orchestratorCfg.IsScrubbingEnabled)
+}
+
+func (suite *YamlConfigTestSuite) TestLoadWithManifestCollection() {
+	suite.config.SetWithoutSource("orchestrator_explorer.manifest_collection.enabled", true)
+	suite.config.SetWithoutSource("orchestrator_explorer.manifest_collection.buffer_manifest", true)
+	suite.config.SetWithoutSource("orchestrator_explorer.manifest_collection.buffer_flush_interval", "30s")
+
+	orchestratorCfg := NewDefaultOrchestratorConfig(nil)
+	err := orchestratorCfg.Load()
+	suite.NoError(err)
+
+	suite.True(orchestratorCfg.IsManifestCollectionEnabled)
+	suite.True(orchestratorCfg.BufferedManifestEnabled)
+	suite.Equal(30*time.Second, orchestratorCfg.ManifestBufferFlushInterval)
+}
+
+func (suite *YamlConfigTestSuite) TestLoadWithAdditionalEndpoints() {
+	suite.config.SetWithoutSource("api_key", "main-api-key")
+	suite.config.SetWithoutSource("orchestrator_explorer.orchestrator_additional_endpoints",
+		`{"https://endpoint1.com": ["key1"], "https://endpoint2.com": ["key2", "key3"]}`)
+
+	orchestratorCfg := NewDefaultOrchestratorConfig(nil)
+	err := orchestratorCfg.Load()
+	suite.NoError(err)
+
+	// Should have main endpoint + 3 additional endpoints (key1, key2, key3)
+	suite.Len(orchestratorCfg.OrchestratorEndpoints, 4)
+
+	// Check that main endpoint has the API key (will be sanitized)
+	suite.NotEmpty(orchestratorCfg.OrchestratorEndpoints[0].APIKey)
+
+	// Check that additional endpoints are properly configured
+	endpointMap := make(map[string]string)
+	for _, endpoint := range orchestratorCfg.OrchestratorEndpoints[1:] { // Skip main endpoint
+		endpointMap[endpoint.APIKey] = endpoint.Endpoint.Hostname()
+	}
+
+	suite.Equal("endpoint1.com", endpointMap["key1"])
+	suite.Equal("endpoint2.com", endpointMap["key2"])
+	suite.Equal("endpoint2.com", endpointMap["key3"])
+}
+
+func (suite *YamlConfigTestSuite) TestLoadComprehensive() {
+	// Test with multiple configuration options set
+	suite.config.SetWithoutSource("api_key", "comprehensive-test-key")
+	suite.config.SetWithoutSource("orchestrator_explorer.orchestrator_dd_url", "https://comprehensive-test.com")
+	suite.config.SetWithoutSource("orchestrator_explorer.enabled", true)
+	suite.config.SetWithoutSource("orchestrator_explorer.collector_discovery.enabled", true)
+	suite.config.SetWithoutSource("orchestrator_explorer.container_scrubbing.enabled", true)
+	suite.config.SetWithoutSource("orchestrator_explorer.manifest_collection.enabled", true)
+	suite.config.SetWithoutSource("orchestrator_explorer.max_per_message", 75)
+	suite.config.SetWithoutSource("orchestrator_explorer.max_message_bytes", 30000000)
+	suite.config.SetWithoutSource("process_config.pod_queue_bytes", 25*1000*1000)
+	suite.config.SetWithoutSource("orchestrator_explorer.custom_sensitive_words", []string{"token", "secret"})
+
+	orchestratorCfg := NewDefaultOrchestratorConfig([]string{"env:comprehensive"})
+	err := orchestratorCfg.Load()
+	suite.NoError(err)
+
+	// Verify all configurations are properly loaded
+	expectedURL, _ := url.Parse("https://comprehensive-test.com")
+	suite.Equal(expectedURL, orchestratorCfg.OrchestratorEndpoints[0].Endpoint)
+	suite.NotEmpty(orchestratorCfg.OrchestratorEndpoints[0].APIKey) // API key will be sanitized
+	suite.Equal([]string{"env:comprehensive"}, orchestratorCfg.ExtraTags)
+	suite.True(orchestratorCfg.OrchestrationCollectionEnabled)
+	suite.True(orchestratorCfg.CollectorDiscoveryEnabled)
+	suite.True(orchestratorCfg.IsScrubbingEnabled)
+	suite.True(orchestratorCfg.IsManifestCollectionEnabled)
+	suite.Equal(75, orchestratorCfg.MaxPerMessage)
+	suite.Equal(30000000, orchestratorCfg.MaxWeightPerMessageBytes)
+	suite.Equal(25*1000*1000, orchestratorCfg.PodQueueBytes)
+	suite.Contains(orchestratorCfg.Scrubber.LiteralSensitivePatterns, "token")
+	suite.Contains(orchestratorCfg.Scrubber.LiteralSensitivePatterns, "secret")
 }
