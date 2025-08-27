@@ -455,14 +455,14 @@ func getEthtoolMetrics(driverName string, statsMap map[string]uint64) map[string
 					if !strings.HasPrefix(part, "rx") && !strings.HasPrefix(part, "tx") {
 						continue
 					}
-					if cur, err := strconv.Atoi(part[2:]); err == nil {
+					if num, err := strconv.Atoi(part[2:]); err == nil {
 						queueIndex = i
-						queueNum = cur
+						queueNum = num
 						break
 					}
 				}
 				if queueIndex > -1 {
-					parts = append(append([]string{}, parts[queueIndex][:2]), parts[queueIndex+1:]...)
+					parts[queueIndex] = parts[queueIndex][:2]
 					queueTag = fmt.Sprintf("queue:%d", queueNum)
 					newKey = strings.Join(parts, "_")
 					metricPrefix = ".queue."
