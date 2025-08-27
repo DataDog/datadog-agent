@@ -7,13 +7,13 @@ from pathlib import Path
 
 from invoke.context import Context
 
-from tasks.kernel_matrix_testing.compiler import CompilerImage
-from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
-from tasks.kernel_matrix_testing.vars import AWS_ACCOUNT
 from tasks.libs.common.status import Status
 from tasks.libs.common.utils import get_repo_root, is_installed
 from tasks.libs.types.arch import Arch
 
+from ..compiler import CompilerImage
+from ..kmt_os import get_kmt_os
+from ..vars import AWS_ACCOUNT
 from .requirement import Requirement, RequirementState
 from .utils import check_directories
 

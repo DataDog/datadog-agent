@@ -13,9 +13,10 @@ from typing import cast
 from invoke.context import Context
 from invoke.runners import Result
 
-from tasks.kernel_matrix_testing.setup.requirement import RequirementState
-from tasks.kernel_matrix_testing.tool import is_root
 from tasks.libs.common.status import Status
+
+from ..tool import is_root
+from .requirement import RequirementState
 
 
 def ensure_options_in_config(

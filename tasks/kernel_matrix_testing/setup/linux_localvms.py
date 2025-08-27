@@ -3,9 +3,9 @@ import platform
 
 from invoke.context import Context
 
-from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
 from tasks.libs.common.status import Status
 
+from ..kmt_os import get_kmt_os
 from .requirement import Requirement, RequirementState
 from .utils import UbuntuPackageManager, check_directories, ensure_options_in_config
 
@@ -64,8 +64,8 @@ class NFSKernelServer(Requirement):
 
 class LinuxQemuConfig(Requirement):
     def check(self, ctx: Context, fix: bool):
-        from tasks.kernel_matrix_testing.kmt_os import Linux
-        from tasks.kernel_matrix_testing.tool import is_root
+        from ..kmt_os import Linux
+        from ..tool import is_root
 
         user = getpass.getuser()
 

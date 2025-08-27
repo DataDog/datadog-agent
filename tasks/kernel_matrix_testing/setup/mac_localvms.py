@@ -5,9 +5,9 @@ from pathlib import Path
 
 from invoke.context import Context
 
-from tasks.kernel_matrix_testing.kmt_os import get_homebrew_prefix, get_kmt_os
 from tasks.libs.common.status import Status
 
+from ..kmt_os import get_homebrew_prefix, get_kmt_os
 from .requirement import Requirement, RequirementState
 from .utils import MacosPackageManager, check_directories, check_launchctl_service, ensure_options_in_config
 
@@ -36,7 +36,7 @@ class MacPackages(Requirement):
 
 class MacLibvirtConfig(Requirement):
     def check(self, ctx: Context, fix: bool):
-        from tasks.kernel_matrix_testing.kmt_os import MacOS
+        from ..kmt_os import MacOS
 
         options: dict[str, str | int] = {
             "unix_sock_dir": os.fspath(MacOS.libvirt_system_dir),
@@ -68,7 +68,7 @@ class MacLibvirtConfig(Requirement):
 
 class MacVirtlogdConfig(Requirement):
     def check(self, ctx: Context, fix: bool):
-        from tasks.kernel_matrix_testing.kmt_os import MacOS
+        from ..kmt_os import MacOS
 
         options: dict[str, str | int] = {
             "log_outputs": f"2:file:{MacOS.libvirt_system_dir}/virtlogd.log",
@@ -98,7 +98,7 @@ class MacVirtlogdService(Requirement):
     def check(self, ctx: Context, fix: bool) -> RequirementState:
         import plistlib
 
-        from tasks.kernel_matrix_testing.kmt_os import MacOS
+        from ..kmt_os import MacOS
 
         virtlogd_plist_path = Path("/Library/LaunchDaemons/org.libvirt.virtlogd.plist")
         if not virtlogd_plist_path.exists():
@@ -200,7 +200,7 @@ class MacNFSExport(Requirement):
     dependencies: list[type[Requirement]] = [MacNFSService]
 
     def check(self, ctx: Context, fix: bool) -> RequirementState:
-        from tasks.kernel_matrix_testing.kmt_os import MacOS
+        from ..kmt_os import MacOS
 
         exports_file = Path("/etc/exports")
         shared_dir = MacOS.shared_dir

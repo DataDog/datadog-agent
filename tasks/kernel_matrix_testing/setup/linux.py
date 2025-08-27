@@ -3,13 +3,13 @@ import shutil
 
 from invoke.context import Context
 
-from tasks.kernel_matrix_testing.setup.requirement import Requirement, RequirementState
-from tasks.kernel_matrix_testing.setup.utils import UbuntuPackageManager, UbuntuSnapPackageManager
-from tasks.kernel_matrix_testing.tool import is_root
 from tasks.libs.common.status import Status
 from tasks.libs.types.arch import Arch
 
+from ..tool import is_root
 from .common import Docker
+from .requirement import Requirement, RequirementState
+from .utils import UbuntuPackageManager, UbuntuSnapPackageManager
 
 
 def get_requirements() -> list[Requirement]:

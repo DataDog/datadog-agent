@@ -2,9 +2,10 @@ import sys
 
 from invoke.context import Context
 
-from tasks.kernel_matrix_testing.setup.requirement import Requirement, RequirementState, summarize_requirement_states
-from tasks.kernel_matrix_testing.tool import info, is_root
 from tasks.libs.common.status import Status
+
+from ..tool import info, is_root
+from .requirement import Requirement, RequirementState, summarize_requirement_states
 
 
 def get_requirements(
