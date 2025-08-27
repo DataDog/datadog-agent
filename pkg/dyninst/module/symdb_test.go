@@ -81,7 +81,8 @@ func TestSymdbManagerUpload(t *testing.T) {
 	require.Greater(t, uploadCount.Load(), int64(0), "No uploads received")
 	require.NotEmpty(t, lastUploadData, "No upload data received")
 
-	// Upload again.
+	// Ask for another upload for the same process and check that we do not
+	// actually perform the upload.
 	initialCount := uploadCount.Load()
 	err = manager.queueUpload(runtimeID, binPath)
 	require.NoError(t, err)
@@ -91,7 +92,7 @@ func TestSymdbManagerUpload(t *testing.T) {
 		return manager.queueSize() == 0
 	}, 10*time.Second, 100*time.Millisecond, "expected upload to complete")
 
-	require.Greater(t, uploadCount.Load(), initialCount, "second upload did not occur")
+	require.Equal(t, uploadCount.Load(), initialCount, "second upload occurred unexpectedly")
 }
 
 func TestSymdbManagerCancellation(t *testing.T) {
@@ -158,10 +159,18 @@ func testSymdbManagerCancellation(t *testing.T, useStop bool) {
 	require.Greater(t, uploadCount, 1, "multiple HTTP requests were expected")
 	uploadCount = 0
 
-	// Now perform another upload, which we'll block and then cancel.
+	// Now perform another upload (for a different process), which we'll block
+	// and then cancel.
+	runtimeID.ProcessID.PID++ // change the ID to a new process
 	blockUpload = true
 	err = manager.queueUpload(runtimeID, binPath)
 	require.NoError(t, err)
+	select {
+	case <-uploadSemaphore:
+		t.Fatal("Upload started unexpectedly")
+	case <-time.After(100 * time.Millisecond):
+		// OK, no upload.
+	}
 
 	// Wait for upload to start.
 	select {

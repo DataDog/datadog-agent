@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb/uploader"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -31,13 +32,31 @@ type symdbManager struct {
 		currentCancel context.CancelCauseFunc
 		currentDone   chan struct{} // closed when current upload finishes
 		stopped       bool
+
+		// trackedProcesses stores processes for which an upload was requested.
+		// Repeated requests for the same process (through queueProcess()) are
+		// no-ops. However, untrackProcess() can be called to remove a process
+		// from this map, making future queueProcess() calls for it actually
+		// upload data again.
+		trackedProcesses map[processKey]struct{}
 	}
 	workerWg     sync.WaitGroup
 	workerCancel context.CancelCauseFunc
 }
 
+type processKey struct {
+	pid     procmon.ProcessID
+	service string
+	version string
+}
+
+func (k processKey) String() string {
+	return fmt.Sprintf("%s (service: %s)", k.pid, k.service)
+}
+
 type uploadRequest struct {
-	runtimeID      procRuntimeID
+	procID         processKey
+	runtimeID      string
 	executablePath string
 }
 
@@ -57,6 +76,7 @@ func newSymdbManager(uploadURL *url.URL, opts ...option) *symdbManager {
 		workerCancel: cancel,
 	}
 	m.mu.cond = sync.NewCond(&m.mu.Mutex)
+	m.mu.trackedProcesses = make(map[processKey]struct{})
 
 	// Start the worker goroutine with tracking.
 	m.workerWg.Add(1)
@@ -95,9 +115,12 @@ func (m *symdbManager) stop() {
 	m.workerWg.Wait()
 }
 
-// queueUpload queues a new upload request. The upload will be performed
-// asynchronously. A single upload can be in progress at a time.
-// Returns an error if the manager has been stopped.
+// queueUpload queues a new upload request, if the process' data has not been
+// uploaded previously (since the last corresponding removeUpload() call, if
+// any). Calling queueUpload() again for the same process is a no-op.
+//
+// The upload will be performed asynchronously. A single upload can be in
+// progress at a time. Returns an error if the manager has been stopped.
 func (m *symdbManager) queueUpload(runtimeID procRuntimeID, executablePath string) error {
 	// Queue the upload request. The worker will pick it up.
 	m.mu.Lock()
@@ -108,8 +131,25 @@ func (m *symdbManager) queueUpload(runtimeID procRuntimeID, executablePath strin
 		return errors.New("symdbManager has been stopped")
 	}
 
+	// If we've already uploaded data for this process (or it's currently in the
+	// queue), there's nothing to do.
+	// NOTE: we identify processes not just by PID, by also by service/version.
+	// If we get multiple requests for uploads with the same pid, but different
+	// service/version, we'll upload multiple times with the difference
+	// service/version tags.
+	key := processKey{
+		pid:     runtimeID.ProcessID,
+		service: runtimeID.service,
+		version: runtimeID.version,
+	}
+	if _, ok := m.mu.trackedProcesses[key]; ok {
+		return nil
+	}
+	m.mu.trackedProcesses[key] = struct{}{}
+
 	m.mu.queuedUploads = append(m.mu.queuedUploads, uploadRequest{
-		runtimeID:      runtimeID,
+		procID:         key,
+		runtimeID:      runtimeID.runtimeID,
 		executablePath: executablePath,
 	})
 	// Signal the worker that a new request is available.
@@ -117,17 +157,32 @@ func (m *symdbManager) queueUpload(runtimeID procRuntimeID, executablePath strin
 	return nil
 }
 
-// removeUpload removes any queued upload for the given process ID. If the
-// upload is currently being processed, it will be cancelled and the call will
-// block until the upload stops. If no upload for the respective process is in
-// progress or queued, the call is a no-op.
+// removeUpload removes the queued upload for the given process ID, if any. If
+// the upload is currently being processed, it will be cancelled and the call
+// will block until the upload stops. If no upload for the respective process is
+// in progress or queued, the call is a no-op.
 func (m *symdbManager) removeUpload(runtimeID procRuntimeID) {
+	key := processKey{
+		pid:     runtimeID.ProcessID,
+		service: runtimeID.service,
+		version: runtimeID.version,
+	}
+	m.removeUploadInner(key)
+}
+
+func (m *symdbManager) removeUploadInner(key processKey) {
 	m.mu.Lock()
+
+	if _, ok := m.mu.trackedProcesses[key]; !ok {
+		m.mu.Unlock()
+		return
+	}
+	delete(m.mu.trackedProcesses, key)
 
 	// Remove future uploads from queue.
 	filtered := m.mu.queuedUploads[:0]
 	for _, req := range m.mu.queuedUploads {
-		if req.runtimeID.ProcessID != runtimeID.ProcessID {
+		if req.procID != key {
 			filtered = append(filtered, req)
 		}
 	}
@@ -136,8 +191,8 @@ func (m *symdbManager) removeUpload(runtimeID procRuntimeID) {
 	// Deal with the case where the current upload is being removed: cancel and
 	// wait for it to terminate.
 	var doneCh chan struct{}
-	if m.mu.currentUpload != nil && m.mu.currentUpload.runtimeID.ProcessID == runtimeID.ProcessID {
-		log.Infof("Cancelling symbols upload for process %v", runtimeID.ProcessID)
+	if m.mu.currentUpload != nil && m.mu.currentUpload.procID == key {
+		log.Infof("Cancelling symbols upload for process %s", key)
 		// Cancel the upload first.
 		if m.mu.currentCancel != nil {
 			m.mu.currentCancel(errors.New("symbols upload no longer required"))
@@ -151,6 +206,24 @@ func (m *symdbManager) removeUpload(runtimeID procRuntimeID) {
 	// Wait for upload to finish.
 	if doneCh != nil {
 		<-doneCh
+	}
+}
+
+// removeUploadByPID removes the queued upload(s) for the given process ID.
+func (m *symdbManager) removeUploadByPID(pid procmon.ProcessID) {
+	// Find all the requests with this pid -- in theory there could be more than one, with
+	// different service/version tags.
+	m.mu.Lock()
+	var keys []processKey
+	for k := range m.mu.trackedProcesses {
+		if k.pid == pid {
+			keys = append(keys, k)
+		}
+	}
+	m.mu.Unlock()
+
+	for _, k := range keys {
+		m.removeUploadInner(k)
 	}
 }
 
@@ -195,14 +268,14 @@ func (m *symdbManager) worker(ctx context.Context) {
 
 		// Unlock while processing the upload.
 		m.mu.Unlock()
-		err := m.performUpload(uploadCtx, req.runtimeID, req.executablePath)
+		err := m.performUpload(uploadCtx, req.procID, req.runtimeID, req.executablePath)
 		if err != nil {
 			if uploadCtx.Err() != nil {
 				log.Infof("SymDB: upload cancelled for process %v (executable: %s): %v",
-					req.runtimeID.ProcessID, req.executablePath, context.Cause(uploadCtx))
+					req.runtimeID, req.executablePath, context.Cause(uploadCtx))
 			} else {
 				log.Errorf("SymDB: failed to upload symbols for process %v (executable: %s): %v",
-					req.runtimeID.ProcessID, req.executablePath, err)
+					req.procID.pid, req.executablePath, err)
 			}
 		}
 
@@ -215,7 +288,9 @@ func (m *symdbManager) worker(ctx context.Context) {
 	}
 }
 
-func (m *symdbManager) performUpload(ctx context.Context, runtimeID procRuntimeID, executablePath string) error {
+func (m *symdbManager) performUpload(ctx context.Context, procID processKey, runtimeID string, executablePath string) error {
+	log.Infof("SymDB: uploading symbols for process %v (executable: %s)",
+		procID.pid, executablePath)
 	it, err := symdb.PackagesIterator(executablePath,
 		symdb.ExtractOptions{
 			Scope:                   symdb.ExtractScopeModulesFromSameOrg,
@@ -223,12 +298,12 @@ func (m *symdbManager) performUpload(ctx context.Context, runtimeID procRuntimeI
 		})
 	if err != nil {
 		return fmt.Errorf("failed to read symbols for process %v (executable: %s): %w",
-			runtimeID.ProcessID, executablePath, err)
+			procID.pid, executablePath, err)
 	}
 
 	sender := uploader.NewSymDBUploader(
 		m.uploadURL.String(),
-		runtimeID.service, runtimeID.environment, runtimeID.version, runtimeID.runtimeID,
+		procID.service, procID.version, runtimeID,
 	)
 	uploadBuffer := make([]uploader.Scope, 0, 100)
 	bufferFuncs := 0
@@ -242,7 +317,7 @@ func (m *symdbManager) performUpload(ctx context.Context, runtimeID procRuntimeI
 			return nil
 		}
 		if force || bufferFuncs >= m.cfg.maxBufferFuncs {
-			log.Tracef("Uploading symbols chunk: %d packages, %d functions", len(uploadBuffer), bufferFuncs)
+			log.Tracef("SymDB: uploading symbols chunk: %d packages, %d functions", len(uploadBuffer), bufferFuncs)
 			if err := sender.Upload(ctx, uploadBuffer); err != nil {
 				return fmt.Errorf("upload failed: %w", err)
 			}
@@ -254,7 +329,7 @@ func (m *symdbManager) performUpload(ctx context.Context, runtimeID procRuntimeI
 	for pkg, err := range it {
 		if err != nil {
 			return fmt.Errorf("failed to iterate packages for process %v (executable: %s): %w",
-				runtimeID.ProcessID, executablePath, err)
+				procID.pid, executablePath, err)
 		}
 
 		if ctx.Err() != nil {
@@ -273,6 +348,6 @@ func (m *symdbManager) performUpload(ctx context.Context, runtimeID procRuntimeI
 	}
 
 	log.Infof("SymDB: Successfully uploaded symbols for process %v (executable: %s)",
-		runtimeID.ProcessID, executablePath)
+		procID.pid, executablePath)
 	return nil
 }
