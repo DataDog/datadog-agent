@@ -20,8 +20,8 @@ type Service struct {
 	TracerMetadata           []tracermetadata.TracerMetadata `json:"tracer_metadata,omitempty"`
 	DDService                string                          `json:"dd_service"`
 	DDServiceInjected        bool                            `json:"dd_service_injected"`
-	TCPPorts                   []uint16                        `json:"tcp_ports,omitempty"`
-	UDPPorts                   []uint16                        `json:"udp_ports,omitempty"`
+	TCPPorts                 []uint16                        `json:"tcp_ports,omitempty"`
+	UDPPorts                 []uint16                        `json:"udp_ports,omitempty"`
 	APMInstrumentation       string                          `json:"apm_instrumentation"`
 	Language                 string                          `json:"language"`
 	Type                     string                          `json:"service_type"`
