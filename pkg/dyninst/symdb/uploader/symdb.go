@@ -89,7 +89,6 @@ type LineRange struct {
 type SymDBUploader struct {
 	url       string
 	service   string
-	env       string
 	version   string
 	runtimeID string
 }
@@ -98,14 +97,12 @@ type SymDBUploader struct {
 func NewSymDBUploader(
 	urlStr string,
 	service string,
-	env string,
 	version string,
 	runtimeID string,
 ) *SymDBUploader {
 	return &SymDBUploader{
 		url:       urlStr,
 		service:   service,
-		env:       env,
 		version:   version,
 		runtimeID: runtimeID,
 	}
@@ -117,7 +114,6 @@ func (s *SymDBUploader) Upload(ctx context.Context, packages []Scope) error {
 	var buf bytes.Buffer
 	buf.WriteString(`{
 "service": "` + s.service + `",
-"env": "` + s.env + `",
 "version": "` + s.version + `",
 "language": "go",
 "scopes": `)

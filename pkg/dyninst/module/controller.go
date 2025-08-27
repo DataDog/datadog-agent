@@ -107,6 +107,9 @@ func (c *Controller) handleRemovals(removals []procmon.ProcessID) {
 			Removals: removals,
 		})
 	}
+	for _, pid := range removals {
+		c.symdb.removeUploadByPID(pid)
+	}
 }
 
 func (c *Controller) checkForUpdates() {
