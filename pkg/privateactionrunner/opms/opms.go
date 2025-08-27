@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package opms
 
 import (
@@ -78,7 +83,14 @@ type EnrollmentRequest struct {
 
 // SelfEnrollmentRequest represents the self-enrollment request payload
 type SelfEnrollmentRequest struct {
-	PublicKey string `json:"publicKey"`
+	PublicKey string       `json:"publicKey"`
+	Ec2       *Ec2Identity `json:"ec2,omitempty"`
+}
+
+// Ec2Identity represents the EC2 identity structure for self-enrollment
+type Ec2Identity struct {
+	Region string `json:"region"`
+	Pkcs7  string `json:"pkcs7"`
 }
 
 // EnrollmentResponseData represents the data section of the JSONAPI response
@@ -469,7 +481,7 @@ func (c *EnrollmentClient) SendEnrollmentJWT(ctx context.Context, jwtBody string
 }
 
 // SendSelfEnrollmentRequest sends a self-enrollment request using API key authentication
-func (c *EnrollmentClient) SendSelfEnrollmentRequest(ctx context.Context, apiKey, appKey, publicKeyJSON string) (*EnrollmentResponse, error) {
+func (c *EnrollmentClient) SendSelfEnrollmentRequest(ctx context.Context, apiKey, appKey, publicKeyJSON string, ec2Identity *Ec2Identity) (*EnrollmentResponse, error) {
 	u := &url.URL{
 		Scheme: "https",
 		Host:   c.host,
@@ -479,6 +491,7 @@ func (c *EnrollmentClient) SendSelfEnrollmentRequest(ctx context.Context, apiKey
 	// Create self-enrollment request payload
 	requestPayload := SelfEnrollmentRequest{
 		PublicKey: publicKeyJSON,
+		Ec2:       ec2Identity,
 	}
 
 	// Marshal request to JSON

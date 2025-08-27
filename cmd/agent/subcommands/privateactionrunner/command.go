@@ -70,6 +70,7 @@ func selfEnrollCommand(globalParams *command.GlobalParams) *cobra.Command {
 	var apiKey string
 	var appKey string
 	var site string
+	var selfAuth bool
 
 	cmd := &cobra.Command{
 		Use:   "self-enroll --api-key <api-key>",
@@ -81,7 +82,8 @@ self-enroll OPMS endpoint. The enrollment configuration will be printed to stdou
 
 Example:
   datadog-agent private-action-runner self-enroll --api-key "your-api-key"
-  datadog-agent private-action-runner self-enroll --api-key "key" --site datadoghq.eu
+  datadog-agent private-action-runner self-enroll --api-key "your-api-key" --site datadoghq.eu
+  datadog-agent private-action-runner self-enroll --api-key "your-api-key" --self-auth true
 `,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if appKey == "" {
@@ -100,13 +102,14 @@ Example:
 				site = "datadoghq.com" // Default site
 			}
 			// Perform self-enrollment
-			return enrollment.ProvisionRunnerIdentityWithAPIKey(apiKey, appKey, site)
+			return enrollment.ProvisionRunnerIdentityWithAPIKey(apiKey, appKey, site, selfAuth)
 		},
 	}
 
 	cmd.Flags().StringVarP(&apiKey, "api-key", "k", "", "Datadog API key for authentication (required)")
 	cmd.Flags().StringVarP(&appKey, "app-key", "", "", "Datadog APP key for authentication (required)")
 	cmd.Flags().StringVarP(&site, "site", "s", "", "Datadog site (e.g., datadoghq.com, datadoghq.eu, us3.datadoghq.com). Defaults to datadoghq.com")
+	cmd.Flags().BoolVarP(&selfAuth, "self-auth", "", false, "Enable self-authentication mode")
 	//cmd.MarkFlagRequired("api-key")
 	//cmd.MarkFlagRequired("app-key")
 
