@@ -8,10 +8,11 @@ package workloadmetaimpl
 import (
 	"encoding/json"
 	"fmt"
+	"path/filepath"
+	"regexp"
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/sbomutil"
-	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -25,8 +26,8 @@ with workloadmeta to dump its state.
 // Note that the generated file uncompressed can be very large
 func (w *workloadmeta) sbomFlareProvider(fb flaretypes.FlareBuilder) error {
 	images := w.ListImages()
+	names := make(map[string]int)
 
-	fields := make(map[string]*wmdef.SBOM, len(images))
 	for _, image := range images {
 		sbom, err := sbomutil.UncompressSBOM(image.SBOM)
 		if err != nil {
@@ -34,17 +35,29 @@ func (w *workloadmeta) sbomFlareProvider(fb flaretypes.FlareBuilder) error {
 			continue
 		}
 
-		fields[image.ID] = sbom
-	}
+		content, err := json.MarshalIndent(sbom, "", "    ")
+		if err != nil {
+			return fmt.Errorf("failed to marshal results to JSON: %v", err)
+		}
 
-	// Using indent or splitting the file is necessary. Otherwise the scrubber will understand
-	// the file as a single very large token and it will exceed the max buffer size.
-	content, err := json.MarshalIndent(fields, "", "    ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal results to JSON: %v", err)
-	}
+		name := idToFileSafe(image.ID)
 
-	_ = fb.AddFileWithoutScrubbing("sbom.json", content)
+		// just in case multiple images have the same ID, let's make the name unique
+		counter := names[name]
+		if counter != 0 {
+			name = fmt.Sprintf("%s_%d", name, counter)
+		}
+		names[name]++
+
+		_ = fb.AddFileWithoutScrubbing(filepath.Join("sbom", fmt.Sprintf("%s.json", name)), content)
+	}
 
 	return nil
+}
+
+var invalidChars = regexp.MustCompile(`[^a-zA-Z0-9_-]+`)
+
+func idToFileSafe(id string) string {
+	// replace invalid characters with underscores
+	return invalidChars.ReplaceAllString(id, "_")
 }

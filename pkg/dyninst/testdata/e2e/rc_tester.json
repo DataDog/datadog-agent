@@ -25,8 +25,8 @@
           "entry": {
             "arguments": {
               "w": {
-                "type": "net/http.ResponseWriter",
-                "notCapturedReason": "unimplemented"
+                "type": "UnknownType(0x[GoRuntimeType])",
+                "notCapturedReason": "missing type information"
               },
               "r": {
                 "type": "*net/http.Request",
@@ -137,8 +137,8 @@
                     ]
                   },
                   "Body": {
-                    "type": "io.ReadCloser",
-                    "notCapturedReason": "unimplemented"
+                    "type": "UnknownType(0x[GoRuntimeType])",
+                    "notCapturedReason": "missing type information"
                   },
                   "GetBody": {
                     "type": "func() (io.ReadCloser, error)",
@@ -201,8 +201,8 @@
                     "value": "/"
                   },
                   "ctx": {
-                    "type": "context.Context",
-                    "notCapturedReason": "unimplemented"
+                    "type": "UnknownType(0x[GoRuntimeType])",
+                    "notCapturedReason": "missing type information"
                   },
                   "pat": {
                     "type": "*net/http.pattern",
@@ -328,8 +328,8 @@
           "entry": {
             "arguments": {
               "w": {
-                "type": "net/http.ResponseWriter",
-                "notCapturedReason": "unimplemented"
+                "type": "UnknownType(0x[GoRuntimeType])",
+                "notCapturedReason": "missing type information"
               },
               "r": {
                 "type": "*net/http.Request",
@@ -440,8 +440,8 @@
                     ]
                   },
                   "Body": {
-                    "type": "io.ReadCloser",
-                    "notCapturedReason": "unimplemented"
+                    "type": "UnknownType(0x[GoRuntimeType])",
+                    "notCapturedReason": "missing type information"
                   },
                   "GetBody": {
                     "type": "func() (io.ReadCloser, error)",
@@ -504,8 +504,8 @@
                     "value": "/"
                   },
                   "ctx": {
-                    "type": "context.Context",
-                    "notCapturedReason": "unimplemented"
+                    "type": "UnknownType(0x[GoRuntimeType])",
+                    "notCapturedReason": "missing type information"
                   },
                   "pat": {
                     "type": "*net/http.pattern",
@@ -631,8 +631,8 @@
           "entry": {
             "arguments": {
               "w": {
-                "type": "net/http.ResponseWriter",
-                "notCapturedReason": "unimplemented"
+                "type": "UnknownType(0x[GoRuntimeType])",
+                "notCapturedReason": "missing type information"
               },
               "r": {
                 "type": "*net/http.Request",
@@ -743,8 +743,8 @@
                     ]
                   },
                   "Body": {
-                    "type": "io.ReadCloser",
-                    "notCapturedReason": "unimplemented"
+                    "type": "UnknownType(0x[GoRuntimeType])",
+                    "notCapturedReason": "missing type information"
                   },
                   "GetBody": {
                     "type": "func() (io.ReadCloser, error)",
@@ -807,8 +807,8 @@
                     "value": "/"
                   },
                   "ctx": {
-                    "type": "context.Context",
-                    "notCapturedReason": "unimplemented"
+                    "type": "UnknownType(0x[GoRuntimeType])",
+                    "notCapturedReason": "missing type information"
                   },
                   "pat": {
                     "type": "*net/http.pattern",
