@@ -136,31 +136,25 @@ func generateIR(
 
 	// Prepare the main DWARF visitor that will gather all the information we
 	// need from the binary.
-	ptrSize := uint8(objFile.Architecture().PointerSize())
+	arch := objFile.Architecture()
+	ptrSize := uint8(arch.PointerSize())
 	d := objFile.DwarfData()
-	typeCatalog := newTypeCatalog(
-		d,
-		ptrSize,
-		cfg.maxDynamicTypeSize,
-		cfg.maxHashBucketsSize,
-	)
-	pendingSubprograms, goModuledataInfo, err := processDwarf(interests, d, typeCatalog, objFile)
+	processed, err := processDwarf(interests, d, arch)
 	if err != nil {
 		return nil, err
 	}
-
 	// Find prologues need to determine injection points. We make an assumption
 	// that prologue, if function has a frame, should be contained within the
 	// first pc range of a subprogram. This simplifies the logic slightly.
-	prologueSearch := make([]prologueSeachParams, 0, len(pendingSubprograms))
-	for _, sp := range pendingSubprograms {
-		if len(sp.subprogram.OutOfLinePCRanges) > 0 {
+	prologueSearch := make([]prologueSeachParams, 0, len(processed.pendingSubprograms))
+	for _, sp := range processed.pendingSubprograms {
+		if len(sp.outOfLinePCRanges) > 0 {
 			prologueSearch = append(prologueSearch, prologueSeachParams{
 				unit:    sp.unit,
-				pcRange: sp.subprogram.OutOfLinePCRanges[0],
+				pcRange: sp.outOfLinePCRanges[0],
 			})
 		}
-		for _, inlined := range sp.subprogram.InlinePCRanges {
+		for _, inlined := range sp.inlinePCRanges {
 			prologueSearch = append(prologueSearch, prologueSeachParams{
 				unit:    sp.unit,
 				pcRange: inlined.RootRanges[0],
@@ -173,9 +167,29 @@ func generateIR(
 		return nil, err
 	}
 
+	typeCatalog := newTypeCatalog(
+		d, ptrSize, cfg.maxDynamicTypeSize, cfg.maxHashBucketsSize,
+	)
+	for _, offset := range processed.interestingTypes {
+		if _, err := typeCatalog.addType(offset); err != nil {
+			return nil, fmt.Errorf("failed to add type at offset %#x: %w", offset, err)
+		}
+	}
+
+	// Materialize before creating probes so IR subprograms and vars exist.
+	materializedSubprograms, err := materializePending(
+		objFile.LoclistReader(), ptrSize, typeCatalog, processed.pendingSubprograms,
+	)
+	if err != nil {
+		return nil, err
+	}
+	idToSub := make(map[ir.SubprogramID]*ir.Subprogram, len(materializedSubprograms))
+	for _, sp := range materializedSubprograms {
+		idToSub[sp.ID] = sp
+	}
 	// Instantiate probes and gather any probe-related issues.
 	probes, subprograms, probeIssues, err := createProbes(
-		objFile, pendingSubprograms, prologueLocs,
+		arch, processed.pendingSubprograms, prologueLocs, idToSub,
 	)
 	if err != nil {
 		return nil, err
@@ -183,7 +197,7 @@ func generateIR(
 	issues = append(issues, probeIssues...)
 
 	// Finalize type information now that we have all referenced types.
-	if err := finalizeTypes(typeCatalog, subprograms); err != nil {
+	if err := finalizeTypes(typeCatalog, materializedSubprograms); err != nil {
 		return nil, err
 	}
 
@@ -211,8 +225,88 @@ func generateIR(
 		Types:            typeCatalog.typesByID,
 		MaxTypeID:        typeCatalog.idAlloc.alloc,
 		Issues:           issues,
-		GoModuledataInfo: goModuledataInfo,
+		GoModuledataInfo: processed.goModuledataInfo,
 	}, nil
+}
+
+func materializePending(
+	loclistReader *loclist.Reader,
+	pointerSize uint8,
+	typeCatalog *typeCatalog,
+	pending []*pendingSubprogram,
+) ([]*ir.Subprogram, error) {
+	subprograms := make([]*ir.Subprogram, 0, len(pending))
+	for _, p := range pending {
+		// Build IR subprogram from discovery state.
+		sp := &ir.Subprogram{
+			ID:                p.id,
+			Name:              p.name,
+			OutOfLinePCRanges: p.outOfLinePCRanges,
+			InlinePCRanges:    p.inlinePCRanges,
+		}
+		// First, create variables defined directly under the subprogram/abstract DIEs.
+		variableByOffset := make(map[dwarf.Offset]*ir.Variable, len(p.variables))
+		for _, die := range p.variables {
+			parseLocs := !p.abstract
+			var ranges []ir.PCRange
+			if parseLocs {
+				ranges = p.outOfLinePCRanges
+			}
+			v, err := processVariable(
+				p.unit, die, die.Tag == dwarf.TagFormalParameter,
+				parseLocs, ranges,
+				loclistReader, pointerSize, typeCatalog,
+			)
+			if err != nil {
+				return nil, err
+			}
+			sp.Variables = append(sp.Variables, v)
+			variableByOffset[die.Offset] = v
+		}
+		// Then, propagate locations and define additional vars from inlined instances.
+		for _, inl := range p.inlined {
+			var ranges []ir.PCRange
+			if inl.outOfLinePCRanges != nil {
+				ranges = inl.outOfLinePCRanges
+			} else {
+				ranges = inl.inlinedPCRanges.Ranges
+			}
+			for _, inlVar := range inl.variables {
+				abstractOrigin, ok, err := maybeGetAttr[dwarf.Offset](
+					inlVar, dwarf.AttrAbstractOrigin,
+				)
+				if err != nil {
+					return nil, err
+				}
+				if ok {
+					baseVar, found := variableByOffset[abstractOrigin]
+					if !found {
+						return nil, fmt.Errorf("abstract variable not found for inlined variable")
+					}
+					if locField := inlVar.AttrField(dwarf.AttrLocation); locField != nil {
+						locs := computeLocations(
+							p.unit, inlVar.Offset, ranges, baseVar.Type, locField,
+							loclistReader, pointerSize,
+						)
+						baseVar.Locations = append(baseVar.Locations, locs...)
+					}
+				} else {
+					// Fully defined var in the inlined instance.
+					v, err := processVariable(
+						p.unit, inlVar, inlVar.Tag == dwarf.TagFormalParameter,
+						true /* parseLocations */, ranges,
+						loclistReader, pointerSize, typeCatalog,
+					)
+					if err != nil {
+						return nil, err
+					}
+					sp.Variables = append(sp.Variables, v)
+				}
+			}
+		}
+		subprograms = append(subprograms, sp)
+	}
+	return subprograms, nil
 }
 
 type prologueSeachParams struct {
@@ -286,9 +380,10 @@ func findProloguesEnds(
 // createProbes instantiates probes for each pending sub-program and gathers any
 // probe-specific issues encountered in the process.
 func createProbes(
-	objFile object.FileWithDwarf,
+	arch object.Architecture,
 	pending []*pendingSubprogram,
 	prologueLocs map[uint64]prologueEndLocation,
+	idToSubprogram map[ir.SubprogramID]*ir.Subprogram,
 ) ([]*ir.Probe, []*ir.Subprogram, []ir.ProbeIssue, error) {
 	var (
 		probes       []*ir.Probe
@@ -305,9 +400,10 @@ func createProbes(
 			continue
 		}
 
+		sp := idToSubprogram[p.id]
 		var haveProbe bool
 		for _, cfg := range p.probesCfgs {
-			probe, iss, err := newProbe(objFile, cfg, p.subprogram, &eventIDAlloc, prologueLocs)
+			probe, iss, err := newProbe(arch, cfg, sp, &eventIDAlloc, prologueLocs)
 			if err != nil {
 				return nil, nil, nil, err
 			}
@@ -320,7 +416,7 @@ func createProbes(
 		}
 
 		if haveProbe {
-			subprograms = append(subprograms, p.subprogram)
+			subprograms = append(subprograms, sp)
 		}
 	}
 
@@ -344,6 +440,12 @@ func finalizeTypes(tc *typeCatalog, subprograms []*ir.Subprogram) error {
 	return nil
 }
 
+type processedDwarf struct {
+	pendingSubprograms []*pendingSubprogram
+	goModuledataInfo   ir.GoModuledataInfo
+	interestingTypes   []dwarf.Offset
+}
+
 // processDwarf walks the DWARF data, collects all subprograms we care about
 // (both concrete and abstract), propagates information from inlined instances
 // to their abstract origins, and returns the resulting slice together with the
@@ -351,23 +453,20 @@ func finalizeTypes(tc *typeCatalog, subprograms []*ir.Subprogram) error {
 func processDwarf(
 	interests interests,
 	d *dwarf.Data,
-	typeCatalog *typeCatalog,
-	objFile object.FileWithDwarf,
-) ([]*pendingSubprogram, ir.GoModuledataInfo, error) {
+	arch object.Architecture,
+) (processedDwarf, error) {
 	v := &rootVisitor{
 		interests:           interests,
 		dwarf:               d,
 		subprogramIDAlloc:   idAllocator[ir.SubprogramID]{},
 		abstractSubprograms: make(map[dwarf.Offset]*abstractSubprogram),
 		inlinedSubprograms:  make(map[*dwarf.Entry][]*inlinedSubprogram),
-		typeCatalog:         typeCatalog,
-		pointerSize:         uint8(objFile.Architecture().PointerSize()),
-		loclistReader:       objFile.LoclistReader(),
+		pointerSize:         uint8(arch.PointerSize()),
 	}
 
 	// Visit the entire DWARF tree.
 	if err := visitDwarf(d.Reader(), v); err != nil {
-		return nil, ir.GoModuledataInfo{}, err
+		return processedDwarf{}, err
 	}
 
 	// Concrete subprograms are already in v.pendingSubprograms.
@@ -375,41 +474,69 @@ func processDwarf(
 
 	// Propagate details from each inlined instance to its abstract origin.
 	inlinedByUnit := iterMapSorted(v.inlinedSubprograms, cmpEntry)
-	for unit, inlinedSubs := range inlinedByUnit {
+	for _, inlinedSubs := range inlinedByUnit {
 		for _, inlined := range inlinedSubs {
 			abs, ok := v.abstractSubprograms[inlined.abstractOrigin]
 			if !ok || !abs.issue.IsNone() {
 				continue
 			}
-			issue := applyInlineToAbstractSubprogram(
-				abs,
-				inlined,
-				unit,
-				v.loclistReader,
-				v.pointerSize,
-				v.typeCatalog,
-			)
-			if !issue.IsNone() {
-				abs.issue = issue
+
+			if inlined.outOfLinePCRanges != nil {
+				// Out-of-line instance.
+				if len(abs.outOfLinePCRanges) != 0 {
+					abs.issue = ir.Issue{
+						Kind:    ir.IssueKindMalformedExecutable,
+						Message: "multiple out-of-line instances of abstract subprogram",
+					}
+				} else {
+					abs.outOfLinePCRanges = inlined.outOfLinePCRanges
+				}
+			} else {
+				// Inlined instance.
+				abs.inlinePCRanges = append(abs.inlinePCRanges, inlined.inlinedPCRanges)
 			}
+			abs.inlined = append(abs.inlined, inlined)
 		}
 	}
 
 	// Append the abstract sub-programs in deterministic order.
 	abstractSubs := iterMapSorted(v.abstractSubprograms, cmp.Compare)
 	for _, abs := range abstractSubs {
+		// Collect abstract variable DIEs in deterministic order.
+		varVars := make([]*dwarf.Entry, 0, len(abs.variables))
+		if len(abs.variables) > 0 {
+			keys := make([]dwarf.Offset, 0, len(abs.variables))
+			for k := range abs.variables {
+				keys = append(keys, k)
+			}
+			slices.SortFunc(keys, func(a, b dwarf.Offset) int { return cmp.Compare(a, b) })
+			for _, k := range keys {
+				varVars = append(varVars, abs.variables[k])
+			}
+		}
 		pending = append(pending, &pendingSubprogram{
-			subprogram: abs.subprogram,
-			unit:       abs.unit,
-			probesCfgs: abs.probesCfgs,
-			issue:      abs.issue,
+			unit:              abs.unit,
+			subprogramEntry:   nil,
+			name:              abs.name,
+			outOfLinePCRanges: abs.outOfLinePCRanges,
+			inlinePCRanges:    abs.inlinePCRanges,
+			inlined:           abs.inlined,
+			variables:         varVars,
+			probesCfgs:        abs.probesCfgs,
+			issue:             abs.issue,
+			id:                v.subprogramIDAlloc.next(),
+			abstract:          true,
 		})
 	}
 
 	if v.goRuntimeInformation == (ir.GoModuledataInfo{}) {
-		return nil, ir.GoModuledataInfo{}, fmt.Errorf("runtime.firstmoduledata not found")
+		return processedDwarf{}, fmt.Errorf("runtime.firstmoduledata not found")
 	}
-	return pending, v.goRuntimeInformation, nil
+	return processedDwarf{
+		pendingSubprograms: pending,
+		goModuledataInfo:   v.goRuntimeInformation,
+		interestingTypes:   v.interestingTypes,
+	}, nil
 }
 
 func findUnusedConfigs(
@@ -437,100 +564,6 @@ func skipPast[A, B ir.ProbeIDer](items []A, target B) (_ []A, found bool) {
 		idx++
 	}
 	return items[idx:], found
-}
-
-func applyInlineToAbstractSubprogram(
-	abstractSubprogram *abstractSubprogram,
-	inlinedSubprogram *inlinedSubprogram,
-	unit *dwarf.Entry,
-	loclistReader *loclist.Reader,
-	pointerSize uint8,
-	typeCatalog *typeCatalog,
-) ir.Issue {
-	var ranges []ir.PCRange
-	if inlinedSubprogram.outOfLinePCRanges != nil {
-		// Out-of-line instance.
-		if abstractSubprogram.subprogram.OutOfLinePCRanges != nil {
-			return ir.Issue{
-				Kind:    ir.IssueKindMalformedExecutable,
-				Message: "multiple out-of-line instances of abstract subprogram",
-			}
-		}
-		abstractSubprogram.subprogram.OutOfLinePCRanges = inlinedSubprogram.outOfLinePCRanges
-		ranges = inlinedSubprogram.outOfLinePCRanges
-	} else {
-		// Inlined instance.
-		abstractSubprogram.subprogram.InlinePCRanges = append(
-			abstractSubprogram.subprogram.InlinePCRanges, inlinedSubprogram.inlinedPCRanges)
-		ranges = inlinedSubprogram.inlinedPCRanges.Ranges
-	}
-	for _, inlinedVariable := range inlinedSubprogram.variables {
-		// Inlined subprograms usually have variables with abstract origin
-		// pointing at the abstract subprogram variable.  Sometimes, they will
-		// have fully defined variables (observed to be return values in
-		// out-of-line instantations).
-		var variable *ir.Variable
-		abstractOrigin, ok, err := maybeGetAttr[dwarf.Offset](
-			inlinedVariable, dwarf.AttrAbstractOrigin)
-		if err != nil {
-			return ir.Issue{
-				Kind: ir.IssueKindMalformedExecutable,
-				Message: fmt.Sprintf(
-					"failed to get abstract origin for inlined variable: %v",
-					err,
-				),
-			}
-		}
-		if ok {
-			variable, ok = abstractSubprogram.variables[abstractOrigin]
-			if !ok {
-				return ir.Issue{
-					Kind:    ir.IssueKindMalformedExecutable,
-					Message: "abstract variable not found for inlined variable",
-				}
-			}
-			var locations []ir.Location
-			locField := inlinedVariable.AttrField(dwarf.AttrLocation)
-			if locField != nil {
-				locations = computeLocations(
-					unit, inlinedVariable.Offset, ranges, variable.Type, locField,
-					loclistReader, pointerSize,
-				)
-				variable.Locations = append(variable.Locations, locations...)
-			}
-		} else {
-			var isParameter bool
-			switch inlinedVariable.Tag {
-			case dwarf.TagFormalParameter:
-				isParameter = true
-			case dwarf.TagVariable:
-				isParameter = false
-			default:
-				return ir.Issue{
-					Kind: ir.IssueKindMalformedExecutable,
-					Message: fmt.Sprintf(
-						"unexpected tag for inlined variable: %v",
-						inlinedVariable.Tag,
-					),
-				}
-			}
-			variable, err = processVariable(
-				unit, inlinedVariable, isParameter,
-				true, /* parseLocations */
-				ranges,
-				loclistReader, pointerSize, typeCatalog,
-			)
-			if err != nil {
-				return ir.Issue{
-					Kind:    ir.IssueKindMalformedExecutable,
-					Message: fmt.Sprintf("failed to process variable: %v", err),
-				}
-			}
-			abstractSubprogram.subprogram.Variables = append(
-				abstractSubprogram.subprogram.Variables, variable)
-		}
-	}
-	return ir.Issue{}
 }
 
 func completeGoTypes(tc *typeCatalog) error {
@@ -938,8 +971,7 @@ type rootVisitor struct {
 	abstractSubprograms map[dwarf.Offset]*abstractSubprogram
 	// InlinedSubprograms grouped by the compilation unit entry.
 	inlinedSubprograms map[*dwarf.Entry][]*inlinedSubprogram
-	typeCatalog        *typeCatalog
-	loclistReader      *loclist.Reader
+	interestingTypes   []dwarf.Offset
 
 	goRuntimeInformation ir.GoModuledataInfo
 
@@ -948,9 +980,20 @@ type rootVisitor struct {
 	freeUnitChildVisitor *unitChildVisitor
 }
 
+// pendingSubprogram collects DWARF discovery for a subprogram without building
+// IR. It holds the DIEs and ranges needed for materialization.
 type pendingSubprogram struct {
-	subprogram *ir.Subprogram
-	unit       *dwarf.Entry
+	unit              *dwarf.Entry
+	subprogramEntry   *dwarf.Entry
+	variables         []*dwarf.Entry
+	name              string
+	outOfLinePCRanges []ir.PCRange
+	inlinePCRanges    []ir.InlinePCRanges
+
+	// Inlined instances associated with this (abstract) subprogram.
+	inlined    []*inlinedSubprogram
+	abstract   bool
+	id         ir.SubprogramID
 	probesCfgs []ir.ProbeDefinition
 	issue      ir.Issue
 }
@@ -1033,11 +1076,8 @@ func (v *unitChildVisitor) push(
 				abstractSubprogram := &abstractSubprogram{
 					unit:       v.unit,
 					probesCfgs: probesCfgs,
-					subprogram: &ir.Subprogram{
-						ID:   v.root.subprogramIDAlloc.next(),
-						Name: name,
-					},
-					variables: make(map[dwarf.Offset]*ir.Variable),
+					name:       name,
+					variables:  make(map[dwarf.Offset]*dwarf.Entry),
 				}
 				v.root.abstractSubprograms[entry.Offset] = abstractSubprogram
 				return &abstractSubprogramVisitor{
@@ -1049,7 +1089,6 @@ func (v *unitChildVisitor) push(
 			return nil, nil
 		}
 
-		var subprogram *ir.Subprogram
 		var subprogramPCRanges []ir.PCRange
 		if len(probesCfgs) > 0 {
 			var err error
@@ -1057,17 +1096,11 @@ func (v *unitChildVisitor) push(
 			if err != nil {
 				return nil, fmt.Errorf("failed to parse pc ranges: %w", err)
 			}
-			subprogram = &ir.Subprogram{
-				ID:                v.root.subprogramIDAlloc.next(),
-				Name:              name,
-				OutOfLinePCRanges: subprogramPCRanges,
-			}
 		}
 		return &subprogramChildVisitor{
 			root:                     v.root,
 			subprogramEntry:          entry,
 			unit:                     v.unit,
-			subprogram:               subprogram,
 			cachedSubprogramPCRanges: subprogramPCRanges,
 			probesCfgs:               probesCfgs,
 		}, nil
@@ -1095,14 +1128,8 @@ func (v *unitChildVisitor) push(
 		if entry.Tag == dwarf.TagPointerType {
 			nameWithoutStar = name[1:]
 		}
-		if !primitiveTypeNameRegexp.MatchString(nameWithoutStar) &&
-			// error is a special case that is not a primitive type and it
-			// itself is an interface, so we don't need to add it eagerly.
-			nameWithoutStar != "error" {
-			return nil, nil
-		}
-		if _, err := v.root.typeCatalog.addType(entry.Offset); err != nil {
-			return nil, fmt.Errorf("failed to add type %q: %w", name, err)
+		if primitiveTypeNameRegexp.MatchString(nameWithoutStar) {
+			v.root.interestingTypes = append(v.root.interestingTypes, entry.Offset)
 		}
 		return nil, nil
 
@@ -1237,11 +1264,20 @@ func (v *unitChildVisitor) pop(_ *dwarf.Entry, childVisitor visitor) error {
 	case nil:
 		return nil
 	case *subprogramChildVisitor:
-		if t.subprogram != nil {
+		if len(t.probesCfgs) > 0 {
+			var spName string
+			if n, ok, _ := maybeGetAttr[string](t.subprogramEntry, dwarf.AttrName); ok {
+				spName = n
+			}
+			spID := v.root.subprogramIDAlloc.next()
 			v.root.subprograms = append(v.root.subprograms, &pendingSubprogram{
-				subprogram: t.subprogram,
-				unit:       t.unit,
-				probesCfgs: t.probesCfgs,
+				unit:              t.unit,
+				subprogramEntry:   t.subprogramEntry,
+				name:              spName,
+				outOfLinePCRanges: t.cachedSubprogramPCRanges,
+				variables:         t.variableEntries,
+				probesCfgs:        t.probesCfgs,
+				id:                spID,
 			})
 		}
 		return nil
@@ -1255,7 +1291,7 @@ func (v *unitChildVisitor) pop(_ *dwarf.Entry, childVisitor visitor) error {
 }
 
 func newProbe(
-	objFile object.FileWithDwarf,
+	arch object.Architecture,
 	probeCfg ir.ProbeDefinition,
 	subprogram *ir.Subprogram,
 	eventIDAlloc *idAllocator[ir.EventID],
@@ -1288,7 +1324,6 @@ func newProbe(
 				Message: loc.err.Error(),
 			}, nil
 		}
-		arch := objFile.Architecture()
 		switch arch {
 		case "amd64":
 			// Do nothing
@@ -1398,13 +1433,11 @@ type subprogramChildVisitor struct {
 	root            *rootVisitor
 	unit            *dwarf.Entry
 	subprogramEntry *dwarf.Entry
-	// May be nil if the subprogram is not interesting. We still need to visit it
-	// to collect possibly interesting inlined subprograms instances.
-	subprogram *ir.Subprogram
-	// Cached pc ranges of the subprogram. Calculated on demand from subprogramEntry
-	// or when subprogram is set.
+	// Cached pc ranges of the subprogram. Calculated on demand from subprogramEntry.
 	cachedSubprogramPCRanges []ir.PCRange
 	probesCfgs               []ir.ProbeDefinition
+	// Discovery: collect variable DIEs for later materialization.
+	variableEntries []*dwarf.Entry
 }
 
 func (v *subprogramChildVisitor) subprogramPCRanges() ([]ir.PCRange, error) {
@@ -1422,7 +1455,6 @@ func (v *subprogramChildVisitor) subprogramPCRanges() ([]ir.PCRange, error) {
 func (v *subprogramChildVisitor) push(
 	entry *dwarf.Entry,
 ) (childVisitor visitor, err error) {
-	var isParameter bool
 	switch entry.Tag {
 	case dwarf.TagInlinedSubroutine:
 		rootPCRanges, err := v.subprogramPCRanges()
@@ -1431,22 +1463,11 @@ func (v *subprogramChildVisitor) push(
 		}
 		return processInlinedSubroutineEntry(v.root, v.unit, false /* outOfLineInstance */, rootPCRanges, entry)
 	case dwarf.TagFormalParameter:
-		isParameter = true
 		fallthrough
 	case dwarf.TagVariable:
-		if v.subprogram != nil {
-			variable, err := processVariable(
-				v.unit, entry, isParameter,
-				true, /* parseLocations */
-				v.subprogram.OutOfLinePCRanges,
-				v.root.loclistReader,
-				v.root.pointerSize,
-				v.root.typeCatalog,
-			)
-			if err != nil {
-				return nil, err
-			}
-			v.subprogram.Variables = append(v.subprogram.Variables, variable)
+		// Collect variables only if this subprogram is interesting to us.
+		if len(v.probesCfgs) > 0 {
+			v.variableEntries = append(v.variableEntries, entry)
 		}
 		return nil, nil
 	case dwarf.TagTypedef:
@@ -1462,9 +1483,7 @@ func (v *subprogramChildVisitor) push(
 	}
 }
 
-func (v *subprogramChildVisitor) pop(_ *dwarf.Entry, _ visitor) error {
-	return nil
-}
+func (v *subprogramChildVisitor) pop(_ *dwarf.Entry, _ visitor) error { return nil }
 
 func processInlinedSubroutineEntry(
 	root *rootVisitor,
@@ -1552,9 +1571,16 @@ func processVariable(
 type abstractSubprogram struct {
 	unit       *dwarf.Entry
 	probesCfgs []ir.ProbeDefinition
-	subprogram *ir.Subprogram
-	variables  map[dwarf.Offset]*ir.Variable
-	issue      ir.Issue
+	name       string
+	id         ir.SubprogramID
+	// Aggregated ranges from out-of-line and inlined instances.
+	outOfLinePCRanges []ir.PCRange
+	inlinePCRanges    []ir.InlinePCRanges
+	// Variables defined under the abstract DIE keyed by DIE offset.
+	variables map[dwarf.Offset]*dwarf.Entry
+	// Inlined instances discovered for this abstract subprogram.
+	inlined []*inlinedSubprogram
+	issue   ir.Issue
 }
 
 type abstractSubprogramVisitor struct {
@@ -1566,24 +1592,11 @@ type abstractSubprogramVisitor struct {
 func (v *abstractSubprogramVisitor) push(
 	entry *dwarf.Entry,
 ) (childVisitor visitor, err error) {
-	var isParameter bool
 	switch entry.Tag {
 	case dwarf.TagFormalParameter:
-		isParameter = true
 		fallthrough
 	case dwarf.TagVariable:
-		variable, err := processVariable(
-			v.unit, entry, isParameter,
-			false /* parseLocations */, nil, /* subprogramPCRanges */
-			v.root.loclistReader, v.root.pointerSize,
-			v.root.typeCatalog,
-		)
-		if err != nil {
-			return nil, err
-		}
-		v.abstractSubprogram.subprogram.Variables = append(
-			v.abstractSubprogram.subprogram.Variables, variable)
-		v.abstractSubprogram.variables[entry.Offset] = variable
+		v.abstractSubprogram.variables[entry.Offset] = entry
 		return nil, nil
 	}
 	return nil, fmt.Errorf("unexpected tag for abstract subprogram child: %s", entry.Tag)
