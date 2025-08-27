@@ -37,20 +37,9 @@ func (s *Setup) restartServices(ctx context.Context, pkgs []packageWithVersion) 
 }
 
 // stopServices stops the services that need to be stopped before running the installer
-func (s *Setup) stopServices(ctx context.Context, pkgs []packageWithVersion) error {
-	t := time.Now()
-	span, ctx := telemetry.StartSpanFromContext(s.Ctx, "stopServices")
-	for _, pkg := range pkgs {
-		switch pkg.name {
-		case DatadogAgentPackage:
-			err := systemd.StopUnit(ctx, "datadog-agent.service")
-			if err != nil {
-				logs, logsErr := systemd.JournaldLogs(ctx, "datadog-agent.service", t)
-				span.SetTag("journald_logs", logs)
-				span.SetTag("journald_logs_err", logsErr)
-				return fmt.Errorf("failed to stop datadog-agent.service: %w", err)
-			}
-		}
-	}
+func (s *Setup) stopServices(_ context.Context, _ []packageWithVersion) error {
+	// TODO: How to ignore error if service doesn't exist? (initial install case)
+	//       Should we also be re-using packages/service/service.go to support other
+	//       service managers?
 	return nil
 }
