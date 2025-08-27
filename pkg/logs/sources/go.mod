@@ -7,7 +7,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/log v0.64.1
 	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.61.0
-	github.com/stretchr/testify v1.10.0
+	github.com/stretchr/testify v1.11.0
 )
 
 require (
