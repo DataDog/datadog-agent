@@ -126,6 +126,10 @@ __attribute__((always_inline)) struct packet_t * parse_packet(struct __sk_buff *
         pkt->ns_flow.flow.dport = pkt->udp.dest;
         break;
 
+    case IPPROTO_ICMP:
+        // TODO: add parsing for ICMP header?
+        break;
+
     default:
         // TODO: handle SCTP, etc ...
         return NULL;
