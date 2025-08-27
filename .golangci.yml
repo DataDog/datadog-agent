@@ -13,13 +13,13 @@ issues:
 
   exclude-dirs:
     - pkg/proto/patches
+    - pkg/security/utils/lru
+    - pkg/template
     - tasks/unit_tests/testdata/components_src
 
   exclude:
     - "Error return value of `io.WriteString` is not checked" # 'errcheck' errors in tools/dep_tree_resolver/go_deps.go
     - "Error return value of `pem.Encode` is not checked" # 'errcheck' errors in test/integration/utils/certificates.go
-    - "Error return value of `c.logErrorNotImplemented` is not checked" # 'errcheck' errors in pkg/config/nodetreemodel/config.go
-    - "Error return value of `n.logErrorNotImplemented` is not checked" # 'errcheck' errors in pkg/config/nodetreemodel/config.go
     - "exported: exported const Exec should have comment \\(or a comment on this block\\) or be unexported" # 'revive' errors in pkg/process/events/model/model_common.go
     - "exported: exported const APIName should have comment \\(or a comment on this block\\) or be unexported" # 'revive' errors in pkg/serverless/trace/inferredspan/constants.go
     - "unnecessary conversion" # 'unconvert' errors in test/integration/utils/certificates_test.go
@@ -61,6 +61,9 @@ issues:
     # We are using it and it's not clear how to replace it.
     - text: "Temporary has been deprecated since Go 1.18"
       linters: [staticcheck]
+    - text: ".IsSet is deprecated: this method will be removed once all settings have a default, use 'IsConfigured' instead"
+      linters: [staticcheck]
+
 linters:
   disable-all: true
   enable:
@@ -76,6 +79,8 @@ linters:
     - depguard                  # Depguard is useful for preventing specific packages from being used
     - bodyclose                 # checks whether HTTP response body is closed successfully
     - gosimple                  # Linter for Go source code that specializes in simplifying code.
+    - gocheckcompilerdirectives # Checks Go compiler directives syntax
+    - forbidigo                 # prevent usage of unwanted/deprecated symbol in the code base
 
 linters-settings:
   depguard:
@@ -96,29 +101,56 @@ linters-settings:
             desc: "Not really forbidden to use, but it is usually imported by mistake instead of github.com/stretchr/testify/assert"
           - pkg: "github.com/tj/assert"
             desc: "Not really forbidden to use, but it is usually imported by mistake instead of github.com/stretchr/testify/assert, and confusing since it actually has the behavior of github.com/stretchr/testify/require"
+          - pkg: "debug/elf"
+            desc: "prefer pkg/util/safeelf to prevent panics during parsing"
+          - pkg: "golang.org/x/exp/slices"
+            desc: "use the std slices package instead"
+          - pkg: "github.com/aws/aws-sdk-go/"
+            desc: "use the v2 sdk instead"
+      logger:
+        files:
+          - "!**/pkg/util/log/**"
+        deny:
+          - pkg: "github.com/cihub/seelog"
+            desc: "seelog should not be used directly. Use `pkg/util/log` instead."
+      templates:
+        deny:
+          # see https://github.com/golang/go/issues/72895 for details
+          - pkg: "text/template"
+            desc: "Use \"github.com/DataDog/datadog-agent/pkg/template/text\" instead to avoid disabling dead code elimination."
+          - pkg: "html/template"
+            desc: "Use \"github.com/DataDog/datadog-agent/pkg/template/html\" instead to avoid disabling dead code elimination."
+        files:
+          - "**/cmd/**"
+          - "**/comp/**"
+          - "**/pkg/**"
+          - "!**/pkg/template/**"
+          - "!**/pkg/security/generators/**"
+          - "!**/pkg/network/go/lutgen/**"
+          - "!$test"
+          - "!**/tests/**"
 
   errcheck:
-    ignore: "github.com/DataDog/datadog-agent/pkg/util/log:.*"
     exclude-functions:
       - (*github.com/DataDog/datadog-agent/pkg/collector/corechecks.CheckBase).Warn
       - (*github.com/DataDog/datadog-agent/pkg/collector/corechecks.CheckBase).Warnf
       - (*github.com/lxn/walk.NotifyIcon).Dispose
       - (*golang.org/x/sys/windows/svc/mgr.Mgr).Disconnect
-      - (github.com/DataDog/datadog-agent/comp/core/flare/types.FlareBuilder).AddFile
-      - (github.com/DataDog/datadog-agent/comp/core/flare/types.FlareBuilder).AddFileFromFunc
-      - (github.com/DataDog/datadog-agent/comp/core/flare/types.FlareBuilder).AddFileWithoutScrubbing
-      - (github.com/DataDog/datadog-agent/comp/core/flare/types.FlareBuilder).CopyDir
-      - (github.com/DataDog/datadog-agent/comp/core/flare/types.FlareBuilder).CopyDirTo
-      - (github.com/DataDog/datadog-agent/comp/core/flare/types.FlareBuilder).CopyDirToWithoutScrubbing
-      - (github.com/DataDog/datadog-agent/comp/core/flare/types.FlareBuilder).CopyFile
-      - (github.com/DataDog/datadog-agent/comp/core/flare/types.FlareBuilder).CopyFileTo
-      - (github.com/DataDog/datadog-agent/comp/core/log.Component).ChangeLogLevel
-      - (github.com/DataDog/datadog-agent/comp/core/log.Component).Critical
-      - (github.com/DataDog/datadog-agent/comp/core/log.Component).Criticalf
-      - (github.com/DataDog/datadog-agent/comp/core/log.Component).Error
-      - (github.com/DataDog/datadog-agent/comp/core/log.Component).Errorf
-      - (github.com/DataDog/datadog-agent/comp/core/log.Component).Warn
-      - (github.com/DataDog/datadog-agent/comp/core/log.Component).Warnf
+      - (github.com/DataDog/datadog-agent/comp/core/flare/builder.FlareBuilder).AddFile
+      - (github.com/DataDog/datadog-agent/comp/core/flare/builder.FlareBuilder).AddFileFromFunc
+      - (github.com/DataDog/datadog-agent/comp/core/flare/builder.FlareBuilder).AddFileWithoutScrubbing
+      - (github.com/DataDog/datadog-agent/comp/core/flare/builder.FlareBuilder).CopyDir
+      - (github.com/DataDog/datadog-agent/comp/core/flare/builder.FlareBuilder).CopyDirTo
+      - (github.com/DataDog/datadog-agent/comp/core/flare/builder.FlareBuilder).CopyDirToWithoutScrubbing
+      - (github.com/DataDog/datadog-agent/comp/core/flare/builder.FlareBuilder).CopyFile
+      - (github.com/DataDog/datadog-agent/comp/core/flare/builder.FlareBuilder).CopyFileTo
+      - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).ChangeLogLevel
+      - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Critical
+      - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Criticalf
+      - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Error
+      - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Errorf
+      - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Warn
+      - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Warnf
       - (net/http.ResponseWriter).Write
       - fmt.Sscanf
       - github.com/cihub/seelog.Warnf
@@ -138,6 +170,7 @@ linters-settings:
       - github.com/DataDog/datadog-agent/pkg/util/log.Warnc
       - github.com/DataDog/datadog-agent/pkg/util/log.Warnf
       - github.com/DataDog/datadog-agent/pkg/util/log.WarnStackDepth
+      - github.com/DataDog/datadog-agent/pkg/util/log.WarnfStackDepth
       - golang.org/x/sys/windows.CloseHandle
       - golang.org/x/sys/windows.FreeLibrary
       - golang.org/x/sys/windows.FreeSid
@@ -171,6 +204,12 @@ linters-settings:
           - github.com/DataDog/datadog-agent/pkg/util/log.Printf
           - github.com/DataDog/datadog-agent/pkg/util/log.Warnf
           - github.com/DataDog/datadog-agent/pkg/util/log.Errorf
+          - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Tracef
+          - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Debugf
+          - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Infof
+          - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Warnf
+          - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Errorf
+          - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Criticalf
   revive:
     # in order to change revive config, the default configuration must be explicitly defined
     # https://github.com/mgechev/revive/blob/master/defaults.toml
@@ -200,10 +239,25 @@ linters-settings:
       - name: time-naming
       - name: unexported-return
       - name: unreachable-code
-      # - name: unused-parameter
-        # arguments:
-          # - allowRegex: "^_"
+      - name: unused-parameter
+        arguments:
+          - allowRegex: "^_"
       - name: var-declaration
       - name: var-naming
       # non-default rules:
       - name: duplicated-imports
+  forbidigo:
+    forbid:
+      - p: ^model.NewConfig.*$
+        pkg: ^github.com/DataDog/datadog-agent/pkg/config/model$
+        msg: use pkg/config/mock instead in tests or the config component
+      - p: ^setup.SetDatadog.*$
+        pkg: ^github.com/DataDog/datadog-agent/pkg/config/setup$
+        msg: use pkg/config/mock instead for tests or the config component
+      - p: ^setup.SetSystemProbe.*$
+        pkg: ^github.com/DataDog/datadog-agent/pkg/config/setup$
+        msg: use pkg/config/mock instead for tests or the config component
+    analyze-types: true
+
+run:
+  allow-parallel-runners: true
