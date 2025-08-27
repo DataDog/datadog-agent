@@ -119,6 +119,9 @@ type Component interface {
 	// FlushIssues flushes the current issues to the backend
 	FlushIssues() error
 
+	// EmitToBackend emits the current health report to a custom backend service
+	EmitToBackend(ctx context.Context, backendURL string, report *HealthReport) error
+
 	/* ================================
 		Sub-Component Management Functions:
 	=============================== */

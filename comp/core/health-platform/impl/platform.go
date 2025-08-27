@@ -7,8 +7,11 @@
 package healthplatformimpl
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"sync"
 	"time"
 
@@ -162,6 +165,50 @@ func (c *component) SubmitReport(ctx context.Context) error {
 		}
 	}
 
+	return nil
+}
+
+// EmitToBackend emits the current health report to a custom backend service
+func (c *component) EmitToBackend(ctx context.Context, backendURL string, report *healthplatform.HealthReport) error {
+	if backendURL == "" {
+		return fmt.Errorf("backend URL cannot be empty")
+	}
+
+	if report == nil {
+		return fmt.Errorf("health report cannot be nil")
+	}
+
+	log.Infof("Emitting health report to custom backend: %s", backendURL)
+
+	// Marshal the report to JSON
+	jsonData, err := json.Marshal(report)
+	if err != nil {
+		return fmt.Errorf("failed to marshal health report: %w", err)
+	}
+
+	// Create and send the HTTP request
+	req, err := http.NewRequestWithContext(ctx, "POST", backendURL, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return fmt.Errorf("failed to create HTTP request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("User-Agent", "datadog-agent-health-platform")
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Errorf("Failed to send health report to backend: %v", err)
+		return fmt.Errorf("failed to send health report to backend: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		log.Errorf("Backend returned error status: %d", resp.StatusCode)
+		return fmt.Errorf("failed to send health report to backend: backend returned error status: %d", resp.StatusCode)
+	}
+
+	log.Infof("Successfully emitted health report to backend. Issues found: %d", len(report.Issues))
 	return nil
 }
 
