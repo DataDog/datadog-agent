@@ -25,6 +25,27 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 )
 
+func FuzzDecoder(f *testing.F) {
+	probeNames := make([]string, 0, len(cases))
+	for _, c := range cases {
+		probeNames = append(probeNames, c.probeName)
+	}
+	irProg := generateIrForProbes(f, "simple", probeNames...)
+	decoder, err := NewDecoder(irProg)
+	require.NoError(f, err)
+	for _, c := range cases {
+		f.Add(c.eventConstructor(f, irProg))
+	}
+	f.Fuzz(func(t *testing.T, item []byte) {
+		_, _ = decoder.Decode(Event{
+			Event:       output.Event(item),
+			ServiceName: "foo",
+		}, &noopSymbolicator{}, bytes.NewBuffer(nil))
+		require.Empty(t, decoder.dataItems)
+		require.Empty(t, decoder.currentlyEncoding)
+	})
+}
+
 // TestDecoderManually is a test that manually constructs an event and decodes
 // it.
 //

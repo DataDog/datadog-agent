@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/def
 
-go 1.24
+go 1.24.0
 
 require go.opentelemetry.io/collector/extension v1.39.0
 
