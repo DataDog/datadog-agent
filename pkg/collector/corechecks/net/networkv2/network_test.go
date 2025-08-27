@@ -880,7 +880,7 @@ func TestEthtoolParsing(t *testing.T) {
 			name:  "parses virtio_net",
 			iface: "virtio_net_mock",
 			want: map[string]map[string]uint64{
-				"queue:0": map[string]uint64{
+				"queue:0": {
 					"virtio_net.queue.rx_bytes":         2,
 					"virtio_net.queue.rx_drops":         3,
 					"virtio_net.queue.rx_kicks":         8,
@@ -895,7 +895,7 @@ func TestEthtoolParsing(t *testing.T) {
 					"virtio_net.queue.tx_xdp_tx":        19,
 					"virtio_net.queue.tx_xdp_tx_drops":  20,
 				},
-				"queue:12": map[string]uint64{
+				"queue:12": {
 					"virtio_net.queue.rx_bytes":         10,
 					"virtio_net.queue.rx_drops":         11,
 					"virtio_net.queue.rx_kicks":         16,
@@ -916,13 +916,13 @@ func TestEthtoolParsing(t *testing.T) {
 			name:  "parses ena",
 			iface: "ena_mock",
 			want: map[string]map[string]uint64{
-				"global": map[string]uint64{
+				"global": {
 					"ena.resume":     3,
 					"ena.suspend":    2,
 					"ena.tx_timeout": 1,
 					"ena.wd_expired": 4,
 				},
-				"queue:0": map[string]uint64{
+				"queue:0": {
 					"ena.queue.rx_bad_desc_num":     37,
 					"ena.queue.rx_bad_req_id":       38,
 					"ena.queue.rx_bytes":            29,
@@ -957,7 +957,7 @@ func TestEthtoolParsing(t *testing.T) {
 					"ena.queue.tx_tx_poll":          21,
 					"ena.queue.tx_unmask_interrupt": 27,
 				},
-				"queue:12": map[string]uint64{
+				"queue:12": {
 					"ena.queue.rx_bad_desc_num":     71,
 					"ena.queue.rx_bad_req_id":       72,
 					"ena.queue.rx_bytes":            63,
@@ -998,7 +998,7 @@ func TestEthtoolParsing(t *testing.T) {
 			name:  "parses mlx5_core",
 			iface: "mlx5_core_mock",
 			want: map[string]map[string]uint64{
-				"global": map[string]uint64{
+				"global": {
 					"mlx5_core.ch_arm":                     100,
 					"mlx5_core.ch_eq_rearm":                103,
 					"mlx5_core.ch_poll":                    99,
@@ -1041,7 +1041,7 @@ func TestEthtoolParsing(t *testing.T) {
 					"mlx5_core.tx_xsk_err":                 126,
 					"mlx5_core.tx_xsk_full":                125,
 				},
-				"queue:0": map[string]uint64{
+				"queue:0": {
 					"mlx5_core.queue.rx_arfs_err":             244,
 					"mlx5_core.queue.rx_buff_alloc_err":       236,
 					"mlx5_core.queue.rx_recover":              245,
@@ -1055,7 +1055,7 @@ func TestEthtoolParsing(t *testing.T) {
 					"mlx5_core.queue.tx_dropped":              358,
 					"mlx5_core.queue.tx_recover":              360,
 				},
-				"queue:12": map[string]uint64{
+				"queue:12": {
 					"mlx5_core.queue.rx_arfs_err":             305,
 					"mlx5_core.queue.rx_buff_alloc_err":       297,
 					"mlx5_core.queue.rx_recover":              306,
@@ -1075,7 +1075,7 @@ func TestEthtoolParsing(t *testing.T) {
 			name:  "parses hv_netvsc",
 			iface: "hv_netvsc_mock",
 			want: map[string]map[string]uint64{
-				"cpu:0": map[string]uint64{
+				"cpu:0": {
 					"hv_netvsc.cpu.rx_bytes":      34,
 					"hv_netvsc.cpu.rx_packets":    33,
 					"hv_netvsc.cpu.tx_bytes":      36,
@@ -1085,7 +1085,7 @@ func TestEthtoolParsing(t *testing.T) {
 					"hv_netvsc.cpu.vf_tx_bytes":   40,
 					"hv_netvsc.cpu.vf_tx_packets": 39,
 				},
-				"cpu:1": map[string]uint64{
+				"cpu:1": {
 					"hv_netvsc.cpu.rx_bytes":      42,
 					"hv_netvsc.cpu.rx_packets":    41,
 					"hv_netvsc.cpu.tx_bytes":      44,
@@ -1095,7 +1095,7 @@ func TestEthtoolParsing(t *testing.T) {
 					"hv_netvsc.cpu.vf_tx_bytes":   48,
 					"hv_netvsc.cpu.vf_tx_packets": 47,
 				},
-				"global": map[string]uint64{
+				"global": {
 					"hv_netvsc.rx_comp_busy": 7,
 					"hv_netvsc.rx_no_memory": 8,
 					"hv_netvsc.stop_queue":   9,
@@ -1107,14 +1107,14 @@ func TestEthtoolParsing(t *testing.T) {
 					"hv_netvsc.tx_too_big":   4,
 					"hv_netvsc.wake_queue":   10,
 				},
-				"queue:0": map[string]uint64{
+				"queue:0": {
 					"hv_netvsc.queue.rx_bytes":    21,
 					"hv_netvsc.queue.rx_packets":  20,
 					"hv_netvsc.queue.rx_xdp_drop": 22,
 					"hv_netvsc.queue.tx_bytes":    18,
 					"hv_netvsc.queue.tx_packets":  17,
 				},
-				"queue:12": map[string]uint64{
+				"queue:12": {
 					"hv_netvsc.queue.rx_bytes":    29,
 					"hv_netvsc.queue.rx_packets":  28,
 					"hv_netvsc.queue.rx_xdp_drop": 30,
@@ -1127,7 +1127,7 @@ func TestEthtoolParsing(t *testing.T) {
 			name:  "parses gve",
 			iface: "gve_mock",
 			want: map[string]map[string]uint64{
-				"global": map[string]uint64{
+				"global": {
 					"gve.dma_mapping_error":       15,
 					"gve.page_alloc_fail":         14,
 					"gve.rx_buf_alloc_fail":       9,
@@ -1135,7 +1135,7 @@ func TestEthtoolParsing(t *testing.T) {
 					"gve.rx_skb_alloc_fail":       8,
 					"gve.tx_timeouts":             7,
 				},
-				"queue:0": map[string]uint64{
+				"queue:0": {
 					"gve.queue.rx_bytes":                  20,
 					"gve.queue.rx_completed_desc":         18,
 					"gve.queue.rx_copied_pkt":             27,
@@ -1154,7 +1154,7 @@ func TestEthtoolParsing(t *testing.T) {
 					"gve.queue.tx_stop":                   68,
 					"gve.queue.tx_wake":                   67,
 				},
-				"queue:12": map[string]uint64{
+				"queue:12": {
 					"gve.queue.rx_bytes":                  43,
 					"gve.queue.rx_completed_desc":         41,
 					"gve.queue.rx_copied_pkt":             50,

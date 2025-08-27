@@ -382,7 +382,7 @@ func getEthtoolMetrics(driverName string, statsMap map[string]uint64) map[string
 	}
 	for keyIndex := 0; keyIndex < len(keys); keyIndex++ {
 		statName := keys[keyIndex]
-		continueCase := false
+		continueCase := true
 		queueTag := ""
 		newKey := ""
 		metricPrefix := ""
@@ -400,38 +400,30 @@ func getEthtoolMetrics(driverName string, statsMap map[string]uint64) map[string
 					}
 				}
 			}
-			if queueIndex == -1 {
-				// The metric name contains the string "queue" but does not have a queue index
-				// In this case, this is not actually a queue metric and we should keep trying
-				continueCase = true
-			} else {
+			// It's possible the stat name contains the string "queue" but does not have an index
+			// In this case, this is not actually a queue metric and we should keep trying
+			if queueIndex > -1 {
 				queueNum := parts[queueIndex+1]
 				parts = append(parts[:queueIndex], parts[queueIndex+2:]...)
 				queueTag = "queue:" + queueNum
 				newKey = strings.Join(parts, "_")
 				metricPrefix = ".queue."
 			}
-		} else {
-			continueCase = true
 		}
 		if continueCase {
 			// Extract the cpu and the metric name from ethtool stat name:
 			//   cpu0_rx_bytes -> (cpu:0, rx_bytes)
 			if strings.HasPrefix(statName, "cpu") {
 				parts := strings.Split(statName, "_")
-				if len(parts) < 2 {
-					continueCase = true
+				if len(parts) >= 2 {
+					cpuNum := parts[0][3:]
+					if _, err := strconv.Atoi(cpuNum); err == nil {
+						queueTag = "cpu:" + cpuNum
+						newKey = strings.Join(parts[1:], "_")
+						metricPrefix = ".cpu."
+						continueCase = false
+					}
 				}
-				cpuNum := parts[0][3:]
-				if _, err := strconv.Atoi(cpuNum); err != nil {
-					continueCase = true
-				}
-				queueTag = "cpu:" + cpuNum
-				newKey = strings.Join(parts[1:], "_")
-				metricPrefix = ".cpu."
-				continueCase = false
-			} else {
-				continueCase = true
 			}
 		}
 		if continueCase {
@@ -439,20 +431,16 @@ func getEthtoolMetrics(driverName string, statsMap map[string]uint64) map[string
 				// Extract the queue and the metric name from ethtool stat name:
 				//   tx_stop[0] -> (queue:0, tx_stop)
 				parts := strings.SplitN(statName, "[", 2)
-				if len(parts) != 2 {
-					continueCase = true
+				if len(parts) == 2 {
+					metricName := parts[0]
+					queueNum := strings.TrimSuffix(parts[1], "]")
+					if _, err := strconv.Atoi(queueNum); err == nil {
+						queueTag = "queue:" + queueNum
+						newKey = metricName
+						metricPrefix = ".queue."
+						continueCase = false
+					}
 				}
-				metricName := parts[0]
-				queueNum := strings.TrimSuffix(parts[1], "]")
-				if _, err := strconv.Atoi(queueNum); err != nil {
-					continueCase = true
-				}
-				queueTag = "queue:" + queueNum
-				newKey = metricName
-				metricPrefix = ".queue."
-				continueCase = false
-			} else {
-				continueCase = true
 			}
 		}
 		if continueCase {
@@ -473,17 +461,13 @@ func getEthtoolMetrics(driverName string, statsMap map[string]uint64) map[string
 						break
 					}
 				}
-				if queueIndex == -1 {
-					continueCase = true
-				} else {
+				if queueIndex > -1 {
 					parts = append(append([]string{}, parts[queueIndex][:2]), parts[queueIndex+1:]...)
 					queueTag = fmt.Sprintf("queue:%d", queueNum)
 					newKey = strings.Join(parts, "_")
 					metricPrefix = ".queue."
 					continueCase = false
 				}
-			} else {
-				continueCase = true
 			}
 		}
 		if continueCase {
