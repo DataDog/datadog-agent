@@ -8,6 +8,7 @@
 package decode
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -30,13 +31,14 @@ type probeEvent struct {
 // It is not guaranteed to be thread-safe.
 type Decoder struct {
 	// These fields are initialized on decoder creation and are shared between messages.
-	program      *ir.Program
-	decoderTypes map[ir.TypeID]decoderType
-	probeEvents  map[ir.TypeID]probeEvent
+	program              *ir.Program
+	decoderTypes         map[ir.TypeID]decoderType
+	probeEvents          map[ir.TypeID]probeEvent
+	stackFrames          map[uint64][]symbol.StackFrame
+	typesByGoRuntimeType map[uint32]ir.TypeID
 
 	// These fields are initialized and reset for each message.
 	snapshotMessage   snapshotMessage
-	stackFrames       map[uint64][]symbol.StackFrame
 	dataItems         map[typeAndAddr]output.DataItem
 	currentlyEncoding map[typeAndAddr]struct{}
 }
@@ -46,19 +48,15 @@ func NewDecoder(
 	program *ir.Program,
 ) (*Decoder, error) {
 	decoder := &Decoder{
+		program:              program,
+		decoderTypes:         make(map[ir.TypeID]decoderType, len(program.Types)),
+		probeEvents:          make(map[ir.TypeID]probeEvent),
+		stackFrames:          make(map[uint64][]symbol.StackFrame),
+		typesByGoRuntimeType: make(map[uint32]ir.TypeID),
+
+		snapshotMessage:   snapshotMessage{},
 		dataItems:         make(map[typeAndAddr]output.DataItem),
-		decoderTypes:      make(map[ir.TypeID]decoderType, len(program.Types)),
 		currentlyEncoding: make(map[typeAndAddr]struct{}),
-		program:           program,
-		stackFrames:       make(map[uint64][]symbol.StackFrame),
-		probeEvents:       make(map[ir.TypeID]probeEvent),
-		snapshotMessage: snapshotMessage{
-			DDSource: "dd_debugger",
-			Logger: logger{
-				Name:   "",
-				Method: "",
-			},
-		},
 	}
 	for _, probe := range program.Probes {
 		for _, event := range probe.Events {
@@ -73,7 +71,11 @@ func NewDecoder(
 		if err != nil {
 			return nil, fmt.Errorf("error getting decoder type for type %s: %w", t.GetName(), err)
 		}
-		decoder.decoderTypes[t.GetID()] = decoderType
+		id := t.GetID()
+		decoder.decoderTypes[id] = decoderType
+		if goRuntimeType, ok := t.GetGoRuntimeType(); ok {
+			decoder.typesByGoRuntimeType[goRuntimeType] = id
+		}
 	}
 	return decoder, nil
 }
@@ -91,13 +93,24 @@ func (d *Decoder) Decode(
 	symbolicator symbol.Symbolicator,
 	out io.Writer,
 ) (probe ir.ProbeDefinition, err error) {
+	defer d.resetForNextMessage()
 	probe, err = d.snapshotMessage.init(d, event, symbolicator)
 	if err != nil {
 		return nil, err
 	}
-	defer d.snapshotMessage.clear()
 	err = json.MarshalWrite(out, &d.snapshotMessage)
+	if err != nil {
+		t, ok := out.(*bytes.Buffer)
+		if ok {
+			err = fmt.Errorf("error marshaling snapshot message: %w %q", err, t.String())
+		}
+	}
 	return probe, err
+}
+
+func (d *Decoder) resetForNextMessage() {
+	clear(d.dataItems)
+	d.snapshotMessage = snapshotMessage{}
 }
 
 // Event wraps the output Event from the BPF program. It also adds fields
@@ -108,11 +121,11 @@ type Event struct {
 }
 
 type snapshotMessage struct {
-	Service   string       `json:"service"`
-	DDSource  string       `json:"ddsource"`
-	Logger    logger       `json:"logger"`
-	Debugger  debuggerData `json:"debugger"`
-	Timestamp int          `json:"timestamp"`
+	Service   string           `json:"service"`
+	DDSource  ddDebuggerSource `json:"ddsource"`
+	Logger    logger           `json:"logger"`
+	Debugger  debuggerData     `json:"debugger"`
+	Timestamp int              `json:"timestamp"`
 
 	rootData []byte
 }
@@ -213,8 +226,4 @@ func (s *snapshotMessage) init(
 		decoder:  decoder,
 	}
 	return probe, nil
-}
-
-func (s *snapshotMessage) clear() {
-	s.Debugger.Snapshot = snapshotData{}
 }

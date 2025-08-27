@@ -174,7 +174,7 @@ func assertProcessCheck(t *testing.T, env *environments.Host, withIOStats bool, 
 
 		assertProcessCollectedNew(c, payloads, withIOStats, processName)
 
-		procs := filterProcessPayloadsByName(payloads, processName)
+		procs := FilterProcessPayloadsByName(payloads, processName)
 		require.NotEmpty(t, procs, "'%s' process not found in payloads: \n%+v", processName, payloads)
 		assertProcessCommandLineArgs(c, procs, processCMDArgs)
 	}, 2*time.Minute, 10*time.Second)
