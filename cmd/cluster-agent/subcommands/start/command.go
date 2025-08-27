@@ -362,7 +362,6 @@ func start(log log.Component,
 		DatadogClient:          dc,
 	}
 
-	// ERIKA: This does NOT include the admission controller?
 	if aggErr := controllers.StartControllers(&ctx); aggErr != nil {
 		for _, err := range aggErr.Errors() {
 			pkglog.Warnf("Error while starting controller: %v", err)
