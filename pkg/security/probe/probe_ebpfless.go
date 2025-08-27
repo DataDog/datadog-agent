@@ -344,19 +344,12 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 		event.SetSockOpt.FilterLen = syscallMsg.Setsockopt.FilterLen
 		event.SetSockOpt.SizeToRead = uint32(syscallMsg.Setsockopt.FilterLen)
 	case ebpfless.SyscallTypeSetrlimit:
-		if syscallMsg.Setrlimit != nil {
-			event.Type = uint32(model.SetrlimitEventType)
-			event.Setrlimit.Resource = syscallMsg.Setrlimit.Resource
-			event.Setrlimit.RlimCur = syscallMsg.Setrlimit.CurLimit
-			event.Setrlimit.RlimMax = syscallMsg.Setrlimit.MaxLimit
-			event.Setrlimit.TargetPid = syscallMsg.Setrlimit.Pid
-		} else {
-			event.Setrlimit.Resource = 0
-			event.Setrlimit.RlimCur = 0
-			event.Setrlimit.RlimMax = 0
-			event.Setrlimit.TargetPid = 0
+		event.Type = uint32(model.SetrlimitEventType)
+		event.Setrlimit.Resource = syscallMsg.Setrlimit.Resource
+		event.Setrlimit.RlimCur = syscallMsg.Setrlimit.CurLimit
+		event.Setrlimit.RlimMax = syscallMsg.Setrlimit.MaxLimit
+		event.Setrlimit.TargetPid = syscallMsg.Setrlimit.Pid
 
-		}
 		// resolve target process context
 		var pce *model.ProcessCacheEntry
 		if event.Setrlimit.TargetPid > 0 {

@@ -458,8 +458,13 @@ func handleDeleteModule(tracer *Tracer, process *Process, msg *ebpfless.SyscallM
 }
 
 func handlePrlimit64(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, _ bool) error {
+	rLimitPtr := tracer.ReadArgUint64(regs, 2)
+	if rLimitPtr == 0 {
+		// We don't write a new rlimit so we don't send the event
+		msg.Type = ebpfless.SyscallTypeUnknown
+		return nil
+	}
 	msg.Type = ebpfless.SyscallTypeSetrlimit
-
 	rlimitBuf, err := tracer.ReadArgData(process.Pid, regs, 2, uint(unsafe.Sizeof(syscall.Rlimit{})))
 	if err != nil {
 		return fmt.Errorf("failed to read rlimit: %w", err)
