@@ -264,15 +264,15 @@ func handleSocketRet(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg,
 }
 
 // Should send messages
-func shouldSendConnect(msg *ebpfless.SyscallMsg) bool {
+func shouldSendConnect(msg *ebpfless.SyscallMsg, tracer *Tracer, _ syscall.PtraceRegs) bool {
 	return msg.Retval >= 0 || msg.Retval == -int64(syscall.EACCES) || msg.Retval == -int64(syscall.EPERM) || msg.Retval == -int64(syscall.ECONNREFUSED) || msg.Retval == -int64(syscall.ETIMEDOUT) || msg.Retval == -int64(syscall.EINPROGRESS)
 }
 
-func shouldSendAccept(msg *ebpfless.SyscallMsg) bool {
+func shouldSendAccept(msg *ebpfless.SyscallMsg, tracer *Tracer, _ syscall.PtraceRegs) bool {
 	return msg.Retval >= 0 || msg.Retval == -int64(syscall.EACCES) || msg.Retval == -int64(syscall.EPERM) || msg.Retval == -int64(syscall.ECONNABORTED)
 }
 
-func shouldSendBind(msg *ebpfless.SyscallMsg) bool {
+func shouldSendBind(msg *ebpfless.SyscallMsg, tracer *Tracer, _ syscall.PtraceRegs) bool {
 	return msg.Retval >= 0 || msg.Retval == -int64(syscall.EACCES) || msg.Retval == -int64(syscall.EPERM) || msg.Retval == -int64(syscall.EADDRINUSE) || msg.Retval == -int64(syscall.EFAULT)
 }
 

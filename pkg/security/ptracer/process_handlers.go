@@ -128,11 +128,11 @@ func registerProcessHandlers(handlers map[int]syscallHandler) []string {
 	return syscallList
 }
 
-func shouldSendExec(msg *ebpfless.SyscallMsg) bool {
+func shouldSendExec(msg *ebpfless.SyscallMsg, tracer *Tracer, regs syscall.PtraceRegs) bool {
 	if msg.Retval == -int64(syscall.ENOSYS) {
 		msg.Retval = 0
 	}
-	return isAcceptedRetval(msg)
+	return isAcceptedRetval(msg, tracer, regs)
 }
 
 //

@@ -78,7 +78,7 @@ type CWSPtracerCtx struct {
 
 type syscallHandlerFunc func(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error
 
-type shouldSendFunc func(msg *ebpfless.SyscallMsg) bool
+type shouldSendFunc func(msg *ebpfless.SyscallMsg, tracer *Tracer, regs syscall.PtraceRegs) bool
 
 type syscallID struct {
 	ID   int
@@ -93,9 +93,9 @@ type syscallHandler struct {
 }
 
 // defaults funcs for ShouldSend:
-func shouldSendAlways(_ *ebpfless.SyscallMsg) bool { return true }
+func shouldSendAlways(_ *ebpfless.SyscallMsg, _ *Tracer, _ syscall.PtraceRegs) bool { return true }
 
-func isAcceptedRetval(msg *ebpfless.SyscallMsg) bool {
+func isAcceptedRetval(msg *ebpfless.SyscallMsg, _ *Tracer, _ syscall.PtraceRegs) bool {
 	return msg.Retval >= 0 || msg.Retval == -int64(syscall.EACCES) || msg.Retval == -int64(syscall.EPERM)
 }
 

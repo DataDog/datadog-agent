@@ -131,7 +131,7 @@ func (ctx *CWSPtracerCtx) handlePostHooks(nr int, ppid int, regs syscall.PtraceR
 		}
 		if handler.ShouldSend != nil {
 			syscallMsg.Retval = ctx.ReadRet(regs)
-			if handler.ShouldSend(syscallMsg) && syscallMsg.Type != ebpfless.SyscallTypeUnknown {
+			if handler.ShouldSend(syscallMsg, &ctx.Tracer, regs) && syscallMsg.Type != ebpfless.SyscallTypeUnknown {
 				ctx.sendSyscallMsg(process, syscallMsg)
 			}
 		}
