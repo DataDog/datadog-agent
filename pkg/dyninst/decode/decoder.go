@@ -8,6 +8,7 @@
 package decode
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -30,10 +31,11 @@ type probeEvent struct {
 // It is not guaranteed to be thread-safe.
 type Decoder struct {
 	// These fields are initialized on decoder creation and are shared between messages.
-	program      *ir.Program
-	decoderTypes map[ir.TypeID]decoderType
-	probeEvents  map[ir.TypeID]probeEvent
-	stackFrames  map[uint64][]symbol.StackFrame
+	program              *ir.Program
+	decoderTypes         map[ir.TypeID]decoderType
+	probeEvents          map[ir.TypeID]probeEvent
+	stackFrames          map[uint64][]symbol.StackFrame
+	typesByGoRuntimeType map[uint32]ir.TypeID
 
 	// These fields are initialized and reset for each message.
 	snapshotMessage   snapshotMessage
@@ -46,18 +48,15 @@ func NewDecoder(
 	program *ir.Program,
 ) (*Decoder, error) {
 	decoder := &Decoder{
+		program:              program,
+		decoderTypes:         make(map[ir.TypeID]decoderType, len(program.Types)),
+		probeEvents:          make(map[ir.TypeID]probeEvent),
+		stackFrames:          make(map[uint64][]symbol.StackFrame),
+		typesByGoRuntimeType: make(map[uint32]ir.TypeID),
+
+		snapshotMessage:   snapshotMessage{},
 		dataItems:         make(map[typeAndAddr]output.DataItem),
-		decoderTypes:      make(map[ir.TypeID]decoderType, len(program.Types)),
 		currentlyEncoding: make(map[typeAndAddr]struct{}),
-		program:           program,
-		stackFrames:       make(map[uint64][]symbol.StackFrame),
-		probeEvents:       make(map[ir.TypeID]probeEvent),
-		snapshotMessage: snapshotMessage{
-			Logger: logger{
-				Name:   "",
-				Method: "",
-			},
-		},
 	}
 	for _, probe := range program.Probes {
 		for _, event := range probe.Events {
@@ -72,7 +71,11 @@ func NewDecoder(
 		if err != nil {
 			return nil, fmt.Errorf("error getting decoder type for type %s: %w", t.GetName(), err)
 		}
-		decoder.decoderTypes[t.GetID()] = decoderType
+		id := t.GetID()
+		decoder.decoderTypes[id] = decoderType
+		if goRuntimeType, ok := t.GetGoRuntimeType(); ok {
+			decoder.typesByGoRuntimeType[goRuntimeType] = id
+		}
 	}
 	return decoder, nil
 }
@@ -96,6 +99,12 @@ func (d *Decoder) Decode(
 		return nil, err
 	}
 	err = json.MarshalWrite(out, &d.snapshotMessage)
+	if err != nil {
+		t, ok := out.(*bytes.Buffer)
+		if ok {
+			err = fmt.Errorf("error marshaling snapshot message: %w %q", err, t.String())
+		}
+	}
 	return probe, err
 }
 

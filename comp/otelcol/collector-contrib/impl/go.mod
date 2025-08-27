@@ -83,8 +83,8 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.4 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.4 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.3 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.245.2 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ecs v1.61.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.246.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ecs v1.63.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/servicediscovery v1.36.0 // indirect
