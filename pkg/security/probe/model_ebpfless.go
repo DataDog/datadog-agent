@@ -52,7 +52,6 @@ func NewEBPFLessModel() *model.Model {
 				!strings.HasPrefix(field, "bind.") &&
 				!strings.HasPrefix(field, "connect.") &&
 				!strings.HasPrefix(field, "setrlimit.") &&
-				!strings.HasPrefix(field, "prlimit64.") &&
 				!strings.HasPrefix(field, "setsockopt.") {
 				return rules.ErrEventTypeNotEnabled
 			}
