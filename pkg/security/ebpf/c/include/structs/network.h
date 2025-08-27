@@ -103,6 +103,7 @@ struct packet_t {
     struct ipv6hdr ipv6;
     struct tcphdr tcp;
     struct udphdr udp;
+    struct icmphdr icmp;
 
     struct namespaced_flow_t ns_flow;
     struct namespaced_flow_t translated_ns_flow;
