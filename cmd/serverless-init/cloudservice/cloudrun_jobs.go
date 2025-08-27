@@ -16,7 +16,7 @@ import (
 )
 
 // CloudRunJobsOrigin origin tag value
-const CloudRunJobsOrigin = "cloudrun"
+const CloudRunJobsOrigin = "cloudrunjobs"
 
 const (
 	cloudRunJobNameEnvVar     = "CLOUD_RUN_JOB"

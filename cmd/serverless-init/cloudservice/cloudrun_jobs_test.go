@@ -33,8 +33,8 @@ func TestGetCloudRunJobsTagsWithEnvironmentVariables(t *testing.T) {
 	assert.Equal(t, map[string]string{
 		"container_id":        "test_container",
 		"location":            "test_region",
-		"origin":              "cloudrun",
-		"_dd.origin":          "cloudrun",
+		"origin":              "cloudrunjobs",
+		"_dd.origin":          "cloudrunjobs",
 		"project_id":          "test_project",
 		"job_name":            "test_job",
 		"gcrj.job_name":       "test_job",
