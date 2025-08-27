@@ -2078,6 +2078,148 @@ func (b *bucket) serialize14(w *bytes.Buffer) error {
 }
 
 /*
+   serialize14 without delta encoding
+*/
+func (b *bucket) serialize14a(w *bytes.Buffer) error {
+	i := newInterner()
+
+	type record struct {
+		name   string
+		tags   string
+		kind   int
+		value  float64
+		sketch sketch
+	}
+
+	recs := []record{}
+	for k1, l1 := range b.gauges {
+		for k2, val := range l1 {
+			recs = append(recs, record{name: k1, tags: k2, kind: gaugeKind, value: val})
+		}
+	}
+	for k1, l1 := range b.counts {
+		for k2, val := range l1 {
+			recs = append(recs, record{name: k1, tags: k2, kind: countKind, value: val})
+		}
+	}
+	for k1, l1 := range b.sketches {
+		for k2, val := range l1 {
+			recs = append(recs, record{name: k1, tags: k2, kind: sketchKind, sketch: val})
+		}
+	}
+
+	slices.SortFunc(recs, func(a, b record) int {
+		if a.name < b.name {
+			return -1
+		}
+		if a.name > b.name {
+			return 1
+		}
+		if a.tags < b.tags {
+			return -1
+		}
+		if a.tags > b.tags {
+			return 1
+		}
+		return 0
+	})
+
+	names := []int64{}
+	tags := []int64{}
+	types := []uint64{}
+	int8s := []int64{}
+	f32s := []float32{}
+	f64s := []float64{}
+	skcnts := []int64{}
+	sklens := []int64{}
+	skks := []int32{}
+	skns := []uint32{}
+
+	var zeroValues, int8Values, floatValues, doubleValues int
+
+	for _, r := range recs {
+		names = append(names, i.intern(r.name))
+		tags = append(tags, i.internTags3(r.tags))
+		switch r.kind {
+		case gaugeKind, countKind:
+			if r.value == 0 {
+				zeroValues++
+				types = append(types, uint64(r.kind)|typeZero)
+			} else if isint8(r.value) {
+				int8Values++
+				types = append(types, uint64(r.kind)|typeInt)
+				int8s = append(int8s, int64(r.value))
+			} else if isfloat(r.value) {
+				floatValues++
+				types = append(types, uint64(r.kind)|typeFloat)
+				f32s = append(f32s, float32(r.value))
+			} else {
+				doubleValues++
+				types = append(types, uint64(r.kind)|typeDouble)
+				f64s = append(f64s, r.value)
+			}
+		case sketchKind:
+			sk := r.sketch.sk.Finish()
+			b := sk.Basic
+			k, n := sk.Cols()
+			// deltaEncode(k)
+			ty := uint64(r.kind) + uint64(r.sketch.mode)
+			if b.Min == 0 && b.Max == 0 && b.Sum == 0 && b.Cnt == 0 {
+				zeroValues++
+				types = append(types, ty|typeZero)
+			} else if isint8(b.Min) && isint8(b.Max) && isint8(b.Sum) {
+				int8Values++
+				types = append(types, ty|typeInt)
+				int8s = append(int8s, int64(b.Min), int64(b.Max), int64(b.Sum))
+			} else if isfloat(b.Min) && isfloat(b.Max) && isfloat(b.Sum) {
+				floatValues++
+				types = append(types, ty|typeFloat)
+				f32s = append(f32s, float32(b.Min), float32(b.Max), float32(b.Sum))
+			} else {
+				doubleValues++
+				types = append(types, ty|typeDouble)
+				f64s = append(f64s, b.Min, b.Max, b.Sum)
+			}
+			//ts.double(b.Avg)
+			skcnts = append(skcnts, b.Cnt)
+			sklens = append(sklens, int64(len(k)))
+			skks = append(skks, k...)
+			skns = append(skns, n...)
+		}
+	}
+
+	// deltaEncode(names)
+	// deltaEncode(tags)
+
+	fmt.Printf("-- %d metrics\n", len(names))
+
+	ps := molecule.NewProtoStream(w)
+	ps.String(2, b.containerId)
+	ps.Embedded(4, i.serialize)
+
+	lenHeader := w.Len()
+	fmt.Printf("-- %d header bytes\n", lenHeader)
+
+	ps.Int64(5, int64(len(names)))
+	ps.Int64Packed(10, names)
+	ps.Int64Packed(11, tags)
+	ps.Uint64Packed(12, types)
+	ps.Int64Packed(14, skcnts)
+	ps.Int64Packed(15, sklens)
+	ps.Sint32Packed(16, skks)
+	ps.Uint32Packed(17, skns)
+	ps.Sint64Packed(18, int8s)
+	ps.FloatPacked(19, f32s)
+	ps.DoublePacked(20, f64s)
+
+	fmt.Printf("-- %d metric bytes\n", w.Len()-lenHeader)
+	fmt.Printf("-- type counts: %d zero, %d int8, %d float, %d double\n", zeroValues, int8Values, floatValues, doubleValues)
+
+	return nil
+}
+
+
+/*
 serialize07 + deinterleave f64
 */
 func (b *bucket) serialize15(w *bytes.Buffer) error {
@@ -2473,11 +2615,12 @@ func main() {
 		// {"serialize11", (*bucket).serialize11},
 		// {"serialize12", (*bucket).serialize12},
 		// {"serialize13", (*bucket).serialize13},
-		// {"serialize14", (*bucket).serialize14},
+		{"serialize14", (*bucket).serialize14},
+		{"serialize14a", (*bucket).serialize14a},
 		// {"serialize15", (*bucket).serialize15},
-		{"serialize16_no", (*bucket).serialize16a},
-		{"serialize16_lex", (*bucket).serialize16b},
-		{"serialize16_frq", (*bucket).serialize16c},
+		// {"serialize16_no", (*bucket).serialize16a},
+		// {"serialize16_lex", (*bucket).serialize16b},
+		// {"serialize16_frq", (*bucket).serialize16c},
 	}
 
 	timestamps := slices.Sorted(maps.Keys(a.buckets))
