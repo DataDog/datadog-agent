@@ -75,38 +75,16 @@ Remove-Item -Recurse -Force $stagingDir -ErrorAction SilentlyContinue
 New-Item -ItemType Directory $stagingDir | Out-Null
 
 if ($package -eq "datadog-agent-ddot") {
-    # Build DDOT OCI from locally built otel-agent.exe (fallback to omnibus paths if needed)
-    $embeddedBin = Join-Path $stagingDir "embedded\bin"
-    $etcDir      = Join-Path $stagingDir "etc\datadog-agent"
-    New-Item -ItemType Directory $embeddedBin, $etcDir -Force | Out-Null
-
-    $localExe = Join-Path (Get-Location) "bin\otel-agent\otel-agent.exe"
-    $localCfg = Join-Path (Get-Location) "bin\otel-agent\dist\otel-config.yaml"
-    $omniExe  = "C:\opt\datadog-agent\embedded\bin\otel-agent.exe"
-    $omniCfg  = "C:\opt\datadog-agent\etc\datadog-agent\otel-config.yaml.example"
-
-    if (Test-Path $localExe) {
-        Copy-Item $localExe (Join-Path $embeddedBin "otel-agent.exe") -Force
-    } elseif (Test-Path $omniExe) {
-        Copy-Item $omniExe (Join-Path $embeddedBin "otel-agent.exe") -Force
-    } else {
-        Write-Error "otel-agent.exe not found. Build it with 'inv otel-agent.build' or provide omnibus output at $omniExe."
+    # Build DDOT OCI directly from the Omnibus install dir produced in this container
+    $payloadDir = "C:\opt\datadog-agent"
+    if (-not (Test-Path (Join-Path $payloadDir "embedded\bin\otel-agent.exe"))) {
+        Write-Error "otel-agent.exe not found at '$payloadDir'. Ensure Omnibus ddot build ran in this container."
         exit 1
     }
-
-    if (Test-Path $localCfg) {
-        Copy-Item $localCfg (Join-Path $etcDir "otel-config.yaml.example") -Force
-    } elseif (Test-Path $omniCfg) {
-        Copy-Item $omniCfg (Join-Path $etcDir "otel-config.yaml.example") -Force
-    } else {
-        Write-Error "otel-config example not found at $localCfg or $omniCfg"
-        exit 1
+    $etcCandidate = Join-Path $payloadDir "etc\datadog-agent"
+    if (Test-Path $etcCandidate) {
+        $extraArgs = @("--configs", "$etcCandidate")
     }
-
-    Write-Host "Staging tree for ddot: $stagingDir"
-    Get-ChildItem -Recurse $stagingDir | Select-Object FullName, Length | Format-Table -AutoSize | Out-Host
-
-    $extraArgs = @("--configs", "$etcDir")
 } else {
     # datadog-package takes a folder as input and will package everything in that, so copy the msi to its own folder
     Copy-Item (Get-ChildItem "$omnibusOutput\${package}-${version}-x86_64.msi").FullName -Destination (Join-Path $stagingDir "${package}-${version}-x86_64.msi")
@@ -120,8 +98,9 @@ if (Test-Path $installerPath) {
 }
 
 # The argument --archive-path ".\omnibus\pkg\datadog-agent-${version}.tar.gz" is currently broken and has no effects
-Write-Host "Running: $datadogPackageExe create $installerArg $extraArgs --package $package --os windows --arch amd64 --archive --version $version $stagingDir"
-& $datadogPackageExe create @installerArg @extraArgs --package $package --os windows --arch amd64 --archive --version $version $stagingDir
+$inputDir = if ($payloadDir) { $payloadDir } else { $stagingDir }
+Write-Host "Running: $datadogPackageExe create $installerArg $extraArgs --package $package --os windows --arch amd64 --archive --version $version $inputDir"
+& $datadogPackageExe create @installerArg @extraArgs --package $package --os windows --arch amd64 --archive --version $version $inputDir
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Failed to create OCI package"
     exit 1
