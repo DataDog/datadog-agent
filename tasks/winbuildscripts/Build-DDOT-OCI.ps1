@@ -13,11 +13,12 @@ Set-Location 'C:\mnt'
 Enable-DevEnv
 
 # Build Omnibus ddot target
-$cmd = "c:\mnt\tasks\winbuildscripts\Build-OmnibusTarget.ps1 -BuildOutOfSource $BuildOutOfSource -InstallDeps $InstallDeps"
+$omniScript = "c:\mnt\tasks\winbuildscripts\Build-OmnibusTarget.ps1"
 if ($null -ne $CheckGoVersion) {
-    $cmd += " -CheckGoVersion $CheckGoVersion"
+    & $omniScript -BuildOutOfSource:$BuildOutOfSource -InstallDeps:$InstallDeps -CheckGoVersion:$CheckGoVersion
+} else {
+    & $omniScript -BuildOutOfSource:$BuildOutOfSource -InstallDeps:$InstallDeps
 }
-powershell -C $cmd
 if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
