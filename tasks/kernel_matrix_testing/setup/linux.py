@@ -53,14 +53,16 @@ class LinuxBasePackages(Requirement):
         return RequirementState(Status.OK, "aws-vault installed.")
 
     def check(self, ctx: Context, fix: bool) -> list[RequirementState]:
-        packages: list[str] = []
+        snap_packages: list[str] = []
+        apt_packages: list[str] = ["xsltproc"]
 
         # These packages might have alternative means of installation, so
         # check if the command exists rather than checking for the package
         if shutil.which("aws") is None:
-            packages.append("awscli")
+            snap_packages.append("awscli")
 
         # Not on the default repos, so we have to use snap
-        pkg_state = UbuntuSnapPackageManager(ctx).check(packages, fix)
+        snap_pkg_state = UbuntuSnapPackageManager(ctx).check(snap_packages, fix)
+        apt_pkg_state = UbuntuPackageManager(ctx).check(apt_packages, fix)
 
-        return [pkg_state, self._check_aws_vault(ctx, fix)]
+        return [snap_pkg_state, apt_pkg_state, self._check_aws_vault(ctx, fix)]
