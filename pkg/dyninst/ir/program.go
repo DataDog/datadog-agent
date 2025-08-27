@@ -7,7 +7,10 @@
 
 package ir
 
-import "fmt"
+import (
+	"encoding/json"
+	"fmt"
+)
 
 // ProgramID is a ID corresponding to an instance of a Program.  It is used to
 // identify messages from this program as they are communicated over the ring
@@ -151,9 +154,44 @@ type Probe struct {
 	Subprogram *Subprogram
 	// The events that trigger the probe.
 	Events []*Event
-	// TODO: Add template support:
-	//	TemplateSegments []TemplateSegment
+	// Template contains the concrete template structure for this probe
+	Template *Template
 }
+
+// Template represents the concrete template structure for a probe
+type Template struct {
+	// TemplateString is the complete template string
+	TemplateString string
+	// Segments are the ordered parts of the template
+	Segments []TemplateSegment
+}
+
+// TemplateSegment represents a concrete part of the template
+type TemplateSegment interface {
+	templateSegment() // marker method
+}
+
+// StringSegment is a string literal in the template
+type StringSegment struct {
+	Value string
+	Index int
+}
+
+func (s StringSegment) templateSegment() {}
+
+// JSONSegment is an expression segment in the template
+type JSONSegment struct {
+	// JSON is the AST of the DSL segment.
+	JSON json.RawMessage
+	// DSL is the raw expression language segment.
+	DSL string
+	// RootTypeExpressionIndicies is a map of type IDs to the indices of the root expressions that correspond to this segment.
+	RootTypeExpressionIndicies map[TypeID]int
+	// ExpressionKind is the kind of expression that corresponds to this segment.
+	ExpressionKind EventKind
+}
+
+func (s JSONSegment) templateSegment() {}
 
 // Event corresponds to an action that will occur when a PC is hit.
 type Event struct {
