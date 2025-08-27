@@ -463,28 +463,22 @@ func handlePrlimit64(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg,
 	rlimitBuf, err := tracer.ReadArgData(process.Pid, regs, 2, uint(unsafe.Sizeof(syscall.Rlimit{})))
 	if err != nil {
 		fmt.Errorf("failed to read rlimit: %w", err)
-		return err
 	}
 	var rlimit syscall.Rlimit
 	if err = binary.Read(bytes.NewBuffer(rlimitBuf), binary.NativeEndian, &rlimit); err != nil {
 		return fmt.Errorf("failed to parse rlimit: %w", err)
 	}
 	pid := tracer.ReadArgUint32(regs, 0)
-	if pid == 0 {
-		msg.Setrlimit = &ebpfless.SetrlimitSyscallMsg{
-			Resource: int(tracer.ReadArgInt32(regs, 1)),
-			CurLimit: rlimit.Cur,
-			MaxLimit: rlimit.Max,
-			Pid:      uint32(process.Pid),
-		}
+	msg.Setrlimit = &ebpfless.SetrlimitSyscallMsg{
+		Resource: int(tracer.ReadArgInt32(regs, 1)),
+		CurLimit: rlimit.Cur,
+		MaxLimit: rlimit.Max,
+	}
 
+	if pid == 0 {
+		msg.Setrlimit.Pid = uint32(process.Pid)
 	} else {
-		msg.Setrlimit = &ebpfless.SetrlimitSyscallMsg{
-			Resource: int(tracer.ReadArgInt32(regs, 1)),
-			CurLimit: rlimit.Cur,
-			MaxLimit: rlimit.Max,
-			Pid:      pid,
-		}
+		msg.Setrlimit.Pid = uint32(pid)
 	}
 	return nil
 }
