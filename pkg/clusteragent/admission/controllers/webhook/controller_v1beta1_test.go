@@ -25,6 +25,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	configComp "github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
@@ -951,8 +953,10 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 	}
 
 	wmeta := fxutil.Test[workloadmeta.Component](t,
-		core.MockBundle(),
-		fx.Replace(configComp.MockParams{Overrides: map[string]interface{}{"kube_resources_namespace": "nsfoo"}}),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() configComp.Component {
+			return configComp.NewMockWithOverrides(t, map[string]interface{}{"kube_resources_namespace": "nsfoo"})
+		}),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	)
 	for _, tt := range tests {
