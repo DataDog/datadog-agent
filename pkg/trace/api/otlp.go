@@ -315,9 +315,20 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 	if incomingContainerTags := traceutil.GetOTelAttrVal(resourceAttributes, true, transform.KeyDatadogContainerTags); incomingContainerTags != "" {
 		flattenedTags = incomingContainerTags
 	} else if !o.conf.OTLPReceiver.IgnoreMissingDatadogFields {
-		// Tagger should already have been called in infraattributes processor
 		ctags := attributes.ContainerTagsFromResourceAttributes(resourceAttributes)
-		flattenedTags = flatten(ctags).String()
+		payloadTags := flatten(ctags)
+
+		// Populate container tags by calling ContainerTags tagger from configuration
+		if tags := getContainerTags(o.conf.ContainerTags, containerID); tags != "" {
+			appendTags(payloadTags, tags)
+		} else {
+			// we couldn't obtain any container tags
+			if src.Kind == source.AWSECSFargateKind {
+				// but we have some information from the source provider that we can add
+				appendTags(payloadTags, src.Tag())
+			}
+		}
+		flattenedTags = payloadTags.String()
 	}
 
 	if len(flattenedTags) > 0 {
