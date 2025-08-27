@@ -191,7 +191,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`event.os`](#event-os-doc) | Operating system of the event |
 | [`event.rule.tags`](#event-rule-tags-doc) | Tags associated with the rule that's used to evaluate the event |
 | [`event.service`](#event-service-doc) | Service associated with the event |
-| [`event.source`](#event-source-doc) | [Experimental] Source of the event |
+| [`event.source`](#event-source-doc) | [Experimental] Source of the event. Can be either 'runtime' or 'snapshot'. |
 | [`event.timestamp`](#event-timestamp-doc) | Timestamp of the event |
 | [`process.ancestors.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
 | [`process.ancestors.args_flags`](#common-process-args_flags-doc) | Flags in the process arguments |
@@ -3459,7 +3459,7 @@ Definition: Service associated with the event
 ### `event.source` {#event-source-doc}
 Type: string
 
-Definition: [Experimental] Source of the event
+Definition: [Experimental] Source of the event. Can be either 'runtime' or 'snapshot'.
 
 
 
