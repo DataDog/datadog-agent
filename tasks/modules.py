@@ -103,9 +103,9 @@ def for_each(
     """
     Run the given command in the directory of each module.
     """
-    assert not (use_targets_path and use_lint_targets_path), (
-        "Only one of use_targets_path and use_lint_targets_path can be set"
-    )
+    assert not (
+        use_targets_path and use_lint_targets_path
+    ), "Only one of use_targets_path and use_lint_targets_path can be set"
 
     for mod in get_default_modules().values():
         if skip_untagged and not mod.should_tag:
