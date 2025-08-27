@@ -66,7 +66,12 @@ func (c *Check) Run() error {
 	tags := []string{
 		"device_ip:" + c.checkContext.Device.IPAddress,
 	}
-	configs = append(configs, ncmreport.ToNetworkDeviceConfig(deviceID, c.checkContext.Device.IPAddress, ncmreport.RUNNING, c.clock.Now().Unix(), tags, runningConfig))
+	runningTimestamp, checkErr := ncmreport.RetrieveTimestampFromConfig(runningConfig)
+	if checkErr != nil {
+		log.Warnf("unable to extract last change timestamp from running config for %s, using agent collection ts: %s", deviceID, checkErr)
+		runningTimestamp = c.clock.Now().Unix()
+	}
+	configs = append(configs, ncmreport.ToNetworkDeviceConfig(deviceID, c.checkContext.Device.IPAddress, ncmreport.RUNNING, runningTimestamp, tags, runningConfig))
 
 	// TODO: validate the startup config to make sure it's valid, extract other information from it, etc.
 	startupConfig, checkErr := c.remoteClient.RetrieveStartupConfig()
@@ -74,8 +79,13 @@ func (c *Check) Run() error {
 		// If the startup config cannot be retrieved, log a warning but continue
 		log.Warnf("unable to retrieve startup config for %s, will not send: %s", deviceID, checkErr)
 	} else {
+		startupTimestamp, checkErr := ncmreport.RetrieveTimestampFromConfig(startupConfig)
+		if checkErr != nil {
+			log.Warnf("unable to extract last change timestamp from startup config for %s, using agent collection ts: %s", deviceID, checkErr)
+			startupTimestamp = c.clock.Now().Unix()
+		}
 		// add the startup config to the payload if it was retrieved successfully
-		configs = append(configs, ncmreport.ToNetworkDeviceConfig(deviceID, c.checkContext.Device.IPAddress, ncmreport.STARTUP, c.clock.Now().Unix(), tags, startupConfig))
+		configs = append(configs, ncmreport.ToNetworkDeviceConfig(deviceID, c.checkContext.Device.IPAddress, ncmreport.STARTUP, startupTimestamp, tags, startupConfig))
 	}
 
 	checkErr = c.sender.SendNCMConfig(ncmreport.ToNCMPayload(c.checkContext.Namespace, "", configs, c.clock.Now().Unix()))
