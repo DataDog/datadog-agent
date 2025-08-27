@@ -10,6 +10,7 @@ package tests
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/netip"
@@ -18,9 +19,12 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/avast/retry-go/v4"
 	"github.com/cilium/ebpf"
 	"github.com/docker/docker/libnetwork/resolvconf"
+	"github.com/oliveagle/jsonpath"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 
@@ -151,6 +155,94 @@ func TestRawPacket(t *testing.T) {
 			assertFieldEqual(t, event, "packet.l4_protocol", int(model.IPProtoUDP))
 			assertFieldEqual(t, event, "packet.destination.port", int(testUDPDestPort))
 		})
+	})
+}
+
+func TestRawPacketAction(t *testing.T) {
+	if testEnvironment == DockerEnvironment {
+		t.Skip("skipping cgroup ID test in docker")
+	}
+
+	SkipIfNotAvailable(t)
+
+	checkKernelCompatibility(t, "network feature", isRawPacketNotSupported)
+
+	rule := &rules.RuleDefinition{
+		ID:         "test_rule_raw_packet_drop",
+		Expression: `exec.file.name == "free"`,
+		Actions: []*rules.ActionDefinition{
+			{
+				NetworkFilter: &rules.NetworkFilterDefinition{
+					BPFFilter: "port 53",
+					Scope:     "cgroup",
+					Policy:    "drop",
+				},
+			},
+		},
+	}
+
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(testOpts{networkRawPacketEnabled: true}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	cmdWrapper, err := test.StartADocker()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cmdWrapper.stop()
+
+	t.Run("drop", func(t *testing.T) {
+		cmd := cmdWrapper.Command("nslookup", []string{"google.com"}, []string{})
+		if err := cmd.Run(); err != nil {
+			t.Error(err)
+		}
+
+		test.WaitSignal(t, func() error {
+			cmd := cmdWrapper.Command("free", []string{}, []string{})
+			return cmd.Run()
+		}, func(_ *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_rule_raw_packet_drop")
+		})
+
+		err = retry.Do(func() error {
+			msg := test.msgSender.getMsg("test_rule_raw_packet_drop")
+			if msg == nil {
+				return errors.New("not found")
+			}
+			validateMessageSchema(t, string(msg.Data))
+
+			jsonPathValidation(test, msg.Data, func(_ *testModule, obj interface{}) {
+				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.policy == 'drop')]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
+					t.Errorf("element not found %s => %v", string(msg.Data), err)
+				}
+				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.filter == 'port 53')]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
+					t.Errorf("element not found %s => %v", string(msg.Data), err)
+				}
+			})
+
+			return nil
+		}, retry.Delay(200*time.Millisecond), retry.Attempts(60), retry.DelayType(retry.FixedDelay))
+		assert.NoError(t, err)
+
+		// wait for the action to be performed
+		time.Sleep(5 * time.Second)
+
+		cmd = cmdWrapper.Command("nslookup", []string{"microsoft.com"}, []string{})
+		if err := cmd.Run(); err == nil {
+			t.Error("should return an error")
+		}
+
+		err = retry.Do(func() error {
+			msg := test.msgSender.getMsg("rawpacket_action")
+			if msg == nil {
+				return errors.New("not found")
+			}
+			validateMessageSchema(t, string(msg.Data))
+
+			return nil
+		}, retry.Delay(500*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
 	})
 }
 

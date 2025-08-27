@@ -260,7 +260,9 @@ func TestProxy(t *testing.T) {
 		{
 			name: "from configuration",
 			setup: func(_ *testing.T, config pkgconfigmodel.Config) {
-				config.SetWithoutSource("proxy", expectedProxy)
+				config.SetWithoutSource("proxy.http", expectedProxy.HTTP)
+				config.SetWithoutSource("proxy.https", expectedProxy.HTTPS)
+				config.SetWithoutSource("proxy.no_proxy", expectedProxy.NoProxy)
 			},
 			tests: func(t *testing.T, config pkgconfigmodel.Config) {
 				assert.Equal(t, expectedProxy, config.GetProxies())

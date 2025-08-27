@@ -62,6 +62,7 @@ func getNonCriticalAPIs() []string {
 		toNativeName("GetMaxClockInfo"),
 		toNativeName("GetMaxMigDeviceCount"),
 		toNativeName("GetMemoryBusWidth"),
+		toNativeName("GetMemoryInfo_v2"),
 		toNativeName("GetMigDeviceHandleByIndex"),
 		toNativeName("GetMigMode"),
 		toNativeName("GetNvLinkState"),
