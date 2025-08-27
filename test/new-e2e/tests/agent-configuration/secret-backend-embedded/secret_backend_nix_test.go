@@ -25,7 +25,7 @@ type linuxRuntimeSecretSuite struct {
 }
 
 //go:embed fixtures/secrets.yaml
-var secretScript string
+var embeddedSecretFile string
 
 func TestLinuxRuntimeSecretSuite(t *testing.T) {
 	t.Parallel()
@@ -38,10 +38,10 @@ secret_backend_type: file.yaml
 secret_backend_config:
   file_path: /tmp/secrets.yaml`
 
-	unixPermission := perms.NewUnixPermissions(perms.WithPermissions("0700"), perms.WithOwner("dd-agent"), perms.WithGroup("dd-agent"))
+	unixPermission := perms.NewUnixPermissions(perms.WithPermissions("0400"), perms.WithOwner("dd-agent"), perms.WithGroup("dd-agent"))
 	v.UpdateEnv(awshost.Provisioner(
 		awshost.WithAgentOptions(
-			agentparams.WithFileWithPermissions("/tmp/secrets.yaml", secretScript, true, unixPermission),
+			agentparams.WithFileWithPermissions("/tmp/secrets.yaml", embeddedSecretFile, true, unixPermission),
 			agentparams.WithSkipAPIKeyInConfig(),
 			agentparams.WithAgentConfig(config),
 		),
