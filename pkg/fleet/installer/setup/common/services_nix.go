@@ -20,7 +20,7 @@ import (
 // an install script re-run; because the configuration may have changed.
 func (s *Setup) restartServices(ctx context.Context, pkgs []packageWithVersion) error {
 	t := time.Now()
-	span, ctx := telemetry.StartSpanFromContext(s.Ctx, "restartServices")
+	span, ctx := telemetry.StartSpanFromContext(ctx, "restartServices")
 	for _, pkg := range pkgs {
 		switch pkg.name {
 		case DatadogAgentPackage:
