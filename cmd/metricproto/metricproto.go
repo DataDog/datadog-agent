@@ -890,8 +890,8 @@ func (b *bucket) serialize07(w *bytes.Buffer) error {
 	fmt.Printf("-- %d header bytes\n", lenHeader)
 
 	ps.Int64(5, int64(len(names)))
-	ps.Int64Packed(10, names)
-	ps.Int64Packed(11, tags)
+	ps.Sint64Packed(10, names)
+	ps.Sint64Packed(11, tags)
 	ps.Int64Packed(12, types)
 	ps.DoublePacked(13, floats)
 	ps.Int64Packed(14, skcnts)
@@ -1015,11 +1015,11 @@ func (b *bucket) serialize08(w *bytes.Buffer) error {
 	lenHeader := w.Len()
 	fmt.Printf("-- %d header bytes\n", lenHeader)
 
-	ps.Int64Packed(10, names)
+	ps.Sint64Packed(10, names)
 
 	fmt.Printf("-- %d bytes in metric name pointers\n", w.Len()-lenHeader)
 
-	ps.Int64Packed(11, tags)
+	ps.Sint64Packed(11, tags)
 	ps.Int64Packed(12, types)
 	ps.DoublePacked(13, floats)
 	ps.Int64Packed(14, skcnts)
@@ -2060,8 +2060,8 @@ func (b *bucket) serialize14(w *bytes.Buffer) error {
 	fmt.Printf("-- %d header bytes\n", lenHeader)
 
 	ps.Int64(5, int64(len(names)))
-	ps.Int64Packed(10, names)
-	ps.Int64Packed(11, tags)
+	ps.Sint64Packed(10, names)
+	ps.Sint64Packed(11, tags)
 	ps.Uint64Packed(12, types)
 	ps.Int64Packed(14, skcnts)
 	ps.Int64Packed(15, sklens)
@@ -2320,8 +2320,8 @@ func (b *bucket) serialize15(w *bytes.Buffer) error {
 	}
 
 	ps.Int64(5, int64(len(names)))
-	ps.Int64Packed(10, names)
-	ps.Int64Packed(11, tags)
+	ps.Sint64Packed(10, names)
+	ps.Sint64Packed(11, tags)
 	ps.Int64Packed(12, types)
 	ps.Int64Packed(14, skcnts)
 	ps.Int64Packed(15, sklens)
