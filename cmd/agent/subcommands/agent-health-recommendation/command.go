@@ -42,7 +42,7 @@ recommendations for improvement.`,
 		SilenceUsage: true,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			// Determine log level based on verbose flag
-			logLevel := "info"
+			logLevel := "off"
 			if cliParams.verbose {
 				logLevel = "debug"
 			}
