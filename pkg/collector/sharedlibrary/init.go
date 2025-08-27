@@ -19,7 +19,7 @@ import (
 
 // init adds the shared library loader to the scheduler
 func init() {
-	if pkgconfigsetup.Datadog().GetBool("shared_libraries_check") {
+	if pkgconfigsetup.Datadog().GetBool("hared_libraries_check.enabled") {
 		factory := func(senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component) (check.Loader, int, error) {
 			loader, err := NewSharedLibraryCheckLoader(senderManager, logReceiver, tagger)
 			priority := 40
@@ -30,9 +30,4 @@ func init() {
 	} else {
 		log.Info("Shared Library checks are disabled.")
 	}
-}
-
-// InitSharedLibrary sets shared library loader environment
-func InitSharedLibrary() {
-	// nothing to set now
 }
