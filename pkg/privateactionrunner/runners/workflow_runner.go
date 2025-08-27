@@ -119,3 +119,30 @@ func (n *WorkflowRunner) startHeartbeat(ctx context.Context, task *types.Task) {
 		}
 	}
 }
+
+// TaskExecutor interface implementation
+
+// GetOpmsClient returns the OPMS client for task operations
+func (n *WorkflowRunner) GetOpmsClient() opms.Client {
+	return n.opmsClient
+}
+
+// GetTaskVerifier returns the task verifier for signature verification
+func (n *WorkflowRunner) GetTaskVerifier() *taskverifier.TaskVerifier {
+	return n.taskVerifier
+}
+
+// GetResolver returns the credential resolver
+func (n *WorkflowRunner) GetResolver() credentials.PrivateCredentialResolver {
+	return n.resolver
+}
+
+// GetConfig returns the configuration
+func (n *WorkflowRunner) GetConfig() *config.Config {
+	return n.config
+}
+
+// GetKeysManager returns the keys manager
+func (n *WorkflowRunner) GetKeysManager() remoteconfig.KeysManager {
+	return n.keysManager
+}

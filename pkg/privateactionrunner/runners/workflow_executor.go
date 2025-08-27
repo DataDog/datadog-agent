@@ -16,16 +16,19 @@ import (
 )
 
 type Loop struct {
-	runner          *WorkflowRunner
+	executor        TaskExecutor
+	config          *LoopConfig
 	sem             chan struct{}
 	shutdownChannel chan struct{}
 	wg              sync.WaitGroup
 }
 
-func NewLoop(runner *WorkflowRunner) *Loop {
+func NewLoop(executor TaskExecutor) *Loop {
+	config := GetLoopConfig(executor.GetConfig())
 	return &Loop{
-		runner:          runner,
-		sem:             make(chan struct{}, runner.config.RunnerPoolSize), // todo: we may consider moving to the semaphore before release.
+		executor:        executor,
+		config:          config,
+		sem:             make(chan struct{}, config.RunnerPoolSize), // todo: we may consider moving to the semaphore before release.
 		shutdownChannel: make(chan struct{}),
 	}
 }
@@ -37,10 +40,10 @@ func (l *Loop) Run(ctx context.Context) {
 
 	breaker := utils.NewCircuitBreaker(
 		"wf-par-polling",
-		l.runner.config.MinBackoff,
-		l.runner.config.MaxBackoff,
-		l.runner.config.WaitBeforeRetry,
-		l.runner.config.MaxAttempts,
+		l.config.MinBackoff,
+		l.config.MaxBackoff,
+		l.config.WaitBeforeRetry,
+		l.config.MaxAttempts,
 	)
 
 	defer l.wg.Done()
@@ -56,7 +59,7 @@ func (l *Loop) Run(ctx context.Context) {
 		breaker.Do(
 			ctx,
 			func() error {
-				dequeuedTask, err := l.runner.opmsClient.DequeueTask(ctx)
+				dequeuedTask, err := l.executor.GetOpmsClient().DequeueTask(ctx)
 				if err != nil {
 					log.Errorf("failed to dequeue task %v", err)
 					return err
@@ -68,7 +71,7 @@ func (l *Loop) Run(ctx context.Context) {
 		)
 
 		if task == nil {
-			time.Sleep(l.runner.config.LoopInterval)
+			time.Sleep(l.config.LoopInterval)
 			continue
 		}
 
@@ -77,7 +80,7 @@ func (l *Loop) Run(ctx context.Context) {
 			l.publishFailure(ctx, task, err)
 			continue
 		}
-		unwrappedTask, err := l.runner.taskVerifier.UnwrapTaskFromSignedEnvelope(task.Data.Attributes.SignedEnvelope)
+		unwrappedTask, err := l.executor.GetTaskVerifier().UnwrapTaskFromSignedEnvelope(task.Data.Attributes.SignedEnvelope)
 		if err != nil {
 			log.Errorf("could not verify workflow task %v", err)
 			l.publishFailure(ctx, task, err)
@@ -89,7 +92,7 @@ func (l *Loop) Run(ctx context.Context) {
 		unwrappedTask.Data.Attributes.JobId = task.Data.Attributes.JobId
 		task = unwrappedTask
 
-		credential, err := l.runner.resolver.ResolveConnectionInfoToCredential(ctx, task.Data.Attributes.ConnectionInfo, nil)
+		credential, err := l.executor.GetResolver().ResolveConnectionInfoToCredential(ctx, task.Data.Attributes.ConnectionInfo, nil)
 		if err != nil {
 			log.Errorf("could not resolve connection %v", err)
 			l.publishFailure(ctx, task, err)
@@ -111,7 +114,7 @@ func (l *Loop) handleTask(
 	taskCtx, taskCtxCancel := context.WithCancel(ctx)
 	defer taskCtxCancel()
 
-	output, err := l.runner.RunTask(taskCtx, task, credential)
+	output, err := l.executor.RunTask(taskCtx, task, credential)
 	if err == nil {
 		l.publishSuccess(ctx, task, output)
 	} else {
@@ -141,7 +144,7 @@ func (l *Loop) publishFailure(ctx context.Context, task *types.Task, e error) {
 		return
 	}
 	inputError := utils.DefaultPARError(e)
-	err := l.runner.opmsClient.PublishFailure(
+	err := l.executor.GetOpmsClient().PublishFailure(
 		ctx,
 		task.Data.ID,
 		task.Data.Attributes.JobId,
@@ -160,7 +163,7 @@ func (l *Loop) publishSuccess(ctx context.Context, task *types.Task, output inte
 		log.Error("publish success error: no job id was provided")
 		return
 	}
-	err := l.runner.opmsClient.PublishSuccess(
+	err := l.executor.GetOpmsClient().PublishSuccess(
 		ctx,
 		task.Data.ID,
 		task.Data.Attributes.JobId,
