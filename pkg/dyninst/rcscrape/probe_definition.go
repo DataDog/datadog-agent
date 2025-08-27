@@ -23,18 +23,24 @@ import (
 
 type probeDefinitionV1 struct{ probeDefinition }
 
-func (r probeDefinitionV1) GetID() string      { return rcProbeIDV1 }
-func (r probeDefinitionV1) GetWhere() ir.Where { return probeWhereV1{} }
+func (r probeDefinitionV1) GetID() string                               { return rcProbeIDV1 }
+func (r probeDefinitionV1) GetWhere() ir.Where                          { return probeWhereV1{} }
+func (r probeDefinitionV1) GetSegments() []ir.TemplateSegmentDefinition { return nil }
+func (r probeDefinitionV1) GetTemplate() ir.TemplateDefinition          { return nil }
 
 type probeDefinitionV2 struct{ probeDefinition }
 
-func (r probeDefinitionV2) GetID() string      { return rcProbeIDV2 }
-func (r probeDefinitionV2) GetWhere() ir.Where { return probeWhereV2{} }
+func (r probeDefinitionV2) GetID() string                               { return rcProbeIDV2 }
+func (r probeDefinitionV2) GetWhere() ir.Where                          { return probeWhereV2{} }
+func (r probeDefinitionV2) GetSegments() []ir.TemplateSegmentDefinition { return nil }
+func (r probeDefinitionV2) GetTemplate() ir.TemplateDefinition          { return nil }
 
 type symdbProbeDefinition struct{ probeDefinition }
 
-func (r symdbProbeDefinition) GetID() string      { return rcProbeIDSymdb }
-func (r symdbProbeDefinition) GetWhere() ir.Where { return probeWhereSymdb{} }
+func (r symdbProbeDefinition) GetID() string                               { return rcProbeIDSymdb }
+func (r symdbProbeDefinition) GetWhere() ir.Where                          { return probeWhereSymdb{} }
+func (r symdbProbeDefinition) GetSegments() []ir.TemplateSegmentDefinition { return nil }
+func (r symdbProbeDefinition) GetTemplate() ir.TemplateDefinition          { return nil }
 
 type probeDefinition struct{}
 
