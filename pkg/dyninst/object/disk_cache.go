@@ -115,7 +115,7 @@ func newDiskCache(cfg DiskCacheConfig, diskUsageReader diskUsageReader) (*DiskCa
 // in the cache's directory. The files are tracked by the cache and are
 // automatically removed when the resulting ElfFile is closed and no other
 // references to the compressed sections exist.
-func (c *DiskCache) Load(path string) (*ElfFile, error) {
+func (c *DiskCache) Load(path string) (FileWithDwarf, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -127,11 +127,11 @@ func (c *DiskCache) Load(path string) (*ElfFile, error) {
 		}
 		return nil, err
 	}
-	mef, err := newMMappingElfFile(f)
+	mef, err := makeMMappingElfFile(f)
 	if err != nil {
 		return nil, err
 	}
-	ef, err := newElfObject(mef, &htlHashLoader{htlHash: htlHash, c: c})
+	ef, err := newElfFileWithDwarf(mef, &htlHashLoader{htlHash: htlHash, c: c})
 	if err != nil {
 		return nil, err
 	}
@@ -154,7 +154,7 @@ type htlHashLoader struct {
 }
 
 func (h *htlHashLoader) load(
-	cr compressedSection, mef *MMappingElfFile,
+	cr compressedSectionMetadata, mef *MMappingElfFile,
 ) (SectionData, error) {
 	return h.c.loadSection(h.htlHash, cr, mef)
 }
@@ -164,12 +164,12 @@ func (h *htlHashLoader) load(
 // one goroutine performs the decompression work at a time.
 func (c *DiskCache) loadSection(
 	htlHash htlhash.Hash,
-	cr compressedSection,
+	cr compressedSectionMetadata,
 	mef *MMappingElfFile,
 ) (_ SectionData, retErr error) {
 	key := cacheKey{
-		htlHash:           htlHash,
-		compressedSection: cr,
+		htlHash:                   htlHash,
+		compressedSectionMetadata: cr,
 	}
 	entry, err := c.getOrCreateEntry(key)
 	if err != nil {
@@ -473,7 +473,7 @@ func (e *cacheEntry) release() error {
 
 type cacheKey struct {
 	htlHash htlhash.Hash
-	compressedSection
+	compressedSectionMetadata
 }
 
 func (c cacheKey) String() string {

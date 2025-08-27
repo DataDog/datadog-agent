@@ -31,6 +31,22 @@ var memoryAPICallFactory = []memoryAPICall{
 		},
 		callFunc: (*memoryCollector).collectBAR1MemoryMetrics,
 	},
+	{
+		name: "device_memory_v2",
+		testFunc: func(d ddnvml.Device) error {
+			_, err := d.GetMemoryInfoV2()
+			return err
+		},
+		callFunc: (*memoryCollector).collectDeviceMemoryV2Metrics,
+	},
+	{
+		name: "device_memory_v1",
+		testFunc: func(d ddnvml.Device) error {
+			_, err := d.GetMemoryInfo()
+			return err
+		},
+		callFunc: (*memoryCollector).collectDeviceMemoryV1Metrics,
+	},
 }
 
 type memoryCollector struct {
@@ -50,10 +66,22 @@ func newMemoryCollector(device ddnvml.Device) (Collector, error) {
 }
 
 func (c *memoryCollector) removeUnsupportedMetrics() {
+	var hasDeviceMemoryAPI bool
+
 	for _, apiCall := range memoryAPICallFactory {
+		// For device memory APIs, prefer v2 over v1
+		if apiCall.name == "device_memory_v1" && hasDeviceMemoryAPI {
+			continue // Skip v1 if we already have v2
+		}
+
 		err := apiCall.testFunc(c.device)
 		if err == nil || !ddnvml.IsUnsupported(err) {
 			c.supportedAPICalls = append(c.supportedAPICalls, apiCall)
+
+			// Mark that we have a device memory API
+			if apiCall.name == "device_memory_v2" || apiCall.name == "device_memory_v1" {
+				hasDeviceMemoryAPI = true
+			}
 		}
 	}
 }
@@ -83,7 +111,7 @@ func (c *memoryCollector) Collect() ([]Metric, error) {
 	return allMetrics, multiErr
 }
 
-// collectBAR1MemoryMetrics collects BAR1 memory metrics with a single API call
+// collectBAR1MemoryMetrics collects BAR1 memory metrics
 func (c *memoryCollector) collectBAR1MemoryMetrics() ([]Metric, error) {
 	bar1Info, err := c.device.GetBAR1MemoryInfo()
 	if err != nil {
@@ -104,6 +132,43 @@ func (c *memoryCollector) collectBAR1MemoryMetrics() ([]Metric, error) {
 		{
 			Name:  "memory.bar1.used",
 			Value: float64(bar1Info.Bar1Used),
+			Type:  metrics.GaugeType,
+		},
+	}, nil
+}
+
+// collectDeviceMemoryV2Metrics collects device memory metrics using v2 API (includes reserved memory)
+func (c *memoryCollector) collectDeviceMemoryV2Metrics() ([]Metric, error) {
+	memInfo, err := c.device.GetMemoryInfoV2()
+	if err != nil {
+		return nil, err
+	}
+
+	return []Metric{
+		{
+			Name:  "memory.free",
+			Value: float64(memInfo.Free),
+			Type:  metrics.GaugeType,
+		},
+		{
+			Name:  "memory.reserved",
+			Value: float64(memInfo.Reserved),
+			Type:  metrics.GaugeType,
+		},
+	}, nil
+}
+
+// collectDeviceMemoryV1Metrics collects device memory metrics using v1 API
+func (c *memoryCollector) collectDeviceMemoryV1Metrics() ([]Metric, error) {
+	memInfo, err := c.device.GetMemoryInfo()
+	if err != nil {
+		return nil, err
+	}
+
+	return []Metric{
+		{
+			Name:  "memory.free",
+			Value: float64(memInfo.Free),
 			Type:  metrics.GaugeType,
 		},
 	}, nil
