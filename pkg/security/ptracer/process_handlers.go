@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"strings"
 	"syscall"
+	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
 )
@@ -113,6 +114,18 @@ func registerProcessHandlers(handlers map[int]syscallHandler) []string {
 		{
 			ID:         syscallID{ID: DeleteModuleNr, Name: "delete_module"},
 			Func:       handleDeleteModule,
+			ShouldSend: isAcceptedRetval,
+			RetFunc:    nil,
+		},
+		{
+			ID:         syscallID{ID: SetrlimitNr, Name: "setrlimit"},
+			Func:       handlePrlimit64,
+			ShouldSend: isAcceptedRetval,
+			RetFunc:    nil,
+		},
+		{
+			ID:         syscallID{ID: Prlimit64Nr, Name: "prlimit64"},
+			Func:       handlePrlimit64,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    nil,
 		},
@@ -440,6 +453,38 @@ func handleDeleteModule(tracer *Tracer, process *Process, msg *ebpfless.SyscallM
 	msg.Type = ebpfless.SyscallTypeUnloadModule
 	msg.UnloadModule = &ebpfless.UnloadModuleSyscallMsg{
 		Name: name,
+	}
+	return nil
+}
+
+func handlePrlimit64(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, _ bool) error {
+	msg.Type = ebpfless.SyscallTypeSetrlimit
+
+	rlimitBuf, err := tracer.ReadArgData(process.Pid, regs, 2, uint(unsafe.Sizeof(syscall.Rlimit{})))
+	if err != nil {
+		fmt.Errorf("failed to read rlimit: %w", err)
+		return err
+	}
+	var rlimit syscall.Rlimit
+	if err = binary.Read(bytes.NewBuffer(rlimitBuf), binary.NativeEndian, &rlimit); err != nil {
+		return fmt.Errorf("failed to parse rlimit: %w", err)
+	}
+	pid := tracer.ReadArgUint32(regs, 0)
+	if pid == 0 {
+		msg.Setrlimit = &ebpfless.SetrlimitSyscallMsg{
+			Resource: int(tracer.ReadArgInt32(regs, 1)),
+			CurLimit: rlimit.Cur,
+			MaxLimit: rlimit.Max,
+			Pid:      uint32(process.Pid),
+		}
+
+	} else {
+		msg.Setrlimit = &ebpfless.SetrlimitSyscallMsg{
+			Resource: int(tracer.ReadArgInt32(regs, 1)),
+			CurLimit: rlimit.Cur,
+			MaxLimit: rlimit.Max,
+			Pid:      pid,
+		}
 	}
 	return nil
 }
