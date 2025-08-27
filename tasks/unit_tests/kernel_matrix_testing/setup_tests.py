@@ -139,7 +139,7 @@ intopt = 4
 
 class TestTopologicalSortRequirements(unittest.TestCase):
     def test_no_dependencies(self):
-        class Req1(Requirement):  # noqa: F821
+        class Req1(Requirement):
             pass
 
         class Req2(Requirement):

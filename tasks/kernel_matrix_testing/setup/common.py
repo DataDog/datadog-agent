@@ -225,7 +225,7 @@ class PythonDependencies(Requirement):
     def flare(self, ctx: Context) -> dict[str, str]:
         data: dict[str, str] = {}
 
-        data['dda path'] = shutil.which('dda') or 'not found'
+        data["dda path"] = shutil.which('dda') or 'not found'
 
         dep_res = ctx.run("dda self dep show --legacy", warn=True)
         data["dda self dep show --legacy [stdout]"] = dep_res.stdout if dep_res is not None else "None"

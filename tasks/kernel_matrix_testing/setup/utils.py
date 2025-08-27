@@ -223,13 +223,13 @@ def check_directories(
                 states.append(RequirementState(Status.OK, f"Fixed permissions for KMT directory: {d}"))
 
         owner_id = d.stat().st_uid
-        group_id = d.stat().st_gid
-        if owner_id != user_id or group_id != group_id:
+        actual_group_id = d.stat().st_gid
+        if owner_id != user_id or actual_group_id != group_id:
             if not fix:
                 states.append(
                     RequirementState(
                         Status.FAIL,
-                        f"Directory {d} has incorrect owner or group (uid={owner_id}, gid={group_id}; wanted uid={user_id}, gid={group_id}).",
+                        f"Directory {d} has incorrect owner or group (uid={owner_id}, gid={actual_group_id}; wanted uid={user_id}, gid={group_id}).",
                         fixable=True,
                     )
                 )
