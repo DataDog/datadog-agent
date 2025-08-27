@@ -268,9 +268,11 @@ export_testing_public_key:
 
 .deploy_dmg_testing-a7:
   rules:
-    - !reference [.except_no_tests_no_deploy]
-    - !reference [.except_mergequeue]
-    - when: on_success
+     - !reference [.on_macos_gui_change]
+     - !reference [.on_packaging_change]
+     - !reference [.on_main_or_release_branch]
+     - !reference [.on_all_builds]
+     - !reference [.manual]
   stage: e2e_deploy
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
   tags: ["arch:amd64"]
