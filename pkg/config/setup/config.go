@@ -1163,7 +1163,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("config_stream.sleep_interval", 3*time.Second)
 
 	// Shared libraries check
-	config.BindEnvAndSetDefault("hared_libraries_check.enabled", true)
+	config.BindEnvAndSetDefault("shared_libraries_check.enabled", true)
 }
 
 func agent(config pkgconfigmodel.Setup) {
