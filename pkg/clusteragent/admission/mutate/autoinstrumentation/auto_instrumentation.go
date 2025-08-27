@@ -178,11 +178,9 @@ func (l *libInfoLanguageDetection) containerMutator(v version) containerMutator 
 func getAllLatestDefaultLibraries(containerRegistry string, imageResolver ImageResolver) []libInfo {
 	var libsToInject []libInfo
 	for _, lang := range supportedLanguages {
-		// Construct the full image reference (e.g., "gcr.io/datadoghq/dd-lib-python-init:v3")
 		repository := fmt.Sprintf("dd-lib-%s-init", lang)
 		tag := lang.defaultLibVersion()
 
-		// Try to resolve it to a digest-based reference via remote config
 		resolvedImage, resolved := imageResolver.Resolve(containerRegistry, repository, tag)
 		var imageRef string
 		if resolved && resolvedImage != nil {

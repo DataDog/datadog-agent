@@ -79,20 +79,18 @@ func newRemoteConfigImageResolver(rcClient *rcclient.Client) ImageResolver {
 // If resolution fails or is not available, it returns the original image reference.
 // Output: "gcr.io/datadoghq/dd-lib-python-init:v3", false
 func (r *remoteConfigImageResolver) Resolve(registry string, repository string, tag string) (*ResolvedImage, bool) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
 	if !isDatadoghqRegistry(registry) {
 		log.Debugf("Not a Datadoghq registry, not resolving")
 		return nil, false
 	}
 
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
 	if len(r.imageMappings) == 0 {
 		log.Debugf("Cache empty, no resolution available")
 		return nil, false
 	}
-
-	log.Debugf("TEST CACHE: %v", r.imageMappings)
 
 	repoCache, exists := r.imageMappings[repository]
 	if !exists {

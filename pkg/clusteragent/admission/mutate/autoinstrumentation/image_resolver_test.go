@@ -82,20 +82,12 @@ func loadRepositoryConfigs(t *testing.T, filename string) []RepositoryConfig {
 	require.NoError(t, err, "Failed to read test data file %s", filename)
 
 	var configs []RepositoryConfig
-	if err = json.Unmarshal(data, &configs); err == nil {
-		return configs
-	}
-
-	// If that fails, try as single config
-	var config RepositoryConfig
-	err = json.Unmarshal(data, &config)
+	err = json.Unmarshal(data, &configs)
 	require.NoError(t, err, "Failed to unmarshal repository config(s) from %s", filename)
-
-	return []RepositoryConfig{config}
+	return configs
 }
 
 func TestRemoteConfigImageResolver_processUpdate(t *testing.T) {
-	// Create resolver without remote config client for testing
 	resolver := &remoteConfigImageResolver{
 		imageMappings: make(map[string]map[string]ResolvedImage),
 	}
@@ -131,12 +123,10 @@ func TestRemoteConfigImageResolver_processUpdate(t *testing.T) {
 
 		resolver.processUpdate(update, applyStateCallback)
 
-		// Verify both repositories are in the cache
 		assert.Len(t, resolver.imageMappings, 2)
 		assert.Contains(t, resolver.imageMappings, "dd-lib-python-init")
 		assert.Contains(t, resolver.imageMappings, "dd-lib-java-init")
 
-		// Verify python repo content (from testdata/image_resolver_multi_repo.json)
 		pythonRepo := resolver.imageMappings["dd-lib-python-init"]
 		assert.Len(t, pythonRepo, 2) // latest, v3
 		assert.Contains(t, pythonRepo, "latest")
@@ -144,7 +134,6 @@ func TestRemoteConfigImageResolver_processUpdate(t *testing.T) {
 		assert.Equal(t, "gcr.io/datadoghq/dd-lib-python-init@sha256:abc123", pythonRepo["latest"].FullImageRef)
 		assert.Equal(t, "gcr.io/datadoghq/dd-lib-python-init@sha256:def456", pythonRepo["v3"].FullImageRef)
 
-		// Verify java repo content (from testdata/image_resolver_multi_repo.json)
 		javaRepo := resolver.imageMappings["dd-lib-java-init"]
 		assert.Len(t, javaRepo, 2) // latest, v1
 		assert.Contains(t, javaRepo, "latest")
@@ -167,17 +156,14 @@ func TestRemoteConfigImageResolver_processUpdate(t *testing.T) {
 
 		resolver.processUpdate(update, applyStateCallback)
 
-		// Cache should be empty
 		assert.Len(t, resolver.imageMappings, 0)
 		assert.Len(t, appliedStatuses, 0)
 	})
 
 	t.Run("multi_repository_from_testdata", func(t *testing.T) {
-		// Load multi-repository configuration from testdata
 		configs := loadRepositoryConfigs(t, "image_resolver_multi_repo.json")
 		require.Len(t, configs, 3) // python, java, js
 
-		// Convert to update format
 		update := make(map[string]state.RawConfig)
 		for i, config := range configs {
 			configJSON, err := json.Marshal(config)
@@ -192,20 +178,17 @@ func TestRemoteConfigImageResolver_processUpdate(t *testing.T) {
 
 		resolver.processUpdate(update, applyStateCallback)
 
-		// Verify all three repositories are loaded
 		assert.Len(t, resolver.imageMappings, 3)
 		assert.Contains(t, resolver.imageMappings, "dd-lib-python-init")
 		assert.Contains(t, resolver.imageMappings, "dd-lib-java-init")
 		assert.Contains(t, resolver.imageMappings, "dd-lib-js-init")
 
-		// Verify JavaScript repo (new in multi-repo testdata)
 		jsRepo := resolver.imageMappings["dd-lib-js-init"]
 		assert.Len(t, jsRepo, 2) // latest, v5
 		assert.Contains(t, jsRepo, "latest")
 		assert.Contains(t, jsRepo, "v5")
 		assert.Equal(t, "gcr.io/datadoghq/dd-lib-js-init@sha256:js123", jsRepo["latest"].FullImageRef)
 
-		// Verify apply statuses for all configs
 		assert.Len(t, appliedStatuses, 3)
 		for i := 0; i < 3; i++ {
 			configKey := fmt.Sprintf("config%d", i)
@@ -225,7 +208,6 @@ func TestRemoteConfigImageResolver_processUpdate(t *testing.T) {
 
 		resolver.processUpdate(update, applyStateCallback)
 
-		// Cache should be empty
 		assert.Len(t, resolver.imageMappings, 0)
 
 		// Error status should be recorded
@@ -282,7 +264,6 @@ func TestImageResolverWithTestData(t *testing.T) {
 		},
 	}
 
-	// Load the multi-repo configuration once for all test cases
 	configs := loadRepositoryConfigs(t, "image_resolver_multi_repo.json")
 	update := make(map[string]state.RawConfig)
 
@@ -294,15 +275,12 @@ func TestImageResolverWithTestData(t *testing.T) {
 
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
-			// Create resolver
 			resolver := &remoteConfigImageResolver{
 				imageMappings: make(map[string]map[string]ResolvedImage),
 			}
 
-			// Process the complete remote config state
 			resolver.processUpdate(update, func(string, state.ApplyStatus) {})
 
-			// Test resolution
 			resolved, ok := resolver.Resolve(tc.registry, tc.repository, tc.tag)
 			assert.Equal(t, tc.expectedResolved, ok, "Resolution success should match expected")
 
@@ -322,10 +300,8 @@ func TestImageResolverEmptyConfig(t *testing.T) {
 		imageMappings: make(map[string]map[string]ResolvedImage),
 	}
 
-	// Process empty update (no remote config data available)
 	resolver.processUpdate(map[string]state.RawConfig{}, func(string, state.ApplyStatus) {})
 
-	// Test resolution should fail with empty cache
 	resolved, ok := resolver.Resolve("gcr.io/datadoghq", "dd-lib-python-init", "latest")
 	assert.False(t, ok, "Resolution should fail with empty config")
 	assert.Nil(t, resolved, "Should not return resolved image with empty cache")
