@@ -42,12 +42,6 @@ CONFIG_SPECIAL_OBJECTS = {
 
 
 def get_gitlab_token(ctx, repo='datadog-agent', verbose=False) -> str:
-    # If available, use the CI_JOB_TOKEN which is passed from gitlab
-    if os.environ.get('CI_JOB_TOKEN'):
-        print('Using CI_JOB_TOKEN')
-        return os.environ['CI_JOB_TOKEN']
-
-    print('Using generated token')
     infra_token = datadog_infra_token(ctx, audience="sdm")
     url = f"https://bti-ci-api.us1.ddbuild.io/internal/ci/gitlab/token?owner=DataDog&repository={repo}"
 
@@ -60,7 +54,6 @@ def get_gitlab_token(ctx, repo='datadog-agent', verbose=False) -> str:
         # Prints also the scopes + the expiration date
         print('Got Gitlab token:', res.json())
 
-    print({k: v for k, v in res.json().items() if k != 'token'})
     token = res.json()['token']
 
     return token
