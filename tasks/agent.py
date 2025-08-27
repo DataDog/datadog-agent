@@ -62,6 +62,7 @@ AGENT_CORECHECKS = [
     "docker",
     "file_handle",
     "go_expvar",
+    "httpcheck",
     "io",
     "jmx",
     "kubernetes_apiserver",
