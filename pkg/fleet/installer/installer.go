@@ -17,7 +17,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
+	"gopkg.in/yaml.v3"
+
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 
@@ -237,6 +238,12 @@ func (i *installerImpl) SetupInstaller(ctx context.Context, path string) error {
 			return fmt.Errorf("could not copy installer: %w", err)
 		}
 		path = tmpDir
+
+		stablePath := filepath.Join(paths.PackagesPath, "datadog-agent", "stable")
+		err = msi.SetSourceList("Datadog Agent", stablePath, msiName)
+		if err != nil {
+			return fmt.Errorf("failed to update MSI source list: %w", err)
+		}
 	}
 
 	// create the installer package
@@ -255,6 +262,14 @@ func (i *installerImpl) SetupInstaller(ctx context.Context, path string) error {
 		return fmt.Errorf("could not store package installation in db: %w", err)
 	}
 
+	// check registry source list and update to point to the stable if needed
+	// if runtime.GOOS == "windows" {
+	// 	stablePath := filepath.Join(paths.PackagesPath, "datadog-agent", "stable")
+	// 	err = msi.SetSourceList("Datadog Agent", stablePath, packageDatadogAgent)
+	// 	if err != nil {
+	// 		return fmt.Errorf("failed to update MSI source list: %w", err)
+	// 	}
+	// }
 	return nil
 
 }
