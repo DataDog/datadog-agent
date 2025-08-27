@@ -98,7 +98,7 @@ windows_msi_and_bosh_zip_x64-a7-fips:
     - mkdir omnibus\pkg
     - >
       docker run --rm
-      -m 8192M
+      -m 24576M
       -v "$(Get-Location):c:\mnt"
       -e CI_COMMIT_BRANCH=${CI_COMMIT_BRANCH}
       -e CI_PIPELINE_ID=${CI_PIPELINE_ID}
