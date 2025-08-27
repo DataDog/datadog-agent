@@ -69,7 +69,7 @@
                     "value": "5"
                   },
                   "writer": {
-                    "type": "UnknownType(0x[GoRuntimeType])",
+                    "type": "io.discard",
                     "notCapturedReason": "missing type information"
                   }
                 }

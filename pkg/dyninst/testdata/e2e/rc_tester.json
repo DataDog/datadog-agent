@@ -25,7 +25,7 @@
           "entry": {
             "arguments": {
               "w": {
-                "type": "UnknownType(0x[GoRuntimeType])",
+                "type": "struct { httptrace.monitoredResponseWriter; http.Flusher; http.CloseNotifier; http.Hijacker }",
                 "notCapturedReason": "missing type information"
               },
               "r": {
@@ -137,7 +137,7 @@
                     ]
                   },
                   "Body": {
-                    "type": "UnknownType(0x[GoRuntimeType])",
+                    "type": "http.noBody",
                     "notCapturedReason": "missing type information"
                   },
                   "GetBody": {
@@ -201,7 +201,7 @@
                     "value": "/"
                   },
                   "ctx": {
-                    "type": "UnknownType(0x[GoRuntimeType])",
+                    "type": "*context.valueCtx",
                     "notCapturedReason": "missing type information"
                   },
                   "pat": {
@@ -328,7 +328,7 @@
           "entry": {
             "arguments": {
               "w": {
-                "type": "UnknownType(0x[GoRuntimeType])",
+                "type": "struct { httptrace.monitoredResponseWriter; http.Flusher; http.CloseNotifier; http.Hijacker }",
                 "notCapturedReason": "missing type information"
               },
               "r": {
@@ -440,7 +440,7 @@
                     ]
                   },
                   "Body": {
-                    "type": "UnknownType(0x[GoRuntimeType])",
+                    "type": "http.noBody",
                     "notCapturedReason": "missing type information"
                   },
                   "GetBody": {
@@ -504,7 +504,7 @@
                     "value": "/"
                   },
                   "ctx": {
-                    "type": "UnknownType(0x[GoRuntimeType])",
+                    "type": "*context.valueCtx",
                     "notCapturedReason": "missing type information"
                   },
                   "pat": {
@@ -631,7 +631,7 @@
           "entry": {
             "arguments": {
               "w": {
-                "type": "UnknownType(0x[GoRuntimeType])",
+                "type": "struct { httptrace.monitoredResponseWriter; http.Flusher; http.CloseNotifier; http.Hijacker }",
                 "notCapturedReason": "missing type information"
               },
               "r": {
@@ -743,7 +743,7 @@
                     ]
                   },
                   "Body": {
-                    "type": "UnknownType(0x[GoRuntimeType])",
+                    "type": "http.noBody",
                     "notCapturedReason": "missing type information"
                   },
                   "GetBody": {
@@ -807,7 +807,7 @@
                     "value": "/"
                   },
                   "ctx": {
-                    "type": "UnknownType(0x[GoRuntimeType])",
+                    "type": "*context.valueCtx",
                     "notCapturedReason": "missing type information"
                   },
                   "pat": {
