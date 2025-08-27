@@ -48,7 +48,7 @@ func TestGetCloudRunJobsTagsWithEnvironmentVariables(t *testing.T) {
 
 func TestCloudRunJobsGetOrigin(t *testing.T) {
 	service := &CloudRunJobs{}
-	assert.Equal(t, "cloudrun", service.GetOrigin())
+	assert.Equal(t, "cloudrunjobs", service.GetOrigin())
 }
 
 func TestCloudRunJobsInit(t *testing.T) {
