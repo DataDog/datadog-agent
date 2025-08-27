@@ -14,11 +14,14 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
 	"github.com/go-jose/go-jose/v4"
 	"github.com/go-jose/go-jose/v4/jwt"
 	"gopkg.in/yaml.v3"
@@ -58,9 +61,9 @@ func ProvisionRunnerIdentityWithToken(enrollmentToken, datadogSite, _ string) er
 }
 
 // ProvisionRunnerIdentityWithAPIKey performs self-enrollment using API key authentication
-func ProvisionRunnerIdentityWithAPIKey(apiKey, appKey, datadogSite string) error {
+func ProvisionRunnerIdentityWithAPIKey(apiKey, appKey, datadogSite string, selfAuth bool) error {
 	fmt.Println("Starting runner self-enrollment...")
-	return runSelfEnrollmentToConfig(apiKey, appKey, datadogSite)
+	return runSelfEnrollmentToConfig(apiKey, appKey, datadogSite, selfAuth)
 }
 
 // generateKeys creates a new ECDSA P-256 key pair
@@ -168,8 +171,45 @@ func runEnrollmentToConfig(enrollmentToken, datadogSite string) error {
 	return nil
 }
 
+func getPkcs7FromEC2() (string, error) {
+	ctx := context.Background()
+
+	cfg, err := config.LoadDefaultConfig(ctx)
+	if err != nil {
+		return "", fmt.Errorf("unable to load AWS SDK config: %w", err)
+	}
+	client := imds.NewFromConfig(cfg)
+
+	output, err := client.GetMetadata(ctx, &imds.GetMetadataInput{
+		Path: "dynamic/instance-identity/pkcs7",
+	})
+	if err != nil {
+		return "", err
+	}
+
+	pkcs7Raw, err := io.ReadAll(output.Content)
+	if err != nil {
+		return "", fmt.Errorf("failed to read PKCS7 content: %w", err)
+	}
+	pkcs7 := "-----BEGIN PKCS7-----\n" + strings.TrimSpace(string(pkcs7Raw)) + "\n-----END PKCS7-----\n"
+
+	// TODO: remove this print
+	fmt.Println("PKCS7 PEM:\n", pkcs7[0:20]+"...")
+	return pkcs7, nil
+}
+
 // runSelfEnrollmentToConfig performs self-enrollment with API key and outputs configuration to stdout
-func runSelfEnrollmentToConfig(apiKey, appKey, datadogSite string) error {
+func runSelfEnrollmentToConfig(apiKey, appKey, datadogSite string, selfAuth bool) error {
+	// Get pkcs7 with EC2 identity document
+	pkcs7 := ""
+	if selfAuth {
+		var err error
+		pkcs7, err = getPkcs7FromEC2()
+		if err != nil {
+			return fmt.Errorf("failed to get PKCS7 from EC2: %w", err)
+		}
+	}
+
 	// Generate ECDSA key pair
 	privateKey, err := generateKeys()
 	if err != nil {
@@ -197,7 +237,7 @@ func runSelfEnrollmentToConfig(apiKey, appKey, datadogSite string) error {
 	// Send self-enrollment request using OPMS client with API key
 	ddHost := strings.Join([]string{"api", datadogSite}, ".")
 	enrollmentClient := opms.NewEnrollmentClient(ddHost)
-	response, err := enrollmentClient.SendSelfEnrollmentRequest(context.Background(), apiKey, appKey, string(publicKeyJSON))
+	response, err := enrollmentClient.SendSelfEnrollmentRequest(context.Background(), apiKey, appKey, string(publicKeyJSON), pkcs7)
 	if err != nil {
 		return fmt.Errorf("self-enrollment request failed: %w", err)
 	}
