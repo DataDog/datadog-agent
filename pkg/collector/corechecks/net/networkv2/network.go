@@ -460,7 +460,7 @@ func getEthtoolMetrics(driverName string, statsMap map[string]uint64) map[string
 				// Extract the queue and the metric name from ethtool stat name:
 				//   tx0_bytes -> (queue:0, tx_bytes)
 				//   rx1_packets -> (queue:1, rx_packets)
-				parts := strings.SplitN(statName, "_")
+				parts := strings.Split(statName, "_")
 				queueIndex := -1
 				for i, part := range parts {
 					if !strings.HasPrefix(part, "rx") || !strings.HasPrefix(part, "tx") {
@@ -476,7 +476,7 @@ func getEthtoolMetrics(driverName string, statsMap map[string]uint64) map[string
 					continueCase = true
 				} else {
 					parts = append(parts[queueIndex][:2], parts[queueIndex+1:]...)
-					queueTag = "queue:" + queueNum
+					queueTag = fmt.Sprintf("queue:%d", queueNum)
 					newKey = strings.Join(parts, "_")
 					metricPrefix = ".queue."
 					continueCase = false
