@@ -103,9 +103,9 @@ def for_each(
     """
     Run the given command in the directory of each module.
     """
-    assert not (
-        use_targets_path and use_lint_targets_path
-    ), "Only one of use_targets_path and use_lint_targets_path can be set"
+    assert not (use_targets_path and use_lint_targets_path), (
+        "Only one of use_targets_path and use_lint_targets_path can be set"
+    )
 
     for mod in get_default_modules().values():
         if skip_untagged and not mod.should_tag:
@@ -361,6 +361,9 @@ def add_all_replace(ctx: Context):
 
     # Second we iterate over all go.mod and update them
     for mod in gomods:
+        # Skip comp/otelcol/collector-contrib/impl directory
+        if mod.independent:
+            continue
         if mod.should_replace_internal_modules:
             update_go_mod(mod_to_replace, mod.path)
 
