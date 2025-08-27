@@ -183,6 +183,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 
 	_ "github.com/DataDog/datadog-agent/pkg/collector/agonsticapi" // Blank import used to load the runtime agnostic API for checks
+	_ "github.com/DataDog/datadog-agent/pkg/collector/shellscript" // Blank import used to load the shellscript loader for checks
 
 	// runtime init routines
 	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
