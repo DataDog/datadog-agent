@@ -10,7 +10,7 @@ Probes:
       subprogram: {subprogram: 1}
       events:
         - ID: 1
-          Type: 302 EventRootType Probe[main.HandleHTTP]
+          Type: 294 EventRootType Probe[main.HandleHTTP]
           InjectionPoints: [{PC: "0x859980", Frameless: true}]
           Condition: null
     - id: look_at_the_request
@@ -23,7 +23,7 @@ Probes:
       subprogram: {subprogram: 2}
       events:
         - ID: 2
-          Type: 303 EventRootType Probe[main.LookAtTheRequest]
+          Type: 295 EventRootType Probe[main.LookAtTheRequest]
           InjectionPoints: [{PC: "0x859c5c", Frameless: true}]
           Condition: null
 Subprograms:
@@ -362,7 +362,7 @@ Types:
         - Name: clearSeq
           Offset: 40
           Type: 17 BaseType uint64
-      TablePtrSliceType: 242 GoSliceDataType []*table<string,[]string>.array
+      TablePtrSliceType: 230 GoSliceDataType []*table<string,[]string>.array
       GroupType: 25 StructureType noalg.map.group[string][]string
     - __kind: BaseType
       ID: 17
@@ -429,7 +429,7 @@ Types:
           Offset: 8
           Type: 17 BaseType uint64
       GroupType: 25 StructureType noalg.map.group[string][]string
-      GroupSliceType: 243 GoSliceDataType []noalg.map.group[string][]string.array
+      GroupSliceType: 231 GoSliceDataType []noalg.map.group[string][]string.array
     - __kind: PointerType
       ID: 24
       Name: '*noalg.map.group[string][]string'
@@ -598,7 +598,7 @@ Types:
         - Name: clearSeq
           Offset: 40
           Type: 17 BaseType uint64
-      TablePtrSliceType: 238 GoSliceDataType []*table<string,[]*mime/multipart.FileHeader>.array
+      TablePtrSliceType: 234 GoSliceDataType []*table<string,[]*mime/multipart.FileHeader>.array
       GroupType: 45 StructureType noalg.map.group[string][]*mime/multipart.FileHeader
     - __kind: PointerType
       ID: 40
@@ -647,7 +647,7 @@ Types:
           Offset: 8
           Type: 17 BaseType uint64
       GroupType: 45 StructureType noalg.map.group[string][]*mime/multipart.FileHeader
-      GroupSliceType: 239 GoSliceDataType []noalg.map.group[string][]*mime/multipart.FileHeader.array
+      GroupSliceType: 235 GoSliceDataType []noalg.map.group[string][]*mime/multipart.FileHeader.array
     - __kind: PointerType
       ID: 44
       Name: '*noalg.map.group[string][]*mime/multipart.FileHeader'
@@ -704,7 +704,7 @@ Types:
         - Name: cap
           Offset: 16
           Type: 8 BaseType int
-      Data: 240 GoSliceDataType []*mime/multipart.FileHeader.array
+      Data: 236 GoSliceDataType []*mime/multipart.FileHeader.array
     - __kind: PointerType
       ID: 49
       Name: '**mime/multipart.FileHeader'
@@ -769,7 +769,7 @@ Types:
         - Name: cap
           Offset: 16
           Type: 8 BaseType int
-      Data: 244 GoSliceDataType []uint8.array
+      Data: 238 GoSliceDataType []uint8.array
     - __kind: PointerType
       ID: 54
       Name: '*crypto/tls.ConnectionState'
@@ -857,7 +857,7 @@ Types:
         - Name: cap
           Offset: 16
           Type: 8 BaseType int
-      Data: 246 GoSliceDataType []*crypto/x509.Certificate.array
+      Data: 240 GoSliceDataType []*crypto/x509.Certificate.array
     - __kind: PointerType
       ID: 58
       Name: '**crypto/x509.Certificate'
@@ -1095,7 +1095,7 @@ Types:
         - Name: cap
           Offset: 16
           Type: 8 BaseType int
-      Data: 248 GoSliceDataType math/big.nat.array
+      Data: 242 GoSliceDataType math/big.nat.array
     - __kind: PointerType
       ID: 67
       Name: '*math/big.Word'
@@ -1165,7 +1165,7 @@ Types:
         - Name: cap
           Offset: 16
           Type: 8 BaseType int
-      Data: 250 GoSliceDataType []crypto/x509/pkix.AttributeTypeAndValue.array
+      Data: 244 GoSliceDataType []crypto/x509/pkix.AttributeTypeAndValue.array
     - __kind: PointerType
       ID: 71
       Name: '*crypto/x509/pkix.AttributeTypeAndValue'
@@ -1202,7 +1202,7 @@ Types:
         - Name: cap
           Offset: 16
           Type: 8 BaseType int
-      Data: 252 GoSliceDataType encoding/asn1.ObjectIdentifier.array
+      Data: 246 GoSliceDataType encoding/asn1.ObjectIdentifier.array
     - __kind: PointerType
       ID: 74
       Name: '*int'
@@ -1277,7 +1277,7 @@ Types:
         - Name: cap
           Offset: 16
           Type: 8 BaseType int
-      Data: 254 GoSliceDataType []time.zone.array
+      Data: 248 GoSliceDataType []time.zone.array
     - __kind: PointerType
       ID: 79
       Name: '*time.zone'
@@ -1317,7 +1317,7 @@ Types:
         - Name: cap
           Offset: 16
           Type: 8 BaseType int
-      Data: 256 GoSliceDataType []time.zoneTrans.array
+      Data: 250 GoSliceDataType []time.zoneTrans.array
     - __kind: PointerType
       ID: 82
       Name: '*time.zoneTrans'
@@ -1366,7 +1366,7 @@ Types:
         - Name: cap
           Offset: 16
           Type: 8 BaseType int
-      Data: 258 GoSliceDataType []crypto/x509/pkix.Extension.array
+      Data: 252 GoSliceDataType []crypto/x509/pkix.Extension.array
     - __kind: PointerType
       ID: 86
       Name: '*crypto/x509/pkix.Extension'
@@ -1406,7 +1406,7 @@ Types:
         - Name: cap
           Offset: 16
           Type: 8 BaseType int
-      Data: 260 GoSliceDataType []encoding/asn1.ObjectIdentifier.array
+      Data: 254 GoSliceDataType []encoding/asn1.ObjectIdentifier.array
     - __kind: PointerType
       ID: 89
       Name: '*encoding/asn1.ObjectIdentifier'
@@ -1430,7 +1430,7 @@ Types:
         - Name: cap
           Offset: 16
           Type: 8 BaseType int
-      Data: 262 GoSliceDataType []crypto/x509.ExtKeyUsage.array
+      Data: 256 GoSliceDataType []crypto/x509.ExtKeyUsage.array
     - __kind: PointerType
       ID: 91
       Name: '*crypto/x509.ExtKeyUsage'
@@ -1460,7 +1460,7 @@ Types:
         - Name: cap
           Offset: 16
           Type: 8 BaseType int
-      Data: 264 GoSliceDataType []net.IP.array
+      Data: 258 GoSliceDataType []net.IP.array
     - __kind: PointerType
       ID: 94
       Name: '*net.IP'
@@ -1484,7 +1484,7 @@ Types:
         - Name: cap
           Offset: 16
           Type: 8 BaseType int
-      Data: 266 GoSliceDataType net.IP.array
+      Data: 260 GoSliceDataType net.IP.array
     - __kind: GoSliceHeaderType
       ID: 96
       Name: '[]*net/url.URL'
@@ -1501,7 +1501,7 @@ Types:
         - Name: cap
           Offset: 16
           Type: 8 BaseType int
-      Data: 268 GoSliceDataType []*net/url.URL.array
+      Data: 262 GoSliceDataType []*net/url.URL.array
     - __kind: PointerType
       ID: 97
       Name: '**net/url.URL'
@@ -1523,7 +1523,7 @@ Types:
         - Name: cap
           Offset: 16
           Type: 8 BaseType int
-      Data: 270 GoSliceDataType []*net.IPNet.array
+      Data: 264 GoSliceDataType []*net.IPNet.array
     - __kind: PointerType
       ID: 99
       Name: '**net.IPNet'
@@ -1566,7 +1566,7 @@ Types:
         - Name: cap
           Offset: 16
           Type: 8 BaseType int
-      Data: 272 GoSliceDataType net.IPMask.array
+      Data: 266 GoSliceDataType net.IPMask.array
     - __kind: GoSliceHeaderType
       ID: 103
       Name: '[]crypto/x509.OID'
@@ -1583,7 +1583,7 @@ Types:
         - Name: cap
           Offset: 16
           Type: 8 BaseType int
-      Data: 274 GoSliceDataType []crypto/x509.OID.array
+      Data: 268 GoSliceDataType []crypto/x509.OID.array
     - __kind: PointerType
       ID: 104
       Name: '*crypto/x509.OID'
@@ -1617,7 +1617,7 @@ Types:
         - Name: cap
           Offset: 16
           Type: 8 BaseType int
-      Data: 276 GoSliceDataType []crypto/x509.PolicyMapping.array
+      Data: 270 GoSliceDataType []crypto/x509.PolicyMapping.array
     - __kind: PointerType
       ID: 107
       Name: '*crypto/x509.PolicyMapping'
@@ -1654,7 +1654,7 @@ Types:
         - Name: cap
           Offset: 16
           Type: 8 BaseType int
-      Data: 278 GoSliceDataType [][]*crypto/x509.Certificate.array
+      Data: 272 GoSliceDataType [][]*crypto/x509.Certificate.array
     - __kind: PointerType
       ID: 110
       Name: '*[]*crypto/x509.Certificate'
@@ -1677,7 +1677,7 @@ Types:
         - Name: cap
           Offset: 16
           Type: 8 BaseType int
-      Data: 280 GoSliceDataType [][]uint8.array
+      Data: 274 GoSliceDataType [][]uint8.array
     - __kind: PointerType
       ID: 112
       Name: '*[]uint8'
@@ -1816,7 +1816,7 @@ Types:
         - Name: cap
           Offset: 16
           Type: 8 BaseType int
-      Data: 282 GoSliceDataType []net/http.segment.array
+      Data: 276 GoSliceDataType []net/http.segment.array
     - __kind: PointerType
       ID: 122
       Name: '*net/http.segment'
@@ -1885,7 +1885,7 @@ Types:
         - Name: clearSeq
           Offset: 40
           Type: 17 BaseType uint64
-      TablePtrSliceType: 284 GoSliceDataType []*table<string,string>.array
+      TablePtrSliceType: 278 GoSliceDataType []*table<string,string>.array
       GroupType: 132 StructureType noalg.map.group[string]string
     - __kind: PointerType
       ID: 127
@@ -1934,7 +1934,7 @@ Types:
           Offset: 8
           Type: 17 BaseType uint64
       GroupType: 132 StructureType noalg.map.group[string]string
-      GroupSliceType: 285 GoSliceDataType []noalg.map.group[string]string.array
+      GroupSliceType: 279 GoSliceDataType []noalg.map.group[string]string.array
     - __kind: PointerType
       ID: 131
       Name: '*noalg.map.group[string]string'
@@ -2194,7 +2194,7 @@ Types:
         - Name: clearSeq
           Offset: 40
           Type: 17 BaseType uint64
-      TablePtrSliceType: 298 GoSliceDataType []*table<string,interface {}>.array
+      TablePtrSliceType: 280 GoSliceDataType []*table<string,interface {}>.array
       GroupType: 153 StructureType noalg.map.group[string]interface {}
     - __kind: PointerType
       ID: 148
@@ -2243,7 +2243,7 @@ Types:
           Offset: 8
           Type: 17 BaseType uint64
       GroupType: 153 StructureType noalg.map.group[string]interface {}
-      GroupSliceType: 299 GoSliceDataType []noalg.map.group[string]interface {}.array
+      GroupSliceType: 281 GoSliceDataType []noalg.map.group[string]interface {}.array
     - __kind: PointerType
       ID: 152
       Name: '*noalg.map.group[string]interface {}'
@@ -2329,7 +2329,7 @@ Types:
         - Name: clearSeq
           Offset: 40
           Type: 17 BaseType uint64
-      TablePtrSliceType: 288 GoSliceDataType []*table<string,float64>.array
+      TablePtrSliceType: 282 GoSliceDataType []*table<string,float64>.array
       GroupType: 164 StructureType noalg.map.group[string]float64
     - __kind: PointerType
       ID: 159
@@ -2378,7 +2378,7 @@ Types:
           Offset: 8
           Type: 17 BaseType uint64
       GroupType: 164 StructureType noalg.map.group[string]float64
-      GroupSliceType: 289 GoSliceDataType []noalg.map.group[string]float64.array
+      GroupSliceType: 283 GoSliceDataType []noalg.map.group[string]float64.array
     - __kind: PointerType
       ID: 163
       Name: '*noalg.map.group[string]float64'
@@ -2441,7 +2441,7 @@ Types:
         - Name: cap
           Offset: 16
           Type: 8 BaseType int
-      Data: 290 GoSliceDataType []github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanLink.array
+      Data: 284 GoSliceDataType []github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanLink.array
     - __kind: PointerType
       ID: 169
       Name: '*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanLink'
@@ -2490,7 +2490,7 @@ Types:
         - Name: cap
           Offset: 16
           Type: 8 BaseType int
-      Data: 292 GoSliceDataType []github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEvent.array
+      Data: 286 GoSliceDataType []github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEvent.array
     - __kind: PointerType
       ID: 172
       Name: '*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEvent'
@@ -2562,7 +2562,7 @@ Types:
         - Name: clearSeq
           Offset: 40
           Type: 17 BaseType uint64
-      TablePtrSliceType: 294 GoSliceDataType []*table<string,*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute>.array
+      TablePtrSliceType: 288 GoSliceDataType []*table<string,*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute>.array
       GroupType: 182 StructureType noalg.map.group[string]*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute
     - __kind: PointerType
       ID: 177
@@ -2611,7 +2611,7 @@ Types:
           Offset: 8
           Type: 17 BaseType uint64
       GroupType: 182 StructureType noalg.map.group[string]*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute
-      GroupSliceType: 295 GoSliceDataType []noalg.map.group[string]*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute.array
+      GroupSliceType: 289 GoSliceDataType []noalg.map.group[string]*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute.array
     - __kind: PointerType
       ID: 181
       Name: '*noalg.map.group[string]*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute'
@@ -2723,7 +2723,7 @@ Types:
         - Name: cap
           Offset: 16
           Type: 8 BaseType int
-      Data: 296 GoSliceDataType []*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventArrayAttributeValue.array
+      Data: 290 GoSliceDataType []*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventArrayAttributeValue.array
     - __kind: PointerType
       ID: 191
       Name: '**github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventArrayAttributeValue'
@@ -2888,7 +2888,7 @@ Types:
         - Name: cap
           Offset: 16
           Type: 8 BaseType int
-      Data: 300 GoSliceDataType []*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.Span.array
+      Data: 292 GoSliceDataType []*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.Span.array
     - __kind: PointerType
       ID: 201
       Name: '**github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.Span'
@@ -3116,346 +3116,306 @@ Types:
       Pointee: 232 GoSliceDataType []string.array
     - __kind: GoSliceDataType
       ID: 234
-      Name: '[]*table<string,[]string>.array'
-      ByteSize: 8192
-      Element: 20 PointerType *table<string,[]string>
-    - __kind: GoSliceDataType
-      ID: 235
-      Name: '[]noalg.map.group[string][]string.array'
-      ByteSize: 2048
-      Element: 25 StructureType noalg.map.group[string][]string
-    - __kind: GoSliceDataType
-      ID: 236
-      Name: '[]*table<string,[]string>.array'
-      ByteSize: 8192
-      Element: 20 PointerType *table<string,[]string>
-    - __kind: GoSliceDataType
-      ID: 237
-      Name: '[]noalg.map.group[string][]string.array'
-      ByteSize: 2048
-      Element: 25 StructureType noalg.map.group[string][]string
-    - __kind: GoSliceDataType
-      ID: 238
       Name: '[]*table<string,[]*mime/multipart.FileHeader>.array'
       ByteSize: 8192
       Element: 41 PointerType *table<string,[]*mime/multipart.FileHeader>
     - __kind: GoSliceDataType
-      ID: 239
+      ID: 235
       Name: '[]noalg.map.group[string][]*mime/multipart.FileHeader.array'
       ByteSize: 2048
       Element: 45 StructureType noalg.map.group[string][]*mime/multipart.FileHeader
     - __kind: GoSliceDataType
-      ID: 240
+      ID: 236
       Name: '[]*mime/multipart.FileHeader.array'
       ByteSize: 2048
       Element: 50 PointerType *mime/multipart.FileHeader
     - __kind: PointerType
-      ID: 241
+      ID: 237
       Name: '*[]*mime/multipart.FileHeader.array'
       ByteSize: 8
-      Pointee: 240 GoSliceDataType []*mime/multipart.FileHeader.array
+      Pointee: 236 GoSliceDataType []*mime/multipart.FileHeader.array
     - __kind: GoSliceDataType
-      ID: 242
-      Name: '[]*table<string,[]string>.array'
-      ByteSize: 8192
-      Element: 20 PointerType *table<string,[]string>
-    - __kind: GoSliceDataType
-      ID: 243
-      Name: '[]noalg.map.group[string][]string.array'
-      ByteSize: 2048
-      Element: 25 StructureType noalg.map.group[string][]string
-    - __kind: GoSliceDataType
-      ID: 244
+      ID: 238
       Name: '[]uint8.array'
       ByteSize: 2048
       Element: 7 BaseType uint8
     - __kind: PointerType
-      ID: 245
+      ID: 239
       Name: '*[]uint8.array'
       ByteSize: 8
-      Pointee: 244 GoSliceDataType []uint8.array
+      Pointee: 238 GoSliceDataType []uint8.array
     - __kind: GoSliceDataType
-      ID: 246
+      ID: 240
       Name: '[]*crypto/x509.Certificate.array'
       ByteSize: 2048
       Element: 59 PointerType *crypto/x509.Certificate
     - __kind: PointerType
-      ID: 247
+      ID: 241
       Name: '*[]*crypto/x509.Certificate.array'
       ByteSize: 8
-      Pointee: 246 GoSliceDataType []*crypto/x509.Certificate.array
+      Pointee: 240 GoSliceDataType []*crypto/x509.Certificate.array
     - __kind: GoSliceDataType
-      ID: 248
+      ID: 242
       Name: math/big.nat.array
       ByteSize: 2048
       Element: 68 BaseType math/big.Word
     - __kind: PointerType
-      ID: 249
+      ID: 243
       Name: '*math/big.nat.array'
       ByteSize: 8
-      Pointee: 248 GoSliceDataType math/big.nat.array
+      Pointee: 242 GoSliceDataType math/big.nat.array
     - __kind: GoSliceDataType
-      ID: 250
+      ID: 244
       Name: '[]crypto/x509/pkix.AttributeTypeAndValue.array'
       ByteSize: 2048
       Element: 72 StructureType crypto/x509/pkix.AttributeTypeAndValue
     - __kind: PointerType
-      ID: 251
+      ID: 245
       Name: '*[]crypto/x509/pkix.AttributeTypeAndValue.array'
       ByteSize: 8
-      Pointee: 250 GoSliceDataType []crypto/x509/pkix.AttributeTypeAndValue.array
+      Pointee: 244 GoSliceDataType []crypto/x509/pkix.AttributeTypeAndValue.array
     - __kind: GoSliceDataType
-      ID: 252
+      ID: 246
       Name: encoding/asn1.ObjectIdentifier.array
       ByteSize: 2048
       Element: 8 BaseType int
     - __kind: PointerType
-      ID: 253
+      ID: 247
       Name: '*encoding/asn1.ObjectIdentifier.array'
       ByteSize: 8
-      Pointee: 252 GoSliceDataType encoding/asn1.ObjectIdentifier.array
+      Pointee: 246 GoSliceDataType encoding/asn1.ObjectIdentifier.array
     - __kind: GoSliceDataType
-      ID: 254
+      ID: 248
       Name: '[]time.zone.array'
       ByteSize: 2048
       Element: 80 StructureType time.zone
     - __kind: PointerType
-      ID: 255
+      ID: 249
       Name: '*[]time.zone.array'
       ByteSize: 8
-      Pointee: 254 GoSliceDataType []time.zone.array
+      Pointee: 248 GoSliceDataType []time.zone.array
     - __kind: GoSliceDataType
-      ID: 256
+      ID: 250
       Name: '[]time.zoneTrans.array'
       ByteSize: 2048
       Element: 83 StructureType time.zoneTrans
     - __kind: PointerType
-      ID: 257
+      ID: 251
       Name: '*[]time.zoneTrans.array'
       ByteSize: 8
-      Pointee: 256 GoSliceDataType []time.zoneTrans.array
+      Pointee: 250 GoSliceDataType []time.zoneTrans.array
     - __kind: GoSliceDataType
-      ID: 258
+      ID: 252
       Name: '[]crypto/x509/pkix.Extension.array'
       ByteSize: 2048
       Element: 87 StructureType crypto/x509/pkix.Extension
     - __kind: PointerType
-      ID: 259
+      ID: 253
       Name: '*[]crypto/x509/pkix.Extension.array'
       ByteSize: 8
-      Pointee: 258 GoSliceDataType []crypto/x509/pkix.Extension.array
+      Pointee: 252 GoSliceDataType []crypto/x509/pkix.Extension.array
     - __kind: GoSliceDataType
-      ID: 260
+      ID: 254
       Name: '[]encoding/asn1.ObjectIdentifier.array'
       ByteSize: 2048
       Element: 73 GoSliceHeaderType encoding/asn1.ObjectIdentifier
     - __kind: PointerType
-      ID: 261
+      ID: 255
       Name: '*[]encoding/asn1.ObjectIdentifier.array'
       ByteSize: 8
-      Pointee: 260 GoSliceDataType []encoding/asn1.ObjectIdentifier.array
+      Pointee: 254 GoSliceDataType []encoding/asn1.ObjectIdentifier.array
     - __kind: GoSliceDataType
-      ID: 262
+      ID: 256
       Name: '[]crypto/x509.ExtKeyUsage.array'
       ByteSize: 2048
       Element: 92 BaseType crypto/x509.ExtKeyUsage
     - __kind: PointerType
-      ID: 263
+      ID: 257
       Name: '*[]crypto/x509.ExtKeyUsage.array'
       ByteSize: 8
-      Pointee: 262 GoSliceDataType []crypto/x509.ExtKeyUsage.array
+      Pointee: 256 GoSliceDataType []crypto/x509.ExtKeyUsage.array
     - __kind: GoSliceDataType
-      ID: 264
+      ID: 258
       Name: '[]net.IP.array'
       ByteSize: 2048
       Element: 95 GoSliceHeaderType net.IP
     - __kind: PointerType
-      ID: 265
+      ID: 259
       Name: '*[]net.IP.array'
       ByteSize: 8
-      Pointee: 264 GoSliceDataType []net.IP.array
+      Pointee: 258 GoSliceDataType []net.IP.array
     - __kind: GoSliceDataType
-      ID: 266
+      ID: 260
       Name: net.IP.array
       ByteSize: 2048
       Element: 7 BaseType uint8
     - __kind: PointerType
-      ID: 267
+      ID: 261
       Name: '*net.IP.array'
       ByteSize: 8
-      Pointee: 266 GoSliceDataType net.IP.array
+      Pointee: 260 GoSliceDataType net.IP.array
     - __kind: GoSliceDataType
-      ID: 268
+      ID: 262
       Name: '[]*net/url.URL.array'
       ByteSize: 2048
       Element: 9 PointerType *net/url.URL
     - __kind: PointerType
-      ID: 269
+      ID: 263
       Name: '*[]*net/url.URL.array'
       ByteSize: 8
-      Pointee: 268 GoSliceDataType []*net/url.URL.array
+      Pointee: 262 GoSliceDataType []*net/url.URL.array
     - __kind: GoSliceDataType
-      ID: 270
+      ID: 264
       Name: '[]*net.IPNet.array'
       ByteSize: 2048
       Element: 100 PointerType *net.IPNet
     - __kind: PointerType
-      ID: 271
+      ID: 265
       Name: '*[]*net.IPNet.array'
       ByteSize: 8
-      Pointee: 270 GoSliceDataType []*net.IPNet.array
+      Pointee: 264 GoSliceDataType []*net.IPNet.array
     - __kind: GoSliceDataType
-      ID: 272
+      ID: 266
       Name: net.IPMask.array
       ByteSize: 2048
       Element: 7 BaseType uint8
     - __kind: PointerType
-      ID: 273
+      ID: 267
       Name: '*net.IPMask.array'
       ByteSize: 8
-      Pointee: 272 GoSliceDataType net.IPMask.array
+      Pointee: 266 GoSliceDataType net.IPMask.array
     - __kind: GoSliceDataType
-      ID: 274
+      ID: 268
       Name: '[]crypto/x509.OID.array'
       ByteSize: 2048
       Element: 105 StructureType crypto/x509.OID
     - __kind: PointerType
-      ID: 275
+      ID: 269
       Name: '*[]crypto/x509.OID.array'
       ByteSize: 8
-      Pointee: 274 GoSliceDataType []crypto/x509.OID.array
+      Pointee: 268 GoSliceDataType []crypto/x509.OID.array
     - __kind: GoSliceDataType
-      ID: 276
+      ID: 270
       Name: '[]crypto/x509.PolicyMapping.array'
       ByteSize: 2048
       Element: 108 StructureType crypto/x509.PolicyMapping
     - __kind: PointerType
-      ID: 277
+      ID: 271
       Name: '*[]crypto/x509.PolicyMapping.array'
       ByteSize: 8
-      Pointee: 276 GoSliceDataType []crypto/x509.PolicyMapping.array
+      Pointee: 270 GoSliceDataType []crypto/x509.PolicyMapping.array
     - __kind: GoSliceDataType
-      ID: 278
+      ID: 272
       Name: '[][]*crypto/x509.Certificate.array'
       ByteSize: 2048
       Element: 57 GoSliceHeaderType []*crypto/x509.Certificate
     - __kind: PointerType
-      ID: 279
+      ID: 273
       Name: '*[][]*crypto/x509.Certificate.array'
       ByteSize: 8
-      Pointee: 278 GoSliceDataType [][]*crypto/x509.Certificate.array
+      Pointee: 272 GoSliceDataType [][]*crypto/x509.Certificate.array
     - __kind: GoSliceDataType
-      ID: 280
+      ID: 274
       Name: '[][]uint8.array'
       ByteSize: 2048
       Element: 53 GoSliceHeaderType []uint8
     - __kind: PointerType
-      ID: 281
+      ID: 275
       Name: '*[][]uint8.array'
       ByteSize: 8
-      Pointee: 280 GoSliceDataType [][]uint8.array
+      Pointee: 274 GoSliceDataType [][]uint8.array
     - __kind: GoSliceDataType
-      ID: 282
+      ID: 276
       Name: '[]net/http.segment.array'
       ByteSize: 2048
       Element: 123 StructureType net/http.segment
     - __kind: PointerType
-      ID: 283
+      ID: 277
       Name: '*[]net/http.segment.array'
       ByteSize: 8
-      Pointee: 282 GoSliceDataType []net/http.segment.array
+      Pointee: 276 GoSliceDataType []net/http.segment.array
     - __kind: GoSliceDataType
-      ID: 284
+      ID: 278
       Name: '[]*table<string,string>.array'
       ByteSize: 8192
       Element: 128 PointerType *table<string,string>
     - __kind: GoSliceDataType
-      ID: 285
+      ID: 279
       Name: '[]noalg.map.group[string]string.array'
       ByteSize: 2048
       Element: 132 StructureType noalg.map.group[string]string
     - __kind: GoSliceDataType
-      ID: 286
+      ID: 280
       Name: '[]*table<string,interface {}>.array'
       ByteSize: 8192
       Element: 149 PointerType *table<string,interface {}>
     - __kind: GoSliceDataType
-      ID: 287
+      ID: 281
       Name: '[]noalg.map.group[string]interface {}.array'
       ByteSize: 2048
       Element: 153 StructureType noalg.map.group[string]interface {}
     - __kind: GoSliceDataType
-      ID: 288
+      ID: 282
       Name: '[]*table<string,float64>.array'
       ByteSize: 8192
       Element: 160 PointerType *table<string,float64>
     - __kind: GoSliceDataType
-      ID: 289
+      ID: 283
       Name: '[]noalg.map.group[string]float64.array'
       ByteSize: 2048
       Element: 164 StructureType noalg.map.group[string]float64
     - __kind: GoSliceDataType
-      ID: 290
+      ID: 284
       Name: '[]github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanLink.array'
       ByteSize: 2048
       Element: 170 StructureType github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanLink
     - __kind: PointerType
-      ID: 291
+      ID: 285
       Name: '*[]github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanLink.array'
       ByteSize: 8
-      Pointee: 290 GoSliceDataType []github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanLink.array
+      Pointee: 284 GoSliceDataType []github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanLink.array
     - __kind: GoSliceDataType
-      ID: 292
+      ID: 286
       Name: '[]github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEvent.array'
       ByteSize: 2048
       Element: 173 StructureType github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEvent
     - __kind: PointerType
-      ID: 293
+      ID: 287
       Name: '*[]github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEvent.array'
       ByteSize: 8
-      Pointee: 292 GoSliceDataType []github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEvent.array
+      Pointee: 286 GoSliceDataType []github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEvent.array
     - __kind: GoSliceDataType
-      ID: 294
+      ID: 288
       Name: '[]*table<string,*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute>.array'
       ByteSize: 8192
       Element: 178 PointerType *table<string,*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute>
     - __kind: GoSliceDataType
-      ID: 295
+      ID: 289
       Name: '[]noalg.map.group[string]*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute.array'
       ByteSize: 2048
       Element: 182 StructureType noalg.map.group[string]*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute
     - __kind: GoSliceDataType
-      ID: 296
+      ID: 290
       Name: '[]*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventArrayAttributeValue.array'
       ByteSize: 2048
       Element: 192 PointerType *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventArrayAttributeValue
     - __kind: PointerType
-      ID: 297
+      ID: 291
       Name: '*[]*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventArrayAttributeValue.array'
       ByteSize: 8
-      Pointee: 296 GoSliceDataType []*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventArrayAttributeValue.array
+      Pointee: 290 GoSliceDataType []*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventArrayAttributeValue.array
     - __kind: GoSliceDataType
-      ID: 298
-      Name: '[]*table<string,interface {}>.array'
-      ByteSize: 8192
-      Element: 149 PointerType *table<string,interface {}>
-    - __kind: GoSliceDataType
-      ID: 299
-      Name: '[]noalg.map.group[string]interface {}.array'
-      ByteSize: 2048
-      Element: 153 StructureType noalg.map.group[string]interface {}
-    - __kind: GoSliceDataType
-      ID: 300
+      ID: 292
       Name: '[]*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.Span.array'
       ByteSize: 2048
       Element: 135 PointerType *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.Span
     - __kind: PointerType
-      ID: 301
+      ID: 293
       Name: '*[]*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.Span.array'
       ByteSize: 8
-      Pointee: 300 GoSliceDataType []*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.Span.array
+      Pointee: 292 GoSliceDataType []*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.Span.array
     - __kind: EventRootType
-      ID: 302
+      ID: 294
       Name: Probe[main.HandleHTTP]
       ByteSize: 25
       PresenceBitsetSize: 1
@@ -3479,7 +3439,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 303
+      ID: 295
       Name: Probe[main.LookAtTheRequest]
       ByteSize: 17
       PresenceBitsetSize: 1
@@ -3493,6 +3453,6 @@ Types:
                   Variable: {subprogram: 2, index: 0, name: path}
                   Offset: 0
                   ByteSize: 16
-MaxTypeID: 303
+MaxTypeID: 295
 Issues: []
 GoModuledataInfo: {FirstModuledataAddr: "0x139d860", TypesOffset: 296}

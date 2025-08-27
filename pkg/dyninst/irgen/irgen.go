@@ -600,6 +600,19 @@ func completeGoMapType(tc *typeCatalog, t *ir.GoMapType) error {
 			t.Name, t.HeaderType,
 		)
 	}
+
+	if current := tc.typesByID[headerType.ID]; current != headerType {
+		_, isHMapHeaderType := current.(*ir.GoHMapHeaderType)
+		_, isSwissMapHeaderType := current.(*ir.GoSwissMapHeaderType)
+		if isHMapHeaderType || isSwissMapHeaderType {
+			return nil // already completed
+		}
+		return fmt.Errorf(
+			"header type for map type %q has been completed to %T, expected %T",
+			t.Name, current, headerType,
+		)
+	}
+
 	// Use the type name to determine whether this is an hmap or a swiss map.
 	// We could alternatively use the go version or the structure field layout.
 	// This works for now.
@@ -610,8 +623,8 @@ func completeGoMapType(tc *typeCatalog, t *ir.GoMapType) error {
 		return completeHMapHeaderType(tc, headerType)
 	default:
 		return fmt.Errorf(
-			"unexpected header type for map type %q: %T",
-			t.Name, t.HeaderType,
+			"unexpected header type for map type %q: %q %T",
+			t.Name, t.HeaderType.GetName(), t.HeaderType,
 		)
 	}
 }
