@@ -157,13 +157,7 @@ func postStartExperimentDatadogAgentBackground(ctx context.Context) error {
 	defer cancelRemoveCtx()
 	err := removeAgentIfInstalledAndRestartOnFailure(removeCtx)
 	if err != nil {
-		if err == windows.ERROR_INSTALL_SOURCE_ABSENT {
-			// MSI Error 1612: Remove agent failed due to missing install source files
-			// We will continue with the experiment and try to install the Agent with the MSI
-			log.Warnf("Remove agent if installed failed: %s", err)
-		} else {
-			return err
-		}
+		return err
 	}
 
 	args := getStartExperimentMSIArgs()

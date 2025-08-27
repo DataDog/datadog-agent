@@ -309,8 +309,8 @@ namespace WixSetup.Datadog_Agent
                     new Id(nameof(SetupInstaller)),
                     CustomActions.SetupInstaller,
                     Return.check,
-                    When.After,
-                    Step.InstallServices,
+                    When.Before,
+                    Step.InstallFinalize,
                     Conditions.FirstInstall | Conditions.Upgrading
                 )
             {
