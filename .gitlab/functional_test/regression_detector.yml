@@ -32,6 +32,7 @@ single_machine_performance-regression_detector-merge_base_check:
       if [[ ${BASELINE_COMMIT_TIME} -le ${FOUR_DAYS_BEFORE_NOW} ]]
       then
           echo "ERROR: Merge-base of this branch is too old for SMP. Please update your branch by merging an up-to-date main branch into your branch or by rebasing it on an up-to-date main branch."
+          datadog-ci tag --level job --tags smp_merge_base_failure_reason:"branch_too_old"
           exit 1
       fi
     - echo "Commit ${BASELINE_SHA} is recent enough"
@@ -56,6 +57,7 @@ single_machine_performance-regression_detector-merge_base_check:
           if [[ ${BASELINE_COMMIT_TIME} -le ${FOUR_DAYS_BEFORE_NOW} ]]
           then
               echo "ERROR: Merge-base of this branch is too old for SMP. Please update your branch by merging an up-to-date main branch into your branch or by rebasing it on an up-to-date main branch."
+              datadog-ci tag --level job --tags smp_merge_base_failure_reason:"branch_too_old"
               exit 1
           fi
           echo "Commit ${BASELINE_SHA} is recent enough"
