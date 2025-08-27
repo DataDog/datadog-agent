@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets"
 	"github.com/DataDog/datadog-secret-backend/secret"
@@ -29,11 +30,22 @@ type keyvaultClient interface {
 
 // getKeyvaultClient is a variable that holds the function to create a new keyvaultClient
 // it will be overwritten in tests
-var getKeyvaultClient = func(keyVaultURL string) (keyvaultClient, error) {
-	cred, err := azidentity.NewDefaultAzureCredential(nil)
-	if err != nil {
-		return nil, fmt.Errorf("getting default credentials: %s", err)
+var getKeyvaultClient = func(keyVaultURL, clientID string) (keyvaultClient, error) {
+	var err error
+	var cred azcore.TokenCredential
+	if clientID == "" {
+		cred, err = azidentity.NewDefaultAzureCredential(nil)
+		if err != nil {
+			return nil, fmt.Errorf("clientID not provided, could not get credentials: %s", err)
+		}
+	} else {
+		opts := azidentity.ManagedIdentityCredentialOptions{ID: azidentity.ClientID(clientID)}
+		cred, err = azidentity.NewManagedIdentityCredential(&opts)
+		if err != nil {
+			return nil, fmt.Errorf("getting identity credentials: %s", err)
+		}
 	}
+
 	client, err := azsecrets.NewClient(keyVaultURL, cred, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create client: %v", err)
@@ -45,7 +57,7 @@ var getKeyvaultClient = func(keyVaultURL string) (keyvaultClient, error) {
 type KeyVaultBackendConfig struct {
 	BackendType string `mapstructure:"backend_type"`
 	KeyVaultURL string `mapstructure:"keyvaulturl"`
-	SecretID    string `mapstructure:"secret_id"`
+	ClientID    string `mapstructure:"clientid"`
 }
 
 // KeyVaultBackend is a backend to fetch secrets from Azure
@@ -62,7 +74,7 @@ func NewKeyVaultBackend(bc map[string]interface{}) (*KeyVaultBackend, error) {
 		return nil, fmt.Errorf("failed to map backend configuration: %s", err)
 	}
 
-	client, err := getKeyvaultClient(backendConfig.KeyVaultURL)
+	client, err := getKeyvaultClient(backendConfig.KeyVaultURL, backendConfig.ClientID)
 	if err != nil {
 		return nil, err
 	}
