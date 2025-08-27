@@ -266,7 +266,7 @@ export_testing_public_key:
       - gpg-testing-public-key.asc
     expire_in: 1 day
 
-deploy_macos_testing_x64-a7:
+deploy_dmg_testing-a7_x64:
   rules:
     - !reference [.except_no_tests_no_deploy]
     - !reference [.except_mergequeue]

@@ -82,7 +82,7 @@ deploy_deb_testing*                  @DataDog/agent-delivery
 deploy_rpm_testing*                  @DataDog/agent-delivery
 deploy_suse_rpm_testing*             @DataDog/agent-delivery
 deploy_windows_testing*              @DataDog/agent-delivery
-deploy_macos_testing*                @DataDog/agent-delivery
+deploy_dmg_testing*                @DataDog/agent-delivery
 
 # Image build
 docker_build*                        @DataDog/agent-build
