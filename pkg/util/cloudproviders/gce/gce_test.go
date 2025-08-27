@@ -24,10 +24,11 @@ func reset() {
 	clusterNameFetcher.Reset()
 	publicIPv4Fetcher.Reset()
 	networkIDFetcher.Reset()
+	ccridFetcher.Reset()
 }
 
 func TestGetHostname(t *testing.T) {
-	reset()
+	defer reset()
 	ctx := context.Background()
 	expected := "gke-cluster-massi-agent59-default-pool-6087cc76-9cfa"
 	var lastRequest *http.Request
@@ -46,7 +47,7 @@ func TestGetHostname(t *testing.T) {
 }
 
 func TestGetHostnameEmptyBody(t *testing.T) {
-	reset()
+	defer reset()
 	ctx := context.Background()
 	var lastRequest *http.Request
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -63,7 +64,7 @@ func TestGetHostnameEmptyBody(t *testing.T) {
 }
 
 func TestGetHostAliases(t *testing.T) {
-	reset()
+	defer reset()
 	ctx := context.Background()
 	lastRequests := []*http.Request{}
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -89,7 +90,7 @@ func TestGetHostAliases(t *testing.T) {
 }
 
 func TestGetHostAliasesInstanceNameError(t *testing.T) {
-	reset()
+	defer reset()
 	ctx := context.Background()
 	lastRequests := []*http.Request{}
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -115,7 +116,7 @@ func TestGetHostAliasesInstanceNameError(t *testing.T) {
 }
 
 func TestGetClusterName(t *testing.T) {
-	reset()
+	defer reset()
 	ctx := context.Background()
 	expected := "test-cluster-name"
 	var lastRequest *http.Request
@@ -134,7 +135,7 @@ func TestGetClusterName(t *testing.T) {
 }
 
 func TestGetPublicIPv4(t *testing.T) {
-	reset()
+	defer reset()
 	ctx := context.Background()
 	expected := "10.0.0.2"
 	var lastRequest *http.Request
@@ -153,7 +154,7 @@ func TestGetPublicIPv4(t *testing.T) {
 }
 
 func TestGetNetwork(t *testing.T) {
-	reset()
+	defer reset()
 	ctx := context.Background()
 	expected := "projects/123456789/networks/my-network-name"
 
@@ -177,7 +178,7 @@ func TestGetNetwork(t *testing.T) {
 }
 
 func TestGetNetworkNoInferface(t *testing.T) {
-	reset()
+	defer reset()
 	ctx := context.Background()
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
@@ -192,7 +193,7 @@ func TestGetNetworkNoInferface(t *testing.T) {
 }
 
 func TestGetNetworkMultipleVPC(t *testing.T) {
-	reset()
+	defer reset()
 	ctx := context.Background()
 	vpc := "projects/123456789/networks/my-network-name"
 	vpcOther := "projects/123456789/networks/my-other-name"
@@ -235,4 +236,42 @@ func TestGetNTPHosts(t *testing.T) {
 	actualHosts := GetNTPHosts(ctx)
 
 	assert.Equal(t, expectedHosts, actualHosts)
+}
+
+func TestGetCCRID(t *testing.T) {
+	defer reset()
+
+	errorOut := true
+
+	ctx := context.Background()
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+
+		if errorOut {
+			http.Error(w, "some error", 404)
+			return
+		}
+
+		switch r.RequestURI {
+		case "/instance/zone":
+			io.WriteString(w, "projects/132456798/zones/my-zone-for-test")
+		case "/instance/name":
+			io.WriteString(w, "my-instance-name")
+		case "/project/project-id":
+			io.WriteString(w, "gcp-test-project")
+		default:
+			t.Errorf("unexpected request %s", r.RequestURI)
+		}
+	}))
+	defer ts.Close()
+	metadataURL = ts.URL
+
+	_, err := GetHostCCRID(ctx)
+	require.Error(t, err)
+
+	errorOut = false
+
+	ccrid, err := GetHostCCRID(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, ccrid, "//compute.googleapis.com/projects/gcp-test-project/zones/my-zone-for-test/instances/my-instance-name")
 }

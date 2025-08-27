@@ -55,6 +55,7 @@ func (c *CloudRunJobs) GetTags() map[string]string {
 
 	if jobNameVal != "" {
 		tags[cloudRunJobNamespace+jobNameTag] = jobNameVal
+		tags[jobNameTag] = jobNameVal
 	}
 
 	if executionNameVal != "" {
@@ -108,6 +109,11 @@ func (c *CloudRunJobs) GetStartMetricName() string {
 // GetShutdownMetricName returns the metric name for container shutdown events
 func (c *CloudRunJobs) GetShutdownMetricName() string {
 	return fmt.Sprintf("%s.enhanced.task.ended", cloudRunJobsPrefix)
+}
+
+// ShouldForceFlushAllOnForceFlushToSerializer is true for cloud run jobs.
+func (c *CloudRunJobs) ShouldForceFlushAllOnForceFlushToSerializer() bool {
+	return true
 }
 
 func isCloudRunJob() bool {

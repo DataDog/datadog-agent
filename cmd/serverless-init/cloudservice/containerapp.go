@@ -155,6 +155,11 @@ func (c *ContainerApp) GetShutdownMetricName() string {
 	return fmt.Sprintf("%s.enhanced.shutdown", containerAppPrefix)
 }
 
+// ShouldForceFlushAllOnForceFlushToSerializer is false usually.
+func (c *ContainerApp) ShouldForceFlushAllOnForceFlushToSerializer() bool {
+	return false
+}
+
 func isContainerAppService() bool {
 	_, exists := os.LookupEnv(ContainerAppNameEnvVar)
 	return exists

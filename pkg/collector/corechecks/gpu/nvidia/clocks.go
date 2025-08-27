@@ -20,11 +20,11 @@ const clocksMetricsPrefix = "clock.throttle_reasons"
 
 // clocksCollector collects clock metrics from an NVML device.
 type clocksCollector struct {
-	device ddnvml.SafeDevice
+	device ddnvml.Device
 }
 
 // newClocksCollector creates a new clocksMetricsCollector for the given NVML device.
-func newClocksCollector(device ddnvml.SafeDevice) (Collector, error) {
+func newClocksCollector(device ddnvml.Device) (Collector, error) {
 	// Check first if the device supports clock throttle reasons
 	_, err := device.GetCurrentClocksThrottleReasons()
 
@@ -39,8 +39,7 @@ func newClocksCollector(device ddnvml.SafeDevice) (Collector, error) {
 }
 
 func (c *clocksCollector) DeviceUUID() string {
-	uuid, _ := c.device.GetUUID()
-	return uuid
+	return c.device.GetDeviceInfo().UUID
 }
 
 // Collect collects clock throttle reason metrics from the NVML device.

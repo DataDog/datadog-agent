@@ -68,7 +68,13 @@ type goTLSBinaryInspector struct {
 var _ uprobes.BinaryInspector = &goTLSBinaryInspector{}
 
 // Inspect extracts the metadata required to attach to a Go binary from the ELF file at the given path.
-func (p *goTLSBinaryInspector) Inspect(fpath utils.FilePath, requests []uprobes.SymbolRequest) (map[string]bininspect.FunctionMetadata, error) {
+func (p *goTLSBinaryInspector) Inspect(fpath utils.FilePath, requestSets map[int][]uprobes.SymbolRequest) (map[int]*uprobes.InspectionResult, error) {
+	if len(requestSets) != 1 {
+		return nil, fmt.Errorf("goTLS binary inspector does not support multiple requests sets, got %d", len(requestSets))
+	}
+
+	requests := requestSets[0]
+
 	start := time.Now()
 
 	path := fpath.HostPath
@@ -111,7 +117,7 @@ func (p *goTLSBinaryInspector) Inspect(fpath utils.FilePath, requests []uprobes.
 	elapsed := time.Since(start)
 	p.binAnalysisMetric.Add(elapsed.Milliseconds())
 
-	return inspectionResult.Functions, nil
+	return map[int]*uprobes.InspectionResult{0: {SymbolMap: inspectionResult.Functions}}, nil
 }
 
 // Cleanup removes the inspection result for the binary at the given path from the map.

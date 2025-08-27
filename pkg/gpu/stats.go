@@ -69,7 +69,7 @@ func (g *statsGenerator) getStats(nowKtime int64) (*model.GPUStats, error) {
 		}
 
 		currData := handler.getCurrentData(uint64(nowKtime))
-		pastData := handler.getPastData(true)
+		pastData := handler.getPastData()
 
 		if currData != nil {
 			aggr.processCurrentData(currData)

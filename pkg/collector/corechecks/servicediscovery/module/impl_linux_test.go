@@ -258,15 +258,17 @@ func getNsInfoOld(pid int) (*namespaceInfo, error) {
 	TCP6, _ := proc.NetTCP6()
 	UDP6, _ := proc.NetUDP6()
 
-	listeningSockets := make(map[uint64]socketInfo)
+	tcpSockets := make(map[uint64]socketInfo)
+	udpSockets := make(map[uint64]socketInfo)
 
-	addSockets(listeningSockets, TCP, network.AFINET, network.TCP, tcpListen)
-	addSockets(listeningSockets, TCP6, network.AFINET6, network.TCP, tcpListen)
-	addSockets(listeningSockets, UDP, network.AFINET, network.UDP, udpListen)
-	addSockets(listeningSockets, UDP6, network.AFINET6, network.UDP, udpListen)
+	addSockets(tcpSockets, TCP, network.AFINET, network.TCP, tcpListen)
+	addSockets(tcpSockets, TCP6, network.AFINET6, network.TCP, tcpListen)
+	addSockets(udpSockets, UDP, network.AFINET, network.UDP, udpListen)
+	addSockets(udpSockets, UDP6, network.AFINET6, network.UDP, udpListen)
 
 	return &namespaceInfo{
-		listeningSockets: listeningSockets,
+		tcpSockets: tcpSockets,
+		udpSockets: udpSockets,
 	}, nil
 }
 

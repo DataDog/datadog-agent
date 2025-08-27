@@ -51,13 +51,6 @@ import (
 //go:embed testdata/decoded
 var testdataFS embed.FS
 
-type semaphore chan struct{}
-
-func (s semaphore) acquire() (release func()) {
-	s <- struct{}{}
-	return func() { <-s }
-}
-
 func TestDyninst(t *testing.T) {
 	dyninsttest.SkipIfKernelNotSupported(t)
 	cfgs := testprogs.MustGetCommonConfigs(t)
@@ -67,8 +60,7 @@ func TestDyninst(t *testing.T) {
 		"sample": {},
 	}
 
-	concurrency := max(1, runtime.GOMAXPROCS(0))
-	sem := make(semaphore, concurrency)
+	sem := dyninsttest.MakeSemaphore()
 
 	// The debug variants of the tests spew logs to the trace_pipe, so we need
 	// to clear it after the tests to avoid interfering with other tests.
@@ -98,11 +90,9 @@ func TestDyninst(t *testing.T) {
 			t.Logf("%s is not used in integration tests", svc)
 			continue
 		}
-		for _, cfg := range cfgs {
-			t.Run(fmt.Sprintf("%s-%s", svc, cfg), func(t *testing.T) {
-				runIntegrationTestSuite(t, svc, cfg, rewrite, sem)
-			})
-		}
+		t.Run(svc, func(t *testing.T) {
+			runIntegrationTestSuite(t, svc, rewrite, sem, cfgs...)
+		})
 	}
 }
 
@@ -114,9 +104,9 @@ func testDyninst(
 	rewriteEnabled bool,
 	expOut map[string][]json.RawMessage,
 	debug bool,
-	sem semaphore,
+	sem dyninsttest.Semaphore,
 ) map[string][]json.RawMessage {
-	defer sem.acquire()()
+	defer sem.Acquire()()
 	start := time.Now()
 	tempDir, cleanup := dyninsttest.PrepTmpDir(t, "dyninst-integration-test")
 	defer cleanup()
@@ -243,23 +233,23 @@ func testDyninst(
 
 	t.Logf("processing output")
 	// TODO: we should intercept raw ringbuf bytes and dump them into tmp dir.
-	obj, err := object.OpenElfFile(servicePath)
+	obj, err := object.OpenElfFileWithDwarf(servicePath)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, obj.Close()) }()
 
-	moduledata, err := object.ParseModuleData(obj.Underlying)
+	moduledata, err := object.ParseModuleData(obj)
 	require.NoError(t, err)
 
-	goVersion, err := object.ReadGoVersion(obj.Underlying)
+	goVersion, err := object.ReadGoVersion(obj)
 	require.NoError(t, err)
 
-	goDebugSections, err := moduledata.GoDebugSections(obj.Underlying)
+	goDebugSections, err := moduledata.GoDebugSections(obj)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, goDebugSections.Close()) }()
 
 	symbolTable, err := gosym.ParseGoSymbolTable(
-		goDebugSections.PcLnTab.Data,
-		goDebugSections.GoFunc.Data,
+		goDebugSections.PcLnTab.Data(),
+		goDebugSections.GoFunc.Data(),
 		moduledata.Text,
 		moduledata.EText,
 		moduledata.MinPC,
@@ -323,14 +313,10 @@ type probeOutputs map[string][]json.RawMessage
 func runIntegrationTestSuite(
 	t *testing.T,
 	service string,
-	cfg testprogs.Config,
 	rewrite bool,
-	sem semaphore,
+	sem dyninsttest.Semaphore,
+	cfgs ...testprogs.Config,
 ) {
-	if cfg.GOARCH != runtime.GOARCH {
-		t.Skipf("cross-execution is not supported, running on %s, skipping %s", runtime.GOARCH, cfg.GOARCH)
-		return
-	}
 	var outputs = struct {
 		sync.Mutex
 		byTest map[string]probeOutputs // testName -> probeID -> [redacted JSON]
@@ -352,27 +338,42 @@ func runIntegrationTestSuite(
 		expectedOutput, err = getExpectedDecodedOutputOfProbes(service)
 		require.NoError(t, err)
 	}
-	bin := testprogs.MustGetBinary(t, service, cfg)
-	for _, debug := range []bool{false, true} {
-		runTest := func(t *testing.T, probeSlice []ir.ProbeDefinition) {
-			t.Parallel()
-			actual := testDyninst(
-				t, service, bin, probeSlice, rewrite, expectedOutput, debug, sem,
-			)
-			if t.Failed() {
+	for _, cfg := range cfgs {
+		t.Run(cfg.String(), func(t *testing.T) {
+			if cfg.GOARCH != runtime.GOARCH {
+				t.Skipf("cross-execution is not supported, running on %s, skipping %s", runtime.GOARCH, cfg.GOARCH)
 				return
 			}
-			outputs.Lock()
-			defer outputs.Unlock()
-			outputs.byTest[t.Name()] = actual
-		}
-		t.Run(fmt.Sprintf("debug=%t", debug), func(t *testing.T) {
 			t.Parallel()
-			t.Run("all-probes", func(t *testing.T) { runTest(t, probes) })
-			for i := range probes {
-				probeID := probes[i].GetID()
-				t.Run(probeID, func(t *testing.T) {
-					runTest(t, probes[i:i+1])
+			bin := testprogs.MustGetBinary(t, service, cfg)
+			for _, debug := range []bool{false, true} {
+				runTest := func(t *testing.T, probeSlice []ir.ProbeDefinition) {
+					t.Parallel()
+					actual := testDyninst(
+						t, service, bin, probeSlice, rewrite, expectedOutput, debug, sem,
+					)
+					if t.Failed() {
+						return
+					}
+					outputs.Lock()
+					defer outputs.Unlock()
+					outputs.byTest[t.Name()] = actual
+				}
+				t.Run(fmt.Sprintf("debug=%t", debug), func(t *testing.T) {
+					if debug && testing.Short() {
+						t.Skip("skipping debug with short")
+					}
+					t.Parallel()
+					t.Run("all-probes", func(t *testing.T) { runTest(t, probes) })
+					for i := range probes {
+						probeID := probes[i].GetID()
+						t.Run(probeID, func(t *testing.T) {
+							if testing.Short() {
+								t.Skip("skipping individual probe with short")
+							}
+							runTest(t, probes[i:i+1])
+						})
+					}
 				})
 			}
 		})
@@ -415,7 +416,7 @@ func validateAndSaveOutputs(
 				t,
 				string(prev),
 				string(marshaled),
-				"inconsistent output for probe %s in test %s and %s: %s != %s",
+				"inconsistent output for probe %s in test %s and %s",
 				id, testName, strings.Join(otherTestNames, ", "),
 			)
 		}

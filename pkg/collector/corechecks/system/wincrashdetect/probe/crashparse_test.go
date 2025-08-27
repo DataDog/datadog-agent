@@ -16,7 +16,13 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func testCrashReader(filename string, ctx *logCallbackContext, _ *uint32) error {
+func testCrashReader(filename string, ctx *logCallbackContext, crashCtx *crashContext, _ *uint32) error {
+	crashCtx.bugCheckCode = 0x7E
+	crashCtx.bugCheckArg1 = 0x1001
+	crashCtx.bugCheckArg2 = 0x1002
+	crashCtx.bugCheckArg3 = 0x1003
+	crashCtx.bugCheckArg4 = 0x1004
+
 	testbytes, err := os.ReadFile(filename)
 	if err != nil {
 		return err
@@ -29,7 +35,13 @@ func testCrashReader(filename string, ctx *logCallbackContext, _ *uint32) error 
 
 }
 
-func testCrashReaderWithLineSplits(filename string, ctx *logCallbackContext, _ *uint32) error {
+func testCrashReaderWithLineSplits(filename string, ctx *logCallbackContext, crashCtx *crashContext, _ *uint32) error {
+	crashCtx.bugCheckCode = 0x7E
+	crashCtx.bugCheckArg1 = 0x1001
+	crashCtx.bugCheckArg2 = 0x1002
+	crashCtx.bugCheckArg3 = 0x1003
+	crashCtx.bugCheckArg4 = 0x1004
+
 	testbytes, err := os.ReadFile(filename)
 	if err != nil {
 		return err
@@ -60,7 +72,11 @@ func TestCrashParser(t *testing.T) {
 	assert.Equal(t, "Mon Jun 26 20:44:49.742 2023 (UTC - 7:00)", wcs.DateString)
 	before, _, _ := strings.Cut(wcs.Offender, "+")
 	assert.Equal(t, "ddapmcrash", before)
-	assert.Equal(t, "0000007E", wcs.BugCheck)
+	assert.Equal(t, "7E", wcs.BugCheck)
+	assert.Equal(t, "1001", wcs.BugCheckArg1)
+	assert.Equal(t, "1002", wcs.BugCheckArg2)
+	assert.Equal(t, "1003", wcs.BugCheckArg3)
+	assert.Equal(t, "1004", wcs.BugCheckArg4)
 
 }
 
@@ -80,6 +96,9 @@ func TestCrashParserWithLineSplits(t *testing.T) {
 	assert.Equal(t, "Mon Jun 26 20:44:49.742 2023 (UTC - 7:00)", wcs.DateString)
 	before, _, _ := strings.Cut(wcs.Offender, "+")
 	assert.Equal(t, "ddapmcrash", before)
-	assert.Equal(t, "0000007E", wcs.BugCheck)
-
+	assert.Equal(t, "7E", wcs.BugCheck)
+	assert.Equal(t, "1001", wcs.BugCheckArg1)
+	assert.Equal(t, "1002", wcs.BugCheckArg2)
+	assert.Equal(t, "1003", wcs.BugCheckArg3)
+	assert.Equal(t, "1004", wcs.BugCheckArg4)
 }

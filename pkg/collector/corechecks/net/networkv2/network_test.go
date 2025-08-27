@@ -106,10 +106,14 @@ func (f *MockEthtool) Stats(intf string) (map[string]uint64, error) {
 			"rx_packets[0]":      67890,
 			"cpu0_rx_xdp_tx":     123,
 			"tx_timeout":         456,
+			"tx_queue_dropped":   789, // Tests queue name parsing
 		}, nil
 	}
 
 	return nil, unix.ENOTTY
+}
+
+func (f *MockEthtool) Close() {
 }
 
 type MockCommandRunner struct {
@@ -406,11 +410,12 @@ func TestNetworkCheck(t *testing.T) {
 	}
 
 	mockEthtool := new(MockEthtool)
-	mockEthtool.On("getDriverInfo", mock.Anything).Return(ethtool.DrvInfo{}, nil)
+	mockEthtool.On("DriverInfo", mock.Anything).Return(ethtool.DrvInfo{}, nil)
 	mockEthtool.On("Stats", mock.Anything).Return(map[string]int{}, nil)
 
-	getEthtoolDrvInfo = mockEthtool.DriverInfo
-	getEthtoolStats = mockEthtool.Stats
+	getNewEthtool = func() (ethtoolInterface, error) {
+		return mockEthtool, nil
+	}
 
 	ssAvailableFunction = func() bool { return false }
 
@@ -730,8 +735,9 @@ func TestFetchEthtoolStats(t *testing.T) {
 	mockEthtool.On("getDriverInfo", mock.Anything).Return(ethtool.DrvInfo{}, nil)
 	mockEthtool.On("Stats", mock.Anything).Return(map[string]int{}, nil)
 
-	getEthtoolDrvInfo = mockEthtool.DriverInfo
-	getEthtoolStats = mockEthtool.Stats
+	getNewEthtool = func() (ethtoolInterface, error) {
+		return mockEthtool, nil
+	}
 
 	net := &fakeNetworkStats{
 		counterStats: []net.IOCountersStat{
@@ -777,8 +783,9 @@ func TestFetchEthtoolStatsENOTTY(t *testing.T) {
 	mockEthtool.On("getDriverInfo", mock.Anything).Return(ethtool.DrvInfo{}, nil)
 	mockEthtool.On("Stats", mock.Anything).Return(map[string]int{}, nil)
 
-	getEthtoolDrvInfo = mockEthtool.DriverInfo
-	getEthtoolStats = mockEthtool.Stats
+	getNewEthtool = func() (ethtoolInterface, error) {
+		return mockEthtool, nil
+	}
 
 	net := &fakeNetworkStats{
 		counterStats: []net.IOCountersStat{

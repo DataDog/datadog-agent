@@ -97,8 +97,10 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 		return nil, err
 	}
 
-	// Set the global agent config
-	pkgconfig := pkgconfigsetup.Datadog()
+	// Get the global agent config, build on top of it some more
+	// NOTE: This pattern should not be used by other callsites, it is needed here
+	// specifically because of the unique requirements of OTel's configuration.
+	pkgconfig := pkgconfigsetup.Datadog().RevertFinishedBackToBuilder()
 
 	pkgconfig.SetConfigName("OTel")
 	pkgconfig.SetEnvPrefix("DD")
@@ -141,6 +143,10 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	// Override config read (if any) with Default values
 	pkgconfigsetup.InitConfig(pkgconfig)
 	pkgconfigmodel.ApplyOverrideFuncs(pkgconfig)
+
+	// Finish building the config, required because the finished config was
+	// reverted earlier by the method "RevertFinishedBackToBuilder"
+	pkgconfig.BuildSchema()
 
 	ddc, err := getDDExporterConfig(cfg)
 	if err == ErrNoDDExporter {

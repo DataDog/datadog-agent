@@ -63,7 +63,7 @@ func (m *MetricDogStatsD) NewServer(demux aggregator.Demultiplexer) (dogstatsdSe
 }
 
 // Start starts the DogStatsD agent
-func (c *ServerlessMetricAgent) Start(forwarderTimeout time.Duration, multipleEndpointConfig MultipleEndpointConfig, dogstatFactory DogStatsDFactory) {
+func (c *ServerlessMetricAgent) Start(forwarderTimeout time.Duration, multipleEndpointConfig MultipleEndpointConfig, dogstatFactory DogStatsDFactory, shouldForceFlushAllOnForceFlushToSerializer bool) {
 	// prevents any UDP packets from being stuck in the buffer and not parsed during the current invocation
 	// by setting this option to 1ms, all packets received will directly be sent to the parser
 	pkgconfigsetup.Datadog().Set("dogstatsd_packet_buffer_flush_timeout", 1*time.Millisecond, model.SourceAgentRuntime)
@@ -78,7 +78,7 @@ func (c *ServerlessMetricAgent) Start(forwarderTimeout time.Duration, multipleEn
 	} else {
 		pkgconfigsetup.Datadog().Set(statsDMetricBlocklistKey, buildMetricBlocklist(customerList), model.SourceAgentRuntime)
 	}
-	demux, err := buildDemultiplexer(multipleEndpointConfig, forwarderTimeout, c.Tagger)
+	demux, err := buildDemultiplexer(multipleEndpointConfig, forwarderTimeout, c.Tagger, shouldForceFlushAllOnForceFlushToSerializer)
 	if err != nil {
 		log.Errorf("Unable to start the Demultiplexer: %s", err)
 	}
@@ -126,14 +126,14 @@ func (c *ServerlessMetricAgent) GetExtraTags() []string {
 	return c.tags
 }
 
-func buildDemultiplexer(multipleEndpointConfig MultipleEndpointConfig, forwarderTimeout time.Duration, tagger tagger.Component) (aggregator.Demultiplexer, error) {
+func buildDemultiplexer(multipleEndpointConfig MultipleEndpointConfig, forwarderTimeout time.Duration, tagger tagger.Component, shouldForceFlushAllOnForceFlushToSerializer bool) (aggregator.Demultiplexer, error) {
 	log.Debugf("Using a SyncForwarder with a %v timeout", forwarderTimeout)
 	keysPerDomain, err := multipleEndpointConfig.GetMultipleEndpoints()
 	if err != nil {
 		log.Errorf("Misconfiguration of agent endpoints: %s", err)
 		return nil, err
 	}
-	return aggregator.InitAndStartServerlessDemultiplexer(keysPerDomain, forwarderTimeout, tagger)
+	return aggregator.InitAndStartServerlessDemultiplexer(keysPerDomain, forwarderTimeout, tagger, shouldForceFlushAllOnForceFlushToSerializer)
 }
 
 func buildMetricBlocklist(userProvidedList []string) []string {

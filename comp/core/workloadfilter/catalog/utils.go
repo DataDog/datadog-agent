@@ -107,6 +107,9 @@ func convertOldToNewFilter(oldFilters []string, objectType workloadfilter.Resour
 		if objectType == workloadfilter.ImageType && key != "image" {
 			continue
 		}
+		if objectType == workloadfilter.PodType && key != "kube_namespace" {
+			continue
+		}
 
 		// Legacy support for image filtering
 		if key == "image" {

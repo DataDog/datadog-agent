@@ -6,7 +6,7 @@
 // Package telemetry provides the installer telemetry component.
 package telemetry
 
-// team: fleet windows-agent
+// team: fleet windows-products
 
 // Component is the component type.
 type Component interface {

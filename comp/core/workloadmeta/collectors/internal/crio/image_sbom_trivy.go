@@ -12,8 +12,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/CycloneDX/cyclonedx-go"
-
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/sbomutil"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
@@ -129,38 +128,18 @@ func (c *collector) processScanResult(result sbom.ScanResult) {
 		return
 	}
 
-	c.notifyStoreWithSBOMForImage(result.ImgMeta.ID, convertScanResultToSBOM(result))
-}
-
-// convertScanResultToSBOM converts an SBOM scan result to a workloadmeta SBOM.
-func convertScanResultToSBOM(result sbom.ScanResult) *workloadmeta.SBOM {
-	status := workloadmeta.Success
-	reportedError := ""
-	var report *cyclonedx.BOM
-
-	if result.Error != nil {
-		log.Errorf("SBOM generation failed for image: %v", result.Error)
-		status = workloadmeta.Failed
-		reportedError = result.Error.Error()
-	} else if bom, err := result.Report.ToCycloneDX(); err != nil {
-		log.Errorf("Failed to convert report to CycloneDX BOM.")
-		status = workloadmeta.Failed
-		reportedError = err.Error()
-	} else {
-		report = bom
+	sbom := result.ConvertScanResultToSBOM()
+	csbom, err := sbomutil.CompressSBOM(sbom)
+	if err != nil {
+		log.Errorf("Failed to compress SBOM for image %s: %v", result.ImgMeta.ID, err)
+		return
 	}
 
-	return &workloadmeta.SBOM{
-		CycloneDXBOM:       report,
-		GenerationTime:     result.CreatedAt,
-		GenerationDuration: result.Duration,
-		Status:             status,
-		Error:              reportedError,
-	}
+	c.notifyStoreWithSBOMForImage(result.ImgMeta.ID, csbom)
 }
 
 // notifyStoreWithSBOMForImage notifies the store about the SBOM for a given image.
-func (c *collector) notifyStoreWithSBOMForImage(imageID string, sbom *workloadmeta.SBOM) {
+func (c *collector) notifyStoreWithSBOMForImage(imageID string, sbom *workloadmeta.CompressedSBOM) {
 	c.store.Notify([]workloadmeta.CollectorEvent{
 		{
 			Type:   workloadmeta.EventTypeSet,
