@@ -25,6 +25,27 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 )
 
+func FuzzDecoder(f *testing.F) {
+	probeNames := make([]string, 0, len(cases))
+	for _, c := range cases {
+		probeNames = append(probeNames, c.probeName)
+	}
+	irProg := generateIrForProbes(f, "simple", probeNames...)
+	decoder, err := NewDecoder(irProg)
+	require.NoError(f, err)
+	for _, c := range cases {
+		f.Add(c.eventConstructor(f, irProg))
+	}
+	f.Fuzz(func(t *testing.T, item []byte) {
+		_, _ = decoder.Decode(Event{
+			Event:       output.Event(item),
+			ServiceName: "foo",
+		}, &noopSymbolicator{}, bytes.NewBuffer(nil))
+		require.Empty(t, decoder.dataItems)
+		require.Empty(t, decoder.currentlyEncoding)
+	})
+}
+
 // TestDecoderManually is a test that manually constructs an event and decodes
 // it.
 //
@@ -389,7 +410,7 @@ var simpleBigMapArgExpected = map[string]any{
 				map[string]any{"type": "string", "value": "b"},
 				map[string]any{
 					"type":    "*main.bigStruct", // This shouldn't be a pointer
-					"address": "0x0",             // and the address is suspect.
+					"address": "0x700000007",     // or carry this address.
 					"fields": map[string]any{
 						"Field1": map[string]any{"type": "int", "value": "1"},
 						"Field2": map[string]any{"type": "int", "value": "0"},
@@ -571,7 +592,7 @@ func simpleBigMapArgEvent(t testing.TB, irProg *ir.Program) []byte {
 var simplePointerChainArgExpected = map[string]any{
 	"ptr": map[string]any{
 		"type":    "*****int",
-		"address": "0x0",
+		"address": "0xa0000005",
 		"value":   "17",
 	},
 }
