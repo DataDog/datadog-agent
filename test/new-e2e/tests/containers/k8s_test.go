@@ -846,6 +846,7 @@ func (suite *k8sSuite) TestCPU() {
 				`^pod_name:stress-ng-[[:alnum:]]+-[[:alnum:]]+$`,
 				`^pod_phase:running$`,
 				`^short_image:apps-stress-ng$`,
+				`^kube_cpu_management:none$`,
 			},
 			Value: &testMetricExpectValueArgs{
 				Max: 250000000,
@@ -882,6 +883,7 @@ func (suite *k8sSuite) TestCPU() {
 				`^pod_name:stress-ng-[[:alnum:]]+-[[:alnum:]]+$`,
 				`^pod_phase:running$`,
 				`^short_image:apps-stress-ng$`,
+				`^kube_cpu_management:none$`,
 			},
 			Value: &testMetricExpectValueArgs{
 				Max: 0.2,
