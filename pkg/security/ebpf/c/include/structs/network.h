@@ -21,8 +21,6 @@ struct pid_route_entry_t {
 struct flow_t {
     u64 saddr[2];
     u64 daddr[2];
-    u16 l3_protocol;
-    u16 l4_protocol;
 
     union {
         struct {
@@ -35,6 +33,9 @@ struct flow_t {
             u16 id;
         } icmp;
     };
+
+    u16 l3_protocol;
+    u16 l4_protocol;
 };
 
 struct network_counters_t {
