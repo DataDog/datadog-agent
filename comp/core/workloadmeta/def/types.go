@@ -202,6 +202,19 @@ const (
 	Failed SBOMStatus = "Failed"
 )
 
+type CpuManagerPolicy string
+
+const (
+	Unknown                CpuManagerPolicy = "unknown"
+	CpuManagerPolicyNone   CpuManagerPolicy = "none"
+	CpuManagerPolicyStatic CpuManagerPolicy = "static"
+)
+
+const (
+	KubeletID   = "kubelet-id"
+	KubeletName = "kubelet"
+)
+
 // Entity represents a single unit of work being done that is of interest to
 // the agent.
 //
@@ -439,7 +452,7 @@ type ContainerResources struct {
 	CPULimit      *float64
 	MemoryRequest *uint64 // Bytes
 	MemoryLimit   *uint64
-	WholeCPU      bool // The container uses entire core(s) e.g. 1000m or 1 -- NOT 1500m or 1.5
+	UsesWholeCPU  bool // The container uses entire core(s) e.g. 1000m or 1 -- NOT 1500m or 1.5
 }
 
 // String returns a string representation of ContainerPort.
@@ -1174,6 +1187,48 @@ func (ku *Kubelet) String(verbose bool) string {
 	}
 
 	return sb.String()
+}
+
+// GetCPUManagerPolicy returns the CPU Manager Policy from the kubelet's config
+func (ku Kubelet) GetCPUManagerPolicy() (CpuManagerPolicy, error) {
+	if ku.Config == nil {
+		return Unknown,
+			fmt.Errorf("error when parsing kubelet config, expected config to be non-nil")
+	}
+
+	kubeletConfigInterface, ok := ku.Config["kubeletconfig"]
+	if !ok {
+		return Unknown,
+			fmt.Errorf("error when parsing kubelet config, expected to find key: kubeletconfig")
+	}
+
+	kubeletConfig, ok := kubeletConfigInterface.(map[string]interface{})
+	if !ok {
+		return Unknown,
+			fmt.Errorf("error when parsing kubelet config, type assertion failed for kubeletConfig")
+	}
+
+	cpuManagerPolicyInterface, ok := kubeletConfig["cpuManagerPolicy"]
+	if !ok {
+		return Unknown,
+			fmt.Errorf("error when parsing kubelet config, expected to find key: cpuManagerPolicy")
+	}
+
+	cpuManagerPolicy, ok := cpuManagerPolicyInterface.(string)
+	if !ok {
+		return Unknown,
+			fmt.Errorf("error when parsing kubelet config, type assertion failed for cpuManagerPolicy")
+	}
+
+	switch cpuManagerPolicy {
+	case "none":
+		return CpuManagerPolicyNone, nil
+	case "static":
+		return CpuManagerPolicyStatic, nil
+	default:
+		return Unknown,
+			fmt.Errorf("error when parsing kubelet config, unexpected value for cpuManagerPolicy: %s", cpuManagerPolicy)
+	}
 }
 
 var _ Entity = &Kubelet{}

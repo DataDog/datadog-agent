@@ -132,11 +132,11 @@ func (c *collector) pullKubeletConfig(ctx context.Context) (workloadmeta.Collect
 		Source: workloadmeta.SourceNodeOrchestrator,
 		Entity: &workloadmeta.Kubelet{
 			EntityID: workloadmeta.EntityID{
-				ID:   "kubelet",
+				ID:   workloadmeta.KubeletID,
 				Kind: workloadmeta.KindKubelet,
 			},
 			EntityMeta: workloadmeta.EntityMeta{
-				Name: "kubelet",
+				Name: workloadmeta.KubeletName,
 			},
 			Config: workloadmeta.KubeletConfig(config),
 		},
@@ -705,7 +705,7 @@ func extractResources(spec *kubelet.ContainerSpec) workloadmeta.ContainerResourc
 	if cpuLimit, found := spec.Resources.Limits[kubelet.ResourceCPU]; found {
 		if cpuReq, found := spec.Resources.Requests[kubelet.ResourceCPU]; found {
 			if cpuReq == cpuLimit && cpuReq.MilliValue()%1000 == 0 {
-				resources.WholeCPU = true
+				resources.UsesWholeCPU = true
 			}
 		}
 	}
