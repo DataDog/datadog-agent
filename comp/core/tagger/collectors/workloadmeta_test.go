@@ -2798,7 +2798,6 @@ func TestHandleProcess(t *testing.T) {
 		name            string
 		process         *workloadmeta.Process
 		expectedTagInfo *types.TagInfo
-		expectNil       bool
 	}{
 		{
 			name: "process with complete UST service data",
@@ -2874,7 +2873,6 @@ func TestHandleProcess(t *testing.T) {
 				Pid:     12345,
 				Service: nil,
 			},
-			expectNil: true,
 		},
 		{
 			name: "process with empty service metadata",
@@ -2893,7 +2891,6 @@ func TestHandleProcess(t *testing.T) {
 					},
 				},
 			},
-			expectNil: true,
 		},
 	}
 
@@ -2906,7 +2903,7 @@ func TestHandleProcess(t *testing.T) {
 
 			result := collector.handleProcess(event)
 
-			if tt.expectNil {
+			if tt.expectedTagInfo == nil {
 				assert.Nil(t, result)
 			} else {
 				require.Len(t, result, 1)
