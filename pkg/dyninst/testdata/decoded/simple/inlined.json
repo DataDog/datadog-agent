@@ -45,16 +45,15 @@
         "captures": {
           "entry": {
             "arguments": {
-              "x": {
-                "type": "int",
-                "notCapturedReason": "unavailable"
-              }
+              "type": "int",
+              "notCapturedReason": "unavailable"
             }
           }
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": ""
   },
   {
     "service": "simple",
@@ -116,6 +115,7 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": ""
   }
 ]

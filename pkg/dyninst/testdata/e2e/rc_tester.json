@@ -195,7 +195,8 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "test log message"
   },
   {
     "service": "rc_tester",
@@ -231,7 +232,8 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "test log message"
   },
   {
     "service": "rc_tester",
@@ -429,7 +431,8 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "test log message"
   },
   {
     "service": "rc_tester",
@@ -465,7 +468,8 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "test log message"
   },
   {
     "service": "rc_tester",
@@ -663,7 +667,8 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "test log message"
   },
   {
     "service": "rc_tester",
@@ -699,6 +704,7 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "test log message"
   }
 ]

@@ -50,15 +50,14 @@
         "captures": {
           "entry": {
             "arguments": {
-              "x": {
-                "type": "float32",
-                "notCapturedReason": "unavailable"
-              }
+              "type": "float32",
+              "notCapturedReason": "unavailable"
             }
           }
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": ""
   }
 ]

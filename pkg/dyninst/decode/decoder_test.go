@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symbol"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 )
@@ -70,7 +71,6 @@ func TestDecoderManually(t *testing.T) {
 			require.Equal(t, c.probeName, probe.GetID())
 			var e eventCaptures
 			require.NoError(t, json.Unmarshal(buf, &e))
-			// fmt.Println(string(buf))
 			require.Equal(t, c.expected, e.Debugger.Snapshot.Captures.Entry.Arguments)
 			require.Empty(t, decoder.dataItems)
 			require.Empty(t, decoder.currentlyEncoding)
@@ -844,4 +844,134 @@ func TestDecoderFailsOnEvaluationErrorAndRetainsPassedBuffer(t *testing.T) {
 	require.Contains(t, string(out), "no decoder type found")
 	require.Equal(t, buf, []byte{1, 2, 3, 4, 5})
 
+}
+
+func TestDecoderWithTemplate(t *testing.T) {
+	testCases := []struct {
+		name             string
+		segments         []rcjson.Segment
+		expectedInOutput string
+		expectedError    error
+		probeNames       []string
+		eventGenerator   func(testing.TB, *ir.Program) []byte
+	}{
+		{
+			name: "string and json segments",
+			segments: []rcjson.Segment{
+				rcjson.StringSegment("grant was here"),
+				rcjson.JSONSegment{
+					JSON: json.RawMessage(`"s"`),
+					DSL:  "s",
+				},
+			},
+			expectedInOutput: `"message":"grant was here{\"type\":\"string\",\"value\":\"abcdefghijklmnop\"}\n"}`,
+			probeNames:       []string{"simple", "stringArg"},
+			eventGenerator:   simpleStringArgEvent,
+		},
+		{
+			name: "only string segment",
+			segments: []rcjson.Segment{
+				rcjson.StringSegment("simple string message"),
+			},
+			expectedInOutput: "simple string message",
+			probeNames:       []string{"simple", "stringArg"},
+			eventGenerator:   simpleStringArgEvent,
+		},
+		{
+			name: "only json segment",
+			segments: []rcjson.Segment{
+				rcjson.JSONSegment{
+					JSON: json.RawMessage(`"s"`),
+					DSL:  "s",
+				},
+			},
+			expectedInOutput: `"message":"{\"type\":\"string\",\"value\":\"abcdefghijklmnop\"}\n"}`,
+			probeNames:       []string{"simple", "stringArg"},
+			eventGenerator:   simpleStringArgEvent,
+		},
+		{
+			name: "multiple string segments",
+			segments: []rcjson.Segment{
+				rcjson.StringSegment("Hello "),
+				rcjson.StringSegment("World "),
+				rcjson.StringSegment("!"),
+			},
+			expectedInOutput: "Hello World !",
+			probeNames:       []string{"simple", "stringArg"},
+			eventGenerator:   simpleStringArgEvent,
+		},
+		{
+			name:             "empty segments list",
+			segments:         []rcjson.Segment{},
+			expectedInOutput: `"message":""`,
+			probeNames:       []string{"simple", "stringArg"},
+			eventGenerator:   simpleStringArgEvent,
+		},
+		{
+			name: "invalid json segment dsl",
+			segments: []rcjson.Segment{
+				rcjson.StringSegment("Debug: "),
+				rcjson.JSONSegment{
+					JSON: json.RawMessage(`"invalidVariable"`),
+					DSL:  "invalidVariable",
+				},
+			},
+			expectedInOutput: "Debug: ",
+			probeNames:       []string{"simple", "stringArg"},
+			eventGenerator:   simpleStringArgEvent,
+		},
+
+		// Error cases
+		{
+			name: "invalid JSON Segment (unsupported DSL)",
+			segments: []rcjson.Segment{
+				rcjson.StringSegment("Variable s: "),
+				rcjson.JSONSegment{
+					JSON: json.RawMessage(`"s"`),
+					DSL:  "s",
+				},
+				rcjson.StringSegment(", Length: "),
+				rcjson.JSONSegment{
+					JSON: json.RawMessage(`"len(s)"`),
+					DSL:  "len(s)",
+				},
+			},
+			expectedInOutput: "missing value: len(s)",
+			probeNames:       []string{"simple", "stringArg"},
+			eventGenerator:   simpleStringArgEvent,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var irProg *ir.Program
+			if len(tc.probeNames) == 1 {
+				irProg = generateIrForProbes(t, tc.probeNames[0])
+			} else if len(tc.probeNames) == 2 {
+				irProg = generateIrForProbes(t, tc.probeNames[0], tc.probeNames[1])
+			} else {
+				t.Fatalf("invalid number of probe names: %d", len(tc.probeNames))
+			}
+			s, ok := irProg.Probes[0].ProbeDefinition.(*rcjson.SnapshotProbe)
+			require.True(t, ok)
+
+			s.Segments = tc.segments
+			irProg.Probes[0].ProbeDefinition = s
+
+			decoder, err := NewDecoder(irProg, &noopTypeNameResolver{})
+			require.NoError(t, err)
+
+			input := tc.eventGenerator(t, irProg)
+
+			output, _, err := decoder.Decode(Event{
+				Event:       output.Event(input),
+				ServiceName: "foo"},
+				&noopSymbolicator{},
+				[]byte{},
+			)
+			fmt.Println(string(output))
+			require.Equal(t, tc.expectedError, err)
+			require.Contains(t, string(output), tc.expectedInOutput)
+		})
+	}
 }

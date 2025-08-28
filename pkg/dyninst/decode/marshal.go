@@ -238,12 +238,10 @@ func (ad *argumentsData) MarshalJSONTo(enc *jsontext.Encoder) error {
 			if !expressionIsPresent(presenceBitSet, i) && parameterSize != 0 {
 				// Set not capture reason
 				if err := writeTokens(enc,
-					jsontext.BeginObject,
 					jsontext.String("type"),
 					jsontext.String(parameterType.GetName()),
 					tokenNotCapturedReason,
 					tokenNotCapturedReasonUnavailable,
-					jsontext.EndObject,
 				); err != nil {
 					return err
 				}

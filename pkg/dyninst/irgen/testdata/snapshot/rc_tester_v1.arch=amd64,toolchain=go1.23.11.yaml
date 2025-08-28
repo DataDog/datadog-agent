@@ -8,8 +8,8 @@ Probes:
         maxReferenceDepth: 1
         maxFieldCount: 0
         maxCollectionSize: 0
-      template: ""
-      segments: []
+      template: test log message
+      segments: [test log message]
       captureSnapshot: true
       subprogram: {subprogram: 1}
       events:
@@ -25,8 +25,8 @@ Probes:
         maxReferenceDepth: 1
         maxFieldCount: 0
         maxCollectionSize: 0
-      template: ""
-      segments: []
+      template: test log message
+      segments: [test log message]
       captureSnapshot: true
       subprogram: {subprogram: 2}
       events:

@@ -34,6 +34,11 @@ probes:
     - "foo:bar"
   where:
     methodName: main.testSingleInt8
+  message: "hello {x}"
+  segments:
+    - str: "hello "
+    - dsl: "x"
+      json: "x"
   captureSnapshot: true
 - id: testSingleInt16
   type: LOG_PROBE
