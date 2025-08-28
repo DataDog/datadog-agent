@@ -144,7 +144,7 @@ func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) (*logAgent,
 		config:           deps.Config,
 		inventoryAgent:   deps.InventoryAgent,
 		started:          atomic.NewUint32(0),
-		integrationsLogs: integrationsimpl.NewLogsIntegration(),
+		integrationsLogs: integrationsimpl.NewLogsIntegration(deps.Log, deps.Config),
 
 		auditor:         deps.Auditor,
 		sources:         sources,

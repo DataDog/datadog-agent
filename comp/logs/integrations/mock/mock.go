@@ -7,8 +7,12 @@
 package mock
 
 import (
+	"testing"
+
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	integrationsimpl "github.com/DataDog/datadog-agent/comp/logs/integrations/impl"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 type mockIntegrations struct {
@@ -16,8 +20,8 @@ type mockIntegrations struct {
 }
 
 // Mock returns a mock for integrations component.
-func Mock() integrations.Component {
+func Mock(t *testing.T) integrations.Component {
 	return &mockIntegrations{
-		Logsintegration: integrationsimpl.NewLogsIntegration(),
+		Logsintegration: integrationsimpl.NewLogsIntegration(logmock.New(t), configmock.New(t)),
 	}
 }

@@ -98,6 +98,9 @@ func exportStreamLogs(la logsAgent.Component, logger logger.Component, streamLog
 	}()
 
 	messageReceiver := la.GetMessageReceiver()
+	if messageReceiver == nil {
+		return errors.New("logs agent is not started")
+	}
 
 	if !messageReceiver.SetEnabled(true) {
 		return errors.New("unable to enable message receiver, another client is already streaming logs")

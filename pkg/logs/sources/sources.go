@@ -24,20 +24,30 @@ import (
 //
 // This type is threadsafe, and all of its methods can be called concurrently.
 type LogSources struct {
-	mu            sync.Mutex
-	sources       []*LogSource
-	added         []chan *LogSource
-	addedByType   map[string][]chan *LogSource
-	removed       []chan *LogSource
-	removedByType map[string][]chan *LogSource
+	mu                sync.Mutex
+	sources           []*LogSource
+	added             []chan *LogSource
+	addedByType       map[string][]chan *LogSource
+	removed           []chan *LogSource
+	removedByType     map[string][]chan *LogSource
+	addSourceCallback func() error
 }
 
 // NewLogSources creates a new log sources.
 func NewLogSources() *LogSources {
 	return &LogSources{
-		addedByType:   make(map[string][]chan *LogSource),
-		removedByType: make(map[string][]chan *LogSource),
+		addedByType:       make(map[string][]chan *LogSource),
+		removedByType:     make(map[string][]chan *LogSource),
+		addSourceCallback: func() error { return nil },
 	}
+}
+
+// RegisterAddSourceCallback registers a callback to be called when a source is added.
+func (s *LogSources) RegisterAddSourceCallback(callback func() error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.addSourceCallback = callback
 }
 
 // AddSource adds a new source.
@@ -46,6 +56,11 @@ func NewLogSources() *LogSources {
 // notified.
 func (s *LogSources) AddSource(source *LogSource) {
 	log.Tracef("Adding %s", source.Dump(false))
+
+	if err := s.addSourceCallback(); err != nil {
+		log.Errorf("Unable to add source %s: %v", source.Name, err)
+		return
+	}
 	s.mu.Lock()
 	s.sources = append(s.sources, source)
 	if source.Config == nil || source.Config.Validate() != nil {

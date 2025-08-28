@@ -5,7 +5,7 @@
 
 package integrations
 
-import "github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+import "github.com/DataDog/datadog-agent/pkg/logs/sources"
 
 // IntegrationLog represents the combined Log and IntegrationID for the
 // integration sending the log
@@ -17,5 +17,5 @@ type IntegrationLog struct {
 // IntegrationConfig represents the combined ID and Config for an integration
 type IntegrationConfig struct {
 	IntegrationID string
-	Config        integration.Config
+	Source        *sources.LogSource
 }

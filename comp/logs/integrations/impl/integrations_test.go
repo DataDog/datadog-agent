@@ -12,31 +12,49 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
+var defaultConfig = integration.Config{
+	Provider:   "container",
+	LogsConfig: integration.Data(`[{"type": "integration", "source": "foo", "service": "bar"}]`),
+}
+
 func TestNewComponent(t *testing.T) {
-	comp := NewLogsIntegration()
+	comp := NewLogsIntegration(logmock.New(t), configmock.New(t))
 
 	assert.NotNil(t, comp, "Integrations component nil.")
 }
 
 // TestSendandSubscribe tests sending a log through the integrations component.
 func TestSendandSubscribe(t *testing.T) {
-	comp := NewLogsIntegration()
+	comp := NewLogsIntegration(logmock.New(t), configmock.New(t))
 
 	go func() {
+		comp.RegisterIntegration("integration1", defaultConfig)
 		comp.SendLog("test log", "integration1")
 	}()
 
-	log := <-comp.Subscribe()
-	assert.Equal(t, "test log", log.Log)
-	assert.Equal(t, "integration1", log.IntegrationID)
+	select {
+	case <-time.After(100 * time.Millisecond):
+		assert.Fail(t, "Channel remained empty.")
+	case <-comp.SubscribeIntegration():
+	}
+
+	select {
+	case log := <-comp.Subscribe():
+		assert.Equal(t, "test log", log.Log)
+		assert.Equal(t, "integration1", log.IntegrationID)
+	case <-time.After(100 * time.Millisecond):
+		assert.Fail(t, "Expected channel to receive logs, but got nothing")
+	}
 }
 
 // TestReceiveEmptyConfig ensures that ReceiveIntegration doesn't send an empty
 // configuration to subscribers
 func TestReceiveEmptyConfig(t *testing.T) {
-	logsIntegration := NewLogsIntegration()
+	logsIntegration := NewLogsIntegration(logmock.New(t), configmock.New(t))
 	integrationChan := logsIntegration.SubscribeIntegration()
 
 	mockConf := &integration.Config{}
