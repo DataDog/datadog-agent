@@ -1,6 +1,8 @@
 module github.com/DataDog/datadog-agent/pkg/config/nodetreemodel
 
-go 1.23.0
+go 1.24.0
+
+toolchain go1.24.6
 
 // Internal deps fix version
 replace github.com/spf13/cast => github.com/DataDog/cast v1.8.0
@@ -14,7 +16,7 @@ require (
 	github.com/spf13/cast v1.9.2
 	github.com/stretchr/testify v1.10.0
 	go.uber.org/atomic v1.11.0
-	golang.org/x/exp v0.0.0-20250808145144-a408d31f581a
+	golang.org/x/exp v0.0.0-20250819193227-8b4c13bb791b
 	gopkg.in/yaml.v2 v2.4.0
 )
 
