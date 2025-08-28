@@ -143,7 +143,8 @@ func NewComponent(deps Requires) Provides {
 // fillFlare add the inventory payload to flares.
 func (r *secretResolver) fillFlare(fb flaretypes.FlareBuilder) error {
 	var buffer bytes.Buffer
-	err := r.Text(false, &buffer)
+	status := secretsStatus{resolver: r}
+	err := status.Text(false, &buffer)
 	if err != nil {
 		return fmt.Errorf("error rendering secrets debug info: %w", err)
 	}
@@ -153,7 +154,7 @@ func (r *secretResolver) fillFlare(fb flaretypes.FlareBuilder) error {
 }
 
 func (r *secretResolver) writeDebugInfo(w http.ResponseWriter, _ *http.Request) {
-	r.getDebugInfo()
+	status.RenderText(templatesFS, "info.tmpl", w, r.getDebugInfo())
 }
 
 func (r *secretResolver) handleRefresh(w http.ResponseWriter, _ *http.Request) {
@@ -698,6 +699,11 @@ func (r *secretResolver) getDebugInfo() map[string]interface{} {
 		stats["executablePermissionsDetailsError"] = err.Error()
 	} else {
 		stats["executablePermissionsDetails"] = details
+	}
+
+	stats["isWindows"] = false
+	if runtime.GOOS == "windows" {
+		stats["isWindows"] = true
 	}
 
 	// Handle secrets handles

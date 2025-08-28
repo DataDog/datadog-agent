@@ -84,22 +84,12 @@ func (s secretsStatus) JSON(_ bool, stats map[string]interface{}) error {
 	return nil
 }
 
-// Text
-func (s secretsStatus) Text(_ bool, _ io.Writer) error {
-	return nil
-}
-
-// HTML
-func (s secretsStatus) HTML(_ bool, _ io.Writer) error {
-	return nil
-}
-
 // Text renders the text output
-func (r *secretResolver) Text(_ bool, buffer io.Writer) error {
-	return status.RenderText(templatesFS, "info.tmpl", buffer, r.getDebugInfo())
+func (s secretsStatus) Text(_ bool, buffer io.Writer) error {
+	return status.RenderText(templatesFS, "info.tmpl", buffer, s.resolver.getDebugInfo())
 }
 
-// HTML renders the html output
-func (r *secretResolver) HTML(_ bool, buffer io.Writer) error {
-	return status.RenderHTML(templatesFS, "infoHTML.tmpl", buffer, r.getDebugInfo())
+// HTML renders the HTML output
+func (s secretsStatus) HTML(_ bool, buffer io.Writer) error {
+	return status.RenderHTML(templatesFS, "infoHTML.tmpl", buffer, s.resolver.getDebugInfo())
 }

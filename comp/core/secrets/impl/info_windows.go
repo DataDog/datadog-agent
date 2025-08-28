@@ -15,16 +15,7 @@ import (
 	"strings"
 )
 
-//go:embed status_templates/info_win.tmpl
-var permissionsDetailsTemplate string
-
-type permissionsDetails struct {
-	Error  string
-	Stdout string
-	Stderr string
-}
-
-func (r *secretResolver) getExecutablePermissions() (interface{}, error) {
+func (r *secretResolver) getExecutablePermissions() (map[string]string, error) {
 	execPath := fmt.Sprintf("\"%s\"", strings.TrimSpace(r.backendCommand))
 	ps, err := exec.LookPath("powershell.exe")
 	if err != nil {
@@ -33,21 +24,23 @@ func (r *secretResolver) getExecutablePermissions() (interface{}, error) {
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
-	details := permissionsDetails{}
 
 	cmd := exec.Command(ps, "get-acl", "-Path", execPath, "|", "format-list")
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
+	details := map[string]string{}
 	err = cmd.Run()
 	if err != nil {
-		details.Error = fmt.Sprintf("Error calling 'get-acl': %s", err)
+		details["Error"] = fmt.Sprintf("Error calling 'get-acl': %s", err)
 	}
 
-	details.Stdout = strings.TrimSpace(stdout.String())
+	if out := strings.TrimSpace(stdout.String()); out != "" {
+		details["StdOut"] = out
+	}
 
-	if stderr.Len() != 0 {
-		details.Stderr = strings.TrimSpace(stderr.String())
+	if errOut := strings.TrimSpace(stderr.String()); errOut != "" {
+		details["StdErr"] = errOut
 	}
 
 	return details, nil
