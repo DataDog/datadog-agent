@@ -63,6 +63,9 @@ const (
 
 	// EventFlagsHasActiveActivityDump true if the event has an active activity dump associated to it
 	EventFlagsHasActiveActivityDump
+
+	// EventFlagsIsSnapshot is true if the event is generated from a snapshot
+	EventFlagsIsSnapshot
 )
 
 const (

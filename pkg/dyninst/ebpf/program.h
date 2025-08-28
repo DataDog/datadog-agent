@@ -49,4 +49,20 @@ struct {
 } probe_params SEC(".maps");
 volatile const uint32_t num_probe_params = 0;
 
+struct {
+  __uint(type, BPF_MAP_TYPE_ARRAY);
+  __uint(max_entries, 0);
+  __type(key, uint32_t);
+  __type(value, uint32_t);
+} go_runtime_types SEC(".maps");
+
+struct {
+  __uint(type, BPF_MAP_TYPE_ARRAY);
+  __uint(max_entries, 0);
+  __type(key, uint32_t);
+  __type(value, uint32_t);
+} go_runtime_type_ids SEC(".maps");
+
+volatile const uint32_t num_go_runtime_types = 0;
+
 #endif // __PROGRAM_H__

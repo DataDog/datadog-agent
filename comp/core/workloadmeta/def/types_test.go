@@ -185,7 +185,8 @@ Creation time: 2023-01-01 12:00:00 +0000 UTC
 						Env:     "production",
 						Version: "1.2.3",
 					},
-					Ports:              []uint16{8080},
+					TCPPorts:           []uint16{8080},
+					UDPPorts:           []uint16{8081},
 					APMInstrumentation: "enabled",
 					Type:               "web_service",
 					LogFiles: []string{
@@ -206,7 +207,8 @@ Service Additional Generated Names: [java app]
 Service Tracer Metadata: []
 Service DD Service: java-app
 Service DD Service Injected: true
-Service Ports: [8080]
+Service TCP Ports: [8080]
+Service UDP Ports: [8081]
 Service APM Instrumentation: enabled
 Service Type: web_service
 ---- Unified Service Tagging ----

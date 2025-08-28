@@ -1327,7 +1327,7 @@ type ContainerImageMetadata struct {
 	Architecture string
 	Variant      string
 	Layers       []ContainerImageLayer
-	SBOM         *SBOM
+	SBOM         *CompressedSBOM
 }
 
 // ContainerImageLayer represents a layer of a container image
@@ -1346,6 +1346,15 @@ type SBOM struct {
 	GenerationDuration time.Duration
 	Status             SBOMStatus
 	Error              string // needs to be stored as a string otherwise the merge() will favor the nil value
+}
+
+// CompressedSBOM represents a compressed version of the Software Bill Of Materials (SBOM) of a container
+type CompressedSBOM struct {
+	Bom                []byte
+	GenerationTime     time.Time
+	GenerationDuration time.Duration
+	Status             SBOMStatus
+	Error              string
 }
 
 // GetID implements Entity#GetID.
@@ -1474,8 +1483,11 @@ type Service struct {
 	// UST contains Unified Service Tagging environment variables
 	UST UST
 
-	// Ports is the list of ports the service is listening on
-	Ports []uint16
+	// TCPPorts is the list of TCP ports the service is listening on
+	TCPPorts []uint16
+
+	// UDPPorts is the list of UDP ports the service is listening on
+	UDPPorts []uint16
 
 	// APMInstrumentation indicates the APM instrumentation status
 	APMInstrumentation string
@@ -1575,7 +1587,8 @@ func (p Process) String(verbose bool) string {
 			_, _ = fmt.Fprintln(&sb, "Service Tracer Metadata:", p.Service.TracerMetadata)
 			_, _ = fmt.Fprintln(&sb, "Service DD Service:", p.Service.DDService)
 			_, _ = fmt.Fprintln(&sb, "Service DD Service Injected:", p.Service.DDServiceInjected)
-			_, _ = fmt.Fprintln(&sb, "Service Ports:", p.Service.Ports)
+			_, _ = fmt.Fprintln(&sb, "Service TCP Ports:", p.Service.TCPPorts)
+			_, _ = fmt.Fprintln(&sb, "Service UDP Ports:", p.Service.UDPPorts)
 			_, _ = fmt.Fprintln(&sb, "Service APM Instrumentation:", p.Service.APMInstrumentation)
 			_, _ = fmt.Fprintln(&sb, "Service Type:", p.Service.Type)
 

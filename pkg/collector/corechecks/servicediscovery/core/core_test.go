@@ -51,16 +51,18 @@ func TestServiceInfoToModelService(t *testing.T) {
 			name: "valid service info",
 			info: &ServiceInfo{
 				Service: model.Service{
-					Ports: []uint16{8080, 8081},
-					RSS:   1024,
+					TCPPorts: []uint16{8080},
+					UDPPorts: []uint16{8081},
+					RSS:      1024,
 				},
 			},
 			pid: 123,
 			expected: &model.Service{
-				PID:   123,
-				Ports: []uint16{8080, 8081},
-				RSS:   1024,
-				Type:  string(servicetype.Detect([]uint16{8080, 8081})),
+				PID:      123,
+				TCPPorts: []uint16{8080},
+				UDPPorts: []uint16{8081},
+				RSS:      1024,
+				Type:     string(servicetype.Detect([]uint16{8080}, []uint16{8081})),
 			},
 		},
 	}
@@ -238,8 +240,8 @@ func TestDiscoveryGetServices(t *testing.T) {
 		if pid == int32(os.Getpid()) {
 			// Create a service with the actual process info
 			service := &model.Service{
-				PID:   int(pid),
-				Ports: []uint16{8080},
+				PID:      int(pid),
+				TCPPorts: []uint16{8080},
 			}
 			discovery.Cache[pid] = &ServiceInfo{
 				Service: *service,
