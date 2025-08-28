@@ -245,15 +245,6 @@ func TestWPAController(t *testing.T) {
 			},
 			Scope: pointer.Ptr("foo:bar"),
 		},
-		{
-			Metric: &metricName,
-			Points: []datadog.DataPoint{
-				makePoints(1531492452000, 12.34),
-				makePoints(penTime, 1.01),
-				makePoints(0, 0.902),
-			},
-			Scope: pointer.Ptr("dcos_version:2.1.9"),
-		},
 	}
 
 	datadogClientComp := datadogclientmock.New(t).Comp
