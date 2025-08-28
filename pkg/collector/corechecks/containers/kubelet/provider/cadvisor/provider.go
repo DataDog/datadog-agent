@@ -167,6 +167,21 @@ func (p *Provider) processContainerMetric(metricType, metricName string, metricF
 		} else {
 			cID, _ := kubelet.KubeContainerIDToTaggerEntityID(containerID)
 			tags, _ = p.tagger.Tag(cID, types.HighCardinality)
+
+			// strip the leading `container_id://`
+			id := strings.Replace(containerID, "container_id://", "", -1)
+
+			wmetaKubelet, _ := p.store.GetKubelet()
+			if wmetaKubelet != nil {
+				cpuMangerPolicy, _ := wmetaKubelet.GetCPUManagerPolicy()
+				container, _ := p.store.GetContainer(id)
+
+				if container.Resources.UsesWholeCPU && cpuMangerPolicy == workloadmeta.CpuManagerPolicyStatic {
+					utils.ConcatenateStringTags(tags, "kube_cpu_management:static")
+				} else {
+					utils.ConcatenateStringTags(tags, "kube_cpu_management:none")
+				}
+			}
 		}
 
 		if len(tags) == 0 {

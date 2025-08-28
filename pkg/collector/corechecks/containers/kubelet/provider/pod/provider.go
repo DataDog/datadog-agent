@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	kubeletfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/kubelet"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
@@ -46,6 +47,7 @@ const kubeNamespaceTag = tags.KubeNamespace
 // Provider provides the metrics related to data collected from the `/pods` Kubelet endpoint
 type Provider struct {
 	filterStore workloadfilter.Component
+	store       workloadmeta.Component
 	config      *common.KubeletConfig
 	podUtils    *common.PodUtils
 	tagger      tagger.Component
@@ -54,9 +56,11 @@ type Provider struct {
 }
 
 // NewProvider returns a new Provider
-func NewProvider(filterStore workloadfilter.Component, config *common.KubeletConfig, podUtils *common.PodUtils, tagger tagger.Component) *Provider {
+func NewProvider(filterStore workloadfilter.Component, store workloadmeta.Component, config *common.KubeletConfig,
+	podUtils *common.PodUtils, tagger tagger.Component) *Provider {
 	return &Provider{
 		filterStore: filterStore,
+		store:       store,
 		config:      config,
 		podUtils:    podUtils,
 		tagger:      tagger,
@@ -153,6 +157,18 @@ func (p *Provider) generateContainerSpecMetrics(sender sender.Sender, pod *kubel
 
 		for r, value := range container.Resources.Limits {
 			sender.Gauge(common.KubeletMetricsPrefix+string(r)+".limits", value.AsApproximateFloat64(), "", tagList)
+		}
+
+		wmetaKubelet, _ := p.store.GetKubelet()
+		if wmetaKubelet != nil {
+			wmetaContainer, _ := p.store.GetContainer(containerID.GetID())
+			cpuManagerPolicy, _ := wmetaKubelet.GetCPUManagerPolicy()
+
+			if wmetaContainer.Resources.UsesWholeCPU && cpuManagerPolicy == workloadmeta.CpuManagerPolicyStatic {
+				utils.ConcatenateStringTags(tagList, "kube_cpu_management:static")
+			} else {
+				utils.ConcatenateStringTags(tagList, "kube_cpu_management:none")
+			}
 		}
 	}
 }
