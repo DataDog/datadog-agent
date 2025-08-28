@@ -915,3 +915,8 @@ func CriticalStackDepth(depth int, v ...interface{}) error {
 		return logger.criticalStackDepth(s, depth)
 	}, true, v...)
 }
+
+// Initializes the logger to no-op by default
+func init() {
+	SetupLogger(Disabled(), "off")
+}
