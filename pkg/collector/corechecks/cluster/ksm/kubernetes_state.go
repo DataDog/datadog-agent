@@ -33,7 +33,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm/customresources"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -66,9 +65,11 @@ const (
 )
 
 var extendedCollectors = map[string]string{
-	"jobs":  "batch/v1, Resource=jobs_extended",
-	"nodes": "core/v1, Resource=nodes_extended",
-	"pods":  "core/v1, Resource=pods_extended",
+	"deployments": "apps/v1, Resource=deployments_extended",
+	"replicasets": "apps/v1, Resource=replicasets_extended",
+	"jobs":        "batch/v1, Resource=jobs_extended",
+	"nodes":       "core/v1, Resource=nodes_extended",
+	"pods":        "core/v1, Resource=pods_extended",
 }
 
 // collectorNameReplacement contains a mapping of collector names as they would appear in the KSM config to what
@@ -529,8 +530,9 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 		customresources.NewExtendedNodeFactory(c),
 		customresources.NewExtendedPodFactory(c),
 		customresources.NewVerticalPodAutoscalerFactory(c),
-		customresources.NewStatefulSetRolloutFactory(c),
+		// customresources.NewStatefulSetRolloutFactory(c),
 		customresources.NewDeploymentRolloutFactory(c),
+		customresources.NewReplicaSetRolloutFactory(c),
 	}
 
 	factories = manageResourcesReplacement(c, factories, resources)
@@ -599,6 +601,7 @@ func (k *KSMCheck) Run() error {
 	if err := k.initRetry.TriggerRetry(); err != nil {
 		return err.LastTryError
 	}
+	log.Info("ROLLOUT-CHECK:Starting KSM check")
 
 	// this check uses a "raw" sender, for better performance.  That requires
 	// careful consideration of uses of this sender.  In particular, the `tags
@@ -621,29 +624,37 @@ func (k *KSMCheck) Run() error {
 	// If KSM is running in the node agent, and it's configured to collect only
 	// pods and from the node agent, we don't need to run leader election,
 	// because each node agent is responsible for collecting its own pods.
-	podsFromKubeletInNodeAgent := k.isRunningOnNodeAgent && k.instance.PodCollectionMode == nodeKubeletPodCollection
+	//podsFromKubeletInNodeAgent := k.isRunningOnNodeAgent && k.instance.PodCollectionMode == nodeKubeletPodCollection
 
 	// If the check is configured as a cluster check, the cluster check worker needs to skip the leader election section.
 	// we also do a safety check for dedicated runners to avoid trying the leader election
-	if (!k.isCLCRunner || !k.instance.LeaderSkip) && !podsFromKubeletInNodeAgent {
-		// Only run if Leader Election is enabled.
-		if !pkgconfigsetup.Datadog().GetBool("leader_election") {
-			return log.Error("Leader Election not enabled. The cluster-agent will not run the kube-state-metrics core check.")
-		}
+	//if (!k.isCLCRunner || !k.instance.LeaderSkip) && !podsFromKubeletInNodeAgent {
+	//	// Only run if Leader Election is enabled.
+	//	if !pkgconfigsetup.Datadog().GetBool("leader_election") {
+	//		return log.Error("Leader Election not enabled. The cluster-agent will not run the kube-state-metrics core check.")
+	//	}
 
-		leader, errLeader := cluster.RunLeaderElection()
-		if errLeader != nil {
-			if errLeader == apiserver.ErrNotLeader {
-				log.Debugf("Not leader (leader is %q). Skipping the kube-state-metrics core check", leader)
-				return nil
-			}
+	//	leader, errLeader := cluster.RunLeaderElection()
+	//	if errLeader != nil {
+	//		if errLeader == apiserver.ErrNotLeader {
+	//			log.Debugf("Not leader (leader is %q). Skipping the kube-state-metrics core check", leader)
+	//			return nil
+	//		}
 
-			_ = k.Warn("Leader Election error. Not running the kube-state-metrics core check.")
-			return err
-		}
+	//		_ = k.Warn("Leader Election error. Not running the kube-state-metrics core check.")
+	//		return err
+	//	}
 
-		log.Tracef("Current leader: %q, running kube-state-metrics core check", leader)
-	}
+	//	log.Infof("ROLLOUT-TEST Current leader: %q, running kube-state-metrics core check", leader)
+	//	log.Tracef("Current leader: %q, running kube-state-metrics core check", leader)
+	//}
+	log.Infof("ROLLOUT-TEST: RUNNING CHECKS")
+
+	// Print current rollout tracker map contents for visibility
+	customresources.PrintMapContents()
+
+	// Run periodic cleanup of stale rollout entries
+	customresources.PeriodicCleanup()
 
 	defer sender.Commit()
 

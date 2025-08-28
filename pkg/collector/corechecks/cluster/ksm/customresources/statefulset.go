@@ -9,7 +9,6 @@ package customresources
 
 import (
 	"context"
-	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -29,12 +28,12 @@ import (
 // NewStatefulSetRolloutFactory returns a new StatefulSet rollout factory that provides rollout duration metrics
 func NewStatefulSetRolloutFactory(client *apiserver.APIClient) customresource.RegistryFactory {
 	return &statefulSetRolloutFactory{
-		hybridProvider: newHybridRolloutProvider(client.Cl, 30*time.Second),
+		client: client.Cl,
 	}
 }
 
 type statefulSetRolloutFactory struct {
-	hybridProvider *hybridRolloutProvider
+	client kubernetes.Interface
 }
 
 func (f *statefulSetRolloutFactory) Name() string {
@@ -42,7 +41,7 @@ func (f *statefulSetRolloutFactory) Name() string {
 }
 
 func (f *statefulSetRolloutFactory) CreateClient(_ *rest.Config) (interface{}, error) {
-	return f.hybridProvider.client, nil
+	return f.client, nil
 }
 
 func (f *statefulSetRolloutFactory) MetricFamilyGenerators() []generator.FamilyGenerator {
@@ -54,14 +53,32 @@ func (f *statefulSetRolloutFactory) MetricFamilyGenerators() []generator.FamilyG
 			basemetrics.ALPHA,
 			"",
 			wrapStatefulSetFunc(func(s *appsv1.StatefulSet) *metric.Family {
-				return &metric.Family{
-					Metrics: []*metric.Metric{
-						{
-							LabelKeys:   []string{"namespace", "statefulset"},
-							LabelValues: []string{s.Namespace, s.Name},
-							Value:       f.hybridProvider.getStatefulSetRolloutDuration(s),
+				// Check if StatefulSet has an ongoing rollout
+				isOngoing := s.Status.CurrentRevision != s.Status.UpdateRevision ||
+					s.Status.ReadyReplicas != s.Status.Replicas
+				
+				if isOngoing {
+					// Return dummy metric with value 1 to trigger transformer
+					return &metric.Family{
+						Metrics: []*metric.Metric{
+							{
+								LabelKeys:   []string{"namespace", "statefulset"},
+								LabelValues: []string{s.Namespace, s.Name},
+								Value:       1, // Dummy value - transformer will calculate real duration
+							},
 						},
-					},
+					}
+				} else {
+					// Rollout complete - return 0
+					return &metric.Family{
+						Metrics: []*metric.Metric{
+							{
+								LabelKeys:   []string{"namespace", "statefulset"},
+								LabelValues: []string{s.Namespace, s.Name},
+								Value:       0,
+							},
+						},
+					}
 				}
 			}),
 		),
