@@ -46,20 +46,28 @@ if (-not (Test-Path $datadogPackageExe -ErrorAction SilentlyContinue)) {
     $env:PATH += ";$datadogPackagesDir"
 }
 if ([string]::IsNullOrWhitespace($version)) {
-    $verOutput = (dda inv -- agent.version --url-safe --major-version 7 | Out-String)
-    $lines = $verOutput -split "`r?`n"
-    # Match common Agent version formats (release, rc, devel with git and optional pipeline suffix)
-    $versionPattern = '^[0-9]+\.[0-9]+\.[0-9]+([\.-]rc\.[0-9]+|-devel\.git\.[0-9]+\.[A-Za-z0-9]+(\.pipeline\.[0-9]+)?|\.pipeline\.[0-9]+)?$'
-    $matchedLine = $lines |
-        ForEach-Object { $_.Trim() } |
-        Where-Object { $_ -and ($_ -match $versionPattern) } |
-        Select-Object -First 1
-    if (-not $matchedLine) {
-        Write-Error "Could not parse agent version from output: `$verOutput"
+    # The Omnibus project sets the manifest and version-manifest.ddot.json should be present by now
+    $manifestJson = 'C:\opt\datadog-agent\version-manifest.ddot.json'
+    if (-not (Test-Path $manifestJson)) {
+        Write-Error "Missing version manifest: $manifestJson"
         exit 1
     }
-    $version = "{0}-1" -f $matchedLine
-    Write-Host "Detected agent version ${version}"
+    $resolvedVer = $null
+    try {
+        $m = Get-Content -Raw -Path $manifestJson | ConvertFrom-Json
+        if ($m.build_version) { $resolvedVer = [string]$m.build_version }
+        elseif ($m.version)   { $resolvedVer = [string]$m.version }
+    } catch {
+        Write-Error "Failed to parse version manifest JSON: $manifestJson"
+        exit 1
+    }
+    if (-not $resolvedVer) {
+        Write-Error "Version not found in manifest JSON: $manifestJson"
+        exit 1
+    }
+    if ($resolvedVer -notmatch '.*-1$') { $resolvedVer = "$resolvedVer-1" }
+    $version = $resolvedVer
+    Write-Host "Detected agent version ${version} (from manifest)"
 }
 if (-not $version.EndsWith("-1")) {
     $version += "-1"
