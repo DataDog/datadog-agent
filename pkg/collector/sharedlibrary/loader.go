@@ -176,19 +176,19 @@ func (sl *SharedLibraryCheckLoader) Load(senderManager sender.SenderManager, con
 	var cErr *C.char
 
 	// the prefix "libdatadog-agent-" is required to avoid possible name conflicts with other shared libraries in the include path
-	name := "libdatadog-agent-" + config.Name
+	file := "libdatadog-agent-" + config.Name
 
-	cName := C.CString(name)
-	defer C.free(unsafe.Pointer(cName))
+	cFile := C.CString("/opt/datadog-agent/embedded/lib/" + file)
+	defer C.free(unsafe.Pointer(cFile))
 
 	// Get the shared library handles
 	// TODO: free libHandles
-	libHandles := C.load_shared_library(cName, &cErr)
+	libHandles := C.load_shared_library(cFile, &cErr)
 	if cErr != nil {
 		defer C.free(unsafe.Pointer(cErr))
 
 		// error message should not be too verbose, to keep the logs clean
-		errMsg := fmt.Sprintf("failed to find shared library %q", name)
+		errMsg := fmt.Sprintf("failed to find shared library %q", file)
 		return nil, errors.New(errMsg)
 	}
 
