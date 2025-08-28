@@ -661,6 +661,22 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			},
 		},
 		{
+			name: "validate max interesting frames limit with PRIORITY",
+			// PRIORITY frames should not be supported and cause failure
+			messageBuilder: func() [][]byte {
+				const iterations = 119
+				framer := newFramer()
+				for i := 0; i < iterations; i++ {
+					streamID := getStreamID(i)
+					framer.
+						writeHeaders(t, streamID, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}, true).
+						writeData(t, streamID, endStream, emptyBody)
+				}
+				return [][]byte{framer.bytes()}
+			},
+			expectedEndpoints: nil, // PRIORITY not supported
+		},
+		{
 			name: "validate literal header field without indexing",
 			// The purpose of this test is to verify our ability the case:
 			// Literal Header Field without Indexing (0b0000xxxx: top four bits are 0000)
@@ -686,6 +702,24 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			},
 		},
 		{
+			name: "validate literal header field without indexing with PRIORITY",
+			// PRIORITY affects HEADERS frame size changing HPACK boundary calculations
+			messageBuilder: func() [][]byte {
+				const iterations = 5
+				framer := newFramer()
+				for i := 0; i < iterations; i++ {
+					streamID := getStreamID(i)
+					framer.
+						writeHeaders(t, streamID, usmhttp2.HeadersFrameOptions{
+							Headers:                generateTestHeaderFields(headersGenerationOptions{pathTypeValue: pathLiteralWithoutIndexing}),
+							DynamicTableUpdateSize: defaultDynamicTableSize}, true).
+						writeData(t, streamID, endStream, emptyBody)
+				}
+				return [][]byte{framer.bytes()}
+			},
+			expectedEndpoints: nil, // PRIORITY not supported
+		},
+		{
 			name: "validate literal header field never indexed",
 			// The purpose of this test is to verify our ability the case:
 			// Literal Header Field never Indexed (0b0001xxxx: top four bits are 0001)
@@ -708,6 +742,23 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 					Method: usmhttp.MethodPost,
 				}: 5,
 			},
+		},
+		{
+			name: "validate literal header field never indexed with PRIORITY",
+			// PRIORITY impacts frame structure for literal header processing
+			messageBuilder: func() [][]byte {
+				const iterations = 5
+				framer := newFramer()
+				for i := 0; i < iterations; i++ {
+					streamID := getStreamID(i)
+					framer.
+						writeHeaders(t, streamID, usmhttp2.HeadersFrameOptions{
+							Headers: generateTestHeaderFields(headersGenerationOptions{pathTypeValue: pathLiteralNeverIndexed})}, true).
+						writeData(t, streamID, endStream, emptyBody)
+				}
+				return [][]byte{framer.bytes()}
+			},
+			expectedEndpoints: nil, // PRIORITY not supported
 		},
 		{
 			name: "validate path with index 4",
@@ -1082,6 +1133,22 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			},
 		},
 		{
+			name: "Interesting frame header sent separately from frame payload with PRIORITY",
+			// PRIORITY adds 5 bytes to HEADERS frame - changes frame splitting calculations
+			messageBuilder: func() [][]byte {
+				headersFrame := newFramer().writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}, true).bytes()
+				dataFrame := newFramer().writeData(t, 1, endStream, emptyBody).bytes()
+				// Split after HTTP/2 frame header (9 bytes) + PRIORITY section (5 bytes) = 14 bytes
+				headersFrameHeader := headersFrame[:14]
+				secondMessage := append(headersFrame[14:], dataFrame...)
+				return [][]byte{
+					headersFrameHeader,
+					secondMessage,
+				}
+			},
+			expectedEndpoints: nil, // PRIORITY not supported
+		},
+		{
 			name: "Not interesting frame header sent separately from frame payload",
 			// Testing the scenario in which the frame header (of a not interesting type) is sent separately from the frame payload.
 			messageBuilder: func() [][]byte {
@@ -1125,6 +1192,24 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 					Method: usmhttp.MethodPost,
 				}: 5,
 			},
+		},
+		{
+			name: "validate dynamic table update with indexed header field with PRIORITY",
+			// PRIORITY impacts dynamic table operations
+			messageBuilder: func() [][]byte {
+				const iterations = 5
+				framer := newFramer()
+				for i := 0; i < iterations; i++ {
+					streamID := getStreamID(i)
+					framer.
+						writeHeaders(t, streamID, usmhttp2.HeadersFrameOptions{
+							Headers:                headersWithGivenEndpoint("/"),
+							DynamicTableUpdateSize: defaultDynamicTableSize}, true).
+						writeData(t, streamID, endStream, emptyBody)
+				}
+				return [][]byte{framer.bytes()}
+			},
+			expectedEndpoints: nil, // PRIORITY not supported
 		},
 		{
 			name: "validate dynamic table update with high value and indexed header field",
@@ -1177,6 +1262,28 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 					Method: usmhttp.MethodPost,
 				}: 2,
 			},
+		},
+		{
+			name: "Data frame header sent separately from frame payload with PRIORITY",
+			// PRIORITY affects frame boundaries in multi-frame messages
+			messageBuilder: func() [][]byte {
+				payload := []byte("test")
+				headersFrame := newFramer().writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}, true).bytes()
+				dataFrame := newFramer().writeData(t, 1, endStream, payload).bytes()
+				// Create second message with PRIORITY flag
+				secondMessageHeadersFrame := newFramer().writeHeaders(t, 3, usmhttp2.HeadersFrameOptions{
+					Headers: generateTestHeaderFields(headersGenerationOptions{
+						overrideContentLength: len(payload)})}, true).writeData(t, 3, endStream, payload).bytes()
+
+				// Account for PRIORITY section when splitting frames
+				headersFrameHeader := append(headersFrame, dataFrame[:9]...)
+				secondMessage := append(dataFrame[9:], secondMessageHeadersFrame...)
+				return [][]byte{
+					headersFrameHeader,
+					secondMessage,
+				}
+			},
+			expectedEndpoints: nil, // PRIORITY not supported
 		},
 		{
 			name: "Data frame header sent separately from frame payload with PING between them",
@@ -1235,6 +1342,29 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			},
 		},
 		{
+			name: "Payload data frame header sent separately with PRIORITY",
+			// PRIORITY changes HEADERS frame size affecting frame splitting calculations
+			messageBuilder: func() [][]byte {
+				payload := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9}
+				headersFrame := newFramer().writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{
+					Headers: generateTestHeaderFields(headersGenerationOptions{
+						overrideContentLength: len(payload)})}, true).bytes()
+				dataFrame := newFramer().writeData(t, 1, endStream, payload).bytes()
+				secondMessageHeadersFrame := newFramer().writeHeaders(t, 3, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}, true).bytes()
+				secondMessageDataFrame := newFramer().writeData(t, 3, endStream, emptyBody).bytes()
+
+				// Account for PRIORITY adding 5 bytes to HEADERS frames
+				firstMessage := append(headersFrame, dataFrame[:9+3]...)
+				secondMessage := append(dataFrame[9+3:], secondMessageHeadersFrame...)
+				secondMessage = append(secondMessage, secondMessageDataFrame...)
+				return [][]byte{
+					firstMessage,
+					secondMessage,
+				}
+			},
+			expectedEndpoints: nil, // PRIORITY not supported
+		},
+		{
 			name: "validate CONTINUATION frame support",
 			// Testing the scenario in which part of the data frame header is sent using CONTINUATION frame.
 			// Currently, we do not support CONTINUATION frames, therefore, we expect to capture only the first
@@ -1276,6 +1406,20 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			expectedEndpoints: nil,
 		},
 		{
+			name: "validate message split into 2 tcp segments with PRIORITY",
+			// PRIORITY changes frame structure - split now occurs within PRIORITY section
+			messageBuilder: func() [][]byte {
+				a := newFramer().
+					writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}, true).
+					writeData(t, 1, true, emptyBody).bytes()
+				return [][]byte{
+					a[:10], // Now splits in PRIORITY section (9 byte header + 1 byte of PRIORITY)
+					a[10:],
+				}
+			},
+			expectedEndpoints: nil, // PRIORITY not supported
+		},
+		{
 			name: "remainder + header remainder",
 			// Testing the scenario where we have both a remainder (a frame's payload split over 2 packets) and in the
 			// second packet, we have the remainder and a partial frame header of a new request. We're testing that we
@@ -1306,6 +1450,28 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 					Method: usmhttp.MethodPost,
 				}: 1,
 			},
+		},
+		{
+			name: "remainder + header remainder with PRIORITY",
+			// PRIORITY changes frame sizes affecting remainder calculations
+			messageBuilder: func() [][]byte {
+				data := []byte("testcontent")
+				request1 := newFramer().
+					writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: generateTestHeaderFields(headersGenerationOptions{overrideContentLength: len(data)})}, true).
+					writeData(t, 1, true, data).bytes()
+				request2 := newFramer().
+					writeHeaders(t, 3, usmhttp2.HeadersFrameOptions{Headers: headersWithGivenEndpoint("/bbb")}, true).
+					writeData(t, 3, true, emptyBody).bytes()
+				// Account for PRIORITY adding 5 bytes to first frame
+				firstPacket := request1[:len(request1)-6]
+				secondPacket := append(request1[len(request1)-6:], request2[:5]...)
+				return [][]byte{
+					firstPacket,
+					secondPacket,
+					request2[5:],
+				}
+			},
+			expectedEndpoints: nil, // PRIORITY not supported
 		},
 	}
 	for _, tt := range tests {
@@ -1453,6 +1619,23 @@ func (s *usmHTTP2Suite) TestIncompleteFrameTable() {
 			mapSize: 0,
 		},
 		{
+			name: "validate clean with remainder and header zero with PRIORITY",
+			// PRIORITY changes HEADERS frame size affecting remainder calculations
+			messageBuilder: func() [][]byte {
+				data := []byte("test12345")
+				a := newFramer().
+					writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: generateTestHeaderFields(headersGenerationOptions{overrideContentLength: len(data)})}, true).bytes()
+				b := newFramer().writeData(t, 1, true, data).bytes()
+				message := append(a, b[:11]...)
+				return [][]byte{
+					// we split it in 11 bytes in order to split the payload itself.
+					message,
+					b[11:],
+				}
+			},
+			mapSize: 0, // PRIORITY not supported, so map should be empty
+		},
+		{
 			name: "validate remainder in map",
 			// The purpose of this test is to validate that we cannot handle reassembled tcp segments.
 			messageBuilder: func() [][]byte {
@@ -1466,6 +1649,21 @@ func (s *usmHTTP2Suite) TestIncompleteFrameTable() {
 				}
 			},
 			mapSize: 1,
+		},
+		{
+			name: "validate remainder in map with PRIORITY",
+			// PRIORITY changes frame structure - split now occurs within PRIORITY section
+			messageBuilder: func() [][]byte {
+				a := newFramer().
+					writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}, true).
+					writeData(t, 1, true, emptyBody).bytes()
+				return [][]byte{
+					// Split at 10 bytes: now in PRIORITY section (9 byte header + 1 byte of PRIORITY)
+					a[:10],
+					a[10:],
+				}
+			},
+			mapSize: 0, // PRIORITY not supported, so map should be empty or different behavior
 		},
 	}
 	for _, tt := range tests {
@@ -1829,21 +2027,27 @@ func (f *framer) writeRawHeaders(t *testing.T, streamID uint32, endHeaders bool,
 	return f
 }
 
-func (f *framer) writeHeaders(t *testing.T, streamID uint32, headersFramesOptions usmhttp2.HeadersFrameOptions) *framer {
+func (f *framer) writeHeaders(t *testing.T, streamID uint32, headersFramesOptions usmhttp2.HeadersFrameOptions, withPriority ...bool) *framer {
 	headersFrame, err := usmhttp2.NewHeadersFrameMessage(headersFramesOptions)
 	require.NoError(t, err, "could not create headers frame")
 
-	if headersFramesOptions.EndStream {
-		require.NoError(t, f.framer.WriteHeaders(http2.HeadersFrameParam{
-			StreamID:      streamID,
-			BlockFragment: headersFrame,
-			EndHeaders:    endHeaders,
-			EndStream:     true,
-		}), "could not write header frames")
-		return f
+	param := http2.HeadersFrameParam{
+		StreamID:      streamID,
+		BlockFragment: headersFrame,
+		EndHeaders:    true,
 	}
 
-	return f.writeRawHeaders(t, streamID, true, headersFrame)
+	if headersFramesOptions.EndStream {
+		param.EndStream = true
+	}
+
+	// Add PRIORITY if requested
+	if len(withPriority) > 0 && withPriority[0] {
+		param.Priority = http2.PriorityParam{StreamDep: 0, Exclusive: false, Weight: 16}
+	}
+
+	require.NoError(t, f.framer.WriteHeaders(param), "could not write header frames")
+	return f
 }
 
 func (f *framer) writeHeadersWithEncoder(t *testing.T, streamID uint32, headersFramesOptions usmhttp2.HeadersFrameOptions, encoder *hpack.Encoder, buf *bytes.Buffer) *framer {
