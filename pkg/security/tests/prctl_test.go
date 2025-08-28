@@ -32,6 +32,10 @@ func TestPrCtl(t *testing.T) {
 			ID:         "test_rule_prctl_truncated",
 			Expression: `prctl.option == PR_SET_NAME && prctl.is_name_truncated == true`,
 		},
+		{
+			ID:         "test_rule_prctl_get_dumpable",
+			Expression: `prctl.option == PR_GET_DUMPABLE`,
+		},
 	}
 
 	test, err := newTestModule(t, nil, ruleDefs)
@@ -86,5 +90,19 @@ func TestPrCtl(t *testing.T) {
 		assert.NotZero(t, test.statsdClient.Get(key))
 
 	})
-
+	t.Run("prctl-get-dumpable", func(t *testing.T) {
+		test.WaitSignal(t, func() error {
+			_, _, errno := syscall.Syscall6(
+				syscall.SYS_PRCTL,
+				uintptr(syscall.PR_GET_DUMPABLE),
+				0, 0, 0, 0, 0,
+			)
+			if errno != 0 {
+				return fmt.Errorf("prctl(PR_GET_DUMPABLE) failed: %v", errno)
+			}
+			return nil
+		}, func(_ *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_rule_prctl_get_dumpable")
+		})
+	})
 }
