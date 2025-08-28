@@ -8,7 +8,6 @@
 package secretsimpl
 
 import (
-	_ "embed"
 	"fmt"
 	"os/user"
 	"strconv"
