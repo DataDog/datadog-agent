@@ -6,6 +6,7 @@
 package clusteragent
 
 import (
+	"crypto/tls"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -21,6 +22,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
+	pkgapiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -100,6 +103,13 @@ func (d *dummyCLCRunner) StartTLS() (*httptest.Server, int, error) {
 	return d.parsePort(ts)
 }
 
+func (d *dummyCLCRunner) StartTLSWithConfig(config *tls.Config) (*httptest.Server, int, error) {
+	ts := httptest.NewUnstartedServer(d)
+	ts.TLS = config
+	ts.StartTLS()
+	return d.parsePort(ts)
+}
+
 func (d *dummyCLCRunner) PopRequest() *http.Request {
 	select {
 	case r := <-d.requests:
@@ -132,6 +142,9 @@ func (suite *clcRunnerSuite) TestGetCLCRunnerStats() {
 	ts, p, err := clcRunner.StartTLS()
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 	defer ts.Close()
+
+	// IPC component is responsible for initializing TLS configurations globally
+	ipcmock.New(suite.T())
 
 	c, err := GetCLCRunnerClient()
 	c.(*CLCRunnerClient).clcRunnerPort = p
@@ -167,6 +180,9 @@ func (suite *clcRunnerSuite) TestGetCLCRunnerVersion() {
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 	defer ts.Close()
 
+	// IPC component is responsible for initializing TLS configurations globally
+	ipcmock.New(suite.T())
+
 	c, err := GetCLCRunnerClient()
 	c.(*CLCRunnerClient).clcRunnerPort = p
 
@@ -198,6 +214,9 @@ func (suite *clcRunnerSuite) TestGetRunnerWorkers() {
 	ts, p, err := clcRunner.StartTLS()
 	require.NoError(suite.T(), err)
 	defer ts.Close()
+
+	// IPC component is responsible for initializing TLS configurations globally
+	ipcmock.New(suite.T())
 
 	c, err := GetCLCRunnerClient()
 	require.NoError(suite.T(), err)
@@ -242,4 +261,100 @@ func TestCLCRunnerSuite(t *testing.T) {
 	require.NotNil(t, err, fmt.Sprintf("%v", err))
 
 	suite.Run(t, s)
+}
+
+func (suite *clcRunnerSuite) TestCLCClientTLSVerification() {
+	// Reset the global CLCRunnerClient/CrossNodeClientTLSConfig to ensure a clean state for next tests
+	defer resetGlobalCLCRunnerClient()
+	defer pkgapiutil.TestOnlyResetCrossNodeClientTLSConfig()
+
+	ipccomp := ipcmock.New(suite.T())
+
+	tests := []struct {
+		name              string
+		clientCheckTLS    bool // Whether the client should check the TLS certificate
+		serverUsesIPCCert bool
+		shouldFail        bool
+	}{
+		{
+			name:              "Test with known CA",
+			clientCheckTLS:    true,
+			serverUsesIPCCert: true,
+			shouldFail:        false,
+		},
+		{
+			name:              "Test with unknown CA",
+			clientCheckTLS:    true,
+			serverUsesIPCCert: false,
+			shouldFail:        true,
+		},
+		{
+			name:              "Test with unknown CA with cluster_agent.client_check_tls set to false",
+			clientCheckTLS:    false,
+			serverUsesIPCCert: false,
+			shouldFail:        false,
+		},
+	}
+
+	for _, tt := range tests {
+		suite.T().Run(tt.name, func(t *testing.T) {
+			// Reset every global state before each test
+			resetGlobalCLCRunnerClient()
+			pkgapiutil.TestOnlyResetCrossNodeClientTLSConfig()
+
+			// Configure the cluster agent server
+
+			// First, create a dummy cluster agent
+			clc, err := newDummyCLCRunner(suite.conf)
+			require.Nil(t, err, fmt.Sprintf("%v", err))
+
+			startFunc := clc.StartTLS
+
+			if tt.serverUsesIPCCert {
+				startFunc = func() (*httptest.Server, int, error) {
+					// Start a TLS server with self-signed certificate
+					return clc.StartTLSWithConfig(ipccomp.GetTLSServerConfig())
+				}
+			}
+			// Start a TLS server with self-signed certificate
+			ts, p, err := startFunc()
+			require.Nil(t, err, fmt.Sprintf("%v", err))
+			defer ts.Close()
+
+			// Configure the CLC client
+
+			if tt.clientCheckTLS {
+				// Set the TLS configuration for cross-node communication
+				pkgapiutil.SetCrossNodeClientTLSConfig(ipccomp.GetTLSClientConfig())
+			} else {
+				// Set the TLS configuration for cross-node communication to nil
+				pkgapiutil.SetCrossNodeClientTLSConfig(&tls.Config{
+					InsecureSkipVerify: true, // Skip TLS verification
+				})
+			}
+
+			// Try to connect to the cluster agent - should fail due to certificate verification
+			client, err := GetCLCRunnerClient()
+			client.(*CLCRunnerClient).clcRunnerPort = p
+			require.NoError(t, err)
+
+			expected := version.Version{
+				Major:  0,
+				Minor:  0,
+				Patch:  0,
+				Pre:    "test",
+				Meta:   "test",
+				Commit: "1337",
+			}
+
+			version, err := client.GetVersion("127.0.0.1")
+
+			if tt.shouldFail {
+				require.NotNil(t, err, "Expected an error due to certificate verification")
+			} else {
+				require.Nil(t, err, fmt.Sprintf("%v", err))
+				assert.Equal(t, expected, version)
+			}
+		})
+	}
 }

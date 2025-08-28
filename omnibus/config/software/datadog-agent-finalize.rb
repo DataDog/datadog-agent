@@ -40,17 +40,15 @@ build do
         end
 
         if linux_target? || osx_target?
-            # Setup script aliases, e.g. `/opt/datadog-agent/embedded/bin/pip` will
-            # default to `pip2` if the default Python runtime is Python 2.
-            delete "#{install_dir}/embedded/bin/pip"
-            link "#{install_dir}/embedded/bin/pip3", "#{install_dir}/embedded/bin/pip"
-
-            delete "#{install_dir}/embedded/bin/python"
-            link "#{install_dir}/embedded/bin/python3", "#{install_dir}/embedded/bin/python"
-
-            # Used in https://docs.datadoghq.com/agent/guide/python-3/
-            delete "#{install_dir}/embedded/bin/2to3"
-            link "#{install_dir}/embedded/bin/2to3-3.12", "#{install_dir}/embedded/bin/2to3"
+            delete "#{install_dir}/embedded/bin/pip"  # copy of pip3.12
+            delete "#{install_dir}/embedded/bin/pip3"  # copy of pip3.12
+            block 'create relative symlinks within embedded Python distribution' do
+              Dir.chdir "#{install_dir}/embedded/bin" do
+                File.symlink 'pip3.12', 'pip3'
+                File.symlink 'pip3', 'pip'
+                File.symlink 'python3', 'python'
+              end
+            end
 
             delete "#{install_dir}/embedded/lib/config_guess"
 

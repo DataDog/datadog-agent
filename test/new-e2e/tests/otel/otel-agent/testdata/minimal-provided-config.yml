@@ -21,7 +21,7 @@ exporters:
       site: datadoghq.com
     headers: {}
     host_metadata:
-      enabled: false
+      enabled: true
       hostname_source: config_or_system
       reporter_period: 30m0s
       tags: []
@@ -94,7 +94,7 @@ receivers:
         read_buffer_size: 524288
         transport: tcp
       http:
-        cors: {}
+        cors: null
         endpoint: 0.0.0.0:4318
         idle_timeout: 0s
         logs_url_path: /v1/logs

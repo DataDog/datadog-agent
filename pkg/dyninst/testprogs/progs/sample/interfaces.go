@@ -9,6 +9,8 @@ import (
 	"errors"
 	"fmt"
 	"unsafe"
+
+	lib_v2 "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2"
 )
 
 type behavior interface {
@@ -46,13 +48,13 @@ type itab struct {
 //nolint:all
 //go:noinline
 func testInterface(b behavior) string {
-	ptr := unsafe.Pointer(&b)
-	iface := (*iface)(ptr)
-	hash := fmt.Sprintf("iface.tab.hash = %#x", iface.tab.hash)
-	inter := fmt.Sprintf("iface.tab.inter = %#x", iface.tab.inter)
-	iType := fmt.Sprintf("iface.tab._type = %#x", iface.tab._type)
-	iFun := fmt.Sprintf("iface.tab.fun = %#x", iface.tab.fun)
-	return fmt.Sprintln(hash, inter, iType, iFun)
+	return b.DoSomething()
+}
+
+//nolint:all
+//go:noinline
+func testAny(a any) string {
+	return fmt.Sprintf("%v", a)
 }
 
 //nolint:all
@@ -62,6 +64,20 @@ func testError(e error) {}
 //nolint:all
 func executeInterfaceFuncs() {
 	testInterface(firstBehavior{"foo"})
+	testInterface(&firstBehavior{"foo"})
 	testInterface(secondBehavior{42})
+	testInterface(&secondBehavior{42})
+	testAny(firstBehavior{"foo"})
+	testAny(&firstBehavior{"foo"})
+	testAny(secondBehavior{42})
+	testAny(&secondBehavior{42})
+	testAny(lib_v2.V2Type{})
+	testAny(&lib_v2.V2Type{})
+	one := 1
+	testAny(one)
+	testAny(&one)
+	foo := "foo"
+	testAny(foo)
+	testAny(&foo)
 	testError(errors.New("blah"))
 }

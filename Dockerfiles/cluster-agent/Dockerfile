@@ -16,6 +16,9 @@ LABEL baseimage.os "ubuntu ${BASE_IMAGE_UBUNTU_NAME}"
 LABEL baseimage.name "ubuntu:${BASE_IMAGE_UBUNTU_VERSION}"
 LABEL org.opencontainers.image.base.name "ubuntu:${BASE_IMAGE_UBUNTU_VERSION}"
 LABEL org.opencontainers.image.title "Datadog Cluster Agent"
+LABEL org.opencontainers.image.authors="Datadog <package@datadoghq.com>"
+LABEL org.opencontainers.image.source="https://github.com/DataDog/datadog-agent"
+LABEL org.opencontainers.image.vendor="Datadog, Inc."
 
 ARG CIBUILD
 # NOTE about APT mirrorlists:

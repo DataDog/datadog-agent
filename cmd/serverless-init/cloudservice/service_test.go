@@ -30,8 +30,7 @@ func TestGetCloudServiceType(t *testing.T) {
 func TestGetCloudServiceTypeForCloudRunJob(t *testing.T) {
 	t.Setenv("CLOUD_RUN_JOB", "test-job")
 	cloudService := GetCloudServiceType()
-	assert.Equal(t, "cloudrun", cloudService.GetOrigin())
-	assert.Equal(t, "gcp.run.job", cloudService.GetPrefix())
+	assert.Equal(t, "cloudrunjobs", cloudService.GetOrigin())
 
 	// Verify it's the correct type
 	_, ok := cloudService.(*CloudRunJobs)

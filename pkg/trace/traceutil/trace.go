@@ -60,7 +60,7 @@ func GetRoot(t pb.Trace) *pb.Span {
 	}
 
 	// Have a safe behavior if that's not the case
-	// Pick the first span without its parent
+	// Pick a random span without its parent
 	for parentID := range parentIDToChild {
 		return parentIDToChild[parentID]
 	}

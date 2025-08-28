@@ -16,7 +16,6 @@ import (
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -91,7 +90,6 @@ func GetStaticTags(ctx context.Context, datadogConfig config.Component) map[stri
 // GetClusterAgentStaticTags is similar to GetStaticTags, but returning a map[string][]string containing
 // <key>:<value> pairs for all global environment tags on the cluster agent. This includes:
 // DD_TAGS, DD_EXTRA_TAGS, DD_CLUSTER_CHECKS_EXTRA_TAGS, DD_ORCHESTRATOR_EXPLORER_EXTRA_TAGS
-// and other cluster level tags like orch_cluster_id, cluster_name, etc.
 func GetClusterAgentStaticTags(config config.Reader) map[string][]string {
 	if flavor.GetFlavor() != flavor.ClusterAgent {
 		return nil
@@ -102,19 +100,6 @@ func GetClusterAgentStaticTags(config config.Reader) map[string][]string {
 
 	// DD_CLUSTER_CHECKS_EXTRA_TAGS / DD_ORCHESTRATOR_EXPLORER_EXTRA_TAGS
 	tags = append(tags, configUtils.GetConfiguredDCATags(config)...)
-
-	// ORCH_CLUSTER_ID
-	clusterIDValue, _ := clustername.GetClusterID()
-	if clusterIDValue != "" {
-		tags = append(tags, taggertags.OrchClusterID+":"+clusterIDValue)
-	}
-
-	// KUBE_CLUSTER_NAME
-	hname, _ := hostname.Get(context.TODO())
-	clusterTagValue := clustername.GetClusterName(context.TODO(), hname)
-	if clusterTagValue != "" {
-		tags = append(tags, taggertags.KubeClusterName+":"+clusterTagValue)
-	}
 
 	if tags == nil {
 		return nil

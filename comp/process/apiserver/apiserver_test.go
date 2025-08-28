@@ -21,7 +21,8 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
-	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
@@ -57,7 +58,7 @@ func TestLifecycle(t *testing.T) {
 		settingsimpl.MockModule(),
 		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 		fx.Populate(&ipcComp),
-		secretsimpl.MockModule(),
+		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
 	))
 
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
@@ -91,7 +92,7 @@ func TestPostAuthentication(t *testing.T) {
 		settingsimpl.MockModule(),
 		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 		fx.Populate(&ipcComp),
-		secretsimpl.MockModule(),
+		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
 	))
 
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {

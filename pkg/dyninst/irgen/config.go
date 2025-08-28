@@ -7,19 +7,28 @@
 
 package irgen
 
+import "github.com/DataDog/datadog-agent/pkg/dyninst/object"
+
+// ObjectLoader is an interface that abstracts the loading of object files.
+type ObjectLoader interface {
+	Load(path string) (object.FileWithDwarf, error)
+}
+
 type config struct {
 	maxDynamicTypeSize uint32
 	maxHashBucketsSize uint32
+	objectLoader       ObjectLoader
 }
 
 var defaultConfig = config{
 	maxDynamicTypeSize: defaultMaxDynamicTypeSize,
 	maxHashBucketsSize: defaultMaxHashBucketsSize,
+	objectLoader:       object.NewInMemoryLoader(),
 }
 
 // This is an arbitrary limit for how much data will be captured for
 // dynamically sized types (strings and slices).
-const defaultMaxDynamicTypeSize = 512
+const defaultMaxDynamicTypeSize = 2048
 
 // Same limit, but for hashmap buckets slice (both hmaps and swiss maps,
 // both using pointers and embedded key/value types). Limit is higher
@@ -46,3 +55,12 @@ func (o maxDynamicDataSizeOption) apply(c *config) {
 func WithMaxDynamicDataSize(size int) Option {
 	return maxDynamicDataSizeOption(size)
 }
+
+// WithObjectLoader sets the object loader to use for loading object files.
+func WithObjectLoader(loader ObjectLoader) Option {
+	return optionFunc(func(c *config) { c.objectLoader = loader })
+}
+
+type optionFunc func(c *config)
+
+func (o optionFunc) apply(c *config) { o(c) }
