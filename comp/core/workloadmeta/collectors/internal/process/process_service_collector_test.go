@@ -644,8 +644,8 @@ func assertStoredServices(t *testing.T, store workloadmetamock.Mock, expected []
 
 		assert.EventuallyWithT(t, func(collectT *assert.CollectT) {
 			entity, err := store.GetProcess(expectedProcess.Pid)
-			assert.NoError(collectT, err)
-			assert.NotNil(collectT, entity)
+			require.NoError(collectT, err)
+			require.NotNil(collectT, entity)
 			if expectedProcess.Service == nil {
 				assert.Nil(collectT, entity.Service)
 			} else {
