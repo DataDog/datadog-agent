@@ -1464,11 +1464,11 @@ type Service struct {
 	// names
 	DDService string
 
-	// UST contains Unified Service Tagging environment variables
-	UST UST
-
 	// DDServiceInjected indicates if DD_SERVICE was injected
 	DDServiceInjected bool
+
+	// UST contains Unified Service Tagging environment variables
+	UST UST
 
 	// Ports is the list of ports the service is listening on
 	Ports []uint16
