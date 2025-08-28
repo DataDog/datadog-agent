@@ -950,7 +950,6 @@ func (suite *KubeletTestSuite) TestGetConfigWithBrokenKubelet() {
 	mockConfig.SetWithoutSource("kubelet_auth_token_path", "")
 
 	kubeutil := suite.getCustomKubeUtil()
-	kubelet.dropRequests() // Throwing away first GETs
 
 	config, err := kubeutil.GetConfig(ctx)
 	require.NotNil(suite.T(), err)
