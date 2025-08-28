@@ -50,11 +50,12 @@ def get_gitlab_token(ctx, repo='datadog-agent', verbose=False) -> str:
     if not res.ok:
         raise RuntimeError(f'Failed to retrieve Gitlab token, request failed with code {res.status_code}:\n{res.text}')
 
+    token_info = res.json()
     if verbose:
         # Prints also the scopes + the expiration date
-        print('Got Gitlab token:', res.json())
+        print('Got Gitlab token, extra information:', {k: v for k, v in token_info.items() if k != 'token'})
 
-    token = res.json()['token']
+    token = token_info['token']
 
     return token
 
