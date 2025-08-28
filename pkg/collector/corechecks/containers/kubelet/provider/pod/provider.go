@@ -151,24 +151,23 @@ func (p *Provider) generateContainerSpecMetrics(sender sender.Sender, pod *kubel
 	tagList = utils.ConcatenateTags(tagList, p.config.Tags)
 
 	if container.Resources != nil { // Ephemeral containers do not have resources defined
+		wmetaKubelet, _ := p.store.GetKubelet()
+		if wmetaKubelet != nil {
+			cpuManagerPolicy, _ := wmetaKubelet.GetCPUManagerPolicy()
+			wmetaContainer, _ := p.store.GetContainer(containerID.GetID())
+			if wmetaContainer.Resources.UsesWholeCPU && cpuManagerPolicy == workloadmeta.CpuManagerPolicyStatic {
+				tagList = utils.ConcatenateStringTags(tagList, "kube_cpu_management:static")
+			} else {
+				tagList = utils.ConcatenateStringTags(tagList, "kube_cpu_management:none")
+			}
+		}
+
 		for r, value := range container.Resources.Requests {
 			sender.Gauge(common.KubeletMetricsPrefix+string(r)+".requests", value.AsApproximateFloat64(), "", tagList)
 		}
 
 		for r, value := range container.Resources.Limits {
 			sender.Gauge(common.KubeletMetricsPrefix+string(r)+".limits", value.AsApproximateFloat64(), "", tagList)
-		}
-
-		wmetaKubelet, _ := p.store.GetKubelet()
-		if wmetaKubelet != nil {
-			wmetaContainer, _ := p.store.GetContainer(containerID.GetID())
-			cpuManagerPolicy, _ := wmetaKubelet.GetCPUManagerPolicy()
-
-			if wmetaContainer.Resources.UsesWholeCPU && cpuManagerPolicy == workloadmeta.CpuManagerPolicyStatic {
-				utils.ConcatenateStringTags(tagList, "kube_cpu_management:static")
-			} else {
-				utils.ConcatenateStringTags(tagList, "kube_cpu_management:none")
-			}
 		}
 	}
 }

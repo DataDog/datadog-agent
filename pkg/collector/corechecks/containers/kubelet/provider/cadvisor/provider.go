@@ -169,17 +169,17 @@ func (p *Provider) processContainerMetric(metricType, metricName string, metricF
 			tags, _ = p.tagger.Tag(cID, types.HighCardinality)
 
 			// strip the leading `container_id://`
-			id := strings.Replace(containerID, "container_id://", "", -1)
+			id := strings.ReplaceAll(containerID, "container_id://", "")
 
 			wmetaKubelet, _ := p.store.GetKubelet()
 			if wmetaKubelet != nil {
-				cpuMangerPolicy, _ := wmetaKubelet.GetCPUManagerPolicy()
+				cpuManagerPolicy, _ := wmetaKubelet.GetCPUManagerPolicy()
 				container, _ := p.store.GetContainer(id)
 
-				if container.Resources.UsesWholeCPU && cpuMangerPolicy == workloadmeta.CpuManagerPolicyStatic {
-					utils.ConcatenateStringTags(tags, "kube_cpu_management:static")
+				if container.Resources.UsesWholeCPU && cpuManagerPolicy == workloadmeta.CpuManagerPolicyStatic {
+					tags = utils.ConcatenateStringTags(tags, "kube_cpu_management:static")
 				} else {
-					utils.ConcatenateStringTags(tags, "kube_cpu_management:none")
+					tags = utils.ConcatenateStringTags(tags, "kube_cpu_management:none")
 				}
 			}
 		}
