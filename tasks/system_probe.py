@@ -706,18 +706,21 @@ def ninja_generate(
 
 
 @task
-def build_libpcap(ctx):
+def build_libpcap(ctx, arch: Arch):
     """Download and build libpcap as a static library in the agent dev directory.
     The library is not rebuilt if it already exists.
     """
     embedded_path = get_embedded_path(ctx)
     assert embedded_path, "Failed to find embedded path"
-    target_file = os.path.join(embedded_path, "lib", "libpcap.a")
-    if os.path.exists(target_file):
+    target_file = Path(os.path.join(embedded_path, "lib", "libpcap.a"))
+    final_path = target_file.parent / f"{arch}" / "libpcap.a"
+    if final_path.exists():
         version = ctx.run(f"strings {target_file} | grep -E '^libpcap version' | cut -d ' ' -f 3").stdout.strip()
         if version == LIBPCAP_VERSION:
             ctx.run(f"echo 'libpcap version {version} already exists at {target_file}'")
             return
+
+    final_path.parent.mkdir(parents=True, exist_ok=True)
     dist_dir = os.path.join(embedded_path, "dist")
     lib_dir = os.path.join(dist_dir, f"libpcap-{LIBPCAP_VERSION}")
     ctx.run(f"rm -rf {lib_dir}")
@@ -731,6 +734,14 @@ def build_libpcap(ctx):
             env['CC'] = os.getenv('DD_CC')
         if os.getenv('DD_CXX'):
             env['CXX'] = os.getenv('DD_CXX')
+
+        if arch.is_cross_compiling():
+            # For cross-compilation we need to be explicit about certain Go settings
+            env["GOARCH"] = arch.go_arch
+            env["CGO_ENABLED"] = "1"  # If we're cross-compiling, CGO is disabled by default. Ensure it's always enabled
+            env["CC"] = os.getenv("DD_CC_CROSS", arch.gcc_compiler())
+            env["CXX"] = os.getenv("DD_CXX_CROSS", arch.gpp_compiler())
+
         with environ(env):
             config_opts = [
                 f"--prefix={embedded_path}",
@@ -743,6 +754,7 @@ def build_libpcap(ctx):
                 "--disable-bluetooth",
                 "--disable-dbus",
                 "--disable-rdma",
+                "--host=aarch64-pc-linux-gnu" if arch == ARCH_ARM64 else ""
             ]
             ctx.run(f"./configure {' '.join(config_opts)}")
             ctx.run("make install")
@@ -750,24 +762,30 @@ def build_libpcap(ctx):
     ctx.run(f"rm -rf {os.path.join(embedded_path, 'share')}")
     ctx.run(f"rm -rf {os.path.join(embedded_path, 'lib', 'pkgconfig')}")
     ctx.run(f"rm -rf {lib_dir}")
-    ctx.run(f"strip -g {target_file}")
+    ctx.run(f"/opt/toolchains/{arch.gcc_arch}/{arch.gcc_arch}-unknown-linux-gnu/bin/strip -g {target_file}")
+    ctx.run(f"mv {target_file} {final_path}")
 
 
-def get_libpcap_cgo_flags(ctx, install_path: str = None):
+def get_libpcap_cgo_flags(ctx, arch: Arch, install_path: str = None):
     """Return a dictionary with the CGO flags needed to link against libpcap.
     If install_path is provided, then we expect this path to contain libpcap as a shared library.
     """
+
     if install_path is not None:
+        cflags = os.path.join(install_path, 'embedded', 'include')
+        ldflags = os.path.join(install_path, 'embedded', 'lib', f"{arch}")
         return {
-            'CGO_CFLAGS': f"-I{os.path.join(install_path, 'embedded', 'include')}",
-            'CGO_LDFLAGS': f"-L{os.path.join(install_path, 'embedded', 'lib')}",
+            'CGO_CFLAGS': f"-I{cflags}",
+            'CGO_LDFLAGS': f"-L{ldflags}",
         }
     else:
         embedded_path = get_embedded_path(ctx)
         assert embedded_path, "Failed to find embedded path"
+        cflags = os.path.join(embedded_path, 'include')
+        ldflags = os.path.join(embedded_path, 'lib', f"{arch}")
         return {
-            'CGO_CFLAGS': f"-I{os.path.join(embedded_path, 'include')}",
-            'CGO_LDFLAGS': f"-L{os.path.join(embedded_path, 'lib')}",
+            'CGO_CFLAGS': f"-I{cflags}",
+            'CGO_LDFLAGS': f"-L{ldflags}",
         }
 
 
@@ -869,8 +887,8 @@ def build_sysprobe_binary(
         build_tags = list(set(build_tags).difference({"nvml"}))
 
     if not is_windows and "pcap" in build_tags:
-        build_libpcap(ctx)
-        cgo_flags = get_libpcap_cgo_flags(ctx, install_path)
+        build_libpcap(ctx, arch_obj)
+        cgo_flags = get_libpcap_cgo_flags(ctx, arch, install_path)
         # append libpcap cgo-related environment variables to any existing ones
         for k, v in cgo_flags.items():
             if k in env:

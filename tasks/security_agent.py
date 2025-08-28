@@ -351,8 +351,8 @@ def build_functional_tests(
             build_tags.append("ebpf_bindata")
 
         build_tags.append("pcap")
-        build_libpcap(ctx)
-        cgo_flags = get_libpcap_cgo_flags(ctx)
+        build_libpcap(ctx, arch)
+        cgo_flags = get_libpcap_cgo_flags(ctx, arch)
         # append libpcap cgo-related environment variables to any existing ones
         for k, v in cgo_flags.items():
             if k in env:
@@ -790,8 +790,8 @@ def run_ebpf_unit_tests(ctx, verbose=False, trace=False, testflags=''):
 
     env = {"CGO_ENABLED": "1"}
 
-    build_libpcap(ctx)
-    cgo_flags = get_libpcap_cgo_flags(ctx)
+    build_libpcap(ctx, Arch.local())
+    cgo_flags = get_libpcap_cgo_flags(ctx, Arch.local())
     # append libpcap cgo-related environment variables to any existing ones
     for k, v in cgo_flags.items():
         if k in env:
