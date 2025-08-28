@@ -282,4 +282,4 @@ type ContainerStateTerminated struct {
 	Reason     string    `json:"reason"`
 }
 
-type KubeletConfig map[string]interface{}
+type Config map[string]interface{}
