@@ -89,13 +89,13 @@ func preRemoveDatadogAgentDdot(ctx HookContext) error {
 // writeOTelConfigWindows creates otel-config.yaml by substituting API key and site values from datadog.yaml
 func writeOTelConfigWindows() error {
 	ddYaml := filepath.Join(paths.DatadogDataDir, "datadog.yaml")
-	// Prefer packaged example from the installed package repository
-	example := filepath.Join(paths.PackagesPath, agentDDOTPackage, "stable", "etc", "datadog-agent", "otel-config.yaml.example")
-	// Fallback to local ProgramData example if needed
-	if _, err := os.Stat(example); err != nil {
+	// Prefer packaged example/template from the installed package repository
+	cfgTemplate := filepath.Join(paths.PackagesPath, agentDDOTPackage, "stable", "etc", "datadog-agent", "otel-config.yaml.example")
+	// Fallback to local ProgramData example/template if needed
+	if _, err := os.Stat(cfgTemplate); err != nil {
 		alt := filepath.Join(paths.DatadogDataDir, "otel-config.yaml.example")
 		if _, err2 := os.Stat(alt); err2 == nil {
-			example = alt
+			cfgTemplate = alt
 		}
 	}
 	out := filepath.Join(paths.DatadogDataDir, "otel-config.yaml")
@@ -111,11 +111,11 @@ func writeOTelConfigWindows() error {
 	apiKey, _ := cfg["api_key"].(string)
 	site, _ := cfg["site"].(string)
 
-	exampleData, err := os.ReadFile(example)
+	templateData, err := os.ReadFile(cfgTemplate)
 	if err != nil {
 		return err
 	}
-	content := string(exampleData)
+	content := string(templateData)
 	if apiKey != "" {
 		content = strings.ReplaceAll(content, "${env:DD_API_KEY}", apiKey)
 	}
