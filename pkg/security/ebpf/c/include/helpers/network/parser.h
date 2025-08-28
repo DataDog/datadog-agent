@@ -62,35 +62,35 @@ __attribute__((always_inline)) struct packet_t * parse_packet(struct __sk_buff *
     switch (pkt->ns_flow.flow.l3_protocol) {
     case ETH_P_IP:
         // parse IPv4 header
-        if (!(parse_iphdr(skb, &c, &pkt->ipv4))) {
+        if (!(parse_iphdr(skb, &c, &pkt->l3.ipv4))) {
             return NULL;
         }
 
         // adjust cursor with variable ipv4 options
-        if (pkt->ipv4.ihl > 5) {
-            c.pos += (pkt->ipv4.ihl - 5) * 4;
+        if (pkt->l3.ipv4.ihl > 5) {
+            c.pos += (pkt->l3.ipv4.ihl - 5) * 4;
             if (c.pos > c.end) {
                 return NULL;
             }
         }
 
-        pkt->ns_flow.flow.l4_protocol = pkt->ipv4.protocol;
-        pkt->ns_flow.flow.saddr[0] = pkt->ipv4.saddr;
-        pkt->ns_flow.flow.daddr[0] = pkt->ipv4.daddr;
+        pkt->ns_flow.flow.l4_protocol = pkt->l3.ipv4.protocol;
+        pkt->ns_flow.flow.saddr[0] = pkt->l3.ipv4.saddr;
+        pkt->ns_flow.flow.daddr[0] = pkt->l3.ipv4.daddr;
         break;
 
     case ETH_P_IPV6:
         // parse IPv6 header
         // TODO: handle multiple IPv6 extension headers
-        if (!(parse_ipv6hdr(skb, &c, &pkt->ipv6))) {
+        if (!(parse_ipv6hdr(skb, &c, &pkt->l3.ipv6))) {
             return NULL;
         }
 
-        pkt->ns_flow.flow.l4_protocol = pkt->ipv6.nexthdr;
-        pkt->ns_flow.flow.saddr[0] = *(u64 *)&pkt->ipv6.saddr;
-        pkt->ns_flow.flow.saddr[1] = *((u64 *)(&pkt->ipv6.saddr) + 1);
-        pkt->ns_flow.flow.daddr[0] = *(u64 *)&pkt->ipv6.daddr;
-        pkt->ns_flow.flow.daddr[1] = *((u64 *)(&pkt->ipv6.daddr) + 1);
+        pkt->ns_flow.flow.l4_protocol = pkt->l3.ipv6.nexthdr;
+        pkt->ns_flow.flow.saddr[0] = *(u64 *)&pkt->l3.ipv6.saddr;
+        pkt->ns_flow.flow.saddr[1] = *((u64 *)(&pkt->l3.ipv6.saddr) + 1);
+        pkt->ns_flow.flow.daddr[0] = *(u64 *)&pkt->l3.ipv6.daddr;
+        pkt->ns_flow.flow.daddr[1] = *((u64 *)(&pkt->l3.ipv6.daddr) + 1);
         break;
 
     default:
@@ -101,53 +101,53 @@ __attribute__((always_inline)) struct packet_t * parse_packet(struct __sk_buff *
     switch (pkt->ns_flow.flow.l4_protocol) {
     case IPPROTO_TCP:
         // parse TCP header
-        if (!(parse_tcphdr(skb, &c, &pkt->tcp))) {
+        if (!(parse_tcphdr(skb, &c, &pkt->l4.tcp))) {
             return NULL;
         }
 
         // adjust cursor with variable tcp options
-        c.pos += (pkt->tcp.doff << 2) - sizeof(struct tcphdr);
+        c.pos += (pkt->l4.tcp.doff << 2) - sizeof(struct tcphdr);
 
         // save current offset within the packet
         pkt->offset = ((u32)(long)c.pos - skb->data);
         pkt->payload_len = skb->len - pkt->offset;
-        pkt->ns_flow.flow.tcp_udp.sport = pkt->tcp.source;
-        pkt->ns_flow.flow.tcp_udp.dport = pkt->tcp.dest;
+        pkt->ns_flow.flow.tcp_udp.sport = pkt->l4.tcp.source;
+        pkt->ns_flow.flow.tcp_udp.dport = pkt->l4.tcp.dest;
         break;
 
     case IPPROTO_UDP:
         // parse UDP header
-        if (!(parse_udphdr(skb, &c, &pkt->udp))) {
+        if (!(parse_udphdr(skb, &c, &pkt->l4.udp))) {
             return NULL;
         }
 
         // save current offset within the packet
         pkt->offset = ((u32)(long)c.pos - skb->data);
         pkt->payload_len = skb->len - pkt->offset;
-        pkt->ns_flow.flow.tcp_udp.sport = pkt->udp.source;
-        pkt->ns_flow.flow.tcp_udp.dport = pkt->udp.dest;
+        pkt->ns_flow.flow.tcp_udp.sport = pkt->l4.udp.source;
+        pkt->ns_flow.flow.tcp_udp.dport = pkt->l4.udp.dest;
         break;
 
     case IPPROTO_ICMP:
         if (pkt->ns_flow.flow.l3_protocol == ETH_P_IP) {
-             if (!(parse_icmphdr(skb, &c, &pkt->icmp))) {
+             if (!(parse_icmphdr(skb, &c, &pkt->l4.icmp))) {
                 return NULL;
             }
 
-            pkt->ns_flow.flow.icmp.type = pkt->icmp.type;
-            pkt->ns_flow.flow.icmp.code = pkt->icmp.code;
-            if (pkt->icmp.type == ICMP_ECHO || pkt->icmp.type == ICMP_ECHOREPLY) {
-                pkt->ns_flow.flow.icmp.id = htons(pkt->icmp.un.echo.id);
+            pkt->ns_flow.flow.icmp.type = pkt->l4.icmp.type;
+            pkt->ns_flow.flow.icmp.code = pkt->l4.icmp.code;
+            if (pkt->l4.icmp.type == ICMP_ECHO || pkt->l4.icmp.type == ICMP_ECHOREPLY) {
+                pkt->ns_flow.flow.icmp.id = htons(pkt->l4.icmp.un.echo.id);
             }
         } else if (pkt->ns_flow.flow.l3_protocol == ETH_P_IPV6) {
-            if (!(parse_icmp6hdr(skb, &c, &pkt->icmp6))) {
+            if (!(parse_icmp6hdr(skb, &c, &pkt->l4.icmp6))) {
                 return NULL;
             }
 
-            pkt->ns_flow.flow.icmp.type = pkt->icmp.type;
-            pkt->ns_flow.flow.icmp.code = pkt->icmp.code;
-            if (pkt->icmp6.icmp6_type == ICMP_ECHO || pkt->icmp6.icmp6_type == ICMP_ECHOREPLY) {
-                pkt->ns_flow.flow.icmp.id = htons(pkt->icmp6.icmp6_dataun.u_echo.identifier);
+            pkt->ns_flow.flow.icmp.type = pkt->l4.icmp6.icmp6_type;
+            pkt->ns_flow.flow.icmp.code = pkt->l4.icmp6.icmp6_code;
+            if (pkt->l4.icmp6.icmp6_type == ICMP_ECHO || pkt->l4.icmp6.icmp6_type == ICMP_ECHOREPLY) {
+                pkt->ns_flow.flow.icmp.id = htons(pkt->l4.icmp6.icmp6_dataun.u_echo.identifier);
             }
         } else {
             return NULL;
