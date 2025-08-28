@@ -5,7 +5,6 @@
   needs: ["go_deps"]
   script:
     - $ErrorActionPreference = 'Stop'
-    - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
     - if (Test-Path omnibus\pkg) { remove-item -recurse -force omnibus\pkg }
     - mkdir omnibus\pkg
     - >
@@ -45,8 +44,6 @@
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - get-childitem omnibus\pkg\pipeline-$CI_PIPELINE_ID
     - !reference [.upload_sbom_artifacts_windows]
-  after_script:
-    - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
   artifacts:
     expire_in: 2 weeks
     paths:
@@ -87,7 +84,6 @@ windows_msi_and_bosh_zip_x64-a7-fips:
     ARCH: "x64"
   script:
     - $ErrorActionPreference = "Stop"
-    - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
     - if (Test-Path omnibus\pkg) { remove-item -recurse -force omnibus\pkg }
     - mkdir omnibus\pkg
     - >
