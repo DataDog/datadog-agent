@@ -1573,9 +1573,12 @@ func (e *PrCtlEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, err
 	}
 	data = data[read:]
-	if len(data) < 4 {
+	if len(data) < 12 {
 		return 0, ErrNotEnoughData
 	}
 	e.Option = int(binary.NativeEndian.Uint32(data[0:4]))
-	return 4, nil
+	sizeToRead := int(binary.NativeEndian.Uint32(data[4:8]))
+	e.IsNameTruncated = binary.NativeEndian.Uint32(data[8:12]) > 0
+	e.NewName = string(data[12 : sizeToRead+12])
+	return sizeToRead + 12, nil
 }

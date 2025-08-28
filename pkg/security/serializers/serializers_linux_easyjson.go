@@ -2496,7 +2496,11 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers17(
 		}
 		switch key {
 		case "option":
-			out.Option = int(in.Int())
+			out.Option = string(in.String())
+		case "new_name":
+			out.NewName = string(in.String())
+		case "is_name_truncated":
+			out.IsNameTruncated = bool(in.Bool())
 		default:
 			in.SkipRecursive()
 		}
@@ -2514,7 +2518,17 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers17(
 	{
 		const prefix string = ",\"option\":"
 		out.RawString(prefix[1:])
-		out.Int(int(in.Option))
+		out.String(string(in.Option))
+	}
+	if in.NewName != "" {
+		const prefix string = ",\"new_name\":"
+		out.RawString(prefix)
+		out.String(string(in.NewName))
+	}
+	if in.IsNameTruncated {
+		const prefix string = ",\"is_name_truncated\":"
+		out.RawString(prefix)
+		out.Bool(bool(in.IsNameTruncated))
 	}
 	out.RawByte('}')
 }

@@ -1236,8 +1236,16 @@ Workload Protection events for Linux systems have the following JSON schema:
         "PrCtlEvent": {
             "properties": {
                 "option": {
-                    "type": "integer",
+                    "type": "string",
                     "description": "PrCtl Option"
+                },
+                "new_name": {
+                    "type": "string",
+                    "description": "New name of the process"
+                },
+                "is_name_truncated": {
+                    "type": "boolean",
+                    "description": "Name truncated"
                 }
             },
             "additionalProperties": false,
@@ -4168,8 +4176,16 @@ Workload Protection events for Linux systems have the following JSON schema:
 {
     "properties": {
         "option": {
-            "type": "integer",
+            "type": "string",
             "description": "PrCtl Option"
+        },
+        "new_name": {
+            "type": "string",
+            "description": "New name of the process"
+        },
+        "is_name_truncated": {
+            "type": "boolean",
+            "description": "Name truncated"
         }
     },
     "additionalProperties": false,
@@ -4185,6 +4201,8 @@ Workload Protection events for Linux systems have the following JSON schema:
 | Field | Description |
 | ----- | ----------- |
 | `option` | PrCtl Option |
+| `new_name` | New name of the process |
+| `is_name_truncated` | Name truncated |
 
 
 ## `Process`

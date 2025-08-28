@@ -591,7 +591,11 @@ type SetSockOptEventSerializer struct {
 // easyjson:json
 type PrCtlEventSerializer struct {
 	// PrCtl Option
-	Option int `json:"option"`
+	Option string `json:"option"`
+	// New name of the process
+	NewName string `json:"new_name,omitempty"`
+	// Name truncated
+	IsNameTruncated bool `json:"is_name_truncated,omitempty"`
 }
 
 // CGroupWriteEventSerializer serializes a cgroup_write event
@@ -1407,7 +1411,9 @@ func newSetSockOptEventSerializer(e *model.Event) *SetSockOptEventSerializer {
 
 func newPrCtlEventSerializer(e *model.Event) *PrCtlEventSerializer {
 	return &PrCtlEventSerializer{
-		Option: e.PrCtl.Option,
+		Option:          model.PrCtlOption(e.PrCtl.Option).String(),
+		NewName:         e.PrCtl.NewName,
+		IsNameTruncated: e.PrCtl.IsNameTruncated,
 	}
 }
 

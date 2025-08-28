@@ -1220,6 +1220,8 @@ A prctl command was executed
 
 | Property | Definition |
 | -------- | ------------- |
+| [`prctl.is_name_truncated`](#prctl-is_name_truncated-doc) | Indicates that the name field is truncated |
+| [`prctl.new_name`](#prctl-new_name-doc) | New name of the process |
 | [`prctl.option`](#prctl-option-doc) | prctl option |
 | [`prctl.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
 
@@ -3994,6 +3996,20 @@ Definition: pcap filter expression
 Type: int
 
 Definition: TLS version
+
+
+
+### `prctl.is_name_truncated` {#prctl-is_name_truncated-doc}
+Type: bool
+
+Definition: Indicates that the name field is truncated
+
+
+
+### `prctl.new_name` {#prctl-new_name-doc}
+Type: string
+
+Definition: New name of the process
 
 
 
