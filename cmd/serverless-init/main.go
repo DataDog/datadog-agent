@@ -176,6 +176,9 @@ var azureServerlessTags = []string{
 	"aca.resource.group",
 	"aca.resource.id",
 	"aca.replica.name",
+	"aas.subscription.id",
+	"aas.resource.group",
+	"aas.resource.id",
 }
 
 func setupTraceAgent(tags map[string]string, functionTags string, tagger tagger.Component) trace.ServerlessTraceAgent {
