@@ -29,3 +29,8 @@ powershell -NoProfile -File 'tasks\winbuildscripts\Generate-OCIPackage.ps1' `
   -omnibusOutput "C:\mnt\omnibus\pkg\pipeline-$env:CI_PIPELINE_ID" `
   -CleanupStaging
 
+# Propagate failure from packaging
+if ($LASTEXITCODE -ne 0) {
+    exit $LASTEXITCODE
+}
+
