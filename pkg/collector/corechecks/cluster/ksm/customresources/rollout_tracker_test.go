@@ -84,7 +84,7 @@ func TestStoreDeployment(t *testing.T) {
 	assert.Equal(t, deployment.Name, stored.Name)
 	assert.Equal(t, deployment.Namespace, stored.Namespace)
 	assert.Equal(t, deployment.UID, stored.UID)
-	
+
 	// Verify it's a deep copy (different memory address)
 	assert.NotSame(t, deployment, stored, "Should be a deep copy")
 }
@@ -118,7 +118,7 @@ func TestGetDeploymentRolloutDurationFromMaps(t *testing.T) {
 
 	// Test getting duration - should return duration from deployment rollout start time
 	duration := GetDeploymentRolloutDurationFromMaps(namespace, deploymentName)
-	
+
 	expectedDuration := time.Since(rolloutStartTime).Seconds()
 	// Allow for small timing differences in test
 	assert.InDelta(t, expectedDuration, duration, 1.0, "Duration should be based on deployment rollout start time")
@@ -197,21 +197,21 @@ func TestCleanupCompletedDeployment(t *testing.T) {
 	// Add deployment and ReplicaSets
 	rolloutMutex.Lock()
 	deploymentMap[namespace+"/"+deploymentName] = deployment
-	
+
 	replicaSetMap[namespace+"/rs1"] = &ReplicaSetInfo{
 		Name:      "rs1",
 		Namespace: namespace,
 		OwnerName: deploymentName,
 		OwnerUID:  "dep-123",
 	}
-	
+
 	replicaSetMap[namespace+"/rs2"] = &ReplicaSetInfo{
 		Name:      "rs2",
 		Namespace: namespace,
 		OwnerName: deploymentName,
 		OwnerUID:  "dep-123",
 	}
-	
+
 	// Add unrelated ReplicaSet that should not be cleaned up
 	replicaSetMap[namespace+"/other-rs"] = &ReplicaSetInfo{
 		Name:      "other-rs",
@@ -261,19 +261,19 @@ func TestCleanupDeletedDeployment(t *testing.T) {
 	deploymentMap[namespace+"/"+deploymentName] = &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{Name: deploymentName, Namespace: namespace},
 	}
-	
+
 	replicaSetMap[namespace+"/rs1"] = &ReplicaSetInfo{
 		Name:      "rs1",
 		Namespace: namespace,
 		OwnerName: deploymentName,
 	}
-	
+
 	replicaSetMap[namespace+"/rs2"] = &ReplicaSetInfo{
 		Name:      "rs2",
 		Namespace: namespace,
 		OwnerName: deploymentName,
 	}
-	
+
 	// Add unrelated ReplicaSet
 	replicaSetMap[namespace+"/other-rs"] = &ReplicaSetInfo{
 		Name:      "other-rs",
@@ -328,7 +328,7 @@ func TestPeriodicCleanup(t *testing.T) {
 	rolloutMutex.Unlock()
 
 	now := time.Now()
-	
+
 	// Add some test data
 	oldDeployment := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{Name: "old-deployment", Namespace: "default"},
@@ -336,18 +336,18 @@ func TestPeriodicCleanup(t *testing.T) {
 	recentDeployment := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{Name: "recent-deployment", Namespace: "default"},
 	}
-	
+
 	rolloutMutex.Lock()
 	// Old deployment (should be cleaned up) - unused for more than 120 seconds
 	deploymentMap["default/old-deployment"] = oldDeployment
 	deploymentAccessTime["default/old-deployment"] = now.Add(-200 * time.Second) // Older than 120s maxDeploymentUnusedTime
 	deploymentStartTime["default/old-deployment"] = now.Add(-200 * time.Second)
-	
+
 	// Recent deployment (should be kept) - used within 120 seconds
 	deploymentMap["default/recent-deployment"] = recentDeployment
 	deploymentAccessTime["default/recent-deployment"] = now.Add(-60 * time.Second) // Recent (within 120s)
 	deploymentStartTime["default/recent-deployment"] = now.Add(-60 * time.Second)
-	
+
 	// Old ReplicaSet (should be cleaned up) - older than 120 seconds
 	replicaSetMap["default/old-rs"] = &ReplicaSetInfo{
 		Name:         "old-rs",
@@ -355,7 +355,7 @@ func TestPeriodicCleanup(t *testing.T) {
 		CreationTime: now.Add(-200 * time.Second), // Older than 120s maxReplicaSetAge
 		OwnerName:    "old-deployment",
 	}
-	
+
 	// Recent ReplicaSet (should be kept) - newer than 120 seconds
 	replicaSetMap["default/recent-rs"] = &ReplicaSetInfo{
 		Name:         "recent-rs",
@@ -408,16 +408,16 @@ func TestStoreDeployment_GenerationBasedRolloutDetection(t *testing.T) {
 			Generation: 1,
 		},
 	}
-	
+
 	StoreDeployment(deployment1)
-	
+
 	rolloutMutex.RLock()
 	firstStartTime := deploymentStartTime[key]
 	rolloutMutex.RUnlock()
-	
+
 	// Wait a bit to ensure time difference
 	time.Sleep(10 * time.Millisecond)
-	
+
 	// Store same deployment with higher generation (new rollout)
 	deployment2 := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -426,16 +426,16 @@ func TestStoreDeployment_GenerationBasedRolloutDetection(t *testing.T) {
 			Generation: 2, // New generation
 		},
 	}
-	
+
 	StoreDeployment(deployment2)
-	
+
 	rolloutMutex.RLock()
 	secondStartTime := deploymentStartTime[key]
 	rolloutMutex.RUnlock()
-	
+
 	// Second rollout should have a newer start time
 	assert.True(t, secondStartTime.After(firstStartTime), "New rollout should have updated start time")
-	
+
 	// Store same deployment again with same generation (no rollout change)
 	deployment2Again := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -444,13 +444,13 @@ func TestStoreDeployment_GenerationBasedRolloutDetection(t *testing.T) {
 			Generation: 2, // Same generation
 		},
 	}
-	
+
 	StoreDeployment(deployment2Again)
-	
+
 	rolloutMutex.RLock()
 	thirdStartTime := deploymentStartTime[key]
 	rolloutMutex.RUnlock()
-	
+
 	// Same generation should NOT update start time
 	assert.Equal(t, secondStartTime, thirdStartTime, "Same generation should not update start time")
 }

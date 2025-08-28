@@ -8,6 +8,7 @@
 package customresources
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -43,7 +44,7 @@ func init() {
 
 // StoreReplicaSet stores a ReplicaSet for deployment rollout tracking
 func StoreReplicaSet(rs *appsv1.ReplicaSet, ownerName, ownerUID string) {
-	log.Infof("ROLLOUT-TEST: StoreReplicaSet called for RS %s/%s owned by deployment %s (UID: %s), created at %s",
+	log.Infof("ROLLOUT-TEST-TIME: StoreReplicaSet called for RS %s/%s owned by deployment %s (UID: %s), created at %s",
 		rs.Namespace, rs.Name, ownerName, ownerUID, rs.CreationTimestamp.Time.Format(time.RFC3339))
 
 	rolloutMutex.Lock()
@@ -58,7 +59,7 @@ func StoreReplicaSet(rs *appsv1.ReplicaSet, ownerName, ownerUID string) {
 		OwnerName:    ownerName,
 	}
 
-	log.Infof("ROLLOUT-TEST: ReplicaSet stored. Total ReplicaSets in map: %d", len(replicaSetMap))
+	log.Infof("ROLLOUT-TEST-TIME: ReplicaSet stored. Total ReplicaSets in map: %d", len(replicaSetMap))
 }
 
 // GetDeploymentRolloutDurationFromMaps calculates rollout duration using stored maps (used by transformers)
@@ -75,16 +76,37 @@ func GetDeploymentRolloutDurationFromMaps(namespace, deploymentName string) floa
 		deploymentAccessTime[deploymentKey] = time.Now()
 	}
 
-	// Use deployment rollout start time instead of ReplicaSet creation time
-	startTime, hasStartTime := deploymentStartTime[deploymentKey]
-	if !hasStartTime || startTime.IsZero() {
-		log.Infof("ROLLOUT-TEST: No rollout start time found for deployment %s/%s, returning 0 duration", namespace, deploymentName)
-		return 0
+	// Hybrid approach: try to use the newest ReplicaSet creation time, fall back to deployment start time
+	var startTime time.Time
+	var timeSource string
+
+	// First, look for the newest ReplicaSet owned by this deployment
+	var newestRS *ReplicaSetInfo
+	for _, rsInfo := range replicaSetMap {
+		if rsInfo.Namespace == namespace && rsInfo.OwnerName == deploymentName {
+			if newestRS == nil || rsInfo.CreationTime.After(newestRS.CreationTime) {
+				newestRS = rsInfo
+			}
+		}
+	}
+
+	if newestRS != nil {
+		startTime = newestRS.CreationTime
+		timeSource = fmt.Sprintf("ReplicaSet %s creation time", newestRS.Name)
+	} else {
+		// Fall back to deployment start time
+		deploymentStartTime, hasStartTime := deploymentStartTime[deploymentKey]
+		if !hasStartTime || deploymentStartTime.IsZero() {
+			log.Infof("ROLLOUT-TEST: No ReplicaSet or deployment start time found for deployment %s/%s, returning 0 duration", namespace, deploymentName)
+			return 0
+		}
+		startTime = deploymentStartTime
+		timeSource = "deployment generation change detection"
 	}
 
 	duration := time.Since(startTime)
-	log.Infof("ROLLOUT-TEST: Calculated rollout duration for deployment %s/%s: %.2f seconds (from rollout start at %s)",
-		namespace, deploymentName, duration.Seconds(), startTime.Format(time.RFC3339))
+	log.Infof("ROLLOUT-TEST: Calculated rollout duration for deployment %s/%s: %.2f seconds (from %s at %s)",
+		namespace, deploymentName, duration.Seconds(), timeSource, startTime.Format(time.RFC3339))
 	return duration.Seconds()
 }
 
@@ -108,7 +130,7 @@ func StoreDeployment(dep *appsv1.Deployment) {
 	} else if existingDep.Generation != dep.Generation {
 		oldGeneration := existingDep.Generation
 		deploymentStartTime[key] = time.Now()
-		log.Infof("ROLLOUT-TEST: Generation change detected for deployment %s/%s (generation: %d->%d), RESETTING rollout start time to %s",
+		log.Infof("ROLLOUT-TEST-TIME: Generation change detected for deployment %s/%s (generation: %d->%d), RESETTING rollout start time to %s",
 			dep.Namespace, dep.Name, oldGeneration, dep.Generation, time.Now().Format(time.RFC3339))
 	} else {
 		log.Infof("ROLLOUT-TEST: Same generation for deployment %s/%s (generation: %d), keeping existing rollout start time",
@@ -258,7 +280,7 @@ func PeriodicCleanup() {
 
 	// Clean up deployments that haven't been accessed recently
 	var staleDeployments []string
-	for key, _ := range deploymentMap {
+	for key := range deploymentMap {
 		lastAccess, hasAccess := deploymentAccessTime[key]
 		if !hasAccess {
 			// No access time recorded, this is an anomaly - clean it up

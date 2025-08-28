@@ -70,8 +70,8 @@ func TestReplicaSetTracking(t *testing.T) {
 	// Create a ReplicaSet owned by a Deployment
 	rs := &appsv1.ReplicaSet{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-rs",
-			Namespace: namespace,
+			Name:              "test-rs",
+			Namespace:         namespace,
 			CreationTimestamp: metav1.Time{Time: time.Now().Add(-5 * time.Minute)},
 			OwnerReferences: []metav1.OwnerReference{
 				{
@@ -88,7 +88,7 @@ func TestReplicaSetTracking(t *testing.T) {
 
 	// Generate metrics (this should store the ReplicaSet)
 	metricFamily := generators[0].Generate(rs)
-	
+
 	// Verify the ReplicaSet was stored
 	rolloutMutex.RLock()
 	rsInfo, exists := replicaSetMap[namespace+"/"+rs.Name]
@@ -103,4 +103,3 @@ func TestReplicaSetTracking(t *testing.T) {
 	// Verify empty metric family is returned (we don't emit actual metrics)
 	assert.Len(t, metricFamily.Metrics, 0)
 }
-

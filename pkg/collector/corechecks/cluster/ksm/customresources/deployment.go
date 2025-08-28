@@ -123,7 +123,6 @@ func (f *deploymentRolloutFactory) ListWatch(customResourceClient interface{}, n
 	}
 }
 
-// wrapDeploymentFunc wraps a function that takes a Deployment and returns a metric Family
 func wrapDeploymentFunc(f func(*appsv1.Deployment) *metric.Family) func(interface{}) *metric.Family {
 	return func(obj interface{}) *metric.Family {
 		deployment := obj.(*appsv1.Deployment)

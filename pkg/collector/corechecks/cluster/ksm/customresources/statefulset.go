@@ -56,7 +56,7 @@ func (f *statefulSetRolloutFactory) MetricFamilyGenerators() []generator.FamilyG
 				// Check if StatefulSet has an ongoing rollout
 				isOngoing := s.Status.CurrentRevision != s.Status.UpdateRevision ||
 					s.Status.ReadyReplicas != s.Status.Replicas
-				
+
 				if isOngoing {
 					// Return dummy metric with value 1 to trigger transformer
 					return &metric.Family{
@@ -102,7 +102,6 @@ func (f *statefulSetRolloutFactory) ListWatch(customResourceClient interface{}, 
 		},
 	}
 }
-
 
 // wrapStatefulSetFunc wraps a function that takes a StatefulSet and returns a metric Family
 func wrapStatefulSetFunc(f func(*appsv1.StatefulSet) *metric.Family) func(interface{}) *metric.Family {

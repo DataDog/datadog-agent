@@ -58,6 +58,8 @@ func (f *replicaSetRolloutFactory) MetricFamilyGenerators() []generator.FamilyGe
 				log.Infof("ROLLOUT-REP: Processing ReplicaSet %s/%s, created at %s",
 					rs.Namespace, rs.Name, rs.CreationTimestamp.Time.Format(time.RFC3339))
 
+				// NOTE: Was trying to track deleted replicasets here, but we aren't getting events for when that happens.
+
 				// Store ReplicaSet info if it's owned by a Deployment
 				ownerName, ownerUID := f.getDeploymentOwner(rs)
 				if ownerName != "" && ownerUID != "" {
@@ -110,7 +112,6 @@ func (f *replicaSetRolloutFactory) getDeploymentOwner(rs *appsv1.ReplicaSet) (st
 	return "", ""
 }
 
-// wrapReplicaSetFunc wraps a function that takes a ReplicaSet and returns a metric Family
 func wrapReplicaSetFunc(f func(*appsv1.ReplicaSet) *metric.Family) func(interface{}) *metric.Family {
 	return func(obj interface{}) *metric.Family {
 		replicaSet := obj.(*appsv1.ReplicaSet)

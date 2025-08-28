@@ -110,7 +110,7 @@ func TestStatefulSetRolloutGeneration_OngoingRollout_ReplicasMismatch(t *testing
 		Status: appsv1.StatefulSetStatus{
 			CurrentRevision: "test-statefulset-abc123",
 			UpdateRevision:  "test-statefulset-abc123", // Same revision
-			ReadyReplicas:   3,                          // Less than total replicas
+			ReadyReplicas:   3,                         // Less than total replicas
 			Replicas:        5,
 		},
 	}
@@ -147,7 +147,7 @@ func TestStatefulSetRolloutGeneration_CompletedRollout(t *testing.T) {
 		Status: appsv1.StatefulSetStatus{
 			CurrentRevision: "test-statefulset-abc123",
 			UpdateRevision:  "test-statefulset-abc123", // Same revision
-			ReadyReplicas:   3,                          // Same as total replicas
+			ReadyReplicas:   3,                         // Same as total replicas
 			Replicas:        3,
 		},
 	}
@@ -217,8 +217,8 @@ func TestStatefulSetRolloutGeneration_OnlyUpdateRevisionSet(t *testing.T) {
 			Replicas: &[]int32{3}[0],
 		},
 		Status: appsv1.StatefulSetStatus{
-			CurrentRevision: "",                          // Empty
-			UpdateRevision:  "test-statefulset-abc123",   // Set - indicates rollout in progress
+			CurrentRevision: "",                        // Empty
+			UpdateRevision:  "test-statefulset-abc123", // Set - indicates rollout in progress
 			ReadyReplicas:   1,
 			Replicas:        3,
 		},
@@ -256,7 +256,7 @@ func TestStatefulSetRolloutGeneration_ZeroReplicas(t *testing.T) {
 		Status: appsv1.StatefulSetStatus{
 			CurrentRevision: "test-statefulset-abc123",
 			UpdateRevision:  "test-statefulset-abc123", // Same revision
-			ReadyReplicas:   0,                          // Same as total replicas (0)
+			ReadyReplicas:   0,                         // Same as total replicas (0)
 			Replicas:        0,
 		},
 	}

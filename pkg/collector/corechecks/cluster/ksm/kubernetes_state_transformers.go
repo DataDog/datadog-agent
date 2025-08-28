@@ -588,7 +588,6 @@ func deploymentRolloutDurationTransformer(s sender.Sender, _ string, metric ksms
 		return
 	}
 
-	// Extract deployment info from labels
 	namespace, hasNamespace := metric.Labels["namespace"]
 	deploymentName, hasDeployment := metric.Labels["deployment"]
 
@@ -604,7 +603,6 @@ func deploymentRolloutDurationTransformer(s sender.Sender, _ string, metric ksms
 
 	log.Infof("ROLLOUT-TRANS: Sending deployment rollout duration metric for %s/%s: %.2f seconds", namespace, deploymentName, duration)
 
-	// Send the calculated duration
 	s.Gauge(ksmMetricPrefix+"deployment.rollout_duration", duration, hostname, tags)
 }
 
