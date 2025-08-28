@@ -157,7 +157,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 		[]string{"consumer_key", "consumer_secret", "token_id", "token_secret"},
 		[]byte(`$1 "********"`),
 	)
-	oauthCredentialsReplacer.LastUpdated = parseVersion("7.70.0") // https://github.com/DataDog/datadog-agent/pull/XXXXX
+	oauthCredentialsReplacer.LastUpdated = parseVersion("7.70.0") // https://github.com/DataDog/datadog-agent/pull/40345
 
 	snmpReplacer := matchYAMLKey(
 		`(community_string|auth[Kk]ey|priv[Kk]ey|community|authentication_key|privacy_key|Authorization|authorization)`,
