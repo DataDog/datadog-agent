@@ -51,7 +51,7 @@
           "entry": {
             "arguments": {
               "a": {
-                "type": "UnknownType(0x[GoRuntimeType])",
+                "type": "main.firstBehavior",
                 "notCapturedReason": "missing type information"
               }
             }
@@ -113,7 +113,7 @@
           "entry": {
             "arguments": {
               "a": {
-                "type": "UnknownType(0x[GoRuntimeType])",
+                "type": "*main.firstBehavior",
                 "notCapturedReason": "missing type information"
               }
             }
@@ -175,7 +175,7 @@
           "entry": {
             "arguments": {
               "a": {
-                "type": "UnknownType(0x[GoRuntimeType])",
+                "type": "main.secondBehavior",
                 "notCapturedReason": "missing type information"
               }
             }
@@ -237,7 +237,7 @@
           "entry": {
             "arguments": {
               "a": {
-                "type": "UnknownType(0x[GoRuntimeType])",
+                "type": "*main.secondBehavior",
                 "notCapturedReason": "missing type information"
               }
             }
@@ -299,7 +299,7 @@
           "entry": {
             "arguments": {
               "a": {
-                "type": "UnknownType(0x[GoRuntimeType])",
+                "type": "lib_v2.V2Type",
                 "notCapturedReason": "missing type information"
               }
             }
@@ -361,7 +361,7 @@
           "entry": {
             "arguments": {
               "a": {
-                "type": "UnknownType(0x[GoRuntimeType])",
+                "type": "*lib_v2.V2Type",
                 "notCapturedReason": "missing type information"
               }
             }

@@ -823,7 +823,7 @@ require (
 	github.com/go-zookeeper/zk v1.0.4 // indirect
 	github.com/gobuffalo/flect v1.0.2 // indirect
 	github.com/goccy/go-json v0.10.5 // indirect
-	github.com/goccy/go-yaml v1.18.0 // indirect
+	github.com/goccy/go-yaml v1.18.0
 	github.com/godror/knownpb v0.1.0 // indirect
 	github.com/gofrs/flock v0.12.1 // indirect
 	github.com/gogo/googleapis v1.4.1 // indirect

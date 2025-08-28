@@ -70,7 +70,7 @@
                         "value": "42"
                       },
                       "work": {
-                        "type": "UnknownType(0x[GoRuntimeType])",
+                        "type": "*main.somethingImpl",
                         "notCapturedReason": "missing type information"
                       },
                       "foo": {

@@ -11,12 +11,14 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
+	"fmt"
 	"slices"
 	"testing"
 	"unsafe"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/dyninst/gotype"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
@@ -31,7 +33,7 @@ func FuzzDecoder(f *testing.F) {
 		probeNames = append(probeNames, c.probeName)
 	}
 	irProg := generateIrForProbes(f, "simple", probeNames...)
-	decoder, err := NewDecoder(irProg)
+	decoder, err := NewDecoder(irProg, &noopTypeNameResolver{})
 	require.NoError(f, err)
 	for _, c := range cases {
 		f.Add(c.eventConstructor(f, irProg))
@@ -58,7 +60,7 @@ func TestDecoderManually(t *testing.T) {
 		t.Run(c.probeName, func(t *testing.T) {
 			irProg := generateIrForProbes(t, "simple", c.probeName)
 			item := c.eventConstructor(t, irProg)
-			decoder, err := NewDecoder(irProg)
+			decoder, err := NewDecoder(irProg, &noopTypeNameResolver{})
 			require.NoError(t, err)
 			buf := bytes.NewBuffer(nil)
 			probe, err := decoder.Decode(Event{
@@ -81,7 +83,7 @@ func BenchmarkDecoder(b *testing.B) {
 	for _, c := range cases {
 		b.Run(c.probeName, func(b *testing.B) {
 			irProg := generateIrForProbes(b, "simple", c.probeName)
-			decoder, err := NewDecoder(irProg)
+			decoder, err := NewDecoder(irProg, &noopTypeNameResolver{})
 			require.NoError(b, err)
 			buf := bytes.NewBuffer(nil)
 			symbolicator := &noopSymbolicator{}
@@ -725,4 +727,12 @@ func (s *noopSymbolicator) Symbolicate(
 	[]uint64, uint64,
 ) ([]symbol.StackFrame, error) {
 	return nil, nil
+}
+
+type noopTypeNameResolver struct{}
+
+func (r *noopTypeNameResolver) ResolveTypeName(
+	typeID gotype.TypeID,
+) (string, error) {
+	return fmt.Sprintf("type%#x", typeID), nil
 }

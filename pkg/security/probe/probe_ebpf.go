@@ -782,6 +782,8 @@ func (p *EBPFProbe) playSnapshot(notifyConsumers bool) {
 			event.Error = &model.ErrProcessBrokenLineage{Err: err}
 		}
 
+		event.AddToFlags(model.EventFlagsIsSnapshot)
+
 		events = append(events, event)
 
 		snapshotBoundSockets, ok := p.Resolvers.ProcessResolver.SnapshottedBoundSockets[event.ProcessContext.Pid]
