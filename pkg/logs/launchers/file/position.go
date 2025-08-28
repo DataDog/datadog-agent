@@ -11,23 +11,46 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
+	tailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Position returns the position from where logs should be collected.
-func Position(registry auditor.Registry, identifier string, mode config.TailingMode) (int64, int, error) {
+func Position(registry auditor.Registry, identifier string, mode config.TailingMode, fingerprinter tailer.Fingerprinter) (int64, int, error) {
 	var offset int64
 	var whence int
 	var err error
 
 	value := registry.GetOffset(identifier)
 
+	filePath := ""
+	if len(identifier) > 5 {
+		filePath = identifier[5:]
+	}
+
+	fingerprintsAlign := true
+
+	if fingerprinter.IsFingerprintingEnabled() && filePath != "" {
+		prevFingerprint := registry.GetFingerprint(identifier)
+		if prevFingerprint != nil {
+			newFingerprint, err := fingerprinter.ComputeFingerprintFromConfig(filePath, prevFingerprint.Config)
+			if err != nil {
+				log.Warnf("Failed to compute fingerprint for file %s: %v", filePath, err)
+				// If fingerprint computation fails, assume fingerprints don't align to be safe
+				fingerprintsAlign = true
+			} else {
+				fingerprintsAlign = prevFingerprint.Value == newFingerprint.Value
+			}
+		}
+	}
+
 	switch {
 	case mode == config.ForceBeginning:
 		offset, whence = 0, io.SeekStart
 	case mode == config.ForceEnd:
 		offset, whence = 0, io.SeekEnd
-	case value != "":
-		// an offset was registered, tailing mode is not forced, tail from the offset
+	case value != "" && fingerprintsAlign:
+		// an offset was registered, tailing mode is not forced, fingerprints are disabled or equivalent
 		whence = io.SeekStart
 		offset, err = strconv.ParseInt(value, 10, 64)
 		if err != nil {

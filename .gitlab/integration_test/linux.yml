@@ -9,27 +9,9 @@
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
 
-agent_integration_tests:
-  extends: .integration_tests_deb
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
-  # We have capacity issues on the docker-in-docker:amd64 runners for now.
-  # Setting allow_failure to true to avoid blocking the pipelines.
-  # Setting the timeout to 50 min and retry to 2 to avoid the job from pending for too long.
-  allow_failure: true
-  timeout: 50m
-  retry: 2
-  script:
-    # Exporting the docker credentials to later pass them to the container
-    - DOCKER_USER=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_RO user) || exit $?; export DOCKER_USER
-    - DOCKER_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_RO token) || exit $?; export DOCKER_TOKEN
-    - export DOCKER_REGISTRY_URL
-    # DockerHub login not to be rate-limited during the docker compose
-    - echo "$DOCKER_TOKEN" | docker login --username "$DOCKER_USER" --password-stdin "$DOCKER_REGISTRY_URL"
-    - dda inv -- -e integration-tests --race --remote-docker
-
 docker_integration_tests:
   extends: .integration_tests_deb
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-x64$CI_IMAGE_LINUX_X64_SUFFIX:$CI_IMAGE_LINUX_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   # This job is not stable yet because of rate limit issues and micro vms beta status.
   allow_failure: true
   script:

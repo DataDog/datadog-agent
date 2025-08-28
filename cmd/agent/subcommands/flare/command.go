@@ -44,7 +44,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	flareprofilerdef "github.com/DataDog/datadog-agent/comp/core/profiler/def"
 	flareprofilerfx "github.com/DataDog/datadog-agent/comp/core/profiler/fx"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	coresettings "github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"

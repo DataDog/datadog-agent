@@ -141,6 +141,9 @@ const (
 	// StorageClassVersion is the API version for StorageClass resources
 	StorageClassVersion = "storage.k8s.io/v1"
 
+	// TerminatedPodName is the resource name for Kubernetes Pods that have been terminated
+	TerminatedPodName = "terminated-pods"
+
 	// VpaName is the resource name for Kubernetes VerticalPodAutoscalers
 	VpaName = "verticalpodautoscalers"
 	// VpaVersion is the API version for VerticalPodAutoscaler resources

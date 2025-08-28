@@ -67,7 +67,7 @@ var (
 		},
 		DDService:          "test-service-1",
 		DDServiceInjected:  true,
-		Ports:              []uint16{8080},
+		TCPPorts:           []uint16{8080},
 		APMInstrumentation: string(apm.None),
 		Type:               "web_service",
 		RSS:                100 * 1024 * 1024,
@@ -92,7 +92,7 @@ var (
 		},
 		DDService:          "test-service-1",
 		DDServiceInjected:  true,
-		Ports:              []uint16{8080},
+		TCPPorts:           []uint16{8080},
 		APMInstrumentation: string(apm.None),
 		Type:               "web_service",
 		RSS:                200 * 1024 * 1024,
@@ -117,7 +117,7 @@ var (
 			"other:tag",
 		},
 		Language:       "python",
-		Ports:          []uint16{5000},
+		TCPPorts:       []uint16{5000},
 		Type:           "web_service",
 		CommandLine:    pythonCommandLine,
 		StartTimeMilli: procLaunchedMilli,
@@ -142,11 +142,20 @@ func cmpEvents(a, b *event) bool {
 	ap := a.Payload
 	bp := b.Payload
 
+	// Get the first port from the combined ports list for comparison
+	var aPort, bPort uint16
+	if len(ap.Ports) > 0 {
+		aPort = ap.Ports[0]
+	}
+	if len(bp.Ports) > 0 {
+		bPort = bp.Ports[0]
+	}
+
 	vals := []any{
 		cmp.Compare(ap.LastSeen, bp.LastSeen),
 		cmp.Compare(ap.ServiceType, bp.ServiceType),
 		cmp.Compare(ap.ServiceLanguage, bp.ServiceLanguage),
-		cmp.Compare(ap.Ports[0], bp.Ports[0]),
+		cmp.Compare(aPort, bPort),
 		cmp.Compare(ap.PID, bp.PID),
 	}
 	for _, val := range vals {

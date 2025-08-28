@@ -126,7 +126,12 @@ type ProcessGoInterfaceOp struct {
 
 type ProcessGoHmapOp struct {
 	baseOp
-	BucketsArray ir.ArrayType
+	BucketsType      *ir.GoSliceDataType
+	BucketType       *ir.GoHMapBucketType
+	FlagsOffset      uint8
+	BOffset          uint8
+	BucketsOffset    uint8
+	OldBucketsOffset uint8
 }
 
 type ProcessGoSwissMapOp struct {

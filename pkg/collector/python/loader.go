@@ -249,6 +249,7 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 	}
 
 	if v, ok := cl.logReceiver.Get(); ok {
+		log.Debugf("Registering integration in loader: %s", c.ID())
 		v.RegisterIntegration(string(c.id), config)
 	}
 

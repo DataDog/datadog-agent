@@ -170,8 +170,7 @@ const (
 	traceAgentPortEnvVar  = "DD_TRACE_AGENT_PORT"
 	defaultTraceAgentPort = "8126"
 
-	traceAgentURLEnvVar  = "DD_TRACE_AGENT_URL"
-	defaultTraceAgentURL = "http://" + defaultAgentHost + ":" + defaultTraceAgentPort
+	traceAgentURLEnvVar = "DD_TRACE_AGENT_URL"
 
 	logUploaderPath   = "/debugger/v1/input"
 	diagsUploaderPath = "/debugger/v1/diagnostics"

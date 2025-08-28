@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
@@ -60,6 +61,13 @@ func (s *linuxRunSuite) TestRunAgentCtrlC() {
 	_, err := svcManager.Stop("datadog-agent")
 	s.Require().NoError(err)
 
+	// wait for the agent to be fully stopped
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		_, err := svcManager.Status("datadog-agent")
+		// Status should return an error if the service is not running
+		require.Error(c, err)
+	}, 10*time.Second, 1*time.Second, "datadog Agent should be stopped")
+
 	// execute the `agent run` subcommand
 	cmd := `sudo datadog-agent run`
 
@@ -72,6 +80,11 @@ func (s *linuxRunSuite) TestRunAgentCtrlC() {
 	s.T().Log("Agent run command started")
 	// wait for the agent and checks to start
 	s.readUntil(stdout, "Running")
+
+	// logging the process list for debugging purposes
+	res, err := host.Execute("pgrep -fl datadog-agent")
+	s.Require().NoError(err)
+	s.T().Log(res)
 
 	// get PID of the agent
 	pids, err := process.FindPID(host, "datadog-agent")

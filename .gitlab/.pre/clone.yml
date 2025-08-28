@@ -15,6 +15,9 @@ clone:
     CACHE_COMPRESSION_FORMAT: "tarzstd"
     CLONE_TO_S3: "true"
   script: "echo 'Repo is cloned from Gitaly, will upload to s3...'"
+  rules:
+    - if: '$DDCI_CLONE == "true"'
+      when: never
   retry:
     max: 2
     when:

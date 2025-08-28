@@ -21,7 +21,7 @@
 
 build_system-probe-x64:
   stage: binary_build
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-x64$CI_IMAGE_LINUX_X64_SUFFIX:$CI_IMAGE_LINUX_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64"]
   needs: ["go_deps"]
   extends: .system-probe_build_common
@@ -30,7 +30,7 @@ build_system-probe-x64:
 
 build_system-probe-arm64:
   stage: binary_build
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-arm64$CI_IMAGE_LINUX_ARM64_SUFFIX:$CI_IMAGE_LINUX_ARM64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   needs: ["go_deps"]
   tags: ["arch:arm64"]
   extends: .system-probe_build_common

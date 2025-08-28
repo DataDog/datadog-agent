@@ -137,7 +137,7 @@ func TestGetDeviceTagsMapping(t *testing.T) {
 
 func TestAllCollectorsWork(t *testing.T) {
 	// This test doesn't validate the results of the collectors, it only checks that they work with
-	// the basic mock and we don't have any panics or anything.
+	// the basic mock, and we don't have any panics or anything.
 
 	nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled(), testutil.WithMockAllFunctions())
 	ddnvml.WithMockNVML(t, nvmlMock)
@@ -169,20 +169,20 @@ func TestRemoveDuplicateMetrics(t *testing.T) {
 		// Test the exact scenario from function comment plus additional edge cases including zero priority
 		allMetrics := map[CollectorName][]Metric{
 			process: {
-				{Name: "memory.usage", Priority: 10, Tags: []string{"pid:1001"}},
-				{Name: "memory.usage", Priority: 10, Tags: []string{"pid:1002"}},
-				{Name: "core.temp", Priority: 0}, // Zero priority (default)
+				{Name: "memory.usage", Priority: High, Tags: []string{"pid:1001"}},
+				{Name: "memory.usage", Priority: High, Tags: []string{"pid:1002"}},
+				{Name: "core.temp", Priority: Low}, // Zero priority (default)
 			},
 			device: {
-				{Name: "memory.usage", Priority: 5, Tags: []string{"pid:1003"}},
-				{Name: "fan.speed", Priority: 0}, // Zero priority (default)
-				{Name: "power.draw", Priority: 3},
-				{Name: "disk.usage", Priority: 0}, // Zero priority, unique metric
+				{Name: "memory.usage", Priority: Low, Tags: []string{"pid:1003"}},
+				{Name: "fan.speed", Priority: Low}, // Zero priority (default)
+				{Name: "power.draw", Priority: Low},
+				{Name: "disk.usage", Priority: Low}, // Zero priority, unique metric
 			},
 			ebpf: {
-				{Name: "core.temp", Priority: 7}, // Conflicts with CollectorA, higher priority beats zero
-				{Name: "voltage", Priority: 2},
-				{Name: "fan.speed", Priority: 0}, // Zero priority tie with CollectorB
+				{Name: "core.temp", Priority: High}, // Conflicts with CollectorA, higher priority beats zero
+				{Name: "voltage", Priority: Low},
+				{Name: "fan.speed", Priority: Low}, // Zero priority tie with CollectorB
 			},
 			samples: {}, // Empty collector
 		}
@@ -196,22 +196,22 @@ func TestRemoveDuplicateMetrics(t *testing.T) {
 		for _, metric := range result {
 			switch metric.Name {
 			case "memory.usage":
-				require.Equal(t, 10, metric.Priority)
+				require.Equal(t, High, metric.Priority)
 				memoryUsageCount++
 			case "core.temp":
-				require.Equal(t, 7, metric.Priority)
+				require.Equal(t, High, metric.Priority)
 				coreTempCount++
 			case "power.draw":
-				require.Equal(t, 3, metric.Priority)
+				require.Equal(t, Low, metric.Priority)
 				powerDrawCount++
 			case "voltage":
-				require.Equal(t, 2, metric.Priority)
+				require.Equal(t, Low, metric.Priority)
 				voltageCount++
 			case "disk.usage":
-				require.Equal(t, 0, metric.Priority)
+				require.Equal(t, Low, metric.Priority)
 				diskUsageCount++
 			case "fan.speed":
-				require.Equal(t, 0, metric.Priority) // Zero priority tie winner
+				require.Equal(t, Low, metric.Priority) // Zero priority tie winner
 				fanSpeedCount++
 			}
 		}
@@ -228,20 +228,20 @@ func TestRemoveDuplicateMetrics(t *testing.T) {
 		// Ensure intra-collector preservation - no deduplication within same collector
 		allMetrics := map[CollectorName][]Metric{
 			process: {
-				{Name: "memory.usage", Priority: 10, Tags: []string{"pid:1001"}},
-				{Name: "memory.usage", Priority: 10, Tags: []string{"pid:1002"}},
-				{Name: "memory.usage", Priority: 10, Tags: []string{"pid:1003"}},
-				{Name: "cpu.usage", Priority: 5},
+				{Name: "memory.usage", Priority: High, Tags: []string{"pid:1001"}},
+				{Name: "memory.usage", Priority: High, Tags: []string{"pid:1002"}},
+				{Name: "memory.usage", Priority: High, Tags: []string{"pid:1003"}},
+				{Name: "cpu.usage", Priority: Low},
 			},
 		}
 
 		result := RemoveDuplicateMetrics(allMetrics)
 
 		expected := []Metric{
-			{Name: "memory.usage", Priority: 10, Tags: []string{"pid:1001"}},
-			{Name: "memory.usage", Priority: 10, Tags: []string{"pid:1002"}},
-			{Name: "memory.usage", Priority: 10, Tags: []string{"pid:1003"}},
-			{Name: "cpu.usage", Priority: 5},
+			{Name: "memory.usage", Priority: High, Tags: []string{"pid:1001"}},
+			{Name: "memory.usage", Priority: High, Tags: []string{"pid:1002"}},
+			{Name: "memory.usage", Priority: High, Tags: []string{"pid:1003"}},
+			{Name: "cpu.usage", Priority: Low},
 		}
 
 		require.Len(t, result, 4)
@@ -253,10 +253,10 @@ func TestRemoveDuplicateMetrics(t *testing.T) {
 		// First collector (in iteration order) should win
 		allMetrics := map[CollectorName][]Metric{
 			process: {
-				{Name: "metric1", Priority: 5, Tags: []string{"tagA"}},
+				{Name: "metric1", Priority: Low, Tags: []string{"tagA"}},
 			},
 			device: {
-				{Name: "metric1", Priority: 5, Tags: []string{"tagB"}},
+				{Name: "metric1", Priority: Low, Tags: []string{"tagB"}},
 			},
 		}
 
@@ -264,8 +264,7 @@ func TestRemoveDuplicateMetrics(t *testing.T) {
 
 		// Should have exactly 1 metric (one collector wins the tie)
 		require.Len(t, result, 1)
-		require.Equal(t, "metric1", result[0].Name)
-		require.Equal(t, 5, result[0].Priority)
+		require.Equal(t, Low, result[0].Priority)
 		// Don't assert which specific tag wins since map iteration order is not guaranteed
 	})
 
@@ -289,7 +288,7 @@ func TestRemoveDuplicateMetrics(t *testing.T) {
 			allMetrics := map[CollectorName][]Metric{
 				process: {},
 				device: {
-					{Name: "metric1", Priority: 1},
+					{Name: "metric1", Priority: Low},
 				},
 			}
 			result := RemoveDuplicateMetrics(allMetrics)

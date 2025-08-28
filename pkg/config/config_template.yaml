@@ -1042,10 +1042,16 @@ api_key:
 
   ## @param force_use_http - boolean - optional - default: false
   ## @env DD_LOGS_CONFIG_FORCE_USE_HTTP - boolean - optional - default: false
-  ## By default, the Agent sends logs in HTTPS batches to port 443 if HTTPS connectivity can
-  ## be established at Agent startup, and falls back to TCP otherwise. Set this parameter to `true` to
-  ## always send logs via HTTP protocol (recommended).
-  ## Warning: force_use_http means HTTP over TCP, not HTTP over HTTPS. Please use logs_no_ssl for HTTP over HTTPS.
+  ## Set this parameter to `true` to always send logs via HTTP(S) protocol and never fall back to
+  ## raw TCP forwarding (recommended).
+  ##
+  ## By default, the Agent sends logs in HTTPS batches if HTTPS connectivity can
+  ## be established at Agent startup, and falls back to TCP otherwise. This parameter
+  ## can be used to override this fallback behavior. It is recommended, but not the default, to
+  ## maintain compatibility with previous Agent versions.
+  ##
+  ## Note, the logs are forwarded via HTTPS (encrypted) by default. Please use `logs_no_ssl` if you
+  ## need unencrypted HTTP instead.
   #
   # force_use_http: true
 
@@ -1639,6 +1645,14 @@ api_key:
     ## Enables or disables Error Tracking Standalone
     # enabled: false
 
+
+  ## @param profiling_receiver_timeout - integer - optional - default: 5
+  ## @env DD_APM_PROFILING_RECEIVER_TIMEOUT - integer - optional - default: 5
+  ## The timeout in seconds for receiving profile upload requests from client applications.
+  ## This timeout applies to the HTTP request timeout for profile uploads to the agent.
+  ## Increase this value if you experience timeouts with large profile uploads.
+  #
+  # profiling_receiver_timeout: 5
 
   {{- if .InternalProfiling -}}
   ## @param profiling - custom object - optional
@@ -3092,18 +3106,18 @@ api_key:
   # extra_tags:
   #   - <TAG_KEY>:<TAG_VALUE>
 
-  ## @param advanced_dispatching_enabled - boolean - optional - default: true
-  ## @env DD_CLUSTER_CHECKS_ADVANCED_DISPATCHING_ENABLED - boolean - optional - default: true
+  ## @param advanced_dispatching_enabled - boolean - optional - default: false
+  ## @env DD_CLUSTER_CHECKS_ADVANCED_DISPATCHING_ENABLED - boolean - optional - default: false
   ## If advanced_dispatching_enabled is true the leader cluster-agent collects stats
   ## from the cluster level check runners to optimize the check dispatching logic.
   #
-  # advanced_dispatching_enabled: true
+  # advanced_dispatching_enabled: false
 
-  ## @param rebalance_with_utilization - boolean - optional - default: true
-  ## @env DD_CLUSTER_CHECKS_REBALANCE_WITH_UTILIZATION - boolean - optional - default: true
+  ## @param rebalance_with_utilization - boolean - optional - default: false
+  ## @env DD_CLUSTER_CHECKS_REBALANCE_WITH_UTILIZATION - boolean - optional - default: false
   ## If rebalance_with_utilization is true, the cluster-agent will rebalance cluster checks using node utilization.
   #
-  # rebalance_with_utilization: true
+  # rebalance_with_utilization: false
 
   ## @param clc_runners_port - integer - optional - default: 5005
   ## @env DD_CLUSTER_CHECKS_CLC_RUNNERS_PORT - integer - optional - default: 5005
@@ -4822,7 +4836,7 @@ api_key:
 ##   2. Environment variables
 ##   3. Local config file
 ##      (etc/datadog-agent/application_monitoring.yaml)
-# apm_configuration_rules:
+# apm_configuration_default:
 
   ## @param DD_APM_TRACING_ENABLED - boolean - optional - default: true
   ## Enable Datadog tracing.
