@@ -110,12 +110,17 @@ struct cursor {
 
 struct packet_t {
     struct ethhdr eth;
-    struct iphdr ipv4;
-    struct ipv6hdr ipv6;
-    struct tcphdr tcp;
-    struct udphdr udp;
-    struct icmphdr icmp;
-    struct icmp6hdr icmp6;
+    union {
+        struct iphdr ipv4;
+        struct ipv6hdr ipv6;
+    } l3;
+
+    union {
+        struct tcphdr tcp;
+        struct udphdr udp;
+        struct icmphdr icmp;
+        struct icmp6hdr icmp6;
+    } l4;
 
     struct namespaced_flow_t ns_flow;
     struct namespaced_flow_t translated_ns_flow;
