@@ -9,7 +9,7 @@ package gpu
 
 import (
 	"fmt"
-	"iter"
+	"sync"
 
 	"golang.org/x/sys/unix"
 
@@ -40,11 +40,13 @@ type globalStreamKey struct {
 }
 
 type streamCollection struct {
-	streams       map[streamKey]*StreamHandler
-	globalStreams map[globalStreamKey]*StreamHandler
-	sysCtx        *systemContext
-	telemetry     *streamTelemetry
-	streamConfig  config.StreamConfig
+	streams            map[streamKey]*StreamHandler
+	streamsMutex       sync.RWMutex
+	globalStreams      map[globalStreamKey]*StreamHandler
+	globalStreamsMutex sync.RWMutex
+	sysCtx             *systemContext
+	telemetry          *streamTelemetry
+	streamConfig       config.StreamConfig
 }
 
 type streamTelemetry struct {
@@ -116,14 +118,20 @@ func (sc *streamCollection) getGlobalStream(header *gpuebpf.CudaEventHeader) (*S
 		gpuUUID: device.GetDeviceInfo().UUID,
 	}
 
+	sc.globalStreamsMutex.RLock()
 	stream, ok := sc.globalStreams[key]
+	sc.globalStreamsMutex.RUnlock()
+
 	if !ok {
 		stream, err = sc.createStreamHandler(header, device, memoizedContainerID)
 		if err != nil {
 			return nil, fmt.Errorf("error creating global stream: %w", err)
 		}
 
+		sc.globalStreamsMutex.Lock()
 		sc.globalStreams[key] = stream
+		sc.globalStreamsMutex.Unlock()
+
 		sc.telemetry.activeHandlers.Set(float64(sc.streamCount()))
 	}
 
@@ -138,7 +146,10 @@ func (sc *streamCollection) getNonGlobalStream(header *gpuebpf.CudaEventHeader) 
 		stream: header.Stream_id,
 	}
 
+	sc.streamsMutex.RLock()
 	stream, ok := sc.streams[key]
+	sc.streamsMutex.RUnlock()
+
 	if !ok {
 		var err error
 		stream, err = sc.createStreamHandler(header, nil, sc.memoizedContainerID(header))
@@ -146,7 +157,10 @@ func (sc *streamCollection) getNonGlobalStream(header *gpuebpf.CudaEventHeader) 
 			return nil, fmt.Errorf("error creating non-global stream: %w", err)
 		}
 
+		sc.streamsMutex.Lock()
 		sc.streams[key] = stream
+		sc.streamsMutex.Unlock()
+
 		sc.telemetry.activeHandlers.Set(float64(sc.streamCount()))
 	}
 
@@ -209,28 +223,36 @@ func (sc *streamCollection) memoizedContainerID(header *gpuebpf.CudaEventHeader)
 	})
 }
 
-func (sc *streamCollection) allStreams() iter.Seq[*StreamHandler] {
-	return func(yield func(*StreamHandler) bool) {
-		for _, stream := range sc.streams {
-			if !yield(stream) {
-				return
-			}
-		}
+func (sc *streamCollection) allStreams() []*StreamHandler {
+	var streams []*StreamHandler
 
-		for _, stream := range sc.globalStreams {
-			if !yield(stream) {
-				return
-			}
-		}
+	sc.streamsMutex.RLock()
+	for _, stream := range sc.streams {
+		streams = append(streams, stream)
 	}
+	sc.streamsMutex.RUnlock()
+
+	sc.globalStreamsMutex.RLock()
+	for _, stream := range sc.globalStreams {
+		streams = append(streams, stream)
+	}
+	sc.globalStreamsMutex.RUnlock()
+
+	return streams
 }
 
 func (sc *streamCollection) streamCount() int {
+	sc.streamsMutex.RLock()
+	defer sc.streamsMutex.RUnlock()
+
+	sc.globalStreamsMutex.RLock()
+	defer sc.globalStreamsMutex.RUnlock()
+
 	return len(sc.streams) + len(sc.globalStreams)
 }
 
 func (sc *streamCollection) markProcessStreamsAsEnded(pid uint32) {
-	for handler := range sc.allStreams() {
+	for _, handler := range sc.allStreams() {
 		if handler.metadata.pid == pid {
 			log.Debugf("Process %d ended, marking stream %d as ended", pid, handler.metadata.streamID)
 			_ = handler.markEnd()
@@ -240,7 +262,10 @@ func (sc *streamCollection) markProcessStreamsAsEnded(pid uint32) {
 }
 
 // cleanHandlerMap cleans the handler map for a given stream collection, using generics to avoid code duplication.
-func cleanHandlerMap[K comparable](sc *streamCollection, handlerMap map[K]*StreamHandler, nowKtime int64) {
+func cleanHandlerMap[K comparable](sc *streamCollection, handlerMap map[K]*StreamHandler, nowKtime int64, lock *sync.RWMutex) {
+	lock.Lock()
+	defer lock.Unlock()
+
 	for key, handler := range handlerMap {
 		deleteReason := ""
 
@@ -260,8 +285,8 @@ func cleanHandlerMap[K comparable](sc *streamCollection, handlerMap map[K]*Strea
 // clean cleans the stream collection, removing inactive streams and marking processes as ended.
 // nowKtime is the current kernel time, used to check if streams are inactive.
 func (sc *streamCollection) clean(nowKtime int64) {
-	cleanHandlerMap(sc, sc.streams, nowKtime)
-	cleanHandlerMap(sc, sc.globalStreams, nowKtime)
+	cleanHandlerMap(sc, sc.streams, nowKtime, &sc.streamsMutex)
+	cleanHandlerMap(sc, sc.globalStreams, nowKtime, &sc.globalStreamsMutex)
 
 	sc.telemetry.activeHandlers.Set(float64(sc.streamCount()))
 }

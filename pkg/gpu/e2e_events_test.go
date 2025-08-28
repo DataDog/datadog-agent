@@ -91,7 +91,7 @@ func TestPytorchBatchedKernels(t *testing.T) {
 	// Check the state of those streams. As there's only one we can just get it
 	// by iterating over the map
 	var stream *StreamHandler
-	for s := range handlers.allStreams() {
+	for _, s := range handlers.allStreams() {
 		require.Nil(t, stream) // There should be only one stream, so it should be set to nil at this point
 		stream = s
 	}

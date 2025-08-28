@@ -83,7 +83,7 @@ func (s *probeTestSuite) TestCanReceiveEvents() {
 	var handlerStream, handlerGlobal *StreamHandler
 	require.Eventually(t, func() bool {
 		handlerStream, handlerGlobal = nil, nil // Ensure we see both handlers in the same iteration
-		for h := range probe.streamHandlers.allStreams() {
+		for _, h := range probe.streamHandlers.allStreams() {
 			if h.metadata.pid == uint32(cmd.Process.Pid) {
 				if h.metadata.streamID == 0 {
 					handlerGlobal = h
@@ -244,7 +244,7 @@ func (s *probeTestSuite) TestDetectsContainer() {
 	pid, cid := testutil.RunSampleInDocker(t, testutil.CudaSample, testutil.MinimalDockerImage)
 
 	// Check that the stream handlers have the correct container ID assigned
-	for handler := range probe.streamHandlers.allStreams() {
+	for _, handler := range probe.streamHandlers.allStreams() {
 		if handler.metadata.pid == uint32(pid) {
 			require.Equal(t, cid, handler.metadata.containerID)
 		}
