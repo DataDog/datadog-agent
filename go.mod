@@ -566,7 +566,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/secrets/fx v0.70.0-rc.6
 	github.com/DataDog/datadog-agent/comp/core/secrets/mock v0.70.0-rc.7
 	github.com/DataDog/datadog-agent/comp/core/status v0.69.2
-	github.com/DataDog/datadog-agent/comp/core/status/statusimpl v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/comp/core/status/statusimpl v0.69.4
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.69.2
 	github.com/DataDog/datadog-agent/comp/core/tagger/tags v0.64.0-devel
 	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.69.2
