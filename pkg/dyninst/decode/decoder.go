@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/gotype"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symbol"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -188,8 +189,8 @@ type snapshotMessage struct {
 	Logger    logger           `json:"logger"`
 	Debugger  debuggerData     `json:"debugger"`
 	Timestamp int              `json:"timestamp"`
-
-	rootData []byte
+	Message   message          `json:"message"`
+	rootData  []byte
 }
 
 func (s *snapshotMessage) init(
@@ -277,7 +278,7 @@ func (s *snapshotMessage) init(
 			probe.GetID(), where,
 		)
 	}
-
+	s.Message.probe = probe
 	s.Logger.Version = probe.GetVersion()
 	s.Logger.ThreadID = int(header.Goid)
 	s.Debugger.Snapshot.Probe.ID = probe.GetID()
@@ -290,7 +291,9 @@ func (s *snapshotMessage) init(
 		decoder:          decoder,
 		evaluationErrors: &s.Debugger.EvaluationErrors,
 		skipIndicies:     decoder.getSkipIndiciesBuffer(len(rootType.Expressions)),
+		neededValues:     s.populateNeededValues(probe),
 	}
+	s.Message.argumentsData = &s.Debugger.Snapshot.Captures.Entry.Arguments
 	return probe, nil
 }
 
@@ -323,4 +326,25 @@ func (d *Decoder) getSkipIndiciesBuffer(numExpressions int) []byte {
 		}
 	}
 	return d.skipIndiciesBuffer
+}
+
+// populateNeededValues iterates over the segments of the probe's template segments
+// and populates a map of parameter names which will later be populated with the string
+// representation of the parameter value.
+func (s *snapshotMessage) populateNeededValues(probe ir.ProbeDefinition) map[string]string {
+	segments := probe.GetSegments()
+	neededValues := make(map[string]string, 0)
+	for i := range segments {
+		switch seg := segments[i].(type) {
+		case rcjson.JSONSegment:
+			var parameterName string
+			// XXX: For now we only support parameters in templates
+			if json.Unmarshal(seg.JSON, &parameterName) != nil {
+				s.Debugger.EvaluationErrors = append(s.Debugger.EvaluationErrors, "failed to unmarshal segment JSON, only strings are currently supported")
+				continue
+			}
+			neededValues[parameterName] = ""
+		}
+	}
+	return neededValues
 }

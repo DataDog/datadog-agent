@@ -70,6 +70,7 @@ func TestDecoderManually(t *testing.T) {
 			require.Equal(t, c.probeName, probe.GetID())
 			var e eventCaptures
 			require.NoError(t, json.Unmarshal(buf, &e))
+			// fmt.Println(string(buf))
 			require.Equal(t, c.expected, e.Debugger.Snapshot.Captures.Entry.Arguments)
 			require.Empty(t, decoder.dataItems)
 			require.Empty(t, decoder.currentlyEncoding)

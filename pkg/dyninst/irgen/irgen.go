@@ -1337,7 +1337,7 @@ func populateEventExpressions(
 		switch seg := segment.(type) {
 		case ir.JSONSegment:
 			// At this moment we're only supporting capturing
-			// of parameters listed explictly in segment JSON
+			// of parameters listed explicitly in segment JSON
 			var parameterName string
 			if json.Unmarshal(seg.JSON, &parameterName) != nil {
 				return ir.Issue{
