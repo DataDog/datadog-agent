@@ -154,7 +154,8 @@ func (r *secretResolver) fillFlare(fb flaretypes.FlareBuilder) error {
 }
 
 func (r *secretResolver) writeDebugInfo(w http.ResponseWriter, _ *http.Request) {
-	status.RenderText(templatesFS, "info.tmpl", w, r.getDebugInfo())
+	status := secretsStatus{resolver: r}
+	_ = status.Text(true, w)
 }
 
 func (r *secretResolver) handleRefresh(w http.ResponseWriter, _ *http.Request) {
@@ -623,14 +624,6 @@ func isLikelyAPIOrAppKey(handle, secretValue string, origin handleToContext) boo
 		}
 	}
 	return false
-}
-
-type secretInfo struct {
-	Executable                   string
-	ExecutablePermissions        string
-	ExecutablePermissionsDetails interface{}
-	ExecutablePermissionsError   string
-	Handles                      map[string][][]string
 }
 
 type secretRefreshInfo struct {
