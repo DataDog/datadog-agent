@@ -21,10 +21,20 @@ struct pid_route_entry_t {
 struct flow_t {
     u64 saddr[2];
     u64 daddr[2];
-    u16 sport;
-    u16 dport;
-    u16 l4_protocol;
     u16 l3_protocol;
+    u16 l4_protocol;
+
+    union {
+        struct {
+            u16 sport;
+            u16 dport;
+        } tcp_udp;
+        struct {
+            u8 type;
+            u8 code;
+            u16 id;
+        } icmp;
+    };
 };
 
 struct network_counters_t {
@@ -104,6 +114,7 @@ struct packet_t {
     struct tcphdr tcp;
     struct udphdr udp;
     struct icmphdr icmp;
+    struct icmp6hdr icmp6;
 
     struct namespaced_flow_t ns_flow;
     struct namespaced_flow_t translated_ns_flow;

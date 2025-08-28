@@ -15,6 +15,8 @@ PARSE_FUNC(iphdr)
 PARSE_FUNC(ipv6hdr)
 PARSE_FUNC(udphdr)
 PARSE_FUNC(tcphdr)
+PARSE_FUNC(icmphdr)
+PARSE_FUNC(icmp6hdr)
 
 __attribute__((always_inline)) struct packet_t *get_packet() {
     u32 key = PACKET_KEY;
@@ -33,8 +35,8 @@ __attribute__((always_inline)) struct packet_t *reset_packet() {
 }
 
 __attribute__((always_inline)) void parse_tuple(struct nf_conntrack_tuple *tuple, struct flow_t *flow) {
-    flow->sport = tuple->src.u.all;
-    flow->dport = tuple->dst.u.all;
+    flow->tcp_udp.sport = tuple->src.u.all;
+    flow->tcp_udp.dport = tuple->dst.u.all;
 
     bpf_probe_read(&flow->saddr, sizeof(flow->saddr), &tuple->src.u3.all);
     bpf_probe_read(&flow->daddr, sizeof(flow->daddr), &tuple->dst.u3.all);
@@ -109,8 +111,8 @@ __attribute__((always_inline)) struct packet_t * parse_packet(struct __sk_buff *
         // save current offset within the packet
         pkt->offset = ((u32)(long)c.pos - skb->data);
         pkt->payload_len = skb->len - pkt->offset;
-        pkt->ns_flow.flow.sport = pkt->tcp.source;
-        pkt->ns_flow.flow.dport = pkt->tcp.dest;
+        pkt->ns_flow.flow.tcp_udp.sport = pkt->tcp.source;
+        pkt->ns_flow.flow.tcp_udp.dport = pkt->tcp.dest;
         break;
 
     case IPPROTO_UDP:
@@ -122,21 +124,47 @@ __attribute__((always_inline)) struct packet_t * parse_packet(struct __sk_buff *
         // save current offset within the packet
         pkt->offset = ((u32)(long)c.pos - skb->data);
         pkt->payload_len = skb->len - pkt->offset;
-        pkt->ns_flow.flow.sport = pkt->udp.source;
-        pkt->ns_flow.flow.dport = pkt->udp.dest;
+        pkt->ns_flow.flow.tcp_udp.sport = pkt->udp.source;
+        pkt->ns_flow.flow.tcp_udp.dport = pkt->udp.dest;
         break;
 
     case IPPROTO_ICMP:
-        // parse ICMP header
-        if (!(parse_icmphdr(skb, &c, &pkt->icmp))) {
+        if (pkt->ns_flow.flow.l3_protocol == ETH_P_IP) {
+             if (!(parse_icmphdr(skb, &c, &pkt->icmp))) {
+                return NULL;
+            }
+
+            pkt->ns_flow.flow.icmp.type = pkt->icmp.type;
+            pkt->ns_flow.flow.icmp.code = pkt->icmp.code;
+            if (pkt->icmp.type == ICMP_ECHO || pkt->icmp.type == ICMP_ECHOREPLY) {
+                pkt->ns_flow.flow.icmp.id = htons(pkt->icmp.un.echo.id);
+            }
+        } else if (pkt->ns_flow.flow.l3_protocol == ETH_P_IPV6) {
+            if (!(parse_icmp6hdr(skb, &c, &pkt->icmp6))) {
+                return NULL;
+            }
+
+            pkt->ns_flow.flow.icmp.type = pkt->icmp.type;
+            pkt->ns_flow.flow.icmp.code = pkt->icmp.code;
+            if (pkt->icmp6.icmp6_type == ICMP_ECHO || pkt->icmp6.icmp6_type == ICMP_ECHOREPLY) {
+                pkt->ns_flow.flow.icmp.id = htons(pkt->icmp6.icmp6_dataun.u_echo.identifier);
+            }
+        } else {
             return NULL;
         }
+
+        // save current offset within the packet
+        pkt->offset = ((u32)(long)c.pos - skb->data);
+        pkt->payload_len = skb->len - pkt->offset;
+
         break;
 
     default:
         // TODO: handle SCTP, etc ...
         return NULL;
     }
+
+  //  bpf_printk("protocol: %d\n", pkt->ns_flow.flow.l4_protocol);
 
     struct namespaced_flow_t tmp_ns_flow = pkt->ns_flow; // for compatibility with older kernels
     pkt->translated_ns_flow = pkt->ns_flow;

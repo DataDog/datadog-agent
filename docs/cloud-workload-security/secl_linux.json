@@ -2266,6 +2266,11 @@
           "name": "network.source.port",
           "definition": "Port number",
           "property_doc_link": "common-ipportcontext-port-doc"
+        },
+        {
+          "name": "network.type",
+          "definition": "Type of the network packet",
+          "property_doc_link": "common-networkcontext-type-doc"
         }
       ]
     },
@@ -3313,6 +3318,11 @@
           "name": "network.source.port",
           "definition": "Port number",
           "property_doc_link": "common-ipportcontext-port-doc"
+        },
+        {
+          "name": "network.type",
+          "definition": "Type of the network packet",
+          "property_doc_link": "common-networkcontext-type-doc"
         }
       ]
     },
@@ -4399,6 +4409,11 @@
           "name": "packet.tls.version",
           "definition": "TLS version",
           "property_doc_link": "packet-tls-version-doc"
+        },
+        {
+          "name": "packet.type",
+          "definition": "Type of the network packet",
+          "property_doc_link": "common-networkcontext-type-doc"
         }
       ]
     },
@@ -12110,6 +12125,19 @@
       "examples": []
     },
     {
+      "name": "*.type",
+      "link": "common-networkcontext-type-doc",
+      "type": "int",
+      "definition": "Type of the network packet",
+      "prefixes": [
+        "network",
+        "packet"
+      ],
+      "constants": "Network Protocol Types",
+      "constants_link": "network-protocol-types",
+      "examples": []
+    },
+    {
       "name": "*.uid",
       "link": "common-credentials-uid-doc",
       "type": "int",
@@ -17672,6 +17700,61 @@
         },
         {
           "name": "AF_MAX",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "Network Protocol Types",
+      "link": "network-protocol-types",
+      "description": "Types of specific network protocols.",
+      "all": [
+        {
+          "name": "ICMP_ECHO_REQUEST",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_ECHO_REPLY",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_ROUTER_SOLICITATION",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_ROUTER_ADVERTISEMENT",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_NEIGHBOR_SOLICITATION",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_NEIGHBOR_ADVERTISEMENT",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_V6_ECHO_REQUEST",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_V6_ECHO_REPLY",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_V6_ROUTER_SOLICITATION",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_V6_ROUTER_ADVERTISEMENT",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_V6_NEIGHBOR_SOLICITATION",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_V6_NEIGHBOR_ADVERTISEMENT",
           "architecture": "all"
         }
       ]
