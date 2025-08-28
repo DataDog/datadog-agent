@@ -11,9 +11,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestNewContainerImage(t *testing.T) {
@@ -295,4 +296,119 @@ func TestMergeGPU(t *testing.T) {
 	assert.Equal(t, gpu1.Device, "tesla")
 	assert.ElementsMatch(t, gpu1.ActivePIDs, []int{654})
 	assert.Equal(t, gpu1.Vendor, "nvidia")
+}
+
+func TestGetCPUManagerPolicy(t *testing.T) {
+	tests := []struct {
+		name           string
+		kubelet        Kubelet
+		expectedPolicy CpuManagerPolicy
+		expectedError  string
+	}{
+		{
+			name: "nil config should return error",
+			kubelet: Kubelet{
+				Config: nil,
+			},
+			expectedPolicy: CpuManagerPolicyUnknown,
+			expectedError:  "error when parsing kubelet config, expected config to be non-nil",
+		},
+		{
+			name: "missing kubeletconfig key should return error",
+			kubelet: Kubelet{
+				Config: KubeletConfig{
+					"otherkey": "value",
+				},
+			},
+			expectedPolicy: CpuManagerPolicyUnknown,
+			expectedError:  "error when parsing kubelet config, expected to find key: kubeletconfig",
+		},
+		{
+			name: "kubeletconfig not a map should return error",
+			kubelet: Kubelet{
+				Config: KubeletConfig{
+					"kubeletconfig": "not-a-map",
+				},
+			},
+			expectedPolicy: CpuManagerPolicyUnknown,
+			expectedError:  "error when parsing kubelet config, type assertion failed for kubeletConfig",
+		},
+		{
+			name: "missing cpuManagerPolicy key should return error",
+			kubelet: Kubelet{
+				Config: KubeletConfig{
+					"kubeletconfig": map[string]interface{}{
+						"otherkey": "value",
+					},
+				},
+			},
+			expectedPolicy: CpuManagerPolicyUnknown,
+			expectedError:  "error when parsing kubelet config, expected to find key: cpuManagerPolicy",
+		},
+		{
+			name: "cpuManagerPolicy not a string should return error",
+			kubelet: Kubelet{
+				Config: KubeletConfig{
+					"kubeletconfig": map[string]interface{}{
+						"cpuManagerPolicy": 123,
+					},
+				},
+			},
+			expectedPolicy: CpuManagerPolicyUnknown,
+			expectedError:  "error when parsing kubelet config, type assertion failed for cpuManagerPolicy",
+		},
+		{
+			name: "cpuManagerPolicy 'none' should return CpuManagerPolicyNone",
+			kubelet: Kubelet{
+				Config: KubeletConfig{
+					"kubeletconfig": map[string]interface{}{
+						"cpuManagerPolicy": "none",
+					},
+				},
+			},
+			expectedPolicy: CpuManagerPolicyNone,
+			expectedError:  "",
+		},
+		{
+			name: "cpuManagerPolicy 'static' should return CpuManagerPolicyStatic",
+			kubelet: Kubelet{
+				Config: KubeletConfig{
+					"kubeletconfig": map[string]interface{}{
+						"cpuManagerPolicy": "static",
+					},
+				},
+			},
+			expectedPolicy: CpuManagerPolicyStatic,
+			expectedError:  "",
+		},
+		{
+			name: "unknown cpuManagerPolicy value should return error",
+			kubelet: Kubelet{
+				Config: KubeletConfig{
+					"kubeletconfig": map[string]interface{}{
+						"cpuManagerPolicy": "unknown-value",
+					},
+				},
+			},
+			expectedPolicy: CpuManagerPolicyUnknown,
+			expectedError:  "error when parsing kubelet config, unexpected value for cpuManagerPolicy: unknown-value",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			policy, err := tt.kubelet.GetCPUManagerPolicy()
+
+			// Check policy
+			assert.Equal(t, tt.expectedPolicy, policy)
+
+			// Check error
+			if tt.expectedError != "" {
+				assert.Error(t, err)
+				assert.Equal(t, tt.expectedError, err.Error())
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
 }

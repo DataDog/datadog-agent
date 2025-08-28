@@ -205,9 +205,9 @@ const (
 type CpuManagerPolicy string
 
 const (
-	Unknown                CpuManagerPolicy = "unknown"
-	CpuManagerPolicyNone   CpuManagerPolicy = "none"
-	CpuManagerPolicyStatic CpuManagerPolicy = "static"
+	CpuManagerPolicyUnknown CpuManagerPolicy = "unknown"
+	CpuManagerPolicyNone    CpuManagerPolicy = "none"
+	CpuManagerPolicyStatic  CpuManagerPolicy = "static"
 )
 
 const (
@@ -1192,31 +1192,31 @@ func (ku *Kubelet) String(verbose bool) string {
 // GetCPUManagerPolicy returns the CPU Manager Policy from the kubelet's config
 func (ku Kubelet) GetCPUManagerPolicy() (CpuManagerPolicy, error) {
 	if ku.Config == nil {
-		return Unknown,
+		return CpuManagerPolicyUnknown,
 			fmt.Errorf("error when parsing kubelet config, expected config to be non-nil")
 	}
 
 	kubeletConfigInterface, ok := ku.Config["kubeletconfig"]
 	if !ok {
-		return Unknown,
+		return CpuManagerPolicyUnknown,
 			fmt.Errorf("error when parsing kubelet config, expected to find key: kubeletconfig")
 	}
 
 	kubeletConfig, ok := kubeletConfigInterface.(map[string]interface{})
 	if !ok {
-		return Unknown,
+		return CpuManagerPolicyUnknown,
 			fmt.Errorf("error when parsing kubelet config, type assertion failed for kubeletConfig")
 	}
 
 	cpuManagerPolicyInterface, ok := kubeletConfig["cpuManagerPolicy"]
 	if !ok {
-		return Unknown,
+		return CpuManagerPolicyUnknown,
 			fmt.Errorf("error when parsing kubelet config, expected to find key: cpuManagerPolicy")
 	}
 
 	cpuManagerPolicy, ok := cpuManagerPolicyInterface.(string)
 	if !ok {
-		return Unknown,
+		return CpuManagerPolicyUnknown,
 			fmt.Errorf("error when parsing kubelet config, type assertion failed for cpuManagerPolicy")
 	}
 
@@ -1226,7 +1226,7 @@ func (ku Kubelet) GetCPUManagerPolicy() (CpuManagerPolicy, error) {
 	case "static":
 		return CpuManagerPolicyStatic, nil
 	default:
-		return Unknown,
+		return CpuManagerPolicyUnknown,
 			fmt.Errorf("error when parsing kubelet config, unexpected value for cpuManagerPolicy: %s", cpuManagerPolicy)
 	}
 }
