@@ -39,6 +39,7 @@ def go_build(
     echo: bool = False,
     coverage: bool = False,
     trimpath: bool = True,
+    buildmode: str | None = None,
 ) -> Result:
     cmd = "go build"
     if coverage:
@@ -64,6 +65,8 @@ def go_build(
         cmd += f" -ldflags=\"{ldflags}\""
     if trimpath and 'DELVE' not in os.environ:
         cmd += " -trimpath"
+    if buildmode:
+        cmd += f" -buildmode={buildmode}"
 
     cmd += f" {entrypoint}"
 

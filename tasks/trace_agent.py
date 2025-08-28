@@ -7,7 +7,7 @@ from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_defau
 from tasks.flavor import AgentFlavor
 from tasks.gointegrationtest import TRACE_AGENT_IT_CONF, containerized_integration_tests
 from tasks.libs.common.go import go_build
-from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags
+from tasks.libs.common.utils import REPO_PATH, bin_name, bin_sharedlib_name, get_build_flags
 from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 BIN_PATH = os.path.join(".", "bin", "trace-agent")
@@ -60,11 +60,14 @@ def build(
 
     build_tags = get_build_tags(build_include, build_exclude)
     agent_bin = os.path.join(BIN_PATH, bin_name("trace-agent"))
+    agent_sharedlib = os.path.join(BIN_PATH, bin_sharedlib_name("trace-agent"))
 
     # go generate only works if you are in the module the target file is in, so we
     # need to move into the pkg/trace module.
     with ctx.cd("./pkg/trace"):
         ctx.run(f"go generate -mod={go_mod} {REPO_PATH}/pkg/trace/info", env=env)
+
+    # Build the binary file
     go_build(
         ctx,
         f"{REPO_PATH}/cmd/trace-agent",
@@ -79,6 +82,21 @@ def build(
         coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
     )
 
+    # Build the shared lib
+    go_build(
+        ctx,
+        f"{REPO_PATH}/cmd/trace-agent",
+        mod=go_mod,
+        race=race,
+        rebuild=rebuild,
+        build_tags=build_tags,
+        bin_path=agent_sharedlib,
+        ldflags=ldflags,
+        gcflags=gcflags,
+        env=env,
+        coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
+        buildmode="c-shared",
+    )
 
 @task
 def integration_tests(ctx, race=False, go_mod="readonly", timeout="10m"):

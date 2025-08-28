@@ -105,6 +105,15 @@ def bin_name(name):
         return f"{name}.exe"
     return name
 
+def bin_sharedlib_name(name):
+    """
+    Generate platform dependent names for shared libraries
+    """
+    if sys.platform == 'win32':
+        return f"{name}.dll"
+    if sys.platform == 'darwin':
+        return f"lib{name}.dylib"
+    return f"lib{name}.so"
 
 def get_distro():
     """
