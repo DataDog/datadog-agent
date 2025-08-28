@@ -13,6 +13,7 @@ import (
 	stdErrors "errors"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"go.uber.org/fx"
@@ -31,10 +32,11 @@ import (
 )
 
 const (
-	collectorID         = "kubelet"
-	componentName       = "workloadmeta-kubelet"
-	expireFreq          = 15 * time.Second
-	dockerImageIDPrefix = "docker-pullable://"
+	collectorID             = "kubelet"
+	componentName           = "workloadmeta-kubelet"
+	expireFreq              = 15 * time.Second
+	kubeletConfigExpireFreq = 20 * time.Minute // It's unlikely that the kubelet config would change frequently
+	dockerImageIDPrefix     = "docker-pullable://"
 )
 
 type dependencies struct {
@@ -53,6 +55,10 @@ type collector struct {
 	kubeUtil             kubelet.KubeUtilInterface
 	lastSeenPodUIDs      map[string]time.Time
 	lastSeenContainerIDs map[string]time.Time
+
+	// These fields are used to pull the kubelet config
+	kubeletConfigOnce       sync.Once // used to pull the kubelet config once at the first pull
+	kubeletConfigLastExpire time.Time
 
 	// usePodWatcher indicates whether to use the pod watcher for collecting
 	// pods. The new implementation queries the Kubelet directly instead. This
@@ -115,13 +121,45 @@ func (c *collector) Pull(ctx context.Context) error {
 	return c.pullFromKubelet(ctx)
 }
 
+func (c *collector) pullKubeletConfig(ctx context.Context) (workloadmeta.CollectorEvent, error) {
+	config, err := c.kubeUtil.GetConfig(ctx)
+	if err != nil {
+		return workloadmeta.CollectorEvent{}, err
+	}
+
+	return workloadmeta.CollectorEvent{
+		Type:   workloadmeta.EventTypeSet,
+		Source: workloadmeta.SourceNodeOrchestrator,
+		Entity: &workloadmeta.Kubelet{
+			EntityID: workloadmeta.EntityID{
+				ID:   "kubelet",
+				Kind: workloadmeta.KindKubelet,
+			},
+			EntityMeta: workloadmeta.EntityMeta{
+				Name: "kubelet",
+			},
+			Config: workloadmeta.KubeletConfig(config),
+		},
+	}, nil
+}
+
 func (c *collector) pullFromKubelet(ctx context.Context) error {
+	events := []workloadmeta.CollectorEvent{}
+
+	// Pull the kubelet config once at the first pull because its interval is long
+	c.kubeletConfigOnce.Do(func() {
+		configEvent, err := c.pullKubeletConfig(ctx)
+		if err == nil {
+			events = append(events, configEvent)
+		}
+	})
+
 	podList, err := c.kubeUtil.GetLocalPodList(ctx)
 	if err != nil {
 		return err
 	}
 
-	events := parsePods(podList, c.collectEphemeralContainers)
+	events = append(events, parsePods(podList, c.collectEphemeralContainers)...)
 
 	// Mark return pods and containers as seen now
 	now := time.Now()
@@ -138,6 +176,15 @@ func (c *collector) pullFromKubelet(ctx context.Context) error {
 
 	expireEvents := c.eventsForExpiredEntities(now)
 	events = append(events, expireEvents...)
+
+	// Pull the kubelet config every kubeletConfigExpireFreq
+	if time.Since(c.kubeletConfigLastExpire) > kubeletConfigExpireFreq {
+		configEvent, err := c.pullKubeletConfig(ctx)
+		if err == nil {
+			events = append(events, configEvent)
+		}
+		c.kubeletConfigLastExpire = time.Now()
+	}
 
 	c.store.Notify(events)
 
@@ -653,6 +700,14 @@ func extractResources(spec *kubelet.ContainerSpec) workloadmeta.ContainerResourc
 
 	if memoryLimit, found := spec.Resources.Limits[kubelet.ResourceMemory]; found {
 		resources.MemoryLimit = kubernetes.FormatMemoryRequests(memoryLimit)
+	}
+
+	if cpuLimit, found := spec.Resources.Limits[kubelet.ResourceCPU]; found {
+		if cpuReq, found := spec.Resources.Requests[kubelet.ResourceCPU]; found {
+			if cpuReq == cpuLimit && cpuReq.MilliValue()%1000 == 0 {
+				resources.WholeCPU = true
+			}
+		}
 	}
 
 	// extract GPU resource info from the possible GPU sources

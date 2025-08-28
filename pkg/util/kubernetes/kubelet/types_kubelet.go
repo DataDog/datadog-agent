@@ -281,3 +281,5 @@ type ContainerStateTerminated struct {
 	FinishedAt time.Time `json:"finishedAt"`
 	Reason     string    `json:"reason"`
 }
+
+type KubeletConfig map[string]interface{}

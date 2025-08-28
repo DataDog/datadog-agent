@@ -7,6 +7,7 @@ package workloadmeta
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
@@ -17,6 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
@@ -48,6 +50,7 @@ const (
 	KindContainerImageMetadata Kind = "container_image_metadata"
 	KindProcess                Kind = "process"
 	KindGPU                    Kind = "gpu"
+	KindKubelet                Kind = "kubelet"
 )
 
 // Source is the source name of an entity.
@@ -436,6 +439,7 @@ type ContainerResources struct {
 	CPULimit      *float64
 	MemoryRequest *uint64 // Bytes
 	MemoryLimit   *uint64
+	WholeCPU      bool // The container uses entire core(s) e.g. 1000m or 1 -- NOT 1500m or 1.5
 }
 
 // String returns a string representation of ContainerPort.
@@ -1121,6 +1125,58 @@ func (m *KubernetesMetadata) String(verbose bool) string {
 }
 
 var _ Entity = &KubernetesMetadata{}
+
+type KubeletConfig map[string]interface{}
+
+func (kc KubeletConfig) String() string {
+	out, err := json.MarshalIndent(kc, "", "  ")
+	if err != nil {
+		return fmt.Sprintf("error: %v", err)
+	}
+	return string(out)
+}
+
+type Kubelet struct {
+	EntityID
+	EntityMeta
+	Config KubeletConfig
+}
+
+func (ku *Kubelet) GetID() EntityID { return ku.EntityID }
+
+// Merge implements Entity#Merge.
+func (ku *Kubelet) Merge(e Entity) error {
+	k, ok := e.(*Kubelet)
+	if !ok {
+		return fmt.Errorf("cannot merge Kubelet with different kind %T", e)
+	}
+
+	return merge(k, ku)
+}
+
+// DeepCopy implements Entity#DeepCopy.
+func (ku Kubelet) DeepCopy() Entity {
+	cd := deepcopy.Copy(ku).(Kubelet)
+	return &cd
+}
+
+func (ku *Kubelet) String(verbose bool) string {
+	var sb strings.Builder
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprintln(&sb, ku.EntityID.String(verbose))
+
+	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
+	_, _ = fmt.Fprint(&sb, ku.EntityMeta.String(verbose))
+
+	if verbose {
+		_, _ = fmt.Fprintln(&sb, "----------- Configuration -----------")
+		_, _ = fmt.Fprintln(&sb, ku.Config.String())
+	}
+
+	return sb.String()
+}
+
+var _ Entity = &Kubelet{}
 
 // KubernetesDeployment is an Entity representing a Kubernetes Deployment.
 type KubernetesDeployment struct {

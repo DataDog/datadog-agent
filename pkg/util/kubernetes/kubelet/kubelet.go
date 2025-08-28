@@ -30,6 +30,7 @@ import (
 )
 
 const (
+	kubeletConfigPath      = "/configz"
 	kubeletPodPath         = "/pods"
 	kubeletMetricsPath     = "/metrics"
 	kubeletStatsSummary    = "/stats/summary"
@@ -390,6 +391,24 @@ func (ku *KubeUtil) GetRawMetrics(ctx context.Context) ([]byte, error) {
 	}
 
 	return data, nil
+}
+
+func (ku *KubeUtil) GetConfig(ctx context.Context) (KubeletConfig, error) {
+	bytes, code, err := ku.QueryKubelet(ctx, kubeletConfigPath)
+	if err != nil {
+		return nil, fmt.Errorf("error performing kubelet query %s%s: %s", ku.kubeletClient.kubeletURL, kubeletConfigPath, err)
+	}
+	if code != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code %d on %s%s: %s", code, ku.kubeletClient.kubeletURL, kubeletConfigPath, string(bytes))
+	}
+
+	var config KubeletConfig
+	err = json.Unmarshal(bytes, &config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal the kubelet config: %w", err)
+	}
+
+	return config, nil
 }
 
 // IsPodReady return a bool if the Pod is ready
