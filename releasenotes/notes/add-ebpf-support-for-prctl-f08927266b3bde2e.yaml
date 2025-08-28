@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    Add eBPF support of prctl syscall and retrieve some info
+      - prctl.option : the option that is used for the syscall
+      - prctl.new_name : if option == PR_SET_NAME, get the new_name of the process
+      - prctl.is_name_truncated : if option == PR_SET_NAME, indicates if the retrieved name was truncated or not (there is also a metric tracking the number of truncated names)
