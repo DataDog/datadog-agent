@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// This file contains the legacy map-based string interner implementation.
+
 package server
 
 import (
@@ -31,7 +33,7 @@ type stringInterner struct {
 	telemetry *stringInternerInstanceTelemetry
 }
 
-func newStringInterner(maxSize int, internerID int, siTelemetry *stringInternerTelemetry) *stringInterner {
+func newLegacyStringInterner(maxSize int, internerID int, siTelemetry *stringInternerTelemetry) *stringInterner {
 	// telemetryOnce.Do(func() { initGlobalTelemetry(telemetrycomp) })
 
 	id := fmt.Sprintf("interner_%d", internerID)
@@ -73,3 +75,4 @@ func (i *stringInterner) LoadOrStore(key []byte) string {
 
 	return s
 }
+
