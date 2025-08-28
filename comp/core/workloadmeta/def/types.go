@@ -1487,6 +1487,17 @@ type UST struct {
 	Version string
 }
 
+// String returns a string representation of UST
+func (u UST) String() string {
+	var sb strings.Builder
+
+	_, _ = fmt.Fprintln(&sb, "Service:", u.Service)
+	_, _ = fmt.Fprintln(&sb, "Env:", u.Env)
+	_, _ = fmt.Fprintln(&sb, "Version:", u.Version)
+
+	return sb.String()
+}
+
 // Process is an Entity that represents a process
 type Process struct {
 	EntityID // EntityID.ID is the PID
@@ -1560,12 +1571,14 @@ func (p Process) String(verbose bool) string {
 			_, _ = fmt.Fprintln(&sb, "Service Tracer Metadata:", p.Service.TracerMetadata)
 			_, _ = fmt.Fprintln(&sb, "Service DD Service:", p.Service.DDService)
 			_, _ = fmt.Fprintln(&sb, "Service DD Service Injected:", p.Service.DDServiceInjected)
-			_, _ = fmt.Fprintln(&sb, "Service UST Service:", p.Service.UST.Service)
-			_, _ = fmt.Fprintln(&sb, "Service UST Env:", p.Service.UST.Env)
-			_, _ = fmt.Fprintln(&sb, "Service UST Version:", p.Service.UST.Version)
 			_, _ = fmt.Fprintln(&sb, "Service Ports:", p.Service.Ports)
 			_, _ = fmt.Fprintln(&sb, "Service APM Instrumentation:", p.Service.APMInstrumentation)
 			_, _ = fmt.Fprintln(&sb, "Service Type:", p.Service.Type)
+
+			if p.Service.UST != (UST{}) {
+				_, _ = fmt.Fprintln(&sb, "---- Unified Service Tagging ----")
+				_, _ = fmt.Fprint(&sb, p.Service.UST)
+			}
 
 			if len(p.Service.LogFiles) > 0 {
 				_, _ = fmt.Fprintln(&sb, "----------- Log Files -----------")

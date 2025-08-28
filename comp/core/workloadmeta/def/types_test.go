@@ -206,12 +206,13 @@ Service Additional Generated Names: [java app]
 Service Tracer Metadata: []
 Service DD Service: java-app
 Service DD Service Injected: true
-Service UST Service: java-app
-Service UST Env: production
-Service UST Version: 1.2.3
 Service Ports: [8080]
 Service APM Instrumentation: enabled
 Service Type: web_service
+---- Unified Service Tagging ----
+Service: java-app
+Env: production
+Version: 1.2.3
 ----------- Log Files -----------
 /var/log/app_access.log
 /var/log/app_error.log
