@@ -338,8 +338,6 @@ def trigger_child_pipeline(_, git_ref, project_name, variable=None, follow=True,
     if not os.environ.get('CI_JOB_TOKEN'):
         raise Exit("CI_JOB_TOKEN variable needed to create child pipelines.", 1)
 
-    print('GITLAB_TOKEN length:', len(os.environ.get('GITLAB_TOKEN', '')))
-
     # Use the CI_JOB_TOKEN which is passed from gitlab
     token = None if follow else os.environ['CI_JOB_TOKEN']
     repo = get_gitlab_repo(project_name, token=token)
@@ -576,7 +574,7 @@ def edit_schedule(
 
 
 @task
-def activate_schedule(ctx, schedule_id, repo: str = 'DataDog/datadog-agent'):
+def activate_schedule(_, schedule_id, repo: str = 'DataDog/datadog-agent'):
     """
     Activate an existing pipeline schedule on the repository.
     """
