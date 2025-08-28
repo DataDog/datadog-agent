@@ -204,7 +204,7 @@ func (p *Provider) processPodRate(metricName string, metricFam *prom.MetricFamil
 			continue
 		}
 		filterablePod := workloadmetafilter.CreatePod(pod)
-		selectedFilters := workloadfilter.GetPodSharedMetricFilters()
+		selectedFilters := p.filterStore.GetPodSharedMetricFilters()
 		if p.filterStore.IsPodExcluded(filterablePod, selectedFilters) {
 			continue
 		}
@@ -383,7 +383,7 @@ func (p *Provider) getPodByMetricLabel(labels model.Metric) *workloadmeta.Kubern
 	}
 	if pod, err := p.store.GetKubernetesPodByName(string(podName), string(namespace)); err == nil {
 		filterablePod := workloadmetafilter.CreatePod(pod)
-		selectedFilters := workloadfilter.GetPodSharedMetricFilters()
+		selectedFilters := p.filterStore.GetPodSharedMetricFilters()
 		if !p.filterStore.IsPodExcluded(filterablePod, selectedFilters) {
 			return pod
 		}

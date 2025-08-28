@@ -99,7 +99,7 @@ func newProcessor(workloadmetaStore workloadmeta.Component, filterStore workload
 		}),
 		workloadmetaStore:     workloadmetaStore,
 		filterStore:           filterStore,
-		selectedFilters:       workloadfilter.GetContainerSBOMFilters(),
+		selectedFilters:       filterStore.GetContainerSBOMFilters(),
 		tagger:                tagger,
 		imageRepoDigests:      make(map[string]string),
 		imageUsers:            make(map[string]map[string]struct{}),

@@ -172,7 +172,7 @@ func (pf *filterSelection) computeContainerAutodiscoveryFilters(cfg config.Compo
 func (pf *filterSelection) computeContainerSharedMetricFilters(cfg config.Component) [][]workloadfilter.ContainerFilter {
 	flist := make([][]workloadfilter.ContainerFilter, 2)
 
-	flist[0] = []workloadfilter.ContainerFilter{workloadfilter.ContainerADAnnotations, workloadfilter.ContainerADAnnotationsMetrics} // highPrecedence
+	high := []workloadfilter.ContainerFilter{workloadfilter.ContainerADAnnotations, workloadfilter.ContainerADAnnotationsMetrics}
 	low := []workloadfilter.ContainerFilter{workloadfilter.LegacyContainerGlobal, workloadfilter.LegacyContainerMetrics}
 
 	includeList := cfg.GetStringSlice("container_include")
@@ -191,7 +191,8 @@ func (pf *filterSelection) computeContainerSharedMetricFilters(cfg config.Compon
 		low = append(low, workloadfilter.ContainerPaused)
 	}
 
-	flist[1] = low // lowPrecedence
+	flist[0] = high // highPrecedence
+	flist[1] = low  // lowPrecedence
 	return flist
 }
 
@@ -218,11 +219,6 @@ func (pf *filterSelection) computePodAutodiscoveryFilters(_ config.Component, fi
 	switch filterScope {
 	case workloadfilter.MetricsFilter:
 		high = append(high, workloadfilter.PodADAnnotationsMetrics)
-	case workloadfilter.LogsFilter:
-		// Currently no specific logs annotations for pods, but structure is prepared
-	case workloadfilter.GlobalFilter:
-		// Currently no specific global filters for pods beyond legacy
-	default:
 	}
 
 	flist[0] = high // highPrecedence
@@ -241,17 +237,14 @@ func (pf *filterSelection) computeServiceAutodiscoveryFilters(_ config.Component
 	flist := make([][]workloadfilter.ServiceFilter, 2)
 
 	high := []workloadfilter.ServiceFilter{workloadfilter.ServiceADAnnotations}
-	low := []workloadfilter.ServiceFilter{workloadfilter.LegacyServiceGlobal}
+	low := []workloadfilter.ServiceFilter{}
 
 	switch filterScope {
 	case workloadfilter.MetricsFilter:
 		high = append(high, workloadfilter.ServiceADAnnotationsMetrics)
 		low = append(low, workloadfilter.LegacyServiceMetrics)
-	case workloadfilter.LogsFilter:
-		// Currently no specific logs annotations for services, but structure is prepared
 	case workloadfilter.GlobalFilter:
-		// Currently no specific global filters for services beyond legacy
-	default:
+		low = append(low, workloadfilter.LegacyServiceGlobal)
 	}
 
 	flist[0] = high // highPrecedence
@@ -265,16 +258,14 @@ func (pf *filterSelection) computeEndpointAutodiscoveryFilters(_ config.Componen
 	flist := make([][]workloadfilter.EndpointFilter, 2)
 
 	high := []workloadfilter.EndpointFilter{workloadfilter.EndpointADAnnotations}
-	low := []workloadfilter.EndpointFilter{workloadfilter.LegacyEndpointGlobal}
+	low := []workloadfilter.EndpointFilter{}
 
 	switch filterScope {
 	case workloadfilter.MetricsFilter:
 		high = append(high, workloadfilter.EndpointADAnnotationsMetrics)
 		low = append(low, workloadfilter.LegacyEndpointMetrics)
-	case workloadfilter.LogsFilter:
-		// Currently no specific logs annotations for endpoints, but structure is prepared
 	case workloadfilter.GlobalFilter:
-		// Currently no specific global filters for endpoints beyond legacy
+		low = append(low, workloadfilter.LegacyEndpointGlobal)
 	default:
 	}
 
