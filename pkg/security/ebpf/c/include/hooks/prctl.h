@@ -4,6 +4,7 @@
 #include "constants/syscall_macro.h"
 #include "helpers/syscalls.h"
 #include "helpers/process.h"
+
 long __attribute__((always_inline)) trace__sys_prctl(u8 async, int option, void * arg2) {
     if (is_discarded_by_pid()) {
         return 0;
@@ -12,7 +13,6 @@ long __attribute__((always_inline)) trace__sys_prctl(u8 async, int option, void 
     struct syscall_cache_t syscall = {
         .type = EVENT_PRCTL,
         .policy = policy,
-        .async = async,
         .prctl = {
             .option = option,
         }
@@ -31,7 +31,7 @@ long __attribute__((always_inline)) trace__sys_prctl(u8 async, int option, void 
         } else {
             syscall.prctl.name_size_to_send = 0;
         }
-            break;
+        break;
         }
     }
     cache_syscall(&syscall);
@@ -50,7 +50,7 @@ int __attribute__((always_inline)) sys_prctl_ret(void *ctx, int retval) {
         return 0;  
     }
     event->syscall.retval = retval;
-    event->event.flags = syscall->async ? EVENT_FLAGS_ASYNC : 0;
+    event->event.flags = syscall->async;
     event->option = syscall->prctl.option;
     event->name_truncated = syscall->prctl.name_truncated;
     struct proc_cache_t *entry = fill_process_context(&event->process);
