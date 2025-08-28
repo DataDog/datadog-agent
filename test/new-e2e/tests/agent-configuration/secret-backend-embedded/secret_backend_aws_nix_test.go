@@ -21,7 +21,8 @@ func (v *linuxRuntimeSecretSuite) TestPullAWSSecret() {
 	config := `api_key: ENC[embedded-secret;embedded_secret_key]
 secret_backend_type: aws.secrets
 secret_backend_config:
-  aws_region: us-east-1`
+  aws_session:
+    aws_region: us-east-1`
 
 	v.UpdateEnv(awshost.Provisioner(
 		awshost.WithAgentOptions(
