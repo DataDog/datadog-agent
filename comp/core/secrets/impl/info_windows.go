@@ -9,7 +9,6 @@ package secretsimpl
 
 import (
 	"bytes"
-	_ "embed"
 	"fmt"
 	"os/exec"
 	"strings"
