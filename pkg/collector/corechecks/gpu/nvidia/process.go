@@ -97,7 +97,7 @@ func (c *processCollector) Collect() ([]Metric, error) {
 }
 
 // Helper methods for metric collection
-// memory.usage and memory.limit metrics gets higher priority from process collector than from ebpf collector
+// process.memory.usage and memory.limit metrics gets higher priority from process collector than from ebpf collector
 func (c *processCollector) collectComputeProcesses() ([]Metric, error) {
 	var processMetrics []Metric
 	var allPidTags []string
@@ -107,7 +107,7 @@ func (c *processCollector) collectComputeProcesses() ([]Metric, error) {
 	if err == nil {
 		for _, proc := range procs {
 			pidTag := fmt.Sprintf("pid:%d", proc.Pid)
-			// Only emit memory.usage per process
+			// Only emit process.memory.usage per process
 			processMetrics = append(processMetrics,
 				Metric{
 					Name:     "process.memory.usage",
