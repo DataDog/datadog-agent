@@ -46,7 +46,19 @@ if (-not (Test-Path $datadogPackageExe -ErrorAction SilentlyContinue)) {
     $env:PATH += ";$datadogPackagesDir"
 }
 if ([string]::IsNullOrWhitespace($version)) {
-    $version = "{0}-1" -f (dda inv -- agent.version --url-safe --major-version 7)
+    $verOutput = (dda inv -- agent.version --url-safe --major-version 7 | Out-String)
+    $lines = $verOutput -split "`r?`n"
+    # Match common Agent version formats (release, rc, devel with git and optional pipeline suffix)
+    $versionPattern = '^[0-9]+\.[0-9]+\.[0-9]+([\.-]rc\.[0-9]+|-devel\.git\.[0-9]+\.[A-Za-z0-9]+(\.pipeline\.[0-9]+)?|\.pipeline\.[0-9]+)?$'
+    $matchedLine = $lines |
+        ForEach-Object { $_.Trim() } |
+        Where-Object { $_ -and ($_ -match $versionPattern) } |
+        Select-Object -First 1
+    if (-not $matchedLine) {
+        Write-Error "Could not parse agent version from output: `$verOutput"
+        exit 1
+    }
+    $version = "{0}-1" -f $matchedLine
     Write-Host "Detected agent version ${version}"
 }
 if (-not $version.EndsWith("-1")) {
