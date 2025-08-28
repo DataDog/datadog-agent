@@ -180,10 +180,15 @@ Creation time: 2023-01-01 12:00:00 +0000 UTC
 					TracerMetadata:           []tracermetadata.TracerMetadata{},
 					DDService:                "java-app",
 					DDServiceInjected:        true,
-					TCPPorts:                 []uint16{8080},
-					UDPPorts:                 []uint16{8081},
-					APMInstrumentation:       "enabled",
-					Type:                     "web_service",
+					UST: UST{
+						Service: "java-app",
+						Env:     "production",
+						Version: "1.2.3",
+					},
+					TCPPorts:           []uint16{8080},
+					UDPPorts:           []uint16{8081},
+					APMInstrumentation: "enabled",
+					Type:               "web_service",
 					LogFiles: []string{
 						"/var/log/app_access.log",
 						"/var/log/app_error.log",
@@ -206,6 +211,10 @@ Service TCP Ports: [8080]
 Service UDP Ports: [8081]
 Service APM Instrumentation: enabled
 Service Type: web_service
+---- Unified Service Tagging ----
+Service: java-app
+Env: production
+Version: 1.2.3
 ----------- Log Files -----------
 /var/log/app_access.log
 /var/log/app_error.log

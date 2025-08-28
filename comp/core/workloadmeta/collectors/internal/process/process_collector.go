@@ -787,6 +787,11 @@ func convertModelServiceToService(modelService *model.Service) *workloadmeta.Ser
 		APMInstrumentation:       modelService.APMInstrumentation,
 		Type:                     modelService.Type,
 		LogFiles:                 modelService.LogFiles,
+		UST: workloadmeta.UST{
+			Service: modelService.UST.Service,
+			Env:     modelService.UST.Env,
+			Version: modelService.UST.Version,
+		},
 	}
 }
 
