@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix memory leak in log package when initizalization is not called.
