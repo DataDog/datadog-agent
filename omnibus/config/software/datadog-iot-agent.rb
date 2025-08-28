@@ -57,9 +57,6 @@ build do
     if windows_target?
       # just builds the trace-agent, this should be moved to a separate package as it's not related to the iot agent
 
-      mkdir "#{install_dir}/bin/agent"
-      copy 'bin/agent', "#{install_dir}/bin/"
-
       platform = windows_arch_i386? ? "x86" : "x64"
       command "invoke trace-agent.build --major-version #{major_version_arg}", :env => env
 
