@@ -59,6 +59,14 @@ validate_modules:
     - dda inv -- -e modules.validate
     - dda inv -- -e modules.validate-used-by-otel
 
+check_modules_replace:
+  extends: .lint
+  needs: ["go_deps"]
+  before_script:
+    - !reference [.retrieve_linux_go_deps]
+  script:
+    - dda inv -- -e modules.check-all-replace
+
 validate_experiment_systemd_units:
   extends: .lint
   rules: !reference [.on_installer_systemd_changes]

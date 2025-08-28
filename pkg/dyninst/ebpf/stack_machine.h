@@ -29,6 +29,29 @@ static bool get_type_info(type_t t, const type_info_t** info_out) {
   return true;
 }
 
+DEFINE_BINARY_SEARCH(
+  lookup_type_id,
+  uint32_t,
+  go_runtime_type,
+  go_runtime_types,
+  num_go_runtime_types
+);
+
+static type_t lookup_go_interface(uint32_t go_runtime_type) {
+  if (go_runtime_type == 0) {
+    return 0;
+  }
+  uint32_t idx = lookup_type_id_by_go_runtime_type(go_runtime_type);
+  uint32_t *got = bpf_map_lookup_elem(&go_runtime_types, &idx);
+  if (!got || *got != go_runtime_type) {
+    return 0;
+  }
+  uint32_t *type_id = bpf_map_lookup_elem(&go_runtime_type_ids, &idx);
+  if (!type_id) {
+    return 0;
+  }
+  return *type_id;
+}
 
 static bool chased_pointers_trie_push(chased_pointers_trie_t* chased, target_ptr_t ptr,
                                  type_t type) {
@@ -299,25 +322,26 @@ sm_record_pointer(global_ctx_t* ctx, type_t type, target_ptr_t addr,
   return true;
 }
 
-// inline __attribute__((always_inline)) bool
-// sm_record_go_interface_impl(global_ctx_t* global_ctx, uint64_t go_runtime_type,
-//                          target_ptr_t addr) {
-//   // Resolve implementation type.
-//   if (go_runtime_type == (uint64_t)(-1)) {
-//     // TODO: Maybe this should not short-circuit the rest of execution.
-//     // Note that this happens only when there's an issue reading the
-//     // runtime.firstmoduledata or if the type does not reside inside of
-//     // it.
-//     LOG(3, "chase: interface unknown go runtime type");
-//     return true;
-//   }
-//   type_t t = lookup_go_interface(go_runtime_type);
-//   if (t == TYPE_NONE) {
-//     LOG(4, "chase: interface type not found %lld", go_runtime_type);
-//     return true;
-//   }
-//   return sm_record_pointer(global_ctx, t, addr, ENQUEUE_LEN_SENTINEL);
-// }
+static inline __attribute__((always_inline)) bool
+sm_record_go_interface_impl(global_ctx_t* global_ctx, uint64_t go_runtime_type,
+                         target_ptr_t addr) {
+  // Resolve implementation type.
+  if (go_runtime_type == (uint64_t)(-1)) {
+    // TODO: Maybe this should not short-circuit the rest of execution.
+    // Note that this happens only when there's an issue reading the
+    // runtime.firstmoduledata or if the type does not reside inside of
+    // it.
+    LOG(3, "chase: interface unknown go runtime type");
+    return true;
+  }
+  type_t t = lookup_go_interface(go_runtime_type);
+  if (t == 0) {
+    LOG(4, "chase: interface type not found %llx", go_runtime_type);
+    return true;
+  }
+  const bool decrease_ttl = false;
+  return sm_record_pointer(global_ctx, t, addr, decrease_ttl, ENQUEUE_LEN_SENTINEL);
+}
 
 typedef struct typebounds {
   uint64_t types;
@@ -336,123 +360,145 @@ struct {
   __type(value, moduledata_t);
 } moduledata_buf SEC(".maps");
 
-// // Translate a pointer to a type (i.e. a pointer pointing to type information
-// // inside moduledata) like that found inside an empty interface to an offset
-// // into moduledata. We commonly represent runtime type information as such an
-// // offset.
-// inline __attribute__((always_inline)) uint64_t
-// go_runtime_type_from_ptr(target_ptr_t type_ptr) {
-//   const unsigned long zero = 0;
-//   moduledata_t* moduledata =
-//       (moduledata_t*)bpf_map_lookup_elem(&moduledata_buf, &zero);
-//   if (!moduledata) {
-//     return -1;
-//   }
-//   // Detect if the moduledata is up-to-date by checking if the address is
-//   // correct. If it is not, then we need to update the typebounds.
-//   if (moduledata->addr != VARIABLE_runtime_dot_firstmoduledata) {
-//     moduledata->addr = VARIABLE_runtime_dot_firstmoduledata;
-//     if (bpf_probe_read_user(&moduledata->types, sizeof(typebounds_t),
-//                             (void*)(VARIABLE_runtime_dot_firstmoduledata +
-//                                     OFFSET_runtime_dot_moduledata__types))) {
-//       return -1;
-//     }
-//   }
+// These constants are filled in by the loader.
+volatile const uint64_t VARIABLE_runtime_dot_firstmoduledata = 0;
+volatile const uint32_t OFFSET_runtime_dot_moduledata__types = 0;
 
-//   typebounds_t* typebounds = &moduledata->types;
-//   if (type_ptr >= typebounds->types && type_ptr < typebounds->etypes) {
-//     return type_ptr - typebounds->types;
-//   }
-//   return -1;
-// }
+// Translate a pointer to a type (i.e. a pointer pointing to type information
+// inside moduledata) like that found inside an empty interface to an offset
+// into moduledata. We commonly represent runtime type information as such an
+// offset.
+static inline __attribute__((always_inline)) uint64_t
+go_runtime_type_from_ptr(target_ptr_t type_ptr) {
+  const unsigned long zero = 0;
+  moduledata_t* moduledata =
+      (moduledata_t*)bpf_map_lookup_elem(&moduledata_buf, &zero);
+  if (!moduledata) {
+    LOG(1, "go_runtime_type_from_ptr: moduledata not found");
+    return -1;
+  }
+  // Detect if the moduledata is up-to-date by checking if the address is
+  // correct. If it is not, then we need to update the typebounds.
+  if (moduledata->addr != VARIABLE_runtime_dot_firstmoduledata) {
+    moduledata->addr = VARIABLE_runtime_dot_firstmoduledata;
+    if (bpf_probe_read_user(&moduledata->types, sizeof(typebounds_t),
+                            (void*)(VARIABLE_runtime_dot_firstmoduledata +
+                                    OFFSET_runtime_dot_moduledata__types))) {
+      LOG(1, "go_runtime_type_from_ptr: failed to read moduledata types %llx + %d",
+          VARIABLE_runtime_dot_firstmoduledata,
+          OFFSET_runtime_dot_moduledata__types);
+      return -1;
+    }
+  }
 
-// inline __attribute__((always_inline)) bool
-// sm_resolve_go_empty_interface(global_ctx_t* ctx, resolved_go_interface_t* res) {
-//   scratch_buf_t* buf = ctx->buf;
-//   stack_machine_t* sm = ctx->stack_machine;
-//   buf_offset_t offset = sm->offset;
-//   res->addr = 0;
-//   res->go_runtime_type = 0;
-//   if (!scratch_buf_bounds_check(&offset, sizeof(target_ptr_t) * 2)) {
-//     return false;
-//   }
-//   if (!scratch_buf_bounds_check(&offset, sizeof(target_ptr_t) +
-//                                              OFFSET_runtime_dot_eface__data)) {
-//     return false;
-//   }
-//   target_ptr_t type_addr =
-//       *(target_ptr_t*)(&(*buf)[offset + OFFSET_runtime_dot_eface___type]);
-//   res->addr =
-//       *(target_ptr_t*)&((*buf)[offset + OFFSET_runtime_dot_eface__data]);
-//   if (type_addr == 0) {
-//     // Not an error, just literally a nil interface.
-//     return true;
-//   }
-//   // TODO: check the return value for error
-//   res->go_runtime_type = go_runtime_type_from_ptr(type_addr);
-//   return true;
-// }
+  typebounds_t* typebounds = &moduledata->types;
+  if (type_ptr >= typebounds->types && type_ptr < typebounds->etypes) {
+    return type_ptr - typebounds->types;
+  }
+  LOG(1, "go_runtime_type_from_ptr: type_ptr %llx not in typebounds %llx-%llx",
+    type_ptr, typebounds->types, typebounds->etypes);
+  return -1;
+}
 
-// // Resolves address and implementation type of a non-empty interface.
-// inline __attribute__((always_inline)) bool
-// sm_resolve_go_interface(global_ctx_t* ctx, resolved_go_interface_t* res) {
-//   scratch_buf_t* buf = ctx->buf;
-//   stack_machine_t* sm = ctx->stack_machine;
-//   buf_offset_t offset = sm->offset;
-//   res->addr = 0;
-//   res->go_runtime_type = 0;
-//   if (!scratch_buf_bounds_check(&offset, sizeof(target_ptr_t) * 2)) {
-//     return false;
-//   }
-//   if (!scratch_buf_bounds_check(&offset, sizeof(target_ptr_t) +
-//                                              OFFSET_runtime_dot_iface__data)) {
-//     return false;
-//   }
-//   res->addr =
-//       *(target_ptr_t*)&((*buf)[offset + OFFSET_runtime_dot_iface__data]);
-//   target_ptr_t itab =
-//       *(target_ptr_t*)(&(*buf)[offset + OFFSET_runtime_dot_iface__tab]);
-//   if (itab == 0) {
-//     return true;
-//   }
-//   target_ptr_t type_addr;
-//   if (bpf_probe_read_user(&type_addr, sizeof(target_ptr_t),
-//                           (void*)(itab) +
-//                               (uint64_t)(OFFSET_runtime_dot_itab___type))) {
-//     LOG(3, "enqueue: failed interface type read %llx",
-//         (void*)(itab) + (uint64_t)(OFFSET_runtime_dot_itab___type));
-//     return true;
-//   }
-//   // TODO: check the return value for error
-//   res->go_runtime_type = go_runtime_type_from_ptr(type_addr);
-//   return true;
-// }
+// TODO: These could be extracted from the debug info, but for now we'll
+// simplify and hardcode them. They have never changed.
+#define OFFSET_runtime_dot_iface__tab 0x00
+#define OFFSET_runtime_dot_iface__data 0x08
+#define OFFSET_runtime_dot_itab___type 0x08
+#define OFFSET_runtime_dot_eface___type 0x00
+#define OFFSET_runtime_dot_eface__data 0x08
 
-// inline __attribute__((always_inline)) bool
-// sm_resolve_go_any_type(global_ctx_t* global_ctx, resolved_go_any_type_t* r) {
-//   r->i.addr = 0;
-//   r->i.go_runtime_type = 0;
-//   r->type = (type_t)0;
-//   r->has_info = false;
-//   if (!sm_resolve_go_empty_interface(global_ctx, &r->i)) {
-//     return false;
-//   }
-//   if (r->i.go_runtime_type == (uint64_t)(-1)) {
-//     return true;
-//   }
-//   r->type = lookup_go_interface(r->i.go_runtime_type);
-//   if (r->type == TYPE_NONE) {
-//     return true;
-//   }
-//   const type_info_t* info;
-//   if (!get_type_info(r->type, &info)) {
-//     LOG(3, "any type info not found %d", r->type);
-//     return true;
-//   }
-//   r->has_info = true;
-//   r->info = *info;
-//   return true;
-// }
+static inline __attribute__((always_inline)) bool
+sm_resolve_go_empty_interface(global_ctx_t* ctx, resolved_go_interface_t* res) {
+  scratch_buf_t* buf = ctx->buf;
+  stack_machine_t* sm = ctx->stack_machine;
+  buf_offset_t offset = sm->offset;
+  res->addr = 0;
+  res->go_runtime_type = 0;
+  if (!scratch_buf_bounds_check(&offset, sizeof(target_ptr_t) * 2)) {
+    return false;
+  }
+  if (!scratch_buf_bounds_check(&offset, sizeof(target_ptr_t) +
+                                             OFFSET_runtime_dot_eface__data)) {
+    return false;
+  }
+  target_ptr_t type_addr =
+      *(target_ptr_t*)(&(*buf)[offset + OFFSET_runtime_dot_eface___type]);
+  res->addr =
+      *(target_ptr_t*)&((*buf)[offset + OFFSET_runtime_dot_eface__data]);
+  if (type_addr == 0) {
+    // Not an error, just literally a nil interface.
+    return true;
+  }
+  // TODO: check the return value for error
+  res->go_runtime_type = go_runtime_type_from_ptr(type_addr);
+  return true;
+}
+
+
+// Resolves address and implementation type of a non-empty interface.
+static inline __attribute__((always_inline)) bool
+sm_resolve_go_interface(global_ctx_t* ctx, resolved_go_interface_t* res) {
+  scratch_buf_t* buf = ctx->buf;
+  stack_machine_t* sm = ctx->stack_machine;
+  buf_offset_t offset = sm->offset;
+  res->addr = 0;
+  res->go_runtime_type = 0;
+  if (!scratch_buf_bounds_check(&offset, sizeof(target_ptr_t) * 2)) {
+    return false;
+  }
+  if (!scratch_buf_bounds_check(&offset, sizeof(target_ptr_t) +
+                                             OFFSET_runtime_dot_iface__data)) {
+    return false;
+  }
+  res->addr =
+      *(target_ptr_t*)&((*buf)[offset + OFFSET_runtime_dot_iface__data]);
+  target_ptr_t itab =
+      *(target_ptr_t*)(&(*buf)[offset + OFFSET_runtime_dot_iface__tab]);
+  if (itab == 0) {
+    return true;
+  }
+  target_ptr_t type_addr;
+  if (bpf_probe_read_user(&type_addr, sizeof(target_ptr_t),
+                          (void*)(itab) +
+                              (uint64_t)(OFFSET_runtime_dot_itab___type))) {
+    LOG(3, "enqueue: failed interface type read %llx",
+        (void*)(itab) + (uint64_t)(OFFSET_runtime_dot_itab___type));
+    return true;
+  }
+  // TODO: check the return value for error
+  res->go_runtime_type = go_runtime_type_from_ptr(type_addr);
+  return true;
+}
+
+// Resolve the type of a Go any type.
+//
+// Note that it will only return false in the case of a bounds check failure.
+static inline __attribute__((always_inline)) bool
+sm_resolve_go_any_type(global_ctx_t* global_ctx, resolved_go_any_type_t* r) {
+  r->i.addr = 0;
+  r->i.go_runtime_type = 0;
+  r->type = (type_t)0;
+  r->has_info = false;
+  if (!sm_resolve_go_empty_interface(global_ctx, &r->i)) {
+    return false;
+  }
+  if (r->i.go_runtime_type == (uint64_t)(-1)) {
+    return true;
+  }
+  r->type = lookup_go_interface(r->i.go_runtime_type);
+  if (r->type == 0) {
+    return true;
+  }
+  const type_info_t* info;
+  if (!get_type_info(r->type, &info)) {
+    LOG(3, "any type info not found %d", r->type);
+    return true;
+  }
+  r->has_info = true;
+  r->info = *info;
+  return true;
+}
 
 // inline __attribute__((always_inline)) bool sm_record_go_context_value(
 //     global_ctx_t* ctx, const go_context_value_type_t* spec,
@@ -868,40 +914,41 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     zero_data(buf, sm->offset, data_len);
   } break;
 
-  // case SM_OP_ENQUEUE_GO_EMPTY_INTERFACE: {
-  //   resolved_go_interface_t r;
-  //   if (!sm_resolve_go_empty_interface(ctx, &r)) {
-  //     return 1;
-  //   }
-  //   // Overwrite the type_addr with the go_runtime_type.
-  //   if (!scratch_buf_bounds_check(&sm->offset, sizeof(target_ptr_t))) {
-  //     return 1;
-  //   }
-  //   *(uint64_t*)(&(*buf)[sm->offset + OFFSET_runtime_dot_eface___type]) =
-  //       r.go_runtime_type;
-  //   if (!sm_record_go_interface_impl(ctx, r.go_runtime_type, r.addr)) {
-  //     LOG(3, "enqueue: failed empty interface chase");
-  //   }
-  // } break;
+  case SM_OP_PROCESS_GO_EMPTY_INTERFACE: {
+    resolved_go_interface_t r;
+    if (!sm_resolve_go_empty_interface(ctx, &r)) {
+      return 1;
+    }
+    LOG(4, "resolved_go_interface_t: %llx %llx", r.addr, r.go_runtime_type)
+    // Overwrite the type_addr with the go_runtime_type.
+    if (!scratch_buf_bounds_check(&sm->offset, sizeof(target_ptr_t))) {
+      return 1;
+    }
+    *(uint64_t*)(&(*buf)[sm->offset + OFFSET_runtime_dot_eface___type]) =
+        r.go_runtime_type;
+    if (!sm_record_go_interface_impl(ctx, r.go_runtime_type, r.addr)) {
+      LOG(3, "enqueue: failed empty interface chase");
+    }
+  } break;
 
-  // case SM_OP_ENQUEUE_GO_INTERFACE: {
-  //   resolved_go_interface_t r;
-  //   if (!sm_resolve_go_interface(ctx, &r)) {
-  //     return 1;
-  //   }
-  //   if (r.go_runtime_type == 0) {
-  //     break;
-  //   }
-  //   // Overwrite the type_addr with the go_runtime_type.
-  //   if (!scratch_buf_bounds_check(&sm->offset, sizeof(target_ptr_t))) {
-  //     return 1;
-  //   }
-  //   *(uint64_t*)(&(*buf)[sm->offset + OFFSET_runtime_dot_iface__tab]) =
-  //       r.go_runtime_type;
-  //   if (!sm_record_go_interface_impl(ctx, r.go_runtime_type, r.addr)) {
-  //     LOG(3, "enqueue: failed interface chase");
-  //   }
-  // } break;
+  case SM_OP_PROCESS_GO_INTERFACE: {
+    resolved_go_interface_t r;
+    if (!sm_resolve_go_interface(ctx, &r)) {
+      return 1;
+    }
+    if (r.go_runtime_type == 0) {
+      break;
+    }
+    // Overwrite the type_addr with the go_runtime_type.
+    if (!scratch_buf_bounds_check(&sm->offset, sizeof(target_ptr_t))) {
+      return 1;
+    }
+    *(uint64_t*)(&(*buf)[sm->offset + OFFSET_runtime_dot_iface__tab]) =
+        r.go_runtime_type;
+    if (!sm_record_go_interface_impl(ctx, r.go_runtime_type, r.addr)) {
+      LOG(3, "enqueue: failed interface chase");
+    }
+  } break;
 
   case SM_OP_PROCESS_GO_HMAP: {
     // https://github.com/golang/go/blob/8d04110c/src/runtime/map.go#L105

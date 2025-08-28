@@ -7,9 +7,9 @@ build --incompatible_strict_action_env
 build --strategy=sandboxed
 
 # Caching
-common:cache --remote_instance_name=remote-caching
-common:cache --remote_cache=grpc://bazel-buildbarn-frontend.ddbuild.io:443
-common:cache --remote_timeout=60
-common:cache --remote_retries=1
+common --remote_instance_name=remote-caching
+common --remote_cache=grpc://bazel-buildbarn-frontend.ddbuild.io:443
+common --remote_timeout=60
+common --remote_retries=1
 
 try-import %workspace%/user.bazelrc
