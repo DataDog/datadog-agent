@@ -150,6 +150,15 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 		[]byte(`$1 "********"`),
 	)
 	tokenReplacer.LastUpdated = defaultVersion
+
+	// OAuth credentials scrubbers for continuous_ai_netsuite and similar integrations
+	oauthCredentialsReplacer := matchYAMLKey(
+		`(consumer_key|consumer_secret|token_id|token_secret)`,
+		[]string{"consumer_key", "consumer_secret", "token_id", "token_secret"},
+		[]byte(`$1 "********"`),
+	)
+	oauthCredentialsReplacer.LastUpdated = parseVersion("7.70.0") // https://github.com/DataDog/datadog-agent/pull/XXXXX
+
 	snmpReplacer := matchYAMLKey(
 		`(community_string|auth[Kk]ey|priv[Kk]ey|community|authentication_key|privacy_key|Authorization|authorization)`,
 		[]string{"community_string", "authKey", "authkey", "privKey", "privkey", "community", "authentication_key", "privacy_key", "Authorization", "authorization"},
@@ -224,6 +233,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	scrubber.AddReplacer(SingleLine, yamlPasswordReplacer)
 	scrubber.AddReplacer(SingleLine, passwordReplacer)
 	scrubber.AddReplacer(SingleLine, tokenReplacer)
+	scrubber.AddReplacer(SingleLine, oauthCredentialsReplacer)
 	scrubber.AddReplacer(SingleLine, snmpReplacer)
 
 	scrubber.AddReplacer(SingleLine, apiKeyYaml)
