@@ -239,6 +239,12 @@ func (sl *SegmentList) UnmarshalJSON(data []byte) error {
 
 	*sl = make([]Segment, len(segmentData))
 	for i, data := range segmentData {
+		var str string
+		if err := json.Unmarshal(data, &str); err == nil {
+			(*sl)[i] = StringSegment(str)
+			continue
+		}
+
 		var raw map[string]json.RawMessage
 		if err := json.Unmarshal(data, &raw); err != nil {
 			return fmt.Errorf("failed to unmarshal segment %d: %w", i, err)

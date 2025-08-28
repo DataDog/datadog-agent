@@ -75,7 +75,7 @@ var testCases = []testCase{
 					SnapshotsPerSecond: 1.0,
 				},
 				Template: "Hello {name}",
-				Segments: []Segment{
+				Segments: SegmentList{
 					StringSegment("Hello "),
 					JSONSegment{
 						JSON: json.RawMessage(`{"ref": "name"}`),
@@ -132,7 +132,7 @@ var testCases = []testCase{
 					SnapshotsPerSecond: 1.0,
 				},
 				Template: "Hello {name}",
-				Segments: []Segment{
+				Segments: SegmentList{
 					StringSegment("Hello "),
 					JSONSegment{
 						JSON: json.RawMessage(`{"ref": "name"}`),
@@ -194,6 +194,41 @@ var testCases = []testCase{
 				"type": "INVALID_TYPE"
 			}`,
 		unmarshalErr: `failed to parse json: invalid config type: INVALID_TYPE`,
+	},
+	{
+		name: "log probe with mixed segment types including plain strings",
+		input: `{
+				"id": "log-probe-mixed",
+				"type": "LOG_PROBE",
+				"version": 1,
+				"where": {
+					"methodName": "MyMethod"
+				},
+				"template": "Hello {name} world",
+				"segments": ["Hello ", {"dsl": "name", "json": {"ref": "name"}}, " world"],
+				"captureSnapshot": false
+			}`,
+		want: &LogProbe{
+			LogProbeCommon: LogProbeCommon{
+				ProbeCommon: ProbeCommon{
+					ID:      "log-probe-mixed",
+					Version: 1,
+					Type:    TypeLogProbe.String(),
+					Where: &Where{
+						MethodName: "MyMethod",
+					},
+				},
+				Template: "Hello {name} world",
+				Segments: SegmentList{
+					StringSegment("Hello "),
+					JSONSegment{
+						JSON: json.RawMessage(`{"ref": "name"}`),
+						DSL:  "name",
+					},
+					StringSegment(" world"),
+				},
+			},
+		},
 	},
 }
 

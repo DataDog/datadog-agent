@@ -59,7 +59,8 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": ""
   },
   {
     "service": "sample",
@@ -121,7 +122,8 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": ""
   },
   {
     "service": "sample",
@@ -183,7 +185,8 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": ""
   },
   {
     "service": "sample",
@@ -245,7 +248,8 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": ""
   },
   {
     "service": "sample",
@@ -307,7 +311,8 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": ""
   },
   {
     "service": "sample",
@@ -369,7 +374,8 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": ""
   },
   {
     "service": "sample",
@@ -431,7 +437,8 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": ""
   },
   {
     "service": "sample",
@@ -494,7 +501,8 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": ""
   },
   {
     "service": "sample",
@@ -556,7 +564,8 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": ""
   },
   {
     "service": "sample",
@@ -619,6 +628,7 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": ""
   }
 ]

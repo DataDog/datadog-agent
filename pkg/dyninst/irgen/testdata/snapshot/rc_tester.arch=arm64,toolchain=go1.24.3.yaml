@@ -4,8 +4,8 @@ Probes:
       version: 0
       type: LOG_PROBE
       where: {methodName: main.HandleHTTP}
-      template: ""
-      segments: []
+      template: test log message
+      segments: [test log message]
       captureSnapshot: true
       subprogram: {subprogram: 1}
       events:
@@ -17,8 +17,8 @@ Probes:
       version: 0
       type: LOG_PROBE
       where: {methodName: main.LookAtTheRequest}
-      template: ""
-      segments: []
+      template: test log message
+      segments: [test log message]
       captureSnapshot: true
       subprogram: {subprogram: 2}
       events:
