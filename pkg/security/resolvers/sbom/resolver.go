@@ -369,12 +369,14 @@ func (r *Resolver) analyzeWorkload(sbom *SBOM) error {
 
 	seclog.Infof("analyzing sbom '%s'", sbom.ContainerID)
 
-	if sbom.state.Load() != pendingState {
+	if currentState := sbom.state.Load(); currentState != pendingState {
 		r.removePendingScan(sbom.ContainerID)
 
-		// should not append, ignore
-		seclog.Warnf("trying to analyze a sbom not in pending state for '%s': %d", sbom.ContainerID, sbom.state.Load())
-		return nil
+		if currentState != stoppedState {
+			// should not append, ignore
+			seclog.Warnf("trying to analyze a sbom not in pending state for '%s': %d", sbom.ContainerID, currentState)
+			return nil
+		}
 	}
 
 	// bail out if the workload has been analyzed while queued up
