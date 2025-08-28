@@ -1663,7 +1663,7 @@ func (s *usmHTTP2Suite) TestIncompleteFrameTable() {
 					a[10:],
 				}
 			},
-			mapSize: 0, // PRIORITY not supported, so map should be empty or different behavior
+			mapSize: 1,
 		},
 	}
 	for _, tt := range tests {
