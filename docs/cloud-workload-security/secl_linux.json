@@ -4399,11 +4399,21 @@
     },
     {
       "name": "prctl",
-      "definition": "[7.??] [Process] A prctl command was executed",
-      "type": "",
-      "from_agent_version": "",
+      "definition": "A prctl command was executed",
+      "type": "Process",
+      "from_agent_version": "7.71",
       "experimental": false,
       "properties": [
+        {
+          "name": "prctl.is_name_truncated",
+          "definition": "Indicates that the name field is truncated",
+          "property_doc_link": "prctl-is_name_truncated-doc"
+        },
+        {
+          "name": "prctl.new_name",
+          "definition": "New name of the process",
+          "property_doc_link": "prctl-new_name-doc"
+        },
         {
           "name": "prctl.option",
           "definition": "prctl option",
@@ -13502,6 +13512,30 @@
       "definition": "TLS version",
       "prefixes": [
         "packet.tls"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "prctl.is_name_truncated",
+      "link": "prctl-is_name_truncated-doc",
+      "type": "bool",
+      "definition": "Indicates that the name field is truncated",
+      "prefixes": [
+        "prctl"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "prctl.new_name",
+      "link": "prctl-new_name-doc",
+      "type": "string",
+      "definition": "New name of the process",
+      "prefixes": [
+        "prctl"
       ],
       "constants": "",
       "constants_link": "",

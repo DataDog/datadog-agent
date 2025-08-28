@@ -51,7 +51,7 @@ Triggers are events that correspond to types of activity seen by the system. The
 | `network_flow_monitor` | Network | A network monitor event was sent | 7.63 |
 | `open` | File | A file was opened | 7.27 |
 | `packet` | Network | A raw network packet was captured | 7.60 |
-| `prctl` |  | [7.??] [Process] A prctl command was executed |  |
+| `prctl` | Process | A prctl command was executed | 7.71 |
 | `ptrace` | Kernel | A ptrace command was executed | 7.35 |
 | `removexattr` | File | Remove extended attributes | 7.27 |
 | `rename` | File | A file/directory was renamed | 7.27 |
@@ -1178,10 +1178,12 @@ A raw network packet was captured
 
 ### Event `prctl`
 
-[7.??] [Process] A prctl command was executed
+A prctl command was executed
 
 | Property | Definition |
 | -------- | ------------- |
+| [`prctl.is_name_truncated`](#prctl-is_name_truncated-doc) | Indicates that the name field is truncated |
+| [`prctl.new_name`](#prctl-new_name-doc) | New name of the process |
 | [`prctl.option`](#prctl-option-doc) | prctl option |
 | [`prctl.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
 
@@ -3875,6 +3877,20 @@ Definition: pcap filter expression
 Type: int
 
 Definition: TLS version
+
+
+
+### `prctl.is_name_truncated` {#prctl-is_name_truncated-doc}
+Type: bool
+
+Definition: Indicates that the name field is truncated
+
+
+
+### `prctl.new_name` {#prctl-new_name-doc}
+Type: string
+
+Definition: New name of the process
 
 
 

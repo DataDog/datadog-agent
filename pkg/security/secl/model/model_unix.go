@@ -1024,5 +1024,7 @@ type SetSockOptEvent struct {
 // PrCtlEvent represents a prctl event
 type PrCtlEvent struct {
 	SyscallEvent
-	Option int `field:"option"` // SECLDoc[option] Definition:`prctl option`
+	Option          int    `field:"option"`            // SECLDoc[option] Definition:`prctl option`
+	NewName         string `field:"new_name"`          // SECLDoc[new_name] Definition:`New name of the process`
+	IsNameTruncated bool   `field:"is_name_truncated"` // SECLDoc[is_name_truncated] Definition:`Indicates that the name field is truncated`
 }
