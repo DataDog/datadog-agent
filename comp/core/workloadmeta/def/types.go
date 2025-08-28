@@ -1459,9 +1459,13 @@ type Service struct {
 	// TracerMetadata contains APM tracer metadata
 	TracerMetadata []tracermetadata.TracerMetadata
 
-	// DDService is a service name based on either the DD_SERVICE environment
-	// variable or other framework-specific tracer configuration of service
-	// names
+	// DDService is a service name currently based on either the DD_SERVICE
+	// environment variable, the DD_TAGS environment variable, or other
+	// parsing of framework-specific tracer configuration of service names, such
+	// as Java tracer properties on the command line.
+	//
+	// The UST.Service field on the other hand contains the raw value of the
+	// DD_SERVICE environment variable.
 	DDService string
 
 	// DDServiceInjected indicates if DD_SERVICE was injected
