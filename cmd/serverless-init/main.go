@@ -167,7 +167,7 @@ func setup(_ mode.Conf, tagger tagger.Component, compression logscompression.Com
 	return cloudService, agentLogConfig, traceAgent, metricAgent, logsAgent
 }
 
-var azureContainerAppTags = []string{
+var azureServerlessTags = []string{
 	"subscription_id",
 	"resource_group",
 	"resource_id",
@@ -180,17 +180,17 @@ var azureContainerAppTags = []string{
 
 func setupTraceAgent(tags map[string]string, functionTags string, tagger tagger.Component) trace.ServerlessTraceAgent {
 	var azureTags strings.Builder
-	for _, azureContainerAppTag := range azureContainerAppTags {
-		if value, ok := tags[azureContainerAppTag]; ok {
-			azureTags.WriteString(fmt.Sprintf(",%s:%s", azureContainerAppTag, value))
+	for _, azureServerlessTag := range azureServerlessTags {
+		if value, ok := tags[azureServerlessTag]; ok {
+			azureTags.WriteString(fmt.Sprintf(",%s:%s", azureServerlessTag, value))
 		}
 	}
 	traceAgent := trace.StartServerlessTraceAgent(trace.StartServerlessTraceAgentArgs{
-		Enabled:               pkgconfigsetup.Datadog().GetBool("apm_config.enabled"),
-		LoadConfig:            &trace.LoadConfig{Path: datadogConfigPath, Tagger: tagger},
-		ColdStartSpanID:       random.Random.Uint64(),
-		AzureContainerAppTags: azureTags.String(),
-		FunctionTags:          functionTags,
+		Enabled:             pkgconfigsetup.Datadog().GetBool("apm_config.enabled"),
+		LoadConfig:          &trace.LoadConfig{Path: datadogConfigPath, Tagger: tagger},
+		ColdStartSpanID:     random.Random.Uint64(),
+		AzureServerlessTags: azureTags.String(),
+		FunctionTags:        functionTags,
 	})
 	traceAgent.SetTags(tags)
 	go func() {
