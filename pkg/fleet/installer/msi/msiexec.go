@@ -347,6 +347,8 @@ func (m *Msiexec) processLogFile(logFile fs.File) ([]byte, error) {
 }
 
 // isRetryableExitCode returns true if the exit code indicates the msiexec operation should be retried
+//
+// https://learn.microsoft.com/en-us/windows/win32/msi/error-codes
 func isRetryableExitCode(err error) bool {
 	if err == nil {
 		return false
@@ -360,6 +362,30 @@ func isRetryableExitCode(err error) bool {
 		} else if exitError.ExitCode() == int(windows.ERROR_INSTALL_SERVICE_FAILURE) {
 			// could not connect to msiserver service.
 			// it should auto start when the MSI is run, but maybe it failed or was too slow to start.
+			return true
+		}
+	}
+
+	return false
+}
+
+// isSuccessExitCode returns true if the exit code indicates the msiexec operation was successful
+//
+// https://learn.microsoft.com/en-us/windows/win32/msi/error-codes
+func isSuccessExitCode(err error) bool {
+	if err == nil {
+		// no error means success
+		return true
+	}
+
+	var exitError exitCodeError
+	if errors.As(err, &exitError) {
+		if exitError.ExitCode() == int(windows.ERROR_SUCCESS_REBOOT_REQUIRED) {
+			// 3010 - success but requires reboot
+			return true
+		} else if exitError.ExitCode() == int(windows.ERROR_SUCCESS_REBOOT_INITIATED) {
+			// 1641 - success but Windows will reboot the host
+			// this is unexpected now that we pass /norestart, msiexec should return 3010 instead
 			return true
 		}
 	}
@@ -450,6 +476,13 @@ func (m *Msiexec) Run(ctx context.Context) error {
 	// Execute post-execution actions
 	for _, p := range m.postExecActions {
 		p()
+	}
+
+	// Check for success exit codes outside of the retry loop
+	// This means we will still get msiexec traces with for the "reboot" exit codes
+	// which will be nice to track, ideally we shouldn't get these exit codes at all.
+	if isSuccessExitCode(err) {
+		return nil
 	}
 
 	return err
