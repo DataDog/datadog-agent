@@ -360,7 +360,7 @@ func buildRemoteAgentServer(t *testing.T, remoteAgentServer *testRemoteAgentServ
 
 	go func() {
 		err := server.Serve(listener)
-		require.NoError(t, err)
+		assert.True(t, err == nil || errors.Is(err, grpc.ErrServerStopped), "unexpected error from server.Serve: %v", err)
 	}()
 
 	_, portStr, err := net.SplitHostPort(listener.Addr().String())
