@@ -1,6 +1,8 @@
 module github.com/DataDog/datadog-agent/pkg/config/structure
 
-go 1.23.0
+go 1.24.0
+
+toolchain go1.24.6
 
 // Internal deps fix version
 replace github.com/spf13/cast => github.com/DataDog/cast v1.8.0
@@ -33,7 +35,7 @@ require (
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.7 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
-	golang.org/x/exp v0.0.0-20250808145144-a408d31f581a // indirect
+	golang.org/x/exp v0.0.0-20250819193227-8b4c13bb791b // indirect
 	golang.org/x/sys v0.35.0 // indirect
 	golang.org/x/text v0.28.0 // indirect
 	golang.org/x/time v0.12.0 // indirect

@@ -46,9 +46,9 @@ require (
 	github.com/DataDog/ebpf-manager v0.7.14
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.12
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.31.0
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.31.0
-	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.31.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.32.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.31.1-0.20250827155300-66b09549cb0e
+	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.32.0
 	github.com/DataDog/sketches-go v1.4.7
 	github.com/DataDog/viper v1.14.1-0.20250612143030-1b15c8822ed4
 	// TODO: pin to a WPA released version once there is a release that includes the apis module
@@ -155,7 +155,7 @@ require (
 	github.com/streadway/amqp v1.1.0
 	github.com/stretchr/testify v1.10.0
 	github.com/syndtr/gocapability v0.0.0-20200815063812-42c35b437635
-	github.com/tinylib/msgp v1.3.0
+	github.com/tinylib/msgp v1.4.0
 	github.com/twmb/murmur3 v1.1.8
 	github.com/uptrace/bun v1.2.15
 	github.com/uptrace/bun/dialect/pgdialect v1.2.15
@@ -170,12 +170,12 @@ require (
 	go.etcd.io/etcd/client/v2 v2.306.0-alpha.0
 	go.mongodb.org/mongo-driver/v2 v2.1.0
 	go.opentelemetry.io/collector v0.131.0 // indirect
-	go.opentelemetry.io/collector/component v1.37.0
+	go.opentelemetry.io/collector/component v1.39.0
 	go.opentelemetry.io/collector/confmap v1.37.0
 	go.opentelemetry.io/collector/exporter v0.131.0
 	go.opentelemetry.io/collector/exporter/debugexporter v0.131.0
 	go.opentelemetry.io/collector/exporter/otlpexporter v0.131.0
-	go.opentelemetry.io/collector/pdata v1.37.0
+	go.opentelemetry.io/collector/pdata v1.39.0
 	go.opentelemetry.io/collector/processor/batchprocessor v0.131.0
 	go.opentelemetry.io/collector/receiver v1.37.0
 	go.opentelemetry.io/collector/receiver/otlpreceiver v0.131.0
@@ -188,7 +188,7 @@ require (
 	go.uber.org/zap v1.27.0
 	go4.org/netipx v0.0.0-20220812043211-3cc044ffd68d
 	golang.org/x/arch v0.20.0
-	golang.org/x/exp v0.0.0-20250808145144-a408d31f581a
+	golang.org/x/exp v0.0.0-20250819193227-8b4c13bb791b
 	golang.org/x/net v0.43.0
 	golang.org/x/sync v0.16.0
 	golang.org/x/sys v0.35.0
@@ -197,9 +197,9 @@ require (
 	golang.org/x/tools v0.36.0
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da
 	google.golang.org/genproto v0.0.0-20250505200425-f936aa4a68b2 // indirect
-	google.golang.org/grpc v1.74.2
+	google.golang.org/grpc v1.75.0
 	google.golang.org/grpc/examples v0.0.0-20221020162917-9127159caf5a
-	google.golang.org/protobuf v1.36.6
+	google.golang.org/protobuf v1.36.8
 	gopkg.in/DataDog/dd-trace-go.v1 v1.72.2
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
@@ -345,7 +345,7 @@ require (
 	github.com/package-url/packageurl-go v0.1.3 // indirect
 	github.com/pborman/uuid v1.2.1 // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect
-	github.com/philhofer/fwd v1.1.3-0.20240916144458-20a13a1f6b7c // indirect
+	github.com/philhofer/fwd v1.2.0 // indirect
 	github.com/pierrec/lz4/v4 v4.1.22
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
@@ -392,7 +392,7 @@ require (
 	go.etcd.io/etcd/server/v3 v3.6.0-alpha.0.0.20220522111935-c3bc4116dcd1 // indirect
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/collector/consumer v1.37.0 // indirect
-	go.opentelemetry.io/collector/featuregate v1.37.0
+	go.opentelemetry.io/collector/featuregate v1.39.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.62.0 // indirect
 	go.opentelemetry.io/contrib/propagators/b3 v1.37.0 // indirect
 	go.opentelemetry.io/otel v1.37.0
@@ -475,7 +475,7 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.24
 	github.com/safchain/ethtool v0.6.2
 	github.com/shirou/gopsutil/v4 v4.25.8-0.20250809033336-ffcdc2b7662f
-	go.opentelemetry.io/collector/component/componenttest v0.131.0
+	go.opentelemetry.io/collector/component/componenttest v0.132.0
 	modernc.org/sqlite v1.36.2 // indirect
 )
 
@@ -517,7 +517,7 @@ require (
 require (
 	github.com/jaegertracing/jaeger-idl v0.5.0 // indirect
 	go.opentelemetry.io/collector/confmap/xconfmap v0.131.0 // indirect
-	go.opentelemetry.io/collector/internal/telemetry v0.131.0 // indirect
+	go.opentelemetry.io/collector/internal/telemetry v0.133.0 // indirect
 	go.uber.org/zap/exp v0.3.0 // indirect
 )
 
@@ -625,7 +625,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/networkdevice/profile v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/orchestrator/model v0.67.0
 	github.com/DataDog/datadog-agent/pkg/process/util/api v0.67.0
-	github.com/DataDog/datadog-agent/pkg/proto v0.70.0-devel
+	github.com/DataDog/datadog-agent/pkg/proto v0.71.0-devel
 	github.com/DataDog/datadog-agent/pkg/security/seclwin v0.56.0
 	github.com/DataDog/datadog-agent/pkg/serializer v0.67.0
 	github.com/DataDog/datadog-agent/pkg/status/health v0.67.0
@@ -975,7 +975,7 @@ require (
 	go.opentelemetry.io/collector/filter v0.131.0 // indirect
 	go.opentelemetry.io/collector/pdata/pprofile v0.131.0 // indirect
 	go.opentelemetry.io/collector/pdata/testdata v0.131.0 // indirect
-	go.opentelemetry.io/collector/pipeline v0.131.0 // indirect
+	go.opentelemetry.io/collector/pipeline v1.39.0 // indirect
 	go.opentelemetry.io/collector/processor/memorylimiterprocessor v0.131.0 // indirect
 	go.opentelemetry.io/collector/receiver/nopreceiver v0.131.0 // indirect
 	go.opentelemetry.io/collector/semconv v0.128.1-0.20250610090210-188191247685 // indirect
@@ -991,8 +991,8 @@ require (
 	go4.org/unsafe/assume-no-moving-gc v0.0.0-20231121144256-b99613f794b6 // indirect
 	golang.org/x/exp/typeparams v0.0.0-20240314144324-c7f7c6466f7f // indirect
 	golang.org/x/lint v0.0.0-20241112194109-818c5a804067 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20250603155806-513f23925822 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250603155806-513f23925822 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20250707201910-8d1bb00bc6a7 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250826171959-ef028d996bc1 // indirect
 	gopkg.in/cheggaaa/pb.v1 v1.0.28 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
