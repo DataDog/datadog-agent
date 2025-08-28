@@ -24,7 +24,8 @@ type Service struct {
 	DDService                  string                          `json:"dd_service"`
 	DDServiceInjected          bool                            `json:"dd_service_injected"`
 	CheckedContainerData       bool                            `json:"checked_container_data"`
-	Ports                      []uint16                        `json:"ports"`
+	TCPPorts                   []uint16                        `json:"tcp_ports,omitempty"`
+	UDPPorts                   []uint16                        `json:"udp_ports,omitempty"`
 	APMInstrumentation         string                          `json:"apm_instrumentation"`
 	Language                   string                          `json:"language"`
 	Type                       string                          `json:"service_type"`

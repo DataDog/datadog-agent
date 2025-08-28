@@ -1646,6 +1646,14 @@ api_key:
     # enabled: false
 
 
+  ## @param profiling_receiver_timeout - integer - optional - default: 5
+  ## @env DD_APM_PROFILING_RECEIVER_TIMEOUT - integer - optional - default: 5
+  ## The timeout in seconds for receiving profile upload requests from client applications.
+  ## This timeout applies to the HTTP request timeout for profile uploads to the agent.
+  ## Increase this value if you experience timeouts with large profile uploads.
+  #
+  # profiling_receiver_timeout: 5
+
   {{- if .InternalProfiling -}}
   ## @param profiling - custom object - optional
   ## Enter specific configurations for internal profiling.

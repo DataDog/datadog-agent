@@ -37,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/decode"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/gosym"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/gotype"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irprinter"
@@ -233,17 +234,17 @@ func testDyninst(
 
 	t.Logf("processing output")
 	// TODO: we should intercept raw ringbuf bytes and dump them into tmp dir.
-	obj, err := object.OpenElfFile(servicePath)
+	obj, err := object.OpenElfFileWithDwarf(servicePath)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, obj.Close()) }()
 
-	moduledata, err := object.ParseModuleData(obj.Underlying)
+	moduledata, err := object.ParseModuleData(obj)
 	require.NoError(t, err)
 
-	goVersion, err := object.ReadGoVersion(obj.Underlying)
+	goVersion, err := object.ReadGoVersion(obj)
 	require.NoError(t, err)
 
-	goDebugSections, err := moduledata.GoDebugSections(obj.Underlying)
+	goDebugSections, err := moduledata.GoDebugSections(obj)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, goDebugSections.Close()) }()
 
@@ -264,7 +265,13 @@ func testDyninst(
 	require.NotNil(t, symbolicator)
 	require.NoError(t, err)
 
-	decoder, err := decode.NewDecoder(sink.irp)
+	gotypeTable, err := gotype.NewTable(obj)
+	require.NoError(t, err)
+	defer func() { require.NoError(t, gotypeTable.Close()) }()
+
+	decoder, err := decode.NewDecoder(
+		sink.irp, (*decode.GoTypeNameResolver)(gotypeTable),
+	)
 	require.NoError(t, err)
 
 	retMap := make(map[string][]json.RawMessage)
