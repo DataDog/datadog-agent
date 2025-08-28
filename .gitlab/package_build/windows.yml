@@ -91,6 +91,7 @@ windows_zip_agent_binaries_x64-a6:
     VARIANT: 1809
   script:
     - $ErrorActionPreference = "Stop"
+    - if (Test-Path omnibus\pkg) { remove-item -recurse -force omnibus\pkg }
     - mkdir omnibus\pkg
     - !reference [.setup_ruby_mirror_win]
     - !reference [.setup_python_mirror_win]
