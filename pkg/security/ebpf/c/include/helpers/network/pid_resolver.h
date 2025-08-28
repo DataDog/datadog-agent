@@ -26,14 +26,14 @@ __attribute__((always_inline)) void resolve_pid(struct packet_t *pkt) {
     case EGRESS: {
         pid_route.addr[0] = pkt->translated_ns_flow.flow.saddr[0];
         pid_route.addr[1] = pkt->translated_ns_flow.flow.saddr[1];
-        pid_route.port = pkt->translated_ns_flow.flow.sport;
+        pid_route.port = pkt->translated_ns_flow.flow.tcp_udp.sport;
         pid_route.netns = pkt->translated_ns_flow.netns;
         break;
     }
     case INGRESS: {
         pid_route.addr[0] = pkt->translated_ns_flow.flow.daddr[0];
         pid_route.addr[1] = pkt->translated_ns_flow.flow.daddr[1];
-        pid_route.port = pkt->translated_ns_flow.flow.dport;
+        pid_route.port = pkt->translated_ns_flow.flow.tcp_udp.dport;
         pid_route.netns = pkt->translated_ns_flow.netns;
         break;
     }

@@ -133,7 +133,9 @@ type NetworkContextSerializer struct {
 	// size is the size in bytes of the network event
 	Size uint32 `json:"size"`
 	// network_direction indicates if the packet was captured on ingress or egress
-	NetworkDirection string `json:"network_direction"`
+	NetworkDirection string `json:"network_direction,omitempty"`
+	// type is the type of the protocol of the network event
+	Type string `json:"type,omitempty"`
 }
 
 // AWSSecurityCredentialsSerializer serializes the security credentials from an AWS IMDS request
