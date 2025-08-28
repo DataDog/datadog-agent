@@ -12,6 +12,7 @@ import (
 	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
+// Run locally with `go test -fuzz=FuzzParseEventWithEnrich -run=FuzzParseEventWithEnrich -tags=test`
 func FuzzParseEventWithEnrich(f *testing.F) {
 	deps := newServerDeps(f)
 	stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
@@ -22,7 +23,7 @@ func FuzzParseEventWithEnrich(f *testing.F) {
 	f.Add([]byte("_e{10,9}:test title|test text|s:this is the source"), "origin", uint32(1), true, true)
 	f.Add([]byte("_e{10,9}:test title|test text|t:warning|d:12345|p:low|h:some.host|k:aggKey|s:source test|#tag1,tag2:test"), "origin", uint32(1), true, true)
 	f.Add([]byte("_e{10,0}:test title||t:warning"), "origin", uint32(1), true, true)
-	f.Fuzz(func(t *testing.T, rawEvent []byte, origin string, processID uint32, serverlessMode bool, entityIDPrecedenceEnabled bool) {
+	f.Fuzz(func(_ *testing.T, rawEvent []byte, origin string, processID uint32, serverlessMode bool, entityIDPrecedenceEnabled bool) {
 		parsed, err := parser.parseEvent(rawEvent)
 		if err != nil {
 			return
@@ -34,6 +35,7 @@ func FuzzParseEventWithEnrich(f *testing.F) {
 	})
 }
 
+// Run locally with `go test -fuzz=FuzzParseMetricWithEnrich -run=FuzzParseMetricWithEnrich -tags=test`
 func FuzzParseMetricWithEnrich(f *testing.F) {
 	deps := newServerDeps(f)
 	stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
@@ -42,7 +44,7 @@ func FuzzParseMetricWithEnrich(f *testing.F) {
 
 	f.Add([]byte("custom_counter:1|c|#protocol:http,bench"), "origin", uint32(1), true, true)
 	f.Add([]byte("custom_counter:1|c|#protocol:http,bench"), "origin", uint32(1), true, true)
-	f.Fuzz(func(t *testing.T, rawMetric []byte, origin string, processID uint32, serverlessMode bool, entityIDPrecedenceEnabled bool) {
+	f.Fuzz(func(_ *testing.T, rawMetric []byte, origin string, processID uint32, serverlessMode bool, entityIDPrecedenceEnabled bool) {
 		parsed, err := parser.parseMetricSample(rawMetric)
 		if err != nil {
 			return
@@ -55,6 +57,7 @@ func FuzzParseMetricWithEnrich(f *testing.F) {
 	})
 }
 
+// Run locally with `go test -fuzz=FuzzParseServiceCheckWithEnrich -run=FuzzParseServiceCheckWithEnrich -tags=test`
 func FuzzParseServiceCheckWithEnrich(f *testing.F) {
 	deps := newServerDeps(f)
 	stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
@@ -62,7 +65,7 @@ func FuzzParseServiceCheckWithEnrich(f *testing.F) {
 
 	f.Add([]byte("_sc|agent.up|0|#tag1,tag2:test,tag3"), "origin", uint32(1), true, true)
 	f.Add([]byte("_sc|agent.up|0|d:21|h:localhost|h:localhost2|d:22"), "origin", uint32(1), true, true)
-	f.Fuzz(func(t *testing.T, rawServiceCheck []byte, origin string, processID uint32, serverlessMode bool, entityIDPrecedenceEnabled bool) {
+	f.Fuzz(func(_ *testing.T, rawServiceCheck []byte, origin string, processID uint32, serverlessMode bool, entityIDPrecedenceEnabled bool) {
 		parsed, err := parser.parseServiceCheck(rawServiceCheck)
 		if err != nil {
 			return

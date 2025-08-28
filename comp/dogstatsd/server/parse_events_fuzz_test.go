@@ -9,6 +9,7 @@ import (
 	"testing"
 )
 
+// Run locally with `go test -fuzz=FuzzParseEvent -run=FuzzParseEvent -tags=test`
 func FuzzParseEvent(f *testing.F) {
 	deps := newServerDeps(f)
 	stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
@@ -19,7 +20,7 @@ func FuzzParseEvent(f *testing.F) {
 	f.Add([]byte("_e{10,9}:test title|test text|s:this is the source"))
 	f.Add([]byte("_e{10,9}:test title|test text|t:warning|d:12345|p:low|h:some.host|k:aggKey|s:source test|#tag1,tag2:test"))
 	f.Add([]byte("_e{10,0}:test title||t:warning"))
-	f.Fuzz(func(t *testing.T, rawEvent []byte) {
+	f.Fuzz(func(_ *testing.T, rawEvent []byte) {
 		_, err := parser.parseEvent(rawEvent)
 		if err != nil {
 			// we expect errors, we just don't want to panic(), or timeout

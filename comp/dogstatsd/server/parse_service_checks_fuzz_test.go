@@ -9,6 +9,7 @@ import (
 	"testing"
 )
 
+// Run locally with `go test -fuzz=FuzzParseServiceCheck -run=FuzzParseServiceCheck -tags=test`
 func FuzzParseServiceCheck(f *testing.F) {
 	deps := newServerDeps(f)
 	stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
@@ -20,7 +21,7 @@ func FuzzParseServiceCheck(f *testing.F) {
 	f.Add([]byte("_sc|agent.up|0|#tag1,tag2:test,tag3"))
 	f.Add([]byte("_sc|agent.up|0|d:21|h:localhost|h:localhost2|d:22"))
 
-	f.Fuzz(func(t *testing.T, rawServiceCheck []byte) {
+	f.Fuzz(func(_ *testing.T, rawServiceCheck []byte) {
 		_, _ = parser.parseServiceCheck(rawServiceCheck)
 	})
 }
