@@ -371,7 +371,23 @@ type RootExpression struct {
 	// Expression is the logical operations to be evaluated to produce the
 	// value of the event.
 	Expression Expression
+	// DSLExpression is the DSL expression for template conditions/values
+	DSLExpression *DSLExpression
+	// Role conveys how the expression is used
+	Role ExpressionRole
 }
+
+// ExpressionRole is the role of the expression
+type ExpressionRole int
+
+const (
+	// ExpressionRoleDataCapture means the role of the expression is data capture
+	ExpressionRoleDataCapture ExpressionRole = iota
+	// ExpressionRoleCondition means the role of the expression is condition evaluation
+	ExpressionRoleCondition
+	// ExpressionRoleTemplateValue means the role of the expression is template formatting
+	ExpressionRoleTemplateValue
+)
 
 // UnresolvedPointeeType is a placeholder type that represents an unresolved
 // pointee type.
