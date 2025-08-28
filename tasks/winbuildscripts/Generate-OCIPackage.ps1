@@ -46,8 +46,14 @@ if (-not (Test-Path $datadogPackageExe -ErrorAction SilentlyContinue)) {
     $env:PATH += ";$datadogPackagesDir"
 }
 if ([string]::IsNullOrWhitespace($version)) {
-    # The Omnibus project sets the manifest and version-manifest.ddot.json should be present by now
-    $manifestJson = 'C:\opt\datadog-agent\version-manifest.ddot.json'
+    # Choose manifest path by package
+    $manifestJson = $null
+    switch ($package) {
+        'datadog-agent-ddot' { $manifestJson = 'C:\opt\datadog-agent\version-manifest.ddot.json' }
+        'datadog-installer'  { $manifestJson = 'C:\opt\datadog-installer\version-manifest.json' }
+        default              { $manifestJson = 'C:\opt\datadog-agent\version-manifest.json' }
+    }
+
     if (-not (Test-Path $manifestJson)) {
         Write-Error "Missing version manifest: $manifestJson"
         exit 1
