@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
+//go:build !serverless
+
 // Package integrationsimpl implements the integrations component interface
 package integrationsimpl
 
@@ -28,7 +30,7 @@ type Logsintegration struct {
 }
 
 // NewLogsIntegration creates a new integrations instance
-func NewLogsIntegration(log log.Component, config configComponent.Component) *Logsintegration {
+func NewLogsIntegration(log log.Component, config configComponent.Component) integrations.Component {
 	integrationTimeout := config.GetDuration("logs_config.integrations_logs_timeout")
 
 	return &Logsintegration{

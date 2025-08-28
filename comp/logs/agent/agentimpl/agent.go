@@ -196,7 +196,7 @@ func newLogsAgent(deps dependencies) provides {
 
 	return provides{
 		Comp:           option.New[agent.Component](logsAgent),
-		LogsReciever:   option.New[integrations.Component](integrationsLogs),
+		LogsReciever:   option.New(integrationsLogs),
 		StatusProvider: statusComponent.NewInformationProvider(NewStatusProvider()),
 		FlareProvider:  flaretypes.NewProvider(logsAgent.flarecontroller.FillFlare),
 		APIStreamLogs: api.NewAgentEndpointProvider(streamLogsEvents(logsAgent),
