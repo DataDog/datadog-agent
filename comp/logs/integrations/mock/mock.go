@@ -16,12 +16,12 @@ import (
 )
 
 type mockIntegrations struct {
-	*integrationsimpl.Logsintegration
+	integrations.Component
 }
 
 // Mock returns a mock for integrations component.
 func Mock(t *testing.T) integrations.Component {
 	return &mockIntegrations{
-		Logsintegration: integrationsimpl.NewLogsIntegration(logmock.New(t), configmock.New(t)),
+		integrationsimpl.NewLogsIntegration(logmock.New(t), configmock.New(t)),
 	}
 }
