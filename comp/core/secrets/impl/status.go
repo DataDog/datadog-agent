@@ -6,11 +6,17 @@
 package secretsimpl
 
 import (
+	"embed"
 	"fmt"
 	"io"
 	"sort"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/comp/core/status"
 )
+
+//go:embed status_templates
+var templatesFS embed.FS
 
 type secretsStatus struct {
 	resolver *secretResolver
@@ -78,14 +84,22 @@ func (s secretsStatus) JSON(_ bool, stats map[string]interface{}) error {
 	return nil
 }
 
-// Text renders the text output
-func (s secretsStatus) Text(_ bool, buffer io.Writer) error {
-	s.resolver.getDebugInfo(buffer)
+// Text
+func (s secretsStatus) Text(_ bool, _ io.Writer) error {
 	return nil
 }
 
-// HTML renders the html output
-func (s secretsStatus) HTML(_ bool, buffer io.Writer) error {
-	s.resolver.getDebugInfo(buffer)
+// HTML
+func (s secretsStatus) HTML(_ bool, _ io.Writer) error {
 	return nil
+}
+
+// Text renders the text output
+func (r *secretResolver) Text(_ bool, buffer io.Writer) error {
+	return status.RenderText(templatesFS, "info.tmpl", buffer, r.getDebugInfo())
+}
+
+// HTML renders the html output
+func (r *secretResolver) HTML(_ bool, buffer io.Writer) error {
+	return status.RenderHTML(templatesFS, "infoHTML.tmpl", buffer, r.getDebugInfo())
 }

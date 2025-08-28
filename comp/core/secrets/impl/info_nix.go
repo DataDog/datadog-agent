@@ -15,7 +15,7 @@ import (
 	"syscall"
 )
 
-//go:embed info_nix.tmpl
+//go:embed status_templates/info_nix.tmpl
 var permissionsDetailsTemplate string
 
 type permissionsDetails struct {

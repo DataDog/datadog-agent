@@ -7,12 +7,10 @@
 package secretsimpl
 
 import (
-	"bufio"
 	"bytes"
 	_ "embed"
 	"encoding/json"
 	"fmt"
-	"io"
 	stdmaps "maps"
 	"math/rand"
 	"net/http"
@@ -145,16 +143,17 @@ func NewComponent(deps Requires) Provides {
 // fillFlare add the inventory payload to flares.
 func (r *secretResolver) fillFlare(fb flaretypes.FlareBuilder) error {
 	var buffer bytes.Buffer
-	writer := bufio.NewWriter(&buffer)
-	r.getDebugInfo(writer)
-	writer.Flush()
+	err := r.Text(false, &buffer)
+	if err != nil {
+		return fmt.Errorf("error rendering secrets debug info: %w", err)
+	}
 	fb.AddFile("secrets.log", buffer.Bytes())
 	fb.CopyFile(r.auditFilename)
 	return nil
 }
 
 func (r *secretResolver) writeDebugInfo(w http.ResponseWriter, _ *http.Request) {
-	r.getDebugInfo(w)
+	r.getDebugInfo()
 }
 
 func (r *secretResolver) handleRefresh(w http.ResponseWriter, _ *http.Request) {
@@ -647,58 +646,64 @@ type handlePlace struct {
 	Path    string
 }
 
-//go:embed info.tmpl
-var secretInfoTmpl string
-
-//go:embed refresh.tmpl
+//go:embed status_templates/refresh.tmpl
 var secretRefreshTmpl string
 
 // getDebugInfo exposes debug informations about secrets to be included in a flare
-func (r *secretResolver) getDebugInfo(w io.Writer) {
+func (r *secretResolver) getDebugInfo() map[string]interface{} {
+	stats := make(map[string]interface{})
 	if !r.enabled {
-		fmt.Fprintf(w, "Agent secrets is disabled by caller\n")
-		return
+		stats["enabled"] = false
+		stats["message"] = "Agent secrets is disabled by caller"
+		return stats
 	}
+
+	stats["enabled"] = true
+
 	if r.backendCommand == "" {
-		fmt.Fprintf(w, "No secret_backend_command set: secrets feature is not enabled\n")
-		return
+		stats["backendCommandSet"] = false
+		stats["message"] = "No secret_backend_command set: secrets feature is not enabled"
+		return stats
 	}
 
-	t := template.New("secret_info")
-	t, err := t.Parse(secretInfoTmpl)
-	if err != nil {
-		fmt.Fprintf(w, "error parsing secret info template: %s\n", err)
-		return
-	}
+	stats["backendCommandSet"] = true
+	stats["executable"] = r.backendCommand
 
-	t, err = t.Parse(permissionsDetailsTemplate)
-	if err != nil {
-		fmt.Fprintf(w, "error parsing secret permissions details template: %s\n", err)
-		return
-	}
-
+	// Handle permissions
 	permissions := "OK, the executable has the correct permissions"
+	permissionsOK := true
+	var permissionsError string
+
 	if !r.embeddedBackendPermissiveRights {
-		err = checkRights(r.backendCommand, r.commandAllowGroupExec)
+		err := checkRights(r.backendCommand, r.commandAllowGroupExec)
 		if err != nil {
 			permissions = "error: the executable does not have the correct permissions"
+			permissionsOK = false
+			permissionsError = err.Error()
 		}
 	} else {
 		permissions = "OK, native secret generic connector used"
 	}
 
-	details, err := r.getExecutablePermissions()
-	info := secretInfo{
-		Executable:                   r.backendCommand,
-		ExecutablePermissions:        permissions,
-		ExecutablePermissionsDetails: details,
-		Handles:                      map[string][][]string{},
-	}
-	if err != nil {
-		info.ExecutablePermissionsError = err.Error()
+	stats["executablePermissions"] = permissions
+	stats["executablePermissionsOK"] = permissionsOK
+
+	if permissionsError != "" {
+		stats["executablePermissionsError"] = permissionsError
 	}
 
-	// we sort handles so the output is consistent and testable
+	// Get detailed permissions
+	details, err := r.getExecutablePermissions()
+	if err != nil {
+		stats["executablePermissionsDetailsError"] = err.Error()
+	} else {
+		stats["executablePermissionsDetails"] = details
+	}
+
+	// Handle secrets handles
+	handles := make(map[string][][]string)
+
+	// Sort handles for consistent output
 	orderedHandles := []string{}
 	for handle := range r.origin {
 		orderedHandles = append(orderedHandles, handle)
@@ -711,19 +716,16 @@ func (r *secretResolver) getDebugInfo(w io.Writer) {
 		for _, context := range contexts {
 			details = append(details, []string{context.origin, strings.Join(context.path, "/")})
 		}
-		info.Handles[handle] = details
+		handles[handle] = details
 	}
 
-	err = t.Execute(w, info)
-	if err != nil {
-		fmt.Fprintf(w, "error rendering secret info: %s\n", err)
-	}
+	stats["handles"] = handles
 
-	fmt.Fprintf(w, "\n")
+	// Handle refresh interval information
+	stats["refreshIntervalEnabled"] = r.refreshInterval > 0
 	if r.refreshInterval > 0 {
-		fmt.Fprintf(w, "'secret_refresh_interval' is enabled: the first refresh will happen %s after startup and then every %s\n", r.scatterDuration, r.refreshInterval)
-	} else {
-		fmt.Fprintf(w, "'secret_refresh_interval' is disabled\n")
+		stats["refreshInterval"] = r.refreshInterval.String()
+		stats["scatterDuration"] = r.scatterDuration.String()
 	}
-
+	return stats
 }

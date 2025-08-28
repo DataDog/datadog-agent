@@ -15,7 +15,7 @@ import (
 	"strings"
 )
 
-//go:embed info_win.tmpl
+//go:embed status_templates/info_win.tmpl
 var permissionsDetailsTemplate string
 
 type permissionsDetails struct {
