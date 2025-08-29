@@ -705,7 +705,7 @@ func extractResources(spec *kubelet.ContainerSpec) workloadmeta.ContainerResourc
 	if cpuLimit, found := spec.Resources.Limits[kubelet.ResourceCPU]; found {
 		if cpuReq, found := spec.Resources.Requests[kubelet.ResourceCPU]; found {
 			if cpuReq == cpuLimit && cpuReq.MilliValue()%1000 == 0 {
-				resources.UsesWholeCPU = true
+				resources.GuaranteedWholeCore = true
 			}
 		}
 	}
