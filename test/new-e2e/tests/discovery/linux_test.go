@@ -193,6 +193,9 @@ func (s *linuxTestSuite) dumpDebugInfo(t *testing.T) {
 
 	workloadmetaStore := s.Env().RemoteHost.MustExecute("sudo datadog-agent workload-list --verbose")
 	t.Log("workloadmeta store", workloadmetaStore)
+
+	status := s.Env().RemoteHost.MustExecute("sudo datadog-agent status")
+	t.Log("agent status", status)
 }
 
 func (s *linuxTestSuite) testProcessCheckWithServiceDiscovery(agentConfigStr string, systemProbeConfigStr string) {
