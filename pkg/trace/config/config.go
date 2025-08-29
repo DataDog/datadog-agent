@@ -403,6 +403,9 @@ type AgentConfig struct {
 	// ClientStatsFlushInterval specifies the frequency at which the client stats aggregator will flush its buffer.
 	ClientStatsFlushInterval time.Duration
 
+	// MinConvertPayloads specifies the minimum number of payloads to convert to IDX format.
+	MinConvertPayloads int
+
 	// internal telemetry
 	StatsdEnabled  bool
 	StatsdHost     string
@@ -629,6 +632,8 @@ func New() *AgentConfig {
 		Features:               make(map[string]struct{}),
 		PeerTagsAggregation:    true,
 		ComputeStatsBySpanKind: true,
+
+		MinConvertPayloads: 0,
 	}
 }
 
