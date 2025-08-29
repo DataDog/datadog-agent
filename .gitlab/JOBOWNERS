@@ -84,6 +84,7 @@ deploy_deb_testing*                  @DataDog/agent-delivery
 deploy_rpm_testing*                  @DataDog/agent-delivery
 deploy_suse_rpm_testing*             @DataDog/agent-delivery
 deploy_windows_testing*              @DataDog/agent-delivery
+deploy_dmg_testing*                @DataDog/agent-delivery
 
 # Image build
 docker_build*                        @DataDog/agent-build
@@ -150,7 +151,7 @@ trigger_distribution*         @DataDog/agent-delivery
 integration_tests_windows*    @DataDog/windows-products
 integration_tests_otel        @DataDog/opentelemetry-agent
 docker_image_build_otel       @DataDog/opentelemetry-agent
-ddot_byoc_package_*           @DataDog/opentelemetry-agent
+ddot_byoc_*                   @DataDog/opentelemetry-agent
 datadog_otel_components_ocb_build  @DataDog/opentelemetry-agent
 docker_integration_tests      @DataDog/container-integrations
 trace_agent_integration_tests @DataDog/agent-apm
@@ -171,6 +172,7 @@ k8s-e2e-cspm-*                    @DataDog/agent-security
 e2e_pre_test*                     @DataDog/agent-devx
 new-e2e*                          @DataDog/multiple
 go_e2e_test_binaries              @DataDog/agent-devx
+dynamic_test-evaluate-e2e         @DataDog/agent-devx
 
 # Kernel matrix testing
 upload_dependencies*              @DataDog/ebpf-platform
