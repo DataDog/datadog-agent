@@ -60,6 +60,7 @@ build do
       platform = windows_arch_i386? ? "x86" : "x64"
       command "invoke trace-agent.build --major-version #{major_version_arg}", :env => env
 
+      mkdir "#{Omnibus::Config.source_dir()}/datadog-iot-agent/src/github.com/DataDog/datadog-agent/bin/agent"
       copy 'bin/trace-agent/trace-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-iot-agent/src/github.com/DataDog/datadog-agent/bin/agent/trace-agent.exe"
     end
   end
