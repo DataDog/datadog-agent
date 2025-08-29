@@ -5,6 +5,6 @@
 # must be readable independently of the other.
 #
 # Each section note must be formatted as reStructuredText.
-features:
+enhancements:
   - |
-    Adds the logic required to compute checksum fingerprints to more accurately detect instances of log rotation and truncation.
+    Adds initial skaffolding to support a future file fingerprinting feature for the Logs Agent.
