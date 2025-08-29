@@ -113,7 +113,7 @@ func (j *jmxfetchNixTest) Test_FakeIntakeReceivesJMXFetchMetrics() {
 			metrics, err := j.Env().FakeIntake.Client().
 				FilterMetrics(metricName, client.WithMetricValueHigherThan(0))
 			assert.NoError(c, err)
-			assert.NotEmpty(j.T(), metrics, "no metrics found for", metricName)
+			assert.NotEmpty(c, metrics, "no metrics found for", metricName)
 		}
 	}, 5*time.Minute, 10*time.Second)
 	j.T().Logf("Started: %v and took %v", start, time.Since(start))
