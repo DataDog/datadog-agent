@@ -663,6 +663,18 @@ static __always_inline void handle_first_frame(pktbuf_t pkt, __u32 *external_dat
     pktbuf_advance(pkt, current_frame.length);
     // We're exceeding the packet boundaries, so we have a remainder.
     if (pktbuf_data_offset(pkt) > pktbuf_data_end(pkt)) {
+        // Special case: For HEADERS+PRIORITY frames, check if there's meaningful content to reconstruct
+        if (current_frame.type == kHeadersFrame && (current_frame.flags & HTTP2_PRIORITY_FLAG)) {
+            // Calculate how many bytes are available in current packet
+            __u32 bytes_available = pktbuf_data_end(pkt) - (pktbuf_data_offset(pkt) - current_frame.length);
+            
+            // If available bytes <= PRIORITY bytes, there's no meaningful header content to reconstruct
+            if (bytes_available <= HTTP2_PRIORITY_BUFFER_LEN) {
+                // This split contains only PRIORITY data, no header content - skip incomplete tracking
+                return;
+            }
+        }
+        
         incomplete_frame_t new_incomplete_frame = { 0 };
 
         // Saving the remainder.
@@ -931,6 +943,19 @@ static __always_inline void headers_parser(pktbuf_t pkt, void *map_key, conn_tup
         current_stream->tags = tags;
         pktbuf_set_offset(pkt, current_frame.offset);
 
+        // If PRIORITY flag (0x20) set, skip 5-byte priority fields.
+        // See: https://datatracker.ietf.org/doc/html/rfc7540#section-6.2
+        if (current_frame.frame.flags & HTTP2_PRIORITY_FLAG) {
+            if (current_frame.frame.length > HTTP2_PRIORITY_BUFFER_LEN) {
+                // HEADERS+PRIORITY - skip PRIORITY bytes, adjust frame length
+                pktbuf_advance(pkt, HTTP2_PRIORITY_BUFFER_LEN);
+                current_frame.frame.length -= HTTP2_PRIORITY_BUFFER_LEN;
+            } else {
+                // PRIORITY-only frame - no header data to process
+                continue;
+            }
+        }
+        
         interesting_headers = pktbuf_filter_relevant_headers(pkt, global_dynamic_counter, &http2_ctx->dynamic_index, headers_to_process, current_frame.frame.length, http2_tel);
         pktbuf_process_headers(pkt, &http2_ctx->dynamic_index, current_stream, headers_to_process, interesting_headers, http2_tel);
     }
