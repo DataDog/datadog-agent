@@ -194,8 +194,12 @@ build do
     end
     copy "pkg/ebpf/bytecode/build/#{arch}/*.o", "#{install_dir}/embedded/share/system-probe/ebpf/"
     delete "#{install_dir}/embedded/share/system-probe/ebpf/usm_events_test*.o"
+    delete "#{install_dir}/embedded/share/system-probe/ebpf/*-debug.o"
     copy "pkg/ebpf/bytecode/build/#{arch}/co-re/*.o", "#{install_dir}/embedded/share/system-probe/ebpf/co-re/"
+    delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/*-debug.o"
     copy "pkg/ebpf/bytecode/build/runtime/*.c", "#{install_dir}/embedded/share/system-probe/ebpf/runtime/"
+    delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/uprobe_attacher-test*.o
+
     copy "#{ENV['SYSTEM_PROBE_BIN']}/clang-bpf", "#{install_dir}/embedded/bin/clang-bpf"
     copy "#{ENV['SYSTEM_PROBE_BIN']}/llc-bpf", "#{install_dir}/embedded/bin/llc-bpf"
     copy "#{ENV['SYSTEM_PROBE_BIN']}/minimized-btfs.tar.xz", "#{install_dir}/embedded/share/system-probe/ebpf/co-re/btf/minimized-btfs.tar.xz"
