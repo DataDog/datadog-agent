@@ -62,7 +62,7 @@ datadog-agent-oci-arm64-a7:
     - when: on_success
   stage: package_build
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:arm64"]
+  tags: ["arch:arm64", "specific:true"]
   needs:
     [
       "go_mod_tidy_check",
@@ -187,7 +187,7 @@ installer-arm64:
     - when: on_success
   stage: package_build
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:arm64"]
+  tags: ["arch:arm64", "specific:true"]
   needs: ["go_mod_tidy_check", "go_deps"]
   variables:
     PACKAGE_ARCH: arm64
