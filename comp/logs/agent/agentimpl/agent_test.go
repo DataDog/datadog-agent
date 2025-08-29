@@ -116,6 +116,7 @@ func (suite *AgentTestSuite) TearDownTest() {
 	metrics.LogsSent.Set(0)
 	metrics.DestinationErrors.Set(0)
 	metrics.DestinationLogsDropped.Init()
+	metrics.LogsTruncated.Set(0)
 }
 
 func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) (*logAgent, *sources.LogSources, *service.Services) {
@@ -188,6 +189,61 @@ func (suite *AgentTestSuite) testAgent(endpoints *config.Endpoints) {
 	assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsProcessed.Value())
 	assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsSent.Value())
 	assert.Equal(suite.T(), zero, metrics.DestinationErrors.Value())
+}
+
+func (suite *AgentTestSuite) TestTruncateLogOriginAndService() {
+	// Set a very small max message size to force truncation
+	suite.configOverrides["logs_config.max_message_size_bytes"] = 10 // Only 1 byte
+
+	// Create a test file with content that will definitely trigger log-line truncation
+	truncationLogFile := fmt.Sprintf("%s/truncation.log", suite.testDir)
+	fd, err := os.Create(truncationLogFile)
+	suite.NoError(err)
+	defer fd.Close()
+
+	// Write 10 long lines that exceed the max_message_size
+	for i := 0; i < 10; i++ {
+		fd.WriteString("1235678912345\n")
+	}
+	suite.NoError(fd.Sync())
+
+	l := mock.NewMockLogsIntake(suite.T())
+	defer l.Close()
+	endpoint := tcp.AddrToEndPoint(l.Addr())
+	endpoints := config.NewEndpoints(endpoint, nil, true, false)
+
+	truncationConfig := config.LogsConfig{
+		Type:       config.FileType,
+		Path:       truncationLogFile, // Use our new file with long content
+		Identifier: "source-sds-test",
+		Service:    "service-sds-test",
+	}
+	truncationSource := sources.NewLogSource("", &truncationConfig)
+
+	agent, sources, _ := createAgent(suite, endpoints)
+
+	agent.startPipeline()
+
+	sources.AddSource(truncationSource)
+
+	// Wait for the agent to process logs and trigger truncation
+	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, 4*time.Second, func() bool {
+		return metrics.LogsTruncated.Value() > 0
+	})
+
+	agent.stop(context.TODO())
+
+	// Verify the metric contains the correct service and source information
+	truncatedLogsMetric := metrics.LogsTruncated.Value()
+
+	// The metric counts total truncations, not just lines
+	assert.True(suite.T(), truncatedLogsMetric == 10, "Expected 10 instances of truncation (one for each line)")
+	suite.T().Logf("Total truncations: %d (this includes byte-level truncations)", truncatedLogsMetric)
+
+	// Verify that the service and source are correctly captured
+	// The truncation metrics should capture this information
+	assert.Equal(suite.T(), truncationSource.Config.Identifier, "source-sds-test", "Source identifier should be 'source-sds-test'")
+	assert.Equal(suite.T(), truncationSource.Config.Service, "service-sds-test", "Service identifier should be 'service-sds-test'")
 }
 
 func (suite *AgentTestSuite) TestAgentTcp() {
