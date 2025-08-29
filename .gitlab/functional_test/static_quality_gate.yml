@@ -6,7 +6,7 @@ static_quality_gates:
     - !reference [.on_dev_branches]
     - when: on_success
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64-ci-test"]
   needs:
     - agent_deb-x64-a7
     - agent_deb-x64-a7-fips
@@ -87,7 +87,7 @@ manual_gate_threshold_update:
     - when: manual
       allow_failure: true
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64-ci-test"]
   needs:
     - static_quality_gates
   script:

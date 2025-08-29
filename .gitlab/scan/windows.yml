@@ -1,7 +1,7 @@
 .scan_windows_package:
   stage: scan
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64-ci-test"]
   variables:
     SCAN_ARTIFACT_PATTERN: "datadog-agent-7*.msi"
     OMNIBUS_PIPELINE_DIR: $OMNIBUS_PACKAGE_DIR/pipeline-$CI_PIPELINE_ID

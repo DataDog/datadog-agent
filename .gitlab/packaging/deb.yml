@@ -26,7 +26,7 @@ include:
 
 .package_deb_x86:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64-ci-test"]
   variables:
     DD_PKG_ARCH: x86_64
     PACKAGE_ARCH: amd64
