@@ -5,7 +5,6 @@
 
 //go:build kubelet
 
-//nolint:revive // TODO(AML) Fix revive linter
 package tailers
 
 import (
