@@ -53,7 +53,7 @@ class TestFileInfo(unittest.TestCase):
         """Test FileInfo validation with negative size."""
         with self.assertRaises(ValueError) as cm:
             FileInfo(relative_path="test/file", size_bytes=-1)
-        self.assertIn("size_bytes must be strictly non-negative", str(cm.exception))
+        self.assertIn("size_bytes must be positive", str(cm.exception))
 
 
 class TestInPlaceArtifactReport(unittest.TestCase):
@@ -127,7 +127,7 @@ class TestInPlaceArtifactReport(unittest.TestCase):
                 os="debian",
                 build_job_name="test_job",
             )
-        self.assertIn("on_wire_size must be strictly non-negative", str(cm.exception))
+        self.assertIn("on_wire_size must be positive", str(cm.exception))
 
 
 class TestInPlacePackageMeasurer(unittest.TestCase):
@@ -459,7 +459,7 @@ class TestDockerLayerInfo(unittest.TestCase):
         """Test DockerLayerInfo validation with negative size."""
         with self.assertRaises(ValueError) as cm:
             DockerLayerInfo(layer_id="sha256:test123", size_bytes=-1)
-        self.assertIn("size_bytes must be strictly non-negative", str(cm.exception))
+        self.assertIn("size_bytes must be positive", str(cm.exception))
 
     def test_docker_layer_info_size_properties(self):
         """Test DockerLayerInfo size conversion properties."""
@@ -534,7 +534,7 @@ class TestDockerImageInfo(unittest.TestCase):
                 config_size=-1,
                 manifest_size=512,
             )
-        self.assertIn("config_size must be strictly non-negative", str(cm.exception))
+        self.assertIn("config_size must be positive", str(cm.exception))
 
     def test_docker_image_info_validation_negative_manifest_size(self):
         """Test DockerImageInfo validation with negative manifest_size."""
@@ -547,7 +547,7 @@ class TestDockerImageInfo(unittest.TestCase):
                 config_size=1024,
                 manifest_size=-1,
             )
-        self.assertIn("manifest_size must be strictly non-negative", str(cm.exception))
+        self.assertIn("manifest_size must be positive", str(cm.exception))
 
     def test_docker_image_info_total_layers_size(self):
         """Test calculation of total layers size."""
