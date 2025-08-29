@@ -98,6 +98,24 @@ function Send-Telemetry($payload) {
    }
 }
 
+function Test-InstallerIntegrity($installer) {
+   if ($env:DD_SKIP_CODE_SIGNING_CHECK) {
+      Write-Host "Skipping code signing check"
+      return $true
+   }
+   $signature = Get-AuthenticodeSignature -FilePath $installer
+
+   # We don't expect this value to be localized, it is an enum name
+   # https://learn.microsoft.com/en-us/dotnet/api/system.management.automation.signaturestatus
+   if ($signature.Status -ne "Valid") {
+      throw "Installer signature is not valid: $($signature.StatusMessage)"
+   }
+   if (-Not ($signature.SignerCertificate.Subject.Contains('CN="Datadog, Inc"'))) {
+      throw "Installer is not signed by CN=`"Datadog, Inc`": $($signature.SignerCertificate.Subject)"
+   }
+   return $true
+}
+
 function Show-Error($errorMessage, $errorCode) {
    Write-Host -ForegroundColor Red @"
 Datadog Install script failed:
@@ -328,6 +346,12 @@ try {
       Write-Host "Downloading installer from $ddInstallerUrl"
       [System.Net.WebClient]::new().DownloadFile($ddInstallerUrl, $installer)
    }
+
+   Write-Host "Verifying installer integrity..."
+   if (-Not (Test-InstallerIntegrity $installer)) {
+      throw "Installer is not signed by Datadog"
+   }
+   Write-Host "Installer integrity verified."
 
    # set so `default-packages` won't contain the Datadog Agent
    # as it is now installed during the beginning of the bootstrap process
