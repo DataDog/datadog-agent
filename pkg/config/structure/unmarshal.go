@@ -7,7 +7,6 @@
 package structure
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"reflect"
@@ -16,6 +15,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	json "github.com/json-iterator/go"
 	"github.com/mitchellh/mapstructure"
 	"github.com/spf13/cast"
 
@@ -46,6 +46,7 @@ var ErrorUnused UnmarshalKeyOption = func(fs *featureSet) {
 	fs.errorUnused = true
 }
 
+// EnableStringUnmarshal allows UnmarshalKey to handle stringified json and Unmarshal it
 var EnableStringUnmarshal UnmarshalKeyOption = func(fs *featureSet) {
 	fs.stringUnmarshal = true
 }
