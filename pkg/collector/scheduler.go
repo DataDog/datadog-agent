@@ -155,6 +155,11 @@ func (s *CheckScheduler) addLoader(loader check.Loader) {
 // getChecks takes a check configuration and returns a slice of Check instances
 // along with any error it might happen during the process
 func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, error) {
+	if config.Name != "http_check" {
+		log.Debugf("skip check '%s', it's not 'http_check'", config.Name)
+		return nil, nil
+	}
+
 	checks := []check.Check{}
 	numLoaders := len(s.loaders)
 
