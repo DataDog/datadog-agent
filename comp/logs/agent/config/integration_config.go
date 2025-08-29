@@ -325,6 +325,26 @@ func (mode TailingMode) String() string {
 	return ""
 }
 
+// CopyConfig copies a LogsConfig and returns a new LogsConfig with the given type, identifier, path, service, source, and tags.
+func CopyConfig(ctype string, identifier string, path string, service string, source string, cfg *LogsConfig) *LogsConfig {
+	return &LogsConfig{
+		Type:                        ctype,
+		TailingMode:                 cfg.TailingMode,
+		Identifier:                  identifier,
+		Path:                        path,
+		Service:                     service,
+		Source:                      source,
+		Tags:                        cfg.Tags,
+		ProcessingRules:             cfg.ProcessingRules,
+		FingerprintConfig:           cfg.FingerprintConfig,
+		AutoMultiLine:               cfg.AutoMultiLine,
+		AutoMultiLineSampleSize:     cfg.AutoMultiLineSampleSize,
+		AutoMultiLineMatchThreshold: cfg.AutoMultiLineMatchThreshold,
+		AutoMultiLineOptions:        cfg.AutoMultiLineOptions,
+		AutoMultiLineSamples:        cfg.AutoMultiLineSamples,
+	}
+}
+
 // Validate returns an error if the config is misconfigured
 func (c *LogsConfig) Validate() error {
 	switch {

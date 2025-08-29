@@ -25,7 +25,6 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
-	"github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 )
@@ -44,6 +43,8 @@ type Launcher struct {
 	fileSizeMax          int64
 	combinedUsageMax     int64
 	combinedUsageSize    int64
+	adAddedSources       chan *sources.LogSource
+	adRemovedSources     chan *sources.LogSource
 	// writeLogToFile is used as a function pointer, so it can be overridden in
 	// testing to make deterministic tests
 	writeLogToFileFunction func(fs afero.Fs, filepath, log string) error
@@ -106,11 +107,13 @@ func NewLauncher(fs afero.Fs, sources *sources.LogSources, integrationsLogsComp 
 }
 
 // Start starts the launcher and launches the run loop in a go function
-func (s *Launcher) Start(_ launchers.SourceProvider, _ pipeline.Provider, _ auditor.Registry, _ *tailers.TailerTracker) {
+func (s *Launcher) Start(sourceProvider launchers.SourceProvider, _ pipeline.Provider, _ auditor.Registry, _ *tailers.TailerTracker) {
 	err := s.scanInitialFiles(s.runPath)
 	if err != nil {
 		ddLog.Warn("Unable to scan existing log files:", err)
 	}
+
+	s.adAddedSources, s.adRemovedSources = sourceProvider.SubscribeForType(config.IntegrationType)
 
 	go s.run()
 }
@@ -136,6 +139,15 @@ func (s *Launcher) run() {
 			}
 
 			s.receiveLogs(log)
+		case source := <-s.adAddedSources:
+			// We currently don't support source input from autodiscovery, because these
+			// sources are not linked to a specific integration id. We expect that all of
+			// these sources will also be registered and provided by the integrations component.
+			//
+			// We hide these sources from the status page to avoid confusion.
+			source.HideFromStatus()
+		case source := <-s.adRemovedSources:
+			ddLog.Debugf("Dropping removed source: %s", source.Name)
 		case <-s.stop:
 			return
 		}
@@ -144,34 +156,26 @@ func (s *Launcher) run() {
 
 // receiveSources handles receiving incoming sources
 func (s *Launcher) receiveSources(cfg integrations.IntegrationConfig) {
-	sources, err := ad.CreateSources(cfg.Config)
-	if err != nil {
-		ddLog.Errorf("Failed to create source for %q: %v", cfg.Config.Name, err)
-		return
-	}
+	source := cfg.Source
 
-	for _, source := range sources {
-		// TODO: integrations should only be allowed to have one IntegrationType config.
-		if source.Config.Type == config.IntegrationType {
-			// This check avoids duplicating files that have already been created
-			// by scanInitialFiles
-			logFile, exists := s.integrationToFile[cfg.IntegrationID]
+	// This check avoids duplicating files that have already been created
+	// by scanInitialFiles
+	logFile, exists := s.integrationToFile[cfg.IntegrationID]
 
-			if !exists {
-				logFile, err = s.createFile(cfg.IntegrationID)
-				if err != nil {
-					ddLog.Errorf("Failed to create integration log file for %q: %v", source.Config.IntegrationName, err)
-					continue
-				}
-
-				// file to write the incoming logs to
-				s.integrationToFile[cfg.IntegrationID] = logFile
-			}
-
-			filetypeSource := s.makeFileSource(source, logFile.fileWithPath)
-			s.sources.AddSource(filetypeSource)
+	if !exists {
+		var err error
+		logFile, err = s.createFile(cfg.IntegrationID)
+		if err != nil {
+			ddLog.Errorf("Failed to create integration log file for %q: %v", source.Config.IntegrationName, err)
+			return
 		}
+
+		// file to write the incoming logs to
+		s.integrationToFile[cfg.IntegrationID] = logFile
 	}
+
+	filetypeSource := s.makeFileSource(source, logFile.fileWithPath)
+	s.sources.AddSource(filetypeSource)
 }
 
 // receiveLogs handles writing incoming logs to their respective file as well as
@@ -306,15 +310,8 @@ func writeLogToFile(fs afero.Fs, logFilePath, log string) error {
 
 // makeFileSource Turns an integrations source into a logsSource
 func (s *Launcher) makeFileSource(source *sources.LogSource, logFilePath string) *sources.LogSource {
-	fileSource := sources.NewLogSource(source.Name, &config.LogsConfig{
-		Type:        config.FileType,
-		TailingMode: source.Config.TailingMode,
-		Path:        logFilePath,
-		Name:        source.Config.Name,
-		Source:      source.Config.Source,
-		Service:     source.Config.Service,
-		Tags:        source.Config.Tags,
-	})
+	newConfig := config.CopyConfig(config.FileType, source.Config.Identifier, logFilePath, source.Config.Service, source.Config.Source, source.Config)
+	fileSource := sources.NewLogSource(source.Name, newConfig)
 
 	fileSource.SetSourceType(sources.IntegrationSourceType)
 	return fileSource

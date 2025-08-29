@@ -120,24 +120,9 @@ func (tf *factory) makeDockerFileSource(source *sources.LogSource) (*sources.Log
 	f.Close()
 
 	sourceName, serviceName := tf.defaultSourceAndService(source, containersorpods.LogContainers)
-
+	newConfig := config.CopyConfig(config.FileType, containerID, path, serviceName, sourceName, source.Config)
 	// New file source that inherits most of its parent's properties
-	fileSource := sources.NewLogSource(source.Name, &config.LogsConfig{
-		Type:                        config.FileType,
-		TailingMode:                 source.Config.TailingMode,
-		Identifier:                  containerID,
-		Path:                        path,
-		Service:                     serviceName,
-		Source:                      sourceName,
-		Tags:                        source.Config.Tags,
-		ProcessingRules:             source.Config.ProcessingRules,
-		FingerprintConfig:           source.Config.FingerprintConfig,
-		AutoMultiLine:               source.Config.AutoMultiLine,
-		AutoMultiLineSampleSize:     source.Config.AutoMultiLineSampleSize,
-		AutoMultiLineMatchThreshold: source.Config.AutoMultiLineMatchThreshold,
-		AutoMultiLineOptions:        source.Config.AutoMultiLineOptions,
-		AutoMultiLineSamples:        source.Config.AutoMultiLineSamples,
-	})
+	fileSource := sources.NewLogSource(source.Name, newConfig)
 
 	// inform the file launcher that it should expect docker-formatted content
 	// in this file
@@ -229,25 +214,9 @@ func (tf *factory) makeK8sFileSource(source *sources.LogSource) (*sources.LogSou
 	// kubernetes-launcher behavior.
 
 	sourceName, serviceName := tf.defaultSourceAndService(source, containersorpods.LogPods)
+	newConfig := config.CopyConfig(config.FileType, containerID, path, serviceName, sourceName, source.Config)
 	// New file source that inherits most of its parent's properties
-	fileSource := sources.NewLogSource(
-		fmt.Sprintf("%s/%s/%s", pod.Namespace, pod.Name, container.Name),
-		&config.LogsConfig{
-			Type:                        config.FileType,
-			TailingMode:                 source.Config.TailingMode,
-			Identifier:                  containerID,
-			Path:                        path,
-			Service:                     serviceName,
-			Source:                      sourceName,
-			Tags:                        source.Config.Tags,
-			ProcessingRules:             source.Config.ProcessingRules,
-			FingerprintConfig:           source.Config.FingerprintConfig,
-			AutoMultiLine:               source.Config.AutoMultiLine,
-			AutoMultiLineSampleSize:     source.Config.AutoMultiLineSampleSize,
-			AutoMultiLineMatchThreshold: source.Config.AutoMultiLineMatchThreshold,
-			AutoMultiLineOptions:        source.Config.AutoMultiLineOptions,
-			AutoMultiLineSamples:        source.Config.AutoMultiLineSamples,
-		})
+	fileSource := sources.NewLogSource(fmt.Sprintf("%s/%s/%s", pod.Namespace, pod.Name, container.Name), newConfig)
 
 	switch source.Config.Type {
 	case config.DockerType:
