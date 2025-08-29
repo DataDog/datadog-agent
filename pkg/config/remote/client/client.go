@@ -14,6 +14,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -433,7 +434,11 @@ func (c *Client) pollLoop() {
 
 					c.lastUpdateError = err
 					c.backoffErrorCount = c.backoffPolicy.IncError(c.backoffErrorCount)
-					log.Errorf("could not update remote-config state: %v", c.lastUpdateError)
+
+					// don't log "database not open" errors https://datadoghq.atlassian.net/browse/RC-1858
+					if !strings.Contains(err.Error(), "database not open") {
+						log.Errorf("could not update remote-config state: %v", c.lastUpdateError)
+					}
 				}
 			} else {
 				if c.lastUpdateError != nil {
