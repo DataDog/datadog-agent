@@ -754,6 +754,10 @@ func TestHandleKubePod(t *testing.T) {
 				EntityMeta: workloadmeta.EntityMeta{
 					Name:      podName,
 					Namespace: podNamespace,
+					Labels: map[string]string{
+						// Argo Rollout tags
+						"rollouts-pod-template-hash": "490794276",
+					},
 				},
 				Owners: []workloadmeta.KubernetesPodOwner{
 					{
@@ -781,6 +785,7 @@ func TestHandleKubePod(t *testing.T) {
 						"kube_ownerref_kind:replicaset",
 						"kube_replica_set:some_deployment-bcd2",
 						"kube_deployment:some_deployment",
+						"kube_argo_rollout:some_deployment",
 					},
 					StandardTags: []string{},
 				},

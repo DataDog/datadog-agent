@@ -25,6 +25,8 @@ const (
 	KubeAppPartOfLabelKey = "app.kubernetes.io/part-of"
 	// KubeAppManagedByLabelKey is the label key of the tool being used to manage the operation of an application
 	KubeAppManagedByLabelKey = "app.kubernetes.io/managed-by"
+	// ArgoRolloutLabelKey is the label key of that is present when the resource is managed by Argo Rollouts
+	ArgoRolloutLabelKey = "rollouts-pod-template-hash"
 
 	// RcIDAnnotKey is the key of the RC ID annotation
 	RcIDAnnotKey = "admission.datadoghq.com/rc.id"
