@@ -18,7 +18,7 @@ import (
 type apiCallInfo struct {
 	Name     string                                                // Name of the API call for logging/debugging
 	TestFunc func(ddnvml.Device) error                             // Function to test if the API is supported on the device
-	CallFunc func(ddnvml.Device, uint64) ([]Metric, uint64, error) // Function to call the API and return metrics
+	CallFunc func(ddnvml.Device, uint64) ([]Metric, uint64, error) // Function to call the API and return metrics (metrics, newTimestamp, error)
 }
 
 // baseCollector is a unified collector template that consolidates multiple collector types into one instance.
