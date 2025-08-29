@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive
+// Package flare provides log flare collection functionality for diagnostics
 package flare
 
 import (

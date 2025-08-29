@@ -3,7 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive
+//go:build sds
+
+// Package sds provides sensitive data scanning functionality for logs
 package sds
 
 // RulesConfig as sent by the Remote Configuration.
