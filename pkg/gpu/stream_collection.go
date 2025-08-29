@@ -41,9 +41,9 @@ type globalStreamKey struct {
 
 type streamCollection struct {
 	streams            map[streamKey]*StreamHandler
-	streamsMutex       sync.RWMutex
+	streamsMutex       sync.RWMutex // streamsMutex protects concurrent read+write access to the streams map, not the streams themselves
 	globalStreams      map[globalStreamKey]*StreamHandler
-	globalStreamsMutex sync.RWMutex
+	globalStreamsMutex sync.RWMutex // globalStreamsMutex protects concurrent read+write access to the globalStreams map, not the streams themselves
 	sysCtx             *systemContext
 	telemetry          *streamTelemetry
 	streamConfig       config.StreamConfig
@@ -91,7 +91,8 @@ func newStreamTelemetry(tm telemetry.Component) *streamTelemetry {
 	}
 }
 
-// getStream returns a StreamHandler for a given CUDA stream.
+// getStream returns a StreamHandler for a given CUDA event header. This entry point should only
+// get called by the consumer thread, as the mutex locking patterns only work under that assumption.
 func (sc *streamCollection) getStream(header *gpuebpf.CudaEventHeader) (*StreamHandler, error) {
 	if header.Stream_id == 0 {
 		return sc.getGlobalStream(header)
@@ -122,6 +123,9 @@ func (sc *streamCollection) getGlobalStream(header *gpuebpf.CudaEventHeader) (*S
 	stream, ok := sc.globalStreams[key]
 	sc.globalStreamsMutex.RUnlock()
 
+	// There is no race condition here on the check + create, because there is only one thread (consumer thread)
+	// that calls this code and can create streams.
+
 	if !ok {
 		stream, err = sc.createStreamHandler(header, device, memoizedContainerID)
 		if err != nil {
@@ -149,6 +153,10 @@ func (sc *streamCollection) getNonGlobalStream(header *gpuebpf.CudaEventHeader) 
 	sc.streamsMutex.RLock()
 	stream, ok := sc.streams[key]
 	sc.streamsMutex.RUnlock()
+
+	// There is no race condition here on the check + create, because there is
+	// only one goroutine (the one from cudaEventConsumer) that calls this code
+	// and can create streams.
 
 	if !ok {
 		var err error
