@@ -1377,15 +1377,18 @@ func (e *NetworkStats) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *Flow) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 40 {
+	if len(data) < 72 {
 		return 0, ErrNotEnoughData
 	}
 
 	var srcIP, dstIP [16]byte
 	SliceToArray(data[0:16], srcIP[:])
 	SliceToArray(data[16:32], dstIP[:])
+
+	// NOTE: currently only TCP & UDP are supported
 	e.Source.Port = binary.BigEndian.Uint16(data[32:34])
 	e.Destination.Port = binary.BigEndian.Uint16(data[34:36])
+
 	e.L3Protocol = binary.NativeEndian.Uint16(data[36:38])
 	e.L4Protocol = binary.NativeEndian.Uint16(data[38:40])
 
