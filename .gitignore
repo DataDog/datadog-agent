@@ -27,6 +27,10 @@ venv*/
 *.log
 /main
 
+# Build System Protocol (Bazel <-> JetBrains IDEs)
+/.bazelbsp/
+# In-workpace cache
+/.cache/
 # Bazel convenience symlinks to output folders
 /bazel-*
 # User specific bazelrc file

@@ -72,3 +72,13 @@ validate_experiment_systemd_units:
   rules: !reference [.on_installer_systemd_changes]
   script:
     - dda inv -- -e installer.generate-experiment-units --check
+
+bazel:run-buildifier-test:
+  extends: [ .bazel:defs, .lint ]
+  script:
+    - bazel run //bazel/buildifier:test
+  after_script:
+    - >-
+      if [ $CI_JOB_STATUS = failed ]; then
+        echo >&2 "💡 bazel run //bazel/buildifier"
+      fi
