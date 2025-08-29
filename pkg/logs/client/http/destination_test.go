@@ -609,7 +609,7 @@ func TestDestinationSourceTagBasedOnTelemetryName(t *testing.T) {
 	defer server.httpServer.Close()
 
 	// Test case: Telemetry name contains "logs" -> sourceTag should be "logs"
-	server.Destination.destMeta = client.NewDestinationMetadata("logs", "3", "reliable", "0")
+	server.Destination.destMeta = client.NewDestinationMetadata("logs", "3", "reliable", "0", "")
 	payload := &message.Payload{
 		Encoded:       []byte("payload"),
 		UnencodedSize: 7, // len("payload")
@@ -646,7 +646,7 @@ func TestDestinationSourceTagEPForwarder(t *testing.T) {
 	defer server.httpServer.Close()
 
 	// Test case: Telemetry name does not contain "logs" -> sourceTag should be "epforwarder"
-	server.Destination.destMeta = client.NewDestinationMetadata("dbm", "1", "reliable", "0")
+	server.Destination.destMeta = client.NewDestinationMetadata("dbm", "1", "reliable", "0", "")
 	payload := &message.Payload{
 		Encoded:       []byte("payload"),
 		UnencodedSize: 7, // len("payload")
@@ -685,7 +685,7 @@ func TestDestinationCompression(t *testing.T) {
 	server.Destination.endpoint.CompressionKind = "zstd"
 
 	// Test case 1: Telemetry uses zstd compression
-	server.Destination.destMeta = client.NewDestinationMetadata("dbm", "1", "reliable", "0")
+	server.Destination.destMeta = client.NewDestinationMetadata("dbm", "1", "reliable", "0", "")
 	payload := &message.Payload{
 		Encoded:       []byte("payload"),
 		UnencodedSize: 7, // len("payload")
@@ -705,7 +705,7 @@ func TestDestinationCompression(t *testing.T) {
 	// Enable compression and set gzip compression kind
 	server.Destination.endpoint.CompressionKind = "gzip"
 
-	server.Destination.destMeta = client.NewDestinationMetadata("dbm", "2", "reliable", "0")
+	server.Destination.destMeta = client.NewDestinationMetadata("dbm", "2", "reliable", "0", "")
 	payload2 := &message.Payload{
 		Encoded:       []byte("payload"),
 		UnencodedSize: 7,
