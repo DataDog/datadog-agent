@@ -61,11 +61,7 @@ require (
 )
 
 require (
-	cloud.google.com/go/auth v0.16.2 // indirect
-	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
-	cloud.google.com/go/compute v1.37.0 // indirect
-	cloud.google.com/go/compute/metadata v0.7.0 // indirect
-	github.com/DataDog/agent-payload/v5 v5.0.161 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.163 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.0.0-00010101000000-000000000000 // indirect
@@ -110,7 +106,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.67.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/grpc v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/http v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log v0.67.0 // indirect
@@ -153,12 +148,8 @@ require (
 	github.com/golang/mock v1.7.0-rc.1 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/golang/snappy v1.0.0 // indirect
-	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/googleapis/enterprise-certificate-proxy v0.3.6 // indirect
-	github.com/googleapis/gax-go/v2 v2.14.2 // indirect
 	github.com/gorilla/mux v1.8.1 // indirect
-	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0 // indirect
 	github.com/hashicorp/hcl v1.0.1-vault-7 // indirect
 	github.com/hectane/go-acl v0.0.0-20230122075934-ca0b05cb1adb // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
@@ -233,9 +224,6 @@ require (
 	golang.org/x/sys v0.35.0 // indirect
 	golang.org/x/text v0.28.0 // indirect
 	golang.org/x/time v0.12.0 // indirect
-	google.golang.org/api v0.238.0 // indirect
-	google.golang.org/genproto v0.0.0-20250505200425-f936aa4a68b2 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20250603155806-513f23925822 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250603155806-513f23925822 // indirect
 	google.golang.org/grpc v1.74.2 // indirect
 	google.golang.org/protobuf v1.36.7 // indirect

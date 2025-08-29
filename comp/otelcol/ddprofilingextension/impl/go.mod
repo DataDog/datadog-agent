@@ -51,9 +51,6 @@ require (
 )
 
 require (
-	cloud.google.com/go/auth v0.16.2 // indirect
-	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
-	cloud.google.com/go/compute v1.37.0 // indirect
 	cloud.google.com/go/compute/metadata v0.7.0 // indirect
 	github.com/DataDog/appsec-internal-go v1.13.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/config v0.67.0 // indirect
@@ -61,7 +58,6 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.67.0 // indirect
-	github.com/DataDog/datadog-agent/comp/core/telemetry v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/api v0.67.0 // indirect
@@ -78,13 +74,11 @@ require (
 	github.com/DataDog/datadog-agent/pkg/fips v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.63.0-devel.0.20250123185937-1feb84b482c8 // indirect
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.61.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/telemetry v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/template v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.67.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/grpc v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.62.2 // indirect
@@ -117,14 +111,13 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.4 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.4 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.3 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.236.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.12.4 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.12.18 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sso v1.25.6 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.30.4 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sts v1.34.1 // indirect
-	github.com/aws/smithy-go v1.22.4 // indirect
-	github.com/beorn7/perks v1.0.1 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.246.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.4 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sso v1.28.2 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.33.2 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sts v1.38.0 // indirect
+	github.com/aws/smithy-go v1.22.5 // indirect
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
@@ -153,12 +146,8 @@ require (
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/pprof v0.0.0-20250607225305-033d6d78b36a // indirect
-	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/googleapis/enterprise-certificate-proxy v0.3.6 // indirect
-	github.com/googleapis/gax-go/v2 v2.14.2 // indirect
 	github.com/gorilla/mux v1.8.1 // indirect
-	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0 // indirect
 	github.com/hashicorp/go-secure-stdlib/parseutil v0.1.8 // indirect
 	github.com/hashicorp/go-sockaddr v1.0.7 // indirect
 	github.com/hashicorp/go-version v1.7.0 // indirect
@@ -197,10 +186,6 @@ require (
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
-	github.com/prometheus/client_golang v1.22.0 // indirect
-	github.com/prometheus/client_model v0.6.2 // indirect
-	github.com/prometheus/common v0.65.0 // indirect
-	github.com/prometheus/procfs v0.17.0 // indirect
 	github.com/richardartoul/molecule v1.0.1-0.20240531184615-7ca0df43c0b3 // indirect
 	github.com/rs/cors v1.11.1 // indirect
 	github.com/secure-systems-lab/go-securesystemslib v0.9.0 // indirect
@@ -257,9 +242,6 @@ require (
 	golang.org/x/text v0.28.0 // indirect
 	golang.org/x/time v0.12.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
-	google.golang.org/api v0.238.0 // indirect
-	google.golang.org/genproto v0.0.0-20250505200425-f936aa4a68b2 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20250603155806-513f23925822 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250603155806-513f23925822 // indirect
 	google.golang.org/grpc v1.74.2 // indirect
 	google.golang.org/protobuf v1.36.7 // indirect
