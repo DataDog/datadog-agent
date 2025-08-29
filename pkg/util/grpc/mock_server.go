@@ -23,10 +23,12 @@ type grpcServer struct {
 
 // NewMockGrpcSecureServer creates a new agent secure gRPC server for testing purposes.
 func NewMockGrpcSecureServer(port string, authtoken string, serverTLSConfig *tls.Config) (*grpc.Server, error) {
-	serverOpts := []grpc.ServerOption{
+	// Use the convenience function that chains metrics and auth interceptors
+	serverOpts := ServerOptionsWithMetricsAndAuth(
+		grpc_auth.UnaryServerInterceptor(StaticAuthInterceptor(authtoken)),
+		nil, // No stream interceptor needed for this server
 		grpc.Creds(credentials.NewTLS(serverTLSConfig)),
-		grpc.UnaryInterceptor(grpc_auth.UnaryServerInterceptor(StaticAuthInterceptor(authtoken))),
-	}
+	)
 
 	// Start dummy gRPc server mocking the core agent
 	serverListener, err := net.Listen("tcp", "127.0.0.1:"+port)
