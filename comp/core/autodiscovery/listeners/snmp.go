@@ -206,7 +206,13 @@ func (l *SNMPListener) checkDevice(job snmpJob) {
 			continue
 		}
 
-		job.subnet.deviceFailures[entityID] = 0
+		device, exists := job.subnet.devices[entityID]
+		if exists && device.Failures != 0 {
+			device.Failures = 0
+			job.subnet.devices[entityID] = device
+
+			l.writeCache(job.subnet)
+		}
 
 		deviceInfo := l.checkDeviceInfo(authentication, job.subnet.config.Port, deviceIP)
 		l.createService(entityID, job.subnet, deviceIP, deviceInfo, authIndex, 0, true)
@@ -455,26 +461,7 @@ func (l *SNMPListener) createService(
 	l.Lock()
 	defer l.Unlock()
 
-	_, exists := l.services[entityID]
-	if exists {
-		device, exists := subnet.devices[entityID]
-		if !exists {
-			// This case should happen only when device is a pending device (service created but not registered yet)
-			writeCache = false
-			found := l.deviceDeduper.SetPendingDeviceFailures(deviceIP, deviceFailures)
-			if !found {
-				return
-			}
-		} else {
-			writeCache = writeCache && (device.Failures != deviceFailures)
-			device.Failures = deviceFailures
-			subnet.devices[entityID] = device
-		}
-
-		if writeCache {
-			l.writeCache(subnet)
-		}
-
+	if _, present := l.services[entityID]; present {
 		return
 	}
 
@@ -561,21 +548,11 @@ func (l *SNMPListener) deleteService(entityID string, subnet *snmpSubnet) {
 		return
 	}
 
-	var failures int
-	isPendingDevice := false
+	failures := 1
 	writeCache := false
 
 	device, exists := subnet.devices[entityID]
-	if !exists {
-		// This case should happen only when device is a pending device (service created but not registered yet)
-		newFailures, found := l.deviceDeduper.IncreasePendingDeviceFailures(svc.deviceIP)
-		if !found {
-			return
-		}
-
-		failures = newFailures
-		isPendingDevice = true
-	} else {
+	if exists {
 		device.Failures++
 		subnet.devices[entityID] = device
 
@@ -587,9 +564,6 @@ func (l *SNMPListener) deleteService(entityID string, subnet *snmpSubnet) {
 		l.delService <- svc
 		delete(l.services, entityID)
 		delete(subnet.devices, entityID)
-		if isPendingDevice {
-			l.deviceDeduper.DeletePendingDevice(svc.deviceIP)
-		}
 
 		writeCache = true
 	}
