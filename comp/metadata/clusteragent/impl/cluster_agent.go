@@ -24,7 +24,7 @@ import (
 	clusteragent "github.com/DataDog/datadog-agent/comp/metadata/clusteragent/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
+	clustercheckimpl "github.com/DataDog/datadog-agent/comp/core/clusterchecks/impl"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -214,8 +214,8 @@ func (dca *datadogclusteragent) getMetadata() map[string]interface{} {
 	}
 
 	// Add cluster check runner and node agent counts
-	// Import "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
-	if clcRunnerCount, nodeAgentCount, err := clusterchecks.GetNodeTypeCounts(); err == nil {
+	// Import clustercheckimpl "github.com/DataDog/datadog-agent/comp/core/clusterchecks/impl"
+	if clcRunnerCount, nodeAgentCount, err := clustercheckimpl.GetNodeTypeCounts(); err == nil {
 		dca.metadata["cluster_check_runner_count"] = clcRunnerCount
 		dca.metadata["cluster_check_node_agent_count"] = nodeAgentCount
 	}

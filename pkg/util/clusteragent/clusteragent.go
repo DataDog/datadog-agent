@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgapiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
+	clusterchecks "github.com/DataDog/datadog-agent/comp/core/clusterchecks/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/errors"
@@ -69,9 +69,9 @@ type DCAClientInterface interface {
 	GetKubernetesMetadataNames(nodeName, ns, podName string) ([]string, error)
 	GetCFAppsMetadataForNode(nodename string) (map[string][]string, error)
 
-	PostClusterCheckStatus(ctx context.Context, nodeName string, status types.NodeStatus) (types.StatusResponse, error)
-	GetClusterCheckConfigs(ctx context.Context, nodeName string) (types.ConfigResponse, error)
-	GetEndpointsCheckConfigs(ctx context.Context, nodeName string) (types.ConfigResponse, error)
+	PostClusterCheckStatus(ctx context.Context, nodeName string, status clusterchecks.NodeStatus) (clusterchecks.StatusResponse, error)
+	GetClusterCheckConfigs(ctx context.Context, nodeName string) (clusterchecks.ConfigResponse, error)
+	GetEndpointsCheckConfigs(ctx context.Context, nodeName string) (clusterchecks.ConfigResponse, error)
 	GetKubernetesClusterID() (string, error)
 
 	PostLanguageMetadata(ctx context.Context, data *pbgo.ParentLanguageAnnotationRequest) error

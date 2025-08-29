@@ -3,29 +3,19 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !kubeapiserver
+//go:build kubeapiserver
 
-//nolint:revive // TODO(CAPP) Fix revive linter
-package orchestrator
+package clustercheckimpl
 
 import (
-	"context"
 	"embed"
 	"io"
 
 	clusterchecks "github.com/DataDog/datadog-agent/comp/core/clusterchecks/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
-
-// GetStatus returns status info for the orchestrator explorer.
-//
-//nolint:revive // TODO(CAPP) Fix revive linter
-func GetStatus(_ context.Context, _ interface{}, _ option.Option[clusterchecks.Component]) map[string]interface{} {
-	status := make(map[string]interface{})
-	status["Disabled"] = "The orchestrator explorer is not compiled-in"
-	return status
-}
 
 // Provider provides the functionality to populate the status output
 type Provider struct {
@@ -44,25 +34,24 @@ var templatesFS embed.FS
 
 // Name returns the name
 func (p Provider) Name() string {
-	return "Orchestrator Explorer"
+	return "Cluster Checks Dispatching"
 }
 
 // Section return the section
 func (p Provider) Section() string {
-	return "Orchestrator Explorer"
+	return "Cluster Checks Dispatching"
 }
 
 // JSON populates the status map
 func (p Provider) JSON(_ bool, stats map[string]interface{}) error {
-	stats["orchestrator"] = map[string]interface{}{
-		"Disabled": "The orchestrator explorer is not compiled-in",
-	}
+	p.populateStatus(stats)
+
 	return nil
 }
 
 // Text renders the text output
 func (p Provider) Text(_ bool, buffer io.Writer) error {
-	return status.RenderText(templatesFS, "orchestrator.tmpl", buffer, p.getStatusInfo())
+	return status.RenderText(templatesFS, "clusterchecks.tmpl", buffer, p.getStatusInfo())
 }
 
 // HTML renders the html output
@@ -70,10 +59,20 @@ func (p Provider) HTML(_ bool, _ io.Writer) error {
 	return nil
 }
 
-func (p Provider) getStatusInfo() map[string]interface{} {
-	return map[string]interface{}{
-		"orchestrator": map[string]interface{}{
-			"Disabled": "The orchestrator explorer is not compiled-in",
-		},
+func (p Provider) populateStatus(stats map[string]interface{}) {
+	if pkgconfigsetup.Datadog().GetBool("cluster_checks.enabled") {
+		if handler, ok := p.ClusterChecksHandler.Get(); ok {
+			if cchecks, err := handler.GetStats(); err == nil {
+				stats["clusterchecks"] = cchecks
+			}
+		}
 	}
+}
+
+func (p Provider) getStatusInfo() map[string]interface{} {
+	stats := make(map[string]interface{})
+
+	p.populateStatus(stats)
+
+	return stats
 }
