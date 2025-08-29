@@ -619,6 +619,53 @@ func TestAuthorization(t *testing.T) {
 		`  authorization: "********"`)
 }
 
+func TestOAuthCredentials(t *testing.T) {
+	// Test consumer_key
+	assertClean(t,
+		`consumer_key: my_consumer_key_123`,
+		`consumer_key: "********"`)
+	assertClean(t,
+		`  consumer_key: "my_consumer_key_123"`,
+		`  consumer_key: "********"`)
+
+	// Test consumer_secret
+	assertClean(t,
+		`consumer_secret: my_consumer_secret_456`,
+		`consumer_secret: "********"`)
+	assertClean(t,
+		`  consumer_secret: 'my_consumer_secret_456'`,
+		`  consumer_secret: "********"`)
+
+	// Test token_id
+	assertClean(t,
+		`token_id: my_token_id_789`,
+		`token_id: "********"`)
+	assertClean(t,
+		`  token_id: "my_token_id_789"`,
+		`  token_id: "********"`)
+
+	// Test token_secret
+	assertClean(t,
+		`token_secret: my_token_secret_abc`,
+		`token_secret: "********"`)
+	assertClean(t,
+		`  token_secret: 'my_token_secret_abc'`,
+		`  token_secret: "********"`)
+
+	// Test mixed OAuth configuration
+	assertClean(t,
+		`oauth_config:
+  consumer_key: my_consumer_key
+  consumer_secret: my_consumer_secret
+  token_id: my_token_id
+  token_secret: my_token_secret`,
+		`oauth_config:
+  consumer_key: "********"
+  consumer_secret: "********"
+  token_id: "********"
+  token_secret: "********"`)
+}
+
 func TestScrubCommandsEnv(t *testing.T) {
 	testCases := []struct {
 		name     string
