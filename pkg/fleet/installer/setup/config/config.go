@@ -12,6 +12,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
@@ -35,6 +36,7 @@ func WriteConfigs(config Config, configDir string) error {
 		return fmt.Errorf("could not create config directory: %w", err)
 	}
 
+	config = sanitizeConfig(config)
 	err = writeConfig(filepath.Join(configDir, datadogConfFile), config.DatadogYAML, 0640, true)
 	if err != nil {
 		return fmt.Errorf("could not write datadog.yaml: %w", err)
@@ -64,6 +66,14 @@ func WriteConfigs(config Config, configDir string) error {
 		}
 	}
 	return nil
+}
+
+func sanitizeConfig(config Config) Config {
+	apmInjectTagPrefix := "_dd.injection.mode:"
+	if len(config.DatadogYAML.Tags) == 1 && strings.HasPrefix(config.DatadogYAML.Tags[0], apmInjectTagPrefix) {
+		config.DatadogYAML.Tags = nil
+	}
+	return config
 }
 
 func writeConfig(path string, config any, perms os.FileMode, merge bool) error {
