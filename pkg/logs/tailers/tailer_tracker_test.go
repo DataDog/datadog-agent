@@ -25,7 +25,7 @@ func NewTestTailer1(id string) *TestTailer1 {
 	}
 }
 
-func (t *TestTailer1) GetId() string {
+func (t *TestTailer1) GetID() string {
 	return t.id
 }
 func (t *TestTailer1) GetType() string {
@@ -47,7 +47,7 @@ func NewTestTailer2(id string) *TestTailer2 {
 	}
 }
 
-func (t *TestTailer2) GetId() string {
+func (t *TestTailer2) GetID() string {
 	return t.id
 }
 
@@ -79,7 +79,7 @@ func TestCollectAllTailers(t *testing.T) {
 
 	results := make(map[string]bool)
 	for _, t := range tailers {
-		results[t.GetId()] = true
+		results[t.GetID()] = true
 	}
 
 	for _, k := range []string{"1a", "1b", "2a", "2b"} {
@@ -90,7 +90,7 @@ func TestCollectAllTailers(t *testing.T) {
 
 	results = make(map[string]bool)
 	for _, t := range tailers {
-		results[t.GetId()] = true
+		results[t.GetID()] = true
 	}
 
 	for _, k := range []string{"1a", "2a", "2b"} {

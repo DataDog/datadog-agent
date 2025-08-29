@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package ad provides autodiscovery-based log scheduling
 package ad
 
 import (
@@ -188,7 +189,7 @@ func configName(config integration.Config) string {
 	return config.Provider
 }
 
-// createsSources creates new sources from an integration config,
+// CreateSources creates new sources from an integration config,
 // returns an error if the parsing failed.
 func CreateSources(config integration.Config) ([]*sourcesPkg.LogSource, error) {
 	var configs []*logsConfig.LogsConfig

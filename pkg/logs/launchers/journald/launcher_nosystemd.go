@@ -5,6 +5,7 @@
 
 //go:build !systemd
 
+// Package journald provides journald-based log launchers (no-op for non-systemd builds)
 package journald
 
 import (

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
+// Package tailers provides the base interface and tracking for log tailers
 package tailers
 
 import (
@@ -11,7 +12,7 @@ import (
 
 // Tailer is the base interface for a tailer.
 type Tailer interface {
-	GetId() string
+	GetID() string
 	GetType() string
 	GetInfo() *status.InfoRegistry
 }

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package kubernetes provides Kubernetes log format parsing
 package kubernetes
 
 import (

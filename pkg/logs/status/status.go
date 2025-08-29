@@ -58,8 +58,9 @@ type Source struct {
 	Info          map[string][]string    `json:"info"`
 }
 
+// Tailer provides status information about a log tailer
 type Tailer struct {
-	Id   string              `json:"id"`
+	ID   string              `json:"id"`
 	Type string              `json:"type"`
 	Info map[string][]string `json:"info"`
 }

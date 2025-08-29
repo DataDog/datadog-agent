@@ -435,14 +435,17 @@ func (t *Tailer) Source() *sources.LogSource {
 	return t.file.Source.UnderlyingSource()
 }
 
-func (t *Tailer) GetId() string {
+// GetID returns the tailer's unique identifier
+func (t *Tailer) GetID() string {
 	return t.file.GetScanKey()
 }
 
+// GetType returns the tailer type
 func (t *Tailer) GetType() string {
 	return "file"
 }
 
+// GetInfo returns the tailer's status info registry
 func (t *Tailer) GetInfo() *status.InfoRegistry {
 	return t.info
 }

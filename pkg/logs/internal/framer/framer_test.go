@@ -40,10 +40,9 @@ func chunk(input []byte, size int) [][]byte {
 		if size <= len(iter) {
 			rv = append(rv, iter)
 			break
-		} else {
-			rv = append(rv, iter[:size])
-			iter = iter[size:]
 		}
+		rv = append(rv, iter[:size])
+		iter = iter[size:]
 	}
 	return rv
 }

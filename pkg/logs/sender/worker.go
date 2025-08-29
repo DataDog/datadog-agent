@@ -193,7 +193,9 @@ func noopDestinationsSink(bufferSize int) chan *message.Payload {
 	sink := make(chan *message.Payload, bufferSize)
 	go func() {
 		// drain channel, stop when channel is closed
-		for range sink {
+		for msg := range sink {
+			// Consume messages from channel until closed
+			_ = msg
 		}
 	}()
 	return sink
