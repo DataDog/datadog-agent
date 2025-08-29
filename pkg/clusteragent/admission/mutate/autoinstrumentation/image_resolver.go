@@ -33,9 +33,9 @@ func newMockImageResolver() ImageResolver {
 	mockImageMappings := make(map[string]map[string]ResolvedImage)
 	mockImageMappings["dd-lib-python-init"] = make(map[string]ResolvedImage)
 	mockImageMappings["dd-lib-python-init"]["3"] = ResolvedImage{
-		FullImageRef:     "gcr.io/datadoghq/dd-lib-python-init@sha256:75c546ff86ff6c397a57ffb34dc08e849e88e309031632b394ae8894889fef26",
-		Digest:           "sha256:75c546ff86ff6c397a57ffb34dc08e849e88e309031632b394ae8894889fef26",
-		CanonicalVersion: "3.11.3",
+		FullImageRef:     "gcr.io/datadoghq/dd-lib-python-init@sha256:729111c566420093a06b2499360a78f7b168a51d7248273177815492f0c051fa",
+		Digest:           "sha256:729111c566420093a06b2499360a78f7b168a51d7248273177815492f0c051fa",
+		CanonicalVersion: "3.12.1",
 	}
 	return &mockImageResolver{
 		imageMappings: mockImageMappings,
@@ -259,5 +259,7 @@ func NewImageResolver(rcClient *rcclient.Client) ImageResolver {
 		return newRemoteConfigImageResolver(rcClient)
 	}
 	log.Debugf("No remote config client available")
-	return newNoOpImageResolver()
+	// ERIKA: MOCKING THIS FOR NOW
+	return newMockImageResolver()
+	// return newNoOpImageResolver()
 }
