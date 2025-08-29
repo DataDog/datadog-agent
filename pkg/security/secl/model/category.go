@@ -61,7 +61,8 @@ func GetEventTypeCategory(eventType eval.EventType) EventCategory {
 		ExitEventType.String(),
 		ForkEventType.String(),
 		SyscallsEventType.String(),
-		SetrlimitEventType.String():
+		SetrlimitEventType.String(),
+		CapabilitiesEventType.String():
 		return ProcessCategory
 
 	// Kernel

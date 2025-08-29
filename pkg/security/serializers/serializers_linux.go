@@ -249,6 +249,10 @@ type ProcessSerializer struct {
 	ExitTime *utils.EasyjsonTime `json:"exit_time,omitempty"`
 	// Credentials associated with the process
 	Credentials *ProcessCredentialsSerializer `json:"credentials,omitempty"`
+	// CapsAttempted lists the capabilities that this process tried to use
+	CapsAttempted []string `json:"caps_attempted,omitempty"`
+	// CapsUsed lists the capabilities that this process effectively made use of
+	CapsUsed []string `json:"caps_used,omitempty"`
 	// Context of the user session for this event
 	UserSession *UserSessionContextSerializer `json:"user_session,omitempty"`
 	// File information of the executable
@@ -734,6 +738,7 @@ type EventSerializer struct {
 	*SysCtlEventSerializer        `json:"sysctl,omitempty"`
 	*SetSockOptEventSerializer    `json:"setsockopt,omitempty"`
 	*CGroupWriteEventSerializer   `json:"cgroup_write,omitempty"`
+	*CapabilitiesEventSerializer  `json:"capabilities,omitempty"`
 }
 
 func newSyscallsEventSerializer(e *model.SyscallsEvent) *SyscallsEventSerializer {
@@ -745,6 +750,22 @@ func newSyscallsEventSerializer(e *model.SyscallsEvent) *SyscallsEventSerializer
 		})
 	}
 	return &ses
+}
+
+// CapabilitiesEventSerializer serializes a capabilities usage event
+// easyjson:json
+type CapabilitiesEventSerializer struct {
+	// Capabilities that the process attempted to use since it started running
+	CapsAttempted []string `json:"caps_attempted,omitempty"`
+	// Capabilities that the process successfully used since it started running
+	CapsUsed []string `json:"caps_used,omitempty"`
+}
+
+func newCapabilitiesEventSerializer(e *model.Event, ce *model.CapabilitiesEvent) *CapabilitiesEventSerializer {
+	return &CapabilitiesEventSerializer{
+		CapsAttempted: model.KernelCapability(e.FieldHandlers.ResolveCapabilitiesAttempted(e, ce)).StringArray(),
+		CapsUsed:      model.KernelCapability(e.FieldHandlers.ResolveCapabilitiesUsed(e, ce)).StringArray(),
+	}
 }
 
 func getInUpperLayer(f *model.FileFields) *bool {
@@ -869,6 +890,8 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 			IsKworker:     ps.IsKworker,
 			IsExecExec:    ps.IsExecExec,
 			Source:        model.ProcessSourceToString(ps.Source),
+			CapsAttempted: model.KernelCapability(ps.CapsAttempted).StringArray(),
+			CapsUsed:      model.KernelCapability(ps.CapsUsed).StringArray(),
 		}
 
 		if ps.HasInterpreter() {
@@ -1684,6 +1707,8 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule) *EventSerializer {
 		s.SetSockOptEventSerializer = newSetSockOptEventSerializer(event)
 	case model.CgroupWriteEventType:
 		s.CGroupWriteEventSerializer = newCGroupWriteEventSerializer(event)
+	case model.CapabilitiesEventType:
+		s.CapabilitiesEventSerializer = newCapabilitiesEventSerializer(event, &event.CapabilitiesUsage)
 	}
 
 	return s
