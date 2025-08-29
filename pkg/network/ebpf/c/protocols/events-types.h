@@ -3,7 +3,7 @@
 
 #include "ktypes.h"
 
-#define BATCH_BUFFER_SIZE (4*1024)
+#define BATCH_BUFFER_SIZE (16*1024)
 #define BATCH_PAGES_PER_CPU 8
 
 // Computes the max number of elements of type `Type` in a batch.
