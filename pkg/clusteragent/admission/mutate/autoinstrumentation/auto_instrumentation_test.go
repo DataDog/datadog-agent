@@ -59,7 +59,6 @@ var (
 )
 
 func defaultLibInfo(l language) libInfo {
-	// return libInfo{lang: l, image: defaultLibImageVersions[l]}
 	return l.defaultLibInfo(commonRegistry, "", newMockImageResolver())
 }
 

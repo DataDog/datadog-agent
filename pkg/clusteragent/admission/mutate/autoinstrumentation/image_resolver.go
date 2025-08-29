@@ -15,10 +15,15 @@ import (
 	"sync"
 	"time"
 
-	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// RemoteConfigClient defines the interface we need for remote config operations
+type RemoteConfigClient interface {
+	GetConfigs(product string) map[string]state.RawConfig
+	Subscribe(product string, callback func(map[string]state.RawConfig, func(string, state.ApplyStatus)))
+}
 
 // ImageResolver resolves container image references from tag-based to digest-based.
 type ImageResolver interface {
@@ -26,45 +31,6 @@ type ImageResolver interface {
 	// and returns a resolved image reference (e.g., "gcr.io/datadoghq/dd-lib-python-init@sha256:abc123")
 	// If resolution fails or is not available, it returns the original image reference ("gcr.io/datadoghq/dd-lib-python-init:v3", false).
 	Resolve(registry string, repository string, tag string) (*ResolvedImage, bool)
-}
-
-type mockImageResolver struct {
-	imageMappings map[string]map[string]ResolvedImage
-}
-
-func newMockImageResolver() ImageResolver {
-	mockImageMappings := make(map[string]map[string]ResolvedImage)
-	mockImageMappings["dd-lib-python-init"] = make(map[string]ResolvedImage)
-	mockImageMappings["dd-lib-python-init"]["3"] = ResolvedImage{
-		FullImageRef:     "gcr.io/datadoghq/dd-lib-python-init@sha256:75c546ff86ff6c397a57ffb34dc08e849e88e309031632b394ae8894889fef26",
-		Digest:           "sha256:75c546ff86ff6c397a57ffb34dc08e849e88e309031632b394ae8894889fef26",
-		CanonicalVersion: "3.11.3",
-	}
-	return &mockImageResolver{
-		imageMappings: mockImageMappings,
-	}
-}
-
-func (m *mockImageResolver) Resolve(registry string, repository string, tag string) (*ResolvedImage, bool) {
-	if len(m.imageMappings) == 0 {
-		log.Debugf("Cache empty, no resolution available")
-		return nil, false
-	}
-
-	repoCache, exists := m.imageMappings[repository]
-	if !exists {
-		log.Debugf("No mapping found for repository %s", repository)
-		return nil, false
-	}
-
-	resolved, exists := repoCache[tag]
-	if !exists {
-		log.Debugf("No mapping found for %s:%s", repository, tag)
-		return nil, false
-	}
-
-	log.Debugf("Resolved %s:%s -> %s", repository, tag, resolved)
-	return &resolved, true
 }
 
 // noOpImageResolver is a simple implementation that returns the original image unchanged.
@@ -85,7 +51,7 @@ func (r *noOpImageResolver) Resolve(_ string, repository string, tag string) (*R
 // remoteConfigImageResolver resolves image references using remote configuration data.
 // It maintains a cache of image mappings received from the remote config service.
 type remoteConfigImageResolver struct {
-	rcClient *rcclient.Client
+	rcClient RemoteConfigClient
 
 	mu            sync.RWMutex
 	imageMappings map[string]map[string]ResolvedImage // repository -> tag -> resolved image
@@ -93,7 +59,7 @@ type remoteConfigImageResolver struct {
 
 // newRemoteConfigImageResolver creates a new remoteConfigImageResolver.
 // Assumes rcClient is non-nil.
-func newRemoteConfigImageResolver(rcClient *rcclient.Client) ImageResolver {
+func newRemoteConfigImageResolver(rcClient RemoteConfigClient) ImageResolver {
 	resolver := &remoteConfigImageResolver{
 		rcClient:      rcClient,
 		imageMappings: make(map[string]map[string]ResolvedImage),
@@ -294,7 +260,7 @@ type ResolvedImage struct {
 
 // NewImageResolver creates the appropriate ImageResolver based on whether
 // a remote config client is available.
-func NewImageResolver(rcClient *rcclient.Client) ImageResolver {
+func NewImageResolver(rcClient RemoteConfigClient) ImageResolver {
 	if rcClient != nil {
 		return newRemoteConfigImageResolver(rcClient)
 	}
