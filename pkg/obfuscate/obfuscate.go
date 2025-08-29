@@ -50,6 +50,7 @@ type Logger interface {
 	Debugf(format string, params ...interface{})
 }
 
+// FullLogger logs all log levels.
 type FullLogger interface {
 	Logger
 	Tracef(format string, params ...interface{})
