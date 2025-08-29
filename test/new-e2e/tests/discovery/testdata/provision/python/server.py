@@ -4,14 +4,6 @@ import logging
 import os
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
-# Configure logging to write to file which will be automatically discovered and
-# tailed.
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(message)s',
-    handlers=[logging.FileHandler('/tmp/python-svc.log'), logging.StreamHandler()],
-)
-
 logger = logging.getLogger(__name__)
 
 
@@ -40,6 +32,17 @@ def run():
 
     addr = (host, port)
     server = HTTPServer(addr, Handler)
+
+    pid = os.getpid()
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(message)s',
+        # Configure logging to write to file which will be automatically
+        # discovered and tailed.  Make sure we use a unique file name since
+        # there are multiple instances of this server running with different
+        # service names.
+        handlers=[logging.FileHandler(f'/tmp/python-svc-{pid}.log'), logging.StreamHandler()],
+    )
 
     logger.info("Server is running on http://%s:%s", host, port)
     try:
