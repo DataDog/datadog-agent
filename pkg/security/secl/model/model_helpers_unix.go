@@ -241,11 +241,6 @@ func (e *FileEvent) GetPathResolutionError() string {
 	return ""
 }
 
-// IsOverlayFS returns whether it is an overlay fs
-func (e *FileEvent) IsOverlayFS() bool {
-	return e.Filesystem == "overlay"
-}
-
 // MountOrigin origin of the mount
 type MountOrigin = uint32
 
@@ -309,11 +304,6 @@ func MountOriginToString(origin MountOrigin) string {
 // GetFSType returns the filesystem type of the mountpoint
 func (m *Mount) GetFSType() string {
 	return m.FSType
-}
-
-// IsOverlayFS returns whether it is an overlay fs
-func (m *Mount) IsOverlayFS() bool {
-	return m.GetFSType() == "overlay"
 }
 
 const (
