@@ -206,7 +206,10 @@ func newSamplingCollector(name CollectorName, device ddnvml.Device, apiCalls []a
 	return c, nil
 }
 
+// sampleAPIFactory allows overriding API creation for testing
+var sampleAPIFactory = createSampleAPIs
+
 // newSampleCollector creates a collector that consolidates all sample collector types
 func newSampleCollector(device ddnvml.Device) (Collector, error) {
-	return newSamplingCollector(sample, device, createSampleAPIs())
+	return newSamplingCollector(sample, device, sampleAPIFactory())
 }
