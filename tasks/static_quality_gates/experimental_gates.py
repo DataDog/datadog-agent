@@ -31,9 +31,9 @@ class SizeMixin:
     size_bytes: int
 
     def _validate_size_bytes(self, size_bytes: int) -> None:
-        """Validate that size_bytes is non-negative"""
+        """Validate that size_bytes is positive"""
         if size_bytes < 0:
-            raise ValueError("size_bytes must be strictly non-negative")
+            raise ValueError("size_bytes must be positive")
 
     @property
     def size_mb(self) -> float:
@@ -149,7 +149,7 @@ class InPlaceArtifactReport:
     file_inventory: list[FileInfo]
 
     # Metadata
-    # TODO: integrate GateMetricHandler metadata
+    # TODO(agent-build): integrate GateMetricHandler metadata
     measurement_timestamp: str
     pipeline_id: str
     commit_sha: str
@@ -167,9 +167,9 @@ class InPlaceArtifactReport:
         if not self.gate_name:
             raise ValueError("gate_name cannot be empty")
         if self.on_wire_size < 0:
-            raise ValueError("on_wire_size must be strictly non-negative")
+            raise ValueError("on_wire_size must be positive")
         if self.on_disk_size < 0:
-            raise ValueError("on_disk_size must be strictly non-negative")
+            raise ValueError("on_disk_size must be positive")
 
     @property
     def largest_files(self) -> list[FileInfo]:
