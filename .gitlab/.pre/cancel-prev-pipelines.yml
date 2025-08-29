@@ -10,5 +10,4 @@ cancel-prev-pipelines:
     - !reference [.on_dev_branches]
     - when: on_success
   script:
-    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
     - dda inv -- pipeline.auto-cancel-previous-pipelines
