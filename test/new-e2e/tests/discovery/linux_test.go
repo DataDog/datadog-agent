@@ -152,6 +152,38 @@ func (s *linuxTestSuite) TestProcessCheckWithServiceDiscoveryProcessCollectionDi
 	s.testProcessCheckWithServiceDiscovery(agentProcessDisabledConfigStr, systemProbeConfigStr)
 }
 
+func (s *linuxTestSuite) testLogs(t *testing.T) {
+	s.Env().RemoteHost.MustExecute("curl -s http://localhost:8082/test")
+
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		logs, err := s.Env().FakeIntake.Client().FilterLogs("python-svc-dd")
+		assert.NoError(c, err, "failed to get logs from fakeintake")
+
+		assert.NotEmpty(c, logs, "Expected to find logs from python-svc-dd service")
+
+		foundStartupLog := false
+		foundRequestLog := false
+
+		for _, log := range logs {
+			// Print unconditionally since the E2E tests are mostly run in CI
+			// and the extra messages shouldn't be too noisy.
+			t.Logf("Log: %+v", log)
+			assert.Equal(c, "python-svc-dd", log.Service, "Log service should match")
+			assert.Equal(c, "python.server", log.Source, "Log source should match")
+
+			if log.Message == "Server is running on http://0.0.0.0:8082" {
+				foundStartupLog = true
+			}
+			if log.Message == "GET /test" {
+				foundRequestLog = true
+			}
+		}
+
+		assert.True(c, foundStartupLog, "Should find startup log message")
+		assert.True(c, foundRequestLog, "Should find request log message")
+	}, 2*time.Minute, 10*time.Second)
+}
+
 func (s *linuxTestSuite) testProcessCheckWithServiceDiscovery(agentConfigStr string, systemProbeConfigStr string) {
 	t := s.T()
 	s.startServices()
@@ -298,6 +330,7 @@ func (s *linuxTestSuite) testProcessCheckWithServiceDiscovery(agentConfigStr str
 		}
 	}
 
+	t.Run("logs", s.testLogs)
 }
 
 type checkStatus struct {
