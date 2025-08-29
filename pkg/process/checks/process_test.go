@@ -8,7 +8,6 @@ package checks
 import (
 	"context"
 	"fmt"
-	"regexp"
 	"testing"
 	"time"
 
@@ -22,7 +21,10 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	workloadfiltercomp "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -60,9 +62,15 @@ func processCheckWithMockProbe(t *testing.T) (*ProcessCheck, *mocks.Probe) {
 
 	mockGpuSubscriber := gpusubscriberfxmock.SetupMockGpuSubscriber(t)
 
+	workloadFilter := fxutil.Test[workloadfiltercomp.Component](t, fx.Options(
+		core.MockBundle(),
+		workloadfilterfxmock.MockModule(),
+	))
+
 	return &ProcessCheck{
 		probe:                   probe,
 		scrubber:                procutil.NewDefaultDataScrubber(),
+		workloadFilter:          workloadFilter,
 		hostInfo:                hostInfo,
 		containerProvider:       mockContainerProvider(t),
 		sysProbeConfig:          &SysProbeConfig{},
@@ -370,13 +378,18 @@ func TestDisallowList(t *testing.T) {
 		"^/lib/systemd/systemd-logind$",
 		"^/usr/local/bin/goshe dnsmasq$",
 	}
-	disallowList := make([]*regexp.Regexp, 0, len(testDisallowList))
-	for _, b := range testDisallowList {
-		r, err := regexp.Compile(b)
-		if err == nil {
-			disallowList = append(disallowList, r)
-		}
-	}
+
+	cfg := configmock.New(t)
+	cfg.SetWithoutSource("process_config.blacklist_patterns", testDisallowList)
+
+	deps := fxutil.Test[workloadfiltercomp.Component](t, fx.Options(
+		core.MockBundle(),
+		workloadfilterfxmock.MockModule(),
+		fx.Replace(config.MockParams{Overrides: map[string]interface{}{
+			"process_config.blacklist_patterns": testDisallowList,
+		}}),
+	))
+
 	cases := []struct {
 		cmdline        []string
 		disallowListed bool
@@ -389,7 +402,7 @@ func TestDisallowList(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		assert.Equal(t, c.disallowListed, isDisallowListed(c.cmdline, disallowList),
+		assert.Equal(t, c.disallowListed, isDisallowListed(c.cmdline, deps),
 			fmt.Sprintf("Case %v failed", c))
 	}
 }
@@ -461,12 +474,16 @@ func TestProcessWithNoCommandline(t *testing.T) {
 	lastRun := time.Now().Add(-5 * time.Second)
 	syst1, syst2 := cpu.TimesStat{}, cpu.TimesStat{}
 
-	var disallowList []*regexp.Regexp
+	filter := fxutil.Test[workloadfiltercomp.Component](t, fx.Options(
+		core.MockBundle(),
+		workloadfilterfxmock.MockModule(),
+	))
+
 	serviceExtractorEnabled := true
 	useWindowsServiceName := true
 	useImprovedAlgorithm := false
 	serviceExtractor := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
-	procs := fmtProcesses(procutil.NewDefaultDataScrubber(), disallowList, procMap, procMap, nil, syst2, syst1, lastRun, nil, false, serviceExtractor, nil, now)
+	procs := fmtProcesses(procutil.NewDefaultDataScrubber(), filter, procMap, procMap, nil, syst2, syst1, lastRun, nil, false, serviceExtractor, nil, now)
 	assert.Len(t, procs, 1)
 
 	require.Len(t, procs[""], 1)

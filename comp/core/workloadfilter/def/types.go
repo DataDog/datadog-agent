@@ -6,7 +6,10 @@
 package workloadfilter
 
 import (
+	"strings"
+
 	typedef "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def/proto"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
 // Result is an enumeration that represents the possible results of a filter evaluation.
@@ -41,6 +44,7 @@ const (
 	ServiceType   ResourceType = "service"
 	EndpointType  ResourceType = "endpoint"
 	ImageType     ResourceType = "image"
+	ProcessType   ResourceType = "process"
 )
 
 //
@@ -217,4 +221,55 @@ const (
 	LegacyEndpointGlobal
 	EndpointADAnnotationsMetrics
 	EndpointADAnnotations
+)
+
+//
+// Process Definition
+//
+
+// Process represents a filterable process object.
+type Process struct {
+	*typedef.FilterProcess
+}
+
+// CreateProcess creates a Filterable Process object from a workloadmeta.Process.
+func CreateProcess(process *workloadmeta.Process) *Process {
+	if process == nil {
+		return nil
+	}
+
+	p := &typedef.FilterProcess{
+		Name:    process.Name,
+		Cmdline: strings.Join(process.Cmdline, " "),
+		Args:    process.Cmdline,
+	}
+
+	return &Process{
+		FilterProcess: p,
+	}
+}
+
+var _ Filterable = &Process{}
+
+// Serialize converts the Process object to a filterable object.
+func (p *Process) Serialize() any {
+	return p.FilterProcess
+}
+
+// Type returns the resource type of the process.
+func (p *Process) Type() ResourceType {
+	return ProcessType
+}
+
+// GetAnnotations returns the annotations of the process.
+func (p *Process) GetAnnotations() map[string]string {
+	return nil
+}
+
+// ProcessFilter defines the type of process filter.
+type ProcessFilter int
+
+// Defined Process filter kinds
+const (
+	LegacyProcessDisallowlist ProcessFilter = iota
 )

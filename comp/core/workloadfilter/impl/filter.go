@@ -139,6 +139,9 @@ func newFilter(cfg config.Component, logger log.Component, telemetry coretelemet
 	filter.registerFactory(workloadfilter.PodType, int(workloadfilter.PodADAnnotations), genericADProgramFactory)
 	filter.registerFactory(workloadfilter.PodType, int(workloadfilter.PodADAnnotationsMetrics), genericADMetricsProgramFactory)
 
+	// Process Filters
+	filter.registerFactory(workloadfilter.ProcessType, int(workloadfilter.LegacyProcessDisallowlist), catalog.LegacyProcessDisallowlistProgram)
+
 	return filter, nil
 }
 
@@ -158,6 +161,10 @@ func (f *filter) IsServiceExcluded(service *workloadfilter.Service, serviceFilte
 
 func (f *filter) IsEndpointExcluded(endpoint *workloadfilter.Endpoint, endpointFilters [][]workloadfilter.EndpointFilter) bool {
 	return evaluateResource(f, endpoint, endpointFilters) == workloadfilter.Excluded
+}
+
+func (f *filter) IsProcessExcluded(process *workloadfilter.Process, processFilters [][]workloadfilter.ProcessFilter) bool {
+	return evaluateResource(f, process, processFilters) == workloadfilter.Excluded
 }
 
 // evaluateResource checks if a resource is excluded based on the provided filters.
