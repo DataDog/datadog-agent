@@ -93,7 +93,7 @@ func (s *probeTestSuite) TestCanReceiveEvents() {
 			}
 		}
 
-		return len(probe.streamHandlers.globalStreams) == 1 && len(probe.streamHandlers.streams) == 1 && handlerStream != nil && handlerGlobal != nil && len(handlerStream.pendingKernelSpans) > 0 && len(handlerGlobal.pendingMemorySpans) > 0
+		return probe.streamHandlers.globalStreamsCount() == 1 && probe.streamHandlers.streamsCount() == 1 && handlerStream != nil && handlerGlobal != nil && len(handlerStream.pendingKernelSpans) > 0 && len(handlerGlobal.pendingMemorySpans) > 0
 	}, 3*time.Second, 100*time.Millisecond, "stream and global handlers not found: existing is %v", probe.consumer.streamHandlers)
 
 	// Check that we're receiving the events we expect
@@ -157,8 +157,8 @@ func (s *probeTestSuite) TestCanGenerateStats() {
 	require.NoError(t, err)
 
 	require.Eventually(t, func() bool {
-		return probe.streamHandlers.streamCount() == 2
-	}, 3*time.Second, 100*time.Millisecond, "stream handlers count mismatch: expected: 2, got: %d", probe.streamHandlers.streamCount())
+		return probe.streamHandlers.allStreamsCount() == 2
+	}, 3*time.Second, 100*time.Millisecond, "stream handlers count mismatch: expected: 2, got: %d", probe.streamHandlers.allStreamsCount())
 
 	stats, err := probe.GetAndFlush()
 	require.NoError(t, err)
@@ -222,8 +222,8 @@ func (s *probeTestSuite) TestMultiGPUSupport() {
 	//TODO: change this check to  count telemetry counter of the consumer (once added).
 	// we are expecting 2 different streamhandlers because cudasample generates 3 events in total for 2 different streams (stream 0 and stream 30)
 	require.Eventually(t, func() bool {
-		return probe.streamHandlers.streamCount() == 2
-	}, 3*time.Second, 100*time.Millisecond, "stream handlers count mismatch: expected: 2, got: %d", probe.streamHandlers.streamCount())
+		return probe.streamHandlers.allStreamsCount() == 2
+	}, 3*time.Second, 100*time.Millisecond, "stream handlers count mismatch: expected: 2, got: %d", probe.streamHandlers.allStreamsCount())
 
 	stats, err := probe.GetAndFlush()
 	require.NoError(t, err)

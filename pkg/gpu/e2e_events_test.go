@@ -76,7 +76,7 @@ func TestPytorchBatchedKernels(t *testing.T) {
 	injectEventsToConsumer(t, consumer, events, 0)
 
 	// Check that the consumer has the expected number of streams
-	require.Equal(t, 1, handlers.streamCount())
+	require.Equal(t, 1, handlers.allStreamsCount())
 
 	telemetryMetrics, err := telemetryMock.GetCountMetric("gpu__consumer", "events")
 	require.NoError(t, err)
