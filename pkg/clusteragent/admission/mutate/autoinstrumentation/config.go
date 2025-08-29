@@ -405,7 +405,10 @@ func getPinnedLibraries(libVersions map[string]string, registry string, checkDef
 			continue
 		}
 
-		info := l.libInfo("", l.libImageName(registry, version))
+		// ERIKA: Pass in ImageResolver here?
+		// info := l.libInfo("", l.libImageName(registry, version))
+		mockImageResolver := newMockImageResolver()
+		info := l.libInfoWithResolver("", registry, version, mockImageResolver)
 		log.Infof("Library version %s is specified for language %s, going to use %s", version, lang, info.image)
 		libs = append(libs, info)
 

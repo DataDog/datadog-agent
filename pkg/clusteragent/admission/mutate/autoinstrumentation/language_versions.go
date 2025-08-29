@@ -10,10 +10,12 @@ package autoinstrumentation
 import (
 	"fmt"
 	"slices"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -29,7 +31,10 @@ const (
 type language string
 
 func (l language) defaultLibInfo(registry, ctrName string) libInfo {
-	return l.libInfo(ctrName, l.libImageName(registry, l.defaultLibVersion()))
+	// ERIKA: TESTING
+	// return l.libInfo(ctrName, l.libImageName(registry, l.defaultLibVersion()))
+	mockImageResolver := newMockImageResolver()
+	return l.libInfoWithResolver(ctrName, registry, l.defaultLibVersion(), mockImageResolver)
 }
 
 func (l language) libImageName(registry, tag string) string {
@@ -48,6 +53,22 @@ func (l language) libInfo(ctrName, image string) libInfo {
 	}
 }
 
+func (l language) libInfoWithResolver(ctrName, registry string, version string, imageResolver ImageResolver) libInfo {
+	resolvedImage, ok := imageResolver.Resolve(registry, fmt.Sprintf("dd-lib-%s-init", l), version)
+	var image string
+	if !ok {
+		log.Warnf("failed to resolve image %s/%s:%s, using fallback", registry, fmt.Sprintf("dd-lib-%s-init", l), version)
+		image = l.libImageName(registry, version)
+	} else {
+		image = resolvedImage.FullImageRef
+	}
+	return libInfo{
+		lang:    l,
+		ctrName: ctrName,
+		image:   image,
+	}
+}
+
 const (
 	libVersionAnnotationKeyFormat    = "admission.datadoghq.com/%s-lib.version"
 	customLibAnnotationKeyFormat     = "admission.datadoghq.com/%s-lib.custom-image"
@@ -58,8 +79,12 @@ const (
 func (l language) customLibAnnotationExtractor() annotationExtractor[libInfo] {
 	return annotationExtractor[libInfo]{
 		key: fmt.Sprintf(customLibAnnotationKeyFormat, l),
+		// ERIKA: Can I do this?
 		do: func(image string) (libInfo, error) {
-			return l.libInfo("", image), nil
+			// return l.libInfo("", image), nil
+			registry, version := parseImageString(image)
+			mockImageResolver := newMockImageResolver()
+			return l.libInfoWithResolver("", registry, version, mockImageResolver), nil
 		},
 	}
 }
@@ -67,8 +92,11 @@ func (l language) customLibAnnotationExtractor() annotationExtractor[libInfo] {
 func (l language) libVersionAnnotationExtractor(registry string) annotationExtractor[libInfo] {
 	return annotationExtractor[libInfo]{
 		key: fmt.Sprintf(libVersionAnnotationKeyFormat, l),
+		// ERIKA: This should work?
 		do: func(version string) (libInfo, error) {
-			return l.libInfo("", l.libImageName(registry, version)), nil
+			mockImageResolver := newMockImageResolver()
+			// return l.libInfo("", l.libImageName(registry, version)), nil
+			return l.libInfoWithResolver("", registry, version, mockImageResolver), nil
 		},
 	}
 }
@@ -76,17 +104,32 @@ func (l language) libVersionAnnotationExtractor(registry string) annotationExtra
 func (l language) ctrCustomLibAnnotationExtractor(ctr string) annotationExtractor[libInfo] {
 	return annotationExtractor[libInfo]{
 		key: fmt.Sprintf(customLibAnnotationKeyCtrFormat, ctr, l),
+		// ERIKA: Can I do this?
 		do: func(image string) (libInfo, error) {
-			return l.libInfo(ctr, image), nil
+			// return l.libInfo(ctr, image), nil
+			registry, version := parseImageString(image)
+			mockImageResolver := newMockImageResolver()
+			return l.libInfoWithResolver(ctr, registry, version, mockImageResolver), nil
 		},
 	}
+}
+
+func parseImageString(image string) (string, string) {
+	parts := strings.Split(image, "/")
+	registry := parts[0]
+	imageAndVersion := strings.Split(parts[1], ":")
+	version := imageAndVersion[1]
+	return registry, version
 }
 
 func (l language) ctrLibVersionAnnotationExtractor(ctr, registry string) annotationExtractor[libInfo] {
 	return annotationExtractor[libInfo]{
 		key: fmt.Sprintf(libVersionAnnotationKeyCtrFormat, ctr, l),
+		// ERIKA: This should work?
 		do: func(version string) (libInfo, error) {
-			return l.libInfo(ctr, l.libImageName(registry, version)), nil
+			// return l.libInfo(ctr, l.libImageName(registry, version)), nil
+			mockImageResolver := newMockImageResolver()
+			return l.libInfoWithResolver(ctr, registry, version, mockImageResolver), nil
 		},
 	}
 }

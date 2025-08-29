@@ -181,6 +181,7 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 		return err
 	}
 
+	// ERIKA: This is where we have an injector version and we want to inject/mutate the pod
 	if err := injector.podMutator(m.config.version).mutatePod(pod); err != nil {
 		// setting the language tag to `injector` because this injection is not related to a specific supported language
 		metrics.LibInjectionErrors.Inc("injector", strconv.FormatBool(autoDetected), injectionType)
@@ -195,6 +196,7 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 			metrics.LibInjectionAttempts.Inc(langStr, strconv.FormatBool(injected), strconv.FormatBool(autoDetected), injectionType)
 		}()
 
+		// ERIKA: This is where we iterate over each language and mutate the pod
 		if err := lib.podMutator(m.config.version, libRequirementOptions{
 			containerFilter:       m.config.containerFilter,
 			containerMutators:     containerMutators,
