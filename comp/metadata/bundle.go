@@ -8,6 +8,7 @@
 package metadata
 
 import (
+	"github.com/DataDog/datadog-agent/comp/collector"
 	haagentmetadatafx "github.com/DataDog/datadog-agent/comp/metadata/haagent/fx"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
 	hostgpu "github.com/DataDog/datadog-agent/comp/metadata/hostgpu/fx"
@@ -40,6 +41,7 @@ func Bundle() fxutil.BundleOptions {
 		systemprobe.Module(),
 		securityagent.Module(),
 		haagentmetadatafx.Module(),
+		collector.Bundle(),
 	)
 }
 
