@@ -347,7 +347,7 @@ var (
 		"IP_PROTO_RAW":     IPProtoRAW,
 	}
 
-	// List of network protocol specific types
+	// NetworkProtocolTypeConstants is the list of supported network protocol specific types
 	// generate_constants:Network Protocol Types,Types of specific network protocols.
 	NetworkProtocolTypeConstants = map[string]NetworkProtocolType{
 		"ICMP_ECHO_REQUEST":              ICMPTypeEchoRequest,
