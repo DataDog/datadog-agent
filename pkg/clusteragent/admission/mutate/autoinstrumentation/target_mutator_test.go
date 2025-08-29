@@ -88,8 +88,8 @@ func TestMutatePod(t *testing.T) {
 				newTestNamespace("application", nil),
 			},
 			expectedInitContainerImages: []string{
-				"registry/apm-inject:0",
-				"registry/dd-lib-python-init:v3",
+				"gcr.io/datadoghq/apm-inject:0",
+				"gcr.io/datadoghq/dd-lib-python-init:v3",
 			},
 			expectedEnv: map[string]string{
 				"DD_INJECT_SENDER_TYPE":           "k8s",
@@ -124,8 +124,8 @@ func TestMutatePod(t *testing.T) {
 				newTestNamespace("application", nil),
 			},
 			expectedInitContainerImages: []string{
-				"registry/apm-inject:0",
-				"registry/dd-lib-python-init:v3",
+				"gcr.io/datadoghq/apm-inject:0",
+				"gcr.io/datadoghq/dd-lib-python-init:v3",
 			},
 			expectedEnv: map[string]string{
 				"DD_PROFILING_ENABLED":            "true",
@@ -156,7 +156,7 @@ func TestMutatePod(t *testing.T) {
 				newTestNamespace("application", nil),
 			},
 			expectedInitContainerImages: []string{
-				"registry/apm-inject:0",
+				"gcr.io/datadoghq/apm-inject:0",
 				defaultLibInfo(python).image,
 			},
 			expectedEnv: map[string]string{
@@ -169,7 +169,7 @@ func TestMutatePod(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			// Load the config.
 			mockConfig := configmock.NewFromFile(t, test.configPath)
-			mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.container_registry", "registry")
+			mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.container_registry", "gcr.io/datadoghq")
 			config, err := NewConfig(mockConfig)
 			require.NoError(t, err)
 

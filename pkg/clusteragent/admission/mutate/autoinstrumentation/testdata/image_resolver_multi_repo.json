@@ -1,50 +1,53 @@
-[
-  {
-    "repository_name": "dd-lib-python-init",
-    "repository_url": "gcr.io/datadoghq/dd-lib-python-init",
-    "images": [
-      {
-        "tag": "latest",
-        "digest": "sha256:abc123",
-        "canonical_version": "v3.1.0"
-      },
-      {
-        "tag": "v3",
-        "digest": "sha256:def456",
-        "canonical_version": "v3.0.0"
-      }
-    ]
-  },
-  {
-    "repository_name": "dd-lib-java-init",
-    "repository_url": "gcr.io/datadoghq/dd-lib-java-init",
-    "images": [
-      {
-        "tag": "latest",
-        "digest": "sha256:ghi789",
-        "canonical_version": "v1.5.2"
-      },
-      {
-        "tag": "v1",
-        "digest": "sha256:java456",
-        "canonical_version": "v1.0.0"
-      }
-    ]
-  },
-  {
-    "repository_name": "dd-lib-js-init",
-    "repository_url": "gcr.io/datadoghq/dd-lib-js-init",
-    "images": [
-      {
-        "tag": "latest",
-        "digest": "sha256:js123",
-        "canonical_version": "v5.2.1"
-      },
-      {
-        "tag": "v5",
-        "digest": "sha256:js456",
-        "canonical_version": "v5.0.0"
-      }
-    ]
+{
+  "employee/K8S_INJECTION_DD/1.dd-lib-python-init.json/config":
+    {
+      "repository_name": "dd-lib-python-init",
+      "repository_url": "gcr.io/datadoghq/dd-lib-python-init",
+      "images": [
+        {
+          "tag": "latest",
+          "digest": "sha256:abc123",
+          "canonical_version": "v3.1.0"
+        },
+        {
+          "tag": "v3",
+          "digest": "sha256:def456",
+          "canonical_version": "v3.0.0"
+        }
+      ]
+    },
+  "employee/K8S_INJECTION_DD/2.dd-lib-java-init.json/config":
+    {
+      "repository_name": "dd-lib-java-init",
+      "repository_url": "gcr.io/datadoghq/dd-lib-java-init",
+      "images": [
+        {
+          "tag": "latest",
+          "digest": "sha256:ghi789",
+          "canonical_version": "v1.5.2"
+        },
+        {
+          "tag": "v1",
+          "digest": "sha256:java456",
+          "canonical_version": "v1.0.0"
+        }
+      ]
+    },
+  "employee/K8S_INJECTION_DD/3.dd-lib-js-init.json/config":
+    {
+      "repository_name": "dd-lib-js-init",
+      "repository_url": "gcr.io/datadoghq/dd-lib-js-init",
+      "images": [
+        {
+          "tag": "latest",
+          "digest": "sha256:js123",
+          "canonical_version": "v5.2.1"
+        },
+        {
+          "tag": "v5",
+          "digest": "sha256:js456",
+          "canonical_version": "v5.0.0"
+        }
+      ]
+    }
   }
-]

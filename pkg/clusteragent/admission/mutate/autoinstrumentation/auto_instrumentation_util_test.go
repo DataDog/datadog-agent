@@ -143,9 +143,9 @@ func TestGetLibListFromDeploymentAnnotations(t *testing.T) {
 			namespace:      "default",
 			registry:       "registry",
 			expectedLibList: []libInfo{
-				java.defaultLibInfo("registry", "container-1"),
-				js.defaultLibInfo("registry", "container-1"),
-				python.defaultLibInfo("registry", "container-2"),
+				java.defaultLibInfo("registry", "container-1", newMockImageResolver()),
+				js.defaultLibInfo("registry", "container-1", newMockImageResolver()),
+				python.defaultLibInfo("registry", "container-2", newMockImageResolver()),
 			},
 		},
 		{
@@ -154,16 +154,16 @@ func TestGetLibListFromDeploymentAnnotations(t *testing.T) {
 			namespace:      "custom",
 			registry:       "registry",
 			expectedLibList: []libInfo{
-				ruby.defaultLibInfo("registry", "container-1"),
-				python.defaultLibInfo("registry", "container-1"),
-				java.defaultLibInfo("registry", "container-2"),
+				ruby.defaultLibInfo("registry", "container-1", newMockImageResolver()),
+				python.defaultLibInfo("registry", "container-1", newMockImageResolver()),
+				java.defaultLibInfo("registry", "container-2", newMockImageResolver()),
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			libList := getLibListFromDeploymentAnnotations(mockStore, tt.deploymentName, tt.namespace, tt.registry)
+			libList := getLibListFromDeploymentAnnotations(mockStore, tt.deploymentName, tt.namespace, tt.registry, newMockImageResolver())
 			if !assertEqualLibInjection(libList, tt.expectedLibList) {
 				t.Fatalf("Expected %s, got %s", tt.expectedLibList, libList)
 			}
