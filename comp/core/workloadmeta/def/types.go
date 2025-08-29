@@ -210,9 +210,9 @@ const (
 	// CpuManagerPolicyUnknown represents an unknown cpu-manager-policy
 	// due to an unexpected value, or unparseable kubelet configuration
 	CpuManagerPolicyUnknown CpuManagerPolicy = "unknown"
-	// CpuManagerPolicyUnknown represents a cpu-manager-policy of 'none'
+	// CpuManagerPolicyNone represents a cpu-manager-policy of 'none'
 	CpuManagerPolicyNone CpuManagerPolicy = "none"
-	// CpuManagerPolicyUnknown represents a cpu-manager-policy of 'static'
+	// CpuManagerPolicyStatic represents a cpu-manager-policy of 'static'
 	CpuManagerPolicyStatic CpuManagerPolicy = "static"
 )
 
@@ -221,7 +221,7 @@ const (
 	// Because there can only be one kubelet per node, this does not need to be
 	// unique
 	KubeletID = "kubelet-id"
-	// Kubelet is used to name the workloadmeta kubelet entity
+	// KubeletName is used to name the workloadmeta kubelet entity
 	KubeletName = "kubelet"
 )
 
