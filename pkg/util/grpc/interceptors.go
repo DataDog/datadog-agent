@@ -48,7 +48,7 @@ func getStatusCode(err error) string {
 	if st, ok := status.FromError(err); ok {
 		return st.Code().String()
 	}
-	return "UNKNOWN"
+	return "UNDEFINED"
 }
 
 // getErrorCode returns a more specific error code for error tracking
@@ -80,15 +80,9 @@ func getErrorCode(err error) string {
 // UnaryServerInterceptor returns a server-side unary interceptor for gRPC metrics
 func UnaryServerInterceptor() grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-		start := time.Now()
-
 		// Extract metadata
 		serviceMethod := extractMethodInfo(info.FullMethod)
 		peer := extractPeerInfo(ctx)
-
-		// Track active requests
-		activeRequests.Add(1, serviceMethod, peer)
-		defer activeRequests.Add(-1, serviceMethod, peer)
 
 		// Track payload size if available
 		if req != nil {
@@ -98,18 +92,20 @@ func UnaryServerInterceptor() grpc.UnaryServerInterceptor {
 			}
 		}
 
+		// Start timing just before the actual request handling
+		start := time.Now()
 		// Call the handler
 		resp, err := handler(ctx, req)
 
 		// Record metrics
 		duration := time.Since(start).Seconds()
 		statusCode := getStatusCode(err)
-		errorCode := getErrorCode(err)
 
 		requestCount.Inc(serviceMethod, peer, statusCode)
 		requestDuration.Observe(duration, serviceMethod, peer)
 
 		if err != nil {
+			errorCode := getErrorCode(err)
 			errorCount.Inc(serviceMethod, peer, errorCode)
 			log.Debugf("gRPC error: service_method=%s, peer=%s, error=%v", serviceMethod, peer, err)
 		}
@@ -129,15 +125,9 @@ func UnaryServerInterceptor() grpc.UnaryServerInterceptor {
 // StreamServerInterceptor returns a server-side stream interceptor for gRPC metrics
 func StreamServerInterceptor() grpc.StreamServerInterceptor {
 	return func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-		start := time.Now()
-
 		// Extract metadata
 		serviceMethod := extractMethodInfo(info.FullMethod)
 		peer := extractPeerInfo(ss.Context())
-
-		// Track active requests
-		activeRequests.Add(1, serviceMethod, peer)
-		defer activeRequests.Add(-1, serviceMethod, peer)
 
 		// Create a wrapped stream to track payload sizes
 		wrappedStream := &metricsServerStream{
@@ -146,18 +136,20 @@ func StreamServerInterceptor() grpc.StreamServerInterceptor {
 			peer:          peer,
 		}
 
+		// Start timing just before the actual request handling
+		start := time.Now()
 		// Call the handler
 		err := handler(srv, wrappedStream)
 
 		// Record metrics
 		duration := time.Since(start).Seconds()
 		statusCode := getStatusCode(err)
-		errorCode := getErrorCode(err)
 
 		requestCount.Inc(serviceMethod, peer, statusCode)
 		requestDuration.Observe(duration, serviceMethod, peer)
 
 		if err != nil {
+			errorCode := getErrorCode(err)
 			errorCount.Inc(serviceMethod, peer, errorCode)
 			log.Debugf("gRPC stream error: service_method=%s, peer=%s, error=%v", serviceMethod, peer, err)
 		}
@@ -169,15 +161,9 @@ func StreamServerInterceptor() grpc.StreamServerInterceptor {
 // UnaryClientInterceptor returns a client-side unary interceptor for gRPC metrics
 func UnaryClientInterceptor() grpc.UnaryClientInterceptor {
 	return func(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
-		start := time.Now()
-
 		// Extract metadata
 		serviceMethod := extractMethodInfo(method)
 		peer := extractPeerInfo(ctx)
-
-		// Track active requests
-		activeRequests.Add(1, serviceMethod, peer)
-		defer activeRequests.Add(-1, serviceMethod, peer)
 
 		// Track payload size if available
 		if req != nil {
@@ -187,18 +173,20 @@ func UnaryClientInterceptor() grpc.UnaryClientInterceptor {
 			}
 		}
 
+		// Start timing just before the actual request handling
+		start := time.Now()
 		// Call the invoker
 		err := invoker(ctx, method, req, reply, cc, opts...)
 
 		// Record metrics
 		duration := time.Since(start).Seconds()
 		statusCode := getStatusCode(err)
-		errorCode := getErrorCode(err)
 
 		requestCount.Inc(serviceMethod, peer, statusCode)
 		requestDuration.Observe(duration, serviceMethod, peer)
 
 		if err != nil {
+			errorCode := getErrorCode(err)
 			errorCount.Inc(serviceMethod, peer, errorCode)
 			log.Debugf("gRPC client error: service_method=%s, peer=%s, error=%v", serviceMethod, peer, err)
 		}
@@ -218,30 +206,26 @@ func UnaryClientInterceptor() grpc.UnaryClientInterceptor {
 // StreamClientInterceptor returns a client-side stream interceptor for gRPC metrics
 func StreamClientInterceptor() grpc.StreamClientInterceptor {
 	return func(ctx context.Context, desc *grpc.StreamDesc, cc *grpc.ClientConn, method string, streamer grpc.Streamer, opts ...grpc.CallOption) (grpc.ClientStream, error) {
-		start := time.Now()
-
 		// Extract metadata
 		serviceMethod := extractMethodInfo(method)
 		peer := extractPeerInfo(ctx)
 
-		// Track active requests
-		activeRequests.Add(1, serviceMethod, peer)
-
+		// Start timing just before the actual request handling
+		start := time.Now()
 		// Call the streamer
 		clientStream, err := streamer(ctx, desc, cc, method, opts...)
 
 		// Record metrics
 		duration := time.Since(start).Seconds()
 		statusCode := getStatusCode(err)
-		errorCode := getErrorCode(err)
 
 		requestCount.Inc(serviceMethod, peer, statusCode)
 		requestDuration.Observe(duration, serviceMethod, peer)
 
 		if err != nil {
+			errorCode := getErrorCode(err)
 			errorCount.Inc(serviceMethod, peer, errorCode)
 			log.Debugf("gRPC client stream error: service_method=%s, peer=%s, error=%v", serviceMethod, peer, err)
-			activeRequests.Add(-1, serviceMethod, peer)
 			return nil, err
 		}
 
@@ -335,13 +319,5 @@ func (s *metricsClientStream) CloseSend() error {
 }
 
 func (s *metricsClientStream) Context() context.Context {
-	ctx := s.ClientStream.Context()
-
-	// Decrement active requests when the stream ends
-	go func() {
-		<-ctx.Done()
-		activeRequests.Add(-1, s.serviceMethod, s.peer)
-	}()
-
-	return ctx
+	return s.ClientStream.Context()
 }

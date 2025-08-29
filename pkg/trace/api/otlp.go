@@ -41,8 +41,6 @@ import (
 
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
-
-	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 )
 
 // keyStatsComputed specifies the resource attribute key which indicates if stats have been
@@ -116,8 +114,8 @@ func (o *OTLPReceiver) Start() {
 				grpc.MaxConcurrentStreams(1), // Each payload must be sent to processing stage before we decode the next.
 			}
 
-			// Add gRPC metrics interceptors
-			opts = grpcutil.ServerOptionsWithMetrics(opts...)
+			// OTLP trace ingestion doesn't need generic gRPC metrics interceptors
+			// since we collect business-specific metrics (spans, traces, payloads) via StatsD
 
 			o.grpcsrv = grpc.NewServer(opts...)
 			ptraceotlp.RegisterGRPCServer(o.grpcsrv, o)

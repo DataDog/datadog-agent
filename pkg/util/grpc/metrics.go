@@ -28,8 +28,4 @@ var (
 	payloadSize = telemetry.NewHistogram("grpc", "payload_size_bytes",
 		[]string{"service_method", "peer", "direction"}, "Distribution of payload sizes for gRPC calls",
 		[]float64{100, 500, 1000, 5000, 10000, 50000, 100000, 500000, 1000000, 5000000, 10000000})
-
-	// activeRequests tracks number of currently active (in-flight) requests
-	activeRequests = telemetry.NewGauge("grpc", "active_requests",
-		[]string{"service_method", "peer"}, "Number of currently active (in-flight) requests")
 )
