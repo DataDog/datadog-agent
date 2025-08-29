@@ -39,7 +39,7 @@ build do
   end
 
   if linux_target?
-    command "invoke agent.build --flavor iot --no-development --major-version #{major_version_arg}", env: env
+    command "invoke agent.build --flavor iot --no-development --major-version #{major_version_arg}", env: env, log_level: :debug
     mkdir "#{install_dir}/bin"
     mkdir "#{install_dir}/run/"
 
@@ -61,7 +61,7 @@ build do
     mkdir conf_dir
     mkdir "#{install_dir}/bin/agent"
 
-    command "dda inv -- agent.build --flavor iot --no-development --major-version #{major_version_arg}", env: env
+    command "dda inv -- agent.build --flavor iot --no-development --major-version #{major_version_arg}", env: env, log_level: :debug
 
       # move around bin and config files
     move 'bin/agent/dist/datadog.yaml', "#{conf_dir}/datadog.yaml.example"
@@ -70,7 +70,7 @@ build do
     copy 'bin/agent', "#{install_dir}/bin/"
 
     # Build the process-agent with the correct go version for windows
-    command "invoke -e process-agent.build --major-version #{major_version_arg}", :env => env
+    command "invoke -e process-agent.build --major-version #{major_version_arg}", :env => env, log_level: :debug
 
     copy 'bin/process-agent/process-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-iot-agent/src/github.com/DataDog/datadog-agent/bin/agent"
 
@@ -81,7 +81,7 @@ build do
       # defer compilation step in a block to allow getting the project's build version, which is populated
       # only once the software that the project takes its version from (i.e. `datadog-agent`) has finished building
       platform = windows_arch_i386? ? "x86" : "x64"
-      command "invoke trace-agent.build --major-version #{major_version_arg}", :env => env
+      command "invoke trace-agent.build --major-version #{major_version_arg}", :env => env, log_level: :debug
 
       copy 'bin/trace-agent/trace-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-iot-agent/src/github.com/DataDog/datadog-agent/bin/agent"
     end
