@@ -45,7 +45,7 @@ func getBlobWriter(t *testing.T, assert *assert.Assertions, in *network.Connecti
 	marshaler := marshal.GetMarshaler(marshalerType)
 	assert.Equal(marshalerType, marshaler.ContentType())
 	blobWriter := bytes.NewBuffer(nil)
-	connectionsModeler := marshal.NewConnectionsModeler(in)
+	connectionsModeler := marshal.NewConnectionsModeler(in, nil)
 	defer connectionsModeler.Close()
 	err := marshaler.Marshal(in, blobWriter, connectionsModeler)
 	require.NoError(t, err)
@@ -377,7 +377,7 @@ func TestSerialization(t *testing.T) {
 		assert.Equal("application/json", marshaler.ContentType())
 
 		blobWriter := bytes.NewBuffer(nil)
-		connectionsModeler := marshal.NewConnectionsModeler(in)
+		connectionsModeler := marshal.NewConnectionsModeler(in, nil)
 		defer connectionsModeler.Close()
 		err := marshaler.Marshal(in, blobWriter, connectionsModeler)
 		require.NoError(t, err)
@@ -409,7 +409,7 @@ func TestSerialization(t *testing.T) {
 		assert.Equal("application/json", marshaler.ContentType())
 
 		blobWriter := bytes.NewBuffer(nil)
-		connectionsModeler := marshal.NewConnectionsModeler(in)
+		connectionsModeler := marshal.NewConnectionsModeler(in, nil)
 		defer connectionsModeler.Close()
 		err := marshaler.Marshal(in, blobWriter, connectionsModeler)
 		require.NoError(t, err)
