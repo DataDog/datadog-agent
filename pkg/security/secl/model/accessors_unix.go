@@ -88,6 +88,8 @@ func (_ *Model) GetFieldRestrictions(field eval.Field) []eval.EventType {
 		return []eval.EventType{"dns", "imds"}
 	case "network.source.port":
 		return []eval.EventType{"dns", "imds"}
+	case "network.type":
+		return []eval.EventType{"dns", "imds"}
 	}
 	return nil
 }
@@ -6016,6 +6018,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "network.type":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.NetworkContext.Type)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "network_flow_monitor.device.ifname":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -6968,6 +6981,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return int(ev.RawPacket.TLSContext.Version)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "packet.type":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.RawPacket.NetworkContext.Type)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -30137,6 +30161,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"network.source.ip",
 		"network.source.is_public",
 		"network.source.port",
+		"network.type",
 		"network_flow_monitor.device.ifname",
 		"network_flow_monitor.flows.destination.ip",
 		"network_flow_monitor.flows.destination.is_public",
@@ -30206,6 +30231,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"packet.source.is_public",
 		"packet.source.port",
 		"packet.tls.version",
+		"packet.type",
 		"process.ancestors.args",
 		"process.ancestors.args_flags",
 		"process.ancestors.args_options",
@@ -32529,6 +32555,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.Bool, "bool", nil
 	case "network.source.port":
 		return "", reflect.Int, "int", nil
+	case "network.type":
+		return "", reflect.Int, "int", nil
 	case "network_flow_monitor.device.ifname":
 		return "network_flow_monitor", reflect.String, "string", nil
 	case "network_flow_monitor.flows.destination.ip":
@@ -32666,6 +32694,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "packet.source.port":
 		return "packet", reflect.Int, "int", nil
 	case "packet.tls.version":
+		return "packet", reflect.Int, "int", nil
+	case "packet.type":
 		return "packet", reflect.Int, "int", nil
 	case "process.ancestors.args":
 		return "", reflect.String, "string", nil
@@ -36811,6 +36841,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setBoolFieldValue("network.source.is_public", &ev.NetworkContext.Source.IsPublic, value)
 	case "network.source.port":
 		return ev.setUint16FieldValue("network.source.port", &ev.NetworkContext.Source.Port, value)
+	case "network.type":
+		return ev.setUint32FieldValue("network.type", &ev.NetworkContext.Type, value)
 	case "network_flow_monitor.device.ifname":
 		return ev.setStringFieldValue("network_flow_monitor.device.ifname", &ev.NetworkFlowMonitor.Device.IfName, value)
 	case "network_flow_monitor.flows.destination.ip":
@@ -37008,6 +37040,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint16FieldValue("packet.source.port", &ev.RawPacket.NetworkContext.Source.Port, value)
 	case "packet.tls.version":
 		return ev.setUint16FieldValue("packet.tls.version", &ev.RawPacket.TLSContext.Version, value)
+	case "packet.type":
+		return ev.setUint32FieldValue("packet.type", &ev.RawPacket.NetworkContext.Type, value)
 	case "process.ancestors.args":
 		return ev.setStringFieldValue("process.ancestors.args", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Args, value)
 	case "process.ancestors.args_flags":

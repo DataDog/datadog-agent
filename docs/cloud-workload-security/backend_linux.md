@@ -1115,6 +1115,10 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "network_direction": {
                     "type": "string",
                     "description": "network_direction indicates if the packet was captured on ingress or egress"
+                },
+                "type": {
+                    "type": "string",
+                    "description": "type is the type of the protocol of the network event"
                 }
             },
             "additionalProperties": false,
@@ -1124,8 +1128,7 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "l4_protocol",
                 "source",
                 "destination",
-                "size",
-                "network_direction"
+                "size"
             ],
             "description": "NetworkContextSerializer serializes the network context to JSON"
         },
@@ -1631,6 +1634,10 @@ Workload Protection events for Linux systems have the following JSON schema:
                     "type": "string",
                     "description": "network_direction indicates if the packet was captured on ingress or egress"
                 },
+                "type": {
+                    "type": "string",
+                    "description": "type is the type of the protocol of the network event"
+                },
                 "tls": {
                     "$ref": "#/$defs/TLSContext"
                 },
@@ -1645,8 +1652,7 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "l4_protocol",
                 "source",
                 "destination",
-                "size",
-                "network_direction"
+                "size"
             ],
             "description": "RawPacketSerializer defines a raw packet serializer"
         },
@@ -3871,6 +3877,10 @@ Workload Protection events for Linux systems have the following JSON schema:
         "network_direction": {
             "type": "string",
             "description": "network_direction indicates if the packet was captured on ingress or egress"
+        },
+        "type": {
+            "type": "string",
+            "description": "type is the type of the protocol of the network event"
         }
     },
     "additionalProperties": false,
@@ -3880,8 +3890,7 @@ Workload Protection events for Linux systems have the following JSON schema:
         "l4_protocol",
         "source",
         "destination",
-        "size",
-        "network_direction"
+        "size"
     ],
     "description": "NetworkContextSerializer serializes the network context to JSON"
 }
@@ -3897,6 +3906,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `destination` | destination is the receiver of the network event |
 | `size` | size is the size in bytes of the network event |
 | `network_direction` | network_direction indicates if the packet was captured on ingress or egress |
+| `type` | type is the type of the protocol of the network event |
 
 | References |
 | ---------- |
@@ -4600,6 +4610,10 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "string",
             "description": "network_direction indicates if the packet was captured on ingress or egress"
         },
+        "type": {
+            "type": "string",
+            "description": "type is the type of the protocol of the network event"
+        },
         "tls": {
             "$ref": "#/$defs/TLSContext"
         },
@@ -4614,8 +4628,7 @@ Workload Protection events for Linux systems have the following JSON schema:
         "l4_protocol",
         "source",
         "destination",
-        "size",
-        "network_direction"
+        "size"
     ],
     "description": "RawPacketSerializer defines a raw packet serializer"
 }
@@ -4631,6 +4644,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `destination` | destination is the receiver of the network event |
 | `size` | size is the size in bytes of the network event |
 | `network_direction` | network_direction indicates if the packet was captured on ingress or egress |
+| `type` | type is the type of the protocol of the network event |
 
 | References |
 | ---------- |

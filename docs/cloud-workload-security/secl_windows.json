@@ -2645,6 +2645,61 @@
       ]
     },
     {
+      "name": "Network Protocol Types",
+      "link": "network-protocol-types",
+      "description": "Types of specific network protocols.",
+      "all": [
+        {
+          "name": "ICMP_ECHO_REQUEST",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_ECHO_REPLY",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_ROUTER_SOLICITATION",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_ROUTER_ADVERTISEMENT",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_NEIGHBOR_SOLICITATION",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_NEIGHBOR_ADVERTISEMENT",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_V6_ECHO_REQUEST",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_V6_ECHO_REPLY",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_V6_ROUTER_SOLICITATION",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_V6_ROUTER_ADVERTISEMENT",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_V6_NEIGHBOR_SOLICITATION",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_V6_NEIGHBOR_ADVERTISEMENT",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
       "name": "Network directions",
       "link": "network-directions",
       "description": "Network directions are the supported directions of network packets.",
