@@ -1567,6 +1567,7 @@ func (e *CapabilitiesEvent) UnmarshalBinary(data []byte) (int, error) {
 	return 16, nil
 }
 
+// UnmarshalBinary unmarshals a binary representation of itself
 func (e *PrCtlEvent) UnmarshalBinary(data []byte) (int, error) {
 	read, err := UnmarshalBinary(data, &e.SyscallEvent)
 	if err != nil {
