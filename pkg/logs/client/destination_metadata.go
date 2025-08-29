@@ -44,7 +44,7 @@ func (d *DestinationMetadata) TelemetryName() string {
 	if !d.ReportingEnabled {
 		return ""
 	}
-	return fmt.Sprintf("%s_%s_%s_%s_%s", d.componentName, d.instanceID, d.kind, d.endpointId, d.evpCategory)
+	return fmt.Sprintf("%s_%s_%s_%s", d.componentName, d.instanceID, d.kind, d.endpointId)
 }
 
 // MonitorTag returns the monitor tag for the destination
@@ -52,7 +52,7 @@ func (d *DestinationMetadata) MonitorTag() string {
 	if !d.ReportingEnabled {
 		return ""
 	}
-	return fmt.Sprintf("destination_%s_%s_%s", d.kind, d.endpointId, d.evpCategory)
+	return fmt.Sprintf("destination_%s_%s", d.kind, d.endpointId)
 }
 
 func (d *DestinationMetadata) EvpCategory() string {
