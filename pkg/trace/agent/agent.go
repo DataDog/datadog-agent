@@ -84,7 +84,7 @@ type Concentrator interface {
 
 // Agent struct holds all the sub-routines structs and make the data flow between them
 type Agent struct {
-	Receiver              *api.HTTPReceiver
+	Receiver              api.Receiver
 	OTLPReceiver          *api.OTLPReceiver
 	Concentrator          Concentrator
 	ClientStatsAggregator *stats.ClientStatsAggregator

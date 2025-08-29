@@ -9,7 +9,6 @@ package api
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	stdlog "log"
@@ -25,7 +24,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tinylib/msgp/msgp"
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -89,7 +87,7 @@ func reserveBodySize(buf *bytes.Buffer, req *http.Request) {
 // HTTPReceiver is a collector that uses HTTP protocol and just holds
 // a chan where the spans received are sent one by one
 type HTTPReceiver struct {
-	Stats *info.ReceiverStats
+	stats *info.ReceiverStats
 
 	out                 chan *Payload
 	conf                *config.AgentConfig
@@ -122,6 +120,9 @@ type HTTPReceiver struct {
 	Handlers map[string]http.Handler
 }
 
+// GetStats implements the Receiver interface and returns the receiver stats.
+func (r *HTTPReceiver) GetStats() *info.ReceiverStats { return r.stats }
+
 // NewHTTPReceiver returns a pointer to a new HTTPReceiver
 func NewHTTPReceiver(
 	conf *config.AgentConfig,
@@ -146,7 +147,7 @@ func NewHTTPReceiver(
 	containerIDProvider := NewIDProvider(conf.ContainerProcRoot, conf.ContainerIDFromOriginInfo)
 	telemetryForwarder := NewTelemetryForwarder(conf, containerIDProvider, statsd)
 	return &HTTPReceiver{
-		Stats: info.NewReceiverStats(),
+		stats: info.NewReceiverStats(),
 
 		out:                 out,
 		statsProcessor:      statsProcessor,
@@ -211,6 +212,12 @@ func (r *HTTPReceiver) buildMux() *http.ServeMux {
 	mux.HandleFunc("/info", infoHandler)
 
 	return mux
+}
+
+// GetHandler implements Receiver and returns the registered handler for pattern, if any.
+func (r *HTTPReceiver) GetHandler(pattern string) (http.Handler, bool) {
+	h, ok := r.Handlers[pattern]
+	return h, ok
 }
 
 // replyWithVersion returns an http.Handler which calls h with an addition of some
@@ -464,7 +471,7 @@ func (r *HTTPReceiver) TagStats(v Version, header http.Header, service string) *
 }
 
 func (r *HTTPReceiver) tagStats(v Version, httpHeader http.Header, service string) *info.TagStats {
-	return r.Stats.GetTagStats(info.Tags{
+	return r.stats.GetTagStats(info.Tags{
 		Lang:            httpHeader.Get(header.Lang),
 		LangVersion:     httpHeader.Get(header.LangVersion),
 		Interpreter:     httpHeader.Get(header.LangInterpreter),
@@ -473,65 +480,6 @@ func (r *HTTPReceiver) tagStats(v Version, httpHeader http.Header, service strin
 		EndpointVersion: string(v),
 		Service:         service,
 	})
-}
-
-// decodeTracerPayload decodes the payload in http request `req`.
-// - tp is the decoded payload
-// - ranHook reports whether the decoder was able to run the pb.MetaHook
-// - err is the first error encountered
-func decodeTracerPayload(v Version, req *http.Request, cIDProvider IDProvider, lang, langVersion, tracerVersion string) (tp *pb.TracerPayload, err error) {
-	switch v {
-	case v01:
-		var spans []*pb.Span
-		if err = json.NewDecoder(req.Body).Decode(&spans); err != nil {
-			return nil, err
-		}
-		return &pb.TracerPayload{
-			LanguageName:    lang,
-			LanguageVersion: langVersion,
-			ContainerID:     cIDProvider.GetContainerID(req.Context(), req.Header),
-			Chunks:          traceChunksFromSpans(spans),
-			TracerVersion:   tracerVersion,
-		}, nil
-	case v05:
-		buf := getBuffer()
-		defer putBuffer(buf)
-		if _, err = copyRequestBody(buf, req); err != nil {
-			return nil, err
-		}
-		var traces pb.Traces
-		if err = traces.UnmarshalMsgDictionary(buf.Bytes()); err != nil {
-			return nil, err
-		}
-		return &pb.TracerPayload{
-			LanguageName:    lang,
-			LanguageVersion: langVersion,
-			ContainerID:     cIDProvider.GetContainerID(req.Context(), req.Header),
-			Chunks:          traceChunksFromTraces(traces),
-			TracerVersion:   tracerVersion,
-		}, err
-	case V07:
-		buf := getBuffer()
-		defer putBuffer(buf)
-		if _, err = copyRequestBody(buf, req); err != nil {
-			return nil, err
-		}
-		var tracerPayload pb.TracerPayload
-		_, err = tracerPayload.UnmarshalMsg(buf.Bytes())
-		return &tracerPayload, err
-	default:
-		var traces pb.Traces
-		if err = decodeRequest(req, &traces); err != nil {
-			return nil, err
-		}
-		return &pb.TracerPayload{
-			LanguageName:    lang,
-			LanguageVersion: langVersion,
-			ContainerID:     cIDProvider.GetContainerID(req.Context(), req.Header),
-			Chunks:          traceChunksFromTraces(traces),
-			TracerVersion:   tracerVersion,
-		}, nil
-	}
 }
 
 // replyOK replies to the given http.ResponseWriter w based on the endpoint version, with either status 200/OK
@@ -560,40 +508,37 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 
 	rd := apiutil.NewLimitedReader(req.Body, r.conf.MaxRequestBytes)
 	req.Header.Set("Accept", "application/msgpack")
-	in := &pb.ClientStatsPayload{}
-	if err := msgp.Decode(rd, in); err != nil {
-		log.Errorf("Error decoding pb.ClientStatsPayload: %v", err)
-		tags := append(r.tagStats(V06, req.Header, "").AsTags(), "reason:decode")
-		_ = r.statsd.Count("datadog.trace_agent.receiver.stats_payload_rejected", 1, tags, 1)
+	// Read body once and decode using transport-agnostic helper
+	buf := getBuffer()
+	defer putBuffer(buf)
+	if _, err := io.Copy(buf, rd); err != nil {
+		log.Errorf("Error reading pb.ClientStatsPayload: %v", err)
 		httpDecodingError(err, []string{"handler:stats", "codec:msgpack", "v:v0.6"}, w, r.statsd)
 		return
 	}
 
-	firstService := func(cs *pb.ClientStatsPayload) string {
-		if cs == nil || len(cs.Stats) == 0 || len(cs.Stats[0].Stats) == 0 {
-			return ""
-		}
-		return cs.Stats[0].Stats[0].Service
-	}
-
-	ts := r.tagStats(V06, req.Header, firstService(in))
-	_ = r.statsd.Count("datadog.trace_agent.receiver.stats_payload", 1, ts.AsTags(), 1)
-	_ = r.statsd.Count("datadog.trace_agent.receiver.stats_bytes", rd.Count, ts.AsTags(), 1)
-	_ = r.statsd.Count("datadog.trace_agent.receiver.stats_buckets", int64(len(in.Stats)), ts.AsTags(), 1)
-
-	// Resolve ContainerID based on HTTP headers
 	lang := req.Header.Get(header.Lang)
 	tracerVersion := req.Header.Get(header.TracerVersion)
 	obfuscationVersion := req.Header.Get(header.TracerObfuscationVersion)
 	containerID := r.containerIDProvider.GetContainerID(req.Context(), req.Header)
 
-	timeout := getConfiguredRequestTimeoutDuration(r.conf)
-	ctx, cancel := context.WithTimeout(req.Context(), timeout)
+	ctx, cancel := context.WithTimeout(req.Context(), getConfiguredRequestTimeoutDuration(r.conf))
 	defer cancel()
-	if err := r.statsProcessor.ProcessStats(ctx, in, lang, tracerVersion, containerID, obfuscationVersion); err != nil {
+	if err := DecodeAndProcessClientStats(
+		ctx,
+		buf.Bytes(),
+		lang,
+		req.Header.Get(header.LangVersion),
+		req.Header.Get(header.LangInterpreter),
+		req.Header.Get(header.LangInterpreterVendor),
+		tracerVersion,
+		obfuscationVersion,
+		containerID,
+		func(t info.Tags) *info.TagStats { return r.stats.GetTagStats(t) },
+		r.statsd,
+		r.statsProcessor,
+	); err != nil {
 		log.Errorf("Error processing pb.ClientStatsPayload: %v", err)
-		tags := append(ts.AsTags(), "reason:timeout")
-		_ = r.statsd.Count("datadog.trace_agent.receiver.stats_payload_rejected", 1, tags, 1)
 		httpDecodingError(err, []string{"handler:stats", "codec:msgpack", "v:v0.6"}, w, r.statsd)
 	}
 }
@@ -639,70 +584,64 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		<-r.recvsem
 	}()
 
-	firstService := func(tp *pb.TracerPayload) string {
-		if tp == nil || len(tp.Chunks) == 0 || len(tp.Chunks[0].Spans) == 0 {
-			return ""
-		}
-		return tp.Chunks[0].Spans[0].Service
-	}
-
 	start := time.Now()
-	tp, err := decodeTracerPayload(v, req, r.containerIDProvider, req.Header.Get(header.Lang), req.Header.Get(header.LangVersion), req.Header.Get(header.TracerVersion))
-	ts := r.tagStats(v, req.Header, firstService(tp))
-	defer func(err error) {
-		tags := append(ts.AsTags(), fmt.Sprintf("success:%v", err == nil))
-		_ = r.statsd.Histogram("datadog.trace_agent.receiver.serve_traces_ms", float64(time.Since(start))/float64(time.Millisecond), tags, 1)
-	}(err)
-	if err != nil {
-		httpDecodingError(err, []string{"handler:traces", fmt.Sprintf("v:%s", v)}, w, r.statsd)
-		switch err {
-		case apiutil.ErrLimitedReaderLimitReached:
+	// Read body into buffer for transport-agnostic decoding
+	buf := getBuffer()
+	defer putBuffer(buf)
+	if _, err := copyRequestBody(buf, req); err != nil {
+		// Update drop counters for payload too large/timeouts on read
+		ts := r.tagStats(v, req.Header, "")
+		if err == apiutil.ErrLimitedReaderLimitReached {
 			ts.TracesDropped.PayloadTooLarge.Add(tracen)
-		case io.EOF, io.ErrUnexpectedEOF:
+		} else if ne, ok := err.(net.Error); ok && ne.Timeout() {
+			ts.TracesDropped.Timeout.Add(tracen)
+		} else if err == io.EOF || err == io.ErrUnexpectedEOF {
 			ts.TracesDropped.EOF.Add(tracen)
-		case msgp.ErrShortBytes:
-			ts.TracesDropped.MSGPShortBytes.Add(tracen)
-		default:
-			if err, ok := err.(net.Error); ok && err.Timeout() {
-				ts.TracesDropped.Timeout.Add(tracen)
-			} else {
-				ts.TracesDropped.DecodingError.Add(tracen)
-			}
+		} else {
+			ts.TracesDropped.DecodingError.Add(tracen)
 		}
-		log.Errorf("Cannot decode %s traces payload: %v", v, err)
+		httpDecodingError(err, []string{"handler:traces", fmt.Sprintf("v:%s", v)}, w, r.statsd)
 		return
 	}
+
+	payload, ts, perr := BuildPayloadAndRecordStats(
+		v,
+		getMediaType(req),
+		buf.Bytes(),
+		r.containerIDProvider.GetContainerID(req.Context(), req.Header),
+		req.Header.Get(header.Lang),
+		req.Header.Get(header.LangVersion),
+		req.Header.Get(header.LangInterpreter),
+		req.Header.Get(header.LangInterpreterVendor),
+		req.Header.Get(header.TracerVersion),
+		req.Header.Get(header.ProcessTags),
+		r.conf.ContainerTags,
+		func(t info.Tags) *info.TagStats { return r.stats.GetTagStats(t) },
+		tracen,
+		r.statsd,
+		start,
+	)
+	if perr != nil {
+		// Map limited-reader to payload-too-large error class for response
+		if perr == apiutil.ErrLimitedReaderLimitReached {
+			httpDecodingError(perr, []string{"handler:traces", fmt.Sprintf("v:%s", v)}, w, r.statsd)
+			return
+		}
+		httpDecodingError(perr, []string{"handler:traces", fmt.Sprintf("v:%s", v)}, w, r.statsd)
+		log.Errorf("Cannot decode %s traces payload: %v", v, perr)
+		return
+	}
+
 	if n, ok := r.replyOK(req, v, w); ok {
 		tags := append(ts.AsTags(), "endpoint:traces_"+string(v))
 		_ = r.statsd.Histogram("datadog.trace_agent.receiver.rate_response_bytes", float64(n), tags, 1)
 	}
 
-	ts.TracesReceived.Add(int64(len(tp.Chunks)))
-	ts.TracesBytes.Add(req.Body.(*apiutil.LimitedReader).Count)
-	ts.PayloadAccepted.Inc()
-	ctags := getContainerTagsList(r.conf.ContainerTags, tp.ContainerID)
-	if len(ctags) > 0 {
-		if tp.Tags == nil {
-			tp.Tags = make(map[string]string)
-		}
-		tp.Tags[tagContainersTags] = strings.Join(ctags, ",")
-	}
-	ptags := getProcessTags(req.Header, tp)
-	if ptags != "" {
-		if tp.Tags == nil {
-			tp.Tags = make(map[string]string)
-		}
-		tp.Tags[tagProcessTags] = ptags
-	}
-	payload := &Payload{
-		Source:                 ts,
-		TracerPayload:          tp,
-		ClientComputedTopLevel: isHeaderTrue(header.ComputedTopLevel, req.Header.Get(header.ComputedTopLevel)),
-		ClientComputedStats:    isHeaderTrue(header.ComputedStats, req.Header.Get(header.ComputedStats)),
-		ClientDroppedP0s:       droppedTracesFromHeader(req.Header, ts),
-		ProcessTags:            ptags,
-		ContainerTags:          ctags,
-	}
+	// Set transport-specific client computed flags from headers
+	payload.ClientComputedTopLevel = isHeaderTrue(header.ComputedTopLevel, req.Header.Get(header.ComputedTopLevel))
+	payload.ClientComputedStats = isHeaderTrue(header.ComputedStats, req.Header.Get(header.ComputedStats))
+	payload.ClientDroppedP0s = droppedTracesFromHeader(req.Header, payload.Source)
+
 	r.out <- payload
 }
 
@@ -736,42 +675,6 @@ func droppedTracesFromHeader(h http.Header, ts *info.TagStats) int64 {
 		}
 	}
 	return dropped
-}
-
-// todo:raphael cleanup unused methods of extraction once implementation
-// in all tracers is completed
-// order of priority:
-// 1. tags in the v07 payload
-// 2. tags in the first span of the first chunk
-// 3. tags in the header
-func getProcessTags(h http.Header, p *pb.TracerPayload) string {
-	if p.Tags != nil {
-		if ptags, ok := p.Tags[tagProcessTags]; ok {
-			return ptags
-		}
-	}
-	if span, ok := getFirstSpan(p); ok {
-		if ptags, ok := span.Meta[tagProcessTags]; ok {
-			return ptags
-		}
-	}
-	return h.Get(header.ProcessTags)
-}
-
-func getFirstSpan(p *pb.TracerPayload) (*pb.Span, bool) {
-	if len(p.Chunks) == 0 {
-		return nil, false
-	}
-	for _, chunk := range p.Chunks {
-		if chunk == nil || len(chunk.Spans) == 0 {
-			continue
-		}
-		if chunk.Spans[0] == nil {
-			continue
-		}
-		return chunk.Spans[0], true
-	}
-	return nil, false
 }
 
 // handleServices handle a request with a list of several services
@@ -809,10 +712,10 @@ func (r *HTTPReceiver) loop() {
 			}
 
 			// We update accStats with the new stats we collected
-			accStats.Acc(r.Stats)
+			accStats.Acc(r.stats)
 
 			// Publish and reset the stats accumulated during the last flush
-			r.Stats.PublishAndReset(r.statsd)
+			r.stats.PublishAndReset(r.statsd)
 
 			if now.Sub(lastLog) >= time.Minute {
 				// We expose the stats accumulated to expvar
@@ -868,83 +771,17 @@ func (r *HTTPReceiver) Languages() string {
 	langs := make(map[string]bool)
 	str := []string{}
 
-	r.Stats.RLock()
-	for tags := range r.Stats.Stats {
+	r.stats.RLock()
+	for tags := range r.stats.Stats {
 		if _, ok := langs[tags.Lang]; !ok {
 			str = append(str, tags.Lang)
 			langs[tags.Lang] = true
 		}
 	}
-	r.Stats.RUnlock()
+	r.stats.RUnlock()
 
 	sort.Strings(str)
 	return strings.Join(str, "|")
-}
-
-// decodeRequest decodes the payload in http request `req` into `dest`.
-// It handles only v02, v03, v04 requests.
-// - ranHook reports whether the decoder was able to run the pb.MetaHook
-// - err is the first error encountered
-func decodeRequest(req *http.Request, dest *pb.Traces) error {
-	switch mediaType := getMediaType(req); mediaType {
-	case "application/msgpack":
-		buf := getBuffer()
-		defer putBuffer(buf)
-		_, err := copyRequestBody(buf, req)
-		if err != nil {
-			return err
-		}
-		_, err = dest.UnmarshalMsg(buf.Bytes())
-		return err
-	case "application/json":
-		fallthrough
-	case "text/json":
-		fallthrough
-	case "":
-		return json.NewDecoder(req.Body).Decode(&dest)
-	default:
-		// do our best
-		if err1 := json.NewDecoder(req.Body).Decode(&dest); err1 != nil {
-			buf := getBuffer()
-			defer putBuffer(buf)
-			_, err2 := copyRequestBody(buf, req)
-			if err2 != nil {
-				return err2
-			}
-			_, err2 = dest.UnmarshalMsg(buf.Bytes())
-			return err2
-		}
-		return nil
-	}
-}
-
-func traceChunksFromSpans(spans []*pb.Span) []*pb.TraceChunk {
-	traceChunks := []*pb.TraceChunk{}
-	byID := make(map[uint64][]*pb.Span)
-	for _, s := range spans {
-		byID[s.TraceID] = append(byID[s.TraceID], s)
-	}
-	for _, t := range byID {
-		traceChunks = append(traceChunks, &pb.TraceChunk{
-			Priority: int32(sampler.PriorityNone),
-			Spans:    t,
-			Tags:     make(map[string]string),
-		})
-	}
-	return traceChunks
-}
-
-func traceChunksFromTraces(traces pb.Traces) []*pb.TraceChunk {
-	traceChunks := make([]*pb.TraceChunk, 0, len(traces))
-	for _, trace := range traces {
-		traceChunks = append(traceChunks, &pb.TraceChunk{
-			Priority: int32(sampler.PriorityNone),
-			Spans:    trace,
-			Tags:     make(map[string]string),
-		})
-	}
-
-	return traceChunks
 }
 
 func getContainerTagsList(fn func(string) ([]string, error), containerID string) []string {

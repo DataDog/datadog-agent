@@ -21,7 +21,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -48,6 +47,11 @@ var headerFields = map[string]string{
 	"lang_version":   "Datadog-Meta-Lang-Version",
 	"interpreter":    "Datadog-Meta-Lang-Interpreter",
 	"tracer_version": "Datadog-Meta-Tracer-Version",
+}
+
+// test-only copy of response container used by /v0.4 rate-by-service response
+type traceResponse struct {
+	Rates map[string]float64 `json:"rate_by_service"`
 }
 
 type noopStatsProcessor struct{}
@@ -546,7 +550,7 @@ func TestReceiverDecodingError(t *testing.T) {
 		assert.NoError(err)
 		resp.Body.Close()
 		assert.Equal(400, resp.StatusCode)
-		assert.EqualValues(0, r.Stats.GetTagStats(info.Tags{EndpointVersion: "v0.4"}).TracesDropped.DecodingError.Load())
+		assert.EqualValues(0, r.GetStats().GetTagStats(info.Tags{EndpointVersion: "v0.4"}).TracesDropped.DecodingError.Load())
 	})
 
 	t.Run("with-header", func(_ *testing.T) {
@@ -560,7 +564,7 @@ func TestReceiverDecodingError(t *testing.T) {
 		assert.NoError(err)
 		resp.Body.Close()
 		assert.Equal(400, resp.StatusCode)
-		assert.EqualValues(traceCount, r.Stats.GetTagStats(info.Tags{EndpointVersion: "v0.4"}).TracesDropped.DecodingError.Load())
+		assert.EqualValues(traceCount, r.GetStats().GetTagStats(info.Tags{EndpointVersion: "v0.4"}).TracesDropped.DecodingError.Load())
 	})
 }
 
@@ -609,7 +613,7 @@ func TestReceiverUnexpectedEOF(t *testing.T) {
 
 	resp.Body.Close()
 	assert.Equal(400, resp.StatusCode)
-	assert.EqualValues(traceCount, r.Stats.GetTagStats(info.Tags{EndpointVersion: "v0.5"}).TracesDropped.MSGPShortBytes.Load())
+	assert.EqualValues(traceCount, r.GetStats().GetTagStats(info.Tags{EndpointVersion: "v0.5"}).TracesDropped.MSGPShortBytes.Load())
 }
 
 func TestTraceCount(t *testing.T) {
@@ -675,9 +679,8 @@ func TestDecodeV05(t *testing.T) {
 	req, err := http.NewRequest("POST", "/v0.5/traces", bytes.NewReader(b))
 	assert.NoError(err)
 	req.Header.Set(header.ContainerID, "abcdef123789456")
-	tp, err := decodeTracerPayload(v05, req, NewIDProvider("", func(_ origindetection.OriginInfo) (string, error) {
-		return "abcdef123789456", nil
-	}), "python", "3.8.1", "1.2.3")
+	// use processing helper now
+	tp, err := DecodeTracerPayloadBytes(v05, GetMediaTypeValue(req.Header.Get("Content-Type")), b, "abcdef123789456", "python", "3.8.1", "1.2.3")
 	assert.NoError(err)
 	assert.EqualValues(tp, &pb.TracerPayload{
 		ContainerID:     "abcdef123789456",
@@ -1395,7 +1398,7 @@ func TestGetProcessTags(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			result := getProcessTags(tc.header, tc.payload)
+			result := getProcessTagsFromMeta(tc.header.Get(header.ProcessTags), tc.payload)
 			if result != tc.expected {
 				t.Errorf("expected %q, got %q", tc.expected, result)
 			}

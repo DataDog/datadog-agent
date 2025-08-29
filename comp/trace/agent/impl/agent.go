@@ -88,7 +88,7 @@ func (c component) SendStatsPayload(p *pb.StatsPayload) {
 
 func (c component) GetHTTPHandler(endpoint string) http.Handler {
 	c.Agent.Receiver.BuildHandlers()
-	if v, ok := c.Agent.Receiver.Handlers[endpoint]; ok {
+	if v, ok := c.Agent.Receiver.GetHandler(endpoint); ok {
 		return v
 	}
 	return nil

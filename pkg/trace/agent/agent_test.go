@@ -336,7 +336,7 @@ func TestProcess(t *testing.T) {
 			Duration: (500 * time.Millisecond).Nanoseconds(),
 		}
 
-		want := agnt.Receiver.Stats.GetTagStats(info.Tags{})
+		want := agnt.Receiver.GetStats().GetTagStats(info.Tags{})
 		assert := assert.New(t)
 
 		agnt.Process(&api.Payload{
@@ -383,7 +383,7 @@ func TestProcess(t *testing.T) {
 			Duration: (500 * time.Millisecond).Nanoseconds(),
 		}
 
-		want := agnt.Receiver.Stats.GetTagStats(info.Tags{})
+		want := agnt.Receiver.GetStats().GetTagStats(info.Tags{})
 		assert := assert.New(t)
 
 		agnt.Process(&api.Payload{
@@ -428,7 +428,7 @@ func TestProcess(t *testing.T) {
 			Duration: (500 * time.Millisecond).Nanoseconds(),
 		}
 
-		want := agnt.Receiver.Stats.GetTagStats(info.Tags{})
+		want := agnt.Receiver.GetStats().GetTagStats(info.Tags{})
 		assert := assert.New(t)
 
 		agnt.Process(&api.Payload{
@@ -456,7 +456,7 @@ func TestProcess(t *testing.T) {
 		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancel()
 
-		want := agnt.Receiver.Stats.GetTagStats(info.Tags{})
+		want := agnt.Receiver.GetStats().GetTagStats(info.Tags{})
 		now := time.Now()
 		for _, key := range []sampler.SamplingPriority{
 			sampler.PriorityNone,
@@ -518,7 +518,7 @@ func TestProcess(t *testing.T) {
 		}, 2))
 		agnt.Process(&api.Payload{
 			TracerPayload: tp,
-			Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+			Source:        agnt.Receiver.GetStats().GetTagStats(info.Tags{}),
 		})
 		payloads := agnt.TraceWriter.(*mockTraceWriter).payloads
 		assert.NotEmpty(t, payloads, "no payloads were written")
@@ -539,7 +539,7 @@ func TestProcess(t *testing.T) {
 		tp.Chunks[0].Spans[0].Meta["_dd.hostname"] = "tracer-hostname"
 		agnt.Process(&api.Payload{
 			TracerPayload: tp,
-			Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+			Source:        agnt.Receiver.GetStats().GetTagStats(info.Tags{}),
 		})
 		payloads := agnt.TraceWriter.(*mockTraceWriter).payloads
 		assert.NotEmpty(t, payloads, "no payloads were written")
@@ -561,7 +561,7 @@ func TestProcess(t *testing.T) {
 		tp.Chunks[0].Priority = int32(sampler.PriorityUserKeep)
 		agnt.Process(&api.Payload{
 			TracerPayload: tp,
-			Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+			Source:        agnt.Receiver.GetStats().GetTagStats(info.Tags{}),
 		})
 		payloads := agnt.TraceWriter.(*mockTraceWriter).payloads
 		assert.NotEmpty(t, payloads, "no payloads were written")
@@ -605,7 +605,7 @@ func TestProcess(t *testing.T) {
 
 		agnt.Process(&api.Payload{
 			TracerPayload: tp,
-			Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+			Source:        agnt.Receiver.GetStats().GetTagStats(info.Tags{}),
 		})
 		payloads := agnt.TraceWriter.(*mockTraceWriter).payloads
 		assert.NotEmpty(t, payloads, "no payloads were written")
@@ -640,7 +640,7 @@ func TestProcess(t *testing.T) {
 		writer.MaxPayloadSize = 1
 		agnt.Process(&api.Payload{
 			TracerPayload: tp,
-			Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+			Source:        agnt.Receiver.GetStats().GetTagStats(info.Tags{}),
 		})
 
 		payloads := agnt.TraceWriter.(*mockTraceWriter).payloads
@@ -813,7 +813,7 @@ func TestConcentratorInput(t *testing.T) {
 			}
 			cfg.RareSamplerEnabled = true
 			agent := NewTestAgent(context.TODO(), cfg, telemetry.NewNoopCollector())
-			tc.in.Source = agent.Receiver.Stats.GetTagStats(info.Tags{})
+			tc.in.Source = agent.Receiver.GetStats().GetTagStats(info.Tags{})
 			agent.Process(tc.in)
 			mco := agent.Concentrator.(*mockConcentrator)
 
@@ -846,7 +846,7 @@ func TestClientComputedTopLevel(t *testing.T) {
 		tp := testutil.TracerPayloadWithChunk(chunk)
 		agnt.Process(&api.Payload{
 			TracerPayload:          tp,
-			Source:                 agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+			Source:                 agnt.Receiver.GetStats().GetTagStats(info.Tags{}),
 			ClientComputedTopLevel: true,
 		})
 		payloads := agnt.TraceWriter.(*mockTraceWriter).payloads
@@ -862,7 +862,7 @@ func TestClientComputedTopLevel(t *testing.T) {
 		tp := testutil.TracerPayloadWithChunk(chunk)
 		agnt.Process(&api.Payload{
 			TracerPayload:          tp,
-			Source:                 agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+			Source:                 agnt.Receiver.GetStats().GetTagStats(info.Tags{}),
 			ClientComputedTopLevel: false,
 		})
 		payloads := agnt.TraceWriter.(*mockTraceWriter).payloads
@@ -882,7 +882,7 @@ func TestClientComputedTopLevel(t *testing.T) {
 		tp := testutil.TracerPayloadWithChunk(chunk)
 		agnt.Process(&api.Payload{
 			TracerPayload:          tp,
-			Source:                 agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+			Source:                 agnt.Receiver.GetStats().GetTagStats(info.Tags{}),
 			ClientComputedTopLevel: true,
 		})
 		payloads := agnt.TraceWriter.(*mockTraceWriter).payloads
@@ -1101,7 +1101,7 @@ func TestClientComputedStats(t *testing.T) {
 	t.Run("on", func(t *testing.T) {
 		agnt.Process(&api.Payload{
 			TracerPayload:       tp,
-			Source:              agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+			Source:              agnt.Receiver.GetStats().GetTagStats(info.Tags{}),
 			ClientComputedStats: true,
 		})
 		mco := agnt.Concentrator.(*mockConcentrator)
@@ -1111,7 +1111,7 @@ func TestClientComputedStats(t *testing.T) {
 	t.Run("off", func(t *testing.T) {
 		agnt.Process(&api.Payload{
 			TracerPayload:       tp,
-			Source:              agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+			Source:              agnt.Receiver.GetStats().GetTagStats(info.Tags{}),
 			ClientComputedStats: false,
 		})
 		mco := agnt.Concentrator.(*mockConcentrator)
@@ -3346,7 +3346,7 @@ func TestSpanSampling(t *testing.T) {
 				// that we have the original for comparison later.
 				TracerPayload: proto.Clone(tc.payload).(*pb.TracerPayload),
 				// a nil Source would trigger a panic
-				Source: traceAgent.Receiver.Stats.GetTagStats(info.Tags{}),
+				Source: traceAgent.Receiver.GetStats().GetTagStats(info.Tags{}),
 			})
 			assert.Len(t, traceAgent.TraceWriter.(*mockTraceWriter).payloads, 1)
 			sampledChunks := traceAgent.TraceWriter.(*mockTraceWriter).payloads[0]

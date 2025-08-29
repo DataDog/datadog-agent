@@ -7,7 +7,6 @@ package api
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -25,13 +24,6 @@ import (
 const (
 	receiverErrorKey = "datadog.trace_agent.receiver.error"
 )
-
-// We encaspulate the answers in a container, this is to ease-up transition,
-// should we add another fied.
-type traceResponse struct {
-	// All the sampling rates recommended, by service
-	Rates map[string]float64 `json:"rate_by_service"`
-}
 
 // httpFormatError is used for payload format errors
 func httpFormatError(w http.ResponseWriter, v Version, err error, statsd statsd.ClientInterface) {
@@ -112,18 +104,14 @@ func httpRateByService(ratesVersion string, w http.ResponseWriter, dynConf *samp
 	}()
 
 	w.Header().Set("Content-Type", "application/json")
-	currentState := dynConf.RateByService.GetNewState(ratesVersion) // this is thread-safe
-	response := traceResponse{
-		Rates: currentState.Rates,
+	body, currentVersion, berr := BuildRateByServiceJSON(ratesVersion, dynConf)
+	if berr != nil {
+		err = berr
+		return
 	}
 	if ratesVersion != "" {
-		w.Header().Set(header.RatesPayloadVersion, currentState.Version)
-		if ratesVersion == currentState.Version {
-			_, err = wc.Write([]byte("{}"))
-			return
-		}
+		w.Header().Set(header.RatesPayloadVersion, currentVersion)
 	}
-	encoder := json.NewEncoder(wc)
-	err = encoder.Encode(response)
+	_, err = wc.Write(body)
 	return
 }
