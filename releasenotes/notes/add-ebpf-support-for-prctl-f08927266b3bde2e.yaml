@@ -8,7 +8,7 @@
 ---
 features:
   - |
-    Add eBPF support of prctl syscall and retrieve some info
-      - prctl.option : the option that is used for the syscall
-      - prctl.new_name : if option == PR_SET_NAME, get the new_name of the process
-      - prctl.is_name_truncated : if option == PR_SET_NAME, indicates if the retrieved name was truncated or not (there is also a metric tracking the number of truncated names)
+    Added eBPF support for the `prctl` syscall. The following fields are now collected:
+      - `prctl.option`: The option value used in the syscall.
+      - `prctl.new_name`: If the option is `PR_SET_NAME`, the new process name.
+      - `prctl.is_name_truncated`: If the option is `PR_SET_NAME`, indicates whether the retrieved name was truncated. A metric also tracks the number of truncated names.
