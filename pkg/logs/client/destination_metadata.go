@@ -14,18 +14,18 @@ type DestinationMetadata struct {
 	componentName    string
 	instanceID       string
 	kind             string
-	endpointId       string
+	endpointID       string
 	evpCategory      string
 	ReportingEnabled bool
 }
 
 // NewDestinationMetadata returns a new DestinationMetadata
-func NewDestinationMetadata(componentName, instanceID, kind, endpointId, evpCategory string) *DestinationMetadata {
+func NewDestinationMetadata(componentName, instanceID, kind, endpointID, evpCategory string) *DestinationMetadata {
 	return &DestinationMetadata{
 		componentName:    componentName,
 		instanceID:       instanceID,
 		kind:             kind,
-		endpointId:       endpointId,
+		endpointID:       endpointID,
 		evpCategory:      evpCategory,
 		ReportingEnabled: true,
 	}
@@ -43,7 +43,7 @@ func (d *DestinationMetadata) TelemetryName() string {
 	if !d.ReportingEnabled {
 		return ""
 	}
-	return fmt.Sprintf("%s_%s_%s_%s", d.componentName, d.instanceID, d.kind, d.endpointId)
+	return fmt.Sprintf("%s_%s_%s_%s", d.componentName, d.instanceID, d.kind, d.endpointID)
 }
 
 // MonitorTag returns the monitor tag for the destination
@@ -51,7 +51,7 @@ func (d *DestinationMetadata) MonitorTag() string {
 	if !d.ReportingEnabled {
 		return ""
 	}
-	return fmt.Sprintf("destination_%s_%s", d.kind, d.endpointId)
+	return fmt.Sprintf("destination_%s_%s", d.kind, d.endpointID)
 }
 
 // EvpCategory returns the EvP category for the destination
