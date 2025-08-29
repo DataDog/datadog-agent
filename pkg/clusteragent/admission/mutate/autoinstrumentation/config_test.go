@@ -522,7 +522,7 @@ func TestGetPinnedLibraries(t *testing.T) {
 				libs: []libInfo{
 					defaultLibInfo(java),
 					defaultLibInfo(python),
-					js.libInfo("", "registry/dd-lib-js-init:v3"),
+					js.libInfo("", "gcr.io/datadoghq/dd-lib-js-init:v3"),
 					defaultLibInfo(dotnet),
 					defaultLibInfo(ruby),
 				},
@@ -533,7 +533,7 @@ func TestGetPinnedLibraries(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			pinned := getPinnedLibraries(tt.libVersions, "registry", tt.checkDefaults, newMockImageResolver())
+			pinned := getPinnedLibraries(tt.libVersions, "gcr.io/datadoghq", tt.checkDefaults, newNoOpImageResolver())
 			require.ElementsMatch(t, tt.expected.libs, pinned.libs, "libs match")
 			require.Equal(t, tt.expected.areSetToDefaults, pinned.areSetToDefaults, "areSetToDefaults match")
 		})

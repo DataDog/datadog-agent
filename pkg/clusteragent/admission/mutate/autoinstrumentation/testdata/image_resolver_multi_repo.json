@@ -1,4 +1,5 @@
-[
+{
+  "employee/K8S_INJECTION_DD/1.dd-lib-python-init.json/config":
     {
       "repository_name": "dd-lib-python-init",
       "repository_url": "gcr.io/datadoghq/dd-lib-python-init",
@@ -15,6 +16,7 @@
         }
       ]
     },
+  "employee/K8S_INJECTION_DD/2.dd-lib-java-init.json/config":
     {
       "repository_name": "dd-lib-java-init",
       "repository_url": "gcr.io/datadoghq/dd-lib-java-init",
@@ -31,6 +33,7 @@
         }
       ]
     },
+  "employee/K8S_INJECTION_DD/3.dd-lib-js-init.json/config":
     {
       "repository_name": "dd-lib-js-init",
       "repository_url": "gcr.io/datadoghq/dd-lib-js-init",
@@ -47,4 +50,4 @@
         }
       ]
     }
-  ]
+  }

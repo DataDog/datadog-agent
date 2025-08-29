@@ -165,6 +165,25 @@ func (r *remoteConfigImageResolver) updateCache(configs map[string]state.RawConf
 	r.updateCacheFromParsedConfigs(validConfigs)
 }
 
+func parseAndValidateConfigs(configs map[string]state.RawConfig) (map[string]RepositoryConfig, map[string]error) {
+	validConfigs := make(map[string]RepositoryConfig)
+	errors := make(map[string]error)
+	for configKey, rawConfig := range configs {
+		var repo RepositoryConfig
+		if err := json.Unmarshal(rawConfig.Config, &repo); err != nil {
+			errors[configKey] = fmt.Errorf("failed to unmarshal: %w", err)
+			continue
+		}
+
+		if repo.RepositoryName == "" || repo.RepositoryURL == "" {
+			errors[configKey] = fmt.Errorf("missing repository_name or repository_url in config %s", configKey)
+			continue
+		}
+		validConfigs[configKey] = repo
+	}
+	return validConfigs, errors
+}
+
 func (r *remoteConfigImageResolver) updateCacheFromParsedConfigs(validConfigs map[string]RepositoryConfig) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -218,25 +237,6 @@ func (r *remoteConfigImageResolver) processUpdate(update map[string]state.RawCon
 	r.updateCacheFromParsedConfigs(validConfigs)
 }
 
-func parseAndValidateConfigs(configs map[string]state.RawConfig) (map[string]RepositoryConfig, map[string]error) {
-	validConfigs := make(map[string]RepositoryConfig)
-	errors := make(map[string]error)
-	for configKey, rawConfig := range configs {
-		var repo RepositoryConfig
-		if err := json.Unmarshal(rawConfig.Config, &repo); err != nil {
-			errors[configKey] = fmt.Errorf("failed to unmarshal: %w", err)
-			continue
-		}
-
-		if repo.RepositoryName == "" || repo.RepositoryURL == "" {
-			errors[configKey] = fmt.Errorf("missing repository_name or repository_url in config %s", configKey)
-			continue
-		}
-		validConfigs[configKey] = repo
-	}
-	return validConfigs, errors
-}
-
 // ImageInfo represents information about an image from remote configuration.
 type ImageInfo struct {
 	Tag              string `json:"tag"`
@@ -261,6 +261,7 @@ type ResolvedImage struct {
 // NewImageResolver creates the appropriate ImageResolver based on whether
 // a remote config client is available.
 func NewImageResolver(rcClient RemoteConfigClient) ImageResolver {
+	log.Debugf("nil check: %v", rcClient == nil)
 	if rcClient != nil {
 		return newRemoteConfigImageResolver(rcClient)
 	}
