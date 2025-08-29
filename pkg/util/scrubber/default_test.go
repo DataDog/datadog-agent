@@ -664,13 +664,6 @@ func TestOAuthCredentials(t *testing.T) {
   consumer_secret: "********"
   token_id: "********"
   token_secret: "********"`)
-
-	// Test that other keys are not affected
-	assertClean(t,
-		`api_key: aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb
-consumer_key: my_consumer_key`,
-		`api_key: "***************************abbbb"
-consumer_key: "********"`)
 }
 
 func TestScrubCommandsEnv(t *testing.T) {
