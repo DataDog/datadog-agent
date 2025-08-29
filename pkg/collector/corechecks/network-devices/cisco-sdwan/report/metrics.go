@@ -23,7 +23,7 @@ import (
 const ciscoSDWANMetricPrefix = "cisco_sdwan."
 const timestampExpiration = 6 * time.Hour
 
-const interfaceUserTagResourcePrefix = "dd.internal.resource:ndm_interface_user_tags"
+const interfaceUserTagResourcePrefix = "dd.internal.resource:ndm_interface"
 
 // SDWanSender implements methods for sending Cisco SD-Wan metrics and metadata
 type SDWanSender struct {
