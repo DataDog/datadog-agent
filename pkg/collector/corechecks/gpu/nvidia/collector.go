@@ -42,10 +42,9 @@ const (
 	sample    CollectorName = "sample"    // Consolidates process, samples
 
 	// Specialized collectors (kept separate)
-	field  CollectorName = "fields"
-	nvlink CollectorName = "nvlink"
-	gpm    CollectorName = "gpm"
-	ebpf   CollectorName = "ebpf"
+	field CollectorName = "fields"
+	gpm   CollectorName = "gpm"
+	ebpf  CollectorName = "ebpf"
 )
 
 // Metric represents a single metric collected from the NVML library.
@@ -81,9 +80,8 @@ var factory = map[CollectorName]subsystemBuilder{
 	sample:    newSampleCollector,    // Consolidates process, samples
 
 	// Specialized collectors that remain unchanged (complex or unique logic)
-	field:  newFieldsCollector,
-	gpm:    newGPMCollector,
-	nvlink: newNVLinkCollector,
+	field: newFieldsCollector,
+	gpm:   newGPMCollector,
 }
 
 // CollectorDependencies holds the dependencies needed to create a set of collectors.
