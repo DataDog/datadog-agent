@@ -25,6 +25,9 @@ const (
 	// EventTypeNetworkPath is the event type for network devices Network Path data
 	EventTypeNetworkPath = "network-path"
 
+	// EventTypeNetworkConfigManagement is the event type for network device configuration management
+	EventTypeNetworkConfigManagement = "ndmconfig"
+
 	// EventTypeContainerLifecycle represents a container lifecycle event
 	EventTypeContainerLifecycle = "container-lifecycle"
 	// EventTypeContainerImages represents a container images event
