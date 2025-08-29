@@ -18,7 +18,7 @@ upload_dependencies_secagent_arm64:
   variables:
     ARCHIVE_NAME: dependencies-arm64.tar.gz
     ARCH: arm64
-    INSTANCE_TYPE: m6gd.metal
+    INSTANCE_TYPE: r6gd.metal
     TEST_COMPONENT: security-agent
 
 kmt_setup_env_secagent_arm64:
