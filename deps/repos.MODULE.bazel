@@ -32,3 +32,32 @@ http_archive(
     strip_prefix = "openssl-3.4.1",
     build_file = "//deps:openssl.BUILD.bazel",
 )
+
+bazel_dep(name = "gcc_toolchain")
+
+local_path_override(
+    module_name = "gcc_toolchain",
+    path = "../gcc-toolchain",
+)
+
+gcc_toolchains = use_extension("@gcc_toolchain//toolchain:module_extensions.bzl", "gcc_toolchains", dev_dependency = True)
+
+[
+    [
+        gcc_toolchains.toolchain(
+            name = "gcc_toolchain_{}".format(arch),
+            target_arch = arch,
+        ),
+        use_repo(gcc_toolchains, "gcc_toolchain_{}".format(arch)),
+        register_toolchains(
+            "@gcc_toolchain_{}//:cc_toolchain".format(arch),
+            "@gcc_toolchain_{}//:fortran_toolchain".format(arch),
+            dev_dependency = True,
+        ),
+    ]
+    for arch in [
+        "aarch64",
+        "armv7",
+        "x86_64",
+    ]
+]
