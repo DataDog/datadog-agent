@@ -193,7 +193,7 @@ func GetContainerID(store workloadmeta.Component, metric model.Metric, filterSto
 	}
 
 	filterableContainer := workloadmetafilter.CreateContainerFromOrch(container, workloadmetafilter.CreatePod(pod))
-	selectedFilters := workloadfilter.GetContainerSharedMetricFilters()
+	selectedFilters := filterStore.GetContainerSharedMetricFilters()
 	if filterStore.IsContainerExcluded(filterableContainer, selectedFilters) {
 		return "", ErrContainerExcluded
 	}

@@ -112,7 +112,7 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 
 			// don't exclude filtered containers from aggregation, but filter them out from other reported metrics
 			filterableContainer := kubeletfilter.CreateContainer(cStatus, kubeletfilter.CreatePod(pod))
-			selectedFilters := workloadfilter.GetContainerSharedMetricFilters()
+			selectedFilters := p.filterStore.GetContainerSharedMetricFilters()
 			if p.filterStore.IsContainerExcluded(filterableContainer, selectedFilters) {
 				continue
 			}

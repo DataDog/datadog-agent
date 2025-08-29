@@ -481,7 +481,7 @@ func TestContainerFilterInitializationError(t *testing.T) {
 	t.Run("Improperly defined filter with multiple filters", func(t *testing.T) {
 		errs := f.GetContainerFilterInitializationErrors(
 			append(
-				workloadfilter.FlattenFilterSets(workloadfilter.GetAutodiscoveryFilters(workloadfilter.GlobalFilter)),
+				workloadfilter.FlattenFilterSets(f.GetContainerAutodiscoveryFilters(workloadfilter.GlobalFilter)),
 				workloadfilter.LegacyContainerACInclude,
 			),
 		)
@@ -772,7 +772,7 @@ func TestImageFiltering(t *testing.T) {
 
 			containerImage := workloadfilter.CreateContainerImage(tt.imageName)
 
-			res := evaluateResource(f, containerImage, workloadfilter.GetContainerSharedMetricFilters())
+			res := evaluateResource(f, containerImage, f.GetContainerSharedMetricFilters())
 			assert.Equal(t, tt.expected, res)
 		})
 	}
@@ -832,7 +832,7 @@ func TestPodFiltering(t *testing.T) {
 				},
 			},
 			// Testing PodADAnnotations filter
-			filters:  workloadfilter.GetPodSharedMetricFilters(),
+			filters:  [][]workloadfilter.PodFilter{{workloadfilter.PodADAnnotations, workloadfilter.PodADAnnotationsMetrics}, {workloadfilter.LegacyPod}},
 			expected: workloadfilter.Excluded,
 		},
 		{
@@ -846,7 +846,7 @@ func TestPodFiltering(t *testing.T) {
 				},
 			},
 			// Testing PodADAnnotationsMetrics filter
-			filters:  workloadfilter.GetPodSharedMetricFilters(),
+			filters:  [][]workloadfilter.PodFilter{{workloadfilter.PodADAnnotations, workloadfilter.PodADAnnotationsMetrics}, {workloadfilter.LegacyPod}},
 			expected: workloadfilter.Excluded,
 		},
 	}
