@@ -32,7 +32,7 @@ if TYPE_CHECKING:
     from tasks.kernel_matrix_testing.types import PathOrStr
 
 X86_INSTANCE_TYPE = "m5d.metal"
-ARM_INSTANCE_TYPE = "r6gd.metal"
+ARM_INSTANCE_TYPE = "m6gd.metal"
 
 
 def _get_active_branch_name() -> str:
