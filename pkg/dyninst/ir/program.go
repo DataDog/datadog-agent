@@ -40,6 +40,25 @@ type Program struct {
 	MaxTypeID TypeID
 	// Issues is a list of probes that could not be created.
 	Issues []ProbeIssue
+	// GoModuledataInfo is used to resolve types from interfaces.
+	GoModuledataInfo GoModuledataInfo
+}
+
+// GoModuledataInfo is information about the runtime-internal structure used to
+// translate type pointer addresses to Go runtime type IDs. This information is
+// used in the generated program to resolve type information for interface
+// values.
+type GoModuledataInfo struct {
+	// FirstModuledataAddr is the virtual memory address of the firstmoduledata
+	// variable.
+	//
+	// See https://github.com/golang/go/blob/5a56d884/src/runtime/symtab.go#L483
+	FirstModuledataAddr uint64
+	// TypesOffset is the offset in the runtime.moduledata type of
+	// the types field.
+	//
+	// See https://github.com/golang/go/blob/5a56d884/src/runtime/symtab.go#L414
+	TypesOffset uint32
 }
 
 // InlinePCRanges represent the pc ranges for a single instance of an inlined subprogram.

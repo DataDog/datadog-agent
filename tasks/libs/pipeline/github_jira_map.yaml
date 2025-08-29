@@ -5,7 +5,7 @@
 '@datadog/documentation': DOCS
 '@datadog/container-integrations': CONTINT
 '@datadog/container-platform': CONTP
-'@datadog/container-ecosystems': CECO
+'@datadog/agent-onboarding': AGENTONB
 '@datadog/container-autoscaling': CASCL
 '@datadog/agent-security': CWS
 '@datadog/agent-apm': APMSP
@@ -26,6 +26,7 @@
 '@datadog/agent-all': DEFAULT_JIRA_PROJECT
 '@datadog/ebpf-platform': EBPF
 '@datadog/networks': NPM
+'@datadog/cloud-network-monitoring': CNM
 '@datadog/universal-service-monitoring': USMON
 '@datadog/windows-products': WINA
 '@datadog/opentelemetry': OTAGENT

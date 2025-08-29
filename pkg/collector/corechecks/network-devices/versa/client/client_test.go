@@ -778,3 +778,48 @@ func TestGetSLAMetricsPaginationEmptyResponse(t *testing.T) {
 	// Should get all available data in first page and stop
 	require.Equal(t, 3, len(slaMetrics)) // Total of 3 items across all pages
 }
+
+func TestGetAnalyticsInterfaces(t *testing.T) {
+	expectedAnalyticsInterfaceMetrics := []AnalyticsInterfaceMetrics{
+		{
+			DrillKey:    "test-branch-2B,INET-1,ge-0/0/1",
+			Site:        "test-branch-2B",
+			AccessCkt:   "INET-1",
+			Interface:   "ge-0/0/1",
+			RxUtil:      25.5,
+			TxUtil:      18.3,
+			VolumeRx:    1024000.0,
+			VolumeTx:    768000.0,
+			Volume:      1792000.0,
+			BandwidthRx: 8192.0,
+			BandwidthTx: 6144.0,
+			Bandwidth:   14336.0,
+		},
+	}
+	server := SetupMockAPIServer()
+	defer server.Close()
+
+	client, err := testClient(server)
+	// TODO: remove this override when single auth
+	// method is being used
+	client.directorEndpoint = server.URL
+	require.NoError(t, err)
+
+	analyticsInterfaceMetrics, err := client.GetAnalyticsInterfaces("datadog")
+	require.NoError(t, err)
+
+	require.Equal(t, len(analyticsInterfaceMetrics), 1)
+	require.Equal(t, expectedAnalyticsInterfaceMetrics, analyticsInterfaceMetrics)
+}
+
+func TestGetAnalyticsInterfacesEmptyTenant(t *testing.T) {
+	server := SetupMockAPIServer()
+	defer server.Close()
+
+	client, err := testClient(server)
+	require.NoError(t, err)
+
+	_, err = client.GetAnalyticsInterfaces("")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "tenant cannot be empty")
+}

@@ -9,25 +9,19 @@ long __attribute__((always_inline)) trace__sys_setsock_opt(u8 async, int socket_
     if (is_discarded_by_pid()) {
         return 0;
     }
-    switch (optname) {
-        case SO_ATTACH_FILTER: {
-            struct policy_t policy = fetch_policy(EVENT_SETSOCKOPT);
-            struct syscall_cache_t syscall = {
-                .type = EVENT_SETSOCKOPT,
-                .policy = policy,
-                .async = async,
-                .setsockopt = {
-                    .level = level,
-                    .optname = optname,
-                }
-            };
-
-            cache_syscall(&syscall);
-            return 0;
+    struct policy_t policy = fetch_policy(EVENT_SETSOCKOPT);
+    struct syscall_cache_t syscall = {
+        .type = EVENT_SETSOCKOPT,
+        .policy = policy,
+        .async = async,
+        .setsockopt = {
+            .level = level,
+            .optname = optname,
         }
-        default:
-            return 0; // unsupported optname
-    }
+    };
+
+    cache_syscall(&syscall);
+    return 0;
 }
 
 int __attribute__((always_inline)) sys_set_sock_opt_ret(void *ctx, int retval) {
@@ -76,7 +70,10 @@ int hook_sk_attach_filter(ctx_t *ctx) {
     if (!syscall) {
         return 0;
     }
-    // We assume that optname is always SO_ATTACH_FILTER here
+    if (syscall->setsockopt.optname != SO_ATTACH_FILTER) {
+        syscall->setsockopt.fprog = 0;
+        return 0;
+    }
     struct sock_fprog *fprog = (struct sock_fprog *)CTX_PARM1(ctx);
     syscall->setsockopt.fprog = fprog;
     return 0;
@@ -89,7 +86,6 @@ int hook_security_socket_setsockopt(ctx_t *ctx) {
     if (!syscall) {
         return 0;
     }
-    // We assume that optname is always SO_ATTACH_FILTER
     struct socket *sock = (struct socket *)CTX_PARM1(ctx);
     short socket_type;
     bpf_probe_read(&socket_type, sizeof(socket_type), &sock->type);
@@ -122,6 +118,12 @@ HOOK_EXIT("release_sock")
 int rethook_release_sock(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_SETSOCKOPT);
     if (!syscall) {
+        return 0;
+    }
+    if (syscall->setsockopt.optname != SO_ATTACH_FILTER) {
+        syscall->setsockopt.filter_len = 0;
+        syscall->setsockopt.filter_size_to_send = 0;
+        syscall->setsockopt.truncated = 0;
         return 0;
     }
     struct sock_fprog prog;

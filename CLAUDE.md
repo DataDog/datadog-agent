@@ -1,0 +1,2 @@
+@AGENTS.md
+@CLAUDE_PERSONAL.md

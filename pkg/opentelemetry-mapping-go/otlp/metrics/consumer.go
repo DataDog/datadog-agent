@@ -69,6 +69,7 @@ type TimeSeriesConsumer interface {
 		dimensions *Dimensions,
 		typ DataType,
 		timestamp uint64,
+		interval int64,
 		value float64,
 	)
 }
@@ -80,6 +81,7 @@ type SketchConsumer interface {
 		ctx context.Context,
 		dimensions *Dimensions,
 		timestamp uint64,
+		interval int64,
 		sketch *quantile.Sketch,
 	)
 }

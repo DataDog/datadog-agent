@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -40,10 +41,10 @@ type Config struct {
 }
 
 // CreateConfig builds and returns a log config
-func CreateConfig(origin string) *Config {
+func CreateConfig(defaultSource string) *Config {
 	var source string
 	if source = strings.ToLower(os.Getenv(sourceEnvVar)); source == "" {
-		source = origin
+		source = defaultSource
 	}
 	return &Config{
 		FlushTimeout: defaultFlushTimeout,
@@ -55,8 +56,8 @@ func CreateConfig(origin string) *Config {
 }
 
 // SetupLogAgent creates the log agent and sets the base tags
-func SetupLogAgent(conf *Config, tags map[string]string, tagger tagger.Component, compression logscompression.Component, origin string) logsAgent.ServerlessLogsAgent {
-	logsAgent, _ := serverlessLogs.SetupLogAgent(conf.Channel, sourceName, conf.source, tagger, compression)
+func SetupLogAgent(conf *Config, tags map[string]string, tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component, origin string) logsAgent.ServerlessLogsAgent {
+	logsAgent, _ := serverlessLogs.SetupLogAgent(conf.Channel, sourceName, conf.source, tagger, compression, hostname)
 
 	tagsArray := serverlessTag.MapToArray(tags)
 

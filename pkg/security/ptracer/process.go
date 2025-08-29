@@ -58,6 +58,7 @@ type SocketInfo struct {
 	AddressFamily uint16
 	Protocol      uint16
 	BoundToPort   uint16
+	SocketType    uint16
 }
 
 // Process represents a process context

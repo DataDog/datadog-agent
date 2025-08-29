@@ -13,7 +13,7 @@ A bundle is defined in a dedicated package named `comp/<bundleName>`. The packag
 
 Typically, a bundle will automatically instantiate the top-level components that represent the bundle's purpose. For example, the trace-agent bundle `comp/trace` might automatically instantiate `comp/trace/agent`.
 
-You can use the `inv components.new-bundle comp/<bundleName>` [command](../../setup.md#tooling) to generate a pre-filled `bundle.go` file for the given bundle.
+You can use the `dda inv components.new-bundle comp/<bundleName>` [command](../../setup/required.md#tooling) to generate a pre-filled `bundle.go` file for the given bundle.
 
 ## Bundle Parameters
 

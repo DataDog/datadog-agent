@@ -9,7 +9,7 @@ package gpu
 
 import (
 	"fmt"
-	"iter"
+	"sync"
 
 	"golang.org/x/sys/unix"
 
@@ -40,8 +40,8 @@ type globalStreamKey struct {
 }
 
 type streamCollection struct {
-	streams       map[streamKey]*StreamHandler
-	globalStreams map[globalStreamKey]*StreamHandler
+	streams       sync.Map // map[streamKey]*StreamHandler
+	globalStreams sync.Map // map[globalStreamKey]*StreamHandler
 	sysCtx        *systemContext
 	telemetry     *streamTelemetry
 	streamConfig  config.StreamConfig
@@ -64,11 +64,9 @@ type streamTelemetry struct {
 
 func newStreamCollection(sysCtx *systemContext, telemetry telemetry.Component, config *config.Config) *streamCollection {
 	return &streamCollection{
-		streams:       make(map[streamKey]*StreamHandler),
-		globalStreams: make(map[globalStreamKey]*StreamHandler),
-		sysCtx:        sysCtx,
-		telemetry:     newStreamTelemetry(telemetry),
-		streamConfig:  config.StreamConfig,
+		sysCtx:       sysCtx,
+		telemetry:    newStreamTelemetry(telemetry),
+		streamConfig: config.StreamConfig,
 	}
 }
 
@@ -89,7 +87,8 @@ func newStreamTelemetry(tm telemetry.Component) *streamTelemetry {
 	}
 }
 
-// getStream returns a StreamHandler for a given CUDA stream.
+// getStream returns a StreamHandler for a given CUDA event header. This entry point should only
+// get called by the consumer thread, as the mutex locking patterns only work under that assumption.
 func (sc *streamCollection) getStream(header *gpuebpf.CudaEventHeader) (*StreamHandler, error) {
 	if header.Stream_id == 0 {
 		return sc.getGlobalStream(header)
@@ -116,16 +115,23 @@ func (sc *streamCollection) getGlobalStream(header *gpuebpf.CudaEventHeader) (*S
 		gpuUUID: device.GetDeviceInfo().UUID,
 	}
 
-	stream, ok := sc.globalStreams[key]
-	if !ok {
-		stream, err = sc.createStreamHandler(header, device, memoizedContainerID)
-		if err != nil {
-			return nil, fmt.Errorf("error creating global stream: %w", err)
+	// Try to get existing stream
+	if streamValue, ok := sc.globalStreams.Load(key); ok {
+		if stream, ok := streamValue.(*StreamHandler); ok {
+			return stream, nil
 		}
-
-		sc.globalStreams[key] = stream
-		sc.telemetry.activeHandlers.Set(float64(sc.streamCount()))
 	}
+
+	// There is no race condition here on the check + create, because there is only one thread (consumer thread)
+	// that calls this code and can create streams.
+
+	stream, err := sc.createStreamHandler(header, device, memoizedContainerID)
+	if err != nil {
+		return nil, fmt.Errorf("error creating global stream: %w", err)
+	}
+
+	sc.globalStreams.Store(key, stream)
+	sc.telemetry.activeHandlers.Set(float64(sc.allStreamsCount()))
 
 	return stream, nil
 }
@@ -138,17 +144,24 @@ func (sc *streamCollection) getNonGlobalStream(header *gpuebpf.CudaEventHeader) 
 		stream: header.Stream_id,
 	}
 
-	stream, ok := sc.streams[key]
-	if !ok {
-		var err error
-		stream, err = sc.createStreamHandler(header, nil, sc.memoizedContainerID(header))
-		if err != nil {
-			return nil, fmt.Errorf("error creating non-global stream: %w", err)
+	// Try to get existing stream
+	if streamValue, ok := sc.streams.Load(key); ok {
+		if stream, ok := streamValue.(*StreamHandler); ok {
+			return stream, nil
 		}
-
-		sc.streams[key] = stream
-		sc.telemetry.activeHandlers.Set(float64(sc.streamCount()))
 	}
+
+	// There is no race condition here on the check + create, because there is
+	// only one goroutine (the one from cudaEventConsumer) that calls this code
+	// and can create streams.
+
+	stream, err := sc.createStreamHandler(header, nil, sc.memoizedContainerID(header))
+	if err != nil {
+		return nil, fmt.Errorf("error creating non-global stream: %w", err)
+	}
+
+	sc.streams.Store(key, stream)
+	sc.telemetry.activeHandlers.Set(float64(sc.allStreamsCount()))
 
 	return stream, nil
 }
@@ -156,7 +169,7 @@ func (sc *streamCollection) getNonGlobalStream(header *gpuebpf.CudaEventHeader) 
 // createStreamHandler creates a new StreamHandler for a given CUDA stream.
 // If the device not provided (it's nil), it will be retrieved from the system context.
 func (sc *streamCollection) createStreamHandler(header *gpuebpf.CudaEventHeader, device ddnvml.Device, containerIDFunc func() string) (*StreamHandler, error) {
-	if sc.streamCount() >= sc.streamConfig.MaxActiveStreams {
+	if sc.allStreamsCount() >= sc.streamConfig.MaxActiveStreams {
 		sc.telemetry.rejectedStreams.Inc()
 		return nil, fmt.Errorf("max streams (%d) reached", sc.streamConfig.MaxActiveStreams)
 	}
@@ -209,28 +222,50 @@ func (sc *streamCollection) memoizedContainerID(header *gpuebpf.CudaEventHeader)
 	})
 }
 
-func (sc *streamCollection) allStreams() iter.Seq[*StreamHandler] {
-	return func(yield func(*StreamHandler) bool) {
-		for _, stream := range sc.streams {
-			if !yield(stream) {
-				return
-			}
-		}
+func (sc *streamCollection) allStreams() []*StreamHandler {
+	var streams []*StreamHandler
 
-		for _, stream := range sc.globalStreams {
-			if !yield(stream) {
-				return
-			}
+	sc.streams.Range(func(_, value interface{}) bool {
+		if stream, ok := value.(*StreamHandler); ok {
+			streams = append(streams, stream)
 		}
-	}
+		return true
+	})
+
+	sc.globalStreams.Range(func(_, value interface{}) bool {
+		if stream, ok := value.(*StreamHandler); ok {
+			streams = append(streams, stream)
+		}
+		return true
+	})
+
+	return streams
 }
 
-func (sc *streamCollection) streamCount() int {
-	return len(sc.streams) + len(sc.globalStreams)
+func (sc *streamCollection) streamsCount() int {
+	count := 0
+	sc.streams.Range(func(_, _ interface{}) bool {
+		count++
+		return true
+	})
+	return count
+}
+
+func (sc *streamCollection) globalStreamsCount() int {
+	count := 0
+	sc.globalStreams.Range(func(_, _ interface{}) bool {
+		count++
+		return true
+	})
+	return count
+}
+
+func (sc *streamCollection) allStreamsCount() int {
+	return sc.streamsCount() + sc.globalStreamsCount()
 }
 
 func (sc *streamCollection) markProcessStreamsAsEnded(pid uint32) {
-	for handler := range sc.allStreams() {
+	for _, handler := range sc.allStreams() {
 		if handler.metadata.pid == pid {
 			log.Debugf("Process %d ended, marking stream %d as ended", pid, handler.metadata.streamID)
 			_ = handler.markEnd()
@@ -239,29 +274,32 @@ func (sc *streamCollection) markProcessStreamsAsEnded(pid uint32) {
 	}
 }
 
-// cleanHandlerMap cleans the handler map for a given stream collection, using generics to avoid code duplication.
-func cleanHandlerMap[K comparable](sc *streamCollection, handlerMap map[K]*StreamHandler, nowKtime int64) {
-	for key, handler := range handlerMap {
-		deleteReason := ""
+// cleanHandlerMap cleans the handler map for a given stream collection.
+func (sc *streamCollection) cleanHandlerMap(handlerMap *sync.Map, nowKtime int64) {
+	handlerMap.Range(func(key, value interface{}) bool {
+		if handler, ok := value.(*StreamHandler); ok {
+			deleteReason := ""
 
-		if handler.ended {
-			deleteReason = "ended"
-		} else if handler.isInactive(nowKtime, sc.streamConfig.Timeout) {
-			deleteReason = "inactive"
-		}
+			if handler.ended {
+				deleteReason = "ended"
+			} else if handler.isInactive(nowKtime, sc.streamConfig.Timeout) {
+				deleteReason = "inactive"
+			}
 
-		if deleteReason != "" {
-			delete(handlerMap, key)
-			sc.telemetry.removedHandlers.Inc(handler.metadata.gpuUUID, deleteReason)
+			if deleteReason != "" {
+				handlerMap.Delete(key)
+				sc.telemetry.removedHandlers.Inc(handler.metadata.gpuUUID, deleteReason)
+			}
 		}
-	}
+		return true
+	})
 }
 
 // clean cleans the stream collection, removing inactive streams and marking processes as ended.
 // nowKtime is the current kernel time, used to check if streams are inactive.
 func (sc *streamCollection) clean(nowKtime int64) {
-	cleanHandlerMap(sc, sc.streams, nowKtime)
-	cleanHandlerMap(sc, sc.globalStreams, nowKtime)
+	sc.cleanHandlerMap(&sc.streams, nowKtime)
+	sc.cleanHandlerMap(&sc.globalStreams, nowKtime)
 
-	sc.telemetry.activeHandlers.Set(float64(sc.streamCount()))
+	sc.telemetry.activeHandlers.Set(float64(sc.allStreamsCount()))
 }

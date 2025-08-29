@@ -75,7 +75,12 @@ func MakeDownLevelLogonName(domain string, user string) string {
 
 // GetIdentityForUser returns the Identity for the given user.
 func GetIdentityForUser(host *components.RemoteHost, user string) (Identity, error) {
-	sid, err := GetSIDForUser(host, user)
+	var err error
+	sid, err := GetServiceAliasSID(user)
+	if err == nil {
+		return Identity{Name: user, SID: sid}, nil
+	}
+	sid, err = GetSIDForUser(host, user)
 	if err != nil {
 		return Identity{}, err
 	}

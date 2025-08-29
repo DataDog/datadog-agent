@@ -11,6 +11,7 @@ from tasks import (
     agent,
     agent_ci_api,
     ami,
+    auth,
     bench,
     buildimages,
     cluster_agent,
@@ -25,6 +26,7 @@ from tasks import (
     diff,
     docker_tasks,
     dogstatsd,
+    dyntest,
     ebpf,
     emacs,
     epforwarder,
@@ -167,6 +169,7 @@ ns.add_task(build_and_upload_fuzz)
 ns.add_task(lint_go)
 
 # add namespaced tasks to the root
+ns.add_collection(auth)
 ns.add_collection(agent)
 ns.add_collection(ami)
 ns.add_collection(agent_ci_api)
@@ -184,6 +187,7 @@ ns.add_collection(ebpf)
 ns.add_collection(emacs)
 ns.add_collection(vim)
 ns.add_collection(macos)
+ns.add_collection(dyntest)
 ns.add_collection(epforwarder)
 ns.add_collection(fips)
 ns.add_collection(go)

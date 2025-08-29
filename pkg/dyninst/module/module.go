@@ -72,19 +72,19 @@ func NewModule(
 	if err != nil {
 		return nil, fmt.Errorf("error creating loader: %w", err)
 	}
-	var elfFileLoader irgen.ElfFileLoader
+	var objectLoader irgen.ObjectLoader
 	if config.DiskCacheEnabled {
-		elfFileLoader, err = object.NewDiskCache(config.DiskCacheConfig)
+		objectLoader, err = object.NewDiskCache(config.DiskCacheConfig)
 		if err != nil {
 			return nil, fmt.Errorf("error creating disk cache: %w", err)
 		}
 	} else {
-		elfFileLoader = object.NewInMemoryElfFileLoader()
+		objectLoader = object.NewInMemoryLoader()
 	}
 
 	actuator := config.actuatorConstructor(loader)
 	rcScraper := rcscrape.NewScraper(actuator)
-	irGenerator := irgen.NewGenerator(irgen.WithElfFileLoader(elfFileLoader))
+	irGenerator := irgen.NewGenerator(irgen.WithObjectLoader(objectLoader))
 	controller := NewController(
 		actuator, logUploader, diagsUploader, rcScraper, DefaultDecoderFactory{}, irGenerator,
 	)

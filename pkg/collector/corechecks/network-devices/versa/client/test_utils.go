@@ -55,7 +55,12 @@ func testClient(server *httptest.Server) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	client, err := NewClient(host, port, "https://10.0.0.1:8443", "testuser", "testpass", true)
+	authConfig := AuthConfig{
+		Method:   "basic",
+		Username: "testuser",
+		Password: "testpass",
+	}
+	client, err := NewClient(host, port, "https://10.0.0.1:8443", true, authConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -136,6 +141,8 @@ func SetupMockAPIServer() *httptest.Server {
 			fixtureHandler(fixtures.GetPathQoSMetrics)(w, r)
 		} else if strings.Contains(query, "usage(") {
 			fixtureHandler(fixtures.GetDIAMetrics)(w, r)
+		} else if strings.Contains(query, "intfUtil(") {
+			fixtureHandler(fixtures.GetAnalyticsInterfaceMetrics)(w, r)
 		} else {
 			http.Error(w, "Unknown query type", http.StatusBadRequest)
 		}
@@ -221,6 +228,8 @@ func SetupPaginationMockAPIServer() *httptest.Server {
 				fixtureHandler(fixtures.GetPathQoSMetrics)(w, r)
 			} else if strings.Contains(query, "usage(") {
 				fixtureHandler(fixtures.GetDIAMetrics)(w, r)
+			} else if strings.Contains(query, "intfUtil(") {
+				fixtureHandler(fixtures.GetAnalyticsInterfaceMetrics)(w, r)
 			} else {
 				http.Error(w, "Unknown query type", http.StatusBadRequest)
 			}

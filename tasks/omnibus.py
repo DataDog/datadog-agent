@@ -1,5 +1,6 @@
 import os
 import re
+import subprocess
 import sys
 import tempfile
 import warnings
@@ -30,27 +31,20 @@ from tasks.libs.releasing.version import get_version, load_dependencies
 
 def omnibus_run_task(ctx, task, target_project, base_dir, env, log_level="info", host_distribution=None):
     with ctx.cd("omnibus"):
-        overrides_cmd = ""
+        overrides = []
         if base_dir:
-            overrides_cmd = f"--override=base_dir:{base_dir}"
+            overrides.append(f"--override=base_dir:{base_dir}")
         if host_distribution:
-            overrides_cmd += f" --override=host_distribution:{host_distribution}"
+            overrides.append(f"--override=host_distribution:{host_distribution}")
 
-        omnibus = "bundle exec omnibus"
-        if sys.platform == 'win32':
-            omnibus = "bundle exec omnibus.bat"
-        elif sys.platform == 'darwin':
-            # HACK: This is an ugly hack to fix another hack made by python3 on MacOS
-            # The full explanation is available on this PR: https://github.com/DataDog/datadog-agent/pull/5010.
-            omnibus = "unset __PYVENV_LAUNCHER__ && bundle exec omnibus"
-
+        omnibus = f"bundle exec {'omnibus.bat' if sys.platform == 'win32' else 'omnibus'}"
         cmd = "{omnibus} {task} {project_name} --log-level={log_level} {overrides}"
         args = {
             "omnibus": omnibus,
             "task": task,
             "project_name": target_project,
             "log_level": log_level,
-            "overrides": overrides_cmd,
+            "overrides": " ".join(overrides),
         }
 
         with gitlab_section(f"Running omnibus task {task}", collapsed=True):
@@ -97,7 +91,7 @@ def get_omnibus_env(
 ):
     env = load_dependencies(ctx)
 
-    # Discard windows variables when not on Windows
+    # Discard windows variables when not on Windows (so that they're not used in the cache key either)
     if sys.platform != 'win32':
         windows_only_vars = [
             'WINDOWS_DDNPM_DRIVER',
@@ -129,16 +123,18 @@ def get_omnibus_env(
             env[key] = value
         ref = env[key]
         if not re.fullmatch(r"[0-9a-f]{4,40}", ref):  # resolve only "moving" refs, such as `own/branch`
-            candidates = [line.split() for line in ctx.run(f"git ls-remote --refs {url} '{ref}'").stdout.splitlines()]
+            candidates = [
+                line.split()
+                for line in subprocess.check_output(["git", "ls-remote", "--refs", url, ref], text=True).splitlines()
+            ]
             if not candidates:
-                warnings.warn(f"No candidate for {url}@{ref} - leaving untouched", stacklevel=1)
-                continue
-            sha1, shortest_ref = min(candidates, key=lambda c: len(c[1]))
+                raise Exit(f"{key!r}: no candidate for {ref!r} @ {url}!")
             if len(candidates) > 1:  # happens when a branch name mimics its base or target, such as `my/own/branch`
                 warnings.warn(
-                    f"Multiple candidates for {url}@{ref}: {[c[1] for c in candidates]} - choosing shortest: {shortest_ref} -> {sha1}",
-                    stacklevel=1,
+                    f"{key!r}: multiple candidates for {ref!r} @ {url} {[c[1] for c in candidates]}", stacklevel=1
                 )
+            sha1, shortest_ref = min(candidates, key=lambda c: len(c[1]))
+            print(f"{key!r}: {ref!r} @ {url} resolves to {shortest_ref!r} -> {sha1}")
             env[key] = sha1
 
     if sys.platform == 'darwin':

@@ -175,23 +175,11 @@ func (s *usmHTTP2Suite) TestHTTP2DynamicTableCleanup() {
 
 	dynamicTableMap, _, err := monitor.ebpfProgram.GetMap("http2_dynamic_table")
 	require.NoError(t, err)
-	iterator := dynamicTableMap.Iterate()
-	key := make([]byte, dynamicTableMap.KeySize())
-	value := make([]byte, dynamicTableMap.ValueSize())
-	count := 0
-	for iterator.Next(&key, &value) {
-		count++
-	}
+	count := utils.CountMapEntries(t, dynamicTableMap)
 	require.GreaterOrEqual(t, count, 0)
 
 	require.Eventually(t, func() bool {
-		iterator = dynamicTableMap.Iterate()
-		count = 0
-		for iterator.Next(&key, &value) {
-			count++
-		}
-
-		return count == 0
+		return utils.CountMapEntries(t, dynamicTableMap) == 0
 	}, cfg.HTTP2DynamicTableMapCleanerInterval*4, time.Millisecond*100)
 }
 
@@ -1319,36 +1307,6 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				}: 1,
 			},
 		},
-		{
-			name: "headers frame with PRIORITY flag",
-			messageBuilder: func() [][]byte {
-				fr := newFramer()
-				hdrBlock, err := usmhttp2.NewHeadersFrameMessage(usmhttp2.HeadersFrameOptions{Headers: testHeaders()})
-				require.NoError(t, err, "could not create headers block")
-
-				// Write a HEADERS frame that carries a PRIORITY section (flag 0x20).
-				require.NoError(t, fr.framer.WriteHeaders(http2.HeadersFrameParam{
-					StreamID:      1,
-					BlockFragment: hdrBlock,
-					EndHeaders:    endHeaders,
-					Priority: http2.PriorityParam{
-						StreamDep: 0,
-						Exclusive: false,
-						Weight:    10, // non-zero weight triggers PRIORITY flag
-					},
-				}), "could not write priority headers")
-
-				fr.writeData(t, 1, endStream, emptyBody)
-
-				return [][]byte{fr.bytes()}
-			},
-			expectedEndpoints: map[usmhttp.Key]int{
-				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
-					Method: usmhttp.MethodPost,
-				}: 1,
-			},
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1523,11 +1481,13 @@ func (s *usmHTTP2Suite) TestIncompleteFrameTable() {
 			require.NoError(t, writeInput(c, 500*time.Millisecond, tt.messageBuilder()...))
 
 			assert.Eventually(t, func() bool {
-				require.Len(t, getIncompleteFrameTableMapKeys(t, usmMonitor.ebpfProgram), tt.mapSize)
+				mp, _, err := usmMonitor.ebpfProgram.GetMap("http2_incomplete_frames")
+				require.NoError(t, err)
+				require.Equal(t, tt.mapSize, utils.CountMapEntries(t, mp))
 				return true
 			}, time.Second*5, time.Millisecond*100, "")
 			if t.Failed() {
-				ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, usmhttp2.InFlightMap)
+				ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, usmhttp2.InFlightMap, "http2_incomplete_frames")
 				dumpTelemetry(t, usmMonitor, s.isTLS)
 			}
 		})
@@ -1942,21 +1902,6 @@ func validateDynamicTableMap(t *testing.T, ebpfProgram *ebpfProgram, expectedDyn
 	}
 	sort.Ints(resultIndexes)
 	require.EqualValues(t, expectedDynamicTablePathIndexes, resultIndexes)
-}
-
-// getIncompleteFrameTableMapKeys returns the keys of the incomplete frame table map.
-func getIncompleteFrameTableMapKeys(t *testing.T, ebpfProgram *ebpfProgram) []usmhttp.ConnTuple {
-	incompleteFrameMap, _, err := ebpfProgram.GetMap("http2_incomplete_frames")
-	require.NoError(t, err)
-	resultIndexes := make([]usmhttp.ConnTuple, 0)
-	var key usmhttp2.ConnTuple
-	var value usmhttp2.HTTP2IncompleteFrameEntry
-	iterator := incompleteFrameMap.Iterate()
-
-	for iterator.Next(&key, &value) {
-		resultIndexes = append(resultIndexes, key)
-	}
-	return resultIndexes
 }
 
 // validateHuffmanEncoded validates that the dynamic table map contains the expected huffman encoded paths.

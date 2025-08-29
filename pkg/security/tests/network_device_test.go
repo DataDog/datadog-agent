@@ -63,6 +63,8 @@ func TestNetDevice(t *testing.T) {
 	executable := which(t, "ip")
 	defer func() {
 		_ = exec.Command(executable, "netns", "delete", "test_netns").Run()
+		_ = exec.Command(executable, "link", "delete", "host-eth1").Run()
+		_ = exec.Command(executable, "link", "delete", "host-eth0").Run()
 	}()
 
 	t.Run("register_netdevice", func(t *testing.T) {
@@ -126,7 +128,7 @@ func TestNetDevice(t *testing.T) {
 			cmd = exec.Command(executable, "link", "set", "ns-eth1", "netns", "test_netns")
 			return cmd.Run()
 		}, func(event *model.Event) bool {
-			if !assert.Equal(t, "veth_pair", event.GetType(), "wrong event type") {
+			if !assert.Equal(t, "veth_pair_ns", event.GetType(), "wrong event type") {
 				return true
 			}
 
@@ -134,7 +136,7 @@ func TestNetDevice(t *testing.T) {
 				assert.Equal(t, currentNetns, event.VethPair.HostDevice.NetNS, "wrong network namespace ID") &&
 				assert.Equal(t, "ns-eth1", event.VethPair.PeerDevice.Name, "wrong peer interface name") &&
 				assert.Equal(t, testNetns, event.VethPair.PeerDevice.NetNS, "wrong peer network namespace ID")
-		}, 10*time.Second, model.VethPairEventType)
+		}, 10*time.Second, model.VethPairNsEventType)
 		if err != nil {
 			t.Error(err)
 		}

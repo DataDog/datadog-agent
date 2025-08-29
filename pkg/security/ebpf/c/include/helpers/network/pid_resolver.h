@@ -39,9 +39,7 @@ __attribute__((always_inline)) void resolve_pid(struct packet_t *pkt) {
     }
     }
 
-    // TODO: l4_protocol should be used to uniquely identify the PID - wait for implementation on security_socket_bind
-    // pid_route.l4_protocol = pkt->translated_ns_flow.flow.l4_protocol;
-
+    pid_route.l4_protocol = pkt->translated_ns_flow.flow.l4_protocol;
     pkt->pid = get_flow_pid(&pid_route);
 }
 

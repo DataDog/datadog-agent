@@ -143,12 +143,14 @@ package e2e
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -693,11 +695,10 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 		return
 	}
 
-	if coverageEnv, ok := any(bs.env).(common.Coverageable); ok && bs.coverage {
-		err := coverageEnv.Coverage(bs.coverageOutDir)
-		if err != nil {
-			bs.T().Logf("WARNING: Coverage failed: %v", err)
-		}
+	if bs.coverage {
+		bs.SaveCoverage(bs.coverageOutDir)
+
+		bs.attachMetadataToCoverage(bs.coverageOutDir)
 	}
 
 	if bs.firstFailTest != "" && bs.params.skipDeleteOnFailure {
@@ -744,6 +745,57 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 				bs.T().Errorf("unable to delete stack: %s, provisioner %s, err: %v", bs.params.stackName, id, err)
 			}
 		}
+	}
+}
+
+// SaveCoverage saves the coverage of the environment to the given directory.
+// It is called by TearDownSuite if the coverage is enabled.
+// It can be manually called by the test suite if needed.
+// If a test is explicitly restarting the agent the coverage should be saved first otherwise the counters are reset after restart.
+func (bs *BaseSuite[Env]) SaveCoverage(coverageDir string) {
+	if coverageEnv, ok := any(bs.env).(common.Coverageable); ok {
+		// Create coverage folder if it doesn't exist
+		rootTestName := strings.ToLower(strings.Split(bs.T().Name(), "/")[0])
+		coverageFolder := filepath.Join(coverageDir, rootTestName)
+		if _, err := os.Stat(coverageFolder); os.IsNotExist(err) {
+			err := os.MkdirAll(coverageFolder, 0755)
+			if err != nil {
+				bs.T().Logf("WARNING: Unable to create coverage folder: %v", err)
+			}
+		}
+		err := coverageEnv.Coverage(coverageFolder)
+		if err != nil {
+			bs.T().Logf("WARNING: Coverage failed: %v", err)
+		}
+	} else {
+		bs.T().Logf("WARNING: Coverage is enabled but the environment does not implement the Coverageable interface")
+		return
+	}
+}
+
+func (bs *BaseSuite[Env]) attachMetadataToCoverage(coverageDir string) {
+
+	rootTestName := strings.Split(bs.T().Name(), "/")[0]
+	if _, err := os.Stat(filepath.Join(coverageDir, strings.ToLower(rootTestName))); os.IsNotExist(err) {
+		bs.T().Logf("WARNING: Coverage folder %s does not exist", filepath.Join(coverageDir, strings.ToLower(rootTestName)))
+		return
+	}
+
+	metadata := map[string]string{
+		"job_name": os.Getenv("CI_JOB_NAME"),
+		"test":     rootTestName,
+	}
+
+	metadataFilePath := filepath.Join(coverageDir, strings.ToLower(rootTestName), "metadata.json")
+	metadataFile, err := os.Create(metadataFilePath)
+	if err != nil {
+		bs.T().Logf("WARNING: Unable to create metadata file: %v", err)
+		return
+	}
+	defer metadataFile.Close()
+	err = json.NewEncoder(metadataFile).Encode(metadata)
+	if err != nil {
+		bs.T().Logf("WARNING: Unable to encode metadata: %v", err)
 	}
 }
 

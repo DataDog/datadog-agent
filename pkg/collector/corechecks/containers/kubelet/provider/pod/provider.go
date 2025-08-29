@@ -49,6 +49,8 @@ type Provider struct {
 	config      *common.KubeletConfig
 	podUtils    *common.PodUtils
 	tagger      tagger.Component
+	// now timer func is used to mock time in tests
+	now func() time.Time
 }
 
 // NewProvider returns a new Provider
@@ -58,6 +60,7 @@ func NewProvider(filterStore workloadfilter.Component, config *common.KubeletCon
 		config:      config,
 		podUtils:    podUtils,
 		tagger:      tagger,
+		now:         time.Now,
 	}
 }
 
@@ -117,6 +120,9 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 			p.generateContainerSpecMetrics(sender, pod, &container, &cStatus, cID)
 			p.generateContainerStatusMetrics(sender, pod, &container, &cStatus, cID)
 		}
+
+		p.generatePodTerminationMetric(sender, pod)
+
 		runningAggregator.recordPod(p, pod)
 	}
 	runningAggregator.generateRunningAggregatorMetrics(sender)
@@ -175,6 +181,32 @@ func (p *Provider) generateContainerStatusMetrics(sender sender.Sender, pod *kub
 			sender.Gauge(common.KubeletMetricsPrefix+"containers."+key+".waiting", 1, "", waitTags)
 		}
 	}
+}
+
+func (p *Provider) generatePodTerminationMetric(sender sender.Sender, pod *kubelet.Pod) {
+	// This field is set by the server when a graceful deletion is requested by the user, and is not directly settable by a client.
+	// If there is no DeletionTimestamp then POD is not in Termination and no metric is needed.
+	if pod.Metadata.DeletionTimestamp == nil {
+		return
+	}
+
+	dur := p.now().Sub(*pod.Metadata.DeletionTimestamp)
+
+	// While DeletionTimestamp is in the future metric is not emitted.
+	if dur < 0 {
+		return
+	}
+
+	podID := pod.Metadata.UID
+	if podID == "" {
+		log.Debug("skipping pod with no uid for termination metric, duration: %f", dur.Seconds())
+		return
+	}
+	entityID := types.NewEntityID(types.KubernetesPodUID, podID)
+	tagList, _ := p.tagger.Tag(entityID, types.LowCardinality)
+	tagList = utils.ConcatenateTags(tagList, p.config.Tags)
+
+	sender.Gauge(common.KubeletMetricsPrefix+"pod.terminating.duration", float64(dur.Seconds()), "", tagList)
 }
 
 type runningAggregator struct {

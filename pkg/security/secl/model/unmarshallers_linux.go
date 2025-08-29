@@ -243,7 +243,7 @@ func (e *Process) UnmarshalPidCacheBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *Process) UnmarshalBinary(data []byte) (int, error) {
-	const size = 288 // size of struct exec_event_t starting from process_entry_t, inclusive
+	const size = 292 // size of struct exec_event_t starting from process_entry_t, inclusive
 	if len(data) < size {
 		return 0, ErrNotEnoughData
 	}
@@ -287,6 +287,8 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 	e.EnvsTruncated = binary.NativeEndian.Uint32(data[read+4:read+8]) == 1
 	read += 8
 
+	e.IsThroughSymLink = (binary.NativeEndian.Uint32(data[read:read+4]) > 0)
+	read += 4
 	return validateReadSize(size, read)
 }
 

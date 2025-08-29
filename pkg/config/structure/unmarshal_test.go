@@ -45,7 +45,7 @@ type trapsConfig struct {
 // newEmptyMockConf returns an empty config appropriate for running tests
 // we can't use pkg/config/mock here because that package depends upon this one, so
 // this avoids a circular dependency
-func newEmptyMockConf(_ *testing.T) model.Config {
+func newEmptyMockConf(_ *testing.T) model.BuildableConfig {
 	cfg := create.NewConfig("test")
 	cfg.SetTestOnlyDynamicSchema(true)
 	return cfg
@@ -53,7 +53,7 @@ func newEmptyMockConf(_ *testing.T) model.Config {
 
 // We don't use config mock here to not create cycle dependencies (same reason why config mock are not used in
 // pkg/config/{setup/model})
-func newConfigFromYaml(t *testing.T, yaml string) model.Config {
+func newConfigFromYaml(t *testing.T, yaml string) model.BuildableConfig {
 	conf := newEmptyMockConf(t)
 	conf.SetConfigType("yaml")
 	err := conf.ReadConfig(bytes.NewBuffer([]byte(yaml)))

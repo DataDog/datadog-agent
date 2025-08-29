@@ -1867,6 +1867,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "event.source":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSource(ev, &ev.BaseEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "event.timestamp":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -29775,6 +29786,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"event.os",
 		"event.rule.tags",
 		"event.service",
+		"event.source",
 		"event.timestamp",
 		"exec.args",
 		"exec.args_flags",
@@ -31814,6 +31826,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "event.rule.tags":
 		return "", reflect.String, "string", nil
 	case "event.service":
+		return "", reflect.String, "string", nil
+	case "event.source":
 		return "", reflect.String, "string", nil
 	case "event.timestamp":
 		return "", reflect.Int, "int", nil
@@ -35636,6 +35650,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringArrayFieldValue("event.rule.tags", &ev.BaseEvent.RuleTags, value)
 	case "event.service":
 		return ev.setStringFieldValue("event.service", &ev.BaseEvent.Service, value)
+	case "event.source":
+		return ev.setStringFieldValue("event.source", &ev.BaseEvent.Source, value)
 	case "event.timestamp":
 		return ev.setUint64FieldValue("event.timestamp", &ev.BaseEvent.TimestampRaw, value)
 	case "exec.args":

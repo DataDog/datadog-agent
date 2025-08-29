@@ -50,11 +50,10 @@ const (
 
 // ServiceMetadata holds information about a service.
 type ServiceMetadata struct {
-	Name              string
-	Source            ServiceNameSource
-	AdditionalNames   []string
-	DDService         string
-	DDServiceInjected bool
+	Name            string
+	Source          ServiceNameSource
+	AdditionalNames []string
+	DDService       string
 	// for future usage: we can detect also the type, vendor, frameworks, etc
 }
 
@@ -295,16 +294,6 @@ var executableDetectors = map[string]detectorCreatorFn{
 	"sudo":     newSimpleDetector,
 }
 
-func serviceNameInjected(envs envs.Variables) bool {
-	if env, ok := envs.Get("DD_INJECTION_ENABLED"); ok {
-		values := strings.Split(env, ",")
-		if slices.Contains(values, "service_name") {
-			return true
-		}
-	}
-	return false
-}
-
 // ExtractServiceMetadata attempts to detect ServiceMetadata from the given process.
 func ExtractServiceMetadata(lang language.Language, ctx DetectionContext) (metadata ServiceMetadata, success bool) {
 	cmd := ctx.Args
@@ -317,7 +306,6 @@ func ExtractServiceMetadata(lang language.Language, ctx DetectionContext) (metad
 
 	if value, ok := chooseServiceNameFromEnvs(ctx.Envs); ok {
 		metadata.DDService = value
-		metadata.DDServiceInjected = serviceNameInjected(ctx.Envs)
 	}
 
 	exe := cmd[0]

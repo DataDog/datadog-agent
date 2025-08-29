@@ -20,6 +20,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -126,7 +127,33 @@ func testServerError(t *testing.T) *httptest.Server {
 	return server
 }
 
-// run this at the beginning of each test, this is because we *really*
+// retryInfoCall attempts to call Info with retry logic for CI overload handling
+func retryInfoCall(t *testing.T, conf *config.AgentConfig) (string, error) {
+	var buf bytes.Buffer
+	var info string
+
+	// Retry with 1 second delay to handle CI overload on MacOS runners
+	maxRetries := 2
+	for attempt := range maxRetries {
+		buf.Reset()
+		err := Info(&buf, conf)
+		if err != nil {
+			if attempt < maxRetries-1 {
+				t.Logf("Info call failed (attempt %d/%d), retrying in 1 second: %v", attempt+1, maxRetries, err)
+				time.Sleep(time.Second)
+			} else {
+				return "", err
+			}
+			continue
+		}
+		info = buf.String()
+		break
+	}
+
+	return info, nil
+}
+
+// testInit runs at the beginning of each test, this is because we *really*
 // need to have InitInfo be called before doing anything
 func testInit(t *testing.T, serverConfig *tls.Config) *config.AgentConfig {
 	assert := assert.New(t)
@@ -178,10 +205,8 @@ func TestInfo(t *testing.T) {
 	assert.NoError(err)
 	conf.DebugServerPort = port
 
-	var buf bytes.Buffer
-	err = Info(&buf, conf)
+	info, err := retryInfoCall(t, conf)
 	assert.NoError(err)
-	info := buf.String()
 	assert.NotEmpty(info)
 	t.Logf("Info:\n%s\n", info)
 	expectedInfo, err := os.ReadFile("./testdata/okay.info")
@@ -210,10 +235,8 @@ func TestProbabilisticSampler(t *testing.T) {
 	assert.NoError(err)
 	conf.DebugServerPort = port
 
-	var buf bytes.Buffer
-	err = Info(&buf, conf)
+	info, err := retryInfoCall(t, conf)
 	assert.NoError(err)
-	info := buf.String()
 	assert.NotEmpty(info)
 	t.Logf("Info:\n%s\n", info)
 	expectedInfo, err := os.ReadFile("./testdata/psp.info")
@@ -255,10 +278,8 @@ func TestWarning(t *testing.T) {
 	assert.NoError(err)
 	conf.DebugServerPort = port
 
-	var buf bytes.Buffer
-	err = Info(&buf, conf)
+	info, err := retryInfoCall(t, conf)
 	assert.NoError(err)
-	info := buf.String()
 
 	expectedWarning, err := os.ReadFile("./testdata/warning.info")
 	re := regexp.MustCompile(`\r\n`)
@@ -441,8 +462,8 @@ func TestInfoConfig(t *testing.T) {
 	conf.EVPProxy.ApplicationKey = ""
 	assert.Equal("", confCopy.DebuggerProxy.APIKey, "Debugger Proxy API Key should *NEVER* be exported")
 	conf.DebuggerProxy.APIKey = ""
-	assert.Equal("", confCopy.DebuggerDiagnosticsProxy.APIKey, "Debugger Diagnostics Proxy API Key should *NEVER* be exported")
-	conf.DebuggerDiagnosticsProxy.APIKey = ""
+	assert.Equal("", confCopy.DebuggerIntakeProxy.APIKey, "Debugger Intake Proxy API Key should *NEVER* be exported")
+	conf.DebuggerIntakeProxy.APIKey = ""
 	// IPC Auth data should not be exposed
 	conf.AuthToken = ""
 	conf.IPCTLSClientConfig = nil

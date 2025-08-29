@@ -427,11 +427,18 @@ probes:
   captureSnapshot: true
 - id: testInterface
   type: LOG_PROBE
-  tags:
-    - "foo:bar"
   where:
     methodName: main.testInterface
   captureSnapshot: true
+  sampling:
+    snapshotsPerSecond: 10
+- id: testAny
+  type: LOG_PROBE
+  where:
+    methodName: main.testAny
+  captureSnapshot: true
+  sampling:
+    snapshotsPerSecond: 10
 - id: testError
   type: LOG_PROBE
   tags:

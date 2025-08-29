@@ -403,9 +403,16 @@ func IsPodReady(pod *Pod) bool {
 		return false
 	}
 
-	if tolerate, ok := pod.Metadata.Annotations[unreadyAnnotation]; ok && tolerate == "true" {
-		return true
+	// In the previous implementation that used the pod watcher, the
+	// tolerate-unready annotation logic was handled here. The new
+	// implementation moves this logic into the autodiscovery parts that need
+	// it.
+	if pkgconfigsetup.Datadog().GetBool("kubelet_use_pod_watcher") {
+		if tolerate, ok := pod.Metadata.Annotations[unreadyAnnotation]; ok && tolerate == "true" {
+			return true
+		}
 	}
+
 	for _, status := range pod.Status.Conditions {
 		if status.Type == "Ready" && status.Status == "True" {
 			return true

@@ -181,8 +181,9 @@ type failOnceDecoderFactory struct {
 
 func (f *failOnceDecoderFactory) NewDecoder(
 	program *ir.Program,
+	executable procmon.Executable,
 ) (module.Decoder, error) {
-	decoder, err := f.underlying.NewDecoder(program)
+	decoder, err := f.underlying.NewDecoder(program, executable)
 	if err != nil {
 		return nil, err
 	}

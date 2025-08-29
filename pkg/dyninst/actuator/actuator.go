@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
@@ -423,9 +422,9 @@ func attachToProcess(
 	}
 	defer elfFile.Close()
 
-	textSection, err := object.FindTextSectionHeader(elfFile)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get text section: %w", err)
+	textSection := elfFile.Section(".text")
+	if textSection == nil {
+		return nil, fmt.Errorf("text section not found")
 	}
 
 	attached := make([]link.Link, 0, len(loaded.program.Attachpoints))

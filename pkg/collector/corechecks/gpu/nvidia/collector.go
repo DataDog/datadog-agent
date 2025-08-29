@@ -42,6 +42,7 @@ const (
 	field        CollectorName = "fields"
 	clock        CollectorName = "clocks"
 	device       CollectorName = "device"
+	memory       CollectorName = "memory"
 	remappedRows CollectorName = "remapped_rows"
 	samples      CollectorName = "samples"
 	process      CollectorName = "process"
@@ -82,6 +83,7 @@ var factory = map[CollectorName]subsystemBuilder{
 	device:       newDeviceCollector,
 	field:        newFieldsCollector,
 	gpm:          newGPMCollector,
+	memory:       newMemoryCollector,
 	nvlink:       newNVLinkCollector,
 	process:      newProcessCollector,
 	remappedRows: newRemappedRowsCollector,
@@ -177,19 +179,19 @@ func GetDeviceTagsMapping(deviceCache ddnvml.DeviceCache, tagger tagger.Componen
 // Example:
 //
 //	CollectorA: [
-//	  {Name: "memory.usage", Priority: 10, Tags: ["pid:1001"]},
-//	  {Name: "memory.usage", Priority: 10, Tags: ["pid:1002"]},
+//	  {Name: "process.memory.usage", Priority: 10, Tags: ["pid:1001"]},
+//	  {Name: "process.memory.usage", Priority: 10, Tags: ["pid:1002"]},
 //	  {Name: "core.temp", Priority: 0}
 //	]
 //	CollectorB: [
-//	  {Name: "memory.usage", Priority: 5, Tags: ["pid:1003"]},
+//	  {Name: "process.memory.usage", Priority: 5, Tags: ["pid:1003"]},
 //	  {Name: "fan.speed", Priority: 0}
 //	]
 //
 // Result: [
 //
-//	{Name: "memory.usage", Priority: 10, Tags: ["pid:1001"]},  // From CollectorA (winner)
-//	{Name: "memory.usage", Priority: 10, Tags: ["pid:1002"]},  // From CollectorA (winner)
+//	{Name: "process.memory.usage", Priority: 10, Tags: ["pid:1001"]},  // From CollectorA (winner)
+//	{Name: "process.memory.usage", Priority: 10, Tags: ["pid:1002"]},  // From CollectorA (winner)
 //	{Name: "core.temp", Priority: 0},                          // From CollectorA (unique)
 //	{Name: "fan.speed", Priority: 0}                           // From CollectorB (unique)
 //

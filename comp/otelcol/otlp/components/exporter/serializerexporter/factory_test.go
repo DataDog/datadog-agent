@@ -16,23 +16,7 @@ import (
 	"go.opentelemetry.io/collector/component/componenttest"
 	exp "go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exportertest"
-
-	otlpmetrics "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
 )
-
-type MockTagEnricher struct{}
-
-func (m *MockTagEnricher) SetCardinality(_ string) error {
-	return nil
-}
-
-func (m *MockTagEnricher) Enrich(_ context.Context, extraTags []string, dimensions *otlpmetrics.Dimensions) []string {
-	enrichedTags := make([]string, 0, len(extraTags)+len(dimensions.Tags()))
-	enrichedTags = append(enrichedTags, extraTags...)
-	enrichedTags = append(enrichedTags, dimensions.Tags()...)
-
-	return enrichedTags
-}
 
 // newFactory creates a factory for test-only
 func newFactory() exp.Factory {

@@ -54,7 +54,7 @@ source_local_configuration - string: the Cluster-Agent configuration synchronize
         "feature_admission_controller_validation_enabled": true,
         "feature_apm_config_instrumentation_enabled": false,
         "feature_autoscaling_workload_enabled": false,
-        "feature_cluster_checks_advanced_dispatching_enabled": true,
+        "feature_cluster_checks_advanced_dispatching_enabled": false,
         "feature_cluster_checks_enabled": true,
         "feature_cluster_checks_exclude_checks": [],
         "feature_compliance_config_enabled": false,

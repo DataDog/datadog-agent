@@ -36,7 +36,7 @@ BPF_ARRAY_MAP(connect_addr_family_approvers, struct u64_flags_filter_t, 1)
 BPF_ARRAY_MAP(syscalls_stats_enabled, u32, 1)
 BPF_ARRAY_MAP(syscall_ctx_gen_id, u32, 1)
 BPF_ARRAY_MAP(syscall_ctx, char[MAX_SYSCALL_CTX_SIZE], MAX_SYSCALL_CTX_ENTRIES)
-BPF_ARRAY_MAP(global_rate_limiters, struct rate_limiter_ctx, 1)
+BPF_ARRAY_MAP(global_rate_limiters, struct rate_limiter_ctx, 2)
 BPF_ARRAY_MAP(filtered_dns_rcodes, u16, 1)
 
 BPF_HASH_MAP(activity_dumps_config, u64, struct activity_dump_config, 1) // max entries will be overridden at runtime

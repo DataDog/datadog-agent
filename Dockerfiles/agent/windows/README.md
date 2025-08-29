@@ -35,13 +35,23 @@ From the `Dockerfiles\agent\` folder, run either of the following commands:
 a. To build the containerized Agent from a Nano Windows base image:
 ```
 # Build nano image
-docker build -t mycustomagent --build-arg BASE_IMAGE=mcr.microsoft.com/powershell:lts-nanoserver-1809 --build-arg WITH_JMX=false --build-arg VARIANT=1809 -f .\windows\amd64\Dockerfile .
+docker build -t mycustomagent \
+  --build-arg BASE_IMAGE=mcr.microsoft.com/powershell:lts-nanoserver-1809 \
+  --build-arg BASE_IMAGE_OS="windows nanoserver" \
+  --build-arg WITH_JMX=false \
+  --build-arg VARIANT=1809 \
+  -f .\windows\amd64\Dockerfile .
 ```
 
 a. To build the containerized Agent from a Core Windows base image:
 ```
 # Build core image
-docker build -t mycustomagent --build-arg BASE_IMAGE=mcr.microsoft.com/powershell:windowsservercore-1809 --build-arg WITH_JMX=false --build-arg VARIANT=1809 -f .\windows\amd64\Dockerfile .
+docker build -t mycustomagent \
+  --build-arg BASE_IMAGE=mcr.microsoft.com/powershell:windowsservercore-1809 \
+  --build-arg BASE_IMAGE_OS="windows server core" \
+  --build-arg WITH_JMX=false \
+  --build-arg VARIANT=1809 \
+  -f .\windows\amd64\Dockerfile .
 ```
 
 If you need JMX, change `WITH_JMX` to `true`.

@@ -79,6 +79,7 @@ func SkipIfNotAvailable(t *testing.T) {
 			"TestMountEvent",
 			"TestMount",
 			"TestMountPropagated",
+			"~TestSetSockOpt",
 		}
 
 		exclude := []string{
@@ -107,7 +108,7 @@ func SkipIfNotAvailable(t *testing.T) {
 			"TestActionKillExcludeBinary",
 			"~TestActionKillDisarm",
 			"~TestProcessInterpreter",
-			"~TestConnectEvent/io-uring",
+			"~TestConnectEventAFInetIOUring",
 			"TestAcceptEvent/accept-af-inet-any-tcp-success-sockaddrin-io-uring",
 			"TestOpenTree",
 		}

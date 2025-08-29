@@ -354,12 +354,13 @@ func (v *gpuBaseSuite[Env]) TestVectorAddProgramDetected() {
 	// Docker access to GPUs is flaky sometimes. We haven't been able to reproduce why this happens, but it
 	// seems it's always the same error code.
 	flake.MarkOnLog(v.T(), "error code no CUDA-capable device is detected")
+	flake.MarkOnLog(v.T(), "error code CUDA-capable device(s) is/are busy or unavailable")
 	_ = v.runCudaDockerWorkload()
 
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		// We are not including "gpu.memory", as that represents the "current
 		// memory usage" and that might be zero at the time it's checked
-		metricNames := []string{"gpu.core.usage"}
+		metricNames := []string{"gpu.process.core.usage"}
 
 		var usageMetricTags []string
 		for _, metricName := range metricNames {
@@ -367,7 +368,7 @@ func (v *gpuBaseSuite[Env]) TestVectorAddProgramDetected() {
 			assert.NoError(c, err)
 			assert.Greater(c, len(metrics), 0, "no '%s' with value higher than 0 yet", metricName)
 
-			if metricName == "gpu.core.usage" && len(metrics) > 0 {
+			if metricName == "gpu.process.core.usage" && len(metrics) > 0 {
 				usageMetricTags = metrics[0].Tags
 			}
 		}

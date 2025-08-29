@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/hash"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
@@ -101,15 +102,19 @@ func (p *FileHasher) HashAndReport(rule *rules.Rule, action *rules.HashDefinitio
 
 	fileEvent, err := ev.GetFileField(action.Field)
 	if err != nil {
-		return false
-	}
-
-	if fileEvent.IsFileless() {
+		seclog.Errorf("failed to get file field %s: %v", action.Field, err)
 		return false
 	}
 
 	if ev.ProcessContext.Pid == utils.Getpid() {
 		return false
+	}
+
+	switch ev.Origin {
+	case EBPFOrigin:
+		if fileEvent.IsFileless() {
+			return false
+		}
 	}
 
 	report := &HashActionReport{

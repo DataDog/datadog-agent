@@ -25,6 +25,32 @@ var (
 	datadogInstalledIntegrationsPattern = regexp.MustCompile(`embedded/lib/python[^/]+/site-packages/datadog_.*`)
 )
 
+// executePythonScript executes a Python script with the given arguments
+func executePythonScript(ctx context.Context, installPath, scriptName string, args ...string) error {
+	pythonPath := filepath.Join(installPath, "embedded/bin/python")
+	scriptPath := filepath.Join(installPath, "python-scripts", scriptName)
+
+	if _, err := os.Stat(pythonPath); err != nil {
+		return fmt.Errorf("python not found at %s: %w", pythonPath, err)
+	}
+
+	pythonCmd := append([]string{scriptPath}, args...)
+	fullCmd := append([]string{pythonPath}, pythonCmd...)
+	// Set umask to 022 before running the command.
+	// This ensures that the files created by the Python script have the correct permissions.
+	bashCmd := "umask 022; " + strings.Join(fullCmd, " ")
+
+	cmd := exec.CommandContext(ctx, "bash", "-c", bashCmd)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to run %s: %w", scriptName, err)
+	}
+
+	return nil
+}
+
 // SaveCustomIntegrations saves custom integrations from the previous installation
 // Today it calls pre.py to persist the custom integrations; though we should probably
 // port this to Go in the future.
@@ -42,15 +68,7 @@ func SaveCustomIntegrations(ctx context.Context, installPath string) (err error)
 		storagePath = paths.RootTmpDir
 	}
 
-	if _, err := os.Stat(filepath.Join(installPath, "embedded/bin/python")); err == nil {
-		cmd := exec.CommandContext(ctx, filepath.Join(installPath, "embedded/bin/python"), filepath.Join(installPath, "python-scripts/pre.py"), installPath, storagePath)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("failed to run integration persistence in pre.py: %w", err)
-		}
-	}
-	return nil
+	return executePythonScript(ctx, installPath, "pre.py", installPath, storagePath)
 }
 
 // RestoreCustomIntegrations restores custom integrations from the previous installation
@@ -70,15 +88,7 @@ func RestoreCustomIntegrations(ctx context.Context, installPath string) (err err
 		storagePath = paths.RootTmpDir
 	}
 
-	if _, err := os.Stat(filepath.Join(installPath, "embedded/bin/python")); err == nil {
-		cmd := exec.CommandContext(ctx, filepath.Join(installPath, "embedded/bin/python"), filepath.Join(installPath, "python-scripts/post.py"), installPath, storagePath)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("failed to run integration persistence in post.py: %w", err)
-		}
-	}
-	return nil
+	return executePythonScript(ctx, installPath, "post.py", installPath, storagePath)
 }
 
 // getAllIntegrations retrieves all integration paths installed by the package

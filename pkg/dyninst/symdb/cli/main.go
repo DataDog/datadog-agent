@@ -25,6 +25,7 @@ import (
 var (
 	binaryPath     = flag.String("binary-path", "", "Path to the binary to analyze.")
 	silent         = flag.Bool("silent", false, "If set, the collected symbols are not printed.")
+	stream         = flag.Bool("stream", false, "Use the package streaming mode for parsing the debug info. This implies ignoring the inlined functions.")
 	onlyFirstParty = flag.Bool("only-1stparty", false,
 		"Only output symbols for \"1st party\" code (i.e. code from modules belonging "+
 			"to the same GitHub org as the main one).")
@@ -66,14 +67,10 @@ The symbols from the specified binary will be extracted and printed to stdout
 func run(binaryPath string) error {
 	log.Infof("Analyzing binary: %s", binaryPath)
 	start := time.Now()
-	opt := symdb.ExtractScopeAllSymbols
+	scope := symdb.ExtractScopeAllSymbols
 	if *onlyFirstParty {
 		log.Infof("Extracting only 1st party symbols")
-		opt = symdb.ExtractScopeModulesFromSameOrg
-	}
-	symBuilder, err := symdb.NewSymDBBuilder(binaryPath, opt)
-	if err != nil {
-		return err
+		scope = symdb.ExtractScopeModulesFromSameOrg
 	}
 
 	// Start tracing if we were asked to.
@@ -93,9 +90,28 @@ func run(binaryPath string) error {
 		defer trace.Stop()
 	}
 
-	symbols, err := symBuilder.ExtractSymbols()
-	if err != nil {
-		return err
+	var symbols symdb.Symbols
+	opt := symdb.ExtractOptions{
+		Scope:                   scope,
+		IncludeInlinedFunctions: !*stream,
+	}
+	if !*stream {
+		var err error
+		symbols, err = symdb.ExtractSymbols(binaryPath, opt)
+		if err != nil {
+			return err
+		}
+	} else {
+		it, err := symdb.PackagesIterator(binaryPath, opt)
+		if err != nil {
+			return err
+		}
+		for pkg, err := range it {
+			if err != nil {
+				return err
+			}
+			symbols.Packages = append(symbols.Packages, pkg)
+		}
 	}
 	trace.Stop()
 	log.Infof("Symbol extraction completed in %s.", time.Since(start))

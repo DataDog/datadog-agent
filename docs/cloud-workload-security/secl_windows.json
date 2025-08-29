@@ -48,6 +48,11 @@
           "property_doc_link": "event-service-doc"
         },
         {
+          "name": "event.source",
+          "definition": "[Experimental] Source of the event. Can be either 'runtime' or 'snapshot'.",
+          "property_doc_link": "event-source-doc"
+        },
+        {
           "name": "event.timestamp",
           "definition": "Timestamp of the event",
           "property_doc_link": "event-timestamp-doc"
@@ -1485,6 +1490,18 @@
       "link": "event-service-doc",
       "type": "string",
       "definition": "Service associated with the event",
+      "prefixes": [
+        ""
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "event.source",
+      "link": "event-source-doc",
+      "type": "string",
+      "definition": "[Experimental] Source of the event. Can be either 'runtime' or 'snapshot'.",
       "prefixes": [
         ""
       ],

@@ -206,6 +206,8 @@ func (l *SNMPListener) checkDevice(job snmpJob) {
 			continue
 		}
 
+		job.subnet.deviceFailures[entityID] = 0
+
 		deviceInfo := l.checkDeviceInfo(authentication, job.subnet.config.Port, deviceIP)
 		l.createService(entityID, job.subnet, deviceIP, deviceInfo, authIndex, true)
 

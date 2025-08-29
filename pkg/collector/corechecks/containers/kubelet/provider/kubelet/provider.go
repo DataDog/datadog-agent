@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/prometheus"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	prom "github.com/DataDog/datadog-agent/pkg/util/prometheus"
 )
@@ -96,6 +97,7 @@ type Provider struct {
 	store       workloadmeta.Component
 	podUtils    *common.PodUtils
 	tagger      tagger.Component
+	firstRun    bool
 	prometheus.Provider
 }
 
@@ -118,6 +120,7 @@ func NewProvider(filterStore workloadfilter.Component, config *common.KubeletCon
 		store:       store,
 		podUtils:    podUtils,
 		tagger:      tagger,
+		firstRun:    true,
 	}
 
 	transformers := prometheus.Transformers{
@@ -147,13 +150,23 @@ func NewProvider(filterStore workloadfilter.Component, config *common.KubeletCon
 	return provider, nil
 }
 
+// Provide sends the metrics collected and handles first run tracking
+func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) error {
+	err := p.Provider.Provide(kc, sender)
+	if err == nil {
+		// Only set firstRun to false if the call was successful
+		p.firstRun = false
+	}
+	return err
+}
+
 func (p *Provider) sendAlwaysCounter(metricFam *prom.MetricFamily, sender sender.Sender) {
 	metricName := metricFam.Name
 	nameWithNamespace := common.KubeletMetricsPrefix + counterMetrics[metricName]
 
 	for _, metric := range metricFam.Samples {
 		tags := p.MetricTags(metric)
-		sender.MonotonicCount(nameWithNamespace, float64(metric.Value), "", tags)
+		sender.MonotonicCountWithFlushFirstValue(nameWithNamespace, float64(metric.Value), "", tags, !p.firstRun)
 	}
 }
 

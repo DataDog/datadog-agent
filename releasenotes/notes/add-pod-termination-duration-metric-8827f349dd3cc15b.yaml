@@ -1,0 +1,12 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Add the new metric `kubernetes.pod.terminating.duration` to kubelet check to track pods
+    that are stuck in the termination phase. If `deletionTimestamp` is set to a time in the future,`kubernetes.pod.terminating.duration` is only emitted when the current time reaches the time set in `deletionTimestamp`.

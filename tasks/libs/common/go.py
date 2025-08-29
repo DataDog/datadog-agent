@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -66,4 +67,14 @@ def go_build(
 
     cmd += f" {entrypoint}"
 
-    return ctx.run(cmd, env=env)
+    result = ctx.run(cmd, env=env)
+    if sys.platform == "win32" or result.exited != 0 or bin_path is None:
+        return result
+
+    if os.path.exists(bin_path):
+        uid = os.environ.get("HOST_UID", "-1")
+        gid = os.environ.get("HOST_GID", "-1")
+        if uid != "-1" and gid != "-1":
+            os.chown(bin_path, int(uid), int(gid))
+
+    return result

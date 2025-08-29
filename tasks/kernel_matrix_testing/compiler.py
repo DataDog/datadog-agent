@@ -155,7 +155,7 @@ class CompilerImage:
         run_dir: PathOrStr | None = None,
         allow_fail=False,
         force_color=True,
-    ):
+    ) -> Result:
         if run_dir:
             cmd = f"cd {run_dir} && {cmd}"
 
@@ -171,10 +171,13 @@ class CompilerImage:
             color_env = ""
 
         # Set FORCE_COLOR=1 so that termcolor works in the container
-        return self.ctx.run(
-            f"docker exec -u {user} -i {color_env} {self.name} bash -l -c \"{cmd}\"",
-            hide=(not verbose),
-            warn=allow_fail,
+        return cast(
+            Result,
+            self.ctx.run(
+                f"docker exec -u {user} -i {color_env} {self.name} bash -l -c \"{cmd}\"",
+                hide=(not verbose),
+                warn=allow_fail,
+            ),
         )
 
     def stop(self) -> Result:
@@ -214,6 +217,9 @@ class CompilerImage:
                 f"chown {self.host_uid}:{self.host_gid} {CONTAINER_AGENT_PATH} && chown -R {self.host_uid}:{self.host_gid} {CONTAINER_AGENT_PATH}",
                 user="root",
             )
+
+        # We need to make the /go directory writable by the compiler user
+        self.exec("chmod -R a+rw /go", user="root")
 
         cross_arch = ARCH_ARM64 if self.arch == ARCH_AMD64 else ARCH_AMD64
         self.exec("chmod a+rx /root", user="root")  # Some binaries will be in /root and need to be readable

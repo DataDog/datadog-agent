@@ -658,6 +658,32 @@ const GetDIAMetrics = `
 }
 `
 
+// GetAnalyticsInterfaceMetrics /versa/analytics/v1.0.0/data/provider/tenants/datadog/features/SDWAN
+const GetAnalyticsInterfaceMetrics = `
+{
+    "qTime": 1,
+    "sEcho": 0,
+    "iTotalDisplayRecords": 1,
+    "iTotalRecords": 1,
+    "aaData": [
+        [
+            "test-branch-2B,INET-1,ge-0/0/1",
+            "test-branch-2B",
+            "INET-1",
+            "ge-0/0/1",
+            25.5,
+            18.3,
+            1024000.0,
+            768000.0,
+            1792000.0,
+            8192.0,
+            6144.0,
+            14336.0
+        ]
+    ]
+}
+`
+
 // GetSiteMetrics /versa/analytics/v1.0.0/data/provider/tenants/datadog/features/SDWAN
 const GetSiteMetrics = `
 {

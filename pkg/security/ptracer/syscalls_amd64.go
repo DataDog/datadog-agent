@@ -81,6 +81,7 @@ const (
 	AcceptNr         = unix.SYS_ACCEPT            // AcceptNr defines the syscall ID for amd64
 	BindNr           = unix.SYS_BIND              // BindNr defines the syscall ID for amd64
 	SocketNr         = unix.SYS_SOCKET            // SocketNr defines the syscall ID for amd64
+	SetsockoptNr     = unix.SYS_SETSOCKOPT        // SetsockoptNr defines the syscall ID for amd64
 )
 
 // https://github.com/torvalds/linux/blob/v5.0/arch/x86/entry/entry_64.S#L126

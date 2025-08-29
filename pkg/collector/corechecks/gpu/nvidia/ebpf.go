@@ -9,6 +9,7 @@ package nvidia
 
 import (
 	"fmt"
+
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
@@ -144,13 +145,13 @@ func (c *ebpfCollector) Collect() ([]Metric, error) {
 		// Add per-process usage metrics
 		deviceMetrics = append(deviceMetrics,
 			Metric{
-				Name:  "core.usage",
+				Name:  "process.core.usage",
 				Value: metrics.UsedCores,
 				Type:  ddmetrics.GaugeType,
 				Tags:  pidTag,
 			},
 			Metric{
-				Name:  "memory.usage",
+				Name:  "process.memory.usage",
 				Value: float64(metrics.Memory.CurrentBytes),
 				Type:  ddmetrics.GaugeType,
 				Tags:  pidTag,
@@ -171,13 +172,13 @@ func (c *ebpfCollector) Collect() ([]Metric, error) {
 			// Emit zero metrics for inactive processes
 			deviceMetrics = append(deviceMetrics,
 				Metric{
-					Name:  "core.usage",
+					Name:  "process.core.usage",
 					Value: 0,
 					Type:  ddmetrics.GaugeType,
 					Tags:  pidTag,
 				},
 				Metric{
-					Name:  "memory.usage",
+					Name:  "process.memory.usage",
 					Value: 0,
 					Type:  ddmetrics.GaugeType,
 					Tags:  pidTag,

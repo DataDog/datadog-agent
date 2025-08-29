@@ -195,7 +195,7 @@ func (is *stepByStepSuite) StepByStepDebianTest(VMclient *common.TestClient) {
 		ExecuteWithoutError(t, VMclient, "sudo touch %s && sudo chmod a+r %s", aptUsrShareKeyring, aptUsrShareKeyring)
 		keys := []string{"DATADOG_APT_KEY_CURRENT.public", "DATADOG_APT_KEY_C0962C7D.public", "DATADOG_APT_KEY_F14F620E.public", "DATADOG_APT_KEY_382E94DE.public"}
 		for _, key := range keys {
-			ExecuteWithoutError(t, VMclient, "sudo curl --retry 5 -o \"/tmp/%s\" \"https://apttesting.datad0g.com/test-keys-vault/%s\"", key, key)
+			ExecuteWithoutError(t, VMclient, "sudo curl --retry 5 -o \"/tmp/%s\" \"https://apttesting.datad0g.com/test-keys/%s\"", key, key)
 			ExecuteWithoutError(t, VMclient, "sudo cat \"/tmp/%s\" | sudo gpg --import --batch --no-default-keyring --keyring \"%s\"", key, aptUsrShareKeyring)
 		}
 	})
@@ -238,10 +238,10 @@ func (is *stepByStepSuite) StepByStepRhelTest(VMclient *common.TestClient) {
 		"enabled=1\n"+
 		"gpgcheck=1\n"+
 		"repo_gpgcheck=%s\n"+
-		"gpgkey=%s://apttesting.datad0g.com/test-keys-vault/DATADOG_RPM_KEY_CURRENT.public\n"+
-		"\t%s://apttesting.datad0g.com/test-keys-vault/DATADOG_RPM_KEY_B01082D3.public\n"+
-		"\t%s://apttesting.datad0g.com/test-keys-vault/DATADOG_RPM_KEY_FD4BF915.public\n"+
-		"\t%s://apttesting.datad0g.com/test-keys-vault/DATADOG_RPM_KEY_E09422B3.public",
+		"gpgkey=%s://apttesting.datad0g.com/test-keys/DATADOG_RPM_KEY_CURRENT.public\n"+
+		"\t%s://apttesting.datad0g.com/test-keys/DATADOG_RPM_KEY_B01082D3.public\n"+
+		"\t%s://apttesting.datad0g.com/test-keys/DATADOG_RPM_KEY_FD4BF915.public\n"+
+		"\t%s://apttesting.datad0g.com/test-keys/DATADOG_RPM_KEY_E09422B3.public",
 		yumrepo, repogpgcheck, protocol, protocol, protocol, protocol)
 	_, err = fileManager.WriteFile("/etc/yum.repos.d/datadog.repo", []byte(fileContent))
 	require.NoError(is.T(), err)
@@ -275,22 +275,22 @@ func (is *stepByStepSuite) StepByStepSuseTest(VMclient *common.TestClient) {
 		"enabled=1\n"+
 		"gpgcheck=1\n"+
 		"repo_gpgcheck=1\n"+
-		"gpgkey=https://apttesting.datad0g.com/test-keys-vault/DATADOG_RPM_KEY_CURRENT.public\n"+
-		"	    https://apttesting.datad0g.com/test-keys-vault/DATADOG_RPM_KEY_B01082D3.public\n"+
-		"	    https://apttesting.datad0g.com/test-keys-vault/DATADOG_RPM_KEY_FD4BF915.public\n"+
-		"	    https://apttesting.datad0g.com/test-keys-vault/DATADOG_RPM_KEY_E09422B3.public\n",
+		"gpgkey=https://apttesting.datad0g.com/test-keys/DATADOG_RPM_KEY_CURRENT.public\n"+
+		"	    https://apttesting.datad0g.com/test-keys/DATADOG_RPM_KEY_B01082D3.public\n"+
+		"	    https://apttesting.datad0g.com/test-keys/DATADOG_RPM_KEY_FD4BF915.public\n"+
+		"	    https://apttesting.datad0g.com/test-keys/DATADOG_RPM_KEY_E09422B3.public\n",
 		suseRepo)
 	_, err = fileManager.WriteFile("/etc/zypp/repos.d/datadog.repo", []byte(fileContent))
 	require.NoError(is.T(), err)
 
 	is.T().Run("install suse", func(t *testing.T) {
-		ExecuteWithoutError(t, VMclient, "sudo curl -o /tmp/DATADOG_RPM_KEY_CURRENT.public https://apttesting.datad0g.com/test-keys-vault/DATADOG_RPM_KEY_CURRENT.public")
+		ExecuteWithoutError(t, VMclient, "sudo curl -o /tmp/DATADOG_RPM_KEY_CURRENT.public https://apttesting.datad0g.com/test-keys/DATADOG_RPM_KEY_CURRENT.public")
 		ExecuteWithoutError(t, VMclient, "sudo rpm --import /tmp/DATADOG_RPM_KEY_CURRENT.public")
-		ExecuteWithoutError(t, VMclient, "sudo curl -o /tmp/DATADOG_RPM_KEY_B01082D3.public https://apttesting.datad0g.com/test-keys-vault/DATADOG_RPM_KEY_B01082D3.public")
+		ExecuteWithoutError(t, VMclient, "sudo curl -o /tmp/DATADOG_RPM_KEY_B01082D3.public https://apttesting.datad0g.com/test-keys/DATADOG_RPM_KEY_B01082D3.public")
 		ExecuteWithoutError(t, VMclient, "sudo rpm --import /tmp/DATADOG_RPM_KEY_B01082D3.public")
-		ExecuteWithoutError(t, VMclient, "sudo curl -o /tmp/DATADOG_RPM_KEY_FD4BF915.public https://apttesting.datad0g.com/test-keys-vault/DATADOG_RPM_KEY_FD4BF915.public")
+		ExecuteWithoutError(t, VMclient, "sudo curl -o /tmp/DATADOG_RPM_KEY_FD4BF915.public https://apttesting.datad0g.com/test-keys/DATADOG_RPM_KEY_FD4BF915.public")
 		ExecuteWithoutError(t, VMclient, "sudo rpm --import /tmp/DATADOG_RPM_KEY_FD4BF915.public")
-		ExecuteWithoutError(t, VMclient, "sudo curl -o /tmp/DATADOG_RPM_KEY_E09422B3.public https://apttesting.datad0g.com/test-keys-vault/DATADOG_RPM_KEY_E09422B3.public")
+		ExecuteWithoutError(t, VMclient, "sudo curl -o /tmp/DATADOG_RPM_KEY_E09422B3.public https://apttesting.datad0g.com/test-keys/DATADOG_RPM_KEY_E09422B3.public")
 		ExecuteWithoutError(t, VMclient, "sudo rpm --import /tmp/DATADOG_RPM_KEY_E09422B3.public")
 		ExecuteWithoutError(t, VMclient, "sudo zypper --non-interactive --no-gpg-checks refresh datadog")
 		ExecuteWithoutError(t, VMclient, "sudo zypper --non-interactive --no-refresh install %s", *flavorName)

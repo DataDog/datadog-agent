@@ -60,7 +60,9 @@ func (f *fakeActuator) Shutdown() error {
 	return nil
 }
 
-func (f *fakeActuator) NewTenant(name string, reporter actuator.Reporter, irGenerator actuator.IRGenerator) *fakeActuatorTenant {
+func (f *fakeActuator) NewTenant(
+	name string, reporter actuator.Reporter, irGenerator actuator.IRGenerator,
+) *fakeActuatorTenant {
 	assert.Nil(f.t, f.tenant)
 	f.tenant = &fakeActuatorTenant{
 		name:        name,
@@ -75,7 +77,9 @@ type fakeDecoderFactory struct {
 	err     error
 }
 
-func (f *fakeDecoderFactory) NewDecoder(_ *ir.Program) (module.Decoder, error) {
+func (f *fakeDecoderFactory) NewDecoder(
+	_ *ir.Program, _ procmon.Executable,
+) (module.Decoder, error) {
 	return f.decoder, f.err
 }
 
@@ -93,7 +97,9 @@ type decodeCall struct {
 	out          io.Writer
 }
 
-func (f *fakeDecoder) Decode(event decode.Event, symbolicator symbol.Symbolicator, out io.Writer) (ir.ProbeDefinition, error) {
+func (f *fakeDecoder) Decode(
+	event decode.Event, symbolicator symbol.Symbolicator, out io.Writer,
+) (ir.ProbeDefinition, error) {
 	f.decodeCalls = append(f.decodeCalls, decodeCall{event, symbolicator, out})
 	if f.output != "" {
 		_, err := io.WriteString(out, f.output)

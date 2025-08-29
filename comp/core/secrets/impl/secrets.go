@@ -82,14 +82,14 @@ type secretResolver struct {
 	// list of handles and where they were found
 	origin handleToContext
 
-	backendType             string
-	backendConfig           map[string]interface{}
-	backendCommand          string
-	backendArguments        []string
-	backendTimeout          int
-	commandAllowGroupExec   bool
-	embeddedBackendUsed     bool
-	removeTrailingLinebreak bool
+	backendType                     string
+	backendConfig                   map[string]interface{}
+	backendCommand                  string
+	backendArguments                []string
+	backendTimeout                  int
+	commandAllowGroupExec           bool
+	embeddedBackendPermissiveRights bool
+	removeTrailingLinebreak         bool
 	// responseMaxSize defines max size of the JSON output from a secrets reader backend
 	responseMaxSize int
 	// refresh secrets at a regular interval
@@ -218,18 +218,18 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 	r.backendType = params.Type
 	r.backendConfig = params.Config
 	r.backendCommand = params.Command
-	r.embeddedBackendUsed = false
+	r.embeddedBackendPermissiveRights = false
 	if r.backendCommand != "" && r.backendType != "" {
 		log.Warnf("Both 'secret_backend_command' and 'secret_backend_type' are set, 'secret_backend_type' will be ignored")
 	}
 	// only use the backend type option if the backend command is not set
 	if r.backendType != "" && r.backendCommand == "" {
 		if runtime.GOOS == "windows" {
-			r.backendCommand = path.Join(defaultpaths.GetInstallPath(), "..", "secret-generic-connector.exe")
+			r.backendCommand = path.Join(defaultpaths.GetInstallPath(), "bin", "secret-generic-connector.exe")
 		} else {
 			r.backendCommand = path.Join(defaultpaths.GetInstallPath(), "..", "..", "embedded", "bin", "secret-generic-connector")
 		}
-		r.embeddedBackendUsed = true
+		r.embeddedBackendPermissiveRights = true
 	}
 	r.backendArguments = params.Arguments
 	r.backendTimeout = params.Timeout
@@ -676,12 +676,15 @@ func (r *secretResolver) getDebugInfo(w io.Writer) {
 		fmt.Fprintf(w, "error parsing secret permissions details template: %s\n", err)
 		return
 	}
+
 	permissions := "OK, the executable has the correct permissions"
-	if !r.embeddedBackendUsed {
+	if !r.embeddedBackendPermissiveRights {
 		err = checkRights(r.backendCommand, r.commandAllowGroupExec)
 		if err != nil {
 			permissions = "error: the executable does not have the correct permissions"
 		}
+	} else {
+		permissions = "OK, native secret generic connector used"
 	}
 
 	details, err := r.getExecutablePermissions()

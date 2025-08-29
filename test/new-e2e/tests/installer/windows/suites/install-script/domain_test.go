@@ -8,6 +8,7 @@ package agenttests
 import (
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
@@ -30,6 +31,9 @@ type testInstallScriptOnDCSuite struct {
 
 // TestInstallScriptWithAgentUserOnDC tests tests the Datadog Install script with a custom user and password on a Domain Controller.
 func TestInstallScriptWithAgentUserOnDC(t *testing.T) {
+	// TODO(WINA-1733): Fix race condition between service management by Agent and script
+	flake.Mark(t)
+
 	e2e.Run(t, &testInstallScriptOnDCSuite{},
 		e2e.WithProvisioner(
 			winawshost.ProvisionerNoAgentNoFakeIntake(

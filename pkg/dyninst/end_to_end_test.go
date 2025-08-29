@@ -88,9 +88,6 @@ var expectations embed.FS
 
 func TestEndToEnd(t *testing.T) {
 	t.Parallel()
-	if testing.Short() {
-		t.Skip("skipping end-to-end test in short mode")
-	}
 	dyninsttest.SkipIfKernelNotSupported(t)
 	cfgs := testprogs.MustGetCommonConfigs(t)
 	idx := slices.IndexFunc(cfgs, func(c testprogs.Config) bool {
@@ -113,6 +110,9 @@ func TestEndToEnd(t *testing.T) {
 				}
 				if !useDocker {
 					t.Skip("docker is not enabled")
+				}
+				if testing.Short() {
+					t.Skip("skipping docker test in short mode")
 				}
 				t.Parallel()
 				runE2ETest(t, e2eTestConfig{

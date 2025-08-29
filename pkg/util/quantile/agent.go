@@ -6,11 +6,17 @@
 // Package quantile provides a quantile sketch.
 package quantile
 
+import "errors"
+
 const (
 	agentBufCap = 512
 )
 
-var agentConfig = Default()
+var (
+	agentConfig = Default()
+	// ErrNonMonotonicBoundaries is returned when the boundaries of an explicit bucket histogram are not monotonic.
+	ErrNonMonotonicBoundaries = "explicit bucket histogram: non-monotonic boundaries"
+)
 
 // An Agent sketch is an insert optimized version of the sketch for use in the
 // datadog-agent.
@@ -84,7 +90,7 @@ func (a *Agent) Insert(v float64, sampleRate float64) {
 }
 
 // InsertInterpolate linearly interpolates a count from the given lower to upper bounds
-func (a *Agent) InsertInterpolate(lower float64, upper float64, count uint) {
+func (a *Agent) InsertInterpolate(lower float64, upper float64, count uint) error {
 	keys := make([]Key, 0)
 	for k := agentConfig.key(lower); k <= agentConfig.key(upper); k++ {
 		keys = append(keys, k)
@@ -92,6 +98,9 @@ func (a *Agent) InsertInterpolate(lower float64, upper float64, count uint) {
 	whatsLeft := int(count)
 	distance := upper - lower
 	startIdx := 0
+	if len(keys) == 0 {
+		return errors.New(ErrNonMonotonicBoundaries)
+	}
 	lowerB := agentConfig.binLow(keys[startIdx])
 	endIdx := 1
 	var remainder float64
@@ -127,4 +136,5 @@ func (a *Agent) InsertInterpolate(lower float64, upper float64, count uint) {
 		a.CountBuf = append(a.CountBuf, KeyCount{k: keys[startIdx], n: uint(whatsLeft)})
 	}
 	a.flush()
+	return nil
 }

@@ -246,6 +246,8 @@ type ProfilingProxyConfig struct {
 	DDURL string
 	// AdditionalEndpoints ...
 	AdditionalEndpoints map[string][]string
+	// ReceiverTimeout is the timeout in seconds for profile upload requests
+	ReceiverTimeout int
 }
 
 // EVPProxy contains the settings for the EVPProxy proxy.
@@ -398,6 +400,8 @@ type AgentConfig struct {
 	HTTPClientFunc func() *http.Client `json:"-"`
 	// HTTP Transport used in writer connections. If nil, default transport values will be used.
 	HTTPTransportFunc func() *http.Transport `json:"-"`
+	// ClientStatsFlushInterval specifies the frequency at which the client stats aggregator will flush its buffer.
+	ClientStatsFlushInterval time.Duration
 
 	// internal telemetry
 	StatsdEnabled  bool
@@ -474,8 +478,8 @@ type AgentConfig struct {
 	// DebuggerProxy contains the settings for the Live Debugger proxy.
 	DebuggerProxy DebuggerProxyConfig
 
-	// DebuggerDiagnosticsProxy contains the settings for the Live Debugger diagnostics proxy.
-	DebuggerDiagnosticsProxy DebuggerProxyConfig
+	// DebuggerIntakeProxy contains the settings for the Live Debugger intake proxy.
+	DebuggerIntakeProxy DebuggerProxyConfig
 
 	// SymDBProxy contains the settings for the Symbol Database proxy.
 	SymDBProxy SymDBProxyConfig
@@ -581,10 +585,11 @@ func New() *AgentConfig {
 		PipeSecurityDescriptor: "D:AI(A;;GA;;;WD)",
 		GUIPort:                "5002",
 
-		StatsWriter:             new(WriterConfig),
-		TraceWriter:             new(WriterConfig),
-		ConnectionResetInterval: 0, // disabled
-		MaxSenderRetries:        4,
+		StatsWriter:              new(WriterConfig),
+		TraceWriter:              new(WriterConfig),
+		ConnectionResetInterval:  0, // disabled
+		MaxSenderRetries:         4,
+		ClientStatsFlushInterval: 2 * time.Second, // bucket duration (2s)
 
 		StatsdHost:    "localhost",
 		StatsdPort:    8125,

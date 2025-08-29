@@ -95,8 +95,9 @@ var endpoints = []Endpoint{
 		Handler: func(r *HTTPReceiver) http.Handler { return r.handleWithVersion(V07, r.handleTraces) },
 	},
 	{
-		Pattern: "/profiling/v1/input",
-		Handler: func(r *HTTPReceiver) http.Handler { return r.profileProxyHandler() },
+		Pattern:         "/profiling/v1/input",
+		Handler:         func(r *HTTPReceiver) http.Handler { return r.profileProxyHandler() },
+		TimeoutOverride: getConfiguredProfilingRequestTimeoutDuration,
 	},
 	{
 		Pattern: "/telemetry/proxy/",
@@ -144,6 +145,10 @@ var endpoints = []Endpoint{
 	{
 		Pattern: "/debugger/v1/diagnostics",
 		Handler: func(r *HTTPReceiver) http.Handler { return r.debuggerDiagnosticsProxyHandler() },
+	},
+	{
+		Pattern: "/debugger/v2/input",
+		Handler: func(r *HTTPReceiver) http.Handler { return r.debuggerV2IntakeProxyHandler() },
 	},
 	{
 		Pattern: "/symdb/v1/input",

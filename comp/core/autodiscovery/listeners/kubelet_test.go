@@ -138,6 +138,9 @@ func TestKubeletCreateContainerService(t *testing.T) {
 		IP: "127.0.0.1",
 	}
 
+	podWithTolerateUnreadyAnnotation := podWithAnnotations.DeepCopy().(*workloadmeta.KubernetesPod)
+	podWithTolerateUnreadyAnnotation.Annotations["ad.datadoghq.com/tolerate-unready"] = "true"
+
 	podWithExcludeAnnotation := podWithAnnotations.DeepCopy().(*workloadmeta.KubernetesPod)
 	podWithExcludeAnnotation.Annotations[fmt.Sprintf("ad.datadoghq.com/%s.exclude", containerName)] = `true`
 
@@ -509,6 +512,41 @@ func TestKubeletCreateContainerService(t *testing.T) {
 						},
 						logsExcluded: true,
 						tagger:       taggerComponent,
+					},
+				},
+			},
+		},
+		{
+			name: "pod with tolerate-unready annotation",
+			pod:  podWithTolerateUnreadyAnnotation,
+			podContainer: &workloadmeta.OrchestratorContainer{
+				ID:    containerID,
+				Name:  containerName,
+				Image: basicImage,
+			},
+			container: customIDsContainer,
+			expectedServices: map[string]wlmListenerSvc{
+				"container://foobarquux": {
+					parent: "kubernetes_pod://foobar",
+					service: &service{
+						entity: customIDsContainer,
+						adIdentifiers: []string{
+							"customid",
+							"docker://foobarquux",
+							"foobar",
+						},
+						hosts: map[string]string{
+							"pod": "127.0.0.1",
+						},
+						ports:      []ContainerPort{},
+						checkNames: []string{"customcheck"},
+						extraConfig: map[string]string{
+							"namespace": podNamespace,
+							"pod_name":  podName,
+							"pod_uid":   podID,
+						},
+						tagger: taggerComponent,
+						ready:  true, // // Because of the tolerate-unready annotation
 					},
 				},
 			},

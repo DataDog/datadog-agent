@@ -123,10 +123,7 @@ var _ confmap.Unmarshaler = (*ExporterConfig)(nil)
 type MetricsConfig struct {
 	Metrics datadogconfig.MetricsConfig `mapstructure:",squash"`
 
-	// The following 3 configs are only used in OTLP ingestion and not expected to be used in the converged agent.
-
-	// TagCardinality is the level of granularity of tags to send for OTLP metrics.
-	TagCardinality string `mapstructure:"tag_cardinality"`
+	// The following 2 configs are only used in OTLP ingestion and not expected to be used in the converged agent.
 
 	// APMStatsReceiverAddr is the address to send APM stats to.
 	APMStatsReceiverAddr string `mapstructure:"apm_stats_receiver_addr"`

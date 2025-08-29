@@ -11,7 +11,6 @@
   variables:
     ARCH: "x64"
   script:
-    - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
     - $ErrorActionPreference = "Stop"
     - if (Test-Path build-out) { remove-item -recurse -force build-out }
     - >

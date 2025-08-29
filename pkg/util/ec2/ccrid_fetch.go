@@ -8,15 +8,9 @@ package ec2
 import (
 	"context"
 	"fmt"
-	"io"
-	"net/http"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/cachedfetch"
-)
-
-const (
-	imdsBaseURL = "http://169.254.169.254/latest/meta-data/"
+	ec2internal "github.com/DataDog/datadog-agent/pkg/util/ec2/internal"
 )
 
 var (
@@ -27,32 +21,14 @@ var (
 
 var regionFetcher = cachedfetch.Fetcher{
 	Name: "EC2 Region",
-	Attempt: func(_ context.Context) (interface{}, error) {
-		return httpGetMetadata("placement/region")
+	Attempt: func(ctx context.Context) (interface{}, error) {
+		return ec2internal.GetMetadataItemWithMaxLength(ctx, "/placement/region", ec2internal.UseIMDSv2(), false)
 	},
 }
 
 // GetRegion returns the AWS region as reported by EC2 IMDS.
 func GetRegion(ctx context.Context) (string, error) {
 	return regionFetcher.FetchString(ctx)
-}
-
-func httpGetMetadata(path string) (string, error) {
-	req, _ := http.NewRequest("GET", imdsBaseURL+path, nil)
-	req.Header.Set("Metadata-Flavor", "Amazon")
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("metadata %q request failed: %w", path, err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("metadata %q returned status %s", path, resp.Status)
-	}
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(string(body)), nil
 }
 
 // GetHostCCRID returns the EC2 instance ARN for use as host CCRID

@@ -76,7 +76,7 @@ func TestBindEvent(t *testing.T) {
 		})
 	})
 
-	test.RunMultiMode(t, "bind-af-inet-any-success-tcp-io-uring", func(t *testing.T, _ wrapperType, _ func(cmd string, args []string, envs []string) *exec.Cmd) {
+	t.Run("bind-af-inet-any-success-tcp-io-uring", func(t *testing.T) {
 		fd, err := unix.Socket(unix.AF_INET, unix.SOCK_STREAM, unix.IPPROTO_TCP)
 		if err != nil {
 			t.Fatal(err)

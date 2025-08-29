@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/inventory"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/discovery"
+	utilTypes "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -30,6 +31,7 @@ import (
 const (
 	defaultExtraSyncTimeout = 60 * time.Second
 	defaultMaximumCRDs      = 100
+	datadogAPIGroup         = "datadoghq.com"
 )
 
 var (
@@ -117,7 +119,7 @@ func (cb *CollectorBundle) prepareCollectors() {
 		}
 	}
 
-	defer cb.addTerminatedCollectorIfStable()
+	defer cb.importBuiltinCollectors()
 
 	if ok := cb.importCollectorsFromCheckConfig(); ok {
 		return
@@ -413,29 +415,86 @@ func (cb *CollectorBundle) GetTerminatedResourceBundle() *TerminatedResourceBund
 	return cb.terminatedResourceBundle
 }
 
-// addTerminatedCollector adds terminated pod collector if unassigned pod collector is added
-func (cb *CollectorBundle) addTerminatedCollectorIfStable() {
+// importBuiltinCollectors imports the builtin collectors into the bundle.
+func (cb *CollectorBundle) importBuiltinCollectors() {
+	// add datadog CR collectors
+	builtinCollectors := cb.getDatadogCustomResourceCollectors()
+
+	// add terminated pod collector
+	terminatedPodCollector := cb.getTerminatedPodCollector()
+	if terminatedPodCollector != nil {
+		builtinCollectors = append(builtinCollectors, terminatedPodCollector)
+	}
+
+	// add builtin collectors and check if they are already activated
+	for _, collector := range builtinCollectors {
+		if _, ok := cb.activatedCollectors[collector.Metadata().FullName()]; ok {
+			log.Debugf("collector %s has already been added", collector.Metadata().FullName())
+			continue
+		}
+
+		cb.activatedCollectors[collector.Metadata().FullName()] = struct{}{}
+		cb.collectors = append(cb.collectors, collector)
+	}
+}
+
+// getDatadogCustomResourceCollectors returns a list of collectors for the Datadog custom resources
+func (cb *CollectorBundle) getDatadogCustomResourceCollectors() []collectors.K8sCollector {
+	if !cb.check.orchestratorConfig.CollectDatadogCustomResources {
+		return []collectors.K8sCollector{}
+	}
+
+	// Check if the CRD collector is present, if not, return an empty list
+	// This is to ensure that we only collect CRs if the CRD collector is present
+	hasCRDCollector := false
+	for _, collector := range cb.collectors {
+		if collector.Metadata().Name == utilTypes.CrdName {
+			hasCRDCollector = true
+			break
+		}
+	}
+	if !hasCRDCollector {
+		return []collectors.K8sCollector{}
+	}
+
+	crs := cb.collectorDiscovery.List(datadogAPIGroup)
+
+	crCollectors := make([]collectors.K8sCollector, 0, len(crs))
+	for _, c := range crs {
+		collector, err := cb.collectorDiscovery.VerifyForCRDInventory(c.Name, c.Version)
+		if err != nil {
+			_ = cb.check.Warnf("Unsupported collector: %s/%s: %s", c.Version, c.Name, err)
+			continue
+		}
+
+		crCollectors = append(crCollectors, collector)
+	}
+	return crCollectors
+}
+
+// getTerminatedPodCollector returns the terminated pod collector if the unassigned pod collector is present and the terminated pod collector is stable.
+func (cb *CollectorBundle) getTerminatedPodCollector() collectors.K8sCollector {
 	hasUnassignedPodCollector := false
 	hasTerminatedPodCollector := false
 	for _, collector := range cb.collectors {
-		if collector.Metadata().Name == "pods" {
+		if collector.Metadata().Name == utilTypes.PodName {
 			hasUnassignedPodCollector = true
 		}
-		if collector.Metadata().Name == "terminated-pods" {
+		if collector.Metadata().Name == utilTypes.TerminatedPodName {
 			hasTerminatedPodCollector = true
 		}
 	}
 
 	// add terminated pod collector if unassigned pod collector is added and terminated pod collector is stable
 	if hasUnassignedPodCollector && !hasTerminatedPodCollector {
-		terminatedPodCollector, err := cb.collectorDiscovery.VerifyForInventory("terminated-pods", "", cb.inventory)
+		terminatedPodCollector, err := cb.collectorDiscovery.VerifyForInventory(utilTypes.TerminatedPodName, "", cb.inventory)
 		if err != nil {
 			log.Warnf("Unabled to add terminated pod collector: %s", err)
-			return
+			return nil
 		}
 		if terminatedPodCollector.Metadata().IsStable {
-			cb.collectors = append(cb.collectors, terminatedPodCollector)
-			return
+			return terminatedPodCollector
 		}
 	}
+	return nil
 }

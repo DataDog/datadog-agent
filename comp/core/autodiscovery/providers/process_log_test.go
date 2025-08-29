@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -886,7 +887,7 @@ func TestProcessLogProviderServiceName(t *testing.T) {
 					{ServiceName: "tracer-service"},
 				},
 			},
-			want: "tracer-service",
+			want: "bar",
 		},
 		{
 			name: "returns DDService if TracerMetadata is empty and DDService is set",
@@ -914,6 +915,127 @@ func TestProcessLogProviderServiceName(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := getServiceName(&tt.service)
 			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestProcessLogProviderAgentExclude(t *testing.T) {
+	agentLogPath := "/var/log/agent.log"
+	notAgentLogPath := "/var/log/not-agent.log"
+
+	setBundle := workloadmeta.EventBundle{
+		Events: []workloadmeta.Event{
+			{
+				Type: workloadmeta.EventTypeSet,
+				Entity: &workloadmeta.Process{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindProcess,
+						ID:   "123",
+					},
+					Pid:  123,
+					Name: "agent",
+					Service: &workloadmeta.Service{
+						DDService: "agent",
+						LogFiles:  []string{agentLogPath},
+					},
+				},
+			},
+			{
+				Type: workloadmeta.EventTypeSet,
+				Entity: &workloadmeta.Process{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindProcess,
+						ID:   "456",
+					},
+					Pid:  456,
+					Name: "not-agent",
+					Service: &workloadmeta.Service{
+						DDService: "not-agent",
+						LogFiles:  []string{notAgentLogPath},
+					},
+				},
+			},
+		},
+	}
+
+	createProvider := func(excludeAgent bool) *processLogConfigProvider {
+		mockConfig := configmock.New(t)
+		mockConfig.SetWithoutSource("logs_config.process_exclude_agent", excludeAgent)
+
+		provider, err := NewProcessLogConfigProvider(nil, nil, nil)
+		require.NoError(t, err)
+		p, ok := provider.(*processLogConfigProvider)
+		require.True(t, ok)
+
+		return p
+	}
+
+	p := createProvider(false)
+	changes := p.processEventsNoVerifyReadable(setBundle)
+	require.Len(t, changes.Schedule, 2)
+
+	p = createProvider(true)
+	changes = p.processEventsNoVerifyReadable(setBundle)
+	require.Len(t, changes.Schedule, 1)
+	assert.Equal(t, getIntegrationName(notAgentLogPath), changes.Schedule[0].Name)
+}
+
+func TestProcessLogProviderIsAgentProcess(t *testing.T) {
+	tests := []struct {
+		name     string
+		comm     string
+		expected bool
+	}{
+		{
+			name:     "agent process",
+			comm:     "agent",
+			expected: true,
+		},
+		{
+			name:     "process-agent",
+			comm:     "process-agent",
+			expected: true,
+		},
+		{
+			name:     "trace-agent",
+			comm:     "trace-agent",
+			expected: true,
+		},
+		{
+			name:     "security-agent",
+			comm:     "security-agent",
+			expected: true,
+		},
+		{
+			name:     "system-probe",
+			comm:     "system-probe",
+			expected: true,
+		},
+		{
+			name:     "non-agent process",
+			comm:     "nginx",
+			expected: false,
+		},
+		{
+			name:     "partial match",
+			comm:     "agent-something",
+			expected: false,
+		},
+		{
+			name:     "empty comm",
+			comm:     "",
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			process := &workloadmeta.Process{
+				Name: tt.comm,
+			}
+
+			result := isAgentProcess(process)
+			assert.Equal(t, tt.expected, result, "Expected %v for comm '%s'", tt.expected, tt.comm)
 		})
 	}
 }

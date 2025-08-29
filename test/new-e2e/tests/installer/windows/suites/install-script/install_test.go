@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
@@ -28,6 +29,8 @@ const (
 
 // TestInstallScript tests the usage of the Datadog installer script to install the Datadog Agent package.
 func TestInstallScript(t *testing.T) {
+	// TODO(WINA-1733): Fix race condition between service management by Agent and script
+	flake.Mark(t)
 	e2e.Run(t, &testInstallScriptSuite{},
 		e2e.WithProvisioner(
 			winawshost.ProvisionerNoAgentNoFakeIntake(),

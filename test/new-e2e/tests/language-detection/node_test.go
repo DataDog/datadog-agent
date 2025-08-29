@@ -11,8 +11,6 @@ import (
 	"strings"
 
 	"github.com/stretchr/testify/require"
-
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 // nodeMajor is the major version of nodejs that will be installed
@@ -37,7 +35,6 @@ func (s *languageDetectionSuite) installNode() {
 }
 
 func (s *languageDetectionSuite) TestNodeDetection() {
-	flake.Mark(s.T())
 	s.installNode()
 
 	s.Env().RemoteHost.MustExecute(fmt.Sprintf(`echo "%s" > prog.js`, nodeProg))

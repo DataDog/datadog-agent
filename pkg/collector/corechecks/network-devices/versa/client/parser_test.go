@@ -230,3 +230,43 @@ func TestParseSiteMetrics(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, expected, result)
 }
+
+func TestParseAnalyticsInterfaceMetrics(t *testing.T) {
+	testData := [][]interface{}{
+		{
+			"test-branch-2B,INET-1,ge-0/0/1",
+			"test-branch-2B",
+			"INET-1",
+			"ge-0/0/1",
+			25.5,
+			18.3,
+			1024000.0,
+			768000.0,
+			1792000.0,
+			8192.0,
+			6144.0,
+			14336.0,
+		},
+	}
+
+	expected := []AnalyticsInterfaceMetrics{
+		{
+			DrillKey:    "test-branch-2B,INET-1,ge-0/0/1",
+			Site:        "test-branch-2B",
+			AccessCkt:   "INET-1",
+			Interface:   "ge-0/0/1",
+			RxUtil:      25.5,
+			TxUtil:      18.3,
+			VolumeRx:    1024000.0,
+			VolumeTx:    768000.0,
+			Volume:      1792000.0,
+			BandwidthRx: 8192.0,
+			BandwidthTx: 6144.0,
+			Bandwidth:   14336.0,
+		},
+	}
+
+	result, err := parseAnalyticsInterfaceMetrics(testData)
+	require.NoError(t, err)
+	require.Equal(t, expected, result)
+}

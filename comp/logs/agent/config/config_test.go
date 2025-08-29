@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 )
 
 type ConfigTestSuite struct {
@@ -169,6 +170,38 @@ func (suite *ConfigTestSuite) TestTaggerWarmupDuration() {
 	suite.config.SetWithoutSource("logs_config.tagger_warmup_duration", 5)
 	taggerWarmupDuration = TaggerWarmupDuration(suite.config)
 	suite.Equal(5*time.Second, taggerWarmupDuration)
+}
+
+func (suite *ConfigTestSuite) TestGlobalFingerprintConfigShouldReturnConfigWithValidMap() {
+	suite.config.SetWithoutSource("logs_config.fingerprint_enabled_experimental", true)
+	suite.config.SetWithoutSource("logs_config.fingerprint_config", map[string]interface{}{
+		"fingerprint_strategy": "line_checksum",
+		"count":                10,
+		"count_to_skip":        5,
+		"max_bytes":            1024,
+	})
+
+	config, err := GlobalFingerprintConfig(suite.config)
+	suite.Nil(err)
+	suite.NotNil(config)
+	suite.Equal(types.FingerprintStrategyLineChecksum, config.FingerprintStrategy)
+	suite.Equal(10, config.Count)
+	suite.Equal(5, config.CountToSkip)
+	suite.Equal(1024, config.MaxBytes)
+}
+
+func (suite *ConfigTestSuite) TestGlobalFingerprintConfigShouldReturnErrorWithInvalidConfig() {
+	suite.config.SetWithoutSource("logs_config.fingerprint_enabled_experimental", true)
+	suite.config.SetWithoutSource("logs_config.fingerprint_config", map[string]interface{}{
+		"fingerprint_strategy": "invalid_strategy", // Invalid: unknown strategy
+		"count":                -1,                 // Invalid: negative value
+		"count_to_skip":        5,
+		"max_bytes":            1024,
+	})
+
+	config, err := GlobalFingerprintConfig(suite.config)
+	suite.NotNil(err)
+	suite.Nil(config)
 }
 
 func TestConfigTestSuite(t *testing.T) {

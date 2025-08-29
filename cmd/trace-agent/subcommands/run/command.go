@@ -25,7 +25,7 @@ import (
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	remoteTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
+	optionalRemoteTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-optional-remote"
 	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
@@ -34,6 +34,7 @@ import (
 	traceagentimpl "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
 	zstdfx "github.com/DataDog/datadog-agent/comp/trace/compression/fx-zstd"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
+	serverlessenv "github.com/DataDog/datadog-agent/pkg/serverless/env"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -89,12 +90,23 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 		logtracefx.Module(),
 		autoexitimpl.Module(),
 		statsd.Module(),
-		remoteTaggerfx.Module(tagger.RemoteParams{
-			RemoteTarget: func(c coreconfig.Component) (string, error) {
-				return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil
+		optionalRemoteTaggerfx.Module(
+			tagger.OptionalRemoteParams{
+				// We disable the remote tagger *only* if we detect that the
+				// trace-agent is running in the Azure App Services (AAS)
+				// Extension. The Extension only includes a trace-agent and the
+				// dogstatsd binary, and cannot include the core agent. We know
+				// that we do not need the container tagging provided by the
+				// remote tagger in this environment, so we can use the noop
+				// tagger instead.
+				Disable: serverlessenv.IsAzureAppServicesExtension,
 			},
-			RemoteFilter: taggerTypes.NewMatchAllFilter(),
-		}),
+			tagger.RemoteParams{
+				RemoteTarget: func(c coreconfig.Component) (string, error) {
+					return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil
+				},
+				RemoteFilter: taggerTypes.NewMatchAllFilter(),
+			}),
 		fx.Invoke(func(_ config.Component) {}),
 		// Required to avoid cyclic imports.
 		fx.Provide(func(cfg config.Component) telemetry.TelemetryCollector { return telemetry.NewCollector(cfg.Object()) }),

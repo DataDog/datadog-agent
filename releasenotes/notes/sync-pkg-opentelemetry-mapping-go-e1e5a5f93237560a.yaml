@@ -1,0 +1,25 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+upgrade:
+  - pkg/opentelemetry-mapping-go/otlp/metrics: Add interval argument to Consumer methods. All intervals passed as of this change will be `0`, which is equivalent to the previous behavior. [#725](https://github.com/DataDog/opentelemetry-mapping-go/pull/725)
+enhancements:
+  - pkg/opentelemetry-mapping-go: Sync with upstream library through [commit 7c614b196a40f883502e86e195e89c233b4c1006](https://github.com/DataDog/opentelemetry-mapping-go/commit/7c614b196a40f883502e86e195e89c233b4c1006).
+  - pkg/util/quantile: Sync with upstream library through [commit 7c614b196a40f883502e86e195e89c233b4c1006](https://github.com/DataDog/opentelemetry-mapping-go/commit/7c614b196a40f883502e86e195e89c233b4c1006).
+fixes:
+  - pkg/opentelemetry-mapping-go/otlp/metrics: Correctly treat summary counts as cumulative monotonic sums instead of cumulative non-monotonic sums. [#635](https://github.com/DataDog/opentelemetry-mapping-go/pull/635)
+  - pkg/opentelemetry-mapping-go/inframetadata: Send host meta on new hosts. [#652](https://github.com/DataDog/opentelemetry-mapping-go/pull/652), [#655](https://github.com/DataDog/opentelemetry-mapping-go/pull/655)
+  - pkg/opentelemetry-mapping-go/otlp/metrics: Fix automatic intial point dropping when converting cumulative monotonic sum metrics. [#654](https://github.com/DataDog/opentelemetry-mapping-go/pull/654)
+  - pkg/opentelemetry-mapping-go/inframetadata: Add support for host aliasing using resource attribute `datadog.host.aliases`. [#661](https://github.com/DataDog/opentelemetry-mapping-go/pull/661)
+  - pkg/opentelemetry-mapping-go/otlp/metrics: Improve accuracy of exponential histogram conversion when `count` is`1`. [#696](https://github.com/DataDog/opentelemetry-mapping-go/pull/696)
+  - pkg/util/quantile: Improve accuracy of exponential histogram conversion when `count` is `1`. [#696](https://github.com/DataDog/opentelemetry-mapping-go/pull/696)
+  - pkg/util/quantile: Omit empty buckets when converting exponential histograms. [#699](https://github.com/DataDog/opentelemetry-mapping-go/pull/699)
+  - pkg/opentelemetry-mapping-go/otlp/metrics: Do not consume host or tags for ResourceMetrics that only contain APM metrics. [#721](https://github.com/DataDog/opentelemetry-mapping-go/pull/721), [#722](https://github.com/DataDog/opentelemetry-mapping-go/pull/722), [#724](https://github.com/DataDog/opentelemetry-mapping-go/pull/724)
+  - pkg/util/quantile: Add a binary generator to the quantile package to facilitate DDSketch to OTLPHistogram conversion. [#738](https://github.com/DataDog/opentelemetry-mapping-go/pull/738)
+  - pkg/opentelemetry-mapping-go/otlp/logs: Log attribute values of type bool, int, and double will be represented as such. Previously, they were incorrectly converted to string. [#740](https://github.com/DataDog/opentelemetry-mapping-go/pull/740)
+  - pkg/util/quantile: Return an error on non-monotonic bounds for histogram metrics. Previously, this would create a panic. [#744](https://github.com/DataDog/opentelemetry-mapping-go/pull/744)

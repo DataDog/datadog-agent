@@ -614,10 +614,6 @@ func runFuncWithRecover(f pulumi.RunFunc) pulumi.RunFunc {
 }
 
 func (sm *StackManager) getRetryStrategyFrom(err error, upCount int) (RetryType, []GetStackOption) {
-	// if first attempt + retries count are higher than max retry, give up
-	if upCount > stackUpMaxRetry {
-		return NoRetry, nil
-	}
 
 	for _, knownError := range sm.knownErrors {
 		isMatch, err := regexp.MatchString(knownError.errorMessage, err.Error())
@@ -625,8 +621,16 @@ func (sm *StackManager) getRetryStrategyFrom(err error, upCount int) (RetryType,
 			fmt.Printf("Error matching regex %s: %v\n", knownError.errorMessage, err)
 		}
 		if isMatch {
+			if upCount > knownError.maxRetry {
+				return NoRetry, nil
+			}
 			return knownError.retryType, nil
 		}
+	}
+
+	// if first attempt + retries count are higher than max retry, give up
+	if upCount > stackUpMaxRetry {
+		return NoRetry, nil
 	}
 
 	return ReUp, nil

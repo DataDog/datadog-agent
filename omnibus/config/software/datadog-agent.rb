@@ -270,6 +270,11 @@ build do
     move 'bin/agent/dist/application_monitoring.yaml', "#{conf_dir}/application_monitoring.yaml.example"
   end
 
+  # Allows the agent to be installed in a custom location
+  if linux_target?
+    command "touch #{install_dir}/.install_root"
+  end
+
   # TODO: move this to omnibus-ruby::health-check.rb
   # check that linux binaries contains OpenSSL symbols when building to support FIPS
   if fips_mode? && linux_target?

@@ -23,6 +23,8 @@ import (
 )
 
 const (
+	defaultBasicPort   = 9182
+	defaultOAuthPort   = 9183
 	defaultMaxAttempts = 3
 	defaultMaxPages    = 100
 	defaultMaxCount    = "2000"
@@ -40,11 +42,17 @@ type Client struct {
 	directorEndpoint  string
 	directorAPIPort   int
 	analyticsEndpoint string
-	// TODO: replace with OAuth
-	token               string
-	tokenExpiry         time.Time
+	// OAuth token for Director API endpoints
+	directorToken       string
+	directorTokenExpiry time.Time
+	// Session token for Analytics endpoints (always uses session auth)
+	sessionToken        string
+	sessionTokenExpiry  time.Time
 	username            string
 	password            string
+	clientID            string
+	clientSecret        string
+	authMethod          authMethod
 	authenticationMutex *sync.Mutex
 	maxAttempts         int
 	maxPages            int
@@ -56,10 +64,25 @@ type Client struct {
 type ClientOptions func(*Client)
 
 // NewClient creates a new Versa HTTP client.
-func NewClient(directorEndpoint string, directorPort int, analyticsEndpoint string, username string, password string, useHTTP bool, options ...ClientOptions) (*Client, error) {
-	err := validateParams(directorEndpoint, directorPort, analyticsEndpoint, username, password)
+func NewClient(directorEndpoint string, directorPort int, analyticsEndpoint string, useHTTP bool, authConfig AuthConfig, options ...ClientOptions) (*Client, error) {
+	err := validateParams(directorEndpoint, directorPort, analyticsEndpoint)
 	if err != nil {
 		return nil, err
+	}
+
+	// Process authentication configuration (validate and parse)
+	authMethod, err := processAuthConfig(authConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	// Set default port based on authentication method if not provided
+	if directorPort == 0 {
+		if authMethod == authMethodOAuth {
+			directorPort = defaultOAuthPort
+		} else {
+			directorPort = defaultBasicPort
+		}
 	}
 
 	cookieJar, err := cookiejar.New(nil)
@@ -92,8 +115,11 @@ func NewClient(directorEndpoint string, directorPort int, analyticsEndpoint stri
 		directorEndpoint:    directorEndpointURL.String(),
 		directorAPIPort:     directorPort,
 		analyticsEndpoint:   analyticsEndpointURL.String(),
-		username:            username,
-		password:            password,
+		authMethod:          authMethod,
+		username:            authConfig.Username,
+		password:            authConfig.Password,
+		clientID:            authConfig.ClientID,
+		clientSecret:        authConfig.ClientSecret,
 		authenticationMutex: &sync.Mutex{},
 		maxAttempts:         defaultMaxAttempts,
 		maxPages:            defaultMaxPages,
@@ -108,21 +134,15 @@ func NewClient(directorEndpoint string, directorPort int, analyticsEndpoint stri
 	return client, nil
 }
 
-func validateParams(directorEndpoint string, directorPort int, analyticsEndpoint, username, password string) error {
+func validateParams(directorEndpoint string, directorPort int, analyticsEndpoint string) error {
 	if directorEndpoint == "" {
 		return fmt.Errorf("invalid director endpoint")
 	}
-	if directorPort == 0 {
-		return fmt.Errorf("invalid director port")
+	if directorPort < 0 {
+		return fmt.Errorf("invalid director port: %d", directorPort)
 	}
 	if analyticsEndpoint == "" {
 		return fmt.Errorf("invalid analytics endpoint")
-	}
-	if username == "" {
-		return fmt.Errorf("invalid username")
-	}
-	if password == "" {
-		return fmt.Errorf("invalid password")
 	}
 	return nil
 }
@@ -624,6 +644,34 @@ func (client *Client) GetDIAMetrics(tenant string) ([]DIAMetrics, error) {
 			"bw-rx",
 		},
 		parseDIAMetrics,
+	)
+}
+
+// GetAnalyticsInterfaces retrieves interface utilization metrics from the Versa Analytics API
+func (client *Client) GetAnalyticsInterfaces(tenant string) ([]AnalyticsInterfaceMetrics, error) {
+	if tenant == "" {
+		return nil, fmt.Errorf("tenant cannot be empty")
+	}
+
+	return getPaginatedAnalytics(
+		client,
+		tenant,
+		"SDWAN",
+		client.lookback,
+		"intfUtil(site,accCkt,intf)",
+		"",
+		"",
+		[]string{
+			"rxUtil",
+			"txUtil",
+			"volume-rx",
+			"volume-tx",
+			"volume",
+			"bw-rx",
+			"bw-tx",
+			"bandwidth",
+		},
+		parseAnalyticsInterfaceMetrics,
 	)
 }
 

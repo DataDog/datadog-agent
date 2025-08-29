@@ -72,6 +72,7 @@ List of the available variables:
 | [`event.os`](#event-os-doc) | Operating system of the event |
 | [`event.rule.tags`](#event-rule-tags-doc) | Tags associated with the rule that's used to evaluate the event |
 | [`event.service`](#event-service-doc) | Service associated with the event |
+| [`event.source`](#event-source-doc) | [Experimental] Source of the event. Can be either 'runtime' or 'snapshot'. |
 | [`event.timestamp`](#event-timestamp-doc) | Timestamp of the event |
 | [`process.ancestors.cmdline`](#common-process-cmdline-doc) | Command line of the process |
 | [`process.ancestors.container.id`](#common-process-container-id-doc) | Container ID |
@@ -653,6 +654,13 @@ Definition: Tags associated with the rule that's used to evaluate the event
 Type: string
 
 Definition: Service associated with the event
+
+
+
+### `event.source` {#event-source-doc}
+Type: string
+
+Definition: [Experimental] Source of the event. Can be either 'runtime' or 'snapshot'.
 
 
 

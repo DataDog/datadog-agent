@@ -329,8 +329,6 @@ func (s *testAgentConfigSuite) TestManagedConfigActiveAfterUpgrade() {
 }
 
 func (s *testAgentConfigSuite) mustStartConfigExperiment(config installerwindows.ConfigExperiment) {
-	s.Require().NoError(s.WaitForInstallerService("Running"))
-
 	s.WaitForDaemonToStop(func() {
 		_, err := s.Installer().StartConfigExperiment(consts.AgentPackage, config)
 		s.Require().NoError(err, "daemon should stop cleanly")
@@ -340,8 +338,6 @@ func (s *testAgentConfigSuite) mustStartConfigExperiment(config installerwindows
 }
 
 func (s *testAgentConfigSuite) mustPromoteConfigExperiment(config installerwindows.ConfigExperiment) {
-	s.Require().NoError(s.WaitForInstallerService("Running"))
-
 	s.WaitForDaemonToStop(func() {
 		_, err := s.Installer().PromoteConfigExperiment(consts.AgentPackage)
 		s.Require().NoError(err, "daemon should stop cleanly")

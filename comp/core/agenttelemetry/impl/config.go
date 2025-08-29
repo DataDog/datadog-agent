@@ -191,11 +191,20 @@ var defaultProfiles = `
   profiles:
   - name: checks
     metric:
+      exclude:
+        zero_metric: true
       metrics:
         - name: checks.execution_time
           aggregate_tags:
             - check_name
             - check_loader
+        - name: checks.delay
+          aggregate_tags:
+            - check_name
+        - name: checks.runs
+          aggregate_tags:
+            - check_name
+            - state
         - name: pymem.inuse
     schedule:
       start_after: 30
@@ -203,6 +212,8 @@ var defaultProfiles = `
       period: 900
   - name: logs-and-metrics
     metric:
+      exclude:
+        zero_metric: true
       metrics:
         - name: dogstatsd.udp_packets_bytes
         - name: dogstatsd.uds_packets_bytes
@@ -305,6 +316,31 @@ var defaultProfiles = `
         zero_metric: true
       metrics:
         - name: runtime.running
+  - name: hostname
+    metric:
+      exclude:
+        zero_metric: true
+      metrics:
+        - name: hostname.drift_detected
+          aggregate_tags:
+            - state
+            - provider
+        - name: hostname.drift_resolution_time_ms
+          aggregate_tags:
+            - state
+            - provider
+    schedule:
+      start_after: 1800 # 30 minutes
+      iterations: 0
+      period: 21600 # 6 hours
+  - name: rtloader
+    metric:
+      exclude:
+        zero_metric: true
+      metrics:
+        - name: rtloader.inuse_bytes
+        - name: rtloader.frees
+        - name: rtloader.allocations
   - name: otlp
     metric:
       exclude:

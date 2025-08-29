@@ -7,6 +7,7 @@ package packages
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -360,8 +361,13 @@ func installAgentPackage(ctx context.Context, env *env.Env, target string, args 
 	// and we need to reinstall it with the same configuration
 	// and we wipe out our registry keys containing the configuration
 	// that the next install would have used
-	dataDir := fmt.Sprintf(`APPLICATIONDATADIRECTORY="%s"`, env.MsiParams.ApplicationDataDirectory)
-	projectLocation := fmt.Sprintf(`PROJECTLOCATION="%s"`, env.MsiParams.ProjectLocation)
+	props := map[string]string{
+		"FLEET_INSTALL":     "1",
+		"SKIP_INSTALL_INFO": "1",
+		// carry over directories directly
+		"APPLICATIONDATADIRECTORY": env.MsiParams.ApplicationDataDirectory,
+		"PROJECTLOCATION":          env.MsiParams.ProjectLocation,
+	}
 
 	opts := []msi.MsiexecOption{
 		msi.Install(),
@@ -374,19 +380,22 @@ func installAgentPackage(ctx context.Context, env *env.Env, target string, args 
 	if env.MsiParams.AgentUserPassword != "" {
 		opts = append(opts, msi.WithDdAgentUserPassword(env.MsiParams.AgentUserPassword))
 	}
-	additionalArgs := []string{"FLEET_INSTALL=1", "SKIP_INSTALL_INFO=1", dataDir, projectLocation}
-
+	opts = append(opts, msi.WithProperties(props))
 	// append input args last so they can take precedence
-	additionalArgs = append(additionalArgs, args...)
-	opts = append(opts, msi.WithAdditionalArgs(additionalArgs))
-	cmd, err := msi.Cmd(opts...)
+	opts = append(opts, msi.WithAdditionalArgs(args))
 
-	var output []byte
-	if err == nil {
-		output, err = cmd.Run(ctx)
-	}
+	cmd, err := msi.Cmd(opts...)
 	if err != nil {
-		return fmt.Errorf("failed to install Agent %s: %w\nLog file located at: %s\n%s", target, err, logFile, string(output))
+		return fmt.Errorf("failed to create MSI command: %w", err)
+	}
+	err = cmd.Run(ctx)
+	if err != nil {
+		err = fmt.Errorf("failed to install Agent %s: %w\nLog file located at: %s", target, err, logFile)
+		var msiErr *msi.MsiexecError
+		if errors.As(err, &msiErr) {
+			err = fmt.Errorf("%w\n%s", err, msiErr.ProcessedLog)
+		}
+		return err
 	}
 	return nil
 }
@@ -403,7 +412,7 @@ func removeProductIfInstalled(ctx context.Context, product string) (err error) {
 			span.Finish(err)
 		}()
 		err := msi.RemoveProduct(ctx, product,
-			msi.WithAdditionalArgs([]string{"FLEET_INSTALL=1"}),
+			msi.WithProperties(map[string]string{"FLEET_INSTALL": "1"}),
 		)
 		if err != nil {
 			return err
