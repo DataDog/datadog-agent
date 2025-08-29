@@ -2,7 +2,12 @@ Param(
     [Parameter(Mandatory=$true)]
     [string] $package,
     [string] $version,
-    [string] $omnibusOutput = "$(Get-Location)\omnibus\pkg\"
+    [string] $omnibusOutput = "$(Get-Location)\omnibus\pkg\",
+    # Optional: staging directory used to assemble OCI contents. If not provided, a temp dir is used.
+    [string] $stagingDir,
+    # Optional: remove the staging directory after packaging. If omitted, defaults to
+    # true when the script creates the staging dir, false when user passes -stagingDir.
+    [switch] $CleanupStaging
 )
 
 $datadogPackagesDir = "C:\devtools\datadog-packages"
@@ -41,8 +46,34 @@ if (-not (Test-Path $datadogPackageExe -ErrorAction SilentlyContinue)) {
     $env:PATH += ";$datadogPackagesDir"
 }
 if ([string]::IsNullOrWhitespace($version)) {
-    $version = "{0}-1" -f (dda inv -- agent.version --url-safe --major-version 7)
-    Write-Host "Detected agent version ${version}"
+    # Choose manifest path by package
+    $manifestJson = $null
+    switch ($package) {
+        'datadog-agent-ddot' { $manifestJson = 'C:\opt\datadog-agent\version-manifest.ddot.json' }
+        'datadog-installer'  { $manifestJson = 'C:\opt\datadog-installer\version-manifest.json' }
+        default              { $manifestJson = 'C:\opt\datadog-agent\version-manifest.json' }
+    }
+
+    if (-not (Test-Path $manifestJson)) {
+        Write-Error "Missing version manifest: $manifestJson"
+        exit 1
+    }
+    $resolvedVer = $null
+    try {
+        $m = Get-Content -Raw -Path $manifestJson | ConvertFrom-Json
+        if ($m.build_version) { $resolvedVer = [string]$m.build_version }
+        elseif ($m.version)   { $resolvedVer = [string]$m.version }
+    } catch {
+        Write-Error "Failed to parse version manifest JSON: $manifestJson"
+        exit 1
+    }
+    if (-not $resolvedVer) {
+        Write-Error "Version not found in manifest JSON: $manifestJson"
+        exit 1
+    }
+    if ($resolvedVer -notmatch '.*-1$') { $resolvedVer = "$resolvedVer-1" }
+    $version = $resolvedVer
+    Write-Host "Detected agent version ${version} (from manifest)"
 }
 if (-not $version.EndsWith("-1")) {
     $version += "-1"
@@ -54,10 +85,36 @@ if (Test-Path $omnibusOutput\$packageName) {
     Remove-Item $omnibusOutput\$packageName
 }
 
-# datadog-package takes a folder as input and will package everything in that, so copy the msi to its own folder
-Remove-Item -Recurse -Force C:\oci-pkg -ErrorAction SilentlyContinue
-New-Item -ItemType Directory C:\oci-pkg | Out-Null
-Copy-Item (Get-ChildItem $omnibusOutput\${package}-${version}-x86_64.msi).FullName -Destination C:\oci-pkg\${package}-${version}-x86_64.msi
+if ([string]::IsNullOrWhiteSpace($stagingDir)) {
+    $stagingDir = Join-Path $env:TEMP ("oci-pkg-" + [guid]::NewGuid().ToString())
+    $cleanupStaging = $true
+} else {
+    $cleanupStaging = $false
+}
+
+# If the caller explicitly provided -CleanupStaging, do the cleanup
+if ($PSBoundParameters.ContainsKey('CleanupStaging')) {
+    $cleanupStaging = [bool]$CleanupStaging
+}
+
+Remove-Item -Recurse -Force $stagingDir -ErrorAction SilentlyContinue
+New-Item -ItemType Directory $stagingDir | Out-Null
+
+if ($package -eq "datadog-agent-ddot") {
+    # Build DDOT OCI directly from the Omnibus install dir produced in this container
+    $payloadDir = "C:\opt\datadog-agent"
+    if (-not (Test-Path (Join-Path $payloadDir "embedded\bin\otel-agent.exe"))) {
+        Write-Error "otel-agent.exe not found at '$payloadDir'. Ensure Omnibus ddot build ran in this container."
+        exit 1
+    }
+    $etcCandidate = Join-Path $payloadDir "etc\datadog-agent"
+    if (Test-Path $etcCandidate) {
+        $extraArgs = @("--configs", "$etcCandidate")
+    }
+} else {
+    # datadog-package takes a folder as input and will package everything in that, so copy the msi to its own folder
+    Copy-Item (Get-ChildItem "$omnibusOutput\${package}-${version}-x86_64.msi").FullName -Destination (Join-Path $stagingDir "${package}-${version}-x86_64.msi")
+}
 
 $installerPath = "C:\opt\datadog-installer\datadog-installer.exe"
 if (Test-Path $installerPath) {
@@ -67,11 +124,34 @@ if (Test-Path $installerPath) {
 }
 
 # The argument --archive-path ".\omnibus\pkg\datadog-agent-${version}.tar.gz" is currently broken and has no effects
-Write-Host "Running: $datadogPackageExe create $installerArg --package $package --os windows --arch amd64 --archive --version $version C:\oci-pkg"
-& $datadogPackageExe create @installerArg --package $package --os windows --arch amd64 --archive --version $version C:\oci-pkg
+$inputDir = if ($payloadDir) { $payloadDir } else { $stagingDir }
+Write-Host "Running: $datadogPackageExe create $installerArg $extraArgs --package $package --os windows --arch amd64 --archive --version $version $inputDir"
+& $datadogPackageExe create @installerArg @extraArgs --package $package --os windows --arch amd64 --archive --version $version $inputDir
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Failed to create OCI package"
     exit 1
 }
 
-Move-Item ${package}-${version}-windows-amd64.tar $omnibusOutput\$packageName
+if (-not (Test-Path "$omnibusOutput")) {
+    New-Item -ItemType Directory "$omnibusOutput" -Force | Out-Null
+}
+
+$sourceTar = "${package}-${version}-windows-amd64.tar"
+if (-not (Test-Path $sourceTar)) {
+    Write-Host "datadog-package output not found: $sourceTar"
+    Write-Host "Current directory: $(Get-Location)"
+    Write-Host "Directory contents:"
+    Get-ChildItem | Format-List -Property Name,Length,LastWriteTime
+    Write-Error "Expected tar not found; packaging step may have failed."
+    exit 1
+}
+
+Move-Item $sourceTar $omnibusOutput\$packageName
+
+try {
+    if ($cleanupStaging) {
+        Remove-Item -Recurse -Force $stagingDir -ErrorAction SilentlyContinue
+    }
+} catch {
+    Write-Warning "Failed to remove staging directory '$stagingDir': $($_.Exception.Message)"
+}
