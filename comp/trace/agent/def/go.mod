@@ -3,8 +3,8 @@ module github.com/DataDog/datadog-agent/comp/trace/agent/def
 go 1.24.0
 
 require (
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.71.0-devel.0.20250820180704-be0d2d237646
 	github.com/DataDog/datadog-agent/pkg/proto v0.64.0-devel
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.31.0
 	go.opentelemetry.io/collector/pdata v1.39.0
 )
 
@@ -30,7 +30,6 @@ require (
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/tinylib/msgp v1.3.0 // indirect
 	go.opentelemetry.io/collector/component v1.39.0 // indirect
-	go.opentelemetry.io/collector/component/componenttest v0.133.0 // indirect
 	go.opentelemetry.io/otel v1.37.0 // indirect
 	go.opentelemetry.io/otel/metric v1.37.0 // indirect
 	go.opentelemetry.io/otel/trace v1.37.0 // indirect
