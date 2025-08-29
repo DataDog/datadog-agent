@@ -393,7 +393,7 @@ func TestProvider_Provide(t *testing.T) {
 func creatFakeStore(t *testing.T) workloadmetamock.Mock {
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		configcomp.MockModule(),
+		fx.Provide(func() configcomp.Component { return configcomp.NewMock(t) }),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
@@ -491,7 +491,7 @@ type FilteringTestSuite struct {
 func (suite *FilteringTestSuite) SetupTest() {
 	store := fxutil.Test[workloadmetamock.Mock](suite.T(), fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(suite.T()) }),
-		configcomp.MockModule(),
+		fx.Provide(func() configcomp.Component { return configcomp.NewMock(suite.T()) }),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 

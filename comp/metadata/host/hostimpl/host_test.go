@@ -32,7 +32,7 @@ func TestNewHostProviderDefaultInterval(t *testing.T) {
 		fxutil.Test[dependencies](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
-			config.MockModule(),
+			fx.Provide(func() config.Component { return config.NewMock(t) }),
 			resourcesimpl.MockModule(),
 			fx.Replace(resources.MockParams{Data: nil}),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),
@@ -57,10 +57,9 @@ func TestNewHostProviderCustomInterval(t *testing.T) {
 		fxutil.Test[dependencies](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
-			config.MockModule(),
+			fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, overrides) }),
 			resourcesimpl.MockModule(),
 			fx.Replace(resources.MockParams{Data: nil}),
-			fx.Replace(config.MockParams{Overrides: overrides}),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),
 			hostnameimpl.MockModule(),
 		),
@@ -83,10 +82,9 @@ func TestNewHostProviderInvalidCustomInterval(t *testing.T) {
 		fxutil.Test[dependencies](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
-			config.MockModule(),
+			fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, overrides) }),
 			resourcesimpl.MockModule(),
 			fx.Replace(resources.MockParams{Data: nil}),
-			fx.Replace(config.MockParams{Overrides: overrides}),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),
 			hostnameimpl.MockModule(),
 		),
@@ -100,7 +98,7 @@ func TestFlareProvider(t *testing.T) {
 		fxutil.Test[dependencies](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
-			config.MockModule(),
+			fx.Provide(func() config.Component { return config.NewMock(t) }),
 			resourcesimpl.MockModule(),
 			fx.Replace(resources.MockParams{Data: nil}),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),
@@ -120,7 +118,7 @@ func TestStatusHeaderProvider(t *testing.T) {
 		fxutil.Test[dependencies](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
-			config.MockModule(),
+			fx.Provide(func() config.Component { return config.NewMock(t) }),
 			resourcesimpl.MockModule(),
 			fx.Replace(resources.MockParams{Data: nil}),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),

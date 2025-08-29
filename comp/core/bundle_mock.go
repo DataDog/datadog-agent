@@ -34,8 +34,7 @@ import (
 // MakeMockBundle returns a core bundle with a customized set of fx.Option including sane defaults.
 func MakeMockBundle(logParams, logger fx.Option) fxutil.BundleOptions {
 	return fxutil.Bundle(
-		fx.Provide(func(params BundleParams) config.Params { return params.ConfigParams }),
-		config.MockModule(),
+		fx.Provide(func(t testing.TB) config.Component { return config.NewMock(t) }),
 		logParams,
 		logger,
 		fx.Provide(func(params BundleParams) sysprobeconfigimpl.Params { return params.SysprobeConfigParams }),

@@ -56,10 +56,7 @@ func getFlare(t *testing.T, overrides map[string]interface{}, fillers ...fx.Opti
 		fxutil.Test[dependencies](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
-			config.MockModule(),
-			fx.Replace(config.MockParams{
-				Overrides: overrides,
-			}),
+			fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, overrides) }),
 			nooptelemetry.Module(),
 			hostnameimpl.MockModule(),
 			fx.Provide(func() secrets.Component { return secretsmock.New(t) }),

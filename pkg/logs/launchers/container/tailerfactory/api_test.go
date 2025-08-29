@@ -38,7 +38,7 @@ type kubeUtilMock struct {
 func TestMakeAPITailer_get_kubeutil_fails(t *testing.T) {
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		compConfig.MockModule(),
+		fx.Provide(func() compConfig.Component { return compConfig.NewMock(t) }),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
@@ -59,7 +59,7 @@ func TestMakeAPITailer_get_kubeutil_fails(t *testing.T) {
 func TestMakeAPITailer_success(t *testing.T) {
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		compConfig.MockModule(),
+		fx.Provide(func() compConfig.Component { return compConfig.NewMock(t) }),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))

@@ -17,7 +17,7 @@ import (
 
 func TestStatusOuput(t *testing.T) {
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		config.MockModule(),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
 	))
 
 	provides := newStatus(deps)
