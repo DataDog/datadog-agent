@@ -85,6 +85,53 @@ func processSample(device ddnvml.Device, metricName string, samplingType nvml.Sa
 	return []Metric{metric}, currentTimestamp, multiErr
 }
 
+// processUtilizationSample handles process utilization sampling logic
+func processUtilizationSample(device ddnvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
+	currentTime := uint64(time.Now().Unix())
+	processSamples, err := device.GetProcessUtilization(lastTimestamp)
+
+	var allMetrics []Metric
+	var allPidTags []string
+	var maxSmUtil, sumSmUtil uint32
+
+	// Handle ERROR_NOT_FOUND as a valid scenario when no process utilization data is available
+	if err != nil {
+		var nvmlErr *ddnvml.NvmlAPIError
+		if errors.As(err, &nvmlErr) && errors.Is(nvmlErr.NvmlErrorCode, nvml.ERROR_NOT_FOUND) {
+			err = nil // Clear the error for NOT_FOUND case
+		}
+	} else {
+		for _, sample := range processSamples {
+			pidTag := []string{fmt.Sprintf("pid:%d", sample.Pid)}
+			allMetrics = append(allMetrics,
+				Metric{Name: "process.sm_active", Value: float64(sample.SmUtil), Type: ddmetrics.GaugeType, Tags: pidTag},
+				Metric{Name: "process.dram_active", Value: float64(sample.MemUtil), Type: ddmetrics.GaugeType, Tags: pidTag},
+				Metric{Name: "process.encoder_utilization", Value: float64(sample.EncUtil), Type: ddmetrics.GaugeType, Tags: pidTag},
+				Metric{Name: "process.decoder_utilization", Value: float64(sample.DecUtil), Type: ddmetrics.GaugeType, Tags: pidTag},
+			)
+
+			if sample.SmUtil > maxSmUtil {
+				maxSmUtil = sample.SmUtil
+			}
+			sumSmUtil += sample.SmUtil
+			allPidTags = append(allPidTags, fmt.Sprintf("pid:%d", sample.Pid))
+		}
+	}
+
+	// Device-wide sm_active metric
+	if sumSmUtil > 100 {
+		sumSmUtil = 100
+	}
+	deviceSmActive := float64(maxSmUtil+sumSmUtil) / 2.0
+
+	allMetrics = append(allMetrics,
+		Metric{Name: "sm_active", Value: deviceSmActive, Type: ddmetrics.GaugeType},
+		Metric{Name: "core.limit", Value: float64(device.GetDeviceInfo().CoreCount), Type: ddmetrics.GaugeType, Tags: allPidTags},
+	)
+
+	return allMetrics, currentTime, err
+}
+
 // createSampleAPIs creates API call definitions for all sampling metrics on demand
 func createSampleAPIs() []apiCallInfo {
 	return []apiCallInfo{
@@ -96,49 +143,7 @@ func createSampleAPIs() []apiCallInfo {
 				return err
 			},
 			CallFunc: func(device ddnvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
-				currentTime := uint64(time.Now().Unix())
-				processSamples, err := device.GetProcessUtilization(lastTimestamp)
-
-				var allMetrics []Metric
-				var allPidTags []string
-				var maxSmUtil, sumSmUtil uint32
-
-				// Handle ERROR_NOT_FOUND as a valid scenario when no process utilization data is available
-				if err != nil {
-					var nvmlErr *ddnvml.NvmlAPIError
-					if errors.As(err, &nvmlErr) && errors.Is(nvmlErr.NvmlErrorCode, nvml.ERROR_NOT_FOUND) {
-						err = nil // Clear the error for NOT_FOUND case
-					}
-				} else {
-					for _, sample := range processSamples {
-						pidTag := []string{fmt.Sprintf("pid:%d", sample.Pid)}
-						allMetrics = append(allMetrics,
-							Metric{Name: "process.sm_active", Value: float64(sample.SmUtil), Type: ddmetrics.GaugeType, Tags: pidTag},
-							Metric{Name: "process.dram_active", Value: float64(sample.MemUtil), Type: ddmetrics.GaugeType, Tags: pidTag},
-							Metric{Name: "process.encoder_utilization", Value: float64(sample.EncUtil), Type: ddmetrics.GaugeType, Tags: pidTag},
-							Metric{Name: "process.decoder_utilization", Value: float64(sample.DecUtil), Type: ddmetrics.GaugeType, Tags: pidTag},
-						)
-
-						if sample.SmUtil > maxSmUtil {
-							maxSmUtil = sample.SmUtil
-						}
-						sumSmUtil += sample.SmUtil
-						allPidTags = append(allPidTags, fmt.Sprintf("pid:%d", sample.Pid))
-					}
-				}
-
-				// Device-wide sm_active metric
-				if sumSmUtil > 100 {
-					sumSmUtil = 100
-				}
-				deviceSmActive := float64(maxSmUtil+sumSmUtil) / 2.0
-
-				allMetrics = append(allMetrics,
-					Metric{Name: "sm_active", Value: deviceSmActive, Type: ddmetrics.GaugeType},
-					Metric{Name: "core.limit", Value: float64(device.GetDeviceInfo().CoreCount), Type: ddmetrics.GaugeType, Tags: allPidTags},
-				)
-
-				return allMetrics, currentTime, err
+				return processUtilizationSample(device, lastTimestamp)
 			},
 		},
 		// Samples collector APIs - each sample type is separate for independent failure handling
