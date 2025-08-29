@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
+	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/require"
 
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
@@ -19,15 +20,36 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
-func TestNewBaseCollector(t *testing.T) {
+// setupMockDevice creates a mock device for testing with optional customization.
+// If customize is nil, returns a basic mock device with all functions enabled.
+// If customize is provided, allows overriding specific device functions.
+func setupMockDevice(t *testing.T, customize func(device *mock.Device) *mock.Device) ddnvml.Device {
 	nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled())
-	ddnvml.WithMockNVML(t, nvmlMock)
+	device := testutil.GetDeviceMock(0, testutil.WithMockAllDeviceFunctions())
 
+	// Apply customization if provided
+	if customize != nil {
+		device = customize(device)
+	}
+
+	// Set up the device handle function
+	nvmlMock.DeviceGetHandleByIndexFunc = func(index int) (nvml.Device, nvml.Return) {
+		if index == 0 {
+			return device, nvml.SUCCESS
+		}
+		return nil, nvml.ERROR_INVALID_ARGUMENT
+	}
+
+	ddnvml.WithMockNVML(t, nvmlMock)
 	deviceCache, err := ddnvml.NewDeviceCache()
 	require.NoError(t, err)
 	devices := deviceCache.AllPhysicalDevices()
 	require.NotEmpty(t, devices)
-	mockDevice := devices[0]
+	return devices[0]
+}
+
+func TestNewBaseCollector(t *testing.T) {
+	mockDevice := setupMockDevice(t, nil)
 
 	tests := []struct {
 		name        string
@@ -108,14 +130,7 @@ func TestNewBaseCollector(t *testing.T) {
 }
 
 func TestBaseCollector_Collect(t *testing.T) {
-	nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled())
-	ddnvml.WithMockNVML(t, nvmlMock)
-
-	deviceCache, err := ddnvml.NewDeviceCache()
-	require.NoError(t, err)
-	devices := deviceCache.AllPhysicalDevices()
-	require.NotEmpty(t, devices)
-	mockDevice := devices[0]
+	mockDevice := setupMockDevice(t, nil)
 
 	tests := []struct {
 		name            string
@@ -202,17 +217,10 @@ func TestBaseCollector_Collect(t *testing.T) {
 }
 
 func TestNewSamplingCollector(t *testing.T) {
-	nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled())
-	ddnvml.WithMockNVML(t, nvmlMock)
-
-	deviceCache, err := ddnvml.NewDeviceCache()
-	require.NoError(t, err)
-	devices := deviceCache.AllPhysicalDevices()
-	require.NotEmpty(t, devices)
-	mockDevice := devices[0]
-
 	var timestamps [2]uint64 // Track first and second call timestamps
 	var callCount int
+
+	mockDevice := setupMockDevice(t, nil)
 
 	apiCalls := []apiCallInfo{
 		{

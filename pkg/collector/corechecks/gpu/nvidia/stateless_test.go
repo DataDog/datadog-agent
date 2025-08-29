@@ -8,25 +8,20 @@
 package nvidia
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
+	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
-	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 // TestNewStatelessCollector tests stateless collector-specific initialization with dynamic API creation
 func TestNewStatelessCollector(t *testing.T) {
-	nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled(), testutil.WithMockAllFunctions())
-	safenvml.WithMockNVML(t, nvmlMock)
-
-	deviceCache, err := safenvml.NewDeviceCache()
-	require.NoError(t, err)
-	devices := deviceCache.AllPhysicalDevices()
-	require.NotEmpty(t, devices)
-	device := devices[0]
+	device := setupMockDevice(t, nil)
 
 	// Test that the stateless collector creates the expected dynamic API set
 	collector, err := newStatelessCollector(device)
@@ -76,114 +71,125 @@ func TestCollectProcessMemory(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Override the mock to return specific processes
-			nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled(), testutil.WithMockAllFunctions())
-			device := testutil.GetDeviceMock(0, testutil.WithMockAllDeviceFunctions())
-			// Override GetComputeRunningProcesses to return test processes
-			device.GetComputeRunningProcessesFunc = func() ([]nvml.ProcessInfo, nvml.Return) {
-				return tt.processes, nvml.SUCCESS
-			}
-			nvmlMock.DeviceGetHandleByIndexFunc = func(index int) (nvml.Device, nvml.Return) {
-				if index == 0 {
-					return device, nvml.SUCCESS
-				}
-				return nil, nvml.ERROR_INVALID_ARGUMENT
-			}
-			safenvml.WithMockNVML(t, nvmlMock)
+			// Override API factory to only include process memory
+			originalFactory := statelessAPIFactory
+			defer func() { statelessAPIFactory = originalFactory }()
 
-			deviceCache, err := safenvml.NewDeviceCache()
-			require.NoError(t, err)
-			devices := deviceCache.AllPhysicalDevices()
-			require.NotEmpty(t, devices)
-			mockDevice := devices[0]
+			statelessAPIFactory = func() []apiCallInfo {
+				return []apiCallInfo{
+					{
+						Name: "process_memory_usage",
+						TestFunc: func(d safenvml.Device) error {
+							_, err := d.GetComputeRunningProcesses()
+							return err
+						},
+						CallFunc: func(device safenvml.Device, _ uint64) ([]Metric, uint64, error) {
+							return processMemorySample(device)
+						},
+					},
+				}
+			}
+
+			mockDevice := setupMockDevice(t, func(device *mock.Device) *mock.Device {
+				device.GetComputeRunningProcessesFunc = func() ([]nvml.ProcessInfo, nvml.Return) {
+					return tt.processes, nvml.SUCCESS
+				}
+				return device
+			})
 
 			collector, err := newStatelessCollector(mockDevice)
 			require.NoError(t, err)
 
-			metrics, err := collector.Collect()
+			processMetrics, err := collector.Collect()
 			require.NoError(t, err)
-
-			// Count process memory related metrics
-			var processMemoryCount int
-			for _, metric := range metrics {
-				if metric.Name == "process.memory.usage" || metric.Name == "memory.limit" {
-					processMemoryCount++
-				}
-			}
-			require.GreaterOrEqual(t, processMemoryCount, tt.expectedCount-1) // Allow for other metrics but check minimums
+			require.Len(t, processMetrics, tt.expectedCount)
 		})
 	}
 }
 
 // TestCollectProcessMemory_Error tests error handling with API failures
 func TestCollectProcessMemory_Error(t *testing.T) {
-	// Override the mock to return error for GetComputeRunningProcesses
-	nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled(), testutil.WithMockAllFunctions())
-	device := testutil.GetDeviceMock(0, testutil.WithMockAllDeviceFunctions())
-	// Override GetComputeRunningProcesses to return an error
-	device.GetComputeRunningProcessesFunc = func() ([]nvml.ProcessInfo, nvml.Return) {
-		return nil, nvml.ERROR_UNKNOWN
-	}
-	nvmlMock.DeviceGetHandleByIndexFunc = func(index int) (nvml.Device, nvml.Return) {
-		if index == 0 {
-			return device, nvml.SUCCESS
-		}
-		return nil, nvml.ERROR_INVALID_ARGUMENT
-	}
-	safenvml.WithMockNVML(t, nvmlMock)
+	// Override API factory to only include process memory
+	originalFactory := statelessAPIFactory
+	defer func() { statelessAPIFactory = originalFactory }()
 
-	deviceCache, err := safenvml.NewDeviceCache()
-	require.NoError(t, err)
-	devices := deviceCache.AllPhysicalDevices()
-	require.NotEmpty(t, devices)
-	mockDevice := devices[0]
+	statelessAPIFactory = func() []apiCallInfo {
+		return []apiCallInfo{
+			{
+				Name: "process_memory_usage",
+				TestFunc: func(d safenvml.Device) error {
+					_, err := d.GetComputeRunningProcesses()
+					return err
+				},
+				CallFunc: func(device safenvml.Device, _ uint64) ([]Metric, uint64, error) {
+					return processMemorySample(device)
+				},
+			},
+		}
+	}
+
+	mockDevice := setupMockDevice(t, func(device *mock.Device) *mock.Device {
+		device.GetComputeRunningProcessesFunc = func() ([]nvml.ProcessInfo, nvml.Return) {
+			return nil, nvml.ERROR_UNKNOWN
+		}
+		return device
+	})
 
 	collector, err := newStatelessCollector(mockDevice)
 	require.NoError(t, err)
 
-	metrics, err := collector.Collect()
+	processMetrics, err := collector.Collect()
 
-	// Should get error but still have some metrics (from other APIs)
+	// Should get error but still have some metrics (memory.limit from processMemorySample)
 	require.Error(t, err)
-	require.Greater(t, len(metrics), 0) // Some metrics should still be collected
+	require.Greater(t, len(processMetrics), 0) // Should still get memory.limit metric
 }
 
 // TestProcessMemoryMetricTags tests that process memory metrics have correct tags and priorities
 func TestProcessMemoryMetricTags(t *testing.T) {
+	// Override API factory to only include process memory
+	originalFactory := statelessAPIFactory
+	defer func() { statelessAPIFactory = originalFactory }()
+
+	statelessAPIFactory = func() []apiCallInfo {
+		return []apiCallInfo{
+			{
+				Name: "process_memory_usage",
+				TestFunc: func(d safenvml.Device) error {
+					_, err := d.GetComputeRunningProcesses()
+					return err
+				},
+				CallFunc: func(device safenvml.Device, _ uint64) ([]Metric, uint64, error) {
+					return processMemorySample(device)
+				},
+			},
+		}
+	}
+
 	processes := []nvml.ProcessInfo{
 		{Pid: 1001, UsedGpuMemory: 1073741824}, // 1GB
 		{Pid: 1002, UsedGpuMemory: 2147483648}, // 2GB
 	}
 
-	// Override the mock to return specific processes
-	nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled(), testutil.WithMockAllFunctions())
-	device := testutil.GetDeviceMock(0, testutil.WithMockAllDeviceFunctions())
-	device.GetComputeRunningProcessesFunc = func() ([]nvml.ProcessInfo, nvml.Return) {
-		return processes, nvml.SUCCESS
-	}
-	nvmlMock.DeviceGetHandleByIndexFunc = func(index int) (nvml.Device, nvml.Return) {
-		if index == 0 {
-			return device, nvml.SUCCESS
+	mockDevice := setupMockDevice(t, func(device *mock.Device) *mock.Device {
+		device.GetComputeRunningProcessesFunc = func() ([]nvml.ProcessInfo, nvml.Return) {
+			return processes, nvml.SUCCESS
 		}
-		return nil, nvml.ERROR_INVALID_ARGUMENT
-	}
-	safenvml.WithMockNVML(t, nvmlMock)
-
-	deviceCache, err := safenvml.NewDeviceCache()
-	require.NoError(t, err)
-	devices := deviceCache.AllPhysicalDevices()
-	require.NotEmpty(t, devices)
-	mockDevice := devices[0]
+		return device
+	})
 
 	collector, err := newStatelessCollector(mockDevice)
 	require.NoError(t, err)
 
-	metrics, err := collector.Collect()
+	processMetrics, err := collector.Collect()
 	require.NoError(t, err)
+
+	// Should have exactly 3 metrics: 2 process.memory.usage + 1 memory.limit
+	require.Len(t, processMetrics, 3)
 
 	// Check process.memory.usage metrics have PID tags
 	processMemoryMetrics := 0
-	for _, metric := range metrics {
+	for _, metric := range processMetrics {
 		if metric.Name == "process.memory.usage" {
 			processMemoryMetrics++
 			require.Len(t, metric.Tags, 1, "process.memory.usage should have exactly one tag")
@@ -196,4 +202,228 @@ func TestProcessMemoryMetricTags(t *testing.T) {
 		}
 	}
 	require.Equal(t, 2, processMemoryMetrics, "Should have process.memory.usage for each process")
+}
+
+// TestNVLinkCollector_Initialization tests NVLink collector initialization (migrated from nvlink_test.go)
+func TestNVLinkCollector_Initialization(t *testing.T) {
+	tests := []struct {
+		name        string
+		customSetup func(*mock.Device) *mock.Device
+		wantError   bool
+		wantLinks   int
+	}{
+		{
+			name: "Unsupported device",
+			customSetup: func(device *mock.Device) *mock.Device {
+				device.GetFieldValuesFunc = func(_ []nvml.FieldValue) nvml.Return {
+					return nvml.ERROR_NOT_SUPPORTED
+				}
+				device.GetUUIDFunc = func() (string, nvml.Return) {
+					return "GPU-123", nvml.SUCCESS
+				}
+				return device
+			},
+			wantError: true,
+		},
+		{
+			name: "Unknown error",
+			customSetup: func(device *mock.Device) *mock.Device {
+				device.GetFieldValuesFunc = func(_ []nvml.FieldValue) nvml.Return {
+					return nvml.ERROR_UNKNOWN
+				}
+				device.GetUUIDFunc = func() (string, nvml.Return) {
+					return "GPU-123", nvml.SUCCESS
+				}
+				return device
+			},
+			wantError: true,
+		},
+		{
+			name: "Success with 4 links",
+			customSetup: func(device *mock.Device) *mock.Device {
+				device.GetFieldValuesFunc = func(values []nvml.FieldValue) nvml.Return {
+					require.Len(t, values, 1, "Expected one field value for total number of links, got %d", len(values))
+					require.Equal(t, values[0].FieldId, uint32(nvml.FI_DEV_NVLINK_LINK_COUNT), "Expected field ID to be FI_DEV_NVLINK_LINK_COUNT, got %d", values[0].FieldId)
+					require.Equal(t, values[0].ScopeId, uint32(0), "Expected scope ID to be 0, got %d", values[0].ScopeId)
+					values[0].ValueType = uint32(nvml.VALUE_TYPE_SIGNED_INT)
+					values[0].Value = [8]byte{4, 0, 0, 0, 0, 0, 0, 0} // 4 links
+					return nvml.SUCCESS
+				}
+				device.GetUUIDFunc = func() (string, nvml.Return) {
+					return "GPU-123", nvml.SUCCESS
+				}
+				return device
+			},
+			wantError: false,
+			wantLinks: 4,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Override API factory to only include NVLink
+			originalFactory := statelessAPIFactory
+			defer func() { statelessAPIFactory = originalFactory }()
+
+			statelessAPIFactory = func() []apiCallInfo {
+				return []apiCallInfo{
+					{
+						Name: "nvlink_metrics",
+						TestFunc: func(d safenvml.Device) error {
+							fields := []nvml.FieldValue{
+								{
+									FieldId: nvml.FI_DEV_NVLINK_LINK_COUNT,
+									ScopeId: 0,
+								},
+							}
+							return d.GetFieldValues(fields)
+						},
+						CallFunc: func(device safenvml.Device, timestamp uint64) ([]Metric, uint64, error) {
+							return []Metric{}, 0, nil
+						},
+					},
+				}
+			}
+
+			mockDevice := setupMockDevice(t, tt.customSetup)
+			c, err := newStatelessCollector(mockDevice)
+
+			if tt.wantError {
+				require.Error(t, err)
+				require.Nil(t, c)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, c)
+
+			// For successful case, we can't check totalNVLinks since it's not exposed in baseCollector
+			// But we can verify the collector was created successfully
+		})
+	}
+}
+
+// TestNVLinkCollector_Collection tests NVLink collector collection (migrated from nvlink_test.go)
+func TestNVLinkCollector_Collection(t *testing.T) {
+	tests := []struct {
+		name             string
+		nvlinkStates     []nvml.EnableState
+		nvlinkErrors     []error
+		expectedActive   int
+		expectedInactive int
+		expectError      bool
+	}{
+		{
+			name: "All links active",
+			nvlinkStates: []nvml.EnableState{
+				nvml.FEATURE_ENABLED,
+				nvml.FEATURE_ENABLED,
+				nvml.FEATURE_ENABLED,
+			},
+			nvlinkErrors:     []error{nil, nil, nil},
+			expectedActive:   3,
+			expectedInactive: 0,
+			expectError:      false,
+		},
+		{
+			name: "Mixed active and inactive links",
+			nvlinkStates: []nvml.EnableState{
+				nvml.FEATURE_ENABLED,
+				nvml.FEATURE_DISABLED,
+				nvml.FEATURE_ENABLED,
+			},
+			nvlinkErrors:     []error{nil, nil, nil},
+			expectedActive:   2,
+			expectedInactive: 1,
+			expectError:      false,
+		},
+		{
+			name: "Error getting link state",
+			nvlinkStates: []nvml.EnableState{
+				nvml.FEATURE_ENABLED,
+				nvml.FEATURE_ENABLED,
+			},
+			nvlinkErrors:     []error{nil, errors.New("unknown error")},
+			expectedActive:   1,
+			expectedInactive: 0,
+			expectError:      true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Override API factory to only include NVLink with full implementation
+			originalFactory := statelessAPIFactory
+			defer func() { statelessAPIFactory = originalFactory }()
+
+			statelessAPIFactory = func() []apiCallInfo {
+				return []apiCallInfo{
+					{
+						Name: "nvlink_metrics",
+						TestFunc: func(d safenvml.Device) error {
+							fields := []nvml.FieldValue{
+								{
+									FieldId: nvml.FI_DEV_NVLINK_LINK_COUNT,
+									ScopeId: 0,
+								},
+							}
+							return d.GetFieldValues(fields)
+						},
+						CallFunc: func(device safenvml.Device, timestamp uint64) ([]Metric, uint64, error) {
+							return nvlinkSample(device)
+						},
+					},
+				}
+			}
+
+			// Create collector with mock device
+			mockDevice := setupMockDevice(t, func(device *mock.Device) *mock.Device {
+				device.GetFieldValuesFunc = func(values []nvml.FieldValue) nvml.Return {
+					values[0].ValueType = uint32(nvml.VALUE_TYPE_UNSIGNED_INT)
+					values[0].Value = [8]byte{byte(len(tt.nvlinkStates)), 0, 0, 0, 0, 0, 0, 0}
+					return nvml.SUCCESS
+				}
+				device.GetNvLinkStateFunc = func(link int) (nvml.EnableState, nvml.Return) {
+					if link >= len(tt.nvlinkStates) {
+						return 0, nvml.ERROR_INVALID_ARGUMENT
+					}
+					if tt.nvlinkErrors[link] != nil {
+						return 0, nvml.ERROR_UNKNOWN
+					}
+					return tt.nvlinkStates[link], nvml.SUCCESS
+				}
+				device.GetUUIDFunc = func() (string, nvml.Return) {
+					return "GPU-123", nvml.SUCCESS
+				}
+				return device
+			})
+
+			collector, err := newStatelessCollector(mockDevice)
+			require.NoError(t, err)
+
+			// Collect metrics
+			allMetrics, err := collector.Collect()
+
+			if tt.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+
+			// Verify metrics, as we still expect to have all 3 metrics even if some errors were returned
+			require.Len(t, allMetrics, 3)
+
+			// Check total links metric
+			require.Equal(t, float64(len(tt.nvlinkStates)), allMetrics[0].Value)
+			require.Equal(t, metrics.GaugeType, allMetrics[0].Type)
+
+			// Check active links metric
+			require.Equal(t, float64(tt.expectedActive), allMetrics[1].Value)
+			require.Equal(t, metrics.GaugeType, allMetrics[1].Type)
+
+			// Check inactive links metric
+			require.Equal(t, float64(tt.expectedInactive), allMetrics[2].Value)
+			require.Equal(t, metrics.GaugeType, allMetrics[2].Type)
+		})
+	}
 }

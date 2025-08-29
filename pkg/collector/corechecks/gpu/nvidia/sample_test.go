@@ -13,61 +13,61 @@ import (
 	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
+	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
-	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 )
 
 // TestNewSampleCollector tests sample collector initialization
 func TestNewSampleCollector(t *testing.T) {
-	t.Run("Supported", func(t *testing.T) {
-		nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled(), testutil.WithMockAllFunctions())
-		safenvml.WithMockNVML(t, nvmlMock)
-		deviceCache, err := safenvml.NewDeviceCache()
-		require.NoError(t, err)
-		devices := deviceCache.AllPhysicalDevices()
-		require.NotEmpty(t, devices)
-		mockDevice := devices[0]
+	tests := []struct {
+		name                  string
+		customSetup           func(*mock.Device) *mock.Device
+		expectError           bool
+		expectedSupportedAPIs int
+	}{
+		{
+			name:                  "Supported",
+			customSetup:           nil, // Use default setup with all functions enabled
+			expectError:           false,
+			expectedSupportedAPIs: 5,
+		},
+		{
+			name: "Unsupported",
+			customSetup: func(device *mock.Device) *mock.Device {
+				// Make all sample APIs return ERROR_NOT_SUPPORTED
+				device.GetProcessUtilizationFunc = func(_ uint64) ([]nvml.ProcessUtilizationSample, nvml.Return) {
+					return nil, nvml.ERROR_NOT_SUPPORTED
+				}
+				device.GetSamplesFunc = func(_ nvml.SamplingType, _ uint64) (nvml.ValueType, []nvml.Sample, nvml.Return) {
+					return nvml.ValueType(0), nil, nvml.ERROR_NOT_SUPPORTED
+				}
+				return device
+			},
+			expectError:           true,
+			expectedSupportedAPIs: 0, // Not relevant when error expected
+		},
+	}
 
-		collector, err := newSampleCollector(mockDevice)
-		require.NoError(t, err)
-		require.NotNil(t, collector)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockDevice := setupMockDevice(t, tt.customSetup)
 
-		bc := collector.(*baseCollector)
-		require.Len(t, bc.supportedAPIs, 5) // All sample APIs supported
-	})
+			collector, err := newSampleCollector(mockDevice)
 
-	t.Run("Unsupported", func(t *testing.T) {
-		nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled())
-		device := testutil.GetDeviceMock(0)
+			if tt.expectError {
+				require.Error(t, err)
+				require.Nil(t, collector)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, collector)
 
-		// Make all sample APIs return ERROR_NOT_SUPPORTED
-		device.GetProcessUtilizationFunc = func(_ uint64) ([]nvml.ProcessUtilizationSample, nvml.Return) {
-			return nil, nvml.ERROR_NOT_SUPPORTED
-		}
-		device.GetSamplesFunc = func(_ nvml.SamplingType, _ uint64) (nvml.ValueType, []nvml.Sample, nvml.Return) {
-			return nvml.ValueType(0), nil, nvml.ERROR_NOT_SUPPORTED
-		}
-
-		nvmlMock.DeviceGetHandleByIndexFunc = func(index int) (nvml.Device, nvml.Return) {
-			if index == 0 {
-				return device, nvml.SUCCESS
+				bc := collector.(*baseCollector)
+				require.Len(t, bc.supportedAPIs, tt.expectedSupportedAPIs)
 			}
-			return nil, nvml.ERROR_INVALID_ARGUMENT
-		}
-
-		safenvml.WithMockNVML(t, nvmlMock)
-		deviceCache, err := safenvml.NewDeviceCache()
-		require.NoError(t, err)
-		devices := deviceCache.AllPhysicalDevices()
-		require.NotEmpty(t, devices)
-		mockDevice := devices[0]
-
-		collector, err := newSampleCollector(mockDevice)
-		require.Error(t, err)
-		require.Nil(t, collector)
-	})
+		})
+	}
 }
 
 // TestCollectProcessUtilization tests the process utilization collection
@@ -108,31 +108,38 @@ func TestCollectProcessUtilization(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled(), testutil.WithMockAllFunctions())
-			device := testutil.GetDeviceMock(0)
-			device.GetProcessUtilizationFunc = func(_ uint64) ([]nvml.ProcessUtilizationSample, nvml.Return) {
-				return tt.samples, nvml.SUCCESS
-			}
-			nvmlMock.DeviceGetHandleByIndexFunc = func(index int) (nvml.Device, nvml.Return) {
-				if index == 0 {
-					return device, nvml.SUCCESS
+			// Override API factory to only include process utilization
+			originalFactory := sampleAPIFactory
+			defer func() { sampleAPIFactory = originalFactory }()
+
+			sampleAPIFactory = func() []apiCallInfo {
+				return []apiCallInfo{
+					{
+						Name: "process_utilization",
+						TestFunc: func(d safenvml.Device) error {
+							_, err := d.GetProcessUtilization(0)
+							return err
+						},
+						CallFunc: func(device safenvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
+							return processUtilizationSample(device, lastTimestamp)
+						},
+					},
 				}
-				return nil, nvml.ERROR_INVALID_ARGUMENT
 			}
 
-			safenvml.WithMockNVML(t, nvmlMock)
-			deviceCache, err := safenvml.NewDeviceCache()
-			require.NoError(t, err)
-			devices := deviceCache.AllPhysicalDevices()
-			require.NotEmpty(t, devices)
-			mockDevice := devices[0]
+			mockDevice := setupMockDevice(t, func(device *mock.Device) *mock.Device {
+				device.GetProcessUtilizationFunc = func(_ uint64) ([]nvml.ProcessUtilizationSample, nvml.Return) {
+					return tt.samples, nvml.SUCCESS
+				}
+				return device
+			})
 
 			collector, err := newSampleCollector(mockDevice)
 			require.NoError(t, err)
 
-			metrics, err := collector.Collect()
+			processMetrics, err := collector.Collect()
 			require.NoError(t, err)
-			require.Len(t, metrics, tt.expectedCount)
+			require.Len(t, processMetrics, tt.expectedCount)
 		})
 	}
 }
@@ -161,33 +168,40 @@ func TestCollectProcessUtilization_Error(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled(), testutil.WithMockAllFunctions())
-			device := testutil.GetDeviceMock(0)
-			device.GetProcessUtilizationFunc = func(_ uint64) ([]nvml.ProcessUtilizationSample, nvml.Return) {
-				var nvmlErr *safenvml.NvmlAPIError
-				if errors.As(tt.apiError, &nvmlErr) {
-					return nil, nvmlErr.NvmlErrorCode
+			// Override API factory to only include process utilization
+			originalFactory := sampleAPIFactory
+			defer func() { sampleAPIFactory = originalFactory }()
+
+			sampleAPIFactory = func() []apiCallInfo {
+				return []apiCallInfo{
+					{
+						Name: "process_utilization",
+						TestFunc: func(d safenvml.Device) error {
+							_, err := d.GetProcessUtilization(0)
+							return err
+						},
+						CallFunc: func(device safenvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
+							return processUtilizationSample(device, lastTimestamp)
+						},
+					},
 				}
-				return nil, nvml.ERROR_UNKNOWN
-			}
-			nvmlMock.DeviceGetHandleByIndexFunc = func(index int) (nvml.Device, nvml.Return) {
-				if index == 0 {
-					return device, nvml.SUCCESS
-				}
-				return nil, nvml.ERROR_INVALID_ARGUMENT
 			}
 
-			safenvml.WithMockNVML(t, nvmlMock)
-			deviceCache, err := safenvml.NewDeviceCache()
-			require.NoError(t, err)
-			devices := deviceCache.AllPhysicalDevices()
-			require.NotEmpty(t, devices)
-			mockDevice := devices[0]
+			mockDevice := setupMockDevice(t, func(device *mock.Device) *mock.Device {
+				device.GetProcessUtilizationFunc = func(_ uint64) ([]nvml.ProcessUtilizationSample, nvml.Return) {
+					var nvmlErr *safenvml.NvmlAPIError
+					if errors.As(tt.apiError, &nvmlErr) {
+						return nil, nvmlErr.NvmlErrorCode
+					}
+					return nil, nvml.ERROR_UNKNOWN
+				}
+				return device
+			})
 
 			collector, err := newSampleCollector(mockDevice)
 			require.NoError(t, err)
 
-			metrics, err := collector.Collect()
+			processMetrics, err := collector.Collect()
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -195,7 +209,7 @@ func TestCollectProcessUtilization_Error(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			require.Len(t, metrics, tt.expectedCount)
+			require.Len(t, processMetrics, tt.expectedCount)
 		})
 	}
 }
@@ -232,31 +246,38 @@ func TestProcessUtilizationTimestampUpdate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled(), testutil.WithMockAllFunctions())
-			device := testutil.GetDeviceMock(0)
-			device.GetProcessUtilizationFunc = func(_ uint64) ([]nvml.ProcessUtilizationSample, nvml.Return) {
-				if tt.apiError != nil {
-					var nvmlErr *safenvml.NvmlAPIError
-					if errors.As(tt.apiError, &nvmlErr) {
-						return nil, nvmlErr.NvmlErrorCode
-					}
-					return nil, nvml.ERROR_UNKNOWN
+			// Override API factory to only include process utilization
+			originalFactory := sampleAPIFactory
+			defer func() { sampleAPIFactory = originalFactory }()
+
+			sampleAPIFactory = func() []apiCallInfo {
+				return []apiCallInfo{
+					{
+						Name: "process_utilization",
+						TestFunc: func(d safenvml.Device) error {
+							_, err := d.GetProcessUtilization(0)
+							return err
+						},
+						CallFunc: func(device safenvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
+							return processUtilizationSample(device, lastTimestamp)
+						},
+					},
 				}
-				return tt.samples, nvml.SUCCESS
-			}
-			nvmlMock.DeviceGetHandleByIndexFunc = func(index int) (nvml.Device, nvml.Return) {
-				if index == 0 {
-					return device, nvml.SUCCESS
-				}
-				return nil, nvml.ERROR_INVALID_ARGUMENT
 			}
 
-			safenvml.WithMockNVML(t, nvmlMock)
-			deviceCache, err := safenvml.NewDeviceCache()
-			require.NoError(t, err)
-			devices := deviceCache.AllPhysicalDevices()
-			require.NotEmpty(t, devices)
-			mockDevice := devices[0]
+			mockDevice := setupMockDevice(t, func(device *mock.Device) *mock.Device {
+				device.GetProcessUtilizationFunc = func(_ uint64) ([]nvml.ProcessUtilizationSample, nvml.Return) {
+					if tt.apiError != nil {
+						var nvmlErr *safenvml.NvmlAPIError
+						if errors.As(tt.apiError, &nvmlErr) {
+							return nil, nvmlErr.NvmlErrorCode
+						}
+						return nil, nvml.ERROR_UNKNOWN
+					}
+					return tt.samples, nvml.SUCCESS
+				}
+				return device
+			})
 
 			collector, err := newSampleCollector(mockDevice)
 			require.NoError(t, err)
@@ -343,34 +364,41 @@ func TestProcessUtilization_SmActiveCalculation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled(), testutil.WithMockAllFunctions())
-			device := testutil.GetDeviceMock(0)
-			device.GetProcessUtilizationFunc = func(_ uint64) ([]nvml.ProcessUtilizationSample, nvml.Return) {
-				return tt.samples, nvml.SUCCESS
-			}
-			nvmlMock.DeviceGetHandleByIndexFunc = func(index int) (nvml.Device, nvml.Return) {
-				if index == 0 {
-					return device, nvml.SUCCESS
+			// Override API factory to only include process utilization
+			originalFactory := sampleAPIFactory
+			defer func() { sampleAPIFactory = originalFactory }()
+
+			sampleAPIFactory = func() []apiCallInfo {
+				return []apiCallInfo{
+					{
+						Name: "process_utilization",
+						TestFunc: func(d safenvml.Device) error {
+							_, err := d.GetProcessUtilization(0)
+							return err
+						},
+						CallFunc: func(device safenvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
+							return processUtilizationSample(device, lastTimestamp)
+						},
+					},
 				}
-				return nil, nvml.ERROR_INVALID_ARGUMENT
 			}
 
-			safenvml.WithMockNVML(t, nvmlMock)
-			deviceCache, err := safenvml.NewDeviceCache()
-			require.NoError(t, err)
-			devices := deviceCache.AllPhysicalDevices()
-			require.NotEmpty(t, devices)
-			mockDevice := devices[0]
+			mockDevice := setupMockDevice(t, func(device *mock.Device) *mock.Device {
+				device.GetProcessUtilizationFunc = func(_ uint64) ([]nvml.ProcessUtilizationSample, nvml.Return) {
+					return tt.samples, nvml.SUCCESS
+				}
+				return device
+			})
 
 			collector, err := newSampleCollector(mockDevice)
 			require.NoError(t, err)
 
-			metrics, err := collector.Collect()
+			processMetrics, err := collector.Collect()
 			require.NoError(t, err)
 
 			// Find the sm_active metric
 			var smActiveMetric *Metric
-			for _, metric := range metrics {
+			for _, metric := range processMetrics {
 				if metric.Name == "sm_active" {
 					smActiveMetric = &metric
 					break
