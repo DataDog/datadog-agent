@@ -266,9 +266,9 @@ type expectedState struct {
 }
 
 type experimentConfigAction struct {
-	ActionType string `json:"action_type"`
-	Path       string `json:"path"`
-	ConfigID   string `json:"config_id"`
+	ActionType    string   `json:"action_type"`
+	Path          string   `json:"path"`
+	IgnoredFields []string `json:"ignored_fields"`
 }
 
 type experimentTaskParams struct {

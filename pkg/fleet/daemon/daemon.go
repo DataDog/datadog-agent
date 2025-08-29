@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/bootstrap"
+	iconfig "github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
@@ -93,11 +94,6 @@ type daemonImpl struct {
 	requests        chan remoteAPIRequest
 	requestsWG      sync.WaitGroup
 	taskDB          *taskDB
-}
-
-type convertedExperimentConfigAction struct {
-	ActionType string                `json:"action_type"`
-	Files      []installerConfigFile `json:"files"`
 }
 
 func newInstaller(installerBin string) func(env *env.Env) installer.Installer {
@@ -255,6 +251,21 @@ func (d *daemonImpl) getPackage(pkg string, version string) (Package, error) {
 		return Package{}, fmt.Errorf("could not get package %s, %s for %s, %s", pkg, version, runtime.GOARCH, runtime.GOOS)
 	}
 	return catalogPackage, nil
+}
+
+func (d *daemonImpl) getConfig(version string) (installerConfig, error) {
+	d.m.Lock()
+	defer d.m.Unlock()
+	configs := d.configs
+	if len(d.configsOverride) > 0 {
+		configs = d.configsOverride
+	}
+
+	config, ok := configs[version]
+	if !ok {
+		return installerConfig{}, fmt.Errorf("config version %s not found in available configs", version)
+	}
+	return config, nil
 }
 
 // SetCatalog sets the catalog.
@@ -442,54 +453,28 @@ func (d *daemonImpl) stopExperiment(ctx context.Context, pkg string) (err error)
 func (d *daemonImpl) StartConfigExperiment(ctx context.Context, url string, version string) error {
 	d.m.Lock()
 	defer d.m.Unlock()
-	return d.startConfigExperiment(ctx, url, version, []experimentConfigAction{
-		{ActionType: "remove_all"},
-		{ActionType: "write", ConfigID: version},
-	})
+	config, err := d.getConfig(version)
+	if err != nil {
+		return fmt.Errorf("could not get config: %w", err)
+	}
+	var configActions []iconfig.Action
+	for _, file := range config.Files {
+		configActions = append(configActions, iconfig.Action{
+			ActionType: iconfig.ActionTypeWrite,
+			Path:       file.Path,
+		})
+	}
+	return d.startConfigExperiment(ctx, url, version, configActions)
 }
 
-func (d *daemonImpl) startConfigExperiment(ctx context.Context, pkg string, version string, configActions []experimentConfigAction) (err error) {
+func (d *daemonImpl) startConfigExperiment(ctx context.Context, pkg string, version string, configActions []iconfig.Action) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "start_config_experiment")
 	defer func() { span.Finish(err) }()
 	d.refreshState(ctx)
 	defer d.refreshState(ctx)
 
 	log.Infof("Daemon: Starting config experiment version %s for package %s", version, pkg)
-	configs := d.configs
-	if len(d.configsOverride) > 0 {
-		configs = d.configsOverride
-	}
-
-	serializedConfigs := make([][]byte, 0, len(configActions))
-	for i, configAction := range configActions {
-		var convertedAction convertedExperimentConfigAction
-
-		// When ConfigID is set, we look at the config version
-		if configAction.ConfigID != "" {
-			config, ok := configs[configAction.ConfigID]
-			if !ok {
-				return fmt.Errorf("config version %s not found in available configs", configAction.ConfigID)
-			}
-			convertedAction = convertedExperimentConfigAction{
-				ActionType: configAction.ActionType,
-				Files:      config.Files,
-			}
-		} else {
-			// When ConfigID is not set, we only look at the path
-			convertedAction = convertedExperimentConfigAction{
-				ActionType: configAction.ActionType,
-				Files:      []installerConfigFile{{Path: configAction.Path}},
-			}
-		}
-
-		serializedConfig, err := json.Marshal(convertedAction)
-		if err != nil {
-			return fmt.Errorf("failed to serialize config action %d: %w", i, err)
-		}
-		serializedConfigs = append(serializedConfigs, serializedConfig)
-	}
-
-	err = d.installer(d.env).InstallConfigExperiment(ctx, pkg, version, serializedConfigs, []string{})
+	err = d.installer(d.env).InstallConfigExperiment(ctx, pkg, version, configActions)
 	if err != nil {
 		return fmt.Errorf("could not start config experiment: %w", err)
 	}
@@ -649,13 +634,30 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 		}
 		log.Infof("Installer: Received remote request %s to start config experiment for package %s", request.ID, request.Package)
 
-		// Single config case
+		config, err := d.getConfig(params.Version)
+		if err != nil {
+			return installerErrors.Wrap(
+				installerErrors.ErrConfigNotFound,
+				err,
+			)
+		}
+		// Backward compatibility with previous backend, only a configuration is sent
 		if len(params.Actions) == 0 {
-			return d.startConfigExperiment(ctx, request.Package, params.Version, []experimentConfigAction{
-				{ActionType: "write", ConfigID: params.Version},
+			for _, file := range config.Files {
+				params.Actions = append(params.Actions, experimentConfigAction{
+					ActionType: string(iconfig.ActionTypeWrite),
+					Path:       file.Path,
+				})
+			}
+		}
+		var configActions []iconfig.Action
+		for _, action := range params.Actions {
+			configActions = append(configActions, iconfig.Action{
+				ActionType: iconfig.ActionType(action.ActionType),
+				Path:       action.Path,
 			})
 		}
-		return d.startConfigExperiment(ctx, request.Package, params.Version, params.Actions)
+		return d.startConfigExperiment(ctx, request.Package, params.Version, configActions)
 
 	case methodStopConfigExperiment:
 		log.Infof("Installer: Received remote request %s to stop config experiment for package %s", request.ID, request.Package)
