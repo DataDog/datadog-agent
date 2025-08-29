@@ -58,10 +58,8 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolve
 
 	// Convert the targets to internal format.
 	internalTargets := make([]targetInternal, len(config.Instrumentation.Targets))
-	log.Debugf("ERIKA: config.Instrumentation.Targets: %#v", config.Instrumentation.Targets)
 	for i, t := range config.Instrumentation.Targets {
 		// Convert the pod selector to a label selector.
-		log.Debugf("ERIKA: Target: %#v", t)
 		podSelector := labels.Everything()
 		var err error
 		if t.PodSelector != nil {
@@ -94,13 +92,11 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolve
 
 		// Get the library versions to inject. If no versions are specified, we inject all libraries.
 		var libVersions []libInfo
-		log.Debugf("ERIKA: t.TracerVersions: %#v", t.TracerVersions)
 		if len(t.TracerVersions) == 0 {
 			libVersions = getAllLatestDefaultLibraries(config.containerRegistry, imageResolver)
 		} else {
 			libVersions = getPinnedLibraries(t.TracerVersions, config.containerRegistry, false, imageResolver).libs
 		}
-		log.Debugf("ERIKA: Updated libVersions: %#v", libVersions)
 
 		// Convert the tracer configs to env vars. We check that the env var names start with the DD_ prefix to avoid
 		// this from being used as a generic env var injector. If there is a product requirement to allow arbitrary env
