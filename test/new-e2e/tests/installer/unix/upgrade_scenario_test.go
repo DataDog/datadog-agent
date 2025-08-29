@@ -632,6 +632,14 @@ func (s *upgradeScenarioSuite) TestUpgradeAppendConfig() {
 
 	s.mustPromoteConfigExperiment(datadogAgent)
 	s.assertSuccessfulConfigPromoteExperiment(timestamp, "append-config-2")
+
+	// Make sure both config files are present
+	exists, err := s.host.FileExists("/etc/datadog-agent/managed/datadog-agent/stable/datadog.yaml")
+	require.NoError(s.T(), err)
+	require.True(s.T(), exists)
+	exists, err = s.host.FileExists("/etc/datadog-agent/managed/datadog-agent/experiment/conf.d/redis.d/conf.yaml")
+	require.NoError(s.T(), err)
+	require.True(s.T(), exists)
 }
 
 func (s *upgradeScenarioSuite) TestUpgradeRemoveAllConfig() {
