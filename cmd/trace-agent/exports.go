@@ -143,7 +143,7 @@ func submit_traces(version *C.char, headers C.key_value_pair_array, payload C.by
 		return
 	}
 
-	if receiver := traceReceiver.(*api.BypassReceiver); receiver != nil {
+	if receiver, ok := traceReceiver.(*api.BypassReceiver); ok {
 		g_version := C.GoString(version)
 		g_headers := map[string]string{}
 		for i := C.size_t(0); i < headers.len; i++ {
@@ -159,6 +159,8 @@ func submit_traces(version *C.char, headers C.key_value_pair_array, payload C.by
 		} else {
 			fmt.Println("Submitted traces successfully")
 		}
+	} else {
+		fmt.Println("Trace Agent receiver is not a BypassReceiver")
 	}
 }
 
