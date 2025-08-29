@@ -461,10 +461,8 @@ func handlePrlimit64(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg,
 	rLimitPtr := tracer.ReadArgUint64(regs, 2)
 	if rLimitPtr == 0 {
 		// We don't write a new rlimit so we don't send the event
-		msg.Type = ebpfless.SyscallTypeUnknown
 		return nil
 	}
-	msg.Type = ebpfless.SyscallTypeSetrlimit
 	rlimitBuf, err := tracer.ReadArgData(process.Pid, regs, 2, uint(unsafe.Sizeof(syscall.Rlimit{})))
 	if err != nil {
 		return fmt.Errorf("failed to read rlimit: %w", err)
@@ -473,6 +471,7 @@ func handlePrlimit64(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg,
 	if err = binary.Read(bytes.NewBuffer(rlimitBuf), binary.NativeEndian, &rlimit); err != nil {
 		return fmt.Errorf("failed to parse rlimit: %w", err)
 	}
+	msg.Type = ebpfless.SyscallTypeSetrlimit
 	pid := tracer.ReadArgUint32(regs, 0)
 	msg.Setrlimit = &ebpfless.SetrlimitSyscallMsg{
 		Resource: int(tracer.ReadArgInt32(regs, 1)),
