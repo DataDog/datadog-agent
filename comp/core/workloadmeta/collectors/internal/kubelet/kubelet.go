@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 const (
@@ -705,7 +706,7 @@ func extractResources(spec *kubelet.ContainerSpec) workloadmeta.ContainerResourc
 	if cpuLimit, found := spec.Resources.Limits[kubelet.ResourceCPU]; found {
 		if cpuReq, found := spec.Resources.Requests[kubelet.ResourceCPU]; found {
 			if cpuReq == cpuLimit && cpuReq.MilliValue()%1000 == 0 {
-				resources.GuaranteedWholeCore = true
+				resources.GuaranteedWholeCore = pointer.Ptr(true)
 			}
 		}
 	}

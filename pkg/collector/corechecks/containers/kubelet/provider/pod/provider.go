@@ -155,7 +155,12 @@ func (p *Provider) generateContainerSpecMetrics(sender sender.Sender, pod *kubel
 		if wmetaKubelet != nil {
 			cpuManagerPolicy, _ := wmetaKubelet.GetCPUManagerPolicy()
 			wmetaContainer, _ := p.store.GetContainer(containerID.GetID())
-			if wmetaContainer.Resources.GuaranteedWholeCore && cpuManagerPolicy == workloadmeta.CpuManagerPolicyStatic {
+
+			var guaranteedWholeCore bool
+			if wmetaContainer.Resources.GuaranteedWholeCore != nil {
+				guaranteedWholeCore = bool(*wmetaContainer.Resources.GuaranteedWholeCore)
+			}
+			if guaranteedWholeCore && cpuManagerPolicy == workloadmeta.CpuManagerPolicyStatic {
 				tagList = utils.ConcatenateStringTags(tagList, "kube_cpu_management:static")
 			} else {
 				tagList = utils.ConcatenateStringTags(tagList, "kube_cpu_management:none")

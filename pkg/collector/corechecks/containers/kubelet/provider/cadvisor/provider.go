@@ -176,7 +176,12 @@ func (p *Provider) processContainerMetric(metricType, metricName string, metricF
 				id := strings.ReplaceAll(containerID, "container_id://", "")
 				container, _ := p.store.GetContainer(id)
 
-				if container.Resources.GuaranteedWholeCore && cpuManagerPolicy == workloadmeta.CpuManagerPolicyStatic {
+				var guaranteedWholeCore bool
+				if container.Resources.GuaranteedWholeCore != nil {
+					guaranteedWholeCore = bool(*container.Resources.GuaranteedWholeCore)
+				}
+
+				if guaranteedWholeCore && cpuManagerPolicy == workloadmeta.CpuManagerPolicyStatic {
 					tags = utils.ConcatenateStringTags(tags, "kube_cpu_management:static")
 				} else {
 					tags = utils.ConcatenateStringTags(tags, "kube_cpu_management:none")

@@ -452,10 +452,11 @@ type ContainerResources struct {
 	CPULimit      *float64
 	MemoryRequest *uint64 // Bytes
 	MemoryLimit   *uint64
+
 	// The container is guaranteed to use entire core(s)
 	// Requests and limits match, and they are not partial cores
 	// e.g. 1000m or 1 -- NOT 1500m or 1.5
-	GuaranteedWholeCore bool
+	GuaranteedWholeCore *bool
 }
 
 // String returns a string representation of ContainerPort.
