@@ -168,12 +168,12 @@ func (p *Provider) processContainerMetric(metricType, metricName string, metricF
 			cID, _ := kubelet.KubeContainerIDToTaggerEntityID(containerID)
 			tags, _ = p.tagger.Tag(cID, types.HighCardinality)
 
-			// strip the leading `container_id://`
-			id := strings.ReplaceAll(containerID, "container_id://", "")
-
 			wmetaKubelet, _ := p.store.GetKubelet()
 			if wmetaKubelet != nil {
 				cpuManagerPolicy, _ := wmetaKubelet.GetCPUManagerPolicy()
+
+				// strip the leading `container_id://` because containerID is a formatted entity ID
+				id := strings.ReplaceAll(containerID, "container_id://", "")
 				container, _ := p.store.GetContainer(id)
 
 				if container.Resources.GuaranteedWholeCore && cpuManagerPolicy == workloadmeta.CpuManagerPolicyStatic {
