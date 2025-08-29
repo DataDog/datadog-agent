@@ -24,7 +24,7 @@ type apiCallInfo struct {
 // baseCollector is a unified collector template that consolidates multiple collector types into one instance.
 // It can handle both stateless and sampling-based API calls from different collector types (memory, device, process, etc.).
 type baseCollector struct {
-	name           CollectorName     // Name of the consolidated collector (e.g., "stateless" or "sample")
+	name           CollectorName     // Name of the consolidated collector (e.g., "stateless" or "sampling")
 	device         ddnvml.Device     // NVML device this collector monitors
 	supportedAPIs  []apiCallInfo     // List of supported API calls from all consolidated collector types
 	lastTimestamps map[string]uint64 // Per-API call timestamps (empty for stateless collectors)

@@ -189,9 +189,9 @@ func createSampleAPIs() []apiCallInfo {
 		}}
 }
 
-// newSamplingCollector creates a new baseCollector configured for sampling-based metrics.
+// newStatefulCollector creates a new baseCollector configured for sampling-based metrics.
 // It initializes timestamps for sampling collectors like process and samples.
-func newSamplingCollector(name CollectorName, device ddnvml.Device, apiCalls []apiCallInfo) (Collector, error) {
+func newStatefulCollector(name CollectorName, device ddnvml.Device, apiCalls []apiCallInfo) (Collector, error) {
 	c, err := newBaseCollector(name, device, apiCalls)
 	if err != nil {
 		return nil, err
@@ -209,7 +209,7 @@ func newSamplingCollector(name CollectorName, device ddnvml.Device, apiCalls []a
 // sampleAPIFactory allows overriding API creation for testing
 var sampleAPIFactory = createSampleAPIs
 
-// newSampleCollector creates a collector that consolidates all sample collector types
-func newSampleCollector(device ddnvml.Device) (Collector, error) {
-	return newSamplingCollector(sample, device, sampleAPIFactory())
+// newSamplingCollector creates a collector that consolidates all sampling collector types
+func newSamplingCollector(device ddnvml.Device) (Collector, error) {
+	return newStatefulCollector(sampling, device, sampleAPIFactory())
 }

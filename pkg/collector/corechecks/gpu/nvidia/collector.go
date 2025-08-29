@@ -39,7 +39,7 @@ type CollectorName string
 const (
 	// Consolidated collectors
 	stateless CollectorName = "stateless" // Consolidates memory, device, clock, remappedRows
-	sample    CollectorName = "sample"    // Consolidates process, samples
+	sampling  CollectorName = "sampling"  // Consolidates process, samples
 
 	// Specialized collectors (kept separate)
 	field CollectorName = "fields"
@@ -77,7 +77,7 @@ type subsystemBuilder func(device ddnvml.Device) (Collector, error)
 var factory = map[CollectorName]subsystemBuilder{
 	// Consolidated collectors that combine multiple collector types into single instances
 	stateless: newStatelessCollector, // Consolidates memory, device, clocks, remappedrows
-	sample:    newSampleCollector,    // Consolidates process, samples
+	sampling:  newSamplingCollector,  // Consolidates process, samples
 
 	// Specialized collectors that remain unchanged (complex or unique logic)
 	field: newFieldsCollector,
