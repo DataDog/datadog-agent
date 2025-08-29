@@ -21,7 +21,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.69.2
 	github.com/DataDog/datadog-agent/pkg/util/otel v0.64.0
 	github.com/DataDog/datadog-go/v5 v5.6.0
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.31.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.32.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.133.0
 	github.com/stretchr/testify v1.10.0
 	go.opentelemetry.io/collector/component v1.39.0
