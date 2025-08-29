@@ -32,7 +32,6 @@ import (
 
 func newDefaultConfig() component.Config {
 	mcfg := MetricsConfig{
-		TagCardinality:       "low",
 		APMStatsReceiverAddr: "http://localhost:8126/v0.6/stats",
 		Tags:                 "",
 	}
@@ -79,7 +78,6 @@ type Exporter struct {
 	s               serializer.MetricSerializer
 	hostGetter      SourceProviderFunc
 	extraTags       []string
-	enricher        tagenricher
 	apmReceiverAddr string
 	createConsumer  createConsumerFunc
 	params          exporter.Settings
@@ -147,7 +145,6 @@ func translatorFromConfig(
 func NewExporter(
 	s serializer.MetricSerializer,
 	cfg *ExporterConfig,
-	enricher tagenricher,
 	hostGetter SourceProviderFunc,
 	createConsumer createConsumerFunc,
 	tr *metrics.Translator,
@@ -156,10 +153,6 @@ func NewExporter(
 	gatewayUsage otel.GatewayUsage,
 	usageMetric telemetry.Gauge,
 ) (*Exporter, error) {
-	err := enricher.SetCardinality(cfg.Metrics.TagCardinality)
-	if err != nil {
-		return nil, err
-	}
 	var extraTags []string
 	if cfg.Metrics.Tags != "" {
 		extraTags = strings.Split(cfg.Metrics.Tags, ",")
@@ -167,13 +160,11 @@ func NewExporter(
 	params.Logger.Info("serializer exporter configuration", zap.Bool("host_metadata_enabled", cfg.HostMetadata.Enabled),
 		zap.Strings("extra_tags", extraTags),
 		zap.String("apm_receiver_url", cfg.Metrics.APMStatsReceiverAddr),
-		zap.String("tag_cardinality", cfg.Metrics.TagCardinality),
 		zap.String("histogram_mode", fmt.Sprintf("%v", cfg.Metrics.Metrics.HistConfig.Mode)))
 	return &Exporter{
 		tr:              tr,
 		s:               s,
 		hostGetter:      hostGetter,
-		enricher:        enricher,
 		apmReceiverAddr: cfg.Metrics.APMStatsReceiverAddr,
 		extraTags:       extraTags,
 		createConsumer:  createConsumer,
@@ -194,7 +185,7 @@ func (e *Exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error
 			e.consumeResource(e.reporter, res)
 		}
 	}
-	consumer := e.createConsumer(e.enricher, e.extraTags, e.apmReceiverAddr, e.params.BuildInfo)
+	consumer := e.createConsumer(e.extraTags, e.apmReceiverAddr, e.params.BuildInfo)
 	rmt, err := e.tr.MapMetrics(ctx, ld, consumer, e.gatewayUsage.GetHostFromAttributesHandler())
 	if err != nil {
 		return err
