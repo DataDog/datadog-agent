@@ -265,11 +265,11 @@ func (s *snapshotMessage) init(
 	s.Debugger.Snapshot.Probe.ID = probe.GetID()
 	s.Debugger.Snapshot.Stack.frames = stackFrames
 	s.Debugger.Snapshot.Captures.Entry.Arguments = argumentsData{
-		event:        event,
-		rootType:     rootType,
-		rootData:     s.rootData,
-		decoder:      decoder,
-		debuggerData: &s.Debugger,
+		event:            event,
+		rootType:         rootType,
+		rootData:         s.rootData,
+		decoder:          decoder,
+		evaluationErrors: &s.Debugger.EvaluationErrors,
 	}
 	return probe, nil
 }

@@ -69,11 +69,11 @@ type capturePointData struct {
 }
 
 type argumentsData struct {
-	rootData     []byte
-	rootType     *ir.EventRootType
-	event        Event
-	decoder      *Decoder
-	debuggerData *debuggerData
+	rootData         []byte
+	rootType         *ir.EventRootType
+	event            Event
+	decoder          *Decoder
+	evaluationErrors *[]string
 }
 
 var ddDebuggerString = jsontext.String("dd_debugger")
@@ -123,13 +123,13 @@ func (ad *argumentsData) MarshalText() ([]byte, error) {
 		enc = jsontext.NewEncoder(buf)
 	)
 	if err = writeTokens(enc, jsontext.BeginObject); err != nil {
-		ad.debuggerData.EvaluationErrors = append(ad.debuggerData.EvaluationErrors, err.Error())
+		*ad.evaluationErrors = append(*ad.evaluationErrors, err.Error())
 		return nil, err
 	}
 
 	if ad.rootType.PresenceBitsetSize > uint32(len(ad.rootData)) {
 		err := errors.New("presence bitset is out of bounds")
-		ad.debuggerData.EvaluationErrors = append(ad.debuggerData.EvaluationErrors, err.Error())
+		*ad.evaluationErrors = append(*ad.evaluationErrors, err.Error())
 		return nil, err
 	}
 	presenceBitSet := ad.rootData[:ad.rootType.PresenceBitsetSize]
@@ -141,12 +141,12 @@ func (ad *argumentsData) MarshalText() ([]byte, error) {
 		ub := expr.Offset + parameterSize
 		if int(ub) > len(ad.rootData) {
 			err := errors.New("could not read parameter data from root data, length mismatch")
-			ad.debuggerData.EvaluationErrors = append(ad.debuggerData.EvaluationErrors, err.Error())
+			*ad.evaluationErrors = append(*ad.evaluationErrors, err.Error())
 			return nil, err
 		}
 		parameterData := ad.rootData[expr.Offset:ub]
 		if err = writeTokens(enc, jsontext.String(expr.Name)); err != nil {
-			ad.debuggerData.EvaluationErrors = append(ad.debuggerData.EvaluationErrors, err.Error())
+			*ad.evaluationErrors = append(*ad.evaluationErrors, err.Error())
 			return nil, err
 		}
 		if !expressionIsPresent(presenceBitSet, i) && parameterSize != 0 {
@@ -159,7 +159,7 @@ func (ad *argumentsData) MarshalText() ([]byte, error) {
 				tokenNotCapturedReasonUnavailable,
 				jsontext.EndObject,
 			); err != nil {
-				ad.debuggerData.EvaluationErrors = append(ad.debuggerData.EvaluationErrors, err.Error())
+				*ad.evaluationErrors = append(*ad.evaluationErrors, err.Error())
 				return nil, err
 			}
 			continue
@@ -170,12 +170,12 @@ func (ad *argumentsData) MarshalText() ([]byte, error) {
 			parameterType.GetName(),
 		)
 		if err != nil {
-			ad.debuggerData.EvaluationErrors = append(ad.debuggerData.EvaluationErrors, err.Error())
+			*ad.evaluationErrors = append(*ad.evaluationErrors, err.Error())
 			return nil, fmt.Errorf("error parsing data for field %s: %w", ad.rootType.Name, err)
 		}
 	}
 	if err = writeTokens(enc, jsontext.EndObject); err != nil {
-		ad.debuggerData.EvaluationErrors = append(ad.debuggerData.EvaluationErrors, err.Error())
+		*ad.evaluationErrors = append(*ad.evaluationErrors, err.Error())
 		return nil, err
 	}
 	return buf.Bytes(), nil
