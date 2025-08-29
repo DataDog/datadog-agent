@@ -506,7 +506,6 @@ func TestServiceName(t *testing.T) {
 		assert.Equal(collect, "foo_bar", startEvent.DDService)
 		assert.Equal(collect, "sleep", startEvent.GeneratedName)
 		assert.Equal(collect, string(usm.CommandLine), startEvent.GeneratedNameSource)
-		assert.False(collect, startEvent.DDServiceInjected)
 		assert.Equal(collect, startEvent.ContainerID, "")
 		assert.Equal(collect, startEvent.LastHeartbeat, mockedTime.Unix())
 	}, 30*time.Second, 100*time.Millisecond)
@@ -546,7 +545,6 @@ func TestServiceLifetime(t *testing.T) {
 		assert.Equal(t, "foo_bar", service.DDService)
 		assert.Equal(t, "sleep", service.GeneratedName)
 		assert.Equal(t, string(usm.CommandLine), service.GeneratedNameSource)
-		assert.False(t, service.DDServiceInjected)
 		assert.Equal(t, service.ContainerID, "")
 		assert.Equal(t, service.LastHeartbeat, expectedTime.Unix())
 	}
@@ -1127,7 +1125,6 @@ func TestCache(t *testing.T) {
 	for i, cmd := range cmds {
 		pid := int32(cmd.Process.Pid)
 		require.Equal(t, serviceNames[i], discovery.core.Cache[pid].DDService)
-		require.False(t, discovery.core.Cache[pid].DDServiceInjected)
 	}
 
 	cancel()
