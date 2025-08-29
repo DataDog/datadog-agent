@@ -6,7 +6,7 @@ upload_dependencies_sysprobe_x64:
   rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
   variables:
     ARCH: x86_64
-    INSTANCE_TYPE: m5d.metal
+    INSTANCE_TYPE: r5d.metal
     TEST_COMPONENT: system-probe
 
 upload_dependencies_sysprobe_arm64:
@@ -94,7 +94,7 @@ upload_minimized_btfs_sysprobe_x64:
   variables:
     ARCHIVE_NAME: btfs-x86_64.tar.gz
     ARCH: x86_64
-    INSTANCE_TYPE: m5d.metal
+    INSTANCE_TYPE: r5d.metal
     TEST_COMPONENT: system-probe
 
 upload_minimized_btfs_sysprobe_arm64:
@@ -125,7 +125,7 @@ kmt_setup_env_sysprobe_x64:
     - .kmt_setup_env
   rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
   variables:
-    INSTANCE_TYPE: "m5d.metal"
+    INSTANCE_TYPE: "r5d.metal"
     INSTANCE_TYPE_ARG: "--instance-type-x86=$INSTANCE_TYPE"
     ARCH: x86_64
     AMI_ID_ARG: "--x86-ami-id=$KERNEL_MATRIX_TESTING_X86_AMI_ID"
@@ -176,7 +176,7 @@ upload_sysprobe_tests_x64:
   tags: ["arch:amd64"]
   variables:
     ARCH: x86_64
-    INSTANCE_TYPE: m5d.metal
+    INSTANCE_TYPE: r5d.metal
 
 upload_sysprobe_tests_arm64:
   extends:
@@ -312,7 +312,7 @@ kmt_sysprobe_cleanup_x64:
     - upload_dependencies_sysprobe_x64
   variables:
     ARCH: x86_64
-    INSTANCE_TYPE: "m5d.metal"
+    INSTANCE_TYPE: "r5d.metal"
 
 kmt_sysprobe_cleanup_arm64_manual:
   extends:
@@ -328,4 +328,4 @@ kmt_sysprobe_cleanup_x64_manual:
     - .kmt_cleanup_manual
   variables:
     ARCH: x86_64
-    INSTANCE_TYPE: "m5d.metal"
+    INSTANCE_TYPE: "r5d.metal"
