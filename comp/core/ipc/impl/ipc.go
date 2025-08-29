@@ -54,12 +54,13 @@ func NewReadOnlyComponent(reqs Requires) (Provides, error) {
 	if err != nil {
 		return Provides{}, fmt.Errorf("unable to fetch auth token (please check that the Agent is running, this file is normally generated during the first run of the Agent service): %s", err)
 	}
-	ipccert, ipckey, err := cert.FetchIPCCert(reqs.Conf)
+
+	clientConfig, serverConfig, clusterClientConfig, err := cert.FetchIPCCert(reqs.Conf)
 	if err != nil {
 		return Provides{}, fmt.Errorf("unable to fetch IPC certificate (please check that the Agent is running, this file is normally generated during the first run of the Agent service): %s", err)
 	}
 
-	return buildIPCComponent(reqs, token, ipccert, ipckey)
+	return buildIPCComponent(reqs, token, clientConfig, serverConfig, clusterClientConfig)
 }
 
 // NewReadWriteComponent creates a new ipc component by trying to read the auth artifacts on filesystem,
@@ -76,12 +77,13 @@ func NewReadWriteComponent(reqs Requires) (Provides, error) {
 	if err != nil {
 		return Provides{}, fmt.Errorf("error while creating or fetching auth token: %w", err)
 	}
-	ipccert, ipckey, err := cert.FetchOrCreateIPCCert(ctx, reqs.Conf)
+
+	clientConfig, serverConfig, clusterClientConfig, err := cert.FetchOrCreateIPCCert(ctx, reqs.Conf)
 	if err != nil {
 		return Provides{}, fmt.Errorf("error while creating or fetching IPC cert: %w", err)
 	}
 
-	return buildIPCComponent(reqs, token, ipccert, ipckey)
+	return buildIPCComponent(reqs, token, clientConfig, serverConfig, clusterClientConfig)
 }
 
 // NewInsecureComponent creates an IPC component instance suitable for specific commands
@@ -148,27 +150,13 @@ func (ipc *ipcComp) GetClient() ipc.HTTPClient {
 	return ipc.client
 }
 
-func buildIPCComponent(reqs Requires, token string, ipccert, ipckey []byte) (Provides, error) {
-	tlsClientConfig, tlsServerConfig, err := cert.GetTLSConfigFromCert(ipccert, ipckey)
-	if err != nil {
-		return Provides{}, fmt.Errorf("error while setting TLS configs: %w", err)
-	}
-
+func buildIPCComponent(reqs Requires, token string, clientConfig, serverConfig, clusterClientConfig *tls.Config) (Provides, error) {
 	// printing the fingerprint of the loaded auth stack is useful to troubleshoot IPC issues
-	printAuthSignature(reqs.Log, token, ipccert, ipckey)
+	printAuthSignature(reqs.Log, token, clientConfig, serverConfig)
 
-	httpClient := ipchttp.NewClient(token, tlsClientConfig, reqs.Conf)
+	httpClient := ipchttp.NewClient(token, clientConfig, reqs.Conf)
 
-	// Enable cross-node TLS verification if configured
-	var crossNodeClientTLSConfig *tls.Config
-	if reqs.Conf.GetBool("cluster_agent.enable_tls_verification") {
-		crossNodeClientTLSConfig = tlsClientConfig
-	} else {
-		crossNodeClientTLSConfig = &tls.Config{
-			InsecureSkipVerify: true,
-		}
-	}
-	pkgapiutil.SetCrossNodeClientTLSConfig(crossNodeClientTLSConfig)
+	pkgapiutil.SetCrossNodeClientTLSConfig(clusterClientConfig)
 
 	return Provides{
 		Comp: &ipcComp{
@@ -176,8 +164,8 @@ func buildIPCComponent(reqs Requires, token string, ipccert, ipckey []byte) (Pro
 			conf:            reqs.Conf,
 			client:          httpClient,
 			token:           token,
-			tlsClientConfig: tlsClientConfig,
-			tlsServerConfig: tlsServerConfig,
+			tlsClientConfig: clientConfig,
+			tlsServerConfig: serverConfig,
 		},
 		HTTPClient: httpClient,
 	}, nil
@@ -185,10 +173,19 @@ func buildIPCComponent(reqs Requires, token string, ipccert, ipckey []byte) (Pro
 
 // printAuthSignature computes and logs the authentication signature for the given token and IPC certificate/key.
 // It uses SHA-256 to hash the concatenation of the token, IPC certificate, and IPC key.
-func printAuthSignature(logger log.Component, token string, ipccert, ipckey []byte) {
+func printAuthSignature(logger log.Component, token string, clientConfig, serverConfig *tls.Config) {
 	h := sha256.New()
 
-	_, err := h.Write(bytes.Join([][]byte{[]byte(token), ipccert, ipckey}, []byte{}))
+	toHash := [][]byte{[]byte(token)}
+
+	for _, cert := range clientConfig.Certificates {
+		toHash = append(toHash, cert.Certificate...)
+	}
+	for _, cert := range serverConfig.Certificates {
+		toHash = append(toHash, cert.Certificate...)
+	}
+
+	_, err := h.Write(bytes.Join(toHash, []byte{}))
 	if err != nil {
 		logger.Warnf("error while computing auth signature: %v", err)
 	}
