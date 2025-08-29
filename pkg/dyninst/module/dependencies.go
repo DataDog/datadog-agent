@@ -9,11 +9,15 @@ package module
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/decode"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/gotype"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcscrape"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symbol"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/uploader"
@@ -28,7 +32,7 @@ type Scraper interface {
 
 // DecoderFactory is a factory for creating decoders.
 type DecoderFactory interface {
-	NewDecoder(*ir.Program) (Decoder, error)
+	NewDecoder(*ir.Program, procmon.Executable) (Decoder, error)
 }
 
 // Decoder is a decoder for a program.
@@ -46,8 +50,36 @@ type Decoder interface {
 type DefaultDecoderFactory struct{}
 
 // NewDecoder creates a new decoder using decode.NewDecoder.
-func (DefaultDecoderFactory) NewDecoder(program *ir.Program) (Decoder, error) {
-	decoder, err := decode.NewDecoder(program)
+func (DefaultDecoderFactory) NewDecoder(
+	program *ir.Program,
+	executable procmon.Executable,
+) (_ Decoder, retErr error) {
+
+	// It's a bit unfortunate that we have to open the file here, but it's
+	// necessary to get the type information.
+	//
+	// TODO(ajwerner): This decoder construction shouldn't be here; we should
+	// be constructing the decoder as we compile and load the program. Both to
+	// avoid that reparsing of the elf headers but also because it's weird to
+	// have an interface called a Reporter that fallibly constructs a decoder.
+	mm, err := object.OpenMMappingElfFile(executable.Path)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if closeErr := mm.Close(); closeErr != nil {
+			if retErr == nil {
+				retErr = fmt.Errorf("failed to close file: %w", closeErr)
+			} else {
+				retErr = fmt.Errorf("%w: (failed to close file: %w)", retErr, closeErr)
+			}
+		}
+	}()
+	table, err := gotype.NewTable(mm)
+	if err != nil {
+		return nil, err
+	}
+	decoder, err := decode.NewDecoder(program, (*decode.GoTypeNameResolver)(table))
 	if err != nil {
 		return nil, err
 	}

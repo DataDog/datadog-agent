@@ -2,6 +2,68 @@
 Release Notes
 =============
 
+.. _Release Notes_7.69.4:
+
+7.69.4
+======
+
+.. _Release Notes_7.69.4_Prelude:
+
+Prelude
+-------
+
+Release on: 2025-08-27
+
+- Please refer to the `7.69.4 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7694>`_ for the list of changes on the Core Checks
+
+.. _Release Notes_7.69.4_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- Upgrade sqllite to 3.50.4.
+
+.. _Release Notes_7.69.3:
+
+7.69.3
+======
+
+.. _Release Notes_7.69.3_Prelude:
+
+Prelude
+-------
+
+Release on: 2025-08-26
+
+- Please refer to the `7.69.3 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7693>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.69.3_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Agents are now built with Go ``1.24.6``.
+
+
+.. _Release Notes_7.69.3_Security Notes:
+
+Security Notes
+--------------
+
+- JMXFetch upgrade to `0.50.0 <https://github.com/DataDog/jmxfetch/releases/0.50.0>` to mitigate against CVE-2025-52999.
+
+
+.. _Release Notes_7.69.3_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes a bug in the Trace Agent that prevented DDOT from shutting down gracefully.
+
+- Fixed truncation telemetry so it records service and source values correctly, by moving metrics recording to the tailer layer.
+
+
 .. _Release Notes_7.69.2:
 
 7.69.2
@@ -48,7 +110,7 @@ Bug Fixes
 - Remote Agent updates on Windows now checks if the custom Agent password
   is available before updating the Agent. This prevents the update from
   failing later and leaving the host without an Agent installed.
-  
+
   This is only applicable to domain-joined hosts using a custom Agent
   username and password. See
   [Agent 7.66.0 upgrade notes](https://github.com/DataDog/datadog-agent/releases/tag/7.66.0)

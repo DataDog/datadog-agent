@@ -206,7 +206,6 @@ def diff(
                             f"os:{goos}",
                             f"arch:{goarch}",
                             f"git_sha:{commit_sha}",
-                            f"git_ref:{git_ref}",
                         ]
 
                         if git_ref:
