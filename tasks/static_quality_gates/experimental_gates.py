@@ -245,11 +245,8 @@ class FileUtilities:
         import hashlib
 
         try:
-            sha256_hash = hashlib.sha256()
             with open(file_path, "rb") as f:
-                # Read in chunks to handle large files
-                for chunk in iter(lambda: f.read(4096), b""):
-                    sha256_hash.update(chunk)
+                sha256_hash = hashlib.file_digest(f, "sha256")
             return f"sha256:{sha256_hash.hexdigest()}"
         except Exception:
             # If checksum generation fails, return None rather than failing the whole measurement
