@@ -382,7 +382,7 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 	metrics.TlmDestinationHttpRespByStatusAndUrl.Inc(strconv.Itoa(resp.StatusCode), d.url)
 
 	if resp.StatusCode >= http.StatusBadRequest {
-		log.Warnf("failed to post http payload. code=%d, url=%s, EvP track type=%s, content type=%s, evp category=%s, origin=%s, response=%s", resp.StatusCode, d.url, d.endpoint.TrackType, d.contentType, d.destMeta.EvpCategory(), d.origin, string(response))
+		log.Warnf("failed to post http payload. code=%d, url=%s, EvP track type=%s, content type=%s, EvP category=%s, origin=%s, response=%s", resp.StatusCode, d.url, d.endpoint.TrackType, d.contentType, d.destMeta.EvpCategory(), d.origin, string(response))
 	}
 	if resp.StatusCode == http.StatusBadRequest ||
 		resp.StatusCode == http.StatusUnauthorized ||
