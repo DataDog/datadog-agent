@@ -202,16 +202,26 @@ const (
 	Failed SBOMStatus = "Failed"
 )
 
+// CpuManagerPolicy represents the kubelet configuration's
+// cpu-manager-policy setting
 type CpuManagerPolicy string
 
 const (
+	// CpuManagerPolicyUnknown represents an unknown cpu-manager-policy
+	// due to an unexpected value, or unparseable kubelet configuration
 	CpuManagerPolicyUnknown CpuManagerPolicy = "unknown"
-	CpuManagerPolicyNone    CpuManagerPolicy = "none"
-	CpuManagerPolicyStatic  CpuManagerPolicy = "static"
+	// CpuManagerPolicyUnknown represents a cpu-manager-policy of 'none'
+	CpuManagerPolicyNone CpuManagerPolicy = "none"
+	// CpuManagerPolicyUnknown represents a cpu-manager-policy of 'static'
+	CpuManagerPolicyStatic CpuManagerPolicy = "static"
 )
 
 const (
-	KubeletID   = "kubelet-id"
+	// KubeletID is a constant ID used to build workloadmeta kubelet entitites
+	// Because there can only be one kubelet per node, this does not need to be
+	// unique
+	KubeletID = "kubelet-id"
+	// Kubelet is used to name the workloadmeta kubelet entity
 	KubeletName = "kubelet"
 )
 
@@ -1143,8 +1153,11 @@ func (m *KubernetesMetadata) String(verbose bool) string {
 
 var _ Entity = &KubernetesMetadata{}
 
+// KubeletConfig is the kubelet configuration, it is stored as a map
+// and not as a declarative struct
 type KubeletConfig map[string]interface{}
 
+// String implements KubeletConfig#String
 func (kc KubeletConfig) String() string {
 	out, err := json.MarshalIndent(kc, "", "  ")
 	if err != nil {
@@ -1153,15 +1166,18 @@ func (kc KubeletConfig) String() string {
 	return string(out)
 }
 
+// Kubelet is an Entity representing the kubelet, right now it only holds
+// the kubelet configuration
 type Kubelet struct {
 	EntityID
 	EntityMeta
 	Config KubeletConfig
 }
 
+// GetID implements Entity#GetID
 func (ku *Kubelet) GetID() EntityID { return ku.EntityID }
 
-// Merge implements Entity#Merge.
+// Merge implements Entity#Merge
 func (ku *Kubelet) Merge(e Entity) error {
 	k, ok := e.(*Kubelet)
 	if !ok {
@@ -1177,6 +1193,7 @@ func (ku Kubelet) DeepCopy() Entity {
 	return &cd
 }
 
+// String implements Entity#String.
 func (ku *Kubelet) String(verbose bool) string {
 	var sb strings.Builder
 	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
