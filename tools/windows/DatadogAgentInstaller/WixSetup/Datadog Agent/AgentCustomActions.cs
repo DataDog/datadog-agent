@@ -20,6 +20,8 @@ namespace WixSetup.Datadog_Agent
 
         public ManagedAction SetupInstaller { get; set; }
 
+        public ManagedAction UpdateInstallSource { get; set; }
+
         public ManagedAction EnsureGeneratedFilesRemoved { get; }
 
         public ManagedAction WriteConfig { get; }
@@ -308,6 +310,21 @@ namespace WixSetup.Datadog_Agent
             SetupInstaller = new CustomAction<CustomActions>(
                     new Id(nameof(SetupInstaller)),
                     CustomActions.SetupInstaller,
+                    Return.check,
+                    When.After,
+                    Step.InstallServices,
+                    Conditions.FirstInstall | Conditions.Upgrading
+                )
+            {
+                Execute = Execute.deferred,
+                Impersonate = false
+            }
+                .SetProperties(
+                    "PROJECTLOCATION=[PROJECTLOCATION], FLEET_INSTALL=[FLEET_INSTALL], DATABASE=[DATABASE]");
+
+            UpdateInstallSource = new CustomAction<CustomActions>(
+                    new Id(nameof(UpdateInstallSource)),
+                    CustomActions.UpdateInstallSource,
                     Return.check,
                     When.Before,
                     Step.InstallFinalize,
