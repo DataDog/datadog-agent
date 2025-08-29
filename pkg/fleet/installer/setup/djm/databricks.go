@@ -9,6 +9,7 @@ package djm
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"regexp"
 	"strings"
@@ -16,7 +17,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/config"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -274,7 +274,7 @@ func setupDatabricksDriver(s *common.Setup) {
 			},
 		}
 	} else {
-		log.Warn("DB_DRIVER_IP not set")
+		slog.WarnContext(s.Ctx, "DB_DRIVER_IP not set")
 	}
 	s.Config.IntegrationConfigs["spark.d/databricks.yaml"] = sparkIntegration
 }
@@ -343,7 +343,7 @@ func loadLogProcessingRules(s *common.Setup) {
 	if rawRules := os.Getenv("DD_LOGS_CONFIG_PROCESSING_RULES"); rawRules != "" {
 		processingRules, err := parseLogProcessingRules(rawRules)
 		if err != nil {
-			log.Warnf("Failed to parse log processing rules: %v", err)
+			slog.WarnContext(s.Ctx, "Failed to parse log processing rules", "error", err)
 			s.Out.WriteString(fmt.Sprintf("Invalid log processing rules: %v\n", err))
 		} else {
 			logsConfig := config.LogsConfig{ProcessingRules: processingRules}

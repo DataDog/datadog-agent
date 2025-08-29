@@ -50,7 +50,7 @@ func postInstallAPMInjector(ctx HookContext) (err error) {
 	span, ctx := ctx.StartSpan("setup_injector")
 	defer func() { span.Finish(err) }()
 	installer := apminject.NewInstaller()
-	defer func() { installer.Finish(err) }()
+	defer func() { installer.Finish(ctx, err) }()
 	return installer.Setup(ctx)
 }
 
@@ -59,7 +59,7 @@ func preRemoveAPMInjector(ctx HookContext) (err error) {
 	span, ctx := ctx.StartSpan("remove_injector")
 	defer func() { span.Finish(err) }()
 	installer := apminject.NewInstaller()
-	defer func() { installer.Finish(err) }()
+	defer func() { installer.Finish(ctx, err) }()
 	return installer.Remove(ctx)
 }
 
@@ -69,7 +69,7 @@ func InstrumentAPMInjector(ctx context.Context, method string) (err error) {
 	defer func() { span.Finish(err) }()
 	installer := apminject.NewInstaller()
 	installer.Env.InstallScript.APMInstrumentationEnabled = method
-	defer func() { installer.Finish(err) }()
+	defer func() { installer.Finish(ctx, err) }()
 	return installer.Instrument(ctx)
 }
 
@@ -79,6 +79,6 @@ func UninstrumentAPMInjector(ctx context.Context, method string) (err error) {
 	defer func() { span.Finish(err) }()
 	installer := apminject.NewInstaller()
 	installer.Env.InstallScript.APMInstrumentationEnabled = method
-	defer func() { installer.Finish(err) }()
+	defer func() { installer.Finish(ctx, err) }()
 	return installer.Uninstrument(ctx)
 }

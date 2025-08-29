@@ -14,9 +14,10 @@ import (
 	"os"
 	"strings"
 
+	"log/slog"
+
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/systemd"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"gopkg.in/yaml.v2"
 )
 
@@ -47,7 +48,7 @@ type ApmSocketConfig struct {
 // getSocketsPath returns the sockets path for the agent and the injector
 // If the agent has already configured sockets, it will return them
 // to avoid dropping spans from already configured services
-func getSocketsPath() (string, string, error) {
+func getSocketsPath(ctx context.Context) (string, string, error) {
 	apmSocket := apmInstallerSocket
 	statsdSocket := statsdInstallerSocket
 
@@ -60,7 +61,7 @@ func getSocketsPath() (string, string, error) {
 
 	var cfg socketConfig
 	if err = yaml.Unmarshal(rawCfg, &cfg); err != nil {
-		log.Warn("Failed to unmarshal agent configuration, using default installer sockets")
+		slog.WarnContext(ctx, "Failed to unmarshal agent configuration, using default installer sockets", "error", err)
 		return apmSocket, statsdSocket, nil
 	}
 	if cfg.ApmSocketConfig.ReceiverSocket != "" {
@@ -93,7 +94,7 @@ func (a *InjectorInstaller) configureSocketsEnv(ctx context.Context) (retErr err
 	if err = os.Symlink(envFilePath, "/etc/default/datadog-agent"); err != nil && !os.IsExist(err) {
 		return fmt.Errorf("failed to symlink %s to /etc/default/datadog-agent: %w", envFilePath, err)
 	}
-	systemdRunning, err := systemd.IsRunning()
+	systemdRunning, err := systemd.IsRunning(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to check if systemd is running: %w", err)
 	}
@@ -123,7 +124,7 @@ func setSocketEnvs(ctx context.Context, envFile []byte) (res []byte, err error) 
 	span, _ := telemetry.StartSpanFromContext(ctx, "set_socket_envs")
 	defer span.Finish(err)
 
-	apmSocket, statsdSocket, err := getSocketsPath()
+	apmSocket, statsdSocket, err := getSocketsPath(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("error getting sockets path: %w", err)
 	}

@@ -9,6 +9,7 @@ package djm
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -16,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -146,7 +146,7 @@ func setupResourceManager(s *common.Setup, clusterName string) {
 	var yarnIntegration config.IntegrationConfig
 	hostname, err := os.Hostname()
 	if err != nil {
-		log.Infof("Failed to get hostname, defaulting to localhost: %v", err)
+		slog.InfoContext(s.Ctx, "Failed to get hostname, defaulting to localhost", "error", err)
 		hostname = "localhost"
 	}
 	sparkIntegration.Instances = []any{
@@ -174,17 +174,17 @@ func resolveEmrClusterName(s *common.Setup, jobFlowID string) string {
 	defer func() { span.Finish(err) }()
 	emrResponseRaw, err := common.ExecuteCommandWithTimeout(s, "aws", "emr", "describe-cluster", "--cluster-id", jobFlowID)
 	if err != nil {
-		log.Warnf("error describing emr cluster, using cluster id as name: %v", err)
+		slog.WarnContext(s.Ctx, "error describing emr cluster, using cluster id as name", "error", err)
 		return jobFlowID
 	}
 	var response emrResponse
 	if err = json.Unmarshal(emrResponseRaw, &response); err != nil {
-		log.Warnf("error unmarshalling AWS EMR response,  using cluster id as name: %v", err)
+		slog.WarnContext(s.Ctx, "error unmarshalling AWS EMR response, using cluster id as name", "error", err)
 		return jobFlowID
 	}
 	clusterName := response.Cluster.Name
 	if clusterName == "" {
-		log.Warn("clusterName is empty, using cluster id as name")
+		slog.WarnContext(s.Ctx, "clusterName is empty, using cluster id as name")
 		return jobFlowID
 	}
 	return clusterName

@@ -7,6 +7,7 @@
 package fixtures
 
 import (
+	"context"
 	"embed"
 	"fmt"
 	"io/fs"
@@ -72,7 +73,7 @@ func extractLayoutsAndBuildRegistry(t *testing.T, layoutsDir string) *httptest.S
 		layoutDir := path.Join(layoutsDir, f.layoutPath)
 		file, err := fixturesFS.Open(f.layoutPath)
 		require.NoError(t, err)
-		err = tar.Extract(file, layoutDir, 1<<30)
+		err = tar.Extract(context.Background(), file, layoutDir, 1<<30)
 		require.NoError(t, err)
 
 		layout, err := layout.FromPath(layoutDir)

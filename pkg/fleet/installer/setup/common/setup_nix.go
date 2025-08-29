@@ -8,32 +8,32 @@
 package common
 
 import (
+	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"os/user"
 	"path/filepath"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func (s *Setup) postInstallPackages() (err error) {
-	s.addAgentToAdditionalGroups()
+	s.addAgentToAdditionalGroups(s.Ctx)
 
 	return nil
 }
 
-func (s *Setup) addAgentToAdditionalGroups() {
+func (s *Setup) addAgentToAdditionalGroups(ctx context.Context) {
 	for _, group := range s.DdAgentAdditionalGroups {
 		// Add dd-agent user to additional group for permission reason, in particular to enable reading log files not world readable
 		if _, err := user.LookupGroup(group); err != nil {
-			log.Infof("Skipping group %s as it does not exist", group)
+			slog.InfoContext(ctx, "Skipping group as it does not exist", "group", group)
 			continue
 		}
 		_, err := ExecuteCommandWithTimeout(s, "usermod", "-aG", group, "dd-agent")
 		if err != nil {
 			s.Out.WriteString("Failed to add dd-agent to group" + group + ": " + err.Error())
-			log.Warnf("failed to add dd-agent to group %s:  %v", group, err)
+			slog.WarnContext(ctx, "failed to add dd-agent to group", "group", group, "error", err)
 		}
 	}
 }

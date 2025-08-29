@@ -57,7 +57,7 @@ func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir str
 	}
 
 	installerBinPath := filepath.Join(tmpDir, "installer")
-	err = downloadedPackage.ExtractLayers(oci.DatadogPackageInstallerLayerMediaType, installerBinPath) // Returns nil if the layer doesn't exist
+	err = downloadedPackage.ExtractLayers(ctx, oci.DatadogPackageInstallerLayerMediaType, installerBinPath) // Returns nil if the layer doesn't exist
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract layers: %w", err)
 	}

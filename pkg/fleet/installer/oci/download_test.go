@@ -68,7 +68,7 @@ func TestDownload(t *testing.T) {
 	assert.Equal(t, fixtures.FixtureSimpleV1.Version, downloadedPackage.Version)
 	assert.NotZero(t, downloadedPackage.Size)
 	tmpDir := t.TempDir()
-	err = downloadedPackage.ExtractLayers(DatadogPackageLayerMediaType, tmpDir)
+	err = downloadedPackage.ExtractLayers(context.Background(), DatadogPackageLayerMediaType, tmpDir)
 	assert.NoError(t, err)
 	fixtures.AssertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV1), os.DirFS(tmpDir))
 }
@@ -84,7 +84,7 @@ func TestDownloadMirror(t *testing.T) {
 	assert.Equal(t, fixtures.FixtureSimpleV1.Version, downloadedPackage.Version)
 	assert.NotZero(t, downloadedPackage.Size)
 	tmpDir := t.TempDir()
-	err = downloadedPackage.ExtractLayers(DatadogPackageLayerMediaType, tmpDir)
+	err = downloadedPackage.ExtractLayers(context.Background(), DatadogPackageLayerMediaType, tmpDir)
 	assert.NoError(t, err)
 	fixtures.AssertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV1), os.DirFS(tmpDir))
 }
@@ -99,7 +99,7 @@ func TestDownloadLayout(t *testing.T) {
 	assert.Equal(t, fixtures.FixtureSimpleV1.Version, downloadedPackage.Version)
 	assert.NotZero(t, downloadedPackage.Size)
 	tmpDir := t.TempDir()
-	err = downloadedPackage.ExtractLayers(DatadogPackageLayerMediaType, tmpDir)
+	err = downloadedPackage.ExtractLayers(context.Background(), DatadogPackageLayerMediaType, tmpDir)
 	assert.NoError(t, err)
 	fixtures.AssertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV1), os.DirFS(tmpDir))
 }
@@ -196,7 +196,7 @@ func TestGetRefAndKeychain(t *testing.T) {
 			RegistryAuthOverride:        tt.registryAuthOverride,
 			RegistryAuthOverrideByImage: tt.regAuthOverrideByImage,
 		}
-		actual := getRefAndKeychain(env, tt.url)
+		actual := getRefAndKeychain(context.Background(), env, tt.url)
 		assert.Equal(t, tt.expectedRef, actual.ref)
 		assert.Equal(t, tt.expectedKeychain, actual.keychain)
 	}
@@ -323,7 +323,7 @@ func TestGetRefAndKeychains(t *testing.T) {
 			if tt.isProd {
 				env.Site = "datadoghq.com"
 			}
-			actual := getRefAndKeychains(env, tt.url)
+			actual := getRefAndKeychains(context.Background(), env, tt.url)
 			assert.Len(t, actual, len(tt.expectedRefAndKeychains))
 			for i, a := range actual {
 				assert.Equal(t, tt.expectedRefAndKeychains[i].ref, a.ref)

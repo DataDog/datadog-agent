@@ -71,7 +71,7 @@ func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir str
 
 	// Download just datadog-installer.exe from its own layer
 	installerBinPath := filepath.Join(tmpDir, "datadog-installer.exe")
-	err = downloadedPackage.ExtractLayers(oci.DatadogPackageInstallerLayerMediaType, installerBinPath) // Returns nil if the layer doesn't exist
+	err = downloadedPackage.ExtractLayers(ctx, oci.DatadogPackageInstallerLayerMediaType, installerBinPath) // Returns nil if the layer doesn't exist
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract layers: %w", err)
 	}
@@ -102,12 +102,12 @@ func downloadInstallerOld(ctx context.Context, env *env.Env, url string, tmpDir 
 		return nil, fmt.Errorf("failed to create temporary directory: %w", err)
 	}
 	defer os.RemoveAll(layoutTmpDir)
-	err = downloadedPackage.WriteOCILayout(layoutTmpDir)
+	err = downloadedPackage.WriteOCILayout(ctx, layoutTmpDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to write OCI layout: %w", err)
 	}
 
-	err = downloadedPackage.ExtractLayers(oci.DatadogPackageLayerMediaType, tmpDir)
+	err = downloadedPackage.ExtractLayers(ctx, oci.DatadogPackageLayerMediaType, tmpDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract layers: %w", err)
 	}
