@@ -21,6 +21,7 @@ import (
 	"sync"
 	"syscall"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/fx"
 
@@ -92,6 +93,10 @@ func (c component) GetHTTPHandler(endpoint string) http.Handler {
 		return v
 	}
 	return nil
+}
+
+func (c component) GetReceiver() api.Receiver {
+	return c.Agent.Receiver
 }
 
 type component struct {

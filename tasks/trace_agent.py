@@ -83,6 +83,7 @@ def build(
     )
 
     # Build the shared lib
+    build_tags += ["cshared"]
     go_build(
         ctx,
         f"{REPO_PATH}/cmd/trace-agent",

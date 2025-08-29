@@ -11,6 +11,7 @@ import (
 	"net/http"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/trace/api"
 
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
@@ -29,4 +30,6 @@ type Component interface {
 	SendStatsPayload(p *pb.StatsPayload)
 	// GetHTTPHandler returns the HTTP handler for the given endpoint.
 	GetHTTPHandler(endpoint string) http.Handler
+	// GetReceiver returns the underlying api.Receiver instance.
+	GetReceiver() api.Receiver
 }
