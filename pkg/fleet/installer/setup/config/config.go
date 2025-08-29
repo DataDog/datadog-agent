@@ -147,6 +147,7 @@ type DatadogConfig struct {
 	LogsConfig           LogsConfig                 `yaml:"logs_config,omitempty"`
 	CollectGPUTags       bool                       `yaml:"collect_gpu_tags,omitempty"`
 	GPUCheck             GPUCheckConfig             `yaml:"gpu,omitempty"`
+	EnableNvmlDetection  bool                       `yaml:"enable_nvml_detection,omitempty"` // Deprecated: this field is deprecated
 	SBOM                 SBOMConfig                 `yaml:"sbom,omitempty"`
 }
 
