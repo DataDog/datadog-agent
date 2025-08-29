@@ -30,13 +30,11 @@ const (
 // language is lang-library we might be injecting.
 type language string
 
-func (l language) defaultLibInfo(registry, ctrName string) libInfo {
-	// ERIKA: TESTING
-	// return l.libInfo(ctrName, l.libImageName(registry, l.defaultLibVersion()))
-	mockImageResolver := newMockImageResolver()
-	return l.libInfoWithResolver(ctrName, registry, l.defaultLibVersion(), mockImageResolver)
+func (l language) defaultLibInfo(registry, ctrName string, imageResolver ImageResolver) libInfo {
+	return l.libInfoWithResolver(ctrName, registry, l.defaultLibVersion(), imageResolver)
 }
 
+// DEV: This is just formatting, no resolution is done here
 func (l language) libImageName(registry, tag string) string {
 	if tag == defaultVersionMagicString {
 		tag = l.defaultLibVersion()
@@ -45,6 +43,7 @@ func (l language) libImageName(registry, tag string) string {
 	return fmt.Sprintf("%s/dd-lib-%s-init:%s", registry, l, tag)
 }
 
+// DEV: Legacy
 func (l language) libInfo(ctrName, image string) libInfo {
 	return libInfo{
 		lang:    l,
@@ -53,6 +52,7 @@ func (l language) libInfo(ctrName, image string) libInfo {
 	}
 }
 
+// DEV: Will attempt to resolve, defaults to legacy if unable
 func (l language) libInfoWithResolver(ctrName, registry string, version string, imageResolver ImageResolver) libInfo {
 	resolvedImage, ok := imageResolver.Resolve(registry, fmt.Sprintf("dd-lib-%s-init", l), version)
 	var image string
@@ -76,39 +76,30 @@ const (
 	customLibAnnotationKeyCtrFormat  = "admission.datadoghq.com/%s.%s-lib.custom-image"
 )
 
-func (l language) customLibAnnotationExtractor() annotationExtractor[libInfo] {
+func (l language) customLibAnnotationExtractor(mockImageResolver ImageResolver) annotationExtractor[libInfo] {
 	return annotationExtractor[libInfo]{
 		key: fmt.Sprintf(customLibAnnotationKeyFormat, l),
-		// ERIKA: Can I do this?
 		do: func(image string) (libInfo, error) {
-			// return l.libInfo("", image), nil
 			registry, version := parseImageString(image)
-			mockImageResolver := newMockImageResolver()
 			return l.libInfoWithResolver("", registry, version, mockImageResolver), nil
 		},
 	}
 }
 
-func (l language) libVersionAnnotationExtractor(registry string) annotationExtractor[libInfo] {
+func (l language) libVersionAnnotationExtractor(registry string, mockImageResolver ImageResolver) annotationExtractor[libInfo] {
 	return annotationExtractor[libInfo]{
 		key: fmt.Sprintf(libVersionAnnotationKeyFormat, l),
-		// ERIKA: This should work?
 		do: func(version string) (libInfo, error) {
-			mockImageResolver := newMockImageResolver()
-			// return l.libInfo("", l.libImageName(registry, version)), nil
 			return l.libInfoWithResolver("", registry, version, mockImageResolver), nil
 		},
 	}
 }
 
-func (l language) ctrCustomLibAnnotationExtractor(ctr string) annotationExtractor[libInfo] {
+func (l language) ctrCustomLibAnnotationExtractor(ctr string, mockImageResolver ImageResolver) annotationExtractor[libInfo] {
 	return annotationExtractor[libInfo]{
 		key: fmt.Sprintf(customLibAnnotationKeyCtrFormat, ctr, l),
-		// ERIKA: Can I do this?
 		do: func(image string) (libInfo, error) {
-			// return l.libInfo(ctr, image), nil
 			registry, version := parseImageString(image)
-			mockImageResolver := newMockImageResolver()
 			return l.libInfoWithResolver(ctr, registry, version, mockImageResolver), nil
 		},
 	}
@@ -122,13 +113,10 @@ func parseImageString(image string) (string, string) {
 	return registry, version
 }
 
-func (l language) ctrLibVersionAnnotationExtractor(ctr, registry string) annotationExtractor[libInfo] {
+func (l language) ctrLibVersionAnnotationExtractor(ctr, registry string, mockImageResolver ImageResolver) annotationExtractor[libInfo] {
 	return annotationExtractor[libInfo]{
 		key: fmt.Sprintf(libVersionAnnotationKeyCtrFormat, ctr, l),
-		// ERIKA: This should work?
 		do: func(version string) (libInfo, error) {
-			// return l.libInfo(ctr, l.libImageName(registry, version)), nil
-			mockImageResolver := newMockImageResolver()
 			return l.libInfoWithResolver(ctr, registry, version, mockImageResolver), nil
 		},
 	}
