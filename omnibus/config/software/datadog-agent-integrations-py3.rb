@@ -35,6 +35,7 @@ excluded_folders = [
   'datadog_checks_dev',            # Development package, (NOT AN INTEGRATION)
   'datadog_checks_tests_helper',   # Testing and Development package, (NOT AN INTEGRATION)
   'docker_daemon',                 # Agent v5 only
+  'kaspersky',                     # Temporarily excluded until we can remove it from integrations-core
 ]
 
 if osx_target?
