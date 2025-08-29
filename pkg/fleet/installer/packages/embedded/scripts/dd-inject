@@ -1,0 +1,27 @@
+#!/bin/bash
+# Owned by datadog-apm-inject
+
+if [[ "$(uname -s)" != "Darwin" ]]; then
+    echo "This script can only be run on macOS (Darwin)."
+    exit 1
+fi
+
+# Check if at least one argument (program) is provided
+if [ $# -lt 1 ]; then
+  echo "Usage: $0 <program> [args...]"
+  exit 1
+fi
+
+program="$1"
+
+flags=$(stat -f '%Sf' "$program" 2>/dev/null)
+if [[ "$flags" == *restricted* || "$flags" == *immutable* ]]; then
+    echo "$program is protected by SIP and can't be instrumented."
+    exit 1
+fi
+
+# TODO: there's probably some stuff we need to do for bash scripts...
+
+# Set environment variable DYLD_INSERT_LIBRARIES and execute the program with remaining args
+export DYLD_INSERT_LIBRARIES=/opt/datadog-packages/datadog-apm-inject/stable/inject/launcher.preload.so
+exec "$@"
