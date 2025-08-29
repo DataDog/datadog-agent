@@ -4,6 +4,11 @@
   # This runs after the main script and won't fail the job if there are issues.
   # This is common for all Docker image builds
   if [[ -n "$STATIC_QUALITY_GATE_NAME" ]]; then
+    # Skip the check if job name contains FIPS but gate name doesn't have FIPS
+    if [[ "$CI_JOB_NAME" == *"FIPS"* && "$STATIC_QUALITY_GATE_NAME" != *"fips"* ]]; then
+      echo "ℹ️  Skipping Docker image measurement (FIPS job requires FIPS gate name)"
+      exit 0
+    fi
     echo "📊 Starting Docker image measurement..."
 
     # Construct the built image reference from build variables
