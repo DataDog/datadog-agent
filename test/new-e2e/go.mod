@@ -252,7 +252,7 @@ require (
 require github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 
 require (
-	github.com/DataDog/appsec-internal-go v1.13.0 // indirect
+	github.com/DataDog/appsec-internal-go v1.14.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.60.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/network/payload v0.0.0-20250128160050-7ac9ccd58c07 // indirect
