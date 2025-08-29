@@ -184,6 +184,17 @@ func (s *linuxTestSuite) testLogs(t *testing.T) {
 	}, 2*time.Minute, 10*time.Second)
 }
 
+func (s *linuxTestSuite) dumpDebugInfo(t *testing.T) {
+	// This is very useful for debugging, but we probably don't want to decode
+	// and assert based on this in this E2E test since this is an internal
+	// interface between the agent and system-probe.
+	discoveredServices := s.Env().RemoteHost.MustExecute("sudo curl -s --unix /opt/datadog-agent/run/sysprobe.sock http://unix/discovery/debug")
+	t.Log("system-probe services", discoveredServices)
+
+	workloadmetaStore := s.Env().RemoteHost.MustExecute("sudo datadog-agent workload-list")
+	t.Log("workloadmeta store", workloadmetaStore)
+}
+
 func (s *linuxTestSuite) testProcessCheckWithServiceDiscovery(agentConfigStr string, systemProbeConfigStr string) {
 	t := s.T()
 	s.startServices()
@@ -319,18 +330,14 @@ func (s *linuxTestSuite) testProcessCheckWithServiceDiscovery(agentConfigStr str
 			}, 2*time.Minute, 10*time.Second)
 		})
 		if !ok {
-			// This is very useful for debugging, but we probably don't want to decode
-			// and assert based on this in this E2E test since this is an internal
-			// interface between the agent and system-probe.
-			discoveredServices := s.Env().RemoteHost.MustExecute("sudo curl -s --unix /opt/datadog-agent/run/sysprobe.sock http://unix/discovery/debug")
-			t.Log("system-probe services", discoveredServices)
-
-			workloadmetaStore := s.Env().RemoteHost.MustExecute("sudo datadog-agent workload-list")
-			t.Log("workloadmeta store", workloadmetaStore)
+			s.dumpDebugInfo(t)
 		}
 	}
 
-	t.Run("logs", s.testLogs)
+	ok := t.Run("logs", s.testLogs)
+	if !ok {
+		s.dumpDebugInfo(t)
+	}
 }
 
 type checkStatus struct {
