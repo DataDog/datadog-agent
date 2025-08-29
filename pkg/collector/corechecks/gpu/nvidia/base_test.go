@@ -236,7 +236,7 @@ func TestNewSamplingCollector(t *testing.T) {
 		},
 	}
 
-	collector, err := newSamplingCollector("test_sampling", mockDevice, apiCalls)
+	collector, err := newStatefulCollector("test_sampling", mockDevice, apiCalls)
 	require.NoError(t, err)
 	require.NotNil(t, collector)
 

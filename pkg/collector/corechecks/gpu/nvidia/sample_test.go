@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 )
 
-// TestNewSampleCollector tests sample collector initialization
+// TestNewSampleCollector tests sampling collector initialization
 func TestNewSampleCollector(t *testing.T) {
 	tests := []struct {
 		name                  string
@@ -36,7 +36,7 @@ func TestNewSampleCollector(t *testing.T) {
 		{
 			name: "Unsupported",
 			customSetup: func(device *mock.Device) *mock.Device {
-				// Make all sample APIs return ERROR_NOT_SUPPORTED
+				// Make all sampling APIs return ERROR_NOT_SUPPORTED
 				device.GetProcessUtilizationFunc = func(_ uint64) ([]nvml.ProcessUtilizationSample, nvml.Return) {
 					return nil, nvml.ERROR_NOT_SUPPORTED
 				}
@@ -54,7 +54,7 @@ func TestNewSampleCollector(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockDevice := setupMockDevice(t, tt.customSetup)
 
-			collector, err := newSampleCollector(mockDevice)
+			collector, err := newSamplingCollector(mockDevice)
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -134,7 +134,7 @@ func TestCollectProcessUtilization(t *testing.T) {
 				return device
 			})
 
-			collector, err := newSampleCollector(mockDevice)
+			collector, err := newSamplingCollector(mockDevice)
 			require.NoError(t, err)
 
 			processMetrics, err := collector.Collect()
@@ -198,7 +198,7 @@ func TestCollectProcessUtilization_Error(t *testing.T) {
 				return device
 			})
 
-			collector, err := newSampleCollector(mockDevice)
+			collector, err := newSamplingCollector(mockDevice)
 			require.NoError(t, err)
 
 			processMetrics, err := collector.Collect()
@@ -279,7 +279,7 @@ func TestProcessUtilizationTimestampUpdate(t *testing.T) {
 				return device
 			})
 
-			collector, err := newSampleCollector(mockDevice)
+			collector, err := newSamplingCollector(mockDevice)
 			require.NoError(t, err)
 
 			bc := collector.(*baseCollector)
@@ -390,7 +390,7 @@ func TestProcessUtilization_SmActiveCalculation(t *testing.T) {
 				return device
 			})
 
-			collector, err := newSampleCollector(mockDevice)
+			collector, err := newSamplingCollector(mockDevice)
 			require.NoError(t, err)
 
 			processMetrics, err := collector.Collect()
