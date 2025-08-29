@@ -191,7 +191,7 @@ func (s *linuxTestSuite) dumpDebugInfo(t *testing.T) {
 	discoveredServices := s.Env().RemoteHost.MustExecute("sudo curl -s --unix /opt/datadog-agent/run/sysprobe.sock http://unix/discovery/debug")
 	t.Log("system-probe services", discoveredServices)
 
-	workloadmetaStore := s.Env().RemoteHost.MustExecute("sudo datadog-agent workload-list")
+	workloadmetaStore := s.Env().RemoteHost.MustExecute("sudo datadog-agent workload-list --verbose")
 	t.Log("workloadmeta store", workloadmetaStore)
 }
 
