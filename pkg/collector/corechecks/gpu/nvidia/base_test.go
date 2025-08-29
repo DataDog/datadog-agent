@@ -125,7 +125,7 @@ func TestBaseCollector_Collect(t *testing.T) {
 		expectedLen     int
 	}{
 		{
-			name: "successful stateless collection",
+			name: "happy flow",
 			apiCalls: []apiCallInfo{
 				{
 					Name:     "metric1",
@@ -152,7 +152,7 @@ func TestBaseCollector_Collect(t *testing.T) {
 			expectedLen:     3,
 		},
 		{
-			name: "collection with errors",
+			name: "partial errors",
 			apiCalls: []apiCallInfo{
 				{
 					Name:     "working_api",
@@ -211,7 +211,8 @@ func TestNewSamplingCollector(t *testing.T) {
 	require.NotEmpty(t, devices)
 	mockDevice := devices[0]
 
-	timestampTracker := make(map[int]uint64) // Track timestamps between calls
+	var timestamps [2]uint64 // Track first and second call timestamps
+	var callCount int
 
 	apiCalls := []apiCallInfo{
 		{
@@ -219,7 +220,8 @@ func TestNewSamplingCollector(t *testing.T) {
 			TestFunc: func(ddnvml.Device) error { return nil },
 			CallFunc: func(device ddnvml.Device, timestamp uint64) ([]Metric, uint64, error) {
 				// Sampling collector - should receive non-zero timestamp after first call
-				timestampTracker[len(timestampTracker)] = timestamp
+				timestamps[callCount] = timestamp
+				callCount++
 				newTimestamp := timestamp + 10
 				return []Metric{{Name: "test.sampling", Value: 1.0, Type: metrics.GaugeType}}, newTimestamp, nil
 			},
@@ -241,7 +243,7 @@ func TestNewSamplingCollector(t *testing.T) {
 	require.Len(t, metrics2, 1)
 
 	// Verify timestamps increased between calls
-	require.Len(t, timestampTracker, 2)
-	require.NotZero(t, timestampTracker[0])                      // First call should have non-zero timestamp
-	require.Greater(t, timestampTracker[1], timestampTracker[0]) // Second call should have greater timestamp
+	require.Equal(t, 2, callCount)
+	require.NotZero(t, timestamps[0])                // First call should have non-zero timestamp
+	require.Greater(t, timestamps[1], timestamps[0]) // Second call should have greater timestamp
 }
