@@ -473,6 +473,10 @@ func Test_metricSender_reportMetrics(t *testing.T) {
 							OID:  "1.3.6.1.2.1.31.1.1.1.8",
 							Name: "ifHCInMulticastPkts",
 						},
+						{
+							OID:  "1.2.3.4",
+							Name: "someOtherMetric1",
+						},
 					},
 					MetricTags: profiledefinition.MetricTagConfigList{
 						{
@@ -481,6 +485,14 @@ func Test_metricSender_reportMetrics(t *testing.T) {
 								Name: "ifName",
 							},
 							Tag: "interface",
+						},
+					},
+				},
+				{
+					Symbols: []profiledefinition.SymbolConfig{
+						{
+							OID:  "2.3.4.5",
+							Name: "someOtherMetric2",
 						},
 					},
 				},
@@ -502,6 +514,14 @@ func Test_metricSender_reportMetrics(t *testing.T) {
 						"1": valuestore.ResultValue{Value: float64(21)},
 						"2": valuestore.ResultValue{Value: float64(22)},
 					},
+					"1.2.3.4": {
+						"0": valuestore.ResultValue{Value: float64(30)},
+						"1": valuestore.ResultValue{Value: float64(31)},
+						"2": valuestore.ResultValue{Value: float64(32)},
+					},
+					"2.3.4.5": {
+						"2": valuestore.ResultValue{Value: float64(42)},
+					},
 				},
 			},
 			expectedMetrics: []expectedMetric{
@@ -516,6 +536,30 @@ func Test_metricSender_reportMetrics(t *testing.T) {
 					name:   "snmp.ifHCInMulticastPkts",
 					value:  float64(20),
 					tags:   []string{"interface:name0", "dd.internal.resource:ndm_interface_user_tags:device_id:0"},
+				},
+				{
+					method: "Gauge",
+					name:   "snmp.someOtherMetric1",
+					value:  float64(30),
+					tags:   []string{"interface:name0", "dd.internal.resource:ndm_interface_user_tags:device_id:0"},
+				},
+				{
+					method: "Gauge",
+					name:   "snmp.someOtherMetric1",
+					value:  float64(31),
+					tags:   []string{"interface:name1"},
+				},
+				{
+					method: "Gauge",
+					name:   "snmp.someOtherMetric1",
+					value:  float64(32),
+					tags:   []string{"interface:name2"},
+				},
+				{
+					method: "Gauge",
+					name:   "snmp.someOtherMetric2",
+					value:  float64(42),
+					tags:   []string{},
 				},
 			},
 		},
