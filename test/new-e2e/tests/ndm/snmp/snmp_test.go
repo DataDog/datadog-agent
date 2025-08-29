@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/test-infra-definitions/common/utils"
@@ -40,8 +41,8 @@ const (
 
 // snmpDockerProvisioner defines a stack with a docker agent on an AmazonLinuxECS VM
 // with snmpsim installed and configured with snmp recordings
-func snmpDockerProvisioner() e2e.Provisioner {
-	return e2e.NewTypedPulumiProvisioner[environments.DockerHost]("", func(ctx *pulumi.Context, env *environments.DockerHost) error {
+func snmpDockerProvisioner() provisioners.Provisioner {
+	return provisioners.NewTypedPulumiProvisioner("", func(ctx *pulumi.Context, env *environments.DockerHost) error {
 		name := "snmpvm"
 		awsEnv, err := aws.NewEnvironment(ctx)
 		if err != nil {

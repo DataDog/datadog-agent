@@ -26,10 +26,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
-func getTestInventoryChecks(t *testing.T, coll optional.Option[collector.Component], logAgent optional.Option[logagent.Component], overrides map[string]any) *inventorychecksImpl {
+func getTestInventoryChecks(t *testing.T, coll option.Option[collector.Component], logAgent option.Option[logagent.Component], overrides map[string]any) *inventorychecksImpl {
 	p := newInventoryChecksProvider(
 		fxutil.Test[dependencies](
 			t,
@@ -37,10 +37,10 @@ func getTestInventoryChecks(t *testing.T, coll optional.Option[collector.Compone
 			config.MockModule(),
 			fx.Replace(config.MockParams{Overrides: overrides}),
 			fx.Provide(func() serializer.MetricSerializer { return &serializer.MockSerializer{} }),
-			fx.Provide(func() optional.Option[collector.Component] {
+			fx.Provide(func() option.Option[collector.Component] {
 				return coll
 			}),
-			fx.Provide(func() optional.Option[logagent.Component] {
+			fx.Provide(func() option.Option[logagent.Component] {
 				return logAgent
 			}),
 		),
@@ -50,7 +50,7 @@ func getTestInventoryChecks(t *testing.T, coll optional.Option[collector.Compone
 
 func TestSet(t *testing.T) {
 	ic := getTestInventoryChecks(
-		t, optional.NewNoneOption[collector.Component](), optional.Option[logagent.Component]{}, nil,
+		t, option.None[collector.Component](), option.Option[logagent.Component]{}, nil,
 	)
 
 	ic.Set("instance_1", "key", "value")
@@ -69,7 +69,7 @@ func TestSet(t *testing.T) {
 
 func TestSetEmptyInstance(t *testing.T) {
 	ic := getTestInventoryChecks(
-		t, optional.NewNoneOption[collector.Component](), optional.Option[logagent.Component]{}, nil,
+		t, option.None[collector.Component](), option.Option[logagent.Component]{}, nil,
 	)
 
 	ic.Set("", "key", "value")
@@ -79,7 +79,7 @@ func TestSetEmptyInstance(t *testing.T) {
 
 func TestGetInstanceMetadata(t *testing.T) {
 	ic := getTestInventoryChecks(
-		t, optional.NewNoneOption[collector.Component](), optional.Option[logagent.Component]{}, nil,
+		t, option.None[collector.Component](), option.Option[logagent.Component]{}, nil,
 	)
 
 	ic.Set("instance_1", "key1", "value1")
@@ -146,7 +146,7 @@ func TestGetPayload(t *testing.T) {
 		// Register an error
 		src.Status.Error(fmt.Errorf("No such file or directory"))
 		logSources.AddSource(src)
-		mockLogAgent := fxutil.Test[optional.Option[logagent.Mock]](
+		mockLogAgent := fxutil.Test[option.Option[logagent.Mock]](
 			t, logagent.MockModule(), core.MockBundle(), inventoryagentimpl.MockModule(), workloadmeta.MockModule(), fx.Supply(workloadmeta.NewParams()),
 		)
 		logsAgent, _ := mockLogAgent.Get()
@@ -160,8 +160,8 @@ func TestGetPayload(t *testing.T) {
 			}
 
 			ic := getTestInventoryChecks(t,
-				optional.NewOption[collector.Component](mockColl),
-				optional.NewOption[logagent.Component](logsAgent),
+				option.New[collector.Component](mockColl),
+				option.New[logagent.Component](logsAgent),
 				overrides,
 			)
 
@@ -242,7 +242,7 @@ func TestGetPayload(t *testing.T) {
 
 func TestFlareProviderFilename(t *testing.T) {
 	ic := getTestInventoryChecks(
-		t, optional.NewNoneOption[collector.Component](), optional.Option[logagent.Component]{}, nil,
+		t, option.None[collector.Component](), option.Option[logagent.Component]{}, nil,
 	)
 	assert.Equal(t, "checks.json", ic.FlareFileName)
 }

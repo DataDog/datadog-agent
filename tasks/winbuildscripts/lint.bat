@@ -13,6 +13,7 @@ mkdir %TEST_ROOT%\datadog-agent
 if not exist %TEST_ROOT%\datadog-agent exit /b 2
 cd %TEST_ROOT%\datadog-agent || exit /b 3
 xcopy /e/s/h/q c:\mnt\*.* || exit /b 4
+copy c:\mnt\.golangci.yml . || echo Warning: .golangci.yml not found
 
 call %TEST_ROOT%\datadog-agent\tasks\winbuildscripts\extract-modcache.bat %TEST_ROOT%\datadog-agent modcache
 call %TEST_ROOT%\datadog-agent\tasks\winbuildscripts\extract-modcache.bat %TEST_ROOT%\datadog-agent modcache_tools

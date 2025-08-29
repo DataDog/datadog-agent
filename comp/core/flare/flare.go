@@ -27,7 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	pkgFlare "github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // ProfileData maps (pprof) profile names to the profile data.
@@ -41,10 +41,10 @@ type dependencies struct {
 	Diagnosesendermanager diagnosesendermanager.Component
 	Params                Params
 	Providers             []types.FlareCallback `group:"flare"`
-	Collector             optional.Option[collector.Component]
-	WMeta                 optional.Option[workloadmeta.Component]
+	Collector             option.Option[collector.Component]
+	WMeta                 option.Option[workloadmeta.Component]
 	Secrets               secrets.Component
-	AC                    optional.Option[autodiscovery.Component]
+	AC                    option.Option[autodiscovery.Component]
 }
 
 type flare struct {

@@ -26,11 +26,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // NewAgent returns a new Logs Agent
-func (a *agent) SetupPipeline(processingRules []*config.ProcessingRule, wmeta optional.Option[workloadmeta.Component]) {
+func (a *agent) SetupPipeline(processingRules []*config.ProcessingRule, wmeta option.Option[workloadmeta.Component]) {
 	health := health.RegisterLiveness("logs-agent")
 
 	// setup the auditor

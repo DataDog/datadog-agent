@@ -5,7 +5,6 @@ go 1.21.9
 replace (
 	github.com/DataDog/datadog-agent/pkg/util/log => ../log/
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../scrubber/
-
 )
 
 require (

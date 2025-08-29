@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // KubeletListener listens to pod creation through a subscription
@@ -28,7 +28,7 @@ type KubeletListener struct {
 }
 
 // NewKubeletListener returns a new KubeletListener.
-func NewKubeletListener(_ Config, wmeta optional.Option[workloadmeta.Component]) (ServiceListener, error) {
+func NewKubeletListener(_ Config, wmeta option.Option[workloadmeta.Component]) (ServiceListener, error) {
 	const name = "ad-kubeletlistener"
 
 	l := &KubeletListener{}
