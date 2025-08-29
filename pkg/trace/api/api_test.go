@@ -811,7 +811,7 @@ func TestHandleStats(t *testing.T) {
 		assert.Equal(t, "0.1.0", gotTracerVersion, "tracerVersion did not match")
 		assert.Equal(t, "abcdef123789456", containerID, "containerID did not match")
 
-		_, ok := rcv.Stats.Stats[info.Tags{Lang: "lang1", EndpointVersion: "v0.6", Service: "service", TracerVersion: "0.1.0"}]
+		_, ok := rcv.stats.Stats[info.Tags{Lang: "lang1", EndpointVersion: "v0.6", Service: "service", TracerVersion: "0.1.0"}]
 		assert.True(t, ok)
 	})
 	t.Run("timeout", func(t *testing.T) {
@@ -924,7 +924,7 @@ func TestHandleTraces(t *testing.T) {
 		handler.ServeHTTP(rr, req)
 	}
 
-	rs := receiver.Stats
+	rs := receiver.stats
 	assert.Equal(t, 5, len(rs.Stats)) // We have a tagStats struct for each application
 
 	// We test stats for each app
