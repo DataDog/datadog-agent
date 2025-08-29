@@ -105,7 +105,7 @@ upload_minimized_btfs_sysprobe_arm64:
   variables:
     ARCHIVE_NAME: btfs-arm64.tar.gz
     ARCH: arm64
-    INSTANCE_TYPE: m6gd.metal
+    INSTANCE_TYPE: r6gd.metal
     TEST_COMPONENT: system-probe
 
 kmt_setup_env_sysprobe_arm64:
@@ -113,7 +113,7 @@ kmt_setup_env_sysprobe_arm64:
     - .kmt_setup_env
   rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
   variables:
-    INSTANCE_TYPE: "m6gd.metal"
+    INSTANCE_TYPE: "r6gd.metal"
     INSTANCE_TYPE_ARG: "--instance-type-arm=$INSTANCE_TYPE"
     ARCH: arm64
     AMI_ID_ARG: "--arm-ami-id=$KERNEL_MATRIX_TESTING_ARM_AMI_ID"
@@ -191,7 +191,7 @@ upload_sysprobe_tests_arm64:
   tags: ["arch:arm64"]
   variables:
     ARCH: arm64
-    INSTANCE_TYPE: m6gd.metal
+    INSTANCE_TYPE: r6gd.metal
 
 .kmt_run_sysprobe_tests:
   extends: .kmt_run_tests
@@ -298,7 +298,7 @@ kmt_sysprobe_cleanup_arm64:
     - upload_dependencies_sysprobe_arm64
   variables:
     ARCH: arm64
-    INSTANCE_TYPE: "m6gd.metal"
+    INSTANCE_TYPE: "r6gd.metal"
 
 kmt_sysprobe_cleanup_x64:
   when: always
@@ -320,7 +320,7 @@ kmt_sysprobe_cleanup_arm64_manual:
     - .kmt_cleanup_manual
   variables:
     ARCH: arm64
-    INSTANCE_TYPE: "m6gd.metal"
+    INSTANCE_TYPE: "r6gd.metal"
 
 kmt_sysprobe_cleanup_x64_manual:
   extends:
