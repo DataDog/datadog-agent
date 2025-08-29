@@ -60,18 +60,11 @@ const (
 // in time
 func osinit() {
 	// Agent binary
-	if installPathOverride, ok := os.LookupEnv("DD_TEST_INSTALL_PATH_OVERRIDE"); ok {
-		// Some tests use the InstallPath variable to fetch dependencies. These tests' executable.Folder()
-		// are relative to the test files, but dependencies are always put in the same place during the tests'
-		// executions. This environment variable allows us to override the install path during the tests.
-		InstallPath = installPathOverride
-	} else {
-		_here, err := executable.Folder() // {InstallPath}/bin/agent OR {InstallPath}/embedded/bin
-		if err != nil {
-			panic(fmt.Sprintf("Failed to get executable path: %v", err))
-		}
-		InstallPath = filepath.Join(_here, "..", "..")
+	_here, err := executable.Folder()
+	if err != nil {
+		panic(fmt.Sprintf("Failed to get executable path: %v", err))
 	}
+	InstallPath = getInstallPathFromExecutable(_here)
 
 	DefaultDDAgentBin = filepath.Join(InstallPath, "bin", "agent")
 	DefaultSystemProbeAddress = filepath.Join(InstallPath, "run/sysprobe.sock")
@@ -85,4 +78,26 @@ func osinit() {
 
 // FleetConfigOverride is a no-op on Linux
 func FleetConfigOverride(_ pkgconfigmodel.Config) {
+}
+
+// getInstallPathFromExecutable will go up the directory chain from start in search of a .install_root file.
+// That directory will become the install path.
+//
+// If not found, returns the default InstallPath.
+func getInstallPathFromExecutable(start string) string {
+	// Start from the current directory
+	currentDir := start
+
+	for {
+		installRoot := filepath.Join(currentDir, ".install_root")
+		if _, err := os.Stat(installRoot); err == nil {
+			return currentDir
+		}
+		parentDir := filepath.Dir(currentDir)
+		if parentDir == currentDir {
+			break
+		}
+		currentDir = parentDir
+	}
+	return InstallPath // Fallback to the default install path
 }

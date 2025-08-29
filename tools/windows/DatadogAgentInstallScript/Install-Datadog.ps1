@@ -3,17 +3,36 @@
    Downloads and installs Datadog on the machine.
 #>
 [CmdletBinding(DefaultParameterSetName = 'Default')]
-$SCRIPT_VERSION = "1.1.0"
+$SCRIPT_VERSION = "1.1.1"
 $GENERAL_ERROR_CODE = 1
 
 # Set some defaults if not provided
-$ddInstallerUrl = $env:DD_INSTALLER_URL
-if (-Not $ddInstallerUrl) {
-   $ddInstallerUrl = "https://install.datadoghq.com/datadog-installer-x86_64.exe"
-}
-
 if (-Not $env:DD_REMOTE_UPDATES) {
    $env:DD_REMOTE_UPDATES = "false"
+}
+
+$ddInstallerUrl = $env:DD_INSTALLER_URL
+if (-Not $ddInstallerUrl) {
+   # Craft the URL to the installer executable
+   #
+   # Use DD_INSTALLER_REGISTRY_URL_INSTALLER_PACKAGE if it's set,
+   # otherwise craft the URL based on the DD_SITE
+   #
+   # We must not set DD_INSTALLER_REGISTRY_URL_INSTALLER_PACKAGE based on DD_SITE
+   # because the environment variable will persist after the script finishes,
+   # and a change to DD_SITE won't update the the variable again, which is confusing.
+   # The go code at pkg\fleet\installer\oci\download.go will use DD_SITE to determine
+   # the registry URL so it's simpler to let it do that.
+   if ($env:DD_INSTALLER_REGISTRY_URL_INSTALLER_PACKAGE) {
+      $ddInstallerRegistryUrl = $env:DD_INSTALLER_REGISTRY_URL_INSTALLER_PACKAGE
+   } else {
+      if ($env:DD_SITE -eq "datad0g.com") {
+         $ddInstallerRegistryUrl = "install.datad0g.com"
+      } else {
+         $ddInstallerRegistryUrl = "install.datadoghq.com"
+      }
+   }
+   $ddInstallerUrl = "https://$ddInstallerRegistryUrl/datadog-installer-x86_64.exe"
 }
 
 # ExitCodeException can be used to report failures from executables that set $LASTEXITCODE
@@ -139,12 +158,14 @@ function Start-ProcessWithOutput {
    $stderr = Register-ObjectEvent -InputObject $process -EventName 'ErrorDataReceived' `
       -Action {
       if (![String]::IsNullOrEmpty($EventArgs.Data)) {
-         # Print stderr from process into host stderr
-         # Unfortunately that means this output cannot be captured from within PowerShell
-         # and it won't work within PowerShell ISE because it is not a console host.
-         [Console]::ForegroundColor = 'red'
-         [Console]::Error.WriteLine($EventArgs.Data)
-         [Console]::ResetColor()
+         # Different environments seem to show/hide different output streams
+         # PSRemoting and ISE won't see console
+         # PSRemoting sees Write-Error but neither console nor ISE do
+         # Write-Host seems pretty universal, though we lose the stdout/stderr distinction
+         # The only thing we're doing with the output right now is displaying to
+         # the user, so this seems okay. If we need the distinction later we can
+         # figure out how to output it.
+         Write-Host $EventArgs.Data -ForegroundColor 'red'
       }
    }
    [void]$process.Start()

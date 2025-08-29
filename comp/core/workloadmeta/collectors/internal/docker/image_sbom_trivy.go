@@ -12,8 +12,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/CycloneDX/cyclonedx-go"
-
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
@@ -112,31 +110,9 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 					log.Errorf("Scan result does not hold the image identifier. Error: %s", result.Error)
 					continue
 				}
-				status := workloadmeta.Success
-				reportedError := ""
-				var report *cyclonedx.BOM
-				if result.Error != nil {
-					// TODO: add a retry mechanism for retryable errors
-					log.Errorf("Failed to generate SBOM for docker: %s", result.Error)
-					status = workloadmeta.Failed
-					reportedError = result.Error.Error()
-				} else {
-					bom, err := result.Report.ToCycloneDX()
-					if err != nil {
-						log.Errorf("Failed to extract SBOM from report")
-						status = workloadmeta.Failed
-						reportedError = result.Error.Error()
-					}
-					report = bom
-				}
 
-				sbom := &workloadmeta.SBOM{
-					CycloneDXBOM:       report,
-					GenerationTime:     result.CreatedAt,
-					GenerationDuration: result.Duration,
-					Status:             status,
-					Error:              reportedError,
-				}
+				sbom := result.ConvertScanResultToSBOM()
+
 				// Updating workloadmeta entities directly is not thread-safe, that's why we
 				// generate an update event here instead.
 				event := &dutil.ImageEvent{

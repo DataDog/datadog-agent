@@ -54,7 +54,7 @@ func runTest(
 ) {
 	binPath := testprogs.MustGetBinary(t, caseName, cfg)
 	probeDefs := testprogs.MustGetProbeDefinitions(t, caseName)
-	obj, err := object.OpenElfFile(binPath)
+	obj, err := object.OpenElfFileWithDwarf(binPath)
 	require.NoError(t, err)
 	defer func() { _ = obj.Close() }()
 	ir, err := irgen.GenerateIR(1, obj, probeDefs)
