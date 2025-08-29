@@ -108,9 +108,9 @@ class DockerImageInfo:
         if not self.os:
             raise ValueError("os cannot be empty")
         if self.config_size < 0:
-            raise ValueError("config_size must be strictly non-negative")
+            raise ValueError("config_size must be positive")
         if self.manifest_size < 0:
-            raise ValueError("manifest_size must be strictly non-negative")
+            raise ValueError("manifest_size must be positive")
 
     @property
     def total_layers_size_bytes(self) -> int:
