@@ -225,14 +225,14 @@ func (sc *streamCollection) memoizedContainerID(header *gpuebpf.CudaEventHeader)
 func (sc *streamCollection) allStreams() []*StreamHandler {
 	var streams []*StreamHandler
 
-	sc.streams.Range(func(key, value interface{}) bool {
+	sc.streams.Range(func(_, value interface{}) bool {
 		if stream, ok := value.(*StreamHandler); ok {
 			streams = append(streams, stream)
 		}
 		return true
 	})
 
-	sc.globalStreams.Range(func(key, value interface{}) bool {
+	sc.globalStreams.Range(func(_, value interface{}) bool {
 		if stream, ok := value.(*StreamHandler); ok {
 			streams = append(streams, stream)
 		}
@@ -244,7 +244,7 @@ func (sc *streamCollection) allStreams() []*StreamHandler {
 
 func (sc *streamCollection) streamsCount() int {
 	count := 0
-	sc.streams.Range(func(key, value interface{}) bool {
+	sc.streams.Range(func(_, _ interface{}) bool {
 		count++
 		return true
 	})
@@ -253,7 +253,7 @@ func (sc *streamCollection) streamsCount() int {
 
 func (sc *streamCollection) globalStreamsCount() int {
 	count := 0
-	sc.globalStreams.Range(func(key, value interface{}) bool {
+	sc.globalStreams.Range(func(_, _ interface{}) bool {
 		count++
 		return true
 	})
