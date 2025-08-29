@@ -1,0 +1,22 @@
+load("@buildifier_prebuilt//:rules.bzl", "buildifier", "buildifier_test")
+
+exclude_patterns = [
+    "**/.bazelbsp/**",
+    "**/.cache/**",
+]
+
+buildifier(
+    name = "buildifier",
+    exclude_patterns = exclude_patterns,
+    lint_mode = "fix",
+)
+
+buildifier_test(
+    name = "test",
+    exclude_patterns = exclude_patterns,
+    lint_mode = "warn",
+    lint_warnings = ["-module-docstring"],
+    mode = "diff",
+    no_sandbox = True,
+    workspace = "//:BUILD.bazel",
+)
