@@ -8,8 +8,9 @@ package tailers
 import (
 	"testing"
 
-	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	assert "github.com/stretchr/testify/require"
+
+	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 )
 
 type TestTailer1 struct {
@@ -24,7 +25,6 @@ func NewTestTailer1(id string) *TestTailer1 {
 	}
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func (t *TestTailer1) GetId() string {
 	return t.id
 }
@@ -47,17 +47,14 @@ func NewTestTailer2(id string) *TestTailer2 {
 	}
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func (t *TestTailer2) GetId() string {
 	return t.id
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func (t *TestTailer2) GetType() string {
 	return "test"
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func (t *TestTailer2) GetInfo() *status.InfoRegistry {
 	return t.info
 }

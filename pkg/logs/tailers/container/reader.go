@@ -5,7 +5,6 @@
 
 //go:build kubelet || docker
 
-//nolint:revive // TODO(AML) Fix revive linter
 package container
 
 import (

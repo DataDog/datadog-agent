@@ -5,7 +5,6 @@
 
 //go:build kubelet || docker
 
-//nolint:revive // TODO(AML) Fix revive linter
 package container
 
 import (
@@ -19,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 
-	//nolint:revive // TODO(AML) Fix revive linter
 	sourcesPkg "github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -77,8 +75,6 @@ func NewLauncher(sources *sourcesPkg.LogSources, wmeta option.Option[workloadmet
 }
 
 // Start starts the Launcher
-//
-//nolint:revive // TODO(AML) Fix revive linter
 func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry, tracker *tailers.TailerTracker) {
 	// only start this launcher once it's determined that we should be logging containers, and not pods.
 	ctx, cancel := context.WithCancel(context.Background())
