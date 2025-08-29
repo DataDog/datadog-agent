@@ -577,9 +577,16 @@ static __always_inline bool pktbuf_find_relevant_frames(pktbuf_t pkt, http2_tail
         is_data_end_of_stream = ((current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) && (current_frame.type == kDataFrame);
         if (iteration_value->frames_count < HTTP2_MAX_FRAMES_ITERATIONS) {
             if (is_headers_or_rst_frame || is_data_end_of_stream) {
-                iteration_value->frames_array[iteration_value->frames_count].frame = current_frame;
-                iteration_value->frames_array[iteration_value->frames_count].offset = pktbuf_data_offset(pkt);
-                iteration_value->frames_count++;
+                // Skip HEADERS frames that are PRIORITY-only (no actual header data)
+                bool skip_priority_only = (current_frame.type == kHeadersFrame && 
+                                         (current_frame.flags & HTTP2_PRIORITY_FLAG) && 
+                                         current_frame.length <= HTTP2_PRIORITY_BUFFER_LEN);
+                
+                if (!skip_priority_only) {
+                    iteration_value->frames_array[iteration_value->frames_count].frame = current_frame;
+                    iteration_value->frames_array[iteration_value->frames_count].offset = pktbuf_data_offset(pkt);
+                    iteration_value->frames_count++;
+                }
             } else if (current_frame.type == kContinuationFrame) {
                 __sync_fetch_and_add(&http2_tel->continuation_frames, 1);
             }
@@ -931,7 +938,23 @@ static __always_inline void headers_parser(pktbuf_t pkt, void *map_key, conn_tup
         current_stream->tags = tags;
         pktbuf_set_offset(pkt, current_frame.offset);
 
-        interesting_headers = pktbuf_filter_relevant_headers(pkt, global_dynamic_counter, &http2_ctx->dynamic_index, headers_to_process, current_frame.frame.length, http2_tel);
+        // Calculate the actual header data length, accounting for PRIORITY flag
+        __u32 header_data_length = current_frame.frame.length;
+        
+        // If PRIORITY flag (0x20) set, skip 5-byte priority fields.
+        // See: https://datatracker.ietf.org/doc/html/rfc7540#section-6.2
+        if (current_frame.frame.flags & HTTP2_PRIORITY_FLAG) {
+            if (current_frame.frame.length > HTTP2_PRIORITY_BUFFER_LEN) {
+                // HEADERS+PRIORITY - skip PRIORITY bytes, adjust header data length
+                pktbuf_advance(pkt, HTTP2_PRIORITY_BUFFER_LEN);
+                header_data_length -= HTTP2_PRIORITY_BUFFER_LEN;
+            } else {
+                // PRIORITY-only frame - no header data to process
+                continue;
+            }
+        }
+        
+        interesting_headers = pktbuf_filter_relevant_headers(pkt, global_dynamic_counter, &http2_ctx->dynamic_index, headers_to_process, header_data_length, http2_tel);
         pktbuf_process_headers(pkt, &http2_ctx->dynamic_index, current_stream, headers_to_process, interesting_headers, http2_tel);
     }
 
