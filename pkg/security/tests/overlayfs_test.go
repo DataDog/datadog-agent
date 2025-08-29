@@ -12,6 +12,8 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -593,6 +595,80 @@ func TestOverlayFS(t *testing.T) {
 			assert.Equal(t, true, event.Rename.New.IsInUpperLayer(), "should be in upper layer")
 
 			validateInodeAndLayerFallback(t, newFile, inode, true)
+		})
+	})
+}
+
+func TestOverlayOpOverride(t *testing.T) {
+	SkipIfNotAvailable(t)
+	if testEnvironment == DockerEnvironment {
+		t.Skip("Skip test spawning docker containers on docker")
+	}
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_rule_open",
+			Expression: `open.file.path == "/tmp/target.txt"`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	dockerWrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "alpine", "")
+	if err != nil {
+		t.Fatalf("failed to create docker wrapper: %v", err)
+	}
+
+	_, err = dockerWrapper.start()
+	if err != nil {
+		t.Fatalf("failed to start docker wrapper: %v", err)
+	}
+	t.Cleanup(func() {
+		_, err := dockerWrapper.stop()
+		if err != nil {
+			t.Errorf("failed to stop docker wrapper: %v", err)
+		}
+	})
+
+	output, err := exec.Command(dockerWrapper.executable, "inspect", "--format", "{{ .GraphDriver.Data.MergedDir }}", dockerWrapper.containerID).CombinedOutput()
+	if err != nil {
+		t.Fatalf("failed to get merged dir: %s: %s", string(output), err)
+	}
+
+	targetFromOverlayMnt := filepath.Join(strings.TrimSpace(string(output)), "/tmp/target.txt")
+
+	t.Run("open-from-container", func(t *testing.T) {
+		test.WaitSignal(t, func() error {
+			output, err := dockerWrapper.Command("touch", []string{"/tmp/target.txt"}, nil).CombinedOutput()
+			if err != nil {
+				t.Errorf("failed to touch file from container: %s:\n%s", err, string(output))
+			}
+			return err
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_rule_open")
+			assertFieldEqual(t, event, "open.file.path", "/tmp/target.txt")
+			assertFieldNotEmpty(t, event, "container.id", "container id shouldn't be empty")
+		})
+	})
+
+	t.Run("open-from-overlay-mnt", func(t *testing.T) {
+		test.WaitSignal(t, func() error {
+			output, err := exec.Command("touch", targetFromOverlayMnt).CombinedOutput()
+			if err != nil {
+				t.Errorf("failed to touch file from overlay mount: %s:\n%s", err, string(output))
+			}
+			return err
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_rule_open")
+			assertFieldEqual(t, event, "open.file.path", targetFromOverlayMnt)
+			assertFieldEqual(t, event, "container.id", "", "container id should be empty")
 		})
 	})
 }
