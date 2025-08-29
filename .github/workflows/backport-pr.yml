@@ -10,13 +10,10 @@ jobs:
     name: Backport PR
     runs-on: ubuntu-latest
     if: >
-      (github.event.pull_request.merged || github.event.pull_request.closed)
-      && (
-        github.event.action == 'closed'
-        || (
-          github.event.action == 'labeled'
-          && contains(github.event.label.name, 'backport')
-        )
+      github.event.action == 'closed'
+      || (
+        github.event.action == 'labeled'
+        && contains(github.event.label.name, 'backport')
       )
     permissions:
       id-token: write # This is required for getting the required OIDC token from GitHub
