@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(AML) Fix revive linter
 package client
 
 import (
@@ -55,6 +54,7 @@ func (d *DestinationMetadata) MonitorTag() string {
 	return fmt.Sprintf("destination_%s_%s", d.kind, d.endpointId)
 }
 
+// EvpCategory returns the EvP category for the destination
 func (d *DestinationMetadata) EvpCategory() string {
 	return d.evpCategory
 }

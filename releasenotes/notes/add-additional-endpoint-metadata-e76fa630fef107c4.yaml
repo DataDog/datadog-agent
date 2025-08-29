@@ -8,5 +8,5 @@
 ---
 enhancements:
   - |
-    Add additional endpoint metadata to the destination metadata for easier troubleshooting.
+    Improved logs destination warning log with additional endpoint metadata such as full url, track type, EvP category, and origin.
 
