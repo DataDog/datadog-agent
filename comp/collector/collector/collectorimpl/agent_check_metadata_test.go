@@ -66,3 +66,50 @@ func TestExternalHostTags(t *testing.T) {
 		}
 	}
 }
+
+func TestCollectTags(t *testing.T) {
+	tests := []struct {
+		name   string
+		config string
+		want   []string
+	}{
+		{
+			name: "list of tags",
+			config: `
+init_config:
+instance_config:
+  - tags:
+    - foo:bar
+    - baz:qux
+`,
+			want: []string{"foo:bar", "baz:qux"},
+		},
+		{
+			name: "array of tags",
+			config: `
+init_config:
+instance_config:
+  - tags: [foo:bar, baz:qux]
+`,
+			want: []string{"foo:bar", "baz:qux"},
+		},
+		{
+			name: "scalar value",
+			config: `
+init_config:
+instance_config:
+  product:
+    tags: "foo:bar"
+`,
+			want: []string{"foo:bar"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := collectTags(test.config)
+			assert.NoError(t, err)
+			assert.Equal(t, test.want, got)
+		})
+	}
+}
