@@ -583,6 +583,17 @@ type SetSockOptEventSerializer struct {
 	FilterHash string `json:"filter_hash,omitempty"`
 }
 
+// PrCtlEventSerializer serializes a prctl event
+// easyjson:json
+type PrCtlEventSerializer struct {
+	// PrCtl Option
+	Option string `json:"option"`
+	// New name of the process
+	NewName string `json:"new_name,omitempty"`
+	// Name truncated
+	IsNameTruncated bool `json:"is_name_truncated,omitempty"`
+}
+
 // CGroupWriteEventSerializer serializes a cgroup_write event
 // easyjson:json
 type CGroupWriteEventSerializer struct {
@@ -683,6 +694,7 @@ type SyscallContextSerializer struct {
 	Mkdir      *SyscallArgsSerializer `json:"mkdir,omitempty"`
 	Rmdir      *SyscallArgsSerializer `json:"rmdir,omitempty"`
 	SetSockOpt *SyscallArgsSerializer `json:"setsockopt,omitempty"`
+	PrCtl      *SyscallArgsSerializer `json:"prctl,omitempty"`
 }
 
 func newSyscallContextSerializer(sc *model.SyscallContext, e *model.Event, attachEventypeCb func(*SyscallContextSerializer, *SyscallArgsSerializer)) *SyscallContextSerializer {
@@ -734,6 +746,7 @@ type EventSerializer struct {
 	*SysCtlEventSerializer        `json:"sysctl,omitempty"`
 	*SetSockOptEventSerializer    `json:"setsockopt,omitempty"`
 	*CGroupWriteEventSerializer   `json:"cgroup_write,omitempty"`
+	*PrCtlEventSerializer         `json:"prctl,omitempty"`
 }
 
 func newSyscallsEventSerializer(e *model.SyscallsEvent) *SyscallsEventSerializer {
@@ -1372,6 +1385,14 @@ func newSetSockOptEventSerializer(e *model.Event) *SetSockOptEventSerializer {
 	return &SetSockOptEventSerializer
 }
 
+func newPrCtlEventSerializer(e *model.Event) *PrCtlEventSerializer {
+	return &PrCtlEventSerializer{
+		Option:          model.PrCtlOption(e.PrCtl.Option).String(),
+		NewName:         e.PrCtl.NewName,
+		IsNameTruncated: e.PrCtl.IsNameTruncated,
+	}
+}
+
 func newCGroupWriteEventSerializer(e *model.Event) *CGroupWriteEventSerializer {
 	return &CGroupWriteEventSerializer{
 		File: newFileSerializer(&e.CgroupWrite.File, e, 0, nil),
@@ -1684,6 +1705,8 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule) *EventSerializer {
 		s.SetSockOptEventSerializer = newSetSockOptEventSerializer(event)
 	case model.CgroupWriteEventType:
 		s.CGroupWriteEventSerializer = newCGroupWriteEventSerializer(event)
+	case model.PrCtlEventType:
+		s.PrCtlEventSerializer = newPrCtlEventSerializer(event)
 	}
 
 	return s

@@ -117,6 +117,7 @@ type Event struct {
 	Exit          ExitEvent          `field:"exit" event:"exit"`     // [7.38] [Process] A process was terminated
 	Syscalls      SyscallsEvent      `field:"-"`
 	LoginUIDWrite LoginUIDWriteEvent `field:"-"`
+	PrCtl         PrCtlEvent         `field:"prctl" event:"prctl"` // [7.71] [Process] A prctl command was executed
 
 	// network syscalls
 	Bind       BindEvent       `field:"bind" event:"bind"`             // [7.37] [Network] A bind was executed
@@ -1018,4 +1019,12 @@ type SetSockOptEvent struct {
 	FilterInstructions string `field:"filter_instructions,handler:ResolveSetSockOptFilterInstructions"`     // SECLDoc[filter_instructions] Definition:`Filter instructions`
 	FilterHash         string `field:"filter_hash,handler:ResolveSetSockOptFilterHash:"`                    // SECLDoc[filter_hash] Definition:`Hash of the socket filter using sha256`
 	UsedImmediates     []int  `field:"used_immediates,handler:ResolveSetSockOptUsedImmediates, weight:999"` // SECLDoc[used_immediates] Definition:`List of immediate values used in the filter`
+}
+
+// PrCtlEvent represents a prctl event
+type PrCtlEvent struct {
+	SyscallEvent
+	Option          int    `field:"option"`            // SECLDoc[option] Definition:`prctl option`
+	NewName         string `field:"new_name"`          // SECLDoc[new_name] Definition:`New name of the process`
+	IsNameTruncated bool   `field:"is_name_truncated"` // SECLDoc[is_name_truncated] Definition:`Indicates that the name field is truncated`
 }

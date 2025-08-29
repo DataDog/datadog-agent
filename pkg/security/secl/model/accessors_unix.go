@@ -46,6 +46,7 @@ func (_ *Model) GetEventTypes() []eval.EventType {
 		eval.EventType("ondemand"),
 		eval.EventType("open"),
 		eval.EventType("packet"),
+		eval.EventType("prctl"),
 		eval.EventType("ptrace"),
 		eval.EventType("removexattr"),
 		eval.EventType("rename"),
@@ -6968,6 +6969,50 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return int(ev.RawPacket.TLSContext.Version)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "prctl.is_name_truncated":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.PrCtl.IsNameTruncated
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "prctl.new_name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.PrCtl.NewName
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "prctl.option":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.PrCtl.Option
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "prctl.retval":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.PrCtl.SyscallEvent.Retval)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -30206,6 +30251,10 @@ func (ev *Event) GetFields() []eval.Field {
 		"packet.source.is_public",
 		"packet.source.port",
 		"packet.tls.version",
+		"prctl.is_name_truncated",
+		"prctl.new_name",
+		"prctl.option",
+		"prctl.retval",
 		"process.ancestors.args",
 		"process.ancestors.args_flags",
 		"process.ancestors.args_options",
@@ -32667,6 +32716,14 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "packet", reflect.Int, "int", nil
 	case "packet.tls.version":
 		return "packet", reflect.Int, "int", nil
+	case "prctl.is_name_truncated":
+		return "prctl", reflect.Bool, "bool", nil
+	case "prctl.new_name":
+		return "prctl", reflect.String, "string", nil
+	case "prctl.option":
+		return "prctl", reflect.Int, "int", nil
+	case "prctl.retval":
+		return "prctl", reflect.Int, "int", nil
 	case "process.ancestors.args":
 		return "", reflect.String, "string", nil
 	case "process.ancestors.args_flags":
@@ -37008,6 +37065,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint16FieldValue("packet.source.port", &ev.RawPacket.NetworkContext.Source.Port, value)
 	case "packet.tls.version":
 		return ev.setUint16FieldValue("packet.tls.version", &ev.RawPacket.TLSContext.Version, value)
+	case "prctl.is_name_truncated":
+		return ev.setBoolFieldValue("prctl.is_name_truncated", &ev.PrCtl.IsNameTruncated, value)
+	case "prctl.new_name":
+		return ev.setStringFieldValue("prctl.new_name", &ev.PrCtl.NewName, value)
+	case "prctl.option":
+		return ev.setIntFieldValue("prctl.option", &ev.PrCtl.Option, value)
+	case "prctl.retval":
+		return ev.setInt64FieldValue("prctl.retval", &ev.PrCtl.SyscallEvent.Retval, value)
 	case "process.ancestors.args":
 		return ev.setStringFieldValue("process.ancestors.args", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Args, value)
 	case "process.ancestors.args_flags":

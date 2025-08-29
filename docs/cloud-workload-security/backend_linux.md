@@ -1209,6 +1209,28 @@ Workload Protection events for Linux systems have the following JSON schema:
             ],
             "description": "PTraceEventSerializer serializes a mmap event to JSON"
         },
+        "PrCtlEvent": {
+            "properties": {
+                "option": {
+                    "type": "string",
+                    "description": "PrCtl Option"
+                },
+                "new_name": {
+                    "type": "string",
+                    "description": "New name of the process"
+                },
+                "is_name_truncated": {
+                    "type": "boolean",
+                    "description": "Name truncated"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "option"
+            ],
+            "description": "PrCtlEventSerializer serializes a prctl event"
+        },
         "Process": {
             "properties": {
                 "pid": {
@@ -1992,6 +2014,9 @@ Workload Protection events for Linux systems have the following JSON schema:
                 },
                 "setsockopt": {
                     "$ref": "#/$defs/SyscallArgs"
+                },
+                "prctl": {
+                    "$ref": "#/$defs/SyscallArgs"
                 }
             },
             "additionalProperties": false,
@@ -2178,6 +2203,9 @@ Workload Protection events for Linux systems have the following JSON schema:
         },
         "cgroup_write": {
             "$ref": "#/$defs/CGroupWriteEvent"
+        },
+        "prctl": {
+            "$ref": "#/$defs/PrCtlEvent"
         }
     },
     "additionalProperties": false,
@@ -2226,6 +2254,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `sysctl` | $ref | Please see [SysCtlEvent](#sysctlevent) |
 | `setsockopt` | $ref | Please see [SetSockOptEvent](#setsockoptevent) |
 | `cgroup_write` | $ref | Please see [CGroupWriteEvent](#cgroupwriteevent) |
+| `prctl` | $ref | Please see [PrCtlEvent](#prctlevent) |
 
 ## `AWSIMDSEvent`
 
@@ -4043,6 +4072,42 @@ Workload Protection events for Linux systems have the following JSON schema:
 | ---------- |
 | [ProcessContext](#processcontext) |
 
+## `PrCtlEvent`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "option": {
+            "type": "string",
+            "description": "PrCtl Option"
+        },
+        "new_name": {
+            "type": "string",
+            "description": "New name of the process"
+        },
+        "is_name_truncated": {
+            "type": "boolean",
+            "description": "Name truncated"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+        "option"
+    ],
+    "description": "PrCtlEventSerializer serializes a prctl event"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `option` | PrCtl Option |
+| `new_name` | New name of the process |
+| `is_name_truncated` | Name truncated |
+
+
 ## `Process`
 
 
@@ -5166,6 +5231,9 @@ Workload Protection events for Linux systems have the following JSON schema:
             "$ref": "#/$defs/SyscallArgs"
         },
         "setsockopt": {
+            "$ref": "#/$defs/SyscallArgs"
+        },
+        "prctl": {
             "$ref": "#/$defs/SyscallArgs"
         }
     },

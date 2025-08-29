@@ -626,6 +626,7 @@ func initConstants() {
 	initSocketTypeConstants()
 	initSocketFamilyConstants()
 	initSocketProtocolConstants()
+	initPrCtlOptionConstants()
 }
 
 // RetValError represents a syscall return error value
