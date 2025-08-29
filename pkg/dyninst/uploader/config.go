@@ -25,6 +25,8 @@ type config struct {
 	batcherConfig
 	client *http.Client
 	url    *url.URL
+	// Key-value pairs to be added to all upload HTTP requests as headers.
+	headers [][2]string
 }
 
 type batcherConfig struct {
@@ -39,6 +41,8 @@ type batcherConfig struct {
 func defaultConfig() config {
 	return config{
 		client: http.DefaultClient,
+		url:    nil,
+
 		batcherConfig: batcherConfig{
 			maxBatchItems:     defaultMaxBatchItems,
 			maxBatchSizeBytes: defaultMaxBatchSizeBytes,
@@ -82,5 +86,13 @@ func WithMaxBatchSizeBytes(maxSizeBytes int) Option {
 func WithMaxBufferDuration(d time.Duration) Option {
 	return func(c *config) {
 		c.batcherConfig.maxBufferDuration = d
+	}
+}
+
+// WithHeader adds a header key-value pair to all upload HTTP requests. The
+// option can be used repeatedly to add multiple headers.
+func WithHeader(key, val string) Option {
+	return func(c *config) {
+		c.headers = append(c.headers, [2]string{key, val})
 	}
 }
