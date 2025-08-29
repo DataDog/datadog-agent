@@ -136,10 +136,7 @@ func TestIsRetryableExitCode(t *testing.T) {
 
 		for _, tt := range realExitCodeTests {
 			t.Run(tt.name, func(t *testing.T) {
-				// Use cmd /c exit $EXITCODE to generate a real exec.ExitError
-				cmdPath := filepath.Join(system32Path, "cmd.exe")
-				runner := newRealCmdRunner()
-				err := runner.Run(cmdPath, fmt.Sprintf("%s /c exit %d", cmdPath, tt.exitCode))
+				err := runCmdWithExitCode(t, tt.exitCode)
 
 				if tt.exitCode == 0 {
 					// Exit code 0 should not produce an error
@@ -191,6 +188,149 @@ func TestMsiexec_Run_RetryThenSuccess(t *testing.T) {
 
 	// Verify mock was called the expected number of times
 	mockRunner.AssertExpectations(t)
+}
+
+// Test isSuccessExitCode function and success exit code handling
+func TestIsSuccessExitCode(t *testing.T) {
+	mockExitCodeTests := []struct {
+		name      string
+		err       error
+		expectsOk bool
+	}{
+		{
+			name:      "nil error is success",
+			err:       nil,
+			expectsOk: true,
+		},
+		{
+			name:      "success reboot required (3010)",
+			err:       &mockExitError{code: int(windows.ERROR_SUCCESS_REBOOT_REQUIRED)},
+			expectsOk: true,
+		},
+		{
+			name:      "success reboot initiated (1641)",
+			err:       &mockExitError{code: int(windows.ERROR_SUCCESS_REBOOT_INITIATED)},
+			expectsOk: true,
+		},
+		{
+			name:      "non-success exit code",
+			err:       &mockExitError{code: 1603},
+			expectsOk: false,
+		},
+		{
+			name:      "generic error",
+			err:       errors.New("some error"),
+			expectsOk: false,
+		},
+	}
+
+	for _, tt := range mockExitCodeTests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isSuccessExitCode(tt.err)
+			assert.Equal(t, tt.expectsOk, result)
+		})
+	}
+
+	parentT := t
+	t.Run("real exit code tests", func(t *testing.T) {
+		if parentT.Failed() {
+			t.Skip("Skipping real exit code tests because mock tests failed")
+		}
+
+		realExitCodeTests := []struct {
+			name      string
+			exitCode  int
+			expectsOk bool
+		}{
+			{
+				name:      "exit code 0 (success)",
+				exitCode:  0,
+				expectsOk: true,
+			},
+			{
+				name:      "exit code 3010 (ERROR_SUCCESS_REBOOT_REQUIRED)",
+				exitCode:  int(windows.ERROR_SUCCESS_REBOOT_REQUIRED),
+				expectsOk: true,
+			},
+			{
+				name:      "exit code 1641 (ERROR_SUCCESS_REBOOT_INITIATED)",
+				exitCode:  int(windows.ERROR_SUCCESS_REBOOT_INITIATED),
+				expectsOk: true,
+			},
+			{
+				name:      "exit code 1603 (failure)",
+				exitCode:  1603,
+				expectsOk: false,
+			},
+		}
+
+		for _, tt := range realExitCodeTests {
+			t.Run(tt.name, func(t *testing.T) {
+				err := runCmdWithExitCode(t, tt.exitCode)
+
+				if tt.exitCode == 0 {
+					// Exit code 0 should not produce an error
+					assert.NoError(t, err)
+					result := isSuccessExitCode(err)
+					assert.Equal(t, tt.expectsOk, result)
+				} else {
+					// Non-zero exit codes should produce exec.ExitError
+					assert.Error(t, err)
+
+					// Verify it's an exec.ExitError
+					var exitError *exec.ExitError
+					assert.ErrorAs(t, err, &exitError, "Error should be exec.ExitError")
+					assert.Equal(t, tt.exitCode, exitError.ExitCode())
+
+					// Verify exec.ExitError implements our ExitCodeError interface
+					var interfaceError exitCodeError
+					assert.ErrorAs(t, err, &interfaceError, "exec.ExitError should implement ExitCodeError")
+					assert.Equal(t, tt.exitCode, interfaceError.ExitCode())
+
+					// Test our success logic with the real error
+					result := isSuccessExitCode(err)
+					assert.Equal(t, tt.expectsOk, result)
+				}
+			})
+		}
+	})
+}
+
+// Test Msiexec.Run treats success exit codes as success (no error returned)
+func TestMsiexec_Run_SuccessExitCodes(t *testing.T) {
+	tests := []struct {
+		name     string
+		exitCode int
+	}{
+		{
+			name:     "reboot required (3010)",
+			exitCode: int(windows.ERROR_SUCCESS_REBOOT_REQUIRED),
+		},
+		{
+			name:     "reboot initiated (1641)",
+			exitCode: int(windows.ERROR_SUCCESS_REBOOT_INITIATED),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRunner := &mockCmdRunner{}
+			// Only call Run once, we expect success exit codes to be handled outside of the retry loop
+			mockRunner.On("Run", mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(&mockExitError{code: tt.exitCode}).Once()
+
+			cmd, err := Cmd(
+				Install(),
+				WithMsi("test.msi"),
+				WithLogFile("test.log"),
+				withCmdRunner(mockRunner),
+			)
+			require.NoError(t, err)
+
+			err = cmd.Run(t.Context())
+			assert.NoError(t, err, "success exit codes should not produce an error")
+			mockRunner.AssertExpectations(t)
+		})
+	}
 }
 
 // TestMsiexec.Run retry behavior when MSI returns a non-retryable exit code, but the log file contains a retryable error
@@ -429,4 +569,13 @@ func createTestLogFile(t *testing.T, filename string, logData []byte) string {
 	require.NoError(t, err)
 	os.WriteFile(logFile, logData, 0644)
 	return logFile
+}
+
+// runCmdWithExitCode runs a real process that exits with the provided exit code
+// and returns the resulting error (nil for 0, exec.ExitError for non-zero).
+func runCmdWithExitCode(t *testing.T, exitCode int) error {
+	t.Helper()
+	cmdPath := filepath.Join(system32Path, "cmd.exe")
+	runner := newRealCmdRunner()
+	return runner.Run(cmdPath, fmt.Sprintf("%s /c exit %d", cmdPath, exitCode))
 }
