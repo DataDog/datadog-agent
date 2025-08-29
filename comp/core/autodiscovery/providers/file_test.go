@@ -78,11 +78,17 @@ func TestCollect(t *testing.T) {
 	// logs files collected in root directory
 	assert.Equal(t, 1, len(get("logs-agent_only")))
 
+	// discovery configs collected (discovery.yaml and discovery_only.yaml)
+	discoveryConfigs := get("discovery")
+	discoveryOnlyConfigs := get("discovery_only")
+	assert.Equal(t, 1, len(discoveryConfigs))
+	assert.Equal(t, 1, len(discoveryOnlyConfigs))
+
 	// ignored autoconf file not collected
 	assert.Equal(t, 0, len(get("ignored")))
 
 	// total number of configurations found
-	assert.Equal(t, 17, len(configs))
+	assert.Equal(t, 19, len(configs))
 
 	// incorrect configs get saved in the Errors map (invalid.yaml & notaconfig.yaml & ad_deprecated.yaml & null_instances.yml)
 	assert.Equal(t, 4, len(provider.Errors))
