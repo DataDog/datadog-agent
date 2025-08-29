@@ -20,6 +20,8 @@ type batchRefresher struct {
 	proc    *processor
 }
 
+var _ containerPeriodicRefresher = (*batchRefresher)(nil)
+
 func newBatchRefresher(period time.Duration, wmStore workloadmeta.Component, proc *processor) *batchRefresher {
 	return &batchRefresher{
 		ticker: time.NewTicker(period),
