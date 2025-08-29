@@ -9,17 +9,22 @@ package webhook
 
 import (
 	"fmt"
+	"time"
 
 	admiv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/dynamic"
+	dynamic_informer "k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/informers/admissionregistration"
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/kubernetes"
 	corelisters "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
+
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
@@ -36,6 +41,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/tagsfromlabels"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/validate/kubernetesadmissionevents"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
+	"github.com/DataDog/datadog-agent/pkg/servicemonitor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -143,7 +149,13 @@ func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pa workl
 	webhooks = append(webhooks, autoscalingWebhook)
 
 	// Setup APM Instrumentation webhook. APM Instrumentation webhook needs to be registered after the config webhook.
-	apmWebhook, err := generateAutoInstrumentationWebhook(wmeta, datadogConfig)
+	log.Infof("MARKSPICERISHERE")
+	log.Infof("MARKSPICERISHERE")
+	log.Infof("MARKSPICERISHERE")
+	log.Infof("MARKSPICERISHERE")
+	log.Infof("MARKSPICERISHERE")
+	log.Infof("MARKSPICERISHERE")
+	apmWebhook, err := c.generateAutoInstrumentationWebhook(wmeta, datadogConfig)
 	if err != nil {
 		log.Errorf("failed to register APM Instrumentation webhook: %v", err)
 	} else {
@@ -182,13 +194,40 @@ func generateTagsFromLabelsWebhook(wmeta workloadmeta.Component, datadogConfig c
 	return tagsfromlabels.NewWebhook(wmeta, datadogConfig, mutator), nil
 }
 
-func generateAutoInstrumentationWebhook(wmeta workloadmeta.Component, datadogConfig config.Component) (*autoinstrumentation.Webhook, error) {
+func (c *controllerBase) generateAutoInstrumentationWebhook(wmeta workloadmeta.Component, datadogConfig config.Component) (*autoinstrumentation.Webhook, error) {
 	config, err := autoinstrumentation.NewConfig(datadogConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create auto instrumentation config: %v", err)
 	}
 
-	apm, err := autoinstrumentation.NewMutatorWithFilter(config, wmeta)
+	store := servicemonitor.NewStore()
+
+	// Create dynamic client if not already available
+	if c.dynamicClient == nil {
+		// Create dynamic client using the same config pattern as the apiserver package
+		clientConfig, err := apiserver.GetClientConfig(30*time.Second, 10.0, 20) // Use similar timeouts/limits as other informer clients
+		if err != nil {
+			return nil, fmt.Errorf("failed to get client config for dynamic client: %v", err)
+		}
+
+		dynamicClient, err := dynamic.NewForConfig(clientConfig)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create dynamic client: %v", err)
+		}
+		c.dynamicClient = dynamicClient
+	}
+
+	dynamicInformerFactory := dynamic_informer.NewDynamicSharedInformerFactory(c.dynamicClient, 10*time.Second)
+	watcher, err := servicemonitor.NewServiceMonitorWatcher(store, dynamicInformerFactory)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create service monitor watcher: %v", err)
+	}
+	watcher.Run(make(chan struct{}))
+
+	serviceMonitorUpdates := make(chan []servicemonitor.DatadogServiceMonitor)
+	store.AddListener(serviceMonitorUpdates)
+
+	apm, err := autoinstrumentation.NewMutatorWithFilter(config, wmeta, serviceMonitorUpdates)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create auto instrumentation namespace mutator: %v", err)
 	}
@@ -209,6 +248,7 @@ func generateAutoInstrumentationWebhook(wmeta workloadmeta.Component, datadogCon
 // For the nolint:structcheck see https://github.com/golangci/golangci-lint/issues/537
 type controllerBase struct {
 	clientSet                kubernetes.Interface //nolint:structcheck
+	dynamicClient            dynamic.Interface    //nolint:structcheck
 	config                   Config
 	secretsLister            corelisters.SecretLister
 	secretsSynced            cache.InformerSynced //nolint:structcheck
