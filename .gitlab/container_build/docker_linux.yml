@@ -82,12 +82,7 @@
         --label "org.opencontainers.image.vendor=Datadog, Inc." \
         --label "target=none" \
         $BUILD_CONTEXT
-    - FLATTEN_IMAGE=${FLATTEN_IMAGE:-true}
-    # Squash image if FLATTEN_IMAGE is true
-    - |
-      if [[ "$FLATTEN_IMAGE" == "true" ]]; then
-        crane flatten -t ${TARGET_TAG} ${TARGET_TAG}
-      fi
+    - !reference [.static_quality_gate_docker]
   # Workaround for temporary network failures
   retry: 2
   timeout: 30m
@@ -111,13 +106,13 @@
 
 .docker_build_amd64:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
-  tags: ["arch:amd64"]
+  tags: ["docker-in-docker:amd64"]
   variables:
     ARCH: amd64
 
 .docker_build_arm64:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_arm64$CI_IMAGE_DOCKER_ARM64_SUFFIX:$CI_IMAGE_DOCKER_ARM64
-  tags: ["arch:arm64"]
+  tags: ["docker-in-docker:arm64"]
   variables:
     ARCH: arm64
 
@@ -130,7 +125,7 @@
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
-    TARGET_ARG: --target test
+    TARGET_ARG: --target flattened-test
     CACHE_TARGET: release-base
 
 docker_build_agent7:
@@ -140,6 +135,7 @@ docker_build_agent7:
   variables:
     TAG_SUFFIX: -7
     BUILD_ARG: --build-arg DD_AGENT_ARTIFACT=datadog-agent-7*-amd64.tar.xz
+    STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_agent_amd64"
 
 # TODO: Move this job to .gitlab/deploy_containers/deploy_containers_a7.yml.
 # This cannot be done now because of the following reasons:
@@ -168,6 +164,7 @@ docker_build_agent7_arm64:
   variables:
     TAG_SUFFIX: -7
     BUILD_ARG: --build-arg DD_AGENT_ARTIFACT=datadog-agent-7*-arm64.tar.xz
+    STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_agent_arm64"
 
 # build agent7 fips image
 docker_build_fips_agent7:
@@ -194,6 +191,7 @@ docker_build_agent7_jmx:
   variables:
     TAG_SUFFIX: -7-jmx
     BUILD_ARG: --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT=datadog-agent-7*-amd64.tar.xz
+    STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_agent_jmx_amd64"
 
 docker_build_agent7_jmx_arm64:
   extends: [.docker_build_arm64, .docker_build_agent7]
@@ -202,6 +200,7 @@ docker_build_agent7_jmx_arm64:
   variables:
     TAG_SUFFIX: -7-jmx
     BUILD_ARG: --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT=datadog-agent-7*-arm64.tar.xz
+    STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_agent_jmx_arm64"
 
 docker_build_fips_agent7_jmx:
   extends: [.docker_build_amd64, .docker_build_agent7]
@@ -229,7 +228,7 @@ docker_build_fips_agent7_arm64_jmx:
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/agent-base-image
     BUILD_CONTEXT: Dockerfiles/base-image
-    TARGET_ARG: --target release
+    TARGET_ARG: --target flattened-release
     CACHE_TARGET: release
 
 docker_build_base_image_amd64:
@@ -250,7 +249,6 @@ docker_build_base_image_arm64:
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/otel-agent
     BUILD_CONTEXT: Dockerfiles/otel-agent
-    FLATTEN_IMAGE: false
     BUILD_ARG: --target release
     TAG_SUFFIX: -7
 
@@ -312,6 +310,8 @@ docker_build_cluster_agent_amd64:
       artifacts: true
     - job: cws_instrumentation-build_arm64
       artifacts: true
+  variables:
+    STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_cluster_agent_amd64"
 
 docker_build_cluster_agent_arm64:
   extends: [.docker_build_arm64, .docker_build_cluster_agent]
@@ -322,6 +322,8 @@ docker_build_cluster_agent_arm64:
       artifacts: true
     - job: cws_instrumentation-build_arm64
       artifacts: true
+  variables:
+    STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_cluster_agent_arm64"
 
 .docker_build_cluster_agent_fips:
   extends: .docker_build_cluster_agent
@@ -391,6 +393,8 @@ docker_build_dogstatsd_amd64:
   needs:
     - job: build_dogstatsd_static-binary_x64
       artifacts: false
+  variables:
+    STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_dogstatsd_amd64"
   timeout: 20m
 
 docker_build_dogstatsd_arm64:
@@ -398,4 +402,6 @@ docker_build_dogstatsd_arm64:
   needs:
     - job: build_dogstatsd_static-binary_arm64
       artifacts: false
+  variables:
+    STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_dogstatsd_arm64"
   timeout: 20m
