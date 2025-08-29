@@ -75,7 +75,22 @@ var intConfigs = map[string]struct{}{
 
 // IsEnabled checks if OTLP pipeline is enabled in a given config.
 func IsEnabled(cfg config.Reader) bool {
-	return hasSection(cfg, coreconfig.OTLPReceiverSubSectionKey)
+	for _, key := range cfg.AllKeysLowercased() {
+		if key == "otlp_config.receiver" {
+			// otlp_config.receiver key does not exist. If it is present in AllKeysLowercased,
+			// this means that otlp_config.receiver was set in agent config
+			// to an empty section, in which case OTLP Ingest is enabled.
+			return true
+		}
+		if strings.HasPrefix(key, "otlp_config.receiver") {
+			if cfg.IsConfigured(key) {
+				// if any of the otlp_config.receiver.* keys are configured,
+				// enable the OTLP ingest.
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // HasLogsSectionEnabled checks if OTLP logs are explicitly enabled in a given config.
