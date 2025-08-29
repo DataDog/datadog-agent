@@ -1,0 +1,13 @@
+---
+issuer: https://token.actions.githubusercontent.com
+
+subject: repo:DataDog/datadog-agent:ref:refs/heads/main
+
+claim_pattern:
+  event_name: pull_request
+  ref: refs/heads/main
+  job_workflow_ref: DataDog/datadog-agent/\.github/workflows/add_reviewer_bot_pr\.yml@refs/heads/main
+
+permissions:
+  contents: read
+  pull_requests: write
