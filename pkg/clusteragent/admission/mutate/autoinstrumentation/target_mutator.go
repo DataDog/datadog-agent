@@ -98,7 +98,7 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolve
 		if len(t.TracerVersions) == 0 {
 			libVersions = getAllLatestDefaultLibraries(config.containerRegistry, imageResolver)
 		} else {
-			libVersions = getPinnedLibraries(t.TracerVersions, config.containerRegistry, false).libs
+			libVersions = getPinnedLibraries(t.TracerVersions, config.containerRegistry, false, imageResolver).libs
 		}
 		log.Debugf("ERIKA: Updated libVersions: %#v", libVersions)
 

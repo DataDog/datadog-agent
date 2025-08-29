@@ -43,7 +43,7 @@ func NewNamespaceMutator(config *Config, wmeta workloadmeta.Component, imageReso
 		return nil, err
 	}
 
-	pinnedLibraries := getPinnedLibraries(config.Instrumentation.LibVersions, config.containerRegistry, true)
+	pinnedLibraries := getPinnedLibraries(config.Instrumentation.LibVersions, config.containerRegistry, true, imageResolver)
 	return &NamespaceMutator{
 		config:          config,
 		filter:          filter,

@@ -507,7 +507,7 @@ func start(log log.Component,
 		} else {
 			log.Info("Auto instrumentation patcher is disabled")
 		}
-		imageResolver := autoinstrumentation.NewImageResolver(nil)
+		imageResolver := autoinstrumentation.NewImageResolver(rcClient)
 
 		admissionCtx := admissionpkg.ControllerContext{
 			LeadershipStateSubscribeFunc: le.Subscribe,
