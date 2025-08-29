@@ -247,12 +247,12 @@ func (d *DatadogInstallExe) Run(opts ...Option) (string, error) {
 	// Build the PowerShell command
 	var cmd string
 	if strings.HasPrefix(params.installerURL, "file://") {
-		cmd = fmt.Sprintf(`& "%s" setup --flavor default`, installerPath)
+		cmd = fmt.Sprintf(`& "%s"`, installerPath)
 	} else {
 		cmd = fmt.Sprintf(`[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072;
 			$tempFile = [System.IO.Path]::GetTempFileName() + ".exe";
 			(New-Object System.Net.WebClient).DownloadFile("%s", $tempFile);
-			& $tempFile setup --flavor default`, installerPath)
+			& $tempFile`, installerPath)
 	}
 
 	return d.env.RemoteHost.Execute(cmd, client.WithEnvVariables(envVars))
