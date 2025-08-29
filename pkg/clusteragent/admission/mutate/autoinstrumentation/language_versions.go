@@ -10,6 +10,7 @@ package autoinstrumentation
 import (
 	"fmt"
 	"slices"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 
@@ -29,10 +30,11 @@ const (
 // language is lang-library we might be injecting.
 type language string
 
-func (l language) defaultLibInfo(registry, ctrName string) libInfo {
-	return l.libInfo(ctrName, l.libImageName(registry, l.defaultLibVersion()))
+func (l language) defaultLibInfo(registry, ctrName string, imageResolver ImageResolver) libInfo {
+	return l.libInfoWithResolver(ctrName, registry, l.defaultLibVersion(), imageResolver)
 }
 
+// DEV: This is just formatting, no resolution is done here
 func (l language) libImageName(registry, tag string) string {
 	if tag == defaultVersionMagicString {
 		tag = l.defaultLibVersion()
@@ -41,7 +43,25 @@ func (l language) libImageName(registry, tag string) string {
 	return fmt.Sprintf("%s/dd-lib-%s-init:%s", registry, l, tag)
 }
 
+// DEV: Legacy
 func (l language) libInfo(ctrName, image string) libInfo {
+	return libInfo{
+		lang:    l,
+		ctrName: ctrName,
+		image:   image,
+	}
+}
+
+// DEV: Will attempt to resolve, defaults to legacy if unable
+func (l language) libInfoWithResolver(ctrName, registry string, version string, imageResolver ImageResolver) libInfo {
+	resolvedImage, ok := imageResolver.Resolve(registry, fmt.Sprintf("dd-lib-%s-init", l), version)
+	var image string
+	if !ok {
+		log.Warnf("failed to resolve image %s/%s:%s, using fallback", registry, fmt.Sprintf("dd-lib-%s-init", l), version)
+		image = l.libImageName(registry, version)
+	} else {
+		image = resolvedImage.FullImageRef
+	}
 	return libInfo{
 		lang:    l,
 		ctrName: ctrName,
@@ -56,90 +76,48 @@ const (
 	customLibAnnotationKeyCtrFormat  = "admission.datadoghq.com/%s.%s-lib.custom-image"
 )
 
-func (l language) customLibAnnotationExtractor() annotationExtractor[libInfo] {
+func (l language) customLibAnnotationExtractor(mockImageResolver ImageResolver) annotationExtractor[libInfo] {
 	return annotationExtractor[libInfo]{
 		key: fmt.Sprintf(customLibAnnotationKeyFormat, l),
 		do: func(image string) (libInfo, error) {
-			return l.libInfo("", image), nil
+			registry, version := parseImageString(image)
+			return l.libInfoWithResolver("", registry, version, mockImageResolver), nil
 		},
 	}
 }
 
-func (l language) libVersionAnnotationExtractor(registry string) annotationExtractor[libInfo] {
+func (l language) libVersionAnnotationExtractor(registry string, mockImageResolver ImageResolver) annotationExtractor[libInfo] {
 	return annotationExtractor[libInfo]{
 		key: fmt.Sprintf(libVersionAnnotationKeyFormat, l),
 		do: func(version string) (libInfo, error) {
-			return l.libInfo("", l.libImageName(registry, version)), nil
+			return l.libInfoWithResolver("", registry, version, mockImageResolver), nil
 		},
 	}
 }
 
-func (l language) libVersionAnnotationExtractorWithResolver(registry string, imageResolver ImageResolver) annotationExtractor[libInfo] {
-	return annotationExtractor[libInfo]{
-		key: fmt.Sprintf(libVersionAnnotationKeyFormat, l),
-		do: func(version string) (libInfo, error) {
-			resolved, ok := imageResolver.Resolve(registry, fmt.Sprintf("dd-lib-%s-init", l), version)
-			var imageRef string
-			if ok && resolved != nil {
-				imageRef = resolved.FullImageRef
-			} else {
-				// Map "default" to actual default version for fallback
-				actualVersion := version
-				if version == "default" {
-					actualVersion = l.defaultLibVersion()
-				}
-				log.Warnf("failed to resolve image %s/%s:%s, using fallback", registry, fmt.Sprintf("dd-lib-%s-init", l), version)
-				imageRef = fmt.Sprintf("%s/dd-lib-%s-init:%s", registry, l, actualVersion)
-			}
-			return libInfo{
-				ctrName: "",
-				lang:    l,
-				image:   imageRef,
-			}, nil
-		},
-	}
-}
-
-func (l language) ctrCustomLibAnnotationExtractor(ctr string) annotationExtractor[libInfo] {
+func (l language) ctrCustomLibAnnotationExtractor(ctr string, mockImageResolver ImageResolver) annotationExtractor[libInfo] {
 	return annotationExtractor[libInfo]{
 		key: fmt.Sprintf(customLibAnnotationKeyCtrFormat, ctr, l),
 		do: func(image string) (libInfo, error) {
-			return l.libInfo(ctr, image), nil
+			registry, version := parseImageString(image)
+			return l.libInfoWithResolver(ctr, registry, version, mockImageResolver), nil
 		},
 	}
 }
 
-func (l language) ctrLibVersionAnnotationExtractor(ctr, registry string) annotationExtractor[libInfo] {
-	return annotationExtractor[libInfo]{
-		key: fmt.Sprintf(libVersionAnnotationKeyCtrFormat, ctr, l),
-		do: func(version string) (libInfo, error) {
-			return l.libInfo(ctr, l.libImageName(registry, version)), nil
-		},
-	}
+func parseImageString(image string) (string, string) {
+	parts := strings.Split(image, "/")
+	registry := parts[0]
+	imageAndVersion := strings.Split(parts[1], ":")
+	version := imageAndVersion[1]
+	return registry, version
 }
 
-func (l language) ctrLibVersionAnnotationExtractorWithResolver(ctr, registry string, imageResolver ImageResolver) annotationExtractor[libInfo] {
+func (l language) ctrLibVersionAnnotationExtractor(ctr, registry string, mockImageResolver ImageResolver) annotationExtractor[libInfo] {
 	return annotationExtractor[libInfo]{
 		key: fmt.Sprintf(libVersionAnnotationKeyCtrFormat, ctr, l),
 		do: func(version string) (libInfo, error) {
-			resolved, ok := imageResolver.Resolve(registry, fmt.Sprintf("dd-lib-%s-init", l), version)
-			var imageRef string
-			if ok && resolved != nil {
-				imageRef = resolved.FullImageRef
-			} else {
-				// Map "default" to actual default version for fallback
-				actualVersion := version
-				if version == "default" {
-					actualVersion = l.defaultLibVersion()
-				}
-				log.Warnf("failed to resolve image %s/%s:%s, using fallback", registry, fmt.Sprintf("dd-lib-%s-init", l), version)
-				imageRef = fmt.Sprintf("%s/dd-lib-%s-init:%s", registry, l, actualVersion)
-			}
-			return libInfo{
-				ctrName: ctr,
-				lang:    l,
-				image:   imageRef,
-			}, nil
+			return l.libInfoWithResolver(ctr, registry, version, mockImageResolver), nil
 		},
 	}
 }

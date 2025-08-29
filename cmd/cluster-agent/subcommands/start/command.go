@@ -509,6 +509,7 @@ func start(log log.Component,
 		} else {
 			log.Info("Auto instrumentation patcher is disabled")
 		}
+		imageResolver := autoinstrumentation.NewImageResolver(rcClient)
 
 		admissionCtx := admissionpkg.ControllerContext{
 			LeadershipStateSubscribeFunc: le.Subscribe,
@@ -519,7 +520,7 @@ func start(log log.Component,
 			StopCh:                       stopCh,
 			ValidatingStopCh:             validatingStopCh,
 			Demultiplexer:                demultiplexer,
-			RcClient:                     rcClient,
+			ImageResolver:                imageResolver,
 		}
 
 		webhooks, err := admissionpkg.StartControllers(admissionCtx, wmeta, pa, datadogConfig)

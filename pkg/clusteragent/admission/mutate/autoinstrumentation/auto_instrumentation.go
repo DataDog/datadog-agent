@@ -178,23 +178,7 @@ func (l *libInfoLanguageDetection) containerMutator(v version) containerMutator 
 func getAllLatestDefaultLibraries(containerRegistry string, imageResolver ImageResolver) []libInfo {
 	var libsToInject []libInfo
 	for _, lang := range supportedLanguages {
-		repository := fmt.Sprintf("dd-lib-%s-init", lang)
-		tag := lang.defaultLibVersion()
-
-		resolvedImage, resolved := imageResolver.Resolve(containerRegistry, repository, tag)
-		var imageRef string
-		if resolved && resolvedImage != nil {
-			imageRef = resolvedImage.FullImageRef
-		} else {
-			// Fallback to original tag-based reference if resolution fails
-			imageRef = fmt.Sprintf("%s/%s:%s", containerRegistry, repository, tag)
-			log.Debugf("Using fallback image reference %s", imageRef)
-		}
-
-		libsToInject = append(libsToInject, libInfo{
-			lang:  lang,
-			image: imageRef,
-		})
+		libsToInject = append(libsToInject, lang.defaultLibInfo(containerRegistry, "", imageResolver))
 	}
 
 	return libsToInject

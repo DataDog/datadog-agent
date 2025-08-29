@@ -8,14 +8,22 @@
 package autoinstrumentation
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"slices"
 	"sync"
+	"time"
 
-	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// RemoteConfigClient defines the interface we need for remote config operations
+type RemoteConfigClient interface {
+	GetConfigs(product string) map[string]state.RawConfig
+	Subscribe(product string, callback func(map[string]state.RawConfig, func(string, state.ApplyStatus)))
+}
 
 // ImageResolver resolves container image references from tag-based to digest-based.
 type ImageResolver interface {
@@ -36,14 +44,14 @@ func newNoOpImageResolver() ImageResolver {
 
 // ResolveImage returns the original image reference.
 func (r *noOpImageResolver) Resolve(_ string, repository string, tag string) (*ResolvedImage, bool) {
-	log.Debugf("No resolution available, returning original image reference %s:%s", repository, tag)
+	log.Debugf("No resolution available", repository, tag)
 	return nil, false
 }
 
 // remoteConfigImageResolver resolves image references using remote configuration data.
 // It maintains a cache of image mappings received from the remote config service.
 type remoteConfigImageResolver struct {
-	rcClient *rcclient.Client
+	rcClient RemoteConfigClient
 
 	mu            sync.RWMutex
 	imageMappings map[string]map[string]ResolvedImage // repository -> tag -> resolved image
@@ -51,26 +59,56 @@ type remoteConfigImageResolver struct {
 
 // newRemoteConfigImageResolver creates a new remoteConfigImageResolver.
 // Assumes rcClient is non-nil.
-func newRemoteConfigImageResolver(rcClient *rcclient.Client) ImageResolver {
+func newRemoteConfigImageResolver(rcClient RemoteConfigClient) ImageResolver {
 	resolver := &remoteConfigImageResolver{
 		rcClient:      rcClient,
 		imageMappings: make(map[string]map[string]ResolvedImage),
-	}
-
-	// Load initial configurations
-	currentConfigs := rcClient.GetConfigs(state.ProductGradualRollout)
-	if len(currentConfigs) > 0 {
-		log.Debugf("Loading initial state: %d configurations", len(currentConfigs))
-		resolver.updateCache(currentConfigs)
-	} else {
-		log.Debugf("No initial configurations found for %s", state.ProductGradualRollout)
 	}
 
 	// Subscribe to future updates
 	rcClient.Subscribe(state.ProductGradualRollout, resolver.processUpdate)
 	log.Debugf("Subscribed to %s", state.ProductGradualRollout)
 
+	// Load initial configurations
+	if err := resolver.waitForInitialConfig(5 * time.Second); err != nil {
+		log.Warnf("Failed to load initial image resolution config: %v. Image resolution will be disabled.", err)
+		return newNoOpImageResolver()
+	}
+
 	return resolver
+}
+
+func (r *remoteConfigImageResolver) waitForInitialConfig(timeout time.Duration) error {
+	// Try immediate check first
+	if currentConfigs := r.rcClient.GetConfigs(state.ProductGradualRollout); len(currentConfigs) > 0 {
+		log.Debugf("Initial configs available immediately: %d configurations", len(currentConfigs))
+		r.updateCache(currentConfigs)
+		return nil
+	}
+
+	// If not immediately available, poll with exponential backoff
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	backoff := 100 * time.Millisecond
+	maxBackoff := 2 * time.Second
+
+	for {
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("timeout waiting for initial remote config after %v", timeout)
+		case <-time.After(backoff):
+			currentConfigs := r.rcClient.GetConfigs(state.ProductGradualRollout)
+			if len(currentConfigs) > 0 {
+				log.Infof("Loaded initial image resolution config after backoff: %d configurations", len(currentConfigs))
+				r.updateCache(currentConfigs)
+				return nil
+			}
+
+			log.Debugf("Still waiting for initial remote config, retrying in %v", backoff)
+			backoff = min(backoff*2, maxBackoff)
+		}
+	}
 }
 
 // Resolve resolves a registry, repository, and tag to a digest-based reference.
@@ -118,20 +156,41 @@ func isDatadoghqRegistry(registry string) bool {
 // updateCache processes configuration data and updates the image mappings cache.
 // This is the core logic shared by both initialization and remote config updates.
 func (r *remoteConfigImageResolver) updateCache(configs map[string]state.RawConfig) {
-	newCache := make(map[string]map[string]ResolvedImage)
+	validConfigs, errors := parseAndValidateConfigs(configs)
 
+	for configKey, err := range errors {
+		log.Errorf("Failed to process config %s during initialization: %v", configKey, err)
+	}
+
+	r.updateCacheFromParsedConfigs(validConfigs)
+}
+
+func parseAndValidateConfigs(configs map[string]state.RawConfig) (map[string]RepositoryConfig, map[string]error) {
+	validConfigs := make(map[string]RepositoryConfig)
+	errors := make(map[string]error)
 	for configKey, rawConfig := range configs {
 		var repo RepositoryConfig
 		if err := json.Unmarshal(rawConfig.Config, &repo); err != nil {
-			log.Errorf("Failed to unmarshal repository config for %s: %v", configKey, err)
+			errors[configKey] = fmt.Errorf("failed to unmarshal: %w", err)
 			continue
 		}
 
 		if repo.RepositoryName == "" || repo.RepositoryURL == "" {
-			log.Errorf("Missing repository_name or repository_url in config %s", configKey)
+			errors[configKey] = fmt.Errorf("missing repository_name or repository_url in config %s", configKey)
 			continue
 		}
+		validConfigs[configKey] = repo
+	}
+	return validConfigs, errors
+}
 
+func (r *remoteConfigImageResolver) updateCacheFromParsedConfigs(validConfigs map[string]RepositoryConfig) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	newCache := make(map[string]map[string]ResolvedImage)
+
+	for _, repo := range validConfigs {
 		tagMap := make(map[string]ResolvedImage)
 		for _, imageInfo := range repo.Images {
 			if imageInfo.Tag == "" || imageInfo.Digest == "" {
@@ -150,10 +209,7 @@ func (r *remoteConfigImageResolver) updateCache(configs map[string]state.RawConf
 		log.Debugf("Processed config for repository %s with %d images", repo.RepositoryName, len(tagMap))
 	}
 
-	r.mu.Lock()
 	r.imageMappings = newCache
-	r.mu.Unlock()
-	log.Debugf("Updated cache with %d repositories", len(newCache))
 }
 
 // processUpdate handles remote configuration updates for image resolution.
@@ -164,32 +220,21 @@ func (r *remoteConfigImageResolver) updateCache(configs map[string]state.RawConf
 // - If a repository is not in the update, it means it's no longer active
 // - Therefore, replacing the entire cache ensures we stay in sync with remote config
 func (r *remoteConfigImageResolver) processUpdate(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
-	for configKey, rawConfig := range update {
-		var repo RepositoryConfig
-		if err := json.Unmarshal(rawConfig.Config, &repo); err != nil {
-			log.Errorf("Failed to unmarshal repository config for %s: %v", configKey, err)
+	validConfigs, errors := parseAndValidateConfigs(update)
+
+	for configKey := range update {
+		if err, hasError := errors[configKey]; hasError {
 			applyStateCallback(configKey, state.ApplyStatus{
 				State: state.ApplyStateError,
 				Error: err.Error(),
 			})
-			continue
-		}
-
-		if repo.RepositoryName == "" || repo.RepositoryURL == "" {
-			log.Errorf("Missing repository_name or repository_url in config %s", configKey)
+		} else {
 			applyStateCallback(configKey, state.ApplyStatus{
-				State: state.ApplyStateError,
-				Error: "Missing repository_name or repository_url",
+				State: state.ApplyStateAcknowledged,
 			})
-			continue
 		}
-
-		applyStateCallback(configKey, state.ApplyStatus{
-			State: state.ApplyStateAcknowledged,
-		})
 	}
-
-	r.updateCache(update)
+	r.updateCacheFromParsedConfigs(validConfigs)
 }
 
 // ImageInfo represents information about an image from remote configuration.
@@ -215,7 +260,8 @@ type ResolvedImage struct {
 
 // NewImageResolver creates the appropriate ImageResolver based on whether
 // a remote config client is available.
-func NewImageResolver(rcClient *rcclient.Client) ImageResolver {
+func NewImageResolver(rcClient RemoteConfigClient) ImageResolver {
+	log.Debugf("nil check: %v", rcClient == nil)
 	if rcClient != nil {
 		return newRemoteConfigImageResolver(rcClient)
 	}
