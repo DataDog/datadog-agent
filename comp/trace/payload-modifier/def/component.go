@@ -7,14 +7,12 @@
 package payloadmodifier
 
 import (
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/trace/payload"
 )
 
 // team: agent-apm
 
 // Component provides trace payload modification functionality
 type Component interface {
-	// Modify modifies the given TracerPayload
-	// No-op if payload modification is not enabled
-	Modify(*pb.TracerPayload)
+	payload.TracerPayloadModifier
 }
