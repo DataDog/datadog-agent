@@ -72,7 +72,7 @@ type Message struct {
 
 // MessageMetadata contains metadata information about a log message
 //
-//nolint:revive // exported: ignore package name stuttering for compatibility
+//nolint:revive // exported: ignore package name struct conflict
 type MessageMetadata struct {
 	Hostname           string
 	Origin             *Origin

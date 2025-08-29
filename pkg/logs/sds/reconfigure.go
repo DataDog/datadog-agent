@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build sds
-
 // Package sds provides sensitive data scanning functionality for logs
 package sds
 
@@ -14,6 +12,7 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
+// ReconfigureOrderType is a type of reconfiguration order
 type ReconfigureOrderType string
 
 const waitForConfigField = "logs_config.sds.wait_for_configuration"

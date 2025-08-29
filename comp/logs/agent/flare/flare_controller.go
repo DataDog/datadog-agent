@@ -17,6 +17,8 @@ import (
 
 // FlareController is a type that contains information needed to insert into a
 // flare from the logs agent.
+//
+//nolint:revive // exported: ignore package name struct conflict
 type FlareController struct {
 	mu           sync.Mutex
 	allFiles     []string
@@ -77,7 +79,7 @@ func (fc *FlareController) SetAllFiles(files []string) {
 	fc.allFiles = files
 }
 
-// SetAllJournalFiles assigns the journalFiles parameter of FlareController
+// AddToJournalFiles assigns the journalFiles parameter of FlareController
 func (fc *FlareController) AddToJournalFiles(files []string) {
 	fc.mu.Lock()
 	defer fc.mu.Unlock()
