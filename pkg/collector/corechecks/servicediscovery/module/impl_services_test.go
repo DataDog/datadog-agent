@@ -284,7 +284,6 @@ func TestServicesServiceName(t *testing.T) {
 		assert.Equal(collect, "foo_bar", svc.DDService)
 		assert.Equal(collect, "sleep", svc.GeneratedName)
 		assert.Equal(collect, string(usm.CommandLine), svc.GeneratedNameSource)
-		assert.False(collect, svc.DDServiceInjected)
 	}, 30*time.Second, 100*time.Millisecond)
 
 	// Verify tracer metadata

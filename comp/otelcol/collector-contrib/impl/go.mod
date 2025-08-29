@@ -25,7 +25,6 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/probabilisticsamplerprocessor v0.131.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor v0.131.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourceprocessor v0.131.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/processor/routingprocessor v0.131.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor v0.131.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor v0.131.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/filelogreceiver v0.131.0
@@ -70,7 +69,7 @@ require (
 )
 
 require (
-	github.com/aws/aws-sdk-go-v2/service/ecs v1.60.1 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ecs v1.63.2 // indirect
 	github.com/gophercloud/gophercloud/v2 v2.7.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/gopsutilenv v0.131.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/deltatocumulativeprocessor v0.131.0 // indirect
@@ -123,7 +122,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.4 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.4 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.3 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.245.2 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.246.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/servicediscovery v1.35.8 // indirect
@@ -419,7 +418,7 @@ require (
 	google.golang.org/genproto/googleapis/api v0.0.0-20250603155806-513f23925822 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250603155806-513f23925822 // indirect
 	google.golang.org/grpc v1.74.2 // indirect
-	google.golang.org/protobuf v1.36.6 // indirect
+	google.golang.org/protobuf v1.36.7 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
@@ -554,6 +553,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes => ../../../../pkg/opentelemetry-mapping-go/otlp/attributes
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/logs => ../../../../pkg/opentelemetry-mapping-go/otlp/logs
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics => ../../../../pkg/opentelemetry-mapping-go/otlp/metrics
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/rum => ../../../../pkg/opentelemetry-mapping-go/otlp/rum
 	github.com/DataDog/datadog-agent/pkg/orchestrator/model => ../../../../pkg/orchestrator/model
 	github.com/DataDog/datadog-agent/pkg/process/util/api => ../../../../pkg/process/util/api
 	github.com/DataDog/datadog-agent/pkg/proto => ../../../../pkg/proto
