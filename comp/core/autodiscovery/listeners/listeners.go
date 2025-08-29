@@ -9,6 +9,7 @@ package listeners
 const (
 	cloudFoundryBBSListenerName = "cloudfoundry-bbs"
 	containerListenerName       = "container"
+	processListenerName         = "process"
 	environmentListenerName     = "environment"
 	kubeEndpointsListenerName   = "kube_endpoints"
 	kubeServicesListenerName    = "kube_services"
@@ -24,6 +25,7 @@ func RegisterListeners(serviceListenerFactories map[string]ServiceListenerFactor
 	// register the available listeners
 	Register(cloudFoundryBBSListenerName, NewCloudFoundryListener, serviceListenerFactories)
 	Register(containerListenerName, NewContainerListener, serviceListenerFactories)
+	Register(processListenerName, NewProcessListener, serviceListenerFactories)
 	Register(environmentListenerName, NewEnvironmentListener, serviceListenerFactories)
 	Register(kubeEndpointsListenerName, NewKubeEndpointsListener, serviceListenerFactories)
 	Register(kubeServicesListenerName, NewKubeServiceListener, serviceListenerFactories)

@@ -522,6 +522,7 @@ func (ac *AutoConfig) addListenerCandidates(listenerConfigs []pkgconfigsetup.Lis
 	defer ac.m.Unlock()
 
 	for _, c := range listenerConfigs {
+		log.Debugf("[Checkpoint] addListenerCandidates with %q", c)
 		factory, ok := ac.serviceListenerFactories[c.Name]
 		if !ok {
 			// Factory has not been registered.
