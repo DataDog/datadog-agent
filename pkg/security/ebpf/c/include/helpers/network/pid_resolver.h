@@ -18,7 +18,7 @@ __attribute__((always_inline)) s64 get_flow_pid(struct pid_route_t *key) {
     return value->pid;
 }
 
-__attribute__((always_inline)) void resolve_pid(struct packet_t *pkt) {
+__attribute__((always_inline)) void resolve_pid_from_flow_pid(struct packet_t *pkt) {
     struct pid_route_t pid_route = {};
 
     // resolve pid
@@ -41,6 +41,17 @@ __attribute__((always_inline)) void resolve_pid(struct packet_t *pkt) {
 
     pid_route.l4_protocol = pkt->translated_ns_flow.flow.l4_protocol;
     pkt->pid = get_flow_pid(&pid_route);
+}
+
+__attribute__((always_inline)) void resolve_pid(struct packet_t *pkt) {
+    u64 sched_cls_has_current_pid_tgid_helper = 0;
+    LOAD_CONSTANT("sched_cls_has_current_pid_tgid_helper", sched_cls_has_current_pid_tgid_helper);
+    if (sched_cls_has_current_pid_tgid_helper) {
+        pkt->pid = bpf_get_current_pid_tgid();
+    }
+    if (pkt->pid == 0) {
+        resolve_pid_from_flow_pid(pkt);
+    }
 }
 
 #endif
