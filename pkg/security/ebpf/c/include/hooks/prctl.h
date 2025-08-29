@@ -4,6 +4,7 @@
 #include "constants/syscall_macro.h"
 #include "helpers/syscalls.h"
 #include "helpers/process.h"
+#include <linux/prctl.h>
 
 long __attribute__((always_inline)) trace__sys_prctl(u8 async, int option, void * arg2) {
     if (is_discarded_by_pid()) {
