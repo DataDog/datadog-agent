@@ -38,7 +38,7 @@ func (ctc *testContainer) start() error {
 	args := []string{
 		"run",
 		"--name", containerName,
-		"--privileged",
+		"--cgroupns", "private",
 		"--detach",
 	}
 
