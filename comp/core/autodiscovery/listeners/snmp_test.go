@@ -295,7 +295,7 @@ func TestExtraConfig(t *testing.T) {
 
 	info, err = svc.GetExtraConfig("interface_configs")
 	assert.Equal(t, nil, err)
-	assert.Equal(t, `[{"match_field":"name","match_value":"eth0","in_speed":25,"out_speed":10,"tags":["customTag1","customTag2:value2"]}]`, info)
+	assert.Equal(t, `[{"match_field":"name","match_value":"eth0","in_speed":25,"out_speed":10,"tags":["customTag1","customTag2:value2"],"disabled":false}]`, info)
 
 	info, err = svc.GetExtraConfig("ping")
 	assert.Equal(t, nil, err)

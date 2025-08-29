@@ -468,6 +468,10 @@ network_devices:
              match_value: "eth0"
              in_speed: 50
              out_speed: 25
+         '127.1.0.2':
+           - match_field: "index"
+             match_value: "2"
+             disabled: true
 `)
 
 	conf, err := NewListenerConfig()
@@ -494,6 +498,13 @@ network_devices:
 				MatchValue: "eth0",
 				InSpeed:    50,
 				OutSpeed:   25,
+			},
+		},
+		"127.1.0.2": {
+			{
+				MatchField: "index",
+				MatchValue: "2",
+				Disabled:   true,
 			},
 		},
 	}, networkConf.InterfaceConfigs)

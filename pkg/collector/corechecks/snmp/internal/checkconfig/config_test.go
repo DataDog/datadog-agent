@@ -1295,6 +1295,9 @@ interface_configs:
     tags:
       - "muted"
       - "test1:value1"
+  - match_field: "index"
+    match_value: "2"
+    disabled: true
 `),
 			// language=yaml
 			rawInitConfig: []byte(``),
@@ -1309,6 +1312,11 @@ interface_configs:
 						"test1:value1",
 					},
 				},
+				{
+					MatchField: "index",
+					MatchValue: "2",
+					Disabled:   true,
+				},
 			},
 		},
 		{
@@ -1316,7 +1324,7 @@ interface_configs:
 			// language=yaml
 			rawInstanceConfig: []byte(`
 ip_address: 1.2.3.4
-interface_configs: '[{"match_field":"name","match_value":"eth0","in_speed":25,"out_speed":10, "tags":["test2:value2", "aTag"]}]'
+interface_configs: '[{"match_field":"name","match_value":"eth0","in_speed":25,"out_speed":10, "tags":["test2:value2", "aTag"]},{"match_field":"index","match_value":"2","disabled":true}]'
 `),
 			// language=yaml
 			rawInitConfig: []byte(``),
@@ -1330,6 +1338,11 @@ interface_configs: '[{"match_field":"name","match_value":"eth0","in_speed":25,"o
 						"test2:value2",
 						"aTag",
 					},
+				},
+				{
+					MatchField: "index",
+					MatchValue: "2",
+					Disabled:   true,
 				},
 			},
 		},
