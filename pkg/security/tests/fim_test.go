@@ -148,6 +148,18 @@ func TestFIMPermError(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// Ensure all file system operations are synchronized before proceeding
+	// This prevents race conditions where metadata changes aren't visible
+	// to the syscall_tester process when it attempts the rename operation
+	if f, err := os.Open(testFile); err == nil {
+		f.Sync()
+		f.Close()
+	}
+	if f, err := os.Open(renameFile); err == nil {
+		f.Sync()
+		f.Close()
+	}
+
 	linkFile, _, err := test.Path("link-file")
 	if err != nil {
 		t.Fatal(err)
