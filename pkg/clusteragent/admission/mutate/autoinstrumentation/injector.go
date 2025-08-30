@@ -149,21 +149,6 @@ func (i *injector) requirements() libRequirement {
 
 type injectorOption func(*injector)
 
-var injectorVersionAnnotationExtractor = annotationExtractor[injectorOption]{
-	key: "admission.datadoghq.com/apm-inject.version",
-	do:  infallibleFn(injectorWithImageTag),
-}
-
-var injectorImageAnnotationExtractor = annotationExtractor[injectorOption]{
-	key: "admission.datadoghq.com/apm-inject.custom-image",
-	do:  infallibleFn(injectorWithImageName),
-}
-
-var injectorDebugAnnotationExtractor = annotationExtractor[injectorOption]{
-	key: "admission.datadoghq.com/apm-inject.debug",
-	do:  infallibleFn(injectorDebug),
-}
-
 func injectorWithLibRequirementOptions(opts libRequirementOptions) injectorOption {
 	return func(i *injector) {
 		i.opts = opts

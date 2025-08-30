@@ -1100,7 +1100,7 @@ func TestInjectLibConfig(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := injectLibConfig(tt.pod, tt.lang)
+			err := injectV1LibAnnotations(tt.pod, tt.lang)
 			require.False(t, (err != nil) != tt.wantErr)
 			if err != nil {
 				return
