@@ -20,6 +20,7 @@ import (
 
 func TestSetSockOpt(t *testing.T) {
 	SkipIfNotAvailable(t)
+	checkNetworkCompatibility(t)
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
