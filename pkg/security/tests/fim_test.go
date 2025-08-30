@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -234,6 +235,11 @@ func TestFIMPermError(t *testing.T) {
 			"chown", testFile, "0", "0",
 		}
 		envs := []string{}
+
+		// Add a small delay to ensure the security system has propagated the file state
+		// and is ready to capture events. This prevents race conditions where the
+		// security monitoring system hasn't registered the file setup before the chown operation.
+		time.Sleep(100 * time.Millisecond)
 
 		test.WaitSignal(t, func() error {
 			cmd := cmdFunc(syscallTester, args, envs)
