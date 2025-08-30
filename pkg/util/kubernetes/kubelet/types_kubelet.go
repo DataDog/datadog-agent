@@ -282,4 +282,5 @@ type ContainerStateTerminated struct {
 	Reason     string    `json:"reason"`
 }
 
+// Config is the kubelet configuration
 type Config map[string]interface{}

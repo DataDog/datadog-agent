@@ -393,6 +393,7 @@ func (ku *KubeUtil) GetRawMetrics(ctx context.Context) ([]byte, error) {
 	return data, nil
 }
 
+// GetConfig returns the kubelet configuration from /configz
 func (ku *KubeUtil) GetConfig(ctx context.Context) (Config, error) {
 	bytes, code, err := ku.QueryKubelet(ctx, kubeletConfigPath)
 	if err != nil {
