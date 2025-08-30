@@ -43,7 +43,7 @@ type TargetMutator struct {
 
 // NewTargetMutator creates a new mutator for target based workload selection. We convert the targets to a more
 // efficient internal format for quick lookups.
-func NewTargetMutator(config *Config, wmeta workloadmeta.Component) (*TargetMutator, error) {
+func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolver ImageResolver) (*TargetMutator, error) {
 	// Determine default disabled namespaces.
 	defaultDisabled := mutatecommon.DefaultDisabledNamespaces()
 
@@ -93,9 +93,9 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component) (*TargetMuta
 		// Get the library versions to inject. If no versions are specified, we inject all libraries.
 		var libVersions []libInfo
 		if len(t.TracerVersions) == 0 {
-			libVersions = getAllLatestDefaultLibraries(config.containerRegistry)
+			libVersions = getAllLatestDefaultLibraries(config.containerRegistry, imageResolver)
 		} else {
-			libVersions = getPinnedLibraries(t.TracerVersions, config.containerRegistry, false).libs
+			libVersions = getPinnedLibraries(t.TracerVersions, config.containerRegistry, false, imageResolver).libs
 		}
 
 		// Convert the tracer configs to env vars. We check that the env var names start with the DD_ prefix to avoid
@@ -134,7 +134,7 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component) (*TargetMuta
 
 	// Create the core mutator. This is a bit gross.
 	// The target mutator is also the filter which we are passing in.
-	core := newMutatorCore(config, wmeta, m)
+	core := newMutatorCore(config, wmeta, m, imageResolver)
 	m.core = core
 
 	return m, nil
@@ -280,7 +280,7 @@ func (m *TargetMutator) getTarget(pod *corev1.Pod) *targetInternal {
 // getTargetFromAnnotation determines which tracing libraries to use given a pod's annotations. It returns the list of
 // tracing libraries to inject.
 func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *targetInternal {
-	libVersions := extractLibrariesFromAnnotations(pod, m.containerRegistry)
+	libVersions := extractLibrariesFromAnnotations(pod, m.containerRegistry, m.core.imageResolver)
 	if len(libVersions) == 0 {
 		return nil
 	}
