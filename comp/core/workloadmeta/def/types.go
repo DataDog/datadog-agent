@@ -7,6 +7,7 @@ package workloadmeta
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
@@ -17,6 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
@@ -48,6 +50,7 @@ const (
 	KindContainerImageMetadata Kind = "container_image_metadata"
 	KindProcess                Kind = "process"
 	KindGPU                    Kind = "gpu"
+	KindKubelet                Kind = "kubelet"
 )
 
 // Source is the source name of an entity.
@@ -197,6 +200,29 @@ const (
 	Success SBOMStatus = "Success"
 	// Failed is the status when the scan failed
 	Failed SBOMStatus = "Failed"
+)
+
+// CPUManagerPolicy represents the kubelet configuration's
+// cpu-manager-policy setting
+type CPUManagerPolicy string
+
+const (
+	// CPUManagerPolicyUnknown represents an unknown cpu-manager-policy
+	// due to an unexpected value, or unparseable kubelet configuration
+	CPUManagerPolicyUnknown CPUManagerPolicy = "unknown"
+	// CPUManagerPolicyNone represents a cpu-manager-policy of 'none'
+	CPUManagerPolicyNone CPUManagerPolicy = "none"
+	// CPUManagerPolicyStatic represents a cpu-manager-policy of 'static'
+	CPUManagerPolicyStatic CPUManagerPolicy = "static"
+)
+
+const (
+	// KubeletID is a constant ID used to build workloadmeta kubelet entitites
+	// Because there can only be one kubelet per node, this does not need to be
+	// unique
+	KubeletID = "kubelet-id"
+	// KubeletName is used to name the workloadmeta kubelet entity
+	KubeletName = "kubelet"
 )
 
 // Entity represents a single unit of work being done that is of interest to
@@ -436,6 +462,11 @@ type ContainerResources struct {
 	CPULimit      *float64
 	MemoryRequest *uint64 // Bytes
 	MemoryLimit   *uint64
+
+	// The container is guaranteed to use entire core(s)
+	// Requests and limits match, and they are not partial cores
+	// e.g. 1000m or 1 -- NOT 1500m or 1.5
+	GuaranteedWholeCore *bool
 }
 
 // String returns a string representation of ContainerPort.
@@ -1121,6 +1152,107 @@ func (m *KubernetesMetadata) String(verbose bool) string {
 }
 
 var _ Entity = &KubernetesMetadata{}
+
+// KubeletConfig is the kubelet configuration, it is stored as a map
+// and not as a declarative struct
+type KubeletConfig map[string]interface{}
+
+// String implements KubeletConfig#String
+func (kc KubeletConfig) String() string {
+	out, err := json.MarshalIndent(kc, "", "  ")
+	if err != nil {
+		return fmt.Sprintf("error: %v", err)
+	}
+	return string(out)
+}
+
+// Kubelet is an Entity representing the kubelet, right now it only holds
+// the kubelet configuration
+type Kubelet struct {
+	EntityID
+	EntityMeta
+	Config KubeletConfig
+}
+
+// GetID implements Entity#GetID
+func (ku *Kubelet) GetID() EntityID { return ku.EntityID }
+
+// Merge implements Entity#Merge
+func (ku *Kubelet) Merge(e Entity) error {
+	k, ok := e.(*Kubelet)
+	if !ok {
+		return fmt.Errorf("cannot merge Kubelet with different kind %T", e)
+	}
+
+	return merge(k, ku)
+}
+
+// DeepCopy implements Entity#DeepCopy.
+func (ku Kubelet) DeepCopy() Entity {
+	cd := deepcopy.Copy(ku).(Kubelet)
+	return &cd
+}
+
+// String implements Entity#String.
+func (ku *Kubelet) String(verbose bool) string {
+	var sb strings.Builder
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprintln(&sb, ku.EntityID.String(verbose))
+
+	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
+	_, _ = fmt.Fprint(&sb, ku.EntityMeta.String(verbose))
+
+	if verbose {
+		_, _ = fmt.Fprintln(&sb, "----------- Configuration -----------")
+		_, _ = fmt.Fprintln(&sb, ku.Config.String())
+	}
+
+	return sb.String()
+}
+
+// GetCPUManagerPolicy returns the CPU Manager Policy from the kubelet's config
+func (ku Kubelet) GetCPUManagerPolicy() (CPUManagerPolicy, error) {
+	if ku.Config == nil {
+		return CPUManagerPolicyUnknown,
+			fmt.Errorf("error when parsing kubelet config, expected config to be non-nil")
+	}
+
+	kubeletConfigInterface, ok := ku.Config["kubeletconfig"]
+	if !ok {
+		return CPUManagerPolicyUnknown,
+			fmt.Errorf("error when parsing kubelet config, expected to find key: kubeletconfig")
+	}
+
+	kubeletConfig, ok := kubeletConfigInterface.(map[string]interface{})
+	if !ok {
+		return CPUManagerPolicyUnknown,
+			fmt.Errorf("error when parsing kubelet config, type assertion failed for kubeletConfig")
+	}
+
+	cpuManagerPolicyInterface, ok := kubeletConfig["cpuManagerPolicy"]
+	if !ok {
+		return CPUManagerPolicyUnknown,
+			fmt.Errorf("error when parsing kubelet config, expected to find key: cpuManagerPolicy")
+	}
+
+	cpuManagerPolicy, ok := cpuManagerPolicyInterface.(string)
+	if !ok {
+		return CPUManagerPolicyUnknown,
+			fmt.Errorf("error when parsing kubelet config, type assertion failed for cpuManagerPolicy")
+	}
+
+	switch cpuManagerPolicy {
+	case "none":
+		return CPUManagerPolicyNone, nil
+	case "static":
+		return CPUManagerPolicyStatic, nil
+	default:
+		return CPUManagerPolicyUnknown,
+			fmt.Errorf("error when parsing kubelet config, unexpected value for cpuManagerPolicy: %s", cpuManagerPolicy)
+	}
+}
+
+var _ Entity = &Kubelet{}
 
 // KubernetesDeployment is an Entity representing a Kubernetes Deployment.
 type KubernetesDeployment struct {
