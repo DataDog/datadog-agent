@@ -53,7 +53,8 @@
             }
           }
         }
-      }
+      },
+      "evaluationErrors": []
     },
     "timestamp": "[ts]"
   }

@@ -71,7 +71,8 @@
             }
           }
         }
-      }
+      },
+      "evaluationErrors": []
     },
     "timestamp": "[ts]"
   }

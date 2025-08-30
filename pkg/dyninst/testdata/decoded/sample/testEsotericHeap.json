@@ -117,7 +117,8 @@
             }
           }
         }
-      }
+      },
+      "evaluationErrors": []
     },
     "timestamp": "[ts]"
   }

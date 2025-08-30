@@ -68,7 +68,8 @@
             }
           }
         }
-      }
+      },
+      "evaluationErrors": []
     },
     "timestamp": "[ts]"
   }
