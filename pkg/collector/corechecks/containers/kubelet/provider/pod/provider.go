@@ -160,7 +160,7 @@ func (p *Provider) generateContainerSpecMetrics(sender sender.Sender, pod *kubel
 			if wmetaContainer.Resources.GuaranteedWholeCore != nil {
 				guaranteedWholeCore = bool(*wmetaContainer.Resources.GuaranteedWholeCore)
 			}
-			if guaranteedWholeCore && cpuManagerPolicy == workloadmeta.CpuManagerPolicyStatic {
+			if guaranteedWholeCore && cpuManagerPolicy == workloadmeta.CPUManagerPolicyStatic {
 				tagList = utils.ConcatenateStringTags(tagList, "kube_cpu_management:static")
 			} else {
 				tagList = utils.ConcatenateStringTags(tagList, "kube_cpu_management:none")

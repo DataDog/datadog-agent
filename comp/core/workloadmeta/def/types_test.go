@@ -300,7 +300,7 @@ func TestGetCPUManagerPolicy(t *testing.T) {
 	tests := []struct {
 		name           string
 		kubelet        Kubelet
-		expectedPolicy CpuManagerPolicy
+		expectedPolicy CPUManagerPolicy
 		expectedError  string
 	}{
 		{
@@ -308,7 +308,7 @@ func TestGetCPUManagerPolicy(t *testing.T) {
 			kubelet: Kubelet{
 				Config: nil,
 			},
-			expectedPolicy: CpuManagerPolicyUnknown,
+			expectedPolicy: CPUManagerPolicyUnknown,
 			expectedError:  "error when parsing kubelet config, expected config to be non-nil",
 		},
 		{
@@ -318,7 +318,7 @@ func TestGetCPUManagerPolicy(t *testing.T) {
 					"otherkey": "value",
 				},
 			},
-			expectedPolicy: CpuManagerPolicyUnknown,
+			expectedPolicy: CPUManagerPolicyUnknown,
 			expectedError:  "error when parsing kubelet config, expected to find key: kubeletconfig",
 		},
 		{
@@ -328,7 +328,7 @@ func TestGetCPUManagerPolicy(t *testing.T) {
 					"kubeletconfig": "not-a-map",
 				},
 			},
-			expectedPolicy: CpuManagerPolicyUnknown,
+			expectedPolicy: CPUManagerPolicyUnknown,
 			expectedError:  "error when parsing kubelet config, type assertion failed for kubeletConfig",
 		},
 		{
@@ -340,7 +340,7 @@ func TestGetCPUManagerPolicy(t *testing.T) {
 					},
 				},
 			},
-			expectedPolicy: CpuManagerPolicyUnknown,
+			expectedPolicy: CPUManagerPolicyUnknown,
 			expectedError:  "error when parsing kubelet config, expected to find key: cpuManagerPolicy",
 		},
 		{
@@ -352,11 +352,11 @@ func TestGetCPUManagerPolicy(t *testing.T) {
 					},
 				},
 			},
-			expectedPolicy: CpuManagerPolicyUnknown,
+			expectedPolicy: CPUManagerPolicyUnknown,
 			expectedError:  "error when parsing kubelet config, type assertion failed for cpuManagerPolicy",
 		},
 		{
-			name: "cpuManagerPolicy 'none' should return CpuManagerPolicyNone",
+			name: "cpuManagerPolicy 'none' should return CPUManagerPolicyNone",
 			kubelet: Kubelet{
 				Config: KubeletConfig{
 					"kubeletconfig": map[string]interface{}{
@@ -364,11 +364,11 @@ func TestGetCPUManagerPolicy(t *testing.T) {
 					},
 				},
 			},
-			expectedPolicy: CpuManagerPolicyNone,
+			expectedPolicy: CPUManagerPolicyNone,
 			expectedError:  "",
 		},
 		{
-			name: "cpuManagerPolicy 'static' should return CpuManagerPolicyStatic",
+			name: "cpuManagerPolicy 'static' should return CPUManagerPolicyStatic",
 			kubelet: Kubelet{
 				Config: KubeletConfig{
 					"kubeletconfig": map[string]interface{}{
@@ -376,7 +376,7 @@ func TestGetCPUManagerPolicy(t *testing.T) {
 					},
 				},
 			},
-			expectedPolicy: CpuManagerPolicyStatic,
+			expectedPolicy: CPUManagerPolicyStatic,
 			expectedError:  "",
 		},
 		{
@@ -388,7 +388,7 @@ func TestGetCPUManagerPolicy(t *testing.T) {
 					},
 				},
 			},
-			expectedPolicy: CpuManagerPolicyUnknown,
+			expectedPolicy: CPUManagerPolicyUnknown,
 			expectedError:  "error when parsing kubelet config, unexpected value for cpuManagerPolicy: unknown-value",
 		},
 	}

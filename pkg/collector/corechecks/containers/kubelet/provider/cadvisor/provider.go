@@ -181,7 +181,7 @@ func (p *Provider) processContainerMetric(metricType, metricName string, metricF
 					guaranteedWholeCore = bool(*container.Resources.GuaranteedWholeCore)
 				}
 
-				if guaranteedWholeCore && cpuManagerPolicy == workloadmeta.CpuManagerPolicyStatic {
+				if guaranteedWholeCore && cpuManagerPolicy == workloadmeta.CPUManagerPolicyStatic {
 					tags = utils.ConcatenateStringTags(tags, "kube_cpu_management:static")
 				} else {
 					tags = utils.ConcatenateStringTags(tags, "kube_cpu_management:none")
