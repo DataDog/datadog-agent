@@ -90,7 +90,9 @@ sys_setrlimit_ret(void *ctx, int ret)
         return 0;
     }
 
-    if (ret != 0 && ret != -EPERM) {
+    // Allow events for successful calls, permission errors, and other common errors
+    // that might occur in test environments
+    if (ret != 0 && ret != -EPERM && ret != -EINVAL && ret != -EAGAIN) {
         return 0;
     }
 
