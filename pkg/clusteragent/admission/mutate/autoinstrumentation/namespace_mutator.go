@@ -398,10 +398,10 @@ func extractLibrariesFromAnnotations(pod *corev1.Pod, containerRegistry string, 
 		}
 	)
 	for _, l := range supportedLanguages {
-		extractLibInfo(l.customLibAnnotationExtractor(imageResolver))
+		extractLibInfo(l.customLibAnnotationExtractor())
 		extractLibInfo(l.libVersionAnnotationExtractor(containerRegistry, imageResolver))
 		for _, ctr := range pod.Spec.Containers {
-			extractLibInfo(l.ctrCustomLibAnnotationExtractor(ctr.Name, imageResolver))
+			extractLibInfo(l.ctrCustomLibAnnotationExtractor(ctr.Name))
 			extractLibInfo(l.ctrLibVersionAnnotationExtractor(ctr.Name, containerRegistry, imageResolver))
 		}
 	}

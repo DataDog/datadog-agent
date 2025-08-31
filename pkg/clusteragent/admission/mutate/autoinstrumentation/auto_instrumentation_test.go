@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
@@ -49,17 +50,21 @@ var (
 
 	// TODO: Add new entry when a new language is supported
 	defaultLibImageVersions = map[language]string{
-		java:   "registry/dd-lib-java-init:" + defaultLibraries["java"],
-		js:     "registry/dd-lib-js-init:" + defaultLibraries["js"],
-		python: "registry/dd-lib-python-init:" + defaultLibraries["python"],
-		dotnet: "registry/dd-lib-dotnet-init:" + defaultLibraries["dotnet"],
-		ruby:   "registry/dd-lib-ruby-init:" + defaultLibraries["ruby"],
-		php:    "registry/dd-lib-php-init:" + defaultLibraries["php"],
+		java:   commonRegistry + "/dd-lib-java-init:" + defaultLibraries["java"],
+		js:     commonRegistry + "/dd-lib-js-init:" + defaultLibraries["js"],
+		python: commonRegistry + "/dd-lib-python-init:" + defaultLibraries["python"],
+		dotnet: commonRegistry + "/dd-lib-dotnet-init:" + defaultLibraries["dotnet"],
+		ruby:   commonRegistry + "/dd-lib-ruby-init:" + defaultLibraries["ruby"],
+		php:    commonRegistry + "/dd-lib-php-init:" + defaultLibraries["php"],
 	}
 )
 
 func defaultLibInfo(l language) libInfo {
-	return l.defaultLibInfo(commonRegistry, "", newMockImageResolver())
+	return l.defaultLibInfo(commonRegistry, "", newNoOpImageResolver())
+}
+
+func defaultLibInfoWithRegistry(l language, registry string) libInfo {
+	return l.defaultLibInfo(registry, "", newNoOpImageResolver())
 }
 
 func defaultLibrariesFor(languages ...string) map[string]string {
@@ -211,7 +216,7 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 			libInfo: extractedPodLibInfo{
 				languageDetection: &libInfoLanguageDetection{
 					libs: []libInfo{
-						python.defaultLibInfo(commonRegistry, "java-pod-container", newMockImageResolver()),
+						python.defaultLibInfo(commonRegistry, "java-pod-container", newNoOpImageResolver()),
 					},
 				},
 				libs: []libInfo{
@@ -231,7 +236,7 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 			libInfo: extractedPodLibInfo{
 				languageDetection: &libInfoLanguageDetection{
 					libs: []libInfo{
-						python.defaultLibInfo(commonRegistry, "not-java-pod-container", newMockImageResolver()),
+						python.defaultLibInfo(commonRegistry, "not-java-pod-container", newNoOpImageResolver()),
 					},
 				},
 				libs: []libInfo{
@@ -262,7 +267,7 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 			libInfo: extractedPodLibInfo{
 				languageDetection: &libInfoLanguageDetection{
 					libs: []libInfo{
-						python.defaultLibInfo(commonRegistry, "java-pod-container", newMockImageResolver()),
+						python.defaultLibInfo(commonRegistry, "java-pod-container", newNoOpImageResolver()),
 					},
 				},
 				libs: []libInfo{
@@ -285,7 +290,7 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 			libInfo: extractedPodLibInfo{
 				languageDetection: &libInfoLanguageDetection{
 					libs: []libInfo{
-						python.defaultLibInfo(commonRegistry, "python-pod-container", newMockImageResolver()),
+						python.defaultLibInfo(commonRegistry, "python-pod-container", newNoOpImageResolver()),
 					},
 				},
 				libs: []libInfo{
@@ -413,7 +418,7 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 				tt.expectedInstallType = "k8s_single_step"
 			}
 
-			mutator, err := NewNamespaceMutator(config, wmeta, newMockImageResolver())
+			mutator, err := NewNamespaceMutator(config, wmeta, newNoOpImageResolver())
 			require.NoError(t, err)
 
 			err = mutator.core.injectTracers(tt.pod, tt.libInfo)
@@ -548,7 +553,7 @@ func TestMutatorCoreNewInjector(t *testing.T) {
 	)
 	config, err := NewConfig(mockConfig)
 	require.NoError(t, err)
-	m, err := NewNamespaceMutator(config, wmeta, newMockImageResolver())
+	m, err := NewNamespaceMutator(config, wmeta, newNoOpImageResolver())
 	require.NoError(t, err)
 	core := m.core
 
@@ -597,7 +602,7 @@ func TestExtractLibInfo(t *testing.T) {
 		{
 			name:              "java",
 			pod:               common.FakePodWithAnnotation("admission.datadoghq.com/java-lib.version", "v1"),
-			containerRegistry: "registry",
+			containerRegistry: commonRegistry,
 			expectedLibsToInject: []libInfo{
 				{
 					lang:  "java",
@@ -947,13 +952,13 @@ func TestExtractLibInfo(t *testing.T) {
 				t.Helper()
 				require.Equal(t, &libInfoLanguageDetection{
 					libs: []libInfo{
-						python.defaultLibInfo("registry", "pod", newMockImageResolver()),
+						python.defaultLibInfo("registry", "pod", newNoOpImageResolver()),
 					},
 					injectionEnabled: true,
 				}, i.languageDetection)
 			},
 			expectedLibsToInject: []libInfo{
-				python.defaultLibInfo("registry", "pod", newMockImageResolver()),
+				python.defaultLibInfo("registry", "pod", newNoOpImageResolver()),
 			},
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
@@ -981,12 +986,12 @@ func TestExtractLibInfo(t *testing.T) {
 			assertExtractedLibInfo: func(t *testing.T, i extractedPodLibInfo) {
 				t.Helper()
 				require.Equal(t, &libInfoLanguageDetection{
-					libs:             []libInfo{python.defaultLibInfo("registry", "pod", newMockImageResolver())},
+					libs:             []libInfo{python.defaultLibInfo("registry", "pod", newNoOpImageResolver())},
 					injectionEnabled: true,
 				}, i.languageDetection)
 			},
 			expectedLibsToInject: []libInfo{
-				java.defaultLibInfo("registry", "", newMockImageResolver()),
+				java.defaultLibInfo("registry", "", newNoOpImageResolver()),
 			},
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
@@ -1034,7 +1039,7 @@ func TestExtractLibInfo(t *testing.T) {
 
 			config, err := NewConfig(mockConfig)
 			require.NoError(t, err)
-			mutator, err := NewNamespaceMutator(config, wmeta, newMockImageResolver())
+			mutator, err := NewNamespaceMutator(config, wmeta, newNoOpImageResolver())
 			require.NoError(t, err)
 
 			if tt.expectedPodEligible != nil {
@@ -1045,6 +1050,8 @@ func TestExtractLibInfo(t *testing.T) {
 			if tt.assertExtractedLibInfo != nil {
 				tt.assertExtractedLibInfo(t, extracted)
 			}
+			log.Debugf("ERIKA extracted: %#v", extracted.libs)
+			log.Debugf("ERIKA expected: %#v", tt.expectedLibsToInject)
 			require.ElementsMatch(t, tt.expectedLibsToInject, extracted.libs)
 		})
 	}
@@ -1757,7 +1764,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 			// N.B. this is a bit hacky but consistent.
 			config.initSecurityContext = tt.secCtx
 
-			mutator, err := NewNamespaceMutator(config, wmeta, newMockImageResolver())
+			mutator, err := NewNamespaceMutator(config, wmeta, newNoOpImageResolver())
 			require.NoError(t, err)
 
 			c := tt.lang.libInfo("", tt.image).initContainers(config.version)[0]
@@ -3684,7 +3691,7 @@ func TestShouldInject(t *testing.T) {
 
 			config, err := NewConfig(mockConfig)
 			require.NoError(t, err)
-			mutator, err := NewNamespaceMutator(config, wmeta, newMockImageResolver())
+			mutator, err := NewNamespaceMutator(config, wmeta, newNoOpImageResolver())
 			require.NoError(t, err)
 			require.Equal(t, tt.want, mutator.isPodEligible(tt.pod), "expected webhook.isPodEligible() to be %t", tt.want)
 		})
@@ -3697,7 +3704,7 @@ func maybeWebhook(wmeta workloadmeta.Component, ddConfig config.Component) (*Web
 		return nil, err
 	}
 
-	mutator, err := NewNamespaceMutator(config, wmeta, newMockImageResolver())
+	mutator, err := NewNamespaceMutator(config, wmeta, newNoOpImageResolver())
 	if err != nil {
 		return nil, err
 	}
