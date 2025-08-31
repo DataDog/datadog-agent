@@ -16,6 +16,16 @@
 
 #define TOPIC_NAME_MAX_STRING_SIZE 80
 
+// UUID structure constants for validation
+#define KAFKA_TOPIC_ID_SIZE 16                   // UUID is always 16 bytes
+#define KAFKA_UUID_VERSION_BYTE_OFFSET 6         // Byte 6 contains version in upper 4 bits
+#define KAFKA_UUID_VARIANT_BYTE_OFFSET 8         // Byte 8 contains variant in upper 4 bits
+#define KAFKA_UUID_EXPECTED_VERSION 4            // UUID version 4 (random)
+#define KAFKA_UUID_VERSION_SHIFT 4               // Right shift to get version bits
+#define KAFKA_UUID_VARIANT_SHIFT 4               // Right shift to get variant bits
+#define KAFKA_UUID_VARIANT_MIN 0x8               // Minimum valid variant (binary 10xx)
+#define KAFKA_UUID_VARIANT_MAX 0xB               // Maximum valid variant (binary 10xx or 11xx)
+
 // The number of varint bytes required to support the specified values.
 // 127
 #define VARINT_BYTES_0000007f   1

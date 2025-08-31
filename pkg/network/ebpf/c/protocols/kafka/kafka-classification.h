@@ -271,9 +271,9 @@ static __always_inline bool validate_first_topic_name(pktbuf_t pkt, bool flexibl
 // Reads the first topic id (can be multiple) from the given offset,
 // verifies if it is a valid UUID version 4
 static __always_inline bool validate_first_topic_id(pktbuf_t pkt, bool flexible, u32 offset) {
-    // The topic id is a UUID, which is 16 bytes long.
+    // The topic id is a UUID, which is KAFKA_TOPIC_ID_SIZE bytes long.
     // It is in network byte order (big-endian)
-    u8 topic_id[16] = {};
+    u8 topic_id[KAFKA_TOPIC_ID_SIZE] = {};
 
     // Skipping number of entries for now
     if (flexible) {
@@ -291,16 +291,16 @@ static __always_inline bool validate_first_topic_id(pktbuf_t pkt, bool flexible,
     pktbuf_load_bytes_with_telemetry(pkt, offset, topic_id, sizeof(topic_id));
     offset += sizeof(topic_id);
 
-    // The UUID version (13th digit 4 MSB) must be 4
-    __u8 uuid_version = topic_id[6] >> 4;
-    if (uuid_version != 4) {
+    // The UUID version (upper 4 bits of byte 6) must be 4
+    __u8 uuid_version = topic_id[KAFKA_UUID_VERSION_BYTE_OFFSET] >> KAFKA_UUID_VERSION_SHIFT;
+    if (uuid_version != KAFKA_UUID_EXPECTED_VERSION) {
         // The UUID version is not 4
         return false;
     }
 
-    // The UUID variant (17th digit) may be 0x8, 0x9, 0xA or 0xB
-    __u8 uuid_variant = topic_id[8] >> 4;
-    return 0x8 <= uuid_variant && uuid_variant <= 0xB;
+    // The UUID variant (upper 4 bits of byte 8) may be 0x8, 0x9, 0xA or 0xB
+    __u8 uuid_variant = topic_id[KAFKA_UUID_VARIANT_BYTE_OFFSET] >> KAFKA_UUID_VARIANT_SHIFT;
+    return KAFKA_UUID_VARIANT_MIN <= uuid_variant && uuid_variant <= KAFKA_UUID_VARIANT_MAX;
 }
 
 // Flexible API version can have an arbitrary number of tagged fields.  We don't
