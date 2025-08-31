@@ -25,6 +25,7 @@ import (
 	coreStatusImpl "github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
@@ -50,6 +51,7 @@ func TestBundleDependencies(t *testing.T) {
 		fx.Provide(func() types.CheckComponent { return nil }),
 		core.MockBundle(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+		workloadfilterfx.Module(),
 		fx.Provide(func() tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 		coreStatusImpl.Module(),
 		settingsimpl.MockModule(),
@@ -104,6 +106,7 @@ func TestBundleOneShot(t *testing.T) {
 		}}),
 		core.MockBundle(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+		workloadfilterfx.Module(),
 		fx.Provide(func() tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 		eventplatformreceiverimpl.Module(),
 		eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),

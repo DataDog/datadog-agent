@@ -22,6 +22,8 @@ type Component interface {
 	IsServiceExcluded(service *Service, serviceFilters [][]ServiceFilter) bool
 	// IsEndpointExcluded returns true if the endpoint is excluded by the selected endpoint filter keys.
 	IsEndpointExcluded(endpoint *Endpoint, endpointFilters [][]EndpointFilter) bool
+	// IsProcessExcluded returns true if the process is excluded by the selected process filter keys.
+	IsProcessExcluded(process *Process, processFilters [][]ProcessFilter) bool
 
 	// GetContainerFilterInitializationErrors returns a list of errors
 	// encountered during the initialization of the selected container filters.

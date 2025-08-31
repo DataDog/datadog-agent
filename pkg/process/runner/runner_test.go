@@ -18,6 +18,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/process/types"
@@ -36,7 +38,8 @@ func TestUpdateRTStatus(t *testing.T) {
 
 	assert := assert.New(t)
 	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
-	c, err := NewRunner(cfg, nil, &checks.HostInfo{}, []checks.Check{checks.NewProcessCheck(cfg, cfg, wmeta, nil, &statsd.NoOpClient{}, ipcMock.GetTLSServerConfig())}, nil)
+	wfilter := fxutil.Test[workloadfilter.Component](t, core.MockBundle(), workloadfilterfxmock.MockModule())
+	c, err := NewRunner(cfg, nil, &checks.HostInfo{}, []checks.Check{checks.NewProcessCheck(cfg, cfg, wmeta, wfilter, nil, &statsd.NoOpClient{}, ipcMock.GetTLSServerConfig())}, nil)
 	assert.NoError(err)
 	// XXX: Give the collector a big channel so it never blocks.
 	c.rtIntervalCh = make(chan time.Duration, 1000)
@@ -75,7 +78,8 @@ func TestUpdateRTInterval(t *testing.T) {
 	// Mock IPC component to provide TLS credentials
 	ipcMock := ipcmock.New(t)
 	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
-	c, err := NewRunner(configmock.New(t), nil, &checks.HostInfo{}, []checks.Check{checks.NewProcessCheck(cfg, cfg, wmeta, nil, &statsd.NoOpClient{}, ipcMock.GetTLSServerConfig())}, nil)
+	wfilter := fxutil.Test[workloadfilter.Component](t, core.MockBundle(), workloadfilterfxmock.MockModule())
+	c, err := NewRunner(configmock.New(t), nil, &checks.HostInfo{}, []checks.Check{checks.NewProcessCheck(cfg, cfg, wmeta, wfilter, nil, &statsd.NoOpClient{}, ipcMock.GetTLSServerConfig())}, nil)
 	assert.NoError(err)
 	// XXX: Give the collector a big channel so it never blocks.
 	c.rtIntervalCh = make(chan time.Duration, 1000)
@@ -144,7 +148,8 @@ func TestDisableRealTimeProcessCheck(t *testing.T) {
 			ipcMock := ipcmock.New(t)
 
 			assert := assert.New(t)
-			expectedChecks := []checks.Check{checks.NewProcessCheck(mockConfig, mockConfig, wmeta, nil, &statsd.NoOpClient{}, ipcMock.GetTLSServerConfig())}
+			wfilter := fxutil.Test[workloadfilter.Component](t, core.MockBundle(), workloadfilterfxmock.MockModule())
+			expectedChecks := []checks.Check{checks.NewProcessCheck(mockConfig, mockConfig, wmeta, wfilter, nil, &statsd.NoOpClient{}, ipcMock.GetTLSServerConfig())}
 
 			c, err := NewRunner(mockConfig, nil, &checks.HostInfo{}, expectedChecks, nil)
 			assert.NoError(err)
