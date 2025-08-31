@@ -1678,13 +1678,16 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
         if (!get_topic_offset_from_fetch_request(&kafka_header, pkt, &offset)) {
             return false;
         }
-        flexible = kafka_header.api_version >= 12;
+        flexible = kafka_header.api_version >= KAFKA_FETCH_API_VERSION_FLEXIBLE_INTRODUCED;
         break;
     default:
         return false;
     }
 
     // Skipping number of entries for now
+    bool uses_topic_id = (kafka_header.api_key == KAFKA_FETCH && 
+                         kafka_header.api_version >= KAFKA_FETCH_API_VERSION_TOPIC_ID_INTRODUCED);
+    
     if (flexible) {
         if (!skip_varint_number_of_topics(pkt, &offset)) {
             return false;
@@ -1693,19 +1696,33 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
         offset += sizeof(s32);
     }
 
-    s16 topic_name_size = read_nullable_string_size(pkt, flexible, &offset);
-    if (topic_name_size <= 0 || topic_name_size > TOPIC_NAME_MAX_ALLOWED_SIZE) {
-        return false;
+    if (uses_topic_id) {
+        // Read UUID as topic identifier for v13+
+        if (offset + KAFKA_TOPIC_ID_SIZE > pktbuf_data_end(pkt)) {
+            return false;
+        }
+        bpf_memset(kafka_transaction->topic_name, 0, TOPIC_NAME_MAX_STRING_SIZE);
+        pktbuf_load_bytes(pkt, offset, kafka_transaction->topic_name, KAFKA_TOPIC_ID_SIZE);
+        kafka_transaction->topic_name_size = KAFKA_TOPIC_ID_SIZE;
+        kafka_transaction->uses_topic_id = 1;
+        offset += KAFKA_TOPIC_ID_SIZE;
+    } else {
+        // Read string topic name for v0-12
+        s16 topic_name_size = read_nullable_string_size(pkt, flexible, &offset);
+        if (topic_name_size <= 0 || topic_name_size > TOPIC_NAME_MAX_ALLOWED_SIZE) {
+            return false;
+        }
+
+        extra_debug("topic_name_size: %u", topic_name_size);
+        update_topic_name_size_telemetry(kafka_tel, topic_name_size);
+        bpf_memset(kafka_transaction->topic_name, 0, TOPIC_NAME_MAX_STRING_SIZE);
+        pktbuf_read_into_buffer_topic_name_parser((char *)kafka_transaction->topic_name, pkt, offset);
+        kafka_transaction->topic_name_size = topic_name_size;
+        kafka_transaction->uses_topic_id = 0;
+        offset += topic_name_size;
+
+        CHECK_STRING_COMPOSED_OF_ASCII_FOR_PARSING(TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE, topic_name_size, kafka_transaction->topic_name);
     }
-
-    extra_debug("topic_name_size: %u", topic_name_size);
-    update_topic_name_size_telemetry(kafka_tel, topic_name_size);
-    bpf_memset(kafka_transaction->topic_name, 0, TOPIC_NAME_MAX_STRING_SIZE);
-    pktbuf_read_into_buffer_topic_name_parser((char *)kafka_transaction->topic_name, pkt, offset);
-    offset += topic_name_size;
-    kafka_transaction->topic_name_size = topic_name_size;
-
-    CHECK_STRING_COMPOSED_OF_ASCII_FOR_PARSING(TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE, topic_name_size, kafka_transaction->topic_name);
 
     log_debug("kafka: topic name is %s", kafka_transaction->topic_name);
 

@@ -16,6 +16,10 @@
 
 #define TOPIC_NAME_MAX_STRING_SIZE 80
 
+// API version constants for topic parsing
+#define KAFKA_FETCH_API_VERSION_TOPIC_ID_INTRODUCED 13  // Version where topic IDs were introduced
+#define KAFKA_FETCH_API_VERSION_FLEXIBLE_INTRODUCED 12  // Version where flexible API was introduced
+
 // UUID structure constants for validation
 #define KAFKA_TOPIC_ID_SIZE 16                   // UUID is always 16 bytes
 #define KAFKA_UUID_VERSION_BYTE_OFFSET 6         // Byte 6 contains version in upper 4 bits
