@@ -15,7 +15,6 @@ import (
 	"fmt"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/trivy/walker"
@@ -92,16 +91,7 @@ func (c *fakeContainer) Layers() (layers []ftypes.LayerPath) {
 }
 
 func (c *Collector) scanOverlayFS(ctx context.Context, layers []string, ctr ftypes.Container, imgMeta *workloadmeta.ContainerImageMetadata, scanOptions sbom.ScanOptions) (sbom.Report, error) {
-	var cache CacheWithCleaner
-	if pkgconfigsetup.Datadog().GetBool("sbom.container_image.overlayfs_disable_cache") {
-		cache = newMemoryCache()
-	} else {
-		globalCache, err := c.GetCache()
-		if err != nil {
-			return nil, err
-		}
-		cache = globalCache
-	}
+	cache := newMemoryCache()
 
 	if cache == nil {
 		return nil, errors.New("failed to get cache for scan")

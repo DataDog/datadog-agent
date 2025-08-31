@@ -28,11 +28,6 @@ type Collector struct {
 	closed bool
 }
 
-// CleanCache cleans the cache
-func (c *Collector) CleanCache() error {
-	return nil
-}
-
 // Init initialize the host collector
 func (c *Collector) Init(cfg config.Component, wmeta option.Option[workloadmeta.Component]) error {
 	return c.initWithOpts(cfg, wmeta, sbom.ScanOptionsFromConfigForHosts(cfg))
