@@ -34,10 +34,7 @@ func (c *Collector) fixupCacheKeyForImgMeta(ctx context.Context, artifact artifa
 }
 
 func (c *Collector) scanImage(ctx context.Context, fanalImage ftypes.Image, imgMeta *workloadmeta.ContainerImageMetadata, scanOptions sbom.ScanOptions) (sbom.Report, error) {
-	cache, err := c.GetCache()
-	if err != nil {
-		return nil, err
-	}
+	cache := newMemoryCache()
 
 	imageArtifact, err := image2.NewArtifact(fanalImage, cache, getDefaultArtifactOption(scanOptions))
 	if err != nil {

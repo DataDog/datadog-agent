@@ -19,7 +19,6 @@ import (
 	"math"
 	"runtime"
 	"slices"
-	"sync"
 	"syscall"
 
 	"github.com/aquasecurity/trivy-db/pkg/db"
@@ -64,10 +63,6 @@ type collectorConfig struct {
 // Collector uses trivy to generate a SBOM
 type Collector struct {
 	config collectorConfig
-
-	cacheInitialized   sync.Once
-	persistentCache    CacheWithCleaner
-	persistentCacheErr error
 
 	marshaler cyclonedx.Marshaler
 	wmeta     option.Option[workloadmeta.Component]
@@ -260,43 +255,6 @@ func GetGlobalCollector(cfg config.Component, wmeta option.Option[workloadmeta.C
 
 	globalCollector = collector
 	return globalCollector, nil
-}
-
-// Close closes the collector
-func (c *Collector) Close() error {
-	if c.persistentCache == nil {
-		return nil
-	}
-
-	if c.config.clearCacheOnClose {
-		if err := c.persistentCache.Clear(); err != nil {
-			return fmt.Errorf("error when clearing trivy persistentCache: %w", err)
-		}
-	}
-
-	return c.persistentCache.Close()
-}
-
-// CleanCache cleans the persistentCache
-func (c *Collector) CleanCache() error {
-	if c.persistentCache != nil {
-		return c.persistentCache.clean()
-	}
-	return nil
-}
-
-// GetCache returns the persistentCache with the persistentCache Cleaner. It should initializes the persistentCache
-// only once to avoid blocking the CLI with the `flock` file system.
-func (c *Collector) GetCache() (CacheWithCleaner, error) {
-	c.cacheInitialized.Do(func() {
-		c.persistentCache, c.persistentCacheErr = NewCustomBoltCache(
-			c.wmeta,
-			defaultCacheDir(),
-			c.config.maxCacheSize,
-		)
-	})
-
-	return c.persistentCache, c.persistentCacheErr
 }
 
 type artifactWithType struct {

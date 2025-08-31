@@ -176,38 +176,11 @@ func sendResult(ctx context.Context, requestID string, result *sbom.ScanResult, 
 	}
 }
 
-// startCacheCleaner periodically cleans the SBOM cache of all collectors
-func (s *Scanner) startCacheCleaner(ctx context.Context) {
-	cleanTicker := time.NewTicker(s.cfg.cacheCleanInterval)
-	defer func() {
-		cleanTicker.Stop()
-		s.running = false
-	}()
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-cleanTicker.C:
-				s.cacheMutex.Lock()
-				log.Debug("cleaning SBOM cache")
-				for _, collector := range s.collectors {
-					if err := collector.CleanCache(); err != nil {
-						log.Warnf("could not clean SBOM cache: %v", err)
-					}
-				}
-				s.cacheMutex.Unlock()
-			}
-		}
-	}()
-}
-
 func (s *Scanner) start(ctx context.Context) {
 	if s.running {
 		return
 	}
 	s.running = true
-	s.startCacheCleaner(ctx)
 	s.startScanRequestHandler(ctx)
 }
 
