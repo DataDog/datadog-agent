@@ -8,6 +8,5 @@
 ---
 features:
   - |
-    Introducing support for gradual rollout for K8s SSI deployments.
-    This will allow the injector and tracer library releases to be rolled out by subsets of customers,
-    and prevent the rollout to more customers if there are issues detected.
+    Added support for gradual rollout in K8s SSI deployments.
+This enables injector and tracer library releases to subsets of customers, with the ability to pause if issues are detected.
