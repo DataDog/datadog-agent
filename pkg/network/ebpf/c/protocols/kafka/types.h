@@ -28,7 +28,8 @@ typedef struct kafka_transaction_t {
     __u8 request_api_key;
     __u8 request_api_version;
     __u8 topic_name_size;
-    __u8 tags;
+    __u8 uses_topic_id : 1;  // Flag indicating topic_name contains UUID (v13+)
+    __u8 tags : 7;           // Reduced to 7 bits for the uses_topic_id flag
     char topic_name[TOPIC_NAME_MAX_STRING_SIZE];
     __s8 error_code;
 } kafka_transaction_t;
