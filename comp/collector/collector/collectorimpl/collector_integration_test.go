@@ -33,10 +33,10 @@ import (
 
 func TestSchedulerSpam(t *testing.T) {
 	tempDir := t.TempDir()
+	checkDir := tempDir
 	checkName := "testcheck"
-	checkDir := filepath.Join(tempDir, "checks.d", checkName)
 	os.MkdirAll(checkDir, 0755)
-	os.WriteFile(filepath.Join(checkDir, "check.py"), []byte(PythonCheck), 0644)
+	os.WriteFile(filepath.Join(checkDir, fmt.Sprintf("%s.py", checkName)), []byte(PythonCheck), 0644)
 
 	deps := fxutil.Test[dependencies](t,
 		core.MockBundle(),
@@ -79,9 +79,7 @@ func TestSchedulerSpam(t *testing.T) {
 	}
 }
 
-const CheckConfigTemplate = `
-{id: %d}
-`
+const CheckConfigTemplate = `{"id": %d}`
 
 const PythonCheck = `
 from datadog_checks.base import AgentCheck
