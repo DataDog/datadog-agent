@@ -175,7 +175,7 @@ func testLoadCustomCheck(t *testing.T) {
 	C.get_check_deprecated_check = newMockPyObjectPtr()
 	C.get_check_deprecated_return = 1
 
-	check, err := loader.Load(senderManager, conf, conf.Instances[0])
+	check, err := loader.Load(senderManager, conf, conf.Instances[0], 0)
 	// Remove check finalizer that may trigger race condition while testing
 	runtime.SetFinalizer(check, nil)
 
@@ -214,7 +214,7 @@ func testLoadWheelCheck(t *testing.T) {
 	C.get_check_deprecated_check = newMockPyObjectPtr()
 	C.get_check_deprecated_return = 1
 
-	check, err := loader.Load(senderManager, conf, conf.Instances[0])
+	check, err := loader.Load(senderManager, conf, conf.Instances[0], 0)
 	// Remove check finalizer that may trigger race condition while testing
 	runtime.SetFinalizer(check, nil)
 
@@ -298,7 +298,7 @@ func testLoadHACheck(t *testing.T) {
 			C.get_attr_bool_return = C.int(tc.getAttrBoolReturn)
 			C.get_attr_bool_attr_value = C.int(tc.getAttrBoolValue)
 
-			check, err := loader.Load(senderManager, conf, conf.Instances[0])
+			check, err := loader.Load(senderManager, conf, conf.Instances[0], 0)
 			// Remove check finalizer that may trigger race condition while testing
 			runtime.SetFinalizer(check, nil)
 
