@@ -66,6 +66,8 @@ nav:
 - Guidelines:
   - Contributing: guidelines/contributing.md
   - Documentation: guidelines/docs.md
+  - Languages:
+    - Go: guidelines/languages/go.md
 - Components:
   - Overview: components/overview.md
   - Components:

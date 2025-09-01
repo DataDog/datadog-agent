@@ -53,6 +53,10 @@ def build(ctx, byoc=False):
     build_tags = get_default_build_tags(build="otel-agent")
     ldflags = get_version_ldflags(ctx, major_version='7')
     ldflags += f' -X github.com/DataDog/datadog-agent/cmd/otel-agent/command.BYOC={byoc}'
+    if os.environ.get("DELVE"):
+        gcflags = "all=-N -l"
+    else:
+        gcflags = ""
 
     go_build(
         ctx,
@@ -60,6 +64,7 @@ def build(ctx, byoc=False):
         mod="readonly",
         build_tags=build_tags,
         ldflags=ldflags,
+        gcflags=gcflags,
         bin_path=BIN_PATH,
         env=env,
     )

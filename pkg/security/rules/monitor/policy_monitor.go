@@ -206,12 +206,13 @@ type PolicyState struct {
 // RuleAction is used to report policy was loaded
 // easyjson:json
 type RuleAction struct {
-	Filter   *string         `json:"filter,omitempty"`
-	Set      *RuleSetAction  `json:"set,omitempty"`
-	Kill     *RuleKillAction `json:"kill,omitempty"`
-	Hash     *HashAction     `json:"hash,omitempty"`
-	CoreDump *CoreDumpAction `json:"coredump,omitempty"`
-	Log      *LogAction      `json:"log,omitempty"`
+	Filter        *string              `json:"filter,omitempty"`
+	Set           *RuleSetAction       `json:"set,omitempty"`
+	Kill          *RuleKillAction      `json:"kill,omitempty"`
+	Hash          *HashAction          `json:"hash,omitempty"`
+	CoreDump      *CoreDumpAction      `json:"coredump,omitempty"`
+	Log           *LogAction           `json:"log,omitempty"`
+	NetworkFilter *NetworkFilterAction `json:"network_filter,omitempty"`
 }
 
 // HashAction is used to report 'hash' action
@@ -257,6 +258,14 @@ type CoreDumpAction struct {
 type LogAction struct {
 	Level   string `json:"level,omitempty"`
 	Message string `json:"message,omitempty"`
+}
+
+// NetworkFilterAction is used to report the 'network_filter' action
+// easyjson:json
+type NetworkFilterAction struct {
+	Filter string `json:"filter,omitempty"`
+	Policy string `json:"policy,omitempty"`
+	Scope  string `json:"scope,omitempty"`
 }
 
 // RulesetLoadedEvent is used to report that a new ruleset was loaded
@@ -356,6 +365,12 @@ func RuleStateFromRule(rule *rules.PolicyRule, policy *rules.PolicyInfo, status 
 			ruleAction.Log = &LogAction{
 				Level:   action.Def.Log.Level,
 				Message: action.Def.Log.Message,
+			}
+		case action.Def.NetworkFilter != nil:
+			ruleAction.NetworkFilter = &NetworkFilterAction{
+				Filter: action.Def.NetworkFilter.BPFFilter,
+				Policy: action.Def.NetworkFilter.Policy,
+				Scope:  action.Def.NetworkFilter.Scope,
 			}
 		}
 		ruleState.Actions = append(ruleState.Actions, ruleAction)
