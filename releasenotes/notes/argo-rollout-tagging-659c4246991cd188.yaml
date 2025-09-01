@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Tags workloads controlled by Argo Rollouts with the `kube_argo_rollout` tag.
+    Added `kube_argo_rollout` tag for workloads controlled by Argo Rollouts.
