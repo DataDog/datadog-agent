@@ -635,11 +635,17 @@ def rpath_edit(ctx, install_path, target_rpath_dd_folder, platform="linux"):
 
 @task
 def deduplicate_files(ctx, directory):
+    # Match: .so, .so.0, .so.0.1, .so.0.1.2, ...
+    LIB_PATTERN = re.compile(r"\.so(?:\.\d+)*$")
+
     def hash_file(filepath, chunk_size=65536):
         """Returns the SHA-256 hash of the file's contents."""
         hasher = hashlib.sha256()
         with open(filepath, 'rb') as f:
-            while chunk := f.read(chunk_size):
+            while True:
+                chunk = f.read(chunk_size)
+                if not chunk:
+                    break
                 hasher.update(chunk)
         return hasher.hexdigest()
 
@@ -648,8 +654,12 @@ def deduplicate_files(ctx, directory):
         hash_to_files = defaultdict(list)
         for dirpath, _, filenames in os.walk(root_dir):
             for name in filenames:
+                if not LIB_PATTERN.search(name):
+                    continue
+
                 full_path = os.path.join(dirpath, name)
-                if os.path.isfile(full_path) and not os.path.islink(full_path):  # Skip symlinks
+                # Only regular files; skip symlinks
+                if os.path.isfile(full_path) and not os.path.islink(full_path):
                     try:
                         if os.path.getsize(full_path) == 0:
                             continue  # Exclude empty files
@@ -660,9 +670,9 @@ def deduplicate_files(ctx, directory):
         return {h: paths for h, paths in hash_to_files.items() if len(paths) > 1}
 
     def replace_with_symlinks(duplicates):
-        """Replaces all duplicates with symlinks to the first original."""
+        """Replaces all duplicates with symlinks to the first original (shortest path wins)."""
         for files in duplicates.values():
-            files.sort(key=lambda p: (len(p), p))  # Sort by shorted path
+            files.sort(key=lambda p: (len(p), p))  # shortest path, then lexicographic
             original = files[0]
             for dup in files[1:]:
                 try:
