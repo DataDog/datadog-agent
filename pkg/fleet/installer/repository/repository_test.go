@@ -671,7 +671,6 @@ func TestCopyStable(t *testing.T) {
 	err = os.WriteFile(testFile3, []byte("content3"), 0440)
 	assert.NoError(t, err)
 
-
 	// Test CopyStable
 	destPath, err := os.MkdirTemp(repository.rootPath, tempDirPrefix+"*")
 	assert.NoError(t, err)
