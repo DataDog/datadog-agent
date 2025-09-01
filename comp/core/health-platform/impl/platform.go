@@ -102,8 +102,6 @@ func (c *component) Stop() error {
 
 // Run runs the health checks and reports the issues
 func (c *component) Run(ctx context.Context) (*healthplatform.HealthReport, error) {
-	log.Info("Running health checks on all sub-components")
-
 	allIssues := c.collectHealthCheckResults(ctx)
 
 	// Emit results directly
@@ -111,11 +109,6 @@ func (c *component) Run(ctx context.Context) (*healthplatform.HealthReport, erro
 		log.Info("All health checks passed - no issues found")
 	} else {
 		log.Infof("Health checks completed - found %d issues", len(allIssues))
-
-		for _, issue := range allIssues {
-			log.Infof("Issue: %s - %s (Severity: %s, Location: %s)",
-				issue.ID, issue.Description, issue.Severity, issue.Location)
-		}
 	}
 
 	// Format and return the report
@@ -138,14 +131,11 @@ func (c *component) RegisterSubComponent(sub healthplatform.SubComponent) error 
 	defer c.subComponentsMu.Unlock()
 
 	c.subComponents = append(c.subComponents, sub)
-	log.Debugf("Registered sub-component: %T", sub)
 	return nil
 }
 
 // SubmitReport immediately submits the current issues to the backend
 func (c *component) SubmitReport(ctx context.Context) error {
-	log.Info("Submitting health platform report")
-
 	allIssues := c.collectHealthCheckResults(ctx)
 
 	if len(allIssues) == 0 {
@@ -158,11 +148,6 @@ func (c *component) SubmitReport(ctx context.Context) error {
 
 		// Log the formatted report (for now, later this will be sent to intake)
 		log.Infof("Formatted health report: %+v", report)
-
-		for _, issue := range allIssues {
-			log.Infof("Issue: %s - %s (Severity: %s, Location: %s)",
-				issue.ID, issue.Description, issue.Severity, issue.Location)
-		}
 	}
 
 	return nil
@@ -177,8 +162,6 @@ func (c *component) EmitToBackend(ctx context.Context, backendURL string, report
 	if report == nil {
 		return fmt.Errorf("health report cannot be nil")
 	}
-
-	log.Infof("Emitting health report to custom backend: %s", backendURL)
 
 	// Marshal the report to JSON
 	jsonData, err := json.Marshal(report)
@@ -219,15 +202,12 @@ func (c *component) startTicker() {
 	ticker := time.NewTicker(DefaultTickerInterval)
 	defer ticker.Stop()
 
-	log.Infof("Health platform ticker started with interval: %v", DefaultTickerInterval)
-
 	for {
 		select {
 		case <-c.ctx.Done():
 			log.Info("Health platform ticker stopped")
 			return
 		case <-ticker.C:
-			log.Debug("Running periodic health checks")
 			if _, err := c.Run(c.ctx); err != nil {
 				log.Warnf("Failed to run periodic health checks: %v", err)
 			}
