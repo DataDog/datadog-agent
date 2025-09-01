@@ -402,7 +402,7 @@ func createStatelessAPIs() []apiCallInfo {
 				if err != nil {
 					return nil, 0, err
 				}
-				var count float64 = 0
+				var count float64
 				if !isMig {
 					count = 1
 				}

@@ -278,7 +278,7 @@ func TestNVLinkCollector_Initialization(t *testing.T) {
 							}
 							return d.GetFieldValues(fields)
 						},
-						CallFunc: func(device safenvml.Device, timestamp uint64) ([]Metric, uint64, error) {
+						CallFunc: func(_ safenvml.Device, timestamp uint64) ([]Metric, uint64, error) {
 							return []Metric{}, 0, nil
 						},
 					},
@@ -369,7 +369,7 @@ func TestNVLinkCollector_Collection(t *testing.T) {
 							}
 							return d.GetFieldValues(fields)
 						},
-						CallFunc: func(device safenvml.Device, timestamp uint64) ([]Metric, uint64, error) {
+						CallFunc: func(device safenvml.Device, _ uint64) ([]Metric, uint64, error) {
 							return nvlinkSample(device)
 						},
 					},

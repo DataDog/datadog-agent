@@ -145,7 +145,7 @@ func TestBaseCollector_Collect(t *testing.T) {
 				{
 					Name:     "metric1",
 					TestFunc: func(ddnvml.Device) error { return nil },
-					CallFunc: func(device ddnvml.Device, timestamp uint64) ([]Metric, uint64, error) {
+					CallFunc: func(_ ddnvml.Device, timestamp uint64) ([]Metric, uint64, error) {
 						return []Metric{
 							{Name: "test.metric1", Value: 1.0, Type: metrics.GaugeType},
 						}, 0, nil
@@ -154,7 +154,7 @@ func TestBaseCollector_Collect(t *testing.T) {
 				{
 					Name:     "metric2",
 					TestFunc: func(ddnvml.Device) error { return nil },
-					CallFunc: func(device ddnvml.Device, timestamp uint64) ([]Metric, uint64, error) {
+					CallFunc: func(_ ddnvml.Device, timestamp uint64) ([]Metric, uint64, error) {
 						return []Metric{
 							{Name: "test.metric2", Value: 2.0, Type: metrics.GaugeType},
 							{Name: "test.metric3", Value: 3.0, Type: metrics.GaugeType},
@@ -172,14 +172,14 @@ func TestBaseCollector_Collect(t *testing.T) {
 				{
 					Name:     "working_api",
 					TestFunc: func(ddnvml.Device) error { return nil },
-					CallFunc: func(device ddnvml.Device, timestamp uint64) ([]Metric, uint64, error) {
+					CallFunc: func(_ ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
 						return []Metric{{Name: "test.working", Value: 1.0, Type: metrics.GaugeType}}, 0, nil
 					},
 				},
 				{
 					Name:     "failing_api",
 					TestFunc: func(ddnvml.Device) error { return nil },
-					CallFunc: func(device ddnvml.Device, timestamp uint64) ([]Metric, uint64, error) {
+					CallFunc: func(_ ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
 						return nil, 0, errors.New("API call failed")
 					},
 				},
@@ -226,7 +226,7 @@ func TestNewSamplingCollector(t *testing.T) {
 		{
 			Name:     "sampling_api",
 			TestFunc: func(ddnvml.Device) error { return nil },
-			CallFunc: func(device ddnvml.Device, timestamp uint64) ([]Metric, uint64, error) {
+			CallFunc: func(_ ddnvml.Device, timestamp uint64) ([]Metric, uint64, error) {
 				// Sampling collector - should receive non-zero timestamp after first call
 				timestamps[callCount] = timestamp
 				callCount++
