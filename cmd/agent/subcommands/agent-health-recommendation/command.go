@@ -25,7 +25,6 @@ type cliParams struct {
 	severity    string
 	location    string
 	integration string
-	backendURL  string
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.
@@ -65,7 +64,6 @@ recommendations for improvement.`,
 	cmd.Flags().StringVarP(&cliParams.severity, "severity", "s", "", "Filter issues by severity (low, medium, high, critical)")
 	cmd.Flags().StringVarP(&cliParams.location, "location", "l", "", "Filter issues by location (core-agent, log-agent, process-agent, etc.)")
 	cmd.Flags().StringVarP(&cliParams.integration, "integration", "i", "", "Filter issues by integration/feature (logs, metrics, apm, etc.)")
-	cmd.Flags().StringVarP(&cliParams.backendURL, "backend", "b", "", "Send health report to backend service URL")
 
 	return []*cobra.Command{cmd}
 }

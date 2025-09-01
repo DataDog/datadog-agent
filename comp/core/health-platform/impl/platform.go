@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"sync"
@@ -19,12 +20,40 @@ import (
 	healthplatform "github.com/DataDog/datadog-agent/comp/core/health-platform/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // DefaultTickerInterval is the default interval for health check ticker
 const DefaultTickerInterval = 5 * time.Minute
+
+// healthClient handles HTTP communication with the health platform backend
+type healthClient struct {
+	apiKey   string
+	site     string
+	endpoint string
+	client   *http.Client
+}
+
+// newHealthClient creates a new health client with configuration
+func newHealthClient(cfg config.Component) *healthClient {
+	apiKey := utils.SanitizeAPIKey(cfg.GetString("api_key"))
+	site := cfg.GetString("site")
+	if site == "" {
+		site = "datadoghq.com" // default site
+	}
+	endpoint := fmt.Sprintf("https://intake.%s/api/v2/agent-recommendation-health", site)
+
+	return &healthClient{
+		apiKey:   apiKey,
+		site:     site,
+		endpoint: endpoint,
+		client: &http.Client{
+			Timeout: 30 * time.Second,
+		},
+	}
+}
 
 // Dependencies defines the dependencies for the health platform component
 type Dependencies struct {
@@ -38,6 +67,9 @@ type component struct {
 	cfg       config.Component
 	hostname  hostname.Component
 	forwarder defaultforwarder.Component
+
+	// HTTP client for backend communication
+	healthClient *healthClient
 
 	// sub-components for health checks
 	subComponents   []healthplatform.SubComponent
@@ -55,9 +87,10 @@ type component struct {
 // NewComponent creates a new health platform component
 func NewComponent(deps Dependencies) healthplatform.Component {
 	return &component{
-		cfg:       deps.Config,
-		hostname:  deps.Hostname,
-		forwarder: deps.Forwarder,
+		cfg:          deps.Config,
+		hostname:     deps.Hostname,
+		forwarder:    deps.Forwarder,
+		healthClient: newHealthClient(deps.Config),
 		hostInfo: healthplatform.HostInfo{
 			AgentVersion: version.AgentVersion,
 			ParIDs:       []string{}, // Will be populated later
@@ -102,23 +135,23 @@ func (c *component) Stop() error {
 
 // Run runs the health checks and reports the issues
 func (c *component) Run(ctx context.Context) (*healthplatform.HealthReport, error) {
-	allIssues := c.collectHealthCheckResults(ctx)
+	var allIssues []healthplatform.Issue
+	var err error
+	if allIssues, err = c.collectHealthCheckResults(ctx); err != nil {
+		return nil, err
+	}
 
 	// Emit results directly
 	if len(allIssues) == 0 {
 		log.Info("All health checks passed - no issues found")
-	} else {
-		log.Infof("Health checks completed - found %d issues", len(allIssues))
+		return nil, nil
 	}
+
+	log.Infof("Health checks completed - found %d issues", len(allIssues))
 
 	// Format and return the report
 	report := formatHealthReport(allIssues, c.hostInfo)
 	return &report, nil
-}
-
-// FlushIssues flushes the current issues to the backend
-func (c *component) FlushIssues() error {
-	return c.SubmitReport(context.Background())
 }
 
 // RegisterSubComponent registers a health checker sub-component
@@ -134,33 +167,14 @@ func (c *component) RegisterSubComponent(sub healthplatform.SubComponent) error 
 	return nil
 }
 
-// SubmitReport immediately submits the current issues to the backend
-func (c *component) SubmitReport(ctx context.Context) error {
-	allIssues := c.collectHealthCheckResults(ctx)
-
-	if len(allIssues) == 0 {
-		log.Info("No health issues found")
-	} else {
-		log.Infof("Found %d health issues", len(allIssues))
-
-		// Format the report
-		report := formatHealthReport(allIssues, c.hostInfo)
-
-		// Log the formatted report (for now, later this will be sent to intake)
-		log.Infof("Formatted health report: %+v", report)
-	}
-
-	return nil
-}
-
-// EmitToBackend emits the current health report to a custom backend service
-func (c *component) EmitToBackend(ctx context.Context, backendURL string, report *healthplatform.HealthReport) error {
-	if backendURL == "" {
-		return fmt.Errorf("backend URL cannot be empty")
-	}
-
+// sendReport sends a health report to the backend
+func (hc *healthClient) sendReport(ctx context.Context, report *healthplatform.HealthReport) error {
 	if report == nil {
 		return fmt.Errorf("health report cannot be nil")
+	}
+
+	if hc.apiKey == "" {
+		return fmt.Errorf("API key not configured")
 	}
 
 	// Marshal the report to JSON
@@ -170,16 +184,16 @@ func (c *component) EmitToBackend(ctx context.Context, backendURL string, report
 	}
 
 	// Create and send the HTTP request
-	req, err := http.NewRequestWithContext(ctx, "POST", backendURL, bytes.NewBuffer(jsonData))
+	req, err := http.NewRequestWithContext(ctx, "POST", hc.endpoint, bytes.NewBuffer(jsonData))
 	if err != nil {
 		return fmt.Errorf("failed to create HTTP request: %w", err)
 	}
 
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("User-Agent", "datadog-agent-health-platform")
+	// Set minimal headers like the telemetry client
+	req.Header.Set("dd-api-key", hc.apiKey)
+	req.Header.Set("content-type", "application/json")
 
-	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Do(req)
+	resp, err := hc.client.Do(req)
 	if err != nil {
 		log.Errorf("Failed to send health report to backend: %v", err)
 		return fmt.Errorf("failed to send health report to backend: %w", err)
@@ -195,6 +209,11 @@ func (c *component) EmitToBackend(ctx context.Context, backendURL string, report
 	return nil
 }
 
+// EmitToBackend emits the current health report to a custom backend service
+func (c *component) EmitToBackend(ctx context.Context, report *healthplatform.HealthReport) error {
+	return c.healthClient.sendReport(ctx, report)
+}
+
 // startTicker starts the periodic health check ticker
 func (c *component) startTicker() {
 	defer close(c.done)
@@ -208,28 +227,34 @@ func (c *component) startTicker() {
 			log.Info("Health platform ticker stopped")
 			return
 		case <-ticker.C:
-			if _, err := c.Run(c.ctx); err != nil {
+			if report, err := c.Run(c.ctx); err != nil {
 				log.Warnf("Failed to run periodic health checks: %v", err)
+			} else if report != nil && c.cfg.GetBool("health_platform.enabled") {
+				if err := c.EmitToBackend(c.ctx, report); err != nil {
+					log.Warnf("Failed to emit health report to backend: %v", err)
+				}
 			}
 		}
 	}
 }
 
 // collectHealthCheckResults collects issues from all registered sub-components
-func (c *component) collectHealthCheckResults(ctx context.Context) []healthplatform.Issue {
+func (c *component) collectHealthCheckResults(ctx context.Context) ([]healthplatform.Issue, error) {
 	c.subComponentsMu.RLock()
 	defer c.subComponentsMu.RUnlock()
 
 	var allIssues []healthplatform.Issue
+	var errs []error
 
 	for _, sub := range c.subComponents {
 		issues, err := sub.CheckHealth(ctx)
 		if err != nil {
 			log.Debugf("Sub-component %T failed health check: %v", sub, err)
+			errs = append(errs, err)
 			continue
 		}
 		allIssues = append(allIssues, issues...)
 	}
 
-	return allIssues
+	return allIssues, errors.Join(errs...)
 }

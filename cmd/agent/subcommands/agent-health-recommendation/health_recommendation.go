@@ -52,16 +52,14 @@ func runHealthRecommendation(logComponent log.Component, healthPlatform healthpl
 	}
 	logComponent.Infof("Health checks completed successfully. Found %d issues", len(report.Issues))
 
-	// Send to backend service if URL is provided
-	if cliParams.backendURL != "" {
-		logComponent.Info("Backend URL provided, emitting health report to backend service")
-		if err := healthPlatform.EmitToBackend(ctx, cliParams.backendURL, report); err != nil {
-			logComponent.Errorf("Failed to emit health report to backend: %v", err)
-			// Don't fail the entire process if backend emission fails
-			logComponent.Warn("Continuing with local output despite backend failure")
-		} else {
-			logComponent.Info("Health report successfully emitted to backend service")
-		}
+	// Send to backend service if health platform is enabled
+	logComponent.Info("Emitting health report to backend service")
+	if err := healthPlatform.EmitToBackend(ctx, report); err != nil {
+		logComponent.Errorf("Failed to emit health report to backend: %v", err)
+		// Don't fail the entire process if backend emission fails
+		logComponent.Warn("Continuing with local output despite backend failure")
+	} else {
+		logComponent.Info("Health report successfully emitted to backend service")
 	}
 
 	// Display the health report
