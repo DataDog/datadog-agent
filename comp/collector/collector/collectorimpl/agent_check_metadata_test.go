@@ -77,7 +77,7 @@ func TestCollectTags(t *testing.T) {
 			name: "list of tags",
 			config: `
 init_config:
-instances:
+instance_config:
   - tags:
     - foo:bar
     - baz:qux
@@ -88,7 +88,7 @@ instances:
 			name: "array of tags",
 			config: `
 init_config:
-instances:
+instance_config:
   - tags: [foo:bar, baz:qux]
 `,
 			want: []string{"foo:bar", "baz:qux"},
@@ -97,7 +97,7 @@ instances:
 			name: "scalar value",
 			config: `
 init_config:
-instances:
+instance_config:
   product:
     tags: "foo:bar"
 `,

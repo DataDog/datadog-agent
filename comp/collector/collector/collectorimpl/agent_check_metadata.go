@@ -164,8 +164,6 @@ func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
 			}
 		}
 	}
-	b, _ := json.MarshalIndent(payload, "", "  ")
-	log.Debugf("%s", b)
 	return payload
 }
 
