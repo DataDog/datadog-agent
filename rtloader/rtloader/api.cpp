@@ -13,7 +13,10 @@
 // clang-format off
 // handler stuff
 #ifdef HAS_BACKTRACE_LIB
+#warning "HAS_BACKTRACE_LIB is defined"
 #include <execinfo.h>
+#else
+#warning "HAS_BACKTRACE_LIB is not defined"
 #endif
 #include <csignal>
 #include <cstring>
