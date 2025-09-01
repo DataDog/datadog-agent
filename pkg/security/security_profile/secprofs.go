@@ -300,7 +300,7 @@ func (m *Manager) linkProfileMap(profile *profile.Profile, workload *tags.Worklo
 		seclog.Errorf("couldn't link workload %s (selector: %s, key: %v) with profile %s (check map size limit ?): %v", workload.ContainerID, workload.Selector.String(), workload.CGroupFile, profile.Metadata.Name, err)
 		return
 	}
-	seclog.Infof("workload %s (selector: %s) successfully linked to profile %s", workload.ContainerID, workload.Selector.String(), profile.Metadata.Name)
+	seclog.Infof("workload %s (selector: %s, key: %v) successfully linked to profile %s", workload.ContainerID, workload.Selector.String(), workload.CGroupFile, profile.Metadata.Name)
 }
 
 // linkProfile applies a profile to the provided workload
@@ -335,7 +335,7 @@ func (m *Manager) unlinkProfileMap(profile *profile.Profile, workload *tags.Work
 		seclog.Errorf("couldn't unlink workload %s (selector: %s, key: %v) with profile %s: %v", workload.ContainerID, workload.Selector.String(), workload.CGroupFile, profile.Metadata.Name, err)
 		return
 	}
-	seclog.Infof("workload %s (selector: %s) successfully unlinked from profile %s", workload.ContainerID, workload.Selector.String(), profile.Metadata.Name)
+	seclog.Infof("workload %s (selector: %s, key: %v) successfully unlinked from profile %s", workload.ContainerID, workload.Selector.String(), workload.CGroupFile, profile.Metadata.Name)
 }
 
 // unlinkProfile removes the link between a workload and a profile
