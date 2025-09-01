@@ -526,3 +526,19 @@ type DIAMetrics struct {
 	BandwidthTx   float64
 	BandwidthRx   float64
 }
+
+// AnalyticsInterfaceMetrics represents the columns to parse from the Analytics Interface metrics response
+type AnalyticsInterfaceMetrics struct {
+	DrillKey    string
+	Site        string
+	AccessCkt   string
+	Interface   string
+	RxUtil      float64
+	TxUtil      float64
+	VolumeRx    float64
+	VolumeTx    float64
+	Volume      float64
+	BandwidthRx float64
+	BandwidthTx float64
+	Bandwidth   float64
+}

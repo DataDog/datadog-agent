@@ -157,6 +157,7 @@ func getExpectedBinFilesForAgentMajorVersion(majorVersion string) []string {
 	paths := []string{
 		// user binaries
 		`bin\agent.exe`,
+		`bin\secret-generic-connector.exe`,
 		`bin\agent\ddtray.exe`,
 		`bin\agent\trace-agent.exe`,
 		`bin\agent\process-agent.exe`,
