@@ -24,6 +24,7 @@ import (
 func TestImportBuiltinCollectors(t *testing.T) {
 	cfg := mockconfig.New(t)
 	cfg.SetWithoutSource("orchestrator_explorer.terminated_pods.enabled", true)
+	cfg.SetWithoutSource("orchestrator_explorer.custom_resources.datadog.enabled", true)
 
 	// add resources to discovery cache to ensure that collectors are supported
 	collectorDiscovery := &discovery.DiscoveryCollector{}
@@ -40,11 +41,6 @@ func TestImportBuiltinCollectors(t *testing.T) {
 		})
 
 	cb := CollectorBundle{
-		check: &OrchestratorCheck{
-			orchestratorConfig: &orchcfg.OrchestratorConfig{
-				CollectDatadogCustomResources: true,
-			},
-		},
 		collectorDiscovery:  collectorDiscovery,
 		activatedCollectors: make(map[string]struct{}),
 		collectors: []collectors.K8sCollector{
@@ -168,14 +164,19 @@ func TestGetDatadogCustomResourceCollectors(t *testing.T) {
 		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
-			cb.check.orchestratorConfig.CollectDatadogCustomResources = testCase.enabled
+			cfg := mockconfig.New(t)
+			cfg.SetWithoutSource("orchestrator_explorer.custom_resources.datadog.enabled", testCase.enabled)
+
 			collectorDiscovery.SetCache(testCase.supportedResources)
+
 			cb.collectors = []collectors.K8sCollector{}
 			if testCase.hasCrdCollectors {
 				cb.collectors = []collectors.K8sCollector{k8s.NewCRDCollector()}
 			}
-			crCollectors := cb.getDatadogCustomResourceCollectors()
+
+			crCollectors := cb.getBuiltinCustomResourceCollectors()
 			require.Equal(t, len(testCase.expected), len(crCollectors))
+
 			names := make([]string, 0, len(crCollectors))
 			for _, collector := range crCollectors {
 				names = append(names, collector.Metadata().FullName())
@@ -184,6 +185,7 @@ func TestGetDatadogCustomResourceCollectors(t *testing.T) {
 		})
 	}
 }
+
 func TestGetTerminatedPodCollector(t *testing.T) {
 	cfg := mockconfig.New(t)
 

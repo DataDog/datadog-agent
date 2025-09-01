@@ -170,13 +170,37 @@ func (d *DiscoveryCollector) isSupportTerminatedPodCollector(collector collector
 
 }
 
-// List returns a list of CollectorVersion for the given group.
-func (d *DiscoveryCollector) List(group string) []CollectorVersion {
-	var versions []CollectorVersion
-	for cv := range d.cache.CollectorForVersion {
-		if strings.HasPrefix(cv.Version, fmt.Sprintf("%s/", group)) && !strings.HasSuffix(cv.Name, "/status") {
-			versions = append(versions, cv)
-		}
+// List returns a list of CollectorVersion for the given group, version, and kind.
+// An empty string for any argument means it can match any value.
+func (d *DiscoveryCollector) List(group, version, kind string) []CollectorVersion {
+	var result []CollectorVersion
+
+	// Construct groupVersion prefix for matching
+	var groupVersion string
+	if group == "" {
+		groupVersion = version
+	} else {
+		groupVersion = fmt.Sprintf("%s/%s", group, version)
 	}
-	return versions
+
+	for cv := range d.cache.CollectorForVersion {
+		// Skip "/status" entries
+		if strings.HasSuffix(cv.Name, "/status") {
+			continue
+		}
+
+		// Match version prefix
+		if !strings.HasPrefix(cv.Version, groupVersion) {
+			continue
+		}
+
+		// If kind is specified, only include matching name
+		if kind != "" && cv.Name != kind {
+			continue
+		}
+
+		result = append(result, cv)
+	}
+
+	return result
 }
