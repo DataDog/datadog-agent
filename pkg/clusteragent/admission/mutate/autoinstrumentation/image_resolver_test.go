@@ -65,7 +65,7 @@ func newMockRCClient(filename string) *mockRCClient {
 	}
 }
 
-func (m *mockRCClient) Subscribe(_ string, _ func(map[string]state.RawConfig, func(string, state.ApplyStatus))) {
+func (m *mockRCClient) Subscribe(product string, _ func(map[string]state.RawConfig, func(string, state.ApplyStatus))) {
 	log.Debugf("Would subscribe called with product on RCClient: %s", product)
 }
 
