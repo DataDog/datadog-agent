@@ -27,6 +27,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -140,7 +141,8 @@ func TestAutoInstrumentation(t *testing.T) {
 			))
 
 			// Create APM webhook.
-			apm, err := generateAutoInstrumentationWebhook(wmeta, mockConfig, nil)
+			imageResolver := autoinstrumentation.NewImageResolver(nil)
+			apm, err := generateAutoInstrumentationWebhook(wmeta, mockConfig, imageResolver)
 			assert.NoError(t, err)
 
 			// Create request.

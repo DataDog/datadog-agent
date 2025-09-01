@@ -69,7 +69,7 @@ func (m *mockRCClient) Subscribe(product string, _ func(map[string]state.RawConf
 	log.Debugf("Would subscribe called with product on RCClient: %s", product)
 }
 
-func (m *mockRCClient) GetConfigs(product string) map[string]state.RawConfig {
+func (m *mockRCClient) GetConfigs(_ string) map[string]state.RawConfig {
 	return m.configs
 }
 
