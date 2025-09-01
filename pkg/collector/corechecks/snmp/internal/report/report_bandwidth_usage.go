@@ -108,10 +108,14 @@ func (ms *MetricSender) sendBandwidthUsageMetric(symbol profiledefinition.Symbol
 	fmt.Println("USAGE VALUE:", usageValue)
 
 	rate, err := ms.interfaceBandwidthState.calculateBandwidthUsageRate(fullIndex, usageName, ifSpeed, usageValue)
-	fmt.Println("RATE:", rate)
 	if err != nil {
 		return err
 	}
+
+	if rate > 100 {
+		ms.diagnoses.Add("warn", "SNMP_IF_BANDWIDTH_EXCEEDED", "")
+	}
+
 	sample := MetricSample{
 		value:      valuestore.ResultValue{SubmissionType: profiledefinition.ProfileMetricTypeGauge, Value: rate},
 		tags:       tags,

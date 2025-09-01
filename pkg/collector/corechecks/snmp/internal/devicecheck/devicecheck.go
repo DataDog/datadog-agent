@@ -447,8 +447,12 @@ func (d *DeviceCheck) submitTelemetryMetrics(startTime time.Time, tags []string)
 	d.sender.Gauge(snmpRequestMetric, float64(d.session.GetSnmpGetNextCount()), append(utils.CopyStrings(newTags), snmpGetNextReqestTag))
 }
 
-// GetDiagnoses collects diagnoses for diagnose CLI
-func (d *DeviceCheck) GetDiagnoses() []diagnose.Diagnosis {
+func (d *DeviceCheck) GetDiagnoses() *diagnoses.Diagnoses {
+	return d.diagnoses
+}
+
+// GetCLIDiagnoses collects diagnoses for diagnose CLI
+func (d *DeviceCheck) GetCLIDiagnoses() []diagnose.Diagnosis {
 	return d.diagnoses.ReportAsAgentDiagnoses()
 }
 
