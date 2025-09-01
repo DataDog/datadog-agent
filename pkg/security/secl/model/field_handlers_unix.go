@@ -36,6 +36,7 @@ func (ev *Event) resolveFields(forADs bool) {
 	if !forADs {
 		_ = ev.FieldHandlers.ResolveService(ev, &ev.BaseEvent)
 	}
+	_ = ev.FieldHandlers.ResolveSource(ev, &ev.BaseEvent)
 	_ = ev.FieldHandlers.ResolveEventTimestamp(ev, &ev.BaseEvent)
 	if !forADs && (eventType == "dns" || eventType == "imds") {
 		_ = ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.NetworkContext.Destination)
@@ -1502,6 +1503,7 @@ type FieldHandlers interface {
 	ResolveSetuidEUser(ev *Event, e *SetuidEvent) string
 	ResolveSetuidFSUser(ev *Event, e *SetuidEvent) string
 	ResolveSetuidUser(ev *Event, e *SetuidEvent) string
+	ResolveSource(ev *Event, e *BaseEvent) string
 	ResolveSyscallCtxArgsInt1(ev *Event, e *SyscallContext) int
 	ResolveSyscallCtxArgsInt2(ev *Event, e *SyscallContext) int
 	ResolveSyscallCtxArgsInt3(ev *Event, e *SyscallContext) int
@@ -1757,6 +1759,7 @@ func (dfh *FakeFieldHandlers) ResolveSetuidFSUser(ev *Event, e *SetuidEvent) str
 func (dfh *FakeFieldHandlers) ResolveSetuidUser(ev *Event, e *SetuidEvent) string {
 	return string(e.User)
 }
+func (dfh *FakeFieldHandlers) ResolveSource(ev *Event, e *BaseEvent) string { return string(e.Source) }
 func (dfh *FakeFieldHandlers) ResolveSyscallCtxArgsInt1(ev *Event, e *SyscallContext) int {
 	return int(e.IntArg1)
 }

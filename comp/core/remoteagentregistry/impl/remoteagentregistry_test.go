@@ -61,14 +61,10 @@ func TestRecommendedRefreshInterval(t *testing.T) {
 
 	component := provides.Comp
 
-	remoteAgentServer := &testRemoteAgentServer{}
-	server, port := buildRemoteAgentServer(t, remoteAgentServer)
-	defer server.Stop()
-
 	registrationData := &remoteagent.RegistrationData{
 		AgentID:     "test-agent",
 		DisplayName: "Test Agent",
-		APIEndpoint: fmt.Sprintf("localhost:%d", port),
+		APIEndpoint: "localhost:1234",
 	}
 
 	actualRefreshIntervalSecs, err := component.RegisterRemoteAgent(registrationData)
@@ -84,14 +80,10 @@ func TestGetRegisteredAgents(t *testing.T) {
 	provides, _, _, _ := buildComponent(t)
 	component := provides.Comp
 
-	remoteAgentServer := &testRemoteAgentServer{}
-	server, port := buildRemoteAgentServer(t, remoteAgentServer)
-	defer server.Stop()
-
 	registrationData := &remoteagent.RegistrationData{
 		AgentID:     "test-agent",
 		DisplayName: "Test Agent",
-		APIEndpoint: fmt.Sprintf("localhost:%d", port),
+		APIEndpoint: "localhost:1234",
 	}
 
 	_, err := component.RegisterRemoteAgent(registrationData)
