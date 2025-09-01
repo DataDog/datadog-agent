@@ -633,16 +633,10 @@ def deduplicate_files(ctx, directory):
     # Match: .so, .so.0, .so.0.1, .so.0.1.2, ...
     LIB_PATTERN = re.compile(r"\.so(?:\.\d+)*$")
 
-    def hash_file(filepath, chunk_size=65536):
+    def hash_file(filepath):
         """Returns the SHA-256 hash of the file's contents."""
-        hasher = hashlib.sha256()
-        with open(filepath, 'rb') as f:
-            while True:
-                chunk = f.read(chunk_size)
-                if not chunk:
-                    break
-                hasher.update(chunk)
-        return hasher.hexdigest()
+        with open(filepath, "rb") as f:
+            return hashlib.file_digest(f, "sha256").hexdigest()
 
     def find_duplicates(root_dir):
         """Finds and returns duplicates as a map of hash -> list of files with that hash, excluding empty files."""
