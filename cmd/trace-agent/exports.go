@@ -37,16 +37,19 @@ typedef struct {
     size_t len;
 } key_value_pair_array;
 
-// byte_array represents a byte array.
+
+// traces_payload represents a traces payload for the submit_traces function
 // Fields:
-//   - data: Pointer to the byte data.
-//   - len: The length of the byte array.
-//
-// Used for passing raw binary data, such as serialized traces.
+//   - version: C-string with the version of the payload.
+//   - headers: key_value_pair_array with all the headers of the payload.
+//   - data: Pointer to the payload byte data.
+//   - len: The length of the payload byte array.
 typedef struct {
+	char* version;
+	key_value_pair_array headers;
 	byte* data;
 	size_t len;
-} byte_array;
+} traces_payload;
 */
 import "C"
 import (
@@ -132,22 +135,26 @@ func stop() C.bool {
 }
 
 //export submit_traces
-func submit_traces(version *C.char, headers C.key_value_pair_array, payload C.byte_array) {
+func submit_traces(payload C.traces_payload) C.bool {
 	if !initialized.Load() {
 		fmt.Println("Trace Agent shared library not initialized")
-		return
+		return toBool(false)
 	}
 
 	if traceReceiver == nil {
 		fmt.Println("Trace Agent receiver is nil")
-		return
+		return toBool(false)
 	}
 
 	if receiver, ok := traceReceiver.(*api.BypassReceiver); ok {
-		g_version := C.GoString(version)
+		if payload.version == nil {
+			fmt.Println("Payload version is nil")
+			return toBool(false)
+		}
+		g_version := C.GoString(payload.version)
 		g_headers := map[string]string{}
-		for i := C.size_t(0); i < headers.len; i++ {
-			kvp := *(*C.key_value_pair)(unsafe.Add(unsafe.Pointer(headers.data), i*key_value_pair_size))
+		for i := C.size_t(0); i < payload.headers.len; i++ {
+			kvp := *(*C.key_value_pair)(unsafe.Add(unsafe.Pointer(payload.headers.data), i*key_value_pair_size))
 			key := C.GoString(kvp.key)
 			value := C.GoString(kvp.value)
 			g_headers[key] = value
@@ -156,12 +163,15 @@ func submit_traces(version *C.char, headers C.key_value_pair_array, payload C.by
 		err := receiver.SubmitTraces(context.Background(), api.Version(g_version), g_headers, g_payload)
 		if err != nil {
 			fmt.Printf("Error submitting traces: %v\n", err)
-		} else {
-			fmt.Println("Submitted traces successfully")
+			return toBool(false)
 		}
-	} else {
-		fmt.Println("Trace Agent receiver is not a BypassReceiver")
+
+		fmt.Println("Submitted traces successfully")
+		return toBool(true)
 	}
+
+	fmt.Println("Trace Agent receiver is not a BypassReceiver")
+	return toBool(false)
 }
 
 // initializeFx initializes the fx app in a goroutine and returns the channels
