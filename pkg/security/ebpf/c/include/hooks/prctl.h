@@ -18,17 +18,12 @@ long __attribute__((always_inline)) trace__sys_prctl(u8 async, int option, void 
             .option = option,
         }
     };
-    int key = 0;
-    struct prctl_event_t *event = bpf_map_lookup_elem(&prctl_event, &key);
-    if (!event) {
-        return 0;
-    }
     switch (option) {
     case PR_SET_NAME: {
-        int n = bpf_probe_read_str(event->name, MAX_PRCTL_NAME_LEN, arg2);
+        int n = bpf_probe_read_str(syscall.prctl.name, MAX_PRCTL_NAME_LEN, arg2);
         if (n > 0) {
             syscall.prctl.name_truncated = (n == MAX_PRCTL_NAME_LEN) ? 1 : 0;
-            syscall.prctl.name_size_to_send = n - 1;    
+            syscall.prctl.name_size_to_send = n - 1;
         } else {
             syscall.prctl.name_size_to_send = 0;
         }
@@ -44,24 +39,21 @@ int __attribute__((always_inline)) sys_prctl_ret(void *ctx, int retval) {
     if (!syscall) {
         return 0;
     }
-    int key = 0;
-    struct prctl_event_t *event = bpf_map_lookup_elem(&prctl_event,&key);
-
-    if (!event) {
-        return 0;  
-    }
-    event->syscall.retval = retval;
-    event->event.flags = syscall->async;
-    event->option = syscall->prctl.option;
-    event->name_truncated = syscall->prctl.name_truncated;
-    struct proc_cache_t *entry = fill_process_context(&event->process);
-    fill_cgroup_context(entry, &event->cgroup);
-    fill_span_context(&event->span);
+    struct prctl_event_t event = {
+        .syscall.retval = retval,
+        .event.flags = syscall->async,
+        .option = syscall->prctl.option,
+        .name_truncated = syscall->prctl.name_truncated,        
+    };
+    struct proc_cache_t *entry = fill_process_context(&event.process);
+    fill_cgroup_context(entry, &event.cgroup);
+    fill_span_context(&event.span);
     int size_to_sent = (syscall->prctl.name_size_to_send >= MAX_PRCTL_NAME_LEN)
         ? MAX_PRCTL_NAME_LEN
         : syscall->prctl.name_size_to_send;
-    event->sent_size = size_to_sent;
-    send_event_with_size_ptr(ctx, EVENT_PRCTL, event, (offsetof(struct prctl_event_t, name) + size_to_sent));
+    event.sent_size = size_to_sent;
+    bpf_probe_read(event.name, event.sent_size, syscall->prctl.name);
+    send_event(ctx, EVENT_PRCTL, event);
     return 0;
 }
 
