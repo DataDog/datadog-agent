@@ -297,7 +297,7 @@ func (m *Manager) unloadProfileMap(profile *profile.Profile) {
 // linkProfile (thread unsafe) updates the kernel space mapping between a workload and its profile
 func (m *Manager) linkProfileMap(profile *profile.Profile, workload *tags.Workload) {
 	if err := m.securityProfileMap.Put(workload.CGroupFile, profile.GetProfileCookie()); err != nil {
-		seclog.Errorf("couldn't link workload %s (selector: %s) with profile %s (check map size limit ?): %v", workload.ContainerID, workload.Selector.String(), profile.Metadata.Name, err)
+		seclog.Errorf("couldn't link workload %s (selector: %s, key: %v) with profile %s (check map size limit ?): %v", workload.ContainerID, workload.Selector.String(), workload.CGroupFile, profile.Metadata.Name, err)
 		return
 	}
 	seclog.Infof("workload %s (selector: %s) successfully linked to profile %s", workload.ContainerID, workload.Selector.String(), profile.Metadata.Name)
@@ -332,7 +332,7 @@ func (m *Manager) unlinkProfileMap(profile *profile.Profile, workload *tags.Work
 	}
 
 	if err := m.securityProfileMap.Delete(workload.CGroupFile); err != nil {
-		seclog.Errorf("couldn't unlink workload %s (selector: %s) with profile %s: %v", workload.ContainerID, workload.Selector.String(), profile.Metadata.Name, err)
+		seclog.Errorf("couldn't unlink workload %s (selector: %s, key: %v) with profile %s: %v", workload.ContainerID, workload.Selector.String(), workload.CGroupFile, profile.Metadata.Name, err)
 		return
 	}
 	seclog.Infof("workload %s (selector: %s) successfully unlinked from profile %s", workload.ContainerID, workload.Selector.String(), profile.Metadata.Name)
