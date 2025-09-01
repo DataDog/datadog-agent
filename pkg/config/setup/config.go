@@ -174,16 +174,6 @@ func SetSystemProbe(cfg pkgconfigmodel.BuildableConfig) {
 	systemProbe = cfg
 }
 
-// Variables to initialize at build time
-var (
-	DefaultPython string
-
-	// ForceDefaultPython has its value set to true at compile time if we should ignore
-	// the Python version set in the configuration and use `DefaultPython` instead.
-	// We use this to force Python 3 in the Agent 7 as it's the only one available.
-	ForceDefaultPython string
-)
-
 // Variables to initialize at start time
 var (
 	// StartTime is the agent startup time
@@ -1236,7 +1226,6 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnv("bind_host")
 	config.BindEnvAndSetDefault("health_port", int64(0))
 	config.BindEnvAndSetDefault("disable_py3_validation", false)
-	config.BindEnvAndSetDefault("python_version", DefaultPython)
 	config.BindEnvAndSetDefault("win_skip_com_init", false)
 	config.BindEnvAndSetDefault("allow_arbitrary_tags", false)
 	config.BindEnvAndSetDefault("use_proxy_for_cloud_metadata", false)
@@ -2221,21 +2210,8 @@ func LoadDatadogCustom(config pkgconfigmodel.Config, origin string, secretResolv
 		return warnings, err
 	}
 
-	// If this variable is set to true, we'll use DefaultPython for the Python version,
-	// ignoring the python_version configuration value.
-	if ForceDefaultPython == "true" && config.IsKnown("python_version") {
-		pv := config.GetString("python_version")
-		if pv != DefaultPython {
-			log.Warnf("Python version has been forced to %s", DefaultPython)
-		}
-
-		pkgconfigmodel.AddOverride("python_version", DefaultPython)
-	}
-
 	sanitizeAPIKeyConfig(config, "api_key")
 	sanitizeAPIKeyConfig(config, "logs_config.api_key")
-	// setTracemallocEnabled *must* be called before setNumWorkers
-	warnings.TraceMallocEnabledWithPy2 = setTracemallocEnabled(config)
 	setNumWorkers(config)
 
 	flareStrippedKeys := config.GetStringSlice("flare_stripped_keys")
@@ -2679,27 +2655,6 @@ func IsCloudProviderEnabled(cloudProviderName string, config pkgconfigmodel.Read
 func pathExists(path string) bool {
 	_, err := os.Stat(path)
 	return !os.IsNotExist(err)
-}
-
-// setTracemallocEnabled is a helper to get the effective tracemalloc
-// configuration.
-func setTracemallocEnabled(config pkgconfigmodel.Config) bool {
-	if !config.IsKnown("tracemalloc_debug") {
-		return false
-	}
-
-	pyVersion := config.GetString("python_version")
-	wTracemalloc := config.GetBool("tracemalloc_debug")
-	traceMallocEnabledWithPy2 := false
-	if pyVersion == "2" && wTracemalloc {
-		log.Warnf("Tracemalloc was enabled but unavailable with python version %q, disabling.", pyVersion)
-		traceMallocEnabledWithPy2 = true
-
-		// update config with the actual effective tracemalloc
-		config.Set("tracemalloc_debug", false, pkgconfigmodel.SourceAgentRuntime)
-	}
-
-	return traceMallocEnabledWithPy2
 }
 
 // setNumWorkers is a helper to set the effective number of workers for
