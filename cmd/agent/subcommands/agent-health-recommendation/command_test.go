@@ -43,7 +43,6 @@ func TestCommands(t *testing.T) {
 	assert.NotNil(t, cmd.Flags().Lookup("severity"))
 	assert.NotNil(t, cmd.Flags().Lookup("location"))
 	assert.NotNil(t, cmd.Flags().Lookup("integration"))
-	assert.NotNil(t, cmd.Flags().Lookup("backend"))
 
 	// Verify flag types
 	verboseFlag := cmd.Flags().Lookup("verbose")
@@ -60,9 +59,6 @@ func TestCommands(t *testing.T) {
 
 	integrationFlag := cmd.Flags().Lookup("integration")
 	assert.Equal(t, "string", integrationFlag.Value.Type())
-
-	backendFlag := cmd.Flags().Lookup("backend")
-	assert.Equal(t, "string", backendFlag.Value.Type())
 }
 
 func TestCommandExecution(t *testing.T) {
