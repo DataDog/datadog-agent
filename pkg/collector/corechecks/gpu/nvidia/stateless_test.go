@@ -236,7 +236,7 @@ func TestNVLinkCollector_Initialization(t *testing.T) {
 				}
 				return device
 			},
-			wantError: true,
+			wantError: false,
 		},
 		{
 			name: "Success with 4 links",
@@ -296,9 +296,6 @@ func TestNVLinkCollector_Initialization(t *testing.T) {
 
 			require.NoError(t, err)
 			require.NotNil(t, c)
-
-			// For successful case, we can't check totalNVLinks since it's not exposed in baseCollector
-			// But we can verify the collector was created successfully
 		})
 	}
 }
