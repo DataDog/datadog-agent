@@ -112,15 +112,18 @@ func NewSpanConcentrator(cfg *SpanConcentratorConfig, now time.Time) *SpanConcen
 	return sc
 }
 
-// NewStatSpanFromPB is a helper version of NewStatSpan that builds a StatSpan from a pb.Span.
+// NewStatSpanFromPB is a helper version of NewStatSpanWithHttpEndpoint that builds a StatSpan from a pb.Span.
 func (sc *SpanConcentrator) NewStatSpanFromPB(s *pb.Span, peerTags []string) (statSpan *StatSpan, ok bool) {
-	return sc.NewStatSpan(s.Service, s.Resource, s.Name, s.Type, s.ParentID, s.Start, s.Duration, s.Error, s.Meta, s.Metrics, peerTags, "", "")
+	httpMethod := s.Meta["http.method"]
+	httpEndpoint := s.Meta["http.endpoint"]
+
+	return sc.NewStatSpanWithHttpEndpoint(s.Service, s.Resource, s.Name, s.Type, s.ParentID, s.Start, s.Duration, s.Error, s.Meta, s.Metrics, peerTags, httpMethod, httpEndpoint)
 }
 
-// NewStatSpan builds a StatSpan from the required fields for stats calculation
+// NewStatSpanWithHttpEndpoint builds a StatSpan from the required fields for stats calculation
 // peerTags is the configured list of peer tags to look for
 // returns (nil,false) if the provided fields indicate a span should not have stats calculated
-func (sc *SpanConcentrator) NewStatSpan(
+func (sc *SpanConcentrator) NewStatSpanWithHttpEndpoint(
 	service, resource, name string,
 	typ string,
 	parentID uint64,
@@ -165,6 +168,23 @@ func (sc *SpanConcentrator) NewStatSpan(
 		httpMethod:   httpMethod,
 		httpEndpoint: httpEndpoint,
 	}, true
+}
+
+// NewStatSpan builds a StatSpan from the required fields for stats calculation
+// peerTags is the configured list of peer tags to look for
+// returns (nil,false) if the provided fields indicate a span should not have stats calculated
+// Deprecated: use NewStatSpanWithHttpEndpoint instead
+func (sc *SpanConcentrator) NewStatSpan(
+	service, resource, name string,
+	typ string,
+	parentID uint64,
+	start, duration int64,
+	error int32,
+	meta map[string]string,
+	metrics map[string]float64,
+	peerTags []string,
+) (statSpan *StatSpan, ok bool) {
+	return sc.NewStatSpanWithHttpEndpoint(service, resource, name, typ, parentID, start, duration, error, meta, metrics, peerTags, "", "")
 }
 
 // computeStatsForSpanKind returns true if the span.kind value makes the span eligible for stats computation.
