@@ -12,6 +12,35 @@ package dynamiccheck
 #include <dlfcn.h>
 #include "loader.h"
 
+extern Result *allocate(void *handle, const char **error) {
+	// Load the shared library
+	if (!handle) {
+		*error = strdup("Error loading library");
+		return NULL;
+	}
+
+	// Clear any previous dlerror
+  dlerror();
+
+	// Load the function symbol
+	Result* (*allocate)();
+  *(void **)(&allocate) = dlsym(handle, "Allocate");
+
+	// Check for errors
+	char *dl_error = dlerror();
+	if (dl_error) {
+			size_t len = strlen("Error loading symbol 'Allocate': ") + strlen(dl_error) + 1;
+			char *formatted_error = malloc(len);
+			snprintf(formatted_error, len, "Error loading symbol 'Run': %s", dl_error);
+			*error = formatted_error;
+			return NULL;
+	}
+
+
+	// Call the function and get the result
+  return allocate();
+}
+
 extern void close_library(void *handle, const char **error)
 {
 	// Load the shared library
@@ -27,19 +56,19 @@ extern void close_library(void *handle, const char **error)
 	}
 }
 
-extern Result* run_agnostic_check(void *handle, const char *id, const char **error)
+extern void run_agnostic_check(void *handle, const char *id, Result *result, const char **error)
 {
 	// Load the shared library
 	if (!handle) {
 		*error = strdup("Error loading library");
-		return NULL;
+		return;
 	}
 
 	// Clear any previous dlerror
   dlerror();
 
 	// Load the function symbol
-	Result* (*run)(const char*);
+	void (*run)(const char*, Result*);
   *(void **)(&run) = dlsym(handle, "Run");
 
 	// Check for errors
@@ -49,14 +78,12 @@ extern Result* run_agnostic_check(void *handle, const char *id, const char **err
 			char *formatted_error = malloc(len);
 			snprintf(formatted_error, len, "Error loading symbol 'Run': %s", dl_error);
 			*error = formatted_error;
-			return NULL;
+			return;
 	}
 
 
 	// Call the function and get the result
-  Result *result = run(id);
-
-	return result;
+  run(id, result);
 }
 
 extern void free_result(void *handle, Result *result, const char **error)
@@ -124,6 +151,7 @@ type dynamicCheck struct {
 	initConfig        integration.Data
 	instanceConfig    integration.Data
 	configInitWritten bool
+	result            *C.Result
 }
 
 func newCheck(sendermanager sender.SenderManager, tagger tagger.Component, name string, lib unsafe.Pointer) (check.Check, error) {
@@ -141,7 +169,7 @@ func (c *dynamicCheck) Run() error {
 	idCStr := C.CString(string(c.id))
 	defer C.free(unsafe.Pointer(idCStr))
 
-	result := C.run_agnostic_check(c.libHandle, idCStr, &cErr)
+	C.run_agnostic_check(c.libHandle, idCStr, c.result, &cErr)
 
 	if cErr != nil {
 		errorString := C.GoString(cErr)
@@ -151,12 +179,8 @@ func (c *dynamicCheck) Run() error {
 		return errors.New(errMsg)
 	}
 
-	if result == nil {
-		return fmt.Errorf("library %s execution did not returned any result", c.name)
-	}
-
 	// Extract the FlatBuffer bytes from the Result
-	bufferData := C.GoBytes(unsafe.Pointer(result.data), result.len)
+	bufferData := C.GoBytes(unsafe.Pointer(c.result.data), c.result.len)
 
 	// Deserialize the FlatBuffer payload
 	payload := Integrations.GetRootAsPayload(bufferData, 0)
@@ -207,14 +231,6 @@ func (c *dynamicCheck) Run() error {
 		}
 	}
 
-	C.free_result(c.libHandle, result, &cErr)
-	if cErr != nil {
-		errorString := C.GoString(cErr)
-		defer C.free(unsafe.Pointer(cErr))
-		// Log the error but don't fail the check since we already got the data
-		fmt.Printf("Warning: failed to free result from library %s: %s\n", c.name, errorString)
-	}
-
 	return nil
 }
 
@@ -222,6 +238,14 @@ func (c *dynamicCheck) Stop() {}
 
 func (c *dynamicCheck) Cancel() {
 	var cErr *C.char
+
+	C.free_result(c.libHandle, c.result, &cErr)
+	if cErr != nil {
+		errorString := C.GoString(cErr)
+		defer C.free(unsafe.Pointer(cErr))
+		// Log the error but don't fail the check since we already got the data
+		fmt.Printf("Warning: failed to free result from library %s: %s\n", c.name, errorString)
+	}
 
 	C.close_library(c.libHandle, &cErr)
 
@@ -282,6 +306,23 @@ func (c *dynamicCheck) Configure(_senderManager sender.SenderManager, integratio
 	if err := c.writeConfigToFile(data, fmt.Sprintf("%s_instance", c.id)); err != nil {
 		return fmt.Errorf("failed to write init configuration file: %v", err)
 	}
+	var cErr *C.char
+	result := C.allocate(c.libHandle, &cErr)
+
+	if cErr != nil {
+		errorString := C.GoString(cErr)
+		defer C.free(unsafe.Pointer(cErr))
+
+		return fmt.Errorf("failed to allocate result for shared library check %s: %s", c.name, errorString)
+	}
+
+	if result == nil {
+		return fmt.Errorf("allocate function returned nil result %s", c.name)
+	}
+
+	fmt.Printf("Configuration check %s successful\n", c.name)
+
+	c.result = result
 
 	return nil
 }

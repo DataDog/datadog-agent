@@ -1,3 +1,5 @@
+#![feature(vec_into_raw_parts)]
+
 extern crate flatbuffers;
 
 use serde::{Deserialize, Serialize};
@@ -121,8 +123,9 @@ use crate::payload_generated::integrations::PayloadArgs;
 
 #[repr(C)]
 pub struct Result {
-    data: *const u8,
-    len: c_int,
+    data: *mut u8,
+    len: usize,
+    cap: usize,
 }
 
 fn load_init_configuration() -> Option<DiskInitConfig> {
@@ -194,14 +197,26 @@ fn get_instance_configuration(id: &str) -> Option<DiskInstanceConfig> {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn Run(id: *const std::os::raw::c_char) -> *mut Result {
-    let id_str = unsafe {
-        if id.is_null() {
-            eprintln!("Error: id parameter is null");
-            return std::ptr::null_mut();
-        }
-        std::ffi::CStr::from_ptr(id).to_str().unwrap_or("")
-    };
+pub extern "C" fn Allocate() -> *mut Result {
+    let v = Vec::<u8>::new();
+    let (data, len, cap) = v.into_raw_parts();
+
+    Box::into_raw(Box::new(Result { data, len, cap }))
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn Run(id: *const std::os::raw::c_char, result: *mut Result) {
+    if id.is_null() {
+        eprintln!("Error: id parameter is null");
+        return;
+    }
+
+    let id_str = unsafe { std::ffi::CStr::from_ptr(id).to_str().unwrap_or("") };
+
+    if result.is_null() {
+        eprintln!("Error: result parameter is null");
+        return;
+    }
 
     // Get init configuration (loaded once automatically)
     let init_config = get_init_configuration();
@@ -261,17 +276,15 @@ pub extern "C" fn Run(id: *const std::os::raw::c_char) -> *mut Result {
 
     builder.finish(payload, None);
     let buf = builder.finished_data();
-
     let buf_vec = buf.to_vec();
-    let result = Result {
-        data: buf_vec.as_ptr(),
-        len: buf_vec.len() as c_int,
-    };
 
-    // Keep the Vec alive by leaking it - Go will need to access this data
-    std::mem::forget(buf_vec);
-
-    Box::into_raw(Box::new(result))
+    // Store the new data in the result
+    let (data, len, cap) = buf_vec.into_raw_parts();
+    unsafe {
+        (*result).data = data;
+        (*result).len = len;
+        (*result).cap = cap;
+    }
 }
 
 #[unsafe(no_mangle)]
@@ -281,8 +294,12 @@ pub unsafe extern "C" fn FreeResult(result: *mut Result) {
     }
 
     unsafe {
-        // Take ownership of the Result to properly drop the Vec<u8>
-        let _ = Box::from_raw(result);
-        // The Vec<u8> will be automatically dropped when the Box goes out of scope
+        // Reconstruct and drop the Vec to free the underlying data
+        let result_box = Box::from_raw(result);
+        if !result_box.data.is_null() {
+            let _vec = Vec::from_raw_parts(result_box.data, result_box.len, result_box.cap);
+            // Vec will be dropped automatically, freeing the memory
+        }
+        // result_box is also dropped automatically
     }
 }
