@@ -211,6 +211,7 @@ require (
 	k8s.io/autoscaler/vertical-pod-autoscaler v1.2.2
 	k8s.io/client-go v0.32.3
 	k8s.io/cri-api v0.31.2
+	k8s.io/cri-client v0.31.2
 	k8s.io/klog/v2 v2.130.1
 	k8s.io/kube-aggregator v0.31.2
 	k8s.io/kube-openapi v0.0.0-20241105132330-32ad38e42d3f // indirect
