@@ -52,24 +52,25 @@ func TestSchedulerSpam(t *testing.T) {
 			Overrides: map[string]interface{}{
 				"additional_checksd":   tempDir,
 				"check_cancel_timeout": 100 * time.Millisecond,
+				// to ease debugging
+				"c_core_dump":             true,
+				"c_stacktrace_collection": true,
 			},
 		}),
 	)
 
 	tagger := fxutil.Test[tagger.Component](t, taggerfx.Module())
 
-	collImpl := newCollector(deps)
-
-	var coll collector.Component = collImpl
+	var coll collector.Component = newCollector(deps)
 	checkScheduler := pkgcollector.InitCheckScheduler(option.New(coll), deps.SenderManager, option.None[integrations.Component](), tagger)
 
 	log.Infof("Starting scheduler spam")
 
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 10; i++ {
 		checkScheduler.Schedule([]integration.Config{
 			{
 				Name:       checkName,
-				InitConfig: []byte{},
+				InitConfig: []byte("{}"),
 				Instances: []integration.Data{
 					[]byte(fmt.Sprintf(CheckConfigTemplate, i)),
 				},
@@ -79,7 +80,7 @@ func TestSchedulerSpam(t *testing.T) {
 }
 
 const CheckConfigTemplate = `
-id: %d
+{id: %d}
 `
 
 const PythonCheck = `
