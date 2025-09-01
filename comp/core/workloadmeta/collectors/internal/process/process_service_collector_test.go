@@ -9,6 +9,7 @@ package process
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -89,7 +90,15 @@ func TestFilterPidsToRequest(t *testing.T) {
 	// Add ignored PID (simulating a PID that exceeded max retry attempts)
 	c.collector.ignoredPids.Add(pidIgnoredService)
 
-	pids, pidsToService := c.collector.filterPidsToRequest(alivePids, procs)
+	newPids, heartbeatPids, pidsToService := c.collector.filterPidsToRequest(alivePids, procs)
+	pids := append(newPids, heartbeatPids...)
+
+	// Verify categorization
+	require.Len(t, newPids, 1, "Should have 1 new PID")
+	require.Contains(t, newPids, int32(pidNewService))
+
+	require.Len(t, heartbeatPids, 1, "Should have 1 heartbeat PID")
+	require.Contains(t, heartbeatPids, int32(pidStaleService))
 
 	require.Len(t, pids, 2)
 	require.Contains(t, pids, int32(pidNewService))
@@ -175,12 +184,12 @@ func TestServiceStoreLifetimeProcessCollectionDisabled(t *testing.T) {
 			},
 			httpResponse: &model.ServicesEndpointResponse{
 				Services: []model.Service{
-					makeModelService(pidStaleService, "stale-service"),
+					makeModelService(pidStaleService, "stale-existing"),
 				},
 			},
 			expectStored: []*workloadmeta.Process{
 				makeProcessEntityWithService(pidFreshService, baseTime.Add(-5*time.Minute), languagePython, "fresh-existing"),
-				makeProcessEntityWithService(pidStaleService, baseTime.Add(-20*time.Minute), languagePython, "stale-service"),
+				makeProcessEntityWithService(pidStaleService, baseTime.Add(-20*time.Minute), languagePython, "stale-existing"),
 			},
 			pidHeartbeats: map[int32]time.Time{
 				pidFreshService: baseTime.Add(-5 * time.Minute),
@@ -330,12 +339,12 @@ func TestServiceStoreLifetime(t *testing.T) {
 			},
 			httpResponse: &model.ServicesEndpointResponse{
 				Services: []model.Service{
-					makeModelService(pidStaleService, "stale-service"), // Only stale service should be requested
+					makeModelService(pidStaleService, "stale-existing"), // Only stale service should be requested
 				},
 			},
 			expectStored: []*workloadmeta.Process{
 				makeProcessEntityWithService(pidFreshService, baseTime.Add(-5*time.Minute), languagePython, "fresh-existing"),
-				makeProcessEntityWithService(pidStaleService, baseTime.Add(-20*time.Minute), languagePython, "stale-service"),
+				makeProcessEntityWithService(pidStaleService, baseTime.Add(-20*time.Minute), languagePython, "stale-existing"),
 			},
 			pidHeartbeats: map[int32]time.Time{
 				pidFreshService: baseTime.Add(-5 * time.Minute),  // Fresh (5 minutes ago)
@@ -519,10 +528,34 @@ func startTestServer(t *testing.T, response *model.ServicesEndpointResponse, sho
 			return
 		}
 
+		// Parse request to identify heartbeat PIDs
+		var params core.Params
+		if r.Body != nil {
+			body, _ := io.ReadAll(r.Body)
+			json.Unmarshal(body, &params)
+		}
+
+		// For heartbeat PIDs, return only dynamic fields
+		modifiedResponse := *response
+		for i := range modifiedResponse.Services {
+			for _, hbPid := range params.HeartbeatPids {
+				if modifiedResponse.Services[i].PID == int(hbPid) {
+					// Keep only dynamic fields for heartbeat
+					modifiedResponse.Services[i] = model.Service{
+						PID:      modifiedResponse.Services[i].PID,
+						TCPPorts: modifiedResponse.Services[i].TCPPorts,
+						UDPPorts: modifiedResponse.Services[i].UDPPorts,
+						LogFiles: modifiedResponse.Services[i].LogFiles,
+					}
+					break
+				}
+			}
+		}
+
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 
-		responseBytes, _ := json.Marshal(response)
+		responseBytes, _ := json.Marshal(modifiedResponse)
 		w.Write(responseBytes)
 	})
 
