@@ -550,9 +550,9 @@ func (l *SNMPListener) deleteService(entityID string, subnet *snmpSubnet) {
 
 	device, exists := subnet.devices[entityID]
 	if !exists {
-	  return
+		return
 	}
-		
+
 	device.Failures++
 	subnet.devices[entityID] = device
 
