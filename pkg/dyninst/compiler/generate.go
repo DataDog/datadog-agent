@@ -118,6 +118,24 @@ func GenerateProgram(program *ir.Program) (Program, error) {
 	for _, t := range program.Types {
 		types = append(types, t)
 	}
+	slices.SortStableFunc(g.functions, func(a, b Function) int {
+		at, aOk := a.ID.(ProcessType)
+		bt, bOk := b.ID.(ProcessType)
+		switch {
+		case !aOk && !bOk:
+			return 0
+		case !aOk:
+			return -1
+		case !bOk:
+			return 1
+		default:
+			return cmp.Or(
+				cmp.Compare(at.Type.GetName(), bt.Type.GetName()),
+				cmp.Compare(at.Type.GetID(), bt.Type.GetID()),
+			)
+
+		}
+	})
 	return Program{
 		ID:               uint32(program.ID),
 		Functions:        g.functions,
