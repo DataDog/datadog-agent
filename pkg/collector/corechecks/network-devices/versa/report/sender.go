@@ -374,7 +374,7 @@ func (s *Sender) SendInterfaceMetrics(interfaceMetricsByDevice map[string][]clie
 				"interface:" + metric.Interface,
 				"vrf:" + metric.VRF,
 				"host_inf:" + metric.HostInf,
-				"dd.internal.resource:ndm_interface:" + metric.Interface,
+				"dd.internal.resource:ndm_interface:" + s.namespace + ":" + deviceIP + ":" + metric.Interface,
 			}
 
 			tags := append(deviceTags, interfaceTags...)
