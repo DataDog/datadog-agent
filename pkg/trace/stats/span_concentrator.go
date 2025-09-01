@@ -114,10 +114,7 @@ func NewSpanConcentrator(cfg *SpanConcentratorConfig, now time.Time) *SpanConcen
 
 // NewStatSpanFromPB is a helper version of NewStatSpanWithHTTPEndpoint that builds a StatSpan from a pb.Span.
 func (sc *SpanConcentrator) NewStatSpanFromPB(s *pb.Span, peerTags []string) (statSpan *StatSpan, ok bool) {
-	httpMethod := s.Meta["http.method"]
-	httpEndpoint := s.Meta["http.endpoint"]
-
-	return sc.NewStatSpanWithHTTPEndpoint(s.Service, s.Resource, s.Name, s.Type, s.ParentID, s.Start, s.Duration, s.Error, s.Meta, s.Metrics, peerTags, httpMethod, httpEndpoint)
+	return sc.NewStatSpanWithHTTPEndpoint(s.Service, s.Resource, s.Name, s.Type, s.ParentID, s.Start, s.Duration, s.Error, s.Meta, s.Metrics, peerTags, "", "")
 }
 
 // NewStatSpanWithHTTPEndpoint builds a StatSpan from the required fields for stats calculation
