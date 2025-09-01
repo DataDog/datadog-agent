@@ -357,10 +357,8 @@ def test(
         "rerun_fails": f"--rerun-fails={rerun_fails}" if rerun_fails else "",
         "skip_flakes": "--skip-flake" if skip_flakes else "",
         "gotestsum_format": "standard-verbose" if verbose else "pkgname",
+        "extra_args": extra_args or "",
     }
-
-    if extra_args:
-        args["extra_args"] = extra_args
 
     # Test
     if build_stdlib:
