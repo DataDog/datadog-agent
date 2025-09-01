@@ -22,7 +22,6 @@ type Service struct {
 	ContainerTags              []string                        `json:"container_tags,omitempty"`
 	TracerMetadata             []tracermetadata.TracerMetadata `json:"tracer_metadata,omitempty"`
 	DDService                  string                          `json:"dd_service"`
-	DDServiceInjected          bool                            `json:"dd_service_injected"`
 	CheckedContainerData       bool                            `json:"checked_container_data"`
 	TCPPorts                   []uint16                        `json:"tcp_ports,omitempty"`
 	UDPPorts                   []uint16                        `json:"udp_ports,omitempty"`

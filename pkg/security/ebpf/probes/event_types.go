@@ -130,6 +130,7 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 				hookFunc("hook_do_coredump"),
 				hookFunc("hook_audit_set_loginuid"),
 				hookFunc("rethook_audit_set_loginuid"),
+				hookFunc("hook_security_inode_follow_link"),
 			}},
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
 				hookFunc("hook_cgroup_procs_write"),
@@ -559,7 +560,10 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 
 	// Add probes required to track network interfaces and map network flows to processes
 	// networkEventTypes: dns, imds, packet, network_monitor
+	// add packet_action as not exposed through SECL thus not repoted by GetEventTypePerCategory
 	networkEventTypes := model.GetEventTypePerCategory(model.NetworkCategory)[model.NetworkCategory]
+	networkEventTypes = append(networkEventTypes, model.RawPacketActionEventType.String())
+
 	for _, networkEventType := range networkEventTypes {
 		selectorsPerEventTypeStore[networkEventType] = []manager.ProbesSelector{
 			&manager.AllOf{Selectors: []manager.ProbesSelector{

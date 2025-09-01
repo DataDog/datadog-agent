@@ -478,8 +478,8 @@ type AgentConfig struct {
 	// DebuggerProxy contains the settings for the Live Debugger proxy.
 	DebuggerProxy DebuggerProxyConfig
 
-	// DebuggerDiagnosticsProxy contains the settings for the Live Debugger diagnostics proxy.
-	DebuggerDiagnosticsProxy DebuggerProxyConfig
+	// DebuggerIntakeProxy contains the settings for the Live Debugger intake proxy.
+	DebuggerIntakeProxy DebuggerProxyConfig
 
 	// SymDBProxy contains the settings for the Symbol Database proxy.
 	SymDBProxy SymDBProxyConfig
@@ -589,7 +589,7 @@ func New() *AgentConfig {
 		TraceWriter:              new(WriterConfig),
 		ConnectionResetInterval:  0, // disabled
 		MaxSenderRetries:         4,
-		ClientStatsFlushInterval: 1 * time.Second,
+		ClientStatsFlushInterval: 2 * time.Second, // bucket duration (2s)
 
 		StatsdHost:    "localhost",
 		StatsdPort:    8125,
