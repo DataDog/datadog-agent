@@ -12,6 +12,19 @@
 #ifndef _WIN32
 // clang-format off
 // handler stuff
+
+#ifndef HAS_BACKTRACE_LIB
+// recommended use of __has_include is with two separate if statements
+// https://gcc.gnu.org/onlinedocs/cpp/_005f_005fhas_005finclude.html
+#  if defined __has_include
+#    if __has_include (<execinfo.h>)
+#      define HAS_BACKTRACE_LIB
+#    else
+#      warning "<execinfo.h> not found, c backtrace will not be available"
+#    endif
+#  endif
+#endif
+
 #ifdef HAS_BACKTRACE_LIB
 #include <execinfo.h>
 #endif
