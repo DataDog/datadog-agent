@@ -25,6 +25,8 @@
 
 .bazel:ext:windows:
   extends: .windows_docker_default
+  variables:
+    GIT_DEPTH: 2
   script:
     - |-
       $FailFast = @'
@@ -33,18 +35,18 @@
       Set-StrictMode -Version 3.0
       '@
     - Invoke-Expression $FailFast
-    - $EncodedScript = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes("$FailFast`n$SCRIPT"))
     - >-
-      docker run
+      (($FailFast, $SCRIPT) -join [Environment]::NewLine) | docker run
       --env=BAZELISK_HOME
       --env=BAZEL_DISK_CACHE
       --env=BAZEL_OUTPUT_USER_ROOT
       --env=BAZEL_REPO_CONTENTS_CACHE
       --env=CI_PROJECT_DIR
       --env=RUNNER_TEMP_PROJECT_DIR
+      --interactive
       --rm
       --volume="${CI_PROJECT_DIR}:$CI_PROJECT_DIR"
       --volume="${RUNNER_TEMP_PROJECT_DIR}:$RUNNER_TEMP_PROJECT_DIR"
       --workdir="$CI_PROJECT_DIR"
       "$WINBUILDIMAGE"
-      powershell -NoLogo -NoProfile -EncodedCommand $EncodedScript
+      powershell -Command -
