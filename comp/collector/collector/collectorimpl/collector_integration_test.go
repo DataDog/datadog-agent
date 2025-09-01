@@ -77,6 +77,9 @@ func TestSchedulerSpam(t *testing.T) {
 			},
 		})
 	}
+
+	// this test doesn't test much for now so it can succeed but actually show failures in logs
+	t.Fatal("Force showing logs in CI")
 }
 
 const CheckConfigTemplate = `{"id": %d}`
