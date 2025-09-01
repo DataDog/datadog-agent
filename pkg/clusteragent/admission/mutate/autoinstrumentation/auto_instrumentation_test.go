@@ -32,7 +32,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
@@ -1052,8 +1051,6 @@ func TestExtractLibInfo(t *testing.T) {
 			if tt.assertExtractedLibInfo != nil {
 				tt.assertExtractedLibInfo(t, extracted)
 			}
-			log.Debugf("ERIKA extracted: %#v", extracted.libs)
-			log.Debugf("ERIKA expected: %#v", tt.expectedLibsToInject)
 			require.ElementsMatch(t, tt.expectedLibsToInject, extracted.libs)
 		})
 	}
