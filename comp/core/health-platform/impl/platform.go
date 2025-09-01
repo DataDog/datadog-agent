@@ -41,9 +41,9 @@ func newHealthClient(cfg config.Component) *healthClient {
 	apiKey := utils.SanitizeAPIKey(cfg.GetString("api_key"))
 	site := cfg.GetString("site")
 	if site == "" {
-		site = "datadoghq.com" // default site
+		site = "app.datadoghq.com" // default site
 	}
-	endpoint := fmt.Sprintf("https://intake.%s/api/v2/agent-recommendation-health", site)
+	endpoint := fmt.Sprintf("https://%s/api/v2/agent-recommendation-health", site)
 
 	return &healthClient{
 		apiKey:   apiKey,
