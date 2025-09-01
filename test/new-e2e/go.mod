@@ -15,18 +15,18 @@ require (
 	github.com/DataDog/datadog-agent/pkg/version v0.67.0
 	github.com/DataDog/datadog-agent/test/fakeintake v0.56.0-rc.3
 	github.com/DataDog/datadog-api-client-go v1.16.0
-	github.com/DataDog/datadog-api-client-go/v2 v2.43.0
+	github.com/DataDog/datadog-api-client-go/v2 v2.44.0
 	// Are you bumping github.com/DataDog/test-infra-definitions ?
 	// You should bump `TEST_INFRA_DEFINITIONS_BUILDIMAGES` in `.gitlab/common/test_infra_version.yml`
 	// `TEST_INFRA_DEFINITIONS_BUILDIMAGES` matches the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0123456789AB
-	github.com/DataDog/test-infra-definitions v0.0.4-0.20250822082435-f9c444a17bdc
+	github.com/DataDog/test-infra-definitions v0.0.4-0.20250828110152-ce15fd810c2c
 	github.com/aws/aws-sdk-go-v2 v1.38.1
 	github.com/aws/aws-sdk-go-v2/config v1.31.2
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.245.2
-	github.com/aws/aws-sdk-go-v2/service/eks v1.58.0
-	github.com/aws/aws-sdk-go-v2/service/ssm v1.56.12
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.246.0
+	github.com/aws/aws-sdk-go-v2/service/eks v1.72.0
+	github.com/aws/aws-sdk-go-v2/service/ssm v1.63.2
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/docker/cli v27.5.0+incompatible
 	github.com/docker/docker v28.3.3+incompatible
@@ -71,19 +71,19 @@ require (
 	github.com/alessio/shellescape v1.4.2 // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
-	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.6.11 // indirect
+	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.0 // indirect
 	github.com/aws/aws-sdk-go-v2/credentials v1.18.6 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.4 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.4 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.4 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.3 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/v4a v1.3.37 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.45.1 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ecs v1.60.1
+	github.com/aws/aws-sdk-go-v2/service/ecs v1.63.2
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.7.5 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.8.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.4 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.18.18 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.28.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.33.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.38.0 // indirect
@@ -100,7 +100,7 @@ require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/distribution/reference v0.6.0 // indirect
 	github.com/djherbis/times v1.6.0 // indirect
-	github.com/docker/go-connections v0.5.0 // indirect
+	github.com/docker/go-connections v0.6.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/emicklei/go-restful/v3 v3.12.1 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
@@ -215,9 +215,9 @@ require (
 	golang.org/x/text v0.28.0
 	golang.org/x/time v0.12.0 // indirect
 	golang.org/x/tools v0.36.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250603155806-513f23925822 // indirect
-	google.golang.org/grpc v1.74.2 // indirect
-	google.golang.org/protobuf v1.36.6 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250707201910-8d1bb00bc6a7 // indirect
+	google.golang.org/grpc v1.75.0 // indirect
+	google.golang.org/protobuf v1.36.7 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
@@ -243,11 +243,13 @@ require (
 	github.com/DataDog/datadog-go/v5 v5.6.0
 	github.com/DataDog/dd-trace-go/v2 v2.2.0
 	github.com/DataDog/orchestrion v1.4.0
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.83.0
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.87.1
 	github.com/aws/session-manager-plugin v0.0.0-20241119210807-82dc72922492
 	github.com/digitalocean/go-libvirt v0.0.0-20240812180835-9c6c0a310c6c
 	github.com/hairyhenderson/go-codeowners v0.7.0
 )
+
+require github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 
 require (
 	github.com/DataDog/appsec-internal-go v1.13.0 // indirect
@@ -329,10 +331,10 @@ require (
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	github.com/zorkian/go-datadog-api v2.30.0+incompatible // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
-	go.opentelemetry.io/collector/component v1.37.0 // indirect
-	go.opentelemetry.io/collector/featuregate v1.37.0 // indirect
-	go.opentelemetry.io/collector/internal/telemetry v0.131.0 // indirect
-	go.opentelemetry.io/collector/pdata v1.37.0 // indirect
+	go.opentelemetry.io/collector/component v1.39.0 // indirect
+	go.opentelemetry.io/collector/featuregate v1.39.0 // indirect
+	go.opentelemetry.io/collector/internal/telemetry v0.133.0 // indirect
+	go.opentelemetry.io/collector/pdata v1.39.0 // indirect
 	go.opentelemetry.io/contrib/bridges/otelzap v0.12.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.37.0 // indirect
 	go.opentelemetry.io/otel/log v0.13.0 // indirect
@@ -457,6 +459,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes => ../../pkg/opentelemetry-mapping-go/otlp/attributes
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/logs => ../../pkg/opentelemetry-mapping-go/otlp/logs
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics => ../../pkg/opentelemetry-mapping-go/otlp/metrics
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/rum => ../../pkg/opentelemetry-mapping-go/otlp/rum
 	github.com/DataDog/datadog-agent/pkg/orchestrator/model => ../../pkg/orchestrator/model
 	github.com/DataDog/datadog-agent/pkg/process/util/api => ../../pkg/process/util/api
 	github.com/DataDog/datadog-agent/pkg/proto => ../../pkg/proto
