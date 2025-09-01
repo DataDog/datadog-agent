@@ -65,17 +65,12 @@ func newMockRCClient(filename string) *mockRCClient {
 	}
 }
 
-func (m *mockRCClient) Subscribe(product string, callback func(map[string]state.RawConfig, func(string, state.ApplyStatus))) {
+func (m *mockRCClient) Subscribe(_ string, _ func(map[string]state.RawConfig, func(string, state.ApplyStatus))) {
 	log.Debugf("Would subscribe called with product on RCClient: %s", product)
 }
 
 func (m *mockRCClient) GetConfigs(product string) map[string]state.RawConfig {
 	return m.configs
-}
-
-// Helper method for tests to set up configs
-func (m *mockRCClient) setConfigs(configs map[string]state.RawConfig) {
-	m.configs = configs
 }
 
 func TestNewImageResolver(t *testing.T) {

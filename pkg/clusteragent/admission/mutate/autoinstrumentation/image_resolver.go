@@ -43,8 +43,8 @@ func newNoOpImageResolver() ImageResolver {
 }
 
 // ResolveImage returns the original image reference.
-func (r *noOpImageResolver) Resolve(_ string, repository string, tag string) (*ResolvedImage, bool) {
-	log.Debugf("No resolution available", repository, tag)
+func (r *noOpImageResolver) Resolve(registry string, repository string, tag string) (*ResolvedImage, bool) {
+	log.Debugf("Cannot resolve %s/%s:%s without remote config", registry, repository, tag)
 	return nil, false
 }
 
