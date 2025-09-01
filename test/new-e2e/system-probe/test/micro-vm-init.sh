@@ -7,6 +7,7 @@ docker_dir=/kmt-dockers
 ## Start docker if available, some images (e.g. SUSE arm64 for CWS) do not have it installed
 if command -v docker ; then
     systemctl start docker
+    docker version # output docker version; useful for debugging
 
     ## Load docker images
     if [[ -d "${docker_dir}" ]]; then
