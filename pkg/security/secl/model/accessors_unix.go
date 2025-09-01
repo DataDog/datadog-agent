@@ -67,29 +67,29 @@ func (_ *Model) GetEventTypes() []eval.EventType {
 func (_ *Model) GetFieldRestrictions(field eval.Field) []eval.EventType {
 	switch field {
 	case "network.destination.ip":
-		return []eval.EventType{"dns", "imds"}
+		return []eval.EventType{"dns", "imds", "packet"}
 	case "network.destination.is_public":
-		return []eval.EventType{"dns", "imds"}
+		return []eval.EventType{"dns", "imds", "packet"}
 	case "network.destination.port":
-		return []eval.EventType{"dns", "imds"}
+		return []eval.EventType{"dns", "imds", "packet"}
 	case "network.device.ifname":
-		return []eval.EventType{"dns", "imds"}
+		return []eval.EventType{"dns", "imds", "packet"}
 	case "network.l3_protocol":
-		return []eval.EventType{"dns", "imds"}
+		return []eval.EventType{"dns", "imds", "packet"}
 	case "network.l4_protocol":
-		return []eval.EventType{"dns", "imds"}
+		return []eval.EventType{"dns", "imds", "packet"}
 	case "network.network_direction":
-		return []eval.EventType{"dns", "imds"}
+		return []eval.EventType{"dns", "imds", "packet"}
 	case "network.size":
-		return []eval.EventType{"dns", "imds"}
+		return []eval.EventType{"dns", "imds", "packet"}
 	case "network.source.ip":
-		return []eval.EventType{"dns", "imds"}
+		return []eval.EventType{"dns", "imds", "packet"}
 	case "network.source.is_public":
-		return []eval.EventType{"dns", "imds"}
+		return []eval.EventType{"dns", "imds", "packet"}
 	case "network.source.port":
-		return []eval.EventType{"dns", "imds"}
+		return []eval.EventType{"dns", "imds", "packet"}
 	case "network.type":
-		return []eval.EventType{"dns", "imds"}
+		return []eval.EventType{"dns", "imds", "packet"}
 	}
 	return nil
 }
