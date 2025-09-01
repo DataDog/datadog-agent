@@ -17,7 +17,8 @@ LOG_DIR=/opt/datadog-agent/logs
 
 # Let's log the standard outputs of this script
 LOG_FILE="$LOG_DIR/postinstall.log"
-mkdir -m 750 -vp $LOG_DIR # AGENTRUN-609: Set stricter permissions to the log directory
+mkdir -vp $LOG_DIR
+chmod 750 $LOG_DIR # AGENTRUN-609: Set stricter permissions to the log directory
 exec > $LOG_FILE 2>&1
 
 # Let's talk to our user installing the Agent a bit
