@@ -284,9 +284,7 @@ func TestConfigRefresh(t *testing.T) {
 
 	assert.False(t, ia.RefreshTriggered())
 	cfg.Set("inventories_max_interval", 10*60, pkgconfigmodel.SourceAgentRuntime)
-	assert.Eventually(t, func() bool {
-		return assert.True(t, ia.RefreshTriggered())
-	}, 5*time.Second, 1*time.Second)
+	assert.True(t, ia.RefreshTriggered())
 }
 
 func TestStatusHeaderProvider(t *testing.T) {

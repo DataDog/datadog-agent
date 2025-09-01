@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"slices"
 	"sync"
 	"time"
 
@@ -447,15 +448,21 @@ func (t *localTagger) EnrichTags(tb tagset.TagsAccumulator, originInfo taggertyp
 			return
 		}
 
+		var containerIDs []string
+
 		// Tag using Local Data
 		if originInfo.ContainerIDFromSocket != packets.NoOrigin && len(originInfo.ContainerIDFromSocket) > containerIDFromSocketCutIndex {
 			containerID := originInfo.ContainerIDFromSocket[containerIDFromSocketCutIndex:]
+			containerIDs = append(containerIDs, containerID)
 			originFromClient := types.NewEntityID(types.ContainerID, containerID)
 			if err := t.AccumulateTagsFor(originFromClient, cardinality, tb); err != nil {
 				t.log.Errorf("%s", err.Error())
 			}
 		}
 
+		if originInfo.LocalData.ContainerID != "" {
+			containerIDs = append(containerIDs, originInfo.LocalData.ContainerID)
+		}
 		if err := t.AccumulateTagsFor(types.NewEntityID(types.ContainerID, originInfo.LocalData.ContainerID), cardinality, tb); err != nil {
 			t.log.Tracef("Cannot get tags for entity %s: %s", originInfo.LocalData.ContainerID, err)
 		}
@@ -479,9 +486,17 @@ func (t *localTagger) EnrichTags(tb tagset.TagsAccumulator, originInfo taggertyp
 
 		// Accumulate tags for generated container ID
 		if generatedContainerID != "" {
+			containerIDs = append(containerIDs, generatedContainerID)
 			if err := t.AccumulateTagsFor(types.NewEntityID(types.ContainerID, generatedContainerID), cardinality, tb); err != nil {
 				t.log.Tracef("Cannot get tags for entity %s: %s", generatedContainerID, err)
 			}
+		}
+
+		// Check for container ID mismatch
+		if len(containerIDs) > 1 &&
+			slices.ContainsFunc(containerIDs[1:], func(id string) bool { return id != containerIDs[0] }) {
+			t.telemetryStore.OriginInfoContainerIDMismatch.Inc()
+			t.log.Debugf("Container ID mismatch detected: %v", containerIDs)
 		}
 	}
 
