@@ -604,9 +604,14 @@ func TestOverlayOpOverride(t *testing.T) {
 	if testEnvironment == DockerEnvironment {
 		t.Skip("Skip test spawning docker containers on docker")
 	}
+
 	if _, err := whichNonFatal("docker"); err != nil {
 		t.Skip("Skip test where docker is unavailable")
 	}
+
+	checkDockerCompatibility(t, "this test requires docker to use overlayfs", func(docker *dockerInfo) bool {
+		return docker.Info["Storage Driver"] != "overlay2"
+	})
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
