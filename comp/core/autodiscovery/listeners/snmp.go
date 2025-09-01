@@ -548,29 +548,21 @@ func (l *SNMPListener) deleteService(entityID string, subnet *snmpSubnet) {
 		return
 	}
 
-	failures := 1
-	writeCache := false
-
 	device, exists := subnet.devices[entityID]
-	if exists {
-		device.Failures++
-		subnet.devices[entityID] = device
-
-		failures = device.Failures
-		writeCache = true
+	if !exists {
+	  return
 	}
+		
+	device.Failures++
+	subnet.devices[entityID] = device
 
-	if l.config.AllowedFailures != -1 && failures >= l.config.AllowedFailures {
+	if l.config.AllowedFailures != -1 && device.Failures >= l.config.AllowedFailures {
 		l.delService <- svc
 		delete(l.services, entityID)
 		delete(subnet.devices, entityID)
-
-		writeCache = true
 	}
 
-	if writeCache {
-		l.writeCache(subnet)
-	}
+	l.writeCache(subnet)
 }
 
 // Stop queues a shutdown of SNMPListener
