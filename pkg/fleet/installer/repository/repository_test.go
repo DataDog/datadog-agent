@@ -10,6 +10,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -641,4 +642,107 @@ func TestExternalPackage(t *testing.T) {
 
 	assert.NoDirExists(t, datadogPackagesDatadogAgentDir)
 	assert.NoDirExists(t, datadogAgentDir)
+}
+
+func TestCopyStable(t *testing.T) {
+	dir := t.TempDir()
+
+	// Create a test repository with a stable package
+	repository := createTestRepository(t, dir, "v1", nil)
+
+	// Create some test files and directories in the stable package with specific permissions
+	stablePath := path.Join(repository.rootPath, "v1")
+
+	// Create a nested subdirectory
+	nestedDir := path.Join(stablePath, "nested")
+	err := os.MkdirAll(nestedDir, 0700)
+	assert.NoError(t, err)
+
+	// Create test files with different permissions
+	testFile1 := path.Join(stablePath, "file1.txt")
+	err = os.WriteFile(testFile1, []byte("content1"), 0644)
+	assert.NoError(t, err)
+
+	testFile2 := path.Join(stablePath, "file2.txt")
+	err = os.WriteFile(testFile2, []byte("content2"), 0600)
+	assert.NoError(t, err)
+
+	testFile3 := path.Join(nestedDir, "file3.txt")
+	err = os.WriteFile(testFile3, []byte("content3"), 0440)
+	assert.NoError(t, err)
+
+
+	// Test CopyStable
+	destPath, err := os.MkdirTemp(repository.rootPath, tempDirPrefix+"*")
+	assert.NoError(t, err)
+	err = repository.CopyStable(context.Background(), destPath)
+	assert.NoError(t, err)
+
+	// Verify the destination directory exists
+	assert.DirExists(t, destPath)
+
+	// Verify all directories were copied with correct permissions
+	assert.DirExists(t, path.Join(destPath, "nested"))
+
+	// Verify all files were copied with correct content
+	content1, err := os.ReadFile(path.Join(destPath, "file1.txt"))
+	assert.NoError(t, err)
+	assert.Equal(t, "content1", string(content1))
+
+	content2, err := os.ReadFile(path.Join(destPath, "file2.txt"))
+	assert.NoError(t, err)
+	assert.Equal(t, "content2", string(content2))
+
+	content3, err := os.ReadFile(path.Join(destPath, "nested", "file3.txt"))
+	assert.NoError(t, err)
+	assert.Equal(t, "content3", string(content3))
+
+	// Verify file permissions were preserved (on Unix systems)
+	if runtime.GOOS != "windows" {
+		// Check file permissions
+		info1, err := os.Stat(path.Join(destPath, "file1.txt"))
+		assert.NoError(t, err)
+		assert.Equal(t, os.FileMode(0644), info1.Mode().Perm())
+
+		info2, err := os.Stat(path.Join(destPath, "file2.txt"))
+		assert.NoError(t, err)
+		assert.Equal(t, os.FileMode(0600), info2.Mode().Perm())
+
+		info3, err := os.Stat(path.Join(destPath, "nested", "file3.txt"))
+		assert.NoError(t, err)
+		assert.Equal(t, os.FileMode(0440), info3.Mode().Perm())
+
+		// Check directory permissions
+		subDirInfo, err := os.Stat(path.Join(destPath, "nested"))
+		assert.NoError(t, err)
+		assert.Equal(t, os.FileMode(0700), subDirInfo.Mode().Perm())
+	}
+
+	// Verify no extra files exist in destination
+	destEntries, err := os.ReadDir(destPath)
+	assert.NoError(t, err)
+	assert.Len(t, destEntries, 3) // file1.txt, file2.txt, nested, and any other expected files
+	nestedEntries, err := os.ReadDir(path.Join(destPath, "nested"))
+	assert.NoError(t, err)
+	assert.Len(t, nestedEntries, 1) // file3.txt
+
+	// Verify the copy is complete by checking file count
+	sourceCount := countFilesRecursively(stablePath)
+	destCount := countFilesRecursively(destPath)
+	assert.Equal(t, sourceCount, destCount, "File count mismatch between source and destination")
+}
+
+// countFilesRecursively counts all files (not directories) in a directory tree
+func countFilesRecursively(dirPath string) int {
+	count := 0
+	filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() {
+			count++
+		}
+		return nil
+	})
+	return count
 }

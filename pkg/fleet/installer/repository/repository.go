@@ -230,7 +230,13 @@ func (r *Repository) CopyStable(ctx context.Context, destPath string) (err error
 		return fmt.Errorf("stable link does not exist, invalid state")
 	}
 
-	err = copyDirectory(repository.stable.linkPath, destPath)
+	// Convert the repository stable path to an absolute path
+	stablePath, err := filepath.EvalSymlinks(repository.stable.linkPath)
+	if err != nil {
+		return fmt.Errorf("could not evaluate symlinks for stable path: %w", err)
+	}
+
+	err = copyDirectory(stablePath, destPath)
 	if err != nil {
 		return fmt.Errorf("could not copy directory: %w", err)
 	}
@@ -579,6 +585,8 @@ func copyDirectory(sourcePath, targetPath string) error {
 			return fmt.Errorf("failed to walk directory: %w", err)
 		}
 
+		fmt.Printf("Walking directory %s\n", path)
+
 		if path == sourcePath {
 			// Skip root
 			return nil
@@ -593,6 +601,8 @@ func copyDirectory(sourcePath, targetPath string) error {
 		if info.IsDir() {
 			return os.MkdirAll(targetFilePath, info.Mode())
 		}
+
+		fmt.Printf("Copying file %s to %s\n", path, targetFilePath)
 
 		return copyFileWithPermissions(path, targetFilePath, info)
 	})
