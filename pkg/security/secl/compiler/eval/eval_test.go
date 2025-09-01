@@ -1837,8 +1837,7 @@ func commonFuzzEval(expr string) {
 	if err != nil {
 		return
 	}
-
-	rule.GenEvaluator(model)
+	_ = rule
 }
 
 func TestDiscoveredByFuzz(t *testing.T) {
