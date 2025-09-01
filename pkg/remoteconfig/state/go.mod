@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/remoteconfig/state
 
-go 1.23.0
+go 1.24.0
 
 require (
 	github.com/DataDog/go-tuf v1.1.0-0.5.2
