@@ -65,11 +65,9 @@ func newRemoteConfigImageResolver(rcClient RemoteConfigClient) ImageResolver {
 		imageMappings: make(map[string]map[string]ResolvedImage),
 	}
 
-	// Subscribe to future updates
 	rcClient.Subscribe(state.ProductGradualRollout, resolver.processUpdate)
 	log.Debugf("Subscribed to %s", state.ProductGradualRollout)
 
-	// Load initial configurations
 	if err := resolver.waitForInitialConfig(5 * time.Second); err != nil {
 		log.Warnf("Failed to load initial image resolution config: %v. Image resolution will be disabled.", err)
 		return newNoOpImageResolver()
@@ -79,7 +77,6 @@ func newRemoteConfigImageResolver(rcClient RemoteConfigClient) ImageResolver {
 }
 
 func (r *remoteConfigImageResolver) waitForInitialConfig(timeout time.Duration) error {
-	// Try immediate check first
 	if currentConfigs := r.rcClient.GetConfigs(state.ProductGradualRollout); len(currentConfigs) > 0 {
 		log.Debugf("Initial configs available immediately: %d configurations", len(currentConfigs))
 		r.updateCache(currentConfigs)

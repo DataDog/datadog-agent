@@ -7,12 +7,12 @@
         {
           "tag": "latest",
           "digest": "sha256:abc123",
-          "canonical_version": "v3.1.0"
+          "canonical_version": "3.1.0"
         },
         {
-          "tag": "v3",
+          "tag": "3",
           "digest": "sha256:def456",
-          "canonical_version": "v3.0.0"
+          "canonical_version": "3.0.0"
         }
       ]
     },
@@ -24,12 +24,12 @@
         {
           "tag": "latest",
           "digest": "sha256:ghi789",
-          "canonical_version": "v1.5.2"
+          "canonical_version": "1.5.2"
         },
         {
-          "tag": "v1",
+          "tag": "1",
           "digest": "sha256:java456",
-          "canonical_version": "v1.0.0"
+          "canonical_version": "1.0.0"
         }
       ]
     },
@@ -41,12 +41,12 @@
         {
           "tag": "latest",
           "digest": "sha256:js123",
-          "canonical_version": "v5.2.1"
+          "canonical_version": "5.2.1"
         },
         {
-          "tag": "v5",
+          "tag": "5",
           "digest": "sha256:js456",
-          "canonical_version": "v5.0.0"
+          "canonical_version": "5.0.0"
         }
       ]
     }

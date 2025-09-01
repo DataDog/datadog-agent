@@ -14,6 +14,9 @@ import (
 	"path/filepath"
 	"testing"
 
+	"sync"
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/stretchr/testify/assert"
@@ -28,13 +31,11 @@ type mockRCClient struct {
 
 // loadTestConfigFile loads a test data file and converts it to the format returned by rcClient.GetConfigs()
 func loadTestConfigFile(filename string) (map[string]state.RawConfig, error) {
-	// Read the test data file
 	data, err := os.ReadFile(filepath.Join("testdata", filename))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read test data file %s: %v", filename, err)
 	}
 
-	// Parse as map of config names to repository configs
 	var repoConfigs map[string]RepositoryConfig
 	if err := json.Unmarshal(data, &repoConfigs); err != nil {
 		return nil, fmt.Errorf("failed to parse test data: %v", err)
@@ -129,12 +130,10 @@ func TestNoOpImageResolver(t *testing.T) {
 }
 
 func TestRemoteConfigImageResolver_processUpdate(t *testing.T) {
-	// Create a resolver directly to test private functions
 	resolver := &remoteConfigImageResolver{
 		imageMappings: make(map[string]map[string]ResolvedImage),
 	}
 
-	// Load test data to use in tests
 	testConfigs, err := loadTestConfigFile("image_resolver_multi_repo.json")
 	require.NoError(t, err)
 
@@ -144,10 +143,8 @@ func TestRemoteConfigImageResolver_processUpdate(t *testing.T) {
 			appliedStatuses[cfgPath] = status
 		}
 
-		// Test the private processUpdate method directly
 		resolver.processUpdate(testConfigs, applyStateCallback)
 
-		// Verify the cache was populated
 		assert.Len(t, resolver.imageMappings, 3) // python, java, js
 		assert.Contains(t, resolver.imageMappings, "dd-lib-python-init")
 		assert.Contains(t, resolver.imageMappings, "dd-lib-java-init")
@@ -212,7 +209,7 @@ func TestRemoteConfigImageResolver_Resolve(t *testing.T) {
 			name:           "successful_resolution_versioned",
 			registry:       "gcr.io/datadoghq",
 			repository:     "dd-lib-python-init",
-			tag:            "v3",
+			tag:            "3",
 			expectedResult: "gcr.io/datadoghq/dd-lib-python-init@sha256:def456",
 			expectedOK:     true,
 		},
@@ -227,7 +224,7 @@ func TestRemoteConfigImageResolver_Resolve(t *testing.T) {
 			name:       "non_existent_tag",
 			registry:   "gcr.io/datadoghq",
 			repository: "dd-lib-python-init",
-			tag:        "v2",
+			tag:        "2",
 			expectedOK: false,
 		},
 	}
@@ -255,4 +252,153 @@ func TestRemoteConfigImageResolver_Resolve(t *testing.T) {
 		assert.False(t, ok, "Resolution should fail with empty cache")
 		assert.Nil(t, resolved, "Should not return resolved image with empty cache")
 	})
+}
+
+func TestRemoteConfigImageResolver_ErrorHandling(t *testing.T) {
+	resolver := &remoteConfigImageResolver{
+		imageMappings: make(map[string]map[string]ResolvedImage),
+	}
+
+	testCases := []struct {
+		name           string
+		rawConfig      map[string]state.RawConfig
+		expectedErrors int
+		description    string
+	}{
+		{
+			name: "invalid_json",
+			rawConfig: map[string]state.RawConfig{
+				"bad-config": {Config: []byte(`{invalid json}`)},
+			},
+			expectedErrors: 1,
+			description:    "Should handle malformed JSON gracefully",
+		},
+		{
+			name: "missing_repository_name",
+			rawConfig: map[string]state.RawConfig{
+				"incomplete-config": {Config: []byte(`{"repository_url": "gcr.io/test", "images": []}`)},
+			},
+			expectedErrors: 1,
+			description:    "Should reject configs missing required fields",
+		},
+		{
+			name: "missing_repository_url",
+			rawConfig: map[string]state.RawConfig{
+				"incomplete-config": {Config: []byte(`{"repository_name": "test", "images": []}`)},
+			},
+			expectedErrors: 1,
+			description:    "Should reject configs missing repository URL",
+		},
+		{
+			name: "images_with_missing_fields",
+			rawConfig: map[string]state.RawConfig{
+				"partial-images": {Config: []byte(`{
+                    "repository_name": "test-repo",
+                    "repository_url": "gcr.io/test",
+                    "images": [
+                        {"tag": "v1", "digest": ""},
+                        {"tag": "", "digest": "sha256:abc"},
+                        {"tag": "v2", "digest": "sha256:def"}
+                    ]
+                }`)},
+			},
+			expectedErrors: 0, // Should process valid images, skip invalid ones
+			description:    "Should skip images with missing tag/digest",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var appliedStatuses []state.ApplyStatus
+			resolver.processUpdate(tc.rawConfig, func(_ string, status state.ApplyStatus) {
+				appliedStatuses = append(appliedStatuses, status)
+			})
+
+			errorCount := 0
+			for _, status := range appliedStatuses {
+				if status.State == state.ApplyStateError {
+					errorCount++
+				}
+			}
+			assert.Equal(t, tc.expectedErrors, errorCount, tc.description)
+		})
+	}
+}
+
+func TestRemoteConfigImageResolver_ConcurrentAccess(t *testing.T) {
+	resolver := newRemoteConfigImageResolver(newMockRCClient("image_resolver_multi_repo.json")).(*remoteConfigImageResolver)
+
+	t.Run("concurrent_read_write", func(t *testing.T) {
+		var wg sync.WaitGroup
+		numReaders := 10
+		numWriters := 3
+
+		for i := 0; i < numReaders; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for j := 0; j < 100; j++ {
+					_, _ = resolver.Resolve("gcr.io/datadoghq", "dd-lib-python-init", "latest")
+				}
+			}()
+		}
+
+		for i := 0; i < numWriters; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for j := 0; j < 10; j++ {
+					resolver.processUpdate(map[string]state.RawConfig{}, func(string, state.ApplyStatus) {})
+					time.Sleep(10 * time.Millisecond)
+				}
+			}()
+		}
+
+		wg.Wait()
+	})
+}
+
+func TestRemoteConfigImageResolver_RegistryFiltering(t *testing.T) {
+	resolver := newRemoteConfigImageResolver(newMockRCClient("image_resolver_multi_repo.json"))
+
+	testCases := []struct {
+		name       string
+		registry   string
+		repository string
+		tag        string
+		shouldPass bool
+		reason     string
+	}{
+		{
+			name:       "datadog_registry_gcr",
+			registry:   "gcr.io/datadoghq",
+			repository: "dd-lib-python-init",
+			tag:        "latest",
+			shouldPass: true,
+			reason:     "Should resolve Datadog GCR registry",
+		},
+		{
+			name:       "docker_hub",
+			registry:   "docker.io",
+			repository: "dd-lib-python-init",
+			tag:        "latest",
+			shouldPass: false,
+			reason:     "Should reject Docker Hub registry",
+		},
+		{
+			name:       "similar_registry",
+			registry:   "gcr.io/not-datadoghq",
+			repository: "dd-lib-python-init",
+			tag:        "latest",
+			shouldPass: false,
+			reason:     "Should reject similar but non-Datadog registries",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, ok := resolver.Resolve(tc.registry, tc.repository, tc.tag)
+			assert.Equal(t, tc.shouldPass, ok, tc.reason)
+		})
+	}
 }

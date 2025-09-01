@@ -37,6 +37,7 @@ func TestNewController(t *testing.T) {
 	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
 	datadogConfig := fxutil.Test[config.Component](t, core.MockBundle())
 	factory := informers.NewSharedInformerFactory(client, time.Duration(0))
+	imageResolver := autoinstrumentation.NewImageResolver(nil)
 
 	// V1
 	controller := NewController(
@@ -51,7 +52,7 @@ func TestNewController(t *testing.T) {
 		nil,
 		datadogConfig,
 		nil,
-		nil,
+		imageResolver,
 	)
 
 	assert.IsType(t, &ControllerV1{}, controller)
@@ -69,7 +70,7 @@ func TestNewController(t *testing.T) {
 		nil,
 		datadogConfig,
 		nil,
-		nil,
+		imageResolver,
 	)
 
 	assert.IsType(t, &ControllerV1beta1{}, controller)
