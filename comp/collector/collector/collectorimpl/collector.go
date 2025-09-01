@@ -86,11 +86,10 @@ type collectorImpl struct {
 type provides struct {
 	fx.Out
 
-	Comp              collector.Component
-	StatusProvider    status.InformationProvider
-	MetadataProvider  metadata.Provider
-	APIGetPyStatus    api.AgentEndpointProvider
-	APIGetAgentChecks api.AgentEndpointProvider
+	Comp             collector.Component
+	StatusProvider   status.InformationProvider
+	MetadataProvider metadata.Provider
+	APIGetPyStatus   api.AgentEndpointProvider
 }
 
 // Module defines the fx options for this component.
@@ -112,11 +111,10 @@ func newProvides(deps dependencies) provides {
 	}
 
 	return provides{
-		Comp:              c,
-		StatusProvider:    status.NewInformationProvider(collectorStatus.Provider{}),
-		MetadataProvider:  agentCheckMetadata,
-		APIGetPyStatus:    api.NewAgentEndpointProvider(getPythonStatus, "/py/status", "GET"),
-		APIGetAgentChecks: api.NewAgentEndpointProvider(c.writePayloadAsJSON, "/metadata/agent-checks", "GET"),
+		Comp:             c,
+		StatusProvider:   status.NewInformationProvider(collectorStatus.Provider{}),
+		MetadataProvider: agentCheckMetadata,
+		APIGetPyStatus:   api.NewAgentEndpointProvider(getPythonStatus, "/py/status", "GET"),
 	}
 }
 

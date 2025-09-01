@@ -36,7 +36,6 @@ func TestBundleDependencies(t *testing.T) {
 		haagentmock.Module(),
 		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 		fx.Provide(func(ipcComp ipc.Component) ipc.HTTPClient { return ipcComp.GetClient() }),
-		collectorimpl.MockModule(),
 	)
 
 }

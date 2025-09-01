@@ -280,21 +280,6 @@ This command print the inventory-checks metadata payload. This payload is used b
 		},
 	}
 
-	payloadAgentChecksCmd := &cobra.Command{
-		Use:   "agent-checks",
-		Short: "[internal] Print the Agent checks metadata payload.",
-		Long: `
-This command print the agent-checks metadata payload. This payload is used by the 'agent-checks' product.`,
-		RunE: func(_ *cobra.Command, _ []string) error {
-			return fxutil.OneShot(printPayload,
-				fx.Supply(payloadName("agent-checks")),
-				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
-				core.Bundle(),
-				ipcfx.ModuleReadOnly(),
-			)
-		},
-	}
-
 	payloadInventoriesPkgSigningCmd := &cobra.Command{
 		Use:   "package-signing",
 		Short: "[internal] Print the Inventory package signing payload.",
@@ -375,7 +360,6 @@ This command print the security-agent metadata payload. This payload is used by 
 	showPayloadCommand.AddCommand(payloadInventoriesOtelCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesHaAgentCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesChecksCmd)
-	showPayloadCommand.AddCommand(payloadAgentChecksCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesPkgSigningCmd)
 	showPayloadCommand.AddCommand(payloadSystemProbeCmd)
 	showPayloadCommand.AddCommand(payloadSecurityAgentCmd)

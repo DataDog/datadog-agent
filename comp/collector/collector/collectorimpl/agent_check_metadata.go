@@ -10,11 +10,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
 	"strings"
 	"time"
-
-	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
@@ -23,8 +20,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	jmxStatus "github.com/DataDog/datadog-agent/pkg/status/jmx"
-	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"gopkg.in/yaml.v3"
 )
 
 //
@@ -51,15 +49,6 @@ func (p *Payload) MarshalJSON() ([]byte, error) {
 	type PayloadAlias Payload
 
 	return json.Marshal((*PayloadAlias)(p))
-}
-
-func (c *collectorImpl) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {
-	jsonPayload, err := c.GetPayload(context.Background()).MarshalJSON()
-	if err != nil {
-		httputils.SetJSONError(w, err, 500)
-		return
-	}
-	w.Write(jsonPayload)
 }
 
 // SplitPayload breaks the payload into times number of pieces
