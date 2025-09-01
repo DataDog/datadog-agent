@@ -19,6 +19,7 @@ import (
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
 	lru "github.com/DataDog/datadog-agent/pkg/security/utils/lru/simplelru"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
 // noSmVersion is used when the SM version is not available
@@ -28,7 +29,7 @@ const noSmVersion uint32 = 0
 // kernel spans and memory allocations from them.
 type StreamHandler struct {
 	metadata           streamMetadata
-	kernelLaunches     []enrichedKernelLaunch
+	kernelLaunches     []*enrichedKernelLaunch
 	memAllocEvents     *lru.LRU[uint64, gpuebpf.CudaMemEvent] // holds the memory allocations for the stream, will evict the oldest allocation if the cache is full
 	pendingKernelSpans chan *kernelSpan                       // holds already finalized kernel spans that still need to be collected
 	pendingMemorySpans chan *memorySpan                       // holds already finalized memory allocations that still need to be collected
@@ -130,6 +131,7 @@ type enrichedKernelLaunch struct {
 }
 
 var errFatbinParsingDisabled = errors.New("fatbin parsing is disabled")
+var enrichedKernelLaunchPool = ddsync.NewDefaultTypedPool[enrichedKernelLaunch]()
 
 // getKernelData attempts to get the kernel data from the kernel cache.
 // If the kernel is not processed yet, it will return errKernelNotProcessedYet, retry later in that case.
@@ -172,10 +174,9 @@ func newStreamHandler(metadata streamMetadata, sysCtx *systemContext, config con
 func (sh *StreamHandler) handleKernelLaunch(event *gpuebpf.CudaKernelLaunch) {
 	sh.lastEventKtimeNs = event.Header.Ktime_ns
 
-	enrichedLaunch := &enrichedKernelLaunch{
-		CudaKernelLaunch: *event, // Copy events, as the memory can be overwritten in the ring buffer after the function returns
-		stream:           sh,
-	}
+	enrichedLaunch := enrichedKernelLaunchPool.Get()
+	enrichedLaunch.CudaKernelLaunch = *event // Copy events, as the memory can be overwritten in the ring buffer after the function returns
+	enrichedLaunch.stream = sh
 
 	// Trigger the background kernel data loading, we don't care about the result here
 	_, err := enrichedLaunch.getKernelData()
@@ -185,7 +186,7 @@ func (sh *StreamHandler) handleKernelLaunch(event *gpuebpf.CudaKernelLaunch) {
 		}
 	}
 
-	sh.kernelLaunches = append(sh.kernelLaunches, *enrichedLaunch)
+	sh.kernelLaunches = append(sh.kernelLaunches, enrichedLaunch)
 
 	// If we've reached the kernel launch limit, trigger a sync. This stops us from just collecting
 	// kernel launches and not generating any spans if for some reason we are missing sync events.
@@ -251,10 +252,12 @@ func (sh *StreamHandler) markSynchronization(ts uint64) {
 		trySendSpan(sh, sh.pendingMemorySpans, alloc)
 	}
 
-	remainingLaunches := []enrichedKernelLaunch{}
+	remainingLaunches := []*enrichedKernelLaunch{}
 	for _, launch := range sh.kernelLaunches {
 		if launch.Header.Ktime_ns >= ts {
 			remainingLaunches = append(remainingLaunches, launch)
+		} else {
+			enrichedKernelLaunchPool.Put(launch)
 		}
 	}
 	sh.kernelLaunches = remainingLaunches
