@@ -35,10 +35,10 @@ func (e *RuleEngine) GetSECLVariables() map[string]*api.SECLVariableState {
 
 			cgr.Iterate(func(cgce *cgroupModel.CacheEntry) {
 				cgce.RLock()
+				defer cgce.RUnlock()
 				if cgce.ContainerContext.ContainerID == "" {
 					return
 				}
-				defer cgce.RUnlock()
 
 				event := e.probe.PlatformProbe.NewEvent()
 				event.ContainerContext = &cgce.ContainerContext
