@@ -157,7 +157,7 @@ func TestMutatePod(t *testing.T) {
 			},
 			expectedInitContainerImages: []string{
 				"gcr.io/datadoghq/apm-inject:0",
-				defaultLibInfo(python).image,
+				python.defaultLibInfo("gcr.io/datadoghq", "", newNoOpImageResolver()).image,
 			},
 			expectedEnv: map[string]string{
 				"DD_SERVICE": "best-service",

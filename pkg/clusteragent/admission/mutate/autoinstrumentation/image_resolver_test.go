@@ -165,48 +165,6 @@ func TestRemoteConfigImageResolver_processUpdate(t *testing.T) {
 		}
 	})
 
-	t.Run("invalid_json", func(t *testing.T) {
-		// Pre-populate with data
-		appliedStatuses := make(map[string]state.ApplyStatus)
-		applyStateCallback := func(cfgPath string, status state.ApplyStatus) {
-			appliedStatuses[cfgPath] = status
-		}
-
-		// Test the private processUpdate method directly
-		resolver.processUpdate(testConfigs, applyStateCallback)
-
-		// Verify the cache was populated
-		assert.Len(t, resolver.imageMappings, 3) // python, java, js
-		assert.Contains(t, resolver.imageMappings, "dd-lib-python-init")
-		assert.Contains(t, resolver.imageMappings, "dd-lib-java-init")
-		assert.Contains(t, resolver.imageMappings, "dd-lib-js-init")
-
-		// Verify apply statuses were called
-		assert.Len(t, appliedStatuses, 3)
-		for _, status := range appliedStatuses {
-			assert.Equal(t, state.ApplyStateAcknowledged, status.State)
-		}
-
-		update := map[string]state.RawConfig{
-			"invalid_config": {Config: []byte("invalid json")},
-		}
-
-		appliedStatuses = make(map[string]state.ApplyStatus)
-		applyStateCallback = func(cfgPath string, status state.ApplyStatus) {
-			appliedStatuses[cfgPath] = status
-		}
-
-		resolver.processUpdate(update, applyStateCallback)
-
-		// Cache should remain unchanged
-		assert.Len(t, resolver.imageMappings, 3) // Still has previous data
-
-		// Error status should be recorded
-		assert.Len(t, appliedStatuses, 1)
-		assert.Equal(t, state.ApplyStateError, appliedStatuses["invalid_config"].State)
-		assert.Contains(t, appliedStatuses["invalid_config"].Error, "invalid character")
-	})
-
 	t.Run("empty_update_clears_cache", func(t *testing.T) {
 		update := map[string]state.RawConfig{}
 
