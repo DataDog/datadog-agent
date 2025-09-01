@@ -24,8 +24,6 @@ const (
 	ErrPackageNotFound InstallerErrorCode = 3
 	// ErrFilesystemIssue is the code for a filesystem issue (e.g. permission issue).
 	ErrFilesystemIssue InstallerErrorCode = 4
-	// ErrConfigMergeFailed is the code for a config merge failure.
-	ErrConfigMergeFailed InstallerErrorCode = 5
 )
 
 // InstallerError is an error type used by the installer.

@@ -45,6 +45,10 @@ import (
 
 const (
 	snmpLoaderTag           = "loader:core"
+	snmpRequestMetric       = "datadog.snmp.requests"
+	snmpGetRequestTag       = "request_type:get"
+	snmpGetBulkRequestTag   = "request_type:getbulk"
+	snmpGetNextReqestTag    = "request_type:getnext"
 	serviceCheckName        = "snmp.can_check"
 	deviceReachableMetric   = "snmp.device.reachable"
 	deviceUnreachableMetric = "snmp.device.unreachable"
@@ -438,6 +442,9 @@ func (d *DeviceCheck) submitTelemetryMetrics(startTime time.Time, tags []string)
 	d.sender.MonotonicCount("datadog.snmp.check_interval", time.Duration(startTime.UnixNano()).Seconds(), newTags)
 	d.sender.Gauge("datadog.snmp.check_duration", time.Since(startTime).Seconds(), newTags)
 	d.sender.Gauge("datadog.snmp.submitted_metrics", float64(d.sender.GetSubmittedMetrics()), newTags)
+	d.sender.Gauge(snmpRequestMetric, float64(d.session.GetSnmpGetCount()), append(utils.CopyStrings(newTags), snmpGetRequestTag))
+	d.sender.Gauge(snmpRequestMetric, float64(d.session.GetSnmpGetBulkCount()), append(utils.CopyStrings(newTags), snmpGetBulkRequestTag))
+	d.sender.Gauge(snmpRequestMetric, float64(d.session.GetSnmpGetNextCount()), append(utils.CopyStrings(newTags), snmpGetNextReqestTag))
 }
 
 // GetDiagnoses collects diagnoses for diagnose CLI

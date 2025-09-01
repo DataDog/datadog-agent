@@ -9,7 +9,6 @@ package sbom
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -29,13 +28,14 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/sbomutil"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
 	sbomscanner "github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -75,11 +75,11 @@ func TestProcessEvents(t *testing.T) {
 							"gcr.io/datadoghq/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
 							"public.ecr.aws/datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
 						},
-						SBOM: &workloadmeta.SBOM{
-							CycloneDXBOM: &cyclonedx.BOM{
-								SpecVersion: cyclonedx.SpecVersion1_4,
-								Version:     42,
-								Components: &[]cyclonedx.Component{
+						SBOM: mustCompressSBOM(t, &workloadmeta.SBOM{
+							CycloneDXBOM: &cyclonedx_v1_4.Bom{
+								SpecVersion: cyclonedx.SpecVersion1_4.String(),
+								Version:     pointer.Ptr(int32(42)),
+								Components: []*cyclonedx_v1_4.Component{
 									{
 										Name: "Foo",
 									},
@@ -94,7 +94,7 @@ func TestProcessEvents(t *testing.T) {
 							GenerationTime:     sbomGenerationTime,
 							GenerationDuration: 10 * time.Second,
 							Status:             workloadmeta.Success,
-						},
+						}),
 					},
 				},
 			},
@@ -243,11 +243,11 @@ func TestProcessEvents(t *testing.T) {
 							// Notice that there's a repo tag for gcr.io, but no repo digest.
 							"public.ecr.aws/datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
 						},
-						SBOM: &workloadmeta.SBOM{
-							CycloneDXBOM: &cyclonedx.BOM{
-								SpecVersion: cyclonedx.SpecVersion1_4,
-								Version:     42,
-								Components: &[]cyclonedx.Component{
+						SBOM: mustCompressSBOM(t, &workloadmeta.SBOM{
+							CycloneDXBOM: &cyclonedx_v1_4.Bom{
+								SpecVersion: cyclonedx.SpecVersion1_4.String(),
+								Version:     pointer.Ptr(int32(42)),
+								Components: []*cyclonedx_v1_4.Component{
 									{
 										Name: "Foo",
 									},
@@ -262,7 +262,7 @@ func TestProcessEvents(t *testing.T) {
 							GenerationTime:     sbomGenerationTime,
 							GenerationDuration: 10 * time.Second,
 							Status:             workloadmeta.Success,
-						},
+						}),
 					},
 				},
 			},
@@ -322,11 +322,11 @@ func TestProcessEvents(t *testing.T) {
 						RepoTags: []string{
 							"my-image:latest",
 						},
-						SBOM: &workloadmeta.SBOM{
-							CycloneDXBOM: &cyclonedx.BOM{
-								SpecVersion: cyclonedx.SpecVersion1_4,
-								Version:     42,
-								Components: &[]cyclonedx.Component{
+						SBOM: mustCompressSBOM(t, &workloadmeta.SBOM{
+							CycloneDXBOM: &cyclonedx_v1_4.Bom{
+								SpecVersion: cyclonedx.SpecVersion1_4.String(),
+								Version:     pointer.Ptr(int32(42)),
+								Components: []*cyclonedx_v1_4.Component{
 									{
 										Name: "Foo",
 									},
@@ -341,7 +341,7 @@ func TestProcessEvents(t *testing.T) {
 							GenerationTime:     sbomGenerationTime,
 							GenerationDuration: 10 * time.Second,
 							Status:             workloadmeta.Success,
-						},
+						}),
 					},
 				},
 			},
@@ -394,15 +394,15 @@ func TestProcessEvents(t *testing.T) {
 						},
 						RepoTags:    []string{"datadog/agent:7-rc"},
 						RepoDigests: []string{"datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409"},
-						SBOM: &workloadmeta.SBOM{
-							CycloneDXBOM: &cyclonedx.BOM{
-								SpecVersion: cyclonedx.SpecVersion1_4,
-								Version:     42,
+						SBOM: mustCompressSBOM(t, &workloadmeta.SBOM{
+							CycloneDXBOM: &cyclonedx_v1_4.Bom{
+								SpecVersion: cyclonedx.SpecVersion1_4.String(),
+								Version:     pointer.Ptr(int32(42)),
 							},
 							GenerationTime:     sbomGenerationTime,
 							GenerationDuration: 10 * time.Second,
 							Status:             workloadmeta.Success,
-						},
+						}),
 					},
 				},
 				{
@@ -499,9 +499,9 @@ func TestProcessEvents(t *testing.T) {
 							"gcr.io/datadoghq/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
 							"public.ecr.aws/datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
 						},
-						SBOM: &workloadmeta.SBOM{
+						SBOM: mustCompressSBOM(t, &workloadmeta.SBOM{
 							Status: workloadmeta.Pending,
-						},
+						}),
 					},
 				},
 			},
@@ -591,10 +591,10 @@ func TestProcessEvents(t *testing.T) {
 							"gcr.io/datadoghq/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
 							"public.ecr.aws/datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
 						},
-						SBOM: &workloadmeta.SBOM{
+						SBOM: mustCompressSBOM(t, &workloadmeta.SBOM{
 							Status: workloadmeta.Failed,
 							Error:  "error",
-						},
+						}),
 					},
 				},
 			},
@@ -706,10 +706,11 @@ func TestProcessEvents(t *testing.T) {
 			})
 
 			fakeTagger := taggerfxmock.SetupFakeTagger(t)
+			mockFilterStore := workloadfilterfxmock.SetupMockFilter(t)
 
 			// Define a max size of 1 for the queue. With a size > 1, it's difficult to
 			// control the number of events sent on each call.
-			p, err := newProcessor(workloadmetaStore, sender, fakeTagger, cfg, 1, 50*time.Millisecond, time.Second)
+			p, err := newProcessor(workloadmetaStore, mockFilterStore, sender, fakeTagger, cfg, 1, 50*time.Millisecond, time.Second)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -723,15 +724,10 @@ func TestProcessEvents(t *testing.T) {
 				}
 			}
 
-			containerFilter, err := collectors.NewSBOMContainerFilter()
-			if err != nil {
-				t.Fatal(fmt.Errorf("failed to create container filter: %w", err))
-			}
-
 			p.processContainerImagesEvents(workloadmeta.EventBundle{
 				Events: test.inputEvents,
 				Ch:     make(chan struct{}),
-			}, containerFilter)
+			})
 
 			p.stop()
 
@@ -756,4 +752,13 @@ func TestProcessEvents(t *testing.T) {
 			}
 		})
 	}
+}
+
+func mustCompressSBOM(t *testing.T, sbom *workloadmeta.SBOM) *workloadmeta.CompressedSBOM {
+	t.Helper()
+
+	csbom, err := sbomutil.CompressSBOM(sbom)
+	assert.Nil(t, err)
+
+	return csbom
 }

@@ -7,14 +7,19 @@ package scheduler
 
 import (
 	"sync"
+	"sync/atomic"
 	"time"
+
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/util/workqueue"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/util/workqueue"
 )
+
+const schedulersTimeout = 5 * time.Minute
 
 // Controller is a scheduler dispatching to all its registered schedulers
 type Controller struct {
@@ -36,6 +41,14 @@ type Controller struct {
 
 	started     bool
 	stopChannel chan struct{}
+
+	healthProbe *health.Handle
+
+	// schedulerOperationStartTime is a Unix timestamp that indicates when the
+	// last schedule or unschedule operation started. We use a single int since
+	// only one worker pulls from the queue, so jobs run one at a time. A value
+	// of 0 means that there isn't a scheduling operation ongoing.
+	schedulerOperationStartTime *atomic.Int64
 }
 
 // NewControllerAndStart inits a scheduler controller without waiting
@@ -55,8 +68,10 @@ func NewController() *Controller {
 		queue: workqueue.NewTypedDelayingQueueWithConfig(workqueue.TypedDelayingQueueConfig[Digest]{
 			Name: "ADSchedulerController",
 		}),
-		stopChannel:      make(chan struct{}),
-		configStateStore: NewConfigStateStore(),
+		stopChannel:                 make(chan struct{}),
+		configStateStore:            NewConfigStateStore(),
+		healthProbe:                 health.RegisterLiveness("ad-scheduler-controller"),
+		schedulerOperationStartTime: new(atomic.Int64),
 	}
 }
 
@@ -68,6 +83,7 @@ func (ms *Controller) Start() {
 	}
 	ms.started = true
 	ms.m.Unlock()
+	go ms.healthMonitor()
 	go wait.Until(ms.worker, time.Second, ms.stopChannel)
 	log.Infof("Autodiscovery scheduler controller started")
 }
@@ -168,6 +184,10 @@ func (ms *Controller) processNextWorkItem() bool {
 		return true
 	}
 	log.Tracef("Controller starts processing config %s: currentState: %d, desiredState: %d", configName, currentState, desiredState)
+
+	// Signal we're starting the schedule/unschedule operations (potential block)
+	ms.schedulerOperationStartTime.Store(time.Now().Unix())
+
 	ms.m.Lock() //lock on activeSchedulers
 	for _, scheduler := range ms.activeSchedulers {
 		if desiredState == Scheduled {
@@ -186,6 +206,10 @@ func (ms *Controller) processNextWorkItem() bool {
 		ms.configStateStore.Cleanup(configDigest)
 	}
 	ms.m.Unlock()
+
+	// Signal we've completed the schedule/unschedule operations
+	ms.schedulerOperationStartTime.Store(0)
+
 	ms.queue.Done(configDigest)
 	return true
 }
@@ -194,11 +218,41 @@ func (ms *Controller) processNextWorkItem() bool {
 func (ms *Controller) Stop() {
 	ms.m.Lock()
 	defer ms.m.Unlock()
+
 	for _, scheduler := range ms.activeSchedulers {
 		scheduler.Stop()
 	}
+
+	if err := ms.healthProbe.Deregister(); err != nil {
+		log.Errorf("error de-registering health check: %s", err)
+	}
+
 	close(ms.stopChannel)
 	ms.queue.ShutDown()
 	ms.started = false
 	ms.scheduledConfigs = make(map[Digest]*integration.Config)
+}
+
+func (ms *Controller) healthMonitor() {
+	for {
+		select {
+		case <-ms.healthProbe.C:
+			startSec := ms.schedulerOperationStartTime.Load()
+			if startSec == 0 {
+				// No scheduler operation active
+				continue
+			}
+
+			// Scheduler operation is currently active. Check if it's blocked.
+			startTime := time.Unix(startSec, 0)
+			if time.Since(startTime) > schedulersTimeout {
+				log.Errorf("Autodiscovery scheduler controller deadlock detected. Scheduler operation has been running for %v", time.Since(startTime))
+				return // Stop responding to health checks. This marks the scheduler as unhealthy.
+			}
+			// Operation is active but not blocked. Continue.
+
+		case <-ms.stopChannel:
+			return
+		}
+	}
 }

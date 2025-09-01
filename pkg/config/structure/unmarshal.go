@@ -220,7 +220,6 @@ func copyStruct(target reflect.Value, input nodetreemodel.Node, currPath []strin
 		}
 		usedFields[fieldKey] = struct{}{}
 	}
-
 	if fs.errorUnused {
 		inner, ok := input.(nodetreemodel.InnerNode)
 		if !ok {

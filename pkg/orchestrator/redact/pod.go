@@ -8,8 +8,6 @@
 package redact
 
 import (
-	"strings"
-
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -74,7 +72,7 @@ func scrubContainerProbe(probe *v1.Probe, scrubber *DataScrubber) {
 	}
 
 	if probe.Exec != nil {
-		probe.Exec.Command, _ = scrubber.ScrubSimpleCommand(probe.Exec.Command)
+		probe.Exec.Command, _, _ = scrubber.ScrubSimpleCommand(probe.Exec.Command, nil)
 	}
 }
 
@@ -94,29 +92,20 @@ func scrubContainer(c *v1.Container, scrubber *DataScrubber) {
 
 	defer func() {
 		if r := recover(); r != nil {
-			log.Errorf("Failed to parse cmd from pod, obscuring whole command")
+			log.Errorf("Failed to parse cmd from pod, obscuring whole command, container: %s, error: %v", c.Name, r)
 			// we still want to obscure to be safe
 			c.Command = []string{redactedSecret}
 		}
 	}()
 
-	// scrub args and commands
-	merged := append(c.Command, c.Args...)
-	words := 0
-	for _, cmd := range c.Command {
-		words += len(strings.Split(cmd, " "))
-	}
-
-	scrubbedMergedCommand, changed := scrubber.ScrubSimpleCommand(merged) // return value is split if has been changed
+	scrubbedCommand, scrubbedArg, changed := scrubber.ScrubSimpleCommand(c.Command, c.Args) // return value is split if has been changed
 	if !changed {
 		return // no change has happened, no need to go further down the line
 	}
-
-	// if part of the merged command got scrubbed the updated value will be split, even for e.g. c.Args only if the c.Command got scrubbed
 	if len(c.Command) > 0 {
-		c.Command = scrubbedMergedCommand[:words]
+		c.Command = scrubbedCommand
 	}
 	if len(c.Args) > 0 {
-		c.Args = scrubbedMergedCommand[words:]
+		c.Args = scrubbedArg
 	}
 }

@@ -141,10 +141,9 @@ func TestAcceptEvent(t *testing.T) {
 		ch := make(chan iouring.Result, 1)
 
 		test.WaitSignal(t, func() error {
+			errChan := make(chan error, 1)
 			go func() {
-				if err := unix.Connect(client, &connectAddr); err != nil {
-					t.Error(err)
-				}
+				errChan <- unix.Connect(client, &connectAddr)
 			}()
 
 			if _, err = iour.SubmitRequest(prepRequest, ch); err != nil {
@@ -164,7 +163,7 @@ func TestAcceptEvent(t *testing.T) {
 				return fmt.Errorf("failed to accept with io_uring: %d", ret)
 			}
 
-			return err
+			return <-errChan
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_accept_af_inet")
 			assert.Equal(t, "accept", event.GetType(), "wrong event type")

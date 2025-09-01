@@ -1922,6 +1922,20 @@ func TestLoadEnv(t *testing.T) {
 		assert.Equal(t, int64(1699621675), cfg.InstallSignature.InstallTime)
 		assert.True(t, cfg.InstallSignature.Found)
 	})
+
+	env = "DD_APM_PROFILING_RECEIVER_TIMEOUT"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, "30")
+
+		c := buildConfigComponent(t, true, fx.Replace(corecomp.MockParams{
+			Params: corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+		}))
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+		assert.Equal(t, 30, cfg.ProfilingProxy.ReceiverTimeout)
+		assert.Equal(t, 30, pkgconfigsetup.Datadog().GetInt("apm_config.profiling_receiver_timeout"))
+	})
 }
 
 func TestFargateConfig(t *testing.T) {

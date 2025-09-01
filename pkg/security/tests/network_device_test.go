@@ -63,6 +63,8 @@ func TestNetDevice(t *testing.T) {
 	executable := which(t, "ip")
 	defer func() {
 		_ = exec.Command(executable, "netns", "delete", "test_netns").Run()
+		_ = exec.Command(executable, "link", "delete", "host-eth1").Run()
+		_ = exec.Command(executable, "link", "delete", "host-eth0").Run()
 	}()
 
 	t.Run("register_netdevice", func(t *testing.T) {
@@ -126,7 +128,7 @@ func TestNetDevice(t *testing.T) {
 			cmd = exec.Command(executable, "link", "set", "ns-eth1", "netns", "test_netns")
 			return cmd.Run()
 		}, func(event *model.Event) bool {
-			if !assert.Equal(t, "veth_pair", event.GetType(), "wrong event type") {
+			if !assert.Equal(t, "veth_pair_ns", event.GetType(), "wrong event type") {
 				return true
 			}
 
@@ -134,7 +136,7 @@ func TestNetDevice(t *testing.T) {
 				assert.Equal(t, currentNetns, event.VethPair.HostDevice.NetNS, "wrong network namespace ID") &&
 				assert.Equal(t, "ns-eth1", event.VethPair.PeerDevice.Name, "wrong peer interface name") &&
 				assert.Equal(t, testNetns, event.VethPair.PeerDevice.NetNS, "wrong peer network namespace ID")
-		}, 10*time.Second, model.VethPairEventType)
+		}, 10*time.Second, model.VethPairNsEventType)
 		if err != nil {
 			t.Error(err)
 		}
@@ -180,14 +182,6 @@ func TestTCFilters(t *testing.T) {
 	sleepExecutable := which(t, "sleep")
 
 	var newNetNSSleep *exec.Cmd
-	defer func() {
-		if newNetNSSleep != nil {
-			if newNetNSSleep.Process != nil {
-				_ = newNetNSSleep.Process.Kill()
-			}
-			_ = newNetNSSleep.Wait()
-		}
-	}()
 
 	t.Run("attach_detach_filters", func(t *testing.T) {
 		newNetNSSleep = exec.Command(syscallTester, "new_netns_exec", sleepExecutable, "600")
@@ -195,6 +189,11 @@ func TestTCFilters(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		t.Cleanup(func() {
+			// stop the sleep process
+			newNetNSSleep.Process.Kill()
+			_ = newNetNSSleep.Wait()
+		})
 
 		sleepProcPid := uint32(newNetNSSleep.Process.Pid)
 		if sleepProcPid == 0 {
@@ -231,7 +230,8 @@ func TestTCFilters(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		test.Close()
+		// no zombie check here
+		test.CloseWithOptions(false)
 		test.cleanup()
 		testMod = nil // force a full testModule reinitialization
 		testModuleCleanedUp = true
@@ -249,6 +249,10 @@ func TestTCFilters(t *testing.T) {
 			t.Fatal("Egress tc classifier wasn't properly detached")
 		}
 	})
+
+	if err := test.CheckZombieProcesses(); err != nil {
+		t.Errorf("failed checking for zombie processes: %v", err)
+	}
 }
 
 func tcFiltersExist(netNs *utils.NetNSPath, linkName string, ingressFilterNamePrefix, egressFilterNamePrefix string) (ingressExists bool, egressExists bool, err error) {

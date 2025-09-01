@@ -98,7 +98,8 @@ network_devices:
 	})
 
 	warnings := viperConf.Warnings()
-	assert.Nil(t, warnings)
+	assert.Equal(t, model.NewWarnings(nil), warnings)
+	assert.Equal(t, 0, len(warnings.Errors))
 
 	// NOTE: An additional warning is created here because the config has an error
 	warnings = ntmConf.Warnings()

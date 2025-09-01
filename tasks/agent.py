@@ -84,6 +84,7 @@ AGENT_CORECHECKS = [
     "service_discovery",
     "gpu",
     "wlan",
+    "discovery",
 ]
 
 WINDOWS_CORECHECKS = [
@@ -450,10 +451,12 @@ def hacky_dev_image_build(
     target_image="agent",
     process_agent=False,
     trace_agent=False,
+    system_probe=False,
     push=False,
     race=False,
     signed_pull=False,
     arch=None,
+    development=True,
 ):
     if arch is None:
         arch = CONTAINER_PLATFORM_MAPPING.get(platform.machine().lower())
@@ -485,13 +488,15 @@ def hacky_dev_image_build(
             f"docker run --platform linux/{arch} --rm '{base_image}' bash -c 'tar --create /opt/datadog-agent/embedded/{{bin,lib,include}}/*python*' | tar --directory '{extracted_python_dir}' --extract"
         )
 
-        os.environ["DELVE"] = "1"
+        if development:
+            os.environ["DELVE"] = "1"
         os.environ["LD_LIBRARY_PATH"] = (
             os.environ.get("LD_LIBRARY_PATH", "") + f":{extracted_python_dir}/opt/datadog-agent/embedded/lib"
         )
         build(
             ctx,
             race=race,
+            development=development,
             cmake_options=f'-DPython3_ROOT_DIR={extracted_python_dir}/opt/datadog-agent/embedded -DPython3_FIND_STRATEGY=LOCATION',
         )
         ctx.run(
@@ -509,6 +514,12 @@ def hacky_dev_image_build(
 
         trace_agent_build(ctx)
         copy_extra_agents += "COPY bin/trace-agent/trace-agent /opt/datadog-agent/embedded/bin/trace-agent\n"
+
+    if system_probe:
+        from tasks.system_probe import build as system_probe_build
+
+        system_probe_build(ctx)
+        copy_extra_agents += "COPY bin/system-probe/system-probe /opt/datadog-agent/embedded/bin/system-probe\n"
 
     with tempfile.NamedTemporaryFile(mode='w') as dockerfile:
         dockerfile.write(

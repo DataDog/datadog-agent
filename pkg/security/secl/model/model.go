@@ -53,7 +53,6 @@ type ContainerContext struct {
 	CreatedAt   uint64                     `field:"created_at,handler:ResolveContainerCreatedAt,opts:gen_getters"` // SECLDoc[created_at] Definition:`Timestamp of the creation of the container``
 	Tags        []string                   `field:"tags,handler:ResolveContainerTags,opts:skip_ad,weight:9999"`    // SECLDoc[tags] Definition:`Tags of the container`
 	Resolved    bool                       `field:"-"`
-	Runtime     string                     `field:"runtime,handler:ResolveContainerRuntime"` // SECLDoc[runtime] Definition:`Runtime managing the container`
 }
 
 // Hash returns a unique key for the entity
@@ -150,6 +149,7 @@ type BaseEvent struct {
 	Service       string         `field:"event.service,handler:ResolveService,opts:skip_ad|gen_getters"` // SECLDoc[event.service] Definition:`Service associated with the event`
 	Hostname      string         `field:"event.hostname,handler:ResolveHostname"`                        // SECLDoc[event.hostname] Definition:`Hostname associated with the event`
 	RuleTags      []string       `field:"event.rule.tags"`                                               // SECLDoc[event.rule.tags] Definition:`Tags associated with the rule that's used to evaluate the event`
+	Source        string         `field:"event.source,handler:ResolveSource"`                            // SECLDoc[event.source] Definition:`[Experimental] Source of the event. Can be either 'runtime' or 'snapshot'.`
 
 	// context shared with all event types
 	ProcessContext         *ProcessContext        `field:"process"`
@@ -225,6 +225,11 @@ func (e *Event) HasActiveActivityDump() bool {
 // IsAnomalyDetectionEvent returns true if the current event is an anomaly detection event (kernel or user space)
 func (e *Event) IsAnomalyDetectionEvent() bool {
 	return e.Flags&EventFlagsAnomalyDetectionEvent > 0
+}
+
+// IsSnapshotEvent returns true if the event is generated from a snapshot replay
+func (e *Event) IsSnapshotEvent() bool {
+	return e.Flags&EventFlagsIsSnapshot > 0
 }
 
 // AddToFlags adds a flag to the event

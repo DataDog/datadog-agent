@@ -26,6 +26,8 @@ const (
 	ProductOriginDogStatsD ProductOrigin = iota
 	// ProductOriginAPM is the ProductOrigin for APM.
 	ProductOriginAPM ProductOrigin = iota
+	// ProductOriginOTel is the ProductOrigin for OTel.
+	ProductOriginOTel ProductOrigin = iota
 
 	// Local Data Prefixes
 	// These prefixes are used to build the Local Data list.

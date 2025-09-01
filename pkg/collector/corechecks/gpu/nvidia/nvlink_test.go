@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
-// mockSafeDevice is a mock implementation of the SafeDevice interface
+// mockSafeDevice is a mock implementation of the Device interface
 // It only implements the methods needed for testing the nvlink collector
 type mockSafeDevice struct {
 	ddnvml.SafeDevice // Embed the interface to satisfy it
@@ -27,6 +27,11 @@ type mockSafeDevice struct {
 	fieldValuesFunc func([]nvml.FieldValue) error
 	nvLinkStateFunc func(int) (nvml.EnableState, error)
 	uuid            string
+}
+
+// GetDeviceInfo implements ddnvml.Device interface
+func (m *mockSafeDevice) GetDeviceInfo() *ddnvml.DeviceInfo {
+	return &ddnvml.DeviceInfo{UUID: m.uuid}
 }
 
 // GetFieldValues implements SafeDevice.GetFieldValues
@@ -53,13 +58,13 @@ func (m *mockSafeDevice) GetUUID() (string, error) {
 func TestNewNVLinkCollector(t *testing.T) {
 	tests := []struct {
 		name      string
-		mockSetup func() ddnvml.SafeDevice
+		mockSetup func() ddnvml.Device
 		wantError bool
 		wantLinks int
 	}{
 		{
 			name: "Unsupported device",
-			mockSetup: func() ddnvml.SafeDevice {
+			mockSetup: func() ddnvml.Device {
 				return &mockSafeDevice{
 					fieldValuesFunc: func(_ []nvml.FieldValue) error {
 						return &ddnvml.NvmlAPIError{APIName: "GetFieldValues", NvmlErrorCode: nvml.ERROR_NOT_SUPPORTED}
@@ -71,7 +76,7 @@ func TestNewNVLinkCollector(t *testing.T) {
 		},
 		{
 			name: "Unknown error",
-			mockSetup: func() ddnvml.SafeDevice {
+			mockSetup: func() ddnvml.Device {
 				return &mockSafeDevice{
 					fieldValuesFunc: func(_ []nvml.FieldValue) error {
 						return &ddnvml.NvmlAPIError{APIName: "GetFieldValues", NvmlErrorCode: nvml.ERROR_UNKNOWN}
@@ -83,7 +88,7 @@ func TestNewNVLinkCollector(t *testing.T) {
 		},
 		{
 			name: "Success with 4 links",
-			mockSetup: func() ddnvml.SafeDevice {
+			mockSetup: func() ddnvml.Device {
 				return &mockSafeDevice{
 					fieldValuesFunc: func(values []nvml.FieldValue) error {
 						require.Len(t, values, 1, "Expected one field value for total number of links, got %d", len(values))

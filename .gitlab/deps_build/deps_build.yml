@@ -3,8 +3,7 @@
 # Contains jobs which build various libraries needed for system-probe.
 
 .build_clang_common:
-  rules:
-    !reference [.manual]
+  rules: !reference [.manual]
   stage: deps_build
   variables:
     KUBERNETES_MEMORY_REQUEST: 12Gi
@@ -96,7 +95,7 @@
 
 build_clang_x64:
   extends: .build_clang_common
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64"]
   variables:
     ARCH: amd64
@@ -104,7 +103,7 @@ build_clang_x64:
 
 build_clang_arm64:
   extends: .build_clang_common
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_23_ARM64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:arm64"]
   variables:
     ARCH: arm64

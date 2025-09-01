@@ -15,8 +15,10 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/hosttags"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/compression/selector"
@@ -39,13 +41,16 @@ type ServerlessDemultiplexer struct {
 
 	flushAndSerializeInParallel FlushAndSerializeInParallel
 
-	hostTagProvider *HostTagProvider
+	hostTagProvider *hosttags.HostTagProvider
+
+	// used by some serveless environments to force flush all metrics.
+	shouldForceFlushAllOnForceFlushToSerializer bool
 
 	*senders
 }
 
 // InitAndStartServerlessDemultiplexer creates and starts new Demultiplexer for the serverless agent.
-func InitAndStartServerlessDemultiplexer(keysPerDomain map[string][]utils.APIKeys, forwarderTimeout time.Duration, tagger tagger.Component) (*ServerlessDemultiplexer, error) {
+func InitAndStartServerlessDemultiplexer(keysPerDomain map[string][]utils.APIKeys, forwarderTimeout time.Duration, tagger tagger.Component, shouldForceFlushAllOnForceFlushToSerializer bool) (*ServerlessDemultiplexer, error) {
 	bufferSize := pkgconfigsetup.Datadog().GetInt("aggregator_buffer_size")
 	logger := logimpl.NewTemporaryLoggerWithoutInit()
 	forwarder, err := forwarder.NewSyncForwarder(pkgconfigsetup.Datadog(), logger, keysPerDomain, forwarderTimeout)
@@ -54,7 +59,7 @@ func InitAndStartServerlessDemultiplexer(keysPerDomain map[string][]utils.APIKey
 	}
 	h, _ := hostname.Get(context.Background())
 	config := pkgconfigsetup.Datadog()
-	config.SetWithoutSource("serializer_compressor_kind", "none")
+	config.Set("serializer_compressor_kind", "none", model.SourceAgentRuntime)
 	serializer := serializer.NewSerializer(forwarder, nil, selector.FromConfig(config), pkgconfigsetup.Datadog(), logger, h)
 	metricSamplePool := metrics.NewMetricSamplePool(MetricSamplePoolBatchSize, utils.IsTelemetryEnabled(pkgconfigsetup.Datadog()))
 	tagsStore := tags.NewStore(pkgconfigsetup.Datadog().GetBool("aggregator_use_tags_store"), "timesampler")
@@ -71,8 +76,10 @@ func InitAndStartServerlessDemultiplexer(keysPerDomain map[string][]utils.APIKey
 		serializer:                  serializer,
 		metricSamplePool:            metricSamplePool,
 		flushLock:                   &sync.Mutex{},
-		hostTagProvider:             NewHostTagProvider(),
+		hostTagProvider:             hosttags.NewHostTagProvider(),
 		flushAndSerializeInParallel: flushAndSerializeInParallel,
+
+		shouldForceFlushAllOnForceFlushToSerializer: shouldForceFlushAllOnForceFlushToSerializer,
 	}
 
 	// start routines
@@ -111,7 +118,7 @@ func (d *ServerlessDemultiplexer) Stop(flush bool) {
 
 // ForceFlushToSerializer flushes all data from the time sampler to the serializer.
 func (d *ServerlessDemultiplexer) ForceFlushToSerializer(start time.Time, waitForSerializer bool) {
-	d.forceFlushToSerializer(start, waitForSerializer, false)
+	d.forceFlushToSerializer(start, waitForSerializer, d.shouldForceFlushAllOnForceFlushToSerializer)
 }
 
 func (d *ServerlessDemultiplexer) forceFlushToSerializer(start time.Time, waitForSerializer bool, forceFlushAll bool) {
@@ -176,9 +183,9 @@ func (d *ServerlessDemultiplexer) SendSamplesWithoutAggregation(_ metrics.Metric
 	panic("not implemented.")
 }
 
-// SetTimeSamplersBlocklist is not supported in the Serverless Agent implementation.
-func (d *ServerlessDemultiplexer) SetTimeSamplersBlocklist(blocklist *utilstrings.Blocklist) {
-	d.statsdWorker.blocklistChan <- blocklist
+// SetTimeSamplersFilterList is not supported in the Serverless Agent implementation.
+func (d *ServerlessDemultiplexer) SetTimeSamplersFilterList(filterList *utilstrings.Matcher) {
+	d.statsdWorker.filterListChan <- filterList
 }
 
 // Serializer returns the shared serializer

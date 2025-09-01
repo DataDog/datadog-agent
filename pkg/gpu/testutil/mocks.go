@@ -5,7 +5,6 @@
 
 //go:build linux && nvml
 
-// Package testutil holds different utilities and stubs for testing
 package testutil
 
 import (

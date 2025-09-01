@@ -479,9 +479,9 @@ func buildURL(endpoint config.Endpoint) string {
 		Host:   address,
 	}
 	if endpoint.Version == config.EPIntakeVersion2 && endpoint.TrackType != "" {
-		url.Path = fmt.Sprintf("/api/v2/%s", endpoint.TrackType)
+		url.Path = fmt.Sprintf("%s/api/v2/%s", endpoint.PathPrefix, endpoint.TrackType)
 	} else {
-		url.Path = "/v1/input"
+		url.Path = fmt.Sprintf("%s/v1/input", endpoint.PathPrefix)
 	}
 	return url.String()
 }

@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/snmp"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 
@@ -410,4 +411,173 @@ func TestExtraConfigPingEmpty(t *testing.T) {
 	info, err := svc.GetExtraConfig("ping")
 	assert.Equal(t, nil, err)
 	assert.Equal(t, `{"linux":{"use_raw_socket":null},"enabled":null,"interval":null,"timeout":null,"count":null}`, info)
+}
+
+func TestSubnetIndex(t *testing.T) {
+	configs := make([]map[string]interface{}, 0, 100)
+	for i := 0; i < 100; i++ {
+		snmpConfig := map[string]interface{}{
+			"network":      "172.18.0.0/30",
+			"community":    "f5-big-ip",
+			"port":         1161,
+			"context_name": "context" + strconv.Itoa(i),
+		}
+		configs = append(configs, snmpConfig)
+	}
+
+	listenerConfig := map[string]interface{}{
+		"configs": configs,
+	}
+
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("network_devices.autodiscovery", listenerConfig)
+
+	listener, err := NewSNMPListener(ServiceListernerDeps{})
+	assert.NoError(t, err)
+
+	l, ok := listener.(*SNMPListener)
+	assert.True(t, ok)
+
+	subnets := l.initializeSubnets()
+	for i, subnet := range subnets {
+		assert.Equal(t, i, subnet.index)
+	}
+}
+
+func TestBuildCacheKey(t *testing.T) {
+	tests := []struct {
+		name       string
+		configHash string
+		expected   string
+	}{
+		{
+			name:       "empty",
+			configHash: "",
+			expected:   "snmp:",
+		},
+		{
+			name:       "hash",
+			configHash: "abc123456abc",
+			expected:   "snmp:abc123456abc",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, buildCacheKey(tt.configHash))
+		})
+	}
+}
+
+func TestMigrateCache(t *testing.T) {
+	tests := []struct {
+		name                  string
+		subnet                string
+		newCacheExists        bool
+		legacyCacheExists     bool
+		expectMigration       bool
+		expectNewCacheUsed    bool
+		expectLegacyCacheUsed bool
+	}{
+		{
+			name:                  "no cache exists",
+			subnet:                "192.168.1.0/24",
+			newCacheExists:        false,
+			legacyCacheExists:     false,
+			expectMigration:       false,
+			expectNewCacheUsed:    true,
+			expectLegacyCacheUsed: false,
+		},
+		{
+			name:                  "both caches exist",
+			subnet:                "192.168.1.0/24",
+			newCacheExists:        true,
+			legacyCacheExists:     true,
+			expectMigration:       false,
+			expectNewCacheUsed:    true,
+			expectLegacyCacheUsed: false,
+		},
+		{
+			name:                  "new cache exists and legacy cache does not exist",
+			subnet:                "192.168.1.0/24",
+			newCacheExists:        true,
+			legacyCacheExists:     false,
+			expectMigration:       false,
+			expectNewCacheUsed:    true,
+			expectLegacyCacheUsed: false,
+		},
+		{
+			name:                  "new cache does not exist and legacy cache exists",
+			subnet:                "192.168.1.0/24",
+			newCacheExists:        false,
+			legacyCacheExists:     true,
+			expectMigration:       true,
+			expectNewCacheUsed:    true,
+			expectLegacyCacheUsed: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testDir := t.TempDir()
+			mockConfig := configmock.New(t)
+			mockConfig.SetWithoutSource("run_path", testDir)
+
+			mockSnmpConfig := snmp.Config{
+				Network:   tt.subnet,
+				Port:      1161,
+				Loader:    "core",
+				Community: "cisco",
+				Authentications: []snmp.Authentication{
+					{
+						Community: "public",
+					},
+				},
+			}
+			mockListenerConfig := map[string]interface{}{
+				"configs": []interface{}{
+					map[string]interface{}{
+						"network":         mockSnmpConfig.Network,
+						"port":            mockSnmpConfig.Port,
+						"loader":          mockSnmpConfig.Loader,
+						"community":       mockSnmpConfig.Community,
+						"authentications": mockSnmpConfig.Authentications,
+					},
+				},
+				"workers": 1,
+			}
+			mockConfig.SetWithoutSource("network_devices.autodiscovery", mockListenerConfig)
+
+			listenerConfig, err := snmp.NewListenerConfig()
+			assert.NoError(t, err)
+
+			newConfigHash := listenerConfig.Configs[0].Digest(tt.subnet)
+			newCacheKey := buildCacheKey(newConfigHash)
+			legacyConfigHash := listenerConfig.Configs[0].LegacyDigest(tt.subnet)
+			legacyCacheKey := buildCacheKey(legacyConfigHash)
+
+			if tt.newCacheExists {
+				err = persistentcache.Write(newCacheKey, `[{"ip":"192.168.1.6","auth_index":1}]`)
+				assert.NoError(t, err)
+			}
+			if tt.legacyCacheExists {
+				err = persistentcache.Write(legacyCacheKey, `[{"ip":"192.168.1.6","auth_index":1}]`)
+				assert.NoError(t, err)
+			}
+
+			cacheKey := migrateCache(listenerConfig.Configs[0])
+
+			if tt.expectMigration {
+				assert.True(t, persistentcache.Exists(newCacheKey))
+				assert.False(t, persistentcache.Exists(legacyCacheKey))
+			}
+
+			if tt.expectNewCacheUsed {
+				assert.Equal(t, newCacheKey, cacheKey)
+			}
+			if tt.expectLegacyCacheUsed {
+				assert.Equal(t, legacyCacheKey, cacheKey)
+			}
+		})
+	}
 }

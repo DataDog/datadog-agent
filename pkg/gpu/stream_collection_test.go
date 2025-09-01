@@ -89,7 +89,7 @@ func TestStreamCollectionCleanRemovesInactiveStreams(t *testing.T) {
 	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	ctx := getTestSystemContext(t)
 	cfg := config.New()
-	cfg.MaxStreamInactivity = 1 * time.Second // Set inactivity threshold to 1 second
+	cfg.StreamConfig.Timeout = 1 * time.Second // Set inactivity threshold to 1 second
 	handlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t), cfg)
 
 	// Create two streams
@@ -146,7 +146,7 @@ func TestStreamCollectionCleanRemovesInactiveStreams(t *testing.T) {
 	stream2.handleKernelLaunch(launch2)
 
 	// Clean at a time when stream2 should still be active but stream1 should be inactive
-	endTime := ktimeLaunch1 + uint64(cfg.MaxStreamInactivity.Nanoseconds()+1)
+	endTime := ktimeLaunch1 + uint64(cfg.StreamConfig.Timeout.Nanoseconds()+1)
 	handlers.clean(int64(endTime))
 
 	// Verify stream1 is not present (inactive)
@@ -154,12 +154,16 @@ func TestStreamCollectionCleanRemovesInactiveStreams(t *testing.T) {
 		pid:    pid1,
 		stream: streamID1,
 	}
-	require.NotContains(t, handlers.streams, streamKey1)
+
+	// Can't use require.NotContains with sync.Map
+	_, ok := handlers.streams.Load(streamKey1)
+	require.False(t, ok)
 
 	// Verify stream2 is still present (active)
 	streamKey2 := streamKey{
 		pid:    pid2,
 		stream: streamID2,
 	}
-	require.Contains(t, handlers.streams, streamKey2)
+	_, ok = handlers.streams.Load(streamKey2)
+	require.True(t, ok)
 }

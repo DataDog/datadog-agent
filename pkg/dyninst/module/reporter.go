@@ -111,7 +111,7 @@ func (c *controllerReporter) ReportLoaded(
 	}
 	ctrl.procRuntimeIDbyProgramID.Store(program.ID, runtimeID)
 
-	decoder, err := ctrl.decoderFactory.NewDecoder(program)
+	decoder, err := ctrl.decoderFactory.NewDecoder(program, executable)
 	if err != nil {
 		return nil, fmt.Errorf("creating decoder: %w", err)
 	}
