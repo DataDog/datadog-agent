@@ -735,7 +735,7 @@ func TestCopyStable(t *testing.T) {
 // countFilesRecursively counts all files (not directories) in a directory tree
 func countFilesRecursively(dirPath string) int {
 	count := 0
-	filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
+	filepath.Walk(dirPath, func(_ string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
