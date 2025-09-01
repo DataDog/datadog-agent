@@ -164,8 +164,6 @@ __attribute__((always_inline)) struct packet_t * parse_packet(struct __sk_buff *
         return NULL;
     }
 
-  //  bpf_printk("protocol: %d\n", pkt->ns_flow.flow.l4_protocol);
-
     struct namespaced_flow_t tmp_ns_flow = pkt->ns_flow; // for compatibility with older kernels
     pkt->translated_ns_flow = pkt->ns_flow;
 

@@ -11,7 +11,7 @@ __attribute__((always_inline)) s64 get_flow_pid(struct pid_route_t *key) {
         key->addr[1] = 0;
         value = bpf_map_lookup_elem(&flow_pid, key);
         if (!value) {
-            return -1;
+            return 0;
         }
     }
 
@@ -47,7 +47,8 @@ __attribute__((always_inline)) void resolve_pid(struct packet_t *pkt) {
     u64 sched_cls_has_current_pid_tgid_helper = 0;
     LOAD_CONSTANT("sched_cls_has_current_pid_tgid_helper", sched_cls_has_current_pid_tgid_helper);
     if (sched_cls_has_current_pid_tgid_helper) {
-        pkt->pid = bpf_get_current_pid_tgid();
+        u64 pid_tgid = bpf_get_current_pid_tgid();
+        pkt->pid = pid_tgid >> 32;
     }
     if (pkt->pid == 0) {
         resolve_pid_from_flow_pid(pkt);

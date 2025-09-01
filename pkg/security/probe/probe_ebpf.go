@@ -1548,11 +1548,13 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode RawPacket event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+		event.NetworkContext = event.RawPacket.NetworkContext
 	case model.RawPacketActionEventType:
 		if _, err = event.RawPacket.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode RawPacket event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+		event.NetworkContext = event.RawPacket.NetworkContext
 
 		tags := p.probe.GetEventTags(event.ContainerContext.ContainerID)
 		if service := p.probe.GetService(event); service != "" {
