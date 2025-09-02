@@ -439,7 +439,7 @@ func (c *Client) pollLoop() {
 				if !successfulFirstRun {
 					log.Infof("first update successful")
 				}
-				log.Debugf("update successful: successful_first_run:%s", successfulFirstRun)
+				log.Debugf("update successful: successful_first_run:%t", successfulFirstRun)
 				if c.lastUpdateError != nil {
 					c.m.Lock()
 					for _, productListeners := range c.listeners {
