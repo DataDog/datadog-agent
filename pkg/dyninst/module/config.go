@@ -30,6 +30,8 @@ type Config struct {
 	DynamicInstrumentationEnabled bool
 	LogUploaderURL                string
 	DiagsUploaderURL              string
+	SymDBUploadEnabled            bool
+	SymDBUploaderURL              string
 
 	// DiskCacheEnabled enables the disk cache for debug info.  If this is
 	// false, no disk cache will be used and the debug info will be stored in
@@ -108,11 +110,14 @@ func NewConfig(spConfig *sysconfigtypes.Config, opts ...Option) (*Config, error)
 	if err != nil {
 		return nil, err
 	}
+
 	c := &Config{
 		Config:                        *ebpf.NewConfig(),
 		DynamicInstrumentationEnabled: diEnabled,
 		LogUploaderURL:                withPath(traceAgentURL, logUploaderPath),
 		DiagsUploaderURL:              withPath(traceAgentURL, diagsUploaderPath),
+		SymDBUploadEnabled:            pkgconfigsetup.SystemProbe().GetBool("dynamic_instrumentation.symdb_upload_enabled"),
+		SymDBUploaderURL:              withPath(traceAgentURL, symdbUploaderPath),
 		DiskCacheEnabled:              cacheEnabled,
 		DiskCacheConfig:               cacheConfig,
 		actuatorConstructor:           defaultActuatorConstructor,
@@ -174,6 +179,7 @@ const (
 
 	logUploaderPath   = "/debugger/v1/input"
 	diagsUploaderPath = "/debugger/v1/diagnostics"
+	symdbUploaderPath = "/symdb/v1/input"
 )
 
 var errSchemeRequired = fmt.Errorf("scheme is required")

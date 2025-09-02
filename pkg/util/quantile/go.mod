@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/util/quantile
 
-go 1.23.0
+go 1.24.0
 
 require (
 	github.com/DataDog/datadog-agent/pkg/util/quantile/sketchtest v0.0.0-00010101000000-000000000000
@@ -14,7 +14,7 @@ require (
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
-	google.golang.org/protobuf v1.36.6 // indirect
+	google.golang.org/protobuf v1.36.7 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
