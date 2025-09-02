@@ -33,7 +33,7 @@ build do
   end
 
   # we assume the go deps are already installed before running omnibus
-  command "invoke dogstatsd.build --major-version #{major_version_arg}", env: env, log_level: :debug
+  command "invoke dogstatsd.build --major-version #{major_version_arg}", env: env
 
   mkdir "#{install_dir}/etc/datadog-dogstatsd"
   unless windows_target?
