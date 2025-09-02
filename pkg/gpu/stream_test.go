@@ -29,7 +29,6 @@ import (
 func TestKernelLaunchesHandled(t *testing.T) {
 	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	streamTelemetry := newStreamTelemetry(testutil.GetTelemetryMock(t))
-
 	stream, err := newStreamHandler(streamMetadata{}, getTestSystemContext(t), config.New().StreamConfig, streamTelemetry)
 	require.NoError(t, err)
 

@@ -24,7 +24,6 @@ func TestStreamKeyUpdatesCorrectlyWhenChangingDevice(t *testing.T) {
 	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	ctx := getTestSystemContext(t)
 	handlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t), config.New())
-	ensureInitPoolsNoTelemetry()
 
 	pid := uint32(1)
 	pidTgid := uint64(pid)<<32 + uint64(pid)
@@ -92,7 +91,6 @@ func TestStreamCollectionCleanRemovesInactiveStreams(t *testing.T) {
 	cfg := config.New()
 	cfg.StreamConfig.Timeout = 1 * time.Second // Set inactivity threshold to 1 second
 	handlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t), cfg)
-	ensureInitPoolsNoTelemetry()
 
 	// Create two streams
 	pid1, pid2 := uint32(1), uint32(2)
