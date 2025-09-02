@@ -31,6 +31,7 @@ func (ev *Event) resolveFields(forADs bool) {
 	if !forADs {
 		_ = ev.FieldHandlers.ResolveService(ev, &ev.BaseEvent)
 	}
+	_ = ev.FieldHandlers.ResolveSource(ev, &ev.BaseEvent)
 	_ = ev.FieldHandlers.ResolveEventTimestamp(ev, &ev.BaseEvent)
 	_ = ev.FieldHandlers.ResolveProcessCmdLine(ev, &ev.BaseEvent.ProcessContext.Process)
 	_ = ev.FieldHandlers.ResolveProcessCreatedAt(ev, &ev.BaseEvent.ProcessContext.Process)
@@ -140,6 +141,7 @@ type FieldHandlers interface {
 	ResolveProcessEnvp(ev *Event, e *Process) []string
 	ResolveProcessEnvs(ev *Event, e *Process) []string
 	ResolveService(ev *Event, e *BaseEvent) string
+	ResolveSource(ev *Event, e *BaseEvent) string
 	ResolveUser(ev *Event, e *Process) string
 	// custom handlers not tied to any fields
 	ExtraFieldHandlers
@@ -209,4 +211,5 @@ func (dfh *FakeFieldHandlers) ResolveProcessEnvs(ev *Event, e *Process) []string
 func (dfh *FakeFieldHandlers) ResolveService(ev *Event, e *BaseEvent) string {
 	return string(e.Service)
 }
-func (dfh *FakeFieldHandlers) ResolveUser(ev *Event, e *Process) string { return string(e.User) }
+func (dfh *FakeFieldHandlers) ResolveSource(ev *Event, e *BaseEvent) string { return string(e.Source) }
+func (dfh *FakeFieldHandlers) ResolveUser(ev *Event, e *Process) string     { return string(e.User) }

@@ -70,7 +70,7 @@
                         "value": "42"
                       },
                       "work": {
-                        "type": "UnknownType(0x[GoRuntimeType])",
+                        "type": "*main.somethingImpl",
                         "notCapturedReason": "missing type information"
                       },
                       "foo": {
@@ -80,21 +80,7 @@
                     }
                   },
                   "mu": "[sync.Mutex (different in different versions)]",
-                  "once": {
-                    "type": "sync.Once",
-                    "fields": {
-                      "done": {
-                        "type": "sync/atomic.Uint32",
-                        "fields": {
-                          "v": {
-                            "type": "uint32",
-                            "value": "0"
-                          }
-                        }
-                      },
-                      "m": "[sync.Mutex (different in different versions)]"
-                    }
-                  },
+                  "once": "[sync.Once (different in different versions)]",
                   "wg": {
                     "type": "sync.WaitGroup",
                     "fields": {
