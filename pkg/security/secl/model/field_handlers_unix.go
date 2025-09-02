@@ -255,6 +255,9 @@ func (ev *Event) resolveFields(forADs bool) {
 			_ = ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Bind.Addr)
 		}
 	case "bpf":
+	case "capabilities":
+		_ = ev.FieldHandlers.ResolveCapabilitiesAttempted(ev, &ev.CapabilitiesUsage)
+		_ = ev.FieldHandlers.ResolveCapabilitiesUsed(ev, &ev.CapabilitiesUsage)
 	case "capset":
 	case "cgroup_write":
 		_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.CgroupWrite.File.FileFields)
@@ -1425,6 +1428,8 @@ type FieldHandlers interface {
 	ResolveAsync(ev *Event) bool
 	ResolveCGroupID(ev *Event, e *CGroupContext) string
 	ResolveCGroupVersion(ev *Event, e *CGroupContext) int
+	ResolveCapabilitiesAttempted(ev *Event, e *CapabilitiesEvent) int
+	ResolveCapabilitiesUsed(ev *Event, e *CapabilitiesEvent) int
 	ResolveChownGID(ev *Event, e *ChownEvent) string
 	ResolveChownUID(ev *Event, e *ChownEvent) string
 	ResolveConnectHostnames(ev *Event, e *ConnectEvent) []string
@@ -1526,6 +1531,12 @@ func (dfh *FakeFieldHandlers) ResolveCGroupID(ev *Event, e *CGroupContext) strin
 }
 func (dfh *FakeFieldHandlers) ResolveCGroupVersion(ev *Event, e *CGroupContext) int {
 	return int(e.CGroupVersion)
+}
+func (dfh *FakeFieldHandlers) ResolveCapabilitiesAttempted(ev *Event, e *CapabilitiesEvent) int {
+	return int(e.Attempted)
+}
+func (dfh *FakeFieldHandlers) ResolveCapabilitiesUsed(ev *Event, e *CapabilitiesEvent) int {
+	return int(e.Used)
 }
 func (dfh *FakeFieldHandlers) ResolveChownGID(ev *Event, e *ChownEvent) string {
 	return string(e.Group)

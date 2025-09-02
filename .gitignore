@@ -237,3 +237,6 @@ go.work.sum
 
 # Personal rules
 **/.cursor/rules/personal/
+
+# CLAUDE override file for personal use
+CLAUDE_PERSONAL.md
