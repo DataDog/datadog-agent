@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const contentLenLimit = 256000
+const contentLenLimit = 900000
 
 // brokenLine represents a decoded line and the raw length
 type brokenLine struct {
