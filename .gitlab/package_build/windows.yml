@@ -4,6 +4,7 @@ fetch_win_artifacts:
   stage: package_build
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64"]
+  needs: []
   artifacts:
     expire_in: 1 week
     paths:
