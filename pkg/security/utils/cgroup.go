@@ -158,7 +158,7 @@ type CGroupContext struct {
 }
 
 var defaultCGroupMountpoints = []string{
-	"/sys/fs/cgroup/unified", // must stay first for cgroupv1
+	"/sys/fs/cgroup/systemd", // must stay first for cgroupv1
 	"/sys/fs/cgroup",
 }
 
