@@ -436,6 +436,10 @@ func (c *Client) pollLoop() {
 					log.Errorf("could not update remote-config state: %v", c.lastUpdateError)
 				}
 			} else {
+				if !successfulFirstRun {
+					log.Infof("first update successful")
+				}
+				log.Debugf("update successful: successful_first_run:%s", successfulFirstRun)
 				if c.lastUpdateError != nil {
 					c.m.Lock()
 					for _, productListeners := range c.listeners {
