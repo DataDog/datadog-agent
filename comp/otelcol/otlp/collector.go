@@ -60,9 +60,20 @@ func getComponents(
 ) {
 	var errs []error
 
-	extensions, err := otelcol.MakeFactoryMap[extension.Factory]()
-	if err != nil {
-		errs = append(errs, err)
+	// Check if this is an IoT agent build for optimizations
+	isIoT := flavor.GetFlavor() == flavor.IotAgent
+
+	// Extensions: Skip for IoT to reduce binary size
+	var extensions map[component.Type]extension.Factory
+	if !isIoT {
+		var extErr error
+		extensions, extErr = otelcol.MakeFactoryMap[extension.Factory]()
+		if extErr != nil {
+			errs = append(errs, extErr)
+		}
+	} else {
+		// Empty extensions map for IoT
+		extensions = make(map[component.Type]extension.Factory)
 	}
 
 	receivers, err := otelcol.MakeFactoryMap[receiver.Factory](
@@ -72,8 +83,9 @@ func getComponents(
 		errs = append(errs, err)
 	}
 
+	// Telemetry: Only create detailed metrics for non-IoT builds to reduce binary size
 	store := serializerexporter.TelemetryStore{}
-	if telemetry != nil {
+	if telemetry != nil && !isIoT {
 		store.OTLPIngestMetrics = telemetry.NewGauge(
 			"runtime",
 			"datadog_agent_otlp_ingest_metrics",
@@ -81,12 +93,19 @@ func getComponents(
 			"Usage metric of OTLP metrics in OTLP ingestion",
 		)
 	}
+
+	// Exporters: Minimal set for IoT, full set for others
 	exporterFactories := []exporter.Factory{
 		otlpexporter.NewFactory(),
 		serializerexporter.NewFactoryForAgent(s, hostname.Get, store),
-		debugexporter.NewFactory(),
 	}
 
+	// Debug exporter: Only include in non-IoT builds
+	if !isIoT {
+		exporterFactories = append(exporterFactories, debugexporter.NewFactory())
+	}
+
+	// Logs exporter: Only include if logs channel exists
 	if logsAgentChannel != nil {
 		exporterFactories = append(exporterFactories, logsagentexporter.NewFactory(logsAgentChannel, otel.NewDisabledGatewayUsage()))
 	}
@@ -96,10 +115,15 @@ func getComponents(
 		errs = append(errs, err)
 	}
 
+	// Processors: Always include batch processor
 	processorFactories := []processor.Factory{batchprocessor.NewFactory()}
-	if tagger != nil {
+
+	// Infrastructure attributes processor: Skip for IoT to reduce binary size
+	// IoT devices typically don't need complex infrastructure tagging
+	if tagger != nil && !isIoT {
 		processorFactories = append(processorFactories, infraattributesprocessor.NewFactoryForAgent(tagger, hostname.Get))
 	}
+
 	processors, err := otelcol.MakeFactoryMap[processor.Factory](processorFactories...)
 	if err != nil {
 		errs = append(errs, err)
