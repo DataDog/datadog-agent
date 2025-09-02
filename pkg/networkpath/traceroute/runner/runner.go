@@ -245,10 +245,6 @@ func (r *Runner) processResults(res *result.Results, protocol payload.Protocol, 
 		}
 
 	}
-
-	fmt.Println("destinationPort:", destinationPort)
-	fmt.Println("traceroutePath.Destination.IPAddress:", traceroutePath.Destination.IPAddress)
-	fmt.Println("traceroutePath.Destination.Port:", traceroutePath.Destination.Port)
 	return traceroutePath, nil
 }
 
