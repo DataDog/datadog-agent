@@ -81,7 +81,7 @@ type dependencies struct {
 // components that are instantiated last).  Remote configuration client is a good candidate for this since it must be
 // able to interact with any other components (i.e. be at the end of the dependency graph).
 func newRemoteConfigClient(deps dependencies) (rcclient.Component, error) {
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	ipcAddress, ipcPort, err := pkgconfigsetup.GetIPCAddressAndPort(pkgconfigsetup.Datadog())
 	if err != nil {
 		return nil, err
 	}
@@ -99,7 +99,7 @@ func newRemoteConfigClient(deps dependencies) (rcclient.Component, error) {
 	// We have to create the client in the constructor and set its name later
 	c, err := client.NewUnverifiedGRPCClient(
 		ipcAddress,
-		pkgconfigsetup.GetIPCPort(),
+		ipcPort,
 		deps.IPC.GetAuthToken(),
 		deps.IPC.GetTLSClientConfig(),
 		optsWithDefault...,
@@ -112,7 +112,7 @@ func newRemoteConfigClient(deps dependencies) (rcclient.Component, error) {
 	if pkgconfigsetup.Datadog().GetBool("multi_region_failover.enabled") {
 		clientMRF, err = client.NewUnverifiedMRFGRPCClient(
 			ipcAddress,
-			pkgconfigsetup.GetIPCPort(),
+			ipcPort,
 			deps.IPC.GetAuthToken(),
 			deps.IPC.GetTLSClientConfig(),
 			optsWithDefault...,

@@ -103,12 +103,12 @@ func (r *remotehostimpl) getHostnameWithContext(ctx context.Context) (string, er
 		ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
 		defer cancel()
 
-		ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+		ipcAddress, ipcPort, err := pkgconfigsetup.GetIPCAddressAndPort(pkgconfigsetup.Datadog())
 		if err != nil {
 			return err
 		}
 
-		client, err := grpc.GetDDAgentClient(ctx, ipcAddress, pkgconfigsetup.GetIPCPort(), r.ipc.GetTLSClientConfig())
+		client, err := grpc.GetDDAgentClient(ctx, ipcAddress, ipcPort, r.ipc.GetTLSClientConfig())
 		if err != nil {
 			return err
 		}

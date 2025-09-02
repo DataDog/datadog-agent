@@ -95,7 +95,7 @@ func prepareConfig(c corecompcfg.Component, tagger tagger.Component, ipc ipc.Com
 		cfg.LogFilePath = DefaultLogFilePath
 	}
 
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	ipcAddress, ipcPort, err := pkgconfigsetup.GetIPCAddressAndPort(pkgconfigsetup.Datadog())
 	if err != nil {
 		return nil, err
 	}
@@ -106,7 +106,7 @@ func prepareConfig(c corecompcfg.Component, tagger tagger.Component, ipc ipc.Com
 		cfg.Proxy = httputils.GetProxyTransportFunc(p, c)
 	}
 	if pkgconfigsetup.IsRemoteConfigEnabled(coreConfigObject) && coreConfigObject.GetBool("remote_configuration.apm_sampling.enabled") {
-		client, err := remote(c, ipcAddress, ipc)
+		client, err := remote(c, ipcAddress, ipcPort, ipc)
 		if err != nil {
 			log.Errorf("Error when subscribing to remote config management %v", err)
 		} else {
@@ -114,7 +114,7 @@ func prepareConfig(c corecompcfg.Component, tagger tagger.Component, ipc ipc.Com
 		}
 	}
 	if pkgconfigsetup.Datadog().GetBool("multi_region_failover.enabled") {
-		mrfClient, err := mrfRemoteClient(ipcAddress, ipc)
+		mrfClient, err := mrfRemoteClient(ipcAddress, ipcPort, ipc)
 		if err != nil {
 			log.Errorf("Error when subscribing to MRF remote config management %v", err)
 		} else {

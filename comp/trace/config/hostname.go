@@ -45,12 +45,12 @@ func acquireHostname(c *config.AgentConfig) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	ipcAddress, ipcPort, err := pkgconfigsetup.GetIPCAddressAndPort(pkgconfigsetup.Datadog())
 	if err != nil {
 		return err
 	}
 
-	client, err := grpc.GetDDAgentClient(ctx, ipcAddress, pkgconfigsetup.GetIPCPort(), c.IPCTLSClientConfig)
+	client, err := grpc.GetDDAgentClient(ctx, ipcAddress, ipcPort, c.IPCTLSClientConfig)
 	if err != nil {
 		return err
 	}

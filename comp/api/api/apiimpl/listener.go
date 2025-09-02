@@ -14,11 +14,11 @@ import (
 
 // getIPCAddressPort returns a listening connection
 func getIPCAddressPort() (string, error) {
-	address, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	address, port, err := pkgconfigsetup.GetIPCAddressAndPort(pkgconfigsetup.Datadog())
 	if err != nil {
 		return "", err
 	}
-	return net.JoinHostPort(address, pkgconfigsetup.GetIPCPort()), nil
+	return net.JoinHostPort(address, port), nil
 }
 
 // getListener returns a listening connection

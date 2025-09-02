@@ -29,12 +29,12 @@ func getHostnameFromAgent(ctx context.Context, ipcComp ipc.Component) (string, e
 		ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
 		defer cancel()
 
-		ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+		ipcAddress, ipcPort, err := pkgconfigsetup.GetIPCAddressAndPort(pkgconfigsetup.Datadog())
 		if err != nil {
 			return err
 		}
 
-		client, err := grpc.GetDDAgentClient(ctx, ipcAddress, pkgconfigsetup.GetIPCPort(), ipcComp.GetTLSClientConfig())
+		client, err := grpc.GetDDAgentClient(ctx, ipcAddress, ipcPort, ipcComp.GetTLSClientConfig())
 		if err != nil {
 			return err
 		}

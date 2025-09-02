@@ -58,12 +58,12 @@ func NewRCPolicyProvider(dumpPolicies bool, setEnforcementCallback func(bool), i
 		return nil, fmt.Errorf("failed to parse agent version: %w", err)
 	}
 
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	ipcAddress, ipcPort, err := pkgconfigsetup.GetIPCAddressAndPort(pkgconfigsetup.Datadog())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get ipc address: %w", err)
 	}
 
-	c, err := client.NewGRPCClient(ipcAddress, pkgconfigsetup.GetIPCPort(),
+	c, err := client.NewGRPCClient(ipcAddress, ipcPort,
 		ipc.GetAuthToken(),
 		ipc.GetTLSClientConfig(),
 		client.WithAgent(agentName, agentVersion.String()),

@@ -42,12 +42,12 @@ func (r *RemoteFlareProvider) exportRemoteConfig(fb flaretypes.FlareBuilder) err
 	}
 	ctx = metadata.NewOutgoingContext(ctx, md)
 
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	ipcAddress, ipcPort, err := pkgconfigsetup.GetIPCAddressAndPort(pkgconfigsetup.Datadog())
 	if err != nil {
 		return err
 	}
 
-	cli, err := agentgrpc.GetDDAgentSecureClient(ctx, ipcAddress, pkgconfigsetup.GetIPCPort(), r.IPC.GetTLSClientConfig())
+	cli, err := agentgrpc.GetDDAgentSecureClient(ctx, ipcAddress, ipcPort, r.IPC.GetTLSClientConfig())
 	if err != nil {
 		return err
 	}

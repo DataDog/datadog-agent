@@ -13,6 +13,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
+// GetIPCAddress returns the IPC address and port or an error if the address is not local
+func GetIPCAddressAndPort(config pkgconfigmodel.Reader) (string, string, error) {
+	address, err := GetIPCAddress(config)
+	if err != nil {
+		return "", "", err
+	}
+	port := getIPCPort(config)
+	return address, port, nil
+}
+
 // GetIPCAddress returns the IPC address or an error if the address is not local
 func GetIPCAddress(config pkgconfigmodel.Reader) (string, error) {
 	var key string
@@ -32,7 +42,7 @@ func GetIPCAddress(config pkgconfigmodel.Reader) (string, error) {
 	return address, nil
 }
 
-// GetIPCPort returns the IPC port
-func GetIPCPort() string {
-	return Datadog().GetString("cmd_port")
+// getIPCPort returns the IPC port
+func getIPCPort(config pkgconfigmodel.Reader) string {
+	return config.GetString("cmd_port")
 }

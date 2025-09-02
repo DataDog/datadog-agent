@@ -150,12 +150,12 @@ func getHostnameFromGRPC(ctx context.Context, grpcClientFn func(ctx context.Cont
 	ctx, cancel := context.WithTimeout(ctx, grpcConnectionTimeout)
 	defer cancel()
 
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	ipcAddress, ipcPort, err := pkgconfigsetup.GetIPCAddressAndPort(pkgconfigsetup.Datadog())
 	if err != nil {
 		return "", err
 	}
 
-	ddAgentClient, err := grpcClientFn(ctx, ipcAddress, pkgconfigsetup.GetIPCPort(), tlsConfig)
+	ddAgentClient, err := grpcClientFn(ctx, ipcAddress, ipcPort, tlsConfig)
 	if err != nil {
 		return "", fmt.Errorf("cannot connect to datadog agent via grpc: %w", err)
 	}

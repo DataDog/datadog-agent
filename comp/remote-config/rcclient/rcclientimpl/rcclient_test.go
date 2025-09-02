@@ -170,12 +170,12 @@ func TestAgentConfigCallback(t *testing.T) {
 
 	structRC := rc.(rcClient)
 
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(cfg)
+	ipcAddress, ipcPort, err := pkgconfigsetup.GetIPCAddressAndPort(cfg)
 	assert.NoError(t, err)
 
 	structRC.client, _ = client.NewUnverifiedGRPCClient(
 		ipcAddress,
-		pkgconfigsetup.GetIPCPort(),
+		ipcPort,
 		ipcComp.GetAuthToken(),
 		ipcComp.GetTLSClientConfig(),
 		client.WithAgent("test-agent", "9.99.9"),
@@ -274,12 +274,12 @@ func TestAgentMRFConfigCallback(t *testing.T) {
 
 	structRC := rc.(rcClient)
 
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(cfg)
+	ipcAddress, ipcPort, err := pkgconfigsetup.GetIPCAddressAndPort(cfg)
 	assert.NoError(t, err)
 
 	structRC.client, _ = client.NewUnverifiedGRPCClient(
 		ipcAddress,
-		pkgconfigsetup.GetIPCPort(),
+		ipcPort,
 		ipcComp.GetAuthToken(),
 		ipcComp.GetTLSClientConfig(),
 		client.WithAgent("test-agent", "9.99.9"),
