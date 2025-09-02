@@ -29,10 +29,12 @@ import (
 // SDJournalFactory is a JournalFactory implementation that produces sdjournal instances
 type SDJournalFactory struct{}
 
+// NewJournal creates a new sdjournal instance
 func (s *SDJournalFactory) NewJournal() (tailer.Journal, error) {
 	return sdjournal.NewJournal()
 }
 
+// NewJournalFromPath creates a new sdjournal instance from the supplied path
 func (s *SDJournalFactory) NewJournalFromPath(path string) (tailer.Journal, error) {
 	return sdjournal.NewJournalFromDir(path)
 }
