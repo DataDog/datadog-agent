@@ -204,22 +204,22 @@ require (
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
-	k8s.io/api v0.32.3
-	k8s.io/apiextensions-apiserver v0.32.1
-	k8s.io/apimachinery v0.32.3
-	k8s.io/apiserver v0.32.1 // indirect
+	k8s.io/api v0.33.4
+	k8s.io/apiextensions-apiserver v0.33.4
+	k8s.io/apimachinery v0.33.4
+	k8s.io/apiserver v0.33.4 // indirect
 	k8s.io/autoscaler/vertical-pod-autoscaler v1.2.2
-	k8s.io/client-go v0.32.3
-	k8s.io/cri-api v0.31.2
-	k8s.io/cri-client v0.31.2
+	k8s.io/client-go v0.33.4
+	k8s.io/cri-api v0.33.4
+	k8s.io/cri-client v0.33.4
 	k8s.io/klog/v2 v2.130.1
-	k8s.io/kube-aggregator v0.31.2
-	k8s.io/kube-openapi v0.0.0-20241105132330-32ad38e42d3f // indirect
+	k8s.io/kube-aggregator v0.33.4
+	k8s.io/kube-openapi v0.0.0-20250318190949-c8a335a9a2ff // indirect
 	k8s.io/kube-state-metrics/v2 v2.13.1-0.20241025121156-110f03d7331f
-	k8s.io/kubelet v0.31.2
-	k8s.io/metrics v0.31.2
-	k8s.io/utils v0.0.0-20241104100929-3ea5e8cea738
-	sigs.k8s.io/custom-metrics-apiserver v1.30.1-0.20241105195130-84dc8cfe2555
+	k8s.io/kubelet v0.33.4
+	k8s.io/metrics v0.33.4
+	k8s.io/utils v0.0.0-20250820121507-0af2bda4dd1d
+	sigs.k8s.io/custom-metrics-apiserver v1.33.0
 )
 
 require (
@@ -387,9 +387,9 @@ require (
 	github.com/yashtewari/glob-intersection v0.2.0 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4
-	go.etcd.io/etcd/api/v3 v3.6.0-alpha.0 // indirect
-	go.etcd.io/etcd/client/pkg/v3 v3.6.0-alpha.0.0.20220522111935-c3bc4116dcd1 // indirect
-	go.etcd.io/etcd/client/v3 v3.6.0-alpha.0 // indirect
+	go.etcd.io/etcd/api/v3 v3.6.4 // indirect
+	go.etcd.io/etcd/client/pkg/v3 v3.6.4 // indirect
+	go.etcd.io/etcd/client/v3 v3.6.4 // indirect
 	go.etcd.io/etcd/server/v3 v3.6.0-alpha.0.0.20220522111935-c3bc4116dcd1 // indirect
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/collector/consumer v1.39.0 // indirect
@@ -416,12 +416,12 @@ require (
 	gopkg.in/Knetic/govaluate.v3 v3.0.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
-	k8s.io/component-base v0.32.1
+	k8s.io/component-base v0.33.4
 	mellium.im/sasl v0.3.2 // indirect
-	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.31.0 // indirect
+	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.33.0 // indirect
 	sigs.k8s.io/controller-runtime v0.20.4 // indirect
 	sigs.k8s.io/json v0.0.0-20241010143419-9aa6b5e7a4b3 // indirect
-	sigs.k8s.io/structured-merge-diff/v4 v4.5.0 // indirect
+	sigs.k8s.io/structured-merge-diff/v4 v4.6.0 // indirect
 	sigs.k8s.io/yaml v1.6.0
 )
 
@@ -693,8 +693,8 @@ require (
 	go.opentelemetry.io/collector/service v0.133.0
 	go4.org/intern v0.0.0-20230525184215-6c62f75575cb
 	go4.org/mem v0.0.0-20220726221520-4f986261bf13
-	k8s.io/cli-runtime v0.31.2
-	k8s.io/kubectl v0.31.2
+	k8s.io/cli-runtime v0.33.4
+	k8s.io/kubectl v0.33.4
 	pgregory.net/rapid v1.2.0
 )
 
@@ -727,6 +727,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/go-libddwaf/v3 v3.5.4 // indirect
+	github.com/google/btree v1.1.3 // indirect
 	github.com/moby/sys/atomicwriter v0.1.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector v0.133.0 // indirect
 	github.com/vektah/gqlparser/v2 v2.5.30 // indirect
@@ -735,6 +736,7 @@ require (
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/telemetry v0.0.0-20250807160809-1a19826ec488 // indirect
+	sigs.k8s.io/randfill v1.0.0 // indirect
 )
 
 require (
@@ -813,7 +815,7 @@ require (
 	github.com/elastic/go-grok v0.3.1 // indirect
 	github.com/elastic/go-licenser v0.4.2 // indirect
 	github.com/elastic/lunes v0.1.0 // indirect
-	github.com/emicklei/go-restful/v3 v3.12.1 // indirect
+	github.com/emicklei/go-restful/v3 v3.12.2 // indirect
 	github.com/envoyproxy/protoc-gen-validate v1.2.1 // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
 	github.com/glebarez/go-sqlite v1.22.0 // indirect
@@ -835,7 +837,7 @@ require (
 	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.6 // indirect
 	github.com/gopherjs/gopherjs v0.0.0-20200217142428-fce0ec30dd00 // indirect
-	github.com/gorilla/websocket v1.5.3 // indirect
+	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674 // indirect
 	github.com/grafana/regexp v0.0.0-20240518133315-a468a5bfb3bc // indirect
 	github.com/hashicorp/cronexpr v1.1.2 // indirect
 	github.com/hashicorp/go-retryablehttp v0.7.7 // indirect
@@ -930,7 +932,7 @@ require (
 	github.com/openzipkin/zipkin-go v0.4.3 // indirect
 	github.com/ovh/go-ovh v1.8.0 // indirect
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
-	github.com/prometheus/prometheus v0.304.3-0.20250703114031-419d436a447a // indirect
+	github.com/prometheus/prometheus v0.305.0 // indirect
 	github.com/puzpuzpuz/xsync/v3 v3.5.1 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	github.com/rs/zerolog v1.34.0 // indirect
@@ -996,8 +998,8 @@ require (
 	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	honnef.co/go/tools v0.5.1 // indirect
-	k8s.io/kms v0.32.1 // indirect
-	k8s.io/sample-controller v0.31.2 // indirect
+	k8s.io/kms v0.33.4 // indirect
+	k8s.io/sample-controller v0.33.4 // indirect
 )
 
 // TODO(songy23): remove this once https://github.com/kubernetes/apiserver/commit/b887c9ebecf558a2001fc5c5dbd5c87fd672500c is brought to agent
@@ -1033,15 +1035,6 @@ replace github.com/iceber/iouring-go => github.com/lebauce/iouring-go v0.0.0-202
 
 // github.com/golang/mock is unmaintained and archived, v1.6.0 is the last released version
 replace github.com/golang/mock => github.com/golang/mock v1.6.0
-
-// Remove once sigs.k8s.io/custom-metrics-apiserver upgrades to k8s.io/* v0.32+
-replace (
-	k8s.io/api => k8s.io/api v0.31.2
-	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.31.2
-	k8s.io/apimachinery => k8s.io/apimachinery v0.31.2
-	k8s.io/apiserver => k8s.io/apiserver v0.31.2
-	k8s.io/client-go => k8s.io/client-go v0.31.2
-)
 
 // Fork to remove some text/template usage, https://github.com/paulcacheux/opa/tree/lightweight-1.7.1
 replace github.com/open-policy-agent/opa => github.com/paulcacheux/opa v0.0.0-20250802184518-fe783f1d9174
