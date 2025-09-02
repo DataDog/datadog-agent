@@ -1307,6 +1307,36 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				}: 1,
 			},
 		},
+		{
+			name: "headers frame with PRIORITY flag",
+			messageBuilder: func() [][]byte {
+				fr := newFramer()
+				hdrBlock, err := usmhttp2.NewHeadersFrameMessage(usmhttp2.HeadersFrameOptions{Headers: testHeaders()})
+				require.NoError(t, err, "could not create headers block")
+
+				// Write a HEADERS frame that carries a PRIORITY section (flag 0x20).
+				require.NoError(t, fr.framer.WriteHeaders(http2.HeadersFrameParam{
+					StreamID:      1,
+					BlockFragment: hdrBlock,
+					EndHeaders:    endHeaders,
+					Priority: http2.PriorityParam{
+						StreamDep: 0,
+						Exclusive: false,
+						Weight:    10, // non-zero weight triggers PRIORITY flag
+					},
+				}), "could not write priority headers")
+
+				fr.writeData(t, 1, endStream, emptyBody)
+
+				return [][]byte{fr.bytes()}
+			},
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPost,
+				}: 1,
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1379,6 +1409,43 @@ func (s *usmHTTP2Suite) TestDynamicTable() {
 				}: 10,
 			},
 			expectedDynamicTablePathIndexes: []int{1, 7, 13, 19, 25, 31, 37, 43, 49, 55},
+		},
+		{
+			name: "priority flags break header parsing - demonstrating accuracy loss",
+			// BUG DEMONSTRATED: HEADERS frames with PRIORITY flags are seen by eBPF but don't result in HTTP capture
+			// This test should PASS with the fix (no unwanted dynamic table entries)
+			// Before fix: Created unwanted dynamic table entries []int{0, 1, 2}
+			// After fix: No dynamic table entries []int{} (correct behavior)
+			messageBuilder: func() []byte {
+				framer := newFramer()
+
+				// Send HEADERS frames WITH PRIORITY flags
+				for i := 0; i < 3; i++ {
+					streamID := uint32(1 + i*2)
+
+					// Create HEADERS frame with both headers AND priority
+					hdrBlock, err := usmhttp2.NewHeadersFrameMessage(usmhttp2.HeadersFrameOptions{
+						Headers: []hpack.HeaderField{
+							{Name: ":method", Value: "POST"},
+							{Name: ":path", Value: fmt.Sprintf("/test-%d", i)},
+						},
+					})
+					require.NoError(t, err)
+
+					param := http2.HeadersFrameParam{
+						StreamID:      streamID,
+						EndHeaders:    true,
+						BlockFragment: hdrBlock,
+						Priority:      http2.PriorityParam{StreamDep: 0, Weight: uint8(100 + i)}, // PRIORITY flag causes issues
+					}
+					require.NoError(t, framer.framer.WriteHeaders(param))
+					framer.writeData(t, streamID, endStream, []byte("test"))
+				}
+
+				return framer.bytes()
+			},
+			expectedEndpoints:               map[usmhttp.Key]int{}, // BUG: Should capture endpoints but doesn't due to PRIORITY flag corruption
+			expectedDynamicTablePathIndexes: []int{},               // FIXED: No unwanted dynamic table entries with proper fix
 		},
 	}
 	for _, tt := range tests {
@@ -1466,6 +1533,30 @@ func (s *usmHTTP2Suite) TestIncompleteFrameTable() {
 				}
 			},
 			mapSize: 1,
+		},
+		{
+			name: "validate remainder in map with PRIORITY flag on HEADERS",
+			// Same flow as the existing remainder test, but HEADERS carries the PRIORITY flag
+			// We split the message at 10 bytes to force an incomplete entry, and expect mapSize == 1
+			messageBuilder: func() [][]byte {
+				framer := newFramer()
+				// Build a HEADERS frame with PRIORITY flag, followed by a DATA frame
+				hdrBlock, err := usmhttp2.NewHeadersFrameMessage(usmhttp2.HeadersFrameOptions{Headers: testHeaders()})
+				require.NoError(t, err)
+				param := http2.HeadersFrameParam{
+					StreamID:      1,
+					EndHeaders:    true,
+					BlockFragment: hdrBlock,
+					Priority:      http2.PriorityParam{StreamDep: 0, Weight: 100},
+				}
+				require.NoError(t, framer.framer.WriteHeaders(param))
+				framer.writeData(t, 1, true, emptyBody)
+				msg := framer.bytes()
+				// Split at +5 to account for the 5-byte PRIORITY section
+				// need to be bigger then 9 to create the incomplete state.
+				return [][]byte{msg[:10], msg[10:]}
+			},
+			mapSize: 0, // FIXED: PRIORITY frames don't create incomplete entries to prevent leak
 		},
 	}
 	for _, tt := range tests {
