@@ -11,13 +11,19 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"slices"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+var datadoghqRegistries = map[string]struct{}{
+	"gcr.io/datadoghq":       {},
+	"datadoghq.azurecr.io":   {},
+	"dockerhub.io/datadog":   {},
+	"public.ecr.aws/datadog": {},
+}
 
 // RemoteConfigClient defines the interface we need for remote config operations
 type RemoteConfigClient interface {
@@ -69,7 +75,7 @@ func newRemoteConfigImageResolver(rcClient RemoteConfigClient) ImageResolver {
 	log.Debugf("Subscribed to %s", state.ProductGradualRollout)
 
 	if err := resolver.waitForInitialConfig(5 * time.Second); err != nil {
-		log.Warnf("Failed to load initial image resolution config: %v. Image resolution will be disabled.", err)
+		log.Debugf("Failed to load initial image resolution config: %v. Image resolution will be disabled.", err)
 		return newNoOpImageResolver()
 	}
 
@@ -144,10 +150,8 @@ func (r *remoteConfigImageResolver) Resolve(registry string, repository string, 
 }
 
 func isDatadoghqRegistry(registry string) bool {
-	var datadoghqRegistries = []string{
-		"gcr.io/datadoghq",
-	}
-	return slices.Contains(datadoghqRegistries, registry)
+	_, exists := datadoghqRegistries[registry]
+	return exists
 }
 
 // updateCache processes configuration data and updates the image mappings cache.

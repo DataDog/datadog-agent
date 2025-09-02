@@ -396,7 +396,7 @@ func start(log log.Component,
 		if config.GetBool("autoscaling.workload.enabled") {
 			products = append(products, state.ProductContainerAutoscalingSettings, state.ProductContainerAutoscalingValues)
 		}
-		if config.GetBool("admission_controller.auto_instrumentation.enabled") {
+		if config.GetBool("admission_controller.auto_instrumentation.enabled") || config.GetBool("apm_config.instrumentation.enabled") {
 			products = append(products, state.ProductGradualRollout)
 		}
 
