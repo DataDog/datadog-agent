@@ -38,8 +38,6 @@ func (s *Setup) restartServices(ctx context.Context, pkgs []packageWithVersion) 
 
 // stopServices stops the services that need to be stopped before running the installer
 func (s *Setup) stopServices(_ context.Context, _ []packageWithVersion) error {
-	// TODO: How to ignore error if service doesn't exist? (initial install case)
-	//       Should we also be re-using packages/service/service.go to support other
-	//       service managers?
+	// Not necessary on Linux, services are stopped in preinst hook
 	return nil
 }
