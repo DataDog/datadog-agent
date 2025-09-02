@@ -157,6 +157,10 @@ func (s *Launcher) run() {
 // receiveSources handles receiving incoming sources
 func (s *Launcher) receiveSources(cfg integrations.IntegrationConfig) {
 	source := cfg.Source
+	if source == nil {
+		ddLog.Warn("Received a nil source for integration ID:", cfg.IntegrationID)
+		return
+	}
 
 	// This check avoids duplicating files that have already been created
 	// by scanInitialFiles

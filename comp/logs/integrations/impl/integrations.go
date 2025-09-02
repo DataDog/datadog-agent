@@ -31,7 +31,7 @@ type Logsintegration struct {
 
 // NewLogsIntegration creates a new integrations instance
 func NewLogsIntegration(log log.Component, config configComponent.Component) integrations.Component {
-	integrationTimeout := config.GetDuration("logs_config.integrations_logs_timeout")
+	integrationTimeout := time.Duration(config.GetInt("logs_config.integrations_logs_timeout")) * time.Second
 
 	return &Logsintegration{
 		logChan:            make(chan integrations.IntegrationLog),
@@ -39,7 +39,7 @@ func NewLogsIntegration(log log.Component, config configComponent.Component) int
 		log:                log,
 		actionCallback:     func() error { return nil },
 		registrationList:   make(map[string]bool),
-		integrationTimeout: integrationTimeout * time.Second,
+		integrationTimeout: integrationTimeout,
 	}
 }
 

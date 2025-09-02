@@ -63,6 +63,8 @@ const (
 
 	// inventory setting name
 	logsTransport = "logs_transport"
+
+	expectedStartTimeout = 10 * time.Second
 )
 
 // Module defines the fx options for this component.
@@ -208,6 +210,14 @@ func newLogsAgent(deps dependencies) provides {
 
 func (a *logAgent) start(context.Context) error {
 	a.log.Info("Starting logs-agent...")
+
+	go func() {
+		time.Sleep(expectedStartTimeout)
+		if a.started.Load() != status.StatusRunning {
+			a.log.Warn("logs-agent did not start within the expected amount of time")
+			metrics.TlmLogsHungStart.Add(1)
+		}
+	}()
 
 	// setup the server config
 	endpoints, err := buildEndpoints(a.config)

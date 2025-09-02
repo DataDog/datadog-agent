@@ -15,6 +15,10 @@ import (
 var (
 	// LogsExpvars contains metrics for the logs agent.
 	LogsExpvars *expvar.Map
+
+	// TlmLogsHungStart is incremented when the logs agent did not start within the expected amount of time
+	TlmLogsHungStart = telemetry.NewCounter("logs", "hung_start",
+		nil, "Incremented when the logs agent did not start within the expected amount of time")
 	// LogsDecoded is the total number of decoded logs
 	LogsDecoded = expvar.Int{}
 	// TlmLogsDecoded is the total number of decoded logs
