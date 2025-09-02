@@ -7,6 +7,8 @@ require './lib/ostools.rb'
 require './lib/project_helpers.rb'
 require 'pathname'
 
+include Omnibus::Logging
+
 name 'datadog-agent'
 
 # We don't want to build any dependencies in "repackaging mode" so all usual dependencies
