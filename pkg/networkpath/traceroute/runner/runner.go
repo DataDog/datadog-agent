@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
-	"net/netip"
 	"slices"
 	"time"
 
@@ -26,11 +25,9 @@ import (
 	cloudprovidersnetwork "github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/DataDog/datadog-traceroute/common"
 	tracerlog "github.com/DataDog/datadog-traceroute/log"
 	"github.com/DataDog/datadog-traceroute/result"
 	"github.com/DataDog/datadog-traceroute/runner"
-	"github.com/DataDog/datadog-traceroute/sack"
 	"github.com/DataDog/datadog-traceroute/traceroute"
 )
 
@@ -153,30 +150,6 @@ func (r *Runner) RunTraceroute(ctx context.Context, cfg config.Config) (payload.
 	}
 	log.Tracef("[RunTraceroute] Results: %+v", pathResult)
 	return pathResult, nil
-}
-
-func makeSackParams(target net.IP, targetPort uint16, maxTTL uint8, timeout time.Duration) (sack.Params, error) {
-	targetAddr, ok := netip.AddrFromSlice(target)
-	if !ok {
-		return sack.Params{}, fmt.Errorf("invalid target IP")
-	}
-	parallelParams := common.TracerouteParallelParams{
-		TracerouteParams: common.TracerouteParams{
-			MinTTL:            DefaultMinTTL,
-			MaxTTL:            maxTTL,
-			TracerouteTimeout: timeout,
-			PollFrequency:     100 * time.Millisecond,
-			SendDelay:         10 * time.Millisecond,
-		},
-	}
-	params := sack.Params{
-		Target:           netip.AddrPortFrom(targetAddr, targetPort),
-		HandshakeTimeout: timeout,
-		FinTimeout:       500 * time.Second,
-		ParallelParams:   parallelParams,
-		LoosenICMPSrc:    true,
-	}
-	return params, nil
 }
 
 func (r *Runner) processResults(res *result.Results, protocol payload.Protocol, hname string, destinationHost string, destinationPort uint16) (payload.NetworkPath, error) {
