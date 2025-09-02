@@ -80,6 +80,7 @@ func SkipIfNotAvailable(t *testing.T) {
 			"TestMount",
 			"TestMountPropagated",
 			"~TestSetSockOpt",
+			"~TestSetrlimitEvent",
 		}
 
 		exclude := []string{

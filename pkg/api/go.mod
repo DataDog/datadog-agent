@@ -1,12 +1,13 @@
 module github.com/DataDog/datadog-agent/pkg/api
 
-go 1.23.0
+go 1.24.0
 
 require (
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.61.0
 	github.com/DataDog/datadog-agent/pkg/config/model v0.64.1
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.61.0
+	github.com/DataDog/datadog-agent/pkg/util/flavor v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/log v0.64.1
 	github.com/DataDog/datadog-agent/pkg/version v0.64.1
 	github.com/gorilla/mux v1.8.1

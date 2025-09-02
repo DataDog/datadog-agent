@@ -154,12 +154,16 @@ func TestStreamCollectionCleanRemovesInactiveStreams(t *testing.T) {
 		pid:    pid1,
 		stream: streamID1,
 	}
-	require.NotContains(t, handlers.streams, streamKey1)
+
+	// Can't use require.NotContains with sync.Map
+	_, ok := handlers.streams.Load(streamKey1)
+	require.False(t, ok)
 
 	// Verify stream2 is still present (active)
 	streamKey2 := streamKey{
 		pid:    pid2,
 		stream: streamID2,
 	}
-	require.Contains(t, handlers.streams, streamKey2)
+	_, ok = handlers.streams.Load(streamKey2)
+	require.True(t, ok)
 }

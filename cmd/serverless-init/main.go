@@ -141,9 +141,8 @@ func setup(_ mode.Conf, tagger tagger.Component, compression logscompression.Com
 			cloudService.GetTags()),
 		modeConf.TagVersionMode)
 
-	origin := cloudService.GetOrigin()
-
-	agentLogConfig := serverlessInitLog.CreateConfig(origin)
+	defaultSource := cloudService.GetDefaultLogsSource()
+	agentLogConfig := serverlessInitLog.CreateConfig(defaultSource)
 
 	// The datadog-agent requires Load to be called or it could
 	// panic down the line.
@@ -152,6 +151,7 @@ func setup(_ mode.Conf, tagger tagger.Component, compression logscompression.Com
 		log.Debugf("Error loading config: %v\n", err)
 	}
 
+	origin := cloudService.GetOrigin()
 	logsAgent := serverlessInitLog.SetupLogAgent(agentLogConfig, tags, tagger, compression, hostname, origin)
 
 	functionTags := strings.Join(configuredTags, ",")

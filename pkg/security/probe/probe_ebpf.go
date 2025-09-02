@@ -329,6 +329,10 @@ func (p *EBPFProbe) isNetworkFlowMonitorNotSupported() bool {
 	return IsNetworkFlowMonitorNotSupported(p.kernelVersion)
 }
 
+func (p *EBPFProbe) isCapabilitiesMonitoringSupported() bool {
+	return IsCapabilitiesMonitoringSupported(p.kernelVersion)
+}
+
 func (p *EBPFProbe) sanityChecks() error {
 	// make sure debugfs is mounted
 	if _, err := tracefs.Root(); err != nil {
@@ -362,6 +366,16 @@ func (p *EBPFProbe) sanityChecks() error {
 	if p.config.RuntimeSecurity.SysCtlEnabled && p.isCgroupSysCtlNotSupported() {
 		seclog.Warnf("The sysctl tracking feature of CWS requires a more recent kernel with support for the cgroup/sysctl program type, setting runtime_security_config.sysctl.enabled to false")
 		p.config.RuntimeSecurity.SysCtlEnabled = false
+	}
+
+	if p.config.Probe.CapabilitiesMonitoringEnabled && !p.isCapabilitiesMonitoringSupported() {
+		seclog.Warnf("The capabilities monitoring feature of CWS requires a more recent kernel (at least 5.17), setting event_monitoring_config.capabilities_monitoring.enabled to false")
+		p.config.Probe.CapabilitiesMonitoringEnabled = false
+	}
+
+	if p.config.Probe.CapabilitiesMonitoringEnabled && p.config.Probe.CapabilitiesMonitoringPeriod < 1*time.Second {
+		seclog.Warnf("The capabilities monitoring period is too short (minimum is 1 second), setting event_monitoring_config.capabilities_monitoring.period to 1 second")
+		p.config.Probe.CapabilitiesMonitoringPeriod = 1 * time.Second
 	}
 
 	return nil
@@ -781,6 +795,8 @@ func (p *EBPFProbe) playSnapshot(notifyConsumers bool) {
 		if _, err := entry.HasValidLineage(); err != nil {
 			event.Error = &model.ErrProcessBrokenLineage{Err: err}
 		}
+
+		event.AddToFlags(model.EventFlagsIsSnapshot)
 
 		events = append(events, event)
 
@@ -1546,11 +1562,13 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode RawPacket event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+		event.NetworkContext = event.RawPacket.NetworkContext
 	case model.RawPacketActionEventType:
 		if _, err = event.RawPacket.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode RawPacket event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+		event.NetworkContext = event.RawPacket.NetworkContext
 
 		tags := p.probe.GetEventTags(event.ContainerContext.ContainerID)
 		if service := p.probe.GetService(event); service != "" {
@@ -1629,7 +1647,18 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			pce = model.NewPlaceholderProcessCacheEntry(event.Setrlimit.TargetPid, event.Setrlimit.TargetPid, false)
 		}
 		event.Setrlimit.Target = &pce.ProcessContext
-
+	case model.CapabilitiesEventType:
+		if _, err = event.CapabilitiesUsage.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode capabilities usage event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+		if event.CapabilitiesUsage.Attempted == 0 && event.CapabilitiesUsage.Used == 0 {
+			seclog.Debugf("capabilities usage event with no attempted or used capabilities, skipping")
+			return
+		}
+		// is this thread-safe?
+		event.ProcessCacheEntry.CapsAttempted |= event.CapabilitiesUsage.Attempted
+		event.ProcessCacheEntry.CapsUsed |= event.CapabilitiesUsage.Used
 	}
 
 	// send related events
@@ -1830,6 +1859,10 @@ func (p *EBPFProbe) updateProbes(ruleSetEventTypes []eval.EventType, needRawSysc
 	}
 
 	activatedProbes := probes.SnapshotSelectors(p.useFentry)
+
+	if p.config.Probe.CapabilitiesMonitoringEnabled {
+		activatedProbes = append(activatedProbes, probes.GetCapabilitiesMonitoringSelectors()...)
+	}
 
 	// extract probe to activate per the event types
 	for eventType, selectors := range probes.GetSelectorsPerEventType(p.useFentry) {
@@ -2526,6 +2559,14 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Name:  "sched_cls_has_current_cgroup_id_helper",
 			Value: utils.BoolTouint64(p.kernelVersion.HasBpfGetCurrentCgroupIDForSchedCLS()),
 		},
+		manager.ConstantEditor{
+			Name:  "capabilities_monitoring_enabled",
+			Value: utils.BoolTouint64(p.config.Probe.CapabilitiesMonitoringEnabled),
+		},
+		manager.ConstantEditor{
+			Name:  "capabilities_monitoring_period",
+			Value: uint64(p.config.Probe.CapabilitiesMonitoringPeriod.Nanoseconds()),
+		},
 	)
 
 	if p.kernelVersion.HavePIDLinkStruct() {
@@ -2571,15 +2612,16 @@ func (p *EBPFProbe) isSKStorageSupported() bool {
 // initManagerOptionsMaps initializes the eBPF manager map spec editors and map reader startup
 func (p *EBPFProbe) initManagerOptionsMapSpecEditors() {
 	opts := probes.MapSpecEditorOpts{
-		TracedCgroupSize:          p.config.RuntimeSecurity.ActivityDumpTracedCgroupsCount,
-		UseRingBuffers:            p.useRingBuffers,
-		UseMmapableMaps:           p.useMmapableMaps,
-		RingBufferSize:            uint32(p.config.Probe.EventStreamBufferSize),
-		PathResolutionEnabled:     p.probe.Opts.PathResolutionEnabled,
-		SecurityProfileMaxCount:   p.config.RuntimeSecurity.SecurityProfileMaxCount,
-		NetworkFlowMonitorEnabled: p.config.Probe.NetworkFlowMonitorEnabled,
-		NetworkSkStorageEnabled:   p.isSKStorageSupported(),
-		SpanTrackMaxCount:         1,
+		TracedCgroupSize:              p.config.RuntimeSecurity.ActivityDumpTracedCgroupsCount,
+		UseRingBuffers:                p.useRingBuffers,
+		UseMmapableMaps:               p.useMmapableMaps,
+		RingBufferSize:                uint32(p.config.Probe.EventStreamBufferSize),
+		PathResolutionEnabled:         p.probe.Opts.PathResolutionEnabled,
+		SecurityProfileMaxCount:       p.config.RuntimeSecurity.SecurityProfileMaxCount,
+		NetworkFlowMonitorEnabled:     p.config.Probe.NetworkFlowMonitorEnabled,
+		NetworkSkStorageEnabled:       p.isSKStorageSupported(),
+		SpanTrackMaxCount:             1,
+		CapabilitiesMonitoringEnabled: p.config.Probe.CapabilitiesMonitoringEnabled,
 	}
 
 	if p.config.Probe.SpanTrackingEnabled {
@@ -2635,6 +2677,11 @@ func (p *EBPFProbe) initManagerOptionsExcludedFunctions() error {
 	if !p.config.RuntimeSecurity.SysCtlEnabled {
 		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.SysCtlProbeFunctionName)
 	}
+
+	if !p.config.Probe.CapabilitiesMonitoringEnabled {
+		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetCapabilitiesMonitoringProgramFunctions()...)
+	}
+
 	return nil
 }
 
@@ -2659,6 +2706,10 @@ func (p *EBPFProbe) initManagerOptionsActivatedProbes() {
 		}
 	}
 	p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SnapshotSelectors(p.useFentry)...)
+
+	if p.config.Probe.CapabilitiesMonitoringEnabled {
+		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.GetCapabilitiesMonitoringSelectors()...)
+	}
 }
 
 // initManagerOptions initializes the eBPF manager options
