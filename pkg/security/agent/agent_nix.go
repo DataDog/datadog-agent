@@ -12,12 +12,11 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage/backend"
 )
 
 // NewRuntimeSecurityAgent instantiates a new RuntimeSecurityAgent
-func NewRuntimeSecurityAgent(statsdClient statsd.ClientInterface, hostname string, wmeta workloadmeta.Component) (*RuntimeSecurityAgent, error) {
+func NewRuntimeSecurityAgent(statsdClient statsd.ClientInterface, hostname string) (*RuntimeSecurityAgent, error) {
 	client, err := NewRuntimeSecurityClient()
 	if err != nil {
 		return nil, err
