@@ -59,6 +59,11 @@ func (s *packageAgentSuite) TestInstall() {
 
 	agentVersion := s.host.AgentStableVersion()
 	agentDir := fmt.Sprintf("/opt/datadog-packages/datadog-agent/%s", agentVersion)
+	agentRunSymlink := agentDir
+	if s.installMethod == InstallMethodAnsible {
+		agentDir = "/opt/datadog-agent"
+		agentRunSymlink = fmt.Sprintf("/opt/datadog-packages/run/datadog-agent/%s", agentVersion)
+	}
 
 	state.AssertDirExists(agentDir, 0755, "dd-agent", "dd-agent")
 
@@ -67,9 +72,9 @@ func (s *packageAgentSuite) TestInstall() {
 	state.AssertDirExists(path.Join(agentDir, "embedded/share/system-probe/ebpf"), 0755, "root", "root")
 	state.AssertFileExists(path.Join(agentDir, "embedded/share/system-probe/ebpf/dns.o"), 0644, "root", "root")
 
-	state.AssertSymlinkExists("/opt/datadog-packages/datadog-agent/stable", agentDir, "root", "root")
-	state.AssertSymlinkExists("/usr/bin/datadog-agent", "/opt/datadog-packages/datadog-agent/stable/bin/agent/agent", "root", "root")
-	state.AssertSymlinkExists("/usr/bin/datadog-installer", "/opt/datadog-packages/datadog-agent/stable/embedded/bin/installer", "root", "root")
+	state.AssertSymlinkExists("/opt/datadog-packages/datadog-agent/stable", agentRunSymlink, "root", "root")
+	state.AssertSymlinkExists("/usr/bin/datadog-agent", path.Join(agentDir, "bin/agent/agent"), "root", "root")
+	state.AssertSymlinkExists("/usr/bin/datadog-installer", path.Join(agentDir, "embedded/bin/installer"), "root", "root")
 	state.AssertFileExistsAnyUser("/etc/datadog-agent/install.json", 0644)
 }
 
@@ -80,7 +85,7 @@ func (s *packageAgentSuite) assertUnits(state host.State, oldUnits bool) {
 	state.AssertUnitsDead(probeUnit, securityUnit)
 
 	systemdPath := "/etc/systemd/system"
-	if oldUnits {
+	if oldUnits || s.installMethod == InstallMethodAnsible {
 		pkgManager := s.host.GetPkgManager()
 		switch pkgManager {
 		case "apt":
@@ -104,6 +109,10 @@ func (s *packageAgentSuite) assertUnits(state host.State, oldUnits bool) {
 
 // TestUpgrade_AgentDebRPM_to_OCI tests the upgrade from DEB/RPM agent to the OCI one.
 func (s *packageAgentSuite) TestUpgrade_AgentDebRPM_to_OCI() {
+	if s.installMethod == InstallMethodAnsible {
+		s.T().Skip("Ansible doesn't install OCI packages")
+	}
+
 	// install deb/rpm agent
 	s.RunInstallScript(envForceNoInstall("datadog-agent"))
 	s.host.AssertPackageInstalledByPackageManager("datadog-agent")
@@ -126,6 +135,10 @@ func (s *packageAgentSuite) TestUpgrade_AgentDebRPM_to_OCI() {
 
 // TestUpgrade_Agent_OCI_then_DebRpm agent deb/rpm install while OCI one is installed
 func (s *packageAgentSuite) TestUpgrade_Agent_OCI_then_DebRpm() {
+	if s.installMethod == InstallMethodAnsible {
+		s.T().Skip("Ansible doesn't install OCI packages")
+	}
+
 	// install OCI agent
 	s.RunInstallScript("DD_REMOTE_UPDATES=true", envForceInstall("datadog-agent"))
 	defer s.Purge()
@@ -361,6 +374,10 @@ func (s *packageAgentSuite) TestExperimentStopped() {
 }
 
 func (s *packageAgentSuite) TestRunPath() {
+	if s.installMethod == InstallMethodAnsible {
+		s.T().Skip("Ansible doesn't install OCI packages")
+	}
+
 	s.RunInstallScript("DD_REMOTE_UPDATES=true", envForceInstall("datadog-agent"))
 	defer s.Purge()
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
@@ -381,6 +398,10 @@ func (s *packageAgentSuite) TestRunPath() {
 }
 
 func (s *packageAgentSuite) TestUpgrade_DisabledAgentDebRPM_to_OCI() {
+	if s.installMethod == InstallMethodAnsible {
+		s.T().Skip("Ansible doesn't install OCI packages")
+	}
+
 	// install deb/rpm agent
 	s.RunInstallScript(envForceNoInstall("datadog-agent"))
 	s.host.AssertPackageInstalledByPackageManager("datadog-agent")
@@ -407,6 +428,9 @@ func (s *packageAgentSuite) TestUpgrade_DisabledAgentDebRPM_to_OCI() {
 }
 
 func (s *packageAgentSuite) TestInstallWithLeftoverDebDir() {
+	if s.installMethod == InstallMethodAnsible {
+		s.T().Skip("Ansible doesn't install OCI packages")
+	}
 	// create /opt/datadog-agent to simulate a disabled agent
 	s.host.Run("sudo mkdir -p /opt/datadog-agent")
 	defer func() { s.host.Run("sudo rm -rf /opt/datadog-agent") }()
