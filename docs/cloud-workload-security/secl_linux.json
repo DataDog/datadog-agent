@@ -73,6 +73,11 @@
           "property_doc_link": "event-service-doc"
         },
         {
+          "name": "event.source",
+          "definition": "[Experimental] Source of the event. Can be either 'runtime' or 'snapshot'.",
+          "property_doc_link": "event-source-doc"
+        },
+        {
           "name": "event.timestamp",
           "definition": "Timestamp of the event",
           "property_doc_link": "event-timestamp-doc"
@@ -121,6 +126,16 @@
           "name": "process.ancestors.cap_permitted",
           "definition": "Permitted capability set of the process",
           "property_doc_link": "common-credentials-cap_permitted-doc"
+        },
+        {
+          "name": "process.ancestors.caps_attempted",
+          "definition": "Bitmask of the capabilities that the process attempted to use",
+          "property_doc_link": "common-process-caps_attempted-doc"
+        },
+        {
+          "name": "process.ancestors.caps_used",
+          "definition": "Bitmask of the capabilities that the process successfully used",
+          "property_doc_link": "common-process-caps_used-doc"
         },
         {
           "name": "process.ancestors.cgroup.file.inode",
@@ -563,6 +578,16 @@
           "property_doc_link": "common-credentials-cap_permitted-doc"
         },
         {
+          "name": "process.caps_attempted",
+          "definition": "Bitmask of the capabilities that the process attempted to use",
+          "property_doc_link": "common-process-caps_attempted-doc"
+        },
+        {
+          "name": "process.caps_used",
+          "definition": "Bitmask of the capabilities that the process successfully used",
+          "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
           "name": "process.cgroup.file.inode",
           "definition": "Inode of the file",
           "property_doc_link": "common-pathkey-inode-doc"
@@ -951,6 +976,16 @@
           "name": "process.parent.cap_permitted",
           "definition": "Permitted capability set of the process",
           "property_doc_link": "common-credentials-cap_permitted-doc"
+        },
+        {
+          "name": "process.parent.caps_attempted",
+          "definition": "Bitmask of the capabilities that the process attempted to use",
+          "property_doc_link": "common-process-caps_attempted-doc"
+        },
+        {
+          "name": "process.parent.caps_used",
+          "definition": "Bitmask of the capabilities that the process successfully used",
+          "property_doc_link": "common-process-caps_used-doc"
         },
         {
           "name": "process.parent.cgroup.file.inode",
@@ -1518,6 +1553,25 @@
           "name": "bpf.retval",
           "definition": "Return value of the syscall",
           "property_doc_link": "common-syscallevent-retval-doc"
+        }
+      ]
+    },
+    {
+      "name": "capabilities",
+      "definition": "A process used some capabilities",
+      "type": "Process",
+      "from_agent_version": "7.70",
+      "experimental": true,
+      "properties": [
+        {
+          "name": "capabilities.attempted",
+          "definition": "Bitmask of the capabilities that the process attempted to use since it started running",
+          "property_doc_link": "capabilities-attempted-doc"
+        },
+        {
+          "name": "capabilities.used",
+          "definition": "Bitmask of the capabilities that the process successfully used since it started running",
+          "property_doc_link": "capabilities-used-doc"
         }
       ]
     },
@@ -2317,6 +2371,16 @@
           "property_doc_link": "common-credentials-cap_permitted-doc"
         },
         {
+          "name": "exec.caps_attempted",
+          "definition": "Bitmask of the capabilities that the process attempted to use",
+          "property_doc_link": "common-process-caps_attempted-doc"
+        },
+        {
+          "name": "exec.caps_used",
+          "definition": "Bitmask of the capabilities that the process successfully used",
+          "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
           "name": "exec.cgroup.file.inode",
           "definition": "Inode of the file",
           "property_doc_link": "common-pathkey-inode-doc"
@@ -2804,6 +2868,16 @@
           "name": "exit.cap_permitted",
           "definition": "Permitted capability set of the process",
           "property_doc_link": "common-credentials-cap_permitted-doc"
+        },
+        {
+          "name": "exit.caps_attempted",
+          "definition": "Bitmask of the capabilities that the process attempted to use",
+          "property_doc_link": "common-process-caps_attempted-doc"
+        },
+        {
+          "name": "exit.caps_used",
+          "definition": "Bitmask of the capabilities that the process successfully used",
+          "property_doc_link": "common-process-caps_used-doc"
         },
         {
           "name": "exit.cause",
@@ -4460,6 +4534,16 @@
           "property_doc_link": "common-credentials-cap_permitted-doc"
         },
         {
+          "name": "ptrace.tracee.ancestors.caps_attempted",
+          "definition": "Bitmask of the capabilities that the process attempted to use",
+          "property_doc_link": "common-process-caps_attempted-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.caps_used",
+          "definition": "Bitmask of the capabilities that the process successfully used",
+          "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
           "name": "ptrace.tracee.ancestors.cgroup.file.inode",
           "definition": "Inode of the file",
           "property_doc_link": "common-pathkey-inode-doc"
@@ -4900,6 +4984,16 @@
           "property_doc_link": "common-credentials-cap_permitted-doc"
         },
         {
+          "name": "ptrace.tracee.caps_attempted",
+          "definition": "Bitmask of the capabilities that the process attempted to use",
+          "property_doc_link": "common-process-caps_attempted-doc"
+        },
+        {
+          "name": "ptrace.tracee.caps_used",
+          "definition": "Bitmask of the capabilities that the process successfully used",
+          "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
           "name": "ptrace.tracee.cgroup.file.inode",
           "definition": "Inode of the file",
           "property_doc_link": "common-pathkey-inode-doc"
@@ -5288,6 +5382,16 @@
           "name": "ptrace.tracee.parent.cap_permitted",
           "definition": "Permitted capability set of the process",
           "property_doc_link": "common-credentials-cap_permitted-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.caps_attempted",
+          "definition": "Bitmask of the capabilities that the process attempted to use",
+          "property_doc_link": "common-process-caps_attempted-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.caps_used",
+          "definition": "Bitmask of the capabilities that the process successfully used",
+          "property_doc_link": "common-process-caps_used-doc"
         },
         {
           "name": "ptrace.tracee.parent.cgroup.file.inode",
@@ -6394,6 +6498,16 @@
           "property_doc_link": "common-credentials-cap_permitted-doc"
         },
         {
+          "name": "setrlimit.target.ancestors.caps_attempted",
+          "definition": "Bitmask of the capabilities that the process attempted to use",
+          "property_doc_link": "common-process-caps_attempted-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.caps_used",
+          "definition": "Bitmask of the capabilities that the process successfully used",
+          "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
           "name": "setrlimit.target.ancestors.cgroup.file.inode",
           "definition": "Inode of the file",
           "property_doc_link": "common-pathkey-inode-doc"
@@ -6834,6 +6948,16 @@
           "property_doc_link": "common-credentials-cap_permitted-doc"
         },
         {
+          "name": "setrlimit.target.caps_attempted",
+          "definition": "Bitmask of the capabilities that the process attempted to use",
+          "property_doc_link": "common-process-caps_attempted-doc"
+        },
+        {
+          "name": "setrlimit.target.caps_used",
+          "definition": "Bitmask of the capabilities that the process successfully used",
+          "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
           "name": "setrlimit.target.cgroup.file.inode",
           "definition": "Inode of the file",
           "property_doc_link": "common-pathkey-inode-doc"
@@ -7222,6 +7346,16 @@
           "name": "setrlimit.target.parent.cap_permitted",
           "definition": "Permitted capability set of the process",
           "property_doc_link": "common-credentials-cap_permitted-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.caps_attempted",
+          "definition": "Bitmask of the capabilities that the process attempted to use",
+          "property_doc_link": "common-process-caps_attempted-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.caps_used",
+          "definition": "Bitmask of the capabilities that the process successfully used",
+          "property_doc_link": "common-process-caps_used-doc"
         },
         {
           "name": "setrlimit.target.parent.cgroup.file.inode",
@@ -7965,6 +8099,16 @@
           "property_doc_link": "common-credentials-cap_permitted-doc"
         },
         {
+          "name": "signal.target.ancestors.caps_attempted",
+          "definition": "Bitmask of the capabilities that the process attempted to use",
+          "property_doc_link": "common-process-caps_attempted-doc"
+        },
+        {
+          "name": "signal.target.ancestors.caps_used",
+          "definition": "Bitmask of the capabilities that the process successfully used",
+          "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
           "name": "signal.target.ancestors.cgroup.file.inode",
           "definition": "Inode of the file",
           "property_doc_link": "common-pathkey-inode-doc"
@@ -8405,6 +8549,16 @@
           "property_doc_link": "common-credentials-cap_permitted-doc"
         },
         {
+          "name": "signal.target.caps_attempted",
+          "definition": "Bitmask of the capabilities that the process attempted to use",
+          "property_doc_link": "common-process-caps_attempted-doc"
+        },
+        {
+          "name": "signal.target.caps_used",
+          "definition": "Bitmask of the capabilities that the process successfully used",
+          "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
           "name": "signal.target.cgroup.file.inode",
           "definition": "Inode of the file",
           "property_doc_link": "common-pathkey-inode-doc"
@@ -8793,6 +8947,16 @@
           "name": "signal.target.parent.cap_permitted",
           "definition": "Permitted capability set of the process",
           "property_doc_link": "common-credentials-cap_permitted-doc"
+        },
+        {
+          "name": "signal.target.parent.caps_attempted",
+          "definition": "Bitmask of the capabilities that the process attempted to use",
+          "property_doc_link": "common-process-caps_attempted-doc"
+        },
+        {
+          "name": "signal.target.parent.caps_used",
+          "definition": "Bitmask of the capabilities that the process successfully used",
+          "property_doc_link": "common-process-caps_used-doc"
         },
         {
           "name": "signal.target.parent.cgroup.file.inode",
@@ -9957,6 +10121,56 @@
       "link": "common-credentials-cap_permitted-doc",
       "type": "int",
       "definition": "Permitted capability set of the process",
+      "prefixes": [
+        "exec",
+        "exit",
+        "process",
+        "process.ancestors",
+        "process.parent",
+        "ptrace.tracee",
+        "ptrace.tracee.ancestors",
+        "ptrace.tracee.parent",
+        "setrlimit.target",
+        "setrlimit.target.ancestors",
+        "setrlimit.target.parent",
+        "signal.target",
+        "signal.target.ancestors",
+        "signal.target.parent"
+      ],
+      "constants": "Kernel Capability constants",
+      "constants_link": "kernel-capability-constants",
+      "examples": []
+    },
+    {
+      "name": "*.caps_attempted",
+      "link": "common-process-caps_attempted-doc",
+      "type": "int",
+      "definition": "Bitmask of the capabilities that the process attempted to use",
+      "prefixes": [
+        "exec",
+        "exit",
+        "process",
+        "process.ancestors",
+        "process.parent",
+        "ptrace.tracee",
+        "ptrace.tracee.ancestors",
+        "ptrace.tracee.parent",
+        "setrlimit.target",
+        "setrlimit.target.ancestors",
+        "setrlimit.target.parent",
+        "signal.target",
+        "signal.target.ancestors",
+        "signal.target.parent"
+      ],
+      "constants": "Kernel Capability constants",
+      "constants_link": "kernel-capability-constants",
+      "examples": []
+    },
+    {
+      "name": "*.caps_used",
+      "link": "common-process-caps_used-doc",
+      "type": "int",
+      "definition": "Bitmask of the capabilities that the process successfully used",
       "prefixes": [
         "exec",
         "exit",
@@ -12444,6 +12658,30 @@
       "examples": []
     },
     {
+      "name": "capabilities.attempted",
+      "link": "capabilities-attempted-doc",
+      "type": "int",
+      "definition": "Bitmask of the capabilities that the process attempted to use since it started running",
+      "prefixes": [
+        "capabilities"
+      ],
+      "constants": "Kernel Capability constants",
+      "constants_link": "kernel-capability-constants",
+      "examples": []
+    },
+    {
+      "name": "capabilities.used",
+      "link": "capabilities-used-doc",
+      "type": "int",
+      "definition": "Bitmask of the capabilities that the process successfully used since it started running",
+      "prefixes": [
+        "capabilities"
+      ],
+      "constants": "Kernel Capability constants",
+      "constants_link": "kernel-capability-constants",
+      "examples": []
+    },
+    {
       "name": "capset.cap_effective",
       "link": "capset-cap_effective-doc",
       "type": "int",
@@ -12844,6 +13082,18 @@
       "link": "event-service-doc",
       "type": "string",
       "definition": "Service associated with the event",
+      "prefixes": [
+        ""
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "event.source",
+      "link": "event-source-doc",
+      "type": "string",
+      "definition": "[Experimental] Source of the event. Can be either 'runtime' or 'snapshot'.",
       "prefixes": [
         ""
       ],

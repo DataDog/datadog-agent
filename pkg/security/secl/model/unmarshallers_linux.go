@@ -243,19 +243,19 @@ func (e *Process) UnmarshalPidCacheBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *Process) UnmarshalBinary(data []byte) (int, error) {
-	const size = 288 // size of struct exec_event_t starting from process_entry_t, inclusive
+	const size = 292 // size of struct exec_event_t starting from process_entry_t, inclusive
 	if len(data) < size {
 		return 0, ErrNotEnoughData
 	}
 	var read int
 
-	n, err := e.UnmarshalProcEntryBinary((data))
+	n, err := e.UnmarshalProcEntryBinary(data)
 	if err != nil {
 		return 0, err
 	}
 	read += n
 
-	n, err = e.UnmarshalPidCacheBinary((data[read:]))
+	n, err = e.UnmarshalPidCacheBinary(data[read:])
 	if err != nil {
 		return 0, err
 	}
@@ -287,6 +287,8 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 	e.EnvsTruncated = binary.NativeEndian.Uint32(data[read+4:read+8]) == 1
 	read += 8
 
+	e.IsThroughSymLink = (binary.NativeEndian.Uint32(data[read:read+4]) > 0)
+	read += 4
 	return validateReadSize(size, read)
 }
 
@@ -1547,4 +1549,17 @@ func (e *SetrlimitEvent) UnmarshalBinary(data []byte) (int, error) {
 	e.RlimMax = binary.NativeEndian.Uint64(data[read+16 : read+24])
 
 	return read + 24, nil
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
+func (e *CapabilitiesEvent) UnmarshalBinary(data []byte) (int, error) {
+	const size = 16
+	if len(data) < size {
+		return 0, ErrNotEnoughData
+	}
+
+	e.Attempted = binary.NativeEndian.Uint64(data[0:8])
+	e.Used = binary.NativeEndian.Uint64(data[8:16])
+
+	return 16, nil
 }

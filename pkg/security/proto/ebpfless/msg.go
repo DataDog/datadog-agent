@@ -97,6 +97,10 @@ const (
 	SyscallTypeConnect
 	// SyscallTypeBind bind
 	SyscallTypeBind
+	// SyscallTypeSetsockopt setsockopt type
+	SyscallTypeSetsockopt
+	// SyscallTypeSetrlimit setrlimit type
+	SyscallTypeSetrlimit
 )
 
 // ContainerContext defines a container context
@@ -177,6 +181,7 @@ type PipeSyscallFakeMsg struct {
 type SocketSyscallFakeMsg struct {
 	AddressFamily uint16
 	Protocol      uint16
+	SocketType    uint16
 }
 
 // ChdirSyscallMsg defines a chdir message
@@ -335,6 +340,25 @@ type AcceptSyscallMsg struct {
 	SocketFd int32
 }
 
+// SetsockoptSyscallMsg defines a setsockopt message
+type SetsockoptSyscallMsg struct {
+	SocketFamily   uint16
+	SocketProtocol uint16
+	SocketType     uint16
+	Level          uint32
+	OptName        uint32
+	Filter         []byte
+	FilterLen      uint16
+}
+
+// SetrlimitSyscallMsg defines a setrlimit message
+type SetrlimitSyscallMsg struct {
+	Resource int
+	CurLimit uint64
+	MaxLimit uint64
+	Pid      uint32
+}
+
 // SyscallMsg defines a syscall message
 type SyscallMsg struct {
 	Type         SyscallType
@@ -369,6 +393,8 @@ type SyscallMsg struct {
 	Bind         *BindSyscallMsg         `json:",omitempty"`
 	Connect      *ConnectSyscallMsg      `json:",omitempty"`
 	Accept       *AcceptSyscallMsg       `json:",omitempty"`
+	Setsockopt   *SetsockoptSyscallMsg   `json:",omitempty"`
+	Setrlimit    *SetrlimitSyscallMsg    `json:",omitempty"`
 
 	// internals
 	Dup    *DupSyscallFakeMsg    `json:",omitempty"`

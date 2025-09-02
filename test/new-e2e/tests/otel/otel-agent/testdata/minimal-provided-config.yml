@@ -19,9 +19,10 @@ exporters:
       fail_on_invalid_key: false
       key: "${env:DD_API_KEY}"
       site: datadoghq.com
+    force_attempt_http2: true
     headers: {}
     host_metadata:
-      enabled: false
+      enabled: true
       hostname_source: config_or_system
       reporter_period: 30m0s
       tags: []

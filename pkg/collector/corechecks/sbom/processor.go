@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmetafilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/sbomutil"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -53,6 +54,7 @@ type processor struct {
 	imageRepoDigests      map[string]string              // Map where keys are image repo digest and values are image ID
 	imageUsers            map[string]map[string]struct{} // Map where keys are image repo digest and values are set of container IDs
 	sbomScanner           *sbomscanner.Scanner
+	contImageSBOM         bool
 	hostSBOM              bool
 	procfsSBOM            bool
 	hostname              string
@@ -73,6 +75,7 @@ func newProcessor(workloadmetaStore workloadmeta.Component, filterStore workload
 	}
 
 	envVarEnv := pkgconfigsetup.Datadog().GetString("env")
+	contImageSBOM := cfg.GetBool("sbom.container_image.enabled")
 	hostSBOM := cfg.GetBool("sbom.host.enabled")
 	procfsSBOM := isProcfsSBOMEnabled(cfg)
 
@@ -101,6 +104,7 @@ func newProcessor(workloadmetaStore workloadmeta.Component, filterStore workload
 		imageRepoDigests:      make(map[string]string),
 		imageUsers:            make(map[string]map[string]struct{}),
 		sbomScanner:           sbomScanner,
+		contImageSBOM:         contImageSBOM,
 		hostSBOM:              hostSBOM,
 		procfsSBOM:            procfsSBOM,
 		hostname:              hname,
@@ -254,17 +258,9 @@ func (p *processor) processHostScanResult(result sbom.ScanResult) {
 		if p.hostCache != "" && p.hostCache == result.Report.ID() && result.CreatedAt.Sub(p.hostLastFullSBOM) < p.hostHeartbeatValidity {
 			sbom.Heartbeat = true
 		} else {
-			report, err := result.Report.ToCycloneDX()
-			if err != nil {
-				log.Errorf("Failed to extract SBOM from report: %s", err)
-				sbom.Sbom = &model.SBOMEntity_Error{
-					Error: err.Error(),
-				}
-				sbom.Status = model.SBOMStatus_FAILED
-			} else {
-				sbom.Sbom = &model.SBOMEntity_Cyclonedx{
-					Cyclonedx: bomconvert.ConvertBOM(report),
-				}
+			report := result.Report.ToCycloneDX()
+			sbom.Sbom = &model.SBOMEntity_Cyclonedx{
+				Cyclonedx: report,
 			}
 
 			sbom.Hash = result.Report.ID()
@@ -325,17 +321,9 @@ func (p *processor) processProcfsScanResult(result sbom.ScanResult) {
 		if p.hostCache != "" && p.hostCache == result.Report.ID() && result.CreatedAt.Sub(p.hostLastFullSBOM) < p.hostHeartbeatValidity {
 			sbom.Heartbeat = true
 		} else {
-			report, err := result.Report.ToCycloneDX()
-			if err != nil {
-				log.Errorf("Failed to extract SBOM from report: %s", err)
-				sbom.Sbom = &model.SBOMEntity_Error{
-					Error: err.Error(),
-				}
-				sbom.Status = model.SBOMStatus_FAILED
-			} else {
-				sbom.Sbom = &model.SBOMEntity_Cyclonedx{
-					Cyclonedx: bomconvert.ConvertBOM(report),
-				}
+			report := result.Report.ToCycloneDX()
+			sbom.Sbom = &model.SBOMEntity_Cyclonedx{
+				Cyclonedx: report,
 			}
 		}
 	}
@@ -344,11 +332,15 @@ func (p *processor) processProcfsScanResult(result sbom.ScanResult) {
 }
 
 func (p *processor) processImageSBOM(img *workloadmeta.ContainerImageMetadata) {
+	if !p.contImageSBOM {
+		return
+	}
+
 	if img.SBOM == nil {
 		return
 	}
 
-	if img.SBOM.Status == workloadmeta.Success && img.SBOM.CycloneDXBOM == nil {
+	if img.SBOM.Status == workloadmeta.Success && len(img.SBOM.Bom) == 0 {
 		log.Debug("received a sbom with incorrect status")
 		return
 	}
@@ -378,6 +370,11 @@ func (p *processor) processImageSBOM(img *workloadmeta.ContainerImageMetadata) {
 			inUse = true
 			break
 		}
+	}
+
+	cyclosbom, err := sbomutil.UncompressSBOM(img.SBOM)
+	if err != nil {
+		log.Errorf("Failed to uncompress SBOM for image %s: %v", img.ID, err)
 	}
 
 	for repo := range repos {
@@ -443,20 +440,20 @@ func (p *processor) processImageSBOM(img *workloadmeta.ContainerImageMetadata) {
 			InUse:       inUse,
 		}
 
-		switch img.SBOM.Status {
+		switch cyclosbom.Status {
 		case workloadmeta.Pending:
 			sbom.Status = model.SBOMStatus_PENDING
 		case workloadmeta.Failed:
 			sbom.Status = model.SBOMStatus_FAILED
 			sbom.Sbom = &model.SBOMEntity_Error{
-				Error: img.SBOM.Error,
+				Error: cyclosbom.Error,
 			}
 		default:
 			sbom.Status = model.SBOMStatus_SUCCESS
-			sbom.GeneratedAt = timestamppb.New(img.SBOM.GenerationTime)
-			sbom.GenerationDuration = bomconvert.ConvertDuration(img.SBOM.GenerationDuration)
+			sbom.GeneratedAt = timestamppb.New(cyclosbom.GenerationTime)
+			sbom.GenerationDuration = bomconvert.ConvertDuration(cyclosbom.GenerationDuration)
 			sbom.Sbom = &model.SBOMEntity_Cyclonedx{
-				Cyclonedx: bomconvert.ConvertBOM(img.SBOM.CycloneDXBOM),
+				Cyclonedx: cyclosbom.CycloneDXBOM,
 			}
 		}
 		p.queue <- sbom

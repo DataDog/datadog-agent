@@ -3,23 +3,26 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build kubelet && test
+//go:build kubelet
 
 package kubelet
 
 import (
+	"maps"
+	"slices"
+	"sort"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
-
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
 func TestPodParser(t *testing.T) {
@@ -384,4 +387,131 @@ func TestPodParser(t *testing.T) {
 	}
 
 	assert.ElementsMatch(t, expectedEntities, parsedEntities)
+}
+
+func TestEventsForExpiredEntities(t *testing.T) {
+	now := time.Now()
+
+	expiredTime := now.Add(-expireFreq - time.Second)
+	nonExpiredTime := now
+
+	tests := []struct {
+		name                          string
+		lastSeenPodUIDs               map[string]time.Time
+		lastSeenContainerIDs          map[string]time.Time
+		expectedExpiredPodUIDs        []string
+		expectedExpiredContainerIDs   []string
+		expectedRemainingPodUIDs      []string
+		expectedRemainingContainerIDs []string
+	}{
+		{
+			name:                          "no entities",
+			lastSeenPodUIDs:               map[string]time.Time{},
+			lastSeenContainerIDs:          map[string]time.Time{},
+			expectedExpiredPodUIDs:        []string{},
+			expectedExpiredContainerIDs:   []string{},
+			expectedRemainingPodUIDs:      []string{},
+			expectedRemainingContainerIDs: []string{},
+		},
+		{
+			name: "no expired entities",
+			lastSeenPodUIDs: map[string]time.Time{
+				"pod1": nonExpiredTime,
+			},
+			lastSeenContainerIDs: map[string]time.Time{
+				"docker://container1": nonExpiredTime,
+			},
+			expectedExpiredPodUIDs:        []string{},
+			expectedExpiredContainerIDs:   []string{},
+			expectedRemainingPodUIDs:      []string{"pod1"},
+			expectedRemainingContainerIDs: []string{"docker://container1"},
+		},
+		{
+			name: "expired pods only",
+			lastSeenPodUIDs: map[string]time.Time{
+				"expired-pod":     expiredTime,
+				"not-expired-pod": nonExpiredTime,
+			},
+			lastSeenContainerIDs:          map[string]time.Time{},
+			expectedExpiredPodUIDs:        []string{"expired-pod"},
+			expectedExpiredContainerIDs:   []string{},
+			expectedRemainingPodUIDs:      []string{"not-expired-pod"},
+			expectedRemainingContainerIDs: []string{},
+		},
+		{
+			name:            "expired containers only",
+			lastSeenPodUIDs: map[string]time.Time{},
+			lastSeenContainerIDs: map[string]time.Time{
+				"docker://expired-container":     expiredTime,
+				"docker://not-expired-container": nonExpiredTime,
+			},
+			expectedExpiredPodUIDs:        []string{},
+			expectedExpiredContainerIDs:   []string{"expired-container"},
+			expectedRemainingPodUIDs:      []string{},
+			expectedRemainingContainerIDs: []string{"docker://not-expired-container"},
+		},
+		{
+			name: "both expired pods and containers",
+			lastSeenPodUIDs: map[string]time.Time{
+				"expired-pod1": expiredTime,
+				"expired-pod2": expiredTime,
+			},
+			lastSeenContainerIDs: map[string]time.Time{
+				"docker://expired-container1": expiredTime,
+				"docker://expired-container2": expiredTime,
+			},
+			expectedExpiredPodUIDs:        []string{"expired-pod1", "expired-pod2"},
+			expectedExpiredContainerIDs:   []string{"expired-container1", "expired-container2"},
+			expectedRemainingPodUIDs:      []string{},
+			expectedRemainingContainerIDs: []string{},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			c := &collector{
+				lastSeenPodUIDs:      test.lastSeenPodUIDs,
+				lastSeenContainerIDs: test.lastSeenContainerIDs,
+			}
+
+			events := c.eventsForExpiredEntities(now)
+
+			var podEvents []workloadmeta.CollectorEvent
+			var containerEvents []workloadmeta.CollectorEvent
+			for _, event := range events {
+				if event.Entity.GetID().Kind == workloadmeta.KindKubernetesPod {
+					podEvents = append(podEvents, event)
+				} else if event.Entity.GetID().Kind == workloadmeta.KindContainer {
+					containerEvents = append(containerEvents, event)
+				}
+			}
+
+			assertUnsetEventsWithIDs(t, podEvents, test.expectedExpiredPodUIDs)
+			assertUnsetEventsWithIDs(t, containerEvents, test.expectedExpiredContainerIDs)
+
+			assert.ElementsMatch(t, slices.Collect(maps.Keys(c.lastSeenPodUIDs)), test.expectedRemainingPodUIDs)
+			assert.ElementsMatch(t, slices.Collect(maps.Keys(c.lastSeenContainerIDs)), test.expectedRemainingContainerIDs)
+		})
+	}
+}
+
+func assertUnsetEventsWithIDs(t *testing.T, events []workloadmeta.CollectorEvent, expectedIDs []string) {
+	require.Equal(t, len(events), len(expectedIDs))
+
+	// We cannot assume order of events, so sort them to be able to compare
+	sort.Strings(expectedIDs)
+	sort.Slice(events, func(i, j int) bool {
+		return events[i].Entity.GetID().ID < events[j].Entity.GetID().ID
+	})
+
+	for i, event := range events {
+		assert.Equal(t, workloadmeta.EventTypeUnset, event.Type)
+		assert.Equal(t, workloadmeta.SourceNodeOrchestrator, event.Source)
+		assert.Equal(t, expectedIDs[i], event.Entity.GetID().ID)
+
+		// Pods contain a FinishedAt field that's not set for containers
+		if pod, ok := event.Entity.(*workloadmeta.KubernetesPod); ok {
+			assert.NotZero(t, pod.FinishedAt)
+		}
+	}
 }

@@ -22,6 +22,8 @@ var bpfMapNames = []string{
 	"bpf_maps",
 	"bpf_progs",
 	"buffer_selector",
+	"capabilities_co",
+	"capabilities_us",
 	"cgroup_mount_id",
 	"cgroup_tracing_",
 	"cgroup_wait_lis",
