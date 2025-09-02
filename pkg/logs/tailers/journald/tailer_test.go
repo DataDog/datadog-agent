@@ -35,7 +35,7 @@ type MockJournal struct {
 	entries  []*sdjournal.JournalEntry
 }
 
-func (m *MockJournal) AddMatch(match string) error {
+func (m *MockJournal) AddMatch(_ string) error {
 	return nil
 }
 
@@ -53,7 +53,7 @@ func (m *MockJournal) SeekHead() error {
 	return nil
 }
 
-func (m *MockJournal) Wait(timeout time.Duration) int {
+func (m *MockJournal) Wait(_ time.Duration) int {
 	time.Sleep(time.Millisecond)
 	return 0
 }
@@ -63,7 +63,7 @@ func (m *MockJournal) SeekCursor(cursor string) error {
 	return nil
 }
 
-func (m *MockJournal) NextSkip(skip uint64) (uint64, error) {
+func (m *MockJournal) NextSkip(_ uint64) (uint64, error) {
 	return 0, nil
 }
 

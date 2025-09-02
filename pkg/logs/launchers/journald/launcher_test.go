@@ -48,7 +48,7 @@ func (s *MockJournalFactory) NewJournal() (tailer.Journal, error) {
 	return &MockJournal{}, nil
 }
 
-func (s *MockJournalFactory) NewJournalFromPath(path string) (tailer.Journal, error) {
+func (s *MockJournalFactory) NewJournalFromPath(_ string) (tailer.Journal, error) {
 	return &MockJournal{}, nil
 }
 
