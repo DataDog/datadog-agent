@@ -167,3 +167,51 @@ func TestStreamCollectionCleanRemovesInactiveStreams(t *testing.T) {
 	_, ok = handlers.streams.Load(streamKey2)
 	require.True(t, ok)
 }
+
+func TestGetExistingStreamNoAllocs(t *testing.T) {
+	res := testing.Benchmark(BenchmarkGetExistingStream)
+	require.Zero(t, res.AllocsPerOp())
+}
+
+func BenchmarkGetExistingStream(b *testing.B) {
+	ddnvml.WithMockNVML(b, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+	ctx := getTestSystemContext(b)
+	cfg := config.New()
+	handlers := newStreamCollection(ctx, testutil.GetTelemetryMock(b), cfg)
+
+	pid := uint32(1)
+	pidTgid := uint64(pid)<<32 + uint64(pid)
+
+	run := func(b *testing.B, streamID uint64) {
+		header := &gpuebpf.CudaEventHeader{
+			Pid_tgid:  pidTgid,
+			Stream_id: streamID,
+		}
+		ctx.visibleDevicesCache[int(pid)] = nvmltestutil.GetDDNVMLMocksWithIndexes(b, 0, 1)
+
+		b.ResetTimer()
+		b.ReportAllocs()
+
+		// Retrieve the header to ensure all allocations for a new stream are
+		// done here
+		handlers.getStream(header)
+
+		for b.Loop() {
+			stream, err := handlers.getStream(header)
+			if err != nil {
+				b.Fatalf("getStream failed: %v", err)
+			}
+			if stream == nil {
+				b.Fatal("getStream returned nil stream")
+			}
+		}
+	}
+
+	b.Run("GlobalStream", func(b *testing.B) {
+		run(b, 0)
+	})
+
+	b.Run("NonGlobalStream", func(b *testing.B) {
+		run(b, 120)
+	})
+}

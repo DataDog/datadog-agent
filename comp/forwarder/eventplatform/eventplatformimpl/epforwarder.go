@@ -447,6 +447,7 @@ func newHTTPPassthroughPipeline(
 		destinationsContext,
 		desc.eventType,
 		desc.contentType,
+		desc.category,
 		sender.DefaultQueuesCount,
 		sender.DefaultWorkersPerQueue,
 		endpoints.BatchMaxConcurrentSend,
