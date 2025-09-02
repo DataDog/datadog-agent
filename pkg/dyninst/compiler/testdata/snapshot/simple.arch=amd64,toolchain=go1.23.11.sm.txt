@@ -135,19 +135,19 @@
 	Call 08 02 00 00 // ProcessExpression[Probe[main.stringSliceArg]@0x4a62aa.expr[0]]
 	Return 
 // 0x240: ProcessType[*****int]
-	ProcessPointer 3e 00 00 00 
+	ProcessPointer 32 00 00 00 
 	Return 
 // 0x246: ProcessType[****int]
-	ProcessPointer 3f 00 00 00 
+	ProcessPointer 3e 00 00 00 
 	Return 
 // 0x24c: ProcessType[***int]
-	ProcessPointer 40 00 00 00 
+	ProcessPointer 33 00 00 00 
 	Return 
 // 0x252: ProcessType[**int]
 	ProcessPointer 1b 00 00 00 
 	Return 
 // 0x258: ProcessType[*[]*runtime.bmap]
-	ProcessPointer 30 00 00 00 
+	ProcessPointer 38 00 00 00 
 	Return 
 // 0x25e: ProcessType[*bool]
 	ProcessPointer 04 00 00 00 
@@ -156,7 +156,7 @@
 	ProcessPointer 29 00 00 00 
 	Return 
 // 0x26a: ProcessType[*bucket<string,main.bigStruct>]
-	ProcessPointer 38 00 00 00 
+	ProcessPointer 30 00 00 00 
 	Return 
 // 0x270: ProcessType[*error]
 	ProcessPointer 12 00 00 00 
@@ -177,13 +177,13 @@
 	ProcessPointer 0d 00 00 00 
 	Return 
 // 0x294: ProcessType[*main.bigStruct]
-	ProcessPointer 3b 00 00 00 
+	ProcessPointer 3d 00 00 00 
 	Return 
 // 0x29a: ProcessType[*runtime.bmap]
-	ProcessPointer 33 00 00 00 
+	ProcessPointer 3a 00 00 00 
 	Return 
 // 0x2a0: ProcessType[*runtime.mapextra]
-	ProcessPointer 2e 00 00 00 
+	ProcessPointer 2b 00 00 00 
 	Return 
 // 0x2a6: ProcessType[*string]
 	ProcessPointer 0a 00 00 00 
@@ -212,7 +212,7 @@
 	ProcessSliceDataRepeat 10 00 00 00 
 	Return 
 // 0x2e0: ProcessType[[]*runtime.bmap]
-	ProcessSlice 48 00 00 00 08 00 00 00 
+	ProcessSlice 49 00 00 00 08 00 00 00 
 	Return 
 // 0x2ea: ProcessType[[]*runtime.bmap.array]
 	ProcessSliceDataPrep 
@@ -269,13 +269,13 @@
 	ProcessGoHmap 47 00 00 00 d0 00 00 00 08 09 10 18 
 	Return 
 // 0x388: ProcessType[hash<string,main.bigStruct>]
-	ProcessGoHmap 4a 00 00 00 d0 00 00 00 08 09 10 18 
+	ProcessGoHmap 48 00 00 00 d0 00 00 00 08 09 10 18 
 	Return 
 // 0x396: ProcessType[map[string]int]
 	ProcessPointer 27 00 00 00 
 	Return 
 // 0x39c: ProcessType[map[string]main.bigStruct]
-	ProcessPointer 36 00 00 00 
+	ProcessPointer 2e 00 00 00 
 	Return 
 // 0x3a2: ProcessType[runtime.mapextra]
 	Call 58 02 00 00 // ProcessType[*[]*runtime.bmap]
@@ -343,29 +343,29 @@ ID: 38 Len: 8 Enqueue: 0
 ID: 39 Len: 48 Enqueue: 890
 ID: 40 Len: 8 Enqueue: 612
 ID: 41 Len: 208 Enqueue: 846
-ID: 42 Len: 8 Enqueue: 0
-ID: 43 Len: 128 Enqueue: 792
-ID: 44 Len: 64 Enqueue: 0
-ID: 45 Len: 8 Enqueue: 672
-ID: 46 Len: 24 Enqueue: 930
-ID: 47 Len: 8 Enqueue: 600
-ID: 48 Len: 24 Enqueue: 736
-ID: 49 Len: 8 Enqueue: 0
-ID: 50 Len: 8 Enqueue: 666
-ID: 51 Len: 8 Enqueue: 0
-ID: 52 Len: 8 Enqueue: 924
-ID: 53 Len: 8 Enqueue: 0
-ID: 54 Len: 48 Enqueue: 904
-ID: 55 Len: 8 Enqueue: 618
-ID: 56 Len: 208 Enqueue: 867
-ID: 57 Len: 64 Enqueue: 830
-ID: 58 Len: 8 Enqueue: 660
-ID: 59 Len: 184 Enqueue: 0
-ID: 60 Len: 128 Enqueue: 0
-ID: 61 Len: 8 Enqueue: 576
-ID: 62 Len: 8 Enqueue: 582
-ID: 63 Len: 8 Enqueue: 588
-ID: 64 Len: 8 Enqueue: 594
+ID: 42 Len: 8 Enqueue: 672
+ID: 43 Len: 24 Enqueue: 930
+ID: 44 Len: 8 Enqueue: 924
+ID: 45 Len: 8 Enqueue: 0
+ID: 46 Len: 48 Enqueue: 904
+ID: 47 Len: 8 Enqueue: 618
+ID: 48 Len: 208 Enqueue: 867
+ID: 49 Len: 8 Enqueue: 576
+ID: 50 Len: 8 Enqueue: 582
+ID: 51 Len: 8 Enqueue: 594
+ID: 52 Len: 8 Enqueue: 0
+ID: 53 Len: 128 Enqueue: 792
+ID: 54 Len: 64 Enqueue: 0
+ID: 55 Len: 8 Enqueue: 600
+ID: 56 Len: 24 Enqueue: 736
+ID: 57 Len: 8 Enqueue: 666
+ID: 58 Len: 8 Enqueue: 0
+ID: 59 Len: 64 Enqueue: 830
+ID: 60 Len: 8 Enqueue: 660
+ID: 61 Len: 184 Enqueue: 0
+ID: 62 Len: 8 Enqueue: 588
+ID: 63 Len: 8 Enqueue: 0
+ID: 64 Len: 128 Enqueue: 0
 ID: 65 Len: 2048 Enqueue: 0
 ID: 66 Len: 8 Enqueue: 0
 ID: 67 Len: 2048 Enqueue: 0
@@ -373,9 +373,9 @@ ID: 68 Len: 8 Enqueue: 0
 ID: 69 Len: 2048 Enqueue: 818
 ID: 70 Len: 8 Enqueue: 0
 ID: 71 Len: 2048 Enqueue: 758
-ID: 72 Len: 2048 Enqueue: 746
-ID: 73 Len: 8 Enqueue: 0
-ID: 74 Len: 2048 Enqueue: 770
+ID: 72 Len: 2048 Enqueue: 770
+ID: 73 Len: 2048 Enqueue: 746
+ID: 74 Len: 8 Enqueue: 0
 ID: 75 Len: 9 Enqueue: 0
 ID: 76 Len: 17 Enqueue: 0
 ID: 77 Len: 25 Enqueue: 0

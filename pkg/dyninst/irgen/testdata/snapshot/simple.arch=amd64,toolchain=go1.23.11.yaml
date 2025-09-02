@@ -288,7 +288,7 @@ Subprograms:
       InlinePCRanges: []
       Variables:
         - Name: m
-          Type: 52 GoMapType map[string]main.bigStruct
+          Type: 44 GoMapType map[string]main.bigStruct
           Locations:
             - Range: 0x4a64e0..0x4a6513
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
@@ -320,7 +320,7 @@ Subprograms:
           RootRanges: [0x4a5c40..0x4a609d]
       Variables:
         - Name: ptr
-          Type: 61 PointerType *****int
+          Type: 49 PointerType *****int
           Locations:
             - Range: 0x4a5fdf..0x4a602b
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
@@ -334,7 +334,7 @@ Subprograms:
           RootRanges: [0x4a5c40..0x4a609d]
       Variables:
         - Name: ptr
-          Type: 64 PointerType **int
+          Type: 51 PointerType **int
           Locations:
             - Range: 0x4a6050..0x4a608a
               Pieces: [{Size: 8, Op: {RegNo: 1, Shift: 0}}]
@@ -342,50 +342,50 @@ Subprograms:
           IsReturn: false
 Types:
     - __kind: PointerType
-      ID: 61
+      ID: 49
       Name: '*****int'
       ByteSize: 8
       GoRuntimeType: 32512
       GoKind: 22
-      Pointee: 62 PointerType ****int
+      Pointee: 50 PointerType ****int
     - __kind: PointerType
-      ID: 62
+      ID: 50
       Name: '****int'
       ByteSize: 8
       GoRuntimeType: 32448
       GoKind: 22
-      Pointee: 63 PointerType ***int
+      Pointee: 62 PointerType ***int
     - __kind: PointerType
-      ID: 63
+      ID: 62
       Name: '***int'
       ByteSize: 8
       GoRuntimeType: 32384
       GoKind: 22
-      Pointee: 64 PointerType **int
+      Pointee: 51 PointerType **int
     - __kind: PointerType
-      ID: 64
+      ID: 51
       Name: '**int'
       ByteSize: 8
       GoRuntimeType: 32320
       GoKind: 22
       Pointee: 27 PointerType *int
     - __kind: PointerType
-      ID: 49
+      ID: 63
       Name: '**runtime.bmap'
       ByteSize: 8
-      Pointee: 50 PointerType *runtime.bmap
+      Pointee: 57 PointerType *runtime.bmap
     - __kind: PointerType
-      ID: 47
+      ID: 55
       Name: '*[]*runtime.bmap'
       ByteSize: 8
       GoRuntimeType: 35968
       GoKind: 22
-      Pointee: 48 GoSliceHeaderType []*runtime.bmap
+      Pointee: 56 GoSliceHeaderType []*runtime.bmap
     - __kind: PointerType
-      ID: 73
+      ID: 74
       Name: '*[]*runtime.bmap.array'
       ByteSize: 8
-      Pointee: 72 GoSliceDataType []*runtime.bmap.array
+      Pointee: 73 GoSliceDataType []*runtime.bmap.array
     - __kind: PointerType
       ID: 68
       Name: '*[]int.array'
@@ -409,10 +409,10 @@ Types:
       ByteSize: 8
       Pointee: 41 GoHMapBucketType bucket<string,int>
     - __kind: PointerType
-      ID: 55
+      ID: 47
       Name: '*bucket<string,main.bigStruct>'
       ByteSize: 8
-      Pointee: 56 GoHMapBucketType bucket<string,main.bigStruct>
+      Pointee: 48 GoHMapBucketType bucket<string,main.bigStruct>
     - __kind: PointerType
       ID: 29
       Name: '*error'
@@ -440,10 +440,10 @@ Types:
       ByteSize: 8
       Pointee: 39 GoHMapHeaderType hash<string,int>
     - __kind: PointerType
-      ID: 53
+      ID: 45
       Name: '*hash<string,main.bigStruct>'
       ByteSize: 8
-      Pointee: 54 GoHMapHeaderType hash<string,main.bigStruct>
+      Pointee: 46 GoHMapHeaderType hash<string,main.bigStruct>
     - __kind: PointerType
       ID: 27
       Name: '*int'
@@ -466,26 +466,26 @@ Types:
       GoKind: 22
       Pointee: 13 BaseType int64
     - __kind: PointerType
-      ID: 58
+      ID: 60
       Name: '*main.bigStruct'
       ByteSize: 8
       GoRuntimeType: 24256
       GoKind: 22
-      Pointee: 59 StructureType main.bigStruct
+      Pointee: 61 StructureType main.bigStruct
     - __kind: PointerType
-      ID: 50
+      ID: 57
       Name: '*runtime.bmap'
       ByteSize: 8
       GoRuntimeType: 66528
       GoKind: 22
-      Pointee: 51 StructureType runtime.bmap
+      Pointee: 58 StructureType runtime.bmap
     - __kind: PointerType
-      ID: 45
+      ID: 42
       Name: '*runtime.mapextra'
       ByteSize: 8
       GoRuntimeType: 29760
       GoKind: 22
-      Pointee: 46 StructureType runtime.mapextra
+      Pointee: 43 StructureType runtime.mapextra
     - __kind: PointerType
       ID: 22
       Name: '*string'
@@ -549,7 +549,7 @@ Types:
         - Name: ptr
           Offset: 1
           Expression:
-            Type: 61 PointerType *****int
+            Type: 49 PointerType *****int
             Operations:
                 - __kind: LocationOp
                   Variable: {subprogram: 11, index: 0, name: ptr}
@@ -564,7 +564,7 @@ Types:
         - Name: ptr
           Offset: 1
           Expression:
-            Type: 64 PointerType **int
+            Type: 51 PointerType **int
             Operations:
                 - __kind: LocationOp
                   Variable: {subprogram: 12, index: 0, name: ptr}
@@ -579,7 +579,7 @@ Types:
         - Name: m
           Offset: 1
           Expression:
-            Type: 52 GoMapType map[string]main.bigStruct
+            Type: 44 GoMapType map[string]main.bigStruct
             Operations:
                 - __kind: LocationOp
                   Variable: {subprogram: 9, index: 0, name: m}
@@ -721,7 +721,7 @@ Types:
                   Offset: 0
                   ByteSize: 24
     - __kind: ArrayType
-      ID: 60
+      ID: 64
       Name: '[128]uint8'
       ByteSize: 128
       GoRuntimeType: 41888
@@ -748,7 +748,7 @@ Types:
       HasCount: true
       Element: 10 GoStringHeaderType string
     - __kind: ArrayType
-      ID: 42
+      ID: 52
       Name: '[8]uint8'
       ByteSize: 8
       GoRuntimeType: 41600
@@ -757,7 +757,7 @@ Types:
       HasCount: true
       Element: 3 BaseType uint8
     - __kind: GoSliceHeaderType
-      ID: 48
+      ID: 56
       Name: '[]*runtime.bmap'
       ByteSize: 24
       GoRuntimeType: 35904
@@ -765,29 +765,29 @@ Types:
       RawFields:
         - Name: array
           Offset: 0
-          Type: 49 PointerType **runtime.bmap
+          Type: 63 PointerType **runtime.bmap
         - Name: len
           Offset: 8
           Type: 9 BaseType int
         - Name: cap
           Offset: 16
           Type: 9 BaseType int
-      Data: 72 GoSliceDataType []*runtime.bmap.array
+      Data: 73 GoSliceDataType []*runtime.bmap.array
     - __kind: GoSliceDataType
-      ID: 72
+      ID: 73
       Name: '[]*runtime.bmap.array'
       ByteSize: 2048
-      Element: 50 PointerType *runtime.bmap
+      Element: 57 PointerType *runtime.bmap
     - __kind: GoSliceDataType
       ID: 71
       Name: '[]bucket<string,int>.array'
       ByteSize: 2048
       Element: 41 GoHMapBucketType bucket<string,int>
     - __kind: GoSliceDataType
-      ID: 74
+      ID: 72
       Name: '[]bucket<string,main.bigStruct>.array'
       ByteSize: 2048
-      Element: 56 GoHMapBucketType bucket<string,main.bigStruct>
+      Element: 48 GoHMapBucketType bucket<string,main.bigStruct>
     - __kind: GoSliceHeaderType
       ID: 33
       Name: '[]int'
@@ -811,7 +811,7 @@ Types:
       ByteSize: 2048
       Element: 9 BaseType int
     - __kind: ArrayType
-      ID: 43
+      ID: 53
       Name: '[]key<string>'
       ByteSize: 128
       Count: 8
@@ -840,19 +840,19 @@ Types:
       ByteSize: 2048
       Element: 10 GoStringHeaderType string
     - __kind: ArrayType
-      ID: 44
+      ID: 54
       Name: '[]val<int>'
       ByteSize: 64
       Count: 8
       HasCount: true
       Element: 9 BaseType int
     - __kind: ArrayType
-      ID: 57
+      ID: 59
       Name: '[]val<main.bigStruct>'
       ByteSize: 64
       Count: 8
       HasCount: true
-      Element: 58 PointerType *main.bigStruct
+      Element: 60 PointerType *main.bigStruct
     - __kind: BaseType
       ID: 4
       Name: bool
@@ -866,37 +866,37 @@ Types:
       RawFields:
         - Name: tophash
           Offset: 0
-          Type: 42 ArrayType [8]uint8
+          Type: 52 ArrayType [8]uint8
         - Name: keys
           Offset: 8
-          Type: 43 ArrayType []key<string>
+          Type: 53 ArrayType []key<string>
         - Name: values
           Offset: 136
-          Type: 44 ArrayType []val<int>
+          Type: 54 ArrayType []val<int>
         - Name: overflow
           Offset: 200
           Type: 40 PointerType *bucket<string,int>
       KeyType: 10 GoStringHeaderType string
       ValueType: 9 BaseType int
     - __kind: GoHMapBucketType
-      ID: 56
+      ID: 48
       Name: bucket<string,main.bigStruct>
       ByteSize: 208
       RawFields:
         - Name: tophash
           Offset: 0
-          Type: 42 ArrayType [8]uint8
+          Type: 52 ArrayType [8]uint8
         - Name: keys
           Offset: 8
-          Type: 43 ArrayType []key<string>
+          Type: 53 ArrayType []key<string>
         - Name: values
           Offset: 136
-          Type: 57 ArrayType []val<main.bigStruct>
+          Type: 59 ArrayType []val<main.bigStruct>
         - Name: overflow
           Offset: 200
-          Type: 55 PointerType *bucket<string,main.bigStruct>
+          Type: 47 PointerType *bucket<string,main.bigStruct>
       KeyType: 10 GoStringHeaderType string
-      ValueType: 58 PointerType *main.bigStruct
+      ValueType: 60 PointerType *main.bigStruct
     - __kind: BaseType
       ID: 24
       Name: complex128
@@ -965,11 +965,11 @@ Types:
           Type: 1 BaseType uintptr
         - Name: extra
           Offset: 40
-          Type: 45 PointerType *runtime.mapextra
+          Type: 42 PointerType *runtime.mapextra
       BucketType: 41 GoHMapBucketType bucket<string,int>
       BucketsType: 71 GoSliceDataType []bucket<string,int>.array
     - __kind: GoHMapHeaderType
-      ID: 54
+      ID: 46
       Name: hash<string,main.bigStruct>
       ByteSize: 48
       RawFields:
@@ -990,18 +990,18 @@ Types:
           Type: 2 BaseType uint32
         - Name: buckets
           Offset: 16
-          Type: 55 PointerType *bucket<string,main.bigStruct>
+          Type: 47 PointerType *bucket<string,main.bigStruct>
         - Name: oldbuckets
           Offset: 24
-          Type: 55 PointerType *bucket<string,main.bigStruct>
+          Type: 47 PointerType *bucket<string,main.bigStruct>
         - Name: nevacuate
           Offset: 32
           Type: 1 BaseType uintptr
         - Name: extra
           Offset: 40
-          Type: 45 PointerType *runtime.mapextra
-      BucketType: 56 GoHMapBucketType bucket<string,main.bigStruct>
-      BucketsType: 74 GoSliceDataType []bucket<string,main.bigStruct>.array
+          Type: 42 PointerType *runtime.mapextra
+      BucketType: 48 GoHMapBucketType bucket<string,main.bigStruct>
+      BucketsType: 72 GoSliceDataType []bucket<string,main.bigStruct>.array
     - __kind: BaseType
       ID: 9
       Name: int
@@ -1027,7 +1027,7 @@ Types:
       GoRuntimeType: 37504
       GoKind: 3
     - __kind: StructureType
-      ID: 59
+      ID: 61
       Name: main.bigStruct
       ByteSize: 184
       GoRuntimeType: 110528
@@ -1056,7 +1056,7 @@ Types:
           Type: 9 BaseType int
         - Name: data
           Offset: 56
-          Type: 60 ArrayType [128]uint8
+          Type: 64 ArrayType [128]uint8
     - __kind: GoMapType
       ID: 37
       Name: map[string]int
@@ -1065,14 +1065,14 @@ Types:
       GoKind: 21
       HeaderType: 39 GoHMapHeaderType hash<string,int>
     - __kind: GoMapType
-      ID: 52
+      ID: 44
       Name: map[string]main.bigStruct
       ByteSize: 8
       GoRuntimeType: 54752
       GoKind: 21
-      HeaderType: 54 GoHMapHeaderType hash<string,main.bigStruct>
+      HeaderType: 46 GoHMapHeaderType hash<string,main.bigStruct>
     - __kind: StructureType
-      ID: 51
+      ID: 58
       Name: runtime.bmap
       ByteSize: 8
       GoRuntimeType: 66400
@@ -1080,9 +1080,9 @@ Types:
       RawFields:
         - Name: tophash
           Offset: 0
-          Type: 42 ArrayType [8]uint8
+          Type: 52 ArrayType [8]uint8
     - __kind: StructureType
-      ID: 46
+      ID: 43
       Name: runtime.mapextra
       ByteSize: 24
       GoRuntimeType: 87232
@@ -1090,13 +1090,13 @@ Types:
       RawFields:
         - Name: overflow
           Offset: 0
-          Type: 47 PointerType *[]*runtime.bmap
+          Type: 55 PointerType *[]*runtime.bmap
         - Name: oldoverflow
           Offset: 8
-          Type: 47 PointerType *[]*runtime.bmap
+          Type: 55 PointerType *[]*runtime.bmap
         - Name: nextOverflow
           Offset: 16
-          Type: 50 PointerType *runtime.bmap
+          Type: 57 PointerType *runtime.bmap
     - __kind: GoStringHeaderType
       ID: 10
       Name: string

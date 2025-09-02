@@ -135,13 +135,13 @@
 	Call 08 02 00 00 // ProcessExpression[Probe[main.stringSliceArg]@0xb7fbc.expr[0]]
 	Return 
 // 0x240: ProcessType[*****int]
-	ProcessPointer 40 00 00 00 
+	ProcessPointer 31 00 00 00 
 	Return 
 // 0x246: ProcessType[****int]
-	ProcessPointer 41 00 00 00 
+	ProcessPointer 35 00 00 00 
 	Return 
 // 0x24c: ProcessType[***int]
-	ProcessPointer 42 00 00 00 
+	ProcessPointer 32 00 00 00 
 	Return 
 // 0x252: ProcessType[**int]
 	ProcessPointer 1b 00 00 00 
@@ -168,16 +168,16 @@
 	ProcessPointer 0d 00 00 00 
 	Return 
 // 0x282: ProcessType[*main.bigStruct]
-	ProcessPointer 3d 00 00 00 
+	ProcessPointer 41 00 00 00 
 	Return 
 // 0x288: ProcessType[*string]
 	ProcessPointer 09 00 00 00 
 	Return 
 // 0x28e: ProcessType[*table<string,int>]
-	ProcessPointer 2b 00 00 00 
+	ProcessPointer 33 00 00 00 
 	Return 
 // 0x294: ProcessType[*table<string,main.bigStruct>]
-	ProcessPointer 36 00 00 00 
+	ProcessPointer 34 00 00 00 
 	Return 
 // 0x29a: ProcessType[*uint]
 	ProcessPointer 0a 00 00 00 
@@ -243,16 +243,16 @@
 	ProcessGoSwissMapGroups 4c 00 00 00 c8 00 00 00 00 08 
 	Return 
 // 0x338: ProcessType[map<string,int>]
-	ProcessGoSwissMap 49 00 00 00 2e 00 00 00 10 18 
+	ProcessGoSwissMap 49 00 00 00 38 00 00 00 10 18 
 	Return 
 // 0x344: ProcessType[map<string,main.bigStruct>]
-	ProcessGoSwissMap 4b 00 00 00 39 00 00 00 10 18 
+	ProcessGoSwissMap 4b 00 00 00 3b 00 00 00 10 18 
 	Return 
 // 0x350: ProcessType[map[string]int]
 	ProcessPointer 28 00 00 00 
 	Return 
 // 0x356: ProcessType[map[string]main.bigStruct]
-	ProcessPointer 33 00 00 00 
+	ProcessPointer 2d 00 00 00 
 	Return 
 // 0x35c: ProcessType[noalg.[8]struct { key string; elem *main.bigStruct }]
 	ProcessArrayDataPrep c0 00 00 00 
@@ -348,30 +348,30 @@ ID: 39 Len: 8 Enqueue: 0
 ID: 40 Len: 48 Enqueue: 824
 ID: 41 Len: 8 Enqueue: 0
 ID: 42 Len: 8 Enqueue: 654
-ID: 43 Len: 32 Enqueue: 942
-ID: 44 Len: 16 Enqueue: 800
-ID: 45 Len: 8 Enqueue: 0
-ID: 46 Len: 200 Enqueue: 892
-ID: 47 Len: 192 Enqueue: 876
-ID: 48 Len: 24 Enqueue: 930
-ID: 49 Len: 8 Enqueue: 854
-ID: 50 Len: 8 Enqueue: 0
-ID: 51 Len: 48 Enqueue: 836
-ID: 52 Len: 8 Enqueue: 0
-ID: 53 Len: 8 Enqueue: 660
-ID: 54 Len: 32 Enqueue: 953
-ID: 55 Len: 16 Enqueue: 812
-ID: 56 Len: 8 Enqueue: 0
-ID: 57 Len: 200 Enqueue: 903
-ID: 58 Len: 192 Enqueue: 860
-ID: 59 Len: 24 Enqueue: 914
-ID: 60 Len: 8 Enqueue: 642
-ID: 61 Len: 184 Enqueue: 0
-ID: 62 Len: 128 Enqueue: 0
-ID: 63 Len: 8 Enqueue: 576
-ID: 64 Len: 8 Enqueue: 582
-ID: 65 Len: 8 Enqueue: 588
-ID: 66 Len: 8 Enqueue: 594
+ID: 43 Len: 8 Enqueue: 854
+ID: 44 Len: 8 Enqueue: 0
+ID: 45 Len: 48 Enqueue: 836
+ID: 46 Len: 8 Enqueue: 0
+ID: 47 Len: 8 Enqueue: 660
+ID: 48 Len: 8 Enqueue: 576
+ID: 49 Len: 8 Enqueue: 582
+ID: 50 Len: 8 Enqueue: 594
+ID: 51 Len: 32 Enqueue: 942
+ID: 52 Len: 32 Enqueue: 953
+ID: 53 Len: 8 Enqueue: 588
+ID: 54 Len: 16 Enqueue: 800
+ID: 55 Len: 8 Enqueue: 0
+ID: 56 Len: 200 Enqueue: 892
+ID: 57 Len: 16 Enqueue: 812
+ID: 58 Len: 8 Enqueue: 0
+ID: 59 Len: 200 Enqueue: 903
+ID: 60 Len: 192 Enqueue: 876
+ID: 61 Len: 24 Enqueue: 930
+ID: 62 Len: 192 Enqueue: 860
+ID: 63 Len: 24 Enqueue: 914
+ID: 64 Len: 8 Enqueue: 642
+ID: 65 Len: 184 Enqueue: 0
+ID: 66 Len: 128 Enqueue: 0
 ID: 67 Len: 2048 Enqueue: 0
 ID: 68 Len: 8 Enqueue: 0
 ID: 69 Len: 2048 Enqueue: 0

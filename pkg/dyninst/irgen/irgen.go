@@ -232,7 +232,7 @@ func generateIR(
 func materializePending(
 	loclistReader *loclist.Reader,
 	pointerSize uint8,
-	typeCatalog *typeCatalog,
+	tc *typeCatalog,
 	pending []*pendingSubprogram,
 ) ([]*ir.Subprogram, error) {
 	subprograms := make([]*ir.Subprogram, 0, len(pending))
@@ -255,7 +255,7 @@ func materializePending(
 			v, err := processVariable(
 				p.unit, die, die.Tag == dwarf.TagFormalParameter,
 				parseLocs, ranges,
-				loclistReader, pointerSize, typeCatalog,
+				loclistReader, pointerSize, tc,
 			)
 			if err != nil {
 				return nil, err
@@ -295,7 +295,7 @@ func materializePending(
 					v, err := processVariable(
 						p.unit, inlVar, inlVar.Tag == dwarf.TagFormalParameter,
 						true /* parseLocations */, ranges,
-						loclistReader, pointerSize, typeCatalog,
+						loclistReader, pointerSize, tc,
 					)
 					if err != nil {
 						return nil, err
@@ -305,6 +305,33 @@ func materializePending(
 			}
 		}
 		subprograms = append(subprograms, sp)
+	}
+
+	// Resolve all placeholder types until we reach a fixed point.
+	var nextToCheck ir.TypeID = 1
+	var it int
+	const maxIterations = 1000 // sanity check
+	for ; ; it++ {
+		if it == maxIterations {
+			return nil, fmt.Errorf("bug: max iterations reached while resolving placeholder types")
+		}
+		m := tc.idAlloc.alloc
+		var added int
+		for i := nextToCheck; i <= m; i++ {
+			t, ok := tc.typesByID[i].(*pointeePlaceholderType)
+			if !ok {
+				continue
+			}
+			if _, err := tc.addType(t.offset); err != nil {
+				return nil, err
+			}
+			added++
+		}
+		if added == 0 {
+			break
+		}
+		nextToCheck = m
+		it++
 	}
 	return subprograms, nil
 }
