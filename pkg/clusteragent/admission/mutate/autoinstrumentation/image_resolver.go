@@ -111,8 +111,8 @@ func (r *remoteConfigImageResolver) waitForInitialConfig(timeout time.Duration) 
 // Resolve resolves a registry, repository, and tag to a digest-based reference.
 // Input: "gcr.io/datadoghq", "dd-lib-python-init", "v3"
 // Output: "gcr.io/datadoghq/dd-lib-python-init@sha256:abc123...", true
-// If resolution fails or is not available, it returns the original image reference.
-// Output: "gcr.io/datadoghq/dd-lib-python-init:v3", false
+// If resolution fails or is not available, it returns nil.
+// Output: nil, false
 func (r *remoteConfigImageResolver) Resolve(registry string, repository string, tag string) (*ResolvedImage, bool) {
 	if !isDatadoghqRegistry(registry) {
 		log.Debugf("Not a Datadoghq registry, not resolving")

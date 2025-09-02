@@ -328,7 +328,7 @@ func TestRemoteConfigImageResolver_ErrorHandling(t *testing.T) {
 func TestRemoteConfigImageResolver_ConcurrentAccess(t *testing.T) {
 	resolver := newRemoteConfigImageResolver(newMockRCClient("image_resolver_multi_repo.json")).(*remoteConfigImageResolver)
 
-	t.Run("concurrent_read_write", func(t *testing.T) {
+	t.Run("concurrent_read_write", func(_ *testing.T) {
 		var wg sync.WaitGroup
 		numReaders := 10
 		numWriters := 3
