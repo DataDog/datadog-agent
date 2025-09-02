@@ -103,6 +103,9 @@ func UnmarshalKey(cfg model.Reader, key string, target interface{}, opts ...Unma
 
 	if fs.stringUnmarshal {
 		rawval := cfg.Get(key)
+		if rawval == nil {
+			return nil
+		}
 		if str, ok := rawval.(string); ok {
 			if str == "" {
 				return nil
@@ -127,6 +130,10 @@ func unmarshalKeyReflection(cfg model.Reader, key string, target interface{}, op
 		o(fs)
 	}
 	rawval := cfg.Get(key)
+	// Don't create a reflect.Value out of nil, just return immediately
+	if rawval == nil {
+		return nil
+	}
 
 	if fs.stringUnmarshal {
 		if str, ok := rawval.(string); ok {
@@ -137,10 +144,6 @@ func unmarshalKeyReflection(cfg model.Reader, key string, target interface{}, op
 		}
 	}
 
-	// Don't create a reflect.Value out of nil, just return immediately
-	if rawval == nil {
-		return nil
-	}
 	input, err := nodetreemodel.NewNodeTree(rawval, cfg.GetSource(key))
 	if err != nil {
 		return err
