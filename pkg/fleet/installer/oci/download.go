@@ -229,9 +229,14 @@ func getRefAndKeychain(env *env.Env, url string) urlWithKeychain {
 		}
 	}
 	return urlWithKeychain{
-		ref:      ref,
+		ref:      formatImageRef(ref),
 		keychain: keychain,
 	}
+}
+
+// formatImageRef formats the image ref by removing the http:// or https:// prefix.
+func formatImageRef(override string) string {
+	return strings.TrimPrefix(strings.TrimPrefix(override, "https://"), "http://")
 }
 
 // downloadRegistry downloads the image from a remote registry.
