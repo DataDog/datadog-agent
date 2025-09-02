@@ -29,7 +29,7 @@ func TestNewMap(t *testing.T) {
 	tests := []struct {
 		name string
 		pcfg PipelineConfig
-		ocfg map[string]interface{}
+		ocfg map[string]any
 	}{
 		{
 			name: "only gRPC, only Traces",
@@ -37,38 +37,42 @@ func TestNewMap(t *testing.T) {
 				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("bindhost", 1234, 0),
 				TracePort:          5003,
 				TracesEnabled:      true,
-				Debug: map[string]interface{}{
+				Debug: map[string]any{
 					"verbosity": "none",
 				},
 			},
-			ocfg: map[string]interface{}{
-				"receivers": map[string]interface{}{
-					"otlp": map[string]interface{}{
-						"protocols": map[string]interface{}{
-							"grpc": map[string]interface{}{
+			ocfg: map[string]any{
+				"receivers": map[string]any{
+					"otlp": map[string]any{
+						"protocols": map[string]any{
+							"grpc": map[string]any{
 								"endpoint": "bindhost:1234",
 							},
 						},
 					},
 				},
-				"exporters": map[string]interface{}{
-					"otlp": map[string]interface{}{
-						"tls": map[string]interface{}{
+				"processors": map[string]any{
+					"infraattributes": nil,
+				},
+				"exporters": map[string]any{
+					"otlp": map[string]any{
+						"tls": map[string]any{
 							"insecure": true,
 						},
 						"compression": "none",
 						"endpoint":    "localhost:5003",
-						"sending_queue": map[string]interface{}{
+						"sending_queue": map[string]any{
 							"enabled": false,
 						},
 					},
 				},
-				"service": map[string]interface{}{
-					"telemetry": map[string]interface{}{"metrics": map[string]interface{}{"level": "none"}},
-					"pipelines": map[string]interface{}{
-						"traces": map[string]interface{}{
-							"receivers": []interface{}{"otlp"},
-							"exporters": []interface{}{"otlp"},
+				"service": map[string]any{
+					"telemetry": map[string]any{"metrics": map[string]any{"level": "none"}},
+					"pipelines": map[string]any{
+						"traces": map[string]any{
+							"receivers":  []any{"otlp"},
+							"processors": []any{"infraattributes"},
+							"exporters":  []any{"otlp"},
 						},
 					},
 				},
@@ -81,68 +85,70 @@ func TestNewMap(t *testing.T) {
 				TracePort:          5003,
 				TracesEnabled:      true,
 				MetricsEnabled:     true,
-				Metrics: map[string]interface{}{
+				Metrics: map[string]any{
 					"delta_ttl":                              2000,
 					"resource_attributes_as_tags":            true,
 					"instrumentation_scope_metadata_as_tags": true,
-					"histograms": map[string]interface{}{
+					"histograms": map[string]any{
 						"mode":                   "counters",
 						"send_count_sum_metrics": true,
 					},
 				},
-				Debug: map[string]interface{}{
+				Debug: map[string]any{
 					"verbosity": "none",
 				},
 			},
-			ocfg: map[string]interface{}{
-				"receivers": map[string]interface{}{
-					"otlp": map[string]interface{}{
-						"protocols": map[string]interface{}{
-							"http": map[string]interface{}{
+			ocfg: map[string]any{
+				"receivers": map[string]any{
+					"otlp": map[string]any{
+						"protocols": map[string]any{
+							"http": map[string]any{
 								"endpoint": "bindhost:1234",
 							},
 						},
 					},
 				},
-				"processors": map[string]interface{}{
-					"batch": map[string]interface{}{
+				"processors": map[string]any{
+					"batch": map[string]any{
 						"timeout": "10s",
 					},
+					"infraattributes": nil,
 				},
-				"exporters": map[string]interface{}{
-					"otlp": map[string]interface{}{
-						"tls": map[string]interface{}{
+				"exporters": map[string]any{
+					"otlp": map[string]any{
+						"tls": map[string]any{
 							"insecure": true,
 						},
 						"compression": "none",
 						"endpoint":    "localhost:5003",
-						"sending_queue": map[string]interface{}{
+						"sending_queue": map[string]any{
 							"enabled": false,
 						},
 					},
-					"serializer": map[string]interface{}{
-						"metrics": map[string]interface{}{
+					"serializer": map[string]any{
+						"metrics": map[string]any{
 							"delta_ttl":                              2000,
 							"resource_attributes_as_tags":            true,
 							"instrumentation_scope_metadata_as_tags": true,
-							"histograms": map[string]interface{}{
+							"histograms": map[string]any{
 								"mode":                   "counters",
 								"send_count_sum_metrics": true,
 							},
 						},
 					},
 				},
-				"service": map[string]interface{}{
-					"telemetry": map[string]interface{}{"metrics": map[string]interface{}{"level": "none"}},
-					"pipelines": map[string]interface{}{
-						"traces": map[string]interface{}{
-							"receivers": []interface{}{"otlp"},
-							"exporters": []interface{}{"otlp"},
+				"service": map[string]any{
+					"telemetry": map[string]any{"metrics": map[string]any{"level": "none"}},
+					"pipelines": map[string]any{
+						"traces": map[string]any{
+							"receivers":  []any{"otlp"},
+							"processors": []any{"infraattributes"},
+							"exporters":  []any{"otlp"},
 						},
-						"metrics": map[string]interface{}{
-							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"batch"},
-							"exporters":  []interface{}{"serializer"},
+						"metrics": map[string]any{
+							"receivers":  []any{"otlp"},
+							"processors": []any{"batch", "infraattributes"},
+							"exporters":  []any{"serializer"},
 						},
 					},
 				},
@@ -155,68 +161,70 @@ func TestNewMap(t *testing.T) {
 				TracePort:          5003,
 				TracesEnabled:      true,
 				MetricsEnabled:     true,
-				Metrics: map[string]interface{}{
+				Metrics: map[string]any{
 					"delta_ttl":                              2000,
 					"resource_attributes_as_tags":            true,
 					"instrumentation_scope_metadata_as_tags": true,
-					"histograms": map[string]interface{}{
+					"histograms": map[string]any{
 						"mode":                   "counters",
 						"send_count_sum_metrics": true,
 					},
 				},
-				Debug: map[string]interface{}{
+				Debug: map[string]any{
 					"verbosity": "foo",
 				},
 			},
-			ocfg: map[string]interface{}{
-				"receivers": map[string]interface{}{
-					"otlp": map[string]interface{}{
-						"protocols": map[string]interface{}{
-							"http": map[string]interface{}{
+			ocfg: map[string]any{
+				"receivers": map[string]any{
+					"otlp": map[string]any{
+						"protocols": map[string]any{
+							"http": map[string]any{
 								"endpoint": "bindhost:1234",
 							},
 						},
 					},
 				},
-				"processors": map[string]interface{}{
-					"batch": map[string]interface{}{
+				"processors": map[string]any{
+					"batch": map[string]any{
 						"timeout": "10s",
 					},
+					"infraattributes": nil,
 				},
-				"exporters": map[string]interface{}{
-					"otlp": map[string]interface{}{
-						"tls": map[string]interface{}{
+				"exporters": map[string]any{
+					"otlp": map[string]any{
+						"tls": map[string]any{
 							"insecure": true,
 						},
 						"compression": "none",
 						"endpoint":    "localhost:5003",
-						"sending_queue": map[string]interface{}{
+						"sending_queue": map[string]any{
 							"enabled": false,
 						},
 					},
-					"serializer": map[string]interface{}{
-						"metrics": map[string]interface{}{
+					"serializer": map[string]any{
+						"metrics": map[string]any{
 							"delta_ttl":                              2000,
 							"resource_attributes_as_tags":            true,
 							"instrumentation_scope_metadata_as_tags": true,
-							"histograms": map[string]interface{}{
+							"histograms": map[string]any{
 								"mode":                   "counters",
 								"send_count_sum_metrics": true,
 							},
 						},
 					},
 				},
-				"service": map[string]interface{}{
-					"telemetry": map[string]interface{}{"metrics": map[string]interface{}{"level": "none"}},
-					"pipelines": map[string]interface{}{
-						"traces": map[string]interface{}{
-							"receivers": []interface{}{"otlp"},
-							"exporters": []interface{}{"otlp"},
+				"service": map[string]any{
+					"telemetry": map[string]any{"metrics": map[string]any{"level": "none"}},
+					"pipelines": map[string]any{
+						"traces": map[string]any{
+							"receivers":  []any{"otlp"},
+							"processors": []any{"infraattributes"},
+							"exporters":  []any{"otlp"},
 						},
-						"metrics": map[string]interface{}{
-							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"batch"},
-							"exporters":  []interface{}{"serializer"},
+						"metrics": map[string]any{
+							"receivers":  []any{"otlp"},
+							"processors": []any{"batch", "infraattributes"},
+							"exporters":  []any{"serializer"},
 						},
 					},
 				},
@@ -228,41 +236,45 @@ func TestNewMap(t *testing.T) {
 				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("bindhost", 1234, 5678),
 				TracePort:          5003,
 				TracesEnabled:      true,
-				Debug: map[string]interface{}{
+				Debug: map[string]any{
 					"verbosity": "none",
 				},
 			},
-			ocfg: map[string]interface{}{
-				"receivers": map[string]interface{}{
-					"otlp": map[string]interface{}{
-						"protocols": map[string]interface{}{
-							"grpc": map[string]interface{}{
+			ocfg: map[string]any{
+				"receivers": map[string]any{
+					"otlp": map[string]any{
+						"protocols": map[string]any{
+							"grpc": map[string]any{
 								"endpoint": "bindhost:1234",
 							},
-							"http": map[string]interface{}{
+							"http": map[string]any{
 								"endpoint": "bindhost:5678",
 							},
 						},
 					},
 				},
-				"exporters": map[string]interface{}{
-					"otlp": map[string]interface{}{
-						"tls": map[string]interface{}{
+				"processors": map[string]any{
+					"infraattributes": nil,
+				},
+				"exporters": map[string]any{
+					"otlp": map[string]any{
+						"tls": map[string]any{
 							"insecure": true,
 						},
 						"compression": "none",
 						"endpoint":    "localhost:5003",
-						"sending_queue": map[string]interface{}{
+						"sending_queue": map[string]any{
 							"enabled": false,
 						},
 					},
 				},
-				"service": map[string]interface{}{
-					"telemetry": map[string]interface{}{"metrics": map[string]interface{}{"level": "none"}},
-					"pipelines": map[string]interface{}{
-						"traces": map[string]interface{}{
-							"receivers": []interface{}{"otlp"},
-							"exporters": []interface{}{"otlp"},
+				"service": map[string]any{
+					"telemetry": map[string]any{"metrics": map[string]any{"level": "none"}},
+					"pipelines": map[string]any{
+						"traces": map[string]any{
+							"receivers":  []any{"otlp"},
+							"processors": []any{"infraattributes"},
+							"exporters":  []any{"otlp"},
 						},
 					},
 				},
@@ -274,54 +286,55 @@ func TestNewMap(t *testing.T) {
 				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("bindhost", 0, 1234),
 				TracePort:          5003,
 				MetricsEnabled:     true,
-				Metrics: map[string]interface{}{
+				Metrics: map[string]any{
 					"delta_ttl":                              1500,
 					"resource_attributes_as_tags":            false,
 					"instrumentation_scope_metadata_as_tags": false,
-					"histograms": map[string]interface{}{
+					"histograms": map[string]any{
 						"mode":                   "nobuckets",
 						"send_count_sum_metrics": true,
 					},
 				},
-				Debug: map[string]interface{}{
+				Debug: map[string]any{
 					"verbosity": "none",
 				},
 			},
-			ocfg: map[string]interface{}{
-				"receivers": map[string]interface{}{
-					"otlp": map[string]interface{}{
-						"protocols": map[string]interface{}{
-							"http": map[string]interface{}{
+			ocfg: map[string]any{
+				"receivers": map[string]any{
+					"otlp": map[string]any{
+						"protocols": map[string]any{
+							"http": map[string]any{
 								"endpoint": "bindhost:1234",
 							},
 						},
 					},
 				},
-				"processors": map[string]interface{}{
-					"batch": map[string]interface{}{
+				"processors": map[string]any{
+					"batch": map[string]any{
 						"timeout": "10s",
 					},
+					"infraattributes": nil,
 				},
-				"exporters": map[string]interface{}{
-					"serializer": map[string]interface{}{
-						"metrics": map[string]interface{}{
+				"exporters": map[string]any{
+					"serializer": map[string]any{
+						"metrics": map[string]any{
 							"delta_ttl":                              1500,
 							"resource_attributes_as_tags":            false,
 							"instrumentation_scope_metadata_as_tags": false,
-							"histograms": map[string]interface{}{
+							"histograms": map[string]any{
 								"mode":                   "nobuckets",
 								"send_count_sum_metrics": true,
 							},
 						},
 					},
 				},
-				"service": map[string]interface{}{
-					"telemetry": map[string]interface{}{"metrics": map[string]interface{}{"level": "none"}},
-					"pipelines": map[string]interface{}{
-						"metrics": map[string]interface{}{
-							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"batch"},
-							"exporters":  []interface{}{"serializer"},
+				"service": map[string]any{
+					"telemetry": map[string]any{"metrics": map[string]any{"level": "none"}},
+					"pipelines": map[string]any{
+						"metrics": map[string]any{
+							"receivers":  []any{"otlp"},
+							"processors": []any{"batch", "infraattributes"},
+							"exporters":  []any{"serializer"},
 						},
 					},
 				},
@@ -333,41 +346,45 @@ func TestNewMap(t *testing.T) {
 				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("bindhost", 1234, 0),
 				TracePort:          5003,
 				TracesEnabled:      true,
-				Debug: map[string]interface{}{
+				Debug: map[string]any{
 					"verbosity": "normal",
 				},
 			},
-			ocfg: map[string]interface{}{
-				"receivers": map[string]interface{}{
-					"otlp": map[string]interface{}{
-						"protocols": map[string]interface{}{
-							"grpc": map[string]interface{}{
+			ocfg: map[string]any{
+				"receivers": map[string]any{
+					"otlp": map[string]any{
+						"protocols": map[string]any{
+							"grpc": map[string]any{
 								"endpoint": "bindhost:1234",
 							},
 						},
 					},
 				},
-				"exporters": map[string]interface{}{
-					"otlp": map[string]interface{}{
-						"tls": map[string]interface{}{
+				"processors": map[string]any{
+					"infraattributes": nil,
+				},
+				"exporters": map[string]any{
+					"otlp": map[string]any{
+						"tls": map[string]any{
 							"insecure": true,
 						},
 						"compression": "none",
 						"endpoint":    "localhost:5003",
-						"sending_queue": map[string]interface{}{
+						"sending_queue": map[string]any{
 							"enabled": false,
 						},
 					},
-					"debug": map[string]interface{}{
+					"debug": map[string]any{
 						"verbosity": "normal",
 					},
 				},
-				"service": map[string]interface{}{
-					"telemetry": map[string]interface{}{"metrics": map[string]interface{}{"level": "none"}},
-					"pipelines": map[string]interface{}{
-						"traces": map[string]interface{}{
-							"receivers": []interface{}{"otlp"},
-							"exporters": []interface{}{"otlp", "debug"},
+				"service": map[string]any{
+					"telemetry": map[string]any{"metrics": map[string]any{"level": "none"}},
+					"pipelines": map[string]any{
+						"traces": map[string]any{
+							"receivers":  []any{"otlp"},
+							"processors": []any{"infraattributes"},
+							"exporters":  []any{"otlp", "debug"},
 						},
 					},
 				},
@@ -379,55 +396,56 @@ func TestNewMap(t *testing.T) {
 				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("bindhost", 0, 1234),
 				TracePort:          5003,
 				MetricsEnabled:     true,
-				Metrics: map[string]interface{}{
+				Metrics: map[string]any{
 					"delta_ttl":                   1500,
 					"resource_attributes_as_tags": false,
-					"histograms": map[string]interface{}{
+					"histograms": map[string]any{
 						"mode":                   "nobuckets",
 						"send_count_sum_metrics": true,
 					},
 				},
-				Debug: map[string]interface{}{
+				Debug: map[string]any{
 					"verbosity": "detailed",
 				},
 			},
-			ocfg: map[string]interface{}{
-				"receivers": map[string]interface{}{
-					"otlp": map[string]interface{}{
-						"protocols": map[string]interface{}{
-							"http": map[string]interface{}{
+			ocfg: map[string]any{
+				"receivers": map[string]any{
+					"otlp": map[string]any{
+						"protocols": map[string]any{
+							"http": map[string]any{
 								"endpoint": "bindhost:1234",
 							},
 						},
 					},
 				},
-				"processors": map[string]interface{}{
-					"batch": map[string]interface{}{
+				"processors": map[string]any{
+					"batch": map[string]any{
 						"timeout": "10s",
 					},
+					"infraattributes": nil,
 				},
-				"exporters": map[string]interface{}{
-					"serializer": map[string]interface{}{
-						"metrics": map[string]interface{}{
+				"exporters": map[string]any{
+					"serializer": map[string]any{
+						"metrics": map[string]any{
 							"delta_ttl":                   1500,
 							"resource_attributes_as_tags": false,
-							"histograms": map[string]interface{}{
+							"histograms": map[string]any{
 								"mode":                   "nobuckets",
 								"send_count_sum_metrics": true,
 							},
 						},
 					},
-					"debug": map[string]interface{}{
+					"debug": map[string]any{
 						"verbosity": "detailed",
 					},
 				},
-				"service": map[string]interface{}{
-					"telemetry": map[string]interface{}{"metrics": map[string]interface{}{"level": "none"}},
-					"pipelines": map[string]interface{}{
-						"metrics": map[string]interface{}{
-							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"batch"},
-							"exporters":  []interface{}{"serializer", "debug"},
+				"service": map[string]any{
+					"telemetry": map[string]any{"metrics": map[string]any{"level": "none"}},
+					"pipelines": map[string]any{
+						"metrics": map[string]any{
+							"receivers":  []any{"otlp"},
+							"processors": []any{"batch", "infraattributes"},
+							"exporters":  []any{"serializer", "debug"},
 						},
 					},
 				},
@@ -440,69 +458,71 @@ func TestNewMap(t *testing.T) {
 				TracePort:          5003,
 				TracesEnabled:      true,
 				MetricsEnabled:     true,
-				Metrics: map[string]interface{}{
+				Metrics: map[string]any{
 					"delta_ttl":                   2000,
 					"resource_attributes_as_tags": true,
-					"histograms": map[string]interface{}{
+					"histograms": map[string]any{
 						"mode":                   "counters",
 						"send_count_sum_metrics": true,
 					},
 				},
-				Debug: map[string]interface{}{
+				Debug: map[string]any{
 					"verbosity": "basic",
 				},
 			},
-			ocfg: map[string]interface{}{
-				"receivers": map[string]interface{}{
-					"otlp": map[string]interface{}{
-						"protocols": map[string]interface{}{
-							"http": map[string]interface{}{
+			ocfg: map[string]any{
+				"receivers": map[string]any{
+					"otlp": map[string]any{
+						"protocols": map[string]any{
+							"http": map[string]any{
 								"endpoint": "bindhost:1234",
 							},
 						},
 					},
 				},
-				"processors": map[string]interface{}{
-					"batch": map[string]interface{}{
+				"processors": map[string]any{
+					"batch": map[string]any{
 						"timeout": "10s",
 					},
+					"infraattributes": nil,
 				},
-				"exporters": map[string]interface{}{
-					"otlp": map[string]interface{}{
-						"tls": map[string]interface{}{
+				"exporters": map[string]any{
+					"otlp": map[string]any{
+						"tls": map[string]any{
 							"insecure": true,
 						},
 						"compression": "none",
 						"endpoint":    "localhost:5003",
-						"sending_queue": map[string]interface{}{
+						"sending_queue": map[string]any{
 							"enabled": false,
 						},
 					},
-					"serializer": map[string]interface{}{
-						"metrics": map[string]interface{}{
+					"serializer": map[string]any{
+						"metrics": map[string]any{
 							"delta_ttl":                   2000,
 							"resource_attributes_as_tags": true,
-							"histograms": map[string]interface{}{
+							"histograms": map[string]any{
 								"mode":                   "counters",
 								"send_count_sum_metrics": true,
 							},
 						},
 					},
-					"debug": map[string]interface{}{
+					"debug": map[string]any{
 						"verbosity": "basic",
 					},
 				},
-				"service": map[string]interface{}{
-					"telemetry": map[string]interface{}{"metrics": map[string]interface{}{"level": "none"}},
-					"pipelines": map[string]interface{}{
-						"traces": map[string]interface{}{
-							"receivers": []interface{}{"otlp"},
-							"exporters": []interface{}{"otlp", "debug"},
+				"service": map[string]any{
+					"telemetry": map[string]any{"metrics": map[string]any{"level": "none"}},
+					"pipelines": map[string]any{
+						"traces": map[string]any{
+							"receivers":  []any{"otlp"},
+							"processors": []any{"infraattributes"},
+							"exporters":  []any{"otlp", "debug"},
 						},
-						"metrics": map[string]interface{}{
-							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"batch"},
-							"exporters":  []interface{}{"serializer", "debug"},
+						"metrics": map[string]any{
+							"receivers":  []any{"otlp"},
+							"processors": []any{"batch", "infraattributes"},
+							"exporters":  []any{"serializer", "debug"},
 						},
 					},
 				},
@@ -515,50 +535,51 @@ func TestNewMap(t *testing.T) {
 				TracePort:          5003,
 				TracesEnabled:      true,
 				LogsEnabled:        true,
-				Debug: map[string]interface{}{
+				Debug: map[string]any{
 					"verbosity": "none",
 				},
 			},
-			ocfg: map[string]interface{}{
-				"receivers": map[string]interface{}{
-					"otlp": map[string]interface{}{
-						"protocols": map[string]interface{}{
-							"grpc": map[string]interface{}{
+			ocfg: map[string]any{
+				"receivers": map[string]any{
+					"otlp": map[string]any{
+						"protocols": map[string]any{
+							"grpc": map[string]any{
 								"endpoint": "bindhost:1234",
 							},
 						},
 					},
 				},
-				"exporters": map[string]interface{}{
-					"otlp": map[string]interface{}{
-						"tls": map[string]interface{}{
+				"processors": map[string]any{
+					"infraattributes": any(nil),
+					"batch": map[string]any{
+						"timeout": "10s",
+					},
+				},
+				"exporters": map[string]any{
+					"otlp": map[string]any{
+						"tls": map[string]any{
 							"insecure": true,
 						},
 						"compression": "none",
 						"endpoint":    "localhost:5003",
-						"sending_queue": map[string]interface{}{
+						"sending_queue": map[string]any{
 							"enabled": false,
 						},
 					},
-					"logsagent": interface{}(nil),
+					"logsagent": any(nil),
 				},
-				"processors": map[string]interface{}{
-					"infraattributes": interface{}(nil),
-					"batch": map[string]interface{}{
-						"timeout": "10s",
-					},
-				},
-				"service": map[string]interface{}{
-					"telemetry": map[string]interface{}{"metrics": map[string]interface{}{"level": "none"}},
-					"pipelines": map[string]interface{}{
-						"traces": map[string]interface{}{
-							"receivers": []interface{}{"otlp"},
-							"exporters": []interface{}{"otlp"},
+				"service": map[string]any{
+					"telemetry": map[string]any{"metrics": map[string]any{"level": "none"}},
+					"pipelines": map[string]any{
+						"traces": map[string]any{
+							"receivers":  []any{"otlp"},
+							"processors": []any{"infraattributes"},
+							"exporters":  []any{"otlp"},
 						},
-						"logs": map[string]interface{}{
-							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"infraattributes", "batch"},
-							"exporters":  []interface{}{"logsagent"},
+						"logs": map[string]any{
+							"receivers":  []any{"otlp"},
+							"processors": []any{"infraattributes", "batch"},
+							"exporters":  []any{"logsagent"},
 						},
 					},
 				},
@@ -572,75 +593,76 @@ func TestNewMap(t *testing.T) {
 				TracesEnabled:      true,
 				MetricsEnabled:     true,
 				LogsEnabled:        true,
-				Metrics: map[string]interface{}{
+				Metrics: map[string]any{
 					"delta_ttl":                              2000,
 					"resource_attributes_as_tags":            true,
 					"instrumentation_scope_metadata_as_tags": true,
-					"histograms": map[string]interface{}{
+					"histograms": map[string]any{
 						"mode":                   "counters",
 						"send_count_sum_metrics": true,
 					},
 				},
-				Debug: map[string]interface{}{
+				Debug: map[string]any{
 					"verbosity": "none",
 				},
 			},
-			ocfg: map[string]interface{}{
-				"receivers": map[string]interface{}{
-					"otlp": map[string]interface{}{
-						"protocols": map[string]interface{}{
-							"http": map[string]interface{}{
+			ocfg: map[string]any{
+				"receivers": map[string]any{
+					"otlp": map[string]any{
+						"protocols": map[string]any{
+							"http": map[string]any{
 								"endpoint": "bindhost:1234",
 							},
 						},
 					},
 				},
-				"processors": map[string]interface{}{
-					"infraattributes": interface{}(nil),
-					"batch": map[string]interface{}{
+				"processors": map[string]any{
+					"infraattributes": any(nil),
+					"batch": map[string]any{
 						"timeout": "10s",
 					},
 				},
-				"exporters": map[string]interface{}{
-					"otlp": map[string]interface{}{
-						"tls": map[string]interface{}{
+				"exporters": map[string]any{
+					"otlp": map[string]any{
+						"tls": map[string]any{
 							"insecure": true,
 						},
 						"compression": "none",
 						"endpoint":    "localhost:5003",
-						"sending_queue": map[string]interface{}{
+						"sending_queue": map[string]any{
 							"enabled": false,
 						},
 					},
-					"serializer": map[string]interface{}{
-						"metrics": map[string]interface{}{
+					"serializer": map[string]any{
+						"metrics": map[string]any{
 							"delta_ttl":                              2000,
 							"resource_attributes_as_tags":            true,
 							"instrumentation_scope_metadata_as_tags": true,
-							"histograms": map[string]interface{}{
+							"histograms": map[string]any{
 								"mode":                   "counters",
 								"send_count_sum_metrics": true,
 							},
 						},
 					},
-					"logsagent": interface{}(nil),
+					"logsagent": any(nil),
 				},
-				"service": map[string]interface{}{
-					"telemetry": map[string]interface{}{"metrics": map[string]interface{}{"level": "none"}},
-					"pipelines": map[string]interface{}{
-						"traces": map[string]interface{}{
-							"receivers": []interface{}{"otlp"},
-							"exporters": []interface{}{"otlp"},
+				"service": map[string]any{
+					"telemetry": map[string]any{"metrics": map[string]any{"level": "none"}},
+					"pipelines": map[string]any{
+						"traces": map[string]any{
+							"receivers":  []any{"otlp"},
+							"processors": []any{"infraattributes"},
+							"exporters":  []any{"otlp"},
 						},
-						"metrics": map[string]interface{}{
-							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"batch"},
-							"exporters":  []interface{}{"serializer"},
+						"metrics": map[string]any{
+							"receivers":  []any{"otlp"},
+							"processors": []any{"batch", "infraattributes"},
+							"exporters":  []any{"serializer"},
 						},
-						"logs": map[string]interface{}{
-							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"infraattributes", "batch"},
-							"exporters":  []interface{}{"logsagent"},
+						"logs": map[string]any{
+							"receivers":  []any{"otlp"},
+							"processors": []any{"infraattributes", "batch"},
+							"exporters":  []any{"logsagent"},
 						},
 					},
 				},
@@ -654,75 +676,76 @@ func TestNewMap(t *testing.T) {
 				TracesEnabled:      true,
 				MetricsEnabled:     true,
 				LogsEnabled:        true,
-				Metrics: map[string]interface{}{
+				Metrics: map[string]any{
 					"delta_ttl":                              2000,
 					"resource_attributes_as_tags":            true,
 					"instrumentation_scope_metadata_as_tags": true,
-					"histograms": map[string]interface{}{
+					"histograms": map[string]any{
 						"mode":                   "counters",
 						"send_count_sum_metrics": true,
 					},
 				},
-				Debug: map[string]interface{}{
+				Debug: map[string]any{
 					"verbosity": "foo",
 				},
 			},
-			ocfg: map[string]interface{}{
-				"receivers": map[string]interface{}{
-					"otlp": map[string]interface{}{
-						"protocols": map[string]interface{}{
-							"http": map[string]interface{}{
+			ocfg: map[string]any{
+				"receivers": map[string]any{
+					"otlp": map[string]any{
+						"protocols": map[string]any{
+							"http": map[string]any{
 								"endpoint": "bindhost:1234",
 							},
 						},
 					},
 				},
-				"processors": map[string]interface{}{
-					"infraattributes": interface{}(nil),
-					"batch": map[string]interface{}{
+				"processors": map[string]any{
+					"infraattributes": any(nil),
+					"batch": map[string]any{
 						"timeout": "10s",
 					},
 				},
-				"exporters": map[string]interface{}{
-					"otlp": map[string]interface{}{
-						"tls": map[string]interface{}{
+				"exporters": map[string]any{
+					"otlp": map[string]any{
+						"tls": map[string]any{
 							"insecure": true,
 						},
 						"compression": "none",
 						"endpoint":    "localhost:5003",
-						"sending_queue": map[string]interface{}{
+						"sending_queue": map[string]any{
 							"enabled": false,
 						},
 					},
-					"serializer": map[string]interface{}{
-						"metrics": map[string]interface{}{
+					"serializer": map[string]any{
+						"metrics": map[string]any{
 							"delta_ttl":                              2000,
 							"resource_attributes_as_tags":            true,
 							"instrumentation_scope_metadata_as_tags": true,
-							"histograms": map[string]interface{}{
+							"histograms": map[string]any{
 								"mode":                   "counters",
 								"send_count_sum_metrics": true,
 							},
 						},
 					},
-					"logsagent": interface{}(nil),
+					"logsagent": any(nil),
 				},
-				"service": map[string]interface{}{
-					"telemetry": map[string]interface{}{"metrics": map[string]interface{}{"level": "none"}},
-					"pipelines": map[string]interface{}{
-						"traces": map[string]interface{}{
-							"receivers": []interface{}{"otlp"},
-							"exporters": []interface{}{"otlp"},
+				"service": map[string]any{
+					"telemetry": map[string]any{"metrics": map[string]any{"level": "none"}},
+					"pipelines": map[string]any{
+						"traces": map[string]any{
+							"receivers":  []any{"otlp"},
+							"processors": []any{"infraattributes"},
+							"exporters":  []any{"otlp"},
 						},
-						"metrics": map[string]interface{}{
-							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"batch"},
-							"exporters":  []interface{}{"serializer"},
+						"metrics": map[string]any{
+							"receivers":  []any{"otlp"},
+							"processors": []any{"batch", "infraattributes"},
+							"exporters":  []any{"serializer"},
 						},
-						"logs": map[string]interface{}{
-							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"infraattributes", "batch"},
-							"exporters":  []interface{}{"logsagent"},
+						"logs": map[string]any{
+							"receivers":  []any{"otlp"},
+							"processors": []any{"infraattributes", "batch"},
+							"exporters":  []any{"logsagent"},
 						},
 					},
 				},
@@ -735,53 +758,54 @@ func TestNewMap(t *testing.T) {
 				TracePort:          5003,
 				TracesEnabled:      true,
 				LogsEnabled:        true,
-				Debug: map[string]interface{}{
+				Debug: map[string]any{
 					"verbosity": "none",
 				},
 			},
-			ocfg: map[string]interface{}{
-				"receivers": map[string]interface{}{
-					"otlp": map[string]interface{}{
-						"protocols": map[string]interface{}{
-							"grpc": map[string]interface{}{
+			ocfg: map[string]any{
+				"receivers": map[string]any{
+					"otlp": map[string]any{
+						"protocols": map[string]any{
+							"grpc": map[string]any{
 								"endpoint": "bindhost:1234",
 							},
-							"http": map[string]interface{}{
+							"http": map[string]any{
 								"endpoint": "bindhost:5678",
 							},
 						},
 					},
 				},
-				"processors": map[string]interface{}{
-					"infraattributes": interface{}(nil),
-					"batch": map[string]interface{}{
+				"processors": map[string]any{
+					"infraattributes": any(nil),
+					"batch": map[string]any{
 						"timeout": "10s",
 					},
 				},
-				"exporters": map[string]interface{}{
-					"otlp": map[string]interface{}{
-						"tls": map[string]interface{}{
+				"exporters": map[string]any{
+					"otlp": map[string]any{
+						"tls": map[string]any{
 							"insecure": true,
 						},
 						"compression": "none",
 						"endpoint":    "localhost:5003",
-						"sending_queue": map[string]interface{}{
+						"sending_queue": map[string]any{
 							"enabled": false,
 						},
 					},
-					"logsagent": interface{}(nil),
+					"logsagent": any(nil),
 				},
-				"service": map[string]interface{}{
-					"telemetry": map[string]interface{}{"metrics": map[string]interface{}{"level": "none"}},
-					"pipelines": map[string]interface{}{
-						"traces": map[string]interface{}{
-							"receivers": []interface{}{"otlp"},
-							"exporters": []interface{}{"otlp"},
+				"service": map[string]any{
+					"telemetry": map[string]any{"metrics": map[string]any{"level": "none"}},
+					"pipelines": map[string]any{
+						"traces": map[string]any{
+							"receivers":  []any{"otlp"},
+							"processors": []any{"infraattributes"},
+							"exporters":  []any{"otlp"},
 						},
-						"logs": map[string]interface{}{
-							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"infraattributes", "batch"},
-							"exporters":  []interface{}{"logsagent"},
+						"logs": map[string]any{
+							"receivers":  []any{"otlp"},
+							"processors": []any{"infraattributes", "batch"},
+							"exporters":  []any{"logsagent"},
 						},
 					},
 				},
@@ -794,61 +818,61 @@ func TestNewMap(t *testing.T) {
 				TracePort:          5003,
 				MetricsEnabled:     true,
 				LogsEnabled:        true,
-				Metrics: map[string]interface{}{
+				Metrics: map[string]any{
 					"delta_ttl":                              1500,
 					"resource_attributes_as_tags":            false,
 					"instrumentation_scope_metadata_as_tags": false,
-					"histograms": map[string]interface{}{
+					"histograms": map[string]any{
 						"mode":                   "nobuckets",
 						"send_count_sum_metrics": true,
 					},
 				},
-				Debug: map[string]interface{}{
+				Debug: map[string]any{
 					"verbosity": "none",
 				},
 			},
-			ocfg: map[string]interface{}{
-				"receivers": map[string]interface{}{
-					"otlp": map[string]interface{}{
-						"protocols": map[string]interface{}{
-							"http": map[string]interface{}{
+			ocfg: map[string]any{
+				"receivers": map[string]any{
+					"otlp": map[string]any{
+						"protocols": map[string]any{
+							"http": map[string]any{
 								"endpoint": "bindhost:1234",
 							},
 						},
 					},
 				},
-				"processors": map[string]interface{}{
-					"infraattributes": interface{}(nil),
-					"batch": map[string]interface{}{
+				"processors": map[string]any{
+					"infraattributes": any(nil),
+					"batch": map[string]any{
 						"timeout": "10s",
 					},
 				},
-				"exporters": map[string]interface{}{
-					"serializer": map[string]interface{}{
-						"metrics": map[string]interface{}{
+				"exporters": map[string]any{
+					"serializer": map[string]any{
+						"metrics": map[string]any{
 							"delta_ttl":                              1500,
 							"resource_attributes_as_tags":            false,
 							"instrumentation_scope_metadata_as_tags": false,
-							"histograms": map[string]interface{}{
+							"histograms": map[string]any{
 								"mode":                   "nobuckets",
 								"send_count_sum_metrics": true,
 							},
 						},
 					},
-					"logsagent": interface{}(nil),
+					"logsagent": any(nil),
 				},
-				"service": map[string]interface{}{
-					"telemetry": map[string]interface{}{"metrics": map[string]interface{}{"level": "none"}},
-					"pipelines": map[string]interface{}{
-						"metrics": map[string]interface{}{
-							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"batch"},
-							"exporters":  []interface{}{"serializer"},
+				"service": map[string]any{
+					"telemetry": map[string]any{"metrics": map[string]any{"level": "none"}},
+					"pipelines": map[string]any{
+						"metrics": map[string]any{
+							"receivers":  []any{"otlp"},
+							"processors": []any{"batch", "infraattributes"},
+							"exporters":  []any{"serializer"},
 						},
-						"logs": map[string]interface{}{
-							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"infraattributes", "batch"},
-							"exporters":  []interface{}{"logsagent"},
+						"logs": map[string]any{
+							"receivers":  []any{"otlp"},
+							"processors": []any{"infraattributes", "batch"},
+							"exporters":  []any{"logsagent"},
 						},
 					},
 				},
@@ -861,53 +885,54 @@ func TestNewMap(t *testing.T) {
 				TracePort:          5003,
 				TracesEnabled:      true,
 				LogsEnabled:        true,
-				Debug: map[string]interface{}{
+				Debug: map[string]any{
 					"verbosity": "normal",
 				},
 			},
-			ocfg: map[string]interface{}{
-				"receivers": map[string]interface{}{
-					"otlp": map[string]interface{}{
-						"protocols": map[string]interface{}{
-							"grpc": map[string]interface{}{
+			ocfg: map[string]any{
+				"receivers": map[string]any{
+					"otlp": map[string]any{
+						"protocols": map[string]any{
+							"grpc": map[string]any{
 								"endpoint": "bindhost:1234",
 							},
 						},
 					},
 				},
-				"processors": map[string]interface{}{
-					"infraattributes": interface{}(nil),
-					"batch": map[string]interface{}{
+				"processors": map[string]any{
+					"infraattributes": any(nil),
+					"batch": map[string]any{
 						"timeout": "10s",
 					},
 				},
-				"exporters": map[string]interface{}{
-					"otlp": map[string]interface{}{
-						"tls": map[string]interface{}{
+				"exporters": map[string]any{
+					"otlp": map[string]any{
+						"tls": map[string]any{
 							"insecure": true,
 						},
 						"compression": "none",
 						"endpoint":    "localhost:5003",
-						"sending_queue": map[string]interface{}{
+						"sending_queue": map[string]any{
 							"enabled": false,
 						},
 					},
-					"debug": map[string]interface{}{
+					"debug": map[string]any{
 						"verbosity": "normal",
 					},
-					"logsagent": interface{}(nil),
+					"logsagent": any(nil),
 				},
-				"service": map[string]interface{}{
-					"telemetry": map[string]interface{}{"metrics": map[string]interface{}{"level": "none"}},
-					"pipelines": map[string]interface{}{
-						"traces": map[string]interface{}{
-							"receivers": []interface{}{"otlp"},
-							"exporters": []interface{}{"otlp", "debug"},
+				"service": map[string]any{
+					"telemetry": map[string]any{"metrics": map[string]any{"level": "none"}},
+					"pipelines": map[string]any{
+						"traces": map[string]any{
+							"receivers":  []any{"otlp"},
+							"processors": []any{"infraattributes"},
+							"exporters":  []any{"otlp", "debug"},
 						},
-						"logs": map[string]interface{}{
-							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"infraattributes", "batch"},
-							"exporters":  []interface{}{"logsagent", "debug"},
+						"logs": map[string]any{
+							"receivers":  []any{"otlp"},
+							"processors": []any{"infraattributes", "batch"},
+							"exporters":  []any{"logsagent", "debug"},
 						},
 					},
 				},
@@ -920,62 +945,62 @@ func TestNewMap(t *testing.T) {
 				TracePort:          5003,
 				MetricsEnabled:     true,
 				LogsEnabled:        true,
-				Metrics: map[string]interface{}{
+				Metrics: map[string]any{
 					"delta_ttl":                   1500,
 					"resource_attributes_as_tags": false,
-					"histograms": map[string]interface{}{
+					"histograms": map[string]any{
 						"mode":                   "nobuckets",
 						"send_count_sum_metrics": true,
 					},
 				},
-				Debug: map[string]interface{}{
+				Debug: map[string]any{
 					"verbosity": "detailed",
 				},
 			},
-			ocfg: map[string]interface{}{
-				"receivers": map[string]interface{}{
-					"otlp": map[string]interface{}{
-						"protocols": map[string]interface{}{
-							"http": map[string]interface{}{
+			ocfg: map[string]any{
+				"receivers": map[string]any{
+					"otlp": map[string]any{
+						"protocols": map[string]any{
+							"http": map[string]any{
 								"endpoint": "bindhost:1234",
 							},
 						},
 					},
 				},
-				"processors": map[string]interface{}{
-					"infraattributes": interface{}(nil),
-					"batch": map[string]interface{}{
+				"processors": map[string]any{
+					"infraattributes": any(nil),
+					"batch": map[string]any{
 						"timeout": "10s",
 					},
 				},
-				"exporters": map[string]interface{}{
-					"serializer": map[string]interface{}{
-						"metrics": map[string]interface{}{
+				"exporters": map[string]any{
+					"serializer": map[string]any{
+						"metrics": map[string]any{
 							"delta_ttl":                   1500,
 							"resource_attributes_as_tags": false,
-							"histograms": map[string]interface{}{
+							"histograms": map[string]any{
 								"mode":                   "nobuckets",
 								"send_count_sum_metrics": true,
 							},
 						},
 					},
-					"debug": map[string]interface{}{
+					"debug": map[string]any{
 						"verbosity": "detailed",
 					},
-					"logsagent": interface{}(nil),
+					"logsagent": any(nil),
 				},
-				"service": map[string]interface{}{
-					"telemetry": map[string]interface{}{"metrics": map[string]interface{}{"level": "none"}},
-					"pipelines": map[string]interface{}{
-						"metrics": map[string]interface{}{
-							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"batch"},
-							"exporters":  []interface{}{"serializer", "debug"},
+				"service": map[string]any{
+					"telemetry": map[string]any{"metrics": map[string]any{"level": "none"}},
+					"pipelines": map[string]any{
+						"metrics": map[string]any{
+							"receivers":  []any{"otlp"},
+							"processors": []any{"batch", "infraattributes"},
+							"exporters":  []any{"serializer", "debug"},
 						},
-						"logs": map[string]interface{}{
-							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"infraattributes", "batch"},
-							"exporters":  []interface{}{"logsagent", "debug"},
+						"logs": map[string]any{
+							"receivers":  []any{"otlp"},
+							"processors": []any{"infraattributes", "batch"},
+							"exporters":  []any{"logsagent", "debug"},
 						},
 					},
 				},
@@ -989,76 +1014,77 @@ func TestNewMap(t *testing.T) {
 				TracesEnabled:      true,
 				MetricsEnabled:     true,
 				LogsEnabled:        true,
-				Metrics: map[string]interface{}{
+				Metrics: map[string]any{
 					"delta_ttl":                   2000,
 					"resource_attributes_as_tags": true,
-					"histograms": map[string]interface{}{
+					"histograms": map[string]any{
 						"mode":                   "counters",
 						"send_count_sum_metrics": true,
 					},
 				},
-				Debug: map[string]interface{}{
+				Debug: map[string]any{
 					"verbosity": "basic",
 				},
 			},
-			ocfg: map[string]interface{}{
-				"receivers": map[string]interface{}{
-					"otlp": map[string]interface{}{
-						"protocols": map[string]interface{}{
-							"http": map[string]interface{}{
+			ocfg: map[string]any{
+				"receivers": map[string]any{
+					"otlp": map[string]any{
+						"protocols": map[string]any{
+							"http": map[string]any{
 								"endpoint": "bindhost:1234",
 							},
 						},
 					},
 				},
-				"processors": map[string]interface{}{
-					"infraattributes": interface{}(nil),
-					"batch": map[string]interface{}{
+				"processors": map[string]any{
+					"infraattributes": any(nil),
+					"batch": map[string]any{
 						"timeout": "10s",
 					},
 				},
-				"exporters": map[string]interface{}{
-					"otlp": map[string]interface{}{
-						"tls": map[string]interface{}{
+				"exporters": map[string]any{
+					"otlp": map[string]any{
+						"tls": map[string]any{
 							"insecure": true,
 						},
 						"compression": "none",
 						"endpoint":    "localhost:5003",
-						"sending_queue": map[string]interface{}{
+						"sending_queue": map[string]any{
 							"enabled": false,
 						},
 					},
-					"serializer": map[string]interface{}{
-						"metrics": map[string]interface{}{
+					"serializer": map[string]any{
+						"metrics": map[string]any{
 							"delta_ttl":                   2000,
 							"resource_attributes_as_tags": true,
-							"histograms": map[string]interface{}{
+							"histograms": map[string]any{
 								"mode":                   "counters",
 								"send_count_sum_metrics": true,
 							},
 						},
 					},
-					"debug": map[string]interface{}{
+					"debug": map[string]any{
 						"verbosity": "basic",
 					},
-					"logsagent": interface{}(nil),
+					"logsagent": any(nil),
 				},
-				"service": map[string]interface{}{
-					"telemetry": map[string]interface{}{"metrics": map[string]interface{}{"level": "none"}},
-					"pipelines": map[string]interface{}{
-						"traces": map[string]interface{}{
-							"receivers": []interface{}{"otlp"},
-							"exporters": []interface{}{"otlp", "debug"},
+				"service": map[string]any{
+					"telemetry": map[string]any{"metrics": map[string]any{"level": "none"}},
+					"pipelines": map[string]any{
+						"traces": map[string]any{
+							"receivers":  []any{"otlp"},
+							"processors": []any{"infraattributes"},
+							"exporters":  []any{"otlp", "debug"},
 						},
-						"metrics": map[string]interface{}{
-							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"batch"},
-							"exporters":  []interface{}{"serializer", "debug"},
+						"metrics": map[string]any{
+							"receivers":  []any{"otlp"},
+							"processors": []any{"batch", "infraattributes"},
+							"exporters":  []any{"serializer", "debug"},
 						},
-						"logs": map[string]interface{}{
-							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"infraattributes", "batch"},
-							"exporters":  []interface{}{"logsagent", "debug"},
+						"logs": map[string]any{
+							"receivers":  []any{"otlp"},
+							"processors": []any{"infraattributes", "batch"},
+							"exporters":  []any{"logsagent", "debug"},
 						},
 					},
 				},
@@ -1083,11 +1109,11 @@ func TestUnmarshal(t *testing.T) {
 		MetricsEnabled:     true,
 		TracesEnabled:      true,
 		LogsEnabled:        true,
-		Metrics: map[string]interface{}{
+		Metrics: map[string]any{
 			"delta_ttl":                              2000,
 			"resource_attributes_as_tags":            true,
 			"instrumentation_scope_metadata_as_tags": true,
-			"histograms": map[string]interface{}{
+			"histograms": map[string]any{
 				"mode":                   "counters",
 				"send_count_sum_metrics": true,
 			},

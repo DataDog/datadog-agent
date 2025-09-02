@@ -751,11 +751,18 @@ def generate_complexity_summary_for_pr(
         _tag_complexity_job(ctx, {"result": "skip", "reason": "no_branch_complexity_data"})
         return
 
+    remote = "origin"
+    base_branch_ref = f"{remote}/{base_branch}"
+    is_base_locally_available = ctx.run(f"git rev-parse --verify {base_branch_ref}", warn=True, hide=True)
+    if is_base_locally_available is None or not is_base_locally_available.ok:
+        print(f"Base branch {base_branch} is not locally available, fetching from origin")
+        ctx.run(f"git fetch {remote} {base_branch}")
+
     # We have files, now get files for the main branch
-    common_ancestor = get_common_ancestor(ctx, commit_sha, f"origin/{base_branch}")
+    common_ancestor = get_common_ancestor(ctx, commit_sha, base_branch_ref)
     main_branch_complexity_path = Path("/tmp/verifier-complexity-main")
     print(f"Downloading complexity data for {base_branch} branch (commit {common_ancestor})...")
-    download_complexity_data(ctx, common_ancestor, main_branch_complexity_path, gitlab_config_file)
+    download_complexity_data(ctx, common_ancestor, main_branch_complexity_path, gitlab_config_file=gitlab_config_file)
 
     main_complexity_files = list(main_branch_complexity_path.glob("verifier-complexity-*"))
     if len(main_complexity_files) == 0:
