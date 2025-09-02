@@ -19,8 +19,6 @@ import (
 
 	"go.opentelemetry.io/collector/component/componenttest"
 
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
-
 	corecompcfg "github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -32,6 +30,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
