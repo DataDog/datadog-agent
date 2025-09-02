@@ -88,7 +88,7 @@ type Event struct {
 
 	// context
 	SpanContext    SpanContext    `field:"-"`
-	NetworkContext NetworkContext `field:"network" restricted_to:"dns,imds"` // [7.36] [Network] Network context
+	NetworkContext NetworkContext `field:"network" restricted_to:"dns,imds,packet"` // [7.36] [Network] Network context
 	CGroupContext  *CGroupContext `field:"cgroup"`
 
 	// fim events

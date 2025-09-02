@@ -702,6 +702,7 @@ A DNS request was sent
 | [`network.source.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`network.source.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
 | [`network.source.port`](#common-ipportcontext-port-doc) | Port number |
+| [`network.type`](#common-networkcontext-type-doc) | Type of the network packet |
 
 ### Event `exec`
 
@@ -931,6 +932,7 @@ An IMDS event was captured
 | [`network.source.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`network.source.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
 | [`network.source.port`](#common-ipportcontext-port-doc) | Port number |
+| [`network.type`](#common-networkcontext-type-doc) | Type of the network packet |
 
 ### Event `link`
 
@@ -1184,6 +1186,18 @@ A raw network packet was captured
 
 | Property | Definition |
 | -------- | ------------- |
+| [`network.destination.ip`](#common-ipportcontext-ip-doc) | IP address |
+| [`network.destination.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
+| [`network.destination.port`](#common-ipportcontext-port-doc) | Port number |
+| [`network.device.ifname`](#common-networkdevicecontext-ifname-doc) | Interface ifname |
+| [`network.l3_protocol`](#common-networkcontext-l3_protocol-doc) | L3 protocol of the network packet |
+| [`network.l4_protocol`](#common-networkcontext-l4_protocol-doc) | L4 protocol of the network packet |
+| [`network.network_direction`](#common-networkcontext-network_direction-doc) | Network direction of the network packet |
+| [`network.size`](#common-networkcontext-size-doc) | Size in bytes of the network packet |
+| [`network.source.ip`](#common-ipportcontext-ip-doc) | IP address |
+| [`network.source.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
+| [`network.source.port`](#common-ipportcontext-port-doc) | Port number |
+| [`network.type`](#common-networkcontext-type-doc) | Type of the network packet |
 | [`packet.destination.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`packet.destination.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
 | [`packet.destination.port`](#common-ipportcontext-port-doc) | Port number |
@@ -1197,6 +1211,7 @@ A raw network packet was captured
 | [`packet.source.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
 | [`packet.source.port`](#common-ipportcontext-port-doc) | Port number |
 | [`packet.tls.version`](#packet-tls-version-doc) | TLS version |
+| [`packet.type`](#common-networkcontext-type-doc) | Type of the network packet |
 
 ### Event `ptrace`
 
@@ -3106,6 +3121,18 @@ Definition: Name of the TTY associated with the process
 
 `*.tty_name` has 14 possible prefixes:
 `exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.type` {#common-networkcontext-type-doc}
+Type: int
+
+Definition: Type of the network packet
+
+`*.type` has 2 possible prefixes:
+`network` `packet`
+
+Constants: [Network Protocol Types](#network-protocol-types)
+
 
 
 ### `*.uid` {#common-credentials-uid-doc}
@@ -5324,6 +5351,24 @@ Network Address Family constants are the supported network address families.
 | `AF_SMC` | all |
 | `AF_XDP` | all |
 | `AF_MAX` | all |
+
+### `Network Protocol Types` {#network-protocol-types}
+Types of specific network protocols.
+
+| Name | Architectures |
+| ---- |---------------|
+| `ICMP_ECHO_REQUEST` | all |
+| `ICMP_ECHO_REPLY` | all |
+| `ICMP_ROUTER_SOLICITATION` | all |
+| `ICMP_ROUTER_ADVERTISEMENT` | all |
+| `ICMP_NEIGHBOR_SOLICITATION` | all |
+| `ICMP_NEIGHBOR_ADVERTISEMENT` | all |
+| `ICMP_V6_ECHO_REQUEST` | all |
+| `ICMP_V6_ECHO_REPLY` | all |
+| `ICMP_V6_ROUTER_SOLICITATION` | all |
+| `ICMP_V6_ROUTER_ADVERTISEMENT` | all |
+| `ICMP_V6_NEIGHBOR_SOLICITATION` | all |
+| `ICMP_V6_NEIGHBOR_ADVERTISEMENT` | all |
 
 ### `Network directions` {#network-directions}
 Network directions are the supported directions of network packets.
