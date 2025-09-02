@@ -149,6 +149,7 @@ func TestGetPayload(t *testing.T) {
 			Path:       "/var/log/redis/redis.log",
 			Identifier: "redisdb",
 			Service:    "awesome_cache",
+			Source:     "redis",
 			Tags:       []string{"env:prod"},
 		})
 		// Register an error
