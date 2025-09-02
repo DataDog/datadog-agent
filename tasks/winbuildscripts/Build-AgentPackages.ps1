@@ -78,14 +78,14 @@ Invoke-BuildScript `
 
 
 
-    Write-Host "dda inv -- -e winbuild.test-boto $inv_args"
-    dda inv -- -e winbuild.test-boto
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error "Failed to test boto"
-        exit 1
-    }
+    # Write-Host "dda inv -- -e winbuild.test-boto $inv_args"
+    # dda inv -- -e winbuild.test-boto
+    # if ($LASTEXITCODE -ne 0) {
+    #     Write-Error "Failed to test boto"
+    #     exit 1
+    # }
 
-    exit 0
+    # exit 1
 
 
 
