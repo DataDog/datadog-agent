@@ -81,10 +81,21 @@ type EnrollmentRequest struct {
 	PublicKey      string `json:"publicKey"`
 }
 
-// SelfEnrollmentRequest represents the self-enrollment request payload
-type SelfEnrollmentRequest struct {
+// SelfEnrollmentRequestAttributes represents the attributes section of the self-enrollment request
+type SelfEnrollmentRequestAttributes struct {
 	PublicKey string       `json:"publicKey"`
 	Ec2       *Ec2Identity `json:"ec2,omitempty"`
+}
+
+// SelfEnrollmentRequestData represents the data section of the self-enrollment request
+type SelfEnrollmentRequestData struct {
+	Type       string                           `json:"type"`
+	Attributes *SelfEnrollmentRequestAttributes `json:"attributes"`
+}
+
+// SelfEnrollmentRequest represents the full JSON API self-enrollment request
+type SelfEnrollmentRequest struct {
+	Data *SelfEnrollmentRequestData `json:"data"`
 }
 
 // Ec2Identity represents the EC2 identity structure for self-enrollment
@@ -488,10 +499,15 @@ func (c *EnrollmentClient) SendSelfEnrollmentRequest(ctx context.Context, apiKey
 		Path:   selfEnrollmentPath,
 	}
 
-	// Create self-enrollment request payload
+	// Create self-enrollment request payload in JSON API format
 	requestPayload := SelfEnrollmentRequest{
-		PublicKey: publicKeyJSON,
-		Ec2:       ec2Identity,
+		Data: &SelfEnrollmentRequestData{
+			Type: "SelfEnrollRequest",
+			Attributes: &SelfEnrollmentRequestAttributes{
+				PublicKey: publicKeyJSON,
+				Ec2:       ec2Identity,
+			},
+		},
 	}
 
 	// Marshal request to JSON
