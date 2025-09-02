@@ -14,6 +14,8 @@ import (
 
 	"go.uber.org/fx"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -35,8 +37,12 @@ func TestSchedulerSpam(t *testing.T) {
 	tempDir := t.TempDir()
 	checkDir := tempDir
 	checkName := "testcheck"
-	os.MkdirAll(checkDir, 0755)
-	os.WriteFile(filepath.Join(checkDir, fmt.Sprintf("%s.py", checkName)), []byte(PythonCheck), 0644)
+
+	err := os.MkdirAll(checkDir, 0755)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(checkDir, fmt.Sprintf("%s.py", checkName)), []byte(PythonCheck), 0644)
+	require.NoError(t, err)
 
 	deps := fxutil.Test[dependencies](t,
 		core.MockBundle(),
