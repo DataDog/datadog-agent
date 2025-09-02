@@ -3,8 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build docker
-
+// Package container provides container-related log tailers
 package container
 
 import (
@@ -39,7 +38,7 @@ type ReadErrorMock struct {
 	io.Reader
 }
 
-func (r *ReadErrorMock) Read(p []byte) (int, error) {
+func (r *ReadErrorMock) Read(_ []byte) (int, error) {
 	return 0, errFoo
 }
 
