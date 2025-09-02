@@ -32,9 +32,6 @@ build do
             # load isn't supported by windows
             delete "#{confd_dir}/load.d"
 
-            # service_discovery isn't supported by windows
-            delete "#{confd_dir}/service_discovery.d"
-
             # Remove .pyc files from embedded Python
             command "del /q /s #{windows_safe_path(install_dir)}\\*.pyc"
         end
@@ -165,7 +162,6 @@ build do
         if osx_target?
             # Remove linux specific configs
             delete "#{install_dir}/etc/conf.d/file_handle.d"
-            delete "#{install_dir}/etc/conf.d/service_discovery.d"
 
             # remove windows specific configs
             delete "#{install_dir}/etc/conf.d/winproc.d"
