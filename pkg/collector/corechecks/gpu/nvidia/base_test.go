@@ -60,14 +60,12 @@ func TestNewBaseCollector(t *testing.T) {
 			name: "all APIs supported",
 			apiCalls: []apiCallInfo{
 				{
-					Name:     "test_api1",
-					TestFunc: func(ddnvml.Device) error { return nil },
-					CallFunc: func(ddnvml.Device, uint64) ([]Metric, uint64, error) { return []Metric{}, 0, nil },
+					Name:    "test_api1",
+					Handler: func(ddnvml.Device, uint64) ([]Metric, uint64, error) { return []Metric{}, 0, nil },
 				},
 				{
-					Name:     "test_api2",
-					TestFunc: func(ddnvml.Device) error { return nil },
-					CallFunc: func(ddnvml.Device, uint64) ([]Metric, uint64, error) { return []Metric{}, 0, nil },
+					Name:    "test_api2",
+					Handler: func(ddnvml.Device, uint64) ([]Metric, uint64, error) { return []Metric{}, 0, nil },
 				},
 			},
 			expectError: false,
@@ -76,16 +74,14 @@ func TestNewBaseCollector(t *testing.T) {
 			name: "some APIs unsupported",
 			apiCalls: []apiCallInfo{
 				{
-					Name:     "supported_api",
-					TestFunc: func(ddnvml.Device) error { return nil },
-					CallFunc: func(ddnvml.Device, uint64) ([]Metric, uint64, error) { return []Metric{}, 0, nil },
+					Name:    "supported_api",
+					Handler: func(ddnvml.Device, uint64) ([]Metric, uint64, error) { return []Metric{}, 0, nil },
 				},
 				{
 					Name: "unsupported_api",
-					TestFunc: func(ddnvml.Device) error {
-						return ddnvml.NewNvmlAPIErrorOrNil("unsupported_api", nvml.ERROR_NOT_SUPPORTED)
+					Handler: func(ddnvml.Device, uint64) ([]Metric, uint64, error) {
+						return nil, 0, ddnvml.NewNvmlAPIErrorOrNil("unsupported_api", nvml.ERROR_NOT_SUPPORTED)
 					},
-					CallFunc: func(ddnvml.Device, uint64) ([]Metric, uint64, error) { return []Metric{}, 0, nil },
 				},
 			},
 			expectError: false,
@@ -95,17 +91,15 @@ func TestNewBaseCollector(t *testing.T) {
 			apiCalls: []apiCallInfo{
 				{
 					Name: "unsupported_api1",
-					TestFunc: func(ddnvml.Device) error {
-						return ddnvml.NewNvmlAPIErrorOrNil("unsupported_api1", nvml.ERROR_NOT_SUPPORTED)
+					Handler: func(ddnvml.Device, uint64) ([]Metric, uint64, error) {
+						return nil, 0, ddnvml.NewNvmlAPIErrorOrNil("unsupported_api1", nvml.ERROR_NOT_SUPPORTED)
 					},
-					CallFunc: func(ddnvml.Device, uint64) ([]Metric, uint64, error) { return []Metric{}, 0, nil },
 				},
 				{
 					Name: "unsupported_api2",
-					TestFunc: func(ddnvml.Device) error {
-						return ddnvml.NewNvmlAPIErrorOrNil("unsupported_api2", nvml.ERROR_NOT_SUPPORTED)
+					Handler: func(ddnvml.Device, uint64) ([]Metric, uint64, error) {
+						return nil, 0, ddnvml.NewNvmlAPIErrorOrNil("unsupported_api2", nvml.ERROR_NOT_SUPPORTED)
 					},
-					CallFunc: func(ddnvml.Device, uint64) ([]Metric, uint64, error) { return []Metric{}, 0, nil },
 				},
 			},
 			expectError: true,
@@ -143,18 +137,16 @@ func TestBaseCollector_Collect(t *testing.T) {
 			name: "happy flow",
 			apiCalls: []apiCallInfo{
 				{
-					Name:     "metric1",
-					TestFunc: func(ddnvml.Device) error { return nil },
-					CallFunc: func(_ ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+					Name: "metric1",
+					Handler: func(_ ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
 						return []Metric{
 							{Name: "test.metric1", Value: 1.0, Type: metrics.GaugeType},
 						}, 0, nil
 					},
 				},
 				{
-					Name:     "metric2",
-					TestFunc: func(ddnvml.Device) error { return nil },
-					CallFunc: func(_ ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+					Name: "metric2",
+					Handler: func(_ ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
 						return []Metric{
 							{Name: "test.metric2", Value: 2.0, Type: metrics.GaugeType},
 							{Name: "test.metric3", Value: 3.0, Type: metrics.GaugeType},
@@ -170,16 +162,14 @@ func TestBaseCollector_Collect(t *testing.T) {
 			name: "partial errors",
 			apiCalls: []apiCallInfo{
 				{
-					Name:     "working_api",
-					TestFunc: func(ddnvml.Device) error { return nil },
-					CallFunc: func(_ ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+					Name: "working_api",
+					Handler: func(_ ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
 						return []Metric{{Name: "test.working", Value: 1.0, Type: metrics.GaugeType}}, 0, nil
 					},
 				},
 				{
-					Name:     "failing_api",
-					TestFunc: func(ddnvml.Device) error { return nil },
-					CallFunc: func(_ ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+					Name: "failing_api",
+					Handler: func(_ ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
 						return nil, 0, errors.New("API call failed")
 					},
 				},
@@ -224,9 +214,8 @@ func TestNewSamplingCollector(t *testing.T) {
 
 	apiCalls := []apiCallInfo{
 		{
-			Name:     "sampling_api",
-			TestFunc: func(ddnvml.Device) error { return nil },
-			CallFunc: func(_ ddnvml.Device, timestamp uint64) ([]Metric, uint64, error) {
+			Name: "sampling_api",
+			Handler: func(_ ddnvml.Device, timestamp uint64) ([]Metric, uint64, error) {
 				// Sampling collector - should receive non-zero timestamp after first call
 				timestamps[callCount] = timestamp
 				callCount++
@@ -239,6 +228,8 @@ func TestNewSamplingCollector(t *testing.T) {
 	collector, err := newStatefulCollector("test_sampling", mockDevice, apiCalls)
 	require.NoError(t, err)
 	require.NotNil(t, collector)
+	//reset the callCount as it was inceremented inside the collector ctor
+	callCount = 0
 
 	// First collect
 	metrics1, err := collector.Collect()

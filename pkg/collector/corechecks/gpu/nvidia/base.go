@@ -16,9 +16,8 @@ import (
 // apiCallInfo represents a single NVML API call that can produce one or more metrics.
 // It supports both stateless collectors (ignore timestamp) and sampling collectors (use timestamp).
 type apiCallInfo struct {
-	Name     string                                                // Name of the API call for logging/debugging
-	TestFunc func(ddnvml.Device) error                             // Function to test if the API is supported on the device
-	CallFunc func(ddnvml.Device, uint64) ([]Metric, uint64, error) // Function to call the API and return metrics (metrics, newTimestamp, error)
+	Name    string                                                // Name of the API call for logging/debugging
+	Handler func(ddnvml.Device, uint64) ([]Metric, uint64, error) // Function to handle the API call and return metrics (metrics, newTimestamp, error)
 }
 
 // baseCollector is a unified collector template that consolidates multiple collector types into one instance.
@@ -74,7 +73,7 @@ func (c *baseCollector) Collect() ([]Metric, error) {
 		lastTimestamp := c.lastTimestamps[apiCall.Name]
 
 		// Execute the API call
-		metrics, newTimestamp, err := apiCall.CallFunc(c.device, lastTimestamp)
+		metrics, newTimestamp, err := apiCall.Handler(c.device, lastTimestamp)
 		if err != nil {
 			multiErr = multierror.Append(multiErr, fmt.Errorf("%s returned an error: %w", apiCall.Name, err))
 		}

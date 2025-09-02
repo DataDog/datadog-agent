@@ -79,11 +79,7 @@ func TestCollectProcessMemory(t *testing.T) {
 				return []apiCallInfo{
 					{
 						Name: "process_memory_usage",
-						TestFunc: func(d safenvml.Device) error {
-							_, err := d.GetComputeRunningProcesses()
-							return err
-						},
-						CallFunc: func(device safenvml.Device, _ uint64) ([]Metric, uint64, error) {
+						Handler: func(device safenvml.Device, _ uint64) ([]Metric, uint64, error) {
 							return processMemorySample(device)
 						},
 					},
@@ -117,11 +113,7 @@ func TestCollectProcessMemory_Error(t *testing.T) {
 		return []apiCallInfo{
 			{
 				Name: "process_memory_usage",
-				TestFunc: func(d safenvml.Device) error {
-					_, err := d.GetComputeRunningProcesses()
-					return err
-				},
-				CallFunc: func(device safenvml.Device, _ uint64) ([]Metric, uint64, error) {
+				Handler: func(device safenvml.Device, _ uint64) ([]Metric, uint64, error) {
 					return processMemorySample(device)
 				},
 			},
@@ -155,11 +147,7 @@ func TestProcessMemoryMetricTags(t *testing.T) {
 		return []apiCallInfo{
 			{
 				Name: "process_memory_usage",
-				TestFunc: func(d safenvml.Device) error {
-					_, err := d.GetComputeRunningProcesses()
-					return err
-				},
-				CallFunc: func(device safenvml.Device, _ uint64) ([]Metric, uint64, error) {
+				Handler: func(device safenvml.Device, _ uint64) ([]Metric, uint64, error) {
 					return processMemorySample(device)
 				},
 			},
@@ -269,16 +257,18 @@ func TestNVLinkCollector_Initialization(t *testing.T) {
 				return []apiCallInfo{
 					{
 						Name: "nvlink_metrics",
-						TestFunc: func(d safenvml.Device) error {
+						Handler: func(device safenvml.Device, _ uint64) ([]Metric, uint64, error) {
+							// Test the API first (like the original TestFunc)
 							fields := []nvml.FieldValue{
 								{
 									FieldId: nvml.FI_DEV_NVLINK_LINK_COUNT,
 									ScopeId: 0,
 								},
 							}
-							return d.GetFieldValues(fields)
-						},
-						CallFunc: func(_ safenvml.Device, _ uint64) ([]Metric, uint64, error) {
+							if err := device.GetFieldValues(fields); err != nil {
+								return nil, 0, err
+							}
+							// If test passes, return empty metrics for this test
 							return []Metric{}, 0, nil
 						},
 					},
@@ -357,16 +347,7 @@ func TestNVLinkCollector_Collection(t *testing.T) {
 				return []apiCallInfo{
 					{
 						Name: "nvlink_metrics",
-						TestFunc: func(d safenvml.Device) error {
-							fields := []nvml.FieldValue{
-								{
-									FieldId: nvml.FI_DEV_NVLINK_LINK_COUNT,
-									ScopeId: 0,
-								},
-							}
-							return d.GetFieldValues(fields)
-						},
-						CallFunc: func(device safenvml.Device, _ uint64) ([]Metric, uint64, error) {
+						Handler: func(device safenvml.Device, _ uint64) ([]Metric, uint64, error) {
 							return nvlinkSample(device)
 						},
 					},

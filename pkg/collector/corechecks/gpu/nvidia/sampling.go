@@ -138,52 +138,32 @@ func createSampleAPIs() []apiCallInfo {
 		// Process utilization APIs (sample - requires timestamp tracking)
 		{
 			Name: "process_utilization",
-			TestFunc: func(d ddnvml.Device) error {
-				_, err := d.GetProcessUtilization(0)
-				return err
-			},
-			CallFunc: func(device ddnvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
+			Handler: func(device ddnvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
 				return processUtilizationSample(device, lastTimestamp)
 			},
 		},
 		// Samples collector APIs - each sample type is separate for independent failure handling
 		{
 			Name: "gr_engine_samples",
-			TestFunc: func(d ddnvml.Device) error {
-				_, _, err := d.GetSamples(nvml.GPU_UTILIZATION_SAMPLES, 0)
-				return err
-			},
-			CallFunc: func(device ddnvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
+			Handler: func(device ddnvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
 				return processSample(device, "gr_engine_active", nvml.GPU_UTILIZATION_SAMPLES, lastTimestamp)
 			},
 		},
 		{
 			Name: "dram_active_samples",
-			TestFunc: func(d ddnvml.Device) error {
-				_, _, err := d.GetSamples(nvml.MEMORY_UTILIZATION_SAMPLES, 0)
-				return err
-			},
-			CallFunc: func(device ddnvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
+			Handler: func(device ddnvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
 				return processSample(device, "dram_active", nvml.MEMORY_UTILIZATION_SAMPLES, lastTimestamp)
 			},
 		},
 		{
 			Name: "encoder_samples",
-			TestFunc: func(d ddnvml.Device) error {
-				_, _, err := d.GetSamples(nvml.ENC_UTILIZATION_SAMPLES, 0)
-				return err
-			},
-			CallFunc: func(device ddnvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
+			Handler: func(device ddnvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
 				return processSample(device, "encoder_utilization", nvml.ENC_UTILIZATION_SAMPLES, lastTimestamp)
 			},
 		},
 		{
 			Name: "decoder_samples",
-			TestFunc: func(d ddnvml.Device) error {
-				_, _, err := d.GetSamples(nvml.DEC_UTILIZATION_SAMPLES, 0)
-				return err
-			},
-			CallFunc: func(device ddnvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
+			Handler: func(device ddnvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
 				return processSample(device, "decoder_utilization", nvml.DEC_UTILIZATION_SAMPLES, lastTimestamp)
 			},
 		}}

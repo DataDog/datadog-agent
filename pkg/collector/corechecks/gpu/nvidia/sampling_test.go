@@ -116,11 +116,7 @@ func TestCollectProcessUtilization(t *testing.T) {
 				return []apiCallInfo{
 					{
 						Name: "process_utilization",
-						TestFunc: func(d safenvml.Device) error {
-							_, err := d.GetProcessUtilization(0)
-							return err
-						},
-						CallFunc: func(device safenvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
+						Handler: func(device safenvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
 							return processUtilizationSample(device, lastTimestamp)
 						},
 					},
@@ -176,11 +172,7 @@ func TestCollectProcessUtilization_Error(t *testing.T) {
 				return []apiCallInfo{
 					{
 						Name: "process_utilization",
-						TestFunc: func(d safenvml.Device) error {
-							_, err := d.GetProcessUtilization(0)
-							return err
-						},
-						CallFunc: func(device safenvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
+						Handler: func(device safenvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
 							return processUtilizationSample(device, lastTimestamp)
 						},
 					},
@@ -254,11 +246,7 @@ func TestProcessUtilizationTimestampUpdate(t *testing.T) {
 				return []apiCallInfo{
 					{
 						Name: "process_utilization",
-						TestFunc: func(d safenvml.Device) error {
-							_, err := d.GetProcessUtilization(0)
-							return err
-						},
-						CallFunc: func(device safenvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
+						Handler: func(device safenvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
 							return processUtilizationSample(device, lastTimestamp)
 						},
 					},
@@ -372,11 +360,7 @@ func TestProcessUtilization_SmActiveCalculation(t *testing.T) {
 				return []apiCallInfo{
 					{
 						Name: "process_utilization",
-						TestFunc: func(d safenvml.Device) error {
-							_, err := d.GetProcessUtilization(0)
-							return err
-						},
-						CallFunc: func(device safenvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
+						Handler: func(device safenvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
 							return processUtilizationSample(device, lastTimestamp)
 						},
 					},

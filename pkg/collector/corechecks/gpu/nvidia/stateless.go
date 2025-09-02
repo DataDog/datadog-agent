@@ -117,11 +117,7 @@ func createStatelessAPIs() []apiCallInfo {
 		// Memory collector APIs
 		{
 			Name: "bar1_memory",
-			TestFunc: func(d ddnvml.Device) error {
-				_, err := d.GetBAR1MemoryInfo()
-				return err
-			},
-			CallFunc: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
 				bar1Info, err := device.GetBAR1MemoryInfo()
 				if err != nil {
 					return nil, 0, err
@@ -135,11 +131,7 @@ func createStatelessAPIs() []apiCallInfo {
 		},
 		{
 			Name: "device_memory_v2",
-			TestFunc: func(d ddnvml.Device) error {
-				_, err := d.GetMemoryInfoV2()
-				return err
-			},
-			CallFunc: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
 				memInfo, err := device.GetMemoryInfoV2()
 				if err != nil {
 					return nil, 0, err
@@ -152,11 +144,7 @@ func createStatelessAPIs() []apiCallInfo {
 		},
 		{
 			Name: "device_memory_v1",
-			TestFunc: func(d ddnvml.Device) error {
-				_, err := d.GetMemoryInfo()
-				return err
-			},
-			CallFunc: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
 				memInfo, err := device.GetMemoryInfo()
 				if err != nil {
 					return nil, 0, err
@@ -169,11 +157,7 @@ func createStatelessAPIs() []apiCallInfo {
 		// Device collector APIs
 		{
 			Name: "pci_throughput_rx",
-			TestFunc: func(d ddnvml.Device) error {
-				_, err := d.GetPcieThroughput(nvml.PCIE_UTIL_RX_BYTES)
-				return err
-			},
-			CallFunc: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
 				rxTput, err := device.GetPcieThroughput(nvml.PCIE_UTIL_RX_BYTES)
 				if err != nil {
 					return nil, 0, err
@@ -183,11 +167,7 @@ func createStatelessAPIs() []apiCallInfo {
 		},
 		{
 			Name: "pci_throughput_tx",
-			TestFunc: func(d ddnvml.Device) error {
-				_, err := d.GetPcieThroughput(nvml.PCIE_UTIL_TX_BYTES)
-				return err
-			},
-			CallFunc: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
 				txTput, err := device.GetPcieThroughput(nvml.PCIE_UTIL_TX_BYTES)
 				if err != nil {
 					return nil, 0, err
@@ -197,11 +177,7 @@ func createStatelessAPIs() []apiCallInfo {
 		},
 		{
 			Name: "fan_speed",
-			TestFunc: func(d ddnvml.Device) error {
-				_, err := d.GetFanSpeed()
-				return err
-			},
-			CallFunc: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
 				speed, err := device.GetFanSpeed()
 				if err != nil {
 					return nil, 0, err
@@ -211,11 +187,7 @@ func createStatelessAPIs() []apiCallInfo {
 		},
 		{
 			Name: "power_management_limit",
-			TestFunc: func(d ddnvml.Device) error {
-				_, err := d.GetPowerManagementLimit()
-				return err
-			},
-			CallFunc: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
 				limit, err := device.GetPowerManagementLimit()
 				if err != nil {
 					return nil, 0, err
@@ -225,11 +197,7 @@ func createStatelessAPIs() []apiCallInfo {
 		},
 		{
 			Name: "power_usage",
-			TestFunc: func(d ddnvml.Device) error {
-				_, err := d.GetPowerUsage()
-				return err
-			},
-			CallFunc: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
 				power, err := device.GetPowerUsage()
 				if err != nil {
 					return nil, 0, err
@@ -239,11 +207,7 @@ func createStatelessAPIs() []apiCallInfo {
 		},
 		{
 			Name: "performance_state",
-			TestFunc: func(d ddnvml.Device) error {
-				_, err := d.GetPerformanceState()
-				return err
-			},
-			CallFunc: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
 				state, err := device.GetPerformanceState()
 				if err != nil {
 					return nil, 0, err
@@ -253,11 +217,7 @@ func createStatelessAPIs() []apiCallInfo {
 		},
 		{
 			Name: "temperature",
-			TestFunc: func(d ddnvml.Device) error {
-				_, err := d.GetTemperature(nvml.TEMPERATURE_GPU)
-				return err
-			},
-			CallFunc: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
 				temp, err := device.GetTemperature(nvml.TEMPERATURE_GPU)
 				if err != nil {
 					return nil, 0, err
@@ -267,11 +227,7 @@ func createStatelessAPIs() []apiCallInfo {
 		},
 		{
 			Name: "clock_speed_sm",
-			TestFunc: func(d ddnvml.Device) error {
-				_, err := d.GetClockInfo(nvml.CLOCK_SM)
-				return err
-			},
-			CallFunc: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
 				smClock, err := device.GetClockInfo(nvml.CLOCK_SM)
 				if err != nil {
 					return nil, 0, err
@@ -281,11 +237,7 @@ func createStatelessAPIs() []apiCallInfo {
 		},
 		{
 			Name: "clock_speed_memory",
-			TestFunc: func(d ddnvml.Device) error {
-				_, err := d.GetClockInfo(nvml.CLOCK_MEM)
-				return err
-			},
-			CallFunc: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
 				memoryClock, err := device.GetClockInfo(nvml.CLOCK_MEM)
 				if err != nil {
 					return nil, 0, err
@@ -295,11 +247,7 @@ func createStatelessAPIs() []apiCallInfo {
 		},
 		{
 			Name: "clock_speed_graphics",
-			TestFunc: func(d ddnvml.Device) error {
-				_, err := d.GetClockInfo(nvml.CLOCK_GRAPHICS)
-				return err
-			},
-			CallFunc: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
 				graphicsClock, err := device.GetClockInfo(nvml.CLOCK_GRAPHICS)
 				if err != nil {
 					return nil, 0, err
@@ -309,11 +257,7 @@ func createStatelessAPIs() []apiCallInfo {
 		},
 		{
 			Name: "clock_speed_video",
-			TestFunc: func(d ddnvml.Device) error {
-				_, err := d.GetClockInfo(nvml.CLOCK_VIDEO)
-				return err
-			},
-			CallFunc: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
 				videoClock, err := device.GetClockInfo(nvml.CLOCK_VIDEO)
 				if err != nil {
 					return nil, 0, err
@@ -323,11 +267,7 @@ func createStatelessAPIs() []apiCallInfo {
 		},
 		{
 			Name: "max_clock_speed_sm",
-			TestFunc: func(d ddnvml.Device) error {
-				_, err := d.GetMaxClockInfo(nvml.CLOCK_SM)
-				return err
-			},
-			CallFunc: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
 				smClock, err := device.GetMaxClockInfo(nvml.CLOCK_SM)
 				if err != nil {
 					return nil, 0, err
@@ -337,11 +277,7 @@ func createStatelessAPIs() []apiCallInfo {
 		},
 		{
 			Name: "max_clock_speed_memory",
-			TestFunc: func(d ddnvml.Device) error {
-				_, err := d.GetMaxClockInfo(nvml.CLOCK_MEM)
-				return err
-			},
-			CallFunc: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
 				memoryClock, err := device.GetMaxClockInfo(nvml.CLOCK_MEM)
 				if err != nil {
 					return nil, 0, err
@@ -351,11 +287,7 @@ func createStatelessAPIs() []apiCallInfo {
 		},
 		{
 			Name: "max_clock_speed_graphics",
-			TestFunc: func(d ddnvml.Device) error {
-				_, err := d.GetMaxClockInfo(nvml.CLOCK_GRAPHICS)
-				return err
-			},
-			CallFunc: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
 				graphicsClock, err := device.GetMaxClockInfo(nvml.CLOCK_GRAPHICS)
 				if err != nil {
 					return nil, 0, err
@@ -365,11 +297,7 @@ func createStatelessAPIs() []apiCallInfo {
 		},
 		{
 			Name: "max_clock_speed_video",
-			TestFunc: func(d ddnvml.Device) error {
-				_, err := d.GetMaxClockInfo(nvml.CLOCK_VIDEO)
-				return err
-			},
-			CallFunc: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
 				videoClock, err := device.GetMaxClockInfo(nvml.CLOCK_VIDEO)
 				if err != nil {
 					return nil, 0, err
@@ -379,11 +307,7 @@ func createStatelessAPIs() []apiCallInfo {
 		},
 		{
 			Name: "energy_consumption",
-			TestFunc: func(d ddnvml.Device) error {
-				_, err := d.GetTotalEnergyConsumption()
-				return err
-			},
-			CallFunc: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
 				energy, err := device.GetTotalEnergyConsumption()
 				if err != nil {
 					return nil, 0, err
@@ -393,11 +317,7 @@ func createStatelessAPIs() []apiCallInfo {
 		},
 		{
 			Name: "device_count",
-			TestFunc: func(d ddnvml.Device) error {
-				_, err := d.IsMigDeviceHandle()
-				return err
-			},
-			CallFunc: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
 				isMig, err := device.IsMigDeviceHandle()
 				if err != nil {
 					return nil, 0, err
@@ -411,11 +331,7 @@ func createStatelessAPIs() []apiCallInfo {
 		},
 		{
 			Name: "clock_throttle_reasons",
-			TestFunc: func(d ddnvml.Device) error {
-				_, err := d.GetCurrentClocksThrottleReasons()
-				return err
-			},
-			CallFunc: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
 				reasons, err := device.GetCurrentClocksThrottleReasons()
 				if err != nil {
 					return nil, 0, err
@@ -447,11 +363,7 @@ func createStatelessAPIs() []apiCallInfo {
 		},
 		{
 			Name: "remapped_rows",
-			TestFunc: func(d ddnvml.Device) error {
-				_, _, _, _, err := d.GetRemappedRows()
-				return err
-			},
-			CallFunc: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
 				correctable, uncorrectable, pending, failed, err := device.GetRemappedRows()
 				if err != nil {
 					return nil, 0, err
@@ -468,27 +380,14 @@ func createStatelessAPIs() []apiCallInfo {
 		// Process memory APIs (stateless - just current snapshot)
 		{
 			Name: "process_memory_usage",
-			TestFunc: func(d ddnvml.Device) error {
-				_, err := d.GetComputeRunningProcesses()
-				return err
-			},
-			CallFunc: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
 				return processMemorySample(device)
 			},
 		},
 		// NVLink collector APIs
 		{
 			Name: "nvlink_metrics",
-			TestFunc: func(d ddnvml.Device) error {
-				fields := []nvml.FieldValue{
-					{
-						FieldId: nvml.FI_DEV_NVLINK_LINK_COUNT,
-						ScopeId: 0,
-					},
-				}
-				return d.GetFieldValues(fields)
-			},
-			CallFunc: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
 				return nvlinkSample(device)
 			},
 		}}
