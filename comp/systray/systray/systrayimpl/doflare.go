@@ -176,11 +176,11 @@ func requestFlare(s *systrayImpl, caseID, customerEmail string) (response string
 	// For first try, ask the agent to build the flare
 	s.log.Debug("Asking the agent to build the flare archive.")
 
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	ipcAddress, ipcPort, err := pkgconfigsetup.GetIPCAddressAndPort(pkgconfigsetup.Datadog())
 	if err != nil {
 		return "", err
 	}
-	urlstr := fmt.Sprintf("https://%v:%v/agent/flare", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port"))
+	urlstr := fmt.Sprintf("https://%v:%v/agent/flare", ipcAddress, ipcPort)
 
 	r, e := s.client.Post(urlstr, "application/json", bytes.NewBuffer([]byte{}))
 	var filePath string

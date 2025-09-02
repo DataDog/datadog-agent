@@ -326,16 +326,15 @@ func makeFlare(flareComp flare.Component,
 
 func requestArchive(pdata flaretypes.ProfileData, client ipc.HTTPClient, providerTimeout time.Duration) (string, error) {
 	fmt.Fprintln(color.Output, color.BlueString("Asking the agent to build the flare archive."))
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	ipcAddress, cmdport, err := pkgconfigsetup.GetIPCAddressAndPort(pkgconfigsetup.Datadog())
 	if err != nil {
 		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error getting IPC address for the agent: %s", err)))
 		return "", err
 	}
 
-	cmdport := pkgconfigsetup.Datadog().GetInt("cmd_port")
 	url := &url.URL{
 		Scheme: "https",
-		Host:   net.JoinHostPort(ipcAddress, strconv.Itoa(cmdport)),
+		Host:   net.JoinHostPort(ipcAddress, cmdport),
 		Path:   "/agent/flare",
 	}
 	if providerTimeout > 0 {

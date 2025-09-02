@@ -84,12 +84,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 func triggerDump(config cconfig.Component, client ipc.HTTPClient) (string, error) {
-	addr, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	addr, port, err := pkgconfigsetup.GetIPCAddressAndPort(pkgconfigsetup.Datadog())
 	if err != nil {
 		return "", err
 	}
 
-	port := config.GetInt("cmd_port")
 	url := fmt.Sprintf("https://%v:%v/agent/dogstatsd-contexts-dump", addr, port)
 
 	body, err := client.Post(url, "", nil)

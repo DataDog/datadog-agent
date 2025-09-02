@@ -53,11 +53,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 func stop(config config.Component, _ *cliParams, _ log.Component, client ipc.HTTPClient) error {
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	ipcAddress, ipcPort, err := pkgconfigsetup.GetIPCAddressAndPort(pkgconfigsetup.Datadog())
 	if err != nil {
 		return err
 	}
-	urlstr := fmt.Sprintf("https://%v:%v/agent/stop", ipcAddress, config.GetInt("cmd_port"))
+	urlstr := fmt.Sprintf("https://%v:%v/agent/stop", ipcAddress, ipcPort)
 
 	_, e := client.Post(urlstr, "application/json", bytes.NewBuffer([]byte{}))
 	if e != nil {
