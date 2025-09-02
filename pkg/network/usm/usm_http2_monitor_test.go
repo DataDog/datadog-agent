@@ -2022,13 +2022,9 @@ func withStream(streamID uint32) func(*http2.HeadersFrameParam) {
 func withFrameOptions(headersFramesOptions usmhttp2.HeadersFrameOptions) func(*http2.HeadersFrameParam) {
 	return func(h *http2.HeadersFrameParam) {
 		headersFrame, err := usmhttp2.NewHeadersFrameMessage(headersFramesOptions)
-		if err != nil {
-			panic(fmt.Sprintf("could not create headers frame: %v", err))
-		}
+		require.NoError(t, err, "could not create headers frame")
 		h.BlockFragment = headersFrame
-		if headersFramesOptions.EndStream {
-			h.EndStream = true
-		}
+		h.EndStream = headersFramesOptions.EndStream
 	}
 }
 
