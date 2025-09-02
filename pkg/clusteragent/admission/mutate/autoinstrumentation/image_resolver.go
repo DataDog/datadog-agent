@@ -8,7 +8,6 @@
 package autoinstrumentation
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"sync"
@@ -19,10 +18,11 @@ import (
 )
 
 var datadoghqRegistries = map[string]struct{}{
-	"gcr.io/datadoghq":       {},
-	"datadoghq.azurecr.io":   {},
-	"dockerhub.io/datadog":   {},
-	"public.ecr.aws/datadog": {},
+	"gcr.io/datadoghq": {},
+	// TODO: Add these back when we have remote config for them
+	// "datadoghq.azurecr.io":   {},
+	// "dockerhub.io/datadog":   {},
+	// "public.ecr.aws/datadog": {},
 }
 
 // RemoteConfigClient defines the interface we need for remote config operations
@@ -74,44 +74,38 @@ func newRemoteConfigImageResolver(rcClient RemoteConfigClient) ImageResolver {
 	rcClient.Subscribe(state.ProductGradualRollout, resolver.processUpdate)
 	log.Debugf("Subscribed to %s", state.ProductGradualRollout)
 
-	if err := resolver.waitForInitialConfig(5 * time.Second); err != nil {
-		log.Debugf("Failed to load initial image resolution config: %v. Image resolution will be disabled.", err)
+	if err := resolver.waitForInitialConfig(); err != nil {
+		log.Warnf("Failed to load initial image resolution config: %v. Image resolution will be disabled.", err)
 		return newNoOpImageResolver()
 	}
 
 	return resolver
 }
 
-func (r *remoteConfigImageResolver) waitForInitialConfig(timeout time.Duration) error {
+func (r *remoteConfigImageResolver) waitForInitialConfig() error {
 	if currentConfigs := r.rcClient.GetConfigs(state.ProductGradualRollout); len(currentConfigs) > 0 {
 		log.Debugf("Initial configs available immediately: %d configurations", len(currentConfigs))
 		r.updateCache(currentConfigs)
 		return nil
 	}
 
-	// If not immediately available, poll with exponential backoff
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
+	maxRetries := 5
+	retryDelay := 200 * time.Millisecond
 
-	backoff := 100 * time.Millisecond
-	maxBackoff := 2 * time.Second
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		time.Sleep(retryDelay)
 
-	for {
-		select {
-		case <-ctx.Done():
-			return fmt.Errorf("timeout waiting for initial remote config after %v", timeout)
-		case <-time.After(backoff):
-			currentConfigs := r.rcClient.GetConfigs(state.ProductGradualRollout)
-			if len(currentConfigs) > 0 {
-				log.Infof("Loaded initial image resolution config after backoff: %d configurations", len(currentConfigs))
-				r.updateCache(currentConfigs)
-				return nil
-			}
-
-			log.Debugf("Still waiting for initial remote config, retrying in %v", backoff)
-			backoff = min(backoff*2, maxBackoff)
+		currentConfigs := r.rcClient.GetConfigs(state.ProductGradualRollout)
+		if len(currentConfigs) > 0 {
+			log.Infof("Loaded initial image resolution config after %d attempts: %d configurations", attempt, len(currentConfigs))
+			r.updateCache(currentConfigs)
+			return nil
 		}
+
+		log.Debugf("Attempt %d/%d: Still waiting for initial remote config, retrying in %v", attempt, maxRetries, retryDelay)
 	}
+
+	return fmt.Errorf("failed to load initial remote config after %d attempts (%v total wait)", maxRetries, time.Duration(maxRetries)*retryDelay)
 }
 
 // Resolve resolves a registry, repository, and tag to a digest-based reference.
@@ -262,7 +256,6 @@ type ResolvedImage struct {
 // NewImageResolver creates the appropriate ImageResolver based on whether
 // a remote config client is available.
 func NewImageResolver(rcClient RemoteConfigClient) ImageResolver {
-	log.Debugf("nil check: %v", rcClient == nil)
 	if rcClient != nil {
 		return newRemoteConfigImageResolver(rcClient)
 	}

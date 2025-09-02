@@ -14,7 +14,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -56,7 +55,6 @@ func (l language) libInfoWithResolver(ctrName, registry string, version string, 
 	resolvedImage, ok := imageResolver.Resolve(registry, fmt.Sprintf("dd-lib-%s-init", l), version)
 	var image string
 	if !ok {
-		log.Warnf("failed to resolve image %s/%s:%s, using fallback", registry, fmt.Sprintf("dd-lib-%s-init", l), version)
 		image = l.libImageName(registry, version)
 	} else {
 		image = resolvedImage.FullImageRef

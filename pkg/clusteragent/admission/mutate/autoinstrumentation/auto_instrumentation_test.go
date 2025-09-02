@@ -564,17 +564,19 @@ func TestMutatorCoreNewInjector(t *testing.T) {
 
 	i := core.newInjector(pod, startTime, libRequirementOptions{})
 	require.Equal(t, &injector{
-		injectTime: startTime,
-		registry:   core.config.containerRegistry,
-		image:      core.config.containerRegistry + "/apm-inject:0",
+		injectTime:    startTime,
+		registry:      core.config.containerRegistry,
+		image:         core.config.containerRegistry + "/apm-inject:0",
+		imageResolver: imageResolver,
 	}, i)
 
 	core.config.Instrumentation.InjectorImageTag = "banana"
 	i = core.newInjector(pod, startTime, libRequirementOptions{})
 	require.Equal(t, &injector{
-		injectTime: startTime,
-		registry:   core.config.containerRegistry,
-		image:      core.config.containerRegistry + "/apm-inject:banana",
+		injectTime:    startTime,
+		registry:      core.config.containerRegistry,
+		image:         core.config.containerRegistry + "/apm-inject:banana",
+		imageResolver: imageResolver,
 	}, i)
 }
 
