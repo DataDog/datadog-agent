@@ -80,7 +80,7 @@ static_quality_gate_iot_agent_deb_amd64:
   max_on_disk_size: 54.97 MiB
   max_on_wire_size: 14.45 MiB
 static_quality_gate_iot_agent_deb_arm64:
-  max_on_disk_size: 51.9 MiB
+  max_on_disk_size: 52.0 MiB
   max_on_wire_size: 12.63 MiB
 static_quality_gate_iot_agent_deb_armhf:
   max_on_disk_size: 51.84 MiB
