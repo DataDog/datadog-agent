@@ -133,6 +133,7 @@ func (sc *SpanConcentrator) NewStatSpanFromPB(s *pb.Span, peerTags []string) (st
 	)
 }
 
+// StatSpanConfig holds the configuration options for creating a StatSpan using NewStatSpanWithConfig
 type StatSpanConfig struct {
 	Service      string
 	Resource     string
