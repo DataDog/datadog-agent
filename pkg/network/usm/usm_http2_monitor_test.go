@@ -606,7 +606,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				return [][]byte{
 					framer.
 						writeMultiMessage(t, settingsFramesCount, framer.writeSettings).
-						writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}).
+						writeHeaders(t, withStream(1), withFrameOptions(usmhttp2.HeadersFrameOptions{Headers: testHeaders()})).
 						writeData(t, 1, endStream, emptyBody).
 						bytes(),
 				}
@@ -628,7 +628,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				return [][]byte{
 					framer.
 						writeMultiMessage(t, settingsFramesCount, framer.writeSettings).
-						writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}).
+						writeHeaders(t, withStream(1), withFrameOptions(usmhttp2.HeadersFrameOptions{Headers: testHeaders()})).
 						writeData(t, 1, endStream, emptyBody).
 						bytes(),
 				}
@@ -648,7 +648,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				for i := 0; i < iterations; i++ {
 					streamID := getStreamID(i)
 					framer.
-						writeHeaders(t, streamID, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}).
+						writeHeaders(t, withStream(streamID), withFrameOptions(usmhttp2.HeadersFrameOptions{Headers: testHeaders()})).
 						writeData(t, streamID, endStream, emptyBody)
 				}
 				return [][]byte{framer.bytes()}
@@ -669,7 +669,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				for i := 0; i < iterations; i++ {
 					streamID := getStreamID(i)
 					framer.
-						writeHeaders(t, streamID, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}, true).
+						writeHeaders(t, withStream(streamID), withFrameOptions(usmhttp2.HeadersFrameOptions{Headers: testHeaders()}), withPriority(true)).
 						writeData(t, streamID, endStream, emptyBody)
 				}
 				return [][]byte{framer.bytes()}
@@ -687,9 +687,9 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				for i := 0; i < iterations; i++ {
 					streamID := getStreamID(i)
 					framer.
-						writeHeaders(t, streamID, usmhttp2.HeadersFrameOptions{
+						writeHeaders(t, withStream(streamID), withFrameOptions(usmhttp2.HeadersFrameOptions{
 							Headers:                generateTestHeaderFields(headersGenerationOptions{pathTypeValue: pathLiteralWithoutIndexing}),
-							DynamicTableUpdateSize: defaultDynamicTableSize}).
+							DynamicTableUpdateSize: defaultDynamicTableSize})).
 						writeData(t, streamID, endStream, emptyBody)
 				}
 				return [][]byte{framer.bytes()}
@@ -710,9 +710,9 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				for i := 0; i < iterations; i++ {
 					streamID := getStreamID(i)
 					framer.
-						writeHeaders(t, streamID, usmhttp2.HeadersFrameOptions{
+						writeHeaders(t, withStream(streamID), withFrameOptions(usmhttp2.HeadersFrameOptions{
 							Headers:                generateTestHeaderFields(headersGenerationOptions{pathTypeValue: pathLiteralWithoutIndexing}),
-							DynamicTableUpdateSize: defaultDynamicTableSize}, true).
+							DynamicTableUpdateSize: defaultDynamicTableSize}), withPriority(true)).
 						writeData(t, streamID, endStream, emptyBody)
 				}
 				return [][]byte{framer.bytes()}
@@ -730,8 +730,8 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				for i := 0; i < iterations; i++ {
 					streamID := getStreamID(i)
 					framer.
-						writeHeaders(t, streamID, usmhttp2.HeadersFrameOptions{
-							Headers: generateTestHeaderFields(headersGenerationOptions{pathTypeValue: pathLiteralNeverIndexed})}).
+						writeHeaders(t, withStream(streamID), withFrameOptions(usmhttp2.HeadersFrameOptions{
+							Headers: generateTestHeaderFields(headersGenerationOptions{pathTypeValue: pathLiteralNeverIndexed})})).
 						writeData(t, streamID, endStream, emptyBody)
 				}
 				return [][]byte{framer.bytes()}
@@ -752,8 +752,8 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				for i := 0; i < iterations; i++ {
 					streamID := getStreamID(i)
 					framer.
-						writeHeaders(t, streamID, usmhttp2.HeadersFrameOptions{
-							Headers: generateTestHeaderFields(headersGenerationOptions{pathTypeValue: pathLiteralNeverIndexed})}, true).
+						writeHeaders(t, withStream(streamID), withFrameOptions(usmhttp2.HeadersFrameOptions{
+							Headers: generateTestHeaderFields(headersGenerationOptions{pathTypeValue: pathLiteralNeverIndexed})}), withPriority(true)).
 						writeData(t, streamID, endStream, emptyBody)
 				}
 				return [][]byte{framer.bytes()}
@@ -801,9 +801,9 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				for i := 0; i < iterations; i++ {
 					streamID := getStreamID(i)
 					framer.
-						writeHeaders(t, streamID, usmhttp2.HeadersFrameOptions{
+						writeHeaders(t, withStream(streamID), withFrameOptions(usmhttp2.HeadersFrameOptions{
 							Headers: testHeaders(),
-						}).
+						})).
 						writePing(t).
 						writeWindowUpdate(t, streamID, 1).
 						writeData(t, streamID, endStream, emptyBody)
@@ -830,7 +830,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				for i := 0; i < iterations; i++ {
 					streamID := getStreamID(i)
 					framer.
-						writeHeaders(t, streamID, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}).
+						writeHeaders(t, withStream(streamID), withFrameOptions(usmhttp2.HeadersFrameOptions{Headers: testHeaders()})).
 						writeData(t, streamID, endStream, emptyBody)
 					if rstFramesCount > 0 {
 						framer.writeRSTStream(t, streamID, http2.ErrCodeCancel)
@@ -856,7 +856,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				for i := 0; i < iterations; i++ {
 					streamID := getStreamID(i)
 					framer.
-						writeHeaders(t, streamID, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}).
+						writeHeaders(t, withStream(streamID), withFrameOptions(usmhttp2.HeadersFrameOptions{Headers: testHeaders()})).
 						writeData(t, streamID, endStream, emptyBody).
 						writeRSTStream(t, streamID, http2.ErrCodeNo)
 				}
@@ -876,7 +876,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 					for i := 0; i < iterationsPerStatusCode; i++ {
 						streamID := getStreamID(statusCodeIteration*iterationsPerStatusCode + i)
 						messages = append(messages, newFramer().
-							writeHeaders(t, streamID, usmhttp2.HeadersFrameOptions{Headers: headersWithGivenEndpoint(fmt.Sprintf("/status/%d", statusCode))}).
+							writeHeaders(t, withStream(streamID), withFrameOptions(usmhttp2.HeadersFrameOptions{Headers: headersWithGivenEndpoint(fmt.Sprintf("/status/%d", statusCode))})).
 							writeData(t, streamID, endStream, emptyBody).
 							bytes())
 					}
@@ -1083,7 +1083,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				framer := newFramer()
 				return [][]byte{
 					framer.
-						writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: generateTestHeaderFields(headersGenerationOptions{pathTypeValue: pathTooLarge})}).
+						writeHeaders(t, withStream(1), withFrameOptions(usmhttp2.HeadersFrameOptions{Headers: generateTestHeaderFields(headersGenerationOptions{pathTypeValue: pathTooLarge})})).
 						writeData(t, 1, endStream, emptyBody).
 						bytes(),
 				}
@@ -1116,7 +1116,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			name: "Interesting frame header sent separately from frame payload",
 			// Testing the scenario in which the frame header (of an interesting type) is sent separately from the frame payload.
 			messageBuilder: func() [][]byte {
-				headersFrame := newFramer().writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}).bytes()
+				headersFrame := newFramer().writeHeaders(t, withStream(1), withFrameOptions(usmhttp2.HeadersFrameOptions{Headers: testHeaders()})).bytes()
 				dataFrame := newFramer().writeData(t, 1, endStream, emptyBody).bytes()
 				headersFrameHeader := headersFrame[:9]
 				secondMessage := append(headersFrame[9:], dataFrame...)
@@ -1136,7 +1136,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			name: "Interesting frame header sent separately from frame payload with PRIORITY",
 			// PRIORITY adds 5 bytes to HEADERS frame - changes frame splitting calculations
 			messageBuilder: func() [][]byte {
-				headersFrame := newFramer().writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}, true).bytes()
+				headersFrame := newFramer().writeHeaders(t, withStream(1), withFrameOptions(usmhttp2.HeadersFrameOptions{Headers: testHeaders()}), withPriority(true)).bytes()
 				dataFrame := newFramer().writeData(t, 1, endStream, emptyBody).bytes()
 				// Split after HTTP/2 frame header (9 bytes) + PRIORITY section (5 bytes) = 14 bytes
 				headersFrameHeader := headersFrame[:14]
@@ -1153,7 +1153,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			// Testing the scenario in which the frame header (of a not interesting type) is sent separately from the frame payload.
 			messageBuilder: func() [][]byte {
 				pingFrame := newFramer().writePing(t).bytes()
-				fullFrame := newFramer().writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}).
+				fullFrame := newFramer().writeHeaders(t, withStream(1), withFrameOptions(usmhttp2.HeadersFrameOptions{Headers: testHeaders()})).
 					writeData(t, 1, endStream, emptyBody).bytes()
 				pingFrameHeader := pingFrame[:9]
 				secondMessage := append(pingFrame[9:], fullFrame...)
@@ -1179,9 +1179,9 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				for i := 0; i < iterations; i++ {
 					streamID := getStreamID(i)
 					framer.
-						writeHeaders(t, streamID, usmhttp2.HeadersFrameOptions{
+						writeHeaders(t, withStream(streamID), withFrameOptions(usmhttp2.HeadersFrameOptions{
 							Headers:                headersWithGivenEndpoint("/"),
-							DynamicTableUpdateSize: defaultDynamicTableSize}).
+							DynamicTableUpdateSize: defaultDynamicTableSize})).
 						writeData(t, streamID, endStream, emptyBody)
 				}
 				return [][]byte{framer.bytes()}
@@ -1202,9 +1202,9 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				for i := 0; i < iterations; i++ {
 					streamID := getStreamID(i)
 					framer.
-						writeHeaders(t, streamID, usmhttp2.HeadersFrameOptions{
+						writeHeaders(t, withStream(streamID), withFrameOptions(usmhttp2.HeadersFrameOptions{
 							Headers:                headersWithGivenEndpoint("/"),
-							DynamicTableUpdateSize: defaultDynamicTableSize}, true).
+							DynamicTableUpdateSize: defaultDynamicTableSize}), withPriority(true)).
 						writeData(t, streamID, endStream, emptyBody)
 				}
 				return [][]byte{framer.bytes()}
@@ -1222,10 +1222,10 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				for i := 0; i < iterations; i++ {
 					streamID := getStreamID(i)
 					framer.
-						writeHeaders(t, streamID, usmhttp2.HeadersFrameOptions{
+						writeHeaders(t, withStream(streamID), withFrameOptions(usmhttp2.HeadersFrameOptions{
 							Headers:                headersWithGivenEndpoint("/"),
 							DynamicTableUpdateSize: dynamicTableSize,
-						}).
+						})).
 						writeData(t, streamID, endStream, emptyBody)
 				}
 				return [][]byte{framer.bytes()}
@@ -1242,12 +1242,12 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			// Testing the scenario in which the data frame header is sent separately from the frame payload.
 			messageBuilder: func() [][]byte {
 				payload := []byte("test")
-				headersFrame := newFramer().writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}).bytes()
+				headersFrame := newFramer().writeHeaders(t, withStream(1), withFrameOptions(usmhttp2.HeadersFrameOptions{Headers: testHeaders()})).bytes()
 				dataFrame := newFramer().writeData(t, 1, endStream, payload).bytes()
 				// We are creating a header frame with a content-length header field that contains the payload size.
-				secondMessageHeadersFrame := newFramer().writeHeaders(t, 3, usmhttp2.HeadersFrameOptions{
+				secondMessageHeadersFrame := newFramer().writeHeaders(t, withStream(3), withFrameOptions(usmhttp2.HeadersFrameOptions{
 					Headers: generateTestHeaderFields(headersGenerationOptions{
-						overrideContentLength: len(payload)})}).writeData(t, 3, endStream, payload).bytes()
+						overrideContentLength: len(payload)})})).writeData(t, 3, endStream, payload).bytes()
 
 				headersFrameHeader := append(headersFrame, dataFrame[:9]...)
 				secondMessage := append(dataFrame[9:], secondMessageHeadersFrame...)
@@ -1268,12 +1268,12 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			// PRIORITY affects frame boundaries in multi-frame messages
 			messageBuilder: func() [][]byte {
 				payload := []byte("test")
-				headersFrame := newFramer().writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}, true).bytes()
+				headersFrame := newFramer().writeHeaders(t, withStream(1), withFrameOptions(usmhttp2.HeadersFrameOptions{Headers: testHeaders()}), withPriority(true)).bytes()
 				dataFrame := newFramer().writeData(t, 1, endStream, payload).bytes()
 				// Create second message with PRIORITY flag
-				secondMessageHeadersFrame := newFramer().writeHeaders(t, 3, usmhttp2.HeadersFrameOptions{
+				secondMessageHeadersFrame := newFramer().writeHeaders(t, withStream(3), withFrameOptions(usmhttp2.HeadersFrameOptions{
 					Headers: generateTestHeaderFields(headersGenerationOptions{
-						overrideContentLength: len(payload)})}, true).writeData(t, 3, endStream, payload).bytes()
+						overrideContentLength: len(payload)})}), withPriority(true)).writeData(t, 3, endStream, payload).bytes()
 
 				// Account for PRIORITY section when splitting frames
 				headersFrameHeader := append(headersFrame, dataFrame[:9]...)
@@ -1292,9 +1292,9 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			messageBuilder: func() [][]byte {
 				payload := []byte("test")
 				// We are creating a header frame with a content-length header field that contains the payload size.
-				headersFrame := newFramer().writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{
+				headersFrame := newFramer().writeHeaders(t, withStream(1), withFrameOptions(usmhttp2.HeadersFrameOptions{
 					Headers: generateTestHeaderFields(headersGenerationOptions{
-						overrideContentLength: len(payload)})}).bytes()
+						overrideContentLength: len(payload)})})).bytes()
 				dataFrame := newFramer().writeData(t, 1, endStream, payload).bytes()
 				pingFrame := newFramer().writePing(t).bytes()
 
@@ -1318,11 +1318,11 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			messageBuilder: func() [][]byte {
 				payload := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9}
 				// We are creating a header frame with a content-length header field that contains the payload size.
-				headersFrame := newFramer().writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{
+				headersFrame := newFramer().writeHeaders(t, withStream(1), withFrameOptions(usmhttp2.HeadersFrameOptions{
 					Headers: generateTestHeaderFields(headersGenerationOptions{
-						overrideContentLength: len(payload)})}).bytes()
+						overrideContentLength: len(payload)})})).bytes()
 				dataFrame := newFramer().writeData(t, 1, endStream, payload).bytes()
-				secondMessageHeadersFrame := newFramer().writeHeaders(t, 3, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}).bytes()
+				secondMessageHeadersFrame := newFramer().writeHeaders(t, withStream(3), withFrameOptions(usmhttp2.HeadersFrameOptions{Headers: testHeaders()})).bytes()
 				secondMessageDataFrame := newFramer().writeData(t, 3, endStream, emptyBody).bytes()
 
 				// We are cutting in the middle of the payload
@@ -1346,11 +1346,11 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			// PRIORITY changes HEADERS frame size affecting frame splitting calculations
 			messageBuilder: func() [][]byte {
 				payload := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9}
-				headersFrame := newFramer().writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{
+				headersFrame := newFramer().writeHeaders(t, withStream(1), withFrameOptions(usmhttp2.HeadersFrameOptions{
 					Headers: generateTestHeaderFields(headersGenerationOptions{
-						overrideContentLength: len(payload)})}, true).bytes()
+						overrideContentLength: len(payload)})}), withPriority(true)).bytes()
 				dataFrame := newFramer().writeData(t, 1, endStream, payload).bytes()
-				secondMessageHeadersFrame := newFramer().writeHeaders(t, 3, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}, true).bytes()
+				secondMessageHeadersFrame := newFramer().writeHeaders(t, withStream(3), withFrameOptions(usmhttp2.HeadersFrameOptions{Headers: testHeaders()}), withPriority(true)).bytes()
 				secondMessageDataFrame := newFramer().writeData(t, 3, endStream, emptyBody).bytes()
 
 				// Account for PRIORITY adding 5 bytes to HEADERS frames
@@ -1395,7 +1395,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			// The purpose of this test is to validate that we cannot handle reassembled tcp segments.
 			messageBuilder: func() [][]byte {
 				a := newFramer().
-					writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}).
+					writeHeaders(t, withStream(1), withFrameOptions(usmhttp2.HeadersFrameOptions{Headers: testHeaders()})).
 					writeData(t, 1, true, emptyBody).bytes()
 				return [][]byte{
 					a[:10],
@@ -1413,10 +1413,10 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			messageBuilder: func() [][]byte {
 				data := []byte("testcontent")
 				request1 := newFramer().
-					writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: generateTestHeaderFields(headersGenerationOptions{overrideContentLength: len(data)})}).
+					writeHeaders(t, withStream(1), withFrameOptions(usmhttp2.HeadersFrameOptions{Headers: generateTestHeaderFields(headersGenerationOptions{overrideContentLength: len(data)})})).
 					writeData(t, 1, true, data).bytes()
 				request2 := newFramer().
-					writeHeaders(t, 3, usmhttp2.HeadersFrameOptions{Headers: headersWithGivenEndpoint("/bbb")}).
+					writeHeaders(t, withStream(3), withFrameOptions(usmhttp2.HeadersFrameOptions{Headers: headersWithGivenEndpoint("/bbb")})).
 					writeData(t, 3, true, emptyBody).bytes()
 				firstPacket := request1[:len(request1)-6]
 				secondPacket := append(request1[len(request1)-6:], request2[:5]...)
@@ -1443,10 +1443,10 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			messageBuilder: func() [][]byte {
 				data := []byte("testcontent")
 				request1 := newFramer().
-					writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: generateTestHeaderFields(headersGenerationOptions{overrideContentLength: len(data)})}, true).
+					writeHeaders(t, withStream(1), withFrameOptions(usmhttp2.HeadersFrameOptions{Headers: generateTestHeaderFields(headersGenerationOptions{overrideContentLength: len(data)})}), withPriority(true)).
 					writeData(t, 1, true, data).bytes()
 				request2 := newFramer().
-					writeHeaders(t, 3, usmhttp2.HeadersFrameOptions{Headers: headersWithGivenEndpoint("/bbb")}, true).
+					writeHeaders(t, withStream(3), withFrameOptions(usmhttp2.HeadersFrameOptions{Headers: headersWithGivenEndpoint("/bbb")}), withPriority(true)).
 					writeData(t, 3, true, emptyBody).bytes()
 				// Account for PRIORITY adding 5 bytes to first frame
 				firstPacket := request1[:len(request1)-6]
@@ -1518,7 +1518,7 @@ func (s *usmHTTP2Suite) TestDynamicTable() {
 				for i := 0; i < iterations; i++ {
 					streamID := getStreamID(i)
 					framer.
-						writeHeaders(t, streamID, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}).
+						writeHeaders(t, withStream(streamID), withFrameOptions(usmhttp2.HeadersFrameOptions{Headers: testHeaders()})).
 						writeData(t, streamID, endStream, emptyBody)
 				}
 
@@ -1593,7 +1593,7 @@ func (s *usmHTTP2Suite) TestIncompleteFrameTable() {
 			messageBuilder: func() [][]byte {
 				data := []byte("test12345")
 				a := newFramer().
-					writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: generateTestHeaderFields(headersGenerationOptions{overrideContentLength: len(data)})}).bytes()
+					writeHeaders(t, withStream(1), withFrameOptions(usmhttp2.HeadersFrameOptions{Headers: generateTestHeaderFields(headersGenerationOptions{overrideContentLength: len(data)})})).bytes()
 				b := newFramer().writeData(t, 1, true, data).bytes()
 				message := append(a, b[:11]...)
 				return [][]byte{
@@ -1610,7 +1610,7 @@ func (s *usmHTTP2Suite) TestIncompleteFrameTable() {
 			messageBuilder: func() [][]byte {
 				data := []byte("test12345")
 				a := newFramer().
-					writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: generateTestHeaderFields(headersGenerationOptions{overrideContentLength: len(data)})}, true).bytes()
+					writeHeaders(t, withStream(1), withFrameOptions(usmhttp2.HeadersFrameOptions{Headers: generateTestHeaderFields(headersGenerationOptions{overrideContentLength: len(data)})}), withPriority(true)).bytes()
 				b := newFramer().writeData(t, 1, true, data).bytes()
 				message := append(a, b[:11]...)
 				return [][]byte{
@@ -1626,7 +1626,7 @@ func (s *usmHTTP2Suite) TestIncompleteFrameTable() {
 			// The purpose of this test is to validate that we cannot handle reassembled tcp segments.
 			messageBuilder: func() [][]byte {
 				a := newFramer().
-					writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}).
+					writeHeaders(t, withStream(1), withFrameOptions(usmhttp2.HeadersFrameOptions{Headers: testHeaders()})).
 					writeData(t, 1, true, emptyBody).bytes()
 				return [][]byte{
 					// we split it in 10 bytes in order to split the payload itself.
@@ -1641,7 +1641,7 @@ func (s *usmHTTP2Suite) TestIncompleteFrameTable() {
 			// PRIORITY changes frame structure - split now occurs within PRIORITY section
 			messageBuilder: func() [][]byte {
 				a := newFramer().
-					writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}, true).
+					writeHeaders(t, withStream(1), withFrameOptions(usmhttp2.HeadersFrameOptions{Headers: testHeaders()}), withPriority(true)).
 					writeData(t, 1, true, emptyBody).bytes()
 				return [][]byte{
 					// Split at 10 bytes: now in PRIORITY section (9 byte header + 1 byte of PRIORITY)
@@ -1702,9 +1702,9 @@ func (s *usmHTTP2Suite) TestRawHuffmanEncoding() {
 			// The purpose of this test is to verify that we are able to identify if the path is huffman encoded.
 			messageBuilder: func() []byte {
 				framer := newFramer()
-				return framer.writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}).
+				return framer.writeHeaders(t, withStream(1), withFrameOptions(usmhttp2.HeadersFrameOptions{Headers: testHeaders()})).
 					writeData(t, 1, endStream, emptyBody).
-					writeHeaders(t, 3, usmhttp2.HeadersFrameOptions{Headers: headersWithGivenEndpoint("/a")}).
+					writeHeaders(t, withStream(3), withFrameOptions(usmhttp2.HeadersFrameOptions{Headers: headersWithGivenEndpoint("/a")})).
 					writeData(t, 3, endStream, emptyBody).bytes()
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
@@ -2013,26 +2013,43 @@ func (f *framer) writeRawHeaders(t *testing.T, streamID uint32, endHeaders bool,
 	return f
 }
 
-func (f *framer) writeHeaders(t *testing.T, streamID uint32, headersFramesOptions usmhttp2.HeadersFrameOptions, withPriority ...bool) *framer {
-	headersFrame, err := usmhttp2.NewHeadersFrameMessage(headersFramesOptions)
-	require.NoError(t, err, "could not create headers frame")
+func withStream(streamID uint32) func(*http2.HeadersFrameParam) {
+	return func(h *http2.HeadersFrameParam) {
+		h.StreamID = streamID
+	}
+}
 
-	param := http2.HeadersFrameParam{
-		StreamID:      streamID,
-		BlockFragment: headersFrame,
-		EndHeaders:    true,
+func withFrameOptions(headersFramesOptions usmhttp2.HeadersFrameOptions) func(*http2.HeadersFrameParam) {
+	return func(h *http2.HeadersFrameParam) {
+		headersFrame, err := usmhttp2.NewHeadersFrameMessage(headersFramesOptions)
+		if err != nil {
+			panic(fmt.Sprintf("could not create headers frame: %v", err))
+		}
+		h.BlockFragment = headersFrame
+		if headersFramesOptions.EndStream {
+			h.EndStream = true
+		}
+	}
+}
+
+func withPriority(enable bool) func(*http2.HeadersFrameParam) {
+	return func(h *http2.HeadersFrameParam) {
+		if enable {
+			h.Priority = http2.PriorityParam{StreamDep: 0, Exclusive: false, Weight: 16}
+		}
+	}
+}
+
+func (f *framer) writeHeaders(t *testing.T, transformers ...func(*http2.HeadersFrameParam)) *framer {
+	param := &http2.HeadersFrameParam{
+		EndHeaders: true,
 	}
 
-	if headersFramesOptions.EndStream {
-		param.EndStream = true
+	for _, transform := range transformers {
+		transform(param)
 	}
 
-	// Add PRIORITY if requested
-	if len(withPriority) > 0 && withPriority[0] {
-		param.Priority = http2.PriorityParam{StreamDep: 0, Exclusive: false, Weight: 16}
-	}
-
-	require.NoError(t, f.framer.WriteHeaders(param), "could not write header frames")
+	require.NoError(t, f.framer.WriteHeaders(*param), "could not write header frames")
 	return f
 }
 
