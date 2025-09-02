@@ -503,18 +503,7 @@ func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string,
 		)
 	}
 	defer os.RemoveAll(tmpDir)
-
-	// Copy the files from the stable config
-	configRepo := i.configs.Get(pkg)
-	err = configRepo.CopyStable(ctx, tmpDir)
-	if err != nil {
-		return installerErrors.Wrap(
-			installerErrors.ErrFilesystemIssue,
-			fmt.Errorf("could not copy stable config: %w", err),
-		)
-	}
-
-	configRoot, err := os.OpenRoot(configRepo.StablePath())
+	configRoot, err := os.OpenRoot(tmpDir)
 	if err != nil {
 		return installerErrors.Wrap(
 			installerErrors.ErrFilesystemIssue,
@@ -530,6 +519,7 @@ func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string,
 			)
 		}
 	}
+	configRepo := i.configs.Get(pkg)
 	err = configRepo.SetExperiment(ctx, operations.DeploymentID, tmpDir)
 	if err != nil {
 		return installerErrors.Wrap(

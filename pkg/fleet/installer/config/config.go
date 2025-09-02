@@ -41,7 +41,7 @@ type Operations struct {
 type Operation struct {
 	OperationType OperationType   `json:"op"`
 	Path          string          `json:"path"`
-	Patch         json.RawMessage `json:"patch"`
+	Patch         json.RawMessage `json:"patch,omitempty"`
 }
 
 // Apply applies the operation to the root.
@@ -115,9 +115,14 @@ func (a *Operation) Apply(root *os.Root) error {
 		}
 		return err
 	case OperationTypeDelete:
-		return root.Remove(path)
+		err := root.Remove(path)
+		if err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		return nil
+	default:
+		return fmt.Errorf("unknown operation type: %s", a.OperationType)
 	}
-	return nil
 }
 
 func ensureDir(root *os.Root, filePath string) error {

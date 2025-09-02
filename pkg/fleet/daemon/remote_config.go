@@ -146,7 +146,7 @@ func handleInstallerConfigUpdate(h handleConfigsUpdate) func(map[string]state.Ra
 				installerConfig.Operations = append(installerConfig.Operations, installerConfigOperation{OperationType: "delete", Path: "/otel-config.yaml"})
 				installerConfig.Operations = append(installerConfig.Operations, installerConfigOperation{OperationType: "delete", Path: "/conf.d/snmp.d/ndm_core-1.yaml"})
 				for _, file := range legacyConfigs.Files {
-					installerConfig.Operations = append(installerConfig.Operations, installerConfigOperation{OperationType: "write", Path: file.Path, Patch: file.Contents})
+					installerConfig.Operations = append(installerConfig.Operations, installerConfigOperation{OperationType: "merge-patch", Path: file.Path, Patch: file.Contents})
 				}
 			}
 			installerConfigs[installerConfig.ID] = installerConfig
