@@ -186,9 +186,6 @@ func parseAndValidateConfigs(configs map[string]state.RawConfig) (map[string]Rep
 }
 
 func (r *remoteConfigImageResolver) updateCacheFromParsedConfigs(validConfigs map[string]RepositoryConfig) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
 	newCache := make(map[string]map[string]ResolvedImage)
 
 	for _, repo := range validConfigs {
@@ -210,6 +207,8 @@ func (r *remoteConfigImageResolver) updateCacheFromParsedConfigs(validConfigs ma
 		log.Debugf("Processed config for repository %s with %d images", repo.RepositoryName, len(tagMap))
 	}
 
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.imageMappings = newCache
 }
 
