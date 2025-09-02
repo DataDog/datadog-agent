@@ -54,15 +54,15 @@ Write-Host "Installing Windows Codesign Helper $WINSIGN_VERSION"
 Write-Host -ForegroundColor Green "Installing Windows Codesign Helper $WINSIGN_VERSION"
 
 ## need to have more rigorous download at some point, but
-# $codesign_base = "windows_code_signer-$($WINSIGN_VERSION)-py3-none-any.whl"
-# $codesign_wheel = "https://s3.amazonaws.com/dd-agent-omnibus/windows-code-signer/$($codesign_base)"
+$codesign_base = "windows_code_signer-$($WINSIGN_VERSION)-py3-none-any.whl"
+$codesign_wheel = "https://s3.amazonaws.com/dd-agent-omnibus/windows-code-signer/$($codesign_base)"
 # $codesign_wheel = "https://s3.amazonaws.com/dd-ci-persistent-artefacts-build-stable/datadog-agent/celian-windows-code-signer/$($codesign_base)"
-# $codesign_wheel_target = "c:\devtools\$($codesign_base)"
-# (New-Object System.Net.WebClient).DownloadFile($codesign_wheel, $codesign_wheel_target)
+$codesign_wheel_target = "c:\devtools\$($codesign_base)"
+(New-Object System.Net.WebClient).DownloadFile($codesign_wheel, $codesign_wheel_target)
 
 # TODO: Get-RemoteFile -RemoteFile $codesign_wheel -LocalFile $codesign_wheel_target -VerifyHash $WINSIGN_SHA256
 
-python -m pip install windows_code_signer-0.3.1-py3-none-any.whl
+python -m pip install $codesign_wheel_target
 If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
 
 
