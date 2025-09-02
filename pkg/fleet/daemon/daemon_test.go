@@ -104,8 +104,8 @@ func (m *testPackageManager) PromoteExperiment(ctx context.Context, pkg string) 
 	return args.Error(0)
 }
 
-func (m *testPackageManager) InstallConfigExperiment(ctx context.Context, pkg string, version string, configActions []config.Action) error {
-	args := m.Called(ctx, pkg, version, configActions)
+func (m *testPackageManager) InstallConfigExperiment(ctx context.Context, pkg string, operations config.Operations) error {
+	args := m.Called(ctx, pkg, operations)
 	return args.Error(0)
 }
 
