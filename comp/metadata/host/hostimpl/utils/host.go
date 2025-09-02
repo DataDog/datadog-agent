@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
 	containerMetadata "github.com/DataDog/datadog-agent/pkg/util/containers/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/hostinfo"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -174,7 +175,7 @@ func getFipsMode() bool {
 
 // GetOSVersion returns the current OS version
 func GetOSVersion() string {
-	hostInfo := GetInformation()
+	hostInfo := hostinfo.GetInformation()
 	return strings.Trim(hostInfo.Platform+" "+hostInfo.PlatformVersion, " ")
 }
 
@@ -223,5 +224,5 @@ func GetFromCache(ctx context.Context, conf model.Reader, hostname hostnameinter
 
 // GetPlatformName returns the name of the current platform
 func GetPlatformName() string {
-	return GetInformation().Platform
+	return hostinfo.GetInformation().Platform
 }
