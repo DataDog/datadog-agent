@@ -140,6 +140,12 @@ func newAgentGRPCClient(ipcAddress string, cmdPort string, tlsConfig *tls.Config
 		grpc.MaxCallRecvMsgSize(maxMessageSize),
 	))
 	if err != nil {
+		// Skip returning "database not open" GRPC error
+		// https://datadoghq.atlassian.net/browse/RC-1858
+		if errStatus, ok := status.FromError(err); ok && errStatus.Code() == codes.Unknown && strings.Contains(errStatus.Message(), "database not open") {
+			log.Debugf("database not open error encountered: %v", err)
+			return nil, nil
+		}
 		return nil, err
 	}
 	return c, nil
@@ -434,11 +440,7 @@ func (c *Client) pollLoop() {
 
 					c.lastUpdateError = err
 					c.backoffErrorCount = c.backoffPolicy.IncError(c.backoffErrorCount)
-
-					// don't log "database not open" errors https://datadoghq.atlassian.net/browse/RC-1858
-					if !strings.Contains(err.Error(), "database not open") {
-						log.Errorf("could not update remote-config state: %v", c.lastUpdateError)
-					}
+					log.Errorf("could not update remote-config state: %v", c.lastUpdateError)
 				}
 			} else {
 				if c.lastUpdateError != nil {
