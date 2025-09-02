@@ -113,16 +113,6 @@ func (s *Setup) Run() (err error) {
 
 	defer func() { s.Span.Finish(err) }()
 
-	s.Out.WriteString("Applying configurations...\n")
-	// ensure config root is created with correct permissions
-	err = paths.EnsureInstallerDataDir()
-	if err != nil {
-		return fmt.Errorf("could not create config directory: %w", err)
-	}
-	err = config.WriteConfigs(s.Config, s.configDir)
-	if err != nil {
-		return fmt.Errorf("failed to write configuration: %w", err)
-	}
 	packages := resolvePackages(s.Env, s.Packages)
 	s.Out.WriteString("The following packages will be installed:\n")
 	for _, p := range packages {
@@ -134,6 +124,11 @@ func (s *Setup) Run() (err error) {
 		return fmt.Errorf("failed to stop services: %w", err)
 	}
 	s.Out.WriteString("Applying configurations...\n")
+	// ensure config root is created with correct permissions
+	err = paths.EnsureInstallerDataDir()
+	if err != nil {
+		return fmt.Errorf("could not create config directory: %w", err)
+	}
 	err = config.WriteConfigs(s.Config, s.configDir)
 	if err != nil {
 		return fmt.Errorf("failed to write configuration: %w", err)
