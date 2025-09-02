@@ -336,6 +336,9 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool, error) {
 	case *ir.VoidPointerType:
 		// Nothing to process. We don't know what the pointee is.
 
+	case *ir.UnresolvedPointeeType:
+		// Nothing to process.
+
 	case *ir.PointerType:
 		g.typeQueue = append(g.typeQueue, t.Pointee)
 		needed = true

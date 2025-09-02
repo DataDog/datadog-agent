@@ -262,6 +262,7 @@ var allTypes = []reflect.Type{
 	reflect.TypeOf((*ir.PointerType)(nil)),
 	reflect.TypeOf((*ir.StructureType)(nil)),
 	reflect.TypeOf((*ir.VoidPointerType)(nil)),
+	reflect.TypeOf((*ir.UnresolvedPointeeType)(nil)),
 }
 
 var typeMarshalers map[reflect.Type]*typeMarshaler

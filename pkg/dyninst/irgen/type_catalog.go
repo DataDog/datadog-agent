@@ -54,15 +54,6 @@ func newTypeCatalog(
 	}
 }
 
-// TODO: Right now this code is going to walk and fill in all reachable types
-// from the current entry. This is going to waste memory resources in situations
-// where we don't actually need all these types because they won't be reachable
-// due to pointer chasing depth limits. This will need to take expressions into
-// account. Perhaps the answer there is to leave some sort of placeholders in a
-// type marking that we stopped looking and then resume exploration from there
-// if we reach a type that needs to be explored further. We'll need some
-// bookkeeping on the depth from which a type has been explored.
-
 func (c *typeCatalog) addType(offset dwarf.Offset) (ret ir.Type, retErr error) {
 	// At most there can be 2 "superficial" typedefs above a real type.  One can
 	// happen for structures and subprogram types, and another can happen around
@@ -403,19 +394,22 @@ func (c *typeCatalog) buildType(
 				if err != nil {
 					return nil, err
 				}
+				headerPtrType.Pointee = pointee
 			}
-			headerPtrType.Pointee = pointee
-			headerType, ok := pointee.(*ir.StructureType)
-			if !ok {
+			switch pointee.(type) {
+			case *ir.StructureType:
+			case *ir.GoHMapHeaderType:
+			case *ir.GoSwissMapHeaderType:
+			default:
 				return nil, fmt.Errorf(
 					"underlying type for map is not a structure type: %T",
-					headerPtrType.Pointee,
+					pointee,
 				)
 			}
 			return &ir.GoMapType{
 				TypeCommon:       common,
 				GoTypeAttributes: goAttrs,
-				HeaderType:       headerType,
+				HeaderType:       pointee,
 			}, nil
 		default:
 			return nil, fmt.Errorf(

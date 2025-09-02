@@ -230,7 +230,7 @@
 	ProcessSliceDataRepeat 08 00 00 00 
 	Return 
 // 0x30e: ProcessType[[]int]
-	ProcessSlice 43 00 00 00 08 00 00 00 
+	ProcessSlice 41 00 00 00 08 00 00 00 
 	Return 
 // 0x318: ProcessType[[]key<string>]
 	ProcessArrayDataPrep 80 00 00 00 
@@ -238,7 +238,7 @@
 	ProcessSliceDataRepeat 10 00 00 00 
 	Return 
 // 0x328: ProcessType[[]string]
-	ProcessSlice 45 00 00 00 10 00 00 00 
+	ProcessSlice 43 00 00 00 10 00 00 00 
 	Return 
 // 0x332: ProcessType[[]string.array]
 	ProcessSliceDataPrep 
@@ -266,10 +266,10 @@
 	ProcessGoInterface 
 	Return 
 // 0x37a: ProcessType[hash<string,int>]
-	ProcessGoHmap 47 00 00 00 d0 00 00 00 08 09 10 18 
+	ProcessGoHmap 45 00 00 00 d0 00 00 00 08 09 10 18 
 	Return 
 // 0x388: ProcessType[hash<string,main.bigStruct>]
-	ProcessGoHmap 48 00 00 00 d0 00 00 00 08 09 10 18 
+	ProcessGoHmap 46 00 00 00 d0 00 00 00 08 09 10 18 
 	Return 
 // 0x396: ProcessType[map[string]int]
 	ProcessPointer 27 00 00 00 
@@ -285,7 +285,7 @@
 	Call 9a 02 00 00 // ProcessType[*runtime.bmap]
 	Return 
 // 0x3bc: ProcessType[string]
-	ProcessString 41 00 00 00 
+	ProcessString 3f 00 00 00 
 	Return 
 // Extra illegal ops to simplify code bound checks
 	Illegal 
@@ -364,16 +364,16 @@ ID: 59 Len: 64 Enqueue: 830
 ID: 60 Len: 8 Enqueue: 660
 ID: 61 Len: 184 Enqueue: 0
 ID: 62 Len: 8 Enqueue: 588
-ID: 63 Len: 8 Enqueue: 0
-ID: 64 Len: 128 Enqueue: 0
+ID: 63 Len: 2048 Enqueue: 0
+ID: 64 Len: 8 Enqueue: 0
 ID: 65 Len: 2048 Enqueue: 0
 ID: 66 Len: 8 Enqueue: 0
-ID: 67 Len: 2048 Enqueue: 0
+ID: 67 Len: 2048 Enqueue: 818
 ID: 68 Len: 8 Enqueue: 0
-ID: 69 Len: 2048 Enqueue: 818
-ID: 70 Len: 8 Enqueue: 0
-ID: 71 Len: 2048 Enqueue: 758
-ID: 72 Len: 2048 Enqueue: 770
+ID: 69 Len: 2048 Enqueue: 758
+ID: 70 Len: 2048 Enqueue: 770
+ID: 71 Len: 8 Enqueue: 0
+ID: 72 Len: 128 Enqueue: 0
 ID: 73 Len: 2048 Enqueue: 746
 ID: 74 Len: 8 Enqueue: 0
 ID: 75 Len: 9 Enqueue: 0

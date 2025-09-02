@@ -69,6 +69,7 @@ func visitTypeReferences(tc *typeCatalog, f func(t *ir.Type)) {
 		case *ir.GoSwissMapGroupsType:
 		case *ir.GoSwissMapHeaderType:
 		case *ir.VoidPointerType:
+		case *ir.UnresolvedPointeeType:
 		default:
 			panic(fmt.Sprintf("unexpected ir.Type to visit: %#v", t))
 		}

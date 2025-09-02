@@ -183,6 +183,52 @@ func generateIR(
 	if err != nil {
 		return nil, err
 	}
+
+	// Resolve all placeholder types until we reach a fixed point.
+	{
+		var maxDepth uint32
+		for _, t := range probeDefs {
+			maxDepth = max(maxDepth, t.GetCaptureConfig().GetMaxReferenceDepth())
+		}
+		tc := typeCatalog
+		var nextToCheck ir.TypeID = 1
+		for it := uint32(0); it < maxDepth; it++ {
+			m := tc.idAlloc.alloc
+			var added int
+			for i := nextToCheck; i <= m; i++ {
+				t, ok := tc.typesByID[i].(*pointeePlaceholderType)
+				if !ok {
+					continue
+				}
+				if _, err := tc.addType(t.offset); err != nil {
+					return nil, err
+				}
+				added++
+			}
+			if added == 0 {
+				break
+			}
+			if err := completeGoTypes(tc, nextToCheck, m); err != nil {
+				return nil, err
+			}
+			nextToCheck = m
+		}
+
+		// Get to a fixed point for completing the Go types.
+		for cur := nextToCheck; cur < tc.idAlloc.alloc; {
+			next := tc.idAlloc.alloc
+			if err := completeGoTypes(tc, cur, next); err != nil {
+				return nil, err
+			}
+			cur = next
+		}
+		// Now we need to go and rewrite placeholders to the UnchasedPointeeType.
+		if err := rewritePlaceholdersToUnresolvedPointeeType(
+			tc, nextToCheck, tc.idAlloc.alloc,
+		); err != nil {
+			return nil, err
+		}
+	}
 	idToSub := make(map[ir.SubprogramID]*ir.Subprogram, len(materializedSubprograms))
 	for _, sp := range materializedSubprograms {
 		idToSub[sp.ID] = sp
@@ -307,32 +353,6 @@ func materializePending(
 		subprograms = append(subprograms, sp)
 	}
 
-	// Resolve all placeholder types until we reach a fixed point.
-	var nextToCheck ir.TypeID = 1
-	var it int
-	const maxIterations = 1000 // sanity check
-	for ; ; it++ {
-		if it == maxIterations {
-			return nil, fmt.Errorf("bug: max iterations reached while resolving placeholder types")
-		}
-		m := tc.idAlloc.alloc
-		var added int
-		for i := nextToCheck; i <= m; i++ {
-			t, ok := tc.typesByID[i].(*pointeePlaceholderType)
-			if !ok {
-				continue
-			}
-			if _, err := tc.addType(t.offset); err != nil {
-				return nil, err
-			}
-			added++
-		}
-		if added == 0 {
-			break
-		}
-		nextToCheck = m
-		it++
-	}
 	return subprograms, nil
 }
 
@@ -455,9 +475,16 @@ func createProbes(
 // at the fully-resolved type instance.
 func finalizeTypes(tc *typeCatalog, subprograms []*ir.Subprogram) error {
 	rewritePlaceholderReferences(tc)
-	if err := completeGoTypes(tc); err != nil {
+	if err := completeGoTypes(tc, 1, tc.idAlloc.alloc); err != nil {
 		return err
 	}
+
+	visitTypeReferences(tc, func(t *ir.Type) {
+		if *t == nil {
+			return
+		}
+		(*t) = tc.typesByID[(*t).GetID()]
+	})
 
 	for _, sp := range subprograms {
 		for _, v := range sp.Variables {
@@ -593,9 +620,9 @@ func skipPast[A, B ir.ProbeIDer](items []A, target B) (_ []A, found bool) {
 	return items[idx:], found
 }
 
-func completeGoTypes(tc *typeCatalog) error {
-	for _, t := range iterMapSorted(tc.typesByID, cmp.Compare) {
-		switch t := t.(type) {
+func completeGoTypes(tc *typeCatalog, minID, maxID ir.TypeID) error {
+	for i := minID; i <= maxID; i++ {
+		switch t := tc.typesByID[i].(type) {
 		case *ir.StructureType:
 			switch t.GoTypeAttributes.GoKind {
 			case reflect.String:
@@ -620,12 +647,39 @@ func completeGoTypes(tc *typeCatalog) error {
 			}
 		}
 	}
-	visitTypeReferences(tc, func(t *ir.Type) {
-		if *t == nil {
-			return
+	return nil
+}
+
+func rewritePlaceholdersToUnresolvedPointeeType(tc *typeCatalog, minID, maxID ir.TypeID) error {
+	var r *dwarf.Reader
+	for i := minID; i <= maxID; i++ {
+		ppt, ok := tc.typesByID[i].(*pointeePlaceholderType)
+		if !ok {
+			continue
 		}
-		(*t) = tc.typesByID[(*t).GetID()]
-	})
+		if r == nil {
+			r = tc.dwarf.Reader()
+		}
+		r.Seek(ppt.offset)
+		entry, err := r.Next()
+		if err != nil {
+			return fmt.Errorf("failed to get next entry: %w", err)
+		}
+		if entry == nil {
+			return fmt.Errorf("unexpected EOF while reading type")
+		}
+		name, err := getAttr[string](entry, dwarf.AttrName)
+		if err != nil {
+			return fmt.Errorf("failed to get name for type: %w", err)
+		}
+		tc.typesByID[ppt.id] = &ir.UnresolvedPointeeType{
+			TypeCommon: ir.TypeCommon{
+				ID:       ppt.id,
+				Name:     name,
+				ByteSize: uint32(tc.ptrSize),
+			},
+		}
+	}
 	return nil
 }
 
@@ -653,23 +707,19 @@ func cmpEntry(a, b *dwarf.Entry) int {
 func completeGoMapType(tc *typeCatalog, t *ir.GoMapType) error {
 	// Convert the header type from a structure type to the appropriate
 	// Go-specific type.
-	headerType, ok := t.HeaderType.(*ir.StructureType)
-	if !ok {
-		return fmt.Errorf(
-			"header type for map type %q is not a pointer type %T",
-			t.Name, t.HeaderType,
-		)
-	}
-
-	if current := tc.typesByID[headerType.ID]; current != headerType {
-		_, isHMapHeaderType := current.(*ir.GoHMapHeaderType)
-		_, isSwissMapHeaderType := current.(*ir.GoSwissMapHeaderType)
-		if isHMapHeaderType || isSwissMapHeaderType {
-			return nil // already completed
-		}
+	headerType := tc.typesByID[t.HeaderType.GetID()]
+	var headerStructureType *ir.StructureType
+	switch headerType := headerType.(type) {
+	case *ir.StructureType:
+		headerStructureType = headerType
+	case *ir.GoHMapHeaderType:
+		return nil
+	case *ir.GoSwissMapHeaderType:
+		return nil
+	default:
 		return fmt.Errorf(
 			"header type for map type %q has been completed to %T, expected %T",
-			t.Name, current, headerType,
+			t.Name, headerType, headerStructureType,
 		)
 	}
 
@@ -677,10 +727,10 @@ func completeGoMapType(tc *typeCatalog, t *ir.GoMapType) error {
 	// We could alternatively use the go version or the structure field layout.
 	// This works for now.
 	switch {
-	case strings.HasPrefix(headerType.Name, "map<"):
-		return completeSwissMapHeaderType(tc, headerType)
-	case strings.HasPrefix(headerType.Name, "hash<"):
-		return completeHMapHeaderType(tc, headerType)
+	case strings.HasPrefix(headerStructureType.Name, "map<"):
+		return completeSwissMapHeaderType(tc, headerStructureType)
+	case strings.HasPrefix(headerStructureType.Name, "hash<"):
+		return completeHMapHeaderType(tc, headerStructureType)
 	default:
 		return fmt.Errorf(
 			"unexpected header type for map type %q: %q %T",
@@ -716,10 +766,17 @@ func fieldType[T ir.Type](st *ir.StructureType, name string) (T, error) {
 	return fieldType, nil
 }
 
-func pointeeType[T ir.Type](t ir.Type) (T, error) {
+func resolvePointeeType[T ir.Type](tc *typeCatalog, t ir.Type) (T, error) {
 	ptrType, ok := t.(*ir.PointerType)
 	if !ok {
 		return *new(T), fmt.Errorf("type %q is not a pointer type, got %T", t.GetName(), t)
+	}
+	if ppt, ok := ptrType.Pointee.(*pointeePlaceholderType); ok {
+		pointee, err := tc.addType(ppt.offset)
+		if err != nil {
+			return *new(T), err
+		}
+		ptrType.Pointee = pointee
 	}
 	pointee, ok := ptrType.Pointee.(T)
 	if !ok {
@@ -740,11 +797,11 @@ func completeSwissMapHeaderType(tc *typeCatalog, st *ir.StructureType) error {
 		if err != nil {
 			return err
 		}
-		tablePtrType, err = pointeeType[*ir.PointerType](dirPtrType)
+		tablePtrType, err = resolvePointeeType[*ir.PointerType](tc, dirPtrType)
 		if err != nil {
 			return err
 		}
-		tableType, err := pointeeType[*ir.StructureType](tablePtrType)
+		tableType, err := resolvePointeeType[*ir.StructureType](tc, tablePtrType)
 		if err != nil {
 			return err
 		}
@@ -756,7 +813,7 @@ func completeSwissMapHeaderType(tc *typeCatalog, st *ir.StructureType) error {
 		if err != nil {
 			return err
 		}
-		groupType, err = pointeeType[*ir.StructureType](groupPtrType)
+		groupType, err = resolvePointeeType[*ir.StructureType](tc, groupPtrType)
 		if err != nil {
 			return err
 		}
@@ -803,7 +860,7 @@ func completeHMapHeaderType(tc *typeCatalog, st *ir.StructureType) error {
 	if err != nil {
 		return err
 	}
-	bucketsStructType, err := pointeeType[*ir.StructureType](bucketsField.Type)
+	bucketsStructType, err := resolvePointeeType[*ir.StructureType](tc, bucketsField.Type)
 	if err != nil {
 		return err
 	}
@@ -877,7 +934,7 @@ func completeGoSliceType(tc *typeCatalog, st *ir.StructureType) error {
 	if err != nil {
 		return err
 	}
-	elementType, err := pointeeType[ir.Type](arrayField.Type)
+	elementType, err := resolvePointeeType[ir.Type](tc, arrayField.Type)
 	if err != nil {
 		return err
 	}

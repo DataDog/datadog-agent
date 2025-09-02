@@ -3100,7 +3100,7 @@ Types:
       ByteSize: 8
       Pointee: 135 PointerType *main.t
     - __kind: PointerType
-      ID: 186
+      ID: 216
       Name: '**runtime.bmap'
       ByteSize: 8
       Pointee: 167 PointerType *runtime.bmap
@@ -3124,50 +3124,50 @@ Types:
       ByteSize: 8
       Pointee: 217 GoSliceDataType []*runtime.bmap.array
     - __kind: PointerType
-      ID: 190
+      ID: 189
       Name: '*[]*string.array'
       ByteSize: 8
-      Pointee: 189 GoSliceDataType []*string.array
+      Pointee: 188 GoSliceDataType []*string.array
     - __kind: PointerType
-      ID: 208
+      ID: 207
       Name: '*[][]uint.array'
       ByteSize: 8
-      Pointee: 207 GoSliceDataType [][]uint.array
+      Pointee: 206 GoSliceDataType [][]uint.array
     - __kind: PointerType
-      ID: 214
+      ID: 213
       Name: '*[]bool.array'
       ByteSize: 8
-      Pointee: 213 GoSliceDataType []bool.array
+      Pointee: 212 GoSliceDataType []bool.array
     - __kind: PointerType
       ID: 220
       Name: '*[]main.structWithMap.array'
       ByteSize: 8
       Pointee: 219 GoSliceDataType []main.structWithMap.array
     - __kind: PointerType
-      ID: 210
+      ID: 209
       Name: '*[]main.structWithNoStrings.array'
       ByteSize: 8
-      Pointee: 209 GoSliceDataType []main.structWithNoStrings.array
+      Pointee: 208 GoSliceDataType []main.structWithNoStrings.array
     - __kind: PointerType
-      ID: 212
+      ID: 211
       Name: '*[]string.array'
       ByteSize: 8
-      Pointee: 211 GoSliceDataType []string.array
+      Pointee: 210 GoSliceDataType []string.array
     - __kind: PointerType
       ID: 139
       Name: '*[]uint'
       ByteSize: 8
       Pointee: 137 GoSliceHeaderType []uint
     - __kind: PointerType
-      ID: 206
+      ID: 205
       Name: '*[]uint.array'
       ByteSize: 8
-      Pointee: 205 GoSliceDataType []uint.array
+      Pointee: 204 GoSliceDataType []uint.array
     - __kind: PointerType
-      ID: 216
+      ID: 215
       Name: '*[]uint16.array'
       ByteSize: 8
-      Pointee: 215 GoSliceDataType []uint16.array
+      Pointee: 214 GoSliceDataType []uint16.array
     - __kind: PointerType
       ID: 5
       Name: '*bool'
@@ -3396,10 +3396,10 @@ Types:
       GoKind: 22
       Pointee: 136 GoSliceHeaderType main.t
     - __kind: PointerType
-      ID: 204
+      ID: 203
       Name: '*main.t.array'
       ByteSize: 8
-      Pointee: 203 GoSliceDataType main.t.array
+      Pointee: 202 GoSliceDataType main.t.array
     - __kind: PointerType
       ID: 147
       Name: '*main.threeStringStruct'
@@ -3434,10 +3434,10 @@ Types:
       GoKind: 22
       Pointee: 11 GoStringHeaderType string
     - __kind: PointerType
-      ID: 188
+      ID: 187
       Name: '*string.str'
       ByteSize: 8
-      Pointee: 187 GoStringDataType string.str
+      Pointee: 186 GoStringDataType string.str
     - __kind: PointerType
       ID: 34
       Name: '*uint'
@@ -5292,7 +5292,7 @@ Types:
       RawFields:
         - Name: array
           Offset: 0
-          Type: 186 PointerType **runtime.bmap
+          Type: 216 PointerType **runtime.bmap
         - Name: len
           Offset: 8
           Type: 9 BaseType int
@@ -5321,9 +5321,9 @@ Types:
         - Name: cap
           Offset: 16
           Type: 9 BaseType int
-      Data: 189 GoSliceDataType []*string.array
+      Data: 188 GoSliceDataType []*string.array
     - __kind: GoSliceDataType
-      ID: 189
+      ID: 188
       Name: '[]*string.array'
       ByteSize: 2048
       Element: 22 PointerType *string
@@ -5342,9 +5342,9 @@ Types:
         - Name: cap
           Offset: 16
           Type: 9 BaseType int
-      Data: 207 GoSliceDataType [][]uint.array
+      Data: 206 GoSliceDataType [][]uint.array
     - __kind: GoSliceDataType
-      ID: 207
+      ID: 206
       Name: '[][]uint.array'
       ByteSize: 2048
       Element: 137 GoSliceHeaderType []uint
@@ -5364,69 +5364,69 @@ Types:
         - Name: cap
           Offset: 16
           Type: 9 BaseType int
-      Data: 213 GoSliceDataType []bool.array
+      Data: 212 GoSliceDataType []bool.array
     - __kind: GoSliceDataType
-      ID: 213
+      ID: 212
       Name: '[]bool.array'
       ByteSize: 2048
       Element: 4 BaseType bool
     - __kind: GoSliceDataType
-      ID: 202
+      ID: 201
       Name: '[]bucket<[4]int,[4]int>.array'
       ByteSize: 2048
       Element: 129 GoHMapBucketType bucket<[4]int,[4]int>
     - __kind: GoSliceDataType
-      ID: 201
+      ID: 200
       Name: '[]bucket<[4]int,uint8>.array'
       ByteSize: 2048
       Element: 124 GoHMapBucketType bucket<[4]int,uint8>
     - __kind: GoSliceDataType
-      ID: 195
+      ID: 194
       Name: '[]bucket<[4]string,[2]int>.array'
       ByteSize: 2048
       Element: 92 GoHMapBucketType bucket<[4]string,[2]int>
     - __kind: GoSliceDataType
-      ID: 197
+      ID: 196
       Name: '[]bucket<bool,main.node>.array'
       ByteSize: 2048
       Element: 104 GoHMapBucketType bucket<bool,main.node>
     - __kind: GoSliceDataType
-      ID: 191
+      ID: 190
       Name: '[]bucket<int,int>.array'
       ByteSize: 2048
       Element: 70 GoHMapBucketType bucket<int,int>
     - __kind: GoSliceDataType
-      ID: 198
+      ID: 197
       Name: '[]bucket<int,uint8>.array'
       ByteSize: 2048
       Element: 109 GoHMapBucketType bucket<int,uint8>
     - __kind: GoSliceDataType
-      ID: 196
+      ID: 195
       Name: '[]bucket<string,[]main.structWithMap>.array'
       ByteSize: 2048
       Element: 99 GoHMapBucketType bucket<string,[]main.structWithMap>
     - __kind: GoSliceDataType
-      ID: 194
+      ID: 193
       Name: '[]bucket<string,[]string>.array'
       ByteSize: 2048
       Element: 87 GoHMapBucketType bucket<string,[]string>
     - __kind: GoSliceDataType
-      ID: 193
+      ID: 192
       Name: '[]bucket<string,int>.array'
       ByteSize: 2048
       Element: 82 GoHMapBucketType bucket<string,int>
     - __kind: GoSliceDataType
-      ID: 192
+      ID: 191
       Name: '[]bucket<string,main.nestedStruct>.array'
       ByteSize: 2048
       Element: 77 GoHMapBucketType bucket<string,main.nestedStruct>
     - __kind: GoSliceDataType
-      ID: 200
+      ID: 199
       Name: '[]bucket<uint8,[4]int>.array'
       ByteSize: 2048
       Element: 119 GoHMapBucketType bucket<uint8,[4]int>
     - __kind: GoSliceDataType
-      ID: 199
+      ID: 198
       Name: '[]bucket<uint8,uint8>.array'
       ByteSize: 2048
       Element: 114 GoHMapBucketType bucket<uint8,uint8>
@@ -5509,9 +5509,9 @@ Types:
         - Name: cap
           Offset: 16
           Type: 9 BaseType int
-      Data: 209 GoSliceDataType []main.structWithNoStrings.array
+      Data: 208 GoSliceDataType []main.structWithNoStrings.array
     - __kind: GoSliceDataType
-      ID: 209
+      ID: 208
       Name: '[]main.structWithNoStrings.array'
       ByteSize: 2048
       Element: 142 StructureType main.structWithNoStrings
@@ -5531,9 +5531,9 @@ Types:
         - Name: cap
           Offset: 16
           Type: 9 BaseType int
-      Data: 211 GoSliceDataType []string.array
+      Data: 210 GoSliceDataType []string.array
     - __kind: GoSliceDataType
-      ID: 211
+      ID: 210
       Name: '[]string.array'
       ByteSize: 2048
       Element: 11 GoStringHeaderType string
@@ -5553,9 +5553,9 @@ Types:
         - Name: cap
           Offset: 16
           Type: 9 BaseType int
-      Data: 205 GoSliceDataType []uint.array
+      Data: 204 GoSliceDataType []uint.array
     - __kind: GoSliceDataType
-      ID: 205
+      ID: 204
       Name: '[]uint.array'
       ByteSize: 2048
       Element: 12 BaseType uint
@@ -5575,9 +5575,9 @@ Types:
         - Name: cap
           Offset: 16
           Type: 9 BaseType int
-      Data: 215 GoSliceDataType []uint16.array
+      Data: 214 GoSliceDataType []uint16.array
     - __kind: GoSliceDataType
-      ID: 215
+      ID: 214
       Name: '[]uint16.array'
       ByteSize: 2048
       Element: 7 BaseType uint16
@@ -5957,7 +5957,7 @@ Types:
           Offset: 40
           Type: 71 PointerType *runtime.mapextra
       BucketType: 129 GoHMapBucketType bucket<[4]int,[4]int>
-      BucketsType: 202 GoSliceDataType []bucket<[4]int,[4]int>.array
+      BucketsType: 201 GoSliceDataType []bucket<[4]int,[4]int>.array
     - __kind: GoHMapHeaderType
       ID: 122
       Name: hash<[4]int,uint8>
@@ -5991,7 +5991,7 @@ Types:
           Offset: 40
           Type: 71 PointerType *runtime.mapextra
       BucketType: 124 GoHMapBucketType bucket<[4]int,uint8>
-      BucketsType: 201 GoSliceDataType []bucket<[4]int,uint8>.array
+      BucketsType: 200 GoSliceDataType []bucket<[4]int,uint8>.array
     - __kind: GoHMapHeaderType
       ID: 90
       Name: hash<[4]string,[2]int>
@@ -6025,7 +6025,7 @@ Types:
           Offset: 40
           Type: 71 PointerType *runtime.mapextra
       BucketType: 92 GoHMapBucketType bucket<[4]string,[2]int>
-      BucketsType: 195 GoSliceDataType []bucket<[4]string,[2]int>.array
+      BucketsType: 194 GoSliceDataType []bucket<[4]string,[2]int>.array
     - __kind: GoHMapHeaderType
       ID: 102
       Name: hash<bool,main.node>
@@ -6059,7 +6059,7 @@ Types:
           Offset: 40
           Type: 71 PointerType *runtime.mapextra
       BucketType: 104 GoHMapBucketType bucket<bool,main.node>
-      BucketsType: 197 GoSliceDataType []bucket<bool,main.node>.array
+      BucketsType: 196 GoSliceDataType []bucket<bool,main.node>.array
     - __kind: GoHMapHeaderType
       ID: 68
       Name: hash<int,int>
@@ -6093,7 +6093,7 @@ Types:
           Offset: 40
           Type: 71 PointerType *runtime.mapextra
       BucketType: 70 GoHMapBucketType bucket<int,int>
-      BucketsType: 191 GoSliceDataType []bucket<int,int>.array
+      BucketsType: 190 GoSliceDataType []bucket<int,int>.array
     - __kind: GoHMapHeaderType
       ID: 107
       Name: hash<int,uint8>
@@ -6127,7 +6127,7 @@ Types:
           Offset: 40
           Type: 71 PointerType *runtime.mapextra
       BucketType: 109 GoHMapBucketType bucket<int,uint8>
-      BucketsType: 198 GoSliceDataType []bucket<int,uint8>.array
+      BucketsType: 197 GoSliceDataType []bucket<int,uint8>.array
     - __kind: GoHMapHeaderType
       ID: 97
       Name: hash<string,[]main.structWithMap>
@@ -6161,7 +6161,7 @@ Types:
           Offset: 40
           Type: 71 PointerType *runtime.mapextra
       BucketType: 99 GoHMapBucketType bucket<string,[]main.structWithMap>
-      BucketsType: 196 GoSliceDataType []bucket<string,[]main.structWithMap>.array
+      BucketsType: 195 GoSliceDataType []bucket<string,[]main.structWithMap>.array
     - __kind: GoHMapHeaderType
       ID: 85
       Name: hash<string,[]string>
@@ -6195,7 +6195,7 @@ Types:
           Offset: 40
           Type: 71 PointerType *runtime.mapextra
       BucketType: 87 GoHMapBucketType bucket<string,[]string>
-      BucketsType: 194 GoSliceDataType []bucket<string,[]string>.array
+      BucketsType: 193 GoSliceDataType []bucket<string,[]string>.array
     - __kind: GoHMapHeaderType
       ID: 80
       Name: hash<string,int>
@@ -6229,7 +6229,7 @@ Types:
           Offset: 40
           Type: 71 PointerType *runtime.mapextra
       BucketType: 82 GoHMapBucketType bucket<string,int>
-      BucketsType: 193 GoSliceDataType []bucket<string,int>.array
+      BucketsType: 192 GoSliceDataType []bucket<string,int>.array
     - __kind: GoHMapHeaderType
       ID: 75
       Name: hash<string,main.nestedStruct>
@@ -6263,7 +6263,7 @@ Types:
           Offset: 40
           Type: 71 PointerType *runtime.mapextra
       BucketType: 77 GoHMapBucketType bucket<string,main.nestedStruct>
-      BucketsType: 192 GoSliceDataType []bucket<string,main.nestedStruct>.array
+      BucketsType: 191 GoSliceDataType []bucket<string,main.nestedStruct>.array
     - __kind: GoHMapHeaderType
       ID: 117
       Name: hash<uint8,[4]int>
@@ -6297,7 +6297,7 @@ Types:
           Offset: 40
           Type: 71 PointerType *runtime.mapextra
       BucketType: 119 GoHMapBucketType bucket<uint8,[4]int>
-      BucketsType: 200 GoSliceDataType []bucket<uint8,[4]int>.array
+      BucketsType: 199 GoSliceDataType []bucket<uint8,[4]int>.array
     - __kind: GoHMapHeaderType
       ID: 112
       Name: hash<uint8,uint8>
@@ -6331,7 +6331,7 @@ Types:
           Offset: 40
           Type: 71 PointerType *runtime.mapextra
       BucketType: 114 GoHMapBucketType bucket<uint8,uint8>
-      BucketsType: 199 GoSliceDataType []bucket<uint8,uint8>.array
+      BucketsType: 198 GoSliceDataType []bucket<uint8,uint8>.array
     - __kind: BaseType
       ID: 9
       Name: int
@@ -6586,9 +6586,9 @@ Types:
         - Name: cap
           Offset: 16
           Type: 9 BaseType int
-      Data: 203 GoSliceDataType main.t.array
+      Data: 202 GoSliceDataType main.t.array
     - __kind: GoSliceDataType
-      ID: 203
+      ID: 202
       Name: main.t.array
       ByteSize: 2048
       Element: 135 PointerType *main.t
@@ -6731,13 +6731,13 @@ Types:
       RawFields:
         - Name: str
           Offset: 0
-          Type: 188 PointerType *string.str
+          Type: 187 PointerType *string.str
         - Name: len
           Offset: 8
           Type: 9 BaseType int
-      Data: 187 GoStringDataType string.str
+      Data: 186 GoStringDataType string.str
     - __kind: GoStringDataType
-      ID: 187
+      ID: 186
       Name: string.str
       ByteSize: 2048
     - __kind: StructureType
