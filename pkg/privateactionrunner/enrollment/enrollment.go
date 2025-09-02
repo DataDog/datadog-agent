@@ -180,8 +180,8 @@ func getEC2Identity() (*opms.Ec2Identity, error) {
 	}
 	client := imds.NewFromConfig(cfg)
 
-	output, err := client.GetMetadata(ctx, &imds.GetMetadataInput{
-		Path: "dynamic/instance-identity/pkcs7",
+	output, err := client.GetDynamicData(ctx, &imds.GetDynamicDataInput{
+		Path: "instance-identity/pkcs7",
 	})
 	if err != nil {
 		return nil, err
