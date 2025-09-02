@@ -25,7 +25,6 @@ type logFormatter struct {
 	hostname hostnameinterface.Component
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func (l *logFormatter) Format(m *message.Message, _ string, redactedMsg []byte) string {
 	hname, err := l.hostname.Get(context.TODO())
 	if err != nil {
