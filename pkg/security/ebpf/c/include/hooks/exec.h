@@ -316,6 +316,15 @@ int __attribute__((always_inline)) handle_do_exit(ctx_t *ctx) {
             event.exit_code |= 0x80;
             bpf_map_delete_elem(&tasks_in_coredump, &pid_tgid);
         }
+
+        // Check if we should sample this event for activity dumps
+        struct activity_dump_config *config = lookup_or_delete_traced_pid(event.process.pid, bpf_ktime_get_ns(), NULL);
+        if (config) {
+            if (mask_has_event(config->event_mask, EVENT_EXIT)) {
+                event.event.flags |= EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE;
+            }
+        }
+
         send_event(ctx, EVENT_EXIT, event);
 
         unregister_span_memory();

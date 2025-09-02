@@ -2654,3 +2654,208 @@ func TestSecurityProfileSyscallDriftNoNewSyscall(t *testing.T) {
 		dockerInstance.stop()
 	})
 }
+
+func TestSecurityProfileNodeEviction(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
+	if testEnvironment == DockerEnvironment {
+		t.Skip("Skip test spawning docker containers on docker")
+	}
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+	if !IsDedicatedNodeForAD() {
+		t.Skip("Skip test when not run in dedicated env")
+	}
+
+	var expectedFormats = []string{"profile"}
+	var testActivityDumpTracedEventTypes = []string{"exec", "open", "syscalls", "dns", "exit"}
+
+	outputDir := t.TempDir()
+	os.MkdirAll(outputDir, 0755)
+	defer os.RemoveAll(outputDir)
+
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
+		enableActivityDump:                  true,
+		activityDumpRateLimiter:             200,
+		activityDumpTracedCgroupsCount:      3,
+		activityDumpDuration:                testActivityDumpDuration,
+		activityDumpLocalStorageDirectory:   outputDir,
+		activityDumpLocalStorageCompression: false,
+		activityDumpLocalStorageFormats:     expectedFormats,
+		activityDumpTracedEventTypes:        testActivityDumpTracedEventTypes,
+		anomalyDetectionEventTypes:          []string{"exec", "syscalls", "dns", "open"},
+		enableSecurityProfile:               true,
+		securityProfileDir:                  outputDir,
+		securityProfileWatchDir:             true,
+		securityProfileNodeEvictionTimeout:  5 * time.Second,
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("node-eviction-basic", func(t *testing.T) {
+		dockerInstance, dump, err := test.StartADockerGetDump()
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer dockerInstance.stop()
+
+		activities := [][]string{
+			{syscallTester, "sleep", "1"},
+			{"touch", "/tmp/test_file"},
+			{"nslookup", "example.com"},
+		}
+
+		for _, activity := range activities {
+			cmd := dockerInstance.Command(activity[0], activity[1:], []string{})
+			_, err = cmd.CombinedOutput()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		time.Sleep(1 * time.Second) // Let events be added to the dump
+
+		err = test.StopActivityDump(dump.Name)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		var imageName string
+		// Verify profile was created with nodes
+		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, nil,
+			func(sp *profile.Profile) bool {
+				imageName, _ = sp.GetImageNameTag()
+				// Check that we have the activities are in the profile
+				nodes := WalkActivityTree(sp.ActivityTree, func(node *ProcessNodeAndParent) bool {
+					for _, activity := range activities {
+						if node.Node.Process.Argv0+" "+strings.Join(node.Node.Process.Argv, " ") == strings.Join(activity, " ") {
+							return true
+						}
+					}
+					return false
+				})
+
+				if len(nodes) != len(activities) {
+					t.Errorf("Expected %d process nodes found in profile, got %d", len(activities), len(nodes))
+					return false
+				}
+
+				return true
+			})
+
+		// Wait for eviction timeout + some buffer
+		time.Sleep(12 * time.Second)
+
+		manager := test.probe.PlatformProbe.(*probe.EBPFProbe).GetProfileManager()
+		if err != nil {
+			t.Fatal(err)
+		}
+		profile := manager.GetProfile(cgroupModel.WorkloadSelector{Image: imageName, Tag: "*"})
+		if profile == nil {
+			t.Fatal("profile is nil")
+		}
+
+		// Verify that the nodes have been evicted
+		nodes := WalkActivityTree(profile.ActivityTree, func(node *ProcessNodeAndParent) bool {
+			for _, activity := range activities {
+				if node.Node.Process.Argv0+" "+strings.Join(node.Node.Process.Argv, " ") == strings.Join(activity, " ") {
+					return true
+				}
+			}
+			return false
+		})
+
+		if len(nodes) > 0 {
+			t.Errorf("Process nodes found in profile: %d", len(nodes))
+		}
+
+	})
+
+	t.Run("node-eviction-running-processes", func(t *testing.T) {
+
+		dockerInstance, dump, err := test.StartADockerGetDump()
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer dockerInstance.stop()
+
+		// long running process
+		waitingTime := "1150"
+		cmd := dockerInstance.Command(syscallTester, []string{"sleep", waitingTime}, []string{})
+		err = cmd.Start()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		time.Sleep(1 * time.Second) // Let events be added to the dump
+
+		err = test.StopActivityDump(dump.Name)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		var imageName string
+		// Verify profile was created both long and short running processes are in the profile
+		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, nil,
+			func(sp *profile.Profile) bool {
+				imageName, _ = sp.GetImageNameTag()
+				nodes := WalkActivityTree(sp.ActivityTree, func(node *ProcessNodeAndParent) bool {
+					if node.Node.Process.Argv0+" "+strings.Join(node.Node.Process.Argv, " ") == syscallTester+" sleep "+waitingTime {
+						return true
+					}
+					return false
+				})
+
+				// Check that the long running process is in the profile
+				if len(nodes) != 1 {
+					t.Errorf("Expected %d process nodes found in profile, got %d", 1, len(nodes))
+					return false
+				}
+
+				return true
+			})
+
+		// Wait for eviction timeout + some buffer
+		time.Sleep(12 * time.Second)
+
+		manager := test.probe.PlatformProbe.(*probe.EBPFProbe).GetProfileManager()
+		if err != nil {
+			t.Fatal(err)
+		}
+		profile := manager.GetProfile(cgroupModel.WorkloadSelector{Image: imageName, Tag: "*"})
+		if profile == nil {
+			t.Fatal("profile is nil")
+		}
+
+		nodes := WalkActivityTree(profile.ActivityTree, func(node *ProcessNodeAndParent) bool {
+			if node.Node.Process.Argv0+" "+strings.Join(node.Node.Process.Argv, " ") == syscallTester+" sleep "+waitingTime {
+				return true
+			}
+			return false
+		})
+
+		// the long running process should still be in the profile as it hasn't exited
+		if len(nodes) != 1 {
+			t.Errorf("Expected 1 process node in profile, got %d", len(nodes))
+		}
+
+		t.Cleanup(func() {
+			if cmd.Process != nil {
+				// stop the sleep process
+				cmd.Process.Kill()
+				_ = cmd.Wait()
+			}
+		})
+
+	})
+
+}

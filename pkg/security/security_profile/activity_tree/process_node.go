@@ -550,3 +550,90 @@ func (pn *ProcessNode) EvictImageTag(imageTag string, DNSNames *utils.StringKeys
 	pn.Children = newChildren
 	return false
 }
+
+// EvictUnusedNodes evicts all child nodes that haven't been touched since the given timestamp
+// and returns the total number of nodes evicted
+func (pn *ProcessNode) EvictUnusedNodes(before time.Time) int {
+	totalEvicted := 0
+
+	// Only evict image tags from process node if the process has exited
+	if !pn.Process.ExitTime.IsZero() {
+		evicted := pn.NodeBase.EvictBeforeTimestamp(before)
+		totalEvicted += evicted
+		if evicted > 0 && len(pn.Seen) == 0 {
+			totalEvicted++
+		}
+	}
+
+	// Evict unused file nodes
+	for path, fileNode := range pn.Files {
+		if fileNode.NodeBase.EvictBeforeTimestamp(before) > 0 {
+			if len(fileNode.Seen) == 0 {
+				delete(pn.Files, path)
+				totalEvicted++
+			}
+		}
+	}
+
+	// Evict unused DNS nodes
+	for name, dnsNode := range pn.DNSNames {
+		if dnsNode.NodeBase.EvictBeforeTimestamp(before) > 0 {
+			if len(dnsNode.Seen) == 0 {
+				delete(pn.DNSNames, name)
+				fmt.Println("============ Removing DNSNode", name)
+				totalEvicted++
+			}
+		}
+	}
+
+	// Evict unused IMDS nodes
+	for event, imdsNode := range pn.IMDSEvents {
+		if imdsNode.NodeBase.EvictBeforeTimestamp(before) > 0 {
+			if len(imdsNode.Seen) == 0 {
+				delete(pn.IMDSEvents, event)
+				totalEvicted++
+			}
+		}
+	}
+
+	// Note: NetworkDeviceNode doesn't embed NodeBase so we skip eviction for network devices
+
+	// Evict unused socket nodes
+	for i := len(pn.Sockets) - 1; i >= 0; i-- {
+		socketNode := pn.Sockets[i]
+		if socketNode.NodeBase.EvictBeforeTimestamp(before) > 0 {
+			if len(socketNode.Seen) == 0 {
+				pn.Sockets = append(pn.Sockets[:i], pn.Sockets[i+1:]...)
+				totalEvicted++
+			}
+		}
+	}
+
+	// Evict unused syscall nodes
+	if pn.Process.IsExecExec && !pn.Process.ExitTime.IsZero() {
+		for i := len(pn.Syscalls) - 1; i >= 0; i-- {
+			syscallNode := pn.Syscalls[i]
+			if syscallNode.NodeBase.EvictBeforeTimestamp(before) > 0 {
+				if len(syscallNode.Seen) == 0 {
+					pn.Syscalls = append(pn.Syscalls[:i], pn.Syscalls[i+1:]...)
+					totalEvicted++
+				}
+			}
+		}
+	}
+
+	// Recursively evict unused nodes from children
+	for i := len(pn.Children) - 1; i >= 0; i-- {
+		child := pn.Children[i]
+		evicted := child.EvictUnusedNodes(before)
+		totalEvicted += evicted
+
+		// If the child process node itself has no image tags left after eviction, remove it entirely
+		if len(child.Seen) == 0 {
+			pn.Children = append(pn.Children[:i], pn.Children[i+1:]...)
+			totalEvicted++
+		}
+	}
+
+	return totalEvicted
+}

@@ -958,3 +958,29 @@ func (at *ActivityTree) ExtractSyscalls(arch string) []string {
 	})
 	return syscalls
 }
+
+// EvictUnusedNodes evicts all nodes that haven't been touched since the given timestamp
+// and returns the total number of nodes evicted
+func (at *ActivityTree) EvictUnusedNodes(before time.Time) int {
+	totalEvicted := 0
+
+	// Iterate through all process nodes and evict unused nodes
+	for i := len(at.ProcessNodes) - 1; i >= 0; i-- {
+		node := at.ProcessNodes[i]
+		if node == nil {
+			continue
+		}
+		// node.EvictBeforeTimestamp(before)
+		evicted := node.EvictUnusedNodes(before)
+		totalEvicted += evicted
+
+		// If the process node itself has no image tags left after eviction, remove it entirely
+		if len(node.Seen) == 0 {
+			// Remove the node
+			at.ProcessNodes = append(at.ProcessNodes[:i], at.ProcessNodes[i+1:]...)
+			totalEvicted++
+		}
+	}
+
+	return totalEvicted
+}
