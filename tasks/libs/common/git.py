@@ -92,7 +92,8 @@ def get_file_modifications(
     from tasks.libs.releasing.json import _get_release_json_value
 
     base_branch = base_branch or _get_release_json_value('base_branch')
-
+    # We fetch the base branch to avoid issues with the merge-base command using an outdated version of base branch
+    ctx.run(f"git fetch origin {base_branch}:{base_branch}")
     last_main_commit = ctx.run(f"git merge-base HEAD origin/{base_branch}", hide=True).stdout.strip()
 
     flags = '--no-renames' if no_renames else ''
