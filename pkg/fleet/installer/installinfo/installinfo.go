@@ -17,9 +17,10 @@ import (
 	"strings"
 	"time"
 
+	"log/slog"
+
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
 	"github.com/google/uuid"
@@ -99,10 +100,10 @@ func writeInstallInfo(ctx context.Context, installInfoFile string, installSigFil
 }
 
 // RemoveInstallInfo removes both install info and signature files.
-func RemoveInstallInfo() {
+func RemoveInstallInfo(ctx context.Context) {
 	for _, file := range []string{installInfoFile, installSigFile} {
 		if err := os.Remove(file); err != nil && !os.IsNotExist(err) {
-			log.Warnf("Failed to remove %s: %v", file, err)
+			slog.WarnContext(ctx, "Failed to remove file", "file", file, "error", err)
 		}
 	}
 }
@@ -151,7 +152,7 @@ func getDpkgVersion(ctx context.Context) (version string, err error) {
 	cmd := exec.CommandContext(cancelctx, "dpkg-query", "--showformat=${Version}", "--show", "dpkg")
 	output, err := cmd.Output()
 	if err != nil {
-		log.Warnf("Failed to get dpkg version: %s", err)
+		slog.WarnContext(ctx, "Failed to get dpkg version", "error", err)
 		return "", err
 	}
 	splitVersion := strings.Split(strings.TrimSpace(string(output)), ".")

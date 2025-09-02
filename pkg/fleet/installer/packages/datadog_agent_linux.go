@@ -26,7 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/upstart"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"log/slog"
 )
 
 var datadogAgentPackage = hooks{
@@ -147,7 +147,7 @@ func installFilesystem(ctx HookContext) (err error) {
 
 	// 4. Set up SELinux permissions
 	if err = selinux.SetAgentPermissions(ctx, "/etc/datadog-agent", ctx.PackagePath); err != nil {
-		log.Warnf("failed to set SELinux permissions: %v", err)
+		slog.WarnContext(ctx, "failed to set SELinux permissions", "error", err)
 	}
 
 	// 5. Handle install info
@@ -193,13 +193,13 @@ func uninstallFilesystem(ctx HookContext) (err error) {
 // preInstallDatadogAgent performs pre-installation steps for the agent
 func preInstallDatadogAgent(ctx HookContext) error {
 	if err := agentService.StopStable(ctx); err != nil {
-		log.Warnf("failed to stop stable unit: %s", err)
+		slog.WarnContext(ctx, "failed to stop stable unit", "error", err)
 	}
 	if err := agentService.DisableStable(ctx); err != nil {
-		log.Warnf("failed to disable stable unit: %s", err)
+		slog.WarnContext(ctx, "failed to disable stable unit", "error", err)
 	}
 	if err := agentService.RemoveStable(ctx); err != nil {
-		log.Warnf("failed to remove stable unit: %s", err)
+		slog.WarnContext(ctx, "failed to remove stable unit", "error", err)
 	}
 	if ctx.PackageType == PackageTypeOCI {
 		// Must be called in the OCI preinst, before re-executing into the installer
@@ -216,7 +216,7 @@ func postInstallDatadogAgent(ctx HookContext) (err error) {
 		return err
 	}
 	if err := integrations.RestoreCustomIntegrations(ctx, ctx.PackagePath); err != nil {
-		log.Warnf("failed to restore custom integrations: %s", err)
+		slog.WarnContext(ctx, "failed to restore custom integrations", "error", err)
 	}
 	if err := agentService.WriteStable(ctx); err != nil {
 		return fmt.Errorf("failed to write stable units: %s", err)
@@ -235,44 +235,44 @@ func postInstallDatadogAgent(ctx HookContext) (err error) {
 func preRemoveDatadogAgent(ctx HookContext) error {
 	err := agentService.StopExperiment(ctx)
 	if err != nil {
-		log.Warnf("failed to stop experiment unit: %s", err)
+		slog.WarnContext(ctx, "failed to stop experiment unit", "error", err)
 	}
 	err = agentService.RemoveExperiment(ctx)
 	if err != nil {
-		log.Warnf("failed to remove experiment unit: %s", err)
+		slog.WarnContext(ctx, "failed to remove experiment unit", "error", err)
 	}
 	err = agentService.StopStable(ctx)
 	if err != nil {
-		log.Warnf("failed to stop stable unit: %s", err)
+		slog.WarnContext(ctx, "failed to stop stable unit", "error", err)
 	}
 	err = agentService.DisableStable(ctx)
 	if err != nil {
-		log.Warnf("failed to disable stable unit: %s", err)
+		slog.WarnContext(ctx, "failed to disable stable unit", "error", err)
 	}
 	err = agentService.RemoveStable(ctx)
 	if err != nil {
-		log.Warnf("failed to remove stable unit: %s", err)
+		slog.WarnContext(ctx, "failed to remove stable unit", "error", err)
 	}
 	switch ctx.Upgrade {
 	case false:
 		if err := integrations.RemoveCustomIntegrations(ctx, ctx.PackagePath); err != nil {
-			log.Warnf("failed to remove custom integrations: %s\n", err.Error())
+			slog.WarnContext(ctx, "failed to remove custom integrations", "error", err)
 		}
 		if err := integrations.RemoveCompiledFiles(ctx.PackagePath); err != nil {
-			log.Warnf("failed to remove compiled files: %s", err)
+			slog.WarnContext(ctx, "failed to remove compiled files", "error", err)
 		}
 		if err := uninstallFilesystem(ctx); err != nil {
-			log.Warnf("failed to uninstall filesystem: %s", err)
+			slog.WarnContext(ctx, "failed to uninstall filesystem", "error", err)
 		}
 	case true:
 		if err := integrations.SaveCustomIntegrations(ctx, ctx.PackagePath); err != nil {
-			log.Warnf("failed to save custom integrations: %s", err)
+			slog.WarnContext(ctx, "failed to save custom integrations", "error", err)
 		}
 		if err := integrations.RemoveCustomIntegrations(ctx, ctx.PackagePath); err != nil {
-			log.Warnf("failed to remove custom integrations: %s\n", err.Error())
+			slog.WarnContext(ctx, "failed to remove custom integrations", "error", err)
 		}
 		if err := integrations.RemoveCompiledFiles(ctx.PackagePath); err != nil {
-			log.Warnf("failed to remove compiled files: %s", err)
+			slog.WarnContext(ctx, "failed to remove compiled files", "error", err)
 		}
 	}
 	return nil
@@ -286,7 +286,7 @@ func preStartExperimentDatadogAgent(ctx HookContext) error {
 		return fmt.Errorf("failed to remove experiment units: %s", err)
 	}
 	if err := integrations.SaveCustomIntegrations(ctx, ctx.PackagePath); err != nil {
-		log.Warnf("failed to save custom integrations: %s", err)
+		slog.WarnContext(ctx, "failed to save custom integrations", "error", err)
 	}
 	return nil
 }
@@ -298,7 +298,7 @@ func postStartExperimentDatadogAgent(ctx HookContext) error {
 		return err
 	}
 	if err := integrations.RestoreCustomIntegrations(ctx, ctx.PackagePath); err != nil {
-		log.Warnf("failed to restore custom integrations: %s", err)
+		slog.WarnContext(ctx, "failed to restore custom integrations", "error", err)
 	}
 	if err := agentService.WriteExperiment(ctx); err != nil {
 		return err

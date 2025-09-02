@@ -119,7 +119,7 @@ func TestShouldInstrumentHost(t *testing.T) {
 					APMInstrumentationEnabled: tt.envValue,
 				},
 			}
-			result := shouldInstrumentHost(execEnvs)
+			result := shouldInstrumentHost(context.Background(), execEnvs)
 			if result != tt.expected {
 				t.Errorf("shouldInstrumentHost() with envValue %s; got %t, want %t", tt.envValue, result, tt.expected)
 			}
@@ -147,7 +147,7 @@ func TestShouldInstrumentDocker(t *testing.T) {
 					APMInstrumentationEnabled: tt.envValue,
 				},
 			}
-			result := shouldInstrumentDocker(execEnvs)
+			result := shouldInstrumentDocker(context.Background(), execEnvs)
 			if result != tt.expected {
 				t.Errorf("shouldInstrumentDocker() with envValue %s; got %t, want %t", tt.envValue, result, tt.expected)
 			}

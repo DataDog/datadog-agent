@@ -579,7 +579,7 @@ func TestWriteAndRemoveConfigFiles(t *testing.T) {
 		rawConfig, err := json.Marshal(configAction)
 		assert.NoError(t, err)
 
-		err = installer.writeConfig(tempDir, [][]byte{rawConfig})
+		err = installer.writeConfig(testCtx, tempDir, [][]byte{rawConfig})
 		assert.NoError(t, err)
 
 		// Verify the file was created with correct content
@@ -593,7 +593,7 @@ func TestWriteAndRemoveConfigFiles(t *testing.T) {
 	t.Run("remove_all", func(t *testing.T) {
 		tempDir := t.TempDir()
 
-		err := installer.writeConfig(tempDir, [][]byte{[]byte(`{"action_type": "remove_all"}`)})
+		err := installer.writeConfig(testCtx, tempDir, [][]byte{[]byte(`{"action_type": "remove_all"}`)})
 		assert.NoError(t, err)
 
 		// Verify the directory is empty
@@ -626,7 +626,7 @@ func TestWriteAndRemoveConfigFiles(t *testing.T) {
 		rawRemoveAllConfig, err := json.Marshal(removeAllAction)
 		assert.NoError(t, err)
 
-		err = installer.writeConfig(tempDir, [][]byte{rawWriteConfig, rawRemoveAllConfig})
+		err = installer.writeConfig(testCtx, tempDir, [][]byte{rawWriteConfig, rawRemoveAllConfig})
 		assert.NoError(t, err)
 
 		// Verify the file is not present
@@ -653,7 +653,7 @@ func TestWriteAndRemoveConfigFiles(t *testing.T) {
 		rawConfig, err := json.Marshal(configAction)
 		assert.NoError(t, err)
 
-		err = installer.writeConfig(tempDir, [][]byte{rawConfig})
+		err = installer.writeConfig(testCtx, tempDir, [][]byte{rawConfig})
 		assert.NoError(t, err)
 
 		// Verify the file was created in the subdirectory
@@ -688,7 +688,7 @@ func TestWriteAndRemoveConfigFiles(t *testing.T) {
 		rawConfig, err := json.Marshal(configAction)
 		assert.NoError(t, err)
 
-		err = installer.writeConfig(tempDir, [][]byte{rawConfig})
+		err = installer.writeConfig(testCtx, tempDir, [][]byte{rawConfig})
 		assert.NoError(t, err)
 
 		// Verify the file was removed
@@ -729,7 +729,7 @@ func TestWriteAndRemoveConfigFiles(t *testing.T) {
 		rawRemoveConfig, err := json.Marshal(removeAction)
 		assert.NoError(t, err)
 
-		err = installer.writeConfig(tempDir, [][]byte{rawWriteConfig, rawRemoveConfig})
+		err = installer.writeConfig(testCtx, tempDir, [][]byte{rawWriteConfig, rawRemoveConfig})
 		assert.NoError(t, err)
 
 		// Verify new file was created
@@ -760,7 +760,7 @@ func TestWriteAndRemoveConfigFiles(t *testing.T) {
 		rawConfig, err := json.Marshal(configAction)
 		assert.NoError(t, err)
 
-		err = installer.writeConfig(tempDir, [][]byte{rawConfig})
+		err = installer.writeConfig(testCtx, tempDir, [][]byte{rawConfig})
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "config file {/invalid/path.txt {\"test\":\"value\"}} is not allowed")
 	})
@@ -779,7 +779,7 @@ func TestWriteAndRemoveConfigFiles(t *testing.T) {
 		rawConfig, err := json.Marshal(configAction)
 		assert.NoError(t, err)
 
-		err = installer.writeConfig(tempDir, [][]byte{rawConfig})
+		err = installer.writeConfig(testCtx, tempDir, [][]byte{rawConfig})
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "unknown config file action: invalid")
 	})
@@ -790,7 +790,7 @@ func TestWriteAndRemoveConfigFiles(t *testing.T) {
 
 		rawConfig := []byte(`{"action_type": "write", "files": [{"path": "/datadog.yaml", "conntteennttss": "nojson"}]}`)
 
-		err := installer.writeConfig(tempDir, [][]byte{rawConfig})
+		err := installer.writeConfig(testCtx, tempDir, [][]byte{rawConfig})
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "could not unmarshal config file contents: unexpected end of JSON input")
 	})
@@ -812,7 +812,7 @@ func TestWriteAndRemoveConfigFiles(t *testing.T) {
 		rawConfig, err := json.Marshal(configAction)
 		assert.NoError(t, err)
 
-		err = installer.writeConfig(tempDir, [][]byte{rawConfig})
+		err = installer.writeConfig(testCtx, tempDir, [][]byte{rawConfig})
 		assert.NoError(t, err)
 
 		// Verify the file was created with cleaned path
@@ -849,7 +849,7 @@ func TestWriteAndRemoveConfigFiles(t *testing.T) {
 		rawConfig, err := json.Marshal(configAction)
 		assert.NoError(t, err)
 
-		err = installer.writeConfig(tempDir, [][]byte{rawConfig})
+		err = installer.writeConfig(testCtx, tempDir, [][]byte{rawConfig})
 		assert.NoError(t, err)
 
 		// Verify the file was created with complex structure
@@ -892,7 +892,7 @@ func TestWriteAndRemoveConfigFiles(t *testing.T) {
 		rawRemoveConfig, err := json.Marshal(removeAction)
 		assert.NoError(t, err)
 
-		err = installer.writeConfig(tempDir, [][]byte{rawWriteConfig, rawRemoveConfig})
+		err = installer.writeConfig(testCtx, tempDir, [][]byte{rawWriteConfig, rawRemoveConfig})
 		assert.NoError(t, err)
 
 		// Verify the file is not present
@@ -923,7 +923,7 @@ func TestTmpDirectoryCleanup(t *testing.T) {
 	err = os.Chtimes(newFile, newTime, newTime)
 	assert.NoError(t, err)
 
-	err = cleanupTmpDirectory(tempDir)
+	err = cleanupTmpDirectory(testCtx, tempDir)
 	assert.NoError(t, err)
 
 	assert.NoFileExists(t, oldFile, "old file should be deleted")
