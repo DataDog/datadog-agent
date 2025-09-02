@@ -11,6 +11,7 @@ package mount
 import (
 	"encoding/json"
 	"path"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -64,6 +65,11 @@ func newMountFromMountInfo(mnt *mountinfo.Info) *model.Mount {
 		if root == "" {
 			root = "/"
 		}
+	}
+
+	if mnt.FSType == "cgroup2" && strings.HasPrefix(root, "/..") {
+		cfs := utils.DefaultCGroupFS()
+		root = filepath.Join(cfs.GetRootCGroupPath(), root)
 	}
 
 	// create a Mount out of the parsed MountInfo
@@ -459,6 +465,7 @@ func (mr *Resolver) resolveMountPath(mountID uint32, device uint32, pid uint32, 
 	}
 
 	// force a resolution here to make sure the LRU keeps doing its job and doesn't evict important entries
+	// TODO: DO NOT rely on containerID, but resolve the pid namespace instead to get namespaced PIDs
 	workload, _ := mr.cgroupsResolver.GetWorkload(containerID)
 
 	path, source, origin, err := mr.getMountPath(mountID, device, pid)

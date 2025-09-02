@@ -14,7 +14,28 @@
         "id": "[id]",
         "timestamp": "[ts]",
         "language": "go",
-        "stack": "[stack-unredact-me]",
+        "stack": [
+          {
+            "function": "main.intArrayArg",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
+            "lineNumber": 57
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
+            "lineNumber": 22
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
         "probe": {
           "id": "intArrayArg",
           "location": {

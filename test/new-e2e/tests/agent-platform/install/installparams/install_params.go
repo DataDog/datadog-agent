@@ -16,12 +16,13 @@ import "os"
 
 // Params struct containing install params
 type Params struct {
-	PipelineID   string
-	MajorVersion string
-	Arch         string
-	Flavor       string
-	Upgrade      bool
-	APIKey       string
+	PipelineID     string
+	MajorVersion   string
+	Arch           string
+	Flavor         string
+	Upgrade        bool
+	APIKey         string
+	TestingKeysURL string
 }
 
 // Option alias to a functional option changing a given Params instance
@@ -63,6 +64,14 @@ func WithMajorVersion(majorVersion string) Option {
 func WithArch(arch string) Option {
 	return func(p *Params) {
 		p.Arch = arch
+	}
+}
+
+// WithTestingKeysURL specify the url to get the GPG public keys from
+// when installing the agent
+func WithTestingKeysURL(url string) Option {
+	return func(p *Params) {
+		p.TestingKeysURL = url
 	}
 }
 

@@ -30,10 +30,11 @@ func TestElfObject(t *testing.T) {
 	cfgs := testprogs.MustGetCommonConfigs(t)
 	for _, cfg := range cfgs {
 		binaryPath := testprogs.MustGetBinary(t, "simple", cfg)
-		obj, err := object.OpenElfFile(binaryPath)
+		obj, err := object.OpenElfFileWithDwarf(binaryPath)
 		require.NoError(t, err)
 		// Assert that some symbol we expect to exist is in there.
 		const targetFunction = "main.main"
+		defer func() { require.NoError(t, obj.Close()) }()
 		findTargetSubprogram(t, obj.DwarfData(), targetFunction)
 	}
 }
@@ -86,25 +87,46 @@ func BenchmarkLoadElfFile(b *testing.B) {
 	}
 	for _, binary := range binaries {
 		var logOnce sync.Once
+		var ds *object.DebugSections
 		b.Run(binary.name, func(b *testing.B) {
-			ds := benchmarkLoadElfFile(b, binary.path)
-			logOnce.Do(func() {
-				logDebugSections(b, ds)
+			b.Run("in-memory", func(b *testing.B) {
+				loader := object.NewInMemoryLoader()
+				ds = benchmarkLoadElfFile(b, binary.path, loader.Load)
+				logOnce.Do(func() {
+					if ds != nil {
+						logDebugSections(b, ds)
+					}
+				})
+			})
+			b.Run("on-disk", func(b *testing.B) {
+				cacheDir := b.TempDir()
+				cache, err := object.NewDiskCache(object.DiskCacheConfig{
+					DirPath:                  cacheDir,
+					RequiredDiskSpaceBytes:   10 * 1024 * 1024,  // require 10 MiB free
+					RequiredDiskSpacePercent: 1.0,               // 1% free space
+					MaxTotalBytes:            512 * 1024 * 1024, // 512 MiB max cache size
+				})
+				require.NoError(b, err)
+				ds = benchmarkLoadElfFile(b, binary.path, cache.Load)
 			})
 		})
 	}
 }
 
-func benchmarkLoadElfFile(b *testing.B, binaryPath string) *object.DebugSections {
+func benchmarkLoadElfFile(
+	b *testing.B,
+	binaryPath string,
+	openF func(string) (object.FileWithDwarf, error),
+) *object.DebugSections {
 	f, err := os.Open(binaryPath)
 	require.NoError(b, err)
 	defer f.Close()
 	var ds *object.DebugSections
 	b.ResetTimer()
 	for b.Loop() {
-		obj, err := object.OpenElfFile(binaryPath)
+		obj, err := openF(binaryPath)
 		require.NoError(b, err)
-		ds = obj.DwarfSections()
+		ds = obj.DebugSections()
 		var total int
 		for _, data := range ds.Sections() {
 			total += len(data)

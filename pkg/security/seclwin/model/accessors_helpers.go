@@ -12,6 +12,35 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
+// GetFieldValue retrieves the value of a field from the event using the evaluator.
+func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
+	m := &Model{}
+	evaluator, err := m.GetEvaluator(field, "", 0)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx := eval.NewContext(ev)
+	value := evaluator.Eval(ctx)
+	return value, nil
+}
+
+func (ev *Event) initProcess() {
+	if ev.BaseEvent.ProcessContext == nil {
+		ev.BaseEvent.ProcessContext = &ProcessContext{}
+	}
+	if ev.BaseEvent.ProcessContext.Ancestor == nil {
+		ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
+	}
+	if ev.BaseEvent.ProcessContext.Parent == nil {
+		ev.BaseEvent.ProcessContext.Parent = &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process
+	}
+
+	if ev.Exec.Process == nil {
+		ev.Exec.Process = &Process{}
+	}
+}
+
 // nolint: unused
 func (ev *Event) setStringArrayFieldValue(field string, fv *[]string, value interface{}) error {
 	switch rv := value.(type) {

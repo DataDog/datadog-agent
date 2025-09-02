@@ -9,13 +9,17 @@
 package probe
 
 import (
-	"path/filepath"
+	"crypto/sha256"
+	"fmt"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	"golang.org/x/net/bpf"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/args"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
@@ -172,19 +176,9 @@ func (fh *EBPFLessFieldHandlers) ResolveCGroupVersion(_ *model.Event, _ *model.C
 	return 0
 }
 
-// ResolveCGroupManager resolves the manager of the cgroup
-func (fh *EBPFLessFieldHandlers) ResolveCGroupManager(_ *model.Event, _ *model.CGroupContext) string {
-	return ""
-}
-
 // ResolveContainerContext retrieve the ContainerContext of the event
 func (fh *EBPFLessFieldHandlers) ResolveContainerContext(ev *model.Event) (*model.ContainerContext, bool) {
 	return ev.ContainerContext, ev.ContainerContext != nil
-}
-
-// ResolveContainerRuntime retrieves the container runtime managing the container
-func (fh *EBPFLessFieldHandlers) ResolveContainerRuntime(_ *model.Event, _ *model.ContainerContext) string {
-	return ""
 }
 
 // ResolveContainerID resolves the container ID of the event
@@ -261,16 +255,6 @@ func (fh *EBPFLessFieldHandlers) ResolveFileFieldsUser(_ *model.Event, e *model.
 // ResolveFileFilesystem resolves the filesystem a file resides in
 func (fh *EBPFLessFieldHandlers) ResolveFileFilesystem(_ *model.Event, e *model.FileEvent) string {
 	return e.Filesystem
-}
-
-// ResolveFileExtension resolves the extension of a file
-func (fh *EBPFLessFieldHandlers) ResolveFileExtension(ev *model.Event, f *model.FileEvent) string {
-	if f.Extension == "" {
-		if baseName := fh.ResolveFileBasename(ev, f); baseName != "" {
-			f.Extension = filepath.Ext(baseName)
-		}
-	}
-	return f.Extension
 }
 
 // ResolveFileMetadataSize resolves file metadata size
@@ -558,13 +542,61 @@ func (fh *EBPFLessFieldHandlers) ResolveAcceptHostnames(_ *model.Event, e *model
 }
 
 // ResolveSetSockOptFilterHash resolves the filter hash of a setsockopt event
-func (fh *EBPFLessFieldHandlers) ResolveSetSockOptFilterHash(_ *model.Event, _ *model.SetSockOptEvent) string {
-	// Not implemented in EBPFLess mode, as we don't have access to the BPF verifier
-	return ""
+func (fh *EBPFLessFieldHandlers) ResolveSetSockOptFilterHash(_ *model.Event, e *model.SetSockOptEvent) string {
+	if len(e.FilterHash) == 0 {
+		h := sha256.New()
+		h.Write(e.RawFilter)
+		bs := h.Sum(nil)
+		e.FilterHash = fmt.Sprintf("%x", bs)
+		return e.FilterHash
+	}
+	return e.FilterHash
 }
 
 // ResolveSetSockOptFilterInstructions resolves the filter instructions of a setsockopt event
-func (fh *EBPFLessFieldHandlers) ResolveSetSockOptFilterInstructions(_ *model.Event, _ *model.SetSockOptEvent) string {
-	// Not implemented in EBPFLess mode, as we don't have access to the BPF verifier
-	return ""
+func (fh *EBPFLessFieldHandlers) ResolveSetSockOptFilterInstructions(_ *model.Event, e *model.SetSockOptEvent) string {
+	if len(e.FilterInstructions) == 0 {
+		raw := parseFilter(e)
+
+		instructions, allDecoded := bpf.Disassemble(raw)
+		if !allDecoded {
+			seclog.Warnf("failed to decode setsockopt filter instructions: %s", e.FilterHash)
+			return ""
+		}
+
+		for i, inst := range instructions {
+			e.FilterInstructions += fmt.Sprintf("%03d: %s\n", i, inst)
+		}
+
+		return e.FilterInstructions
+	}
+	return e.FilterInstructions
+}
+
+// ResolveSetSockOptUsedImmediates resolves the immediates in the bpf filter of a setsockopt event
+func (fh *EBPFLessFieldHandlers) ResolveSetSockOptUsedImmediates(_ *model.Event, e *model.SetSockOptEvent) []int {
+	if e.UsedImmediates != nil {
+		return e.UsedImmediates
+	}
+	raw := parseFilter(e)
+	var kValues []int
+	for _, inst := range raw {
+		// Check if we load or branch on a magic value
+		if !slices.Contains(kValues, int(inst.K)) {
+			kValues = append(kValues, int(inst.K))
+		}
+
+	}
+	e.UsedImmediates = kValues
+	return e.UsedImmediates
+}
+
+// ResolveCapabilitiesAttempted resolves the accumulated attempted capabilities of a capabilities event
+func (fh *EBPFLessFieldHandlers) ResolveCapabilitiesAttempted(_ *model.Event, _ *model.CapabilitiesEvent) int {
+	return 0 // EBPFLess mode does not support capabilities usage reporting, so we return 0
+}
+
+// ResolveCapabilitiesUsed resolves the accumulated used capabilities of a capabilities event
+func (fh *EBPFLessFieldHandlers) ResolveCapabilitiesUsed(_ *model.Event, _ *model.CapabilitiesEvent) int {
+	return 0 // EBPFLess mode does not support capabilities usage reporting, so we return 0
 }

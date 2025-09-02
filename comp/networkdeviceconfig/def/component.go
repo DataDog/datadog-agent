@@ -10,5 +10,6 @@ package networkdeviceconfig
 
 // Component is the component type.
 type Component interface {
-	RetrieveConfiguration(deviceID string) (string, error)
+	RetrieveRunningConfig(ipAddress string) (string, error)
+	RetrieveStartupConfig(ipAddress string) (string, error)
 }

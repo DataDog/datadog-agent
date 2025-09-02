@@ -33,6 +33,7 @@ func CreateTestProcessor(listerContainers []*workloadmeta.Container,
 	metricsAdapter MetricsAdapter,
 	containerFilter ContainerFilter,
 	tagger tagger.Component,
+	extendedMetrics bool,
 ) (*mocksender.MockSender, *Processor, ContainerAccessor) {
 	mockProvider := mock.NewMetricsProvider()
 	mockCollector := mock.NewCollector("testCollector")
@@ -50,7 +51,7 @@ func CreateTestProcessor(listerContainers []*workloadmeta.Container,
 	mockedSender := mocksender.NewMockSender("generic-container")
 	mockedSender.SetupAcceptAll()
 
-	p := NewProcessor(mockProvider, &mockAccessor, metricsAdapter, containerFilter, tagger)
+	p := NewProcessor(mockProvider, &mockAccessor, metricsAdapter, containerFilter, tagger, extendedMetrics)
 
 	return mockedSender, &p, &mockAccessor
 }

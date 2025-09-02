@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	metricsserializer "github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
-	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
@@ -76,12 +75,17 @@ func BenchmarkSeries(b *testing.B) {
 			b.ReportMetric(float64(payloadCompressedSize)/float64(b.N), "compressed-payload-bytes")
 		}
 	}
-	bufferContext := marshaler.NewBufferContext()
 	mockConfig := mock.New(b)
 	compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp
 	pb := func(series metrics.Series) (transaction.BytesPayloads, error) {
 		iterableSeries := metricsserializer.CreateIterableSeries(metricsserializer.CreateSerieSource(series))
-		return iterableSeries.MarshalSplitCompress(bufferContext, mockConfig, compressor)
+		pipeline := []metricsserializer.Pipeline{{
+			FilterFunc: func(_ *metrics.Serie) bool {
+				return true
+			},
+			Destination: transaction.AllRegions,
+		}}
+		return iterableSeries.MarshalSplitCompressPipelines(mockConfig, compressor, pipeline)
 	}
 
 	payloadBuilder := stream.NewJSONPayloadBuilder(true, mockConfig, compressor, logmock.New(b))

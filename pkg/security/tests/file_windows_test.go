@@ -25,7 +25,7 @@ func TestBasicFileTest(t *testing.T) {
 	//ebpftest.LogLevel(t, "info")
 	cfn := &rules.RuleDefinition{
 		ID:         "test_create_file",
-		Expression: `create.file.name =~ "test.bad" && create.file.path =~ "C:\Temp\**"`,
+		Expression: `create.file.name =~ "test.bad" && create.file.path =~ "C:\Temp\**" && create.file.extension == ".bad"`,
 	}
 	opts := testOpts{
 		enableFIM: true,
@@ -39,7 +39,7 @@ func TestBasicFileTest(t *testing.T) {
 	// so wait around for it to start
 	time.Sleep(5 * time.Second)
 
-	test.Run(t, "File test 1", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "File test 1", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 
 		os.MkdirAll("C:\\Temp", 0755)
 
@@ -68,7 +68,7 @@ func TestRenameFileEvent(t *testing.T) {
 	// ebpftest.LogLevel(t, "info")
 	cfn := &rules.RuleDefinition{
 		ID:         "test_rename_file",
-		Expression: `rename.file.name =~ "test.bad" && rename.file.path =~ "C:\Temp\**"`,
+		Expression: `rename.file.name =~ "test.bad" && rename.file.path =~ "C:\Temp\**" && rename.file.extension == ".bad"`,
 	}
 	opts := testOpts{
 		enableFIM: true,
@@ -91,7 +91,7 @@ func TestRenameFileEvent(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	test.Run(t, "rename", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "rename", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		test.WaitSignal(t, func() error {
 			return os.Rename("C:\\Temp\\test.bad", "C:\\Temp\\test.good")
 		}, test.validateFileEvent(t, noWrapperType, func(event *model.Event, _ *rules.Rule) {
@@ -105,7 +105,7 @@ func TestDeleteFileEvent(t *testing.T) {
 	// ebpftest.LogLevel(t, "info")
 	cfn := &rules.RuleDefinition{
 		ID:         "test_delete_file",
-		Expression: `delete.file.name =~ "test.bad" && delete.file.path =~ "C:\Temp\**"`,
+		Expression: `delete.file.name =~ "test.bad" && delete.file.path =~ "C:\Temp\**" && delete.file.extension == ".bad"`,
 	}
 	opts := testOpts{
 		enableFIM: true,
@@ -128,7 +128,7 @@ func TestDeleteFileEvent(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	test.Run(t, "delete", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "delete", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		test.WaitSignal(t, func() error {
 			return os.Remove("C:\\Temp\\test.bad")
 		}, test.validateFileEvent(t, noWrapperType, func(event *model.Event, _ *rules.Rule) {
@@ -141,7 +141,7 @@ func TestWriteFileEvent(t *testing.T) {
 	// ebpftest.LogLevel(t, "info")
 	cfn := &rules.RuleDefinition{
 		ID:         "test_write_file",
-		Expression: `write.file.name =~ "test.bad" && write.file.path =~ "C:\Temp\**"`,
+		Expression: `write.file.name =~ "test.bad" && write.file.path =~ "C:\Temp\**" && write.file.extension == ".bad"`,
 	}
 	opts := testOpts{
 		enableFIM: true,
@@ -164,7 +164,7 @@ func TestWriteFileEvent(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	test.Run(t, "write", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "write", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		test.WaitSignal(t, func() error {
 			f, err := os.OpenFile("C:\\Temp\\test.bad", os.O_WRONLY, 0755)
 			if err != nil {
@@ -188,7 +188,7 @@ func TestWriteFileEventWithCreate(t *testing.T) {
 		},
 		{
 			ID:         "test_write_file",
-			Expression: `write.file.name =~ "test.bad" && write.file.path =~ "C:\Temp\**"`,
+			Expression: `write.file.name =~ "test.bad" && write.file.path =~ "C:\Temp\**" && write.file.extension == ".bad"`,
 		},
 	}
 	opts := testOpts{
@@ -212,7 +212,7 @@ func TestWriteFileEventWithCreate(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	test.Run(t, "write", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "write", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		test.WaitSignal(t, func() error {
 			f, err := os.OpenFile("C:\\Temp\\test.bad", os.O_WRONLY, 0755)
 			if err != nil {

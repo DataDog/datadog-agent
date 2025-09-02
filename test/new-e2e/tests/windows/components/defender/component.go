@@ -50,6 +50,18 @@ func NewDefender(e *config.CommonEnvironment, host *remote.Host, options ...Opti
 	deps = append(deps, utils.PulumiDependsOn(cmd))
 	manager.Resources = append(manager.Resources, cmd)
 
+	// Wait for get-mppreference to succeed after WinDefend is running
+	cmd, err = host.OS.Runner().Command(manager.namer.ResourceName("wait-for-mppreference"), &command.Args{
+		Create: pulumi.String(powershell.PsHost().
+			WaitForGetMpPreference().
+			Compile()),
+	}, deps...)
+	if err != nil {
+		return nil, err
+	}
+	deps = append(deps, utils.PulumiDependsOn(cmd))
+	manager.Resources = append(manager.Resources, cmd)
+
 	if params.Disabled {
 		cmd, err := host.OS.Runner().Command(manager.namer.ResourceName("disable-defender"), &command.Args{
 			Create: pulumi.String(powershell.PsHost().

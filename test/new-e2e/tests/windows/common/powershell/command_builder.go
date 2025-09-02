@@ -8,8 +8,9 @@ package powershell
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 )
 
 type powerShellCommandBuilder struct {
@@ -196,6 +197,40 @@ func (ps *powerShellCommandBuilder) SetFIPSMode(enabled bool) *powerShellCommand
 	return ps
 }
 
+// WaitForMpPreference creates a command that waits for get-mppreference to succeed for 10 minutes
+func (ps *powerShellCommandBuilder) WaitForGetMpPreference() *powerShellCommandBuilder {
+	ps.cmds = append(ps.cmds, `
+$attempt = 0
+$success = $false
+$timeout = New-TimeSpan -Seconds 600
+$stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+
+while (-not $success -and $stopwatch.Elapsed -lt $timeout) {
+    try {
+        $result = Get-MpPreference
+        if ($result -ne $null) {
+            $success = $true
+            Write-Host "Get-MpPreference succeeded on attempt $($attempt + 1)"
+        }
+    }
+    catch {
+        Write-Host "Get-MpPreference failed on attempt $($attempt + 1): $($_.Exception.Message)"
+    }
+    
+    if (-not $success) {
+        $attempt++
+        Start-Sleep -Seconds 2
+    }
+}
+
+$stopwatch.Stop()
+
+if (-not $success -and $stopwatch.Elapsed -ge $timeout) {
+    Write-Error "Get-MpPreference failed after $($stopwatch.Elapsed.TotalSeconds) seconds and $attempt attempts: $($Error[0].Exception.Message)"
+}`)
+	return ps
+}
+
 // Execute compiles the list of PowerShell commands into one script and runs it on the given host
 func (ps *powerShellCommandBuilder) Execute(host *components.RemoteHost) (string, error) {
 	return host.Execute(ps.Compile())
@@ -204,4 +239,19 @@ func (ps *powerShellCommandBuilder) Execute(host *components.RemoteHost) (string
 // Compile joins all the saved command into one valid PowerShell script command.
 func (ps *powerShellCommandBuilder) Compile() string {
 	return strings.Join(ps.cmds, ";")
+}
+
+// EnableTestSigning creates a command that enables TestSigning
+func (ps *powerShellCommandBuilder) EnableTestSigning() *powerShellCommandBuilder {
+	ps.cmds = append(ps.cmds, `
+$result = bcdedit.exe | findstr "testsigning" | findstr "Yes"
+if ($result -eq $null) {
+	bcdedit.exe /set testsigning on
+	Restart-Computer -Force
+}
+else {
+	Write-Host "TestSigning is already enabled"
+}
+`)
+	return ps
 }

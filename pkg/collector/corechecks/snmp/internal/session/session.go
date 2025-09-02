@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"go.uber.org/atomic"
+
 	"github.com/gosnmp/gosnmp"
 
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
@@ -32,12 +34,18 @@ type Session interface {
 	Get(oids []string) (result *gosnmp.SnmpPacket, err error)
 	GetBulk(oids []string, bulkMaxRepetitions uint32) (result *gosnmp.SnmpPacket, err error)
 	GetNext(oids []string) (result *gosnmp.SnmpPacket, err error)
+	GetSnmpGetCount() uint32
+	GetSnmpGetBulkCount() uint32
+	GetSnmpGetNextCount() uint32
 	GetVersion() gosnmp.SnmpVersion
 }
 
 // GosnmpSession is used to connect to a snmp device
 type GosnmpSession struct {
-	gosnmpInst gosnmp.GoSNMP
+	gosnmpInst       gosnmp.GoSNMP
+	snmpGetCount     *atomic.Uint32
+	snmpGetBulkCount *atomic.Uint32
+	snmpGetNextCount *atomic.Uint32
 }
 
 // Connect is used to create a new connection
@@ -52,17 +60,35 @@ func (s *GosnmpSession) Close() error {
 
 // Get will send a SNMPGET command
 func (s *GosnmpSession) Get(oids []string) (result *gosnmp.SnmpPacket, err error) {
+	s.snmpGetCount.Inc()
 	return s.gosnmpInst.Get(oids)
 }
 
 // GetBulk will send a SNMP BULKGET command
 func (s *GosnmpSession) GetBulk(oids []string, bulkMaxRepetitions uint32) (result *gosnmp.SnmpPacket, err error) {
+	s.snmpGetBulkCount.Inc()
 	return s.gosnmpInst.GetBulk(oids, 0, bulkMaxRepetitions)
 }
 
 // GetNext will send a SNMP GETNEXT command
 func (s *GosnmpSession) GetNext(oids []string) (result *gosnmp.SnmpPacket, err error) {
+	s.snmpGetNextCount.Inc()
 	return s.gosnmpInst.GetNext(oids)
+}
+
+// GetSnmpGetCount returns the number of SNMPGET request that has been done
+func (s *GosnmpSession) GetSnmpGetCount() uint32 {
+	return s.snmpGetCount.Load()
+}
+
+// GetSnmpGetBulkCount returns the number of SNMP BULKGET request that has been done
+func (s *GosnmpSession) GetSnmpGetBulkCount() uint32 {
+	return s.snmpGetBulkCount.Load()
+}
+
+// GetSnmpGetNextCount returns the number of SNMP GETNEXT request that has been done
+func (s *GosnmpSession) GetSnmpGetNextCount() uint32 {
+	return s.snmpGetNextCount.Load()
 }
 
 // GetVersion returns the snmp version used
@@ -72,7 +98,11 @@ func (s *GosnmpSession) GetVersion() gosnmp.SnmpVersion {
 
 // NewGosnmpSession creates a new session
 func NewGosnmpSession(config *checkconfig.CheckConfig) (Session, error) {
-	s := &GosnmpSession{}
+	s := &GosnmpSession{
+		snmpGetCount:     atomic.NewUint32(0),
+		snmpGetBulkCount: atomic.NewUint32(0),
+		snmpGetNextCount: atomic.NewUint32(0),
+	}
 	if config.OidBatchSize > gosnmp.MaxOids {
 		return nil, fmt.Errorf("config oidBatchSize (%d) cannot be higher than gosnmp.MaxOids: %d", config.OidBatchSize, gosnmp.MaxOids)
 	}

@@ -55,3 +55,7 @@ class KMTPaths:
 
     def vm_test_results(self, vm_name: str):
         return self.test_results / vm_name
+
+    @property
+    def gdb(self):
+        return self.root / self.arch.kmt_arch / "gdb"

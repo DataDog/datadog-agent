@@ -7,6 +7,7 @@ package packages
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -18,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
 	windowssvc "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/windows"
+	windowsuser "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user/windows"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -43,6 +45,7 @@ var datadogAgentPackage = hooks{
 	postInstall: postInstallDatadogAgent,
 	preRemove:   preRemoveDatadogAgent,
 
+	preStartExperiment:    preStartExperimentDatadogAgent,
 	postStartExperiment:   postStartExperimentDatadogAgent,
 	postStopExperiment:    postStopExperimentDatadogAgent,
 	postPromoteExperiment: postPromoteExperimentDatadogAgent,
@@ -92,6 +95,24 @@ func preRemoveDatadogAgent(ctx HookContext) (err error) {
 	if !ctx.Upgrade {
 		return removeAgentIfInstalledAndRestartOnFailure(ctx)
 	}
+	return nil
+}
+
+// preStartExperimentDatadogAgent checks prerequisites before starting the experiment
+//
+// These checks are intended to prevent entering a state where we are unable to reinstall stable
+// and the host is left without the Agent installed.
+//
+// Performing the checks in the "pre" hook allows us to return an error before the
+// experiment state is created, which allows us to skip stop_experiment which would
+// otherwise unecessarily try to uninstall and then reinstall the stable Agent.
+func preStartExperimentDatadogAgent(_ HookContext) error {
+	env := getenv()
+	err := windowsuser.ValidateAgentUserRemoteUpdatePrerequisites(env.MsiParams.AgentUserName)
+	if err != nil {
+		return fmt.Errorf("cannot start remote update: %w", err)
+	}
+
 	return nil
 }
 
@@ -319,7 +340,7 @@ func startWatchdog(_ context.Context, timeout time.Time) error {
 }
 
 func installAgentPackage(ctx context.Context, env *env.Env, target string, args []string, logFileName string) (err error) {
-	span, _ := telemetry.StartSpanFromContext(ctx, "install_agent")
+	span, ctx := telemetry.StartSpanFromContext(ctx, "install_agent")
 	defer func() { span.Finish(err) }()
 
 	rootPath := ""
@@ -340,8 +361,13 @@ func installAgentPackage(ctx context.Context, env *env.Env, target string, args 
 	// and we need to reinstall it with the same configuration
 	// and we wipe out our registry keys containing the configuration
 	// that the next install would have used
-	dataDir := fmt.Sprintf(`APPLICATIONDATADIRECTORY="%s"`, env.MsiParams.ApplicationDataDirectory)
-	projectLocation := fmt.Sprintf(`PROJECTLOCATION="%s"`, env.MsiParams.ProjectLocation)
+	props := map[string]string{
+		"FLEET_INSTALL":     "1",
+		"SKIP_INSTALL_INFO": "1",
+		// carry over directories directly
+		"APPLICATIONDATADIRECTORY": env.MsiParams.ApplicationDataDirectory,
+		"PROJECTLOCATION":          env.MsiParams.ProjectLocation,
+	}
 
 	opts := []msi.MsiexecOption{
 		msi.Install(),
@@ -354,26 +380,29 @@ func installAgentPackage(ctx context.Context, env *env.Env, target string, args 
 	if env.MsiParams.AgentUserPassword != "" {
 		opts = append(opts, msi.WithDdAgentUserPassword(env.MsiParams.AgentUserPassword))
 	}
-	additionalArgs := []string{"FLEET_INSTALL=1", "SKIP_INSTALL_INFO=1", dataDir, projectLocation}
-
+	opts = append(opts, msi.WithProperties(props))
 	// append input args last so they can take precedence
-	additionalArgs = append(additionalArgs, args...)
-	opts = append(opts, msi.WithAdditionalArgs(additionalArgs))
-	cmd, err := msi.Cmd(opts...)
+	opts = append(opts, msi.WithAdditionalArgs(args))
 
-	var output []byte
-	if err == nil {
-		output, err = cmd.Run(ctx)
-	}
+	cmd, err := msi.Cmd(opts...)
 	if err != nil {
-		return fmt.Errorf("failed to install Agent %s: %w\nLog file located at: %s\n%s", target, err, logFile, string(output))
+		return fmt.Errorf("failed to create MSI command: %w", err)
+	}
+	err = cmd.Run(ctx)
+	if err != nil {
+		err = fmt.Errorf("failed to install Agent %s: %w\nLog file located at: %s", target, err, logFile)
+		var msiErr *msi.MsiexecError
+		if errors.As(err, &msiErr) {
+			err = fmt.Errorf("%w\n%s", err, msiErr.ProcessedLog)
+		}
+		return err
 	}
 	return nil
 }
 
 func removeProductIfInstalled(ctx context.Context, product string) (err error) {
 	if msi.IsProductInstalled(product) {
-		span, _ := telemetry.StartSpanFromContext(ctx, "remove_agent")
+		span, ctx := telemetry.StartSpanFromContext(ctx, "remove_agent")
 		defer func() {
 			if err != nil {
 				// removal failed, this should rarely happen.
@@ -383,7 +412,7 @@ func removeProductIfInstalled(ctx context.Context, product string) (err error) {
 			span.Finish(err)
 		}()
 		err := msi.RemoveProduct(ctx, product,
-			msi.WithAdditionalArgs([]string{"FLEET_INSTALL=1"}),
+			msi.WithProperties(map[string]string{"FLEET_INSTALL": "1"}),
 		)
 		if err != nil {
 			return err
@@ -491,31 +520,6 @@ func getWatchdogTimeout() time.Duration {
 	return time.Duration(val) * time.Minute
 }
 
-// getAgentUserNameFromRegistry returns the user name for the Agent, stored in the registry by the Agent MSI
-func getAgentUserNameFromRegistry() (string, error) {
-	k, err := registry.OpenKey(registry.LOCAL_MACHINE, "SOFTWARE\\Datadog\\Datadog Agent", registry.QUERY_VALUE)
-	if err != nil {
-		return "", err
-	}
-	defer k.Close()
-
-	user, _, err := k.GetStringValue("installedUser")
-	if err != nil {
-		return "", fmt.Errorf("could not read installedUser in registry: %w", err)
-	}
-
-	domain, _, err := k.GetStringValue("installedDomain")
-	if err != nil {
-		return "", fmt.Errorf("could not read installedDomain in registry: %w", err)
-	}
-
-	if domain != "" {
-		user = domain + `\` + user
-	}
-
-	return user, nil
-}
-
 // getenv returns an Env struct with values from the environment, supplemented by values from the registry.
 //
 // See also env.FromEnv()
@@ -531,11 +535,16 @@ func getAgentUserNameFromRegistry() (string, error) {
 func getenv() *env.Env {
 	env := env.FromEnv()
 
-	// fallback to registry for agent user
+	// This function prefers values from the environment, with a fallback if not set, for values:
+	//   - Agent user name (fallback to service user)
+	//   - Project location
+	//   - Application data directory
+	//
+	// Using service allows for remote updates to work when the hostname changes
 	if env.MsiParams.AgentUserName == "" {
-		user, err := getAgentUserNameFromRegistry()
+		user, err := windowsuser.GetAgentUserFromService()
 		if err != nil {
-			log.Warnf("Could not read Agent user from registry: %v", err)
+			log.Warnf("Could not read Agent user from service: %v", err)
 		} else {
 			env.MsiParams.AgentUserName = user
 		}

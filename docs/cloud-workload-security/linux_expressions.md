@@ -32,6 +32,7 @@ Triggers are events that correspond to types of activity seen by the system. The
 | `accept` | Network | An accept was executed | 7.63 |
 | `bind` | Network | A bind was executed | 7.37 |
 | `bpf` | Kernel | A BPF command was executed | 7.33 |
+| `capabilities` | Process | [Experimental] A process used some capabilities | 7.70 |
 | `capset` | Process | A process changed its capacity set | 7.27 |
 | `cgroup_write` | Kernel | A process migrated another process to a cgroup | 7.68 |
 | `chdir` | File | [Experimental] A process changed the current directory | 7.52 |
@@ -67,6 +68,59 @@ Triggers are events that correspond to types of activity seen by the system. The
 | `unlink` | File | A file was deleted | 7.27 |
 | `unload_module` | Kernel | A kernel module was deleted | 7.35 |
 | `utimes` | File | Change file access/modification times | 7.27 |
+
+## FIM triggers
+
+In addition to regular triggers, `fim.write.file.*` fields allow to write rules that fire
+on all file events.
+
+For example, the following rule:
+
+{{< code-block lang="javascript" >}}
+(fim.write.file.path == "/tmp/test" || fim.write.file.name == "abc")
+  && process.file.name == "def"
+  && container.id != ""
+{{< /code-block >}}
+
+will expand into the following rules under the hood:
+
+{{< code-block lang="javascript" >}}
+open: ((open.file.path == "/tmp/test" || open.file.name == "abc")
+  && open.flags & (O_CREAT|O_TRUNC|O_APPEND|O_RDWR|O_WRONLY) > 0
+  && process.file.name == "def"
+  && container.id != "")
+
+chmod: (chmod.file.path == "/tmp/test" || chmod.file.name == "abc")
+  && process.file.name == "def"
+  && container.id != ""
+
+chown: (chown.file.path == "/tmp/test" || chown.file.name == "abc")
+  && process.file.name == "def"
+  && container.id != ""
+
+link: (link.file.path == "/tmp/test" || link.file.name == "abc")
+  && process.file.name == "def"
+  && container.id != ""
+
+rename: (rename.file.path == "/tmp/test" || rename.file.name == "abc")
+  && process.file.name == "def"
+  && container.id != ""
+
+rename: (rename.file.destination.path == "/tmp/test" || rename.file.destination.name == "abc")
+  && process.file.name == "def"
+  && container.id != ""
+
+unlink: (unlink.file.path == "/tmp/test" || unlink.file.name == "abc")
+  && process.file.name == "def"
+  && container.id != ""
+
+utimes: (utimes.file.path == "/tmp/test" || utimes.file.name == "abc")
+  && process.file.name == "def"
+  && container.id != ""
+{{< /code-block >}}
+
+and match on all file-related events matching the path provided in the rule. Common fields are retained across all
+expanded rules.
 
 ## Variables
 SECL variables are predefined variables that can be used as values or as part of values.
@@ -128,11 +182,9 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
-| [`cgroup.manager`](#common-cgroupcontext-manager-doc) | [Experimental] Lifecycle manager of the cgroup |
 | [`cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`container.created_at`](#container-created_at-doc) | Timestamp of the creation of the container |
 | [`container.id`](#container-id-doc) | ID of the container |
-| [`container.runtime`](#container-runtime-doc) | Runtime managing the container |
 | [`container.tags`](#container-tags-doc) | Tags of the container |
 | [`event.async`](#event-async-doc) | True if the syscall was asynchronous |
 | [`event.hostname`](#event-hostname-doc) | Hostname associated with the event |
@@ -140,6 +192,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`event.os`](#event-os-doc) | Operating system of the event |
 | [`event.rule.tags`](#event-rule-tags-doc) | Tags associated with the rule that's used to evaluate the event |
 | [`event.service`](#event-service-doc) | Service associated with the event |
+| [`event.source`](#event-source-doc) | [Experimental] Source of the event. Can be either 'runtime' or 'snapshot'. |
 | [`event.timestamp`](#event-timestamp-doc) | Timestamp of the event |
 | [`process.ancestors.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
 | [`process.ancestors.args_flags`](#common-process-args_flags-doc) | Flags in the process arguments |
@@ -150,10 +203,11 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.ancestors.auid`](#common-credentials-auid-doc) | Login UID of the process |
 | [`process.ancestors.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`process.ancestors.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`process.ancestors.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`process.ancestors.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
 | [`process.ancestors.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`process.ancestors.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`process.ancestors.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
-| [`process.ancestors.cgroup.manager`](#common-cgroupcontext-manager-doc) | [Experimental] Lifecycle manager of the cgroup |
 | [`process.ancestors.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`process.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`process.ancestors.container.id`](#common-process-container-id-doc) | Container ID |
@@ -239,10 +293,11 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.auid`](#common-credentials-auid-doc) | Login UID of the process |
 | [`process.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`process.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`process.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`process.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
 | [`process.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`process.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`process.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
-| [`process.cgroup.manager`](#common-cgroupcontext-manager-doc) | [Experimental] Lifecycle manager of the cgroup |
 | [`process.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`process.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`process.container.id`](#common-process-container-id-doc) | Container ID |
@@ -318,10 +373,11 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.parent.auid`](#common-credentials-auid-doc) | Login UID of the process |
 | [`process.parent.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`process.parent.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`process.parent.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`process.parent.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
 | [`process.parent.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`process.parent.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`process.parent.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
-| [`process.parent.cgroup.manager`](#common-cgroupcontext-manager-doc) | [Experimental] Lifecycle manager of the cgroup |
 | [`process.parent.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`process.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`process.parent.container.id`](#common-process-container-id-doc) | Container ID |
@@ -448,6 +504,17 @@ A BPF command was executed
 | [`bpf.prog.tag`](#bpf-prog-tag-doc) | Hash (sha1) of the eBPF program (added in 7.35) |
 | [`bpf.prog.type`](#bpf-prog-type-doc) | Type of the eBPF program |
 | [`bpf.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+
+### Event `capabilities`
+
+_This event type is experimental and may change in the future._
+
+A process used some capabilities
+
+| Property | Definition |
+| -------- | ------------- |
+| [`capabilities.attempted`](#capabilities-attempted-doc) | Bitmask of the capabilities that the process attempted to use since it started running |
+| [`capabilities.used`](#capabilities-used-doc) | Bitmask of the capabilities that the process successfully used since it started running |
 
 ### Event `capset`
 
@@ -635,6 +702,7 @@ A DNS request was sent
 | [`network.source.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`network.source.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
 | [`network.source.port`](#common-ipportcontext-port-doc) | Port number |
+| [`network.type`](#common-networkcontext-type-doc) | Type of the network packet |
 
 ### Event `exec`
 
@@ -651,10 +719,11 @@ A process was executed (does not trigger on fork syscalls).
 | [`exec.auid`](#common-credentials-auid-doc) | Login UID of the process |
 | [`exec.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`exec.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`exec.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`exec.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
 | [`exec.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`exec.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`exec.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
-| [`exec.cgroup.manager`](#common-cgroupcontext-manager-doc) | [Experimental] Lifecycle manager of the cgroup |
 | [`exec.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`exec.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`exec.container.id`](#common-process-container-id-doc) | Container ID |
@@ -755,11 +824,12 @@ A process was terminated
 | [`exit.auid`](#common-credentials-auid-doc) | Login UID of the process |
 | [`exit.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`exit.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`exit.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`exit.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
 | [`exit.cause`](#exit-cause-doc) | Cause of the process termination (one of EXITED, SIGNALED, COREDUMPED) |
 | [`exit.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`exit.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`exit.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
-| [`exit.cgroup.manager`](#common-cgroupcontext-manager-doc) | [Experimental] Lifecycle manager of the cgroup |
 | [`exit.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`exit.code`](#exit-code-doc) | Exit code of the process or number of the signal that caused the process to terminate |
 | [`exit.comm`](#common-process-comm-doc) | Comm attribute of the process |
@@ -862,6 +932,7 @@ An IMDS event was captured
 | [`network.source.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`network.source.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
 | [`network.source.port`](#common-ipportcontext-port-doc) | Port number |
+| [`network.type`](#common-networkcontext-type-doc) | Type of the network packet |
 
 ### Event `link`
 
@@ -1115,6 +1186,18 @@ A raw network packet was captured
 
 | Property | Definition |
 | -------- | ------------- |
+| [`network.destination.ip`](#common-ipportcontext-ip-doc) | IP address |
+| [`network.destination.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
+| [`network.destination.port`](#common-ipportcontext-port-doc) | Port number |
+| [`network.device.ifname`](#common-networkdevicecontext-ifname-doc) | Interface ifname |
+| [`network.l3_protocol`](#common-networkcontext-l3_protocol-doc) | L3 protocol of the network packet |
+| [`network.l4_protocol`](#common-networkcontext-l4_protocol-doc) | L4 protocol of the network packet |
+| [`network.network_direction`](#common-networkcontext-network_direction-doc) | Network direction of the network packet |
+| [`network.size`](#common-networkcontext-size-doc) | Size in bytes of the network packet |
+| [`network.source.ip`](#common-ipportcontext-ip-doc) | IP address |
+| [`network.source.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
+| [`network.source.port`](#common-ipportcontext-port-doc) | Port number |
+| [`network.type`](#common-networkcontext-type-doc) | Type of the network packet |
 | [`packet.destination.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`packet.destination.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
 | [`packet.destination.port`](#common-ipportcontext-port-doc) | Port number |
@@ -1128,6 +1211,7 @@ A raw network packet was captured
 | [`packet.source.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
 | [`packet.source.port`](#common-ipportcontext-port-doc) | Port number |
 | [`packet.tls.version`](#packet-tls-version-doc) | TLS version |
+| [`packet.type`](#common-networkcontext-type-doc) | Type of the network packet |
 
 ### Event `ptrace`
 
@@ -1146,10 +1230,11 @@ A ptrace command was executed
 | [`ptrace.tracee.ancestors.auid`](#common-credentials-auid-doc) | Login UID of the process |
 | [`ptrace.tracee.ancestors.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`ptrace.tracee.ancestors.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`ptrace.tracee.ancestors.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`ptrace.tracee.ancestors.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
 | [`ptrace.tracee.ancestors.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`ptrace.tracee.ancestors.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`ptrace.tracee.ancestors.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
-| [`ptrace.tracee.ancestors.cgroup.manager`](#common-cgroupcontext-manager-doc) | [Experimental] Lifecycle manager of the cgroup |
 | [`ptrace.tracee.ancestors.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`ptrace.tracee.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`ptrace.tracee.ancestors.container.id`](#common-process-container-id-doc) | Container ID |
@@ -1235,10 +1320,11 @@ A ptrace command was executed
 | [`ptrace.tracee.auid`](#common-credentials-auid-doc) | Login UID of the process |
 | [`ptrace.tracee.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`ptrace.tracee.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`ptrace.tracee.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`ptrace.tracee.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
 | [`ptrace.tracee.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`ptrace.tracee.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`ptrace.tracee.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
-| [`ptrace.tracee.cgroup.manager`](#common-cgroupcontext-manager-doc) | [Experimental] Lifecycle manager of the cgroup |
 | [`ptrace.tracee.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`ptrace.tracee.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`ptrace.tracee.container.id`](#common-process-container-id-doc) | Container ID |
@@ -1314,10 +1400,11 @@ A ptrace command was executed
 | [`ptrace.tracee.parent.auid`](#common-credentials-auid-doc) | Login UID of the process |
 | [`ptrace.tracee.parent.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`ptrace.tracee.parent.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`ptrace.tracee.parent.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`ptrace.tracee.parent.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
 | [`ptrace.tracee.parent.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`ptrace.tracee.parent.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`ptrace.tracee.parent.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
-| [`ptrace.tracee.parent.cgroup.manager`](#common-cgroupcontext-manager-doc) | [Experimental] Lifecycle manager of the cgroup |
 | [`ptrace.tracee.parent.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`ptrace.tracee.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`ptrace.tracee.parent.container.id`](#common-process-container-id-doc) | Container ID |
@@ -1567,10 +1654,11 @@ A setrlimit command was executed
 | [`setrlimit.target.ancestors.auid`](#common-credentials-auid-doc) | Login UID of the process |
 | [`setrlimit.target.ancestors.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`setrlimit.target.ancestors.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`setrlimit.target.ancestors.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`setrlimit.target.ancestors.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
 | [`setrlimit.target.ancestors.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`setrlimit.target.ancestors.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`setrlimit.target.ancestors.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
-| [`setrlimit.target.ancestors.cgroup.manager`](#common-cgroupcontext-manager-doc) | [Experimental] Lifecycle manager of the cgroup |
 | [`setrlimit.target.ancestors.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`setrlimit.target.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`setrlimit.target.ancestors.container.id`](#common-process-container-id-doc) | Container ID |
@@ -1656,10 +1744,11 @@ A setrlimit command was executed
 | [`setrlimit.target.auid`](#common-credentials-auid-doc) | Login UID of the process |
 | [`setrlimit.target.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`setrlimit.target.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`setrlimit.target.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`setrlimit.target.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
 | [`setrlimit.target.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`setrlimit.target.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`setrlimit.target.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
-| [`setrlimit.target.cgroup.manager`](#common-cgroupcontext-manager-doc) | [Experimental] Lifecycle manager of the cgroup |
 | [`setrlimit.target.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`setrlimit.target.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`setrlimit.target.container.id`](#common-process-container-id-doc) | Container ID |
@@ -1735,10 +1824,11 @@ A setrlimit command was executed
 | [`setrlimit.target.parent.auid`](#common-credentials-auid-doc) | Login UID of the process |
 | [`setrlimit.target.parent.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`setrlimit.target.parent.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`setrlimit.target.parent.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`setrlimit.target.parent.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
 | [`setrlimit.target.parent.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`setrlimit.target.parent.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`setrlimit.target.parent.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
-| [`setrlimit.target.parent.cgroup.manager`](#common-cgroupcontext-manager-doc) | [Experimental] Lifecycle manager of the cgroup |
 | [`setrlimit.target.parent.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`setrlimit.target.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`setrlimit.target.parent.container.id`](#common-process-container-id-doc) | Container ID |
@@ -1840,6 +1930,7 @@ A setsockopt was executed
 | [`setsockopt.socket_family`](#setsockopt-socket_family-doc) | Socket family |
 | [`setsockopt.socket_protocol`](#setsockopt-socket_protocol-doc) | Socket protocol |
 | [`setsockopt.socket_type`](#setsockopt-socket_type-doc) | Socket type |
+| [`setsockopt.used_immediates`](#setsockopt-used_immediates-doc) | List of immediate values used in the filter |
 
 ### Event `setuid`
 
@@ -1904,10 +1995,11 @@ A signal was sent
 | [`signal.target.ancestors.auid`](#common-credentials-auid-doc) | Login UID of the process |
 | [`signal.target.ancestors.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`signal.target.ancestors.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`signal.target.ancestors.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`signal.target.ancestors.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
 | [`signal.target.ancestors.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`signal.target.ancestors.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`signal.target.ancestors.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
-| [`signal.target.ancestors.cgroup.manager`](#common-cgroupcontext-manager-doc) | [Experimental] Lifecycle manager of the cgroup |
 | [`signal.target.ancestors.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`signal.target.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`signal.target.ancestors.container.id`](#common-process-container-id-doc) | Container ID |
@@ -1993,10 +2085,11 @@ A signal was sent
 | [`signal.target.auid`](#common-credentials-auid-doc) | Login UID of the process |
 | [`signal.target.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`signal.target.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`signal.target.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`signal.target.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
 | [`signal.target.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`signal.target.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`signal.target.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
-| [`signal.target.cgroup.manager`](#common-cgroupcontext-manager-doc) | [Experimental] Lifecycle manager of the cgroup |
 | [`signal.target.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`signal.target.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`signal.target.container.id`](#common-process-container-id-doc) | Container ID |
@@ -2072,10 +2165,11 @@ A signal was sent
 | [`signal.target.parent.auid`](#common-credentials-auid-doc) | Login UID of the process |
 | [`signal.target.parent.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`signal.target.parent.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`signal.target.parent.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`signal.target.parent.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
 | [`signal.target.parent.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`signal.target.parent.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`signal.target.parent.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
-| [`signal.target.parent.cgroup.manager`](#common-cgroupcontext-manager-doc) | [Experimental] Lifecycle manager of the cgroup |
 | [`signal.target.parent.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`signal.target.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`signal.target.parent.container.id`](#common-process-container-id-doc) | Container ID |
@@ -2415,6 +2509,30 @@ Type: int
 Definition: Permitted capability set of the process
 
 `*.cap_permitted` has 14 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+Constants: [Kernel Capability constants](#kernel-capability-constants)
+
+
+
+### `*.caps_attempted` {#common-process-caps_attempted-doc}
+Type: int
+
+Definition: Bitmask of the capabilities that the process attempted to use
+
+`*.caps_attempted` has 14 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+Constants: [Kernel Capability constants](#kernel-capability-constants)
+
+
+
+### `*.caps_used` {#common-process-caps_used-doc}
+Type: int
+
+Definition: Bitmask of the capabilities that the process successfully used
+
+`*.caps_used` has 14 possible prefixes:
 `exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 Constants: [Kernel Capability constants](#kernel-capability-constants)
@@ -2787,15 +2905,6 @@ Definition: Length of the corresponding element
 `cgroup_write.file.name` `cgroup_write.file.path` `chdir.file.name` `chdir.file.path` `chmod.file.name` `chmod.file.path` `chown.file.name` `chown.file.path` `dns.question.name` `exec.file.name` `exec.file.path` `exec.interpreter.file.name` `exec.interpreter.file.path` `exit.file.name` `exit.file.path` `exit.interpreter.file.name` `exit.interpreter.file.path` `link.file.destination.name` `link.file.destination.path` `link.file.name` `link.file.path` `load_module.file.name` `load_module.file.path` `mkdir.file.name` `mkdir.file.path` `mmap.file.name` `mmap.file.path` `network_flow_monitor.flows` `open.file.name` `open.file.path` `process.ancestors` `process.ancestors.file.name` `process.ancestors.file.path` `process.ancestors.interpreter.file.name` `process.ancestors.interpreter.file.path` `process.file.name` `process.file.path` `process.interpreter.file.name` `process.interpreter.file.path` `process.parent.file.name` `process.parent.file.path` `process.parent.interpreter.file.name` `process.parent.interpreter.file.path` `ptrace.tracee.ancestors` `ptrace.tracee.ancestors.file.name` `ptrace.tracee.ancestors.file.path` `ptrace.tracee.ancestors.interpreter.file.name` `ptrace.tracee.ancestors.interpreter.file.path` `ptrace.tracee.file.name` `ptrace.tracee.file.path` `ptrace.tracee.interpreter.file.name` `ptrace.tracee.interpreter.file.path` `ptrace.tracee.parent.file.name` `ptrace.tracee.parent.file.path` `ptrace.tracee.parent.interpreter.file.name` `ptrace.tracee.parent.interpreter.file.path` `removexattr.file.name` `removexattr.file.path` `rename.file.destination.name` `rename.file.destination.path` `rename.file.name` `rename.file.path` `rmdir.file.name` `rmdir.file.path` `setrlimit.target.ancestors` `setrlimit.target.ancestors.file.name` `setrlimit.target.ancestors.file.path` `setrlimit.target.ancestors.interpreter.file.name` `setrlimit.target.ancestors.interpreter.file.path` `setrlimit.target.file.name` `setrlimit.target.file.path` `setrlimit.target.interpreter.file.name` `setrlimit.target.interpreter.file.path` `setrlimit.target.parent.file.name` `setrlimit.target.parent.file.path` `setrlimit.target.parent.interpreter.file.name` `setrlimit.target.parent.interpreter.file.path` `setxattr.file.name` `setxattr.file.path` `signal.target.ancestors` `signal.target.ancestors.file.name` `signal.target.ancestors.file.path` `signal.target.ancestors.interpreter.file.name` `signal.target.ancestors.interpreter.file.path` `signal.target.file.name` `signal.target.file.path` `signal.target.interpreter.file.name` `signal.target.interpreter.file.path` `signal.target.parent.file.name` `signal.target.parent.file.path` `signal.target.parent.interpreter.file.name` `signal.target.parent.interpreter.file.path` `splice.file.name` `splice.file.path` `unlink.file.name` `unlink.file.path` `utimes.file.name` `utimes.file.path`
 
 
-### `*.manager` {#common-cgroupcontext-manager-doc}
-Type: string
-
-Definition: [Experimental] Lifecycle manager of the cgroup
-
-`*.manager` has 15 possible prefixes:
-`cgroup` `exec.cgroup` `exit.cgroup` `process.ancestors.cgroup` `process.cgroup` `process.parent.cgroup` `ptrace.tracee.ancestors.cgroup` `ptrace.tracee.cgroup` `ptrace.tracee.parent.cgroup` `setrlimit.target.ancestors.cgroup` `setrlimit.target.cgroup` `setrlimit.target.parent.cgroup` `signal.target.ancestors.cgroup` `signal.target.cgroup` `signal.target.parent.cgroup`
-
-
 ### `*.mode` {#common-filefields-mode-doc}
 Type: int
 
@@ -3014,6 +3123,18 @@ Definition: Name of the TTY associated with the process
 `exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 
+### `*.type` {#common-networkcontext-type-doc}
+Type: int
+
+Definition: Type of the network packet
+
+`*.type` has 2 possible prefixes:
+`network` `packet`
+
+Constants: [Network Protocol Types](#network-protocol-types)
+
+
+
 ### `*.uid` {#common-credentials-uid-doc}
 Type: int
 
@@ -3164,6 +3285,26 @@ Definition: Type of the eBPF program
 
 
 Constants: [BPF program types](#bpf-program-types)
+
+
+
+### `capabilities.attempted` {#capabilities-attempted-doc}
+Type: int
+
+Definition: Bitmask of the capabilities that the process attempted to use since it started running
+
+
+Constants: [Kernel Capability constants](#kernel-capability-constants)
+
+
+
+### `capabilities.used` {#capabilities-used-doc}
+Type: int
+
+Definition: Bitmask of the capabilities that the process successfully used since it started running
+
+
+Constants: [Kernel Capability constants](#kernel-capability-constants)
 
 
 
@@ -3319,13 +3460,6 @@ Definition: ID of the container
 
 
 
-### `container.runtime` {#container-runtime-doc}
-Type: string
-
-Definition: Runtime managing the container
-
-
-
 ### `container.tags` {#container-tags-doc}
 Type: string
 
@@ -3430,6 +3564,13 @@ Definition: Tags associated with the rule that's used to evaluate the event
 Type: string
 
 Definition: Service associated with the event
+
+
+
+### `event.source` {#event-source-doc}
+Type: string
+
+Definition: [Experimental] Source of the event. Can be either 'runtime' or 'snapshot'.
 
 
 
@@ -4031,6 +4172,13 @@ Definition: Socket protocol
 Type: int
 
 Definition: Socket type
+
+
+
+### `setsockopt.used_immediates` {#setsockopt-used_immediates-doc}
+Type: int
+
+Definition: List of immediate values used in the filter
 
 
 
@@ -5203,6 +5351,24 @@ Network Address Family constants are the supported network address families.
 | `AF_SMC` | all |
 | `AF_XDP` | all |
 | `AF_MAX` | all |
+
+### `Network Protocol Types` {#network-protocol-types}
+Types of specific network protocols.
+
+| Name | Architectures |
+| ---- |---------------|
+| `ICMP_ECHO_REQUEST` | all |
+| `ICMP_ECHO_REPLY` | all |
+| `ICMP_ROUTER_SOLICITATION` | all |
+| `ICMP_ROUTER_ADVERTISEMENT` | all |
+| `ICMP_NEIGHBOR_SOLICITATION` | all |
+| `ICMP_NEIGHBOR_ADVERTISEMENT` | all |
+| `ICMP_V6_ECHO_REQUEST` | all |
+| `ICMP_V6_ECHO_REPLY` | all |
+| `ICMP_V6_ROUTER_SOLICITATION` | all |
+| `ICMP_V6_ROUTER_ADVERTISEMENT` | all |
+| `ICMP_V6_NEIGHBOR_SOLICITATION` | all |
+| `ICMP_V6_NEIGHBOR_ADVERTISEMENT` | all |
 
 ### `Network directions` {#network-directions}
 Network directions are the supported directions of network packets.

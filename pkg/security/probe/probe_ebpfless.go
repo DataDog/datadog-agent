@@ -333,6 +333,32 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 		event.Bind.AddrFamily = syscallMsg.Bind.AddressFamily
 		event.Bind.Protocol = syscallMsg.Bind.Protocol
 		event.Bind.Retval = syscallMsg.Retval
+	case ebpfless.SyscallTypeSetsockopt:
+		event.Type = uint32(model.SetSockOptEventType)
+		event.SetSockOpt.SocketFamily = syscallMsg.Setsockopt.SocketFamily
+		event.SetSockOpt.SocketProtocol = syscallMsg.Setsockopt.SocketProtocol
+		event.SetSockOpt.SocketType = syscallMsg.Setsockopt.SocketType
+		event.SetSockOpt.Level = syscallMsg.Setsockopt.Level
+		event.SetSockOpt.OptName = syscallMsg.Setsockopt.OptName
+		event.SetSockOpt.RawFilter = syscallMsg.Setsockopt.Filter
+		event.SetSockOpt.FilterLen = syscallMsg.Setsockopt.FilterLen
+		event.SetSockOpt.SizeToRead = uint32(syscallMsg.Setsockopt.FilterLen)
+	case ebpfless.SyscallTypeSetrlimit:
+		event.Type = uint32(model.SetrlimitEventType)
+		event.Setrlimit.Resource = syscallMsg.Setrlimit.Resource
+		event.Setrlimit.RlimCur = syscallMsg.Setrlimit.CurLimit
+		event.Setrlimit.RlimMax = syscallMsg.Setrlimit.MaxLimit
+		event.Setrlimit.TargetPid = syscallMsg.Setrlimit.Pid
+
+		// resolve target process context
+		var pce *model.ProcessCacheEntry
+		if event.Setrlimit.TargetPid > 0 {
+			pce = p.Resolvers.ProcessResolver.Resolve(process.CacheResolverKey{Pid: event.Setrlimit.TargetPid, NSID: cl.nsID})
+		}
+		if pce == nil {
+			pce = model.NewPlaceholderProcessCacheEntry(event.Setrlimit.TargetPid, event.Setrlimit.TargetPid, false)
+		}
+		event.Setrlimit.Target = &pce.ProcessContext
 	}
 
 	// container context
@@ -635,7 +661,7 @@ func (p *EBPFLessProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 				p.probe.onRuleActionPerformed(rule, action.Def)
 			}
 		case action.Def.Hash != nil:
-			if p.fileHasher.HashAndReport(rule, ev) {
+			if p.fileHasher.HashAndReport(rule, action.Def.Hash, ev) {
 				p.probe.onRuleActionPerformed(rule, action.Def)
 			}
 		}

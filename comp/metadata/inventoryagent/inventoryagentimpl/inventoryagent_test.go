@@ -46,8 +46,7 @@ func getProvides(t *testing.T, confOverrides map[string]any, sysprobeConfOverrid
 		fxutil.Test[dependencies](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
-			config.MockModule(),
-			fx.Replace(config.MockParams{Overrides: confOverrides}),
+			fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, confOverrides) }),
 			sysprobeconfigimpl.MockModule(),
 			fx.Replace(sysprobeconfigimpl.MockParams{Overrides: sysprobeConfOverrides}),
 			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
@@ -177,6 +176,7 @@ func TestInitData(t *testing.T) {
 		"sbom.enabled":                                true,
 		"sbom.container_image.enabled":                true,
 		"sbom.host.enabled":                           true,
+		"infrastructure_mode":                         "basic",
 	}
 	ia := getTestInventoryPayload(t, overrides, sysprobeOverrides)
 	ia.refreshMetadata()
@@ -244,6 +244,7 @@ func TestInitData(t *testing.T) {
 		"system_probe_gateway_lookup_enabled":          true,
 		"system_probe_root_namespace_enabled":          true,
 		"system_probe_max_connections_per_message":     10,
+		"infrastructure_mode":                          "basic",
 	}
 
 	if !kernel.IsIPv6Enabled() {
@@ -282,9 +283,7 @@ func TestConfigRefresh(t *testing.T) {
 
 	assert.False(t, ia.RefreshTriggered())
 	cfg.Set("inventories_max_interval", 10*60, pkgconfigmodel.SourceAgentRuntime)
-	assert.Eventually(t, func() bool {
-		return assert.True(t, ia.RefreshTriggered())
-	}, 5*time.Second, 1*time.Second)
+	assert.True(t, ia.RefreshTriggered())
 }
 
 func TestStatusHeaderProvider(t *testing.T) {
@@ -537,7 +536,7 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 		fxutil.Test[dependencies](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
-			config.MockModule(),
+			fx.Provide(func() config.Component { return config.NewMock(t) }),
 			sysprobeconfig.NoneModule(),
 			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
 			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
@@ -743,7 +742,17 @@ func TestGetProvidedConfigurationOnly(t *testing.T) {
 	}
 
 	sort.Strings(keys)
-	expected := []string{"provided_configuration", "full_configuration", "file_configuration", "environment_variable_configuration", "agent_runtime_configuration", "fleet_policies_configuration", "remote_configuration", "cli_configuration", "source_local_configuration"}
+	expected := []string{
+		"provided_configuration",
+		"full_configuration",
+		"file_configuration",
+		"environment_variable_configuration",
+		"agent_runtime_configuration",
+		"fleet_policies_configuration",
+		"remote_configuration",
+		"cli_configuration",
+		"source_local_configuration",
+	}
 	sort.Strings(expected)
 
 	assert.Equal(t, expected, keys)

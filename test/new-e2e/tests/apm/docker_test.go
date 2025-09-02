@@ -17,12 +17,23 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps"
 	"github.com/DataDog/test-infra-definitions/components/datadog/dockeragentparams"
 )
 
 type DockerFakeintakeSuite struct {
 	e2e.BaseSuite[environments.DockerHost]
 	transport transport
+}
+
+// SetupSuite is called once before all tests in the suite.
+// This function is called by [testify Suite].
+func (s *DockerFakeintakeSuite) SetupSuite() {
+	s.BaseSuite.SetupSuite()
+	defer s.CleanupOnSetupFailure() // cleanup if setup fails
+
+	// Pre-pull Docker image once for all tests to avoid network timeout issues during test execution
+	s.Env().RemoteHost.MustExecute("docker pull ghcr.io/datadog/apps-tracegen:" + apps.Version)
 }
 
 func dockerSuiteOpts(tr transport, opts ...awsdocker.ProvisionerOption) []e2e.SuiteOption {

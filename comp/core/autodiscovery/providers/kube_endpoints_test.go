@@ -559,54 +559,55 @@ func TestInvalidateOnServiceUpdate(t *testing.T) {
 	invalid := &v1.Pod{}
 
 	for _, tc := range []struct {
+		name       string
 		old        interface{}
 		obj        interface{}
 		invalidate bool
 	}{
 		{
-			// Invalid input
+			name:       "Invalid input, nil old and obj",
 			old:        nil,
 			obj:        nil,
 			invalidate: false,
 		},
 		{
-			// Sync on missed create
+			name:       "Sync on missed create",
 			old:        nil,
 			obj:        s88,
 			invalidate: true,
 		},
 		{
-			// Edit, annotations added
+			name:       "Edit, annotations added",
 			old:        s88,
 			obj:        s89,
 			invalidate: true,
 		},
 		{
-			// Informer resync, don't invalidate
+			name:       "Informer resync",
 			old:        s89,
 			obj:        s89,
 			invalidate: false,
 		},
 		{
-			// Invalid input, don't invalidate
+			name:       "Invalid input",
 			old:        s89,
 			obj:        invalid,
 			invalidate: false,
 		},
 		{
-			// Edit but same annotations
+			name:       "Edit, same annotations",
 			old:        s89,
 			obj:        s90,
 			invalidate: false,
 		},
 		{
-			// Edit, annotations removed
+			name:       "Edit, annotations removed",
 			old:        s89,
 			obj:        s91,
 			invalidate: true,
 		},
 	} {
-		t.Run("", func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
 			provider := &kubeEndpointsConfigProvider{upToDate: true}
 			provider.invalidateOnServiceUpdate(tc.old, tc.obj)

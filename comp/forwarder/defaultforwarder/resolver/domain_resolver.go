@@ -18,6 +18,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
@@ -84,7 +85,7 @@ type SingleDomainResolver struct {
 // OnUpdateConfig adds a hook into the config which will listen for updates to the API keys
 // of the resolver.
 func OnUpdateConfig(resolver DomainResolver, log log.Component, config config.Component) {
-	config.OnUpdate(func(setting string, oldValue, newValue any, _ uint64) {
+	config.OnUpdate(func(setting string, _ model.Source, oldValue, newValue any, _ uint64) {
 		found := false
 
 		apiKeys, _ := resolver.GetAPIKeysInfo()

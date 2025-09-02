@@ -185,7 +185,7 @@ func TestSetTraceTagOk(t *testing.T) {
 }
 
 func TestOutOfOrderInvocations(t *testing.T) {
-	if os.Getenv("CI") == "true" && runtime.GOOS == "darwin" && runtime.GOARCH == "amd64" {
+	if os.Getenv("CI") == "true" && runtime.GOOS == "darwin" {
 		t.Skip("TestOutOfOrderInvocations is known to fail on the macOS Gitlab runners because of the already running Agent")
 	}
 	port := testutil.FreeTCPPort(t)

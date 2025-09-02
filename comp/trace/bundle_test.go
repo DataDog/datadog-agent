@@ -19,7 +19,7 @@ import (
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	taggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -64,7 +64,7 @@ func TestMockBundleDependencies(t *testing.T) {
 	cfg := fxutil.Test[config.Component](t, fx.Options(
 		fx.Provide(func() context.Context { return context.TODO() }), // fx.Supply(ctx) fails with a missing type error.
 		fx.Supply(core.BundleParams{}),
-		coreconfig.MockModule(),
+		fx.Provide(func() coreconfig.Component { return coreconfig.NewMock(t) }),
 		fxutil.ProvideNoneOptional[secrets.Component](),
 		telemetryimpl.MockModule(),
 		fx.Provide(func() log.Component { return logmock.New(t) }),

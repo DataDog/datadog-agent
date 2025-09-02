@@ -174,7 +174,7 @@ func inspect(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, 
 		Comment:     lastHistory.Comment,
 		Created:     created,
 		Author:      lastHistory.Author,
-		Config: &container.Config{
+		ContainerConfig: &container.Config{
 			User:         imgConfig.Config.User,
 			ExposedPorts: portSet,
 			Env:          imgConfig.Config.Env,

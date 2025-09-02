@@ -78,7 +78,7 @@ func NewTestServerWithOptions(statusCode int, concurrentSends int, retryDestinat
 	destCtx := client.NewDestinationsContext()
 	destCtx.Start()
 
-	endpoint := config.NewEndpoint("test", "", strings.ReplaceAll(url[1], "/", ""), port, false)
+	endpoint := config.NewEndpoint("test", "", strings.ReplaceAll(url[1], "/", ""), port, config.EmptyPathPrefix, false)
 	endpoint.BackoffFactor = 1
 	endpoint.BackoffBase = 0.01
 	endpoint.BackoffMax = 10

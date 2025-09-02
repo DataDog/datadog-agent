@@ -87,10 +87,10 @@ func GetStaticTags(ctx context.Context, datadogConfig config.Component) map[stri
 	return sliceToMap(tags)
 }
 
-// GetGlobalEnvTags is similar to GetStaticTags, but returning a map[string][]string containing
+// GetClusterAgentStaticTags is similar to GetStaticTags, but returning a map[string][]string containing
 // <key>:<value> pairs for all global environment tags on the cluster agent. This includes:
-// DD_TAGS, DD_EXTRA_TAGS, DD_CLUSTER_CHECKS_EXTRA_TAGS, and DD_ORCHESTRATOR_EXPLORER_EXTRA_TAGS
-func GetGlobalEnvTags(config config.Reader) map[string][]string {
+// DD_TAGS, DD_EXTRA_TAGS, DD_CLUSTER_CHECKS_EXTRA_TAGS, DD_ORCHESTRATOR_EXPLORER_EXTRA_TAGS
+func GetClusterAgentStaticTags(config config.Reader) map[string][]string {
 	if flavor.GetFlavor() != flavor.ClusterAgent {
 		return nil
 	}

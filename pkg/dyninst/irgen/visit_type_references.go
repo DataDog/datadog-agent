@@ -48,8 +48,8 @@ func visitTypeReferences(tc *typeCatalog, f func(t *ir.Type)) {
 			f(&t.Pointee)
 
 		case *ir.StructureType:
-			for i := range t.Fields {
-				f(&t.Fields[i].Type)
+			for i := range t.RawFields {
+				f(&t.RawFields[i].Type)
 			}
 
 		case *ir.GoSliceDataType:
@@ -68,7 +68,7 @@ func visitTypeReferences(tc *typeCatalog, f func(t *ir.Type)) {
 		case *ir.GoSwissMapHeaderType:
 		case *ir.VoidPointerType:
 		default:
-			panic(fmt.Sprintf("unexpected ir.Type: %#v", t))
+			panic(fmt.Sprintf("unexpected ir.Type to visit: %#v", t))
 		}
 	}
 }

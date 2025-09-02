@@ -21,8 +21,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -52,8 +53,10 @@ type collectorTest struct {
 
 func setUpCollectorTest(t *testing.T, configOverrides map[string]interface{}) collectorTest {
 	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-		core.MockBundle(),
-		fx.Replace(config.MockParams{Overrides: configOverrides}),
+		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
+		fx.Provide(func(t testing.TB) config.Component {
+			return config.NewMockWithOverrides(t, configOverrides)
+		}),
 		workloadmetafxmock.MockModule(workloadmeta.Params{
 			AgentType: workloadmeta.NodeAgent,
 		}),
@@ -181,6 +184,7 @@ func TestProcessCollectorStart(t *testing.T) {
 		langDetectionEnabled bool
 		runInCoreAgent       bool
 		expectedEnabled      bool
+		useWLM               bool
 	}{
 		{
 			name:                 "core agent + all configs enabled",
@@ -210,6 +214,14 @@ func TestProcessCollectorStart(t *testing.T) {
 			runInCoreAgent:       false,
 			expectedEnabled:      false,
 		},
+		{
+			name:                 "process agent + all configs disabled",
+			agentFlavor:          flavor.ProcessAgent,
+			langDetectionEnabled: true,
+			runInCoreAgent:       true,
+			useWLM:               true,
+			expectedEnabled:      false,
+		},
 	}
 
 	for _, test := range tests {
@@ -219,8 +231,9 @@ func TestProcessCollectorStart(t *testing.T) {
 			flavor.SetFlavor(test.agentFlavor)
 
 			configOverrides := map[string]interface{}{
-				"language_detection.enabled":               test.langDetectionEnabled,
-				"process_config.run_in_core_agent.enabled": test.runInCoreAgent,
+				"language_detection.enabled":                test.langDetectionEnabled,
+				"process_config.run_in_core_agent.enabled":  test.runInCoreAgent,
+				"process_config.process_collection.use_wlm": test.useWLM,
 			}
 
 			c := setUpCollectorTest(t, configOverrides)

@@ -14,6 +14,8 @@ import (
 	"strconv"
 	"strings"
 
+	"go.uber.org/atomic"
+
 	"github.com/gosnmp/gosnmp"
 )
 
@@ -73,13 +75,19 @@ type FakeSession struct {
 	// oids is a sorted slice of all OIDs in data, stored as []ints.
 	oids [][]int
 	// dirty indicates whether oids needs to be rebuilt.
-	dirty bool
+	dirty            bool
+	snmpGetCount     *atomic.Uint32
+	snmpGetBulkCount *atomic.Uint32
+	snmpGetNextCount *atomic.Uint32
 }
 
 // CreateFakeSession creates a new FakeSession with an empty set of data.
 func CreateFakeSession() *FakeSession {
 	return &FakeSession{
-		data: make(map[string]gosnmp.SnmpPDU),
+		data:             make(map[string]gosnmp.SnmpPDU),
+		snmpGetCount:     atomic.NewUint32(0),
+		snmpGetBulkCount: atomic.NewUint32(0),
+		snmpGetNextCount: atomic.NewUint32(0),
 	}
 }
 
@@ -143,6 +151,7 @@ func (fs *FakeSession) GetVersion() gosnmp.SnmpVersion {
 // Get gets the values for the given OIDs. OIDs not in the session will return
 // PDUs of type NoSuchObject.
 func (fs *FakeSession) Get(oids []string) (result *gosnmp.SnmpPacket, err error) {
+	fs.snmpGetCount.Inc()
 	vars := make([]gosnmp.SnmpPDU, len(oids))
 	for i, oid := range oids {
 		v, ok := fs.data[oid]
@@ -201,6 +210,7 @@ func (fs *FakeSession) getNexts(oids []string, count int) ([]gosnmp.SnmpPDU, err
 // If it runs off the end of the data the extra values will all be EndOfMibView
 // PDUs.
 func (fs *FakeSession) GetBulk(oids []string, count uint32) (*gosnmp.SnmpPacket, error) {
+	fs.snmpGetBulkCount.Inc()
 	vars, err := fs.getNexts(oids, int(count))
 	if err != nil {
 		return nil, err
@@ -213,6 +223,7 @@ func (fs *FakeSession) GetBulk(oids []string, count uint32) (*gosnmp.SnmpPacket,
 // GetNext returns the first PDU after each of the given OIDs. An OID with
 // nothing greater than it will result in an EndOfMibView PDU.
 func (fs *FakeSession) GetNext(oids []string) (*gosnmp.SnmpPacket, error) {
+	fs.snmpGetNextCount.Inc()
 	vars, err := fs.getNexts(oids, 1)
 	if err != nil {
 		return nil, err
@@ -220,6 +231,21 @@ func (fs *FakeSession) GetNext(oids []string) (*gosnmp.SnmpPacket, error) {
 	return &gosnmp.SnmpPacket{
 		Variables: vars,
 	}, nil
+}
+
+// GetSnmpGetCount returns the number of SNMPGET request that has been done
+func (fs *FakeSession) GetSnmpGetCount() uint32 {
+	return fs.snmpGetCount.Load()
+}
+
+// GetSnmpGetBulkCount returns the number of SNMP BULKGET request that has been done
+func (fs *FakeSession) GetSnmpGetBulkCount() uint32 {
+	return fs.snmpGetBulkCount.Load()
+}
+
+// GetSnmpGetNextCount returns the number of SNMP GETNEXT request that has been done
+func (fs *FakeSession) GetSnmpGetNextCount() uint32 {
+	return fs.snmpGetNextCount.Load()
 }
 
 // SetByte adds an OctetString PDU with the given OID and value

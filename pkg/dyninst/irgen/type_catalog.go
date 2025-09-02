@@ -274,7 +274,7 @@ func (c *typeCatalog) buildType(
 		return &ir.StructureType{
 			TypeCommon:       common,
 			GoTypeAttributes: goAttrs,
-			Fields:           fields,
+			RawFields:        fields,
 		}, nil
 	case dwarf.TagTypedef:
 		getUnderlyingType := func() (ir.Type, error) {
@@ -293,30 +293,23 @@ func (c *typeCatalog) buildType(
 				GoTypeAttributes: goAttrs,
 			}, nil
 		case reflect.Interface:
-			underlyingType, err := getUnderlyingType()
+			name, byteSize, fields, err := processInterfaceTypedef(c, entry)
 			if err != nil {
 				return nil, err
 			}
-			underlyingStructure, ok := underlyingType.(*ir.StructureType)
-			if !ok {
-				return nil, fmt.Errorf(
-					"underlying type for interface is not a structure type: %T",
-					underlyingType,
-				)
-			}
-			common.ByteSize = underlyingStructure.GetByteSize()
-			switch name := underlyingStructure.GetName(); name {
+			common.ByteSize = uint32(byteSize)
+			switch name {
 			case "runtime.eface":
 				return &ir.GoEmptyInterfaceType{
-					TypeCommon:          common,
-					GoTypeAttributes:    goAttrs,
-					UnderlyingStructure: underlyingStructure,
+					TypeCommon:       common,
+					GoTypeAttributes: goAttrs,
+					RawFields:        fields,
 				}, nil
 			case "runtime.iface":
 				return &ir.GoInterfaceType{
-					TypeCommon:          common,
-					GoTypeAttributes:    goAttrs,
-					UnderlyingStructure: underlyingStructure,
+					TypeCommon:       common,
+					GoTypeAttributes: goAttrs,
+					RawFields:        fields,
 				}, nil
 			default:
 				return nil, fmt.Errorf(
@@ -328,6 +321,7 @@ func (c *typeCatalog) buildType(
 			if err != nil {
 				return nil, err
 			}
+			common.ByteSize = underlyingType.GetByteSize()
 			headerPtrType, ok := underlyingType.(*ir.PointerType)
 			if !ok {
 				return nil, fmt.Errorf(
@@ -371,6 +365,153 @@ func (c *typeCatalog) buildType(
 	default:
 		return nil, fmt.Errorf("unexpected tag for type: %s", entry.Tag)
 	}
+}
+
+// processInterfaceTypedef processes a typedef that resolves to a runtime
+// structure (either runtime.eface or runtime.iface). Each of these structures
+// has two pointer fields. One of those is always an unsafe.Pointer (a pointer
+// with no pointee type in DWARF). The other is a pointer to a concrete runtime
+// type (e.g., runtime._type or runtime.itab). We do not want to pull those
+// concrete types into the type graph. Treat both fields as void pointers.
+func processInterfaceTypedef(
+	c *typeCatalog, entry *dwarf.Entry,
+) (name string, byteSize int64, fields []ir.Field, _ error) {
+	r := c.dwarf.Reader()
+	getUnderlyingEntry := func(entry *dwarf.Entry) (*dwarf.Entry, error) {
+		underlyingOffset, err := getAttr[dwarf.Offset](entry, dwarf.AttrType)
+		if err != nil {
+			return nil, err
+		}
+		r.Seek(underlyingOffset)
+		nextEntry, err := r.Next()
+		if err != nil {
+			return nil, err
+		}
+		if nextEntry == nil {
+			return nil, fmt.Errorf(
+				"unexpected EOF while reading underlying type",
+			)
+		}
+		return nextEntry, nil
+	}
+	underlyingEntry := entry
+	for underlyingEntry.Tag == dwarf.TagTypedef {
+		var err error
+		underlyingEntry, err = getUnderlyingEntry(underlyingEntry)
+		if err != nil {
+			return "", 0, nil, err
+		}
+		if underlyingEntry.Tag == 0 {
+			return "", 0, nil, fmt.Errorf("unexpected end of underlying type")
+		}
+	}
+	if underlyingEntry.Tag != dwarf.TagStructType {
+		return "", 0, nil, fmt.Errorf(
+			"underlying type for interface is not a structure type: %v",
+			underlyingEntry.Tag,
+		)
+	}
+	byteSize, ok := underlyingEntry.Val(dwarf.AttrByteSize).(int64)
+	if !ok {
+		return "", 0, nil, fmt.Errorf(
+			"unexpected byte size for interface: %T",
+			underlyingEntry.Val(dwarf.AttrByteSize),
+		)
+	}
+	if byteSize > math.MaxUint32 {
+		return "", 0, nil, fmt.Errorf(
+			"byte size for interface is too large: %d", byteSize,
+		)
+	}
+	fields = make([]ir.Field, 0, 2)
+	var voidPointerType ir.Type
+	var fieldTypeReader *dwarf.Reader
+	// Walk the underlying struct members, capture their offsets and reuse a
+	// single void pointer type for all fields.
+	for {
+		child, err := r.Next()
+		if err != nil {
+			return "", 0, nil, fmt.Errorf("failed to get next child: %w", err)
+		}
+		if child == nil {
+			return "", 0, nil, fmt.Errorf(
+				"unexpected EOF while reading underlying type",
+			)
+		}
+		if child.Tag == 0 {
+			break
+		}
+		if child.Tag != dwarf.TagMember {
+			continue
+		}
+		fname, err := getAttr[string](child, dwarf.AttrName)
+		if err != nil {
+			return "", 0, nil, fmt.Errorf(
+				"failed to get name for member %q: %w", fname, err,
+			)
+		}
+		offset, err := getAttr[int64](child, dwarf.AttrDataMemberLoc)
+		if err != nil {
+			return "", 0, nil, fmt.Errorf(
+				"failed to get offset for member %q: %w", fname, err,
+			)
+		}
+		typeOffset, err := getAttr[dwarf.Offset](child, dwarf.AttrType)
+		if err != nil {
+			return "", 0, nil, fmt.Errorf(
+				"failed to get type for member %q: %w", fname, err,
+			)
+		}
+		if fieldTypeReader == nil {
+			fieldTypeReader = c.dwarf.Reader()
+		}
+		fieldTypeReader.Seek(typeOffset)
+		fieldTypeEntry, err := fieldTypeReader.Next()
+		if err != nil {
+			return "", 0, nil, fmt.Errorf(
+				"failed to get type for member %q: %w", fname, err,
+			)
+		}
+		if fieldTypeEntry == nil {
+			return "", 0, nil, fmt.Errorf(
+				"unexpected EOF while reading type for member %q",
+				fname,
+			)
+		}
+		// Look for the unsafe.Pointer field. It is represented as a pointer
+		// that has no pointee type in DWARF. Reuse that one as the type for
+		// all interface fields to avoid expanding runtime types.
+		if fieldTypeEntry.Tag == dwarf.TagPointerType &&
+			fieldTypeEntry.Val(dwarf.AttrType) == nil &&
+			voidPointerType == nil {
+			vp, err := c.addType(typeOffset)
+			if err != nil {
+				return "", 0, nil, fmt.Errorf(
+					"failed to add void pointer type for member %q: %w",
+					fname, err,
+				)
+			}
+			voidPointerType = vp
+		}
+		fields = append(fields, ir.Field{
+			Name:   fname,
+			Offset: uint32(offset),
+			// Type set after loop to the void pointer type.
+		})
+	}
+	if voidPointerType == nil {
+		return "", 0, nil, fmt.Errorf(
+			"failed to find a void pointer field for interface %q", name,
+		)
+	}
+	for i := range fields {
+		fields[i].Type = voidPointerType
+	}
+	name, err := getAttr[string](underlyingEntry, dwarf.AttrName)
+	if err != nil {
+		return "", 0, nil, fmt.Errorf("failed to get name for interface: %w", err)
+	}
+	return name, byteSize, fields, nil
 }
 
 func collectMembers(childReader *dwarf.Reader, c *typeCatalog) ([]ir.Field, error) {
