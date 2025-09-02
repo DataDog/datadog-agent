@@ -41,7 +41,8 @@ var (
 		"Path to the binary to analyze. If -image  is specified, the path is looked up "+
 			"inside the image. If -image is not specified, it defaults to /usr/local/bin/<base image name>.")
 	imageName = flag.String("image", "",
-		"Container image to extract and analyze. If not specified, the binary path must be a local file.")
+		"Container image to extract and analyze. If not specified, the binary path must be a local file. "+
+			"Can be <image name>:<tag>; otherwise the \"latest\" tag is used.")
 	platform = flag.String("platform", "",
 		"Platform for the container image (e.g. linux/amd64, linux/arm64).")
 
@@ -70,13 +71,13 @@ var (
 func main() {
 	flag.Parse()
 	if *binaryPathFlag == "" && *imageName == "" {
-		fmt.Print(`Usage: symdbcli [-image <container image name>] -binary-path <path-to-binary> [-only-1stparty] [-silent]
+		fmt.Print(`Usage: symdbcli [-image <container image name>[:image tag]] [-binary-path <path-to-binary>] [-only-1stparty] [-silent]
 
-The symbols from the specified binary will be extracted and either printed to
-stdout or uploaded to the backend.
+The symbols from the specified container image (-image) or binary (-binary-path)
+will be extracted and either printed to stdout or uploaded to the backend.
 
 To upload the SymDB data rather than printing it, use:
--upload -service <service> -env <env> -version <version> -api-key <api-key> [-upload-site <site>]
+-upload -service <service> -version <version> -api-key <api-key> [-upload-site <site>]
 
 `)
 		os.Exit(1)
@@ -238,6 +239,8 @@ func run() (retErr error) {
 			}
 			if err := up.Upload(context.Background(), scopes); err != nil {
 				log.Errorf("Failed to upload symbols: %v", err)
+			} else {
+				log.Info("Upload completed")
 			}
 		}
 
@@ -291,6 +294,11 @@ func run() (retErr error) {
 			if !*silent {
 				pkg.Serialize(out)
 			}
+		}
+		if err := maybeFlush(true /* force */); err != nil {
+			log.Errorf("Failed to upload symbols: %v", err)
+		} else {
+			log.Info("Upload completed")
 		}
 		trace.Stop()
 		log.Infof("Symbol extraction completed in %s.", time.Since(start))
