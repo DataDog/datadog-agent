@@ -74,6 +74,12 @@ func NetworkSelectors() []manager.ProbesSelector {
 			hookFunc("rethook_dev_new_index"),
 			hookFunc("hook___dev_get_by_index"),
 		}},
+
+		// socket probes
+		&manager.AllOf{Selectors: []manager.ProbesSelector{
+			hookFunc("hook_sock_create"),
+			hookFunc("hook_sock_release"),
+		}},
 	}
 }
 

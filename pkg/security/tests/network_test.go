@@ -172,7 +172,7 @@ func TestRawPacket(t *testing.T) {
 		}
 
 		wrapper.Run(t, "ping", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-			test.WaitSignalWithoutProcessContext(t, func() error {
+			test.WaitSignal(t, func() error {
 				cmd := cmdFunc("/bin/ping", []string{"-c", "1", "8.8.8.8"}, nil)
 				if out, err := cmd.CombinedOutput(); err != nil {
 					return fmt.Errorf("%s: %w", out, err)

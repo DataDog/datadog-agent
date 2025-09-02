@@ -556,15 +556,6 @@ func (tm *testModule) WaitSignal(tb testing.TB, action func() error, cb onRuleHa
 	})
 }
 
-func (tm *testModule) WaitSignalWithoutProcessContext(tb testing.TB, action func() error, cb onRuleHandler) {
-	tb.Helper()
-
-	tm.waitSignal(tb, action, func(event *model.Event, rule *rules.Rule) error {
-		cb(event, rule)
-		return nil
-	})
-}
-
 //nolint:deadcode,unused
 func (tm *testModule) marshalEvent(ev *model.Event) (string, error) {
 	b, err := serializers.MarshalEvent(ev, nil)
