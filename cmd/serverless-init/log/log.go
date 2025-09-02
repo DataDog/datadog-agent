@@ -10,6 +10,9 @@ package log
 
 import (
 	"os"
+	"path/filepath"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -20,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	serverlessLogs "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	serverlessTag "github.com/DataDog/datadog-agent/pkg/serverless/tags"
+	ddlog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -56,6 +60,17 @@ func CreateConfig(origin string) *Config {
 
 // SetupLogAgent creates the log agent and sets the base tags
 func SetupLogAgent(conf *Config, tags map[string]string, tagger tagger.Component, compression logscompression.Component, origin string) logsAgent.ServerlessLogsAgent {
+	// When Azure App Service instance tailing is enabled, ensure we only open the most
+	// recently modified match. Respect existing global env overrides if already set.
+	if isInstanceTailingEnabled() {
+		if os.Getenv("DD_LOGS_CONFIG_FILE_WILDCARD_SELECTION_MODE") == "" {
+			_ = os.Setenv("DD_LOGS_CONFIG_FILE_WILDCARD_SELECTION_MODE", "by_modification_time")
+		}
+		if os.Getenv("DD_LOGS_CONFIG_OPEN_FILES_LIMIT") == "" {
+			_ = os.Setenv("DD_LOGS_CONFIG_OPEN_FILES_LIMIT", "1")
+		}
+	}
+
 	logsAgent, _ := serverlessLogs.SetupLogAgent(conf.Channel, sourceName, conf.source, tagger, compression)
 
 	tagsArray := serverlessTag.MapToArray(tags)
@@ -73,9 +88,13 @@ func addFileTailing(logsAgent logsAgent.ServerlessLogsAgent, source string, tags
 	// To avoid this, we want to add the azure instance ID to the filepath so each instance tails their respective system log files.
 	// Users can also add $COMPUTERNAME to their custom files to achieve the same result.
 	if appServiceDefaultLoggingEnabled {
+		pattern := os.ExpandEnv("/home/LogFiles/*$COMPUTERNAME*.log")
+		limit := effectiveOpenFilesLimit()
+		debugLogFileSelection(pattern, limit)
+
 		src := sources.NewLogSource("aas-instance-file-tail", &logConfig.LogsConfig{
 			Type:    logConfig.FileType,
-			Path:    os.ExpandEnv("/home/LogFiles/*$COMPUTERNAME*.log"),
+			Path:    pattern,
 			Service: os.Getenv("DD_SERVICE"),
 			Tags:    tags,
 			Source:  source,
@@ -92,6 +111,57 @@ func addFileTailing(logsAgent logsAgent.ServerlessLogsAgent, source string, tags
 		})
 		logsAgent.GetSources().AddSource(src)
 	}
+}
+
+// effectiveOpenFilesLimit returns the intended open files limit for AAS instance tailing.
+// Source: DD_LOGS_CONFIG_OPEN_FILES_LIMIT, default 1.
+func effectiveOpenFilesLimit() int {
+	if v := os.Getenv("DD_LOGS_CONFIG_OPEN_FILES_LIMIT"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			return n
+		}
+	}
+	return 1
+}
+
+// debugLogFileSelection logs all files matching the pattern and the top-N by modification time.
+func debugLogFileSelection(pattern string, limit int) {
+	matches, err := filepath.Glob(pattern)
+	if err != nil {
+		ddlog.Debugf("AAS instance tailing: glob error for pattern %q: %v", pattern, err)
+		return
+	}
+
+	type fileInfo struct {
+		path    string
+		modTime time.Time
+	}
+	files := make([]fileInfo, 0, len(matches))
+	for _, p := range matches {
+		if st, err := os.Stat(p); err == nil && !st.IsDir() {
+			files = append(files, fileInfo{path: p, modTime: st.ModTime()})
+		}
+	}
+	// Sort by most recent first
+	sort.Slice(files, func(i, j int) bool { return files[i].modTime.After(files[j].modTime) })
+
+	all := make([]string, 0, len(files))
+	for _, f := range files {
+		all = append(all, f.path)
+	}
+	ddlog.Debugf("AAS instance tailing: %d files match %q: %v", len(all), pattern, all)
+
+	if limit <= 0 {
+		limit = 1
+	}
+	if limit > len(files) {
+		limit = len(files)
+	}
+	selected := make([]string, 0, limit)
+	for i := 0; i < limit; i++ {
+		selected = append(selected, files[i].path)
+	}
+	ddlog.Debugf("AAS instance tailing: selecting up to %d most recently modified: %v", limit, selected)
 }
 
 func isEnabled(envValue string) bool {
