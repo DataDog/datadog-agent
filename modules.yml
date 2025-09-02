@@ -301,11 +301,15 @@ modules:
     used_by_otel: true
   pkg/util/grpc:
     used_by_otel: true
+  pkg/util/hostinfo:
+    used_by_otel: true
   pkg/util/hostname/validate:
     used_by_otel: true
   pkg/util/http:
     used_by_otel: true
   pkg/util/json:
+    used_by_otel: true
+  pkg/util/jsonquery:
     used_by_otel: true
   pkg/util/log:
     used_by_otel: true
