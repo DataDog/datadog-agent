@@ -113,6 +113,11 @@ __attribute__((always_inline)) void flush_pid_network_stats(u32 pid, void *ctx, 
 }
 
 __attribute__((always_inline)) void count_pkt(struct __sk_buff *skb, struct packet_t *pkt) {
+    // only count TCP & UDP packets for now
+    if (pkt->ns_flow.flow.l4_protocol != IPPROTO_TCP && pkt->ns_flow.flow.l4_protocol != IPPROTO_UDP) {
+        return;
+    }
+
     struct namespaced_flow_t ns_flow = pkt->translated_ns_flow;
     if (pkt->network_direction == INGRESS) {
         // EGRESS was arbitrarily chosen as "the 5-tuple order for indexing flow statistics".
