@@ -143,7 +143,8 @@ type APIServer struct {
 	cwsConsumer        *CWSConsumer
 	policiesStatusLock sync.RWMutex
 	policiesStatus     []*api.PolicyStatus
-	msgSender          MsgSender
+	msgSender          EventMsgSender
+	activityDumpSender ActivityDumpMsgSender
 	connEstablished    *atomic.Bool
 	envAsTags          []string
 	containerFilter    *containers.Filter
@@ -183,25 +184,7 @@ func (a *APIServer) SendActivityDump(imageName string, imageTag string, header [
 		Data:   data,
 	}
 
-	// send the dump to the channel
-	select {
-	case a.activityDumps <- dump:
-		break
-	default:
-		// The channel is full, consume the oldest dump
-		oldestDump := <-a.activityDumps
-		// Try to send the event again
-		select {
-		case a.activityDumps <- dump:
-			break
-		default:
-			// Looks like the channel is full again, expire the current message too
-			a.expireDump(dump)
-			break
-		}
-		a.expireDump(oldestDump)
-		break
-	}
+	a.activityDumpSender.Send(dump, a.expireDump)
 }
 
 // GetEvents waits for security events
@@ -674,7 +657,7 @@ func getEnvAsTags(cfg *config.RuntimeSecurityConfig) []string {
 }
 
 // NewAPIServer returns a new gRPC event server
-func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSender MsgSender, client statsd.ClientInterface, selfTester *selftests.SelfTester, compression compression.Component, ipc ipc.Component) (*APIServer, error) {
+func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSender MsgSender[api.SecurityEventMessage], client statsd.ClientInterface, selfTester *selftests.SelfTester, compression compression.Component, ipc ipc.Component) (*APIServer, error) {
 	stopper := startstop.NewSerialStopper()
 	containerFilter, err := utils.NewContainerFilter()
 	if err != nil {
@@ -715,6 +698,8 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSen
 			as.msgSender = NewChanMsgSender(as.msgs)
 		}
 	}
+
+	as.activityDumpSender = NewChanMsgSender(as.activityDumps)
 
 	return as, nil
 }

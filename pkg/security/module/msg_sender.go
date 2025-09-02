@@ -22,17 +22,23 @@ import (
 )
 
 // MsgSender defines a message sender
-type MsgSender interface {
-	Send(msg *api.SecurityEventMessage, expireFnc func(*api.SecurityEventMessage))
+type MsgSender[T any] interface {
+	Send(msg *T, expireFnc func(*T))
 }
 
+// EventMsgSender defines a message sender for security events
+type EventMsgSender = MsgSender[api.SecurityEventMessage]
+
+// ActivityDumpMsgSender defines a message sender for activity dump messages
+type ActivityDumpMsgSender = MsgSender[api.ActivityDumpStreamMessage]
+
 // ChanMsgSender defines a chan message sender
-type ChanMsgSender struct {
-	msgs chan *api.SecurityEventMessage
+type ChanMsgSender[T any] struct {
+	msgs chan *T
 }
 
 // Send the message
-func (cs *ChanMsgSender) Send(msg *api.SecurityEventMessage, expireFnc func(*api.SecurityEventMessage)) {
+func (cs *ChanMsgSender[T]) Send(msg *T, expireFnc func(*T)) {
 	select {
 	case cs.msgs <- msg:
 		break
@@ -59,8 +65,8 @@ func (cs *ChanMsgSender) Send(msg *api.SecurityEventMessage, expireFnc func(*api
 }
 
 // NewChanMsgSender returns a new chan sender
-func NewChanMsgSender(msgs chan *api.SecurityEventMessage) *ChanMsgSender {
-	return &ChanMsgSender{
+func NewChanMsgSender[T any](msgs chan *T) *ChanMsgSender[T] {
+	return &ChanMsgSender[T]{
 		msgs: msgs,
 	}
 }
