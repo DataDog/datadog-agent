@@ -16,6 +16,33 @@ OPT_SOURCE_DIR = os.path.join('C:\\', 'opt')
 
 
 @task
+def test_boto(ctx):
+    import sys
+    import botocore.credentials as creds
+
+    # Get the AWS credentials that we need to supply to jsign in order to sign a binary with the key.
+
+    # This supports the case where the module is running on an instance/context which is already the desired role
+    # and can access the AWS special IP addresses. That is our most important case. Using boto3 + STS + IAM to
+    # create tokens is preferred, but is complicated for our case as AssumeRole into the current context's role is
+    # not allowed.
+    print('CELIAN start creds', file=sys.stderr)
+    role_fetcher = creds.InstanceMetadataFetcher(timeout=10, num_attempts=2)
+    print('CELIAN role fetcher', file=sys.stderr)
+    provider = creds.InstanceMetadataProvider(iam_role_fetcher=role_fetcher)
+    print('CELIAN provider', file=sys.stderr)
+    credential_data = provider.load().get_frozen_credentials()
+    print('CELIAN credential_data', file=sys.stderr)
+
+    # Extract the necessary data for jsign
+    # access_key_id = credential_data.access_key
+    # secret_access_key = credential_data.secret_key
+    aws_token = credential_data.token
+
+    print(f'CELIAN ok: {len(aws_token)}', file=sys.stderr)
+
+
+@task
 def agent_package(
     ctx,
     flavor=AgentFlavor.base.name,
