@@ -147,6 +147,7 @@ type DatadogConfig struct {
 	LogsConfig           LogsConfig                 `yaml:"logs_config,omitempty"`
 	CollectGPUTags       bool                       `yaml:"collect_gpu_tags,omitempty"`
 	GPUCheck             GPUCheckConfig             `yaml:"gpu,omitempty"`
+	EnableNvmlDetection  bool                       `yaml:"enable_nvml_detection,omitempty"` // Deprecated: this field won't be used after agent v7.70, GPUCheck.Enabled will be enough.
 	SBOM                 SBOMConfig                 `yaml:"sbom,omitempty"`
 }
 

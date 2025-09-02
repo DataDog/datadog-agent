@@ -83,6 +83,11 @@ func IsNetworkFlowMonitorNotSupported(kv *kernel.Version) bool {
 	return IsNetworkNotSupported(kv) || !kv.IsMapValuesToMapHelpersAllowed() || !kv.HasBPFForEachMapElemHelper()
 }
 
+// IsCapabilitiesMonitoringSupported returns if the capabilities monitoring feature is supported
+func IsCapabilitiesMonitoringSupported(kv *kernel.Version) bool {
+	return kv.HasBPFForEachMapElemHelper()
+}
+
 // NewAgentContainerContext returns the agent container context
 func NewAgentContainerContext() (*events.AgentContainerContext, error) {
 	pid := utils.Getpid()
