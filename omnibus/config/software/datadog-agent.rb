@@ -34,9 +34,9 @@ relative_path 'src/github.com/DataDog/datadog-agent'
 
 always_build true
 
-log_level :debug
 
 build do
+  log_level :debug
   license :project_license
 
   # set GOPATH on the omnibus source dir for this software
