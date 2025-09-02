@@ -428,5 +428,19 @@ func defaultMetricAggregators() map[string]metricAggregator {
 			[]string{"namespace", "container", "owner_name", "owner_kind"},
 			[]string{"cpu", "memory", "gpu", "mig"},
 		),
+		"kube_pod_init_container_resource_with_owner_tag_requests": newResourceValuesAggregator(
+			"initcontainer",
+			"requested.total",
+			"kube_pod_init_container_resource_with_owner_tag_requests",
+			[]string{"namespace", "container", "owner_name", "owner_kind"},
+			[]string{"cpu", "memory"},
+		),
+		"kube_pod_init_container_resource_with_owner_tag_limits": newResourceValuesAggregator(
+			"initcontainer",
+			"limit.total",
+			"kube_pod_init_container_resource_with_owner_tag_limits",
+			[]string{"namespace", "container", "owner_name", "owner_kind"},
+			[]string{"cpu", "memory", "gpu", "mig"},
+		),
 	}
 }
