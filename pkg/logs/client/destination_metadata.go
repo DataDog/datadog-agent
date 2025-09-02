@@ -15,16 +15,18 @@ type DestinationMetadata struct {
 	instanceID       string
 	kind             string
 	endpointID       string
+	evpCategory      string
 	ReportingEnabled bool
 }
 
 // NewDestinationMetadata returns a new DestinationMetadata
-func NewDestinationMetadata(componentName, instanceID, kind, endpointID string) *DestinationMetadata {
+func NewDestinationMetadata(componentName, instanceID, kind, endpointID, evpCategory string) *DestinationMetadata {
 	return &DestinationMetadata{
 		componentName:    componentName,
 		instanceID:       instanceID,
 		kind:             kind,
 		endpointID:       endpointID,
+		evpCategory:      evpCategory,
 		ReportingEnabled: true,
 	}
 }
@@ -50,4 +52,9 @@ func (d *DestinationMetadata) MonitorTag() string {
 		return ""
 	}
 	return fmt.Sprintf("destination_%s_%s", d.kind, d.endpointID)
+}
+
+// EvpCategory returns the EvP category for the destination
+func (d *DestinationMetadata) EvpCategory() string {
+	return d.evpCategory
 }
