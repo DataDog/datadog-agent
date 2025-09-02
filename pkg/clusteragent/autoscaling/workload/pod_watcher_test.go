@@ -107,7 +107,7 @@ func TestHandleUnsetEvent(t *testing.T) {
 func TestPodWatcherStartStop(t *testing.T) {
 	wlm := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		config.MockModule(),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
