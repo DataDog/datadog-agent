@@ -15,10 +15,9 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
-
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
+	ddattributes "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
@@ -80,7 +79,7 @@ type OTLP struct {
 	ProbabilisticSampling float64
 
 	// AttributesTranslator specifies an OTLP to Datadog attributes translator.
-	AttributesTranslator *attributes.Translator `mapstructure:"-"`
+	AttributesTranslator *ddattributes.Translator `mapstructure:"-"`
 
 	// IgnoreMissingDatadogFields specifies whether we should recompute DD span fields if the corresponding "datadog."
 	// namespaced span attributes are missing. If it is false (default), we will use the incoming "datadog." namespaced
