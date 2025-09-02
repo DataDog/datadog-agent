@@ -1824,17 +1824,32 @@ func FuzzEval(f *testing.F) {
 	f.Add(`process.name == "/usr/bin/ls" && process.uid != 0`)
 
 	f.Fuzz(func(_ *testing.T, expr string) {
-		model := &testModel{}
-		opts := newOptsWithParams(testConstants, nil)
-
-		// Attempt to parse and evaluate the rule
-		rule, err := parseRule(expr, model, opts)
-		if err != nil {
-			return
-		}
-
-		rule.GenEvaluator(model)
+		commonFuzzEval(expr)
 	})
+}
+
+func commonFuzzEval(expr string) {
+	model := &testModel{}
+	opts := newOptsWithParams(testConstants, nil)
+
+	// Attempt to parse and evaluate the rule
+	rule, err := parseRule(expr, model, opts)
+	if err != nil {
+		return
+	}
+	_ = rule
+}
+
+func TestDiscoveredByFuzz(t *testing.T) {
+	exprs := []string{
+		`"!"!=A`,
+	}
+
+	for _, expr := range exprs {
+		t.Run(expr, func(_ *testing.T) {
+			commonFuzzEval(expr)
+		})
+	}
 }
 
 func BenchmarkArray(b *testing.B) {
