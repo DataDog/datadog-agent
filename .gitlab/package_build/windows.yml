@@ -10,7 +10,7 @@ fetch_win_artifacts:
     paths:
       - '*.whl'
   script:
-    - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/datadog-agent/celian-windows-code-signer/windows_code_signer-0.3.1-py3-none-any.whl $CI_PROJECT_DIR/windows_code_signer-0.3.1-py3-none-any.whl
+    - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/celian-windows-code-signer/windows_code_signer-0.3.1-py3-none-any.whl $CI_PROJECT_DIR/windows_code_signer-0.3.1-py3-none-any.whl
 
 .windows_msi_base:
   stage: package_build
