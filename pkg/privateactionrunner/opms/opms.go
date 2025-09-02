@@ -497,7 +497,7 @@ func (c *EnrollmentClient) SendSelfEnrollmentRequest(ctx context.Context, apiKey
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Accept", "application/json")
 	httpReq.Header.Set("DD-API-KEY", apiKey)
-	httpReq.Header.Set("DD-APP-KEY", appKey)
+	httpReq.Header.Set("DD-APPLICATION-KEY", appKey)
 	httpReq.Header.Set(utils.VersionHeaderName, version.AgentVersion)
 
 	// Send request
