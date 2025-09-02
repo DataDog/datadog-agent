@@ -27,12 +27,16 @@ def test_boto(ctx):
     # create tokens is preferred, but is complicated for our case as AssumeRole into the current context's role is
     # not allowed.
     print('CELIAN start creds', file=sys.stderr)
-    role_fetcher = creds.InstanceMetadataFetcher(timeout=10, num_attempts=2)
+    sys.stderr.flush()
+    role_fetcher = creds.InstanceMetadataFetcher(timeout=1000, num_attempts=2)
     print('CELIAN role fetcher', file=sys.stderr)
+    sys.stderr.flush()
     provider = creds.InstanceMetadataProvider(iam_role_fetcher=role_fetcher)
     print('CELIAN provider', file=sys.stderr)
+    sys.stderr.flush()
     credential_data = provider.load().get_frozen_credentials()
     print('CELIAN credential_data', file=sys.stderr)
+    sys.stderr.flush()
 
     # Extract the necessary data for jsign
     # access_key_id = credential_data.access_key
@@ -40,6 +44,7 @@ def test_boto(ctx):
     aws_token = credential_data.token
 
     print(f'CELIAN ok: {len(aws_token)}', file=sys.stderr)
+    sys.stderr.flush()
 
 
 @task
