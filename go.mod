@@ -371,7 +371,7 @@ require (
 	github.com/twmb/franz-go/pkg/kadm v1.12.0
 	github.com/twmb/franz-go/pkg/kmsg v1.11.2-0.20250413173443-1d5a55fa468d
 	github.com/ugorji/go/codec v1.2.11 // indirect
-	github.com/ulikunitz/xz v0.5.12 // indirect
+	github.com/ulikunitz/xz v0.5.15 // indirect
 	github.com/vbatts/tar-split v0.11.6 // indirect
 	github.com/vito/go-sse v1.0.0 // indirect
 	github.com/vmihailenco/msgpack/v5 v5.4.1
