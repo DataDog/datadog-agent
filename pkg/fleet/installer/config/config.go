@@ -92,12 +92,12 @@ func (a *Operation) Apply(root *os.Root) error {
 				return err
 			}
 		}
-		var new map[string]any
-		err = yaml.Unmarshal(newJSONBytes, &new)
+		var current map[string]any
+		err = yaml.Unmarshal(newJSONBytes, &current)
 		if err != nil {
 			return err
 		}
-		newYAMLBytes, err := yaml.Marshal(new)
+		currentYAMLBytes, err := yaml.Marshal(current)
 		if err != nil {
 			return err
 		}
@@ -109,7 +109,7 @@ func (a *Operation) Apply(root *os.Root) error {
 		if err != nil {
 			return err
 		}
-		_, err = file.Write(newYAMLBytes)
+		_, err = file.Write(currentYAMLBytes)
 		if err != nil {
 			return err
 		}
