@@ -76,30 +76,26 @@ func TestCollectTags(t *testing.T) {
 		{
 			name: "list of tags",
 			config: `
-init_config:
-instance_config:
-  - tags:
-    - foo:bar
-    - baz:qux
+max_returned_metrics: 50000
+tags:
+  - foo:bar
+  - baz:qux
 `,
 			want: []string{"foo:bar", "baz:qux"},
 		},
 		{
 			name: "array of tags",
 			config: `
-init_config:
-instance_config:
-  - tags: [foo:bar, baz:qux]
+max_returned_metrics: 50000
+tags: [foo:bar, baz:qux]
 `,
 			want: []string{"foo:bar", "baz:qux"},
 		},
 		{
 			name: "scalar value",
 			config: `
-init_config:
-instance_config:
-  product:
-    tags: "foo:bar"
+max_returned_metrics: 50000
+tags: "foo:bar"
 `,
 			want: []string{"foo:bar"},
 		},
