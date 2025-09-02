@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
+	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	jmxStatus "github.com/DataDog/datadog-agent/pkg/status/jmx"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -31,7 +32,7 @@ import (
 //
 
 const (
-	defaultInterval   = 10 * time.Minute
+	defaultInterval   = 1 * time.Minute
 	firstPayloadDelay = 1 * time.Minute
 )
 
@@ -129,9 +130,26 @@ func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
 
 	stats := map[string]interface{}{}
 	jmxStatus.PopulateStatus(stats)
+	instanceConfByName := map[string]map[interface{}]interface{}{}
+	for _, config := range jmxfetch.GetScheduledConfigs() {
+		for _, instance := range config.Instances {
+			instanceconfig := map[interface{}]interface{}{}
+			err := yaml.Unmarshal(instance, &instanceconfig)
+			if err != nil {
+				log.Errorf("invalid instance section: %s", err)
+				continue
+			}
+			instanceConfByName[instanceconfig["name"].(string)] = instanceconfig
+		}
+	}
 	if _, ok := stats["JMXStatus"]; ok {
 		if status, ok := stats["JMXStatus"].(jmxStatus.Status); ok {
 			for checkName, checksRaw := range status.ChecksStatus.InitializedChecks {
+				if config, ok := instanceConfByName[checkName]; ok {
+					if tagsNode, ok := config["tags"]; ok {
+						log.Infof("JMX Tags: %v", tagsNode)
+					}
+				}
 				checks, ok := checksRaw.([]interface{})
 				if !ok {
 					continue
@@ -187,71 +205,6 @@ func (c *collectorImpl) collectMetadata(ctx context.Context) time.Duration {
 
 type kv struct{ k, v string }
 
-func collectTags(config string) ([]string, error) {
-	if config == "" {
-		return nil, nil
-	}
-	all := make([][]kv, 0)
-	dec := yaml.NewDecoder(strings.NewReader(config))
-
-	var doc yaml.Node
-	var stack []*yaml.Node // reused across docs to reduce allocs
-
-	for {
-		// Reset doc each iteration to avoid growing the tree accidentally.
-		doc = yaml.Node{}
-		if err := dec.Decode(&doc); err != nil {
-			if err == io.EOF {
-				break
-			}
-			return nil, err
-		}
-		if len(doc.Content) == 0 {
-			continue
-		}
-		root := doc.Content[0]
-
-		// iterative walk; reuse stack slice (clear, keep cap)
-		stack = stack[:0]
-		stack = append(stack, root)
-
-		for len(stack) > 0 {
-			// pop
-			n := stack[len(stack)-1]
-			stack = stack[:len(stack)-1]
-
-			switch n.Kind {
-			case yaml.MappingNode:
-				// content is [k1, v1, k2, v2, ...]
-				for i := 0; i+1 < len(n.Content); i += 2 {
-					k := n.Content[i]
-					v := n.Content[i+1]
-
-					if k.Kind == yaml.ScalarNode && k.Value == "tags" {
-						if group := extractTags(v); len(group) > 0 {
-							all = append(all, group)
-						}
-						// fall through: still walk v for nested "tags"
-					}
-					stack = append(stack, v)
-				}
-			case yaml.SequenceNode:
-				// push children
-				stack = append(stack, n.Content...)
-			}
-			// Scalar / Alias: nothing to descend into
-		}
-	}
-
-	allTags := make([]string, 0)
-	for _, group := range all {
-		for _, kv := range group {
-			allTags = append(allTags, fmt.Sprintf("%s%s", kv.k, kv.v))
-		}
-	}
-	return allTags, nil
-}
-
 func extractTags(node *yaml.Node) []kv {
 	if node == nil {
 		return nil
@@ -280,4 +233,46 @@ func extractTags(node *yaml.Node) []kv {
 		}
 	}
 	return out
+}
+
+// collectTags is a fast-path extractor assuming `tags` is at the root of the YAML.
+// It decodes only the root-level `tags` field and returns as soon as it's found.
+func collectTags(config string) ([]string, error) {
+	if config == "" {
+		return nil, nil
+	}
+
+	dec := yaml.NewDecoder(strings.NewReader(config))
+	for {
+		var doc yaml.Node
+		if err := dec.Decode(&doc); err != nil {
+			if err == io.EOF {
+				break
+			}
+			return nil, err
+		}
+		if len(doc.Content) == 0 {
+			continue
+		}
+		root := doc.Content[0]
+		if root.Kind != yaml.MappingNode {
+			continue
+		}
+		for i := 0; i+1 < len(root.Content); i += 2 {
+			k := root.Content[i]
+			v := root.Content[i+1]
+			if k.Kind == yaml.ScalarNode && k.Value == "tags" {
+				group := extractTags(v)
+				if len(group) == 0 {
+					return nil, nil
+				}
+				out := make([]string, 0, len(group))
+				for _, kv := range group {
+					out = append(out, fmt.Sprintf("%s%s", kv.k, kv.v))
+				}
+				return out, nil
+			}
+		}
+	}
+	return nil, nil
 }
