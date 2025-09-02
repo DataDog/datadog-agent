@@ -91,7 +91,7 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.max_image_tags", 20)
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.dir", GetDefaultSecurityProfilesDir())
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.watch_dir", true)
-	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.cache_size", 20)
+	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.cache_size", 10)
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.max_count", 400)
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.dns_match_max_depth", 3)
 
