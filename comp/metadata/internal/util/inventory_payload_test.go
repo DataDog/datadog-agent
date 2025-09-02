@@ -11,8 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"go.uber.org/fx"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
@@ -21,7 +19,6 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // Payload handles the JSON unmarshalling of the metadata payload
@@ -37,7 +34,7 @@ func (p *testPayload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error)
 
 func getTestInventoryPayload(t *testing.T, confOverrides map[string]any) *InventoryPayload {
 	i := CreateInventoryPayload(
-		fxutil.Test[config.Component](t, config.MockModule(), fx.Replace(config.MockParams{Overrides: confOverrides})),
+		config.NewMockWithOverrides(t, confOverrides),
 		logmock.New(t),
 		serializermock.NewMetricSerializer(t),
 		func() marshaler.JSONMarshaler { return &testPayload{} },
@@ -48,7 +45,7 @@ func getTestInventoryPayload(t *testing.T, confOverrides map[string]any) *Invent
 
 func getEmptyInventoryPayload(t *testing.T, confOverrides map[string]any) *InventoryPayload {
 	i := CreateInventoryPayload(
-		fxutil.Test[config.Component](t, config.MockModule(), fx.Replace(config.MockParams{Overrides: confOverrides})),
+		config.NewMockWithOverrides(t, confOverrides),
 		logmock.New(t),
 		serializermock.NewMetricSerializer(t),
 		func() marshaler.JSONMarshaler { return nil },

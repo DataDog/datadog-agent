@@ -6,6 +6,8 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-upgrade:
+enhancements:
   - |
-    Adds `psycopg_binary.libs` to the whitelist for the `datadog-agent-integrations-py3` package.
+    gather and expose kubernetes state metrics for init containers.
+    gather and expose init containers resources requests and limits
+    when container is set with `restartPolicy=Always`.

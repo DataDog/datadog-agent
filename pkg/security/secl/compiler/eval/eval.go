@@ -1243,39 +1243,43 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 		return nodeToEvaluator(obj.Next, opts, state)
 
 	case *ast.Unary:
-		if obj.Op != nil {
-			unary, pos, err = nodeToEvaluator(obj.Unary, opts, state)
-			if err != nil {
-				return nil, pos, err
-			}
-
-			switch *obj.Op {
-			case "!", "not":
-				unaryBool, ok := unary.(*BoolEvaluator)
-				if !ok {
-					return nil, pos, NewTypeError(pos, reflect.Bool)
-				}
-
-				return Not(unaryBool, state), obj.Pos, nil
-			case "-":
-				unaryInt, ok := unary.(*IntEvaluator)
-				if !ok {
-					return nil, pos, NewTypeError(pos, reflect.Int)
-				}
-
-				return Minus(unaryInt, state), pos, nil
-			case "^":
-				unaryInt, ok := unary.(*IntEvaluator)
-				if !ok {
-					return nil, pos, NewTypeError(pos, reflect.Int)
-				}
-
-				return IntNot(unaryInt, state), pos, nil
-			}
-			return nil, pos, NewOpUnknownError(obj.Pos, *obj.Op)
+		if obj.UnaryWithOp != nil {
+			return nodeToEvaluator(obj.UnaryWithOp, opts, state)
 		}
 
 		return nodeToEvaluator(obj.Primary, opts, state)
+
+	case *ast.UnaryWithOp:
+		unary, pos, err = nodeToEvaluator(obj.Unary, opts, state)
+		if err != nil {
+			return nil, pos, err
+		}
+
+		switch *obj.Op {
+		case "!", "not":
+			unaryBool, ok := unary.(*BoolEvaluator)
+			if !ok {
+				return nil, pos, NewTypeError(pos, reflect.Bool)
+			}
+
+			return Not(unaryBool, state), obj.Pos, nil
+		case "-":
+			unaryInt, ok := unary.(*IntEvaluator)
+			if !ok {
+				return nil, pos, NewTypeError(pos, reflect.Int)
+			}
+
+			return Minus(unaryInt, state), pos, nil
+		case "^":
+			unaryInt, ok := unary.(*IntEvaluator)
+			if !ok {
+				return nil, pos, NewTypeError(pos, reflect.Int)
+			}
+
+			return IntNot(unaryInt, state), pos, nil
+		}
+		return nil, pos, NewOpUnknownError(obj.Pos, *obj.Op)
+
 	case *ast.Primary:
 		switch {
 		case obj.Ident != nil:

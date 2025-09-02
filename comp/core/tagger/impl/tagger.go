@@ -496,7 +496,7 @@ func (t *localTagger) EnrichTags(tb tagset.TagsAccumulator, originInfo taggertyp
 		if len(containerIDs) > 1 &&
 			slices.ContainsFunc(containerIDs[1:], func(id string) bool { return id != containerIDs[0] }) {
 			t.telemetryStore.OriginInfoContainerIDMismatch.Inc()
-			t.log.Debugf("Container ID mismatch detected: %v", containerIDs)
+			t.log.Warnf("Container ID mismatch detected: %v", containerIDs)
 		}
 	}
 

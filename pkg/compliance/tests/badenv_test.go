@@ -44,7 +44,7 @@ findings[f] {
 	)
 }
 `).
-		AssertNoEvent()
+		AssertSkippedEvent(nil)
 
 	b.AddRule("NoDockerWithScope").
 		WithScope("docker").
@@ -78,7 +78,7 @@ findings[f] {
 	)
 }
 `).
-		AssertNoEvent()
+		AssertSkippedEvent(nil)
 }
 
 func TestNoKubernetes(t *testing.T) {
@@ -114,7 +114,7 @@ findings[f] {
 	)
 }
 `).
-		AssertNoEvent()
+		AssertSkippedEvent(nil)
 
 	b.AddRule("NoKubernetesCluster").
 		WithScope("kubernetesCluster").
@@ -145,5 +145,5 @@ findings[f] {
 	)
 }
 `).
-		AssertNoEvent()
+		AssertSkippedEvent(nil)
 }

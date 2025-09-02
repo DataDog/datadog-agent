@@ -99,6 +99,8 @@ const (
 	SyscallTypeBind
 	// SyscallTypeSetsockopt setsockopt type
 	SyscallTypeSetsockopt
+	// SyscallTypeSetrlimit setrlimit type
+	SyscallTypeSetrlimit
 )
 
 // ContainerContext defines a container context
@@ -349,6 +351,14 @@ type SetsockoptSyscallMsg struct {
 	FilterLen      uint16
 }
 
+// SetrlimitSyscallMsg defines a setrlimit message
+type SetrlimitSyscallMsg struct {
+	Resource int
+	CurLimit uint64
+	MaxLimit uint64
+	Pid      uint32
+}
+
 // SyscallMsg defines a syscall message
 type SyscallMsg struct {
 	Type         SyscallType
@@ -384,6 +394,7 @@ type SyscallMsg struct {
 	Connect      *ConnectSyscallMsg      `json:",omitempty"`
 	Accept       *AcceptSyscallMsg       `json:",omitempty"`
 	Setsockopt   *SetsockoptSyscallMsg   `json:",omitempty"`
+	Setrlimit    *SetrlimitSyscallMsg    `json:",omitempty"`
 
 	// internals
 	Dup    *DupSyscallFakeMsg    `json:",omitempty"`

@@ -81,26 +81,37 @@ func (s *redisProtocolParsingSuite) TestDecoding() {
 		name            string
 		isTLS           bool
 		protocolVersion int
+		trackResources  bool
 	}{
 		{
 			name:            "with TLS with RESP2",
 			isTLS:           true,
 			protocolVersion: 2,
+			trackResources:  true,
 		},
 		{
 			name:            "with TLS with RESP3",
 			isTLS:           true,
 			protocolVersion: 3,
+			trackResources:  true,
 		},
 		{
 			name:            "without TLS with RESP2",
 			isTLS:           false,
 			protocolVersion: 2,
+			trackResources:  true,
 		},
 		{
 			name:            "without TLS with RESP3",
 			isTLS:           false,
 			protocolVersion: 3,
+			trackResources:  true,
+		},
+		{
+			name:            "without TLS with RESP2 and without resource tracking",
+			isTLS:           false,
+			protocolVersion: 2,
+			trackResources:  false,
 		},
 	}
 	for _, tt := range tests {
@@ -108,7 +119,7 @@ func (s *redisProtocolParsingSuite) TestDecoding() {
 			if tt.isTLS && !gotlstestutil.GoTLSSupported(t, utils.NewUSMEmptyConfig()) {
 				t.Skip("GoTLS not supported for this setup")
 			}
-			testRedisDecoding(t, tt.isTLS, tt.protocolVersion)
+			testRedisDecoding(t, tt.isTLS, tt.protocolVersion, tt.trackResources)
 		})
 	}
 }
@@ -124,13 +135,15 @@ func waitForRedisServer(t *testing.T, serverAddress string, enableTLS bool, vers
 	}, 5*time.Second, 100*time.Millisecond, "couldn't connect to redis server")
 }
 
-func testRedisDecoding(t *testing.T, isTLS bool, version int) {
+func testRedisDecoding(t *testing.T, isTLS bool, version int, trackResources bool) {
 	serverHost := "127.0.0.1"
 	serverAddress := net.JoinHostPort(serverHost, redisPort)
 	require.NoError(t, redis.RunServer(t, serverHost, redisPort, isTLS))
 	waitForRedisServer(t, serverAddress, isTLS, version)
 
-	monitor := setupUSMTLSMonitor(t, getRedisDefaultTestConfiguration(isTLS), useExistingConsumer)
+	cfg := getRedisDefaultTestConfiguration(isTLS)
+	cfg.RedisTrackResources = trackResources
+	monitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
 	if isTLS {
 		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, os.Getpid(), utils.ManualTracingFallbackEnabled)
 	}
@@ -165,8 +178,12 @@ func testRedisDecoding(t *testing.T, isTLS bool, version int) {
 				require.Equal(t, "test-value", val)
 			},
 			validation: func(t *testing.T, _ redisTestContext, monitor *Monitor) {
+				keyName := ""
+				if trackResources {
+					keyName = "test-key"
+				}
 				validateRedis(t, monitor, map[string]map[redis.CommandType]int{
-					"test-key": {
+					keyName: {
 						redis.GetCommand: adjustCount(1),
 						redis.SetCommand: adjustCount(1),
 					},
@@ -212,6 +229,7 @@ func testRedisDecoding(t *testing.T, isTLS bool, version int) {
 func getRedisDefaultTestConfiguration(enableTLS bool) *config.Config {
 	cfg := utils.NewUSMEmptyConfig()
 	cfg.EnableRedisMonitoring = true
+	cfg.RedisTrackResources = true // Enable resource tracking for tests
 	cfg.MaxTrackedConnections = 1000
 	cfg.EnableGoTLSSupport = enableTLS
 	cfg.GoTLSExcludeSelf = false
@@ -241,11 +259,17 @@ func validateRedis(t *testing.T, monitor *Monitor, expectedStats map[string]map[
 			if hasTLSTag != tls {
 				continue
 			}
-			if _, ok := found[key.KeyName.Get()]; !ok {
-				found[key.KeyName.Get()] = make(map[redis.CommandType]int)
+
+			keyName := ""
+			if key.KeyName != nil {
+				keyName = key.KeyName.Get()
+			}
+
+			if _, ok := found[keyName]; !ok {
+				found[keyName] = make(map[redis.CommandType]int)
 			}
 			for _, stat := range stats.ErrorToStats {
-				found[key.KeyName.Get()][key.Command] += stat.Count
+				found[keyName][key.Command] += stat.Count
 			}
 		}
 		return reflect.DeepEqual(expectedStats, found)

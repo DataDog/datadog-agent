@@ -116,12 +116,13 @@ const (
 	// comp/core/workloadmeta/def/types.go:GPU.Device for more detail on this
 	// field.
 	KubeGPUDevice = "gpu_device"
-
 	// KubeGPUUUID is the tag for the Kubernetes Resource GPU UUID
 	KubeGPUUUID = "gpu_uuid"
-
 	// GPUDriverVersion is the tag for the GPU driver version
 	GPUDriverVersion = "gpu_driver_version"
+
+	// KubeArgoRollout is the tag for the Argo Rollout name
+	KubeArgoRollout = "kube_argo_rollout"
 
 	// OpenshiftDeploymentConfig is the tag for the OpenShift deployment config name
 	OpenshiftDeploymentConfig = "oshift_deployment_config"

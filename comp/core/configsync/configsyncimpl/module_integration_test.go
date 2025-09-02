@@ -47,7 +47,7 @@ func TestOptionalModule(t *testing.T) {
 		"agent_ipc.config_refresh_interval": 1,
 	}
 	comp := fxutil.Test[configsync.Component](t, fx.Options(
-		config.MockModule(),
+		fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, overrides) }),
 		fx.Supply(log.Params{}),
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 		telemetryimpl.MockModule(),
@@ -55,7 +55,6 @@ func TestOptionalModule(t *testing.T) {
 		fx.Provide(func(ipcComp ipc.Component) ipc.HTTPClient { return ipcComp.GetClient() }),
 		Module(Params{}),
 		fx.Populate(&cfg),
-		fx.Replace(config.MockParams{Overrides: overrides}),
 	))
 	require.True(t, comp.(configSync).enabled)
 

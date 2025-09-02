@@ -16,8 +16,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core"
-	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -27,9 +28,10 @@ import (
 
 func fulfillDeps(t testing.TB, overrides map[string]interface{}) serverdebug.Component {
 	return fxutil.Test[serverdebug.Component](t, fx.Options(
-		core.MockBundle(),
-		fx.Supply(core.BundleParams{}),
-		fx.Replace(configComponent.MockParams{Overrides: overrides}),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component {
+			return config.NewMockWithOverrides(t, overrides)
+		}),
 		Module(),
 	))
 }

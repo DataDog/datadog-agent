@@ -126,12 +126,11 @@ func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) (*logAgent,
 	suite.configOverrides["logs_enabled"] = true
 
 	deps := fxutil.Test[testDeps](suite.T(), fx.Options(
-		fx.Supply(configComponent.Params{}),
-		fx.Supply(log.Params{}),
 		fx.Provide(func() log.Component { return logmock.New(suite.T()) }),
-		configComponent.MockModule(),
+		fx.Provide(func() configComponent.Component {
+			return configComponent.NewMockWithOverrides(suite.T(), suite.configOverrides)
+		}),
 		hostnameimpl.MockModule(),
-		fx.Replace(configComponent.MockParams{Overrides: suite.configOverrides}),
 		inventoryagentimpl.MockModule(),
 		auditorfx.Module(),
 		fx.Provide(healthmock.NewProvides),
@@ -435,12 +434,11 @@ func (suite *AgentTestSuite) TestFlareProvider() {
 
 func (suite *AgentTestSuite) createDeps() dependencies {
 	return fxutil.Test[dependencies](suite.T(), fx.Options(
-		fx.Supply(configComponent.Params{}),
-		fx.Supply(log.Params{}),
 		fx.Provide(func() log.Component { return logmock.New(suite.T()) }),
-		configComponent.MockModule(),
+		fx.Provide(func() configComponent.Component {
+			return configComponent.NewMockWithOverrides(suite.T(), suite.configOverrides)
+		}),
 		hostnameimpl.MockModule(),
-		fx.Replace(configComponent.MockParams{Overrides: suite.configOverrides}),
 		inventoryagentimpl.MockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		compressionfx.MockModule(),

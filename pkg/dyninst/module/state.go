@@ -63,9 +63,11 @@ func (ps *processStore) ensureExists(update *rcscrape.ProcessUpdate) procRuntime
 	if !ok {
 		proc = &processState{
 			procRuntimeID: procRuntimeID{
-				ProcessID: update.ProcessID,
-				runtimeID: update.RuntimeID,
-				service:   update.Service,
+				ProcessID:   update.ProcessID,
+				runtimeID:   update.RuntimeID,
+				service:     update.Service,
+				version:     update.Version,
+				environment: update.Environment,
 			},
 			executable: update.Executable,
 			gitInfo:    update.GitInfo,
