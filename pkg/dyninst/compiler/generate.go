@@ -8,8 +8,10 @@
 package compiler
 
 import (
+	"cmp"
 	"fmt"
 	"math"
+	"slices"
 	"time"
 
 	"github.com/pkg/errors"
@@ -31,10 +33,11 @@ type Throttler struct {
 
 // Program represents stack machine program.
 type Program struct {
-	ID         uint32
-	Functions  []Function
-	Types      []ir.Type
-	Throttlers []Throttler
+	ID               uint32
+	Functions        []Function
+	Types            []ir.Type
+	Throttlers       []Throttler
+	GoModuledataInfo ir.GoModuledataInfo
 }
 
 type generator struct {
@@ -93,6 +96,17 @@ func GenerateProgram(program *ir.Program) (Program, error) {
 			})
 		}
 	}
+	// Add all the types for which we know the Go runtime type to the
+	// queue for processing.
+	for _, t := range program.Types {
+		if _, ok := t.GetGoRuntimeType(); ok {
+			g.typeQueue = append(g.typeQueue, t)
+		}
+	}
+	// Sort the queue to make sure we process types in a deterministic order.
+	slices.SortFunc(g.typeQueue, func(a, b ir.Type) int {
+		return cmp.Compare(a.GetID(), b.GetID())
+	})
 	for len(g.typeQueue) > 0 {
 		_, _, err := g.addTypeHandler(g.typeQueue[0])
 		if err != nil {
@@ -105,10 +119,11 @@ func GenerateProgram(program *ir.Program) (Program, error) {
 		types = append(types, t)
 	}
 	return Program{
-		ID:         uint32(program.ID),
-		Functions:  g.functions,
-		Types:      types,
-		Throttlers: throttlers,
+		ID:               uint32(program.ID),
+		Functions:        g.functions,
+		Types:            types,
+		Throttlers:       throttlers,
+		GoModuledataInfo: program.GoModuledataInfo,
 	}, nil
 }
 
@@ -335,8 +350,20 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool, error) {
 		}
 
 	case *ir.GoEmptyInterfaceType:
+		needed = true
+		offsetShift = 0
+		ops = []Op{
+			ProcessGoEmptyInterfaceOp{},
+			ReturnOp{},
+		}
+
 	case *ir.GoInterfaceType:
-		// TODO: support Go interfaces
+		needed = true
+		offsetShift = 0
+		ops = []Op{
+			ProcessGoInterfaceOp{},
+			ReturnOp{},
+		}
 
 	case *ir.GoMapType:
 		g.typeQueue = append(g.typeQueue, t.HeaderType)
@@ -467,15 +494,20 @@ type memoryLayoutPiece struct {
 func (g *generator) typeMemoryLayout(t ir.Type) ([]memoryLayoutPiece, error) {
 	var pieces []memoryLayoutPiece
 	var collectPieces func(t ir.Type, offset uint32) error
+	collectFields := func(fields []ir.Field, offset uint32) error {
+		for _, field := range fields {
+			if err := collectPieces(field.Type, offset+field.Offset); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
 	collectPieces = func(t ir.Type, offset uint32) error {
 		var err error
 		switch t := t.(type) {
 		case *ir.StructureType:
-			for _, field := range t.RawFields {
-				err = collectPieces(field.Type, offset+field.Offset)
-				if err != nil {
-					return err
-				}
+			if err := collectFields(t.RawFields, offset); err != nil {
+				return err
 			}
 
 		case *ir.ArrayType:
@@ -495,13 +527,13 @@ func (g *generator) typeMemoryLayout(t ir.Type) ([]memoryLayoutPiece, error) {
 
 		// Structure-like types.
 		case *ir.GoEmptyInterfaceType:
-			err = collectPieces(t.UnderlyingStructure, offset)
+			err = collectFields(t.RawFields, offset)
 		case *ir.GoHMapBucketType:
 			err = collectPieces(t.StructureType, offset)
 		case *ir.GoHMapHeaderType:
 			err = collectPieces(t.StructureType, offset)
 		case *ir.GoInterfaceType:
-			err = collectPieces(t.UnderlyingStructure, offset)
+			err = collectFields(t.RawFields, offset)
 		case *ir.GoSliceHeaderType:
 			err = collectPieces(t.StructureType, offset)
 		case *ir.GoStringHeaderType:

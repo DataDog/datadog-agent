@@ -429,8 +429,6 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin"):
         Commits the above changes, and then creates a PR on the upstream repository with the change.
 
     Notes:
-        This requires a Github token (either in the GITHUB_TOKEN environment variable, or in the MacOS keychain),
-        with 'repo' permissions.
         This also requires that there are no local uncommitted changes, that the current branch is 'main' or the
         release branch, and that no branch named 'release/<new rc version>' already exists locally or upstream.
     """
@@ -782,8 +780,6 @@ def create_release_branches(
         use_worktree: If True, will go to datadog-agent-worktree instead of datadog-agent.
 
     Notes:
-        This requires a GitHub token (either in the GITHUB_TOKEN environment variable, or in the MacOS keychain),
-        with 'repo' permissions.
         This also requires that there are no local uncommitted changes, that the current branch is 'main' or the
         release branch, and that no branch named 'release/<new rc version>' already exists locally or upstream.
     """

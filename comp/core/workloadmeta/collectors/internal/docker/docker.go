@@ -614,7 +614,12 @@ func (c *collector) getImageMetadata(ctx context.Context, imageID string, newSBO
 		}
 
 		if sbom == nil && existingImg.SBOM.Status != workloadmeta.Pending {
-			sbom = existingImg.SBOM
+			oldSBOM, err := sbomutil.UncompressSBOM(existingImg.SBOM)
+			if err != nil {
+				log.Errorf("Failed to uncompress SBOM for image %s: %v", existingImg.ID, err)
+			} else {
+				sbom = oldSBOM
+			}
 		}
 	}
 
@@ -629,6 +634,11 @@ func (c *collector) getImageMetadata(ctx context.Context, imageID string, newSBO
 	// if the `imgMeta` object does not contain all the metadata when it is sent.
 	// We add them here to make sure they are present.
 	sbom = sbomutil.UpdateSBOMRepoMetadata(sbom, imgInspect.RepoTags, imgInspect.RepoDigests)
+	csbom, err := sbomutil.CompressSBOM(sbom)
+	if err != nil {
+		log.Errorf("Failed to compress SBOM for image %s: %v", imgInspect.ID, err)
+		return nil, err
+	}
 
 	return &workloadmeta.ContainerImageMetadata{
 		EntityID: workloadmeta.EntityID{
@@ -647,7 +657,7 @@ func (c *collector) getImageMetadata(ctx context.Context, imageID string, newSBO
 		Architecture: imgInspect.Architecture,
 		Variant:      imgInspect.Variant,
 		Layers:       layersFromDockerHistoryAndInspect(imageHistory, imgInspect),
-		SBOM:         sbom,
+		SBOM:         csbom,
 	}, nil
 }
 

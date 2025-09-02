@@ -2,14 +2,15 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
-// Skip mac os test as cluster agent doesn't run on mac os
-//go:build kubeapiserver && !darwin
+
+//go:build kubeapiserver
 
 package webhook
 
 import (
 	"context"
 	"reflect"
+	"runtime"
 	"testing"
 	"time"
 
@@ -43,6 +44,9 @@ const (
 func getV1Cfg(t *testing.T) Config { return NewConfig(true, false, false, configComp.NewMock(t)) }
 
 func TestSecretNotFoundV1(t *testing.T) {
+	if runtime.GOOS == "darwin" || runtime.GOOS == "windows" {
+		t.Skip("Skipping on macOS and Windows as Datadog Cluster Agent is not supported on those platforms.")
+	}
 	f := newFixtureV1(t)
 	v1Cfg := getV1Cfg(t)
 
@@ -62,6 +66,9 @@ func TestSecretNotFoundV1(t *testing.T) {
 }
 
 func TestCreateWebhookV1(t *testing.T) {
+	if runtime.GOOS == "darwin" || runtime.GOOS == "windows" {
+		t.Skip("Skipping on macOS and Windows as Datadog Cluster Agent is not supported on those platforms.")
+	}
 	f := newFixtureV1(t)
 	v1Cfg := getV1Cfg(t)
 
@@ -97,6 +104,9 @@ func TestCreateWebhookV1(t *testing.T) {
 }
 
 func TestUpdateOutdatedWebhookV1(t *testing.T) {
+	if runtime.GOOS == "darwin" || runtime.GOOS == "windows" {
+		t.Skip("Skipping on macOS and Windows as Datadog Cluster Agent is not supported on those platforms.")
+	}
 	f := newFixtureV1(t)
 	v1Cfg := getV1Cfg(t)
 

@@ -80,6 +80,8 @@ type Server struct {
 	storeDriver string
 	store       serverstore.Store
 
+	sqliteDbPath string
+
 	responseOverridesMutex    sync.RWMutex
 	responseOverridesByMethod map[string]map[string]httpResponse
 }
@@ -108,7 +110,7 @@ func NewServer(options ...Option) *Server {
 		opt(fi)
 	}
 
-	fi.store = serverstore.NewStore(fi.storeDriver)
+	fi.store = serverstore.NewStore(fi.storeDriver, fi.sqliteDbPath)
 	registry := prometheus.NewRegistry()
 
 	storeMetrics := fi.store.GetInternalMetrics()
@@ -229,6 +231,13 @@ func WithDDDevForward() Option {
 			fi.apiKey = apiKey
 		}
 		fi.dddevForward = true
+	}
+}
+
+// WithSqlitePath sets the sqlite file path to store the received data.
+func WithSqlitePath(path string) Option {
+	return func(fi *Server) {
+		fi.sqliteDbPath = path
 	}
 }
 

@@ -10,7 +10,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	"github.com/DataDog/datadog-agent/pkg/util/otel"
+	"go.uber.org/zap"
 
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
 	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
 	"go.opentelemetry.io/collector/consumer"
@@ -25,6 +27,7 @@ type traceExporter struct {
 	traceagentcmp traceagent.Component // agent processes incoming traces
 	gatewayUsage  otel.GatewayUsage
 	usageMetric   telemetry.Gauge
+	reporter      *inframetadata.Reporter // reports host metadata from resource attributes and metrics
 }
 
 func newTracesExporter(
@@ -34,6 +37,7 @@ func newTracesExporter(
 	traceagentcmp traceagent.Component,
 	gatewayUsage otel.GatewayUsage,
 	usageMetric telemetry.Gauge,
+	reporter *inframetadata.Reporter,
 ) *traceExporter {
 	exp := &traceExporter{
 		params:        params,
@@ -42,6 +46,7 @@ func newTracesExporter(
 		traceagentcmp: traceagentcmp,
 		gatewayUsage:  gatewayUsage,
 		usageMetric:   usageMetric,
+		reporter:      reporter,
 	}
 	return exp
 }
@@ -64,6 +69,13 @@ func (exp *traceExporter) consumeTraces(
 	header[headerComputedStats] = []string{"true"}
 	for i := 0; i < rspans.Len(); i++ {
 		rspan := rspans.At(i)
+		res := rspan.Resource()
+		if exp.cfg.HostMetadata.Enabled && exp.reporter != nil {
+			err := exp.reporter.ConsumeResource(res)
+			if err != nil {
+				exp.params.Logger.Warn("failed to consume resource for host metadata", zap.Error(err), zap.Any("resource", res))
+			}
+		}
 		src := exp.traceagentcmp.ReceiveOTLPSpans(ctx, rspan, header, exp.gatewayUsage.GetHostFromAttributesHandler())
 		switch src.Kind {
 		case source.HostnameKind:

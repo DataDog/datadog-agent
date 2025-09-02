@@ -41,10 +41,10 @@ type Config struct {
 }
 
 // CreateConfig builds and returns a log config
-func CreateConfig(origin string) *Config {
+func CreateConfig(defaultSource string) *Config {
 	var source string
 	if source = strings.ToLower(os.Getenv(sourceEnvVar)); source == "" {
-		source = origin
+		source = defaultSource
 	}
 	return &Config{
 		FlushTimeout: defaultFlushTimeout,

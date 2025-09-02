@@ -192,6 +192,12 @@ static __attribute__((always_inline)) u64 get_imds_ip() {
     return imds_ip;
 };
 
+static __attribute__((always_inline)) u64 get_capabilities_monitoring_period() {
+    u64 capabilities_monitoring_period = 5000000000; // 5 seconds in nanoseconds
+    LOAD_CONSTANT("capabilities_monitoring_period", capabilities_monitoring_period);
+    return capabilities_monitoring_period;
+};
+
 #define CGROUP_MANAGER_UNDEFINED 0
 #define CGROUP_MANAGER_DOCKER 1
 #define CGROUP_MANAGER_CRIO 2

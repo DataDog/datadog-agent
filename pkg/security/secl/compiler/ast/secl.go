@@ -39,7 +39,7 @@ Ident = (alpha | "_") { "_" | alpha | digit | "." | "[" | "]" } .
 String = "\"" { "\u0000"…"\uffff"-"\""-"\\" | "\\" any } "\"" .
 Pattern = "~\"" { "\u0000"…"\uffff"-"\""-"\\" | "\\" any } "\"" .
 Int = [ "-" | "+" ] digit { digit } .
-Punct = "!"…"/" | ":"…"@" | "["…` + "\"`\"" + ` | "{"…"~" .
+Punct = ( "!" | "=" | "<" | ">" | "+" | "-" | "[" | "]" | "(" | ")" | "," | "&" | "|" | "~" | "^" ).
 Whitespace = ( " " | "\t" | "\n" ) { " " | "\t" | "\n" } .
 ipv4 = (digit { digit } "." digit { digit } "." digit { digit } "." digit { digit }) .
 ipv6 = ( [hex { hex }] ":" [hex { hex }] ":" [hex { hex }] [":" | "."] [hex { hex }] [":" | "."] [hex { hex }] [":" | "."] [hex { hex }] [":" | "."] [hex { hex }] [":" | "."] [hex { hex }]) .
@@ -199,8 +199,8 @@ type ScalarComparison struct {
 type ArrayComparison struct {
 	Pos lexer.Position
 
-	Op    *string `parser:"( @( \"in\" | \"not\" \"in\" | \"allin\" )"`
-	Array *Array  `parser:"@@ )"`
+	Op    *string `parser:"@( \"in\" | \"not\" \"in\" | \"allin\" )"`
+	Array *Array  `parser:"@@"`
 }
 
 // BitOperation describes an operation on bits
@@ -230,9 +230,16 @@ type ArithmeticElement struct {
 type Unary struct {
 	Pos lexer.Position
 
-	Op      *string  `parser:"( @( \"!\" | \"not\" | \"-\" | \"^\" )"`
-	Unary   *Unary   `parser:"@@ )"`
-	Primary *Primary `parser:"| @@"`
+	UnaryWithOp *UnaryWithOp `parser:"@@"`
+	Primary     *Primary     `parser:"| @@"`
+}
+
+// UnaryWithOp describes a unary operation with an operator
+type UnaryWithOp struct {
+	Pos lexer.Position
+
+	Op    *string `parser:"@( \"!\" | \"not\" | \"-\" | \"^\" )"`
+	Unary *Unary  `parser:"@@"`
 }
 
 // Primary describes a single operand. It can be a simple identifier, a number,

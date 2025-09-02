@@ -87,10 +87,12 @@ BPF_LRU_MAP(dentry_resolver_inputs, u64, struct dentry_resolver_input_t, 256)
 BPF_LRU_MAP(ns_flow_to_network_stats, struct namespaced_flow_t, struct network_stats_t, 4096) // TODO: size should be updated dynamically with "nf_conntrack_max"
 BPF_LRU_MAP(sock_meta, void *, struct sock_meta_t, 4096);
 BPF_LRU_MAP(dns_responses_sent_to_userspace, u16, struct dns_responses_sent_to_userspace_lru_entry_t, 1024)
+BPF_LRU_MAP(capabilities_usage, struct capabilities_usage_key_t, struct capabilities_usage_entry_t, 1) // max entries will be overridden at runtime
 
 BPF_LRU_MAP_FLAGS(tasks_in_coredump, u64, u8, 64, BPF_F_NO_COMMON_LRU)
 BPF_LRU_MAP_FLAGS(syscalls, u64, struct syscall_cache_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
 BPF_LRU_MAP_FLAGS(pathnames, struct path_key_t, struct path_leaf_t, 1, BPF_F_NO_COMMON_LRU) // edited
+BPF_LRU_MAP_FLAGS(capabilities_contexts, u32, struct capabilities_context_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
 
 BPF_SK_MAP(sk_storage_meta, struct sock_meta_t);
 

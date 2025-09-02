@@ -9,6 +9,7 @@ package tests
 
 import (
 	"context"
+	"os/exec"
 	"testing"
 	"time"
 
@@ -33,7 +34,7 @@ func TestSnapshot(t *testing.T) {
 		gotEvent := atomic.NewBool(false)
 
 		test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{
-			snapshotRuleMatchHandler: func(testMod *testModule, e *model.Event, r *rules.Rule) {
+			ruleMatchHandler: func(testMod *testModule, e *model.Event, r *rules.Rule) {
 				assertTriggeredRule(t, r, "test_rule_snapshot_host")
 				testMod.validateExecSchema(t, e)
 				validateProcessContext(t, e)
@@ -91,7 +92,7 @@ func TestSnapshot(t *testing.T) {
 		gotEvent := atomic.NewBool(false)
 
 		test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{
-			snapshotRuleMatchHandler: func(testMod *testModule, e *model.Event, r *rules.Rule) {
+			ruleMatchHandler: func(testMod *testModule, e *model.Event, r *rules.Rule) {
 				assertTriggeredRule(t, r, "test_rule_snapshot_container")
 				testMod.validateExecSchema(t, e)
 				validateProcessContext(t, e)
@@ -106,6 +107,58 @@ func TestSnapshot(t *testing.T) {
 
 		// make sure the cancel happens before the test module is closed
 		defer cancel()
+
+		assert.Eventually(t, func() bool { return gotEvent.Load() }, 10*time.Second, 100*time.Millisecond, "didn't get the event from snapshot")
+	})
+
+	t.Run("snapshot-only-event", func(t *testing.T) {
+		ruleDefs := []*rules.RuleDefinition{
+			{
+				ID:         "test_rule_snapshot_only",
+				Expression: `event.source == "snapshot" && exec.comm in ["sleep"]`,
+			},
+			{
+				ID:         "test_rule_snapshot_exclude",
+				Expression: `event.source != "snapshot" && exec.comm in ["sleep"]`,
+			},
+		}
+
+		dockerWrapper, err := newDockerCmdWrapper("/tmp", "/tmp", "ubuntu", "")
+		if err != nil {
+			t.Skip("Skipping created time in containers tests: Docker not available")
+			return
+		}
+
+		if _, err := dockerWrapper.start(); err != nil {
+			t.Fatal(err)
+		}
+		defer dockerWrapper.stop()
+
+		var cmd *exec.Cmd
+		go func() {
+			cmd = dockerWrapper.Command("sh", []string{"-c", "sleep 123"}, nil)
+			_ = cmd.Run()
+		}()
+
+		// wait a bit so that the command is running and captured by the snapshot
+		time.Sleep(2 * time.Second)
+
+		gotEvent := atomic.NewBool(false)
+
+		test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{
+			ruleMatchHandler: func(testMod *testModule, e *model.Event, r *rules.Rule) {
+				assertTriggeredRule(t, r, "test_rule_snapshot_only")
+				testMod.validateExecSchema(t, e)
+				validateProcessContext(t, e)
+				gotEvent.Store(true)
+			},
+		}))
+
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer test.Close()
+		defer cmd.Cancel()
 
 		assert.Eventually(t, func() bool { return gotEvent.Load() }, 10*time.Second, 100*time.Millisecond, "didn't get the event from snapshot")
 	})

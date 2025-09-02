@@ -72,6 +72,7 @@ List of the available variables:
 | [`event.os`](#event-os-doc) | Operating system of the event |
 | [`event.rule.tags`](#event-rule-tags-doc) | Tags associated with the rule that's used to evaluate the event |
 | [`event.service`](#event-service-doc) | Service associated with the event |
+| [`event.source`](#event-source-doc) | [Experimental] Source of the event. Can be either 'runtime' or 'snapshot'. |
 | [`event.timestamp`](#event-timestamp-doc) | Timestamp of the event |
 | [`process.ancestors.cmdline`](#common-process-cmdline-doc) | Command line of the process |
 | [`process.ancestors.container.id`](#common-process-container-id-doc) | Container ID |
@@ -656,6 +657,13 @@ Definition: Service associated with the event
 
 
 
+### `event.source` {#event-source-doc}
+Type: string
+
+Definition: [Experimental] Source of the event. Can be either 'runtime' or 'snapshot'.
+
+
+
 ### `event.timestamp` {#event-timestamp-doc}
 Type: int
 
@@ -1001,6 +1009,24 @@ Linkage types.
 | `NONE` | all |
 | `STATIC` | all |
 | `DYNAMIC` | all |
+
+### `Network Protocol Types` {#network-protocol-types}
+Types of specific network protocols.
+
+| Name | Architectures |
+| ---- |---------------|
+| `ICMP_ECHO_REQUEST` | all |
+| `ICMP_ECHO_REPLY` | all |
+| `ICMP_ROUTER_SOLICITATION` | all |
+| `ICMP_ROUTER_ADVERTISEMENT` | all |
+| `ICMP_NEIGHBOR_SOLICITATION` | all |
+| `ICMP_NEIGHBOR_ADVERTISEMENT` | all |
+| `ICMP_V6_ECHO_REQUEST` | all |
+| `ICMP_V6_ECHO_REPLY` | all |
+| `ICMP_V6_ROUTER_SOLICITATION` | all |
+| `ICMP_V6_ROUTER_ADVERTISEMENT` | all |
+| `ICMP_V6_NEIGHBOR_SOLICITATION` | all |
+| `ICMP_V6_NEIGHBOR_ADVERTISEMENT` | all |
 
 ### `Network directions` {#network-directions}
 Network directions are the supported directions of network packets.

@@ -31,6 +31,14 @@ import (
 	"k8s.io/kube-state-metrics/v2/pkg/metric"
 )
 
+// ContainerType is an enum to define metric name for container type which can be either init = 'initcontainer' or  standard = 'container'
+type ContainerType string
+
+const (
+	Init     ContainerType = "initcontainer" // Init initcontainer metric name
+	Standard ContainerType = "container"     // Standard standard container name
+)
+
 const networkBandwidthResourceName = "kubernetes.io/network-bandwidth"
 
 var (

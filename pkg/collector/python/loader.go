@@ -179,7 +179,7 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 	// all failed, return error for last failure
 	if checkModule == nil || checkClass == nil {
 		log.Debugf("PyLoader returning %s for %s", err, moduleName)
-		return nil, err
+		return nil, fmt.Errorf("unable to load python module %s: %v", name, err)
 	}
 
 	wheelVersion := "unversioned"

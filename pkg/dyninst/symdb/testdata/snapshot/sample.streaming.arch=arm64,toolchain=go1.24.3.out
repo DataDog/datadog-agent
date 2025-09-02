@@ -155,16 +155,18 @@ Package: main
 		Var: x: int (declared at line 99, available: )
 		Var: y: int (declared at line 100, available: [97-106])
 		Var: a: [5]int (declared at line 98, available: [97-106])
-	Function: testInterface (main.testInterface) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go [48:55]
-		Arg: b: main.behavior (declared at line 48, available: [48-51])
-		Arg: ~r0: string (declared at line 48, available: )
-		Var: hash: string (declared at line 51, available: [48-55])
-		Var: inter: string (declared at line 52, available: [48-55])
-		Var: iType: string (declared at line 53, available: [48-55])
-		Var: iFun: string (declared at line 54, available: [48-48], [55-55])
-	Function: testError (main.testError) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go [60:60]
-		Arg: e: error (declared at line 60, available: [60-60])
-	Function: executeInterfaceFuncs (main.executeInterfaceFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go [63:67]
+	Function: testInterface (main.testInterface) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go [50:51]
+		Arg: b: main.behavior (declared at line 50, available: [50-51])
+		Arg: ~r0: string (declared at line 50, available: )
+	Function: testAny (main.testAny) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go [56:57]
+		Arg: a: interface {} (declared at line 56, available: [56-57])
+		Arg: ~r0: string (declared at line 56, available: )
+	Function: testError (main.testError) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go [62:62]
+		Arg: e: error (declared at line 62, available: [62-62])
+	Function: executeInterfaceFuncs (main.executeInterfaceFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go [65:83]
+		Var: &one: *int (declared at line 76, available: [65-83])
+		Var: &foo: *string (declared at line 79, available: [65-83])
+		Var: .autotmp_8: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2.V2Type (declared at line 74, available: [65-83])
 	Function: main (main.main) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go [19:48]
 		Var: t: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2.V2Type (declared at line 39, available: [19-48])
 	Function: main.WithService.func1 (main.main.WithService.func1) in github.com/DataDog/dd-trace-go/v2@v2.2.3-rc.1/ddtrace/tracer/option.go [986:989]
@@ -660,3 +662,6 @@ Package: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib
 	Function: Foo (github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Foo) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib/lib.go [12:13]
 Package: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2
 	Function: FooV2 (github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib%2ev2.FooV2) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2/lib.go [17:18]
+	Type: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2.V2Type
+		Function: MyMethod (github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib%2ev2.(*V2Type).MyMethod) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2/lib.go [22:24]
+			Arg: v: *github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib%2ev2.V2Type (declared at line 22, available: [22-23])

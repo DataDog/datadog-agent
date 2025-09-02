@@ -23,8 +23,8 @@ const (
 	// logsIntakeURLTemplate is the template for building the logs intake URL for each site.
 	logsIntakeURLTemplate = "https://http-intake.logs.%s/api/v2/logs"
 
-	// debuggerDiagnosticsURLTemplate is the template for building the debugger intake URL for each site.
-	debuggerDiagnosticsURLTemplate = "https://debugger-intake.%s/api/v2/debugger"
+	// debuggerIntakeURLTemplate specifies the template for obtaining the intake URL along with the site.
+	debuggerIntakeURLTemplate = "https://debugger-intake.%s/api/v2/debugger"
 
 	// ddTagsQueryStringMaxLen is the maximum number of characters we send as ddtags in the intake query string.
 	// This limit is not imposed by the event platform intake, it's a safeguard we've added to guarantee an upper
@@ -41,7 +41,13 @@ func (r *HTTPReceiver) debuggerLogsProxyHandler() http.Handler {
 // debuggerDiagnosticsProxyHandler returns an http.Handler proxying Dynamic Instrumentation diagnostic messages
 // to the debugger intake.
 func (r *HTTPReceiver) debuggerDiagnosticsProxyHandler() http.Handler {
-	return r.debuggerProxyHandler(debuggerDiagnosticsURLTemplate, r.conf.DebuggerDiagnosticsProxy)
+	return r.debuggerProxyHandler(debuggerIntakeURLTemplate, r.conf.DebuggerIntakeProxy)
+}
+
+// debuggerV2IntakeProxyHandler returns an http.Handler proxying Dynamic Instrumentation messages
+// to the debugger intake (DEBUGGER track, not logs track).
+func (r *HTTPReceiver) debuggerV2IntakeProxyHandler() http.Handler {
+	return r.debuggerProxyHandler(debuggerIntakeURLTemplate, r.conf.DebuggerIntakeProxy)
 }
 
 // debuggerProxyHandler returns an http.Handler proxying requests to the configured intake. If the intake url cannot be

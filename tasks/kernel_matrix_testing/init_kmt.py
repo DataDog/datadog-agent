@@ -3,7 +3,6 @@ from __future__ import annotations
 import getpass
 import os
 import shutil
-import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -32,11 +31,6 @@ def init_kernel_matrix_testing_system(
 
     info("[+] Installing OS-specific general requirements...")
     kmt_os.install_requirements(ctx)
-
-    if sys.version_info >= (3, 12):
-        resp = ask("Python 3.12+ is not tested yet with KMT, some packages might not be available. Continue? (y/N)? ")
-        if resp.lower().strip() != "y":
-            raise Exit("Aborted by user")
 
     # trigger install of dependencies
     if is_installed("dda"):

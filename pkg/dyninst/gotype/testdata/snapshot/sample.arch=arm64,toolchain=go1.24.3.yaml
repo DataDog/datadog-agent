@@ -1,0 +1,260 @@
+- offset: "0x000d8500"
+  size: 8
+  kind: ptr
+  nameEntry: "*lib_v2.V2Type (exported)"
+  name: "*lib_v2.V2Type"
+  pkg: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2
+  methods:
+  - name: MyMethod (exported)
+    type: func()
+  pointer:
+    elem: lib_v2.V2Type
+- offset: "0x000ee9c0"
+  size: 0
+  kind: struct
+  nameEntry: lib_v2.V2Type (exported)
+  name: lib_v2.V2Type
+  pkg: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2
+  ptrToThis: "0x000d8500"
+  struct:
+    fields: []
+- offset: "0x000d81a0"
+  size: 8
+  kind: ptr
+  nameEntry: "*main.firstBehavior"
+  name: "*main.firstBehavior"
+  pkg: main
+  methods:
+  - name: DoSomething (exported)
+    type: func() string
+  pointer:
+    elem: main.firstBehavior
+- offset: "0x000d8200"
+  size: 8
+  kind: ptr
+  nameEntry: "*main.secondBehavior"
+  name: "*main.secondBehavior"
+  pkg: main
+  methods:
+  - name: DoSomething (exported)
+    type: func() string
+  pointer:
+    elem: main.secondBehavior
+- offset: "0x000d8260"
+  size: 8
+  kind: ptr
+  nameEntry: "*main.somethingImpl"
+  name: "*main.somethingImpl"
+  pkg: main
+  methods:
+  - name: Do (exported)
+    type: func()
+  pointer:
+    elem: main.somethingImpl
+- offset: "0x000e5940"
+  size: 8
+  kind: ptr
+  nameEntry: "*main.typeWithGenerics[int]"
+  name: "*main.typeWithGenerics[int]"
+  pkg: main
+  methods:
+  - name: Guess (exported)
+    type: func(int) bool
+  pointer:
+    elem: main.typeWithGenerics[int]
+- offset: "0x000e59a0"
+  size: 8
+  kind: ptr
+  nameEntry: "*main.typeWithGenerics[string]"
+  name: "*main.typeWithGenerics[string]"
+  pkg: main
+  methods:
+  - name: Guess (exported)
+    type: func(string) bool
+  pointer:
+    elem: main.typeWithGenerics[string]
+- offset: "0x000f6ec0"
+  size: 16
+  kind: interface
+  nameEntry: main.behavior
+  name: main.behavior
+  pkg: main
+  ptrToThis: "0x0005cc00"
+  interfaceMethods:
+  - name: DoSomething (exported)
+    type: func() string
+- offset: "0x001ba2e0"
+  size: 112
+  kind: struct
+  nameEntry: main.esotericHeap
+  name: main.esotericHeap
+  pkg: main
+  ptrToThis: "0x0005cd00"
+  struct:
+    fields:
+    - name: esotericStack (embedded)
+      type: main.esotericStack
+      offset: 0
+    - name: mu
+      type: sync.Mutex
+      offset: 64
+    - name: once
+      type: sync.Once
+      offset: 72
+    - name: wg
+      type: sync.WaitGroup
+      offset: 88
+    - name: a
+      type: atomic.Int32
+      offset: 104
+- offset: "0x001dacc0"
+  size: 64
+  kind: struct
+  nameEntry: main.esotericStack
+  name: main.esotericStack
+  pkg: main
+  ptrToThis: "0x0005cc80"
+  struct:
+    fields:
+    - name: _
+      type: int32
+      offset: 0
+    - name: _valid
+      type: int32
+      offset: 4
+    - name: c
+      type: chan struct {}
+      offset: 8
+    - name: val
+      type: interface {}
+      offset: 16
+    - name: _
+      type: uint64
+      offset: 32
+    - name: work
+      type: main.something
+      offset: 40
+    - name: foo
+      type: func()
+      offset: 56
+- offset: "0x001545c0"
+  size: 16
+  kind: struct
+  nameEntry: main.firstBehavior
+  name: main.firstBehavior
+  pkg: main
+  ptrToThis: "0x000d81a0"
+  methods:
+  - name: DoSomething (exported)
+    type: func() string
+  struct:
+    fields:
+    - name: s
+      type: string
+      offset: 0
+- offset: "0x00160640"
+  size: 24
+  kind: struct
+  nameEntry: main.nestedStruct
+  name: main.nestedStruct
+  pkg: main
+  ptrToThis: "0x0005cd80"
+  struct:
+    fields:
+    - name: anotherInt
+      type: int
+      offset: 0
+    - name: anotherString
+      type: string
+      offset: 8
+- offset: "0x001605a0"
+  size: 16
+  kind: struct
+  nameEntry: main.node
+  name: main.node
+  pkg: main
+  ptrToThis: "0x0005cd40"
+  struct:
+    fields:
+    - name: val
+      type: int
+      offset: 0
+    - name: b
+      type: "*main.node"
+      offset: 8
+- offset: "0x00154660"
+  size: 8
+  kind: struct
+  nameEntry: main.secondBehavior
+  name: main.secondBehavior
+  pkg: main
+  ptrToThis: "0x000d8200"
+  methods:
+  - name: DoSomething (exported)
+    type: func() string
+  struct:
+    fields:
+    - name: i
+      type: int
+      offset: 0
+- offset: "0x000f6f40"
+  size: 16
+  kind: interface
+  nameEntry: main.something
+  name: main.something
+  pkg: main
+  ptrToThis: "0x0005cc40"
+  interfaceMethods:
+  - name: Do (exported)
+    type: func()
+- offset: "0x000ee840"
+  size: 0
+  kind: struct
+  nameEntry: main.somethingImpl
+  name: main.somethingImpl
+  pkg: main
+  ptrToThis: "0x000d8260"
+  struct:
+    fields: []
+- offset: "0x0011e560"
+  size: 8
+  kind: struct
+  nameEntry: main.structWithMap
+  name: main.structWithMap
+  pkg: main
+  ptrToThis: "0x0005ccc0"
+  struct:
+    fields:
+    - name: m
+      type: map[int]int
+      offset: 0
+- offset: "0x0015d940"
+  size: 8
+  kind: struct
+  nameEntry: main.typeWithGenerics[int]
+  name: main.typeWithGenerics[int]
+  pkg: main
+  ptrToThis: "0x000e5940"
+  methods:
+  - name: Guess (exported)
+    type: func(int) bool
+  struct:
+    fields:
+    - name: Value (exported)
+      type: int
+      offset: 0
+- offset: "0x0015d9e0"
+  size: 16
+  kind: struct
+  nameEntry: main.typeWithGenerics[string]
+  name: main.typeWithGenerics[string]
+  pkg: main
+  ptrToThis: "0x000e59a0"
+  methods:
+  - name: Guess (exported)
+    type: func(string) bool
+  struct:
+    fields:
+    - name: Value (exported)
+      type: string
+      offset: 0

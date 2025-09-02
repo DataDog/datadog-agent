@@ -1004,6 +1004,7 @@ core,github.com/expr-lang/expr/compiler,MIT,Copyright (c) 2018 Anton Medvedev
 core,github.com/expr-lang/expr/conf,MIT,Copyright (c) 2018 Anton Medvedev
 core,github.com/expr-lang/expr/file,MIT,Copyright (c) 2018 Anton Medvedev
 core,github.com/expr-lang/expr/internal/deref,MIT,Copyright (c) 2018 Anton Medvedev
+core,github.com/expr-lang/expr/internal/ring,MIT,Copyright (c) 2018 Anton Medvedev
 core,github.com/expr-lang/expr/optimizer,MIT,Copyright (c) 2018 Anton Medvedev
 core,github.com/expr-lang/expr/parser,MIT,Copyright (c) 2018 Anton Medvedev
 core,github.com/expr-lang/expr/parser/lexer,MIT,Copyright (c) 2018 Anton Medvedev
@@ -1351,7 +1352,6 @@ core,github.com/jaegertracing/jaeger-idl/proto-gen/api_v2,Apache-2.0,"Copyright 
 core,github.com/jaegertracing/jaeger-idl/thrift-gen/agent,Apache-2.0,"Copyright (c) 2017 Uber Technologies, Inc. | Copyright (c) 2019 The Jaeger Authors."
 core,github.com/jaegertracing/jaeger-idl/thrift-gen/jaeger,Apache-2.0,"Copyright (c) 2017 Uber Technologies, Inc. | Copyright (c) 2019 The Jaeger Authors."
 core,github.com/jaegertracing/jaeger-idl/thrift-gen/zipkincore,Apache-2.0,"Copyright (c) 2017 Uber Technologies, Inc. | Copyright (c) 2019 The Jaeger Authors."
-core,github.com/jaegertracing/jaeger/model,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
 core,github.com/jellydator/ttlcache/v3,MIT,Copyright (c) 2022 Jellydator
 core,github.com/jinzhu/inflection,MIT,Copyright (c) 2015 - Jinzhu
 core,github.com/jlaffaye/ftp,ISC,"Copyright (c) 2011-2013, Julien Laffaye <jlaffaye@FreeBSD.org>"
@@ -1825,15 +1825,13 @@ core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourc
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor/internal/system/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourceprocessor,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourceprocessor/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
-core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/routingprocessor,Apache-2.0,Copyright The OpenTelemetry Authors
-core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/routingprocessor/internal/common,Apache-2.0,Copyright The OpenTelemetry Authors
-core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/routingprocessor/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor/cache,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor/internal/idbatcher,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor/internal/sampling,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor/internal/telemetry,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor/internal/tracelimiter,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor/internal/common,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor/internal/logs,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2338,6 +2336,7 @@ core,go.opentelemetry.io/collector/config/configretry,Apache-2.0,Copyright The O
 core,go.opentelemetry.io/collector/config/configtelemetry,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/config/configtls,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/confmap,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/collector/confmap/internal,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/confmap/internal/envvar,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/confmap/internal/mapstructure,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/confmap/internal/third_party/composehook,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2419,6 +2418,7 @@ core,go.opentelemetry.io/collector/pdata/internal/data/protogen/resource/v1,Apac
 core,go.opentelemetry.io/collector/pdata/internal/data/protogen/trace/v1,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/pdata/internal/json,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/pdata/internal/otlp,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/collector/pdata/internal/proto,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/pdata/pcommon,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/pdata/plog,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/pdata/plog/plogotlp,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2429,6 +2429,8 @@ core,go.opentelemetry.io/collector/pdata/pprofile/pprofileotlp,Apache-2.0,Copyri
 core,go.opentelemetry.io/collector/pdata/ptrace,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/pdata/testdata,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/collector/pdata/xpdata/entity,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/collector/pdata/xpdata/pref,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/pdata/xpdata/request,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/pdata/xpdata/request/internal,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/pipeline,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2477,12 +2479,14 @@ core,go.opentelemetry.io/collector/service/internal/metadata,Apache-2.0,Copyrigh
 core,go.opentelemetry.io/collector/service/internal/moduleinfo,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/service/internal/obsconsumer,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/service/internal/proctelemetry,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/collector/service/internal/refconsumer,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/service/internal/resource,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/service/internal/status,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/service/internal/zpages,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/service/pipelines,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/service/telemetry,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/service/telemetry/internal/migration,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/collector/service/telemetry/otelconftelemetry,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/contrib/bridges/otelzap,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc/internal,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -3864,7 +3868,7 @@ core,k8s.io/component-base/tracing,Apache-2.0,Copyright 2014 The Kubernetes Auth
 core,k8s.io/component-base/tracing/api/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/component-base/version,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/cri-api/pkg/apis/runtime/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
-core,k8s.io/cri-api/pkg/apis/testing,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/cri-client/pkg/util,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/klog/v2,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/klog/v2/internal/buffer,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/klog/v2/internal/clock,Apache-2.0,Copyright 2014 The Kubernetes Authors.
@@ -3935,7 +3939,6 @@ core,k8s.io/sample-controller/pkg/apis/samplecontroller/v1alpha1,Apache-2.0,Copy
 core,k8s.io/utils/buffer,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/utils/clock,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/utils/clock/testing,Apache-2.0,Copyright 2014 The Kubernetes Authors.
-core,k8s.io/utils/exec,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/utils/internal/third_party/forked/golang/golang-lru,BSD-3-Clause,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/utils/internal/third_party/forked/golang/net,BSD-3-Clause,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/utils/lru,Apache-2.0,Copyright 2014 The Kubernetes Authors.

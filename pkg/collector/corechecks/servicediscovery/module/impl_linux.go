@@ -525,7 +525,6 @@ func (s *discovery) getServiceInfo(pid int32) (*core.ServiceInfo, error) {
 			GeneratedNameSource:      string(nameMeta.Source),
 			AdditionalGeneratedNames: nameMeta.AdditionalNames,
 			DDService:                nameMeta.DDService,
-			DDServiceInjected:        nameMeta.DDServiceInjected,
 			TracerMetadata:           tracerMetadataArr,
 			Language:                 string(lang),
 			APMInstrumentation:       string(apmInstrumentation),

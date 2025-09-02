@@ -40,13 +40,13 @@ import (
 func ExamplePrintJSON() {
 	p := constructExampleProgram()
 
-	// Marshal to JSON
+	// Marshal to JSON.
 	data, err := PrintJSON(p)
 	if err != nil {
 		panic(err)
 	}
 
-	// Pretty print the JSON
+	// Pretty print the JSON.
 	var buf bytes.Buffer
 	json.Indent(&buf, data, "", "  ")
 	fmt.Println(buf.String())
@@ -91,7 +91,11 @@ func ExamplePrintJSON() {
 	//     }
 	//   ],
 	//   "MaxTypeID": 3,
-	//   "Issues": []
+	//   "Issues": [],
+	//   "GoModuledataInfo": {
+	//     "FirstModuledataAddr": "0xdeadbeef",
+	//     "TypesOffset": 1234
+	//   }
 	// }
 
 }
@@ -133,6 +137,7 @@ func ExamplePrintYAML() {
 	//       Pointee: 1 StructureType Node
 	// MaxTypeID: 3
 	// Issues: []
+	// GoModuledataInfo: {FirstModuledataAddr: "0xdeadbeef", TypesOffset: 1234}
 }
 
 func constructExampleProgram() *ir.Program {
@@ -141,6 +146,10 @@ func constructExampleProgram() *ir.Program {
 		ID:        1,
 		MaxTypeID: 3,
 		Types:     make(map[ir.TypeID]ir.Type),
+		GoModuledataInfo: ir.GoModuledataInfo{
+			FirstModuledataAddr: 0xdeadbeef,
+			TypesOffset:         1234,
+		},
 	}
 
 	// Create a self-referential linked list node

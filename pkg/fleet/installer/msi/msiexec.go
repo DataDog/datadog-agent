@@ -509,6 +509,10 @@ func Cmd(options ...MsiexecOption) (*Msiexec, error) {
 		a.msiAction,
 		fmt.Sprintf(`"%s"`, a.target),
 		"/qn",
+		// Prevent Windows from automatically restarting the machine after the installation is complete.
+		// https://learn.microsoft.com/en-us/windows/win32/msi/standard-installer-command-line-options#norestart
+		// https://learn.microsoft.com/en-us/windows/win32/msi/reboot
+		"/norestart",
 		"/log", fmt.Sprintf(`"%s"`, a.logFile),
 	}, a.additionalArgs...)
 

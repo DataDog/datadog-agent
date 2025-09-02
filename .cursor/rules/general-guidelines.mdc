@@ -1,0 +1,4 @@
+---
+alwaysApply: true
+---
+@AGENTS.md

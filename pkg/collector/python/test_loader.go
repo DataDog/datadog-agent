@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
@@ -311,4 +312,32 @@ func testLoadHACheck(t *testing.T) {
 			assert.Equal(t, tc.expectedHaSupported, check.(*PythonCheck).haSupported)
 		})
 	}
+}
+
+func testLoadError(t *testing.T) {
+	C.reset_loader_mock()
+
+	conf := integration.Config{
+		Name:       "fake_check",
+		Instances:  []integration.Data{integration.Data("{\"value\": 1}")},
+		InitConfig: integration.Data("{}"),
+	}
+
+	mockRtloader(t)
+
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	logReceiver := option.None[integrations.Component]()
+	tagger := nooptagger.NewComponent()
+	loader, err := NewPythonCheckLoader(senderManager, logReceiver, tagger)
+	require.NoError(t, err)
+
+	// testing loading dd wheels
+	C.get_class_dd_wheel_return = 0
+	C.get_class_return = 0
+	C.get_class_dd_wheel_py_module = nil
+	C.get_class_dd_wheel_py_class = nil
+
+	check, err := loader.Load(senderManager, conf, conf.Instances[0])
+	require.Error(t, err)
+	require.Nil(t, check)
 }
