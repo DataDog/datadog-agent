@@ -19,14 +19,14 @@
 #  if defined __has_include
 #    if __has_include (<execinfo.h>)
 #      define HAS_BACKTRACE_LIB
-#    else
-#      warning "<execinfo.h> not found, c backtrace will not be available"
 #    endif
 #  endif
 #endif
 
 #ifdef HAS_BACKTRACE_LIB
-#include <execinfo.h>
+#  include <execinfo.h>
+#else
+#  warning "<execinfo.h> not found, C backtrace will not be available"
 #endif
 #include <csignal>
 #include <cstring>
