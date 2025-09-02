@@ -13,7 +13,7 @@ import (
 )
 
 // NewRuntimeSecurityAgent instantiates a new RuntimeSecurityAgent
-func NewRuntimeSecurityAgent(_ statsd.ClientInterface, hostname string, _ RSAOptions, _ workloadmeta.Component) (*RuntimeSecurityAgent, error) {
+func NewRuntimeSecurityAgent(_ statsd.ClientInterface, hostname string, _ workloadmeta.Component) (*RuntimeSecurityAgent, error) {
 	client, err := NewRuntimeSecurityClient()
 	if err != nil {
 		return nil, err
