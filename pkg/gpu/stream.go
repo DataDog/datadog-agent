@@ -11,8 +11,10 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/gpu/cuda"
@@ -63,6 +65,16 @@ type streamMetadata struct {
 type streamSpans struct {
 	kernels     []*kernelSpan
 	allocations []*memorySpan
+}
+
+// releaseSpans releases the spans back to the pool
+func (s *streamSpans) releaseSpans() {
+	for _, kernel := range s.kernels {
+		kernelSpanPool.Put(kernel)
+	}
+	for _, allocation := range s.allocations {
+		memorySpanPool.Put(allocation)
+	}
 }
 
 type memAllocType int
@@ -131,7 +143,20 @@ type enrichedKernelLaunch struct {
 }
 
 var errFatbinParsingDisabled = errors.New("fatbin parsing is disabled")
-var enrichedKernelLaunchPool = ddsync.NewDefaultTypedPool[enrichedKernelLaunch]()
+
+var enrichedKernelLaunchPool ddsync.Pool[enrichedKernelLaunch]
+var kernelSpanPool ddsync.Pool[kernelSpan]
+var memorySpanPool ddsync.Pool[memorySpan]
+
+var initPoolsOnce sync.Once
+
+func ensureInitPools(tm telemetry.Component) {
+	initPoolsOnce.Do(func() {
+		enrichedKernelLaunchPool = ddsync.NewDefaultTypedPoolWithTelemetry[enrichedKernelLaunch](tm, "gpu", "enrichedKernelLaunch")
+		kernelSpanPool = ddsync.NewDefaultTypedPoolWithTelemetry[kernelSpan](tm, "gpu", "kernelSpan")
+		memorySpanPool = ddsync.NewDefaultTypedPoolWithTelemetry[memorySpan](tm, "gpu", "memorySpan")
+	})
+}
 
 // getKernelData attempts to get the kernel data from the kernel cache.
 // If the kernel is not processed yet, it will return errKernelNotProcessedYet, retry later in that case.
@@ -198,11 +223,12 @@ func (sh *StreamHandler) handleKernelLaunch(event *gpuebpf.CudaKernelLaunch) {
 
 // trySendToChannel attempts to send an item to a channel in a non-blocking way, if the channel is full
 // it will increment the rejectedSpans telemetry counter
-func trySendSpan[T any](sh *StreamHandler, ch chan T, item T) {
+func trySendSpan[T any](sh *StreamHandler, ch chan *T, item *T, pool ddsync.Pool[T]) {
 	select {
 	case ch <- item:
 		return
 	default:
+		pool.Put(item)
 		sh.telemetry.rejectedSpans.Inc()
 		return
 	}
@@ -229,15 +255,14 @@ func (sh *StreamHandler) handleMemEvent(event *gpuebpf.CudaMemEvent) {
 		return
 	}
 
-	data := memorySpan{
-		startKtime: alloc.Header.Ktime_ns,
-		endKtime:   event.Header.Ktime_ns,
-		size:       alloc.Size,
-		allocType:  globalMemAlloc,
-		isLeaked:   false,
-	}
+	data := memorySpanPool.Get()
+	data.startKtime = alloc.Header.Ktime_ns
+	data.endKtime = event.Header.Ktime_ns
+	data.size = alloc.Size
+	data.allocType = globalMemAlloc
+	data.isLeaked = false
 
-	trySendSpan(sh, sh.pendingMemorySpans, &data)
+	trySendSpan(sh, sh.pendingMemorySpans, data, memorySpanPool)
 	sh.memAllocEvents.Remove(event.Addr)
 }
 
@@ -247,9 +272,9 @@ func (sh *StreamHandler) markSynchronization(ts uint64) {
 		return
 	}
 
-	trySendSpan(sh, sh.pendingKernelSpans, span)
+	trySendSpan(sh, sh.pendingKernelSpans, span, kernelSpanPool)
 	for _, alloc := range getAssociatedAllocations(span) {
-		trySendSpan(sh, sh.pendingMemorySpans, alloc)
+		trySendSpan(sh, sh.pendingMemorySpans, alloc, memorySpanPool)
 	}
 
 	remainingLaunches := []*enrichedKernelLaunch{}
@@ -271,11 +296,18 @@ func (sh *StreamHandler) handleSync(event *gpuebpf.CudaSync) {
 }
 
 func (sh *StreamHandler) getCurrentKernelSpan(maxTime uint64) *kernelSpan {
-	span := kernelSpan{
-		startKtime:     math.MaxUint64,
-		endKtime:       maxTime,
-		numKernels:     0,
-		avgMemoryUsage: make(map[memAllocType]uint64),
+	span := kernelSpanPool.Get()
+	span.startKtime = math.MaxUint64
+	span.endKtime = maxTime
+	span.numKernels = 0
+
+	// Reset the memory usage map
+	for allocType := range span.avgMemoryUsage {
+		span.avgMemoryUsage[allocType] = 0
+	}
+
+	if span.avgMemoryUsage == nil {
+		span.avgMemoryUsage = make(map[memAllocType]uint64)
 	}
 
 	for _, launch := range sh.kernelLaunches {
@@ -315,7 +347,7 @@ func (sh *StreamHandler) getCurrentKernelSpan(maxTime uint64) *kernelSpan {
 		span.avgMemoryUsage[allocType] /= uint64(span.numKernels)
 	}
 
-	return &span
+	return span
 }
 
 func getAssociatedAllocations(span *kernelSpan) []*memorySpan {
@@ -329,13 +361,13 @@ func getAssociatedAllocations(span *kernelSpan) []*memorySpan {
 			continue
 		}
 
-		allocations = append(allocations, &memorySpan{
-			startKtime: span.startKtime,
-			endKtime:   span.endKtime,
-			size:       size,
-			isLeaked:   false,
-			allocType:  allocType,
-		})
+		alloc := memorySpanPool.Get()
+		alloc.startKtime = span.startKtime
+		alloc.endKtime = span.endKtime
+		alloc.size = size
+		alloc.isLeaked = false
+		alloc.allocType = allocType
+		allocations = append(allocations, alloc)
 	}
 
 	return allocations
@@ -392,13 +424,13 @@ func (sh *StreamHandler) getCurrentData(now uint64) *streamSpans {
 	}
 
 	for alloc := range sh.memAllocEvents.ValuesIter() {
-		data.allocations = append(data.allocations, &memorySpan{
-			startKtime: alloc.Header.Ktime_ns,
-			endKtime:   0,
-			size:       alloc.Size,
-			isLeaked:   false,
-			allocType:  globalMemAlloc,
-		})
+		span := memorySpanPool.Get()
+		span.startKtime = alloc.Header.Ktime_ns
+		span.endKtime = 0
+		span.size = alloc.Size
+		span.allocType = globalMemAlloc
+		span.isLeaked = false
+		data.allocations = append(data.allocations, span)
 	}
 
 	return data
@@ -417,14 +449,13 @@ func (sh *StreamHandler) markEnd() error {
 
 	// Close all allocations. Treat them as leaks, as they weren't freed properly
 	for alloc := range sh.memAllocEvents.ValuesIter() {
-		data := memorySpan{
-			startKtime: alloc.Header.Ktime_ns,
-			endKtime:   uint64(nowTs),
-			size:       alloc.Size,
-			isLeaked:   true,
-			allocType:  globalMemAlloc,
-		}
-		trySendSpan(sh, sh.pendingMemorySpans, &data)
+		data := memorySpanPool.Get()
+		data.startKtime = alloc.Header.Ktime_ns
+		data.endKtime = uint64(nowTs)
+		data.size = alloc.Size
+		data.allocType = globalMemAlloc
+		data.isLeaked = true
+		trySendSpan(sh, sh.pendingMemorySpans, data, memorySpanPool)
 	}
 
 	sh.sysCtx.removeProcess(int(sh.metadata.pid))
