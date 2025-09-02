@@ -765,7 +765,6 @@ workflow:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
-        - cmd/agent/dist/conf.d/service_discovery.d/*
         - test/new-e2e/tests/discovery/**/*
         - pkg/collector/corechecks/servicediscovery/**/*
         - pkg/discovery/**/*
