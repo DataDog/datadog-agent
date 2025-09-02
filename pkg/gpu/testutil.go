@@ -11,7 +11,7 @@
 package gpu
 
 import (
-	"os"
+	"fmt"
 	"sync"
 	"testing"
 
@@ -19,14 +19,9 @@ import (
 	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
-// TestMain defined to run initialization before any test is run
-func TestMain(m *testing.M) {
-	ensureInitPoolsNoTelemetry()
-	os.Exit(m.Run())
-}
-
 // ensureInitPoolsNoTelemetry ensures that the pools are initialized without telemetry, useful for testing
 func ensureInitPoolsNoTelemetry() {
+	fmt.Println("ensureInitPoolsNoTelemetry")
 	initPoolsOnce.Do(func() {
 		enrichedKernelLaunchPool = ddsync.NewDefaultTypedPool[enrichedKernelLaunch]()
 		kernelSpanPool = ddsync.NewDefaultTypedPool[kernelSpan]()
