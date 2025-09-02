@@ -16,14 +16,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/trivy"
 )
 
-func runScanFS(path string, analyzers []string, fast bool) error {
+func runScanFS(path string, analyzers []string, fast bool, removeLayers bool) error {
 	collector := trivy.NewCollectorForCLI()
 
 	ctx := context.Background()
 	report, err := collector.ScanFilesystem(ctx, path, sbom.ScanOptions{
 		Analyzers: analyzers,
 		Fast:      fast,
-	}, false)
+	}, removeLayers)
 	if err != nil {
 		return err
 	}

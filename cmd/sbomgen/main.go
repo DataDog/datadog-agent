@@ -56,14 +56,16 @@ func main() {
 		return nil
 	}
 
+	var removeLayers bool
 	var fsCmd = &cobra.Command{
 		Use:  "fs",
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
 			path := args[0]
-			return runScanFS(path, analyzers, fast)
+			return runScanFS(path, analyzers, fast, removeLayers)
 		},
 	}
+	fsCmd.Flags().BoolVar(&removeLayers, "remove-layers", false, "remove layers")
 	rootCmd.AddCommand(fsCmd)
 
 	if err := rootCmd.Execute(); err != nil {
