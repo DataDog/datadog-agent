@@ -5,6 +5,7 @@
 
 //go:build systemd
 
+// Package journald provides journald-based log launchers (no-op for non-systemd builds)
 package journald
 
 import (
@@ -107,8 +108,8 @@ func TestMultipleTailersOnSamePath(t *testing.T) {
 func TestMultipleTailersSamePathWithId(t *testing.T) {
 	launcher := newTestLauncher(t)
 
-	launcher.sources <- sources.NewLogSource("testSource", &config.LogsConfig{Path: "/foo/bar", ConfigId: "foo"})
-	launcher.sources <- sources.NewLogSource("testSource2", &config.LogsConfig{Path: "/foo/bar", ConfigId: "bar"})
+	launcher.sources <- sources.NewLogSource("testSource", &config.LogsConfig{Path: "/foo/bar", ConfigID: "foo"})
+	launcher.sources <- sources.NewLogSource("testSource2", &config.LogsConfig{Path: "/foo/bar", ConfigID: "bar"})
 
 	launcher.stop <- struct{}{}
 
@@ -118,8 +119,8 @@ func TestMultipleTailersSamePathWithId(t *testing.T) {
 func TestMultipleTailersWithId(t *testing.T) {
 	launcher := newTestLauncher(t)
 
-	launcher.sources <- sources.NewLogSource("testSource", &config.LogsConfig{ConfigId: "foo"})
-	launcher.sources <- sources.NewLogSource("testSource2", &config.LogsConfig{ConfigId: "bar"})
+	launcher.sources <- sources.NewLogSource("testSource", &config.LogsConfig{ConfigID: "foo"})
+	launcher.sources <- sources.NewLogSource("testSource2", &config.LogsConfig{ConfigID: "bar"})
 
 	launcher.stop <- struct{}{}
 
