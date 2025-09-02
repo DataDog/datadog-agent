@@ -17,4 +17,3 @@ other:
     | `grpc.error_count`              | Counter   | Total number of gRPC errors encountered by the agent   |
     | `grpc.request_duration_seconds` | Histogram | Distribution of gRPC request latencies for agent communication |
     | `grpc.payload_size_bytes`       | Histogram | Distribution of payload sizes for gRPC calls within the agent |
-    | `grpc.active_requests`          | Gauge     | Number of currently active (in-flight) gRPC requests in the agent |

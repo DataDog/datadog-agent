@@ -271,7 +271,7 @@ var defaultProfiles = `
       start_after: 30
       iterations: 0
       period: 900
-  - name: api
+  - name: connectivity
     metric:
       exclude:
         zero_metric: true
@@ -283,6 +283,20 @@ var defaultProfiles = `
             - method
             - path
             - auth
+        - name: grpc.request_duration_seconds
+          aggregate_tags:
+            - service_method
+            - peer
+        - name: grpc.request_count
+          aggregate_tags:
+            - service_method
+            - peer
+            - status
+        - name: grpc.error_count
+          aggregate_tags:
+            - service_method
+            - peer
+            - error_code
     schedule:
       start_after: 600
       iterations: 0
