@@ -39,8 +39,7 @@ func (client *Client) do(req *http.Request) ([]byte, int, error) {
 
 	defer resp.Body.Close()
 
-	// TODO: should we bring this back with OAuth?
-	if !isAuthenticated(resp.Header) {
+	if !isAuthenticated(resp.StatusCode, resp.Header) {
 		log.Tracef("Versa api request responded with invalid auth %s %s", req.Method, req.URL.Path)
 		// clear auth to trigger re-authentication
 		client.clearAuth()

@@ -43,8 +43,9 @@ type Client struct {
 	directorAPIPort   int
 	analyticsEndpoint string
 	// OAuth token for Director API endpoints
-	directorToken       string
-	directorTokenExpiry time.Time
+	directorToken        string
+	directorRefreshToken string
+	directorTokenExpiry  time.Time
 	// Session token for Analytics endpoints (always uses session auth)
 	sessionToken        string
 	sessionTokenExpiry  time.Time
@@ -93,6 +94,15 @@ func NewClient(directorEndpoint string, directorPort int, analyticsEndpoint stri
 	httpClient := &http.Client{
 		Timeout: defaultHTTPTimeout * time.Second,
 		Jar:     cookieJar,
+		CheckRedirect: func(_ *http.Request, via []*http.Request) error {
+			// session login endpoints result in a single redirect
+			// if we're redirected more than once, we should return
+			// the 3XX to the caller
+			if len(via) > 1 {
+				return http.ErrUseLastResponse
+			}
+			return nil
+		},
 	}
 
 	scheme := defaultHTTPScheme
@@ -204,6 +214,12 @@ func WithLookback(lookback int) ClientOptions {
 	return func(c *Client) {
 		c.lookback = createLookbackString(lookback)
 	}
+}
+
+// Close cleans up an existing client instance
+func (client *Client) Close() error {
+	// revoke OAuth token
+	return client.revokeOAuth()
 }
 
 // GetOrganizations retrieves a list of organizations
