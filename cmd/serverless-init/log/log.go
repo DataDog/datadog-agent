@@ -65,9 +65,15 @@ func SetupLogAgent(conf *Config, tags map[string]string, tagger tagger.Component
 	if isInstanceTailingEnabled() {
 		if os.Getenv("DD_LOGS_CONFIG_FILE_WILDCARD_SELECTION_MODE") == "" {
 			_ = os.Setenv("DD_LOGS_CONFIG_FILE_WILDCARD_SELECTION_MODE", "by_modification_time")
+			ddlog.Debug("AAS instance tailing: setting default DD_LOGS_CONFIG_FILE_WILDCARD_SELECTION_MODE=by_modification_time")
+		} else {
+			ddlog.Debugf("AAS instance tailing: using existing DD_LOGS_CONFIG_FILE_WILDCARD_SELECTION_MODE=%q", os.Getenv("DD_LOGS_CONFIG_FILE_WILDCARD_SELECTION_MODE"))
 		}
 		if os.Getenv("DD_LOGS_CONFIG_OPEN_FILES_LIMIT") == "" {
 			_ = os.Setenv("DD_LOGS_CONFIG_OPEN_FILES_LIMIT", "1")
+			ddlog.Debug("AAS instance tailing: setting default DD_LOGS_CONFIG_OPEN_FILES_LIMIT=1")
+		} else {
+			ddlog.Debugf("AAS instance tailing: using existing DD_LOGS_CONFIG_OPEN_FILES_LIMIT=%q", os.Getenv("DD_LOGS_CONFIG_OPEN_FILES_LIMIT"))
 		}
 	}
 
@@ -88,7 +94,8 @@ func addFileTailing(logsAgent logsAgent.ServerlessLogsAgent, source string, tags
 	// To avoid this, we want to add the azure instance ID to the filepath so each instance tails their respective system log files.
 	// Users can also add $COMPUTERNAME to their custom files to achieve the same result.
 	if appServiceDefaultLoggingEnabled {
-		pattern := os.ExpandEnv("/home/LogFiles/*$COMPUTERNAME*.log")
+		pattern := buildAASInstancePattern()
+		ddlog.Debugf("AAS instance tailing: using pattern %q", pattern)
 		limit := effectiveOpenFilesLimit()
 		debugLogFileSelection(pattern, limit)
 
@@ -111,6 +118,25 @@ func addFileTailing(logsAgent logsAgent.ServerlessLogsAgent, source string, tags
 		})
 		logsAgent.GetSources().AddSource(src)
 	}
+}
+
+// buildAASInstancePattern builds the glob for Azure App Service instance logs.
+// Priority:
+// 1) DD_AAS_INSTANCE_LOG_GLOB (full glob, supports $COMPUTERNAME)
+// 2) DD_SERVICE (service basename hint)
+// 3) WEBSITE_SITE_NAME (App Service app name)
+// 4) default: /home/LogFiles/*$COMPUTERNAME*.log
+func buildAASInstancePattern() string {
+	if g := os.Getenv("DD_AAS_INSTANCE_LOG_GLOB"); g != "" {
+		return os.ExpandEnv(g)
+	}
+	if svc := strings.TrimSpace(os.Getenv("DD_SERVICE")); svc != "" {
+		return os.ExpandEnv("/home/LogFiles/*$COMPUTERNAME*_" + svc + "*.log")
+	}
+	if site := strings.TrimSpace(os.Getenv("WEBSITE_SITE_NAME")); site != "" {
+		return os.ExpandEnv("/home/LogFiles/*$COMPUTERNAME*_" + site + "*.log")
+	}
+	return os.ExpandEnv("/home/LogFiles/*$COMPUTERNAME*.log")
 }
 
 // effectiveOpenFilesLimit returns the intended open files limit for AAS instance tailing.
