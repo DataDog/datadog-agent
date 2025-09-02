@@ -72,6 +72,11 @@ func (s *linuxTestSuite) SetupSuite() {
 	s.provisionServer()
 }
 
+type nameKey struct {
+	generatedServiceName string
+	ddService            string
+}
+
 func (s *linuxTestSuite) TestServiceDiscoveryCheck() {
 	t := s.T()
 	s.startServices()
@@ -95,10 +100,13 @@ func (s *linuxTestSuite) TestServiceDiscoveryCheck() {
 		payloads, err := client.GetServiceDiscoveries()
 		require.NoError(t, err)
 
-		foundMap := make(map[string]*aggregator.ServiceDiscoveryPayload)
+		foundMap := make(map[nameKey]*aggregator.ServiceDiscoveryPayload)
 		for _, p := range payloads {
-			name := p.Payload.GeneratedServiceName
-			t.Log("RequestType", p.RequestType, "GeneratedServiceName", name)
+			name := nameKey{
+				generatedServiceName: p.Payload.GeneratedServiceName,
+				ddService:            p.Payload.DDService,
+			}
+			t.Log("RequestType", p.RequestType, "Name", name)
 
 			if p.RequestType == "start-service" {
 				foundMap[name] = p
@@ -141,8 +149,6 @@ func (s *linuxTestSuite) TestServiceDiscoveryCheck() {
 			ddService:            "",
 			serviceNameSource:    "",
 		})
-
-		assert.Contains(c, foundMap, "json-server")
 	}, 3*time.Minute, 10*time.Second)
 }
 
@@ -576,10 +582,13 @@ type serviceExpectedPayload struct {
 	tracerServiceNames   []string
 }
 
-func (s *linuxTestSuite) assertService(t *testing.T, c *assert.CollectT, foundMap map[string]*aggregator.ServiceDiscoveryPayload, expected serviceExpectedPayload) {
+func (s *linuxTestSuite) assertService(t *testing.T, c *assert.CollectT, foundMap map[nameKey]*aggregator.ServiceDiscoveryPayload, expected serviceExpectedPayload) {
 	t.Helper()
 
-	name := expected.generatedServiceName
+	name := nameKey{
+		generatedServiceName: expected.generatedServiceName,
+		ddService:            expected.ddService,
+	}
 	found := foundMap[name]
 	if assert.NotNil(c, found, "could not find service %q", name) {
 		assert.Equal(c, expected.instrumentation, found.Payload.APMInstrumentation, "service %q: APM instrumentation", name)
