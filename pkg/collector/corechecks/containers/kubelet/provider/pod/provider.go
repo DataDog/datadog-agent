@@ -153,14 +153,16 @@ func (p *Provider) generateContainerSpecMetrics(sender sender.Sender, pod *kubel
 	if container.Resources != nil { // Ephemeral containers do not have resources defined
 		wmetaKubelet, _ := p.store.GetKubelet()
 		if wmetaKubelet != nil {
-			cpuManagerPolicy, _ := wmetaKubelet.GetCPUManagerPolicy()
+			cpuManagerPolicy := wmetaKubelet.ConfigDocument.KubeletConfig.CPUManagerPolicy
 			wmetaContainer, _ := p.store.GetContainer(containerID.GetID())
 
 			var requestedWholeCores bool
 			if wmetaContainer.Resources.RequestedWholeCores != nil {
 				requestedWholeCores = *wmetaContainer.Resources.RequestedWholeCores
 			}
-			if requestedWholeCores && cpuManagerPolicy == workloadmeta.CPUManagerPolicyStatic {
+			if pod.Status.QOSClass == "Guaranteed" &&
+				requestedWholeCores &&
+				cpuManagerPolicy == "static" {
 				tagList = utils.ConcatenateStringTags(tagList, "kube_cpu_management:static")
 			} else {
 				tagList = utils.ConcatenateStringTags(tagList, "kube_cpu_management:none")

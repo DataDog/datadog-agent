@@ -281,6 +281,3 @@ type ContainerStateTerminated struct {
 	FinishedAt time.Time `json:"finishedAt"`
 	Reason     string    `json:"reason"`
 }
-
-// Config is the kubelet configuration
-type Config map[string]interface{}

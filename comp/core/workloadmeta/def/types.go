@@ -202,20 +202,6 @@ const (
 	Failed SBOMStatus = "Failed"
 )
 
-// CPUManagerPolicy represents the kubelet configuration's
-// cpu-manager-policy setting
-type CPUManagerPolicy string
-
-const (
-	// CPUManagerPolicyUnknown represents an unknown cpu-manager-policy
-	// due to an unexpected value, or unparseable kubelet configuration
-	CPUManagerPolicyUnknown CPUManagerPolicy = "unknown"
-	// CPUManagerPolicyNone represents a cpu-manager-policy of 'none'
-	CPUManagerPolicyNone CPUManagerPolicy = "none"
-	// CPUManagerPolicyStatic represents a cpu-manager-policy of 'static'
-	CPUManagerPolicyStatic CPUManagerPolicy = "static"
-)
-
 const (
 	// KubeletID is a constant ID used to build workloadmeta kubelet entitites
 	// Because there can only be one kubelet per node, this does not need to be
@@ -1152,12 +1138,20 @@ func (m *KubernetesMetadata) String(verbose bool) string {
 
 var _ Entity = &KubernetesMetadata{}
 
-// KubeletConfig is the kubelet configuration, it is stored as a map
-// and not as a declarative struct
-type KubeletConfig map[string]interface{}
+// KubeletConfigDocument is the wrapper struct that holds
+// the kubelet config
+type KubeletConfigDocument struct {
+	KubeletConfig KubeletConfigSpec `json:"kubeletconfig"`
+}
+
+// KubeletConfigSpec is the kubelet configuration, only the
+// necessary fields are stored
+type KubeletConfigSpec struct {
+	CPUManagerPolicy string `json:"cpuManagerPolicy"`
+}
 
 // String implements KubeletConfig#String
-func (kc KubeletConfig) String() string {
+func (kc KubeletConfigDocument) String() string {
 	out, err := json.MarshalIndent(kc, "", "  ")
 	if err != nil {
 		return fmt.Sprintf("error: %v", err)
@@ -1170,11 +1164,13 @@ func (kc KubeletConfig) String() string {
 type Kubelet struct {
 	EntityID
 	EntityMeta
-	Config KubeletConfig
+	ConfigDocument KubeletConfigDocument
 }
 
 // GetID implements Entity#GetID
-func (ku *Kubelet) GetID() EntityID { return ku.EntityID }
+func (ku *Kubelet) GetID() EntityID {
+	return ku.EntityID
+}
 
 // Merge implements Entity#Merge
 func (ku *Kubelet) Merge(e Entity) error {
@@ -1203,52 +1199,10 @@ func (ku *Kubelet) String(verbose bool) string {
 
 	if verbose {
 		_, _ = fmt.Fprintln(&sb, "----------- Configuration -----------")
-		_, _ = fmt.Fprintln(&sb, ku.Config.String())
+		_, _ = fmt.Fprintln(&sb, ku.ConfigDocument.String())
 	}
 
 	return sb.String()
-}
-
-// GetCPUManagerPolicy returns the CPU Manager Policy from the kubelet's config
-func (ku Kubelet) GetCPUManagerPolicy() (CPUManagerPolicy, error) {
-	if ku.Config == nil {
-		return CPUManagerPolicyUnknown,
-			fmt.Errorf("error when parsing kubelet config, expected config to be non-nil")
-	}
-
-	kubeletConfigInterface, ok := ku.Config["kubeletconfig"]
-	if !ok {
-		return CPUManagerPolicyUnknown,
-			fmt.Errorf("error when parsing kubelet config, expected to find key: kubeletconfig")
-	}
-
-	kubeletConfig, ok := kubeletConfigInterface.(map[string]interface{})
-	if !ok {
-		return CPUManagerPolicyUnknown,
-			fmt.Errorf("error when parsing kubelet config, type assertion failed for kubeletConfig")
-	}
-
-	cpuManagerPolicyInterface, ok := kubeletConfig["cpuManagerPolicy"]
-	if !ok {
-		return CPUManagerPolicyUnknown,
-			fmt.Errorf("error when parsing kubelet config, expected to find key: cpuManagerPolicy")
-	}
-
-	cpuManagerPolicy, ok := cpuManagerPolicyInterface.(string)
-	if !ok {
-		return CPUManagerPolicyUnknown,
-			fmt.Errorf("error when parsing kubelet config, type assertion failed for cpuManagerPolicy")
-	}
-
-	switch cpuManagerPolicy {
-	case "none":
-		return CPUManagerPolicyNone, nil
-	case "static":
-		return CPUManagerPolicyStatic, nil
-	default:
-		return CPUManagerPolicyUnknown,
-			fmt.Errorf("error when parsing kubelet config, unexpected value for cpuManagerPolicy: %s", cpuManagerPolicy)
-	}
 }
 
 var _ Entity = &Kubelet{}

@@ -10,6 +10,7 @@ package kubelet
 
 import (
 	"context"
+	"encoding/json"
 	stdErrors "errors"
 	"slices"
 	"strings"
@@ -123,7 +124,13 @@ func (c *collector) Pull(ctx context.Context) error {
 }
 
 func (c *collector) pullKubeletConfig(ctx context.Context) (workloadmeta.CollectorEvent, error) {
-	config, err := c.kubeUtil.GetConfig(ctx)
+	configBytes, err := c.kubeUtil.GetConfig(ctx)
+	if err != nil {
+		return workloadmeta.CollectorEvent{}, err
+	}
+
+	var config workloadmeta.KubeletConfigDocument
+	err = json.Unmarshal(configBytes, &config)
 	if err != nil {
 		return workloadmeta.CollectorEvent{}, err
 	}
@@ -139,7 +146,7 @@ func (c *collector) pullKubeletConfig(ctx context.Context) (workloadmeta.Collect
 			EntityMeta: workloadmeta.EntityMeta{
 				Name: workloadmeta.KubeletName,
 			},
-			Config: workloadmeta.KubeletConfig(config),
+			Config: config,
 		},
 	}, nil
 }

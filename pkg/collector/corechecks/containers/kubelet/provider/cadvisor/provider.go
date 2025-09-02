@@ -170,18 +170,17 @@ func (p *Provider) processContainerMetric(metricType, metricName string, metricF
 
 			wmetaKubelet, _ := p.store.GetKubelet()
 			if wmetaKubelet != nil {
-				cpuManagerPolicy, _ := wmetaKubelet.GetCPUManagerPolicy()
-
-				// strip the leading `container_id://` because containerID is a formatted entity ID
-				id := strings.ReplaceAll(containerID, "container_id://", "")
-				container, _ := p.store.GetContainer(id)
+				cpuManagerPolicy := wmetaKubelet.ConfigDocument.KubeletConfig.CPUManagerPolicy
+				container, _ := p.store.GetContainer(cID.GetID())
 
 				var requestedWholeCores bool
 				if container.Resources.RequestedWholeCores != nil {
 					requestedWholeCores = *container.Resources.RequestedWholeCores
 				}
 
-				if requestedWholeCores && cpuManagerPolicy == workloadmeta.CPUManagerPolicyStatic {
+				if pod.QOSClass == "Guaranteed" &&
+					requestedWholeCores &&
+					cpuManagerPolicy == "static" {
 					tags = utils.ConcatenateStringTags(tags, "kube_cpu_management:static")
 				} else {
 					tags = utils.ConcatenateStringTags(tags, "kube_cpu_management:none")
