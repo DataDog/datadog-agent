@@ -55,19 +55,17 @@ func Test_telemetrySender(t *testing.T) {
 
 	service := model.Service{
 		PID:                        99,
-		Name:                       "test-service",
 		GeneratedName:              "generated-name",
 		GeneratedNameSource:        "generated-name-source",
 		AdditionalGeneratedNames:   []string{"additional0", "additional1"},
 		ContainerServiceName:       "container-service-name",
 		ContainerServiceNameSource: "service",
 		DDService:                  "dd-service",
-		DDServiceInjected:          true,
 		TracerMetadata: []tracermetadata.TracerMetadata{
 			{ServiceName: "tracer-service-1", RuntimeID: "runtime-id-1"},
 			{ServiceName: "tracer-service-2", RuntimeID: "runtime-id-2"},
 		},
-		Ports:              []uint16{80, 8080},
+		TCPPorts:           []uint16{80, 8080},
 		APMInstrumentation: "injected",
 		Language:           "jvm",
 		Type:               "web_service",
@@ -93,14 +91,13 @@ func Test_telemetrySender(t *testing.T) {
 			APIVersion:  "v2",
 			Payload: &eventPayload{
 				NamingSchemaVersion:        "1",
-				ServiceName:                "test-service",
 				GeneratedServiceName:       "generated-name",
 				GeneratedServiceNameSource: "generated-name-source",
 				AdditionalGeneratedNames:   []string{"additional0", "additional1"},
 				ContainerServiceName:       "container-service-name",
 				ContainerServiceNameSource: "service",
 				DDService:                  "dd-service",
-				ServiceNameSource:          "injected",
+				ServiceNameSource:          "provided",
 				TracerMetadata: []tracermetadata.TracerMetadata{
 					{ServiceName: "tracer-service-1", RuntimeID: "runtime-id-1"},
 					{ServiceName: "tracer-service-2", RuntimeID: "runtime-id-2"},
@@ -130,14 +127,13 @@ func Test_telemetrySender(t *testing.T) {
 			APIVersion:  "v2",
 			Payload: &eventPayload{
 				NamingSchemaVersion:        "1",
-				ServiceName:                "test-service",
 				GeneratedServiceName:       "generated-name",
 				GeneratedServiceNameSource: "generated-name-source",
 				AdditionalGeneratedNames:   []string{"additional0", "additional1"},
 				ContainerServiceName:       "container-service-name",
 				ContainerServiceNameSource: "service",
 				DDService:                  "dd-service",
-				ServiceNameSource:          "injected",
+				ServiceNameSource:          "provided",
 				TracerMetadata: []tracermetadata.TracerMetadata{
 					{ServiceName: "tracer-service-1", RuntimeID: "runtime-id-1"},
 					{ServiceName: "tracer-service-2", RuntimeID: "runtime-id-2"},
@@ -167,14 +163,13 @@ func Test_telemetrySender(t *testing.T) {
 			APIVersion:  "v2",
 			Payload: &eventPayload{
 				NamingSchemaVersion:        "1",
-				ServiceName:                "test-service",
 				GeneratedServiceName:       "generated-name",
 				GeneratedServiceNameSource: "generated-name-source",
 				AdditionalGeneratedNames:   []string{"additional0", "additional1"},
 				ContainerServiceName:       "container-service-name",
 				ContainerServiceNameSource: "service",
 				DDService:                  "dd-service",
-				ServiceNameSource:          "injected",
+				ServiceNameSource:          "provided",
 				TracerMetadata: []tracermetadata.TracerMetadata{
 					{ServiceName: "tracer-service-1", RuntimeID: "runtime-id-1"},
 					{ServiceName: "tracer-service-2", RuntimeID: "runtime-id-2"},
@@ -225,7 +220,6 @@ func Test_telemetrySender_name_provided(t *testing.T) {
 
 	service := model.Service{
 		PID:                        55,
-		Name:                       "test-service",
 		GeneratedName:              "generated-name2",
 		GeneratedNameSource:        "generated-name-source2",
 		ContainerServiceName:       "container-service-name2",
@@ -254,7 +248,6 @@ func Test_telemetrySender_name_provided(t *testing.T) {
 			APIVersion:  "v2",
 			Payload: &eventPayload{
 				NamingSchemaVersion:        "1",
-				ServiceName:                "test-service",
 				GeneratedServiceName:       "generated-name2",
 				GeneratedServiceNameSource: "generated-name-source2",
 				ContainerServiceName:       "container-service-name2",
@@ -283,7 +276,6 @@ func Test_telemetrySender_name_provided(t *testing.T) {
 			APIVersion:  "v2",
 			Payload: &eventPayload{
 				NamingSchemaVersion:        "1",
-				ServiceName:                "test-service",
 				GeneratedServiceName:       "generated-name2",
 				GeneratedServiceNameSource: "generated-name-source2",
 				ContainerServiceName:       "container-service-name2",
@@ -312,7 +304,6 @@ func Test_telemetrySender_name_provided(t *testing.T) {
 			APIVersion:  "v2",
 			Payload: &eventPayload{
 				NamingSchemaVersion:        "1",
-				ServiceName:                "test-service",
 				GeneratedServiceName:       "generated-name2",
 				GeneratedServiceNameSource: "generated-name-source2",
 				ContainerServiceName:       "container-service-name2",
@@ -342,5 +333,52 @@ func Test_telemetrySender_name_provided(t *testing.T) {
 	gotEvents := mockSenderEvents(t, mSender)
 	if diff := cmp.Diff(wantEvents, gotEvents); diff != "" {
 		t.Errorf("event platform events mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestCombinePorts(t *testing.T) {
+	tests := []struct {
+		name     string
+		tcpPorts []uint16
+		udpPorts []uint16
+		expected []uint16
+	}{
+		{
+			name:     "empty ports",
+			tcpPorts: nil,
+			udpPorts: nil,
+			expected: nil,
+		},
+		{
+			name:     "only TCP ports",
+			tcpPorts: []uint16{8080, 8081},
+			udpPorts: nil,
+			expected: []uint16{8080, 8081},
+		},
+		{
+			name:     "only UDP ports",
+			tcpPorts: nil,
+			udpPorts: []uint16{8082, 8083},
+			expected: []uint16{8082, 8083},
+		},
+		{
+			name:     "both TCP and UDP ports",
+			tcpPorts: []uint16{8080, 8081},
+			udpPorts: []uint16{8082, 8083},
+			expected: []uint16{8080, 8081, 8082, 8083},
+		},
+		{
+			name:     "duplicate ports",
+			tcpPorts: []uint16{8080, 8081},
+			udpPorts: []uint16{8081, 8082},
+			expected: []uint16{8080, 8081, 8082},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := combinePorts(tt.tcpPorts, tt.udpPorts)
+			assert.Equal(t, tt.expected, result)
+		})
 	}
 }

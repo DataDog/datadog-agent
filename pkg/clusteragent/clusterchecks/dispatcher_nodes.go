@@ -54,6 +54,7 @@ func (d *dispatcher) processNodeStatus(nodeName, clientIP string, status types.N
 	node.Lock()
 	defer node.Unlock()
 	node.heartbeat = timestampNow()
+	node.nodetype = status.NodeType
 	// When we receive ExtraHeartbeatLastChangeValue, we only update heartbeat
 	if status.LastChange == types.ExtraHeartbeatLastChangeValue {
 		return true

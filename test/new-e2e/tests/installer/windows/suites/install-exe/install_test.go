@@ -59,6 +59,7 @@ func (s *testInstallExeSuite) TestInstallAgentPackage() {
 		fmt.Printf("%s\n", output)
 	}
 	s.Require().NoErrorf(err, "failed to install the Datadog Agent package: %s", output)
+	s.Require().NoError(s.WaitForInstallerService("Running"))
 	s.Require().Host(s.Env().RemoteHost).
 		HasARunningDatadogInstallerService().
 		HasARunningDatadogAgentService().

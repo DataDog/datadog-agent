@@ -41,6 +41,7 @@ type worker struct {
 	senderDoneChan chan *sync.WaitGroup
 	flushWg        *sync.WaitGroup
 	sink           Sink
+	workerID       string
 
 	pipelineMonitor metrics.PipelineMonitor
 	utilization     metrics.UtilizationMonitor
@@ -50,10 +51,11 @@ func newWorker(
 	config pkgconfigmodel.Reader,
 	inputChan chan *message.Payload,
 	sink Sink,
-	destinations *client.Destinations,
+	destinationFactory DestinationFactory,
 	bufferSize int,
 	serverlessMeta ServerlessMeta,
 	pipelineMonitor metrics.PipelineMonitor,
+	workerID string,
 ) *worker {
 	var senderDoneChan chan *sync.WaitGroup
 	var flushWg *sync.WaitGroup
@@ -66,16 +68,17 @@ func newWorker(
 		config:         config,
 		inputChan:      inputChan,
 		sink:           sink,
-		destinations:   destinations,
+		destinations:   destinationFactory(workerID),
 		bufferSize:     bufferSize,
 		senderDoneChan: senderDoneChan,
 		flushWg:        flushWg,
 		done:           make(chan struct{}),
 		finished:       make(chan struct{}),
+		workerID:       workerID,
 
 		// Telemetry
 		pipelineMonitor: pipelineMonitor,
-		utilization:     pipelineMonitor.MakeUtilizationMonitor("sender"),
+		utilization:     pipelineMonitor.MakeUtilizationMonitor(metrics.WorkerTlmName, workerID),
 	}
 }
 
@@ -106,6 +109,8 @@ func (s *worker) run() {
 	for continueLoop {
 		select {
 		case payload := <-s.inputChan:
+			s.pipelineMonitor.ReportComponentEgress(payload, metrics.SenderTlmName, metrics.SenderTlmInstanceID)
+			s.pipelineMonitor.ReportComponentIngress(payload, metrics.WorkerTlmName, s.workerID)
 			s.utilization.Start()
 			var startInUse = time.Now()
 			senderDoneWg := &sync.WaitGroup{}
@@ -115,7 +120,7 @@ func (s *worker) run() {
 				for _, destSender := range reliableDestinations {
 					if destSender.Send(payload) {
 						if destSender.destination.Metadata().ReportingEnabled {
-							s.pipelineMonitor.ReportComponentIngress(payload, destSender.destination.Metadata().MonitorTag())
+							s.pipelineMonitor.ReportComponentIngress(payload, destSender.destination.Metadata().MonitorTag(), s.workerID)
 						}
 						sent = true
 						if s.senderDoneChan != nil {
@@ -166,7 +171,7 @@ func (s *worker) run() {
 				// Decrement the wait group when this payload has been sent
 				s.flushWg.Done()
 			}
-			s.pipelineMonitor.ReportComponentEgress(payload, "sender")
+			s.pipelineMonitor.ReportComponentEgress(payload, metrics.WorkerTlmName, s.workerID)
 		case <-s.done:
 			continueLoop = false
 		}

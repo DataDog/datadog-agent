@@ -42,6 +42,8 @@ type BucketsAggregationKey struct {
 	PeerTagsHash   uint64
 	IsTraceRoot    pb.Trilean
 	GRPCStatusCode string
+	HTTPMethod     string
+	HTTPEndpoint   string
 }
 
 // PayloadAggregationKey specifies the key by which a payload is aggregated.
@@ -52,6 +54,7 @@ type PayloadAggregationKey struct {
 	ContainerID     string
 	GitCommitSha    string
 	ImageTag        string
+	Lang            string
 	ProcessTagsHash uint64
 }
 
@@ -95,6 +98,8 @@ func NewAggregationFromSpan(s *StatSpan, origin string, aggKey PayloadAggregatio
 			IsTraceRoot:    isTraceRoot,
 			GRPCStatusCode: s.grpcStatusCode,
 			PeerTagsHash:   tagsFnvHash(s.matchingPeerTags),
+			HTTPMethod:     s.httpMethod,
+			HTTPEndpoint:   s.httpEndpoint,
 		},
 	}
 	return agg
@@ -137,6 +142,8 @@ func NewAggregationFromGroup(g *pb.ClientGroupedStats) Aggregation {
 			PeerTagsHash:   tagsFnvHash(g.PeerTags),
 			IsTraceRoot:    g.IsTraceRoot,
 			GRPCStatusCode: g.GRPCStatusCode,
+			HTTPMethod:     g.HTTPMethod,
+			HTTPEndpoint:   g.HTTPEndpoint,
 		},
 	}
 }

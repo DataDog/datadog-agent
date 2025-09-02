@@ -8,7 +8,6 @@ package gpu
 import (
 	"context"
 	"fmt"
-	"math/rand"
 	"strconv"
 	"strings"
 	"time"
@@ -86,10 +85,6 @@ func (c *hostCapabilities) QuerySysprobe(path string) (string, error) {
 
 // RunContainerWorkloadWithGPUs runs a container workload with GPUs on the host using Docker
 func (c *hostCapabilities) RunContainerWorkloadWithGPUs(image string, arguments ...string) (string, error) {
-	// Yes, it's deprecated, but apparently without this we get the same random string every time
-	// so seed it just in case, it's a test so we don't care too much about RNG safety
-	rand.Seed(time.Now().UnixNano())
-
 	containerName := strings.ToLower("workload-" + common.RandString(5))
 
 	args := strings.Join(arguments, " ")
@@ -169,10 +164,6 @@ func (c *kubernetesCapabilities) QuerySysprobe(path string) (string, error) {
 // RunContainerWorkloadWithGPUs runs a container workload with GPUs on the Kubernetes cluster
 // using a Kubernetes Job.
 func (c *kubernetesCapabilities) RunContainerWorkloadWithGPUs(image string, arguments ...string) (string, error) {
-	// Yes, it's deprecated, but apparently without this we get the same random string every time
-	// so seed it just in case, it's a test so we don't care too much about RNG safety
-	rand.Seed(time.Now().UnixNano())
-
 	jobName := strings.ToLower("workload-" + common.RandString(5))
 	jobNamespace := "default"
 

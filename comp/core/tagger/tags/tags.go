@@ -6,6 +6,17 @@
 // Package tags contains the list of tags that are added by the tagger
 package tags
 
+// *************************************************************************************
+// *                               ⚠️ IMPORTANT WARNING ⚠️
+// *
+// *  When adding, modifying, or removing ANY tag constant in this file, you MUST
+// *  also update the corresponding public documentation at the following locations:
+// *
+// *  # Kubernetes: https://docs.datadoghq.com/containers/kubernetes/tag
+// *  # ECS:        https://docs.datadoghq.com/containers/amazon_ecs/tags/
+// *  # Docker:     https://docs.datadoghq.com/containers/docker/tags/
+// *************************************************************************************
+
 const (
 	// STANDARD TAGS
 
@@ -131,8 +142,12 @@ const (
 	EcsContainerName = "ecs_container_name"
 	// EcsClusterName is the tag for the ECS cluster name
 	EcsClusterName = "ecs_cluster_name"
+	// EcsClusterARN is the tag for the ECS cluster ARN (Amazon Resource Name)
+	EcsClusterARN = "cluster_arn"
 	// EcsServiceName is the tag for the ECS service name
 	EcsServiceName = "ecs_service"
+	// EcsServiceARN is the tag for the ECS service ARN (Amazon Resource Name)
+	EcsServiceARN = "service_arn"
 	// AwsAccount is the tag for ECS account id
 	AwsAccount = "aws_account"
 
@@ -188,6 +203,8 @@ const (
 	TaskARN = "task_arn"
 	// MesosTask is the tag for the Mesos task
 	MesosTask = "mesos_task"
+	// TaskDefinitionARN is the tag for the task definition ARN (Amazon Resource Name)
+	TaskDefinitionARN = "task_definition_arn"
 
 	// HIGH CARDINALITY
 

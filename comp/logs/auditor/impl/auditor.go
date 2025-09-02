@@ -19,17 +19,18 @@ import (
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	healthdef "github.com/DataDog/datadog-agent/comp/logs/health/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
-
-// DefaultRegistryFilename is the default registry filename
-const DefaultRegistryFilename = "registry.json"
 
 const defaultFlushPeriod = 1 * time.Second
 const defaultCleanupPeriod = 300 * time.Second
 
 // latest version of the API used by the auditor to retrieve the registry from disk.
 const registryAPIVersion = 2
+
+// defaultRegistryFilename is the default registry filename
+const defaultRegistryFilename = "registry.json"
 
 // A RegistryEntry represents an entry in the registry where we keep track
 // of current offsets
@@ -38,6 +39,7 @@ type RegistryEntry struct {
 	Offset             string
 	TailingMode        string
 	IngestionTimestamp int64
+	Fingerprint        types.Fingerprint
 }
 
 // JSONRegistry represents the registry that will be written on disk
@@ -53,6 +55,7 @@ type registryAuditor struct {
 	chansMutex         sync.Mutex
 	inputChan          chan *message.Payload
 	registry           map[string]*RegistryEntry
+	tailedSources      map[string]bool
 	registryPath       string
 	registryDirPath    string
 	registryTmpFile    string
@@ -60,6 +63,7 @@ type registryAuditor struct {
 	entryTTL           time.Duration
 	done               chan struct{}
 	messageChannelSize int
+	registryWriter     auditor.RegistryWriter
 
 	log log.Component
 }
@@ -76,22 +80,31 @@ type Provides struct {
 	Comp auditor.Component
 }
 
-// newAuditor is the public constructor for the auditor
+// NewAuditor is the public constructor for the auditor
 func newAuditor(deps Dependencies) *registryAuditor {
 	runPath := deps.Config.GetString("logs_config.run_path")
-	// filename := deps.Config.GetString("logs_config.registry_filename")
-	filename := DefaultRegistryFilename
+	filename := defaultRegistryFilename
 	ttl := time.Duration(deps.Config.GetInt("logs_config.auditor_ttl")) * time.Hour
 	messageChannelSize := deps.Config.GetInt("logs_config.message_channel_size")
+	atomicRegistryWrite := deps.Config.GetBool("logs_config.atomic_registry_write")
+
+	var registryWriter auditor.RegistryWriter
+	if atomicRegistryWrite {
+		registryWriter = NewAtomicRegistryWriter()
+	} else {
+		registryWriter = NewNonAtomicRegistryWriter()
+	}
 
 	registryAuditor := &registryAuditor{
 		registryPath:       filepath.Join(runPath, filename),
 		registryDirPath:    deps.Config.GetString("logs_config.run_path"),
 		registryTmpFile:    filepath.Base(filename) + ".tmp",
+		tailedSources:      make(map[string]bool),
 		entryTTL:           ttl,
 		messageChannelSize: messageChannelSize,
 		log:                deps.Log,
 		healthRegistrar:    deps.Health,
+		registryWriter:     registryWriter,
 	}
 
 	return registryAuditor
@@ -111,7 +124,6 @@ func (a *registryAuditor) Start() {
 
 	a.createChannels()
 	a.registry = a.recoverRegistry()
-	a.cleanupRegistry()
 	go a.run()
 }
 
@@ -145,6 +157,16 @@ func (a *registryAuditor) closeChannels() {
 	a.inputChan = nil
 }
 
+// GetFingerprint returns the fingerprint for a given identifier,
+// returns nil if it doesn't exist.
+func (a *registryAuditor) GetFingerprint(identifier string) *types.Fingerprint {
+	entry, exists := a.readOnlyRegistryEntryCopy(identifier)
+	if !exists {
+		return nil
+	}
+	return &entry.Fingerprint
+}
+
 // Channel returns the channel to use to communicate with the auditor or nil
 // if the auditor is currently stopped.
 func (a *registryAuditor) Channel() chan *message.Payload {
@@ -173,6 +195,51 @@ func (a *registryAuditor) GetTailingMode(identifier string) string {
 	return entry.TailingMode
 }
 
+// KeepAlive modifies the last updated timestamp for a given identifier to signal that the identifier is still being tailed
+// even if no new data is being received.
+// This is used for entities that are not guaranteed to have a tailer assigned to them
+func (a *registryAuditor) KeepAlive(identifier string) {
+	a.registryMutex.Lock()
+	defer a.registryMutex.Unlock()
+	if _, ok := a.registry[identifier]; ok {
+		a.registry[identifier].LastUpdated = time.Now().UTC()
+	}
+}
+
+// SetTailed is used to signal the identifier's status for registry cleanup purposes
+func (a *registryAuditor) SetTailed(identifier string, isTailed bool) {
+	a.registryMutex.Lock()
+	defer a.registryMutex.Unlock()
+	if isTailed {
+		a.tailedSources[identifier] = true
+	} else {
+		delete(a.tailedSources, identifier)
+	}
+
+	// entities that are no longer tailed should remain in the registry for the TTL period
+	// in case they are tailed again.
+	if _, ok := a.registry[identifier]; ok {
+		a.registry[identifier].LastUpdated = time.Now().UTC()
+	}
+}
+
+// SetOffset allows direct setting of an offset for an identifier, marking it as tailed
+func (a *registryAuditor) SetOffset(identifier string, offset string) {
+	a.registryMutex.Lock()
+	defer a.registryMutex.Unlock()
+	if entry, exists := a.registry[identifier]; exists {
+		entry.Offset = offset
+		entry.LastUpdated = time.Now().UTC()
+	} else {
+		// Create a new entry if it doesn't exist
+		a.registry[identifier] = &RegistryEntry{
+			LastUpdated: time.Now().UTC(),
+			Offset:      offset,
+			TailingMode: "", // Default to empty, can be set later
+		}
+	}
+}
+
 // run keeps up to date the registry on different events
 func (a *registryAuditor) run() {
 	cleanUpTicker := time.NewTicker(defaultCleanupPeriod)
@@ -196,7 +263,11 @@ func (a *registryAuditor) run() {
 			}
 			// update the registry with the new entry
 			for _, msg := range payload.MessageMetas {
-				a.updateRegistry(msg.Origin.Identifier, msg.Origin.Offset, msg.Origin.LogSource.Config.TailingMode, msg.IngestionTimestamp)
+				var fingerprint types.Fingerprint
+				if msg.Origin.Fingerprint != nil {
+					fingerprint = *msg.Origin.Fingerprint
+				}
+				a.updateRegistry(msg.Origin.Identifier, msg.Origin.Offset, msg.Origin.LogSource.Config.TailingMode, msg.IngestionTimestamp, fingerprint)
 			}
 		case <-cleanUpTicker.C:
 			// remove expired offsets from the registry
@@ -244,14 +315,18 @@ func (a *registryAuditor) cleanupRegistry() {
 	expireBefore := time.Now().UTC().Add(-a.entryTTL)
 	for path, entry := range a.registry {
 		if entry.LastUpdated.Before(expireBefore) {
-			a.log.Debugf("TTL for %s is expired, removing from registry.", path)
-			delete(a.registry, path)
+			if a.tailedSources[path] {
+				a.log.Debugf("TTL for %s is expired but it is still tailed, keeping in registry.", path)
+			} else {
+				a.log.Debugf("TTL for %s is expired, removing from registry.", path)
+				delete(a.registry, path)
+			}
 		}
 	}
 }
 
-// updateRegistry updates the registry entry matching identifier with the new offset and timestamp
-func (a *registryAuditor) updateRegistry(identifier string, offset string, tailingMode string, ingestionTimestamp int64) {
+// updateRegistry updates the registry with a new entry
+func (a *registryAuditor) updateRegistry(identifier string, offset string, tailingMode string, ingestionTimestamp int64, fingerprint types.Fingerprint) {
 	a.registryMutex.Lock()
 	defer a.registryMutex.Unlock()
 	if identifier == "" {
@@ -268,12 +343,12 @@ func (a *registryAuditor) updateRegistry(identifier string, offset string, taili
 			return
 		}
 	}
-
 	a.registry[identifier] = &RegistryEntry{
 		LastUpdated:        time.Now().UTC(),
 		Offset:             offset,
 		TailingMode:        tailingMode,
 		IngestionTimestamp: ingestionTimestamp,
+		Fingerprint:        fingerprint,
 	}
 }
 
@@ -305,28 +380,7 @@ func (a *registryAuditor) flushRegistry() error {
 	if err != nil {
 		return err
 	}
-	f, err := os.CreateTemp(a.registryDirPath, a.registryTmpFile)
-	if err != nil {
-		return err
-	}
-	tmpName := f.Name()
-	defer func() {
-		if err != nil {
-			_ = f.Close()
-			_ = os.Remove(tmpName)
-		}
-	}()
-	if _, err = f.Write(mr); err != nil {
-		return err
-	}
-	if err = f.Chmod(0644); err != nil {
-		return err
-	}
-	if err = f.Close(); err != nil {
-		return err
-	}
-	err = os.Rename(tmpName, a.registryPath)
-	return err
+	return a.registryWriter.WriteRegistry(a.registryPath, a.registryDirPath, a.registryTmpFile, mr)
 }
 
 // marshalRegistry marshals a regsistry

@@ -45,6 +45,7 @@ enum event_type
     EVENT_DNS_RESPONSE_FULL,
     EVENT_NET_DEVICE,
     EVENT_VETH_PAIR,
+    EVENT_VETH_PAIR_NS,
     EVENT_ACCEPT,
     EVENT_BIND,
     EVENT_CONNECT,
@@ -54,10 +55,16 @@ enum event_type
     EVENT_ON_DEMAND,
     EVENT_LOGIN_UID_WRITE,
     EVENT_CGROUP_WRITE,
-    EVENT_RAW_PACKET,
+    EVENT_RAW_PACKET_FILTER,
     EVENT_NETWORK_FLOW_MONITOR,
     EVENT_STAT,
     EVENT_SYSCTL,
+    EVENT_SETRLIMIT,
+    EVENT_SETSOCKOPT,
+    EVENT_FSMOUNT,
+    EVENT_OPEN_TREE,
+    EVENT_RAW_PACKET_ACTION,
+    EVENT_CAPABILITIES,
     EVENT_MAX, // has to be the last one
 
     EVENT_ALL = 0xffffffff // used as a mask for all the events
@@ -231,6 +238,14 @@ enum sysctl_action_t
     SYSCTL_UNKNOWN,
     SYSCTL_READ,
     SYSCTL_WRITE,
+};
+
+enum mount_source_t
+{
+    SOURCE_INVALID = 0,
+    SOURCE_MOUNT,
+    SOURCE_FSMOUNT,
+    SOURCE_OPEN_TREE,
 };
 
 #endif

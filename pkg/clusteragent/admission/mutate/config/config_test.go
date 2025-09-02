@@ -15,7 +15,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/fx"
 	admiv1 "k8s.io/api/admission/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -92,7 +91,7 @@ func TestInjectHostIP(t *testing.T) {
 	pod := mutatecommon.FakePodWithContainer("foo-pod", corev1.Container{})
 	pod = mutatecommon.WithLabels(pod, map[string]string{"admission.datadoghq.com/enabled": "true"})
 	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
-	datadogConfig := fxutil.Test[config.Component](t, core.MockBundle())
+	datadogConfig := config.NewMock(t)
 	filter, err := NewFilter(datadogConfig)
 	require.NoError(t, err)
 	mutator := NewMutator(NewMutatorConfig(datadogConfig), filter)
@@ -107,7 +106,7 @@ func TestInjectService(t *testing.T) {
 	pod := mutatecommon.FakePodWithContainer("foo-pod", corev1.Container{})
 	pod = mutatecommon.WithLabels(pod, map[string]string{"admission.datadoghq.com/enabled": "true", "admission.datadoghq.com/config.mode": "service"})
 	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
-	datadogConfig := fxutil.Test[config.Component](t, core.MockBundle())
+	datadogConfig := config.NewMock(t)
 	filter, err := NewFilter(datadogConfig)
 	require.NoError(t, err)
 	mutator := NewMutator(NewMutatorConfig(datadogConfig), filter)
@@ -134,13 +133,12 @@ func TestInjectEntityID(t *testing.T) {
 				Name: "cont-name",
 			})
 			pod = mutatecommon.WithLabels(pod, map[string]string{"admission.datadoghq.com/enabled": "true"})
+			datadogConfig := config.NewMockWithOverrides(t, tt.configOverrides)
 			wmeta := fxutil.Test[workloadmeta.Component](
 				t,
 				core.MockBundle(),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-				fx.Replace(config.MockParams{Overrides: tt.configOverrides}),
 			)
-			datadogConfig := fxutil.Test[config.Component](t, core.MockBundle())
 			filter, err := NewFilter(datadogConfig)
 			require.NoError(t, err)
 			mutator := NewMutator(NewMutatorConfig(datadogConfig), filter)
@@ -368,7 +366,7 @@ func TestInjectSocket(t *testing.T) {
 							ReadOnly: pointer.Ptr(true),
 							Driver:   "k8s.csi.datadoghq.com",
 							VolumeAttributes: map[string]string{
-								"type": string(csiDatadogSocketsDirectory),
+								"type": string(csiDSDSocketDirectory),
 							},
 						},
 					},
@@ -394,11 +392,7 @@ func TestInjectSocket(t *testing.T) {
 
 			pod = mutatecommon.WithLabels(pod, map[string]string{"admission.datadoghq.com/enabled": "true", "admission.datadoghq.com/config.mode": mode})
 			wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
-			datadogConfig := fxutil.Test[config.Component](t, core.MockBundle(), fx.Replace(config.MockParams{
-				Overrides: map[string]any{
-					"csi.enabled": test.withCSIDriver,
-				},
-			}))
+			datadogConfig := config.NewMockWithOverrides(t, map[string]interface{}{"csi.enabled": test.withCSIDriver})
 			filter, err := NewFilter(datadogConfig)
 			require.NoError(t, err)
 			mutator := NewMutator(NewMutatorConfig(datadogConfig), filter)
@@ -421,14 +415,17 @@ func TestInjectSocket(t *testing.T) {
 func TestInjectSocket_VolumeTypeSocket(t *testing.T) {
 
 	tests := []struct {
-		name                 string
-		withCSIDriver        bool
-		expectedVolumeMounts []corev1.VolumeMount
-		expectedVolumes      []corev1.Volume
+		name                      string
+		withCSIDriver             bool
+		expectedVolumeMounts      []corev1.VolumeMount
+		expectedVolumes           []corev1.Volume
+		globalTypeSocketVolumes   bool
+		typeSocketVolumesPodLabel bool
 	}{
 		{
-			name:          "no csi driver",
-			withCSIDriver: false,
+			name:                    "no csi driver",
+			withCSIDriver:           false,
+			globalTypeSocketVolumes: true,
 			expectedVolumes: []corev1.Volume{
 				{
 					Name: "datadog-dogstatsd",
@@ -463,8 +460,47 @@ func TestInjectSocket_VolumeTypeSocket(t *testing.T) {
 			},
 		},
 		{
-			name:          "with csi driver",
-			withCSIDriver: true,
+			name:                      "pod label overrides global setting",
+			withCSIDriver:             false,
+			globalTypeSocketVolumes:   false,
+			typeSocketVolumesPodLabel: true,
+			expectedVolumes: []corev1.Volume{
+				{
+					Name: "datadog-dogstatsd",
+					VolumeSource: corev1.VolumeSource{
+						HostPath: &corev1.HostPathVolumeSource{
+							Path: "/var/run/datadog/dsd.socket",
+							Type: pointer.Ptr(corev1.HostPathSocket),
+						},
+					},
+				},
+				{
+					Name: "datadog-trace-agent",
+					VolumeSource: corev1.VolumeSource{
+						HostPath: &corev1.HostPathVolumeSource{
+							Path: "/var/run/datadog/apm.socket",
+							Type: pointer.Ptr(corev1.HostPathSocket),
+						},
+					},
+				},
+			},
+			expectedVolumeMounts: []corev1.VolumeMount{
+				{
+					Name:      "datadog-dogstatsd",
+					MountPath: "/var/run/datadog/dsd.socket",
+					ReadOnly:  true,
+				},
+				{
+					Name:      "datadog-trace-agent",
+					MountPath: "/var/run/datadog/apm.socket",
+					ReadOnly:  true,
+				},
+			},
+		},
+		{
+			name:                    "with csi driver",
+			withCSIDriver:           true,
+			globalTypeSocketVolumes: true,
 			expectedVolumes: []corev1.Volume{
 				{
 					Name: "datadog-dogstatsd",
@@ -514,22 +550,24 @@ func TestInjectSocket_VolumeTypeSocket(t *testing.T) {
 				mode = "csi"
 			}
 			pod := mutatecommon.FakePodWithContainer("foo-pod", corev1.Container{})
-			pod = mutatecommon.WithLabels(pod, map[string]string{"admission.datadoghq.com/enabled": "true", "admission.datadoghq.com/config.mode": mode})
+
+			labels := map[string]string{"admission.datadoghq.com/enabled": "true", "admission.datadoghq.com/config.mode": mode}
+			if test.typeSocketVolumesPodLabel {
+				labels["admission.datadoghq.com/config.type_socket_volumes"] = "true"
+			}
+			pod = mutatecommon.WithLabels(pod, labels)
+
+			datadogConfig := config.NewMockWithOverrides(t, map[string]interface{}{
+				"csi.enabled":                                            test.withCSIDriver,
+				"admission_controller.csi.enabled":                       test.withCSIDriver,
+				"admission_controller.inject_config.csi.enabled":         test.withCSIDriver,
+				"admission_controller.inject_config.type_socket_volumes": test.globalTypeSocketVolumes,
+			})
 			wmeta := fxutil.Test[workloadmeta.Component](
 				t,
 				core.MockBundle(),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-				fx.Replace(config.MockParams{
-					Overrides: map[string]interface{}{"admission_controller.inject_config.type_socket_volumes": true},
-				}),
 			)
-			datadogConfig := fxutil.Test[config.Component](t, core.MockBundle(), fx.Replace(config.MockParams{
-				Overrides: map[string]interface{}{
-					"csi.enabled":                                    test.withCSIDriver,
-					"admission_controller.csi.enabled":               test.withCSIDriver,
-					"admission_controller.inject_config.csi.enabled": test.withCSIDriver,
-				},
-			}))
 			filter, err := NewFilter(datadogConfig)
 			require.NoError(t, err)
 			mutator := NewMutator(NewMutatorConfig(datadogConfig), filter)
@@ -599,7 +637,7 @@ func TestInjectSocketWithConflictingVolumeAndInitContainer(t *testing.T) {
 	}
 
 	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
-	datadogConfig := fxutil.Test[config.Component](t, core.MockBundle())
+	datadogConfig := config.NewMock(t)
 	filter, err := NewFilter(datadogConfig)
 	require.NoError(t, err)
 	mutator := NewMutator(NewMutatorConfig(datadogConfig), filter)
@@ -637,12 +675,11 @@ func TestJSONPatchCorrectness(t *testing.T) {
 			mutatecommon.WithLabels(pod, map[string]string{admCommon.EnabledLabelKey: "true"})
 			podJSON, err := json.Marshal(pod)
 			assert.NoError(t, err)
+			datadogConfig := config.NewMockWithOverrides(t, tt.overrides)
 			wmeta := fxutil.Test[workloadmeta.Component](t,
 				core.MockBundle(),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-				fx.Replace(config.MockParams{Overrides: tt.overrides}),
 			)
-			datadogConfig := fxutil.Test[config.Component](t, core.MockBundle())
 			filter, err := NewFilter(datadogConfig)
 			require.NoError(t, err)
 			mutator := NewMutator(NewMutatorConfig(datadogConfig), filter)
@@ -676,7 +713,7 @@ func BenchmarkJSONPatch(b *testing.B) {
 	}
 
 	wmeta := fxutil.Test[workloadmeta.Component](b, core.MockBundle())
-	datadogConfig := fxutil.Test[config.Component](b, core.MockBundle())
+	datadogConfig := config.NewMock(b)
 	filter, err := NewFilter(datadogConfig)
 	require.NoError(b, err)
 	mutator := NewMutator(NewMutatorConfig(datadogConfig), filter)

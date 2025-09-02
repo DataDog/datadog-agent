@@ -7,8 +7,8 @@ package listeners
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	filter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
 // StaticConfigListener implements a ServiceListener based on static configuration parameters
@@ -30,8 +30,6 @@ func NewStaticConfigListener(ServiceListernerDeps) (ServiceListener, error) {
 }
 
 // Listen starts the goroutine to detect checks based on the config
-//
-//nolint:revive // TODO(CINT) Fix revive linter
 func (l *StaticConfigListener) Listen(newSvc chan<- Service, _ chan<- Service) {
 	l.newService = newSvc
 
@@ -47,6 +45,7 @@ func (l *StaticConfigListener) createServices() {
 		"container_image",
 		"container_lifecycle",
 		"sbom",
+		"gpu",
 	} {
 		if enabled := pkgconfigsetup.Datadog().GetBool(staticCheck + ".enabled"); enabled {
 			l.newService <- &StaticConfigService{adIdentifier: "_" + staticCheck}
@@ -74,8 +73,8 @@ func (s *StaticConfigService) GetServiceID() string {
 }
 
 // GetADIdentifiers return the single AD identifier for a static config service
-func (s *StaticConfigService) GetADIdentifiers() ([]string, error) {
-	return []string{s.adIdentifier}, nil
+func (s *StaticConfigService) GetADIdentifiers() []string {
+	return []string{s.adIdentifier}
 }
 
 // GetHosts is not supported
@@ -115,21 +114,15 @@ func (s *StaticConfigService) IsReady() bool {
 }
 
 // HasFilter is not supported
-//
-//nolint:revive // TODO(CINT) Fix revive linter
-func (s *StaticConfigService) HasFilter(_ containers.FilterType) bool {
+func (s *StaticConfigService) HasFilter(_ filter.Scope) bool {
 	return false
 }
 
 // GetExtraConfig is not supported
-//
-//nolint:revive // TODO(CINT) Fix revive linter
 func (s *StaticConfigService) GetExtraConfig(_ string) (string, error) {
 	return "", ErrNotSupported
 }
 
 // FilterTemplates does nothing.
-//
-//nolint:revive // TODO(CINT) Fix revive linter
 func (s *StaticConfigService) FilterTemplates(_ map[string]integration.Config) {
 }

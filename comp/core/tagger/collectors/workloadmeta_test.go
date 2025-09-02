@@ -70,7 +70,7 @@ func TestHandleKubePod(t *testing.T) {
 
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		config.MockModule(),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
@@ -970,12 +970,14 @@ func TestHandleKubePodWithoutPvcAsTags(t *testing.T) {
 
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		config.MockModule(),
+		fx.Provide(func() config.Component {
+			return config.NewMockWithOverrides(t, map[string]any{
+				"kubernetes_persistent_volume_claims_as_tags": false,
+			})
+		}),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-	), fx.Replace(config.MockParams{Overrides: map[string]any{
-		"kubernetes_persistent_volume_claims_as_tags": false,
-	}}))
+	))
 	store.Set(&workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindContainer,
@@ -1112,7 +1114,7 @@ func TestHandleKubePodNoContainerName(t *testing.T) {
 
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		config.MockModule(),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
@@ -1231,7 +1233,7 @@ func TestHandleKubeMetadata(t *testing.T) {
 
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		config.MockModule(),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
@@ -1320,7 +1322,7 @@ func TestHandleKubeDeployment(t *testing.T) {
 
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		config.MockModule(),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
@@ -1462,11 +1464,13 @@ func TestHandleECSTask(t *testing.T) {
 
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		config.MockModule(),
+		fx.Provide(func() config.Component {
+			return config.NewMockWithOverrides(t, map[string]any{
+				"ecs_collect_resource_tags_ec2": true,
+			})
+		}),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-	), fx.Replace(config.MockParams{Overrides: map[string]any{
-		"ecs_collect_resource_tags_ec2": true,
-	}}))
+	))
 
 	store.Set(&workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
@@ -1501,7 +1505,7 @@ func TestHandleECSTask(t *testing.T) {
 				ClusterName:  "ecs-cluster",
 				Family:       "datadog-agent",
 				Version:      "1",
-				AWSAccountID: 1234567891234,
+				AWSAccountID: "1234567891234",
 				LaunchType:   workloadmeta.ECSLaunchTypeEC2,
 				Containers: []workloadmeta.OrchestratorContainer{
 					{
@@ -1509,7 +1513,11 @@ func TestHandleECSTask(t *testing.T) {
 						Name: containerName,
 					},
 				},
-				ServiceName: "datadog-agent-service",
+				ServiceName:       "datadog-agent-service",
+				Region:            "us-east-1",
+				ClusterARN:        "arn:aws:ecs:us-east-1:1234567891234:cluster/ecs-cluster",
+				ServiceARN:        "arn:aws:ecs:us-east-1:1234567891234:service/ecs-cluster/datadog-agent-service",
+				TaskDefinitionARN: "arn:aws:ecs:us-east-1:1234567891234:task-definition/datadog-agent:1",
 			},
 			expected: []*types.TagInfo{
 				{
@@ -1518,6 +1526,7 @@ func TestHandleECSTask(t *testing.T) {
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
 						"task_arn:foobar",
+						"task_definition_arn:arn:aws:ecs:us-east-1:1234567891234:task-definition/datadog-agent:1",
 					},
 					LowCardTags: []string{
 						"cluster_name:ecs-cluster",
@@ -1530,6 +1539,20 @@ func TestHandleECSTask(t *testing.T) {
 						"task_version:1",
 						"ecs_service:datadog-agent-service",
 						"aws_account:1234567891234",
+						"region:us-east-1",
+						"cluster_arn:arn:aws:ecs:us-east-1:1234567891234:cluster/ecs-cluster",
+						"service_arn:arn:aws:ecs:us-east-1:1234567891234:service/ecs-cluster/datadog-agent-service",
+					},
+					StandardTags: []string{},
+				},
+				{
+					Source:               taskSource,
+					EntityID:             types.GetGlobalEntityID(),
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"ecs_cluster_name:ecs-cluster",
+						"cluster_arn:arn:aws:ecs:us-east-1:1234567891234:cluster/ecs-cluster",
 					},
 					StandardTags: []string{},
 				},
@@ -1552,9 +1575,12 @@ func TestHandleECSTask(t *testing.T) {
 						Name: containerName,
 					},
 				},
-				AvailabilityZone: "us-east-1c",
-				Region:           "us-east-1",
-				AWSAccountID:     1234567891234,
+				AvailabilityZone:  "us-east-1c",
+				Region:            "us-east-1",
+				AWSAccountID:      "1234567891234",
+				ClusterARN:        "arn:aws:ecs:us-east-1:1234567891234:cluster/ecs-cluster",
+				ServiceARN:        "arn:aws:ecs:us-east-1:1234567891234:service/ecs-cluster/datadog-agent-service",
+				TaskDefinitionARN: "arn:aws:ecs:us-east-1:1234567891234:task-definition/datadog-agent:1",
 			},
 			expected: []*types.TagInfo{
 				{
@@ -1563,6 +1589,7 @@ func TestHandleECSTask(t *testing.T) {
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
 						"task_arn:foobar",
+						"task_definition_arn:arn:aws:ecs:us-east-1:1234567891234:task-definition/datadog-agent:1",
 					},
 					LowCardTags: []string{
 						"cluster_name:ecs-cluster",
@@ -1575,6 +1602,8 @@ func TestHandleECSTask(t *testing.T) {
 						"availability-zone:us-east-1c",
 						"region:us-east-1",
 						"aws_account:1234567891234",
+						"cluster_arn:arn:aws:ecs:us-east-1:1234567891234:cluster/ecs-cluster",
+						"service_arn:arn:aws:ecs:us-east-1:1234567891234:service/ecs-cluster/datadog-agent-service",
 					},
 					StandardTags: []string{},
 				},
@@ -1584,6 +1613,7 @@ func TestHandleECSTask(t *testing.T) {
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
 						"task_arn:foobar",
+						"task_definition_arn:arn:aws:ecs:us-east-1:1234567891234:task-definition/datadog-agent:1",
 					},
 					LowCardTags: []string{
 						"cluster_name:ecs-cluster",
@@ -1595,10 +1625,40 @@ func TestHandleECSTask(t *testing.T) {
 						"availability-zone:us-east-1c",
 						"region:us-east-1",
 						"aws_account:1234567891234",
+						"cluster_arn:arn:aws:ecs:us-east-1:1234567891234:cluster/ecs-cluster",
+						"service_arn:arn:aws:ecs:us-east-1:1234567891234:service/ecs-cluster/datadog-agent-service",
 					},
 					StandardTags: []string{},
 				},
 			},
+		},
+		{
+			// Tasks can be emitted from metadata API that are still pending
+			// and thus only contain constant task-definition level metadata
+			// It should not trigger an update to the global-entity
+			name: "partially empty ECS EC2 task",
+			task: workloadmeta.ECSTask{
+				EntityID: entityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: "foobar",
+				},
+				Tags:                  map[string]string{},
+				ContainerInstanceTags: map[string]string{},
+				ClusterName:           "",
+				Family:                "datadog-agent",
+				Version:               "1",
+				AWSAccountID:          "1234567891234",
+				KnownStatus:           "PENDING",
+				DesiredStatus:         "RUNNING",
+				LaunchType:            workloadmeta.ECSLaunchTypeEC2,
+				Containers:            []workloadmeta.OrchestratorContainer{},
+				ServiceName:           "",
+				Region:                "us-east-1",
+				ClusterARN:            "",
+				ServiceARN:            "",
+				TaskDefinitionARN:     "arn:aws:ecs:us-east-1:1234567891234:task-definition/datadog-agent:1",
+			},
+			expected: []*types.TagInfo{},
 		},
 	}
 
@@ -2431,7 +2491,7 @@ func TestHandleDelete(t *testing.T) {
 
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		config.MockModule(),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
@@ -2507,7 +2567,7 @@ func TestHandlePodWithDeletedContainer(t *testing.T) {
 
 	fakeStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		config.MockModule(),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 	collector := NewWorkloadMetaCollector(context.Background(), configmock.New(t), fakeStore, &fakeProcessor{collectorCh})

@@ -253,7 +253,7 @@ func createProtoscopeMatcher(protoscopeDef string, s *Serializer) interface{} {
 	})
 }
 
-func TestSendV1Events(t *testing.T) {
+func TestSendV1EventsNew(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
@@ -263,59 +263,39 @@ func TestSendV1Events(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("enable_events_stream_payload_serialization", false)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 			f := &forwarder.MockedForwarder{}
 
 			compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: mockConfig}).Comp
 			s := NewSerializer(f, nil, compressor, mockConfig, logmock.New(t), "testhost")
-			matcher := createJSONPayloadMatcher(`{"apiKey":"","events":{},"internalHostname"`, s)
+			matcher := createJSONPayloadMatcher(`{"apiKey":"","events":{"api":[{"msg_title":"","msg_text":"","timestamp":0,"host":""}]},"internalHostname"`, s)
 			f.On("SubmitV1Intake", matcher, s.jsonExtraHeadersWithCompression).Return(nil).Times(1)
 
-			err := s.SendEvents([]*event.Event{})
+			err := s.SendEvents([]*event.Event{{}})
 			require.Nil(t, err)
 			f.AssertExpectations(t)
 		})
 	}
 }
 
-func TestSendV1EventsCreateMarshalersBySourceType(t *testing.T) {
-
+func TestSendV1EventsNewNoEmpty(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
 		"zlib": {kind: compression.ZlibKind},
 		"zstd": {kind: compression.ZstdKind},
 	}
-
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("enable_events_stream_payload_serialization", true)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 			f := &forwarder.MockedForwarder{}
 
 			compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: mockConfig}).Comp
 			s := NewSerializer(f, nil, compressor, mockConfig, logmock.New(t), "testhost")
-
-			events := event.Events{&event.Event{SourceTypeName: "source1"}, &event.Event{SourceTypeName: "source2"}, &event.Event{SourceTypeName: "source3"}}
-			payloadsCountMatcher := func(payloadCount int) interface{} {
-				return mock.MatchedBy(func(payloads transaction.BytesPayloads) bool {
-					return len(payloads) == payloadCount
-				})
-			}
-
-			f.On("SubmitV1Intake", payloadsCountMatcher(1), s.jsonExtraHeadersWithCompression).Return(nil)
-			err := s.SendEvents(events)
-			assert.NoError(t, err)
-			f.AssertExpectations(t)
-
-			mockConfig.SetWithoutSource("serializer_max_payload_size", 20)
-
-			f.On("SubmitV1Intake", payloadsCountMatcher(3), s.jsonExtraHeadersWithCompression).Return(nil)
-			err = s.SendEvents(events)
-			assert.NoError(t, err)
-			f.AssertExpectations(t)
+			err := s.SendEvents([]*event.Event{})
+			require.Nil(t, err)
+			f.AssertNotCalled(t, "SubmitV1Events")
 		})
 	}
 }
@@ -332,7 +312,6 @@ func TestSendV1ServiceChecks(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			f := &forwarder.MockedForwarder{}
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("enable_service_checks_stream_payload_serialization", false)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 
 			compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: mockConfig}).Comp
@@ -359,7 +338,6 @@ func TestSendV1Series(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			f := &forwarder.MockedForwarder{}
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("enable_stream_payload_serialization", false)
 			mockConfig.SetWithoutSource("use_v2_api.series", false)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 

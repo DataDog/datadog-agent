@@ -18,12 +18,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
-	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	profiler "github.com/DataDog/datadog-agent/comp/core/profiler/def"
 	profilerfx "github.com/DataDog/datadog-agent/comp/core/profiler/fx"
 	profilermock "github.com/DataDog/datadog-agent/comp/core/profiler/mock"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -70,9 +71,11 @@ func (c *commandTestSuite) startTestServers() {
 func (c *commandTestSuite) getPprofTestServer() (tcpServer *httptest.Server, tcpTLSServer *httptest.Server, sysProbeServer *httptest.Server) {
 	var err error
 
+	mockIPC := ipcmock.New(c.T())
+
 	handler := profilermock.NewMockHandler()
 	tcpServer = httptest.NewServer(handler)
-	tcpTLSServer = httptest.NewTLSServer(handler)
+	tcpTLSServer = mockIPC.NewMockServer(handler)
 
 	sysProbeServer, err = testutil.NewSystemProbeTestServer(handler, c.sysprobeSocketPath)
 	require.NoError(c.T(), err, "could not restart system probe server")
@@ -93,18 +96,17 @@ func TestCommandTestSuite(t *testing.T) {
 	suite.Run(t, &commandTestSuite{})
 }
 
-func getProfiler(t testing.TB, mockConfig model.Config, mockSysProbeConfig model.Config) profiler.Component {
+func getProfiler(t testing.TB, mockSysProbeConfig model.Config) profiler.Component {
 	deps := fxutil.Test[deps](
 		t,
 		core.MockBundle(),
-		fx.Replace(configComponent.MockParams{
-			Overrides: mockConfig.AllSettings(),
-		}),
 		fx.Replace(sysprobeconfigimpl.MockParams{
 			Overrides: mockSysProbeConfig.AllSettings(),
 		}),
 		settingsimpl.MockModule(),
 		profilerfx.Module(),
+		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
+		fx.Provide(func(ipcomp ipc.Component) ipc.HTTPClient { return ipcomp.GetClient() }),
 	)
 
 	return deps.Profiler
@@ -137,7 +139,7 @@ func (c *commandTestSuite) TestReadProfileData() {
 		mockSysProbeConfig.SetWithoutSource("network_config.enabled", true)
 	}
 
-	profiler := getProfiler(t, mockConfig, mockSysProbeConfig)
+	profiler := getProfiler(t, mockSysProbeConfig)
 	data, err := profiler.ReadProfileData(10, func(string, ...interface{}) error { return nil })
 	require.NoError(t, err)
 
@@ -207,7 +209,7 @@ func (c *commandTestSuite) TestReadProfileDataNoTraceAgent() {
 		mockSysProbeConfig.SetWithoutSource("network_config.enabled", true)
 	}
 
-	profiler := getProfiler(t, mockConfig, mockSysProbeConfig)
+	profiler := getProfiler(t, mockSysProbeConfig)
 	data, err := profiler.ReadProfileData(10, func(string, ...interface{}) error { return nil })
 	require.Error(t, err)
 	require.Regexp(t, "^* error collecting trace agent profile: ", err.Error())
@@ -266,7 +268,7 @@ func (c *commandTestSuite) TestReadProfileDataErrors() {
 	mockSysProbeConfig := configmock.NewSystemProbe(t)
 	InjectConnectionFailures(mockSysProbeConfig, mockConfig)
 
-	profiler := getProfiler(t, mockConfig, mockSysProbeConfig)
+	profiler := getProfiler(t, mockSysProbeConfig)
 	data, err := profiler.ReadProfileData(10, func(string, ...interface{}) error { return nil })
 
 	require.Error(t, err)

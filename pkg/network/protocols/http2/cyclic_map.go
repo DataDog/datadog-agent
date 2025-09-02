@@ -5,6 +5,7 @@
 
 //go:build linux_bpf
 
+// Package http2 provides a HTTP/2 implementation for the network package for supporting HTTP/2 and gRPC monitoring with USM.
 package http2
 
 import "sync"

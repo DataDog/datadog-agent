@@ -61,6 +61,7 @@ from tasks.libs.releasing.json import (
     _get_release_json_value,
     _save_release_json,
     generate_repo_data,
+    get_current_milestone,
     load_release_json,
     set_current_milestone,
     set_new_release_branch,
@@ -320,6 +321,7 @@ def finish(ctx, release_branch, upstream="origin"):
 
         next_milestone = next_final_version(ctx, release_branch, True)
         next_milestone = next_milestone.next_version(bump_patch=True)
+        previous_milestone = get_current_milestone()
         print(f"Creating the {next_milestone} milestone...")
 
         gh = GithubAPI()
@@ -393,6 +395,7 @@ def finish(ctx, release_branch, upstream="origin"):
             release_branch,
             final_branch,
             new_version,
+            milestone=previous_milestone,
         )
 
 
@@ -426,8 +429,6 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin"):
         Commits the above changes, and then creates a PR on the upstream repository with the change.
 
     Notes:
-        This requires a Github token (either in the GITHUB_TOKEN environment variable, or in the MacOS keychain),
-        with 'repo' permissions.
         This also requires that there are no local uncommitted changes, that the current branch is 'main' or the
         release branch, and that no branch named 'release/<new rc version>' already exists locally or upstream.
     """
@@ -625,7 +626,7 @@ def build_rc(ctx, release_branch, patch_version=False, k8s_deployments=False, st
 
         # tag_version only takes the highest version (Agent 7 currently), and creates
         # the tags for all supported versions
-        # TODO: make it possible to do Agent 6-only or Agent 7-only tags?
+        # TODO(team:agent-delivery): make it possible to do Agent 6-only or Agent 7-only tags?
         tag_version(ctx, version=str(new_version), force=False, start_qual=start_qual)
         tag_modules(ctx, version=str(new_version), force=False)
 
@@ -690,11 +691,10 @@ def set_release_json(ctx, key, value, release_branch=None, skip_checkout=False, 
         release_json = load_release_json()
         path = key.split('::')
         current_node = release_json
-        for key_idx in range(len(path)):
-            key = path[key_idx]
+        for idx, key in enumerate(path):
             if key not in current_node:
                 raise Exit(code=1, message=f"Couldn't find '{key}' in release.json")
-            if key_idx == len(path) - 1:
+            if idx == len(path) - 1:
                 current_node[key] = value
                 break
             else:
@@ -758,13 +758,12 @@ def create_and_update_release_branch(
                 or ctx.run(f"git remote show {upstream} | grep \"HEAD branch\" | sed 's/.*: //'").stdout.strip()
             )
             ctx.run(f"git checkout {main_branch}")
-            ctx.run("git pull")
+            ctx.run("git pull", warn=True)
 
             _main()
 
 
-# TODO: unfreeze is the former name of this task, kept for backward compatibility. Remove in a few weeks.
-@task(help={'upstream': "Remote repository name (default 'origin')"}, aliases=["unfreeze"])
+@task(help={'upstream': "Remote repository name (default 'origin')"})
 def create_release_branches(
     ctx, commit, base_directory="~/dd", major_version: int = 7, upstream="origin", check_state=True
 ):
@@ -781,22 +780,20 @@ def create_release_branches(
         use_worktree: If True, will go to datadog-agent-worktree instead of datadog-agent.
 
     Notes:
-        This requires a GitHub token (either in the GITHUB_TOKEN environment variable, or in the MacOS keychain),
-        with 'repo' permissions.
         This also requires that there are no local uncommitted changes, that the current branch is 'main' or the
         release branch, and that no branch named 'release/<new rc version>' already exists locally or upstream.
     """
 
     github = GithubAPI(repository=GITHUB_REPO_NAME)
 
-    current = current_version(ctx, major_version)
-    current.rc = False
-    current.devel = False
-
-    # Strings with proper branch/tag names
-    release_branch = current.branch()
-
     with agent_context(ctx, commit=commit):
+        current = current_version(ctx, major_version)
+        current.rc = False
+        current.devel = False
+
+        # Strings with proper branch/tag names
+        release_branch = current.branch()
+
         # Step 0: checks
         ctx.run("git fetch")
 
@@ -813,9 +810,8 @@ def create_release_branches(
 
         # Step 1 - Create release branches in all required repositories
 
-        base_branch = get_default_branch() if major_version == 6 else None
-
         for repo in UNFREEZE_REPOS:
+            base_branch = get_default_branch() if major_version == 6 else DEFAULT_BRANCHES[repo]
             create_and_update_release_branch(
                 ctx, repo, release_branch, base_branch=base_branch, base_directory=base_directory, upstream=upstream
             )
@@ -1213,13 +1209,13 @@ def check_for_changes(ctx, release_branch, warning_mode=False):
     with agent_context(ctx, release_branch):
         next_version = next_rc_version(ctx, release_branch)
         repo_data = generate_repo_data(ctx, warning_mode, next_version, release_branch)
-        changes = 'false'
+        return_code = 0  # no changes
         message = [f":warning: Please add the `{next_version}` tag on the head of `{release_branch}` for:\n"]
         for repo_name, repo in repo_data.items():
             head_commit = get_last_commit(ctx, repo_name, repo['branch'])
             last_tag_commit, last_tag_name = get_last_release_tag(ctx, repo_name, next_version.tag_pattern())
             if last_tag_commit != "" and last_tag_commit != head_commit:
-                changes = 'true'
+                return_code = 69
                 print(f"{repo_name} has new commits since {last_tag_name}", file=sys.stderr)
                 if warning_mode:
                     team = "agent-integrations"
@@ -1233,7 +1229,7 @@ def check_for_changes(ctx, release_branch, warning_mode=False):
                 # This repo has changes, the next check is not needed
                 continue
             if repo_name != "datadog-agent" and last_tag_name != repo['previous_tag']:
-                changes = 'true'
+                return_code = 69
                 print(
                     f"{repo_name} has a new tag {last_tag_name} since last release candidate (was {repo['previous_tag']})",
                     file=sys.stderr,
@@ -1243,7 +1239,7 @@ def check_for_changes(ctx, release_branch, warning_mode=False):
             message.append("Make sure to tag them before merging the next RC PR.")
             warn_new_tags("".join(message))
         # Send a value for the create_rc_pr.yml workflow
-        print(changes)
+        sys.exit(return_code)
 
 
 @task

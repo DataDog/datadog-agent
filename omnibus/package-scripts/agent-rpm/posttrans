@@ -1,10 +1,11 @@
-#! /bin/sh
-#
-# This script is RPM-specific
-# It is run at the very end of an install/upgrade of the package
-# It is NOT run on removal of the package
-#
-# .rpm: STEP 6 of 6
+#!/bin/sh
+##########################################################################
+#             DO NOT EDIT THIS SCRIPT DIRECTLY.                          #
+#                                                                        #
+# The installation logic is handled by the installer at in the following #
+# file: pkg/fleet/installer/packages/datadog_agent_linux.go              #
+#                                                                        #
+##########################################################################
 
 INSTALL_DIR=/opt/datadog-agent
 
@@ -13,7 +14,7 @@ if [ -x ${INSTALL_DIR}/embedded/bin/fipsinstall.sh ]; then
     ${INSTALL_DIR}/embedded/bin/fipsinstall.sh
 fi
 
-# Run postinstall script. Instructions can be found in pkg/fleet/installer/packages/datadog_agent_linux.go
-${INSTALL_DIR}/embedded/bin/installer postinst datadog-agent rpm
+# Run the postinst. See pkg/fleet/installer/packages/datadog_agent_linux.go
+${INSTALL_DIR}/embedded/bin/installer postinst datadog-agent rpm || true
 
 exit 0

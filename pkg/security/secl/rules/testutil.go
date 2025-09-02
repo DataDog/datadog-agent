@@ -12,8 +12,12 @@ import (
 	"fmt"
 	"testing"
 
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 )
+
+var ruleID = atomic.NewInt32(0)
 
 // AddTestRuleExpr adds a rule expression
 func AddTestRuleExpr(t testing.TB, rs *RuleSet, exprs ...string) {
@@ -21,15 +25,16 @@ func AddTestRuleExpr(t testing.TB, rs *RuleSet, exprs ...string) {
 
 	var rules []*PolicyRule
 
-	for i, expr := range exprs {
+	for _, expr := range exprs {
 		rule := &PolicyRule{
 			Def: &RuleDefinition{
-				ID:         fmt.Sprintf("ID%d", i),
+				ID:         fmt.Sprintf("ID%d", ruleID.Load()),
 				Expression: expr,
 				Tags:       make(map[string]string),
 			},
 		}
 		rules = append(rules, rule)
+		ruleID.Inc()
 	}
 
 	pc := ast.NewParsingContext(false)

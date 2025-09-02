@@ -9,6 +9,9 @@ import (
 	"os"
 	"path/filepath"
 
+	"golang.org/x/sys/windows/registry"
+
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
@@ -51,13 +54,50 @@ func osinit() {
 		defaultSystemProbeLogFilePath = filepath.Join(pd, "logs", "system-probe.log")
 		DefaultProcessAgentLogFile = filepath.Join(pd, "logs", "process-agent.log")
 		DefaultUpdaterLogFile = filepath.Join(pd, "logs", "updater.log")
+		DefaultOTelAgentLogFile = filepath.Join(pd, "logs", "otel-agent.log")
 	}
 
-	// Process Agent
+	// Agent binary
 	if _here, err := executable.Folder(); err == nil {
-		agentFilePath := filepath.Join(_here, "..", "..", "embedded", "agent.exe")
+		InstallPath = filepath.Join(_here, "..", "..")
+		agentFilePath := filepath.Join(InstallPath, "embedded", "agent.exe")
 		if _, err := os.Stat(agentFilePath); err == nil {
 			DefaultDDAgentBin = agentFilePath
 		}
 	}
+
+	// Fleet Automation
+	pkgconfigmodel.AddOverrideFunc(FleetConfigOverride)
+}
+
+// FleetConfigOverride sets the fleet_policies_dir config value to the value set in the registry.
+//
+// This value tells the agent to load a config experiment from Fleet Automation.
+//
+// Linux sets this option with an environment variable in the experiment's systemd unit file,
+// so we need a different approach for Windows. After the viper migration is complete, we can
+// consider replacing this override with a Windows Registry config source.
+func FleetConfigOverride(config pkgconfigmodel.Config) {
+	// Prioritize the value set in the config file / env var
+	if config.IsConfigured("fleet_policies_dir") {
+		return
+	}
+
+	// value is not set, get the default value from the registry
+	k, err := registry.OpenKey(registry.LOCAL_MACHINE,
+		"SOFTWARE\\Datadog\\Datadog Agent",
+		registry.ALL_ACCESS)
+	if err != nil {
+		return
+	}
+	defer k.Close()
+	val, _, err := k.GetStringValue("fleet_policies_dir")
+	if err != nil {
+		return
+	}
+	if val == "" {
+		return
+	}
+
+	config.Set("fleet_policies_dir", val, pkgconfigmodel.SourceAgentRuntime)
 }

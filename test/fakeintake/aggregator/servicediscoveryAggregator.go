@@ -29,7 +29,6 @@ type ServiceDiscoveryPayload struct {
 	APIVersion  string `json:"api_version"`
 	Payload     struct {
 		NamingSchemaVersion  string           `json:"naming_schema_version"`
-		ServiceName          string           `json:"service_name"`
 		GeneratedServiceName string           `json:"generated_service_name"`
 		TracerMetadata       []TracerMetadata `json:"tracer_metadata"`
 		DDService            string           `json:"dd_service,omitempty"`

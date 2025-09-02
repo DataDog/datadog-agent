@@ -8,7 +8,10 @@
 package versa
 
 import (
+	"fmt"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/versa/client"
 )
@@ -150,6 +153,45 @@ func TestFilterOrganizations(t *testing.T) {
 				if _, ok := actualOrgsSet[expectedOrg]; !ok {
 					t.Errorf("Expected organization %s not found in actual organizations", expectedOrg)
 				}
+			}
+		})
+	}
+}
+
+func TestGenerateDeviceNameToIDMap(t *testing.T) {
+	tts := []struct {
+		description string
+		devices     []metadata.DeviceMetadata
+		expectedMap map[string]string
+	}{
+		{
+			description: "Empty devices list",
+			devices:     []metadata.DeviceMetadata{},
+			expectedMap: map[string]string{},
+		},
+		{
+			description: "Multiple devices with names",
+			devices: []metadata.DeviceMetadata{
+				{
+					IPAddress: "1",
+					Name:      "branch1",
+				},
+				{
+					IPAddress: "2",
+					Name:      "branch2",
+				},
+			},
+			expectedMap: map[string]string{
+				"branch1": "1",
+				"branch2": "2",
+			},
+		},
+	}
+	for _, test := range tts {
+		t.Run(test.description, func(t *testing.T) {
+			actualMap := generateDeviceNameToIPMap(test.devices)
+			if fmt.Sprint(actualMap) != fmt.Sprint(test.expectedMap) {
+				t.Errorf("Expected map %v, got %v", test.expectedMap, actualMap)
 			}
 		})
 	}

@@ -3,7 +3,7 @@ deploy_cluster_agent_cloudfoundry:
   rules:
     !reference [.on_deploy]
   stage: deploy_packages
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
   tags: ["arch:amd64"]
   needs: ["cluster_agent_cloudfoundry-build_amd64"]
   before_script:

@@ -15,6 +15,8 @@ import (
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/stretchr/testify/require"
 
+	nvmlmock "github.com/NVIDIA/go-nvml/pkg/nvml/mock"
+
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 )
 
@@ -81,11 +83,8 @@ func TestPopulateCapabilities(t *testing.T) {
 			)
 			WithPartialMockNVML(t, mockNvml, availableSymbols)
 
-			// Set the library instance directly to bypass initialization
-			safenvml.lib = mockNvml
-
 			// Call populateCapabilities
-			err := safenvml.populateCapabilities()
+			capabilities, err := populateCapabilities(mockNvml)
 
 			if tc.expectInitErr {
 				require.Error(t, err)
@@ -93,7 +92,12 @@ func TestPopulateCapabilities(t *testing.T) {
 			}
 			require.NoError(t, err)
 
+			// Test that the capabilities map is populated correctly
+			require.Equal(t, availableSymbols, capabilities)
+
 			// Test lookup for specific symbols
+			safenvml.lib = mockNvml
+			safenvml.capabilities = capabilities
 			err = safenvml.lookup(tc.testSymbol)
 			require.Equal(t, tc.expectedLookupErr, err)
 		})
@@ -149,4 +153,75 @@ func TestNvmlAPIError(t *testing.T) {
 		err := NewNvmlAPIErrorOrNil("TestAPI", nvml.SUCCESS)
 		require.Nil(t, err)
 	})
+}
+
+func TestInitFailure(t *testing.T) {
+	var safenvml safeNvml
+
+	mockNewFunc := func(_ ...nvml.LibraryOption) nvml.Interface {
+		return &nvmlmock.Interface{
+			InitFunc: func() nvml.Return {
+				return nvml.ERROR_UNKNOWN
+			},
+		}
+	}
+
+	// First init should fail
+	require.Error(t, safenvml.ensureInitWithOpts(mockNewFunc))
+
+	// Second init should fail too, because the library is not initialized
+	require.Error(t, safenvml.ensureInitWithOpts(mockNewFunc))
+}
+
+func TestPopulateCapabilitiesFailure(t *testing.T) {
+	var safenvml safeNvml
+
+	mockNewFunc := func(_ ...nvml.LibraryOption) nvml.Interface {
+		return &nvmlmock.Interface{
+			InitFunc: func() nvml.Return {
+				return nvml.ERROR_UNKNOWN
+			},
+			ExtensionsFunc: func() nvml.ExtendedInterface {
+				return &nvmlmock.ExtendedInterface{
+					LookupSymbolFunc: func(_ string) error {
+						return errors.New("symbol not found")
+					},
+				}
+			},
+		}
+	}
+
+	// Lookup returns error on all symbols, so populateCapabilities should fail and therefore
+	// the init should fail too, even on consecutive calls
+	require.Error(t, safenvml.ensureInitWithOpts(mockNewFunc))
+	require.Error(t, safenvml.ensureInitWithOpts(mockNewFunc))
+}
+
+func TestInitMultipleTimes(t *testing.T) {
+	var safenvml safeNvml
+	numInit := 0
+
+	// Mock the nvml library to return SUCCESS on the first init and ERROR_UNKNOWN on the second, to
+	// ensure that the library is initialized only once.
+	mockNewFunc := func(_ ...nvml.LibraryOption) nvml.Interface {
+		return &nvmlmock.Interface{
+			InitFunc: func() nvml.Return {
+				numInit++
+				if numInit == 1 {
+					return nvml.SUCCESS
+				}
+				return nvml.ERROR_UNKNOWN
+			},
+			ExtensionsFunc: func() nvml.ExtendedInterface {
+				return &nvmlmock.ExtendedInterface{
+					LookupSymbolFunc: func(_ string) error {
+						return nil
+					},
+				}
+			},
+		}
+	}
+
+	require.NoError(t, safenvml.ensureInitWithOpts(mockNewFunc))
+	require.NoError(t, safenvml.ensureInitWithOpts(mockNewFunc))
 }

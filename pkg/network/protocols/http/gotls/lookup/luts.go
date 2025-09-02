@@ -152,44 +152,98 @@ func GetConnFDOffset(version goversion.GoVersion, goarch string) (uint64, error)
 	}
 }
 
-// GetNetFD_PFDOffset gets the offset of the "pfd" field in the "net.netFD" struct
-func GetNetFD_PFDOffset(version goversion.GoVersion, goarch string) (uint64, error) {
-	switch goarch {
-	case "amd64":
-		if version.AfterOrEqual(goversion.GoVersion{Major: 1, Minor: 13, Rev: 0}) {
-			return 0x0, nil
-		}
-		return 0, fmt.Errorf("unsupported version go%d.%d.%d (min supported: go%d.%d.%d)", version.Major, version.Minor, version.Rev, 1, 13, 0)
-	case "arm64":
-		if version.AfterOrEqual(goversion.GoVersion{Major: 1, Minor: 13, Rev: 0}) {
-			return 0x0, nil
-		}
-		return 0, fmt.Errorf("unsupported version go%d.%d.%d (min supported: go%d.%d.%d)", version.Major, version.Minor, version.Rev, 1, 13, 0)
-	default:
-		return 0, fmt.Errorf("unsupported architecture %q", goarch)
-	}
-}
-
-// GetFD_SysfdOffset gets the offset of the "Sysfd" field in the "internal/poll.FD" struct
-func GetFD_SysfdOffset(version goversion.GoVersion, goarch string) (uint64, error) {
-	switch goarch {
-	case "amd64":
-		if version.AfterOrEqual(goversion.GoVersion{Major: 1, Minor: 13, Rev: 0}) {
-			return 0x10, nil
-		}
-		return 0, fmt.Errorf("unsupported version go%d.%d.%d (min supported: go%d.%d.%d)", version.Major, version.Minor, version.Rev, 1, 13, 0)
-	case "arm64":
-		if version.AfterOrEqual(goversion.GoVersion{Major: 1, Minor: 13, Rev: 0}) {
-			return 0x10, nil
-		}
-		return 0, fmt.Errorf("unsupported version go%d.%d.%d (min supported: go%d.%d.%d)", version.Major, version.Minor, version.Rev, 1, 13, 0)
-	default:
-		return 0, fmt.Errorf("unsupported architecture %q", goarch)
-	}
-}
-
 // GetLimitListenerConn_NetConnOffset gets the offset of the "net.Conn" field in the "netutil/limitListenerConn" struct
 func GetLimitListenerConn_NetConnOffset(version goversion.GoVersion, goarch string) (uint64, error) {
+	switch goarch {
+	case "amd64":
+		if version.AfterOrEqual(goversion.GoVersion{Major: 1, Minor: 13, Rev: 0}) {
+			return 0x0, nil
+		}
+		return 0, fmt.Errorf("unsupported version go%d.%d.%d (min supported: go%d.%d.%d)", version.Major, version.Minor, version.Rev, 1, 13, 0)
+	case "arm64":
+		if version.AfterOrEqual(goversion.GoVersion{Major: 1, Minor: 13, Rev: 0}) {
+			return 0x0, nil
+		}
+		return 0, fmt.Errorf("unsupported version go%d.%d.%d (min supported: go%d.%d.%d)", version.Major, version.Minor, version.Rev, 1, 13, 0)
+	default:
+		return 0, fmt.Errorf("unsupported architecture %q", goarch)
+	}
+}
+
+// GetNetFD_FamilyInOffset gets the offset of the "family" field in the "net.netFD" struct
+func GetNetFD_FamilyInNetFDOffset(version goversion.GoVersion, goarch string) (uint64, error) {
+	switch goarch {
+	case "amd64":
+		if version.AfterOrEqual(goversion.GoVersion{Major: 1, Minor: 13, Rev: 0}) {
+			return 0x38, nil
+		}
+		return 0, fmt.Errorf("unsupported version go%d.%d.%d (min supported: go%d.%d.%d)", version.Major, version.Minor, version.Rev, 1, 13, 0)
+	case "arm64":
+		if version.AfterOrEqual(goversion.GoVersion{Major: 1, Minor: 13, Rev: 0}) {
+			return 0x38, nil
+		}
+		return 0, fmt.Errorf("unsupported version go%d.%d.%d (min supported: go%d.%d.%d)", version.Major, version.Minor, version.Rev, 1, 13, 0)
+	default:
+		return 0, fmt.Errorf("unsupported architecture %q", goarch)
+	}
+}
+
+// GetNetFD_LaddrInNetFDOffset gets the offset of the "laddr" field in the "net.netFD" struct
+func GetNetFD_LaddrInNetFDOffset(version goversion.GoVersion, goarch string) (uint64, error) {
+	switch goarch {
+	case "amd64":
+		if version.AfterOrEqual(goversion.GoVersion{Major: 1, Minor: 13, Rev: 0}) {
+			return 0x60, nil
+		}
+		return 0, fmt.Errorf("unsupported version go%d.%d.%d (min supported: go%d.%d.%d)", version.Major, version.Minor, version.Rev, 1, 13, 0)
+	case "arm64":
+		if version.AfterOrEqual(goversion.GoVersion{Major: 1, Minor: 13, Rev: 0}) {
+			return 0x60, nil
+		}
+		return 0, fmt.Errorf("unsupported version go%d.%d.%d (min supported: go%d.%d.%d)", version.Major, version.Minor, version.Rev, 1, 13, 0)
+	default:
+		return 0, fmt.Errorf("unsupported architecture %q", goarch)
+	}
+}
+
+// GetNetFD_RaddrInNetFDOffset gets the offset of the "raddr" field in the "net.netFD" struct
+func GetNetFD_RaddrInNetFDOffset(version goversion.GoVersion, goarch string) (uint64, error) {
+	switch goarch {
+	case "amd64":
+		if version.AfterOrEqual(goversion.GoVersion{Major: 1, Minor: 13, Rev: 0}) {
+			return 0x70, nil
+		}
+		return 0, fmt.Errorf("unsupported version go%d.%d.%d (min supported: go%d.%d.%d)", version.Major, version.Minor, version.Rev, 1, 13, 0)
+	case "arm64":
+		if version.AfterOrEqual(goversion.GoVersion{Major: 1, Minor: 13, Rev: 0}) {
+			return 0x70, nil
+		}
+		return 0, fmt.Errorf("unsupported version go%d.%d.%d (min supported: go%d.%d.%d)", version.Major, version.Minor, version.Rev, 1, 13, 0)
+	default:
+		return 0, fmt.Errorf("unsupported architecture %q", goarch)
+	}
+}
+
+// GetTCPAddr_PortInTCPAddrOffset gets the offset of the "Port" field in the "net.TCPAddr" struct
+func GetTCPAddr_PortInTCPAddrOffset(version goversion.GoVersion, goarch string) (uint64, error) {
+	switch goarch {
+	case "amd64":
+		if version.AfterOrEqual(goversion.GoVersion{Major: 1, Minor: 13, Rev: 0}) {
+			return 0x18, nil
+		}
+		return 0, fmt.Errorf("unsupported version go%d.%d.%d (min supported: go%d.%d.%d)", version.Major, version.Minor, version.Rev, 1, 13, 0)
+	case "arm64":
+		if version.AfterOrEqual(goversion.GoVersion{Major: 1, Minor: 13, Rev: 0}) {
+			return 0x18, nil
+		}
+		return 0, fmt.Errorf("unsupported version go%d.%d.%d (min supported: go%d.%d.%d)", version.Major, version.Minor, version.Rev, 1, 13, 0)
+	default:
+		return 0, fmt.Errorf("unsupported architecture %q", goarch)
+	}
+}
+
+// GetTCPAddr_IPInTCPAddrOffset gets the offset of the "IP" field in the "net.TCPAddr" struct
+func GetTCPAddr_IPInTCPAddrOffset(version goversion.GoVersion, goarch string) (uint64, error) {
 	switch goarch {
 	case "amd64":
 		if version.AfterOrEqual(goversion.GoVersion{Major: 1, Minor: 13, Rev: 0}) {

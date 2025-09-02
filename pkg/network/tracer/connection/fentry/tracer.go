@@ -17,6 +17,7 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	bugs "github.com/DataDog/datadog-agent/pkg/ebpf/kernelbugs"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/perf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -34,7 +35,7 @@ func LoadTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHa
 		return nil, nil, ErrorDisabled
 	}
 
-	hasPotentialFentryDeadlock, err := ddebpf.HasTasksRCUExitLockSymbol()
+	hasPotentialFentryDeadlock, err := bugs.HasTasksRCUExitLockSymbol()
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to check HasTasksRCUExitLockSymbol: %w", err)
 	}

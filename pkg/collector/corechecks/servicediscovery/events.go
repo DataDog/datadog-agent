@@ -29,7 +29,6 @@ const (
 
 type eventPayload struct {
 	NamingSchemaVersion        string                          `json:"naming_schema_version"`
-	ServiceName                string                          `json:"service_name"`
 	GeneratedServiceName       string                          `json:"generated_service_name"`
 	GeneratedServiceNameSource string                          `json:"generated_service_name_source,omitempty"`
 	AdditionalGeneratedNames   []string                        `json:"additional_generated_names,omitempty"`
@@ -77,17 +76,16 @@ func (ts *telemetrySender) newEvent(t eventType, service model.Service) *event {
 	nameSource := ""
 	if service.DDService != "" {
 		nameSource = "provided"
-		if service.DDServiceInjected {
-			nameSource = "injected"
-		}
 	}
+
+	// Combine TCP and UDP ports for backward compatibility
+	allPorts := combinePorts(service.TCPPorts, service.UDPPorts)
 
 	return &event{
 		RequestType: t,
 		APIVersion:  "v2",
 		Payload: &eventPayload{
 			NamingSchemaVersion:        "1",
-			ServiceName:                service.Name,
 			GeneratedServiceName:       service.GeneratedName,
 			GeneratedServiceNameSource: service.GeneratedNameSource,
 			AdditionalGeneratedNames:   service.AdditionalGeneratedNames,
@@ -105,7 +103,7 @@ func (ts *telemetrySender) newEvent(t eventType, service model.Service) *event {
 			LastSeen:                   service.LastHeartbeat,
 			APMInstrumentation:         service.APMInstrumentation,
 			ServiceNameSource:          nameSource,
-			Ports:                      service.Ports,
+			Ports:                      allPorts,
 			PID:                        service.PID,
 			CommandLine:                service.CommandLine,
 			RSSMemory:                  service.RSS,
@@ -119,6 +117,32 @@ func (ts *telemetrySender) newEvent(t eventType, service model.Service) *event {
 	}
 }
 
+// combinePorts combines TCP and UDP ports into a single slice, removing duplicates
+func combinePorts(tcpPorts, udpPorts []uint16) []uint16 {
+	if len(tcpPorts) == 0 && len(udpPorts) == 0 {
+		return nil
+	}
+
+	allPorts := make([]uint16, 0, len(tcpPorts)+len(udpPorts))
+	seenPorts := make(map[uint16]struct{})
+
+	for _, port := range tcpPorts {
+		if _, seen := seenPorts[port]; !seen {
+			allPorts = append(allPorts, port)
+			seenPorts[port] = struct{}{}
+		}
+	}
+
+	for _, port := range udpPorts {
+		if _, seen := seenPorts[port]; !seen {
+			allPorts = append(allPorts, port)
+			seenPorts[port] = struct{}{}
+		}
+	}
+
+	return allPorts
+}
+
 func newTelemetrySender(sender sender.Sender) *telemetrySender {
 	return &telemetrySender{
 		sender:   sender,
@@ -127,10 +151,12 @@ func newTelemetrySender(sender sender.Sender) *telemetrySender {
 }
 
 func (ts *telemetrySender) sendStartServiceEvent(service model.Service) {
-	log.Debugf("[pid: %d | name: %s | ports: %v] start-service",
+	log.Debugf("[pid: %d | ddservice: %s | generated: %s | tcp: %v | udp: %v] start-service",
 		service.PID,
-		service.Name,
-		service.Ports,
+		service.DDService,
+		service.GeneratedName,
+		service.TCPPorts,
+		service.UDPPorts,
 	)
 
 	e := ts.newEvent(eventTypeStartService, service)
@@ -144,9 +170,10 @@ func (ts *telemetrySender) sendStartServiceEvent(service model.Service) {
 }
 
 func (ts *telemetrySender) sendHeartbeatServiceEvent(service model.Service) {
-	log.Debugf("[pid: %d | name: %s] heartbeat-service",
+	log.Debugf("[pid: %d | ddservice: %s | generated: %s] heartbeat-service",
 		service.PID,
-		service.Name,
+		service.DDService,
+		service.GeneratedName,
 	)
 
 	e := ts.newEvent(eventTypeHeartbeatService, service)
@@ -160,9 +187,10 @@ func (ts *telemetrySender) sendHeartbeatServiceEvent(service model.Service) {
 }
 
 func (ts *telemetrySender) sendEndServiceEvent(service model.Service) {
-	log.Debugf("[pid: %d | name: %s] end-service",
+	log.Debugf("[pid: %d | ddservice: %s | generated: %s] end-service",
 		service.PID,
-		service.Name,
+		service.DDService,
+		service.GeneratedName,
 	)
 
 	e := ts.newEvent(eventTypeEndService, service)

@@ -6,71 +6,19 @@
 package metrics
 
 import (
-	"bytes"
-	"encoding/json"
 	"errors"
-	"expvar"
 	"fmt"
 
 	jsoniter "github.com/json-iterator/go"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
-	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	utiljson "github.com/DataDog/datadog-agent/pkg/util/json"
-)
-
-var (
-	serviceCheckExpvar = expvar.NewMap("ServiceCheck")
-
-	tlmServiceCheck = telemetry.NewCounter("metrics", "service_check_split",
-		[]string{"action"}, "Service check split")
 )
 
 // ServiceChecks represents a list of service checks ready to be serialize
 type ServiceChecks []*servicecheck.ServiceCheck
 
-// MarshalJSON serializes service checks to JSON so it can be sent to V1 endpoints
-// FIXME(olivier): to be removed when v2 endpoints are available
-func (sc ServiceChecks) MarshalJSON() ([]byte, error) {
-	// use an alias to avoid infinite recursion while serializing
-	type ServiceChecksAlias ServiceChecks
-
-	reqBody := &bytes.Buffer{}
-	err := json.NewEncoder(reqBody).Encode(ServiceChecksAlias(sc))
-	return reqBody.Bytes(), err
-}
-
-// SplitPayload breaks the payload into times number of pieces
-func (sc ServiceChecks) SplitPayload(times int) ([]marshaler.AbstractMarshaler, error) {
-	serviceCheckExpvar.Add("TimesSplit", 1)
-	tlmServiceCheck.Inc("times_split")
-	// only split it up as much as possible
-	if len(sc) < times {
-		serviceCheckExpvar.Add("ServiceChecksShorter", 1)
-		tlmServiceCheck.Inc("shorter")
-		times = len(sc)
-	}
-	splitPayloads := make([]marshaler.AbstractMarshaler, times)
-	batchSize := len(sc) / times
-	n := 0
-	for i := 0; i < times; i++ {
-		var end int
-		// the batch size will not be perfect, only split it as much as possible
-		if i < times-1 {
-			end = n + batchSize
-		} else {
-			end = len(sc)
-		}
-		newSC := sc[n:end]
-		splitPayloads[i] = newSC
-		n += batchSize
-	}
-	return splitPayloads, nil
-}
-
-//// The following methods implement the StreamJSONMarshaler interface
-//// for support of the enable_service_checks_stream_payload_serialization option.
+//// The following methods implement the StreamJSONMarshaler interface,
 
 // WriteHeader writes the payload header for this type
 func (sc ServiceChecks) WriteHeader(stream *jsoniter.Stream) error {

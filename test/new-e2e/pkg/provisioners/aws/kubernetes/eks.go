@@ -131,6 +131,7 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 			params.agentOptions = append(params.agentOptions, kubernetesagentparams.WithDeployWindows())
 		}
 
+		params.agentOptions = append(params.agentOptions, kubernetesagentparams.WithClusterName(cluster.ClusterName))
 		kubernetesAgent, err = helm.NewKubernetesAgent(&awsEnv, "eks", cluster.KubeProvider, params.agentOptions...)
 		if err != nil {
 			return err
@@ -191,6 +192,10 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 		// These resources cannot be deployed if the Agent is not installed, it requires some CRDs provided by the Helm chart
 		if params.agentOptions != nil {
 			if _, err := nginx.K8sAppDefinition(&awsEnv, cluster.KubeProvider, "workload-nginx", "", true, dependsOnDDAgent /* for DDM */, dependsOnVPA); err != nil {
+				return err
+			}
+
+			if _, err := nginx.EksFargateAppDefinition(&awsEnv, cluster.KubeProvider, "workload-nginx-fargate", kubernetesAgent.ClusterAgentToken, dependsOnDDAgent); err != nil {
 				return err
 			}
 

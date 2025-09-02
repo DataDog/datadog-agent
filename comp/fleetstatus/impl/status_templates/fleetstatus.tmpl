@@ -1,0 +1,15 @@
+{{- if .HTML }}
+<div class="stat">
+  <span class="stat_title">Fleet Status</span>
+  <span class="stat_data">
+{{- end }}
+  {{ with .fleetAutomationStatus }}
+  {{ if .fleetAutomationEnabled }}Fleet Management is enabled{{ else }}Fleet Management is disabled{{ end }}
+
+  Remote Management Status:    {{ if .remoteManagementEnabled }}Enabled{{ else }}Disabled{{ end }}
+  Datadog Installer Status:    {{ if .installerRunning }}Running{{ else }}Not running{{ end }}
+  {{ end }}
+  {{- if .HTML }}
+  </span>
+</div>
+{{- end }}

@@ -17,8 +17,8 @@ import (
 	"strings"
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	extensiontypes "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types"
-	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -127,14 +127,7 @@ func (c *collectorImpl) requestOtelConfigInfo(endpointURL string) ([]byte, error
 		return []byte(overrideConfigResponse), nil
 	}
 
-	authToken := c.ipc.GetAuthToken()
-
-	options := apiutil.ReqOptions{
-		Ctx:       c.ctx,
-		Authtoken: authToken,
-	}
-
-	data, err := apiutil.DoGetWithOptions(c.client, endpointURL, &options)
+	data, err := c.client.Get(endpointURL, ipchttp.WithContext(c.ctx), ipchttp.WithTimeout(c.clientTimeout))
 	if err != nil {
 		return nil, err
 	}

@@ -145,6 +145,7 @@ func TestGetContainerStats_Containerd(t *testing.T) {
 			KernelStack:  100,
 			Pgfault:      2,
 			Pgmajfault:   1,
+			MaxUsage:     1000,
 		},
 		Io: &v2.IOStat{
 			Usage: []*v2.IOEntry{
@@ -252,6 +253,7 @@ func TestGetContainerStats_Containerd(t *testing.T) {
 					Swap:         pointer.Ptr(10.0),
 					Pgfault:      pointer.Ptr(2.0),
 					Pgmajfault:   pointer.Ptr(1.0),
+					Peak:         pointer.Ptr(1000.0),
 				},
 				IO: &provider.ContainerIOStats{
 					ReadBytes:       pointer.Ptr(60.0),
@@ -285,7 +287,7 @@ func TestGetContainerStats_Containerd(t *testing.T) {
 			// namespace.
 			workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 				fx.Provide(func() log.Component { return logmock.New(t) }),
-				config.MockModule(),
+				fx.Provide(func() config.Component { return config.NewMock(t) }),
 				fx.Supply(context.Background()),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			))
@@ -383,7 +385,7 @@ func TestGetContainerNetworkStats_Containerd(t *testing.T) {
 			// namespace.
 			workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 				fx.Provide(func() log.Component { return logmock.New(t) }),
-				config.MockModule(),
+				fx.Provide(func() config.Component { return config.NewMock(t) }),
 				fx.Supply(context.Background()),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			))

@@ -147,7 +147,7 @@ func TestNTPError(t *testing.T) {
 	mockSender.AssertNumberOfCalls(t, "ServiceCheck", 1)
 	mockSender.AssertNumberOfCalls(t, "Commit", 1)
 	assert.Error(t, err)
-	assert.EqualError(t, err, "failed to get clock offset from any ntp host: [ 0.datadog.pool.ntp.org, 1.datadog.pool.ntp.org, 2.datadog.pool.ntp.org, 3.datadog.pool.ntp.org ]")
+	assert.EqualError(t, err, "failed to get clock offset from any ntp host: [ 0.datadog.pool.ntp.org, 1.datadog.pool.ntp.org, 2.datadog.pool.ntp.org, 3.datadog.pool.ntp.org ]. See https://docs.datadoghq.com/agent/troubleshooting/ntp/ for more details on how to debug this issue")
 }
 
 func TestNTPInvalid(t *testing.T) {
@@ -421,4 +421,52 @@ func TestNTPUseLocalDefinedServers(t *testing.T) {
 	assert.NoError(t, err)
 	assert.False(t, defaultConfig.instance.UseLocalDefinedServers)
 	assert.NotEqual(t, configUseLocalServer.instance.Hosts, defaultConfig.instance.Hosts)
+}
+
+func TestNTPDynamicServerRediscovery(t *testing.T) {
+	// Test that servers are re-discovered on each Run() call when UseLocalDefinedServers is true
+
+	// Mock the getLocalDefinedNTPServers function to return different servers over time
+	currentServers := []string{"initial-server.com"}
+	originalGetLocalServers := getLocalDefinedNTPServersFunc
+	getLocalDefinedNTPServersFunc = func() ([]string, error) {
+		return currentServers, nil
+	}
+	defer func() { getLocalDefinedNTPServersFunc = originalGetLocalServers }()
+
+	// Mock NTP query to avoid actual network calls
+	ntpQuery = testNTPQuery
+	defer func() { ntpQuery = ntp.QueryWithOptions }()
+
+	// Configure check with UseLocalDefinedServers enabled
+	ntpCfg := []byte("use_local_defined_servers: true")
+	ntpCheck := new(NTPCheck)
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	err := ntpCheck.Configure(senderManager, integration.FakeConfigHash, ntpCfg, []byte(""), "test")
+	assert.NoError(t, err)
+
+	// Verify initial configuration
+	assert.Equal(t, []string{"initial-server.com"}, ntpCheck.cfg.instance.Hosts)
+
+	// Create mock sender
+	mockSender := mocksender.NewMockSenderWithSenderManager(ntpCheck.ID(), senderManager)
+	mockSender.SetupAcceptAll()
+
+	// First run - should use initial servers
+	err = ntpCheck.Run()
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"initial-server.com"}, ntpCheck.cfg.instance.Hosts)
+
+	// Change the servers returned by the discovery function (simulating DC promotion)
+	currentServers = []string{"new-pdc.com"}
+
+	// Second run - should discover and use new servers
+	err = ntpCheck.Run()
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"new-pdc.com"}, ntpCheck.cfg.instance.Hosts)
+
+	// Third run with same servers - should keep the same servers
+	err = ntpCheck.Run()
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"new-pdc.com"}, ntpCheck.cfg.instance.Hosts)
 }

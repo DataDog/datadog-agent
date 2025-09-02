@@ -12,10 +12,10 @@ import (
 )
 
 const (
-	// DatadogInstallerPackage is the datadog installer package
-	DatadogInstallerPackage string = "datadog-installer"
 	// DatadogAgentPackage is the datadog agent package
 	DatadogAgentPackage string = "datadog-agent"
+	// DatadogAgentDDOTPackage is the datadog agent ddot package
+	DatadogAgentDDOTPackage string = "datadog-ddot"
 	// DatadogAPMInjectPackage is the datadog apm inject package
 	DatadogAPMInjectPackage string = "datadog-apm-inject"
 	// DatadogAPMLibraryJavaPackage is the datadog apm library java package
@@ -34,8 +34,8 @@ const (
 
 var (
 	order = []string{
-		DatadogInstallerPackage,
 		DatadogAgentPackage,
+		DatadogAgentDDOTPackage,
 		DatadogAPMInjectPackage,
 		DatadogAPMLibraryJavaPackage,
 		DatadogAPMLibraryPythonPackage,
@@ -75,7 +75,8 @@ func resolvePackages(env *env.Env, packages Packages) []packageWithVersion {
 
 // Packages is a list of packages to install
 type Packages struct {
-	install map[string]packageWithVersion
+	install          map[string]packageWithVersion
+	copyInstallerSSI bool
 }
 
 type packageWithVersion struct {
@@ -91,12 +92,8 @@ func (p *Packages) Install(pkg string, version string) {
 	}
 }
 
-// InstallInstaller marks the installer package to be installed
-func (p *Packages) InstallInstaller() {
-	p.install[DatadogInstallerPackage] = packageWithVersion{
-		name: DatadogInstallerPackage,
-		// HACK: There is an assumption that the parrent install-*.sh script will set the version.
-		// We will fail if the version is not set.
-		version: "unset",
-	}
+// WriteSSIInstaller marks that the installer should be copied to /opt/datadog-packages/run/datadog-installer-ssi
+// Use this when installing SSI without the agent, so that the installer can be used later to remove the packages.
+func (p *Packages) WriteSSIInstaller() {
+	p.copyInstallerSSI = true
 }

@@ -10,6 +10,7 @@ package k8s
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/common"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sTransformers "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/k8s"
@@ -54,12 +55,13 @@ func (h *DaemonSetHandlers) BuildMessageBody(ctx processors.ProcessorContext, re
 	}
 
 	return &model.CollectorDaemonSet{
-		ClusterName: pctx.Cfg.KubeClusterName,
-		ClusterId:   pctx.ClusterID,
-		GroupId:     pctx.MsgGroupID,
-		GroupSize:   int32(groupSize),
-		DaemonSets:  models,
-		Tags:        pctx.ExtraTags,
+		ClusterName:  pctx.Cfg.KubeClusterName,
+		ClusterId:    pctx.ClusterID,
+		GroupId:      pctx.MsgGroupID,
+		GroupSize:    int32(groupSize),
+		DaemonSets:   models,
+		Tags:         util.ImmutableTagsJoin(pctx.Cfg.ExtraTags, pctx.GetCollectorTags()),
+		AgentVersion: ctx.GetAgentVersion(),
 	}
 }
 
@@ -98,6 +100,17 @@ func (h *DaemonSetHandlers) ResourceUID(ctx processors.ProcessorContext, resourc
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (h *DaemonSetHandlers) ResourceVersion(ctx processors.ProcessorContext, resource, resourceModel interface{}) string {
 	return resource.(*appsv1.DaemonSet).ResourceVersion
+}
+
+// GetMetadataTags returns the tags in the metadata model.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *DaemonSetHandlers) GetMetadataTags(ctx processors.ProcessorContext, resourceMetadataModel interface{}) []string {
+	m, ok := resourceMetadataModel.(*model.DaemonSet)
+	if !ok {
+		return nil
+	}
+	return m.Tags
 }
 
 // ScrubBeforeExtraction is a handler called to redact the raw resource before

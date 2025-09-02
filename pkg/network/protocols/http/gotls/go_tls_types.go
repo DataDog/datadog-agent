@@ -18,3 +18,6 @@ type GoroutineIDMetadata C.goroutine_id_metadata_t
 type TlsBinaryId C.go_tls_offsets_data_key_t
 type TlsConnLayout C.tls_conn_layout_t
 type TlsOffsetsData C.tls_offsets_data_t
+type TlsFunctionsArgsKey C.go_tls_function_args_key_t
+type TlsReadArgsData C.go_tls_read_args_data_t
+type TlsWriteArgsData C.go_tls_write_args_data_t

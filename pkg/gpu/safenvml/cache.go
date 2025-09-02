@@ -19,7 +19,7 @@ type DeviceCache interface {
 	GetByUUID(uuid string) (Device, bool)
 	// GetByIndex returns a device by its index
 	GetByIndex(index int) (Device, error)
-	// Count returns the number of devices in the cache
+	// Count returns the number of physical devices in the cache
 	Count() int
 	// SMVersionSet returns a set of all SM versions in the cache
 	SMVersionSet() map[uint32]struct{}
@@ -109,9 +109,9 @@ func (c *deviceCache) GetByIndex(index int) (Device, error) {
 	return c.allDevices[index], nil
 }
 
-// Count returns the number of devices in the cache
+// Count returns the number of physical devices in the cache
 func (c *deviceCache) Count() int {
-	return len(c.allDevices)
+	return len(c.allPhysicalDevices)
 }
 
 // SMVersionSet returns a set of all SM versions in the cache

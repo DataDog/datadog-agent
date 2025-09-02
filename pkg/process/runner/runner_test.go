@@ -17,6 +17,7 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/comp/core"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/process/types"
@@ -30,9 +31,12 @@ import (
 func TestUpdateRTStatus(t *testing.T) {
 	cfg := configmock.New(t)
 
+	// Mock IPC component to provide TLS credentials
+	ipcMock := ipcmock.New(t)
+
 	assert := assert.New(t)
 	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
-	c, err := NewRunner(cfg, nil, &checks.HostInfo{}, []checks.Check{checks.NewProcessCheck(cfg, cfg, wmeta, nil, &statsd.NoOpClient{})}, nil)
+	c, err := NewRunner(cfg, nil, &checks.HostInfo{}, []checks.Check{checks.NewProcessCheck(cfg, cfg, wmeta, nil, &statsd.NoOpClient{}, ipcMock.GetTLSServerConfig())}, nil)
 	assert.NoError(err)
 	// XXX: Give the collector a big channel so it never blocks.
 	c.rtIntervalCh = make(chan time.Duration, 1000)
@@ -68,8 +72,10 @@ func TestUpdateRTStatus(t *testing.T) {
 func TestUpdateRTInterval(t *testing.T) {
 	cfg := configmock.New(t)
 	assert := assert.New(t)
+	// Mock IPC component to provide TLS credentials
+	ipcMock := ipcmock.New(t)
 	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
-	c, err := NewRunner(configmock.New(t), nil, &checks.HostInfo{}, []checks.Check{checks.NewProcessCheck(cfg, cfg, wmeta, nil, &statsd.NoOpClient{})}, nil)
+	c, err := NewRunner(configmock.New(t), nil, &checks.HostInfo{}, []checks.Check{checks.NewProcessCheck(cfg, cfg, wmeta, nil, &statsd.NoOpClient{}, ipcMock.GetTLSServerConfig())}, nil)
 	assert.NoError(err)
 	// XXX: Give the collector a big channel so it never blocks.
 	c.rtIntervalCh = make(chan time.Duration, 1000)
@@ -134,8 +140,11 @@ func TestDisableRealTimeProcessCheck(t *testing.T) {
 			mockConfig := configmock.New(t)
 			mockConfig.SetWithoutSource("process_config.disable_realtime_checks", tc.disableRealtime)
 
+			// Mock IPC component to provide TLS credentials
+			ipcMock := ipcmock.New(t)
+
 			assert := assert.New(t)
-			expectedChecks := []checks.Check{checks.NewProcessCheck(mockConfig, mockConfig, wmeta, nil, &statsd.NoOpClient{})}
+			expectedChecks := []checks.Check{checks.NewProcessCheck(mockConfig, mockConfig, wmeta, nil, &statsd.NoOpClient{}, ipcMock.GetTLSServerConfig())}
 
 			c, err := NewRunner(mockConfig, nil, &checks.HostInfo{}, expectedChecks, nil)
 			assert.NoError(err)

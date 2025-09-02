@@ -12,16 +12,14 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 )
 
-const cudaVisibleDevicesEnvVar = "CUDA_VISIBLE_DEVICES"
+// CudaVisibleDevicesEnvVar is the name of the environment variable that controls the visible GPUs for CUDA applications
+const CudaVisibleDevicesEnvVar = "CUDA_VISIBLE_DEVICES"
 
-// GetVisibleDevicesForProcess modifies the list of GPU devices according to the
-// value of the CUDA_VISIBLE_DEVICES environment variable for the specified
-// process. Reference:
+// ParseVisibleDevices modifies the list of GPU devices according to the
+// value of the CUDA_VISIBLE_DEVICES environment variable. Reference:
 // https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#env-vars.
 //
 // As a summary, the CUDA_VISIBLE_DEVICES environment variable should be a comma
@@ -36,37 +34,26 @@ const cudaVisibleDevicesEnvVar = "CUDA_VISIBLE_DEVICES"
 // devices whose index precedes the invalid index are visible to CUDA
 // applications." If an invalid index is found, an error is returned together
 // with the list of valid devices found up until that point.
-func GetVisibleDevicesForProcess(systemDevices []ddnvml.Device, pid int, procfs string) ([]ddnvml.Device, error) {
-	cudaVisibleDevices, err := kernel.GetProcessEnvVariable(pid, procfs, cudaVisibleDevicesEnvVar)
-	if err != nil {
-		return nil, fmt.Errorf("cannot get env var %s for process %d: %w", cudaVisibleDevicesEnvVar, pid, err)
-	}
-
-	return getVisibleDevices(systemDevices, cudaVisibleDevices)
-}
-
-// getVisibleDevices processes the list of GPU devices according to the value of
-// the CUDA_VISIBLE_DEVICES environment variable
-func getVisibleDevices(systemDevices []ddnvml.Device, cudaVisibleDevices string) ([]ddnvml.Device, error) {
+func ParseVisibleDevices(devices []ddnvml.Device, cudaVisibleDevicesForProcess string) ([]ddnvml.Device, error) {
 	// First, we adjust the list of devices to take into account how CUDA presents MIG devices in order. This
 	// list will not be used when searching by prefix because prefix matching is done against *all* devices,
 	// but index filtering is done against the adjusted list where devices with MIG children are replaced by
 	// their first child.
-	migAdjustedDevices := adjustVisibleDevicesForMig(systemDevices)
+	visibleDevicesWithMig := getVisibleDevicesForMig(devices)
 
-	if cudaVisibleDevices == "" {
-		return keepEitherFirstMIGOrAllDevices(migAdjustedDevices), nil
+	if cudaVisibleDevicesForProcess == "" {
+		return applyMIGVisibilityRules(visibleDevicesWithMig), nil
 	}
 
 	var filteredDevices []ddnvml.Device
-	visibleDevicesList := strings.Split(cudaVisibleDevices, ",")
+	visibleDevicesList := strings.Split(cudaVisibleDevicesForProcess, ",")
 
 	for _, visibleDevice := range visibleDevicesList {
 		var matchingDevice ddnvml.Device
 		var err error
 		switch {
 		case strings.HasPrefix(visibleDevice, "GPU-"):
-			matchingDevice, err = getDeviceByUUIDPrefix(systemDevices, visibleDevice, false)
+			matchingDevice, err = getDeviceByUUIDPrefix(devices, visibleDevice, false)
 			if err != nil {
 				return filteredDevices, err
 			}
@@ -78,12 +65,12 @@ func getVisibleDevices(systemDevices []ddnvml.Device, cudaVisibleDevices string)
 			}
 
 		case strings.HasPrefix(visibleDevice, "MIG-"):
-			matchingDevice, err = getDeviceByUUIDPrefix(systemDevices, visibleDevice, true)
+			matchingDevice, err = getDeviceByUUIDPrefix(devices, visibleDevice, true)
 			if err != nil {
 				return filteredDevices, err
 			}
 		default:
-			matchingDevice, err = getDeviceWithIndex(migAdjustedDevices, visibleDevice)
+			matchingDevice, err = getDeviceWithIndex(visibleDevicesWithMig, visibleDevice)
 			if err != nil {
 				return filteredDevices, err
 			}
@@ -92,12 +79,12 @@ func getVisibleDevices(systemDevices []ddnvml.Device, cudaVisibleDevices string)
 		filteredDevices = append(filteredDevices, matchingDevice)
 	}
 
-	return keepEitherFirstMIGOrAllDevices(filteredDevices), nil
+	return applyMIGVisibilityRules(filteredDevices), nil
 }
 
-// adjustVisibleDevicesForMig adjusts the list of visible devices taking into account how CUDA
+// getVisibleDevicesForMig returns a list of devices taking into account how CUDA
 // presents MIG devices in order
-func adjustVisibleDevicesForMig(visibleDevices []ddnvml.Device) []ddnvml.Device {
+func getVisibleDevicesForMig(visibleDevices []ddnvml.Device) []ddnvml.Device {
 	// CUDA removes all devices with MIG feature enabled and then appends at the
 	// end of the list the first MIG child of those devices. So we split the
 	// list into two: one with devices without MIG feature enabled (which
@@ -122,10 +109,12 @@ func adjustVisibleDevicesForMig(visibleDevices []ddnvml.Device) []ddnvml.Device 
 	return append(migDisabledDevices, migChildDevices...)
 }
 
-// keepEitherFirstMIGOrAllDevices returns the list of devices with only the first MIG child if it is present,
-// or the list of all devices if it is not. This replicates the behavior of CUDA with MIG devices, where
-// if any MIG device is present, only the first MIG child is visible and all other devices are hidden.
-func keepEitherFirstMIGOrAllDevices(devices []ddnvml.Device) []ddnvml.Device {
+// applyMIGVisibilityRules returns the list of devices with only the first MIG child if it is present,
+// or the list of all devices if it is not. This replicates the behavior of CUDA with MIG devices.
+// Returns:
+// - If any MIG device exists: only the first MIG device found
+// - If no MIG devices exist: all devices unchanged
+func applyMIGVisibilityRules(devices []ddnvml.Device) []ddnvml.Device {
 	for _, device := range devices {
 		migDevice, ok := device.(*ddnvml.MIGDevice)
 		if ok {

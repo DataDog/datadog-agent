@@ -58,16 +58,18 @@ func (r *JSONAggregator) Process(msg *message.Message) []*message.Message {
 		if err != nil {
 			return r.Flush()
 		}
-		r.messageBuf = r.messageBuf[:0]
 
+		// Only tag the message if it's a complete JSON message that has been aggregated from more than one message
+		if r.tagCompleteJSON && len(r.messageBuf) > 1 {
+			msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.AggregatedJSONTag)
+			metrics.TlmAutoMultilineJSONAggregatorFlush.Inc("true")
+		}
+
+		r.messageBuf = r.messageBuf[:0]
 		msg.SetContent(outBuf.Bytes())
 		msg.RawDataLen = r.currentSize
 		r.currentSize = 0
 
-		if r.tagCompleteJSON {
-			msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.AggregatedJSONTag)
-		}
-		metrics.TlmAutoMultilineJSONAggregatorFlush.Inc("true")
 		return []*message.Message{msg}
 	case Invalid:
 		return r.Flush()
@@ -77,7 +79,10 @@ func (r *JSONAggregator) Process(msg *message.Message) []*message.Message {
 
 // Flush flushes the buffer and returns the messages.
 func (r *JSONAggregator) Flush() []*message.Message {
-	metrics.TlmAutoMultilineJSONAggregatorFlush.Inc("false")
+	if len(r.messageBuf) > 1 {
+		metrics.TlmAutoMultilineJSONAggregatorFlush.Inc("false")
+	}
+
 	r.decoder.Reset()
 	msgs := r.messageBuf
 	r.messageBuf = r.messageBuf[:0]

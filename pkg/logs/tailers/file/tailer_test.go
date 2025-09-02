@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
@@ -64,7 +65,8 @@ func (suite *TailerTestSuite) SetupTest() {
 		SleepDuration:   sleepDuration,
 		Decoder:         decoder.NewDecoderFromSource(suite.source, info),
 		Info:            info,
-		PipelineMonitor: metrics.NewNoopPipelineMonitor(""),
+		CapacityMonitor: metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", ""),
+		Registry:        auditor.NewMockRegistry(),
 	}
 
 	suite.tailer = NewTailer(tailerOptions)
@@ -120,7 +122,8 @@ func (suite *TailerTestSuite) TestTailerTimeDurationConfig() {
 		SleepDuration:   sleepDuration,
 		Decoder:         decoder.NewDecoderFromSource(suite.source, info),
 		Info:            info,
-		PipelineMonitor: metrics.NewNoopPipelineMonitor(""),
+		CapacityMonitor: metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", ""),
+		Registry:        auditor.NewMockRegistry(),
 	}
 
 	tailer := NewTailer(tailerOptions)
@@ -288,7 +291,8 @@ func (suite *TailerTestSuite) TestDirTagWhenTailingFiles() {
 		SleepDuration:   sleepDuration,
 		Decoder:         decoder.NewDecoderFromSource(suite.source, info),
 		Info:            info,
-		PipelineMonitor: metrics.NewNoopPipelineMonitor(""),
+		CapacityMonitor: metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", ""),
+		Registry:        auditor.NewMockRegistry(),
 	}
 
 	suite.tailer = NewTailer(tailerOptions)
@@ -319,7 +323,8 @@ func (suite *TailerTestSuite) TestBuildTagsFileOnly() {
 		SleepDuration:   sleepDuration,
 		Decoder:         decoder.NewDecoderFromSource(suite.source, info),
 		Info:            info,
-		PipelineMonitor: metrics.NewNoopPipelineMonitor(""),
+		CapacityMonitor: metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", ""),
+		Registry:        auditor.NewMockRegistry(),
 	}
 
 	suite.tailer = NewTailer(tailerOptions)
@@ -347,7 +352,8 @@ func (suite *TailerTestSuite) TestBuildTagsFileDir() {
 		SleepDuration:   sleepDuration,
 		Decoder:         decoder.NewDecoderFromSource(suite.source, info),
 		Info:            info,
-		PipelineMonitor: metrics.NewNoopPipelineMonitor(""),
+		CapacityMonitor: metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", ""),
+		Registry:        auditor.NewMockRegistry(),
 	}
 
 	suite.tailer = NewTailer(tailerOptions)
@@ -380,7 +386,8 @@ func (suite *TailerTestSuite) TestTruncatedTag() {
 		SleepDuration:   sleepDuration,
 		Decoder:         decoder.NewDecoderFromSource(suite.source, info),
 		Info:            info,
-		PipelineMonitor: metrics.NewNoopPipelineMonitor(""),
+		CapacityMonitor: metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", ""),
+		Registry:        auditor.NewMockRegistry(),
 	}
 
 	suite.tailer = NewTailer(tailerOptions)
@@ -413,7 +420,8 @@ func (suite *TailerTestSuite) TestMutliLineAutoDetect() {
 		SleepDuration:   sleepDuration,
 		Decoder:         decoder.NewDecoderFromSource(suite.source, info),
 		Info:            info,
-		PipelineMonitor: metrics.NewNoopPipelineMonitor(""),
+		CapacityMonitor: metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", ""),
+		Registry:        auditor.NewMockRegistry(),
 	}
 
 	suite.tailer = NewTailer(tailerOptions)
@@ -449,7 +457,8 @@ func (suite *TailerTestSuite) TestDidRotateNilFullpath() {
 		SleepDuration:   sleepDuration,
 		Decoder:         decoder.NewDecoderFromSource(suite.source, info),
 		Info:            info,
-		PipelineMonitor: metrics.NewNoopPipelineMonitor(""),
+		CapacityMonitor: metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", ""),
+		Registry:        auditor.NewMockRegistry(),
 	}
 
 	tailer := NewTailer(tailerOptions)

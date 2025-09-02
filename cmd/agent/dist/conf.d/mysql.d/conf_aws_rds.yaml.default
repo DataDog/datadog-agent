@@ -1,0 +1,37 @@
+ad_identifiers:
+  - _dbm_mysql
+init_config:
+instances:
+    ## @param host - string - optional
+    ## MySQL host to connect to.
+    ## NOTE: Even if the host is "localhost", the agent connects to MySQL using TCP/IP, unless you also
+    ## provide a value for the sock key (below).
+    #
+  - host: "%%host%%"
+
+    ## @param port - number - optional - default: 3306
+    ## Port to use when connecting to MySQL.
+    #
+    port: "%%port%%"
+
+    ## @param dbm - boolean - optional - default: false
+    ## Enable DBM monitoring. The value of the template variable matches the value of the configured `dbm_tag` on the instance,
+    ## for example, `datadoghq.com/dbm:true` to enable DBM.
+    #
+    dbm: "%%extra_dbm%%"
+
+    ## This block defines the configuration for AWS RDS and Aurora instances.
+    ##
+    ## Complete this section if you have installed the Datadog AWS Integration
+    ## (https://docs.datadoghq.com/integrations/amazon_web_services) to enrich instances
+    ## with MySQL integration telemetry.
+    ##
+    ## These values are only applied when `dbm: true` option is set.
+    #
+    aws:
+      instance_endpoint: "%%host%%"
+
+    tags:
+      - "dbinstanceidentifier:%%extra_dbinstanceidentifier%%"
+      - "dbclusteridentifier:%%extra_dbclusteridentifier%%"
+      - "region:%%extra_region%%"

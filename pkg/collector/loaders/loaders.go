@@ -21,15 +21,15 @@ import (
 // LoaderFactory helps to defer actual instantiation of Check Loaders,
 // mostly helpful with code involving calls to cgo (for example, the Python
 // interpreter might not be initialized when `init`ing a package)
-type LoaderFactory func(sender.SenderManager, option.Option[integrations.Component], tagger.Component) (check.Loader, error)
+type LoaderFactory func(sender.SenderManager, option.Option[integrations.Component], tagger.Component) (check.Loader, int, error)
 
-var factoryCatalog = make(map[int][]LoaderFactory)
+var factoryCatalog = []LoaderFactory{}
 var loaderCatalog = []check.Loader{}
 var once sync.Once
 
 // RegisterLoader adds a loader to the loaderCatalog
-func RegisterLoader(order int, factory LoaderFactory) {
-	factoryCatalog[order] = append(factoryCatalog[order], factory)
+func RegisterLoader(factory LoaderFactory) {
+	factoryCatalog = append(factoryCatalog, factory)
 }
 
 // LoaderCatalog returns the loaders sorted by desired sequence order
@@ -37,9 +37,19 @@ func LoaderCatalog(senderManager sender.SenderManager, logReceiver option.Option
 	// the catalog is supposed to be built only once, don't see a clear
 	// use case to add Loaders at runtime
 	once.Do(func() {
+		loaders := make(map[int][]check.Loader, len(factoryCatalog))
+		for _, factory := range factoryCatalog {
+			loader, order, err := factory(senderManager, logReceiver, tagger)
+			if err != nil {
+				log.Infof("Failed to instantiate %s: %v", loader, err)
+				continue
+			}
+			loaders[order] = append(loaders[order], loader)
+		}
+
 		// get the desired sequences, sorted least to greatest
 		var keys []int
-		for k := range factoryCatalog {
+		for k := range loaders {
 			keys = append(keys, k)
 		}
 		sort.Ints(keys)
@@ -47,15 +57,7 @@ func LoaderCatalog(senderManager sender.SenderManager, logReceiver option.Option
 		// use the desired sequences to access the catalog and build
 		// the final slice of loaders
 		for _, k := range keys {
-			for _, factory := range factoryCatalog[k] {
-				loader, err := factory(senderManager, logReceiver, tagger)
-				if err != nil {
-					log.Infof("Failed to instantiate %s: %v", loader, err)
-					continue
-				}
-
-				loaderCatalog = append(loaderCatalog, loader)
-			}
+			loaderCatalog = append(loaderCatalog, loaders[k]...)
 		}
 
 	})

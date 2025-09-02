@@ -55,6 +55,7 @@ type CollectorMetadata struct {
 	LabelsAsTags                         map[string]string
 	AnnotationsAsTags                    map[string]string
 	SupportsTerminatedResourceCollection bool
+	IsGenericCollector                   bool
 }
 
 // CollectorTags returns static tags to be added to all resources collected by the collector.
@@ -84,7 +85,7 @@ type K8sCollectorRunConfig struct {
 // ECSCollectorRunConfig is the configuration used to initialize or run the ECS collector.
 type ECSCollectorRunConfig struct {
 	WorkloadmetaStore workloadmeta.Component
-	AWSAccountID      int
+	AWSAccountID      string
 	Region            string
 	ClusterName       string
 	SystemInfo        *model.SystemInfo
@@ -96,9 +97,11 @@ type ECSCollectorRunConfig struct {
 type CollectorRunConfig struct {
 	K8sCollectorRunConfig
 	ECSCollectorRunConfig
-	ClusterID   string
-	Config      *config.OrchestratorConfig
-	MsgGroupRef *atomic.Int32
+	ClusterID           string
+	Config              *config.OrchestratorConfig
+	MsgGroupRef         *atomic.Int32
+	TerminatedResources bool
+	AgentVersion        *model.AgentVersion
 }
 
 // CollectorRunResult contains information about what the collector has done.

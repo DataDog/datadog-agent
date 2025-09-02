@@ -1,0 +1,19 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    Adds additional information and data related to the setsockopt hook.
+    - Socket Information:
+      - Socket type
+      - Socket family
+      - Socket protocol
+
+    - Filter Information
+      - Disassembled filter
+      - Filter hash

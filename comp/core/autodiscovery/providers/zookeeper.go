@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -41,7 +42,7 @@ type ZookeeperConfigProvider struct {
 }
 
 // NewZookeeperConfigProvider returns a new Client connected to a Zookeeper backend.
-func NewZookeeperConfigProvider(providerConfig *pkgconfigsetup.ConfigurationProviders, _ *telemetry.Store) (ConfigProvider, error) {
+func NewZookeeperConfigProvider(providerConfig *pkgconfigsetup.ConfigurationProviders, _ *telemetry.Store) (types.ConfigProvider, error) {
 	if providerConfig == nil {
 		providerConfig = &pkgconfigsetup.ConfigurationProviders{}
 	}
@@ -67,9 +68,7 @@ func (z *ZookeeperConfigProvider) String() string {
 
 // Collect retrieves templates from Zookeeper, builds Config objects and returns them
 // TODO: cache templates and last-modified index to avoid future full crawl if no template changed.
-//
-//nolint:revive // TODO(CINT) Fix revive linter
-func (z *ZookeeperConfigProvider) Collect(ctx context.Context) ([]integration.Config, error) {
+func (z *ZookeeperConfigProvider) Collect(_ context.Context) ([]integration.Config, error) {
 	configs := make([]integration.Config, 0)
 	identifiers, err := z.getIdentifiers(z.templateDir)
 	if err != nil {
@@ -88,9 +87,7 @@ func (z *ZookeeperConfigProvider) Collect(ctx context.Context) ([]integration.Co
 }
 
 // IsUpToDate updates the list of AD templates versions in the Agent's cache and checks the list is up to date compared to Zookeeper's data.
-//
-//nolint:revive // TODO(CINT) Fix revive linter
-func (z *ZookeeperConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
+func (z *ZookeeperConfigProvider) IsUpToDate(_ context.Context) (bool, error) {
 
 	identifiers, err := z.getIdentifiers(z.templateDir)
 	if err != nil {
@@ -211,6 +208,6 @@ func (z *ZookeeperConfigProvider) getJSONValue(key string) ([][]integration.Data
 }
 
 // GetConfigErrors is not implemented for the ZookeeperConfigProvider
-func (z *ZookeeperConfigProvider) GetConfigErrors() map[string]ErrorMsgSet {
-	return make(map[string]ErrorMsgSet)
+func (z *ZookeeperConfigProvider) GetConfigErrors() map[string]types.ErrorMsgSet {
+	return make(map[string]types.ErrorMsgSet)
 }

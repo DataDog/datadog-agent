@@ -15,5 +15,4 @@ import (
 // Component is the component type.
 type Component interface {
 	BuildServer() http.Handler
-	BuildGatewayMux(cmdAddr string) (http.Handler, error)
 }

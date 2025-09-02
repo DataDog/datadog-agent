@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -102,6 +103,7 @@ type ntmConfig struct {
 	envTransform   map[string]func(string) interface{}
 
 	notificationReceivers []model.NotificationReceiver
+	sequenceID            uint64
 
 	// Proxy settings
 	proxies *model.Proxy
@@ -184,6 +186,14 @@ func (c *ntmConfig) SetTestOnlyDynamicSchema(allow bool) {
 	c.allowDynamicSchema.Store(allow)
 }
 
+// RevertFinishedBackToBuilder returns an interface that can build more on the current
+// config, instead of treating it as sealed
+// NOTE: Only used by OTel, no new uses please!
+func (c *ntmConfig) RevertFinishedBackToBuilder() model.BuildableConfig {
+	c.ready.Store(false)
+	return c
+}
+
 // Set assigns the newValue to the given key and marks it as originating from the given source
 func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	c.maybeRebuild()
@@ -206,6 +216,7 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	key = strings.ToLower(key)
 
 	c.Lock()
+	defer c.Unlock()
 	previousValue := c.leafAtPathFromNode(key, c.root).Get()
 
 	parts := splitKey(key)
@@ -221,22 +232,40 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	}
 
 	receivers := slices.Clone(c.notificationReceivers)
-	c.Unlock()
 
 	// if no value has changed we don't notify
 	if !updated || reflect.DeepEqual(previousValue, newValue) {
 		return
 	}
 
+	c.sequenceID++
+
 	// notifying all receiver about the updated setting
 	for _, receiver := range receivers {
-		receiver(key, previousValue, newValue)
+		receiver(key, source, previousValue, newValue, c.sequenceID)
 	}
+
 }
 
-// SetWithoutSource assigns the value to the given key using source Unknown
+// SetWithoutSource assigns the value to the given key using source Unknown, may only be called from tests
 func (c *ntmConfig) SetWithoutSource(key string, value interface{}) {
+	c.assertIsTest("SetWithoutSource")
+	v := reflect.ValueOf(value)
+	if v.Kind() == reflect.Pointer {
+		v = v.Elem()
+	}
+	if v.Kind() == reflect.Struct {
+		panic("SetWithoutSource cannot assign struct to a setting")
+	}
 	c.Set(key, value, model.SourceUnknown)
+	keySet := make(map[string]struct{}, len(c.allSettings))
+	for _, k := range c.allSettings {
+		keySet[k] = struct{}{}
+	}
+	keySet[key] = struct{}{}
+	allKeys := slices.Collect(maps.Keys(keySet))
+	slices.Sort(allKeys)
+	c.allSettings = allKeys
 }
 
 // SetDefault assigns the value to the given key using source Default
@@ -276,6 +305,9 @@ func (c *ntmConfig) findPreviousSourceNode(key string, source model.Source) (Nod
 func (c *ntmConfig) UnsetForSource(key string, source model.Source) {
 	c.Lock()
 	defer c.Unlock()
+
+	key = strings.ToLower(key)
+	previousValue := c.leafAtPathFromNode(key, c.root).Get()
 
 	// Remove it from the original source tree
 	tree, err := c.getTreeBySource(source)
@@ -319,6 +351,21 @@ func (c *ntmConfig) UnsetForSource(key string, source model.Source) {
 
 	// Replace the child with the node from the previous layer
 	parentNode.InsertChildNode(childName, prevNode.Clone())
+
+	newValue := c.leafAtPathFromNode(key, c.root).Get()
+
+	// Value has not changed, do not notify
+	if reflect.DeepEqual(previousValue, newValue) {
+		return
+	}
+
+	c.sequenceID++
+	receivers := slices.Clone(c.notificationReceivers)
+
+	// notifying all receiver about the updated setting
+	for _, receiver := range receivers {
+		receiver(key, source, previousValue, newValue, c.sequenceID)
+	}
 }
 
 func (c *ntmConfig) parentOfNode(node Node, key string) (InnerNode, string, error) {
@@ -431,32 +478,45 @@ func (c *ntmConfig) mergeAllLayers() error {
 
 	c.root = root
 	// recompile allSettings now that we have the full config
-	c.allSettings = c.computeAllSettings(c.schema, "")
+	c.allSettings = c.computeAllSettings("")
 	return nil
 }
 
-func (c *ntmConfig) computeAllSettings(node InnerNode, path string) []string {
+func (c *ntmConfig) computeAllSettings(path string) []string {
 	c.maybeRebuild()
 
-	knownKeys := []string{}
+	keySet := make(map[string]struct{})
+
+	// 1. Collect all known keys from schema
+	c.collectKeysFromNode(c.schema, path, keySet, true)
+
+	// 2. Collect all keys from merged tree (only ones with values)
+	c.collectKeysFromNode(c.root, "", keySet, false)
+
+	// 3. Collect all unknown keys, even if they have no value set
+	c.collectKeysFromNode(c.unknown, "", keySet, true)
+
+	allKeys := slices.Collect(maps.Keys(keySet))
+	slices.Sort(allKeys)
+	return allKeys
+}
+
+func (c *ntmConfig) collectKeysFromNode(node InnerNode, path string, keySet map[string]struct{}, includeAllKeys bool) {
 	for _, name := range node.ChildrenKeys() {
 		newPath := joinKey(path, name)
 
 		child, _ := node.GetChild(name)
+
 		if leaf, ok := child.(LeafNode); ok {
-			if leaf.Source() != model.SourceSchema {
-				knownKeys = append(knownKeys, newPath)
-			} else if c.leafAtPathFromNode(newPath, c.root) != missingLeaf {
-				knownKeys = append(knownKeys, newPath)
+			// Include all keys if requested
+			// For other nodes, only include if they have actual values
+			if includeAllKeys || leaf != missingLeaf {
+				keySet[newPath] = struct{}{}
 			}
 		} else if inner, ok := child.(InnerNode); ok {
-			knownKeys = append(knownKeys, c.computeAllSettings(inner, newPath)...)
-		} else {
-			log.Errorf("unknown node type in the tree: %T", child)
+			c.collectKeysFromNode(inner, newPath, keySet, includeAllKeys)
 		}
 	}
-	slices.Sort(knownKeys)
-	return knownKeys
 }
 
 // BuildSchema is called when Setup is complete, and the config is ready to be used
@@ -472,7 +532,7 @@ func (c *ntmConfig) buildSchema() {
 	if err := c.mergeAllLayers(); err != nil {
 		c.warnings = append(c.warnings, err)
 	}
-	c.allSettings = c.computeAllSettings(c.schema, "")
+	c.allSettings = c.computeAllSettings("")
 }
 
 // Stringify stringifies the config, but only with the test build tag
@@ -527,6 +587,9 @@ func (c *ntmConfig) insertNodeFromString(curr InnerNode, key string, envval stri
 func (c *ntmConfig) ParseEnvAsStringSlice(key string, fn func(string) []string) {
 	c.Lock()
 	defer c.Unlock()
+	if _, exists := c.envTransform[strings.ToLower(key)]; exists {
+		panic(fmt.Sprintf("env transform for %s already exists", key))
+	}
 	c.envTransform[strings.ToLower(key)] = func(k string) interface{} { return fn(k) }
 }
 
@@ -534,6 +597,9 @@ func (c *ntmConfig) ParseEnvAsStringSlice(key string, fn func(string) []string) 
 func (c *ntmConfig) ParseEnvAsMapStringInterface(key string, fn func(string) map[string]interface{}) {
 	c.Lock()
 	defer c.Unlock()
+	if _, exists := c.envTransform[strings.ToLower(key)]; exists {
+		panic(fmt.Sprintf("env transform for %s already exists", key))
+	}
 	c.envTransform[strings.ToLower(key)] = func(k string) interface{} { return fn(k) }
 }
 
@@ -541,6 +607,9 @@ func (c *ntmConfig) ParseEnvAsMapStringInterface(key string, fn func(string) map
 func (c *ntmConfig) ParseEnvAsSliceMapString(key string, fn func(string) []map[string]string) {
 	c.Lock()
 	defer c.Unlock()
+	if _, exists := c.envTransform[strings.ToLower(key)]; exists {
+		panic(fmt.Sprintf("env transform for %s already exists", key))
+	}
 	c.envTransform[strings.ToLower(key)] = func(k string) interface{} { return fn(k) }
 }
 
@@ -548,6 +617,9 @@ func (c *ntmConfig) ParseEnvAsSliceMapString(key string, fn func(string) []map[s
 func (c *ntmConfig) ParseEnvAsSlice(key string, fn func(string) []interface{}) {
 	c.Lock()
 	defer c.Unlock()
+	if _, exists := c.envTransform[strings.ToLower(key)]; exists {
+		panic(fmt.Sprintf("env transform for %s already exists", key))
+	}
 	c.envTransform[strings.ToLower(key)] = func(k string) interface{} { return fn(k) }
 }
 
@@ -583,6 +655,7 @@ func hasNoneDefaultsLeaf(node InnerNode) bool {
 			if leaf.Source().IsGreaterThan(model.SourceDefault) {
 				return true
 			}
+			continue
 		}
 		if hasNoneDefaultsLeaf(child.(InnerNode)) {
 			return true
@@ -619,7 +692,7 @@ func (c *ntmConfig) IsConfigured(key string) bool {
 	return hasNoneDefaultsLeaf(curr.(InnerNode))
 }
 
-// AllKeysLowercased returns all keys lower-cased from the default tree, but not keys that are merely marked as known
+// AllKeysLowercased returns all keys lower-cased from the default tree, including keys that are merely marked as known
 func (c *ntmConfig) AllKeysLowercased() []string {
 	c.RLock()
 	defer c.RUnlock()
@@ -668,6 +741,7 @@ func (c *ntmConfig) GetNode(key string) (Node, error) {
 func (c *ntmConfig) SetEnvPrefix(in string) {
 	c.Lock()
 	defer c.Unlock()
+	c.envTransform = make(map[string]func(string) interface{})
 	c.envPrefix = in
 }
 
@@ -816,6 +890,14 @@ func (c *ntmConfig) AllSettingsBySource() map[model.Source]interface{} {
 	}
 }
 
+// AllSettingsWithSequenceID returns the settings and the sequence ID.
+func (c *ntmConfig) AllSettingsWithSequenceID() (map[string]interface{}, uint64) {
+	c.RLock()
+	defer c.RUnlock()
+	c.maybeRebuild()
+	return c.root.DumpSettings(func(model.Source) bool { return true }), c.sequenceID
+}
+
 // AddConfigPath adds another config for the given path
 func (c *ntmConfig) AddConfigPath(in string) {
 	c.Lock()
@@ -911,10 +993,11 @@ func (c *ntmConfig) Object() model.Reader {
 }
 
 // NewNodeTreeConfig returns a new Config object.
-func NewNodeTreeConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) model.Config {
+func NewNodeTreeConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) model.BuildableConfig {
 	config := ntmConfig{
 		ready:              atomic.NewBool(false),
 		allowDynamicSchema: atomic.NewBool(false),
+		sequenceID:         0,
 		configEnvVars:      map[string][]string{},
 		knownKeys:          map[string]struct{}{},
 		allSettings:        []string{},
@@ -947,4 +1030,10 @@ func (c *ntmConfig) ExtraConfigFilesUsed() []string {
 	res := make([]string, len(c.extraConfigFilePaths))
 	copy(res, c.extraConfigFilePaths)
 	return res
+}
+
+func (c *ntmConfig) GetSequenceID() uint64 {
+	c.RLock()
+	defer c.RUnlock()
+	return c.sequenceID
 }

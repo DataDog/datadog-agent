@@ -17,9 +17,8 @@ else
   COMPRESSION_THREADS = 1
 end
 
-# We want an higher compression level on deploy pipelines that are not nightly.
-# Nightly pipelines will be used as main reference for static quality gates and need the same compression level as main.
-if ENV.has_key?("DEPLOY_AGENT") && ENV["DEPLOY_AGENT"] == "true" && ENV.has_key?("BUCKET_BRANCH") && ENV['BUCKET_BRANCH'] != "nightly"
+# We want an higher compression level on deploy pipelines.
+if ENV.has_key?("DEPLOY_AGENT") && ENV["DEPLOY_AGENT"] == "true"
   COMPRESSION_LEVEL = 9
 else
   COMPRESSION_LEVEL = 5

@@ -16,7 +16,3 @@ import (
 func getLeaderIPCallback() (types.LeaderIPCallback, error) {
 	return nil, errors.New("No leader election engine compiled in")
 }
-
-func getLeadershipStateNotifiChan() (<-chan struct{}, error) {
-	return nil, errors.New("No leader election engine compiled in")
-}

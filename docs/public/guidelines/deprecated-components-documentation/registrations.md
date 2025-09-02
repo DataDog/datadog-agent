@@ -8,64 +8,67 @@ The convention is to "wrap" the collected type in a `Registration` struct type w
 
 The collecting component should define the registration type and a constructor for it:
 
-=== ":octicons-file-code-16: comp/server/component.go"
-    ```go
-    // ...
-    // Server endpoints are provided by other components, by providing a server.Registration
-    // instance.
-    // ...
-    package server
+/// tab | :octicons-file-code-16: comp/server/component.go
+```go
+// ...
+// Server endpoints are provided by other components, by providing a server.Registration
+// instance.
+// ...
+package server
 
-    type endpoint struct {  // (the collected type)
-        ...
-    }
+type endpoint struct {  // (the collected type)
+    ...
+}
 
-    type Registration struct {
-        fx.Out
+type Registration struct {
+    fx.Out
 
-        Endpoint endpoint `group:"server"`
-    }
+    Endpoint endpoint `group:"server"`
+}
 
-    // NewRegistration creates a new Registration instance for the given endpoint.
-    func NewRegistration(route string, handler func()) Registration { ... }
-    ```
+// NewRegistration creates a new Registration instance for the given endpoint.
+func NewRegistration(route string, handler func()) Registration { ... }
+```
+///
 
 Its implementation then requires a slice of the collected type (`endpoint`), again using `group:"server"`:
 
-=== ":octicons-file-code-16: comp/server/server.go"
-    ```go
-    // endpoint defines an endpoint on this server.
-    type endpoint struct { ... }
+/// tab | :octicons-file-code-16: comp/server/server.go
+```go
+// endpoint defines an endpoint on this server.
+type endpoint struct { ... }
 
-    type dependencies struct {
-        fx.In
+type dependencies struct {
+    fx.In
 
-        Registrations []endpoint `group:"server"`
-    }
+    Registrations []endpoint `group:"server"`
+}
 
-    func newServer(deps dependencies) Component {
-        // ...
-        for _, e := range deps.Registrations {
-            if e.handler == nil {
-                continue
-            }
-            // ...
+func newServer(deps dependencies) Component {
+    // ...
+    for _, e := range deps.Registrations {
+        if e.handler == nil {
+            continue
         }
         // ...
     }
-    ```
+    // ...
+}
+```
+///
 
 It's good practice to ignore zero values, as that allows providing components to skip the registration if desired.
 
 Finally, the providing component (in this case, `foo`) includes a registration in its output as an additional provided type, beyond its `Component` type:
 
-=== ":octicons-file-code-16: comp/foo/foo.go"
-    ```go
-    func newFoo(deps dependencies) (Component, server.Registration) {
-        // ...
-        return foo, server.NewRegistration("/things/foo", foo.handler)
-    }
-    ```
+/// tab | :octicons-file-code-16: comp/foo/foo.go
+```go
+func newFoo(deps dependencies) (Component, server.Registration) {
+    // ...
+    return foo, server.NewRegistration("/things/foo", foo.handler)
+}
+```
+///
 
 This technique has some caveats to be aware of:
 

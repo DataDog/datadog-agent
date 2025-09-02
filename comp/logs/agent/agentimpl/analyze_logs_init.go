@@ -31,8 +31,13 @@ func SetUpLaunchers(conf configComponent.Component, sourceProvider *sources.Conf
 		return nil, nil, nil, err
 	}
 
+	fingerprintConfig, err := config.GlobalFingerprintConfig(conf)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
 	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver(nil, nil)
-	pipelineProvider := pipeline.NewProcessorOnlyProvider(diagnosticMessageReceiver, processingRules, conf, nil)
+	pipelineProvider := pipeline.NewProcessorOnlyProvider(diagnosticMessageReceiver, processingRules, nil)
 
 	// setup the launchers
 	lnchrs := launchers.NewLaunchers(nil, pipelineProvider, nil, nil)
@@ -47,7 +52,9 @@ func SetUpLaunchers(conf configComponent.Component, sourceProvider *sources.Conf
 		fileScanPeriod,
 		fileWildcardSelectionMode,
 		flare.NewFlareController(),
-		nil)
+		nil,
+		*fingerprintConfig,
+	)
 	tracker := tailers.NewTailerTracker()
 
 	a := auditornoop.NewAuditor()

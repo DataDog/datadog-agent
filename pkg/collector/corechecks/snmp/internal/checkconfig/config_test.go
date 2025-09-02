@@ -941,6 +941,79 @@ collect_topology: true
 	assert.Equal(t, false, config.CollectTopology)
 }
 
+func Test_buildConfig_collectVPN(t *testing.T) {
+	// language=yaml
+	rawInstanceConfig := []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+`)
+	// language=yaml
+	rawInitConfig := []byte(`
+oid_batch_size: 10
+`)
+	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
+	assert.Nil(t, err)
+	assert.False(t, config.CollectVPN)
+
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+`)
+	// language=yaml
+	rawInitConfig = []byte(`
+oid_batch_size: 10
+collect_vpn: true
+`)
+	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
+	assert.Nil(t, err)
+	assert.True(t, config.CollectVPN)
+
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+collect_vpn: true
+`)
+	// language=yaml
+	rawInitConfig = []byte(`
+oid_batch_size: 10
+`)
+	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
+	assert.Nil(t, err)
+	assert.True(t, config.CollectVPN)
+
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+collect_vpn: true
+`)
+	// language=yaml
+	rawInitConfig = []byte(`
+oid_batch_size: 10
+collect_vpn: false
+`)
+	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
+	assert.Nil(t, err)
+	assert.True(t, config.CollectVPN)
+
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+collect_vpn: false
+`)
+	// language=yaml
+	rawInitConfig = []byte(`
+oid_batch_size: 10
+collect_vpn: true
+`)
+	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
+	assert.Nil(t, err)
+	assert.False(t, config.CollectVPN)
+}
+
 func Test_buildConfig_namespace(t *testing.T) {
 	mockConfig := configmock.New(t)
 
@@ -1692,6 +1765,7 @@ func TestCheckConfig_Copy(t *testing.T) {
 		InstanceTags:          []string{"InstanceTags:tag"},
 		CollectDeviceMetadata: true,
 		CollectTopology:       true,
+		CollectVPN:            true,
 		UseDeviceIDAsHostname: true,
 		DeviceID:              "123",
 		DeviceIDTags:          []string{"DeviceIDTags:tag"},

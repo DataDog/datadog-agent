@@ -5,6 +5,7 @@
 
 //go:build (windows && npm) || linux_bpf
 
+// Package utils contains common code shared across the USM codebase
 package utils
 
 import (

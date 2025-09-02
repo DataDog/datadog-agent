@@ -10,7 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 )
 
-// team: container-intake
+// team: container-experiences
 
 //nolint:revive // TODO(PROC) Fix revive linter
 type Component interface {

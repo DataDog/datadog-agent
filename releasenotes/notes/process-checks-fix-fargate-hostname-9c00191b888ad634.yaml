@@ -1,0 +1,3 @@
+fixes:
+  - |
+    Fix how the Live Process and Live Containers sets the hostname when running in an Agent that is running in AWS Fargate

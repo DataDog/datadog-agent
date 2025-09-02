@@ -19,6 +19,7 @@ import (
 	"runtime"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -214,6 +215,28 @@ func (r *Repository) Delete(ctx context.Context) error {
 	return nil
 }
 
+// CopyStable copies the stable package to the given destination path.
+func (r *Repository) CopyStable(ctx context.Context, destPath string) (err error) {
+	span, _ := telemetry.StartSpanFromContext(ctx, "repository.CopyStable")
+	defer func() {
+		span.Finish(err)
+	}()
+
+	repository, err := readRepository(r.rootPath, nil)
+	if err != nil {
+		return err
+	}
+	if !repository.stable.Exists() {
+		return fmt.Errorf("stable link does not exist, invalid state")
+	}
+
+	err = copyDirectory(repository.stable.linkPath, destPath)
+	if err != nil {
+		return fmt.Errorf("could not copy directory: %w", err)
+	}
+	return nil
+}
+
 // SetExperiment moves package files from the given source path to the repository and sets it as the experiment.
 //
 // 1. Cleanup the repository.
@@ -271,7 +294,7 @@ func (r *Repository) PromoteExperiment(ctx context.Context) error {
 	if !repository.experiment.Exists() {
 		return fmt.Errorf("experiment link does not exist, invalid state")
 	}
-	if repository.stable.Target() == repository.experiment.Target() {
+	if repository.experiment.Target() == "" || repository.stable.Target() == repository.experiment.Target() {
 		return fmt.Errorf("no experiment to promote")
 	}
 	err = repository.stable.Set(*repository.experiment.packagePath)
@@ -449,6 +472,13 @@ func (r *repositoryFiles) cleanup(ctx context.Context) error {
 		}
 
 		log.Debugf("Removing package %s", pkgRepositoryPath)
+		realPkgRepositoryPath, err := filepath.EvalSymlinks(pkgRepositoryPath)
+		if err != nil {
+			log.Errorf("could not evaluate symlinks for package %s: %v", pkgRepositoryPath, err)
+		}
+		if err := os.RemoveAll(realPkgRepositoryPath); err != nil {
+			log.Errorf("could not remove package %s directory, will retry: %v", realPkgRepositoryPath, err)
+		}
 		if err := os.RemoveAll(pkgRepositoryPath); err != nil {
 			log.Errorf("could not remove package %s directory, will retry: %v", pkgRepositoryPath, err)
 		}
@@ -493,7 +523,11 @@ func (l *link) Exists() bool {
 
 func (l *link) Target() string {
 	if l.Exists() {
-		return filepath.Base(*l.packagePath)
+		packagePath := filepath.Base(*l.packagePath)
+		if packagePath == stableVersionLink {
+			return ""
+		}
+		return packagePath
 	}
 	return ""
 }
@@ -535,6 +569,33 @@ func buildFileMap(rootPath string) (map[string]struct{}, error) {
 		return nil, fmt.Errorf("failed to walk directory: %w", err)
 	}
 	return files, nil
+}
+
+// copyDirectory copies a directory from source to target.
+// It preserves the directory structure and file permissions.
+func copyDirectory(sourcePath, targetPath string) error {
+	return filepath.Walk(sourcePath, func(path string, info fs.FileInfo, err error) error {
+		if err != nil {
+			return fmt.Errorf("failed to walk directory: %w", err)
+		}
+
+		if path == sourcePath {
+			// Skip root
+			return nil
+		}
+
+		relPath, err := filepath.Rel(sourcePath, path)
+		if err != nil {
+			return fmt.Errorf("failed to get relative path: %w", err)
+		}
+
+		targetFilePath := filepath.Join(targetPath, relPath)
+		if info.IsDir() {
+			return os.MkdirAll(targetFilePath, info.Mode())
+		}
+
+		return copyFileWithPermissions(path, targetFilePath, info)
+	})
 }
 
 // repairDirectory compares files between source and target directories,

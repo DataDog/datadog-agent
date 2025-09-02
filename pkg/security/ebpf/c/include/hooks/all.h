@@ -26,6 +26,7 @@
 #include "rmdir.h"
 #include "selinux.h"
 #include "setattr.h"
+#include "setsockopt.h"
 #include "setxattr.h"
 #include "signal.h"
 #include "splice.h"
@@ -35,6 +36,8 @@
 #include "utimes.h"
 #include "on_demand.h"
 #include "chdir.h"
+#include "setrlimit.h"
+#include "caps.h"
 
 #include "network/accept.h"
 #include "network/bind.h"

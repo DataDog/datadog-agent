@@ -1,8 +1,11 @@
 #!/bin/sh
-#
-# Perform necessary datadog-agent setup steps after package is installed.
-#
-# .deb: STEP 5 of 5
+##########################################################################
+#             DO NOT EDIT THIS SCRIPT DIRECTLY.                          #
+#                                                                        #
+# The installation logic is handled by the installer at in the following #
+# file: pkg/fleet/installer/packages/datadog_agent_linux.go              #
+#                                                                        #
+##########################################################################
 
 INSTALL_DIR=/opt/datadog-agent
 
@@ -12,12 +15,12 @@ if [ -n "$DOCKER_DD_AGENT" ]; then
     exit 0
 fi
 
-# Run FIPS installation script if available. Mandatory to execute the agent binary in FIPS mode.
+# Run FIPS installation script if available. Mandatory to execute the installer binary in FIPS mode.
 if [ -x ${INSTALL_DIR}/embedded/bin/fipsinstall.sh ]; then
     ${INSTALL_DIR}/embedded/bin/fipsinstall.sh
 fi
 
-# Run post install script. Instructions can be found in pkg/fleet/installer/packages/datadog_agent_linux.go
-${INSTALL_DIR}/embedded/bin/installer postinst datadog-agent deb
+# Run the postinst. See pkg/fleet/installer/packages/datadog_agent_linux.go
+${INSTALL_DIR}/embedded/bin/installer postinst datadog-agent deb || true
 
 exit 0

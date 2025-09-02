@@ -187,7 +187,7 @@ func (rsa *RuntimeSecurityAgent) DispatchEvent(evt *api.SecurityEventMessage) {
 	if rsa.reporter == nil {
 		return
 	}
-	rsa.reporter.ReportRaw(evt.GetData(), evt.Service, evt.GetTags()...)
+	rsa.reporter.ReportRaw(evt.GetData(), evt.Service, evt.Timestamp.AsTime(), evt.GetTags()...)
 }
 
 // DispatchActivityDump forwards an activity dump message to the backend

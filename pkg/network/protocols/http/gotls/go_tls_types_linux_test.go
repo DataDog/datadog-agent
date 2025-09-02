@@ -31,3 +31,15 @@ func TestCgoAlignment_TlsConnLayout(t *testing.T) {
 func TestCgoAlignment_TlsOffsetsData(t *testing.T) {
 	ebpftest.TestCgoAlignment[TlsOffsetsData](t)
 }
+
+func TestCgoAlignment_TlsFunctionsArgsKey(t *testing.T) {
+	ebpftest.TestCgoAlignment[TlsFunctionsArgsKey](t)
+}
+
+func TestCgoAlignment_TlsReadArgsData(t *testing.T) {
+	ebpftest.TestCgoAlignment[TlsReadArgsData](t)
+}
+
+func TestCgoAlignment_TlsWriteArgsData(t *testing.T) {
+	ebpftest.TestCgoAlignment[TlsWriteArgsData](t)
+}

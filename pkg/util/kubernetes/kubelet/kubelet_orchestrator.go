@@ -22,12 +22,10 @@ import (
 // KubeUtilInterface defines the interface for kubelet api
 // and includes extra functions for the orchestrator build flag
 type KubeUtilInterface interface {
-	GetNodeInfo(ctx context.Context) (string, string, error)
 	GetNodename(ctx context.Context) (string, error)
 	GetLocalPodList(ctx context.Context) ([]*Pod, error)
 	GetLocalPodListWithMetadata(ctx context.Context) (*PodList, error)
 	ForceGetLocalPodList(ctx context.Context) (*PodList, error)
-	GetPodForContainerID(ctx context.Context, containerID string) (*Pod, error)
 	QueryKubelet(ctx context.Context, path string) ([]byte, int, error)
 	GetRawConnectionInfo() map[string]string
 	GetRawMetrics(ctx context.Context) ([]byte, error)

@@ -18,6 +18,11 @@ var (
 		"datadog-apm-library-dotnet": apmLibraryDotnetPackage,
 	}
 
+	// packageCommands is a map of package names to their command handlers
+	packageCommands = map[string]PackageCommandHandler{
+		"datadog-agent": runDatadogAgentPackageCommand,
+	}
+
 	// AsyncPreRemoveHooks is called before a package is removed from the disk.
 	// It can block the removal of the package files until a condition is met without blocking
 	// the rest of the uninstall or upgrade process.

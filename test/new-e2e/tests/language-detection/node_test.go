@@ -35,7 +35,6 @@ func (s *languageDetectionSuite) installNode() {
 }
 
 func (s *languageDetectionSuite) TestNodeDetection() {
-	s.T().Skip("skipping due to flakiness")
 	s.installNode()
 
 	s.Env().RemoteHost.MustExecute(fmt.Sprintf(`echo "%s" > prog.js`, nodeProg))

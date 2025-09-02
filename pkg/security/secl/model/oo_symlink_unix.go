@@ -50,7 +50,7 @@ var (
 		}
 	}
 
-	// ProcessSymlinkPathname handles symlink for process enrtries
+	// ProcessSymlinkPathname handles symlink for process entries
 	ProcessSymlinkPathname = &eval.OpOverrides{
 		StringEquals: func(a *eval.StringEvaluator, b *eval.StringEvaluator, state *eval.State) (*eval.BoolEvaluator, error) {
 			path, err := eval.GlobCmp.StringEquals(a, b, state)

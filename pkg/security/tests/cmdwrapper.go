@@ -9,6 +9,7 @@
 package tests
 
 import (
+	"context"
 	"fmt"
 	"os/exec"
 	"strconv"
@@ -41,8 +42,12 @@ var dockerImageLibrary = map[string][]string{
 		"public.ecr.aws/docker/library/centos:7",
 	},
 	"alpine": {
-		"alpine",
-		"public.ecr.aws/docker/library/alpine:latest",
+		"alpine:3.18.2",
+		"public.ecr.aws/docker/library/alpine:3.18.2", // before changing the version make sure that the new version behaves as previously (hardlink vs symlink)
+	},
+	"busybox": {
+		"busybox:1.36.1",
+		"docker.io/busybox:1.36.1", // before changing the version make sure that the new version behaves as previously (hardlink vs symlink)
 	},
 }
 
@@ -87,6 +92,10 @@ type dockerCmdWrapper struct {
 }
 
 func (d *dockerCmdWrapper) Command(bin string, args []string, envs []string) *exec.Cmd {
+	return d.CommandContext(context.TODO(), bin, args, envs)
+}
+
+func (d *dockerCmdWrapper) CommandContext(ctx context.Context, bin string, args []string, envs []string) *exec.Cmd {
 	dockerArgs := []string{"exec"}
 	for _, env := range envs {
 		dockerArgs = append(dockerArgs, "-e"+env)
@@ -94,7 +103,7 @@ func (d *dockerCmdWrapper) Command(bin string, args []string, envs []string) *ex
 	dockerArgs = append(dockerArgs, d.containerName, bin)
 	dockerArgs = append(dockerArgs, args...)
 
-	cmd := exec.Command(d.executable, dockerArgs...)
+	cmd := exec.CommandContext(ctx, d.executable, dockerArgs...)
 	cmd.Env = envs
 
 	return cmd

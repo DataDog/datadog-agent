@@ -50,6 +50,7 @@ type LogSource struct {
 	// the duration between when a message is decoded by the tailer/listener/decoder and when the message is handled by a sender
 	LatencyStats     *statstracker.Tracker
 	BytesRead        *status.CountInfo
+	ProcessingInfo   *status.ProcessingInfo
 	hiddenFromStatus bool
 }
 
@@ -63,11 +64,13 @@ func NewLogSource(name string, cfg *config.LogsConfig) *LogSource {
 		lock:             &sync.Mutex{},
 		Messages:         config.NewMessages(),
 		BytesRead:        status.NewCountInfo("Bytes Read"),
+		ProcessingInfo:   status.NewProcessingInfo(),
 		info:             status.NewInfoRegistry(),
 		LatencyStats:     statstracker.NewTracker(time.Hour*24, time.Hour),
 		hiddenFromStatus: false,
 	}
 	source.RegisterInfo(source.BytesRead)
+	source.RegisterInfo(source.ProcessingInfo)
 	source.RegisterInfo(source.LatencyStats)
 	return source
 }
@@ -195,6 +198,7 @@ func (s *LogSource) Dump(multiline bool) string {
 	fmt.Fprintf(&b, ws("info: %#v,"), s.info)
 	fmt.Fprintf(&b, ws("parentSource: %p,"), s.ParentSource)
 	fmt.Fprintf(&b, ws("LatencyStats: %#v,"), s.LatencyStats)
+	fmt.Fprintf(&b, ws("ProcessingInfo: %#v,"), s.ProcessingInfo)
 	fmt.Fprintf(&b, ws("hiddenFromStatus: %t}"), s.hiddenFromStatus)
 	return b.String()
 }

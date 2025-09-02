@@ -6,47 +6,21 @@
 package version
 
 import (
-	"fmt"
 	"testing"
 
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/stretchr/testify/assert"
+
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
 func TestGetVersionDataFromContainerTags(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		cfg := config.New()
-		cfg.ContainerTags = func(cid string) ([]string, error) {
-			if cid == "1" {
-				return []string{"some_tag:blah", "image_tag:x", "git.commit.sha:y"}, nil
-			}
-			return nil, nil
-		}
-		gitCommitSha, imageTag, err := GetVersionDataFromContainerTags("1", cfg)
-		assert.NoError(t, err)
+		cTags := []string{"some_tag:blah", "image_tag:x", "git.commit.sha:y"}
+		gitCommitSha, imageTag := GetVersionDataFromContainerTags(cTags)
 		assert.Equal(t, "x", imageTag)
 		assert.Equal(t, "y", gitCommitSha)
-		gitCommitSha, imageTag, err = GetVersionDataFromContainerTags("2", cfg)
-		assert.NoError(t, err)
-		assert.Equal(t, "", imageTag)
-		assert.Equal(t, "", gitCommitSha)
-	})
-	t.Run("error", func(t *testing.T) {
-		cfg := config.New()
-		cfg.ContainerTags = func(_ string) ([]string, error) {
-			return nil, fmt.Errorf("error")
-		}
-		gitCommitSha, imageTag, err := GetVersionDataFromContainerTags("1", cfg)
-		assert.Error(t, err)
-		assert.Equal(t, "", imageTag)
-		assert.Equal(t, "", gitCommitSha)
-	})
-	t.Run("undefined", func(t *testing.T) {
-		cfg := config.New()
-		gitCommitSha, imageTag, err := GetVersionDataFromContainerTags("1", cfg)
-		assert.NoError(t, err)
+		gitCommitSha, imageTag = GetVersionDataFromContainerTags([]string{})
 		assert.Equal(t, "", imageTag)
 		assert.Equal(t, "", gitCommitSha)
 	})

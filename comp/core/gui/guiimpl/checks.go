@@ -8,24 +8,17 @@ package guiimpl
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
-	"html"
 	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
-	"time"
 
 	securejoin "github.com/cyphar/filepath-securejoin"
 	"github.com/gorilla/mux"
 	yaml "gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/comp/collector/collector"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
-	checkstats "github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
@@ -56,11 +49,8 @@ func getFleetPoliciesPath() string {
 }
 
 // Adds the specific handlers for /checks/ endpoints
-func checkHandler(r *mux.Router, collector collector.Component, ac autodiscovery.Component) {
+func checkHandler(r *mux.Router) {
 	r.HandleFunc("/running", http.HandlerFunc(sendRunningChecks)).Methods("POST")
-	r.HandleFunc("/run/{name}", http.HandlerFunc(runCheckHandler(collector, ac))).Methods("POST")
-	r.HandleFunc("/run/{name}/once", http.HandlerFunc(runCheckOnceHandler(ac))).Methods("POST")
-	r.HandleFunc("/reload/{name}", http.HandlerFunc(reloadCheckHandler(collector, ac))).Methods("POST")
 	r.HandleFunc("/getConfig/{fileName}", http.HandlerFunc(getCheckConfigFile)).Methods("POST")
 	r.HandleFunc("/getConfig/{checkFolder}/{fileName}", http.HandlerFunc(getCheckConfigFile)).Methods("POST")
 	r.HandleFunc("/setConfig/{fileName}", http.HandlerFunc(setCheckConfigFile)).Methods("POST")
@@ -81,106 +71,6 @@ func sendRunningChecks(w http.ResponseWriter, _ *http.Request) {
 
 	w.Header().Set("Content-Type", "text/html")
 	w.Write([]byte(html))
-}
-
-// Schedules a specific check
-func runCheckHandler(collector collector.Component, ac autodiscovery.Component) func(_ http.ResponseWriter, r *http.Request) {
-	return func(_ http.ResponseWriter, r *http.Request) {
-		// Fetch the desired check
-		name := mux.Vars(r)["name"]
-		instances := pkgcollector.GetChecksByNameForConfigs(name, ac.GetAllConfigs())
-
-		for _, ch := range instances {
-			collector.RunCheck(ch) //nolint:errcheck
-		}
-		log.Infof("Scheduled new check: %s", name)
-	}
-}
-
-// runCheckOnceHandler generates a runCheckOnce handler with the autodiscovery component
-func runCheckOnceHandler(
-	ac autodiscovery.Component) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		runCheckOnce(w, r, ac)
-	}
-}
-
-// Runs a specified check once
-func runCheckOnce(w http.ResponseWriter, r *http.Request, ac autodiscovery.Component) {
-	response := make(map[string]string)
-	// Fetch the desired check
-	name := mux.Vars(r)["name"]
-	instances := pkgcollector.GetChecksByNameForConfigs(name, ac.GetAllConfigs())
-	if len(instances) == 0 {
-		html, e := renderError(name)
-		if e != nil {
-			html = "Error generating html: " + e.Error()
-		}
-
-		response["success"] = "" // empty string evaluates to false in JS
-		response["html"] = html
-		res, _ := json.Marshal(response)
-		w.Header().Set("Content-Type", "application/json")
-		w.Write(res)
-		return
-	}
-
-	// Run the check intance(s) once, as a test
-	stats := []*checkstats.Stats{}
-	for _, ch := range instances {
-		s := checkstats.NewStats(ch)
-
-		t0 := time.Now()
-		err := ch.Run()
-		warnings := ch.GetWarnings()
-		sStats, _ := ch.GetSenderStats()
-		s.Add(time.Since(t0), err, warnings, sStats, nil)
-
-		// Without a small delay some of the metrics will not show up
-		time.Sleep(100 * time.Millisecond)
-
-		stats = append(stats, s)
-	}
-
-	// Render the stats
-	html, e := renderCheck(name, stats)
-	if e != nil {
-		response["success"] = ""
-		response["html"] = "Error generating html: " + e.Error()
-		res, _ := json.Marshal(response)
-		w.Header().Set("Content-Type", "application/json")
-		w.Write(res)
-		return
-	}
-
-	response["success"] = "true"
-	response["html"] = html
-	res, _ := json.Marshal(response)
-	w.Header().Set("Content-Type", "application/json")
-	w.Write(res)
-}
-
-// Reloads a running check
-func reloadCheckHandler(collector collector.Component, ac autodiscovery.Component) func(_ http.ResponseWriter, r *http.Request) {
-	return func(w http.ResponseWriter, r *http.Request) {
-		name := html.EscapeString(mux.Vars(r)["name"])
-		instances := pkgcollector.GetChecksByNameForConfigs(name, ac.GetAllConfigs())
-		if len(instances) == 0 {
-			log.Errorf("Can't reload %s: check has no new instances.", name)
-			w.Write([]byte("Can't reload " + name + ": check has no new instances"))
-			return
-		}
-
-		killed, e := collector.ReloadAllCheckInstances(name, instances)
-		if e != nil {
-			log.Errorf("Error reloading check: %s", e.Error())
-			w.Write([]byte("Error reloading check: " + e.Error()))
-			return
-		}
-
-		log.Infof("Removed %v old instance(s) and started %v new instance(s) of %s", len(killed), len(instances), name)
-		fmt.Fprintf(w, "Removed %v old instance(s) and started %v new instance(s) of %s", len(killed), len(instances), name)
-	}
 }
 
 func getPathComponentFromRequest(vars map[string]string, name string, allowEmpty bool) (string, error) {

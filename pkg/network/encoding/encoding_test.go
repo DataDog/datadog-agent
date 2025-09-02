@@ -15,11 +15,10 @@ import (
 	"sort"
 	"testing"
 
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	model "github.com/DataDog/agent-payload/v5/process"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -145,7 +144,7 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 			NpmEnabled: false,
 			UsmEnabled: false,
 		},
-		Tags: network.GetStaticTags(tagOpenSSL | tagTLS),
+		Tags: tls.GetStaticTags(tagOpenSSL | tagTLS),
 	}
 	// fixup Protocol stack as on windows or macos
 	// we don't have tags mechanism inserting TLS protocol on protocol stack
@@ -263,16 +262,18 @@ func TestSerialization(t *testing.T) {
 		DNS: map[util.Address][]dns.Hostname{
 			util.AddressFromString("172.217.12.145"): {dns.ToHostname("golang.org")},
 		},
-		HTTP: map[http.Key]*http.RequestStats{
-			http.NewKey(
-				util.AddressFromString("20.1.1.1"),
-				util.AddressFromString("20.1.1.1"),
-				40000,
-				80,
-				[]byte("/testpath"),
-				true,
-				http.MethodGet,
-			): httpReqStats,
+		USMData: network.USMProtocolsData{
+			HTTP: map[http.Key]*http.RequestStats{
+				http.NewKey(
+					util.AddressFromString("20.1.1.1"),
+					util.AddressFromString("20.1.1.1"),
+					40000,
+					80,
+					[]byte("/testpath"),
+					true,
+					http.MethodGet,
+				): httpReqStats,
+			},
 		},
 	}
 
@@ -293,7 +294,7 @@ func TestSerialization(t *testing.T) {
 		 * getExpectedConnections()
 		 */
 		in.BufferedData.Conns[0].IPTranslation = nil
-		in.HTTP = map[http.Key]*http.RequestStats{
+		in.USMData.HTTP = map[http.Key]*http.RequestStats{
 			http.NewKey(
 				util.AddressFromString("10.1.1.1"),
 				util.AddressFromString("10.2.2.2"),
@@ -511,16 +512,18 @@ func TestHTTPSerializationWithLocalhostTraffic(t *testing.T) {
 				}},
 			},
 		},
-		HTTP: map[http.Key]*http.RequestStats{
-			http.NewKey(
-				localhost,
-				localhost,
-				clientPort,
-				serverPort,
-				[]byte("/testpath"),
-				true,
-				http.MethodGet,
-			): httpReqStats,
+		USMData: network.USMProtocolsData{
+			HTTP: map[http.Key]*http.RequestStats{
+				http.NewKey(
+					localhost,
+					localhost,
+					clientPort,
+					serverPort,
+					[]byte("/testpath"),
+					true,
+					http.MethodGet,
+				): httpReqStats,
+			},
 		},
 	}
 	if runtime.GOOS == "windows" {
@@ -540,7 +543,7 @@ func TestHTTPSerializationWithLocalhostTraffic(t *testing.T) {
 			http.MethodGet,
 		)
 
-		in.HTTP[httpKeyWin] = httpReqStats
+		in.USMData.HTTP[httpKeyWin] = httpReqStats
 	}
 
 	httpOut := &model.HTTPAggregations{
@@ -591,7 +594,7 @@ func TestHTTPSerializationWithLocalhostTraffic(t *testing.T) {
 func assertConnsEqual(t *testing.T, expected, actual *model.Connections) {
 	require.Equal(t, len(expected.Conns), len(actual.Conns), "expected both model.Connections to have the same number of connections")
 
-	for i := 0; i < len(actual.Conns); i++ {
+	for i := range actual.Conns {
 		expectedRawHTTP := expected.Conns[i].HttpAggregations
 		actualRawHTTP := actual.Conns[i].HttpAggregations
 
@@ -668,7 +671,7 @@ func TestPooledObjectGarbageRegression(t *testing.T) {
 				Content:  http.Interner.GetString(fmt.Sprintf("/path-%d", i)),
 				FullPath: true,
 			}
-			in.HTTP = map[http.Key]*http.RequestStats{httpKey: {}}
+			in.USMData.HTTP = map[http.Key]*http.RequestStats{httpKey: {}}
 			out := encodeAndDecodeHTTP(in)
 
 			require.NotNil(t, out)
@@ -676,7 +679,7 @@ func TestPooledObjectGarbageRegression(t *testing.T) {
 			require.Equal(t, httpKey.Path.Content.Get(), out.EndpointAggregations[0].Path)
 		} else {
 			// No HTTP data in this payload, so we should never get HTTP data back after the serialization
-			in.HTTP = nil
+			in.USMData.HTTP = nil
 			out := encodeAndDecodeHTTP(in)
 			require.Nil(t, out, "expected a nil object, but got garbage")
 		}

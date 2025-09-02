@@ -10,17 +10,22 @@ package processcheckimpl
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-go/v5/statsd"
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	gpusubscriberfxmock "github.com/DataDog/datadog-agent/comp/process/gpusubscriber/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/process/processcheck"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-go/v5/statsd"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/fx"
 )
 
 // TestProcessCheckEnablementOnCoreAgent Tests the process checks run on the core agent only
@@ -54,14 +59,16 @@ func TestProcessCheckEnablementOnCoreAgent(t *testing.T) {
 
 			flavor.SetFlavor(tc.flavor)
 			c := fxutil.Test[processcheck.Component](t, fx.Options(
-				core.MockBundle(),
-				fx.Replace(config.MockParams{Overrides: configs}),
+				fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
+				fx.Provide(func(t testing.TB) config.Component { return config.NewMockWithOverrides(t, configs) }),
+				sysprobeconfigimpl.MockModule(),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 				gpusubscriberfxmock.MockModule(),
 				fx.Provide(func() statsd.ClientInterface {
 					return &statsd.NoOpClient{}
 				}),
 				Module(),
+				fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 			))
 			assert.Equal(t, tc.enabled, c.Object().IsEnabled())
 		})

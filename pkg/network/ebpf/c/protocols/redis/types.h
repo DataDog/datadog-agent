@@ -10,8 +10,12 @@
 #define false 0
 
 typedef enum {
-    REDIS_GET = 0,
-    REDIS_SET = 1,
+    REDIS_UNKNOWN = 0,
+    REDIS_GET = 1,
+    REDIS_SET = 2,
+
+    // This is the last command in the enum, used to determine the size of the enum.
+    __MAX_REDIS_COMMAND
 } __attribute__ ((packed)) redis_command_t;
 
 // Redis in-flight transaction info

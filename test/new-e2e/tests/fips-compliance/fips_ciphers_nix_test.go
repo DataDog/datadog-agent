@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awsdocker "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/docker"
 
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps"
 	"github.com/DataDog/test-infra-definitions/components/datadog/dockeragentparams"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -41,7 +42,7 @@ func TestFIPSCiphersLinuxSuite(t *testing.T) {
 			awsdocker.Provisioner(
 				awsdocker.WithAgentOptions(
 					dockeragentparams.WithFIPS(),
-					dockeragentparams.WithExtraComposeManifest("fips-server", pulumi.String(dockerCompose)),
+					dockeragentparams.WithExtraComposeManifest("fips-server", pulumi.String(strings.ReplaceAll(dockerCompose, "{APPS_VERSION}", apps.Version))),
 				),
 			),
 		),

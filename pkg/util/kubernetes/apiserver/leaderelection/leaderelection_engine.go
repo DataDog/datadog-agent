@@ -106,10 +106,12 @@ func (le *LeaderEngine) createLeaderTokenIfNotExists() error {
 					Namespace: le.LeaderNamespace,
 				},
 			}, metav1.CreateOptions{})
-			if err != nil && !errors.IsConflict(err) {
+			if err != nil && !errors.IsConflict(err) && !errors.IsAlreadyExists(err) {
 				return err
 			}
 		}
+
+		return nil
 	}
 	_, err := le.coreClient.ConfigMaps(le.LeaderNamespace).Get(context.TODO(), le.LeaseName, metav1.GetOptions{})
 	if err != nil {
@@ -125,11 +127,11 @@ func (le *LeaderEngine) createLeaderTokenIfNotExists() error {
 				Name: le.LeaseName,
 			},
 		}, metav1.CreateOptions{})
-		if err != nil && !errors.IsConflict(err) {
+		if err != nil && !errors.IsConflict(err) && !errors.IsAlreadyExists(err) {
 			return err
 		}
 	}
-	return err
+	return nil
 }
 
 // newElection creates an election.
@@ -149,7 +151,6 @@ func (le *LeaderEngine) newElection() (*ld.LeaderElector, error) {
 		OnNewLeader: func(identity string) {
 			le.updateLeaderIdentity(identity)
 			le.reportLeaderMetric(identity == le.HolderIdentity)
-			le.notifyClusterChecks() // notify cluster checks of the new leader
 			log.Infof("New leader %q", identity)
 		},
 		OnStartedLeading: func(context.Context) {
@@ -235,9 +236,4 @@ func (le *LeaderEngine) notify() {
 
 		s <- struct{}{}
 	}
-}
-
-// notifyClusterChecks sends a notification to clusterchecks when the leader changes in any process.
-func (le *LeaderEngine) notifyClusterChecks() {
-	le.UpdateLeaderInClusterChecks <- struct{}{}
 }

@@ -13,7 +13,7 @@ A bundle is defined in a dedicated package named `comp/<bundleName>`. The packag
 
 Typically, a bundle will automatically instantiate the top-level components that represent the bundle's purpose. For example, the trace-agent bundle `comp/trace` might automatically instantiate `comp/trace/agent`.
 
-You can use the `inv components.new-bundle comp/<bundleName>` [command](../../setup.md#tooling) to generate a pre-filled `bundle.go` file for the given bundle.
+You can use the `dda inv components.new-bundle comp/<bundleName>` [command](../../setup/required.md#tooling) to generate a pre-filled `bundle.go` file for the given bundle.
 
 ## Bundle Parameters
 
@@ -27,35 +27,37 @@ Anything else is runtime configuration and should be handled vi `comp/core/confi
 Bundle parameters must stored only `Params` types for sub components. The reason is that each sub component
 must be usable without `BundleParams`.
 
-=== ":octicons-file-code-16: comp/&lt;bundleName&gt;/bundle.go"
-    ```go
-    import ".../comp/<bundleName>/foo"
-    import ".../comp/<bundleName>/bar"
-    // ...
+/// tab | :octicons-file-code-16: comp/&lt;bundleName&gt;/bundle.go
+```go
+import ".../comp/<bundleName>/foo"
+import ".../comp/<bundleName>/bar"
+// ...
 
-    // BundleParams defines the parameters for this bundle.
-    type BundleParams struct {
-        Foo foo.Params
-        Bar bar.Params
-    }
+// BundleParams defines the parameters for this bundle.
+type BundleParams struct {
+    Foo foo.Params
+    Bar bar.Params
+}
 
-    var Bundle = fxutil.Bundle(
-        // You must tell to fx how to get foo.Params from BundleParams.
-        fx.Provide(func(params BundleParams) foo.Params { return params.Foo }),
-        foo.Module(),
-        // You must tell to fx how to get bar.Params from BundleParams.
-        fx.Provide(func(params BundleParams) bar.Params { return params.Bar }),
-        bar.Module(),
-    )
-    ```
+var Bundle = fxutil.Bundle(
+    // You must tell to fx how to get foo.Params from BundleParams.
+    fx.Provide(func(params BundleParams) foo.Params { return params.Foo }),
+    foo.Module(),
+    // You must tell to fx how to get bar.Params from BundleParams.
+    fx.Provide(func(params BundleParams) bar.Params { return params.Bar }),
+    bar.Module(),
+)
+```
+///
 
 ## Testing
 
 A bundle should have a test file, `bundle_test.go`, to verify the documentation's claim about its dependencies. This simply uses `fxutil.TestBundle` to check that all dependencies are satisfied when given the full set of required bundles.
 
-=== ":octicons-file-code-16: bundle_test.go"
-    ```go
-    func TestBundleDependencies(t *testing.T) {
-        fxutil.TestBundle(t, Bundle)
-    }
-    ```
+/// tab | :octicons-file-code-16: bundle_test.go
+```go
+func TestBundleDependencies(t *testing.T) {
+    fxutil.TestBundle(t, Bundle)
+}
+```
+///

@@ -365,6 +365,21 @@ enum SYSCALL_STATE __attribute__((always_inline)) sysctl_approvers(struct syscal
     return DISCARDED;
 }
 
+enum SYSCALL_STATE __attribute__((always_inline)) connect_approvers(struct syscall_cache_t *syscall) {
+    u32 key = 0;
+    struct u64_flags_filter_t *filter = bpf_map_lookup_elem(&connect_addr_family_approvers, &key);
+    if (filter == NULL || !filter->is_set) {
+        return DISCARDED;
+    }
+
+    if (((1 << syscall->connect.family) & filter->flags) > 0) {
+        monitor_event_approved(syscall->type, FLAG_APPROVER_TYPE);
+        return APPROVED;
+    }
+
+    return DISCARDED;
+}
+
 enum SYSCALL_STATE __attribute__((always_inline)) approve_syscall_with_tgid(u32 tgid, struct syscall_cache_t *syscall, enum SYSCALL_STATE (*check_approvers)(struct syscall_cache_t *syscall)) {
     if (syscall->policy.mode != DENY) {
         monitor_event_approved(syscall->type, POLICY_APPROVER_TYPE);

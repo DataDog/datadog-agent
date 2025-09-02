@@ -265,6 +265,29 @@ func TestContainerIDForPodUIDAndContName(t *testing.T) {
 			expectedCid: "cID1",
 		},
 		{
+			name: "pod with ephemeral container",
+			pod: &workloadmeta.KubernetesPod{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesPod,
+					ID:   "c84eb7fb-09f2-11ea-abb1-42010a84017a",
+				},
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      "kube-dns-5877696fb4-m6cvp",
+					Namespace: "kube-system",
+				},
+				EphemeralContainers: []workloadmeta.OrchestratorContainer{
+					{
+						ID:   "ephemeralID",
+						Name: "ephemeralContainer",
+					},
+				},
+			},
+			podUID:      "c84eb7fb-09f2-11ea-abb1-42010a84017a",
+			contName:    "ephemeralContainer",
+			initCont:    false,
+			expectedCid: "ephemeralID",
+		},
+		{
 			name:        "not found",
 			podUID:      "poduid",
 			contName:    "contname",

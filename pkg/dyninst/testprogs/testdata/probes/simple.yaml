@@ -1,0 +1,69 @@
+binary: simple
+probes:
+- id: intArg
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.intArg
+- id: stringArg
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.stringArg
+- id: intSliceArg
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.intSliceArg
+- id: intArrayArg
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.intArrayArg
+- id: stringSliceArg
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.stringSliceArg
+- id: stringArrayArg
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.stringArrayArg
+- id: intArrayArgFrameless
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.stringArrayArgFrameless
+- id: inlined
+  type: LOG_PROBE
+  captureSnapshot: true
+  sampling:
+    # Gets called twice, so we should get 2 snapshots.
+    snapshotsPerSecond: 2
+  where:
+    methodName: main.inlined
+- id: mapArg
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.mapArg
+- id: bigMapArg
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.bigMapArg
+- id: PointerChainArg
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.PointerChainArg
+  capture:
+    maxReferenceDepth: 3
+- id: PointerSmallChainArg
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.PointerSmallChainArg
+  capture:
+    maxReferenceDepth: 5

@@ -10,6 +10,7 @@ package eval
 
 import (
 	"fmt"
+	"net"
 	"reflect"
 	"regexp"
 	"slices"
@@ -224,12 +225,53 @@ func isVariableName(str string) (string, bool) {
 }
 
 func evaluatorFromVariable(varname string, pos lexer.Position, opts *Opts) (interface{}, lexer.Position, error) {
+	var variableEvaluator interface{}
 	variable := opts.VariableStore.Get(varname)
-	if variable == nil {
-		return nil, pos, NewError(pos, "variable '%s' doesn't exist", varname)
+	if variable != nil {
+		return variable.GetEvaluator(), pos, nil
 	}
 
-	return variable.GetEvaluator(), pos, nil
+	if strings.HasSuffix(varname, ".length") {
+		trimmedVariable := strings.TrimSuffix(varname, ".length")
+		if variable = opts.VariableStore.Get(trimmedVariable); variable != nil {
+			variableEvaluator = variable.GetEvaluator()
+			switch evaluator := variableEvaluator.(type) {
+			case *StringArrayEvaluator:
+				return &IntEvaluator{
+					EvalFnc: func(ctx *Context) int {
+						v := evaluator.Eval(ctx)
+						return len(v.([]string))
+					},
+				}, pos, nil
+			case *StringEvaluator:
+				return &IntEvaluator{
+					EvalFnc: func(ctx *Context) int {
+						v := evaluator.Eval(ctx)
+						return len(v.(string))
+					},
+				}, pos, nil
+			case *IntArrayEvaluator:
+				return &IntEvaluator{
+					EvalFnc: func(ctx *Context) int {
+						v := evaluator.Eval(ctx)
+						return len(v.([]int))
+					},
+				}, pos, nil
+			case *CIDRArrayEvaluator:
+				return &IntEvaluator{
+					EvalFnc: func(ctx *Context) int {
+						v := evaluator.Eval(ctx)
+						return len(v.([]net.IPNet))
+					},
+				}, pos, nil
+			default:
+				return nil, pos, NewError(pos, "'length' cannot be used on '%s'", trimmedVariable)
+			}
+		}
+
+	}
+
+	return nil, pos, NewError(pos, "variable '%s' doesn't exist", varname)
 }
 
 func stringEvaluatorFromVariable(str string, pos lexer.Position, opts *Opts) (interface{}, lexer.Position, error) {
@@ -1201,39 +1243,43 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 		return nodeToEvaluator(obj.Next, opts, state)
 
 	case *ast.Unary:
-		if obj.Op != nil {
-			unary, pos, err = nodeToEvaluator(obj.Unary, opts, state)
-			if err != nil {
-				return nil, pos, err
-			}
-
-			switch *obj.Op {
-			case "!", "not":
-				unaryBool, ok := unary.(*BoolEvaluator)
-				if !ok {
-					return nil, pos, NewTypeError(pos, reflect.Bool)
-				}
-
-				return Not(unaryBool, state), obj.Pos, nil
-			case "-":
-				unaryInt, ok := unary.(*IntEvaluator)
-				if !ok {
-					return nil, pos, NewTypeError(pos, reflect.Int)
-				}
-
-				return Minus(unaryInt, state), pos, nil
-			case "^":
-				unaryInt, ok := unary.(*IntEvaluator)
-				if !ok {
-					return nil, pos, NewTypeError(pos, reflect.Int)
-				}
-
-				return IntNot(unaryInt, state), pos, nil
-			}
-			return nil, pos, NewOpUnknownError(obj.Pos, *obj.Op)
+		if obj.UnaryWithOp != nil {
+			return nodeToEvaluator(obj.UnaryWithOp, opts, state)
 		}
 
 		return nodeToEvaluator(obj.Primary, opts, state)
+
+	case *ast.UnaryWithOp:
+		unary, pos, err = nodeToEvaluator(obj.Unary, opts, state)
+		if err != nil {
+			return nil, pos, err
+		}
+
+		switch *obj.Op {
+		case "!", "not":
+			unaryBool, ok := unary.(*BoolEvaluator)
+			if !ok {
+				return nil, pos, NewTypeError(pos, reflect.Bool)
+			}
+
+			return Not(unaryBool, state), obj.Pos, nil
+		case "-":
+			unaryInt, ok := unary.(*IntEvaluator)
+			if !ok {
+				return nil, pos, NewTypeError(pos, reflect.Int)
+			}
+
+			return Minus(unaryInt, state), pos, nil
+		case "^":
+			unaryInt, ok := unary.(*IntEvaluator)
+			if !ok {
+				return nil, pos, NewTypeError(pos, reflect.Int)
+			}
+
+			return IntNot(unaryInt, state), pos, nil
+		}
+		return nil, pos, NewOpUnknownError(obj.Pos, *obj.Op)
+
 	case *ast.Primary:
 		switch {
 		case obj.Ident != nil:

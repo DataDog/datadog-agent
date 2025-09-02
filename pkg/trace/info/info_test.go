@@ -7,6 +7,8 @@ package info
 
 import (
 	"bytes"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"expvar"
 	"fmt"
@@ -18,6 +20,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -124,9 +127,35 @@ func testServerError(t *testing.T) *httptest.Server {
 	return server
 }
 
-// run this at the beginning of each test, this is because we *really*
+// retryInfoCall attempts to call Info with retry logic for CI overload handling
+func retryInfoCall(t *testing.T, conf *config.AgentConfig) (string, error) {
+	var buf bytes.Buffer
+	var info string
+
+	// Retry with 1 second delay to handle CI overload on MacOS runners
+	maxRetries := 2
+	for attempt := range maxRetries {
+		buf.Reset()
+		err := Info(&buf, conf)
+		if err != nil {
+			if attempt < maxRetries-1 {
+				t.Logf("Info call failed (attempt %d/%d), retrying in 1 second: %v", attempt+1, maxRetries, err)
+				time.Sleep(time.Second)
+			} else {
+				return "", err
+			}
+			continue
+		}
+		info = buf.String()
+		break
+	}
+
+	return info, nil
+}
+
+// testInit runs at the beginning of each test, this is because we *really*
 // need to have InitInfo be called before doing anything
-func testInit(t *testing.T) *config.AgentConfig {
+func testInit(t *testing.T, serverConfig *tls.Config) *config.AgentConfig {
 	assert := assert.New(t)
 	conf := config.New()
 	conf.Endpoints[0].APIKey = "key1"
@@ -138,7 +167,18 @@ func testInit(t *testing.T) *config.AgentConfig {
 	conf.EVPProxy.AdditionalEndpoints = clearAddEp
 	conf.ProfilingProxy.AdditionalEndpoints = clearAddEp
 	conf.DebuggerProxy.APIKey = "debugger_proxy_key"
-	assert.NotNil(conf)
+
+	// creating in-memory auth artifacts
+	conf.AuthToken = "fake-auth-token"
+	// If a serverConfig is provided, we need to add the server's certificate to the client config
+	if serverConfig != nil {
+		assert.NotNil(serverConfig.Certificates[0].Leaf)
+		certPool := x509.NewCertPool()
+		certPool.AddCert(serverConfig.Certificates[0].Leaf)
+		conf.IPCTLSClientConfig = &tls.Config{
+			RootCAs: certPool,
+		}
+	}
 
 	err := InitInfo(conf)
 	assert.NoError(err)
@@ -148,12 +188,12 @@ func testInit(t *testing.T) *config.AgentConfig {
 
 func TestInfo(t *testing.T) {
 	assert := assert.New(t)
-	conf := testInit(t)
-	assert.NotNil(conf)
-
 	server := testServer(t, "./testdata/okay.json")
 	assert.NotNil(server)
 	defer server.Close()
+
+	conf := testInit(t, server.TLS)
+	assert.NotNil(conf)
 
 	url, err := url.Parse(server.URL)
 	assert.NotNil(url)
@@ -165,10 +205,8 @@ func TestInfo(t *testing.T) {
 	assert.NoError(err)
 	conf.DebugServerPort = port
 
-	var buf bytes.Buffer
-	err = Info(&buf, conf)
+	info, err := retryInfoCall(t, conf)
 	assert.NoError(err)
-	info := buf.String()
 	assert.NotEmpty(info)
 	t.Logf("Info:\n%s\n", info)
 	expectedInfo, err := os.ReadFile("./testdata/okay.info")
@@ -180,12 +218,12 @@ func TestInfo(t *testing.T) {
 
 func TestProbabilisticSampler(t *testing.T) {
 	assert := assert.New(t)
-	conf := testInit(t)
-	assert.NotNil(conf)
-
 	server := testServer(t, "./testdata/psp.json")
 	assert.NotNil(server)
 	defer server.Close()
+
+	conf := testInit(t, server.TLS)
+	assert.NotNil(conf)
 
 	url, err := url.Parse(server.URL)
 	assert.NotNil(url)
@@ -197,10 +235,8 @@ func TestProbabilisticSampler(t *testing.T) {
 	assert.NoError(err)
 	conf.DebugServerPort = port
 
-	var buf bytes.Buffer
-	err = Info(&buf, conf)
+	info, err := retryInfoCall(t, conf)
 	assert.NoError(err)
-	info := buf.String()
 	assert.NotEmpty(info)
 	t.Logf("Info:\n%s\n", info)
 	expectedInfo, err := os.ReadFile("./testdata/psp.info")
@@ -212,7 +248,7 @@ func TestProbabilisticSampler(t *testing.T) {
 
 func TestHideAPIKeys(t *testing.T) {
 	assert := assert.New(t)
-	conf := testInit(t)
+	conf := testInit(t, nil)
 
 	js := expvar.Get("config").String()
 	assert.NotEqual("", js)
@@ -225,12 +261,12 @@ func TestHideAPIKeys(t *testing.T) {
 
 func TestWarning(t *testing.T) {
 	assert := assert.New(t)
-	conf := testInit(t)
-	assert.NotNil(conf)
-
 	server := testServerWarning(t)
 	assert.NotNil(server)
 	defer server.Close()
+
+	conf := testInit(t, server.TLS)
+	assert.NotNil(conf)
 
 	url, err := url.Parse(server.URL)
 	assert.NotNil(url)
@@ -242,10 +278,8 @@ func TestWarning(t *testing.T) {
 	assert.NoError(err)
 	conf.DebugServerPort = port
 
-	var buf bytes.Buffer
-	err = Info(&buf, conf)
+	info, err := retryInfoCall(t, conf)
 	assert.NoError(err)
-	info := buf.String()
 
 	expectedWarning, err := os.ReadFile("./testdata/warning.info")
 	re := regexp.MustCompile(`\r\n`)
@@ -258,11 +292,11 @@ func TestWarning(t *testing.T) {
 
 func TestNotRunning(t *testing.T) {
 	assert := assert.New(t)
-	conf := testInit(t)
-	assert.NotNil(conf)
-
 	server := testServer(t, "./testdata/okay.json")
 	assert.NotNil(server)
+
+	conf := testInit(t, server.TLS)
+	assert.NotNil(conf)
 
 	url, err := url.Parse(server.URL)
 	assert.NotNil(url)
@@ -298,12 +332,12 @@ func TestNotRunning(t *testing.T) {
 
 func TestError(t *testing.T) {
 	assert := assert.New(t)
-	conf := testInit(t)
-	assert.NotNil(conf)
-
 	server := testServerError(t)
 	assert.NotNil(server)
 	defer server.Close()
+
+	conf := testInit(t, server.TLS)
+	assert.NotNil(conf)
 
 	url, err := url.Parse(server.URL)
 	assert.NotNil(url)
@@ -338,7 +372,7 @@ func TestError(t *testing.T) {
 
 func TestInfoReceiverStats(t *testing.T) {
 	assert := assert.New(t)
-	conf := testInit(t)
+	conf := testInit(t, nil)
 	assert.NotNil(conf)
 
 	stats := NewReceiverStats()
@@ -406,7 +440,7 @@ func TestInfoReceiverStats(t *testing.T) {
 
 func TestInfoConfig(t *testing.T) {
 	assert := assert.New(t)
-	conf := testInit(t)
+	conf := testInit(t, nil)
 	assert.NotNil(conf)
 
 	js := expvar.Get("config").String() // this is what expvar will call
@@ -428,8 +462,12 @@ func TestInfoConfig(t *testing.T) {
 	conf.EVPProxy.ApplicationKey = ""
 	assert.Equal("", confCopy.DebuggerProxy.APIKey, "Debugger Proxy API Key should *NEVER* be exported")
 	conf.DebuggerProxy.APIKey = ""
-	assert.Equal("", confCopy.DebuggerDiagnosticsProxy.APIKey, "Debugger Diagnostics Proxy API Key should *NEVER* be exported")
-	conf.DebuggerDiagnosticsProxy.APIKey = ""
+	assert.Equal("", confCopy.DebuggerIntakeProxy.APIKey, "Debugger Intake Proxy API Key should *NEVER* be exported")
+	conf.DebuggerIntakeProxy.APIKey = ""
+	// IPC Auth data should not be exposed
+	conf.AuthToken = ""
+	conf.IPCTLSClientConfig = nil
+	conf.IPCTLSServerConfig = nil
 
 	// Any key-like data should scrubbed
 	conf.EVPProxy.AdditionalEndpoints = scrubbedAddEp
@@ -579,7 +617,7 @@ func TestPublishWatchdogInfo(t *testing.T) {
 
 func TestScrubCreds(t *testing.T) {
 	assert := assert.New(t)
-	conf := testInit(t)
+	conf := testInit(t, nil)
 	assert.NotNil(conf)
 
 	confExpvar := expvar.Get("config").String()

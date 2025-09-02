@@ -6,11 +6,13 @@
 package apikey
 
 import (
-	"github.com/aws/aws-sdk-go-v2/aws"
 	"os"
 	"strconv"
 	"strings"
 	"testing"
+
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/aws/aws-sdk-go-v2/aws"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -20,6 +22,7 @@ var getFunc = func(string, aws.FIPSEndpointState) (string, error) {
 }
 
 var mockSetSecretsFromEnv = func(t *testing.T, testEnvVars []string) {
+	pkgconfigsetup.Datadog().SetTestOnlyDynamicSchema(true)
 	for envKey, envVal := range getSecretEnvVars(testEnvVars, getFunc, getFunc, false) {
 		t.Setenv(envKey, strings.TrimSpace(envVal))
 	}
@@ -84,6 +87,7 @@ func TestGetSecretEnvVarsWithFIPS(t *testing.T) {
 
 func TestDDApiKey(t *testing.T) {
 	t.Setenv(apiKeyEnvVar, "abc")
+	mockSetSecretsFromEnv(t, os.Environ())
 	assert.NoError(t, HandleEnv())
 }
 

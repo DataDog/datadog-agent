@@ -20,6 +20,9 @@ const (
 
 	// DefaultRetries is the default number of retries for starting a container/s.
 	DefaultRetries = 3
+
+	// MinimalDockerImage is the minimal docker image, just used for running a binary
+	MinimalDockerImage = "alpine:3.20.3"
 )
 
 // EmptyEnv is a sugar syntax for empty environment variables
@@ -100,6 +103,7 @@ type runConfig struct {
 	Mounts      map[string]string // Mounts (host path -> container path).
 	NetworkMode string            // Network mode to use for the container. If empty, the docker default will apply
 	PIDMode     string            // PID mode to use for the container. If empty, the docker default will apply
+	Privileged  bool              // Whether to run the container in privileged mode.
 }
 
 func (r runConfig) command() string {
@@ -123,8 +127,9 @@ func (r runConfig) commandArgs(t subCommandType) []string {
 			args = append(args, "-e", env)
 		}
 
-		//append container name and container image name
-		args = append(args, "--name", r.Name(), r.ImageName)
+		if r.Privileged {
+			args = append(args, "--privileged")
+		}
 
 		if r.NetworkMode != "" {
 			args = append(args, "--network", r.NetworkMode)
@@ -133,6 +138,9 @@ func (r runConfig) commandArgs(t subCommandType) []string {
 		if r.PIDMode != "" {
 			args = append(args, "--pid", r.PIDMode)
 		}
+
+		//append container name and container image name
+		args = append(args, "--name", r.Name(), r.ImageName)
 
 		//provide main binary and binary arguments to run inside the docker container
 		args = append(args, r.Binary)
@@ -189,6 +197,13 @@ func WithNetworkMode(networkMode string) RunConfigOption {
 func WithPIDMode(pidMode string) RunConfigOption {
 	return func(c *runConfig) {
 		c.PIDMode = pidMode
+	}
+}
+
+// WithPrivileged sets the privileged flag for the container.
+func WithPrivileged(privileged bool) RunConfigOption {
+	return func(c *runConfig) {
+		c.Privileged = privileged
 	}
 }
 

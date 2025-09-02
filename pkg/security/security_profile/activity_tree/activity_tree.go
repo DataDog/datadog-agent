@@ -15,6 +15,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
@@ -213,7 +214,7 @@ func (at *ActivityTree) AppendChild(node *ProcessNode) {
 }
 
 // AppendImageTag appends the given image tag
-func (at *ActivityTree) AppendImageTag(_ string) {
+func (at *ActivityTree) AppendImageTag(_ string, _ time.Time) {
 }
 
 // GetParent returns nil for the ActivityTree
@@ -412,6 +413,8 @@ func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissi
 		return node.InsertSyscalls(event, imageTag, at.SyscallsMask, at.Stats, dryRun), nil
 	case model.NetworkFlowMonitorEventType:
 		return node.InsertNetworkFlowMonitorEvent(event, imageTag, generationType, at.Stats, dryRun), nil
+	case model.CapabilitiesEventType:
+		return node.InsertCapabilitiesUsageEvent(event, imageTag, at.Stats, dryRun), nil
 	case model.ExitEventType:
 		// Update the exit time of the process (this is purely informative, do not rely on timestamps to detect
 		// execed children)
@@ -842,9 +845,9 @@ func (at *ActivityTree) SendStats(client statsd.ClientInterface) error {
 }
 
 // TagAllNodes tags all the activity tree's nodes with the given image tag
-func (at *ActivityTree) TagAllNodes(imageTag string) {
+func (at *ActivityTree) TagAllNodes(imageTag string, timestamp time.Time) {
 	for _, rootNode := range at.ProcessNodes {
-		rootNode.TagAllNodes(imageTag)
+		rootNode.TagAllNodes(imageTag, timestamp)
 	}
 }
 

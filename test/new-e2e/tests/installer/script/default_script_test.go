@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 )
@@ -35,7 +34,7 @@ func testDefaultScript(os e2eos.Descriptor, arch e2eos.Architecture) installerSc
 }
 
 func (s *installScriptDefaultSuite) RunInstallScript(url string, params ...string) {
-	params = append(params, "DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE=installtesting.datad0g.com")
+	params = append(params, "DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE=installtesting.datad0g.com.internal.dda-testing.com")
 	s.installerScriptBaseSuite.RunInstallScript(url, params...)
 }
 
@@ -45,7 +44,7 @@ func (s *installScriptDefaultSuite) TestInstall() {
 	s.RunInstallScript(
 		s.url,
 		"DD_SITE=datadoghq.com",
-		"DD_APM_INSTRUMENTATION_LIBRARIES=java:1,python:2,js:5,dotnet:3",
+		"DD_APM_INSTRUMENTATION_LIBRARIES=java:1,python:3,js:5,dotnet:3",
 		"DD_APM_INSTRUMENTATION_ENABLED=host",
 		"DD_RUNTIME_SECURITY_CONFIG_ENABLED=true",
 		"DD_SBOM_CONTAINER_IMAGE_ENABLED=true",
@@ -90,18 +89,14 @@ func (s *installScriptDefaultSuite) TestInstallParity() {
 		s.T().Skip("Skipping test due to missing E2E_PIPELINE_ID variable")
 	}
 
-	flake.Mark(s.T()) // TODO: Fixme once installer 0.10.0 is released
-
 	defer s.Purge()
 
 	// Full supported option set
 	params := []string{
 		"DD_SITE=datadoghq.com",
-		"DD_APM_INSTRUMENTATION_LIBRARIES=java:1,python:2,js:5,dotnet:3",
+		"DD_APM_INSTRUMENTATION_LIBRARIES=java:1,python:3,js:5,dotnet:3",
 		"DD_APM_INSTRUMENTATION_ENABLED=host",
 		"DD_RUNTIME_SECURITY_CONFIG_ENABLED=true",
-		"DD_SBOM_CONTAINER_IMAGE_ENABLED=true",
-		"DD_SBOM_HOST_ENABLED=true",
 		"DD_REMOTE_UPDATES=true",
 		"DD_ENV=env",
 		"DD_HOSTNAME=hostname",
@@ -118,17 +113,17 @@ func (s *installScriptDefaultSuite) TestInstallParity() {
 	// Purge the agent & install using the agent 7 install script
 	s.Purge()
 	defer func() {
-		s.Env().RemoteHost.MustExecute("sudo apt-get remove -y --purge datadog-installer || sudo yum remove -y datadog-installer || sudo zypper remove -y datadog-installer")
+		s.Env().RemoteHost.Execute("sudo apt-get remove -y --purge datadog-installer || sudo yum remove -y datadog-installer || sudo zypper remove -y datadog-installer")
 	}()
 	if s.os.Flavor == e2eos.CentOS && s.os.Version == e2eos.CentOS7.Version {
 		s.Env().RemoteHost.MustExecute("sudo systemctl daemon-reexec")
 	}
-	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`%s bash -c "$(curl -L https://install.datadoghq.com/scripts/install_script_agent7.sh)"`, strings.Join(params, " ")), client.WithEnvVariables(map[string]string{
+	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`%s bash -c "$(curl -L https://dd-agent.s3.amazonaws.com/scripts/install_script_agent7.sh)"`, strings.Join(params, " ")), client.WithEnvVariables(map[string]string{
 		"DD_API_KEY":               s.getAPIKey(),
-		"TESTING_KEYS_URL":         "keys.datadoghq.com",
-		"TESTING_APT_URL":          "apttesting.datad0g.com",
-		"TESTING_APT_REPO_VERSION": fmt.Sprintf("pipeline-%s-a7-%s 7", os.Getenv("E2E_PIPELINE_ID"), s.arch),
-		"TESTING_YUM_URL":          "yumtesting.datad0g.com",
+		"TESTING_KEYS_URL":         "apttesting.datad0g.com/test-keys",
+		"TESTING_APT_URL":          fmt.Sprintf("s3.amazonaws.com/apttesting.datad0g.com/datadog-agent/pipeline-%s-a7", os.Getenv("E2E_PIPELINE_ID")),
+		"TESTING_APT_REPO_VERSION": fmt.Sprintf("stable-%s 7", s.arch),
+		"TESTING_YUM_URL":          "s3.amazonaws.com/yumtesting.datad0g.com",
 		"TESTING_YUM_VERSION_PATH": fmt.Sprintf("testing/pipeline-%s-a7/7", os.Getenv("E2E_PIPELINE_ID")),
 	}))
 	require.NoErrorf(s.T(), err, "installer not properly installed through install script")
@@ -166,11 +161,11 @@ func (s *installScriptDefaultSuite) TestUpgradeInstallerAgent() {
 		"DD_API_KEY=" + s.getAPIKey(),
 		"DD_REMOTE_UPDATES=true",
 		"DD_AGENT_MAJOR_VERSION=7",
-		"DD_AGENT_MINOR_VERSION=60.0",
+		"DD_AGENT_MINOR_VERSION=65.0",
 	}
 
 	// 1. Install installer / agent as separate packages using older agent 7 install script & an older agent version (7.60)
-	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`%s bash -c "$(curl -L https://install.datadoghq.com/scripts/install_script_agent7.sh?versionId=c0vg6qmhxYnt3he9iRph2BsRN0p026pf)"`, strings.Join(params, " ")))
+	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`%s bash -c "$(curl -L https://dd-agent.s3.amazonaws.com/scripts/install_script_agent7.sh?versionId=c0vg6qmhxYnt3he9iRph2BsRN0p026pf)"`, strings.Join(params, " ")))
 	require.NoErrorf(s.T(), err, "installer / agent not properly installed through agent 7 install script")
 
 	// 2. Run the installer install script with the same older agent version (7.60)
@@ -196,12 +191,12 @@ func (s *installScriptDefaultSuite) TestInstallIgnoreMajorMinor() {
 		"DD_API_KEY=" + s.getAPIKey(),
 		"DD_REMOTE_UPDATES=true",
 		"DD_AGENT_MAJOR_VERSION=7",
-		"DD_AGENT_MINOR_VERSION=60.0",
+		"DD_AGENT_MINOR_VERSION=65.0",
 	}
 	defer s.Purge()
 	s.RunInstallScript(s.url, params...)
 
 	// Check the agent version is the latest one
 	installedVersion := s.host.AgentStableVersion()
-	assert.NotEqual(s.T(), "7.60.0", installedVersion, "agent version should not be 7.60.0")
+	assert.NotEqual(s.T(), "7.65.0", installedVersion, "agent version should not be 7.65.0")
 }

@@ -26,6 +26,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const (
+	logRateLimit = time.Minute
+)
+
 // SelfTest represent one self test
 type SelfTest interface {
 	GetRuleDefinition() *rules.RuleDefinition
@@ -50,6 +54,7 @@ type SelfTester struct {
 	isClosed        bool
 	done            chan bool
 	selfTestRunning chan time.Duration
+	errorTimestamp  map[eval.RuleID]time.Time
 }
 
 var _ rules.PolicyProvider = (*SelfTester)(nil)
@@ -63,14 +68,17 @@ func (t *SelfTester) RunSelfTest(ctx context.Context, timeout time.Duration) err
 		return err
 	}
 
-	// allow 5 seconds for the self test event to be generated
-	ctx, cancelFnc := context.WithTimeout(ctx, 5*time.Second)
-	defer cancelFnc()
-
 	for _, selfTest := range t.selfTests {
+		// allow 10 seconds for the self test event to be generated
+		ctx, cancelFnc := context.WithTimeout(ctx, 10*time.Second)
 		if err := selfTest.GenerateEvent(ctx); err != nil {
-			log.Errorf("self test failed (%s): %v", selfTest.GetRuleDefinition().ID, err)
+			if time.Since(t.errorTimestamp[selfTest.GetRuleDefinition().ID]) > logRateLimit {
+				log.Errorf("self test failed (%s): %v", selfTest.GetRuleDefinition().ID, err)
+
+				t.errorTimestamp[selfTest.GetRuleDefinition().ID] = time.Now()
+			}
 		}
+		cancelFnc()
 	}
 
 	return nil
@@ -102,7 +110,7 @@ func CreateTargetDir() (string, error) {
 }
 
 // WaitForResult wait for self test results
-func (t *SelfTester) WaitForResult(cb func(success []eval.RuleID, fails []eval.RuleID, events map[eval.RuleID]*serializers.EventSerializer)) {
+func (t *SelfTester) WaitForResult(cb func(success []eval.RuleID, fails []eval.RuleID)) {
 	for timeout := range t.selfTestRunning {
 		timer := time.After(timeout)
 
@@ -153,7 +161,7 @@ func (t *SelfTester) WaitForResult(cb func(success []eval.RuleID, fails []eval.R
 		t.success, t.fails, t.lastTimestamp = success, fails, time.Now()
 		t.Unlock()
 
-		cb(success, fails, events)
+		cb(success, fails)
 
 		t.endSelfTests()
 	}

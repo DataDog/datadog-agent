@@ -307,6 +307,11 @@ func (k *Version) IsAmazonLinux2023Kernel() bool {
 	return k.IsAmazonLinuxKernel() && k.OsRelease["VERSION_ID"] == "2023"
 }
 
+// IsRockyKernel returns whether the kernel is a Rocky Linux kernel
+func (k *Version) IsRockyKernel() bool {
+	return k.OsRelease["ID"] == "rocky"
+}
+
 // IsInRangeCloseOpen returns whether the kernel version is between the begin
 // version (included) and the end version (excluded)
 func (k *Version) IsInRangeCloseOpen(begin kernel.Version, end kernel.Version) bool {

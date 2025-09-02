@@ -5,7 +5,6 @@
 
 //go:build clusterchecks
 
-//nolint:revive // TODO(PLINT) Fix revive linter
 package listeners
 
 import (
@@ -15,8 +14,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	filter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -213,8 +212,8 @@ func (s *CloudFoundryService) GetServiceID() string {
 }
 
 // GetADIdentifiers returns a set of AD identifiers for a container.
-func (s *CloudFoundryService) GetADIdentifiers() ([]string, error) {
-	return []string{s.adIdentifier.String()}, nil
+func (s *CloudFoundryService) GetADIdentifiers() []string {
+	return []string{s.adIdentifier.String()}
 }
 
 // GetHosts returns the container's hosts
@@ -233,7 +232,7 @@ func (s *CloudFoundryService) GetTags() ([]string, error) {
 }
 
 // GetTagsWithCardinality returns the tags with given cardinality. Not supported in CF
-func (s *CloudFoundryService) GetTagsWithCardinality(cardinality string) ([]string, error) {
+func (s *CloudFoundryService) GetTagsWithCardinality(_ string) ([]string, error) {
 	return s.GetTags()
 }
 
@@ -253,16 +252,12 @@ func (s *CloudFoundryService) IsReady() bool {
 }
 
 // HasFilter returns false on CF
-//
-//nolint:revive // TODO(PLINT) Fix revive linter
-func (s *CloudFoundryService) HasFilter(filter containers.FilterType) bool {
+func (s *CloudFoundryService) HasFilter(_ filter.Scope) bool {
 	return false
 }
 
 // GetExtraConfig isn't supported
-//
-//nolint:revive // TODO(PLINT) Fix revive linter
-func (s *CloudFoundryService) GetExtraConfig(key string) (string, error) {
+func (s *CloudFoundryService) GetExtraConfig(_ string) (string, error) {
 	return "", ErrNotSupported
 }
 

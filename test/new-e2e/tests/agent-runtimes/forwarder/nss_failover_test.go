@@ -24,6 +24,7 @@ import (
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps"
 	"github.com/DataDog/test-infra-definitions/components/docker"
 	"github.com/DataDog/test-infra-definitions/resources/aws"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
@@ -86,7 +87,7 @@ var customLogsConfigTmplFile string
 var configTmplFile string
 
 func pullTraceGeneratorImage(h *components.RemoteHost) {
-	h.MustExecute("docker pull ghcr.io/datadog/apps-tracegen:main")
+	h.MustExecute("docker pull ghcr.io/datadog/apps-tracegen:" + apps.Version)
 }
 
 func runUDSTraceGenerator(h *components.RemoteHost, service string, addSpanTags string) func() {
@@ -99,7 +100,7 @@ func runUDSTraceGenerator(h *components.RemoteHost, service string, addSpanTags 
 		" -e DD_SERVICE=" + service +
 		" -e DD_GIT_COMMIT_SHA=abcd1234 " +
 		" -e TRACEGEN_ADDSPANTAGS=" + addSpanTags +
-		" ghcr.io/datadog/apps-tracegen:main"
+		" ghcr.io/datadog/apps-tracegen:" + apps.Version
 	h.MustExecute(run)
 
 	return func() { h.MustExecute(rm) }

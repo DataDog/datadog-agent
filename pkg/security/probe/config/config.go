@@ -147,6 +147,9 @@ type Config struct {
 	// NetworkRawPacketLimiterRate defines the rate at which raw packets should be sent to user space
 	NetworkRawPacketLimiterRate int
 
+	// NetworkRawPacketRestriction defines the global raw packet filter
+	NetworkRawPacketFilter string
+
 	// NetworkPrivateIPRanges defines the list of IP that should be considered private
 	NetworkPrivateIPRanges []string
 
@@ -171,8 +174,10 @@ type Config struct {
 	// SpanTrackingCacheSize is the size of the span tracking cache
 	SpanTrackingCacheSize int
 
-	// The DNS Port
-	DNSPort uint16
+	// CapabilitiesMonitoringEnabled defines whether process capabilities usage should be reported
+	CapabilitiesMonitoringEnabled bool
+	// CapabilitiesMonitoringPeriod defines the period at which process capabilities usage events should be reported back to userspace
+	CapabilitiesMonitoringPeriod time.Duration
 }
 
 // NewConfig returns a new Config object
@@ -213,6 +218,7 @@ func NewConfig() (*Config, error) {
 		NetworkIngressEnabled:       getBool("network.ingress.enabled"),
 		NetworkRawPacketEnabled:     getBool("network.raw_packet.enabled"),
 		NetworkRawPacketLimiterRate: getInt("network.raw_packet.limiter_rate"),
+		NetworkRawPacketFilter:      getString("network.raw_packet.filter"),
 		NetworkPrivateIPRanges:      getStringSlice("network.private_ip_ranges"),
 		NetworkExtraPrivateIPRanges: getStringSlice("network.extra_private_ip_ranges"),
 		StatsPollingInterval:        time.Duration(getInt("events_stats.polling_interval")) * time.Second,
@@ -231,8 +237,9 @@ func NewConfig() (*Config, error) {
 		SpanTrackingEnabled:   getBool("span_tracking.enabled"),
 		SpanTrackingCacheSize: getInt("span_tracking.cache_size"),
 
-		// dns
-		DNSPort: 53,
+		// Process capabilities monitoring
+		CapabilitiesMonitoringEnabled: getBool("capabilities_monitoring.enabled"),
+		CapabilitiesMonitoringPeriod:  getDuration("capabilities_monitoring.period"),
 	}
 
 	if err := c.sanitize(); err != nil {

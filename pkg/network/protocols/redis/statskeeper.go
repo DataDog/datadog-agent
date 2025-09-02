@@ -15,15 +15,19 @@ import (
 
 // StatsKeeper is a struct to hold the records for the redis protocol
 type StatsKeeper struct {
-	stats      map[Key]*RequestStats
-	statsMutex sync.RWMutex
-	maxEntries int
+	stats          map[Key]*RequestStats
+	statsMutex     sync.RWMutex
+	maxEntries     int
+	telemetry      *telemetry
+	trackResources bool
 }
 
 // NewStatsKeeper creates a new Redis StatsKeeper
 func NewStatsKeeper(c *config.Config) *StatsKeeper {
 	statsKeeper := &StatsKeeper{
-		maxEntries: c.MaxRedisStatsBuffered,
+		maxEntries:     c.MaxRedisStatsBuffered,
+		telemetry:      newTelemetry(),
+		trackResources: c.RedisTrackResources,
 	}
 
 	statsKeeper.resetNoLock()
@@ -32,19 +36,32 @@ func NewStatsKeeper(c *config.Config) *StatsKeeper {
 
 // Process processes the redis transaction
 func (s *StatsKeeper) Process(event *EventWrapper) {
+	if event.CommandType() >= maxCommand {
+		s.telemetry.invalidCommand.Add(1)
+		return
+	}
+
 	s.statsMutex.Lock()
 	defer s.statsMutex.Unlock()
 
+	if event.RequestLatency() <= 0 {
+		s.telemetry.invalidLatency.Add(1)
+		return
+	}
 	key := Key{
 		Command:       event.CommandType(),
-		KeyName:       event.KeyName(),
 		ConnectionKey: event.ConnTuple(),
 		Truncated:     event.Tx.Truncated,
+	}
+
+	if s.trackResources {
+		key.KeyName = event.KeyName()
 	}
 
 	requestStats, ok := s.stats[key]
 	if !ok {
 		if len(s.stats) >= s.maxEntries {
+			s.telemetry.dropped.Add(1)
 			return
 		}
 		requestStats = NewRequestStats()

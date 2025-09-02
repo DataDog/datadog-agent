@@ -9,7 +9,6 @@ package configsyncimpl
 import (
 	"context"
 	"net"
-	"net/http"
 	"net/url"
 	"strconv"
 	"time"
@@ -20,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/configsync"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -30,7 +28,7 @@ type dependencies struct {
 
 	Config     config.Component
 	Log        log.Component
-	IPC        ipc.Component
+	IPCClient  ipc.HTTPClient
 	SyncParams Params
 }
 
@@ -54,12 +52,12 @@ func Module(params Params) fxutil.Module {
 type configSync struct {
 	Config config.Component
 	Log    log.Component
-	IPC    ipc.Component
 
 	url       *url.URL
-	client    *http.Client
+	client    ipc.HTTPClient
 	connected bool
 	ctx       context.Context
+	timeout   time.Duration
 	enabled   bool
 }
 
@@ -89,16 +87,15 @@ func newConfigSync(deps dependencies, agentIPCPort int, configRefreshIntervalSec
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	client := apiutil.GetClientWithTimeout(deps.SyncParams.Timeout)
 	configRefreshInterval := time.Duration(configRefreshIntervalSec) * time.Second
 
 	configSync := configSync{
 		Config:  deps.Config,
 		Log:     deps.Log,
-		IPC:     deps.IPC,
 		url:     url,
-		client:  client,
+		client:  deps.IPCClient,
 		ctx:     ctx,
+		timeout: deps.SyncParams.Timeout,
 		enabled: true,
 	}
 

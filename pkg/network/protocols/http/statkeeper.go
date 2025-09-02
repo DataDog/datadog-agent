@@ -8,6 +8,7 @@
 package http
 
 import (
+	"slices"
 	"strconv"
 	"sync"
 	"time"
@@ -47,6 +48,22 @@ func NewStatkeeper(c *config.Config, telemetry *Telemetry, incompleteBuffer Inco
 	var connectionAggregator *utils.ConnectionAggregator
 	if c.EnableUSMConnectionRollup {
 		connectionAggregator = utils.NewConnectionAggregator()
+	}
+
+	if len(c.HTTPReplaceRules) > 0 {
+		// Sort rules, and place drop rules first
+		slices.SortStableFunc(c.HTTPReplaceRules, func(a, b *config.ReplaceRule) int {
+			if a.Repl == "" && b.Repl == "" {
+				return 0
+			}
+			if a.Repl == "" {
+				return -1
+			}
+			if b.Repl == "" {
+				return 1
+			}
+			return 0
+		})
 	}
 
 	return &StatKeeper{
@@ -139,6 +156,16 @@ func (h *StatKeeper) add(tx Transaction) {
 		h.telemetry.invalidLatency.Add(1)
 		if h.oversizedLogLimit.ShouldLog() {
 			log.Warnf("latency should never be equal to 0: %s", tx.String())
+		}
+		return
+	}
+
+	// Validate HTTP status code
+	statusCode := tx.StatusCode()
+	if !isValidStatusCode(statusCode) {
+		h.telemetry.invalidStatusCode.Add(1)
+		if h.oversizedLogLimit.ShouldLog() {
+			log.Warnf("invalid status code: %s", tx.String())
 		}
 		return
 	}

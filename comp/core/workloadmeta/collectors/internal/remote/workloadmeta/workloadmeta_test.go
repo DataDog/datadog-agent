@@ -17,6 +17,7 @@ import (
 	"go.uber.org/fx"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 
@@ -189,7 +190,7 @@ func TestHandleWorkloadmetaStreamResponse(t *testing.T) {
 
 func TestCollection(t *testing.T) {
 	// Create ipc component for the client
-	ipcmock.New(t)
+	ipcComp := ipcmock.New(t)
 
 	// workloadmeta server
 	mockServerStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
@@ -199,7 +200,7 @@ func TestCollection(t *testing.T) {
 	server := &serverSecure{workloadmetaServer: server.NewServer(mockServerStore)}
 
 	// gRPC server
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(grpc.Creds(credentials.NewTLS(ipcComp.GetTLSServerConfig())))
 	pbgo.RegisterAgentSecureServer(grpcServer, server)
 
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
@@ -223,7 +224,7 @@ func TestCollection(t *testing.T) {
 		StreamHandler: &streamHandler{
 			port: port,
 		},
-		Insecure: true,
+		IPC: ipcComp,
 	}
 
 	// workloadmeta client store

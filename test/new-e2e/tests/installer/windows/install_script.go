@@ -143,7 +143,7 @@ func (b *baseInstaller) prepareEnvVars(params Params) map[string]string {
 // Handles local file URLs by copying the script to the remote host.
 func (d *DatadogInstallScript) prepareScript(params Params) (string, error) {
 	if params.installerScript == "" {
-		params.installerScript = fmt.Sprintf("https://installtesting.datad0g.com/pipeline-%s/scripts/Install-Datadog.ps1", d.env.Environment.PipelineID())
+		params.installerScript = fmt.Sprintf("https://s3.amazonaws.com/installtesting.datad0g.com/pipeline-%s/scripts/Install-Datadog.ps1", d.env.Environment.PipelineID())
 	}
 
 	// Handle local script URL

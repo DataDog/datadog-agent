@@ -65,10 +65,11 @@ const (
 const PythonCheckLoaderName string = "python"
 
 func init() {
-	factory := func(senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component) (check.Loader, error) {
-		return NewPythonCheckLoader(senderManager, logReceiver, tagger)
+	factory := func(senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component) (check.Loader, int, error) {
+		loader, err := NewPythonCheckLoader(senderManager, logReceiver, tagger)
+		return loader, 20, err
 	}
-	loaders.RegisterLoader(20, factory)
+	loaders.RegisterLoader(factory)
 
 	configureErrors = map[string][]string{}
 	py3Linted = map[string]struct{}{}
@@ -178,7 +179,7 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 	// all failed, return error for last failure
 	if checkModule == nil || checkClass == nil {
 		log.Debugf("PyLoader returning %s for %s", err, moduleName)
-		return nil, err
+		return nil, fmt.Errorf("unable to load python module %s: %v", name, err)
 	}
 
 	wheelVersion := "unversioned"
@@ -248,6 +249,7 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 	}
 
 	if v, ok := cl.logReceiver.Get(); ok {
+		log.Debugf("Registering integration in loader: %s", c.ID())
 		v.RegisterIntegration(string(c.id), config)
 	}
 

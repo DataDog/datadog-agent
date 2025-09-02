@@ -1,0 +1,89 @@
+{
+  "Cluster": "ecs-cluster",
+  "TaskARN": "arn:aws:ecs:us-east-1:123457279990:task/ecs-cluster/7d2dae60ad844c608fb2d44215a46f6f",
+  "Family": "datadog-agent",
+  "Revision": "15",
+  "DesiredStatus": "RUNNING",
+  "KnownStatus": "RUNNING",
+  "PullStartedAt": "2023-10-18T19:00:40.015762747Z",
+  "PullStoppedAt": "2023-10-18T19:00:40.229561055Z",
+  "AvailabilityZone": "us-east-1a",
+  "LaunchType": "EC2",
+  "Containers": [
+    {
+      "DockerId": "749d28eb7145ff3b6c52b71c59b381c70a884c1615e9f99516f027492679496e",
+      "Name": "datadog-agent",
+      "DockerName": "datadog-agent-15-datadog-agent-b2bb99c4dda5b2b25000",
+      "Image": "datadog/datadog-agent:7.50.0",
+      "ImageID": "sha256:e4c58958181a5925816faa528ce959e487632f4cfc192f8132f71b32df2744b4",
+      "Ports": [
+        {
+          "ContainerPort": 8125,
+          "Protocol": "udp",
+          "HostPort": 8125,
+          "HostIp": "0.0.0.0"
+        },
+        {
+          "ContainerPort": 8125,
+          "Protocol": "udp",
+          "HostPort": 8125,
+          "HostIp": "::"
+        }
+      ],
+      "Labels": {
+        "baseimage.name": "ubuntu:",
+        "baseimage.os": "ubuntu ",
+        "com.amazonaws.ecs.cluster": "ecs-cluster",
+        "com.amazonaws.ecs.container-name": "datadog-agent",
+        "org.opencontainers.image.ref.name": "ubuntu",
+        "org.opencontainers.image.source": "https://github.com/DataDog/datadog-agent",
+        "org.opencontainers.image.version": "23.04"
+      },
+      "DesiredStatus": "RUNNING",
+      "KnownStatus": "RUNNING",
+      "Limits": {
+        "CPU": 10,
+        "Memory": 512
+      },
+      "CreatedAt": "2023-10-18T19:00:40.244667009Z",
+      "StartedAt": "2023-10-18T19:00:41.083094165Z",
+      "Type": "NORMAL",
+      "Health": {
+        "status": "HEALTHY",
+        "statusSince": "2023-12-27T15:39:53.043973594Z",
+        "output": "Agent health: PASS"
+      },
+      "Volumes": [
+        {
+          "Source": "/var/run/docker.sock",
+          "Destination": "/var/run/docker.sock"
+        },
+        {
+          "Source": "/sys/fs/cgroup",
+          "Destination": "/host/sys/fs/cgroup"
+        },
+        {
+          "Source": "/var/lib/ecs/deps/execute-command/config/seelog.xml",
+          "Destination": "/ecs-execute-command/configuration/seelog.xml"
+        }
+      ],
+      "LogDriver": "awslogs",
+      "LogOptions": {
+        "awslogs-group": "datadog-agent",
+        "awslogs-region": "us-east-1",
+        "awslogs-stream": "log_router/datadog-agent"
+      },
+      "ContainerARN": "arn:aws:ecs:us-east-1:601427279990:container/ecs-cluster/14d5ab87e06f/52ff1eab-fb19",
+      "Networks": [
+        {
+          "NetworkMode": "bridge",
+          "IPv4Addresses": [
+            "172.17.0.2"
+          ]
+        }
+      ]
+    }
+  ],
+  "VPCID": "vpc-123",
+  "ServiceName": "agent-ec2"
+}

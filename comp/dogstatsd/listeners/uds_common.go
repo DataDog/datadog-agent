@@ -14,7 +14,6 @@ import (
 	"net"
 	"os"
 	"strconv"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -197,7 +196,6 @@ func (l *UDSListener) handleConnection(conn netUnixConn, closeFunc CloseFunction
 	l.telemetryStore.tlmUDSConnections.Inc(tlmListenerID, l.transport)
 	defer func() {
 		_ = closeFunc(conn)
-		packetsBuffer.Flush()
 		packetsBuffer.Close()
 		if telemetryWithFullListenerID {
 			l.clearTelemetry(tlmListenerID)
@@ -271,13 +269,18 @@ func (l *UDSListener) handleConnection(conn netUnixConn, closeFunc CloseFunction
 			// Read the expected packet length (in stream mode)
 			b := []byte{0, 0, 0, 0}
 			_, err = io.ReadFull(conn, b)
-			expectedPacketLength := binary.LittleEndian.Uint32(b)
-
-			switch {
-			case err == io.EOF, errors.Is(err, io.ErrUnexpectedEOF):
-				log.Debugf("dogstatsd-uds: %s connection closed", l.transport)
+			if err != nil {
+				switch {
+				case errors.Is(err, io.EOF):
+					log.Debugf("dogstatsd-uds: %s connection closed", l.transport)
+				case errors.Is(err, io.ErrUnexpectedEOF):
+					log.Errorf("dogstatsd-uds: %s connection closed while reading payload length", l.transport)
+				default:
+					log.Errorf("dogstatsd-uds: %s: error reading payload length: %v", l.transport, err)
+				}
 				return nil
 			}
+			expectedPacketLength = binary.LittleEndian.Uint32(b)
 			if expectedPacketLength > uint32(len(packet.Buffer)) {
 				log.Info("dogstatsd-uds: packet length too large, dropping connection")
 				return nil
@@ -288,12 +291,15 @@ func (l *UDSListener) handleConnection(conn netUnixConn, closeFunc CloseFunction
 		}
 
 		for err == nil {
+			var nRead int
 			if oob != nil {
-				n, oobn, _, _, err = conn.ReadMsgUnix(packet.Buffer[n:maxPacketLength], oobS[oobn:])
+				nRead, oobn, _, _, err = conn.ReadMsgUnix(packet.Buffer[n:maxPacketLength], oobS)
 			} else {
-				n, _, err = conn.ReadFromUnix(packet.Buffer[n:maxPacketLength])
+				nRead, _, err = conn.ReadFromUnix(packet.Buffer[n:maxPacketLength])
 			}
-			if n == 0 && oobn == 0 && l.transport == "unix" {
+			n += nRead
+
+			if nRead == 0 && oobn == 0 && l.transport == "unix" {
 				log.Debugf("dogstatsd-uds: %s connection closed", l.transport)
 				return nil
 			}
@@ -350,7 +356,7 @@ func (l *UDSListener) handleConnection(conn netUnixConn, closeFunc CloseFunction
 
 		if err != nil {
 			// connection has been closed
-			if strings.HasSuffix(err.Error(), " use of closed network connection") {
+			if errors.Is(err, net.ErrClosed) {
 				return nil
 			}
 

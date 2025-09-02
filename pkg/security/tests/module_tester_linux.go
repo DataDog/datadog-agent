@@ -9,6 +9,7 @@
 package tests
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"errors"
@@ -33,6 +34,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/impl"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
@@ -103,9 +105,10 @@ event_monitoring_config:
   {{range .EnvsWithValue}}
     - {{.}}
   {{end}}
-
   span_tracking:
     enabled: true
+  capabilities_monitoring:
+    enabled: {{ .CapabilitiesMonitoringEnabled }}
 
 runtime_security_config:
   enabled: {{ .RuntimeSecurityEnabled }}
@@ -216,6 +219,8 @@ runtime_security_config:
         enabled: {{.EnforcementDisarmerExecutableEnabled}}
         max_allowed: {{.EnforcementDisarmerExecutableMaxAllowed}}
         period: {{.EnforcementDisarmerExecutablePeriod}}
+  file_metadata_resolver:
+    enabled: true
 `
 
 const (
@@ -583,11 +588,14 @@ func (tm *testModule) validateExecEvent(tb *testing.T, kind wrapperType, validat
 	}
 }
 
-func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []*rules.RuleDefinition, fopts ...optFunc) (*testModule, error) {
-	return newTestModuleWithOnDemandProbes(t, nil, macroDefs, ruleDefs, fopts...)
-}
+func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []*rules.RuleDefinition, fopts ...optFunc) (_ *testModule, err error) {
+	defer func() {
+		if err != nil && testMod != nil {
+			testMod.cleanup()
+			testMod = nil
+		}
+	}()
 
-func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDemandHookPoint, macroDefs []*rules.MacroDefinition, ruleDefs []*rules.RuleDefinition, fopts ...optFunc) (*testModule, error) {
 	var opts tmOpts
 	for _, opt := range fopts {
 		opt(&opts)
@@ -646,7 +654,7 @@ func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDeman
 		return nil, err
 	}
 
-	if _, err = setTestPolicy(commonCfgDir, onDemandHooks, macroDefs, ruleDefs); err != nil {
+	if err := setTestPolicy(commonCfgDir, macroDefs, ruleDefs); err != nil {
 		return nil, err
 	}
 
@@ -755,7 +763,9 @@ func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDeman
 		emopts.ProbeOpts.DontDiscardRuntime = false
 	}
 
-	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(emconfig, secconfig, emopts)
+	ipcComp := ipcmock.New(t)
+
+	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(emconfig, secconfig, ipcComp, emopts)
 	if err != nil {
 		return nil, err
 	}
@@ -766,7 +776,7 @@ func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDeman
 		msgSender := newFakeMsgSender(testMod)
 
 		compression := logscompression.NewComponent()
-		cws, err := module.NewCWSConsumer(testMod.eventMonitor, secconfig.RuntimeSecurity, nil, module.Opts{EventSender: testMod, MsgSender: msgSender}, compression)
+		cws, err := module.NewCWSConsumer(testMod.eventMonitor, secconfig.RuntimeSecurity, nil, module.Opts{EventSender: testMod, MsgSender: msgSender}, compression, ipcComp)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create module: %w", err)
 		}
@@ -807,9 +817,9 @@ func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDeman
 		}
 	}
 
-	if opts.staticOpts.snapshotRuleMatchHandler != nil {
+	if opts.staticOpts.ruleMatchHandler != nil {
 		testMod.RegisterRuleEventHandler(func(e *model.Event, r *rules.Rule) {
-			opts.staticOpts.snapshotRuleMatchHandler(testMod, e, r)
+			opts.staticOpts.ruleMatchHandler(testMod, e, r)
 		})
 		t.Cleanup(func() {
 			testMod.RegisterRuleEventHandler(nil)
@@ -965,7 +975,9 @@ func (tm *testModule) startTracing() (*tracePipeLogger, error) {
 }
 
 func (tm *testModule) cleanup() {
-	tm.eventMonitor.Close()
+	if tm.eventMonitor != nil {
+		tm.eventMonitor.Close()
+	}
 }
 
 func (tm *testModule) validateAbnormalPaths() {
@@ -980,6 +992,10 @@ func (tm *testModule) validateSyscallsInFlight() {
 }
 
 func (tm *testModule) Close() {
+	tm.CloseWithOptions(true)
+}
+
+func (tm *testModule) CloseWithOptions(zombieCheck bool) {
 	if !tm.opts.staticOpts.disableRuntimeSecurity {
 		tm.eventMonitor.SendStats()
 	}
@@ -1004,6 +1020,12 @@ func (tm *testModule) Close() {
 
 	if logStatusMetrics {
 		tm.t.Logf("%s exit stats: %s", tm.t.Name(), GetEBPFStatusMetrics(tm.probe))
+	}
+
+	if zombieCheck {
+		if err := tm.CheckZombieProcesses(); err != nil {
+			tm.t.Errorf("failed checking for zombie processes: %v", err)
+		}
 	}
 
 	if withProfile {
@@ -1352,7 +1374,7 @@ func (tm *testModule) addAllEventTypesOnDump(dockerInstance *dockerCmdWrapper, s
 	_, _ = cmd.CombinedOutput()
 
 	// dns
-	cmd = dockerInstance.Command("nslookup", []string{"foo.bar"}, []string{})
+	cmd = dockerInstance.Command("nslookup", []string{"one.one.one.one"}, []string{})
 	_, _ = cmd.CombinedOutput()
 
 	// bind
@@ -1753,4 +1775,68 @@ func (tm *testModule) GetProfileVersions(imageName string) ([]string, error) {
 	}
 
 	return profile.GetVersions(), nil
+}
+
+func (tm *testModule) CheckZombieProcesses() error {
+	myPid := os.Getpid()
+
+	entries, err := os.ReadDir("/proc")
+	if err != nil {
+		return fmt.Errorf("failed to read /proc: %w", err)
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+
+		pidStr := entry.Name()
+		if pidStr == strconv.Itoa(myPid) {
+			continue // skip our own process
+		}
+
+		pid, err := strconv.Atoi(pidStr)
+		if err != nil {
+			continue // not a valid pid
+		}
+
+		statusPath := filepath.Join("/proc", pidStr, "status")
+		statusFile, err := os.Open(statusPath)
+		if err != nil {
+			continue // could not read status file
+		}
+		defer statusFile.Close()
+
+		scanner := bufio.NewScanner(statusFile)
+		state := ""
+		for scanner.Scan() {
+			line := scanner.Text()
+
+			if stateStr, ok := strings.CutPrefix(line, "State:"); ok {
+				state = strings.TrimSpace(stateStr)
+			} else if ppidStr, ok := strings.CutPrefix(line, "PPid:"); ok {
+				ppidStr = strings.TrimSpace(ppidStr)
+				ppid, err := strconv.Atoi(ppidStr)
+				if err != nil {
+					return fmt.Errorf("failed to parse PPid for PID %d: %w", pid, err)
+				}
+
+				comm, err := os.ReadFile(filepath.Join("/proc", pidStr, "comm"))
+				if err != nil {
+					return fmt.Errorf("failed to read comm for PID %d: %w", pid, err)
+				}
+				commStr := strings.TrimSpace(string(comm))
+
+				if ppid == myPid {
+					// Found a zombie process with our PID as its parent
+					return fmt.Errorf("found zombie process with PID %d and PPID %d (state=%s, comm=%s)", pid, ppid, state, commStr)
+				}
+			}
+		}
+		if err := scanner.Err(); err != nil {
+			return fmt.Errorf("error reading status file for PPID %d: %w", pid, err)
+		}
+	}
+
+	return nil
 }

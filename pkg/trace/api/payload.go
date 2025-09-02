@@ -32,6 +32,9 @@ type Payload struct {
 
 	// ProcessTags is a list of tags describing an instrumented process.
 	ProcessTags string
+
+	// ContainerTags is a list of tags describing the container we received this payload from
+	ContainerTags []string
 }
 
 // Chunks returns chunks in TracerPayload

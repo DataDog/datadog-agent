@@ -25,10 +25,10 @@ const (
 // with a logarithmic mapping that matches the Sketch parameters.
 func createDDSketchWithSketchMapping(c *Config, inputSketch *ddsketch.DDSketch) (*ddsketch.DDSketch, error) {
 	// Create positive store for the new DDSketch
-	positiveStore := store.NewDenseStore()
+	positiveStore := getDenseStore()
 
 	// Create negative store for the new DDSketch
-	negativeStore := store.NewDenseStore()
+	negativeStore := getDenseStore()
 
 	// Take parameters that match the Sketch mapping, and create a LogarithmicMapping out of them
 	gamma := c.gamma.v
@@ -37,7 +37,20 @@ func createDDSketchWithSketchMapping(c *Config, inputSketch *ddsketch.DDSketch) 
 	offset := float64(c.norm.bias) + 0.5
 	newMapping, err := mapping.NewLogarithmicMappingWithGamma(gamma, offset)
 	if err != nil {
+		// We don't use defer here because in the normal path
+		// we pass ownership of the stores to ConvertDDSketchIntoSketch.
+		putDenseStore(positiveStore)
+		putDenseStore(negativeStore)
 		return nil, fmt.Errorf("couldn't create LogarithmicMapping for DDSketch: %w", err)
+	}
+
+	if inputSketch.GetCount() == 1.0 {
+		// We know the exact value of this one point: it is the sum.
+		// Avoid remapping artifacts in that special case.
+		newSketch := ddsketch.NewDDSketch(newMapping, positiveStore, negativeStore)
+		if err := newSketch.Add(inputSketch.GetSum()); err == nil {
+			return newSketch, nil
+		}
 	}
 
 	newSketch := inputSketch.ChangeMapping(newMapping, positiveStore, negativeStore, 1.0)
@@ -52,7 +65,8 @@ type floatKeyCount struct {
 // convertFloatCountsToIntCounts converts a list of float counts to integer counts,
 // preserving the total count of the list by tracking leftover decimal counts.
 func convertFloatCountsToIntCounts(floatKeyCounts []floatKeyCount) ([]KeyCount, uint) {
-	keyCounts := make([]KeyCount, 0, len(floatKeyCounts))
+	keyCounts := getKeyCountList()
+	defer putKeyCountList(keyCounts)
 
 	sort.Slice(floatKeyCounts, func(i, j int) bool {
 		return floatKeyCounts[i].k < floatKeyCounts[j].k
@@ -65,25 +79,37 @@ func convertFloatCountsToIntCounts(floatKeyCounts []floatKeyCount) ([]KeyCount, 
 		rounded := uint(math.Round(floatTotal)) - intTotal
 		intTotal += rounded
 		// At this point, intTotal == Round(floatTotal)
-		keyCounts = append(keyCounts, KeyCount{k: Key(fkc.k), n: rounded})
+		if rounded > 0 {
+			keyCounts = append(keyCounts, KeyCount{k: Key(fkc.k), n: rounded})
+		}
 	}
 
-	return keyCounts, intTotal
+	// Create a copy of the result since we're returning the pooled slice
+	result := make([]KeyCount, len(keyCounts))
+	copy(result, keyCounts)
+
+	return result, intTotal
 }
 
 // convertDDSketchIntoSketch takes a DDSketch and moves its data to a Sketch.
 // The conversion assumes that the DDSketch has a mapping that is compatible
 // with the Sketch parameters (eg. a DDSketch returned by convertDDSketchMapping).
 func convertDDSketchIntoSketch(c *Config, inputSketch *ddsketch.DDSketch) (*Sketch, error) {
+	// Get the bin list from pool
+	bins := getBinList()
+	defer putBinList(bins)
+
 	sparseStore := sparseStore{
-		bins:  make([]bin, 0, defaultBinListSize),
+		bins:  bins,
 		count: 0,
 	}
 
 	// Special counter to aggregate all zeroes
 	zeroes := 0.0
 
-	floatKeyCounts := make([]floatKeyCount, 0, defaultBinListSize)
+	// Get float key counts from pool
+	floatKeyCounts := getFloatKeyCountList()
+	defer putFloatKeyCountList(floatKeyCounts)
 
 	signedStores := []struct {
 		store store.Store
@@ -137,7 +163,9 @@ func convertDDSketchIntoSketch(c *Config, inputSketch *ddsketch.DDSketch) (*Sket
 	zeroes += inputSketch.GetZeroCount()
 
 	// Finally, add the 0 key
-	floatKeyCounts = append(floatKeyCounts, floatKeyCount{k: 0, c: zeroes})
+	if zeroes != 0 {
+		floatKeyCounts = append(floatKeyCounts, floatKeyCount{k: 0, c: zeroes})
+	}
 
 	// Generate the integer KeyCount objects from the counts we retrieved
 	keyCounts, cnt := convertFloatCountsToIntCounts(floatKeyCounts)

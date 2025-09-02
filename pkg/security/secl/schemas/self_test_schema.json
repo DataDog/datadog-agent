@@ -44,23 +44,6 @@
         },
         "title": {
             "type": "string"
-        },
-        "test_events": {
-            "type": "object",
-            "properties": {
-                "datadog_agent_cws_self_test_rule_open": {
-                    "$ref": "open.schema.json"
-                },
-                "datadog_agent_cws_self_test_rule_chmod": {
-                    "$ref": "chmod.schema.json"
-                },
-                "datadog_agent_cws_self_test_rule_chown": {
-                    "$ref": "chown.schema.json"
-                },
-                "datadog_agent_cws_self_test_rule_exec": {
-                    "$ref": "exec.schema.json"
-                }
-            }
         }
     },
     "required": [
@@ -70,8 +53,7 @@
         "service",
         "status",
         "timestamp",
-        "title",
-        "test_events"
+        "title"
     ],
     "oneOf": [
         {

@@ -49,8 +49,8 @@ func (c *ntmConfig) GetEnvVars() []string {
 	c.RLock()
 	defer c.RUnlock()
 	vars := make([]string, 0, len(c.configEnvVars))
-	for v := range c.configEnvVars {
-		vars = append(vars, v)
+	for _, v := range c.configEnvVars {
+		vars = append(vars, v...)
 	}
 	return vars
 }
@@ -66,7 +66,8 @@ func (c *ntmConfig) GetProxies() *model.Proxy {
 	if c.GetBool("fips.enabled") {
 		return nil
 	}
-	if !c.IsSet("proxy.http") && !c.IsSet("proxy.https") && !c.IsSet("proxy.no_proxy") {
+
+	if c.GetString("proxy.http") == "" && c.GetString("proxy.https") == "" && len(c.GetStringSlice("proxy.no_proxy")) == 0 {
 		return nil
 	}
 	p := &model.Proxy{

@@ -11,10 +11,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
-func getStateScopes() map[Scope]VariableProviderFactory {
+// VariableScopes is the list of scopes for variables
+var VariableScopes = []string{
+	ScopeCGroup,
+	ScopeProcess,
+	ScopeContainer,
+}
+
+// DefaultStateScopes returns the default state scopes for variables
+func DefaultStateScopes() map[Scope]VariableProviderFactory {
 	stateScopes := getCommonStateScopes()
-	stateScopes["cgroup"] = func() VariableProvider {
-		return eval.NewScopedVariables(func(ctx *eval.Context) eval.VariableScope {
+	stateScopes[ScopeCGroup] = func() VariableProvider {
+		return eval.NewScopedVariables(ScopeCGroup, func(ctx *eval.Context) eval.VariableScope {
 			if ctx.Event.(*model.Event).CGroupContext == nil || ctx.Event.(*model.Event).CGroupContext.CGroupFile.IsNull() {
 				return nil
 			}

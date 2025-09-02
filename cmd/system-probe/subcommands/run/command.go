@@ -38,7 +38,7 @@ import (
 	systemprobeloggerfx "github.com/DataDog/datadog-agent/comp/core/log/fx-systemprobe"
 	"github.com/DataDog/datadog-agent/comp/core/pid"
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
@@ -55,7 +55,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/rcclientimpl"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
-	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
@@ -97,8 +96,14 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Long:  `Runs the system-probe in the foreground`,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(run,
-				fx.Supply(config.NewAgentParams("", config.WithConfigMissingOK(true))),
-				fx.Supply(sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.ConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath))),
+				fx.Supply(config.NewAgentParams("")),
+				// Force FX to load Datadog configuration before System Probe config.
+				// This is necessary because the 'software_inventory.enabled' setting is defined in the Datadog configuration.
+				// Without this explicit dependency, FX might initialize System Probe's config first, causing pkgconfigsetup.Datadog().GetBool()
+				// to return default values instead of the actual configuration.
+				fx.Provide(func(_ config.Component) sysprobeconfigimpl.Params {
+					return sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.ConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath))
+				}),
 				fx.Supply(log.ForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
 				fx.Supply(rcclient.Params{AgentName: "system-probe", AgentVersion: version.AgentVersion, IsSystemProbe: true}),
 				fx.Supply(option.None[secrets.Component]()),
@@ -124,9 +129,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				// Provide tagger module
 				remoteTaggerFx.Module(tagger.RemoteParams{
 					RemoteTarget: func(c config.Component) (string, error) { return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil },
-					RemoteTokenFetcher: func(c config.Component) func() (string, error) {
-						return func() (string, error) { return security.FetchAuthToken(c) }
-					},
 					RemoteFilter: taggerTypes.NewMatchAllFilter(),
 				}),
 				autoexitimpl.Module(),
@@ -280,8 +282,14 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 			return nil
 		},
 		// no config file path specification in this situation
-		fx.Supply(config.NewAgentParams("", config.WithConfigMissingOK(true))),
-		fx.Supply(sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(""))),
+		fx.Supply(config.NewAgentParams("")),
+		// Force FX to load Datadog configuration before System Probe config.
+		// This is necessary because the 'software_inventory.enabled' setting is defined in the Datadog configuration.
+		// Without this explicit dependency, FX might initialize System Probe's config first, causing pkgconfigsetup.Datadog().GetBool()
+		// to return default values instead of the actual configuration.
+		fx.Provide(func(_ config.Component) sysprobeconfigimpl.Params {
+			return sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(""))
+		}),
 		fx.Supply(log.ForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
 		fx.Supply(rcclient.Params{AgentName: "system-probe", AgentVersion: version.AgentVersion, IsSystemProbe: true}),
 		fx.Supply(option.None[secrets.Component]()),
@@ -306,9 +314,6 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 		// Provide tagger module
 		remoteTaggerFx.Module(tagger.RemoteParams{
 			RemoteTarget: func(c config.Component) (string, error) { return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil },
-			RemoteTokenFetcher: func(c config.Component) func() (string, error) {
-				return func() (string, error) { return security.FetchAuthToken(c) }
-			},
 			RemoteFilter: taggerTypes.NewMatchAllFilter(),
 		}),
 		systemprobeloggerfx.Module(),

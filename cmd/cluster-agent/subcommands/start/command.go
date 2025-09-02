@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
+	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -39,10 +40,11 @@ import (
 	diagnosefx "github.com/DataDog/datadog-agent/comp/core/diagnose/fx"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -50,9 +52,11 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	localTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
+	workloadmetainit "github.com/DataDog/datadog-agent/comp/core/workloadmeta/init"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
@@ -119,14 +123,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/kubernetesapiserver"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/cpu/cpu"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk/disk"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk/diskv2"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk/io"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/filehandles"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/memory"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/uptime"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winproc"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 )
@@ -157,11 +153,12 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				// setup workloadmeta
 				wmcatalog.GetCatalog(),
 				workloadmetafx.Module(workloadmeta.Params{
-					InitHelper: common.GetWorkloadmetaInit(),
+					InitHelper: workloadmetainit.GetWorkloadmetaInit(),
 					AgentType:  workloadmeta.ClusterAgent,
 				}), // TODO(components): check what this must be for cluster-agent-cloudfoundry
 				fx.Supply(context.Background()),
 				localTaggerfx.Module(),
+				workloadfilterfx.Module(),
 				fx.Supply(
 					status.Params{
 						PythonVersionGetFunc: python.GetPythonVersion,
@@ -173,11 +170,14 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					status.NewInformationProvider(clusterchecks.Provider{}),
 					status.NewInformationProvider(orchestratorStatus.Provider{}),
 				),
-				fx.Provide(func(config config.Component) status.HeaderInformationProvider {
-					return status.NewHeaderInformationProvider(hostnameStatus.NewProvider(config))
+				fx.Provide(func(config config.Component, hostname hostnameinterface.Component) status.HeaderInformationProvider {
+					return status.NewHeaderInformationProvider(hostnameStatus.NewProvider(config, hostname))
 				}),
 				fx.Provide(func() option.Option[integrations.Component] {
 					return option.None[integrations.Component]()
+				}),
+				fx.Provide(func() option.Option[agenttelemetry.Component] {
+					return option.None[agenttelemetry.Component]()
 				}),
 				statusimpl.Module(),
 				collectorimpl.Module(),
@@ -377,6 +377,9 @@ func start(log log.Component,
 		pkglog.Errorf("Failed to generate or retrieve the cluster ID, err: %v", err)
 	}
 	if clusterName == "" {
+		if config.GetBool("autoscaling.workload.enabled") {
+			return fmt.Errorf("Failed to start: autoscaling is enabled but no cluster name detected, exiting")
+		}
 		pkglog.Warn("Failed to auto-detect a Kubernetes cluster name. We recommend you set it manually via the cluster_name config option")
 	}
 	pkglog.Infof("Cluster ID: %s, Cluster Name: %s", clusterID, clusterName)
@@ -475,7 +478,7 @@ func start(log log.Component,
 		go func() {
 			defer wg.Done()
 
-			if err := runCompliance(mainCtx, demultiplexer, wmeta, apiCl, compression, le.IsLeader); err != nil {
+			if err := runCompliance(mainCtx, demultiplexer, wmeta, apiCl, compression, ipc, le.IsLeader); err != nil {
 				pkglog.Errorf("Error while running compliance agent: %v", err)
 			}
 		}()
@@ -621,22 +624,8 @@ func initializeRemoteConfigClient(rcService rccomp.Component, config config.Comp
 }
 
 func registerChecks(wlm workloadmeta.Component, tagger tagger.Component, cfg config.Component) {
-	// Required checks
-	corecheckLoader.RegisterCheck(cpu.CheckName, cpu.Factory())
-	corecheckLoader.RegisterCheck(memory.CheckName, memory.Factory())
-	corecheckLoader.RegisterCheck(uptime.CheckName, uptime.Factory())
-	corecheckLoader.RegisterCheck(io.CheckName, io.Factory())
-	corecheckLoader.RegisterCheck(filehandles.CheckName, filehandles.Factory())
-
-	// Flavor specific checks
 	corecheckLoader.RegisterCheck(kubernetesapiserver.CheckName, kubernetesapiserver.Factory(tagger))
-	corecheckLoader.RegisterCheck(ksm.CheckName, ksm.Factory())
+	corecheckLoader.RegisterCheck(ksm.CheckName, ksm.Factory(tagger, nil)) // wmeta is not used in KSM when running from cluster-agent, so we can pass nil here
 	corecheckLoader.RegisterCheck(helm.CheckName, helm.Factory())
-	if cfg.GetBool("use_diskv2_check") {
-		corecheckLoader.RegisterCheck(disk.CheckName, diskv2.Factory())
-	} else {
-		corecheckLoader.RegisterCheck(disk.CheckName, disk.Factory())
-	}
 	corecheckLoader.RegisterCheck(orchestrator.CheckName, orchestrator.Factory(wlm, cfg, tagger))
-	corecheckLoader.RegisterCheck(winproc.CheckName, winproc.Factory())
 }

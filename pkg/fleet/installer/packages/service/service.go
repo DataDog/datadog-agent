@@ -24,8 +24,19 @@ const (
 	SystemdType Type = "systemd"
 )
 
+var cachedServiceManagerType *Type
+
 // GetServiceManagerType returns the service manager of the current system
 func GetServiceManagerType() Type {
+	if cachedServiceManagerType != nil {
+		return *cachedServiceManagerType
+	}
+	serviceManagerType := getServiceManagerType()
+	cachedServiceManagerType = &serviceManagerType
+	return serviceManagerType
+}
+
+func getServiceManagerType() Type {
 	_, err := exec.LookPath("systemctl")
 	if err == nil {
 		return SystemdType

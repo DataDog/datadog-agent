@@ -11,8 +11,9 @@ import (
 	"errors"
 	"fmt"
 
-	dimod "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/module"
+	dimod "github.com/DataDog/datadog-agent/pkg/dyninst/module"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	ebpf_process "github.com/DataDog/datadog-agent/pkg/ebpf/process"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
@@ -33,12 +34,16 @@ var DynamicInstrumentation = &module.Factory{
 		if godiProcessEventConsumer == nil {
 			return nil, errors.New("process event consumer not initialized")
 		}
+		godiSubscriber, err := ebpf_process.NewMonitor(godiProcessEventConsumer)
+		if err != nil {
+			return nil, err
+		}
 
 		config, err := dimod.NewConfig(agentConfiguration)
 		if err != nil {
 			return nil, fmt.Errorf("invalid dynamic instrumentation module configuration: %w", err)
 		}
-		m, err := dimod.NewModule(config, godiProcessEventConsumer)
+		m, err := dimod.NewModule(config, godiSubscriber)
 		if err != nil {
 			if errors.Is(err, ebpf.ErrNotImplemented) {
 				return nil, module.ErrNotEnabled

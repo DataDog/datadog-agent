@@ -77,20 +77,20 @@ var (
 	LibInjectionErrors = telemetry.NewCounterWithOpts("admission_webhooks", "library_injection_errors",
 		[]string{"language", "auto_detected", "injection_type"}, "Number of library injection failures by language and injection type",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
-	CWSExecInstrumentationAttempts = telemetry.NewHistogramWithOpts(
-		"admission_webhooks",
-		"cws_exec_instrumentation_attempts",
-		[]string{"mode", "injected", "reason"},
-		"Distribution of exec requests instrumentation attempts by CWS Instrumentation mode",
-		prometheus.LinearBuckets(0, 1, 1),
+	CWSPodMutationAttempts = telemetry.NewCounterWithOpts("admission_webhooks", "cws_pod_mutation_attempts",
+		[]string{"mode", "injected", "reason"}, "Count of pod mutation attempts per CWS instrumentation mode",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
-	CWSPodInstrumentationAttempts = telemetry.NewHistogramWithOpts(
-		"admission_webhooks",
-		"cws_pod_instrumentation_attempts",
-		[]string{"mode", "injected", "reason"},
-		"Distribution of pod requests instrumentation attempts by CWS Instrumentation mode",
-		prometheus.LinearBuckets(0, 1, 1),
+	CWSExecMutationAttempts = telemetry.NewCounterWithOpts("admission_webhooks", "cws_exec_mutation_attempts",
+		[]string{"mode", "injected", "reason"}, "Count of exec mutation attempts per CWS instrumentation mode",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
+	CWSResponseDuration = telemetry.NewHistogramWithOpts(
+		"admission_webhooks",
+		"cws_response_duration",
+		[]string{"mode", "webhook_name", "type", "success", "injected"},
+		"CWS Webhook response duration distribution (in seconds).",
+		prometheus.DefBuckets, // The default prometheus buckets are adapted to measure response time
+		telemetry.Options{NoDoubleUnderscoreSep: true},
+	)
 	RemoteConfigs = telemetry.NewGaugeWithOpts("admission_webhooks", "rc_provider_configs",
 		[]string{}, "Number of valid remote configurations.",
 		telemetry.Options{NoDoubleUnderscoreSep: true})

@@ -57,25 +57,6 @@ func BenchmarkLogScrubbingLevels(b *testing.B) {
 	}
 }
 
-func BenchmarkLogScrubbingMulti(b *testing.B) {
-	var buffA, buffB bytes.Buffer
-	wA := bufio.NewWriter(&buffA)
-	wB := bufio.NewWriter(&buffB)
-
-	lA, _ := LoggerFromWriterWithMinLevelAndFormat(wA, DebugLvl, "[%LEVEL] %FuncShort: %Msg")
-	lB, _ := LoggerFromWriterWithMinLevelAndFormat(wB, DebugLvl, "[%LEVEL] %FuncShort: %Msg")
-
-	SetupLogger(lA, "info")
-	_ = RegisterAdditionalLogger("extra", lB)
-
-	Info("this is an API KEY: ", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
-	Infof("this is a credential encoding urI: %s", "http://user:password@host:port")
-
-	for n := 0; n < b.N; n++ {
-		Infof("this is a credential encoding urI: %s", "http://user:password@host:port")
-	}
-}
-
 func BenchmarkLogWithContext(b *testing.B) {
 	var buff bytes.Buffer
 	w := bufio.NewWriter(&buff)

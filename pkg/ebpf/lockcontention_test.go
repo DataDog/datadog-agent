@@ -150,6 +150,12 @@ func TestLockRanges(t *testing.T) {
 			spec := specs[c.mtype]
 			m := c.alloc(&spec)
 
+			t.Cleanup(func() {
+				m.Close()
+				l.Close()
+				ResetAllMappings()
+			})
+
 			mInfo, err := m.Info()
 			require.NoError(t, err)
 
@@ -160,9 +166,6 @@ func TestLockRanges(t *testing.T) {
 			require.NoError(t, err)
 
 			require.Equal(t, entries(l.objects.MapAddrFd), c.lockCount)
-
-			m.Close()
-			l.Close()
 		})
 	}
 }

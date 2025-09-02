@@ -41,6 +41,7 @@ ALL_TAGS = {
     "kubeapiserver",
     "kubelet",
     "linux_bpf",
+    "ncm",
     "netcgo",  # Force the use of the CGO resolver. This will also have the effect of making the binary non-static
     "netgo",
     "npm",
@@ -80,11 +81,13 @@ AGENT_TAGS = {
     "docker",
     "ec2",
     "etcd",
+    "fargateprocess",
     "grpcnotrace",
     "jetson",
     "jmx",
     "kubeapiserver",
     "kubelet",
+    "ncm",
     "netcgo",
     "nvml",
     "oracle",
@@ -109,6 +112,7 @@ AGENT_HEROKU_TAGS = AGENT_TAGS.difference(
         "crio",
         "docker",
         "ec2",
+        "fargateprocess",
         "jetson",
         "kubeapiserver",
         "kubelet",
@@ -244,7 +248,7 @@ TRACE_AGENT_HEROKU_TAGS = TRACE_AGENT_TAGS.difference(
 
 CWS_INSTRUMENTATION_TAGS = {"netgo", "osusergo"}
 
-OTEL_AGENT_TAGS = {"otlp"}
+OTEL_AGENT_TAGS = {"otlp", "zlib", "zstd"}
 
 # AGENT_TEST_TAGS lists the tags that have to be added to run tests
 AGENT_TEST_TAGS = AGENT_TAGS.union({"clusterchecks"})

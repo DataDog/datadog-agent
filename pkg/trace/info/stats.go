@@ -95,7 +95,7 @@ func (rs *ReceiverStats) LogAndResetStats() {
 	for k, ts := range rs.Stats {
 		if !ts.isEmpty() {
 			tags := ts.Tags.toArray()
-			log.Infof("%v -> %s\n", tags, ts.infoString())
+			log.Debugf("%v -> %s\n", tags, ts.infoString())
 			warnString := ts.WarnString()
 			if len(warnString) > 0 {
 				log.Warnf("%v -> %s. Enable debug logging for more details.\n", tags, warnString)
@@ -155,13 +155,19 @@ func (ts *TagStats) publishAndReset(statsd statsd.ClientInterface) {
 		ts.ClientDroppedP0Traces.Swap(0), tags, 1)
 
 	for reason, counter := range ts.TracesDropped.tagCounters() {
-		_ = statsd.Count("datadog.trace_agent.normalizer.traces_dropped",
-			counter.Swap(0), append(tags, "reason:"+reason), 1)
+		count := counter.Swap(0)
+		if count > 0 {
+			_ = statsd.Count("datadog.trace_agent.normalizer.traces_dropped",
+				count, append(tags, "reason:"+reason), 1)
+		}
 	}
 
 	for reason, counter := range ts.SpansMalformed.tagCounters() {
-		_ = statsd.Count("datadog.trace_agent.normalizer.spans_malformed",
-			counter.Swap(0), append(tags, "reason:"+reason), 1)
+		count := counter.Swap(0)
+		if count > 0 {
+			_ = statsd.Count("datadog.trace_agent.normalizer.spans_malformed",
+				counter.Swap(0), append(tags, "reason:"+reason), 1)
+		}
 	}
 
 	for priority, counter := range ts.TracesPerSamplingPriority.tagCounters() {

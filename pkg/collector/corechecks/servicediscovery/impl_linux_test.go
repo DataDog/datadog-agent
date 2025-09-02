@@ -57,7 +57,6 @@ var (
 var (
 	portTCP8080 = model.Service{
 		PID:                        procTestService1.pid,
-		Name:                       "test-service-1",
 		GeneratedName:              "test-service-1-generated",
 		GeneratedNameSource:        "test-service-1-generated-source",
 		ContainerServiceName:       "test-service-1-container",
@@ -67,8 +66,7 @@ var (
 			"other:tag",
 		},
 		DDService:          "test-service-1",
-		DDServiceInjected:  true,
-		Ports:              []uint16{8080},
+		TCPPorts:           []uint16{8080},
 		APMInstrumentation: string(apm.None),
 		Type:               "web_service",
 		RSS:                100 * 1024 * 1024,
@@ -83,7 +81,6 @@ var (
 	}
 	portTCP8080UpdatedRSS = model.Service{
 		PID:                        procTestService1.pid,
-		Name:                       "test-service-1",
 		GeneratedName:              "test-service-1-generated",
 		GeneratedNameSource:        "test-service-1-generated-source",
 		ContainerServiceName:       "test-service-1-container",
@@ -93,8 +90,7 @@ var (
 			"other:tag",
 		},
 		DDService:          "test-service-1",
-		DDServiceInjected:  true,
-		Ports:              []uint16{8080},
+		TCPPorts:           []uint16{8080},
 		APMInstrumentation: string(apm.None),
 		Type:               "web_service",
 		RSS:                200 * 1024 * 1024,
@@ -109,7 +105,6 @@ var (
 	}
 	portTCP5000 = model.Service{
 		PID:                        procPythonService.pid,
-		Name:                       "python-service",
 		GeneratedName:              "python-service",
 		GeneratedNameSource:        "python-service-source",
 		AdditionalGeneratedNames:   []string{"bar", "foo"},
@@ -120,7 +115,7 @@ var (
 			"other:tag",
 		},
 		Language:       "python",
-		Ports:          []uint16{5000},
+		TCPPorts:       []uint16{5000},
 		Type:           "web_service",
 		CommandLine:    pythonCommandLine,
 		StartTimeMilli: procLaunchedMilli,
@@ -145,12 +140,20 @@ func cmpEvents(a, b *event) bool {
 	ap := a.Payload
 	bp := b.Payload
 
+	// Get the first port from the combined ports list for comparison
+	var aPort, bPort uint16
+	if len(ap.Ports) > 0 {
+		aPort = ap.Ports[0]
+	}
+	if len(bp.Ports) > 0 {
+		bPort = bp.Ports[0]
+	}
+
 	vals := []any{
 		cmp.Compare(ap.LastSeen, bp.LastSeen),
-		cmp.Compare(ap.ServiceName, bp.ServiceName),
 		cmp.Compare(ap.ServiceType, bp.ServiceType),
 		cmp.Compare(ap.ServiceLanguage, bp.ServiceLanguage),
-		cmp.Compare(ap.Ports[0], bp.Ports[0]),
+		cmp.Compare(aPort, bPort),
 		cmp.Compare(ap.PID, bp.PID),
 	}
 	for _, val := range vals {
@@ -205,7 +208,6 @@ func Test_linuxImpl(t *testing.T) {
 					APIVersion:  "v2",
 					Payload: &eventPayload{
 						NamingSchemaVersion:        "1",
-						ServiceName:                "test-service-1",
 						GeneratedServiceName:       "test-service-1-generated",
 						GeneratedServiceNameSource: "test-service-1-generated-source",
 						ContainerServiceName:       "test-service-1-container",
@@ -215,7 +217,7 @@ func Test_linuxImpl(t *testing.T) {
 							"other:tag",
 						},
 						DDService:          "test-service-1",
-						ServiceNameSource:  "injected",
+						ServiceNameSource:  "provided",
 						ServiceType:        "web_service",
 						HostName:           host,
 						Env:                "",
@@ -240,7 +242,6 @@ func Test_linuxImpl(t *testing.T) {
 					APIVersion:  "v2",
 					Payload: &eventPayload{
 						NamingSchemaVersion:        "1",
-						ServiceName:                "test-service-1",
 						GeneratedServiceName:       "test-service-1-generated",
 						GeneratedServiceNameSource: "test-service-1-generated-source",
 						ContainerServiceName:       "test-service-1-container",
@@ -250,7 +251,7 @@ func Test_linuxImpl(t *testing.T) {
 							"other:tag",
 						},
 						DDService:          "test-service-1",
-						ServiceNameSource:  "injected",
+						ServiceNameSource:  "provided",
 						ServiceType:        "web_service",
 						HostName:           host,
 						Env:                "",
@@ -275,7 +276,6 @@ func Test_linuxImpl(t *testing.T) {
 					APIVersion:  "v2",
 					Payload: &eventPayload{
 						NamingSchemaVersion:        "1",
-						ServiceName:                "test-service-1",
 						GeneratedServiceName:       "test-service-1-generated",
 						GeneratedServiceNameSource: "test-service-1-generated-source",
 						ContainerServiceName:       "test-service-1-container",
@@ -285,7 +285,7 @@ func Test_linuxImpl(t *testing.T) {
 							"other:tag",
 						},
 						DDService:          "test-service-1",
-						ServiceNameSource:  "injected",
+						ServiceNameSource:  "provided",
 						ServiceType:        "web_service",
 						HostName:           host,
 						Env:                "",
@@ -310,7 +310,6 @@ func Test_linuxImpl(t *testing.T) {
 					APIVersion:  "v2",
 					Payload: &eventPayload{
 						NamingSchemaVersion:        "1",
-						ServiceName:                "python-service",
 						GeneratedServiceName:       "python-service",
 						GeneratedServiceNameSource: "python-service-source",
 						AdditionalGeneratedNames:   []string{"bar", "foo"},
@@ -338,7 +337,6 @@ func Test_linuxImpl(t *testing.T) {
 					APIVersion:  "v2",
 					Payload: &eventPayload{
 						NamingSchemaVersion:        "1",
-						ServiceName:                "python-service",
 						GeneratedServiceName:       "python-service",
 						GeneratedServiceNameSource: "python-service-source",
 						AdditionalGeneratedNames:   []string{"bar", "foo"},

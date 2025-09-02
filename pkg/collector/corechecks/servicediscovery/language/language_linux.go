@@ -10,6 +10,8 @@ package language
 import (
 	"path/filepath"
 
+	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
+	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/language"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/privileged"
@@ -36,6 +38,14 @@ type ProcessInfo struct {
 	Envs map[string]string
 }
 
+// convertLanguageName converts a languagemodels.LanguageName to our Language type
+func convertLanguageName(lang languagemodels.Language) Language {
+	if outLang, ok := languageNameToLanguageMap[lang.Name]; ok {
+		return outLang
+	}
+	return ""
+}
+
 // FindInArgs tries to detect the language only using the provided command line arguments.
 func FindInArgs(exe string, args []string) Language {
 	// empty slice passed in
@@ -52,16 +62,12 @@ func FindInArgs(exe string, args []string) Language {
 	if len(langs) == 0 {
 		return ""
 	}
-
 	lang := langs[0]
 	if lang == nil {
 		return ""
 	}
-	if outLang, ok := languageNameToLanguageMap[lang.Name]; ok {
-		return outLang
-	}
 
-	return ""
+	return convertLanguageName(*lang)
 }
 
 // FindUsingPrivilegedDetector tries to detect the language using the provided command line arguments
@@ -71,10 +77,22 @@ func FindUsingPrivilegedDetector(detector privileged.LanguageDetector, pid int32
 		return ""
 	}
 
-	lang := langs[0]
-	if outLang, ok := languageNameToLanguageMap[lang.Name]; ok {
-		return outLang
+	return convertLanguageName(langs[0])
+}
+
+// Detect detects the language of a process
+func Detect(exe string, args []string, pid int32, detector privileged.LanguageDetector, tracerMetadata *tracermetadata.TracerMetadata) Language {
+	if tracerMetadata != nil {
+		lang, err := language.GetLanguage(*tracerMetadata)
+		if err == nil {
+			return convertLanguageName(lang)
+		}
 	}
 
-	return ""
+	lang := FindInArgs(exe, args)
+	if lang != "" {
+		return lang
+	}
+
+	return FindUsingPrivilegedDetector(detector, pid)
 }

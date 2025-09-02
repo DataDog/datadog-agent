@@ -37,7 +37,10 @@ func BenchmarkStatKeeperSameTX(b *testing.B) {
 }
 
 func TestProcessRedisTransactions(t *testing.T) {
-	cfg := &config.Config{MaxRedisStatsBuffered: 1000}
+	cfg := &config.Config{
+		MaxRedisStatsBuffered: 1000,
+		RedisTrackResources:   true,
+	}
 
 	sk := NewStatsKeeper(cfg)
 	sourceIP, destIP, sourcePort, destPort := generateAddresses()
@@ -63,7 +66,7 @@ func TestProcessRedisTransactions(t *testing.T) {
 	assert.Equal(t, 0, len(sk.stats))
 	assert.Equal(t, numOfKeys, len(stats))
 	for key, stats := range stats {
-		assert.Equal(t, keyPrefix, key.KeyName[:len(keyPrefix)])
+		assert.Equal(t, keyPrefix, key.KeyName.Get()[:len(keyPrefix)])
 		errors := []bool{false, true}
 		for i, isErr := range errors {
 			s := stats.ErrorToStats[isErr]
@@ -114,4 +117,52 @@ func generateRedisTransaction(source util.Address, dest util.Address, sourcePort
 	event.Tuple.Metadata = 1
 
 	return &event
+}
+
+func TestTrackResources(t *testing.T) {
+	t.Run("track_resources enabled", func(t *testing.T) {
+		cfg := &config.Config{
+			MaxRedisStatsBuffered: 1000,
+			RedisTrackResources:   true,
+		}
+		sk := NewStatsKeeper(cfg)
+
+		sourceIP, destIP, sourcePort, destPort := generateAddresses()
+		tx := generateRedisTransaction(sourceIP, destIP, sourcePort, destPort, uint8(GetCommand), "my_key", false, 500)
+		eventWrapper := NewEventWrapper(tx)
+
+		sk.Process(eventWrapper)
+		stats := sk.GetAndResetAllStats()
+
+		require.Len(t, stats, 1)
+
+		// Verify key name is tracked
+		for key := range stats {
+			assert.Equal(t, "my_key", key.KeyName.Get())
+			assert.Equal(t, GetCommand, key.Command)
+		}
+	})
+
+	t.Run("track_resources disabled", func(t *testing.T) {
+		cfg := &config.Config{
+			MaxRedisStatsBuffered: 1000,
+			RedisTrackResources:   false,
+		}
+		sk := NewStatsKeeper(cfg)
+
+		sourceIP, destIP, sourcePort, destPort := generateAddresses()
+		tx := generateRedisTransaction(sourceIP, destIP, sourcePort, destPort, uint8(GetCommand), "my_key", false, 500)
+		eventWrapper := NewEventWrapper(tx)
+
+		sk.Process(eventWrapper)
+		stats := sk.GetAndResetAllStats()
+
+		require.Len(t, stats, 1)
+
+		// Verify key name is not tracked but command is
+		for key := range stats {
+			assert.Nil(t, key.KeyName)
+			assert.Equal(t, GetCommand, key.Command)
+		}
+	})
 }

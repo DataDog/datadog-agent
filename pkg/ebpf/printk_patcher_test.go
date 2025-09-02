@@ -138,6 +138,11 @@ func TestPatchPrintkAllAssets(t *testing.T) {
 
 		progname := strings.TrimSuffix(filepath.Base(path), "-debug.o")
 
+		if progname == "dyninst_event" {
+			// dyninst doesn't use the shared debugging infrastructure yet.
+			return nil
+		}
+
 		t.Run(progname, func(t *testing.T) {
 			spec, err := ebpf.LoadCollectionSpec(path)
 			require.NoError(t, err)

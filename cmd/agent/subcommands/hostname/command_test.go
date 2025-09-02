@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -95,7 +95,7 @@ func TestGetHostname(t *testing.T) {
 			config.Set("cmd_host", serverURL.Hostname(), model.SourceFile)
 			config.Set("cmd_port", serverURL.Port(), model.SourceFile)
 
-			hname, err := getHostname(config, cliParams)
+			hname, err := getHostname(cliParams, authComp.GetClient())
 			require.NoError(t, err)
 
 			expectedHostname := localHostname

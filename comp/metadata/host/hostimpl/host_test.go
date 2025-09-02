@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/metadata/resources"
@@ -31,10 +32,11 @@ func TestNewHostProviderDefaultInterval(t *testing.T) {
 		fxutil.Test[dependencies](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
-			config.MockModule(),
+			fx.Provide(func() config.Component { return config.NewMock(t) }),
 			resourcesimpl.MockModule(),
 			fx.Replace(resources.MockParams{Data: nil}),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),
+			hostnameimpl.MockModule(),
 		),
 	)
 
@@ -55,11 +57,11 @@ func TestNewHostProviderCustomInterval(t *testing.T) {
 		fxutil.Test[dependencies](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
-			config.MockModule(),
+			fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, overrides) }),
 			resourcesimpl.MockModule(),
 			fx.Replace(resources.MockParams{Data: nil}),
-			fx.Replace(config.MockParams{Overrides: overrides}),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),
+			hostnameimpl.MockModule(),
 		),
 	)
 
@@ -80,11 +82,11 @@ func TestNewHostProviderInvalidCustomInterval(t *testing.T) {
 		fxutil.Test[dependencies](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
-			config.MockModule(),
+			fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, overrides) }),
 			resourcesimpl.MockModule(),
 			fx.Replace(resources.MockParams{Data: nil}),
-			fx.Replace(config.MockParams{Overrides: overrides}),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),
+			hostnameimpl.MockModule(),
 		),
 	)
 
@@ -96,10 +98,11 @@ func TestFlareProvider(t *testing.T) {
 		fxutil.Test[dependencies](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
-			config.MockModule(),
+			fx.Provide(func() config.Component { return config.NewMock(t) }),
 			resourcesimpl.MockModule(),
 			fx.Replace(resources.MockParams{Data: nil}),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),
+			hostnameimpl.MockModule(),
 		),
 	)
 
@@ -115,10 +118,11 @@ func TestStatusHeaderProvider(t *testing.T) {
 		fxutil.Test[dependencies](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
-			config.MockModule(),
+			fx.Provide(func() config.Component { return config.NewMock(t) }),
 			resourcesimpl.MockModule(),
 			fx.Replace(resources.MockParams{Data: nil}),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),
+			hostnameimpl.MockModule(),
 		),
 	)
 
