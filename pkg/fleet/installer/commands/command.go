@@ -372,10 +372,10 @@ func promoteExperimentCommand() *cobra.Command {
 
 func installConfigExperimentCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "install-config-experiment <package> <version> <config_action1> <config_action2> ...",
+		Use:     "install-config-experiment <package> <operations>",
 		Short:   "Install a config experiment",
 		GroupID: "installer",
-		Args:    cobra.MinimumNArgs(3),
+		Args:    cobra.ExactArgs(2),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
 			i, err := newInstallerCmd("install_config_experiment")
 			if err != nil {
@@ -383,18 +383,15 @@ func installConfigExperimentCommand() *cobra.Command {
 			}
 			defer func() { i.stop(err) }()
 			i.span.SetTag("params.package", args[0])
-			i.span.SetTag("params.version", args[1])
 
-			var actions []config.Action
-			for _, action := range args[2:] {
-				var config config.Action
-				err := json.Unmarshal([]byte(action), &config)
-				if err != nil {
-					return err
-				}
-				actions = append(actions, config)
+			var operations config.Operations
+			err = json.Unmarshal([]byte(args[1]), &operations)
+			if err != nil {
+				return err
 			}
-			return i.InstallConfigExperiment(i.ctx, args[0], args[1], actions)
+			i.span.SetTag("params.deployment_id", operations.DeploymentID)
+			i.span.SetTag("params.operations", operations.Operations)
+			return i.InstallConfigExperiment(i.ctx, args[0], operations)
 		},
 	}
 	return cmd

@@ -58,7 +58,7 @@ type Installer interface {
 	RemoveExperiment(ctx context.Context, pkg string) error
 	PromoteExperiment(ctx context.Context, pkg string) error
 
-	InstallConfigExperiment(ctx context.Context, pkg string, version string, configActions []config.Action) error
+	InstallConfigExperiment(ctx context.Context, pkg string, operations config.Operations) error
 	RemoveConfigExperiment(ctx context.Context, pkg string) error
 	PromoteConfigExperiment(ctx context.Context, pkg string) error
 
@@ -491,7 +491,7 @@ func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) error
 }
 
 // InstallConfigExperiment installs an experiment on top of an existing package.
-func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string, version string, configActions []config.Action) error {
+func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string, operations config.Operations) error {
 	i.m.Lock()
 	defer i.m.Unlock()
 
@@ -521,8 +521,8 @@ func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string,
 			fmt.Errorf("could not open config root: %w", err),
 		)
 	}
-	for _, action := range configActions {
-		err = action.Apply(configRoot)
+	for _, op := range operations.Operations {
+		err = op.Apply(configRoot)
 		if err != nil {
 			return installerErrors.Wrap(
 				installerErrors.ErrFilesystemIssue,
@@ -530,7 +530,7 @@ func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string,
 			)
 		}
 	}
-	err = configRepo.SetExperiment(ctx, version, tmpDir)
+	err = configRepo.SetExperiment(ctx, operations.DeploymentID, tmpDir)
 	if err != nil {
 		return installerErrors.Wrap(
 			installerErrors.ErrFilesystemIssue,

@@ -31,11 +31,17 @@ const (
 	OperationTypeDelete OperationType = "delete"
 )
 
+// Operations is the list of operations to perform on the configs.
+type Operations struct {
+	DeploymentID string      `json:"deployment_id"`
+	Operations   []Operation `json:"operations"`
+}
+
 // Operation is the operation to perform on a config.
 type Operation struct {
-	OperationType OperationType `json:"op"`
-	Path          string        `json:"path"`
-	Patch         []byte        `json:"patch"`
+	OperationType OperationType   `json:"op"`
+	Path          string          `json:"path"`
+	Patch         json.RawMessage `json:"patch"`
 }
 
 // Apply applies the operation to the root.
@@ -86,7 +92,7 @@ func (a *Operation) Apply(root *os.Root) error {
 				return err
 			}
 		}
-		var new map[string]interface{}
+		var new map[string]any
 		err = yaml.Unmarshal(newJSONBytes, &new)
 		if err != nil {
 			return err

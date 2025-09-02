@@ -75,14 +75,32 @@ func (rc *remoteConfig) SetState(state *pbgo.ClientUpdater) {
 	rc.client.SetInstallerState(state)
 }
 
-type installerConfigFile struct {
-	Path     string          `json:"path"`
-	Contents json.RawMessage `json:"contents"`
+type installerConfig struct {
+	ID         string                     `json:"id"`
+	Legacy     bool                       `json:"legacy"`
+	Operations []installerConfigOperation `json:"operations"`
 }
 
-type installerConfig struct {
-	ID    string                `json:"id"`
-	Files []installerConfigFile `json:"files"`
+type installerConfigOperation struct {
+	OperationType string          `json:"op"`
+	Path          string          `json:"path"`
+	Patch         json.RawMessage `json:"patch"`
+}
+
+type legacyInstallerConfig struct {
+	Configs struct {
+		DatadogYAML       json.RawMessage `json:"datadog.yaml,omitempty"`
+		SecurityAgentYAML json.RawMessage `json:"security-agent.yaml,omitempty"`
+		SystemProbeYAML   json.RawMessage `json:"system-probe.yaml,omitempty"`
+		APMLibrariesYAML  json.RawMessage `json:"application_monitoring.yaml,omitempty"`
+		OTelConfigYAML    json.RawMessage `json:"otel-config.yaml,omitempty"`
+	} `json:"configs"`
+	Files []legacyInstallerConfigFile `json:"files"`
+}
+
+type legacyInstallerConfigFile struct {
+	Path     string          `json:"path"`
+	Contents json.RawMessage `json:"contents"`
 }
 
 type handleConfigsUpdate func(configs map[string]installerConfig) error
@@ -99,15 +117,7 @@ func handleInstallerConfigUpdate(h handleConfigsUpdate) func(map[string]state.Ra
 				return
 			}
 			// Backward compatibility with legacy installer configs.
-			var legacyConfigs struct {
-				Configs struct {
-					DatadogYAML       json.RawMessage `json:"datadog.yaml,omitempty"`
-					SecurityAgentYAML json.RawMessage `json:"security-agent.yaml,omitempty"`
-					SystemProbeYAML   json.RawMessage `json:"system-probe.yaml,omitempty"`
-					APMLibrariesYAML  json.RawMessage `json:"application_monitoring.yaml,omitempty"`
-					OTelConfigYAML    json.RawMessage `json:"otel-config.yaml,omitempty"`
-				} `json:"configs"`
-			}
+			var legacyConfigs legacyInstallerConfig
 			err = json.Unmarshal(config.Config, &legacyConfigs)
 			if err != nil {
 				log.Errorf("could not unmarshal legacy installer config: %s", err)
@@ -115,19 +125,31 @@ func handleInstallerConfigUpdate(h handleConfigsUpdate) func(map[string]state.Ra
 				return
 			}
 			if len(legacyConfigs.Configs.DatadogYAML) > 0 {
-				installerConfig.Files = append(installerConfig.Files, installerConfigFile{Path: "/datadog.yaml", Contents: legacyConfigs.Configs.DatadogYAML})
+				legacyConfigs.Files = append(legacyConfigs.Files, legacyInstallerConfigFile{Path: "/datadog.yaml", Contents: legacyConfigs.Configs.DatadogYAML})
 			}
 			if len(legacyConfigs.Configs.SecurityAgentYAML) > 0 {
-				installerConfig.Files = append(installerConfig.Files, installerConfigFile{Path: "/security-agent.yaml", Contents: legacyConfigs.Configs.SecurityAgentYAML})
+				legacyConfigs.Files = append(legacyConfigs.Files, legacyInstallerConfigFile{Path: "/security-agent.yaml", Contents: legacyConfigs.Configs.SecurityAgentYAML})
 			}
 			if len(legacyConfigs.Configs.SystemProbeYAML) > 0 {
-				installerConfig.Files = append(installerConfig.Files, installerConfigFile{Path: "/system-probe.yaml", Contents: legacyConfigs.Configs.SystemProbeYAML})
+				legacyConfigs.Files = append(legacyConfigs.Files, legacyInstallerConfigFile{Path: "/system-probe.yaml", Contents: legacyConfigs.Configs.SystemProbeYAML})
 			}
 			if len(legacyConfigs.Configs.APMLibrariesYAML) > 0 {
-				installerConfig.Files = append(installerConfig.Files, installerConfigFile{Path: "/application_monitoring.yaml", Contents: legacyConfigs.Configs.APMLibrariesYAML})
+				legacyConfigs.Files = append(legacyConfigs.Files, legacyInstallerConfigFile{Path: "/application_monitoring.yaml", Contents: legacyConfigs.Configs.APMLibrariesYAML})
 			}
 			if len(legacyConfigs.Configs.OTelConfigYAML) > 0 {
-				installerConfig.Files = append(installerConfig.Files, installerConfigFile{Path: "/otel-config.yaml", Contents: legacyConfigs.Configs.OTelConfigYAML})
+				legacyConfigs.Files = append(legacyConfigs.Files, legacyInstallerConfigFile{Path: "/otel-config.yaml", Contents: legacyConfigs.Configs.OTelConfigYAML})
+			}
+			if len(legacyConfigs.Files) > 0 {
+				installerConfig.Operations = append(installerConfig.Operations, installerConfigOperation{OperationType: "delete", Path: "/datadog.yaml"})
+				installerConfig.Operations = append(installerConfig.Operations, installerConfigOperation{OperationType: "delete", Path: "/security-agent.yaml"})
+				installerConfig.Operations = append(installerConfig.Operations, installerConfigOperation{OperationType: "delete", Path: "/system-probe.yaml"})
+				installerConfig.Operations = append(installerConfig.Operations, installerConfigOperation{OperationType: "delete", Path: "/application_monitoring.yaml"})
+				installerConfig.Operations = append(installerConfig.Operations, installerConfigOperation{OperationType: "delete", Path: "/otel-config.yaml"})
+				installerConfig.Operations = append(installerConfig.Operations, installerConfigOperation{OperationType: "delete", Path: "/conf.d/snmp.d/ndm_core-1.yaml"})
+				for _, file := range legacyConfigs.Files {
+					installerConfig.Operations = append(installerConfig.Operations, installerConfigOperation{OperationType: "write", Path: file.Path, Patch: file.Contents})
+				}
+				installerConfig.Legacy = true
 			}
 			installerConfigs[installerConfig.ID] = installerConfig
 		}
@@ -265,16 +287,9 @@ type expectedState struct {
 	ExperimentConfig string `json:"experiment_config"`
 }
 
-type experimentConfigAction struct {
-	ActionType    string   `json:"action_type"`
-	Path          string   `json:"path"`
-	IgnoredFields []string `json:"ignored_fields"`
-}
-
 type experimentTaskParams struct {
-	Version     string                   `json:"version"`
-	InstallArgs []string                 `json:"install_args"`
-	Actions     []experimentConfigAction `json:"actions"`
+	Version     string   `json:"version"`
+	InstallArgs []string `json:"install_args"`
 }
 
 type installPackageTaskParams struct {

@@ -20,12 +20,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	agentconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/bootstrap"
-	iconfig "github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
@@ -70,7 +70,7 @@ type Daemon interface {
 	StartExperiment(ctx context.Context, url string) error
 	StopExperiment(ctx context.Context, pkg string) error
 	PromoteExperiment(ctx context.Context, pkg string) error
-	StartConfigExperiment(ctx context.Context, pkg string, version string) error
+	StartConfigExperiment(ctx context.Context, pkg string, operations config.Operations) error
 	StopConfigExperiment(ctx context.Context, pkg string) error
 	PromoteConfigExperiment(ctx context.Context, pkg string) error
 
@@ -103,7 +103,7 @@ func newInstaller(installerBin string) func(env *env.Env) installer.Installer {
 }
 
 // NewDaemon returns a new daemon.
-func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config config.Reader) (Daemon, error) {
+func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config agentconfig.Reader) (Daemon, error) {
 	installerBin, err := os.Executable()
 	if err != nil {
 		return nil, fmt.Errorf("could not get installer executable path: %w", err)
@@ -450,35 +450,24 @@ func (d *daemonImpl) stopExperiment(ctx context.Context, pkg string) (err error)
 }
 
 // StartConfigExperiment starts a config experiment with the given package.
-func (d *daemonImpl) StartConfigExperiment(ctx context.Context, url string, version string) error {
+func (d *daemonImpl) StartConfigExperiment(ctx context.Context, pkg string, operations config.Operations) error {
 	d.m.Lock()
 	defer d.m.Unlock()
-	config, err := d.getConfig(version)
-	if err != nil {
-		return fmt.Errorf("could not get config: %w", err)
-	}
-	var configActions []iconfig.Action
-	for _, file := range config.Files {
-		configActions = append(configActions, iconfig.Action{
-			ActionType: iconfig.ActionTypeWrite,
-			Path:       file.Path,
-		})
-	}
-	return d.startConfigExperiment(ctx, url, version, configActions)
+	return d.startConfigExperiment(ctx, pkg, operations)
 }
 
-func (d *daemonImpl) startConfigExperiment(ctx context.Context, pkg string, version string, configActions []iconfig.Action) (err error) {
+func (d *daemonImpl) startConfigExperiment(ctx context.Context, pkg string, operations config.Operations) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "start_config_experiment")
 	defer func() { span.Finish(err) }()
 	d.refreshState(ctx)
 	defer d.refreshState(ctx)
 
-	log.Infof("Daemon: Starting config experiment version %s for package %s", version, pkg)
-	err = d.installer(d.env).InstallConfigExperiment(ctx, pkg, version, configActions)
+	log.Infof("Daemon: Starting config experiment for package %s (deployment id: %s)", pkg, operations.DeploymentID)
+	err = d.installer(d.env).InstallConfigExperiment(ctx, pkg, operations)
 	if err != nil {
 		return fmt.Errorf("could not start config experiment: %w", err)
 	}
-	log.Infof("Daemon: Successfully started config experiment version %s for package %s", version, pkg)
+	log.Infof("Daemon: Successfully started config experiment for package %s (deployment id: %s)", pkg, operations.DeploymentID)
 	return nil
 }
 
@@ -633,31 +622,20 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 			return fmt.Errorf("could not unmarshal start experiment params: %w", err)
 		}
 		log.Infof("Installer: Received remote request %s to start config experiment for package %s", request.ID, request.Package)
-
-		config, err := d.getConfig(params.Version)
+		c, err := d.getConfig(params.Version)
 		if err != nil {
-			return installerErrors.Wrap(
-				installerErrors.ErrConfigNotFound,
-				err,
-			)
+			return fmt.Errorf("could not get config: %w", err)
 		}
-		// Backward compatibility with previous backend, only a configuration is sent
-		if len(params.Actions) == 0 {
-			for _, file := range config.Files {
-				params.Actions = append(params.Actions, experimentConfigAction{
-					ActionType: string(iconfig.ActionTypeWrite),
-					Path:       file.Path,
-				})
-			}
-		}
-		var configActions []iconfig.Action
-		for _, action := range params.Actions {
-			configActions = append(configActions, iconfig.Action{
-				ActionType: iconfig.ActionType(action.ActionType),
-				Path:       action.Path,
+		var ops config.Operations
+		ops.DeploymentID = c.ID
+		for _, operation := range c.Operations {
+			ops.Operations = append(ops.Operations, config.Operation{
+				OperationType: config.OperationType(operation.OperationType),
+				Path:          operation.Path,
+				Patch:         operation.Patch,
 			})
 		}
-		return d.startConfigExperiment(ctx, request.Package, params.Version, configActions)
+		return d.startConfigExperiment(ctx, request.Package, ops)
 
 	case methodStopConfigExperiment:
 		log.Infof("Installer: Received remote request %s to stop config experiment for package %s", request.ID, request.Package)

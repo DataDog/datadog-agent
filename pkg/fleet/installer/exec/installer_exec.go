@@ -155,22 +155,13 @@ func (i *InstallerExec) PromoteExperiment(ctx context.Context, pkg string) (err 
 
 // InstallConfigExperiment installs an experiment.
 func (i *InstallerExec) InstallConfigExperiment(
-	ctx context.Context, pkg string, version string, configActions []config.Action,
+	ctx context.Context, pkg string, operations config.Operations,
 ) (err error) {
-	if len(configActions) == 0 {
-		return fmt.Errorf("no configs provided")
+	operationsBytes, err := json.Marshal(operations)
+	if err != nil {
+		return fmt.Errorf("error marshalling config operations: %w", err)
 	}
-
-	var cmdLineArgs = []string{pkg, version}
-
-	for _, config := range configActions {
-		actionBytes, err := json.Marshal(config)
-		if err != nil {
-			return fmt.Errorf("error marshalling config action: %w", err)
-		}
-		cmdLineArgs = append(cmdLineArgs, string(actionBytes))
-	}
-
+	cmdLineArgs := []string{pkg, string(operationsBytes)}
 	cmd := i.newInstallerCmd(ctx, "install-config-experiment", cmdLineArgs...)
 	defer func() { cmd.span.Finish(err) }()
 	return cmd.Run()
