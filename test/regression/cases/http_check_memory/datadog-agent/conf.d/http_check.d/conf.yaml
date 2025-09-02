@@ -1,0 +1,32 @@
+init_config:
+instances:
+  - name: "1"
+    url: http://datadoghq.com
+    min_collection_interval: 15
+  - name: "2"
+    url: http://datadoghq.com
+    min_collection_interval: 15
+  - name: "3"
+    url: http://datadoghq.com
+    min_collection_interval: 15
+  - name: "4"
+    url: http://datadoghq.com
+    min_collection_interval: 15
+  - name: "5"
+    url: http://datadoghq.com
+    min_collection_interval: 15
+  - name: "6"
+    url: http://datadoghq.com
+    min_collection_interval: 15
+  - name: "7"
+    url: http://datadoghq.com
+    min_collection_interval: 15
+  - name: "8"
+    url: http://datadoghq.com
+    min_collection_interval: 15
+  - name: "9"
+    url: http://datadoghq.com
+    min_collection_interval: 15
+  - name: "10"
+    url: http://datadoghq.com
+    min_collection_interval: 15
