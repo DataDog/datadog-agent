@@ -82,6 +82,7 @@
 
 /.gitlab/.ci-linters.yml                             @DataDog/agent-devx
 /.gitlab/.pre/*                                      @DataDog/agent-devx
+/.gitlab/bazel/*                                     @DataDog/agent-build
 /.gitlab/check_deploy/*                              @DataDog/agent-delivery
 /.gitlab/check_merge/*                               @DataDog/agent-devx
 /.gitlab/deploy*/*                                   @DataDog/agent-delivery
@@ -750,6 +751,7 @@
 /test/regression/cases/docker_containers*     @DataDog/single-machine-performance @DataDog/container-integrations
 
 /tools/                                 @DataDog/agent-devx
+/tools/bazel*                           @DataDog/agent-build
 /tools/ci                               @DataDog/agent-devx
 /tools/ebpf/                            @DataDog/ebpf-platform
 /tools/gdb/                             @DataDog/agent-runtimes
