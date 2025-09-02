@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !race && kubeapiserver
+//go:build kubeapiserver
 
 package controllers
 
@@ -243,15 +243,6 @@ func TestWPAController(t *testing.T) {
 				makePoints(0, 25.12),
 			},
 			Scope: pointer.Ptr("foo:bar"),
-		},
-		{
-			Metric: &metricName,
-			Points: []datadog.DataPoint{
-				makePoints(1531492452000, 12.34),
-				makePoints(penTime, 1.01),
-				makePoints(0, 0.902),
-			},
-			Scope: pointer.Ptr("dcos_version:2.1.9"),
 		},
 	}
 
