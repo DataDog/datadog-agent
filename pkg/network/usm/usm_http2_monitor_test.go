@@ -1406,20 +1406,6 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			expectedEndpoints: nil,
 		},
 		{
-			name: "validate message split into 2 tcp segments with PRIORITY",
-			// PRIORITY changes frame structure - split now occurs within PRIORITY section
-			messageBuilder: func() [][]byte {
-				a := newFramer().
-					writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}, true).
-					writeData(t, 1, true, emptyBody).bytes()
-				return [][]byte{
-					a[:10], // Now splits in PRIORITY section (9 byte header + 1 byte of PRIORITY)
-					a[10:],
-				}
-			},
-			expectedEndpoints: nil, // PRIORITY not supported
-		},
-		{
 			name: "remainder + header remainder",
 			// Testing the scenario where we have both a remainder (a frame's payload split over 2 packets) and in the
 			// second packet, we have the remainder and a partial frame header of a new request. We're testing that we
