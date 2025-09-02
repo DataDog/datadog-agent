@@ -18,7 +18,6 @@ import (
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
-	taglist "github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
@@ -164,9 +163,9 @@ func (p *Provider) generateContainerSpecMetrics(sender sender.Sender, pod *kubel
 			if pod.Status.QOSClass == "Guaranteed" &&
 				requestedWholeCores &&
 				cpuManagerPolicy == "static" {
-				tagList = utils.ConcatenateStringTags(tagList, taglist.KubeRequestedCPUManagement+":static")
+				tagList = utils.ConcatenateStringTags(tagList, tags.KubeRequestedCPUManagement+":static")
 			} else {
-				tagList = utils.ConcatenateStringTags(tagList, taglist.KubeRequestedCPUManagement+":none")
+				tagList = utils.ConcatenateStringTags(tagList, tags.KubeRequestedCPUManagement+":none")
 			}
 		}
 
