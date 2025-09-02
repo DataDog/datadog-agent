@@ -254,8 +254,6 @@ func (d *daemonImpl) getPackage(pkg string, version string) (Package, error) {
 }
 
 func (d *daemonImpl) getConfig(version string) (installerConfig, error) {
-	d.m.Lock()
-	defer d.m.Unlock()
 	configs := d.configs
 	if len(d.configsOverride) > 0 {
 		configs = d.configsOverride
