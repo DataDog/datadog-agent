@@ -1354,6 +1354,7 @@ func newNetworkContextSerializer(e *model.Event, networkCtx *model.NetworkContex
 		Destination:      newIPPortSerializer(&networkCtx.Destination),
 		Size:             networkCtx.Size,
 		NetworkDirection: model.NetworkDirection(networkCtx.NetworkDirection).String(),
+		Type:             model.NetworkProtocolType(networkCtx.Type).String(),
 	}
 }
 
