@@ -7,8 +7,6 @@ require './lib/ostools.rb'
 require './lib/project_helpers.rb'
 require 'pathname'
 
-require 'omnibus/logging'
-
 name 'datadog-agent'
 
 # We don't want to build any dependencies in "repackaging mode" so all usual dependencies
@@ -38,6 +36,7 @@ always_build true
 
 
 build do
+  require 'omnibus/logging'
   license :project_license
 
   # set GOPATH on the omnibus source dir for this software
