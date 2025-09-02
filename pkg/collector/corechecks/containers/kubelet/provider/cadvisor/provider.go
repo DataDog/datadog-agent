@@ -19,6 +19,7 @@ import (
 
 	taggercommon "github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taglist "github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
@@ -181,9 +182,9 @@ func (p *Provider) processContainerMetric(metricType, metricName string, metricF
 				if pod.QOSClass == "Guaranteed" &&
 					requestedWholeCores &&
 					cpuManagerPolicy == "static" {
-					tags = utils.ConcatenateStringTags(tags, "kube_requested_cpu_management:static")
+					tags = utils.ConcatenateStringTags(tags, taglist.KubeRequestedCPUManagement+":static")
 				} else {
-					tags = utils.ConcatenateStringTags(tags, "kube_requested_cpu_management:none")
+					tags = utils.ConcatenateStringTags(tags, taglist.KubeRequestedCPUManagement+":none")
 				}
 			}
 		}
