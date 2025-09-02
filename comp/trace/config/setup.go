@@ -48,7 +48,7 @@ const (
 	mrfPrefix = "mrf."
 )
 
-func setupConfigCommon(deps Dependencies, _ string) (*config.AgentConfig, error) {
+func setupConfigCommon(deps Dependencies) (*config.AgentConfig, error) {
 	confFilePath := deps.Config.ConfigFileUsed()
 
 	return LoadConfigFile(confFilePath, deps.Config, deps.Tagger, deps.IPC)
