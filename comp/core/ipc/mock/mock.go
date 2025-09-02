@@ -88,7 +88,7 @@ func New(t testing.TB) *IPCMock {
 
 	// Enable cross-node TLS verification if configured
 	var crossNodeClientTLSConfig *tls.Config
-	if config.GetBool("cluster_agent.enable_tls_verification") {
+	if config.GetBool("cluster_trust_chain.enable_tls_verification") {
 		crossNodeClientTLSConfig = tlsClientConfig
 	} else {
 		crossNodeClientTLSConfig = &tls.Config{
