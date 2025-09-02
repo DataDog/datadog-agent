@@ -22,22 +22,6 @@ const osName = runtime.GOOS
 
 type osVersion [3]interface{}
 
-// GetInformation returns an InfoStat object, filled in with various operating system metadata. This returns an empty
-// host.InfoStat if gopsutil fails.
-func GetInformation() *host.InfoStat {
-	info, _ := cache.Get[*host.InfoStat](
-		hostInfoCacheKey,
-		func() (*host.InfoStat, error) {
-			info, err := host.Info()
-			if err != nil {
-				log.Errorf("failed to retrieve host info: %s", err)
-				return &host.InfoStat{}, err
-			}
-			return info, err
-		})
-	return info
-}
-
 func getSystemStats() *systemStats {
 	res, _ := cache.Get[*systemStats](
 		systemStatsCacheKey,
