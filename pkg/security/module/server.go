@@ -173,7 +173,16 @@ func (a *APIServer) GetActivityDumpStream(_ *api.ActivityDumpStreamParams, strea
 }
 
 // SendActivityDump queues an activity dump to the chan of activity dumps
-func (a *APIServer) SendActivityDump(dump *api.ActivityDumpStreamMessage) {
+func (a *APIServer) SendActivityDump(imageName string, imageTag string, header []byte, data []byte) {
+	dump := &api.ActivityDumpStreamMessage{
+		Selector: &api.WorkloadSelectorMessage{
+			Name: imageName,
+			Tag:  imageTag,
+		},
+		Header: header,
+		Data:   data,
+	}
+
 	// send the dump to the channel
 	select {
 	case a.activityDumps <- dump:
