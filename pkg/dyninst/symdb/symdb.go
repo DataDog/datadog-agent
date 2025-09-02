@@ -145,46 +145,27 @@ type PackageStats struct {
 	// collected symbols.
 	NumTypes int
 	// NumFunctions is the number of functions in this package represented in
-	// the collected symbols.
+	// the collected symbols. This includes methods.
 	NumFunctions int
-	// NumSourceFiles is the number of source files that contain functions in
-	// this package.
-	NumSourceFiles int
 }
 
 func (s PackageStats) String() string {
-	return fmt.Sprintf("Types: %d, Functions: %d, Source files: %d",
-		s.NumTypes, s.NumFunctions, s.NumSourceFiles)
+	return fmt.Sprintf("Types: %d, Functions: %d", s.NumTypes, s.NumFunctions)
 }
 
 // Stats computes statistics about the package's symbols.
 //
-// sourceFiles will be populated with files encoutered while going through this
+// sourceFiles will be populated with files encountered while going through this
 // package's compile unit. Nil can be passed if the caller is not interested.
 // Note that it's possible for multiple compile units to reference the same file
 // due to inlined functions; in such cases, the file will arbitrarily count
 // towards the stats of the first package that adds it to the map.
-func (p Package) Stats(sourceFiles map[string]struct{}) PackageStats {
+func (p Package) Stats() PackageStats {
 	var res PackageStats
-	if sourceFiles == nil {
-		sourceFiles = make(map[string]struct{})
-	}
 	res.NumTypes += len(p.Types)
 	res.NumFunctions += len(p.Functions)
-	recordFile := func(file string) {
-		if _, ok := sourceFiles[file]; !ok {
-			sourceFiles[file] = struct{}{}
-			res.NumSourceFiles++
-		}
-	}
 	for _, t := range p.Types {
 		res.NumFunctions += len(t.Methods)
-		for _, f := range t.Methods {
-			recordFile(f.File)
-		}
-	}
-	for _, f := range p.Functions {
-		recordFile(f.File)
 	}
 	return res
 }
@@ -716,7 +697,7 @@ func newPackagesIterator(bin binaryInfo, opt ExtractOptions) *packagesIterator {
 }
 
 type binaryInfo struct {
-	obj                 *object.ElfFile
+	obj                 *object.ElfFileWithDwarf
 	mainModule          string
 	goDebugSections     *object.GoDebugSections
 	symTable            *gosym.GoSymbolTable
@@ -725,7 +706,7 @@ type binaryInfo struct {
 }
 
 func openBinary(binaryPath string, opt ExtractOptions) (binaryInfo, error) {
-	obj, err := object.OpenElfFile(binaryPath)
+	obj, err := object.OpenElfFileWithDwarf(binaryPath)
 	if err != nil {
 		return binaryInfo{}, fmt.Errorf("failed to open file: %w", err)
 	}
@@ -737,16 +718,16 @@ func openBinary(binaryPath string, opt ExtractOptions) (binaryInfo, error) {
 	}
 	mainModule := binfo.Main.Path
 
-	moduledata, err := object.ParseModuleData(obj.Underlying)
+	moduledata, err := object.ParseModuleData(obj)
 	if err != nil {
 		return binaryInfo{}, err
 	}
-	goVersion, err := object.ReadGoVersion(obj.Underlying)
+	goVersion, err := object.ReadGoVersion(obj)
 	if err != nil {
 		return binaryInfo{}, err
 	}
 
-	goDebugSections, err := moduledata.GoDebugSections(obj.Underlying)
+	goDebugSections, err := moduledata.GoDebugSections(obj)
 	if err != nil {
 		return binaryInfo{}, err
 	}
@@ -1095,7 +1076,7 @@ func (b *packagesIterator) exploreCompileUnit(
 	}
 	duration := time.Since(start)
 	if duration > 5*time.Second {
-		log.Warnf("Processing package %s took %s: %s", name, duration, res.Stats(nil))
+		log.Warnf("Processing package %s took %s: %s", name, duration, res.Stats())
 	}
 
 	return res, nil
@@ -1193,11 +1174,22 @@ func (b *packagesIterator) exploreSubprogram(
 
 	lowpc, ok := entry.Val(dwarf.AttrLowpc).(uint64)
 	if !ok {
-		return Function{}, fmt.Errorf("subprogram without lowpc: %s", funcQualifiedName)
+		return Function{}, fmt.Errorf("subprogram without lowpc: %s @ 0x%x", funcQualifiedName, entry.Offset)
 	}
-	highpc, ok := entry.Val(dwarf.AttrHighpc).(uint64)
-	if !ok {
-		return Function{}, errors.New("subprogram without highpc")
+	highPCField := entry.AttrField(dwarf.AttrHighpc)
+	if highPCField == nil {
+		return Function{}, fmt.Errorf("subprogram without highpc: %s @ 0x%x", funcQualifiedName, entry.Offset)
+	}
+	// The highpc can either be an absolute value, or a delta relative to the
+	// lowpc. We distinguish based on the field's class.
+	var highpc uint64
+	switch highPCField.Class {
+	case dwarf.ClassAddress:
+		highpc = highPCField.Val.(uint64)
+	case dwarf.ClassConstant:
+		highpc = lowpc + uint64(highPCField.Val.(int64))
+	default:
+		return Function{}, fmt.Errorf("unrecognized highpc class: %d for %s @ 0x%x", highPCField.Class, funcQualifiedName, entry.Offset)
 	}
 
 	lines, err := b.sym.FunctionLines(lowpc)

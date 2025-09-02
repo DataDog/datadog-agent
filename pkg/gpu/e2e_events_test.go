@@ -76,7 +76,7 @@ func TestPytorchBatchedKernels(t *testing.T) {
 	injectEventsToConsumer(t, consumer, events, 0)
 
 	// Check that the consumer has the expected number of streams
-	require.Equal(t, 1, handlers.streamCount())
+	require.Equal(t, 1, handlers.allStreamsCount())
 
 	telemetryMetrics, err := telemetryMock.GetCountMetric("gpu__consumer", "events")
 	require.NoError(t, err)
@@ -91,7 +91,7 @@ func TestPytorchBatchedKernels(t *testing.T) {
 	// Check the state of those streams. As there's only one we can just get it
 	// by iterating over the map
 	var stream *StreamHandler
-	for s := range handlers.allStreams() {
+	for _, s := range handlers.allStreams() {
 		require.Nil(t, stream) // There should be only one stream, so it should be set to nil at this point
 		stream = s
 	}
