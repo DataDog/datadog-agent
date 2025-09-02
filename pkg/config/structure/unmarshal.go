@@ -7,6 +7,7 @@
 package structure
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"reflect"
@@ -15,7 +16,6 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	json "github.com/json-iterator/go"
 	"github.com/mitchellh/mapstructure"
 	"github.com/spf13/cast"
 
