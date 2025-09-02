@@ -16,10 +16,13 @@ from tasks.libs.common.color import color_message
 from tasks.libs.common.git import create_tree, get_common_ancestor, get_current_branch, is_a_release_branch
 from tasks.libs.common.utils import running_in_ci
 from tasks.libs.package.size import InfraError
-from tasks.static_quality_gates.experimental_gates import (
+from tasks.static_quality_gates.experimental.tasks.docker import (
     measure_image_local as _measure_image_local,
 )
-from tasks.static_quality_gates.experimental_gates import (
+from tasks.static_quality_gates.experimental.tasks.msi import (
+    measure_msi_local as _measure_msi_local,
+)
+from tasks.static_quality_gates.experimental.tasks.package import (
     measure_package_local as _measure_package_local,
 )
 from tasks.static_quality_gates.gates import (
@@ -508,5 +511,50 @@ def measure_image_local(
         max_files=max_files,
         no_checksums=no_checksums,
         include_layer_analysis=include_layer_analysis,
+        debug=debug,
+    )
+
+
+@task
+def measure_msi_local(
+    ctx,
+    msi_path,
+    gate_name,
+    config_path="test/static/static_quality_gates.yml",
+    output_path=None,
+    build_job_name="local_test",
+    max_files=20000,
+    no_checksums=False,
+    debug=False,
+):
+    """
+    Run the in-place MSI measurer locally for testing and development.
+
+    This task allows you to test the MSI measurement functionality on local packages
+    without requiring Windows-specific tools (uses cross-platform ZIP extraction).
+
+    Args:
+        msi_path: Path to MSI file or directory containing both MSI and ZIP files
+        gate_name: Quality gate name from the configuration file
+        config_path: Path to quality gates configuration (default: test/static/static_quality_gates.yml)
+        output_path: Path to save the measurement report (default: {gate_name}_msi_report.yml)
+        build_job_name: Simulated build job name (default: local_test)
+        max_files: Maximum number of files to process in inventory (default: 20000)
+        no_checksums: Skip checksum generation for faster processing (default: false)
+        debug: Enable debug logging for troubleshooting (default: false)
+
+    Example:
+        dda inv quality-gates.measure-msi-local --msi-path /path/to/datadog-agent.msi --gate-name static_quality_gate_agent_msi
+        dda inv quality-gates.measure-msi-local --msi-path /path/to/packages/ --gate-name static_quality_gate_agent_msi
+    """
+    return _measure_msi_local(
+        ctx=ctx,
+        msi_path=msi_path,
+        gate_name=gate_name,
+        config_path=config_path,
+        output_path=output_path,
+        build_job_name=build_job_name,
+        max_files=max_files,
+        no_checksums=no_checksums,
         debug=debug,
     )

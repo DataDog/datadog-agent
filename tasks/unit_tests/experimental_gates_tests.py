@@ -13,7 +13,7 @@ from unittest.mock import Mock, patch
 
 import yaml
 
-from tasks.static_quality_gates.experimental_gates import (
+from tasks.static_quality_gates.experimental import (
     DockerImageInfo,
     DockerLayerInfo,
     FileInfo,
@@ -334,12 +334,12 @@ class TestInPlacePackageMeasurer(unittest.TestCase):
 class TestInvokeTask(unittest.TestCase):
     """Test cases for the invoke task functionality."""
 
-    @patch('tasks.static_quality_gates.experimental_gates.InPlacePackageMeasurer')
+    @patch('tasks.static_quality_gates.experimental.tasks.package.InPlacePackageMeasurer')
     @patch('os.path.exists')
     @patch('builtins.print')
     def test_measure_package_local_success(self, mock_print, mock_exists, mock_measurer_class):
         """Test successful local package measurement task."""
-        from tasks.static_quality_gates.experimental_gates import measure_package_local
+        from tasks.static_quality_gates.experimental.tasks.package import measure_package_local
 
         # Setup mocks
         mock_exists.return_value = True
@@ -394,7 +394,7 @@ class TestInvokeTask(unittest.TestCase):
     @patch('builtins.print')
     def test_measure_package_local_missing_file(self, mock_print, mock_exists):
         """Test local task with missing package file."""
-        from tasks.static_quality_gates.experimental_gates import measure_package_local
+        from tasks.static_quality_gates.experimental.tasks.package import measure_package_local
 
         # Setup mocks - package doesn't exist
         mock_exists.return_value = False
@@ -640,9 +640,9 @@ class TestInPlaceDockerMeasurer(unittest.TestCase):
         """Clean up temporary files."""
         os.unlink(self.temp_config_file.name)
 
-    @patch('tasks.static_quality_gates.experimental_gates.DockerProcessor._ensure_image_available')
-    @patch('tasks.static_quality_gates.experimental_gates.DockerProcessor._get_wire_size')
-    @patch('tasks.static_quality_gates.experimental_gates.DockerProcessor._measure_on_disk_size')
+    @patch('tasks.static_quality_gates.experimental.processors.docker.DockerProcessor._ensure_image_available')
+    @patch('tasks.static_quality_gates.experimental.processors.docker.DockerProcessor._get_wire_size')
+    @patch('tasks.static_quality_gates.experimental.processors.docker.DockerProcessor._measure_on_disk_size')
     def test_measure_image_success(self, mock_measure_disk, mock_get_wire_size, mock_ensure_available):
         """Test successful Docker image measurement."""
         # Setup mocks
@@ -708,7 +708,7 @@ class TestInPlaceDockerMeasurer(unittest.TestCase):
         mock_get_wire_size.assert_called_once()
         mock_measure_disk.assert_called_once()
 
-    @patch('tasks.static_quality_gates.experimental_gates.DockerProcessor._ensure_image_available')
+    @patch('tasks.static_quality_gates.experimental.processors.docker.DockerProcessor._ensure_image_available')
     def test_measure_image_ensure_available_failure(self, mock_ensure_available):
         """Test Docker image measurement when image is not available."""
         mock_ensure_available.side_effect = RuntimeError("Image not found locally")
@@ -724,8 +724,8 @@ class TestInPlaceDockerMeasurer(unittest.TestCase):
 
         self.assertIn("Image not found locally", str(cm.exception))
 
-    @patch('tasks.static_quality_gates.experimental_gates.DockerProcessor._ensure_image_available')
-    @patch('tasks.static_quality_gates.experimental_gates.DockerProcessor._get_wire_size')
+    @patch('tasks.static_quality_gates.experimental.processors.docker.DockerProcessor._ensure_image_available')
+    @patch('tasks.static_quality_gates.experimental.processors.docker.DockerProcessor._get_wire_size')
     def test_measure_image_wire_size_failure(self, mock_get_wire_size, mock_ensure_available):
         """Test Docker image measurement when wire size measurement fails."""
         mock_ensure_available.return_value = None
@@ -753,9 +753,9 @@ class TestInPlaceDockerMeasurer(unittest.TestCase):
 
         self.assertIn("Gate configuration not found: nonexistent_gate", str(cm.exception))
 
-    @patch('tasks.static_quality_gates.experimental_gates.DockerProcessor._ensure_image_available')
-    @patch('tasks.static_quality_gates.experimental_gates.DockerProcessor._get_wire_size')
-    @patch('tasks.static_quality_gates.experimental_gates.DockerProcessor._measure_on_disk_size')
+    @patch('tasks.static_quality_gates.experimental.processors.docker.DockerProcessor._ensure_image_available')
+    @patch('tasks.static_quality_gates.experimental.processors.docker.DockerProcessor._get_wire_size')
+    @patch('tasks.static_quality_gates.experimental.processors.docker.DockerProcessor._measure_on_disk_size')
     def test_measure_image_no_layer_analysis(self, mock_measure_disk, mock_get_wire_size, mock_ensure_available):
         """Test Docker image measurement without layer analysis."""
         # Setup mocks
@@ -856,6 +856,266 @@ class TestInPlaceDockerMeasurer(unittest.TestCase):
         finally:
             if os.path.exists(temp_path):
                 os.unlink(temp_path)
+
+
+class TestInPlaceMsiMeasurer(unittest.TestCase):
+    """Test cases for the InPlaceMsiMeasurer class."""
+
+    def setUp(self):
+        """Set up test data and mocks."""
+        self.mock_config = {
+            "static_quality_gate_agent_msi": {"max_on_wire_size": "160 MiB", "max_on_disk_size": "1000 MiB"},
+        }
+
+        # Create a temporary config file
+        self.temp_config_file = tempfile.NamedTemporaryFile(mode='w', suffix='.yml', delete=False)
+        yaml.dump(self.mock_config, self.temp_config_file)
+        self.temp_config_file.close()
+
+    def tearDown(self):
+        """Clean up temporary files."""
+        os.unlink(self.temp_config_file.name)
+
+    @patch('tasks.static_quality_gates.experimental.processors.msi.MsiProcessor._find_msi_artifacts')
+    @patch('tasks.static_quality_gates.experimental.processors.msi.MsiProcessor._extract_zip')
+    @patch('tasks.static_quality_gates.experimental.common.utils.FileUtilities.calculate_directory_size')
+    @patch('tasks.static_quality_gates.experimental.common.utils.FileUtilities.walk_files')
+    @patch('os.path.getsize')
+    def test_measure_msi_success(
+        self, mock_getsize, mock_walk_files, mock_calc_size, mock_extract_zip, mock_find_artifacts
+    ):
+        """Test successful MSI measurement using ZIP+MSI approach."""
+        from tasks.static_quality_gates.experimental import InPlaceMsiMeasurer
+
+        # Setup mocks
+        mock_find_artifacts.return_value = ("/path/to/package.zip", "/path/to/package.msi")
+        mock_getsize.return_value = 150000000  # 150MB MSI file
+        mock_calc_size.return_value = 800000000  # 800MB extracted size
+
+        # Mock file inventory
+        mock_file_inventory = [
+            FileInfo("opt/datadog-agent/bin/agent.exe", 50000000, "sha256:abc123"),
+            FileInfo("etc/datadog-agent/datadog.yaml", 2048, "sha256:def456"),
+        ]
+        mock_walk_files.return_value = mock_file_inventory
+        mock_extract_zip.return_value = None
+
+        measurer = InPlaceMsiMeasurer(config_path=self.temp_config_file.name)
+        mock_ctx = Mock()
+
+        with patch.dict(os.environ, {"CI_PIPELINE_ID": "12345", "CI_COMMIT_SHA": "abc123def"}):
+            report = measurer.measure_msi(
+                ctx=mock_ctx,
+                msi_ref="/path/to/package.msi",
+                gate_name="static_quality_gate_agent_msi",
+                build_job_name="msi_test_job",
+                max_files=10000,
+                generate_checksums=True,
+                debug=False,
+            )
+
+        # Verify the report
+        self.assertEqual(report.artifact_path, "/path/to/package.msi")
+        self.assertEqual(report.gate_name, "static_quality_gate_agent_msi")
+        self.assertEqual(report.on_wire_size, 150000000)  # MSI file size
+        self.assertEqual(report.on_disk_size, 800000000)  # ZIP extraction size
+        self.assertEqual(report.pipeline_id, "12345")
+        self.assertEqual(report.commit_sha, "abc123def")
+        self.assertEqual(report.arch, "amd64")  # MSI is always amd64
+        self.assertEqual(report.os, "windows")
+        self.assertEqual(report.build_job_name, "msi_test_job")
+        self.assertEqual(len(report.file_inventory), 2)
+
+        # Verify mocks were called
+        mock_find_artifacts.assert_called_once()
+        mock_extract_zip.assert_called_once()
+        mock_calc_size.assert_called_once()
+        mock_walk_files.assert_called_once()
+
+    @patch('glob.glob')
+    @patch('os.path.exists')
+    def test_find_msi_artifacts_directory_success(self, mock_exists, mock_glob):
+        """Test finding MSI and ZIP files in a directory."""
+        from tasks.static_quality_gates.experimental.processors.msi import MsiProcessor
+
+        # Setup mocks
+        mock_glob.side_effect = [
+            ["/path/to/datadog-agent-7.55.0-1-x86_64.zip"],  # ZIP files
+            ["/path/to/datadog-agent-7.55.0-1-x86_64.msi"],  # MSI files
+        ]
+        mock_exists.return_value = True  # Files exist
+
+        processor = MsiProcessor()
+        zip_path, msi_path = processor._find_msi_artifacts("/path/to/packages", Mock(), debug=False)
+
+        self.assertEqual(zip_path, "/path/to/datadog-agent-7.55.0-1-x86_64.zip")
+        self.assertEqual(msi_path, "/path/to/datadog-agent-7.55.0-1-x86_64.msi")
+
+    def test_find_msi_artifacts_direct_path(self):
+        """Test finding MSI and ZIP files using direct MSI path."""
+        from tasks.static_quality_gates.experimental.processors.msi import MsiProcessor
+
+        processor = MsiProcessor()
+
+        with patch('os.path.exists', return_value=True):
+            zip_path, msi_path = processor._find_msi_artifacts("/path/to/package.msi", Mock(), debug=False)
+
+        self.assertEqual(zip_path, "/path/to/package.zip")
+        self.assertEqual(msi_path, "/path/to/package.msi")
+
+    @patch('glob.glob')
+    def test_find_msi_artifacts_missing_zip(self, mock_glob):
+        """Test error handling when ZIP file is missing."""
+        from tasks.static_quality_gates.experimental.processors.msi import MsiProcessor
+
+        # Setup mocks - no ZIP files found
+        mock_glob.side_effect = [
+            [],  # No ZIP files
+            ["/path/to/datadog-agent-7.55.0-1-x86_64.msi"],  # MSI files
+        ]
+
+        processor = MsiProcessor()
+
+        with self.assertRaises(ValueError) as cm:
+            processor._find_msi_artifacts("/path/to/packages", Mock(), debug=False)
+
+        self.assertIn("Could not find ZIP file", str(cm.exception))
+
+    @patch('glob.glob')
+    def test_find_msi_artifacts_missing_msi(self, mock_glob):
+        """Test error handling when MSI file is missing."""
+        from tasks.static_quality_gates.experimental.processors.msi import MsiProcessor
+
+        # Setup mocks - no MSI files found
+        mock_glob.side_effect = [
+            ["/path/to/datadog-agent-7.55.0-1-x86_64.zip"],  # ZIP files
+            [],  # No MSI files
+        ]
+
+        processor = MsiProcessor()
+
+        with self.assertRaises(ValueError) as cm:
+            processor._find_msi_artifacts("/path/to/packages", Mock(), debug=False)
+
+        self.assertIn("Could not find MSI file", str(cm.exception))
+
+    def test_extract_zip_success(self):
+        """Test successful ZIP extraction."""
+        from tasks.static_quality_gates.experimental.processors.msi import MsiProcessor
+
+        processor = MsiProcessor()
+        mock_ctx = Mock()
+
+        # Mock successful unzip command
+        mock_result = Mock()
+        mock_result.exited = 0
+        mock_ctx.run.return_value = mock_result
+
+        # Mock the context manager properly
+        context_manager = Mock()
+        context_manager.__enter__ = Mock(return_value=context_manager)
+        context_manager.__exit__ = Mock(return_value=None)
+        mock_ctx.cd.return_value = context_manager
+
+        # Should not raise an exception
+        processor._extract_zip(mock_ctx, "/path/to/test.zip", "/extract/dir", debug=False)
+
+        # Verify unzip command was called
+        mock_ctx.run.assert_called_once_with("unzip -q '/path/to/test.zip'", warn=True)
+
+    def test_extract_zip_failure(self):
+        """Test ZIP extraction failure handling."""
+        from tasks.static_quality_gates.experimental.processors.msi import MsiProcessor
+
+        processor = MsiProcessor()
+        mock_ctx = Mock()
+
+        # Mock failed unzip command
+        mock_result = Mock()
+        mock_result.exited = 1
+        mock_ctx.run.return_value = mock_result
+
+        # Mock the context manager properly
+        context_manager = Mock()
+        context_manager.__enter__ = Mock(return_value=context_manager)
+        context_manager.__exit__ = Mock(return_value=None)  # noqa: U100
+        mock_ctx.cd.return_value = context_manager
+
+        with self.assertRaises(RuntimeError) as cm:
+            processor._extract_zip(mock_ctx, "/path/to/test.zip", "/extract/dir", debug=False)
+
+        self.assertIn("ZIP extraction failed", str(cm.exception))
+
+
+class TestMsiInvokeTask(unittest.TestCase):
+    """Test cases for the MSI invoke task functionality."""
+
+    @patch('tasks.static_quality_gates.experimental.tasks.msi.InPlaceMsiMeasurer')
+    @patch('os.path.exists')
+    @patch('builtins.print')
+    def test_measure_msi_local_success(self, mock_print, mock_exists, mock_measurer_class):
+        """Test successful local MSI measurement task."""
+        from tasks.static_quality_gates.experimental.tasks.msi import measure_msi_local
+
+        # Setup mocks
+        mock_exists.return_value = True
+        mock_measurer = Mock()
+        mock_measurer_class.return_value = mock_measurer
+
+        # Create mock report
+        mock_report = Mock()
+        mock_report.on_wire_size = 150000000  # 150MB
+        mock_report.on_disk_size = 800000000  # 800MB
+        mock_report.max_on_wire_size = 160000000  # 160MB
+        mock_report.max_on_disk_size = 1000000000  # 1000MB
+
+        # Create mock file info objects
+        mock_file_infos = []
+        for i in range(50):
+            mock_file = Mock()
+            mock_file.size_bytes = 5000000 * (50 - i)  # Decreasing sizes
+            mock_file.relative_path = f"Program Files/Datadog/Agent/file_{i}.exe"
+            mock_file.size_mb = (5000000 * (50 - i)) / (1024 * 1024)
+            mock_file_infos.append(mock_file)
+        mock_report.file_inventory = mock_file_infos
+        mock_report.largest_files = mock_file_infos[:10]  # Top 10
+
+        mock_measurer.measure_msi.return_value = mock_report
+        mock_measurer.save_report_to_yaml.return_value = None
+
+        # Mock context
+        mock_ctx = Mock()
+
+        # Call the function
+        measure_msi_local(ctx=mock_ctx, msi_path="/test/datadog-agent.msi", gate_name="static_quality_gate_agent_msi")
+
+        # Verify measurer was initialized and called
+        mock_measurer_class.assert_called_once_with(config_path="test/static/static_quality_gates.yml")
+        mock_measurer.measure_msi.assert_called_once()
+        mock_measurer.save_report_to_yaml.assert_called_once()
+
+        # Verify success messages were printed
+        print_calls = [call[0][0] for call in mock_print.call_args_list if call[0]]
+        success_messages = [msg for msg in print_calls if "✅" in str(msg) or "completed successfully" in str(msg)]
+        self.assertTrue(len(success_messages) > 0, "Expected success messages in output")
+
+    @patch('os.path.exists')
+    @patch('builtins.print')
+    def test_measure_msi_local_missing_config(self, mock_print, mock_exists):
+        """Test local MSI task with missing config file."""
+        from tasks.static_quality_gates.experimental.tasks.msi import measure_msi_local
+
+        # Setup mocks - config doesn't exist
+        mock_exists.return_value = False
+        mock_ctx = Mock()
+
+        # Call the function
+        measure_msi_local(ctx=mock_ctx, msi_path="/test/datadog-agent.msi", gate_name="static_quality_gate_agent_msi")
+
+        # Verify error message was printed
+        print_calls = [call[0][0] for call in mock_print.call_args_list if call[0]]
+        error_messages = [msg for msg in print_calls if "❌" in str(msg) and "Configuration file not found" in str(msg)]
+        self.assertTrue(len(error_messages) > 0, "Expected error message for missing config")
 
 
 if __name__ == '__main__':
