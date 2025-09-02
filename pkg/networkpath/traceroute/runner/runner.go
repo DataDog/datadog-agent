@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-traceroute/common"
 	"github.com/DataDog/datadog-traceroute/icmp"
 	tracerlog "github.com/DataDog/datadog-traceroute/log"
+	"github.com/DataDog/datadog-traceroute/result"
 	"github.com/DataDog/datadog-traceroute/sack"
 	"github.com/DataDog/datadog-traceroute/tcp"
 
@@ -252,9 +253,9 @@ func makeSackParams(target net.IP, targetPort uint16, maxTTL uint8, timeout time
 
 var sackFallbackLimit = log.NewLogLimit(10, 5*time.Minute)
 
-type tracerouteImpl func() (*common.Results, error)
+type tracerouteImpl func() (*result.Results, error)
 
-func performTCPFallback(tcpMethod payload.TCPMethod, doSyn, doSack, doSynSocket tracerouteImpl) (*common.Results, error) {
+func performTCPFallback(tcpMethod payload.TCPMethod, doSyn, doSack, doSynSocket tracerouteImpl) (*result.Results, error) {
 	if tcpMethod == "" {
 		tcpMethod = payload.TCPDefaultMethod
 	}
@@ -289,18 +290,18 @@ func (r *Runner) runTCP(cfg config.Config, hname string, target net.IP, maxTTL u
 		destPort = 80 // TODO: is this the default we want?
 	}
 
-	doSyn := func() (*common.Results, error) {
+	doSyn := func() (*result.Results, error) {
 		tr := tcp.NewTCPv4(target, destPort, DefaultNumPaths, DefaultMinTTL, maxTTL, time.Duration(DefaultDelay)*time.Millisecond, timeout, cfg.TCPSynParisTracerouteMode)
 		return tr.Traceroute()
 	}
-	doSack := func() (*common.Results, error) {
+	doSack := func() (*result.Results, error) {
 		params, err := makeSackParams(target, destPort, maxTTL, timeout)
 		if err != nil {
 			return nil, fmt.Errorf("failed to make sack params: %w", err)
 		}
 		return sack.RunSackTraceroute(context.TODO(), params)
 	}
-	doSynSocket := func() (*common.Results, error) {
+	doSynSocket := func() (*result.Results, error) {
 		tr := tcp.NewTCPv4(target, destPort, DefaultNumPaths, DefaultMinTTL, maxTTL, time.Duration(DefaultDelay)*time.Millisecond, timeout, cfg.TCPSynParisTracerouteMode)
 		return tr.TracerouteSequentialSocket()
 	}
@@ -319,10 +320,20 @@ func (r *Runner) runTCP(cfg config.Config, hname string, target net.IP, maxTTL u
 	return pathResult, nil
 }
 
-func (r *Runner) processResults(res *common.Results, protocol payload.Protocol, hname string, destinationHost string, destinationPort uint16) (payload.NetworkPath, error) {
+func (r *Runner) processResults(res *result.Results, protocol payload.Protocol, hname string, destinationHost string, destinationPort uint16) (payload.NetworkPath, error) {
 	if res == nil {
 		return payload.NetworkPath{}, nil
 	}
+
+	// TODO: use runner.RunTraceroute(cmd.Context(), params)
+	//       instead of reimplementing per protocol logic in Datadog-agent (runner.go here)
+
+	res.Params = result.Params{
+		Protocol: string(protocol),
+		Hostname: destinationHost,
+		Port:     int(destinationPort),
+	}
+	res.Normalize()
 
 	traceroutePath := payload.NetworkPath{
 		AgentVersion: version.AgentVersion,
@@ -334,49 +345,54 @@ func (r *Runner) processResults(res *common.Results, protocol payload.Protocol, 
 			NetworkID: r.networkID,
 		},
 		Destination: payload.NetworkPathDestination{
-			Hostname:  destinationHost,
-			Port:      destinationPort,
-			IPAddress: res.Target.String(),
+			Hostname: destinationHost,
+			Port:     destinationPort,
 		},
 		Tags: slices.Clone(res.Tags),
 	}
 
-	// get hardware interface info
-	//
-	// TODO: using a gateway lookup may be a more performant
-	// solution for getting the local addr to use
-	// when sending traceroute packets in the TCP implementation
-	// really we just need the router piece
-	// might be worth also looking in to sharing a router between
-	// the gateway lookup and here or exposing a local IP lookup
-	// function
-	if r.gatewayLookup != nil {
-		src := util.AddressFromNetIP(res.Source)
-		dst := util.AddressFromNetIP(res.Target)
+	if len(res.Traceroute.Runs) > 0 {
+		tracerouteRun := res.Traceroute.Runs[0]
+		traceroutePath.Destination.IPAddress = tracerouteRun.Destination.IP.String()
 
-		traceroutePath.Source.Via = r.gatewayLookup.LookupWithIPs(src, dst, r.nsIno)
-	}
+		// get hardware interface info
+		//
+		// TODO: using a gateway lookup may be a more performant
+		// solution for getting the local addr to use
+		// when sending traceroute packets in the TCP implementation
+		// really we just need the router piece
+		// might be worth also looking in to sharing a router between
+		// the gateway lookup and here or exposing a local IP lookup
+		// function
+		if r.gatewayLookup != nil {
+			src := util.AddressFromNetIP(tracerouteRun.Source.IP)
+			dst := util.AddressFromNetIP(tracerouteRun.Destination.IP)
 
-	for i, hop := range res.Hops {
-		ttl := i + 1
-		isReachable := false
-		hopname := fmt.Sprintf("unknown_hop_%d", ttl)
-		hostname := hopname
-
-		if !hop.IP.Equal(net.IP{}) {
-			isReachable = true
-			hopname = hop.IP.String()
-			hostname = hopname // setting to ip address for now, reverse DNS lookup will override hostname field later
+			traceroutePath.Source.Via = r.gatewayLookup.LookupWithIPs(src, dst, r.nsIno)
 		}
 
-		npHop := payload.NetworkPathHop{
-			TTL:       ttl,
-			IPAddress: hopname,
-			Hostname:  hostname,
-			RTT:       float64(hop.RTT.Microseconds()) / float64(1000),
-			Reachable: isReachable,
+		for i, hop := range tracerouteRun.Hops {
+			ttl := i + 1
+			isReachable := false
+			hopname := fmt.Sprintf("unknown_hop_%d", ttl)
+			hostname := hopname
+
+			if !hop.IP.Equal(net.IP{}) {
+				isReachable = true
+				hopname = hop.IP.String()
+				hostname = hopname // setting to ip address for now, reverse DNS lookup will override hostname field later
+			}
+
+			npHop := payload.NetworkPathHop{
+				TTL:       ttl,
+				IPAddress: hopname,
+				Hostname:  hostname,
+				RTT:       hop.RTT,
+				Reachable: isReachable,
+			}
+			traceroutePath.Hops = append(traceroutePath.Hops, npHop)
 		}
-		traceroutePath.Hops = append(traceroutePath.Hops, npHop)
+
 	}
 
 	return traceroutePath, nil
