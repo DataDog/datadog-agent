@@ -44,213 +44,205 @@ func TestWriteConfigSymlinks(t *testing.T) {
 	assert.NoFileExists(t, filepath.Join(userDir, "conf.d.override"))
 }
 
-func TestMerge_SimpleMap(t *testing.T) {
-	base := map[string]any{
-		"foo": "bar",
-	}
-	override := map[string]any{
-		"foo": "baz",
-	}
-	result, err := merge(base, override)
-	assert.NoError(t, err)
-	expected := map[string]any{
-		"foo": "baz",
-	}
-	assert.Equal(t, expected, result)
-}
-
-func TestMerge_MapWithListValue(t *testing.T) {
-	base := map[string]any{
-		"list": []any{1, 2, 3},
-	}
-	override := map[string]any{
-		"list": []any{4, 5},
-	}
-	result, err := merge(base, override)
-	assert.NoError(t, err)
-	expected := map[string]any{
-		"list": []any{4, 5},
-	}
-	assert.Equal(t, expected, result)
-}
-
-func TestMerge_Maps(t *testing.T) {
-	base := map[string]any{
-		"a": 1,
-		"b": 2,
-	}
-	override := map[string]any{
-		"b": 3,
-		"c": 4,
-	}
-	result, err := merge(base, override)
-	assert.NoError(t, err)
-	expected := map[string]any{
-		"a": 1,
-		"b": 3,
-		"c": 4,
-	}
-	assert.Equal(t, expected, result)
-}
-
-func TestMerge_NilBase(t *testing.T) {
-	var base any
-	override := map[string]any{
-		"foo": "bar",
-	}
-	result, err := merge(base, override)
-	assert.NoError(t, err)
-	assert.Equal(t, override, result)
-}
-
-func TestMerge_NilOverride(t *testing.T) {
-	base := map[string]any{
-		"foo": "bar",
-	}
-	var override any
-	result, err := merge(base, override)
-	assert.NoError(t, err)
-	assert.Nil(t, result)
-}
-
-func TestMerge_DeepMap(t *testing.T) {
-	base := map[string]any{
-		"a": map[string]any{
-			"x": 1,
-			"y": 2,
-		},
-	}
-	override := map[string]any{
-		"a": map[string]any{
-			"y": 3,
-			"z": 4,
-		},
-	}
-	result, err := merge(base, override)
-	assert.NoError(t, err)
-	expected := map[string]any{
-		"a": map[string]any{
-			"x": 1,
-			"y": 3,
-			"z": 4,
-		},
-	}
-	assert.Equal(t, expected, result)
-}
-
-func TestMerge_TypeMismatch(t *testing.T) {
-	base := map[string]any{"a": 1}
-	override := map[string]any{"a": []any{1, 2}}
-	result, err := merge(base, override)
-	assert.NoError(t, err)
-	expected := map[string]any{"a": []any{1, 2}}
-	assert.Equal(t, expected, result)
-}
-
-func TestConfigActionApply_Write(t *testing.T) {
+func TestOperationApply_Patch(t *testing.T) {
 	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "datadog.yaml")
+	orig := map[string]any{"foo": "bar"}
+	origBytes, err := yaml.Marshal(orig)
+	assert.NoError(t, err)
+	err = os.WriteFile(filePath, origBytes, 0644)
+	assert.NoError(t, err)
+
 	root, err := os.OpenRoot(tmpDir)
 	assert.NoError(t, err)
 	defer root.Close()
 
-	path := "/datadog.yaml"
-	val := map[string]any{"foo": "bar"}
-	action := &Action{
-		ActionType: ActionTypeWrite,
-		Path:       path,
-		Value:      val,
+	// Patch: change foo to baz
+	patchJSON := `[{"op": "replace", "path": "/foo", "value": "baz"}]`
+	op := &Operation{
+		OperationType: OperationTypePatch,
+		Path:          "/datadog.yaml",
+		Patch:         []byte(patchJSON),
 	}
-	err = action.Apply(root)
+
+	err = op.Apply(root)
 	assert.NoError(t, err)
 
-	// Check file contents
-	content, err := os.ReadFile(filepath.Join(tmpDir, path))
+	// Check file content
+	updated, err := os.ReadFile(filePath)
 	assert.NoError(t, err)
-	var out map[string]any
-	err = yaml.Unmarshal(content, &out)
+	var updatedMap map[string]any
+	err = yaml.Unmarshal(updated, &updatedMap)
 	assert.NoError(t, err)
-	assert.Equal(t, val, out)
+	assert.Equal(t, "baz", updatedMap["foo"])
 }
 
-func TestConfigActionApply_Merge(t *testing.T) {
+func TestOperationApply_MergePatch(t *testing.T) {
 	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "datadog.yaml")
+	orig := map[string]any{"foo": "bar", "bar": "baz"}
+	origBytes, err := yaml.Marshal(orig)
+	assert.NoError(t, err)
+	err = os.WriteFile(filePath, origBytes, 0644)
+	assert.NoError(t, err)
+
 	root, err := os.OpenRoot(tmpDir)
 	assert.NoError(t, err)
 	defer root.Close()
 
-	path := "/datadog.yaml"
-	// Write initial file
-	initial := map[string]any{"a": 1, "b": 2}
-	initialBytes, _ := yaml.Marshal(initial)
-	err = os.WriteFile(filepath.Join(tmpDir, path), initialBytes, 0644)
-	assert.NoError(t, err)
-
-	override := map[string]any{"b": 3, "c": 4}
-	action := &Action{
-		ActionType: ActionTypeMerge,
-		Path:       path,
-		Value:      override,
+	// MergePatch: remove bar, change foo to qux
+	mergePatch := `{"foo": "qux", "bar": null}`
+	op := &Operation{
+		OperationType: OperationTypeMergePatch,
+		Path:          "/datadog.yaml",
+		Patch:         []byte(mergePatch),
 	}
-	err = action.Apply(root)
+
+	err = op.Apply(root)
 	assert.NoError(t, err)
 
-	// Check file contents
-	content, err := os.ReadFile(filepath.Join(tmpDir, path))
+	updated, err := os.ReadFile(filePath)
 	assert.NoError(t, err)
-	var out map[string]any
-	err = yaml.Unmarshal(content, &out)
+	var updatedMap map[string]any
+	err = yaml.Unmarshal(updated, &updatedMap)
 	assert.NoError(t, err)
-	expected := map[string]any{"a": 1, "b": 3, "c": 4}
-	assert.Equal(t, expected, out)
+	assert.Equal(t, "qux", updatedMap["foo"])
+	_, exists := updatedMap["bar"]
+	assert.False(t, exists)
 }
 
-func TestConfigActionApply_Delete(t *testing.T) {
+func TestOperationApply_Delete(t *testing.T) {
 	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "datadog.yaml")
+	err := os.WriteFile(filePath, []byte("foo: bar"), 0644)
+	assert.NoError(t, err)
+
 	root, err := os.OpenRoot(tmpDir)
 	assert.NoError(t, err)
 	defer root.Close()
 
-	path := "/datadog.yaml"
-	_ = os.WriteFile(filepath.Join(tmpDir, path), []byte("foo: bar"), 0644)
-
-	action := &Action{
-		ActionType: ActionTypeDelete,
-		Path:       path,
+	op := &Operation{
+		OperationType: OperationTypeDelete,
+		Path:          "/datadog.yaml",
 	}
-	err = action.Apply(root)
-	assert.NoError(t, err)
 
-	_, err = os.Stat(filepath.Join(tmpDir, path))
+	err = op.Apply(root)
+	assert.NoError(t, err)
+	_, err = os.Stat(filePath)
 	assert.Error(t, err)
 	assert.True(t, os.IsNotExist(err))
 }
 
-func TestConfigActionApply_WriteInSubdirectory(t *testing.T) {
+func TestOperationApply_EmptyYAMLFile(t *testing.T) {
 	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "datadog.yaml")
+	err := os.WriteFile(filePath, []byte(""), 0644)
+	assert.NoError(t, err)
+
 	root, err := os.OpenRoot(tmpDir)
 	assert.NoError(t, err)
 	defer root.Close()
 
-	path := "/conf.d/apache.d/apache-1.yaml"
-	value := map[string]any{"foo": "bar"}
-	action := &Action{
-		ActionType: ActionTypeWrite,
-		Path:       path,
-		Value:      value,
+	patchJSON := `[{"op": "add", "path": "/foo", "value": "bar"}]`
+	op := &Operation{
+		OperationType: OperationTypePatch,
+		Path:          "/datadog.yaml",
+		Patch:         []byte(patchJSON),
 	}
-	err = action.Apply(root)
+
+	err = op.Apply(root)
 	assert.NoError(t, err)
 
-	// Check that the file exists and contains the expected value
-	content, err := os.ReadFile(filepath.Join(tmpDir, path))
+	// Check that the file now contains the patched value
+	updated, err := os.ReadFile(filePath)
 	assert.NoError(t, err)
-	var out map[string]any
-	err = yaml.Unmarshal(content, &out)
+	var updatedMap map[string]any
+	err = yaml.Unmarshal(updated, &updatedMap)
 	assert.NoError(t, err)
-	assert.Equal(t, value, out)
+	assert.Equal(t, "bar", updatedMap["foo"])
+}
 
-	// Check that the directories were created
-	dirInfo, err := os.Stat(filepath.Join(tmpDir, "/conf.d/apache.d"))
+func TestOperationApply_NoFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	// Do not create the file
+
+	root, err := os.OpenRoot(tmpDir)
 	assert.NoError(t, err)
-	assert.True(t, dirInfo.IsDir())
+	defer root.Close()
+
+	patchJSON := `[{"op": "add", "path": "/foo", "value": "bar"}]`
+	op := &Operation{
+		OperationType: OperationTypePatch,
+		Path:          "/datadog.yaml",
+		Patch:         []byte(patchJSON),
+	}
+
+	err = op.Apply(root)
+	assert.NoError(t, err)
+
+	filePath := filepath.Join(tmpDir, "datadog.yaml")
+	updated, err := os.ReadFile(filePath)
+	assert.NoError(t, err)
+	var updatedMap map[string]any
+	err = yaml.Unmarshal(updated, &updatedMap)
+	assert.NoError(t, err)
+	assert.Equal(t, "bar", updatedMap["foo"])
+}
+
+func TestOperationApply_DisallowedFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "notallowed.yaml")
+	err := os.WriteFile(filePath, []byte("foo: bar"), 0644)
+	assert.NoError(t, err)
+
+	root, err := os.OpenRoot(tmpDir)
+	assert.NoError(t, err)
+	defer root.Close()
+
+	patchJSON := `[{"op": "replace", "path": "/foo", "value": "baz"}]`
+	op := &Operation{
+		OperationType: OperationTypePatch,
+		Path:          "/notallowed.yaml",
+		Patch:         []byte(patchJSON),
+	}
+
+	err = op.Apply(root)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "not allowed")
+}
+
+func TestOperationApply_NestedConfigFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	nestedDir := filepath.Join(tmpDir, "conf.d", "mycheck.d")
+	err := os.MkdirAll(nestedDir, 0755)
+	assert.NoError(t, err)
+
+	filePath := filepath.Join(nestedDir, "config.yaml")
+	// Create an initial config file
+	initialContent := []byte("foo: oldval\nbar: 1\n")
+	err = os.WriteFile(filePath, initialContent, 0644)
+	assert.NoError(t, err)
+
+	root, err := os.OpenRoot(tmpDir)
+	assert.NoError(t, err)
+	defer root.Close()
+
+	patchJSON := `[{"op": "replace", "path": "/foo", "value": "newval"}, {"op": "add", "path": "/baz", "value": 42}]`
+	op := &Operation{
+		OperationType: OperationTypePatch,
+		Path:          "/conf.d/mycheck.d/config.yaml",
+		Patch:         []byte(patchJSON),
+	}
+
+	err = op.Apply(root)
+	assert.NoError(t, err)
+
+	updated, err := os.ReadFile(filePath)
+	assert.NoError(t, err)
+	var updatedMap map[string]any
+	err = yaml.Unmarshal(updated, &updatedMap)
+	assert.NoError(t, err)
+	assert.Equal(t, "newval", updatedMap["foo"])
+	assert.Equal(t, 1, updatedMap["bar"])
+	assert.Equal(t, 42, updatedMap["baz"])
 }

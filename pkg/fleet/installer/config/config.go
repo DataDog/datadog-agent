@@ -7,84 +7,91 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
-	"maps"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
 
+	patch "gopkg.in/evanphx/json-patch.v4"
 	"gopkg.in/yaml.v3"
 )
 
-// ActionType is the type of action to perform on the config.
-type ActionType string
+// OperationType is the type of operation to perform on the config.
+type OperationType string
 
 const (
-	// ActionTypeWrite sets the value of the config.
-	ActionTypeWrite ActionType = "write"
-	// ActionTypeMerge merges the current config with the override config.
-	ActionTypeMerge ActionType = "merge"
-	// ActionTypeDelete deletes the current config.
-	ActionTypeDelete ActionType = "delete"
+	// OperationTypePatch patches the config at the given path with the given JSON patch (RFC 6902).
+	OperationTypePatch OperationType = "patch"
+	// OperationTypeMergePatch merges the config at the given path with the given JSON merge patch (RFC 7396).
+	OperationTypeMergePatch OperationType = "merge-patch"
+	// OperationTypeDelete deletes the config at the given path.
+	OperationTypeDelete OperationType = "delete"
 )
 
-// Action is the action to perform on a config.
-type Action struct {
-	ActionType    ActionType `json:"action_type"`
-	Path          string     `json:"path"`
-	Value         any        `json:"value"`
-	IgnoredFields []string   `json:"ignored_fields"`
+// Operation is the operation to perform on a config.
+type Operation struct {
+	OperationType OperationType `json:"op"`
+	Path          string        `json:"path"`
+	Patch         []byte        `json:"patch"`
 }
 
-// Apply applies the action to the root.
-func (a *Action) Apply(root *os.Root) error {
+// Apply applies the operation to the root.
+func (a *Operation) Apply(root *os.Root) error {
 	if !configNameAllowed(a.Path) {
 		return fmt.Errorf("modifying config file %s is not allowed", a.Path)
 	}
 	path := strings.TrimPrefix(a.Path, "/")
-	switch a.ActionType {
-	case ActionTypeWrite:
+
+	switch a.OperationType {
+	case OperationTypePatch, OperationTypeMergePatch:
 		err := ensureDir(root, path)
 		if err != nil {
 			return err
 		}
-		file, err := root.OpenFile(path, os.O_CREATE|os.O_WRONLY, 0644)
+		file, err := root.OpenFile(path, os.O_RDWR|os.O_CREATE, 0644)
 		if err != nil {
 			return err
 		}
 		defer file.Close()
-		rawValue, err := yaml.Marshal(a.Value)
+		previousYAMLBytes, err := io.ReadAll(file)
 		if err != nil {
 			return err
 		}
-		_, err = file.Write(rawValue)
-		return err
-	case ActionTypeMerge:
-		err := ensureDir(root, path)
+		previous := make(map[string]any)
+		err = yaml.Unmarshal(previousYAMLBytes, &previous)
 		if err != nil {
 			return err
 		}
-		file, err := root.OpenFile(path, os.O_CREATE|os.O_RDWR, 0644)
+		previousJSONBytes, err := json.Marshal(previous)
 		if err != nil {
 			return err
 		}
-		defer file.Close()
-		currentRawValue, err := io.ReadAll(file)
+		var newJSONBytes []byte
+		switch a.OperationType {
+		case OperationTypePatch:
+			patch, err := patch.DecodePatch(a.Patch)
+			if err != nil {
+				return err
+			}
+			newJSONBytes, err = patch.Apply(previousJSONBytes)
+			if err != nil {
+				return err
+			}
+		case OperationTypeMergePatch:
+			newJSONBytes, err = patch.MergePatch(previousJSONBytes, a.Patch)
+			if err != nil {
+				return err
+			}
+		}
+		var new map[string]interface{}
+		err = yaml.Unmarshal(newJSONBytes, &new)
 		if err != nil {
 			return err
 		}
-		var currentValue any
-		err = yaml.Unmarshal(currentRawValue, &currentValue)
-		if err != nil {
-			return err
-		}
-		mergedValue, err := merge(currentValue, a.Value)
-		if err != nil {
-			return err
-		}
-		rawMergedValue, err := yaml.Marshal(mergedValue)
+		newYAMLBytes, err := yaml.Marshal(new)
 		if err != nil {
 			return err
 		}
@@ -96,9 +103,12 @@ func (a *Action) Apply(root *os.Root) error {
 		if err != nil {
 			return err
 		}
-		_, err = file.Write(rawMergedValue)
+		_, err = file.Write(newYAMLBytes)
+		if err != nil {
+			return err
+		}
 		return err
-	case ActionTypeDelete:
+	case OperationTypeDelete:
 		return root.Remove(path)
 	}
 	return nil
@@ -180,58 +190,4 @@ func writeConfigSymlinks(userDir string, fleetDir string) error {
 		}
 	}
 	return nil
-}
-
-// merge merges the current object with the override object.
-//
-// The values are merged as follows:
-// - Scalars: the override value is used
-// - Lists: the override list is used
-// - Maps: the override map is recursively merged into the base map
-func merge(base any, override any) (any, error) {
-	if base == nil {
-		return override, nil
-	}
-	if override == nil {
-		// this allows to delete a value with nil
-		return nil, nil
-	}
-	if isScalar(base) && isScalar(override) {
-		return override, nil
-	}
-	if isList(base) && isList(override) {
-		return override, nil
-	}
-	if isMap(base) && isMap(override) {
-		return mergeMap(base.(map[string]any), override.(map[string]any))
-	}
-	// if the types are different, use the override
-	return override, nil
-}
-
-func mergeMap(base, override map[string]any) (map[string]any, error) {
-	merged := make(map[string]any)
-	maps.Copy(merged, base)
-	for k := range override {
-		v, err := merge(base[k], override[k])
-		if err != nil {
-			return nil, fmt.Errorf("could not merge key %v: %w", k, err)
-		}
-		merged[k] = v
-	}
-	return merged, nil
-}
-
-func isList(i any) bool {
-	_, ok := i.([]any)
-	return ok
-}
-
-func isMap(i any) bool {
-	_, ok := i.(map[string]any)
-	return ok
-}
-
-func isScalar(i any) bool {
-	return !isList(i) && !isMap(i)
 }
