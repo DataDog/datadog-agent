@@ -243,6 +243,15 @@ func (p *FileProvider) FilesToTail(validatePodContainerID bool, inputSources []*
 		p.reachedNumFileLimit = false
 	}
 
+	// Debug: list the files we are about to tail this scan
+	if len(filesToTail) > 0 {
+		paths := make([]string, 0, len(filesToTail))
+		for _, f := range filesToTail {
+			paths = append(paths, f.Path)
+		}
+		log.Debugf("File provider selected %d files to tail (limit %d): %v", len(filesToTail), p.filesLimit, paths)
+	}
+
 	return filesToTail
 }
 
