@@ -18,6 +18,6 @@ features:
     download and run ``https://install.datadoghq.com/datadog-installer-7.71.0-1-x86_64.exe``.
 
     To install the latest stable Agent version, download and run ``https://install.datadoghq.com/datadog-installer-x86_64.exe``.
+    This executable file is also versioned and will only install one version. It is updated with each release.
 
     To check the version, run ``.\datadog-installer-x86_64.exe version``.
-
