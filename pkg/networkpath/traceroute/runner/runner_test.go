@@ -10,7 +10,7 @@ import (
 	"net"
 	"testing"
 
-	"github.com/DataDog/datadog-traceroute/common"
+	"github.com/DataDog/datadog-traceroute/result"
 	"github.com/DataDog/datadog-traceroute/sack"
 	"github.com/golang/mock/gomock"
 	"github.com/google/go-cmp/cmp"
@@ -39,7 +39,7 @@ func TestProcessResults(t *testing.T) {
 	runner := &Runner{}
 	tts := []struct {
 		description      string
-		inputResults     *common.Results
+		inputResults     *result.Results
 		protocol         payload.Protocol
 		hname            string
 		destinationHost  string
@@ -58,26 +58,39 @@ func TestProcessResults(t *testing.T) {
 			protocol:         payload.ProtocolUDP,
 			hname:            "test-hostname",
 			destinationHost:  "test-destination-hostname",
-			inputResults: &common.Results{
-				Source:     net.ParseIP("10.0.0.5"),
-				SourcePort: 12345,
-				Target:     net.ParseIP("8.8.8.8"),
-				DstPort:    33434, // computer port or Boca Raton, FL?
-				Hops: []*common.Hop{
-					{
-						IP:       net.ParseIP("10.0.0.1"),
-						ICMPType: 11,
-						ICMPCode: 0,
-						RTT:      10000000, // 10ms
-					},
-					{
-						IP: net.IP{},
-					},
-					{
-						IP:       net.ParseIP("172.0.0.255"),
-						ICMPType: 11,
-						ICMPCode: 0,
-						RTT:      3512345, // 3.512ms
+			inputResults: &result.Results{
+				Params: result.Params{
+					Port: 33434,
+				},
+				Traceroute: result.Traceroute{
+					Runs: []result.TracerouteRun{
+						{
+							Source: result.TracerouteSource{
+								IP:   net.ParseIP("10.0.0.5"),
+								Port: 12345,
+							},
+							Destination: result.TracerouteDestination{
+								IP:   net.ParseIP("8.8.8.8"),
+								Port: 33434, // computer port or Boca Raton, FL?
+							},
+							Hops: []*result.TracerouteHop{
+								{
+									IP:       net.ParseIP("10.0.0.1"),
+									ICMPType: 11,
+									ICMPCode: 0,
+									RTT:      0.001, // seconds
+								},
+								{
+									IP: net.IP{},
+								},
+								{
+									IP:       net.ParseIP("172.0.0.255"),
+									ICMPType: 11,
+									ICMPCode: 0,
+									RTT:      0.003512345, // seconds
+								},
+							},
+						},
 					},
 				},
 			},
@@ -97,7 +110,7 @@ func TestProcessResults(t *testing.T) {
 						TTL:       1,
 						IPAddress: "10.0.0.1",
 						Hostname:  "10.0.0.1",
-						RTT:       10,
+						RTT:       0.001,
 						Reachable: true,
 					},
 					{
@@ -111,7 +124,7 @@ func TestProcessResults(t *testing.T) {
 						TTL:       3,
 						IPAddress: "172.0.0.255",
 						Hostname:  "172.0.0.255",
-						RTT:       3.512,
+						RTT:       0.003512345,
 						Reachable: true,
 					},
 				},
@@ -123,26 +136,39 @@ func TestProcessResults(t *testing.T) {
 			protocol:         payload.ProtocolTCP,
 			hname:            "test-hostname",
 			destinationHost:  "test-destination-hostname",
-			inputResults: &common.Results{
-				Source:     net.ParseIP("10.0.0.5"),
-				SourcePort: 12345,
-				Target:     net.ParseIP("8.8.8.8"),
-				DstPort:    443, // computer port or Boca Raton, FL?
-				Hops: []*common.Hop{
-					{
-						IP:       net.ParseIP("10.0.0.1"),
-						ICMPType: 11,
-						ICMPCode: 0,
-						RTT:      1000000, // 1ms
-					},
-					{
-						IP: net.IP{},
-					},
-					{
-						IP:       net.ParseIP("172.0.0.255"),
-						ICMPType: 11,
-						ICMPCode: 0,
-						RTT:      40000000, // 40ms
+			inputResults: &result.Results{
+				Params: result.Params{
+					Port: 443,
+				},
+				Traceroute: result.Traceroute{
+					Runs: []result.TracerouteRun{
+						{
+							Source: result.TracerouteSource{
+								IP:   net.ParseIP("10.0.0.5"),
+								Port: 12345,
+							},
+							Destination: result.TracerouteDestination{
+								IP:   net.ParseIP("8.8.8.8"),
+								Port: 443, // computer port or Boca Raton, FL?
+							},
+							Hops: []*result.TracerouteHop{
+								{
+									IP:       net.ParseIP("10.0.0.1"),
+									ICMPType: 11,
+									ICMPCode: 0,
+									RTT:      0.001, // 1ms
+								},
+								{
+									IP: net.IP{},
+								},
+								{
+									IP:       net.ParseIP("172.0.0.255"),
+									ICMPType: 11,
+									ICMPCode: 0,
+									RTT:      0.04, // 40ms
+								},
+							},
+						},
 					},
 				},
 			},
@@ -167,7 +193,7 @@ func TestProcessResults(t *testing.T) {
 						TTL:       1,
 						IPAddress: "10.0.0.1",
 						Hostname:  "10.0.0.1",
-						RTT:       1,
+						RTT:       0.001,
 						Reachable: true,
 					},
 					{
@@ -181,7 +207,7 @@ func TestProcessResults(t *testing.T) {
 						TTL:       3,
 						IPAddress: "172.0.0.255",
 						Hostname:  "172.0.0.255",
-						RTT:       40,
+						RTT:       0.040,
 						Reachable: true,
 					},
 				},
@@ -193,31 +219,44 @@ func TestProcessResults(t *testing.T) {
 			protocol:         payload.ProtocolUDP,
 			hname:            "test-hostname",
 			destinationHost:  "test-destination-hostname",
-			inputResults: &common.Results{
-				Source:     net.ParseIP("10.0.0.5"),
-				SourcePort: 12345,
-				Target:     net.ParseIP("8.8.8.8"),
-				DstPort:    33434, // computer port or Boca Raton, FL?
-				Hops: []*common.Hop{
-					{
-						IP:       net.ParseIP("10.0.0.1"),
-						ICMPType: 11,
-						ICMPCode: 0,
-						RTT:      1000000, // 1ms
-					},
-					{
-						IP: net.IP{},
-					},
-					{
-						IP:       net.ParseIP("172.0.0.255"),
-						ICMPType: 11,
-						ICMPCode: 0,
-						RTT:      80000000, // 80ms
-					},
-					{
-						IP:   net.ParseIP("8.8.8.8"),
-						Port: 443,
-						RTT:  120000000, // 120ms
+			inputResults: &result.Results{
+				Params: result.Params{
+					Port: 33434,
+				},
+				Traceroute: result.Traceroute{
+					Runs: []result.TracerouteRun{
+						{
+							Source: result.TracerouteSource{
+								IP:   net.ParseIP("10.0.0.5"),
+								Port: 12345,
+							},
+							Destination: result.TracerouteDestination{
+								IP:   net.ParseIP("8.8.8.8"),
+								Port: 33434, // computer port or Boca Raton, FL?
+							},
+							Hops: []*result.TracerouteHop{
+								{
+									IP:       net.ParseIP("10.0.0.1"),
+									ICMPType: 11,
+									ICMPCode: 0,
+									RTT:      0.001, // 1ms
+								},
+								{
+									IP: net.IP{},
+								},
+								{
+									IP:       net.ParseIP("172.0.0.255"),
+									ICMPType: 11,
+									ICMPCode: 0,
+									RTT:      0.08, // 80ms
+								},
+								{
+									IP:   net.ParseIP("8.8.8.8"),
+									Port: 443,
+									RTT:  0.120,
+								},
+							},
+						},
 					},
 				},
 			},
@@ -242,7 +281,7 @@ func TestProcessResults(t *testing.T) {
 						TTL:       1,
 						IPAddress: "10.0.0.1",
 						Hostname:  "10.0.0.1",
-						RTT:       1,
+						RTT:       0.001,
 						Reachable: true,
 					},
 					{
@@ -256,14 +295,14 @@ func TestProcessResults(t *testing.T) {
 						TTL:       3,
 						IPAddress: "172.0.0.255",
 						Hostname:  "172.0.0.255",
-						RTT:       80,
+						RTT:       0.08,
 						Reachable: true,
 					},
 					{
 						TTL:       4,
 						IPAddress: "8.8.8.8",
 						Hostname:  "8.8.8.8",
-						RTT:       120,
+						RTT:       0.12,
 						Reachable: true,
 					},
 				},
@@ -290,7 +329,7 @@ func TestProcessResults(t *testing.T) {
 			}
 			dstPort := uint16(0)
 			if test.inputResults != nil {
-				dstPort = test.inputResults.DstPort
+				dstPort = uint16(test.inputResults.Params.Port)
 			}
 			actual, err := runner.processResults(test.inputResults, test.protocol, test.hname, test.destinationHost, dstPort)
 			if test.errMsg != "" {
@@ -311,23 +350,23 @@ func TestProcessResults(t *testing.T) {
 }
 
 func neverCalled(t *testing.T) tracerouteImpl {
-	return func() (*common.Results, error) {
+	return func() (*result.Results, error) {
 		t.Fatal("should not call this")
 		return nil, fmt.Errorf("should not call this")
 	}
 }
 
 func TestTCPFallback(t *testing.T) {
-	dummySyn := &common.Results{}
-	dummySack := &common.Results{}
+	dummySyn := &result.Results{}
+	dummySack := &result.Results{}
 	dummyErr := fmt.Errorf("test error")
 	dummySackUnsupportedErr := &sack.NotSupportedError{
 		Err: fmt.Errorf("dummy sack unsupported"),
 	}
-	dummySynSocket := &common.Results{}
+	dummySynSocket := &result.Results{}
 
 	t.Run("force SYN", func(t *testing.T) {
-		doSyn := func() (*common.Results, error) {
+		doSyn := func() (*result.Results, error) {
 			return dummySyn, nil
 		}
 		doSack := neverCalled(t)
@@ -337,7 +376,7 @@ func TestTCPFallback(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, dummySyn, results)
 
-		doSyn = func() (*common.Results, error) {
+		doSyn = func() (*result.Results, error) {
 			return nil, dummyErr
 		}
 		// error case
@@ -348,7 +387,7 @@ func TestTCPFallback(t *testing.T) {
 
 	t.Run("force SACK", func(t *testing.T) {
 		doSyn := neverCalled(t)
-		doSack := func() (*common.Results, error) {
+		doSack := func() (*result.Results, error) {
 			return dummySack, nil
 		}
 		doSynSocket := neverCalled(t)
@@ -357,7 +396,7 @@ func TestTCPFallback(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, dummySack, results)
 
-		doSack = func() (*common.Results, error) {
+		doSack = func() (*result.Results, error) {
 			return nil, dummyErr
 		}
 		// error case
@@ -368,7 +407,7 @@ func TestTCPFallback(t *testing.T) {
 
 	t.Run("prefer SACK - only running sack", func(t *testing.T) {
 		doSyn := neverCalled(t)
-		doSack := func() (*common.Results, error) {
+		doSack := func() (*result.Results, error) {
 			return dummySack, nil
 		}
 		doSynSocket := neverCalled(t)
@@ -377,7 +416,7 @@ func TestTCPFallback(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, dummySack, results)
 
-		doSack = func() (*common.Results, error) {
+		doSack = func() (*result.Results, error) {
 			return nil, dummyErr
 		}
 		// error case (sack encounters a fatal error and does not fall back to SYN)
@@ -387,10 +426,10 @@ func TestTCPFallback(t *testing.T) {
 	})
 
 	t.Run("prefer SACK - fallback case", func(t *testing.T) {
-		doSyn := func() (*common.Results, error) {
+		doSyn := func() (*result.Results, error) {
 			return dummySyn, nil
 		}
-		doSack := func() (*common.Results, error) {
+		doSack := func() (*result.Results, error) {
 			// cause a fallback because the target doesn't support SACK
 			return nil, dummySackUnsupportedErr
 		}
@@ -400,7 +439,7 @@ func TestTCPFallback(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, dummySyn, results)
 
-		doSyn = func() (*common.Results, error) {
+		doSyn = func() (*result.Results, error) {
 			return nil, dummyErr
 		}
 		// error case
@@ -412,7 +451,7 @@ func TestTCPFallback(t *testing.T) {
 	t.Run("force SYN socket", func(t *testing.T) {
 		doSyn := neverCalled(t)
 		doSack := neverCalled(t)
-		doSynSocket := func() (*common.Results, error) {
+		doSynSocket := func() (*result.Results, error) {
 			return dummySynSocket, nil
 		}
 		// success case
@@ -420,7 +459,7 @@ func TestTCPFallback(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, dummySynSocket, results)
 
-		doSynSocket = func() (*common.Results, error) {
+		doSynSocket = func() (*result.Results, error) {
 			return nil, dummyErr
 		}
 		// error case

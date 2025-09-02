@@ -10,12 +10,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-traceroute/udp"
 	"math/rand"
 	"net"
 	"net/netip"
 	"slices"
 	"time"
+
+	"github.com/DataDog/datadog-traceroute/udp"
 
 	"github.com/DataDog/datadog-traceroute/common"
 	"github.com/DataDog/datadog-traceroute/icmp"
@@ -355,6 +356,8 @@ func (r *Runner) processResults(res *result.Results, protocol payload.Protocol, 
 		tracerouteRun := res.Traceroute.Runs[0]
 		traceroutePath.Destination.IPAddress = tracerouteRun.Destination.IP.String()
 
+		fmt.Println("tracerouteRun.Destination.IP.String():", tracerouteRun.Destination.IP.String())
+
 		// get hardware interface info
 		//
 		// TODO: using a gateway lookup may be a more performant
@@ -395,6 +398,9 @@ func (r *Runner) processResults(res *result.Results, protocol payload.Protocol, 
 
 	}
 
+	fmt.Println("destinationPort:", destinationPort)
+	fmt.Println("traceroutePath.Destination.IPAddress:", traceroutePath.Destination.IPAddress)
+	fmt.Println("traceroutePath.Destination.Port:", traceroutePath.Destination.Port)
 	return traceroutePath, nil
 }
 
