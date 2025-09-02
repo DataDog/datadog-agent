@@ -54,7 +54,7 @@ func TestNewTargetMutator(t *testing.T) {
 			wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 				fx.Supply(coreconfig.Params{}),
 				fx.Provide(func() log.Component { return logmock.New(t) }),
-				coreconfig.MockModule(),
+				fx.Provide(func() coreconfig.Component { return coreconfig.NewMock(t) }),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			))
 
@@ -177,7 +177,7 @@ func TestMutatePod(t *testing.T) {
 			wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 				fx.Supply(coreconfig.Params{}),
 				fx.Provide(func() log.Component { return logmock.New(t) }),
-				coreconfig.MockModule(),
+				fx.Provide(func() coreconfig.Component { return coreconfig.NewMock(t) }),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			))
 
@@ -282,7 +282,7 @@ func TestShouldMutatePod(t *testing.T) {
 			wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 				fx.Supply(coreconfig.Params{}),
 				fx.Provide(func() log.Component { return logmock.New(t) }),
-				coreconfig.MockModule(),
+				fx.Provide(func() coreconfig.Component { return coreconfig.NewMock(t) }),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			))
 
@@ -368,7 +368,7 @@ func TestIsNamespaceEligible(t *testing.T) {
 			wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 				fx.Supply(coreconfig.Params{}),
 				fx.Provide(func() log.Component { return logmock.New(t) }),
-				coreconfig.MockModule(),
+				fx.Provide(func() coreconfig.Component { return coreconfig.NewMock(t) }),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			))
 
@@ -439,7 +439,7 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 			wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 				fx.Supply(coreconfig.Params{}),
 				fx.Provide(func() log.Component { return logmock.New(t) }),
-				coreconfig.MockModule(),
+				fx.Provide(func() coreconfig.Component { return coreconfig.NewMock(t) }),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			))
 
@@ -694,7 +694,7 @@ func TestGetTargetLibraries(t *testing.T) {
 			wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 				fx.Supply(coreconfig.Params{}),
 				fx.Provide(func() log.Component { return logmock.New(t) }),
-				coreconfig.MockModule(),
+				fx.Provide(func() coreconfig.Component { return coreconfig.NewMock(t) }),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			))
 

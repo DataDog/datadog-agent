@@ -5,6 +5,7 @@ Provides functions to interact with the API and also helpers to manipulate and r
 
 from __future__ import annotations
 
+import glob
 import json
 import os
 import platform
@@ -998,7 +999,7 @@ def read_includes(ctx, yaml_files, includes=None, return_config=False, add_file_
     if isinstance(yaml_files, str):
         yaml_files = [yaml_files]
 
-    for yaml_file in yaml_files:
+    for yaml_file in [f for p in yaml_files for f in glob.glob(p, recursive=True)]:
         current_file = read_content(ctx, yaml_file, git_ref=git_ref)
 
         if add_file_path:
