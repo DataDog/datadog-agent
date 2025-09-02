@@ -703,11 +703,10 @@ func extractResources(spec *kubelet.ContainerSpec) workloadmeta.ContainerResourc
 		resources.MemoryLimit = kubernetes.FormatMemoryRequests(memoryLimit)
 	}
 
-	if cpuLimit, found := spec.Resources.Limits[kubelet.ResourceCPU]; found {
-		if cpuReq, found := spec.Resources.Requests[kubelet.ResourceCPU]; found {
-			if cpuReq == cpuLimit && cpuReq.MilliValue()%1000 == 0 {
-				resources.GuaranteedWholeCore = pointer.Ptr(true)
-			}
+	// Check if the CPU Requested is a whole core or cores
+	if cpuReq, found := spec.Resources.Requests[kubelet.ResourceCPU]; found {
+		if cpuReq.MilliValue()%1000 == 0 {
+			resources.RequestedWholeCores = pointer.Ptr(true)
 		}
 	}
 
