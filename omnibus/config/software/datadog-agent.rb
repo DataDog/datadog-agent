@@ -7,7 +7,7 @@ require './lib/ostools.rb'
 require './lib/project_helpers.rb'
 require 'pathname'
 
-require Omnibus::Logging
+require 'omnibus/logging'
 
 name 'datadog-agent'
 
