@@ -478,6 +478,14 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 			}
 			return nil, pos, NewOpUnknownError(obj.Pos, *obj.Op)
 		}
+
+		if cmpBool, ok := cmp.(*BoolEvaluator); ok {
+			cmp, err = Unary(cmpBool, state)
+			if err != nil {
+				return nil, obj.Pos, err
+			}
+		}
+
 		return cmp, obj.Pos, nil
 	case *ast.BitOperation:
 		unary, pos, err = nodeToEvaluator(obj.Unary, opts, state)
