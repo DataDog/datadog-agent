@@ -238,6 +238,7 @@ func setupGPUIntegration(s *common.Setup) {
 
 	s.Config.DatadogYAML.CollectGPUTags = true
 	s.Config.DatadogYAML.GPUCheck.Enabled = true
+	s.Config.DatadogYAML.EnableNvmlDetection = true
 
 	if s.Config.SystemProbeYAML == nil {
 		s.Config.SystemProbeYAML = &config.SystemProbeConfig{}
