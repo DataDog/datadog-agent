@@ -192,7 +192,9 @@ func (c *Concentrator) Flush(force bool) *pb.StatsPayload {
 
 func (c *Concentrator) flushNow(now int64, force bool) *pb.StatsPayload {
 	sb := c.spanConcentrator.Flush(now, force)
-	return &pb.StatsPayload{Stats: sb, AgentHostname: c.agentHostname, AgentEnv: c.agentEnv, AgentVersion: c.agentVersion}
+	ret := &pb.StatsPayload{Stats: sb, AgentHostname: c.agentHostname, AgentEnv: c.agentEnv, AgentVersion: c.agentVersion}
+	log.Debug("Flushed stats: %+v", ret)
+	return ret
 }
 
 // alignTs returns the provided timestamp truncated to the bucket size.
