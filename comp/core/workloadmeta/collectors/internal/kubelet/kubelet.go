@@ -14,7 +14,6 @@ import (
 	stdErrors "errors"
 	"slices"
 	"strings"
-	"sync"
 	"time"
 
 	"go.uber.org/fx"
@@ -59,7 +58,6 @@ type collector struct {
 	lastSeenContainerIDs map[string]time.Time
 
 	// These fields are used to pull the kubelet config
-	kubeletConfigOnce       sync.Once // used to pull the kubelet config once at the first pull
 	kubeletConfigLastExpire time.Time
 
 	// usePodWatcher indicates whether to use the pod watcher for collecting
@@ -146,7 +144,7 @@ func (c *collector) pullKubeletConfig(ctx context.Context) (workloadmeta.Collect
 			EntityMeta: workloadmeta.EntityMeta{
 				Name: workloadmeta.KubeletName,
 			},
-			Config: config,
+			ConfigDocument: config,
 		},
 	}, nil
 }
@@ -154,17 +152,20 @@ func (c *collector) pullKubeletConfig(ctx context.Context) (workloadmeta.Collect
 func (c *collector) pullFromKubelet(ctx context.Context) error {
 	events := []workloadmeta.CollectorEvent{}
 
-	// Pull the kubelet config once at the first pull because its interval is long
-	c.kubeletConfigOnce.Do(func() {
-		configEvent, err := c.pullKubeletConfig(ctx)
-		if err == nil {
-			events = append(events, configEvent)
-		}
-	})
-
 	podList, err := c.kubeUtil.GetLocalPodList(ctx)
 	if err != nil {
 		return err
+	}
+
+	// Pull the kubelet config every kubeletConfigExpireFreq
+	// This needs to be before the pod list
+	if time.Since(c.kubeletConfigLastExpire) > kubeletConfigExpireFreq {
+		configEvent, err := c.pullKubeletConfig(ctx)
+		if err == nil {
+			events = append(events, configEvent)
+			// only update last expiry if the config was successfully retrieved
+			c.kubeletConfigLastExpire = time.Now()
+		}
 	}
 
 	events = append(events, parsePods(podList, c.collectEphemeralContainers)...)
@@ -184,15 +185,6 @@ func (c *collector) pullFromKubelet(ctx context.Context) error {
 
 	expireEvents := c.eventsForExpiredEntities(now)
 	events = append(events, expireEvents...)
-
-	// Pull the kubelet config every kubeletConfigExpireFreq
-	if time.Since(c.kubeletConfigLastExpire) > kubeletConfigExpireFreq {
-		configEvent, err := c.pullKubeletConfig(ctx)
-		if err == nil {
-			events = append(events, configEvent)
-		}
-		c.kubeletConfigLastExpire = time.Now()
-	}
 
 	c.store.Notify(events)
 

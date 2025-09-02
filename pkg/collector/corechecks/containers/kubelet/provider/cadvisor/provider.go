@@ -181,9 +181,9 @@ func (p *Provider) processContainerMetric(metricType, metricName string, metricF
 				if pod.QOSClass == "Guaranteed" &&
 					requestedWholeCores &&
 					cpuManagerPolicy == "static" {
-					tags = utils.ConcatenateStringTags(tags, "kube_cpu_management:static")
+					tags = utils.ConcatenateStringTags(tags, "kube_requested_cpu_management:static")
 				} else {
-					tags = utils.ConcatenateStringTags(tags, "kube_cpu_management:none")
+					tags = utils.ConcatenateStringTags(tags, "kube_requested_cpu_management:none")
 				}
 			}
 		}

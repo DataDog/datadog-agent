@@ -163,9 +163,9 @@ func (p *Provider) generateContainerSpecMetrics(sender sender.Sender, pod *kubel
 			if pod.Status.QOSClass == "Guaranteed" &&
 				requestedWholeCores &&
 				cpuManagerPolicy == "static" {
-				tagList = utils.ConcatenateStringTags(tagList, "kube_cpu_management:static")
+				tagList = utils.ConcatenateStringTags(tagList, "kube_requested_cpu_management:static")
 			} else {
-				tagList = utils.ConcatenateStringTags(tagList, "kube_cpu_management:none")
+				tagList = utils.ConcatenateStringTags(tagList, "kube_requested_cpu_management:none")
 			}
 		}
 
