@@ -38,6 +38,7 @@ MINOR_RC_VERSION_RE = re.compile(r'^\d+[.]\d+[.]0-rc\.\d+$')
 DESCRIBE_PATTERN = re.compile(r"^.*-(?P<commit_number>\d+)-g[0-9a-f]+$")
 
 RELEASE_JSON_DEPENDENCIES = "dependencies"
+RELEASE_JSON_DATE = "release_date"
 
 
 def build_compatible_version_re(allowed_major_versions, minor_version):

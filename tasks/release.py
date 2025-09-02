@@ -12,7 +12,7 @@ import sys
 import tempfile
 import time
 from collections import defaultdict
-from datetime import date
+from datetime import date, datetime
 from time import sleep
 
 from gitlab import GitlabError
@@ -293,16 +293,30 @@ def tag_devel(ctx, release_branch, commit="HEAD", push=True, force=False):
 
 
 @task
-def finish(ctx, release_branch, upstream="origin"):
+def finish(ctx, release_branch, release_date=None, upstream="origin"):
     """Updates the release.json file for the new version.
+
+    Args:
+        release_branch: ...
+        release_date: Date when the release was done. Expected format YYYY-MM-DD, like '2022-09-15'. (default: today's date)
+        upstream: ... (default: "origin")
 
     Updates internal module dependencies with the new version.
     """
+    release_date_fmt = "%Y-%m-%d"
 
     # Step 1: Preparation
+    try:
+        if not release_date:
+            release_date = datetime.today()
+        else:
+            release_date = datetime.strptime(release_date, release_date_fmt)
+        release_date = release_date.strftime(release_date_fmt)
+    except ValueError as e:
+        raise ValueError(f"Invalid date - `{release_date}`. Expected date to be in format YYYY-MM-DD.")
 
     major_version = get_version_major(release_branch)
-    print(f"Finishing release for major version {major_version}")
+    print(f"Finishing release for major version {major_version} on {release_date}")
 
     with agent_context(ctx, release_branch):
         # NOTE: the release process assumes that at least one RC
@@ -317,7 +331,7 @@ def finish(ctx, release_branch, upstream="origin"):
             f'Do you want to finish the release with version {new_version}?', color="bold", default=False
         ):
             raise Exit(color_message("Aborting.", "red"), code=1)
-        update_release_json(new_version, new_version)
+        update_release_json(new_version, new_version, release_date)
 
         next_milestone = next_final_version(ctx, release_branch, True)
         next_milestone = next_milestone.next_version(bump_patch=True)
