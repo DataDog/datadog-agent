@@ -39,7 +39,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.69.2
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.69.2
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.69.2
-	github.com/DataDog/datadog-go/v5 v5.6.0
+	github.com/DataDog/datadog-go/v5 v5.7.1
 	// TODO: pin to an operator released version once there is a release that includes the api module
 	github.com/DataDog/datadog-operator/api v0.0.0-20250417130148-1aa8dc0fc964
 	github.com/DataDog/datadog-traceroute v0.1.1
