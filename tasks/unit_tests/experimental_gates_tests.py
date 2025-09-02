@@ -188,9 +188,7 @@ class TestInPlacePackageMeasurer(unittest.TestCase):
         # Mock the optimized extraction and analysis method
         with patch.object(self.measurer._measurer.processor, 'measure_artifact') as mock_measure_artifact:
             # Create mock measurement
-            _ = ArtifactMeasurement(
-                artifact_path="/path/to/package.deb", on_wire_size=100000, on_disk_size=500000
-            )
+            _ = ArtifactMeasurement(artifact_path="/path/to/package.deb", on_wire_size=100000, on_disk_size=500000)
 
             # Create mock file inventory
             mock_file_inventory = [
