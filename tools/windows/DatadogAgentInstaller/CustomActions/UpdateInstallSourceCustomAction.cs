@@ -32,7 +32,7 @@ namespace Datadog.CustomActions
             var fleetInstall = session.Property("FLEET_INSTALL");
             if (!string.IsNullOrEmpty(fleetInstall) && fleetInstall == "1")
             {
-                session.Log("Skipping installer setup as this is a FLEET install.");
+                session.Log("Skipping install source update as this is a FLEET install.");
                 return ActionResult.Success;
             }
             // verify that msiPath is a valid path

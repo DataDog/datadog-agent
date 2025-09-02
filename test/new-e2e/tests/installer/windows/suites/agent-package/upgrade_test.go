@@ -568,8 +568,8 @@ func (s *testAgentUpgradeSuite) TestUpgradeWithLocalSystemUser() {
 		WithIdentity(identity)
 }
 
-// TestContinueExperimentAfter1612Error tests that an experiment will continue after a 1612 error
-func (s *testAgentUpgradeSuite) TestContinueExperimentAfter1612Error() {
+// TestDowngradeWithMissingInstallSource tests that a downgrade will succeed even if the original install source is missing
+func (s *testAgentUpgradeSuite) TestDowngradeWithMissingInstallSource() {
 	// Arrange
 	s.setAgentConfig()
 	s.installCurrentAgentVersion()
@@ -802,10 +802,33 @@ func (s *testAgentUpgradeSuite) setExperimentMSIArgs(args []string) {
 	s.Require().NoError(err)
 }
 
-// removeWindowsInstallerCache clears the Windows Installer directory
-// This will allow us to induce a 1612 error when running an experiment
+// removeWindowsInstallerCache clears the Windows Installer cache and install sources
 func (s *testAgentUpgradeSuite) removeWindowsInstallerCache() {
-	stdout, err := s.Env().RemoteHost.Execute("Remove-Item -Path C:\\Windows\\Installer\\* -Recurse -Force")
+	_, err := s.Env().RemoteHost.Execute("Remove-Item -Path C:\\Windows\\Installer\\* -Recurse -Force")
 	s.Require().NoError(err)
-	s.T().Logf("Removed Windows Installer cache: %s", stdout)
+	s.T().Logf("Removed Windows Installer cache")
+
+	// Remove the MSI URL Install Source
+	compressedProductCode, err := s.Env().RemoteHost.Execute("(@(Get-ChildItem -Path 'HKLM:SOFTWARE\\Classes\\Installer\\Products' -Recurse) | Where {$_.GetValue('ProductName') -like 'Datadog Agent' }).PSChildName")
+	s.Require().NoError(err)
+	s.T().Logf("Compressed Product Code: %s", compressedProductCode)
+
+	registryKey := "Registry::HKEY_CLASSES_ROOT\\Installer\\Products\\" + compressedProductCode + "\\SourceList\\URL"
+	s.T().Logf("Registry Key: %s", registryKey)
+	exists, err := windowscommon.RegistryKeyExists(s.Env().RemoteHost, registryKey)
+	s.Require().NoError(err)
+	if exists {
+		{
+			err = windowscommon.DeleteRegistryKey(s.Env().RemoteHost, registryKey)
+			s.Require().NoError(err)
+			s.T().Logf("Removed MSI URL Install Source")
+		}
+
+	}
+
+	registryKey = "Registry::HKEY_CLASSES_ROOT\\Installer\\Products\\" + compressedProductCode + "\\SourceList\\Net"
+	err = windowscommon.SetTypedRegistryValue(s.Env().RemoteHost, registryKey, "2", "C:\\Windows\\FakePath", "ExpandString")
+	s.Require().NoError(err)
+	s.T().Logf("Set Fake MSI Install Source")
+
 }
