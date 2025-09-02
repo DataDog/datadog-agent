@@ -173,7 +173,7 @@ func (p *Provider) processContainerMetric(metricType, metricName string, metricF
 				cpuManagerPolicy := wmetaKubelet.ConfigDocument.KubeletConfig.CPUManagerPolicy
 				container, _ := p.store.GetContainer(cID.GetID())
 
-				var requestedWholeCores bool
+				requestedWholeCores := false
 				if container.Resources.RequestedWholeCores != nil {
 					requestedWholeCores = *container.Resources.RequestedWholeCores
 				}

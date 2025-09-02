@@ -156,7 +156,7 @@ func (p *Provider) generateContainerSpecMetrics(sender sender.Sender, pod *kubel
 			cpuManagerPolicy := wmetaKubelet.ConfigDocument.KubeletConfig.CPUManagerPolicy
 			wmetaContainer, _ := p.store.GetContainer(containerID.GetID())
 
-			var requestedWholeCores bool
+			requestedWholeCores := false
 			if wmetaContainer.Resources.RequestedWholeCores != nil {
 				requestedWholeCores = *wmetaContainer.Resources.RequestedWholeCores
 			}
