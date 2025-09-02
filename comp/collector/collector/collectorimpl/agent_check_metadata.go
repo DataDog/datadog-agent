@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
+	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	jmxStatus "github.com/DataDog/datadog-agent/pkg/status/jmx"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -31,7 +32,7 @@ import (
 //
 
 const (
-	defaultInterval   = 10 * time.Minute
+	defaultInterval   = 1 * time.Minute
 	firstPayloadDelay = 1 * time.Minute
 )
 
@@ -129,9 +130,26 @@ func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
 
 	stats := map[string]interface{}{}
 	jmxStatus.PopulateStatus(stats)
+	instanceConfByName := map[string]map[interface{}]interface{}{}
+	for _, config := range jmxfetch.GetScheduledConfigs() {
+		for _, instance := range config.Instances {
+			instanceconfig := map[interface{}]interface{}{}
+			err := yaml.Unmarshal(instance, &instanceconfig)
+			if err != nil {
+				log.Errorf("invalid instance section: %s", err)
+				continue
+			}
+			instanceConfByName[instanceconfig["name"].(string)] = instanceconfig
+		}
+	}
 	if _, ok := stats["JMXStatus"]; ok {
 		if status, ok := stats["JMXStatus"].(jmxStatus.Status); ok {
 			for checkName, checksRaw := range status.ChecksStatus.InitializedChecks {
+				if config, ok := instanceConfByName[checkName]; ok {
+					if tagsNode, ok := config["tags"]; ok {
+						log.Infof("JMX Tags: %v", tagsNode)
+					}
+				}
 				checks, ok := checksRaw.([]interface{})
 				if !ok {
 					continue
