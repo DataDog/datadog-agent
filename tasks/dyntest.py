@@ -38,6 +38,7 @@ def evaluate_index(ctx: Context, bucket_uri: str, commit_sha: str, pipeline_id: 
         print("Failed to initialize index")
         return
     changes = get_modified_files(ctx)
+    print("Changes:", changes)
     results = evaluator.evaluate([os.path.dirname(change) for change in changes])
     evaluator.print_summary(results)
     evaluator.send_stats_to_datadog(results)
