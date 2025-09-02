@@ -111,7 +111,7 @@ type NetworkPathHop struct {
 	// TODO (separate PR): we might want to rename it to reverse_dns_hostname for consistency with destination.reverse_dns_hostname
 	Hostname string `json:"hostname,omitempty"`
 
-	RTT       float64 `json:"rtt,omitempty"` // seconds float
+	RTT       float64 `json:"rtt,omitempty"`
 	Reachable bool    `json:"reachable"`
 }
 
