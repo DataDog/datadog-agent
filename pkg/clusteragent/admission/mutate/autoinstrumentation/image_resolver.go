@@ -219,6 +219,8 @@ func (r *remoteConfigImageResolver) updateCacheFromParsedConfigs(validConfigs ma
 func (r *remoteConfigImageResolver) processUpdate(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	validConfigs, errors := parseAndValidateConfigs(update)
 
+	r.updateCacheFromParsedConfigs(validConfigs)
+
 	for configKey := range update {
 		if err, hasError := errors[configKey]; hasError {
 			applyStateCallback(configKey, state.ApplyStatus{
@@ -231,7 +233,6 @@ func (r *remoteConfigImageResolver) processUpdate(update map[string]state.RawCon
 			})
 		}
 	}
-	r.updateCacheFromParsedConfigs(validConfigs)
 }
 
 // ImageInfo represents information about an image from remote configuration.
