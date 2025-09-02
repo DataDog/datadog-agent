@@ -3,21 +3,17 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux && trivy && containerd && docker && crio
+//go:build linux && trivy
 
 // Package main holds sbomgen code
 package main
 
 import (
-	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"os"
 	"runtime/pprof"
-	"strings"
 
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/spf13/cobra"
 )
 
@@ -70,75 +66,7 @@ func main() {
 	}
 	rootCmd.AddCommand(fsCmd)
 
-	var dockerCmd = &cobra.Command{
-		Use:  "docker",
-		Args: cobra.MinimumNArgs(1),
-		RunE: func(_ *cobra.Command, args []string) error {
-			metaPath := args[0]
-			imageMeta, err := unmarshalImageMetadata(metaPath)
-			if err != nil {
-				return err
-			}
-			return runScanDocker(imageMeta, analyzers, fast)
-		},
-	}
-	rootCmd.AddCommand(dockerCmd)
-
-	var containerdStrategy string
-	var containerdCmd = &cobra.Command{
-		Use:  "containerd",
-		Args: cobra.MinimumNArgs(1),
-		RunE: func(_ *cobra.Command, args []string) error {
-			metaPath := args[0]
-			imageMeta, err := unmarshalImageMetadata(metaPath)
-			if err != nil {
-				return err
-			}
-			return runScanContainerd(imageMeta, analyzers, fast, containerdStrategy)
-		},
-	}
-	containerdCmd.Flags().StringVar(&containerdStrategy, "strategy", "image", "strategy to use (mount, overlayfs or image)")
-	rootCmd.AddCommand(containerdCmd)
-
-	var crioCmd = &cobra.Command{
-		Use:  "crio",
-		Args: cobra.MinimumNArgs(1),
-		RunE: func(_ *cobra.Command, args []string) error {
-			metaPath := args[0]
-			imageMeta, err := unmarshalImageMetadata(metaPath)
-			if err != nil {
-				return err
-			}
-			return runScanCrio(imageMeta, analyzers, fast)
-		},
-	}
-	rootCmd.AddCommand(crioCmd)
-
 	if err := rootCmd.Execute(); err != nil {
 		panic(err)
 	}
-}
-
-func unmarshalImageMetadata(metaPath string) (*workloadmeta.ContainerImageMetadata, error) {
-	if metaPath == "" {
-		return nil, errors.New("path/image meta is required")
-	}
-
-	var metaContent []byte
-	if strings.HasPrefix(metaPath, "@") {
-		content, err := os.ReadFile(metaPath)
-		if err != nil {
-			return nil, fmt.Errorf("error reading image metadata: %w", err)
-		}
-		metaContent = content
-	} else {
-		metaContent = []byte(metaPath)
-	}
-
-	var imageMeta workloadmeta.ContainerImageMetadata
-	if err := json.Unmarshal(metaContent, &imageMeta); err != nil {
-		return nil, fmt.Errorf("error unmarshalling image metadata: %w", err)
-	}
-
-	return &imageMeta, nil
 }
