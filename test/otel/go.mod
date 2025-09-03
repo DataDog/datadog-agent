@@ -13,7 +13,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor v0.61.0
 	github.com/DataDog/datadog-agent/pkg/config/model v0.69.2
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.69.2
-	github.com/DataDog/datadog-agent/pkg/proto v0.70.0-devel
+	github.com/DataDog/datadog-agent/pkg/proto v0.71.0-devel
 	github.com/DataDog/datadog-agent/pkg/trace v0.71.0-devel.0.20250820164444-fcef12608466
 	github.com/DataDog/datadog-agent/pkg/util/compression v0.69.2
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.133.0
@@ -48,21 +48,21 @@ require (
 )
 
 require (
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.31.0 // indirect
-	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.31.0 // indirect
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.32.1-0.20250821132738-c5054d91ff21 // indirect
 	github.com/hashicorp/go-version v1.7.0 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
 	go.opentelemetry.io/collector/featuregate v1.39.0 // indirect
 )
 
 require (
+	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
 	github.com/pierrec/lz4/v4 v4.1.22 // indirect
 	go.opentelemetry.io/collector/consumer/consumererror v0.133.0 // indirect
 	go.opentelemetry.io/collector/pdata/pprofile v0.133.0 // indirect
 )
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.163 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.164 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.69.2 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.69.2 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.0.0-00010101000000-000000000000 // indirect
@@ -96,8 +96,10 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/types v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.63.0-devel.0.20250123185937-1feb84b482c8 // indirect
-	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata v0.0.0-00010101000000-000000000000 // indirect
-	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata v0.71.0-devel.0.20250820180704-be0d2d237646 // indirect
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.71.0-devel.0.20250820180704-be0d2d237646 // indirect
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/logs v0.71.0-devel.0.20250820180704-be0d2d237646 // indirect
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/rum v0.0.0-20250821192546-ef3e102d9554 // indirect
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/serializer v0.69.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.69.2 // indirect
@@ -113,6 +115,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/option v0.69.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/otel v0.64.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.69.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/quantile v0.71.0-devel.0.20250820180704-be0d2d237646 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.69.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/startstop v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.64.0-rc.3 // indirect
@@ -122,10 +125,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/version v0.69.2 // indirect
 	github.com/DataDog/datadog-api-client-go/v2 v2.44.0 // indirect
 	github.com/DataDog/datadog-go/v5 v5.6.0 // indirect
-	github.com/DataDog/go-sqllexer v0.1.6 // indirect
-	github.com/DataDog/go-tuf v1.1.0-0.5.2 // indirect
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.31.0 // indirect
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.31.0 // indirect
+	github.com/DataDog/go-sqllexer v0.1.6 // indirect; indirectom/DataDog/go-tuf v1.1.1-0.5.2 // indirect
 	github.com/DataDog/sketches-go v1.4.7 // indirect
 	github.com/DataDog/viper v1.14.1-0.20250612143030-1b15c8822ed4 // indirect
 	github.com/DataDog/zstd v1.5.6 // indirect

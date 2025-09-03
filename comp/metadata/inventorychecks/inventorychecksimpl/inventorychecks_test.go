@@ -43,8 +43,7 @@ func getTestInventoryChecks(t *testing.T, coll option.Option[collector.Component
 		fxutil.Test[dependencies](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
-			config.MockModule(),
-			fx.Replace(config.MockParams{Overrides: overrides}),
+			fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, overrides) }),
 			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
 			fx.Provide(func() option.Option[collector.Component] {
 				return coll

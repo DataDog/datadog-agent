@@ -19,7 +19,6 @@ import (
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
-	"github.com/DataDog/datadog-agent/pkg/util/funcs"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -99,12 +98,12 @@ func (sc *streamCollection) getStream(header *gpuebpf.CudaEventHeader) (*StreamH
 
 func (sc *streamCollection) getGlobalStream(header *gpuebpf.CudaEventHeader) (*StreamHandler, error) {
 	pid, tid := getPidTidFromHeader(header)
-	memoizedContainerID := sc.memoizedContainerID(header)
+	cacher := sc.getHeaderContainerCache(header)
 
 	// Global streams depend on which GPU is active when they are used, so we need to get the current active GPU device
 	// The expensive step here is the container ID parsing, but we don't always need to do it so we pass a function
 	// that can be called to retrieve it only when needed
-	device, err := sc.sysCtx.getCurrentActiveGpuDevice(int(pid), int(tid), memoizedContainerID)
+	device, err := sc.sysCtx.getCurrentActiveGpuDevice(int(pid), int(tid), cacher.containerID)
 	if err != nil {
 		sc.telemetry.missingDevices.Inc()
 		return nil, err
@@ -124,8 +123,7 @@ func (sc *streamCollection) getGlobalStream(header *gpuebpf.CudaEventHeader) (*S
 
 	// There is no race condition here on the check + create, because there is only one thread (consumer thread)
 	// that calls this code and can create streams.
-
-	stream, err := sc.createStreamHandler(header, device, memoizedContainerID)
+	stream, err := sc.createStreamHandler(header, device, cacher.containerID)
 	if err != nil {
 		return nil, fmt.Errorf("error creating global stream: %w", err)
 	}
@@ -155,7 +153,8 @@ func (sc *streamCollection) getNonGlobalStream(header *gpuebpf.CudaEventHeader) 
 	// only one goroutine (the one from cudaEventConsumer) that calls this code
 	// and can create streams.
 
-	stream, err := sc.createStreamHandler(header, nil, sc.memoizedContainerID(header))
+	cacher := sc.getHeaderContainerCache(header)
+	stream, err := sc.createStreamHandler(header, nil, cacher.containerID)
 	if err != nil {
 		return nil, fmt.Errorf("error creating non-global stream: %w", err)
 	}
@@ -199,27 +198,53 @@ func (sc *streamCollection) createStreamHandler(header *gpuebpf.CudaEventHeader,
 	return newStreamHandler(metadata, sc.sysCtx, sc.streamConfig, sc.telemetry)
 }
 
-// memoizedContainerID returns a function that memoizes the container ID for a given CUDA stream.
-// It's memoized because it's an expensive operation that we don't always need to do.
-func (sc *streamCollection) memoizedContainerID(header *gpuebpf.CudaEventHeader) func() string {
-	return funcs.MemoizeNoErrorUnsafe(func() string {
-		cgroup := unix.ByteSliceToString(header.Cgroup[:])
-		containerID, err := cgroups.ContainerFilter("", cgroup)
-		if err != nil {
-			if logLimitProbe.ShouldLog() {
-				log.Warnf("error getting container ID for cgroup %s: %s", cgroup, err)
-			}
+// headerContainerCache is a cache for the container ID of a CUDA event header.
+// It's used to avoid retrieving the container ID for the same header multiple
+// times. We use this specific implementation instead of MemoizeNoErrorUnsafe
+// because by using it in this way we avoid allocations in the critical path of
+// the consumer. A generic implementation is not an option here as it still
+// generates an allocation.
+type headerContainerCache struct {
+	header            *gpuebpf.CudaEventHeader
+	cachedContainerID string
+	done              bool
+	sc                *streamCollection
+}
 
-			sc.telemetry.missingContainers.Inc("error")
-			return ""
+func (hcc *headerContainerCache) containerID() string {
+	if hcc.done {
+		return hcc.cachedContainerID
+	}
+
+	hcc.cachedContainerID = hcc.sc.getContainerID(hcc.header)
+	hcc.done = true
+	return hcc.cachedContainerID
+}
+
+func (sc *streamCollection) getHeaderContainerCache(header *gpuebpf.CudaEventHeader) headerContainerCache {
+	return headerContainerCache{
+		header: header,
+		sc:     sc,
+	}
+}
+
+func (sc *streamCollection) getContainerID(header *gpuebpf.CudaEventHeader) string {
+	cgroup := unix.ByteSliceToString(header.Cgroup[:])
+	containerID, err := cgroups.ContainerFilter("", cgroup)
+	if err != nil {
+		if logLimitProbe.ShouldLog() {
+			log.Warnf("error getting container ID for cgroup %s: %s", cgroup, err)
 		}
 
-		if containerID == "" {
-			sc.telemetry.missingContainers.Inc("missing")
-		}
+		sc.telemetry.missingContainers.Inc("error")
+		return ""
+	}
 
-		return containerID
-	})
+	if containerID == "" {
+		sc.telemetry.missingContainers.Inc("missing")
+	}
+
+	return containerID
 }
 
 func (sc *streamCollection) allStreams() []*StreamHandler {
