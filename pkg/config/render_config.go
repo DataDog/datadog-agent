@@ -22,7 +22,6 @@ type context struct {
 	Common                           bool
 	Agent                            bool
 	Python                           bool // Sub-option of Agent
-	BothPythonPresent                bool // Sub-option of Agent - Python
 	Metadata                         bool
 	InternalProfiling                bool
 	Dogstatsd                        bool
@@ -98,9 +97,6 @@ func mkContext(buildType string) context {
 
 	switch buildType {
 	case "agent-py3":
-		return agentContext
-	case "agent-py2py3":
-		agentContext.BothPythonPresent = true
 		return agentContext
 	case "iot-agent":
 		return context{

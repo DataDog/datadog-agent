@@ -61,7 +61,6 @@ func Test_telemetrySender(t *testing.T) {
 		ContainerServiceName:       "container-service-name",
 		ContainerServiceNameSource: "service",
 		DDService:                  "dd-service",
-		DDServiceInjected:          true,
 		TracerMetadata: []tracermetadata.TracerMetadata{
 			{ServiceName: "tracer-service-1", RuntimeID: "runtime-id-1"},
 			{ServiceName: "tracer-service-2", RuntimeID: "runtime-id-2"},
@@ -98,7 +97,7 @@ func Test_telemetrySender(t *testing.T) {
 				ContainerServiceName:       "container-service-name",
 				ContainerServiceNameSource: "service",
 				DDService:                  "dd-service",
-				ServiceNameSource:          "injected",
+				ServiceNameSource:          "provided",
 				TracerMetadata: []tracermetadata.TracerMetadata{
 					{ServiceName: "tracer-service-1", RuntimeID: "runtime-id-1"},
 					{ServiceName: "tracer-service-2", RuntimeID: "runtime-id-2"},
@@ -134,7 +133,7 @@ func Test_telemetrySender(t *testing.T) {
 				ContainerServiceName:       "container-service-name",
 				ContainerServiceNameSource: "service",
 				DDService:                  "dd-service",
-				ServiceNameSource:          "injected",
+				ServiceNameSource:          "provided",
 				TracerMetadata: []tracermetadata.TracerMetadata{
 					{ServiceName: "tracer-service-1", RuntimeID: "runtime-id-1"},
 					{ServiceName: "tracer-service-2", RuntimeID: "runtime-id-2"},
@@ -170,7 +169,7 @@ func Test_telemetrySender(t *testing.T) {
 				ContainerServiceName:       "container-service-name",
 				ContainerServiceNameSource: "service",
 				DDService:                  "dd-service",
-				ServiceNameSource:          "injected",
+				ServiceNameSource:          "provided",
 				TracerMetadata: []tracermetadata.TracerMetadata{
 					{ServiceName: "tracer-service-1", RuntimeID: "runtime-id-1"},
 					{ServiceName: "tracer-service-2", RuntimeID: "runtime-id-2"},

@@ -14,7 +14,7 @@ jobs:
       && (
         github.event.action == 'closed'
         || (
-          github.event.action == 'labeled'
+         github.event.action == 'labeled'
           && contains(github.event.label.name, 'backport')
         )
       )
