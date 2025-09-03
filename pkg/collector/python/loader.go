@@ -179,7 +179,7 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 	// all failed, return error for last failure
 	if checkModule == nil || checkClass == nil {
 		log.Debugf("PyLoader returning %s for %s", err, moduleName)
-		return nil, err
+		return nil, fmt.Errorf("unable to load python module %s: %v", name, err)
 	}
 
 	wheelVersion := "unversioned"
@@ -308,39 +308,8 @@ func reportPy3Warnings(checkName string, checkFilePath string) {
 	status := a7TagUnknown
 	metricValue := 0.0
 	if checkFilePath != "" {
-		// __file__ return the .pyc file path
-		if strings.HasSuffix(checkFilePath, ".pyc") {
-			checkFilePath = checkFilePath[:len(checkFilePath)-1]
-		}
-
-		if strings.TrimSpace(pkgconfigsetup.Datadog().GetString("python_version")) == "3" {
-			// the linter used by validatePython3 doesn't work when run from python3
-			status = a7TagPython3
-			metricValue = 1.0
-		} else {
-			// validatePython3 is CPU and memory hungry, make sure we only run one instance of it
-			// at once to avoid CPU and mem usage spikes
-			linterLock.Lock()
-			warnings, err := validatePython3(checkFilePath)
-			linterLock.Unlock()
-
-			if err != nil {
-				status = a7TagUnknown
-				log.Warnf("Failed to validate Python 3 linting for check '%s': '%s'", checkName, err)
-			} else if len(warnings) == 0 {
-				status = a7TagReady
-				metricValue = 1.0
-			} else {
-				status = a7TagNotReady
-				log.Warnf("The Python 3 linter returned warnings for check '%s'. For more details, check the output of the 'status' command or the status page of the Agent GUI).", checkName)
-				statsLock.Lock()
-				defer statsLock.Unlock()
-				for _, warning := range warnings {
-					log.Debug(warning)
-					py3Warnings[checkName] = append(py3Warnings[checkName], warning)
-				}
-			}
-		}
+		status = a7TagPython3
+		metricValue = 1.0
 	}
 
 	// add a serie to the aggregator to be sent on every flush
