@@ -509,9 +509,9 @@ func (cb *CollectorBundle) collectorsForBuiltinCRD(builtinCustomResource builtin
 	crCollectors := make([]collectors.K8sCollector, 0, 10)
 	crs := cb.collectorDiscovery.List(builtinCustomResource.group, builtinCustomResource.version, builtinCustomResource.kind)
 	for _, c := range crs {
-		collector, err := cb.collectorDiscovery.VerifyForCRDInventory(c.Name, c.Version)
+		collector, err := cb.collectorDiscovery.VerifyForCRDInventory(c.Kind, c.GroupVersion)
 		if err != nil {
-			_ = cb.check.Warnf("Unsupported collector: %s/%s: %s", c.Version, c.Name, err)
+			_ = cb.check.Warnf("Unsupported collector: %s/%s: %s", c.GroupVersion, c.Kind, err)
 			continue
 		}
 

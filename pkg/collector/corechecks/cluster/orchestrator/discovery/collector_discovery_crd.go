@@ -29,10 +29,10 @@ type DiscoveryCache struct {
 	CollectorForVersion map[CollectorVersion]struct{}
 }
 
-// CollectorVersion represents a version of a collector with its name.
+// CollectorVersion represents a group version of a collector with its kind.
 type CollectorVersion struct {
-	Version string
-	Name    string
+	GroupVersion string
+	Kind         string
 }
 
 // DiscoveryCollector stores all the discovered resources and their versions.
@@ -67,8 +67,8 @@ func (d *DiscoveryCollector) fillCache() error {
 		for _, list := range d.cache.Resources {
 			for _, resource := range list.APIResources {
 				cv := CollectorVersion{
-					Version: list.GroupVersion,
-					Name:    resource.Name,
+					GroupVersion: list.GroupVersion,
+					Kind:         resource.Name,
 				}
 				d.cache.CollectorForVersion[cv] = struct{}{}
 			}
@@ -136,8 +136,8 @@ func (d *DiscoveryCollector) DiscoverRegularResource(resource string, groupVersi
 
 func (d *DiscoveryCollector) isSupportCollector(collector collectors.K8sCollector) (collectors.K8sCollector, error) {
 	if _, ok := d.cache.CollectorForVersion[CollectorVersion{
-		Version: collector.Metadata().Version,
-		Name:    collector.Metadata().Name,
+		GroupVersion: collector.Metadata().Version,
+		Kind:         collector.Metadata().Name,
 	}]; ok {
 		return collector, nil
 	}
@@ -185,17 +185,17 @@ func (d *DiscoveryCollector) List(group, version, kind string) []CollectorVersio
 
 	for cv := range d.cache.CollectorForVersion {
 		// Skip "/status" entries
-		if strings.HasSuffix(cv.Name, "/status") {
+		if strings.HasSuffix(cv.Kind, "/status") {
 			continue
 		}
 
 		// Match version prefix
-		if !strings.HasPrefix(cv.Version, groupVersion) {
+		if !strings.HasPrefix(cv.GroupVersion, groupVersion) {
 			continue
 		}
 
 		// If kind is specified, only include matching name
-		if kind != "" && cv.Name != kind {
+		if kind != "" && cv.Kind != kind {
 			continue
 		}
 

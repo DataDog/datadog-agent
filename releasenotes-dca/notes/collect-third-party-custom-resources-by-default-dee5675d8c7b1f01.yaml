@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Collect Argo Rollouts and Karpenter custom resources by default.
+    Add the ability to collect Argo Rollouts and Karpenter custom resources by default.

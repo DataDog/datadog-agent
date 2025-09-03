@@ -28,9 +28,9 @@ func TestDiscoveryCollector_List(t *testing.T) {
 				return &DiscoveryCollector{
 					cache: DiscoveryCache{
 						CollectorForVersion: map[CollectorVersion]struct{}{
-							{Version: "apps/v1", Name: "deployments"}:  {},
-							{Version: "apps/v1", Name: "statefulsets"}: {},
-							{Version: "v1", Name: "pods"}:              {},
+							{GroupVersion: "apps/v1", Kind: "deployments"}:  {},
+							{GroupVersion: "apps/v1", Kind: "statefulsets"}: {},
+							{GroupVersion: "v1", Kind: "pods"}:              {},
 						},
 					},
 				}
@@ -39,7 +39,7 @@ func TestDiscoveryCollector_List(t *testing.T) {
 			version: "v1",
 			kind:    "deployments",
 			expected: []CollectorVersion{
-				{Version: "apps/v1", Name: "deployments"},
+				{GroupVersion: "apps/v1", Kind: "deployments"},
 			},
 		},
 		{
@@ -48,9 +48,9 @@ func TestDiscoveryCollector_List(t *testing.T) {
 				return &DiscoveryCollector{
 					cache: DiscoveryCache{
 						CollectorForVersion: map[CollectorVersion]struct{}{
-							{Version: "apps/v1", Name: "deployments"}:  {},
-							{Version: "apps/v1", Name: "statefulsets"}: {},
-							{Version: "v1", Name: "pods"}:              {},
+							{GroupVersion: "apps/v1", Kind: "deployments"}:  {},
+							{GroupVersion: "apps/v1", Kind: "statefulsets"}: {},
+							{GroupVersion: "v1", Kind: "pods"}:              {},
 						},
 					},
 				}
@@ -59,8 +59,8 @@ func TestDiscoveryCollector_List(t *testing.T) {
 			version: "v1",
 			kind:    "",
 			expected: []CollectorVersion{
-				{Version: "apps/v1", Name: "deployments"},
-				{Version: "apps/v1", Name: "statefulsets"},
+				{GroupVersion: "apps/v1", Kind: "deployments"},
+				{GroupVersion: "apps/v1", Kind: "statefulsets"},
 			},
 		},
 		{
@@ -69,9 +69,9 @@ func TestDiscoveryCollector_List(t *testing.T) {
 				return &DiscoveryCollector{
 					cache: DiscoveryCache{
 						CollectorForVersion: map[CollectorVersion]struct{}{
-							{Version: "v1", Name: "pods"}:             {},
-							{Version: "v1", Name: "nodes"}:            {},
-							{Version: "apps/v1", Name: "deployments"}: {},
+							{GroupVersion: "v1", Kind: "pods"}:             {},
+							{GroupVersion: "v1", Kind: "nodes"}:            {},
+							{GroupVersion: "apps/v1", Kind: "deployments"}: {},
 						},
 					},
 				}
@@ -80,8 +80,8 @@ func TestDiscoveryCollector_List(t *testing.T) {
 			version: "v1",
 			kind:    "",
 			expected: []CollectorVersion{
-				{Version: "v1", Name: "pods"},
-				{Version: "v1", Name: "nodes"},
+				{GroupVersion: "v1", Kind: "pods"},
+				{GroupVersion: "v1", Kind: "nodes"},
 			},
 		},
 		{
@@ -90,11 +90,11 @@ func TestDiscoveryCollector_List(t *testing.T) {
 				return &DiscoveryCollector{
 					cache: DiscoveryCache{
 						CollectorForVersion: map[CollectorVersion]struct{}{
-							{Version: "v1", Name: "pods"}:             {},
-							{Version: "v1", Name: "pods/status"}:      {},
-							{Version: "v1", Name: "nodes"}:            {},
-							{Version: "v1", Name: "nodes/status"}:     {},
-							{Version: "apps/v1", Name: "deployments"}: {},
+							{GroupVersion: "v1", Kind: "pods"}:             {},
+							{GroupVersion: "v1", Kind: "pods/status"}:      {},
+							{GroupVersion: "v1", Kind: "nodes"}:            {},
+							{GroupVersion: "v1", Kind: "nodes/status"}:     {},
+							{GroupVersion: "apps/v1", Kind: "deployments"}: {},
 						},
 					},
 				}
@@ -103,8 +103,8 @@ func TestDiscoveryCollector_List(t *testing.T) {
 			version: "v1",
 			kind:    "",
 			expected: []CollectorVersion{
-				{Version: "v1", Name: "pods"},
-				{Version: "v1", Name: "nodes"},
+				{GroupVersion: "v1", Kind: "pods"},
+				{GroupVersion: "v1", Kind: "nodes"},
 			},
 		},
 		{
@@ -113,10 +113,10 @@ func TestDiscoveryCollector_List(t *testing.T) {
 				return &DiscoveryCollector{
 					cache: DiscoveryCache{
 						CollectorForVersion: map[CollectorVersion]struct{}{
-							{Version: "apps/v1", Name: "deployments"}:            {},
-							{Version: "apps/v1beta1", Name: "deployments"}:       {},
-							{Version: "extensions/v1beta1", Name: "deployments"}: {},
-							{Version: "v1", Name: "pods"}:                        {},
+							{GroupVersion: "apps/v1", Kind: "deployments"}:            {},
+							{GroupVersion: "apps/v1beta1", Kind: "deployments"}:       {},
+							{GroupVersion: "extensions/v1beta1", Kind: "deployments"}: {},
+							{GroupVersion: "v1", Kind: "pods"}:                        {},
 						},
 					},
 				}
@@ -125,8 +125,8 @@ func TestDiscoveryCollector_List(t *testing.T) {
 			version: "",
 			kind:    "",
 			expected: []CollectorVersion{
-				{Version: "apps/v1", Name: "deployments"},
-				{Version: "apps/v1beta1", Name: "deployments"},
+				{GroupVersion: "apps/v1", Kind: "deployments"},
+				{GroupVersion: "apps/v1beta1", Kind: "deployments"},
 			},
 		},
 		{
@@ -135,7 +135,7 @@ func TestDiscoveryCollector_List(t *testing.T) {
 				return &DiscoveryCollector{
 					cache: DiscoveryCache{
 						CollectorForVersion: map[CollectorVersion]struct{}{
-							{Version: "v1", Name: "pods"}: {},
+							{GroupVersion: "v1", Kind: "pods"}: {},
 						},
 					},
 				}
