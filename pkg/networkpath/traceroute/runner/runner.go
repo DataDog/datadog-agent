@@ -173,27 +173,26 @@ func (r *Runner) processResults(res *result.Results, protocol payload.Protocol, 
 		Tags: slices.Clone(res.Tags),
 	}
 
+	// get hardware interface info
+	//
+	// TODO: using a gateway lookup may be a more performant
+	// solution for getting the local addr to use
+	// when sending traceroute packets in the TCP implementation
+	// really we just need the router piece
+	// might be worth also looking in to sharing a router between
+	// the gateway lookup and here or exposing a local IP lookup
+	// function
+	// Gateway lookup expect Source.Hostname and Destination.Hostname to be IPs
+	if r.gatewayLookup != nil {
+		src := util.AddressFromNetIP(net.ParseIP(traceroutePath.Source.Hostname))
+		dst := util.AddressFromNetIP(net.ParseIP(traceroutePath.Destination.Hostname))
+
+		traceroutePath.Source.Via = r.gatewayLookup.LookupWithIPs(src, dst, r.nsIno)
+	}
+
 	if len(res.Traceroute.Runs) > 0 {
 		tracerouteRun := res.Traceroute.Runs[0]
 		traceroutePath.Destination.IPAddress = tracerouteRun.Destination.IP.String()
-
-		fmt.Println("tracerouteRun.Destination.IP.String():", tracerouteRun.Destination.IP.String())
-
-		// get hardware interface info
-		//
-		// TODO: using a gateway lookup may be a more performant
-		// solution for getting the local addr to use
-		// when sending traceroute packets in the TCP implementation
-		// really we just need the router piece
-		// might be worth also looking in to sharing a router between
-		// the gateway lookup and here or exposing a local IP lookup
-		// function
-		if r.gatewayLookup != nil {
-			src := util.AddressFromNetIP(tracerouteRun.Source.IP)
-			dst := util.AddressFromNetIP(tracerouteRun.Destination.IP)
-
-			traceroutePath.Source.Via = r.gatewayLookup.LookupWithIPs(src, dst, r.nsIno)
-		}
 
 		for i, hop := range tracerouteRun.Hops {
 			ttl := i + 1
