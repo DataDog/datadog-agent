@@ -246,7 +246,9 @@ func CreateFilterablePodFromKubelet(pod *kubelet.Pod) *workloadfilter.Pod {
 	}
 }
 
-func AppendCPUManagementTag(w workloadmeta.Component, qos string, containerID types.EntityID, tagList []string) []string {
+// AppendKubeRequestedCPUManagementTag accepts a list of tags and returns
+// a list of tags with the proper kube_requested_cpu_management tag appended
+func AppendKubeRequestedCPUManagementTag(w workloadmeta.Component, qos string, containerID types.EntityID, tagList []string) []string {
 	wmetaKubelet, _ := w.GetKubelet()
 	if wmetaKubelet != nil {
 		cpuManagerPolicy := wmetaKubelet.ConfigDocument.KubeletConfig.CPUManagerPolicy

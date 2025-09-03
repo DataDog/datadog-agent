@@ -47,7 +47,7 @@ var nilRequestedWholeCores = workloadmeta.ContainerResources{
 	RequestedWholeCores: nil,
 }
 
-func TestAppendCPUManagementTag(t *testing.T) {
+func TestAppendKubeRequestedCPUManagementTag(t *testing.T) {
 	tests := []struct {
 		name         string
 		qos          string
@@ -221,7 +221,7 @@ func TestAppendCPUManagementTag(t *testing.T) {
 			))
 
 			tt.setupMock(mockStore)
-			result := AppendCPUManagementTag(mockStore, tt.qos, tt.containerID, tt.initialTags)
+			result := AppendKubeRequestedCPUManagementTag(mockStore, tt.qos, tt.containerID, tt.initialTags)
 			assert.Equal(t, tt.expectedTags, result, fmt.Sprintf("expected %v, got %v", tt.expectedTags, result))
 		})
 	}
