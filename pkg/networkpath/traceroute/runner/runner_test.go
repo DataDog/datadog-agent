@@ -64,28 +64,28 @@ func TestProcessResults(t *testing.T) {
 					Runs: []result.TracerouteRun{
 						{
 							Source: result.TracerouteSource{
-								IP:   net.ParseIP("10.0.0.5"),
-								Port: 12345,
+								IPAddress: net.ParseIP("10.0.0.5"),
+								Port:      12345,
 							},
 							Destination: result.TracerouteDestination{
-								IP:   net.ParseIP("8.8.8.8"),
-								Port: 33434, // computer port or Boca Raton, FL?
+								IPAddress: net.ParseIP("8.8.8.8"),
+								Port:      33434, // computer port or Boca Raton, FL?
 							},
 							Hops: []*result.TracerouteHop{
 								{
-									IP:       net.ParseIP("10.0.0.1"),
-									ICMPType: 11,
-									ICMPCode: 0,
-									RTT:      0.001, // seconds
+									IPAddress: net.ParseIP("10.0.0.1"),
+									ICMPType:  11,
+									ICMPCode:  0,
+									RTT:       0.001, // seconds
 								},
 								{
-									IP: net.IP{},
+									IPAddress: net.IP{},
 								},
 								{
-									IP:       net.ParseIP("172.0.0.255"),
-									ICMPType: 11,
-									ICMPCode: 0,
-									RTT:      0.003512345, // seconds
+									IPAddress: net.ParseIP("172.0.0.255"),
+									ICMPType:  11,
+									ICMPCode:  0,
+									RTT:       0.003512345, // seconds
 								},
 							},
 						},
@@ -142,28 +142,28 @@ func TestProcessResults(t *testing.T) {
 					Runs: []result.TracerouteRun{
 						{
 							Source: result.TracerouteSource{
-								IP:   net.ParseIP("10.0.0.5"),
-								Port: 12345,
+								IPAddress: net.ParseIP("10.0.0.5"),
+								Port:      12345,
 							},
 							Destination: result.TracerouteDestination{
-								IP:   net.ParseIP("8.8.8.8"),
-								Port: 443, // computer port or Boca Raton, FL?
+								IPAddress: net.ParseIP("8.8.8.8"),
+								Port:      443, // computer port or Boca Raton, FL?
 							},
 							Hops: []*result.TracerouteHop{
 								{
-									IP:       net.ParseIP("10.0.0.1"),
-									ICMPType: 11,
-									ICMPCode: 0,
-									RTT:      0.001, // 1ms
+									IPAddress: net.ParseIP("10.0.0.1"),
+									ICMPType:  11,
+									ICMPCode:  0,
+									RTT:       0.001, // 1ms
 								},
 								{
-									IP: net.IP{},
+									IPAddress: net.IP{},
 								},
 								{
-									IP:       net.ParseIP("172.0.0.255"),
-									ICMPType: 11,
-									ICMPCode: 0,
-									RTT:      0.04, // 40ms
+									IPAddress: net.ParseIP("172.0.0.255"),
+									ICMPType:  11,
+									ICMPCode:  0,
+									RTT:       0.04, // 40ms
 								},
 							},
 						},
@@ -225,33 +225,33 @@ func TestProcessResults(t *testing.T) {
 					Runs: []result.TracerouteRun{
 						{
 							Source: result.TracerouteSource{
-								IP:   net.ParseIP("10.0.0.5"),
-								Port: 12345,
+								IPAddress: net.ParseIP("10.0.0.5"),
+								Port:      12345,
 							},
 							Destination: result.TracerouteDestination{
-								IP:   net.ParseIP("8.8.8.8"),
-								Port: 33434, // computer port or Boca Raton, FL?
+								IPAddress: net.ParseIP("8.8.8.8"),
+								Port:      33434, // computer port or Boca Raton, FL?
 							},
 							Hops: []*result.TracerouteHop{
 								{
-									IP:       net.ParseIP("10.0.0.1"),
-									ICMPType: 11,
-									ICMPCode: 0,
-									RTT:      0.001, // 1ms
+									IPAddress: net.ParseIP("10.0.0.1"),
+									ICMPType:  11,
+									ICMPCode:  0,
+									RTT:       0.001, // 1ms
 								},
 								{
-									IP: net.IP{},
+									IPAddress: net.IP{},
 								},
 								{
-									IP:       net.ParseIP("172.0.0.255"),
-									ICMPType: 11,
-									ICMPCode: 0,
-									RTT:      0.08, // 80ms
+									IPAddress: net.ParseIP("172.0.0.255"),
+									ICMPType:  11,
+									ICMPCode:  0,
+									RTT:       0.08, // 80ms
 								},
 								{
-									IP:   net.ParseIP("8.8.8.8"),
-									Port: 443,
-									RTT:  0.120,
+									IPAddress: net.ParseIP("8.8.8.8"),
+									Port:      443,
+									RTT:       0.120,
 								},
 							},
 						},

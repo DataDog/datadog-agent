@@ -126,15 +126,15 @@ func (r *Runner) RunTraceroute(ctx context.Context, cfg config.Config) (payload.
 	var protocol = cfg.Protocol
 
 	params := runner.TracerouteParams{
-		Hostname:        cfg.DestHostname,
-		Protocol:        string(protocol),
-		MinTTL:          0,
-		MaxTTL:          int(cfg.MaxTTL),
-		Delay:           DefaultDelay,
-		Timeout:         timeout,
-		TCPMethod:       traceroute.TCPMethod(cfg.TCPMethod),
-		DestinationPort: int(cfg.DestPort),
-		WantV6:          false,
+		Hostname:  cfg.DestHostname,
+		Port:      int(cfg.DestPort),
+		Protocol:  string(protocol),
+		MinTTL:    0,
+		MaxTTL:    int(cfg.MaxTTL),
+		Delay:     DefaultDelay,
+		Timeout:   timeout,
+		TCPMethod: traceroute.TCPMethod(cfg.TCPMethod),
+		WantV6:    false,
 	}
 
 	results, err := runner.RunTraceroute(ctx, params)
@@ -175,9 +175,9 @@ func (r *Runner) processResults(res *result.Results, protocol payload.Protocol, 
 
 	if len(res.Traceroute.Runs) > 0 {
 		tracerouteRun := res.Traceroute.Runs[0]
-		traceroutePath.Destination.IPAddress = tracerouteRun.Destination.IP.String()
+		traceroutePath.Destination.IPAddress = tracerouteRun.Destination.IPAddress.String()
 
-		fmt.Println("tracerouteRun.Destination.IP.String():", tracerouteRun.Destination.IP.String())
+		fmt.Println("tracerouteRun.Destination.IPAddress.String():", tracerouteRun.Destination.IPAddress.String())
 
 		// get hardware interface info
 		//
@@ -189,8 +189,8 @@ func (r *Runner) processResults(res *result.Results, protocol payload.Protocol, 
 		// the gateway lookup and here or exposing a local IP lookup
 		// function
 		if r.gatewayLookup != nil {
-			src := util.AddressFromNetIP(tracerouteRun.Source.IP)
-			dst := util.AddressFromNetIP(tracerouteRun.Destination.IP)
+			src := util.AddressFromNetIP(tracerouteRun.Source.IPAddress)
+			dst := util.AddressFromNetIP(tracerouteRun.Destination.IPAddress)
 
 			traceroutePath.Source.Via = r.gatewayLookup.LookupWithIPs(src, dst, r.nsIno)
 		}
@@ -201,9 +201,9 @@ func (r *Runner) processResults(res *result.Results, protocol payload.Protocol, 
 			hopname := fmt.Sprintf("unknown_hop_%d", ttl)
 			hostname := hopname
 
-			if !hop.IP.Equal(net.IP{}) {
+			if !hop.IPAddress.Equal(net.IP{}) {
 				isReachable = true
-				hopname = hop.IP.String()
+				hopname = hop.IPAddress.String()
 				hostname = hopname // setting to ip address for now, reverse DNS lookup will override hostname field later
 			}
 
