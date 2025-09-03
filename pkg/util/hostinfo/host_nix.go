@@ -8,16 +8,11 @@
 package utils
 
 import (
-	"runtime"
-
-	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/host"
 
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-type osVersion [3]interface{}
 
 // GetInformation returns an InfoStat object, filled in with various operating system metadata. This returns an empty
 // host.InfoStat if gopsutil fails.

@@ -11,11 +11,11 @@ import (
 	"runtime"
 
 	"github.com/shirou/gopsutil/v4/cpu"
-	"github.com/shirou/gopsutil/v4/host"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	hostinfoutils "github.com/DataDog/datadog-agent/pkg/util/hostinfo"
 )
 
 const osName = runtime.GOOS
@@ -43,7 +43,7 @@ func getSystemStats() *systemStats {
 				Pythonv:   python.GetPythonVersion(),
 			}
 
-			hostInfo := GetInformation()
+			hostInfo := hostinfoutils.GetInformation()
 
 			// osVersion is a legacy representation of OS version dating back to agent V5 which was in
 			// Python2. In V5 the content of this list changed based on the OS:

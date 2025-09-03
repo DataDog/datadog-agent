@@ -62,7 +62,7 @@ type TelemetryStore struct {
 	// DDOTTraces tracks hosts running DDOT and ingest traces
 	DDOTTraces telemetry.Gauge
 	// DDOTGWUsage tracks hosts running DDOT in GW mode
-	DDOTTraces telemetry.Gauge
+	DDOTGWUsage telemetry.Gauge
 }
 
 type createConsumerFunc func(extraTags []string, apmReceiverAddr string, buildInfo component.BuildInfo) SerializerConsumer
