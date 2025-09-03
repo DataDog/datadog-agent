@@ -29,8 +29,6 @@ type processEvent struct {
 
 type processAnalysis struct {
 	service       string
-	version       string
-	environment   string
 	exe           Executable
 	interesting   bool
 	gitInfo       GitInfo
@@ -92,12 +90,10 @@ func (s *state) handleAnalysisResult(e analysisResult) {
 			ProcessID: ProcessID{
 				PID: int32(e.pid),
 			},
-			Executable:  e.exe,
-			Service:     e.service,
-			Version:     e.version,
-			Environment: e.environment,
-			GitInfo:     e.gitInfo,
-			Container:   e.containerInfo,
+			Executable: e.exe,
+			Service:    e.service,
+			GitInfo:    e.gitInfo,
+			Container:  e.containerInfo,
 		})
 	}
 }

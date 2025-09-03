@@ -8,7 +8,6 @@
 package rcscrape_test
 
 import (
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -24,7 +23,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
@@ -55,19 +53,9 @@ func TestScrapeRemoteConfig(t *testing.T) {
 	dyninsttest.SkipIfKernelNotSupported(t)
 
 	cfgs := testprogs.MustGetCommonConfigs(t)
-
-	testCases := []struct {
-		program      string
-		symdbSupport bool
-	}{
-		{"rc_tester", true},
-		// rc_tester_v1 (using the v1 version of dd-trace-go) does not support
-		// reading the remote config key controlling the SymDB upload.
-		{"rc_tester_v1", false},
-	}
-	for _, tc := range testCases {
+	for _, program := range []string{"rc_tester", "rc_tester_v1"} {
 		for _, cfg := range cfgs {
-			t.Run(tc.program+"-"+cfg.String(), func(t *testing.T) {
+			t.Run(program+"-"+cfg.String(), func(t *testing.T) {
 				if cfg.GOARCH != runtime.GOARCH {
 					t.Skipf(
 						"cross-execution is not supported, running on %s",
@@ -75,18 +63,13 @@ func TestScrapeRemoteConfig(t *testing.T) {
 					)
 				}
 				t.Parallel()
-				runScrapeRemoteConfigTest(t, tc.program, cfg, tc.symdbSupport)
+				runScrapeRemoteConfigTest(t, program, cfg)
 			})
 		}
 	}
 }
 
-func runScrapeRemoteConfigTest(
-	t *testing.T,
-	program string,
-	cfg testprogs.Config,
-	symDBSupport bool,
-) {
+func runScrapeRemoteConfigTest(t *testing.T, program string, cfg testprogs.Config) {
 	tmpDir, cleanupTmpDir := dyninsttest.PrepTmpDir(
 		t, strings.ReplaceAll(t.Name(), "/", "_"),
 	)
@@ -108,8 +91,6 @@ func runScrapeRemoteConfigTest(
 		"DD_REMOTE_CONFIGURATION_ENABLED=true",
 		"DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS=.01",
 		"DD_SERVICE=rc_tester",
-		"DD_ENV=test",
-		"DD_VERSION=1.0.0",
 		"DD_REMOTE_CONFIG_TUF_NO_VERIFICATION=true",
 	}
 	childStdout, err := os.Create(path.Join(tmpDir, "child.stdout"))
@@ -139,14 +120,9 @@ func runScrapeRemoteConfigTest(
 		require.NoError(t, err)
 		rcsFiles[mkPath(t, probe.GetID())] = marshaled
 	}
-	var symdbPath string
-	if symDBSupport {
-		symdbPayload := []byte(`{"uploadSymbols": true}`)
-		symdbPath = mkPathWithVal("LIVE_DEBUGGING_SYMBOL_DB", "symDb", symdbPayload)
-		rcsFiles[symdbPath] = symdbPayload
-	}
 	rcHandler.UpdateRemoteConfig(rcsFiles)
-	waitForExpected(t, rcScraper, append(probes[:0:0], probes...), symDBSupport)
+
+	waitForExpected(t, rcScraper, append(probes[:0:0], probes...))
 
 	// Make sure that the scraper handles more updates correctly.
 	newUpdate := append(probes[:0:0], probes...)
@@ -167,27 +143,11 @@ func runScrapeRemoteConfigTest(
 		rcsFiles[mkPath(t, probe.GetID())] = marshaled
 	}
 	rcsFiles[mkPath(t, "empty")] = []byte{}
-	// Remove the SymDB key; we'll check that the corresponding flag on the
-	// update turns false.
-	if symDBSupport {
-		delete(rcsFiles, symdbPath)
-	}
 	rcHandler.UpdateRemoteConfig(rcsFiles)
-	waitForExpected(t, rcScraper, newUpdate, false /* expShouldUploadSymDB */)
-
-	// Modify only the SymDB key and check that we get an update.
-	if symDBSupport {
-		symdbPayload := []byte(`{"uploadSymbols": true}`)
-		symdbPath = mkPathWithVal("LIVE_DEBUGGING_SYMBOL_DB", "symDb", symdbPayload)
-		rcsFiles[symdbPath] = symdbPayload
-		rcHandler.UpdateRemoteConfig(rcsFiles)
-		waitForExpected(t, rcScraper, newUpdate, true /* expShouldUploadSymDB */)
-	}
+	waitForExpected(t, rcScraper, newUpdate)
 }
 
-func waitForExpected(
-	t *testing.T, rcScraper *rcscrape.Scraper, exp []ir.ProbeDefinition, expShouldUploadSymDB bool,
-) {
+func waitForExpected(t *testing.T, rcScraper *rcscrape.Scraper, exp []ir.ProbeDefinition) {
 	slices.SortFunc(exp, ir.CompareProbeIDs)
 	require.Eventually(t, func() bool {
 		updates := rcScraper.GetUpdates()
@@ -196,8 +156,7 @@ func waitForExpected(
 		}
 		got := updates[0].Probes
 		slices.SortFunc(got, ir.CompareProbeIDs)
-		assert.Equal(t, exp, got)
-		assert.Equal(t, expShouldUploadSymDB, updates[0].ShouldUploadSymDB, "SymDB upload flag doesn't match")
+		require.Equal(t, exp, got)
 		return true
 	}, 10*time.Second, 100*time.Microsecond)
 }
@@ -236,16 +195,6 @@ func mkPath(t *testing.T, name string) string {
 		Product:  data.ProductLiveDebugging,
 		ConfigID: configID.String(),
 		Name:     name,
-	})
-}
-
-func mkPathWithVal(product data.Product, id string, val []byte) string {
-	return formatConfigPath(data.ConfigPath{
-		Source:   data.SourceDatadog,
-		OrgID:    1234,
-		Product:  string(product),
-		ConfigID: id,
-		Name:     hex.EncodeToString(val),
 	})
 }
 

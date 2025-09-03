@@ -30,7 +30,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -43,9 +42,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	di_module "github.com/DataDog/datadog-agent/pkg/dyninst/module"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/rcscrape"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/uploader"
 )
@@ -58,9 +55,6 @@ type testState struct {
 
 	backend       *mockBackend
 	backendServer *httptest.Server
-	// A mock backend for uploading SymDB data to.
-	symdbServer *httptest.Server
-	symdbURL    string
 
 	module     *di_module.Module
 	subscriber *mockSubscriber
@@ -104,15 +98,11 @@ func TestEndToEnd(t *testing.T) {
 
 	rewrite, _ := strconv.ParseBool(os.Getenv("REWRITE"))
 	useDocker := dockerIsEnabled(t)
-	testCases := []struct {
-		program       string
-		supportsSymDB bool
-	}{
-		{"rc_tester", true},
-		{"rc_tester_v1", false},
-	}
-	for _, tc := range testCases {
-		t.Run(tc.program, func(t *testing.T) {
+	for _, binary := range []string{
+		"rc_tester",
+		"rc_tester_v1",
+	} {
+		t.Run(binary, func(t *testing.T) {
 			t.Parallel()
 			t.Run("docker", func(t *testing.T) {
 				if rewrite {
@@ -127,20 +117,20 @@ func TestEndToEnd(t *testing.T) {
 				t.Parallel()
 				runE2ETest(t, e2eTestConfig{
 					cfg:       cfg,
-					binary:    tc.program,
+					binary:    binary,
 					rewrite:   rewrite,
 					useDocker: true,
-					addSymdb:  tc.supportsSymDB,
+					addSymdb:  binary == "rc_tester",
 				})
 			})
 			t.Run("direct", func(t *testing.T) {
 				t.Parallel()
 				runE2ETest(t, e2eTestConfig{
 					cfg:       cfg,
-					binary:    tc.program,
+					binary:    binary,
 					rewrite:   rewrite,
 					useDocker: false,
-					addSymdb:  tc.supportsSymDB,
+					addSymdb:  binary == "rc_tester",
 				})
 			})
 		})
@@ -173,14 +163,6 @@ func runE2ETest(t *testing.T, cfg e2eTestConfig) {
 	t.Cleanup(ts.rcServer.Close)
 	t.Cleanup(ts.rc.Close)
 
-	symDBRequests := atomic.Uint64{}
-	ts.symdbServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		symDBRequests.Add(1)
-		w.WriteHeader(http.StatusOK)
-	}))
-	t.Cleanup(ts.symdbServer.Close)
-	ts.symdbURL = ts.symdbServer.URL
-
 	probes := testprogs.MustGetProbeDefinitions(t, cfg.binary)
 	rcs := makeRemoteConfigUpdate(t, probes, cfg.addSymdb)
 	ts.rc.UpdateRemoteConfig(rcs)
@@ -188,14 +170,7 @@ func runE2ETest(t *testing.T, cfg e2eTestConfig) {
 	serverPort := ts.startSampleService(t, sampleServicePath)
 
 	ts.initializeModule(t)
-	symdbProcStates := make(map[procmon.ProcessID]bool)
-	if cfg.addSymdb {
-		ts.module.Controller().SetScraperUpdatesCallback(
-			func(updates []rcscrape.ProcessUpdate) {
-				u := updates[0]
-				symdbProcStates[u.ProcessID] = u.ShouldUploadSymDB
-			})
-	}
+
 	ts.subscriber.NotifyExec(ts.servicePID)
 
 	expectedProbeIDs := []string{"look_at_the_request", "http_handler"}
@@ -207,11 +182,7 @@ func runE2ETest(t *testing.T, cfg e2eTestConfig) {
 	// If we added symdb, make sure we detect that it's enabled.
 	if cfg.addSymdb {
 		updates := ts.takeProcessesUpdates()
-		require.Len(t, updates, 1)
-		require.True(t, symdbProcStates[updates[0].Processes[0].ProcessID])
-		require.Eventually(t, func() bool {
-			return symDBRequests.Load() > 0
-		}, 10*time.Second, 100*time.Millisecond, "SymDB server should be hit")
+		require.True(t, updates[len(updates)-1].Processes[0].ShouldUploadSymDB)
 	}
 
 	const numRequests = 3
@@ -224,21 +195,20 @@ func runE2ETest(t *testing.T, cfg e2eTestConfig) {
 		t, ts.backend.diagPayloadCh,
 		makeTargetStatus(uploader.StatusEmitting, expectedProbeIDs...),
 	)
-	// Clear the remote config.
+	// Clear the remote config and make sure that we detect that we no longer
+	// are supposed to upload the symbol database.
 	ts.rc.UpdateRemoteConfig(nil)
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		updates := ts.takeProcessesUpdates()
 		if !assert.NotEmpty(c, updates) {
 			return
 		}
-		require.Len(t, updates, 1)
-		proc := updates[0].Processes[0]
-		// Assert that we've removed the probes.
-		assert.Empty(c, proc.Probes)
-		// If we previously added the SymDB key, make sure we detect that it's
-		// gone.
+		// Assert that we've removed the probes regardless of whether we're
+		// adding the symdb.
+		assert.Empty(c, updates[len(updates)-1].Processes[0].Probes)
+		// If we added symdb, make sure we detect that it's gone.
 		if cfg.addSymdb {
-			assert.False(t, symdbProcStates[proc.ProcessID])
+			assert.False(c, updates[len(updates)-1].Processes[0].ShouldUploadSymDB)
 		}
 	}, 10*time.Second, 100*time.Millisecond, "probes should be removed")
 }
@@ -307,8 +277,6 @@ func getRcTesterEnv(rcHost string, rcPort int, tmpDir string) []string {
 		"DD_REMOTE_CONFIGURATION_ENABLED=true",
 		"DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS=.01",
 		"DD_SERVICE=rc_tester",
-		"DD_ENV=test",
-		"DD_VERSION=1.0.0",
 		"DD_REMOTE_CONFIG_TUF_NO_VERIFICATION=true",
 		fmt.Sprintf("%s=%s", e2eTmpDirEnv, tmpDir),
 	}
@@ -546,7 +514,6 @@ type interceptingActuator struct {
 	mu    struct {
 		sync.Mutex
 		tenants map[string]*interceptingTenant
-		updates []actuator.ProcessesUpdate
 	}
 }
 
@@ -603,10 +570,8 @@ func (ts *testState) initializeModule(t *testing.T) {
 	))
 	require.NoError(t, err)
 
-	cfg.SymDBUploadEnabled = true
 	cfg.LogUploaderURL = ts.backendServer.URL + "/logs"
 	cfg.DiagsUploaderURL = ts.backendServer.URL + "/diags"
-	cfg.SymDBUploaderURL = ts.symdbURL
 
 	ts.module, err = di_module.NewModule(cfg, ts.subscriber)
 	require.NoError(t, err)

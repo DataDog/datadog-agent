@@ -11,8 +11,7 @@ require (
 	github.com/DataDog/dd-trace-go/v2 v2.2.3-rc.1
 
 	// This is the last version of dd-trace-go that isn't just a wrapper around
-	// the v2 package. Note that this tracer does not have support for the
-	// remote config key controlling the SymDB upload.
+	// the v2 package.
 	gopkg.in/DataDog/dd-trace-go.v1 v1.73.1
 )
 

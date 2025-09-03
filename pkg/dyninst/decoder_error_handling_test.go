@@ -74,13 +74,10 @@ func TestDecoderErrorHandling(t *testing.T) {
 	diagURL, err := url.Parse(backendServer.URL + "/diags")
 	require.NoError(t, err)
 
-	symdbURL, err := url.Parse("http://dummy-symdb-url")
-	require.NoError(t, err)
 	c := module.NewController(
 		actuator,
 		uploader.NewLogsUploaderFactory(uploader.WithURL(logsURL)),
 		uploader.NewDiagnosticsUploader(uploader.WithURL(diagURL)),
-		symdbURL,
 		scraper,
 		&failOnceDecoderFactory{
 			underlying: module.DefaultDecoderFactory{},

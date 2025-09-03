@@ -148,27 +148,46 @@ type PackageStats struct {
 	// collected symbols.
 	NumTypes int
 	// NumFunctions is the number of functions in this package represented in
-	// the collected symbols. This includes methods.
+	// the collected symbols.
 	NumFunctions int
+	// NumSourceFiles is the number of source files that contain functions in
+	// this package.
+	NumSourceFiles int
 }
 
 func (s PackageStats) String() string {
-	return fmt.Sprintf("Types: %d, Functions: %d", s.NumTypes, s.NumFunctions)
+	return fmt.Sprintf("Types: %d, Functions: %d, Source files: %d",
+		s.NumTypes, s.NumFunctions, s.NumSourceFiles)
 }
 
 // Stats computes statistics about the package's symbols.
 //
-// sourceFiles will be populated with files encountered while going through this
+// sourceFiles will be populated with files encoutered while going through this
 // package's compile unit. Nil can be passed if the caller is not interested.
 // Note that it's possible for multiple compile units to reference the same file
 // due to inlined functions; in such cases, the file will arbitrarily count
 // towards the stats of the first package that adds it to the map.
-func (p Package) Stats() PackageStats {
+func (p Package) Stats(sourceFiles map[string]struct{}) PackageStats {
 	var res PackageStats
+	if sourceFiles == nil {
+		sourceFiles = make(map[string]struct{})
+	}
 	res.NumTypes += len(p.Types)
 	res.NumFunctions += len(p.Functions)
+	recordFile := func(file string) {
+		if _, ok := sourceFiles[file]; !ok {
+			sourceFiles[file] = struct{}{}
+			res.NumSourceFiles++
+		}
+	}
 	for _, t := range p.Types {
 		res.NumFunctions += len(t.Methods)
+		for _, f := range t.Methods {
+			recordFile(f.File)
+		}
+	}
+	for _, f := range p.Functions {
+		recordFile(f.File)
 	}
 	return res
 }
@@ -1079,7 +1098,7 @@ func (b *packagesIterator) exploreCompileUnit(
 	}
 	duration := time.Since(start)
 	if duration > 5*time.Second {
-		log.Warnf("Processing package %s took %s: %s", name, duration, res.Stats())
+		log.Warnf("Processing package %s took %s: %s", name, duration, res.Stats(nil))
 	}
 
 	return res, nil

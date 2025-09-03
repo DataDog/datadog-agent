@@ -53,8 +53,6 @@ func TestAnalyzeProcess(t *testing.T) {
 	envTrue := makeEnviron(t,
 		ddDynInstEnabledEnvVar, "true",
 		ddServiceEnvVar, "foo",
-		ddEnvironmentEnvVar, "test",
-		ddVersionEnvVar, "1.0.0",
 	)
 	envFalse := makeEnviron(t,
 		"FOO", "bar",
@@ -306,8 +304,6 @@ func BenchmarkAnalyzeProcess(b *testing.B) {
 									env: []string{
 										"DD_DYNAMIC_INSTRUMENTATION_ENABLED=true",
 										"DD_SERVICE=foo",
-										"DD_ENV=test",
-										"DD_VERSION=1.0.0",
 									},
 								},
 							} {

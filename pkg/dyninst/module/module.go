@@ -68,14 +68,6 @@ func NewModule(
 	}
 	diagsUploader := uploader.NewDiagnosticsUploader(uploader.WithURL(diagsUploaderURL))
 
-	var symdbUploaderURL *url.URL
-	if config.SymDBUploadEnabled {
-		symdbUploaderURL, err = url.Parse(config.SymDBUploaderURL)
-		if err != nil {
-			return nil, fmt.Errorf("error parsing SymDB uploader URL: %w", err)
-		}
-	}
-
 	loader, err := loader.NewLoader()
 	if err != nil {
 		return nil, fmt.Errorf("error creating loader: %w", err)
@@ -94,7 +86,7 @@ func NewModule(
 	rcScraper := rcscrape.NewScraper(actuator)
 	irGenerator := irgen.NewGenerator(irgen.WithObjectLoader(objectLoader))
 	controller := NewController(
-		actuator, logUploader, diagsUploader, symdbUploaderURL, rcScraper, DefaultDecoderFactory{}, irGenerator,
+		actuator, logUploader, diagsUploader, rcScraper, DefaultDecoderFactory{}, irGenerator,
 	)
 	procMon := procmon.NewProcessMonitor(&processHandler{
 		scraperHandler: rcScraper.AsProcMonHandler(),
@@ -171,6 +163,5 @@ func (m *Module) Close() {
 		if err := m.actuator.Shutdown(); err != nil {
 			log.Errorf("error shutting down actuator: %v", err)
 		}
-		m.controller.symdb.stop()
 	})
 }
