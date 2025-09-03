@@ -49,7 +49,7 @@ def _render_hub_tool(rctx, tool_name, filename, substitutions = None):
         } | (substitutions or {}),
     )
 
-def _renter_tool_labels(tools):
+def _render_tool_labels(tools):
     supported_host_constraints = [_HOST_CONSTRAINTS_MAPPING.get(constraint, None) for constraint in HOST_CONSTRAINTS]
     host_tool_keys = [
         tool_key
