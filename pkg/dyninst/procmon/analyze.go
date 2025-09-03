@@ -131,7 +131,7 @@ func analyzeProcess(
 			"failed to analyze environ", err,
 		)
 	}
-	if ddEnv.serviceName == "" && !ddEnv.diEnabled {
+	if ddEnv.serviceName == "" || !ddEnv.diEnabled {
 		log.Tracef(
 			"process %d is not interesting: service name is %q, %s=%t",
 			pid, ddEnv.serviceName, ddDynInstEnabledEnvVar, ddEnv.diEnabled,
