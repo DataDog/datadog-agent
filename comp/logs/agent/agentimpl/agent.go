@@ -164,6 +164,7 @@ func newLogsAgent(deps dependencies) provides {
 		auditor:            deps.Auditor,
 		sources:            sources,
 		services:           services,
+		schedulers:         schedulers.NewSchedulers(sources, services),
 		tracker:            tailers.NewTailerTracker(),
 		flarecontroller:    flareController.NewFlareController(),
 		wmeta:              deps.WMeta,
@@ -306,7 +307,9 @@ func (a *logAgent) initializeLazyStart(context.Context) error {
 
 func (a *logAgent) startSchedulers() {
 	a.prepareSchedulers.Do(func() {
-		a.schedulers = schedulers.NewSchedulers(a.sources, a.services)
+		if a.schedulers == nil {
+			a.schedulers = schedulers.NewSchedulers(a.sources, a.services)
+		}
 		a.schedulers.Start()
 
 		for _, scheduler := range a.schedulerProviders {

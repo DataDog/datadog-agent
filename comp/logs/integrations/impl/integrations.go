@@ -9,6 +9,7 @@
 package integrationsimpl
 
 import (
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -21,6 +22,7 @@ import (
 
 // Logsintegration is the integrations component implementation
 type Logsintegration struct {
+	sync.Mutex
 	logChan            chan integrations.IntegrationLog
 	integrationChan    chan integrations.IntegrationConfig
 	log                log.Component
@@ -72,7 +74,9 @@ func (li *Logsintegration) RegisterIntegration(id string, cfg integration.Config
 
 			select {
 			case li.integrationChan <- integrationConfig:
+				li.Lock()
 				li.registrationList[id] = true
+				li.Unlock()
 			case <-time.After(li.integrationTimeout):
 				li.log.Errorf("Integration could not be registered due to timeout, dropping all further logs for integration %s", id)
 				return
@@ -86,10 +90,13 @@ func (li *Logsintegration) RegisterIntegration(id string, cfg integration.Config
 
 // SendLog sends a log to any subscribers
 func (li *Logsintegration) SendLog(log, integrationID string) {
+	li.Lock()
 	if _, ok := li.registrationList[integrationID]; !ok {
+		li.Unlock()
 		li.log.Warnf("Integration %s is not registered, dropping log", integrationID)
 		return
 	}
+	li.Unlock()
 
 	if err := li.actionCallback(); err != nil {
 		li.log.Errorf("Unable to send log for integration %s: %v", integrationID, err)
