@@ -54,10 +54,7 @@ func FuzzDecoder(f *testing.F) {
 // This makes it easy to assert properties of the decoder's internal state.
 func TestDecoderManually(t *testing.T) {
 	type captures struct{ Entry struct{ Arguments any } }
-	type debugger struct {
-		Snapshot         struct{ Captures captures }
-		EvaluationErrors []string `json:"evaluationErrors"`
-	}
+	type debugger struct{ Snapshot struct{ Captures captures } }
 	type eventCaptures struct{ Debugger debugger }
 	for _, c := range cases {
 		t.Run(c.probeName, func(t *testing.T) {
@@ -74,7 +71,6 @@ func TestDecoderManually(t *testing.T) {
 			var e eventCaptures
 			require.NoError(t, json.Unmarshal(buf, &e))
 			require.Equal(t, c.expected, e.Debugger.Snapshot.Captures.Entry.Arguments)
-			require.Equal(t, c.expectedEvaluationErrors, e.Debugger.EvaluationErrors)
 			require.Empty(t, decoder.dataItems)
 			require.Empty(t, decoder.currentlyEncoding)
 			require.Zero(t, decoder.snapshotMessage)
@@ -103,44 +99,31 @@ func BenchmarkDecoder(b *testing.B) {
 }
 
 type testCase struct {
-	probeName                string
-	eventConstructor         func(testing.TB, *ir.Program) []byte
-	expected                 any
-	expectedEvaluationErrors []string
+	probeName        string
+	eventConstructor func(testing.TB, *ir.Program) []byte
+	expected         any
 }
 
 var cases = []testCase{
 	{
-		probeName:                "stringArg",
-		eventConstructor:         simpleStringArgEvent,
-		expected:                 simpleStringArgExpected,
-		expectedEvaluationErrors: []string{},
+		probeName:        "stringArg",
+		eventConstructor: simpleStringArgEvent,
+		expected:         simpleStringArgExpected,
 	},
 	{
-		probeName:                "mapArg",
-		eventConstructor:         simpleMapArgEvent,
-		expected:                 simpleMapArgExpected,
-		expectedEvaluationErrors: []string{},
+		probeName:        "mapArg",
+		eventConstructor: simpleMapArgEvent,
+		expected:         simpleMapArgExpected,
 	},
 	{
-		probeName:                "bigMapArg",
-		eventConstructor:         simpleBigMapArgEvent,
-		expected:                 simpleBigMapArgExpected,
-		expectedEvaluationErrors: []string{},
+		probeName:        "bigMapArg",
+		eventConstructor: simpleBigMapArgEvent,
+		expected:         simpleBigMapArgExpected,
 	},
 	{
-		probeName:                "PointerChainArg",
-		eventConstructor:         simplePointerChainArgEvent,
-		expected:                 simplePointerChainArgExpected,
-		expectedEvaluationErrors: []string{},
-	},
-	{
-		probeName:        "intArg",
-		eventConstructor: notEnoughDataEvent,
-		expected:         notEnoughDataExpected,
-		expectedEvaluationErrors: []string{
-			"error symbolicating stack: no stack pcs found",
-		},
+		probeName:        "PointerChainArg",
+		eventConstructor: simplePointerChainArgEvent,
+		expected:         simplePointerChainArgExpected,
 	},
 }
 
@@ -160,72 +143,6 @@ func generateIrForProbes(
 	irProg, err := irgen.GenerateIR(1, obj, probes)
 	require.NoError(t, err)
 	return irProg
-}
-
-var notEnoughDataExpected = map[string]any{
-	"x": map[string]any{
-		"type":  "int",
-		"value": "3735928559",
-	},
-}
-
-func notEnoughDataEvent(t testing.TB, irProg *ir.Program) []byte {
-	probe := slices.IndexFunc(irProg.Probes, func(p *ir.Probe) bool {
-		return p.GetID() == "intArg"
-	})
-	require.NotEqual(t, -1, probe)
-	events := irProg.Probes[probe].Events
-	require.Len(t, events, 1)
-	eventType := events[0].Type
-	var stringType *ir.GoStringHeaderType
-	for _, t := range irProg.Types {
-		if t.GetName() == "string" {
-			stringType = t.(*ir.GoStringHeaderType)
-		}
-	}
-	require.NotNil(t, stringType)
-	require.NotNil(t, eventType)
-	require.Equal(t, uint32(0x9), eventType.GetByteSize())
-
-	var item []byte
-	eventHeader := output.EventHeader{
-		Data_byte_len: uint32(
-			unsafe.Sizeof(output.EventHeader{}) +
-				1 /* bitset */ + unsafe.Sizeof(output.DataItemHeader{}) +
-				16 + 7 /* padding */ +
-				unsafe.Sizeof(output.DataItemHeader{}) +
-				16,
-		),
-		Prog_id:        1,
-		Stack_byte_len: 0,
-		Stack_hash:     3,
-		Ktime_ns:       1,
-	}
-	dataItem0 := output.DataItemHeader{
-		Type:    uint32(eventType.GetID()),
-		Length:  17,
-		Address: 0,
-	}
-	dataItem1 := output.DataItemHeader{
-		Type:    uint32(stringType.Data.ID),
-		Length:  16,
-		Address: 0xdeadbeef,
-	}
-	item = append(item, unsafe.Slice(
-		(*byte)(unsafe.Pointer(&eventHeader)), unsafe.Sizeof(eventHeader))...,
-	)
-	item = append(item, unsafe.Slice(
-		(*byte)(unsafe.Pointer(&dataItem0)), unsafe.Sizeof(dataItem0))...,
-	)
-	item = append(item, 1) // bitset
-	item = binary.NativeEndian.AppendUint64(item, 0xdeadbeef)
-	item = binary.NativeEndian.AppendUint64(item, 16)
-	item = append(item, 0, 0, 0, 0, 0, 0, 0) // padding
-	item = append(item, unsafe.Slice(
-		(*byte)(unsafe.Pointer(&dataItem1)), unsafe.Sizeof(dataItem1))...,
-	)
-	item = append(item, "bacdefghijklmnop"...)
-	return item
 }
 
 var simpleStringArgExpected = map[string]any{
@@ -256,14 +173,14 @@ func simpleStringArgEvent(t testing.TB, irProg *ir.Program) []byte {
 	var item []byte
 	eventHeader := output.EventHeader{
 		Data_byte_len: uint32(
-			unsafe.Sizeof(output.EventHeader{}) + 8 +
+			unsafe.Sizeof(output.EventHeader{}) +
 				1 /* bitset */ + unsafe.Sizeof(output.DataItemHeader{}) +
 				16 + 7 /* padding */ +
 				unsafe.Sizeof(output.DataItemHeader{}) +
 				16,
 		),
 		Prog_id:        1,
-		Stack_byte_len: 8,
+		Stack_byte_len: 0,
 		Stack_hash:     1,
 		Ktime_ns:       1,
 	}
@@ -280,7 +197,6 @@ func simpleStringArgEvent(t testing.TB, irProg *ir.Program) []byte {
 	item = append(item, unsafe.Slice(
 		(*byte)(unsafe.Pointer(&eventHeader)), unsafe.Sizeof(eventHeader))...,
 	)
-	item = append(item, 0, 0, 0, 0, 0, 0, 0, 0) // pcs
 	item = append(item, unsafe.Slice(
 		(*byte)(unsafe.Pointer(&dataItem0)), unsafe.Sizeof(dataItem0))...,
 	)
@@ -414,7 +330,7 @@ func simpleMapArgEvent(t testing.TB, irProg *ir.Program) []byte {
 	nextMultipleOf8 := func(v int) int { return (v + 7) & ^7 }
 
 	sz := eventHeaderSize // header
-	sz += 8               // pcs
+	// no stack data
 	// root item
 	sz += dataItemHeaderSize + rootLen
 	sz = nextMultipleOf8(sz)
@@ -432,7 +348,7 @@ func simpleMapArgEvent(t testing.TB, irProg *ir.Program) []byte {
 	eventHeader := output.EventHeader{
 		Data_byte_len:  uint32(sz),
 		Prog_id:        1,
-		Stack_byte_len: 8,
+		Stack_byte_len: 0,
 		Stack_hash:     1,
 		Ktime_ns:       1,
 	}
@@ -469,7 +385,6 @@ func simpleMapArgEvent(t testing.TB, irProg *ir.Program) []byte {
 	}
 
 	item = append(item, unsafe.Slice((*byte)(unsafe.Pointer(&eventHeader)), unsafe.Sizeof(eventHeader))...)
-	item = append(item, 0, 0, 0, 0, 0, 0, 0, 0) // pcs
 	item = append(item, unsafe.Slice((*byte)(unsafe.Pointer(&rootHeader)), unsafe.Sizeof(rootHeader))...)
 	item = append(item, rootData...)
 	pad()
@@ -606,7 +521,6 @@ func simpleBigMapArgEvent(t testing.TB, irProg *ir.Program) []byte {
 	)
 	nextMultipleOf8 := func(v int) int { return (v + 7) & ^7 }
 	sz := eventHeaderSize
-	sz += 8 // pcs
 	sz += dataItemHeaderSize + rootLen
 	sz = nextMultipleOf8(sz)
 	sz += dataItemHeaderSize + headerLen
@@ -620,11 +534,10 @@ func simpleBigMapArgEvent(t testing.TB, irProg *ir.Program) []byte {
 
 	var item []byte
 	eventHeader := output.EventHeader{
-		Data_byte_len:  uint32(sz),
-		Prog_id:        1,
-		Stack_byte_len: 8,
-		Stack_hash:     1,
-		Ktime_ns:       1,
+		Data_byte_len: uint32(sz),
+		Prog_id:       1,
+		Stack_hash:    1,
+		Ktime_ns:      1,
 	}
 	rootHeader := output.DataItemHeader{
 		Type:    uint32(eventType.GetID()),
@@ -658,7 +571,6 @@ func simpleBigMapArgEvent(t testing.TB, irProg *ir.Program) []byte {
 		}
 	}
 	item = append(item, unsafe.Slice((*byte)(unsafe.Pointer(&eventHeader)), unsafe.Sizeof(eventHeader))...)
-	item = append(item, 0, 0, 0, 0, 0, 0, 0, 0) // pcs
 	item = append(item, unsafe.Slice((*byte)(unsafe.Pointer(&rootHeader)), unsafe.Sizeof(rootHeader))...)
 	item = append(item, rootData...)
 	pad()
@@ -753,7 +665,6 @@ func simplePointerChainArgEvent(t testing.TB, irProg *ir.Program) []byte {
 	)
 	nextMultipleOf8 := func(v int) int { return (v + 7) & ^7 }
 	sz := eventHeaderSize
-	sz += 8 // pcs
 	sz += dataItemHeaderSize + rootLen
 	sz = nextMultipleOf8(sz)
 	sz += dataItemHeaderSize + len(ptr2Data)
@@ -768,7 +679,7 @@ func simplePointerChainArgEvent(t testing.TB, irProg *ir.Program) []byte {
 	sz = nextMultipleOf8(sz)
 
 	var item []byte
-	eh := output.EventHeader{Data_byte_len: uint32(sz), Prog_id: 1, Stack_byte_len: 8, Stack_hash: 1, Ktime_ns: 1}
+	eh := output.EventHeader{Data_byte_len: uint32(sz), Prog_id: 1, Stack_hash: 1, Ktime_ns: 1}
 	dihRoot := output.DataItemHeader{Type: uint32(eventType.GetID()), Length: uint32(rootLen), Address: 0}
 	pad := func() {
 		for (len(item) % 8) != 0 {
@@ -776,7 +687,6 @@ func simplePointerChainArgEvent(t testing.TB, irProg *ir.Program) []byte {
 		}
 	}
 	item = append(item, unsafe.Slice((*byte)(unsafe.Pointer(&eh)), unsafe.Sizeof(eh))...)
-	item = append(item, 0, 0, 0, 0, 0, 0, 0, 0) // pcs
 	item = append(item, unsafe.Slice((*byte)(unsafe.Pointer(&dihRoot)), unsafe.Sizeof(dihRoot))...)
 	item = append(item, rootData...)
 	pad()
@@ -862,4 +772,33 @@ func TestDecoderPanics(t *testing.T) {
 	)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "boom")
+}
+
+func TestDecoderFailsOnEvaluationError(t *testing.T) {
+	irProg := generateIrForProbes(t, "simple", "stringArg")
+	decoder, err := NewDecoder(irProg, &noopTypeNameResolver{})
+	require.NoError(t, err)
+	caseIdx := slices.IndexFunc(cases, func(c testCase) bool {
+		return c.probeName == "stringArg"
+	})
+	testCase := &cases[caseIdx]
+	input := testCase.eventConstructor(t, irProg)
+	var stringType ir.Type
+	for _, t := range irProg.Types {
+		if t.GetName() == "string" {
+			stringType = t
+			break
+		}
+	}
+	require.NotNil(t, stringType)
+	stringID := stringType.GetID()
+	delete(decoder.decoderTypes, stringID)
+	out, _, err := decoder.Decode(Event{
+		Event:       output.Event(input),
+		ServiceName: "foo"},
+		&noopSymbolicator{},
+		[]byte{},
+	)
+	require.NoError(t, err)
+	require.Contains(t, string(out), "no decoder type found")
 }
