@@ -91,6 +91,9 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "rule_id": {
                     "type": "string"
                 },
+                "original_rule_id": {
+                    "type": "string"
+                },
                 "rule_version": {
                     "type": "string"
                 },
@@ -126,7 +129,8 @@ Workload Protection events for Linux systems have the following JSON schema:
             "additionalProperties": false,
             "type": "object",
             "required": [
-                "rule_id"
+                "rule_id",
+                "original_rule_id"
             ]
         },
         "BPFEvent": {
@@ -2415,6 +2419,9 @@ Workload Protection events for Linux systems have the following JSON schema:
         "rule_id": {
             "type": "string"
         },
+        "original_rule_id": {
+            "type": "string"
+        },
         "rule_version": {
             "type": "string"
         },
@@ -2450,7 +2457,8 @@ Workload Protection events for Linux systems have the following JSON schema:
     "additionalProperties": false,
     "type": "object",
     "required": [
-        "rule_id"
+        "rule_id",
+        "original_rule_id"
     ]
 }
 
