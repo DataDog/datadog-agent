@@ -196,11 +196,10 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 				log.Debugf("Loader name %v does not match, skip loader %v for check %v", selectedInstanceLoader, loader.Name(), config.Name)
 				continue
 			}
-			c, err := loader.Load(s.senderManager, config, instance)
+			_, err := loader.Load(s.senderManager, config, instance)
 			if err == nil {
-				log.Debugf("%v: successfully loaded check '%s'", loader, config.Name)
+				log.Debugf("%v: skipped check '%s', agent should have no checks", loader, config.Name)
 				errorStats.removeLoaderErrors(config.Name)
-				checks = append(checks, c)
 				break
 			}
 			errorStats.setLoaderError(config.Name, fmt.Sprintf("%v", loader), err.Error())
