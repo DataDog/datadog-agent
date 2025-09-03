@@ -5,7 +5,6 @@ test_install_script:
   tags: ["arch:amd64"]
   script:
     - set +x
-    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
     - export TESTING_APT_URL=$DEB_TESTING_S3_BUCKET/datadog-agent/pipeline-$CI_PIPELINE_ID-a7
     - export TESTING_YUM_URL=$RPM_TESTING_S3_BUCKET
     # test repositories are signed with the test keys
