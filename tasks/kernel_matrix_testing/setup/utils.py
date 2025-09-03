@@ -321,7 +321,7 @@ class PipPackageManager(_BasePackageManager):
         else:
             version = None
 
-        res = self.ctx.run(f"{self.pip_command} list --format=columns | grep {package}")
+        res = self.ctx.run(f"{self.pip_command} list --format=columns | grep {package}", warn=True)
         if res is None or not res.ok:
             return False
 
