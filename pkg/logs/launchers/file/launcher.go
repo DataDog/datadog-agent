@@ -7,6 +7,7 @@
 package file
 
 import (
+	"os"
 	"regexp"
 	"slices"
 	"time"
@@ -60,6 +61,8 @@ type Launcher struct {
 	// Stores pertinent information about old tailer when rotation occurs and fingerprinting isn't possible
 	oldInfoMap    map[string]*oldTailerInfo
 	fingerprinter *tailer.Fingerprinter
+	// Tracks current file paths by tailer scan key
+	tailedPaths map[string]string
 }
 
 type oldTailerInfo struct {
@@ -95,6 +98,7 @@ func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePo
 		tagger:                 tagger,
 		oldInfoMap:             make(map[string]*oldTailerInfo),
 		fingerprinter:          tailer.NewFingerprinter(pkgconfigsetup.Datadog().GetBool("logs_config.fingerprint_enabled_experimental"), fingerprintConfig),
+		tailedPaths:            make(map[string]string),
 	}
 }
 
@@ -242,6 +246,32 @@ func (s *Launcher) scan() {
 	tailersLen := s.tailers.Count()
 	log.Debugf("After stopping tailers, there are %d tailers running.\n", tailersLen)
 
+	// Debug: list currently tailed file paths and count
+	if len(s.tailedPaths) > 0 {
+		paths := make([]string, 0, len(s.tailedPaths))
+		for _, p := range s.tailedPaths {
+			paths = append(paths, p)
+			log.Debugf("Currently tailing file: %s", p)
+		}
+		log.Debugf("Currently tailing %d files (limit %d): %v", len(paths), s.tailingLimit, paths)
+		// Heuristic: newest mtime among open files is likely the active writer
+		var newestPath string
+		var newestMod time.Time
+		for _, p := range s.tailedPaths {
+			if st, err := os.Stat(p); err == nil {
+				if st.ModTime().After(newestMod) {
+					newestMod = st.ModTime()
+					newestPath = p
+				}
+			}
+		}
+		if newestPath != "" {
+			log.Debugf("Heuristic active file (newest mtime): %s (mtime: %s)", newestPath, newestMod.UTC().Format(time.RFC3339))
+		}
+	} else {
+		log.Debugf("Currently tailing 0 files (limit %d)", s.tailingLimit)
+	}
+
 	lastIterationOldInfo := s.oldInfoMap
 	s.oldInfoMap = make(map[string]*oldTailerInfo)
 	// Pass 2 - Create new tailers for files that need to be tailed
@@ -282,6 +312,31 @@ func (s *Launcher) scan() {
 		}
 	}
 	log.Debugf("After starting new tailers, there are %d tailers running. Limit is %d.\n", tailersLen, s.tailingLimit)
+	// Debug again after creations
+	if len(s.tailedPaths) > 0 {
+		paths := make([]string, 0, len(s.tailedPaths))
+		for _, p := range s.tailedPaths {
+			paths = append(paths, p)
+			log.Debugf("Now tailing file: %s", p)
+		}
+		log.Debugf("Now tailing %d files (limit %d): %v", len(paths), s.tailingLimit, paths)
+		// Heuristic active writer after changes
+		var newestPath string
+		var newestMod time.Time
+		for _, p := range s.tailedPaths {
+			if st, err := os.Stat(p); err == nil {
+				if st.ModTime().After(newestMod) {
+					newestMod = st.ModTime()
+					newestPath = p
+				}
+			}
+		}
+		if newestPath != "" {
+			log.Debugf("Heuristic active file (newest mtime): %s (mtime: %s)", newestPath, newestMod.UTC().Format(time.RFC3339))
+		}
+	} else {
+		log.Debugf("Now tailing 0 files (limit %d)", s.tailingLimit)
+	}
 
 	// Check how many file handles the Agent process has open and log a warning if the process is coming close to the OS file limit
 	fileStats, err := procfilestats.GetProcessFileStats()
@@ -394,6 +449,8 @@ func (s *Launcher) startNewTailer(file *tailer.File, m config.TailingMode, finge
 	}
 
 	s.tailers.Add(tailer)
+	// Track file path by scan key
+	s.tailedPaths[file.GetScanKey()] = file.Path
 	return true
 }
 
@@ -455,6 +512,8 @@ func (s *Launcher) startNewTailerWithStoredInfo(file *tailer.File, m config.Tail
 	}
 
 	s.tailers.Add(tailer)
+	// Track file path by scan key
+	s.tailedPaths[file.GetScanKey()] = file.Path
 	return true
 }
 
@@ -483,6 +542,8 @@ func (s *Launcher) handleTailingModeChange(tailerID string, currentTailingMode c
 // stopTailer stops the tailer
 func (s *Launcher) stopTailer(tailer *tailer.Tailer) {
 	go tailer.Stop()
+	// Remove from tracking before removing tailer
+	delete(s.tailedPaths, tailer.GetId())
 	s.tailers.Remove(tailer)
 }
 
@@ -527,6 +588,8 @@ func (s *Launcher) restartTailerAfterFileRotation(oldTailer *tailer.Tailer, file
 	// We will keep track of the rotated tailer until it is finished.
 	s.rotatedTailers = append(s.rotatedTailers, oldTailer)
 	s.tailers.Add(newTailer)
+	// Update tracking to the new path for this scan key
+	s.tailedPaths[newTailer.GetId()] = file.Path
 
 	return true
 }
