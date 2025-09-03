@@ -16,6 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/reporter"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage/backend"
 	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
@@ -109,4 +111,33 @@ func NewDirectEventMsgSender(stopper startstop.Stopper, compression compression.
 	return &DirectEventMsgSender{
 		reporter: reporter,
 	}, nil
+}
+
+// DirectActivityDumpMsgSender defines a direct activity dump sender
+type DirectActivityDumpMsgSender struct {
+	backend *backend.ActivityDumpRemoteBackend
+}
+
+// NewDirectActivityDumpMsgSender returns a new direct activity dump sender
+func NewDirectActivityDumpMsgSender() (*DirectActivityDumpMsgSender, error) {
+	backend, err := backend.NewActivityDumpRemoteBackend()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create activity dump backend: %w", err)
+	}
+
+	return &DirectActivityDumpMsgSender{
+		backend: backend,
+	}, nil
+}
+
+// Send the message
+func (ds *DirectActivityDumpMsgSender) Send(msg *api.ActivityDumpStreamMessage, _ func(*api.ActivityDumpStreamMessage)) {
+	selector := msg.GetSelector()
+	image := selector.GetName()
+	tag := selector.GetTag()
+
+	err := ds.backend.HandleActivityDump(image, tag, msg.GetHeader(), msg.GetData())
+	if err != nil {
+		seclog.Errorf("couldn't handle activity dump: %v", err)
+	}
 }

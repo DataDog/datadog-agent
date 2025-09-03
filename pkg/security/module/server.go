@@ -688,7 +688,7 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSen
 		if cfg.SendEventFromSystemProbe {
 			msgSender, err := NewDirectEventMsgSender(stopper, compression, ipc)
 			if err != nil {
-				log.Errorf("failed to setup direct reporter: %v", err)
+				log.Errorf("failed to setup direct event sender: %v", err)
 			} else {
 				as.msgSender = msgSender
 			}
@@ -699,7 +699,20 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSen
 		}
 	}
 
-	as.activityDumpSender = NewChanMsgSender(as.activityDumps)
+	if as.activityDumpSender == nil {
+		if cfg.SendEventFromSystemProbe {
+			adSender, err := NewDirectActivityDumpMsgSender()
+			if err != nil {
+				log.Errorf("failed to setup direct activity dump sender: %v", err)
+			} else {
+				as.activityDumpSender = adSender
+			}
+		}
+
+		if as.activityDumpSender == nil {
+			as.activityDumpSender = NewChanMsgSender(as.activityDumps)
+		}
+	}
 
 	return as, nil
 }
