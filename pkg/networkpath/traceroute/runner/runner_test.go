@@ -51,6 +51,135 @@ func TestProcessResults(t *testing.T) {
 			errMsg:       "",
 		},
 		{
+			description:      "test all fields",
+			useGatewayLookup: false,
+			protocol:         payload.ProtocolUDP,
+			hname:            "test-hostname",
+			destinationHost:  "test-destination-hostname",
+			inputResults: &result.Results{
+				Params: result.Params{
+					Port: 33434,
+				},
+				Traceroute: result.Traceroute{
+					Runs: []result.TracerouteRun{
+						{
+							Source: result.TracerouteSource{
+								IPAddress: net.ParseIP("10.0.0.5"),
+								Port:      12345,
+							},
+							Destination: result.TracerouteDestination{
+								IPAddress: net.ParseIP("8.8.8.8"),
+								Port:      33434, // computer port or Boca Raton, FL?
+							},
+							Hops: []*result.TracerouteHop{
+								{
+									IPAddress: net.ParseIP("10.0.0.1"),
+									ICMPType:  11,
+									ICMPCode:  0,
+									RTT:       0.001, // seconds
+								},
+								{
+									IPAddress: net.IP{},
+								},
+								{
+									IPAddress: net.ParseIP("172.0.0.255"),
+									ICMPType:  11,
+									ICMPCode:  0,
+									RTT:       0.003512345, // seconds
+								},
+							},
+						},
+					},
+				},
+				E2eProbe: result.E2eProbe{
+					Rtts:                 []float64{0.100, 0.200},
+					PacketsSent:          10,
+					PacketsReceived:      5,
+					PacketLossPercentage: 0.5,
+					Jitter:               10,
+					Rtt: result.E2eProbeRttLatency{
+						Avg: 15,
+						Min: 10,
+						Max: 20,
+					},
+				},
+			},
+			expected: payload.NetworkPath{
+				AgentVersion: version.AgentVersion,
+				Protocol:     payload.ProtocolUDP,
+				Source: payload.NetworkPathSource{
+					Hostname: "test-hostname",
+				},
+				Destination: payload.NetworkPathDestination{
+					Hostname:  "test-destination-hostname",
+					IPAddress: "8.8.8.8",
+					Port:      33434,
+				},
+				Traceroute: payload.Traceroute{
+					Runs: []payload.TracerouteRun{
+						{
+							Source: payload.TracerouteSource{
+								IPAddress: net.ParseIP("10.0.0.5"),
+								Port:      12345,
+							},
+							Destination: payload.TracerouteDestination{
+								IPAddress: net.ParseIP("8.8.8.8"),
+								Port:      33434, // computer port or Boca Raton, FL?
+							},
+							Hops: []payload.TracerouteHop{
+								{
+									IPAddress: net.ParseIP("10.0.0.1"),
+									RTT:       0.001, // seconds
+								},
+								{
+									IPAddress: net.IP{},
+								},
+								{
+									IPAddress: net.ParseIP("172.0.0.255"),
+									RTT:       0.003512345, // seconds
+								},
+							},
+						},
+					},
+				},
+				E2eProbe: payload.E2eProbe{
+					Rtts:                 []float64{0.100, 0.200},
+					PacketsSent:          10,
+					PacketsReceived:      5,
+					PacketLossPercentage: 0.5,
+					Jitter:               10,
+					Rtt: payload.E2eProbeRttLatency{
+						Avg: 15,
+						Min: 10,
+						Max: 20,
+					},
+				},
+				Hops: []payload.NetworkPathHop{
+					{
+						TTL:       1,
+						IPAddress: "10.0.0.1",
+						Hostname:  "10.0.0.1",
+						RTT:       0.001,
+						Reachable: true,
+					},
+					{
+						TTL:       2,
+						IPAddress: "unknown_hop_2",
+						Hostname:  "unknown_hop_2",
+						RTT:       0,
+						Reachable: false,
+					},
+					{
+						TTL:       3,
+						IPAddress: "172.0.0.255",
+						Hostname:  "172.0.0.255",
+						RTT:       0.003512345,
+						Reachable: true,
+					},
+				},
+			},
+		},
+		{
 			description:      "successful processing no gateway lookup, did not reach target",
 			useGatewayLookup: false,
 			protocol:         payload.ProtocolUDP,
