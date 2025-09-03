@@ -261,7 +261,7 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 			EditorFlag: manager.EditMaxEntries,
 		},
 		"inet_bind_args": {
-			MaxEntries: procPidCacheMaxEntries,
+			MaxEntries: superReducedProcPidCacheSize,
 			EditorFlag: manager.EditMaxEntries,
 		},
 		"activity_dumps_config": {
