@@ -52,6 +52,7 @@ var bpfMapNames = []string{
 	"flow_pid",
 	"global_rate_lim",
 	"imds_event",
+	"in_upper_layer_",
 	"inet_bind_args",
 	"inode_disc_revi",
 	"inode_discarder",
