@@ -126,6 +126,10 @@ type cgroupIDProvider struct {
 // If none of the direct methods return a valid container ID, an attempt is made to generate one
 // based on the collected OriginInfo.
 func (c *cgroupIDProvider) GetContainerID(ctx context.Context, h http.Header) string {
+	log.Info(
+		ctx.Value(ucredKey{}),
+		h,
+	)
 	originInfo := origindetection.OriginInfo{ProductOrigin: origindetection.ProductOriginAPM}
 
 	// Parse LocalData from the headers.
