@@ -732,7 +732,7 @@ func spansToChunkV1(spans ...*idx.InternalSpan) *idx.InternalTraceChunk {
 		spans,
 		false,
 		[]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
-		"",
+		0,
 	)
 }
 
@@ -1079,7 +1079,7 @@ func assertStatsInputsV1Equal(t *testing.T, expected stats.InputV1, actual stats
 func assertInternalTraceChunkEqual(t *testing.T, expected *idx.InternalTraceChunk, actual *idx.InternalTraceChunk) {
 	assert.Equal(t, expected.Priority, actual.Priority)
 	assert.Equal(t, expected.Origin(), actual.Origin())
-	assert.Equal(t, expected.DecisionMaker(), actual.DecisionMaker())
+	assert.Equal(t, expected.SamplingMechanism(), actual.SamplingMechanism())
 	assert.Equal(t, expected.TraceID, actual.TraceID)
 	assert.Equal(t, expected.DroppedTrace, actual.DroppedTrace)
 	assertAttributesEqual(t, expected.Strings, expected.Attributes, actual.Strings, actual.Attributes)

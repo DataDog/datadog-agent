@@ -321,9 +321,9 @@ func (tc *InternalTraceChunk) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				return
 			}
 		case 7:
-			tc.decisionMakerRef, o, err = UnmarshalStreamingString(o, tc.Strings)
+			tc.samplingMechanism, o, err = msgp.ReadUint32Bytes(o)
 			if err != nil {
-				err = msgp.WrapError(err, "Failed to read trace chunk decisionMaker")
+				err = msgp.WrapError(err, "Failed to read trace chunk samplingMechanism")
 				return
 			}
 		default:
@@ -356,7 +356,7 @@ func (tc *InternalTraceChunk) MarshalMsg(bts []byte, serStrings *SerializedStrin
 	if len(tc.TraceID) > 0 {
 		numFields++
 	}
-	if tc.decisionMakerRef != 0 {
+	if tc.samplingMechanism != 0 {
 		numFields++
 	}
 	o = msgp.AppendMapHeader(bts, uint32(numFields))
@@ -395,9 +395,9 @@ func (tc *InternalTraceChunk) MarshalMsg(bts []byte, serStrings *SerializedStrin
 		o = msgp.AppendUint32(o, 6) // traceID
 		o = msgp.AppendBytes(o, tc.TraceID)
 	}
-	if tc.decisionMakerRef != 0 {
-		o = msgp.AppendUint32(o, 7) // decisionMaker
-		o = serStrings.AppendStreamingString(tc.Strings.Get(tc.decisionMakerRef), tc.decisionMakerRef, o)
+	if tc.samplingMechanism != 0 {
+		o = msgp.AppendUint32(o, 7) // samplingMechanism
+		o = msgp.AppendUint32(o, tc.samplingMechanism)
 	}
 	return
 }

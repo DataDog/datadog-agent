@@ -112,8 +112,7 @@ func TestUnmarshalTraceChunk(t *testing.T) {
 		bts = append(bts, []byte{0x03, 0x93, 0x01, 0x04, 0x02}...) // 3rd key (attributes), array header 3 elements, fixint 1 (string index), 4 (int type), int 2
 		bts = append(bts, []byte{0x05, mtrue}...)                  // 5th key (droppedTrace), bool true
 		bts = append(bts, []byte{0x06, 0xc4, 0x01, 0xAF}...)       // 6th key (TraceID), bin header, 1 byte in length, 0xAF
-		bts = append(bts, []byte{0x07, 0xA2}...)                   // 7th key (decisionMaker), string of length 2
-		bts = append(bts, []byte("-9")...)
+		bts = append(bts, []byte{0x07, 0x04}...)                   // 7th key (samplingMechanism), uint32 4
 
 		chunks, o, err := UnmarshalTraceChunkList(bts, strings)
 		assert.NoError(t, err)
@@ -127,11 +126,11 @@ func TestUnmarshalTraceChunk(t *testing.T) {
 			Attributes: map[uint32]*AnyValue{
 				1: {Value: &AnyValue_IntValue{IntValue: 2}},
 			},
-			DroppedTrace:     true,
-			TraceID:          []byte{0xAF},
-			decisionMakerRef: 2,
+			DroppedTrace:      true,
+			TraceID:           []byte{0xAF},
+			samplingMechanism: 4,
 		}
 		assert.Equal(t, expectedChunk, chunks[0])
-		strings.assertEqual(t, []string{"", "lambda", "-9"})
+		strings.assertEqual(t, []string{"", "lambda"})
 	})
 }

@@ -20,8 +20,8 @@ message TraceChunk {
 	bool droppedTrace = 5;
 	// traceID specifies the ID of the trace to which all spans in this chunk belong.
 	bytes traceID = 6;
-	// decisionMakerRef specifies the string table ref of the optional string decision maker (previously span tag _dd.p.dm)
-	uint32 decisionMakerRef = 7;
+	// samplingMechanism specifies the optional sampling mechanism (previously part of span tag _dd.p.dm)
+	uint32 samplingMechanism = 7;
 }
 
 // TracerPayload represents a payload the trace agent receives from tracers.

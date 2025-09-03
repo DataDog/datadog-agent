@@ -331,40 +331,40 @@ func (tp *InternalTracerPayload) Cut(i int) *InternalTracerPayload {
 // Namely it stores Attributes as a map for fast key lookups and holds a pointer to the strings slice
 // so a trace chunk holds all local context necessary to understand all fields
 type InternalTraceChunk struct {
-	Strings          *StringTable
-	Priority         int32
-	originRef        uint32
-	Attributes       map[uint32]*AnyValue
-	Spans            []*InternalSpan
-	DroppedTrace     bool
-	TraceID          []byte
-	decisionMakerRef uint32
+	Strings           *StringTable
+	Priority          int32
+	originRef         uint32
+	Attributes        map[uint32]*AnyValue
+	Spans             []*InternalSpan
+	DroppedTrace      bool
+	TraceID           []byte
+	samplingMechanism uint32
 }
 
-func NewInternalTraceChunk(strings *StringTable, priority int32, origin string, attributes map[uint32]*AnyValue, spans []*InternalSpan, droppedTrace bool, traceID []byte, decisionMaker string) *InternalTraceChunk {
+func NewInternalTraceChunk(strings *StringTable, priority int32, origin string, attributes map[uint32]*AnyValue, spans []*InternalSpan, droppedTrace bool, traceID []byte, samplingMechanism uint32) *InternalTraceChunk {
 	return &InternalTraceChunk{
-		Strings:          strings,
-		Priority:         priority,
-		originRef:        strings.Add(origin),
-		Attributes:       attributes,
-		Spans:            spans,
-		DroppedTrace:     droppedTrace,
-		TraceID:          traceID,
-		decisionMakerRef: strings.Add(decisionMaker),
+		Strings:           strings,
+		Priority:          priority,
+		originRef:         strings.Add(origin),
+		Attributes:        attributes,
+		Spans:             spans,
+		DroppedTrace:      droppedTrace,
+		TraceID:           traceID,
+		samplingMechanism: samplingMechanism,
 	}
 }
 
 // TODO: add a test to verify we have all fields
 func (c *InternalTraceChunk) ShallowCopy() *InternalTraceChunk {
 	return &InternalTraceChunk{
-		Strings:          c.Strings,
-		Priority:         c.Priority,
-		originRef:        c.originRef,
-		Attributes:       c.Attributes,
-		Spans:            c.Spans,
-		DroppedTrace:     c.DroppedTrace,
-		TraceID:          c.TraceID,
-		decisionMakerRef: c.decisionMakerRef,
+		Strings:           c.Strings,
+		Priority:          c.Priority,
+		originRef:         c.originRef,
+		Attributes:        c.Attributes,
+		Spans:             c.Spans,
+		DroppedTrace:      c.DroppedTrace,
+		TraceID:           c.TraceID,
+		samplingMechanism: c.samplingMechanism,
 	}
 }
 
@@ -401,13 +401,12 @@ func (c *InternalTraceChunk) SetOrigin(origin string) {
 	c.originRef = c.Strings.Add(origin)
 }
 
-func (c *InternalTraceChunk) DecisionMaker() string {
-	return c.Strings.Get(c.decisionMakerRef)
+func (c *InternalTraceChunk) SamplingMechanism() uint32 {
+	return c.samplingMechanism
 }
 
-func (c *InternalTraceChunk) SetDecisionMaker(decisionMaker string) {
-	c.Strings.DecrementReference(c.decisionMakerRef)
-	c.decisionMakerRef = c.Strings.Add(decisionMaker)
+func (c *InternalTraceChunk) SetSamplingMechanism(samplingMechanism uint32) {
+	c.samplingMechanism = samplingMechanism
 }
 
 // GetAttributeAsString returns the attribute as a string, or an empty string if the attribute is not found
@@ -422,20 +421,19 @@ func (c *InternalTraceChunk) SetStringAttribute(key, value string) {
 // ToProto converts an InternalTraceChunk to a proto TraceChunk and marks any strings referenced in this chunk in usedStrings
 func (c *InternalTraceChunk) ToProto(usedStrings []bool) *TraceChunk {
 	usedStrings[c.originRef] = true
-	usedStrings[c.decisionMakerRef] = true
 	markAttributeMapStringsUsed(usedStrings, c.Strings, c.Attributes)
 	spans := make([]*Span, len(c.Spans))
 	for i, span := range c.Spans {
 		spans[i] = span.ToProto(usedStrings)
 	}
 	return &TraceChunk{
-		Priority:         c.Priority,
-		OriginRef:        c.originRef,
-		Attributes:       c.Attributes,
-		Spans:            spans,
-		DroppedTrace:     c.DroppedTrace,
-		TraceID:          c.TraceID,
-		DecisionMakerRef: c.decisionMakerRef,
+		Priority:          c.Priority,
+		OriginRef:         c.originRef,
+		Attributes:        c.Attributes,
+		Spans:             spans,
+		DroppedTrace:      c.DroppedTrace,
+		TraceID:           c.TraceID,
+		SamplingMechanism: c.samplingMechanism,
 	}
 }
 

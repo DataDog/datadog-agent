@@ -211,7 +211,7 @@ func GenerateTraceV1(strings *idx.StringTable, tc *TraceConfig, sc *SpanConfig) 
 		make([]*idx.InternalSpan, 0, n),
 		false,
 		make([]byte, 16),
-		"-4",
+		4,
 	)
 	chunk.Spans = make([]*idx.InternalSpan, 0, n)
 	var (

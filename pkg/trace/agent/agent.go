@@ -49,10 +49,12 @@ const (
 	tagInstallTime = "_dd.install.time"
 
 	// manualSampling is the value for _dd.p.dm when user sets sampling priority directly in code.
-	manualSampling = "-4"
+	manualSampling   = "-4"
+	manualSamplingV1 = 4
 
 	// probabilitySampling is the value for _dd.p.dm when the agent is configured to use the ProbabilitySampler.
-	probabilitySampling = "-9"
+	probabilitySampling   = "-9"
+	probabilitySamplingV1 = 9
 
 	// tagDecisionMaker specifies the sampling decision maker
 	tagDecisionMaker = "_dd.p.dm"
@@ -921,7 +923,7 @@ func isManualUserDropV1(pt *traceutil.ProcessedTraceV1) bool {
 	if priority != sampler.PriorityUserDrop {
 		return false
 	}
-	return pt.TraceChunk.DecisionMaker() == manualSampling
+	return pt.TraceChunk.SamplingMechanism() == manualSamplingV1
 }
 
 // traceSampling reports whether the chunk should be kept as a trace, setting "DroppedTrace" on the chunk
@@ -1085,7 +1087,7 @@ func (a *Agent) runSamplersV1(now time.Time, ts *info.TagStats, pt traceutil.Pro
 			return true, true
 		}
 		if a.ProbabilisticSampler.SampleV1(pt.TraceChunk.TraceID, pt.Root) {
-			pt.TraceChunk.SetDecisionMaker(probabilitySampling)
+			pt.TraceChunk.SetSamplingMechanism(probabilitySamplingV1)
 			return true, true
 		}
 		if traceContainsErrorV1(pt.TraceChunk.Spans, false) {
@@ -1268,7 +1270,7 @@ func traceChunkContainsProbabilitySamplingV1(chunk *idx.InternalTraceChunk) bool
 	if chunk == nil {
 		return false
 	}
-	if chunk.DecisionMaker() == probabilitySampling {
+	if chunk.SamplingMechanism() == probabilitySamplingV1 {
 		return true
 	}
 	return false

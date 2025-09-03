@@ -151,10 +151,10 @@ func TestInternalTracerPayload_ToProto_UnusedStringsRemoved(t *testing.T) {
 		Attributes: map[uint32]*AnyValue{
 			strings.Add("attr-key"): {Value: &AnyValue_StringValueRef{StringValueRef: strings.Add("attr-value")}},
 		},
-		Spans:            []*InternalSpan{NewInternalSpan(strings, span)},
-		DroppedTrace:     false,
-		TraceID:          []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
-		decisionMakerRef: strings.Add("dm"),
+		Spans:             []*InternalSpan{NewInternalSpan(strings, span)},
+		DroppedTrace:      false,
+		TraceID:           []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
+		samplingMechanism: 4,
 	}
 
 	// Build attributes for the tracer payload
@@ -192,7 +192,7 @@ func TestInternalTracerPayload_ToProto_UnusedStringsRemoved(t *testing.T) {
 	assert.Len(t, protoPayload.Chunks, 1)
 	protoChunk := protoPayload.Chunks[0]
 	assert.Equal(t, "chunk-origin", protoPayload.Strings[protoChunk.OriginRef])
-	assert.Equal(t, "dm", protoPayload.Strings[protoChunk.DecisionMakerRef])
+	assert.Equal(t, uint32(4), protoChunk.SamplingMechanism)
 
 	// Check span strings
 	assert.Len(t, protoChunk.Spans, 1)
