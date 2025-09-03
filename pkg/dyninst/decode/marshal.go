@@ -96,17 +96,26 @@ func (ad *argumentsData) MarshalJSONTo(enc *jsontext.Encoder) error {
 		return err
 	}
 
+	if ad.rootType.PresenceBitsetSize > uint32(len(ad.rootData)) {
+		return fmt.Errorf("presence bitset is out of bounds: %d > %d",
+			ad.rootType.PresenceBitsetSize, len(ad.rootData),
+		)
+	}
 	presenceBitSet := ad.rootData[:ad.rootType.PresenceBitsetSize]
 	// We iterate over the 'Expressions' of the EventRoot which contains
 	// metadata and raw bytes of the parameters of this function.
 	for i, expr := range ad.rootType.Expressions {
 		parameterType := expr.Expression.Type
-		parameterData := ad.rootData[expr.Offset : expr.Offset+parameterType.GetByteSize()]
-
+		parameterSize := parameterType.GetByteSize()
+		ub := expr.Offset + parameterSize
+		if int(ub) > len(ad.rootData) {
+			return fmt.Errorf("expression %s is out of bounds", expr.Name)
+		}
+		parameterData := ad.rootData[expr.Offset:ub]
 		if err = writeTokens(enc, jsontext.String(expr.Name)); err != nil {
 			return err
 		}
-		if !expressionIsPresent(presenceBitSet, i) && parameterType.GetByteSize() != 0 {
+		if !expressionIsPresent(presenceBitSet, i) && parameterSize != 0 {
 			// Set not capture reason
 			if err = writeTokens(enc,
 				jsontext.BeginObject,
@@ -126,7 +135,10 @@ func (ad *argumentsData) MarshalJSONTo(enc *jsontext.Encoder) error {
 			parameterType.GetName(),
 		)
 		if err != nil {
-			return fmt.Errorf("error parsing data for field %s: %w", ad.rootType.Name, err)
+			return fmt.Errorf(
+				"error parsing data for field %s: %w",
+				ad.rootType.Name, err,
+			)
 		}
 	}
 	if err = writeTokens(enc, jsontext.EndObject); err != nil {
@@ -184,16 +196,19 @@ func (d *Decoder) encodeValue(
 	data []byte,
 	valueType string,
 ) error {
-	if err := writeTokens(enc,
-		jsontext.BeginObject,
-		jsontext.String("type"),
-		jsontext.String(valueType),
-	); err != nil {
-		return err
-	}
 	decoderType, ok := d.decoderTypes[typeID]
 	if !ok {
 		return fmt.Errorf("no decoder type found for type %s", decoderType.irType().GetName())
+	}
+	if err := writeTokens(enc, jsontext.BeginObject); err != nil {
+		return err
+	}
+	if !decoderType.hasDynamicType() {
+		if err := writeTokens(
+			enc, jsontext.String("type"), jsontext.String(valueType),
+		); err != nil {
+			return err
+		}
 	}
 	if err := decoderType.encodeValueFields(d, enc, data); err != nil {
 		return err

@@ -72,9 +72,9 @@ def extract_rpm_package(ctx, package_path, extract_dir):
     if log_dir is None:
         log_dir = "/tmp"
     with ctx.cd(extract_dir):
-        out = ctx.run(f"rpm2cpio {package_path} | cpio -idm > {log_dir}/extract_rpm_package_report", warn=True)
-        if out.exited == 2:
-            raise InfraError("RPM archive extraction failed ! retrying...(infra flake)")
+        out = ctx.run(f'rpm2archive - < "{package_path}" | tar -xvz > {log_dir}/extract_rpm_package_report', warn=True)
+        if out.exited != 0:
+            raise InfraError(f"RPM archive extraction failed with error code {out.exited}. Retrying...")
 
 
 def extract_zip_archive(ctx, package_path, extract_dir):

@@ -11,12 +11,14 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
+	"fmt"
 	"slices"
 	"testing"
 	"unsafe"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/dyninst/gotype"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
@@ -24,6 +26,27 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symbol"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 )
+
+func FuzzDecoder(f *testing.F) {
+	probeNames := make([]string, 0, len(cases))
+	for _, c := range cases {
+		probeNames = append(probeNames, c.probeName)
+	}
+	irProg := generateIrForProbes(f, "simple", probeNames...)
+	decoder, err := NewDecoder(irProg, &noopTypeNameResolver{})
+	require.NoError(f, err)
+	for _, c := range cases {
+		f.Add(c.eventConstructor(f, irProg))
+	}
+	f.Fuzz(func(t *testing.T, item []byte) {
+		_, _ = decoder.Decode(Event{
+			Event:       output.Event(item),
+			ServiceName: "foo",
+		}, &noopSymbolicator{}, bytes.NewBuffer(nil))
+		require.Empty(t, decoder.dataItems)
+		require.Empty(t, decoder.currentlyEncoding)
+	})
+}
 
 // TestDecoderManually is a test that manually constructs an event and decodes
 // it.
@@ -37,7 +60,7 @@ func TestDecoderManually(t *testing.T) {
 		t.Run(c.probeName, func(t *testing.T) {
 			irProg := generateIrForProbes(t, "simple", c.probeName)
 			item := c.eventConstructor(t, irProg)
-			decoder, err := NewDecoder(irProg)
+			decoder, err := NewDecoder(irProg, &noopTypeNameResolver{})
 			require.NoError(t, err)
 			buf := bytes.NewBuffer(nil)
 			probe, err := decoder.Decode(Event{
@@ -52,6 +75,27 @@ func TestDecoderManually(t *testing.T) {
 			require.Empty(t, decoder.dataItems)
 			require.Empty(t, decoder.currentlyEncoding)
 			require.Zero(t, decoder.snapshotMessage)
+		})
+	}
+}
+
+func BenchmarkDecoder(b *testing.B) {
+	for _, c := range cases {
+		b.Run(c.probeName, func(b *testing.B) {
+			irProg := generateIrForProbes(b, "simple", c.probeName)
+			decoder, err := NewDecoder(irProg, &noopTypeNameResolver{})
+			require.NoError(b, err)
+			buf := bytes.NewBuffer(nil)
+			symbolicator := &noopSymbolicator{}
+			event := Event{
+				Event:       output.Event(c.eventConstructor(b, irProg)),
+				ServiceName: "foo",
+			}
+			b.ResetTimer()
+			for b.Loop() {
+				_, err := decoder.Decode(event, symbolicator, buf)
+				require.NoError(b, err)
+			}
 		})
 	}
 }
@@ -368,7 +412,7 @@ var simpleBigMapArgExpected = map[string]any{
 				map[string]any{"type": "string", "value": "b"},
 				map[string]any{
 					"type":    "*main.bigStruct", // This shouldn't be a pointer
-					"address": "0x0",             // and the address is suspect.
+					"address": "0x700000007",     // or carry this address.
 					"fields": map[string]any{
 						"Field1": map[string]any{"type": "int", "value": "1"},
 						"Field2": map[string]any{"type": "int", "value": "0"},
@@ -550,7 +594,7 @@ func simpleBigMapArgEvent(t testing.TB, irProg *ir.Program) []byte {
 var simplePointerChainArgExpected = map[string]any{
 	"ptr": map[string]any{
 		"type":    "*****int",
-		"address": "0x0",
+		"address": "0xa0000005",
 		"value":   "17",
 	},
 }
@@ -683,4 +727,12 @@ func (s *noopSymbolicator) Symbolicate(
 	[]uint64, uint64,
 ) ([]symbol.StackFrame, error) {
 	return nil, nil
+}
+
+type noopTypeNameResolver struct{}
+
+func (r *noopTypeNameResolver) ResolveTypeName(
+	typeID gotype.TypeID,
+) (string, error) {
+	return fmt.Sprintf("type%#x", typeID), nil
 }

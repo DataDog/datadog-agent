@@ -30,20 +30,23 @@ import (
 	"maps"
 	"math"
 	"reflect"
+	"regexp"
 	"runtime/debug"
 	"slices"
 	"strings"
+	"time"
 
 	pkgerrors "github.com/pkg/errors"
+	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dwarf/dwarfutil"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dwarf/loclist"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// TODO: Validate the probes in the config and report things that are
-// not supported without just bailing out.
+var loclistErrorLogLimiter = rate.NewLimiter(rate.Every(1*time.Minute), 1)
 
 // TODO: This code creates a lot of allocations, but we could greatly reduce
 // the number of distinct allocations by using a batched allocation scheme.
@@ -51,10 +54,6 @@ import (
 // objects are going to be the same.
 
 // TODO: Handle creating return events.
-
-// TODO: Properly set up the presence bitset.
-
-// TODO: Support hmaps.
 
 // Generator is used to generate IR programs from binary files and probe
 // configurations.
@@ -145,7 +144,7 @@ func generateIR(
 		cfg.maxDynamicTypeSize,
 		cfg.maxHashBucketsSize,
 	)
-	pendingSubprograms, err := processDwarf(interests, d, typeCatalog, objFile)
+	pendingSubprograms, goModuledataInfo, err := processDwarf(interests, d, typeCatalog, objFile)
 	if err != nil {
 		return nil, err
 	}
@@ -206,12 +205,13 @@ func generateIR(
 	slices.SortFunc(issues, ir.CompareProbeIDs)
 
 	return &ir.Program{
-		ID:          programID,
-		Subprograms: subprograms,
-		Probes:      probes,
-		Types:       typeCatalog.typesByID,
-		MaxTypeID:   typeCatalog.idAlloc.alloc,
-		Issues:      issues,
+		ID:               programID,
+		Subprograms:      subprograms,
+		Probes:           probes,
+		Types:            typeCatalog.typesByID,
+		MaxTypeID:        typeCatalog.idAlloc.alloc,
+		Issues:           issues,
+		GoModuledataInfo: goModuledataInfo,
 	}, nil
 }
 
@@ -353,7 +353,7 @@ func processDwarf(
 	d *dwarf.Data,
 	typeCatalog *typeCatalog,
 	objFile object.FileWithDwarf,
-) ([]*pendingSubprogram, error) {
+) ([]*pendingSubprogram, ir.GoModuledataInfo, error) {
 	v := &rootVisitor{
 		interests:           interests,
 		dwarf:               d,
@@ -367,7 +367,7 @@ func processDwarf(
 
 	// Visit the entire DWARF tree.
 	if err := visitDwarf(d.Reader(), v); err != nil {
-		return nil, err
+		return nil, ir.GoModuledataInfo{}, err
 	}
 
 	// Concrete subprograms are already in v.pendingSubprograms.
@@ -406,7 +406,10 @@ func processDwarf(
 		})
 	}
 
-	return pending, nil
+	if v.goRuntimeInformation == (ir.GoModuledataInfo{}) {
+		return nil, ir.GoModuledataInfo{}, fmt.Errorf("runtime.firstmoduledata not found")
+	}
+	return pending, v.goRuntimeInformation, nil
 }
 
 func findUnusedConfigs(
@@ -489,19 +492,10 @@ func applyInlineToAbstractSubprogram(
 			var locations []ir.Location
 			locField := inlinedVariable.AttrField(dwarf.AttrLocation)
 			if locField != nil {
-				locations, err = computeLocations(
-					unit, ranges, variable.Type, locField,
+				locations = computeLocations(
+					unit, inlinedVariable.Offset, ranges, variable.Type, locField,
 					loclistReader, pointerSize,
 				)
-				if err != nil {
-					return ir.Issue{
-						Kind: ir.IssueKindMalformedExecutable,
-						Message: fmt.Sprintf(
-							"failed to compute locations for inlined variable %q: %v",
-							variable.Name, err,
-						),
-					}
-				}
 				variable.Locations = append(variable.Locations, locations...)
 			}
 		} else {
@@ -556,8 +550,8 @@ func completeGoTypes(tc *typeCatalog) error {
 				// Nothing to do.
 			default:
 				return fmt.Errorf(
-					"unexpected Go kind for structure type: %v",
-					t.GoTypeAttributes.GoKind,
+					"unexpected Go kind for structure type %q: %v",
+					t.Name, t.GoTypeAttributes.GoKind,
 				)
 			}
 		case *ir.GoMapType:
@@ -934,6 +928,8 @@ type rootVisitor struct {
 	typeCatalog        *typeCatalog
 	loclistReader      *loclist.Reader
 
+	goRuntimeInformation ir.GoModuledataInfo
+
 	// This is used to avoid allocations of unitChildVisitor for each
 	// compile unit.
 	freeUnitChildVisitor *unitChildVisitor
@@ -1073,20 +1069,154 @@ func (v *unitChildVisitor) push(
 		dwarf.TagStructType,
 		dwarf.TagTypedef,
 		dwarf.TagSubroutineType:
-		// TODO: We've already parsed this node, it's wasteful to parse it
-		// again, but we're not going to know whether we need it until later. so
-		// for now we'll just skip over all types and come back to them lazily.
+
+		// Use this as a heuristic to determine if this is a base type or a
+		// pointer to a base type. This is handy because these things are
+		// sometimes found underneath interfaces. Also, generally it's nice to
+		// have some types eagerly added.
+		name, ok, err := maybeGetAttr[string](entry, dwarf.AttrName)
+		if err != nil || !ok {
+			return nil, err
+		}
+		nameWithoutStar := name
+		if entry.Tag == dwarf.TagPointerType {
+			nameWithoutStar = name[1:]
+		}
+		if !primitiveTypeNameRegexp.MatchString(nameWithoutStar) &&
+			// error is a special case that is not a primitive type and it
+			// itself is an interface, so we don't need to add it eagerly.
+			nameWithoutStar != "error" {
+			return nil, nil
+		}
+		if _, err := v.root.typeCatalog.addType(entry.Offset); err != nil {
+			return nil, fmt.Errorf("failed to add type %q: %w", name, err)
+		}
 		return nil, nil
 
 	case dwarf.TagVariable:
-		// TODO: Handle variables.
+		name, ok, err := maybeGetAttr[string](entry, dwarf.AttrName)
+		if err != nil {
+			return nil, err
+		}
+		if !ok || name != "runtime.firstmoduledata" {
+			return nil, nil
+		}
+
+		typeOffset, err := getAttr[dwarf.Offset](entry, dwarf.AttrType)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get type for runtime.firstmoduledata: %w", err)
+		}
+
+		// See https://github.com/golang/go/blob/5a56d884/src/runtime/symtab.go#L414
+		byteSize, memberOffset, err := findStructSizeAndMemberOffset(v.root.dwarf, typeOffset, "types")
+		if err != nil {
+			return nil, fmt.Errorf("failed to find struct size and member offset: %w", err)
+		}
+		location, err := getAttr[[]byte](entry, dwarf.AttrLocation)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get location for runtime.firstmoduledata: %w", err)
+		}
+		instructions, err := loclist.ParseInstructions(location, v.root.pointerSize, byteSize)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse location for runtime.firstmoduledata: %w", err)
+		}
+		if len(instructions) != 1 {
+			return nil, fmt.Errorf("runtime.firstmoduledata has %d instructions, expected 1", len(instructions))
+		}
+		addr, ok := instructions[0].Op.(ir.Addr)
+		if !ok {
+			return nil, fmt.Errorf("runtime.firstmoduledata is not an address, got %T", instructions[0].Op)
+		}
+		v.root.goRuntimeInformation = ir.GoModuledataInfo{
+			FirstModuledataAddr: addr.Addr,
+			TypesOffset:         memberOffset,
+		}
 		return nil, nil
+
 	case dwarf.TagConstant:
 		// TODO: Handle constants.
 		return nil, nil
 	default:
 		return nil, fmt.Errorf("unexpected tag for unit child: %s", entry.Tag)
 	}
+}
+
+// primitiveTypeNameRegexp is a regex that matches the names of primitive types.
+// It doesn't match anything with a package or any of the odd internal types
+// used by the runtime like sudog<T>.
+var primitiveTypeNameRegexp = regexp.MustCompile(`^[a-z]+[0-9]*$`)
+
+// findStructMemberOffset finds the offset of a member in a struct type.
+func findStructSizeAndMemberOffset(
+	dwarfData *dwarf.Data,
+	typeOffset dwarf.Offset,
+	memberName string,
+) (size uint32, memberOffset uint32, retErr error) {
+	reader := dwarfData.Reader()
+	reader.Seek(typeOffset)
+	entry, err := reader.Next()
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to get entry: %w", err)
+	}
+	if entry.Tag != dwarf.TagTypedef {
+		return 0, 0, fmt.Errorf("expected typedef type, got %s", entry.Tag)
+	}
+	underlyingOffset, err := getAttr[dwarf.Offset](entry, dwarf.AttrType)
+	if err != nil {
+		return 0, 0, fmt.Errorf("missing type for typedef: %w", err)
+	}
+	reader.Seek(underlyingOffset)
+	entry, err = reader.Next()
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to get entry: %w", err)
+	}
+	if entry.Tag != dwarf.TagStructType {
+		return 0, 0, fmt.Errorf("expected struct type, got %s", entry.Tag)
+	}
+	if !entry.Children {
+		return 0, 0, fmt.Errorf("struct type has no children")
+	}
+	structSize, err := getAttr[int64](entry, dwarf.AttrByteSize)
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to get size for struct type: %w", err)
+	}
+	if structSize < 0 || structSize > math.MaxUint32 {
+		return 0, 0, fmt.Errorf("invalid struct size %d", structSize)
+	}
+	size = uint32(structSize)
+	for {
+		child, err := reader.Next()
+		if err != nil {
+			return 0, 0, fmt.Errorf("failed to get next child: %w", err)
+		}
+		if child == nil {
+			return 0, 0, fmt.Errorf("unexpected EOF while reading struct type")
+		}
+		if child.Tag == 0 {
+			break
+		}
+		if child.Tag == dwarf.TagMember {
+			name, err := getAttr[string](child, dwarf.AttrName)
+			if err != nil {
+				return 0, 0, fmt.Errorf("failed to get name for member: %w", err)
+			}
+			if name != memberName {
+				continue
+			}
+			offset, err := getAttr[int64](child, dwarf.AttrDataMemberLoc)
+			if err != nil {
+				return 0, 0, fmt.Errorf("failed to get offset for member: %w", err)
+			}
+			if offset > math.MaxUint32 {
+				return 0, 0, fmt.Errorf("member offset is too large: %d", offset)
+			}
+			return size, uint32(offset), nil
+		}
+		if child.Children {
+			reader.SkipChildren()
+		}
+	}
+	return 0, 0, fmt.Errorf("member %q not found", memberName)
 }
 
 func (v *unitChildVisitor) pop(_ *dwarf.Entry, childVisitor visitor) error {
@@ -1221,12 +1351,13 @@ func findPrologueEnd(
 		}
 	}
 	if err != nil {
-		// TODO(XXX): We hit this whenever the function prologue
-		// begins.
+		// Reset the reader to the previous position which is more efficient
+		// than starting from 0 for the next seek given the caller is exploring
+		// in PC order.
 		lineReader.Seek(prevPos)
-		return
+		return 0, false, err
 	}
-	// for whatever reason the entrypoint of a function is marked as a
+	// For whatever reason the entrypoint of a function is marked as a
 	// statement and then should come the prologue end. If we see two
 	// statements in a row then we're not going to find the prologue end.
 	stmtsSeen := 0
@@ -1238,7 +1369,8 @@ func findPrologueEnd(
 			stmtsSeen++
 		}
 		if err := lineReader.Next(&lineEntry); err != nil {
-			// TODO(XXX): Should this bail out?
+			// Should this return an error?
+			//
 			// In general, if we don't have the proper prologue end
 			// and it's not a frameless subprogram, then we're going
 			// to have a problem on x86 because we won't know the
@@ -1385,13 +1517,10 @@ func processVariable(
 			// here: we only really need to locations for some specific
 			// PCs (such as the prologue end), but we don't know what
 			// those PCs are here, and figuring them out can be expensive.
-			locations, err = computeLocations(
-				unit, subprogramPCRanges, typ, locField, loclistReader,
+			locations = computeLocations(
+				unit, entry.Offset, subprogramPCRanges, typ, locField, loclistReader,
 				pointerSize,
 			)
-			if err != nil {
-				return nil, err
-			}
 		}
 	}
 	isReturn, _, err := maybeGetAttr[bool](entry, dwarf.AttrVarParam)
@@ -1493,17 +1622,27 @@ func (v *inlinedSubroutineChildVisitor) pop(_ *dwarf.Entry, _ visitor) error {
 
 func computeLocations(
 	unit *dwarf.Entry,
+	entryOffset dwarf.Offset,
 	subprogramRanges []ir.PCRange,
 	typ ir.Type,
 	locField *dwarf.Field,
 	loclistReader *loclist.Reader,
 	pointerSize uint8,
-) ([]ir.Location, error) {
+) []ir.Location {
 	// BUG: We shouldn't pass subprogramRanges below; we should take into
 	// consideration the ranges of the current block, not necessarily the ranges
 	// of the subprogram.
-	return dwarfutil.ProcessLocations(
+	locations, err := dwarfutil.ProcessLocations(
 		locField, unit, loclistReader, subprogramRanges, typ.GetByteSize(), pointerSize)
+	if err != nil {
+		if loclistErrorLogLimiter.Allow() {
+			log.Warnf(
+				"ignoring locations for variable at 0x%x: %v", entryOffset, err,
+			)
+		}
+		return nil
+	}
+	return locations
 }
 
 // maybeGetAttr is a helper function that returns the value of an attribute if
