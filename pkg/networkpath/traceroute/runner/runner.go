@@ -231,35 +231,6 @@ func (r *Runner) processResults(res *result.Results, protocol payload.Protocol, 
 		})
 	}
 
-	// TODO: REMOVE LEGACY FORMAT CODE BELOW
-	// TODO: REMOVE LEGACY FORMAT CODE BELOW
-	// TODO: REMOVE LEGACY FORMAT CODE BELOW
-	if len(res.Traceroute.Runs) > 0 {
-		tracerouteRun := res.Traceroute.Runs[0]
-		traceroutePath.Destination.IPAddress = tracerouteRun.Destination.IPAddress.String()
-
-		for i, hop := range tracerouteRun.Hops {
-			ttl := i + 1
-			isReachable := false
-			hopname := fmt.Sprintf("unknown_hop_%d", ttl)
-			hostname := hopname
-
-			if !hop.IPAddress.Equal(net.IP{}) {
-				isReachable = true
-				hopname = hop.IPAddress.String()
-				hostname = hopname // setting to ip address for now, reverse DNS lookup will override hostname field later
-			}
-
-			npHop := payload.NetworkPathHop{
-				TTL:       ttl,
-				IPAddress: hopname,
-				Hostname:  hostname,
-				Rtt:       hop.Rtt,
-				Reachable: isReachable,
-			}
-			traceroutePath.Hops = append(traceroutePath.Hops, npHop)
-		}
-	}
 	return traceroutePath, nil
 }
 

@@ -111,9 +111,8 @@ func TestProcessResults(t *testing.T) {
 					Hostname: "test-hostname",
 				},
 				Destination: payload.NetworkPathDestination{
-					Hostname:  "test-destination-hostname",
-					IPAddress: "8.8.8.8",
-					Port:      33434,
+					Hostname: "test-destination-hostname",
+					Port:     33434,
 				},
 				Traceroute: payload.Traceroute{
 					Runs: []payload.TracerouteRun{
@@ -152,29 +151,6 @@ func TestProcessResults(t *testing.T) {
 						Avg: 15,
 						Min: 10,
 						Max: 20,
-					},
-				},
-				Hops: []payload.NetworkPathHop{
-					{
-						TTL:       1,
-						IPAddress: "10.0.0.1",
-						Hostname:  "10.0.0.1",
-						Rtt:       0.001,
-						Reachable: true,
-					},
-					{
-						TTL:       2,
-						IPAddress: "unknown_hop_2",
-						Hostname:  "unknown_hop_2",
-						Rtt:       0,
-						Reachable: false,
-					},
-					{
-						TTL:       3,
-						IPAddress: "172.0.0.255",
-						Hostname:  "172.0.0.255",
-						Rtt:       0.003512345,
-						Reachable: true,
 					},
 				},
 			},
@@ -228,9 +204,8 @@ func TestProcessResults(t *testing.T) {
 					Hostname: "test-hostname",
 				},
 				Destination: payload.NetworkPathDestination{
-					Hostname:  "test-destination-hostname",
-					IPAddress: "8.8.8.8",
-					Port:      33434,
+					Hostname: "test-destination-hostname",
+					Port:     33434,
 				},
 				Traceroute: payload.Traceroute{
 					Runs: []payload.TracerouteRun{
@@ -257,29 +232,6 @@ func TestProcessResults(t *testing.T) {
 								},
 							},
 						},
-					},
-				},
-				Hops: []payload.NetworkPathHop{
-					{
-						TTL:       1,
-						IPAddress: "10.0.0.1",
-						Hostname:  "10.0.0.1",
-						Rtt:       0.001,
-						Reachable: true,
-					},
-					{
-						TTL:       2,
-						IPAddress: "unknown_hop_2",
-						Hostname:  "unknown_hop_2",
-						Rtt:       0,
-						Reachable: false,
-					},
-					{
-						TTL:       3,
-						IPAddress: "172.0.0.255",
-						Hostname:  "172.0.0.255",
-						Rtt:       0.003512345,
-						Reachable: true,
 					},
 				},
 			},
@@ -338,9 +290,8 @@ func TestProcessResults(t *testing.T) {
 					},
 				},
 				Destination: payload.NetworkPathDestination{
-					Hostname:  "test-destination-hostname",
-					IPAddress: "8.8.8.8",
-					Port:      443,
+					Hostname: "test-destination-hostname",
+					Port:     443,
 				},
 				Traceroute: payload.Traceroute{
 					Runs: []payload.TracerouteRun{
@@ -367,29 +318,6 @@ func TestProcessResults(t *testing.T) {
 								},
 							},
 						},
-					},
-				},
-				Hops: []payload.NetworkPathHop{
-					{
-						TTL:       1,
-						IPAddress: "10.0.0.1",
-						Hostname:  "10.0.0.1",
-						Rtt:       0.001,
-						Reachable: true,
-					},
-					{
-						TTL:       2,
-						IPAddress: "unknown_hop_2",
-						Hostname:  "unknown_hop_2",
-						Rtt:       0,
-						Reachable: false,
-					},
-					{
-						TTL:       3,
-						IPAddress: "172.0.0.255",
-						Hostname:  "172.0.0.255",
-						Rtt:       0.040,
-						Reachable: true,
 					},
 				},
 			},
@@ -453,9 +381,8 @@ func TestProcessResults(t *testing.T) {
 					},
 				},
 				Destination: payload.NetworkPathDestination{
-					Hostname:  "test-destination-hostname",
-					IPAddress: "8.8.8.8",
-					Port:      33434,
+					Hostname: "test-destination-hostname",
+					Port:     33434,
 				},
 				Traceroute: payload.Traceroute{
 					Runs: []payload.TracerouteRun{
@@ -486,36 +413,6 @@ func TestProcessResults(t *testing.T) {
 								},
 							},
 						},
-					},
-				},
-				Hops: []payload.NetworkPathHop{
-					{
-						TTL:       1,
-						IPAddress: "10.0.0.1",
-						Hostname:  "10.0.0.1",
-						Rtt:       0.001,
-						Reachable: true,
-					},
-					{
-						TTL:       2,
-						IPAddress: "unknown_hop_2",
-						Hostname:  "unknown_hop_2",
-						Rtt:       0,
-						Reachable: false,
-					},
-					{
-						TTL:       3,
-						IPAddress: "172.0.0.255",
-						Hostname:  "172.0.0.255",
-						Rtt:       0.08,
-						Reachable: true,
-					},
-					{
-						TTL:       4,
-						IPAddress: "8.8.8.8",
-						Hostname:  "8.8.8.8",
-						Rtt:       0.12,
-						Reachable: true,
 					},
 				},
 			},
