@@ -71,18 +71,18 @@ func NewChanMsgSender[T any](msgs chan *T) *ChanMsgSender[T] {
 	}
 }
 
-// DirectMsgSender defines a direct sender
-type DirectMsgSender struct {
+// DirectEventMsgSender defines a direct sender
+type DirectEventMsgSender struct {
 	reporter common.RawReporter
 }
 
 // Send the message
-func (ds *DirectMsgSender) Send(msg *api.SecurityEventMessage, _ func(*api.SecurityEventMessage)) {
+func (ds *DirectEventMsgSender) Send(msg *api.SecurityEventMessage, _ func(*api.SecurityEventMessage)) {
 	ds.reporter.ReportRaw(msg.Data, msg.Service, msg.Timestamp.AsTime(), msg.Tags...)
 }
 
-// NewDirectMsgSender returns a new direct sender
-func NewDirectMsgSender(stopper startstop.Stopper, compression compression.Component, ipc ipc.Component) (*DirectMsgSender, error) {
+// NewDirectEventMsgSender returns a new direct sender
+func NewDirectEventMsgSender(stopper startstop.Stopper, compression compression.Component, ipc ipc.Component) (*DirectEventMsgSender, error) {
 	useSecRuntimeTrack := pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.use_secruntime_track")
 
 	endpoints, destinationsCtx, err := common.NewLogContextRuntime(useSecRuntimeTrack)
@@ -106,7 +106,7 @@ func NewDirectMsgSender(stopper startstop.Stopper, compression compression.Compo
 		return nil, fmt.Errorf("failed to create direct reporter: %w", err)
 	}
 
-	return &DirectMsgSender{
+	return &DirectEventMsgSender{
 		reporter: reporter,
 	}, nil
 }
