@@ -297,9 +297,15 @@ def finish(ctx, release_branch, release_date=None, upstream="origin"):
     """Updates the release.json file for the new version.
 
     Args:
-        release_branch: ...
-        release_date: Date when the release was done. Expected format YYYY-MM-DD, like '2022-09-15'. (default: today's date)
-        upstream: ... (default: "origin")
+        release_branch: The Git branch from which the release is being finalized.
+            This branch should correspond to the release line you are finishing
+            (for example, "7.69.x"). It is used to determine the major version,
+            update module dependencies, and generate the release artifacts.
+        release_date: Date when the release was done. Expected format YYYY-MM-DD,
+            like '2025-09-03'. (default: today's date)
+        upstream: The name of the remote repository to push the finalized release
+            branch to. This is typically "origin", but can be changed if working
+            with a fork or a differently named remote. (default: "origin")
 
     Updates internal module dependencies with the new version.
     """
