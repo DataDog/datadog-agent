@@ -31,6 +31,11 @@ const (
 )
 
 var (
+	// ddotDirectories are the directories that DDOT needs to function
+	ddotDirectories = file.Directories{
+		{Path: "/etc/datadog-agent", Mode: 0755, Owner: "dd-agent", Group: "dd-agent"},
+	}
+
 	// ddotConfigPermissionsDEBRPM are the ownerships and modes that are enforced on the DDOT configuration files for DEB/RPM packages
 	ddotConfigPermissionsDEBRPM = file.Permissions{
 		{Path: "otel-config.yaml.example", Owner: "dd-agent", Group: "dd-agent", Mode: 0640},
@@ -45,12 +50,6 @@ var (
 	// ddotPackagePermissions are the ownerships and modes that are enforced on the DDOT package files
 	ddotPackagePermissions = file.Permissions{
 		{Path: ".", Owner: "dd-agent", Group: "dd-agent", Recursive: true},
-	}
-
-	// ddotConfigUninstallPaths are the files that are deleted during an uninstall
-	ddotConfigUninstallPaths = file.Paths{
-		"otel-config.yaml.example",
-		"otel-config.yaml",
 	}
 
 	// agentDDOTService are the services that are part of the DDOT package
@@ -111,12 +110,13 @@ func postInstallDatadogAgentDDOTOCI(ctx HookContext) (err error) {
 		return fmt.Errorf("failed to create dd-agent user and group: %v", err)
 	}
 
-	// Set DDOT package permissions
+	// Ensure directories and files exist and have correct permissions
+	if err = ddotDirectories.Ensure(ctx); err != nil {
+		return fmt.Errorf("failed to create DDOT directories: %v", err)
+	}
 	if err = ddotPackagePermissions.Ensure(ctx, ctx.PackagePath); err != nil {
 		return fmt.Errorf("failed to set DDOT package ownerships: %v", err)
 	}
-
-	// Set DDOT config permissions
 	if err = ddotConfigPermissionsOCI.Ensure(ctx, "/etc/datadog-agent"); err != nil {
 		return fmt.Errorf("failed to set DDOT config ownerships: %v", err)
 	}
@@ -156,12 +156,13 @@ func postInstallDatadogAgentDDOTDEBRPM(ctx HookContext) (err error) {
 		return fmt.Errorf("failed to create dd-agent user and group: %v", err)
 	}
 
-	// Set DDOT package permissions
+	// Ensure directories and files exist and have correct permissions
+	if err = ddotDirectories.Ensure(ctx); err != nil {
+		return fmt.Errorf("failed to create DDOT directories: %v", err)
+	}
 	if err = ddotPackagePermissions.Ensure(ctx, ctx.PackagePath); err != nil {
 		return fmt.Errorf("failed to set DDOT package ownerships: %v", err)
 	}
-
-	// Set DDOT config permissions
 	if err = ddotConfigPermissionsDEBRPM.Ensure(ctx, "/etc/datadog-agent"); err != nil {
 		return fmt.Errorf("failed to set DDOT config ownerships: %v", err)
 	}
@@ -198,19 +199,6 @@ func preRemoveDatadogAgentDDOT(ctx HookContext) error {
 	err = agentDDOTService.RemoveStable(ctx)
 	if err != nil {
 		log.Warnf("failed to remove stable unit: %s", err)
-	}
-
-	if !ctx.Upgrade {
-		// Only remove config files during actual uninstall, not during upgrades
-		err := ddotConfigUninstallPaths.EnsureAbsent(ctx, "/etc/datadog-agent")
-		if err != nil {
-			log.Warnf("failed to remove DDOT config files: %s", err)
-		}
-
-		// Disable otelcollector in datadog.yaml
-		if err = disableOtelCollectorConfig(); err != nil {
-			log.Warnf("failed to disable otelcollector in datadog.yaml: %s", err)
-		}
 	}
 
 	return nil
@@ -256,39 +244,6 @@ func enableOtelCollectorConfig(ctx context.Context) error {
 
 	if err := datadogYamlPermissions.Ensure(ctx, "/etc/datadog-agent"); err != nil {
 		return fmt.Errorf("failed to set ownership on datadog.yaml: %w", err)
-	}
-
-	return nil
-}
-
-// disableOtelCollectorConfig removes otelcollector configuration from datadog.yaml
-func disableOtelCollectorConfig() error {
-	// Read existing config
-	data, err := os.ReadFile(datadogYamlPath)
-	// Nothing to delete if the file doesn't exist
-	if err != nil && os.IsNotExist(err) {
-		return nil
-	}
-	if err != nil {
-		return fmt.Errorf("failed to read datadog.yaml: %w", err)
-	}
-
-	var existingConfig map[string]interface{}
-	if err := yaml.Unmarshal(data, &existingConfig); err != nil {
-		return fmt.Errorf("failed to parse existing datadog.yaml: %w", err)
-	}
-
-	delete(existingConfig, "otelcollector")
-	delete(existingConfig, "agent_ipc")
-
-	// Write back the updated config
-	updatedData, err := yaml.Marshal(existingConfig)
-	if err != nil {
-		return fmt.Errorf("failed to serialize updated datadog.yaml: %w", err)
-	}
-
-	if err := os.WriteFile(datadogYamlPath, updatedData, 0640); err != nil {
-		return fmt.Errorf("failed to write updated datadog.yaml: %w", err)
 	}
 
 	return nil

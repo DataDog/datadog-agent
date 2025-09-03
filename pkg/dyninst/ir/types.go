@@ -190,7 +190,7 @@ type GoEmptyInterfaceType struct {
 
 	// UnderlyingStructure is the structure that is the underlying type of the
 	// runtime.eface.
-	UnderlyingStructure *StructureType
+	RawFields []Field
 }
 
 func (t *GoEmptyInterfaceType) irType() {}
@@ -202,7 +202,7 @@ type GoInterfaceType struct {
 
 	// UnderlyingStructure is the structure that is the underlying type of the
 	// runtime.iface.
-	UnderlyingStructure *StructureType
+	RawFields []Field
 }
 
 func (t *GoInterfaceType) irType() {}

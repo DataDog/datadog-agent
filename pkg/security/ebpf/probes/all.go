@@ -115,6 +115,7 @@ func AllProbes(fentry bool, cgroup2MountPoint string) []*manager.Probe {
 	allProbes = append(allProbes, getSysCtlProbes(cgroup2MountPoint)...)
 	allProbes = append(allProbes, getSetSockOptProbe(fentry)...)
 	allProbes = append(allProbes, getSetrlimitProbes(fentry)...)
+	allProbes = append(allProbes, getCapabilitiesMonitoringProbes()...)
 
 	allProbes = append(allProbes,
 		&manager.Probe{
@@ -190,25 +191,26 @@ func getMaxEntries(numCPU int, min int, max int) uint32 {
 
 // MapSpecEditorOpts defines some options of the map spec editor
 type MapSpecEditorOpts struct {
-	TracedCgroupSize          int
-	UseMmapableMaps           bool
-	UseRingBuffers            bool
-	RingBufferSize            uint32
-	PathResolutionEnabled     bool
-	SecurityProfileMaxCount   int
-	ReducedProcPidCacheSize   bool
-	NetworkFlowMonitorEnabled bool
-	NetworkSkStorageEnabled   bool
-	SpanTrackMaxCount         int
+	TracedCgroupSize              int
+	UseMmapableMaps               bool
+	UseRingBuffers                bool
+	RingBufferSize                uint32
+	PathResolutionEnabled         bool
+	SecurityProfileMaxCount       int
+	ReducedProcPidCacheSize       bool
+	NetworkFlowMonitorEnabled     bool
+	NetworkSkStorageEnabled       bool
+	SpanTrackMaxCount             int
+	CapabilitiesMonitoringEnabled bool
 }
 
 // AllMapSpecEditors returns the list of map editors
 func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) map[string]manager.MapSpecEditor {
-	var procPidCacheMaxEntries uint32
+	procPidCacheMaxEntries := getMaxEntries(numCPU, minProcEntries, maxProcEntries)
+	reducedProcPidCacheSize := getMaxEntries(numCPU, minProcEntries/2, maxProcEntries/2)
+	superReducedProcPidCacheSize := getMaxEntries(numCPU, minProcEntries/4, maxProcEntries/4)
 	if opts.ReducedProcPidCacheSize {
-		procPidCacheMaxEntries = getMaxEntries(numCPU, minProcEntries, maxProcEntries/2)
-	} else {
-		procPidCacheMaxEntries = getMaxEntries(numCPU, minProcEntries, maxProcEntries)
+		procPidCacheMaxEntries = reducedProcPidCacheSize
 	}
 
 	var activeFlowsMaxEntries, nsFlowToNetworkStats uint32
@@ -218,6 +220,15 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 	} else {
 		activeFlowsMaxEntries = 1
 		nsFlowToNetworkStats = 1
+	}
+
+	var capabilitiesUsageMaxEntries, capabilitiesContextsMaxEntries uint32
+	if opts.CapabilitiesMonitoringEnabled {
+		capabilitiesUsageMaxEntries = procPidCacheMaxEntries
+		capabilitiesContextsMaxEntries = 4096
+	} else {
+		capabilitiesUsageMaxEntries = 1
+		capabilitiesContextsMaxEntries = 1
 	}
 
 	editors := map[string]manager.MapSpecEditor{
@@ -234,7 +245,7 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 			EditorFlag: manager.EditMaxEntries,
 		},
 		"pid_rate_limiters": {
-			MaxEntries: procPidCacheMaxEntries,
+			MaxEntries: superReducedProcPidCacheSize,
 			EditorFlag: manager.EditMaxEntries,
 		},
 		"active_flows": {
@@ -250,7 +261,7 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 			EditorFlag: manager.EditMaxEntries,
 		},
 		"inet_bind_args": {
-			MaxEntries: procPidCacheMaxEntries,
+			MaxEntries: superReducedProcPidCacheSize,
 			EditorFlag: manager.EditMaxEntries,
 		},
 		"activity_dumps_config": {
@@ -275,6 +286,14 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 		},
 		"span_tls": {
 			MaxEntries: uint32(opts.SpanTrackMaxCount),
+			EditorFlag: manager.EditMaxEntries,
+		},
+		"capabilities_usage": {
+			MaxEntries: capabilitiesUsageMaxEntries,
+			EditorFlag: manager.EditMaxEntries,
+		},
+		"capabilities_contexts": {
+			MaxEntries: capabilitiesContextsMaxEntries,
 			EditorFlag: manager.EditMaxEntries,
 		},
 	}

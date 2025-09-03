@@ -26,7 +26,7 @@ type BoolEvaluator struct {
 	Field       Field
 	Value       bool
 	Weight      int
-	OpOverrides *OpOverrides
+	OpOverrides []*OpOverrides
 	Offset      int // position in the expression
 
 	// used during compilation of partial
@@ -73,7 +73,7 @@ type IntEvaluator struct {
 	Field       Field
 	Value       int
 	Weight      int
-	OpOverrides *OpOverrides
+	OpOverrides []*OpOverrides
 	Offset      int // position in the expression
 
 	isDuration                bool
@@ -123,7 +123,7 @@ type StringEvaluator struct {
 	Field         Field
 	Value         string
 	Weight        int
-	OpOverrides   *OpOverrides
+	OpOverrides   []*OpOverrides
 	ValueType     FieldValueType
 	StringCmpOpts StringCmpOpts // only Field evaluator can set this value
 	Offset        int           // position in the expression
@@ -189,7 +189,7 @@ type StringArrayEvaluator struct {
 	Values        []string
 	Field         Field
 	Weight        int
-	OpOverrides   *OpOverrides
+	OpOverrides   []*OpOverrides
 	StringCmpOpts StringCmpOpts // only Field evaluator can set this value
 	Offset        int           // position in the expression
 
@@ -307,7 +307,7 @@ type IntArrayEvaluator struct {
 	Field       Field
 	Values      []int
 	Weight      int
-	OpOverrides *OpOverrides
+	OpOverrides []*OpOverrides
 	Offset      int // position in the expression
 
 	// used during compilation of partial
@@ -353,7 +353,7 @@ type BoolArrayEvaluator struct {
 	Field       Field
 	Values      []bool
 	Weight      int
-	OpOverrides *OpOverrides
+	OpOverrides []*OpOverrides
 	Offset      int // position in the expression
 
 	// used during compilation of partial
@@ -405,7 +405,7 @@ type CIDREvaluator struct {
 	Field       Field
 	Value       net.IPNet
 	Weight      int
-	OpOverrides *OpOverrides
+	OpOverrides []*OpOverrides
 	ValueType   FieldValueType
 	Offset      int // position in the expression
 
@@ -476,7 +476,7 @@ type CIDRArrayEvaluator struct {
 	Field       Field
 	Value       []net.IPNet
 	Weight      int
-	OpOverrides *OpOverrides
+	OpOverrides []*OpOverrides
 	ValueType   FieldValueType
 	Offset      int // position in the expression
 

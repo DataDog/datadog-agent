@@ -98,7 +98,7 @@ type EBPFResolver struct {
 	envsTruncated             *atomic.Int64
 	envsSize                  *atomic.Int64
 	brokenLineage             *atomic.Int64
-	inodeErrStats             *atomic.Int64
+	inodeErrStats             map[string]*atomic.Int64 // inode error stats by tag
 
 	entryCache              map[uint32]*model.ProcessCacheEntry
 	SnapshottedBoundSockets map[uint32][]model.SnapshottedBoundSocket
@@ -239,9 +239,11 @@ func (p *EBPFResolver) SendStats() error {
 		}
 	}
 
-	if count := p.inodeErrStats.Swap(0); count > 0 {
-		if err := p.statsdClient.Count(metrics.MetricProcessInodeError, count, []string{}, 1.0); err != nil {
-			return fmt.Errorf("failed to send process_resolver inode error metric: %w", err)
+	for _, tag := range allInodeErrTags() {
+		if count := p.inodeErrStats[tag].Swap(0); count > 0 {
+			if err := p.statsdClient.Count(metrics.MetricProcessInodeError, count, []string{tag}, 1.0); err != nil {
+				return fmt.Errorf("failed to send process_resolver inode error metric: %w", err)
+			}
 		}
 	}
 
@@ -577,7 +579,7 @@ func (p *EBPFResolver) RetrieveFileFieldsFromProcfs(filename string) (*model.Fil
 	return &fileFields, nil
 }
 
-func (p *EBPFResolver) insertEntry(entry *model.ProcessCacheEntry, source uint64) {
+func (p *EBPFResolver) insertEntry(entry *model.ProcessCacheEntry, source uint64, newPid bool) {
 	entry.Source = source
 
 	if prev := p.entryCache[entry.Pid]; prev != nil {
@@ -590,7 +592,7 @@ func (p *EBPFResolver) insertEntry(entry *model.ProcessCacheEntry, source uint64
 	// the count will be decremented once the entry is released
 	p.processCacheEntryCount.Inc()
 
-	if p.cgroupResolver != nil && entry.CGroup.CGroupID != "" {
+	if newPid && p.cgroupResolver != nil && entry.CGroup.CGroupID != "" {
 		// add the new PID in the right cgroup_resolver bucket
 		p.cgroupResolver.AddPID(entry)
 	}
@@ -622,7 +624,7 @@ func (p *EBPFResolver) insertForkEntry(entry *model.ProcessCacheEntry, inode uin
 				parent = candidate
 			} else {
 				entry.IsParentMissing = true
-				p.inodeErrStats.Inc()
+				p.inodeErrStats[inodeErrTagForkParentMissing].Inc()
 			}
 		}
 
@@ -633,7 +635,7 @@ func (p *EBPFResolver) insertForkEntry(entry *model.ProcessCacheEntry, inode uin
 		}
 	}
 
-	p.insertEntry(entry, source)
+	p.insertEntry(entry, source, true)
 }
 
 func (p *EBPFResolver) insertExecEntry(entry *model.ProcessCacheEntry, inode uint64, source uint64) {
@@ -645,7 +647,7 @@ func (p *EBPFResolver) insertExecEntry(entry *model.ProcessCacheEntry, inode uin
 	if prev != nil {
 		if inode != 0 && prev.FileEvent.Inode != inode {
 			entry.IsParentMissing = true
-			p.inodeErrStats.Inc()
+			p.inodeErrStats[inodeErrTagExecParentMissing].Inc()
 		}
 
 		// check exec bomb, keep the prev entry and update it
@@ -658,7 +660,7 @@ func (p *EBPFResolver) insertExecEntry(entry *model.ProcessCacheEntry, inode uin
 		entry.IsParentMissing = true
 	}
 
-	p.insertEntry(entry, source)
+	p.insertEntry(entry, source, false)
 }
 
 func (p *EBPFResolver) deleteEntry(pid uint32, exitTime time.Time) {
@@ -788,7 +790,7 @@ func (p *EBPFResolver) SetProcessPath(fileEvent *model.FileEvent, pce *model.Pro
 // SetProcessSymlink resolves process file symlink path
 func (p *EBPFResolver) SetProcessSymlink(entry *model.ProcessCacheEntry) {
 	// TODO: busybox workaround only for now
-	if IsBusybox(entry.FileEvent.PathnameStr) {
+	if IsBusybox(entry.FileEvent.PathnameStr) || IsThroughSymLink(entry) {
 		arg0, _ := GetProcessArgv0(&entry.Process)
 		base := path.Base(arg0)
 
@@ -1346,10 +1348,11 @@ func (p *EBPFResolver) newEntryFromProcfs(proc *process.Process, filledProc *uti
 	// it may happen if the activity is from a process (same pid) that was replaced since then.
 	if inode != 0 {
 		if entry.FileEvent.Inode != inode {
-			seclog.Warnf("inode mismatch, using inode from pid context %d: %d != %d", pid, entry.FileEvent.Inode, inode)
+			seclog.Debugf("inode mismatch, using inode from pid context %d: %d != %d", pid, entry.FileEvent.Inode, inode)
 
 			entry.FileEvent.Inode = inode
 			entry.IsParentMissing = true
+			p.inodeErrStats[inodeErrTagProcfsMismatch].Inc()
 		}
 	}
 
@@ -1370,7 +1373,7 @@ func (p *EBPFResolver) newEntryFromProcfs(proc *process.Process, filledProc *uti
 		seclog.Debugf("unable to set the type of process, not pid 1, no parent in cache: %+v", entry)
 	}
 
-	p.insertEntry(entry, source)
+	p.insertEntry(entry, source, true)
 
 	seclog.Tracef("New process cache entry added: %s %s %d/%d", entry.Comm, entry.FileEvent.PathnameStr, pid, entry.FileEvent.Inode)
 
@@ -1533,15 +1536,34 @@ func (p *EBPFResolver) UpdateProcessCGroupContext(pid uint32, cgroupContext *mod
 		return false
 	}
 
-	if cgroupContext.CGroupID != "" {
-		pce.Process.ContainerID = containerutils.FindContainerID(cgroupContext.CGroupID)
-		pce.ContainerID = pce.Process.ContainerID
-	}
-
 	pce.Process.CGroup = *cgroupContext
 	pce.CGroup = *cgroupContext
 
+	if cgroupContext.CGroupID != "" {
+		pce.Process.ContainerID = containerutils.FindContainerID(cgroupContext.CGroupID)
+		pce.ContainerID = pce.Process.ContainerID
+
+		// update the PID in the right cgroup_resolver bucket
+		if p.cgroupResolver != nil {
+			p.cgroupResolver.AddPID(pce)
+		}
+	}
+
 	return true
+}
+
+const (
+	inodeErrTagForkParentMissing = "type:fork_parent_missing"
+	inodeErrTagExecParentMissing = "type:exec_parent_missing"
+	inodeErrTagProcfsMismatch    = "type:procfs_mismatch"
+)
+
+func allInodeErrTags() []string {
+	return []string{
+		inodeErrTagForkParentMissing,
+		inodeErrTagExecParentMissing,
+		inodeErrTagProcfsMismatch,
+	}
 }
 
 // NewEBPFResolver returns a new process resolver
@@ -1577,7 +1599,7 @@ func NewEBPFResolver(manager *manager.Manager, config *config.Config, statsdClie
 		envsTruncated:             atomic.NewInt64(0),
 		envsSize:                  atomic.NewInt64(0),
 		brokenLineage:             atomic.NewInt64(0),
-		inodeErrStats:             atomic.NewInt64(0),
+		inodeErrStats:             make(map[string]*atomic.Int64),
 		containerResolver:         containerResolver,
 		mountResolver:             mountResolver,
 		cgroupResolver:            cgroupResolver,
@@ -1586,9 +1608,15 @@ func NewEBPFResolver(manager *manager.Manager, config *config.Config, statsdClie
 		pathResolver:              pathResolver,
 		envVarsResolver:           envVarsResolver,
 	}
+
 	for _, t := range metrics.AllTypesTags {
 		p.hitsStats[t] = atomic.NewInt64(0)
 	}
+
+	for _, tag := range allInodeErrTags() {
+		p.inodeErrStats[tag] = atomic.NewInt64(0)
+	}
+
 	p.processCacheEntryPool = NewProcessCacheEntryPool(func() { p.processCacheEntryCount.Dec() })
 
 	// Create rate limiter that allows for 128 pids

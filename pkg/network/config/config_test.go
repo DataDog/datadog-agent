@@ -254,6 +254,31 @@ func TestEnableRedisMonitoring(t *testing.T) {
 	})
 }
 
+func TestRedisTrackResources(t *testing.T) {
+	t.Run("via YAML", func(t *testing.T) {
+		mockSystemProbe := mock.NewSystemProbe(t)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.redis.track_resources", true)
+		cfg := New()
+
+		assert.True(t, cfg.RedisTrackResources)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_REDIS_TRACK_RESOURCES", "true")
+		cfg := New()
+
+		assert.True(t, cfg.RedisTrackResources)
+	})
+
+	t.Run("default", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		cfg := New()
+
+		assert.False(t, cfg.RedisTrackResources)
+	})
+}
+
 func TestDefaultDisabledHTTP2Support(t *testing.T) {
 	mock.NewSystemProbe(t)
 	cfg := New()
@@ -1766,5 +1791,30 @@ func TestProcessServiceInferenceWindows(t *testing.T) {
 		mockSystemProbe.SetWithoutSource("service_monitoring_config.process_service_inference.use_windows_service_name", false)
 
 		require.False(t, mockSystemProbe.GetBool("system_probe_config.process_service_inference.use_windows_service_name"))
+	})
+}
+
+func TestExpectedTagsDuration(t *testing.T) {
+	t.Run("default value", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		cfg := New()
+
+		assert.Equal(t, 5*time.Minute, cfg.ExpectedTagsDuration)
+	})
+
+	t.Run("via YAML", func(t *testing.T) {
+		mockSystemProbe := mock.NewSystemProbe(t)
+		mockSystemProbe.SetWithoutSource("system_probe_config.expected_tags_duration", 20*time.Second)
+		cfg := New()
+
+		assert.Equal(t, 20*time.Second, cfg.ExpectedTagsDuration)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		t.Setenv("DD_SYSTEM_PROBE_EXPECTED_TAGS_DURATION", "30s")
+		cfg := New()
+
+		assert.Equal(t, 30*time.Second, cfg.ExpectedTagsDuration)
 	})
 }
