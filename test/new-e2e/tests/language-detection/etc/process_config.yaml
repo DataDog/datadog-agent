@@ -3,6 +3,7 @@ process_config:
     enabled: false
   process_collection:
     enabled: true
+    use_wlm: false
   intervals:
     process: 1
 language_detection:
