@@ -22,7 +22,7 @@ var (
 )
 
 // DeviceUserTagResourcePrefix contains the REDAPL table to store device user tags
-const DeviceUserTagResourcePrefix = "dd.internal.resource:ndm_device_user_tags"
+const DeviceUserTagResourcePrefix = "dd.internal.resource:ndm_device"
 
 // GetDeviceMetadataFromAppliances process devices API payloads to build metadata
 func GetDeviceMetadataFromAppliances(namespace string, devices []client.Appliance) []devicemetadata.DeviceMetadata {
