@@ -88,12 +88,12 @@ func BenchmarkParseGoSymbolTable(b *testing.B) {
 
 	b.Run("ListFunctions", func(b *testing.B) {
 		for b.Loop() {
-			symtab.Functions()
+			symtab.CollectFunctions()
 		}
 	})
 
 	var pcs []uint64
-	for _, f := range symtab.Functions() {
+	for f := range symtab.Functions() {
 		pcs = append(pcs, (f.Entry+f.End)/2)
 	}
 

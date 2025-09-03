@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"iter"
 	"math"
+	"slices"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 )
@@ -33,7 +34,7 @@ type GoFunction struct {
 	// The index of the function in the symbol table
 	idx uint32
 	// The internal function info
-	funcInfo *funcInfo
+	funcInfo funcInfo
 }
 
 // GoLocation represents a resolved source code location.
@@ -72,21 +73,33 @@ func ParseGoSymbolTable(
 	}, nil
 }
 
+// CollectFunctions collects all the functions in the symbol table.
+func (gst *GoSymbolTable) CollectFunctions() []GoFunction {
+	res := make([]GoFunction, 0, gst.pclntab.nfunctab)
+	return slices.AppendSeq(res, gst.Functions())
+}
+
 // Functions returns an iterator over the functions in the symbol table.
-func (gst *GoSymbolTable) Functions() []*GoFunction {
-	var functions []*GoFunction
-	for i := uint32(0); i < gst.pclntab.nfunctab; i++ {
-		if fn := gst.pclntab.getGoFunctionByIndex(i); fn != nil {
-			functions = append(functions, fn)
+func (gst *GoSymbolTable) Functions() iter.Seq[GoFunction] {
+	return func(yield func(v GoFunction) bool) {
+		for i := range gst.pclntab.nfunctab {
+			if fn, ok := gst.pclntab.getGoFunctionByIndex(i); ok {
+				if !yield(fn) {
+					return
+				}
+			}
 		}
 	}
-	return functions
 }
 
 // PCToFunction returns the function that contains the given PC. Inlined
 // functions are not returned, only the functions that remain in the object file.
 func (gst *GoSymbolTable) PCToFunction(pc uint64) *GoFunction {
-	return gst.pclntab.getGoFunctionByPC(pc)
+	fn, ok := gst.pclntab.getGoFunctionByPC(pc)
+	if !ok {
+		return nil
+	}
+	return &fn
 }
 
 // LocatePC returns the location that contains the given PC.
@@ -489,22 +502,22 @@ func functabFieldSize(ptrSize int, version pclnTabVersion) int {
 	}
 }
 
-func (lt *lineTable) getGoFunctionByIndex(idx uint32) *GoFunction {
+func (lt *lineTable) getGoFunctionByIndex(idx uint32) (GoFunction, bool) {
 	if idx >= lt.nfunctab {
-		return nil
+		return GoFunction{}, false
 	}
 
 	funcTab := lt.funcTab()
 	pc, err := funcTab.pc(idx)
 	if err != nil {
-		return nil
+		return GoFunction{}, false
 	}
 
 	var end uint64
 	if idx+1 < lt.nfunctab {
 		end, err = funcTab.pc(idx + 1)
 		if err != nil {
-			return nil
+			return GoFunction{}, false
 		}
 	} else {
 		end = lt.textRange[1]
@@ -512,7 +525,7 @@ func (lt *lineTable) getGoFunctionByIndex(idx uint32) *GoFunction {
 
 	funcInfo, err := lt.funcInfo(idx)
 	if err != nil {
-		return nil
+		return GoFunction{}, false
 	}
 
 	name := ""
@@ -525,20 +538,20 @@ func (lt *lineTable) getGoFunctionByIndex(idx uint32) *GoFunction {
 		deferReturn = dr
 	}
 
-	return &GoFunction{
+	return GoFunction{
 		Name:        name,
 		Entry:       pc,
 		End:         end,
 		DeferReturn: deferReturn,
 		idx:         idx,
 		funcInfo:    funcInfo,
-	}
+	}, true
 }
 
-func (lt *lineTable) getGoFunctionByPC(pc uint64) *GoFunction {
+func (lt *lineTable) getGoFunctionByPC(pc uint64) (GoFunction, bool) {
 	idx, found := lt.findFunc(pc)
 	if !found {
-		return nil
+		return GoFunction{}, false
 	}
 	return lt.getGoFunctionByIndex(idx)
 }
@@ -547,19 +560,19 @@ func (lt *lineTable) funcTab() *funcTab {
 	return (*funcTab)(lt)
 }
 
-func (lt *lineTable) funcInfo(i uint32) (*funcInfo, error) {
+func (lt *lineTable) funcInfo(i uint32) (funcInfo, error) {
 	funcTab := lt.funcTab()
 	funcOff, err := funcTab.funcOff(i)
 	if err != nil {
-		return nil, err
+		return funcInfo{}, err
 	}
 
 	actualOffset := lt.funcdata[0] + int(funcOff)
 	if actualOffset >= len(lt.data) {
-		return nil, fmt.Errorf("function offset out of bounds")
+		return funcInfo{}, fmt.Errorf("function offset out of bounds")
 	}
 
-	return &funcInfo{
+	return funcInfo{
 		lt:   lt,
 		data: lt.data[actualOffset:],
 	}, nil
@@ -577,8 +590,8 @@ func (lt *lineTable) funcName(off uint32) string {
 
 func (gst *GoSymbolTable) locatePC(pc uint64) []GoLocation {
 	lt := gst.pclntab
-	function := lt.getGoFunctionByPC(pc)
-	if function == nil {
+	function, ok := lt.getGoFunctionByPC(pc)
+	if !ok {
 		return nil
 	}
 
@@ -670,7 +683,7 @@ func (lt *lineTable) fileRanges(f *GoFunction) ([]fileRange, error) {
 		var name string
 		var ok bool
 		if name, ok = names[fno]; !ok {
-			name = lt.fileName(f.funcInfo, fno)
+			name = lt.fileName(&f.funcInfo, fno)
 			names[fno] = name
 		}
 		ranges = append(ranges, fileRange{
@@ -759,13 +772,13 @@ func (gst *GoSymbolTable) inlinedFunctionsMapping(f *GoFunction) []functionRange
 
 func (gst *GoSymbolTable) functionLines(pc uint64) (map[string]FunctionLines, error) {
 	lt := gst.pclntab
-	f := lt.getGoFunctionByPC(pc)
-	if f == nil {
+	f, ok := lt.getGoFunctionByPC(pc)
+	if !ok {
 		return nil, fmt.Errorf("no function for PC 0x%x", pc)
 	}
 
 	// Collect pc range -> function name/file mapping
-	funcs := gst.inlinedFunctionsMapping(f)
+	funcs := gst.inlinedFunctionsMapping(&f)
 	if funcs == nil {
 		funcs = []functionRange{
 			{
@@ -879,7 +892,7 @@ func (lt *lineTable) pcToFile(funcIdx uint32, pc uint64) string {
 		return unknownFile
 	}
 
-	return lt.fileName(funcInfo, fno)
+	return lt.fileName(&funcInfo, fno)
 }
 
 const unknownFile = "<unknown>"
@@ -1030,7 +1043,7 @@ type inlinedCall struct {
 	Function *string
 }
 
-func unwindInlinedCalls(f *funcInfo, pc uint64, goFuncData []byte) []inlinedCall {
+func unwindInlinedCalls(f funcInfo, pc uint64, goFuncData []byte) []inlinedCall {
 	inlineTree := f.funcData(funcdataInlTree, goFuncData)
 	if inlineTree == nil {
 		return nil
@@ -1255,11 +1268,11 @@ func (fi *funcInfo) entryPC() (uint64, bool) {
 	}
 }
 
-func (fi *funcInfo) cuOffset() (uint32, bool) {
+func (fi funcInfo) cuOffset() (uint32, bool) {
 	return fi.field(8)
 }
 
-func (fi *funcInfo) funcData(i uint8, goFuncData []byte) []byte {
+func (fi funcInfo) funcData(i uint8, goFuncData []byte) []byte {
 	nfuncdata, found := fi.nfuncdata()
 	if !found || i >= nfuncdata {
 		return nil
