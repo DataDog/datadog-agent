@@ -54,39 +54,51 @@ type remoteConfigImageResolver struct {
 
 	mu            sync.RWMutex
 	imageMappings map[string]map[string]ResolvedImage // repository URL -> tag -> resolved image
+
+	// Retry configuration for initial cache loading
+	maxRetries int
+	retryDelay time.Duration
 }
 
 // newRemoteConfigImageResolver creates a new remoteConfigImageResolver.
 // Assumes rcClient is non-nil.
 func newRemoteConfigImageResolver(rcClient RemoteConfigClient) ImageResolver {
+	return newRemoteConfigImageResolverWithRetryConfig(rcClient, 5, 1*time.Second)
+}
+
+// newRemoteConfigImageResolverWithRetryConfig creates a resolver with configurable retry behavior.
+// Useful for testing with faster retry settings.
+func newRemoteConfigImageResolverWithRetryConfig(rcClient RemoteConfigClient, maxRetries int, retryDelay time.Duration) ImageResolver {
 	resolver := &remoteConfigImageResolver{
 		rcClient:      rcClient,
 		imageMappings: make(map[string]map[string]ResolvedImage),
+		maxRetries:    maxRetries,
+		retryDelay:    retryDelay,
 	}
 
 	rcClient.Subscribe(state.ProductGradualRollout, resolver.processUpdate)
 	log.Debugf("Subscribed to %s", state.ProductGradualRollout)
 
-	maxRetries := 5
-	if err := resolver.waitForInitialConfig(maxRetries); err != nil {
-		log.Warnf("Failed to load initial image resolution config: %v. Image resolution will be disabled.", err)
-		return newNoOpImageResolver()
-	}
+	go func() {
+		if err := resolver.waitForInitialConfig(); err != nil {
+			log.Warnf("Failed to load initial image resolution config: %v. Image resolution will remain disabled.", err)
+		} else {
+			log.Infof("Image resolution cache initialized successfully")
+		}
+	}()
 
 	return resolver
 }
 
-func (r *remoteConfigImageResolver) waitForInitialConfig(maxRetries int) error {
+func (r *remoteConfigImageResolver) waitForInitialConfig() error {
 	if currentConfigs := r.rcClient.GetConfigs(state.ProductGradualRollout); len(currentConfigs) > 0 {
 		log.Debugf("Initial configs available immediately: %d configurations", len(currentConfigs))
 		r.updateCache(currentConfigs)
 		return nil
 	}
 
-	retryDelay := 1 * time.Second
-
-	for attempt := 1; attempt <= maxRetries; attempt++ {
-		time.Sleep(retryDelay)
+	for attempt := 1; attempt <= r.maxRetries; attempt++ {
+		time.Sleep(r.retryDelay)
 
 		currentConfigs := r.rcClient.GetConfigs(state.ProductGradualRollout)
 		if len(currentConfigs) > 0 {
@@ -95,10 +107,10 @@ func (r *remoteConfigImageResolver) waitForInitialConfig(maxRetries int) error {
 			return nil
 		}
 
-		log.Debugf("Attempt %d/%d: Still waiting for initial remote config, retrying in %v", attempt, maxRetries, retryDelay)
+		log.Debugf("Attempt %d/%d: Still waiting for initial remote config, retrying in %v", attempt, r.maxRetries, r.retryDelay)
 	}
 
-	return fmt.Errorf("failed to load initial remote config after %d attempts (%v total wait)", maxRetries, time.Duration(maxRetries)*retryDelay)
+	return fmt.Errorf("failed to load initial remote config after %d attempts (%v total wait)", r.maxRetries, time.Duration(r.maxRetries)*r.retryDelay)
 }
 
 // Resolve resolves a registry, repository, and tag to a digest-based reference.
