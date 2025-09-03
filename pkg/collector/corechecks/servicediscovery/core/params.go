@@ -22,7 +22,8 @@ const (
 // Params represents the parameters for service discovery requests.
 type Params struct {
 	HeartbeatTime time.Duration `json:"heartbeat_time"`
-	Pids          []int         `json:"pids,omitzero"`
+	NewPids       []int32       `json:"new_pids,omitempty"`       // PIDs never seen before, require full service info
+	HeartbeatPids []int32       `json:"heartbeat_pids,omitempty"` // PIDs needing heartbeat refresh, minimal updates
 }
 
 // DefaultParams returns a new Params instance with default values.

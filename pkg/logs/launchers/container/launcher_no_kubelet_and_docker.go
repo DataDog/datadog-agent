@@ -5,7 +5,7 @@
 
 //go:build !kubelet && !docker
 
-//nolint:revive // TODO(AML) Fix revive linter
+// Package container provides container-based log launchers
 package container
 
 import (

@@ -23,7 +23,9 @@
 /.pre-commit-config.yaml                @DataDog/agent-devx
 /.vscode/                               @DataDog/agent-devx
 
+# Bazel configuration
 /.bazel*                                @DataDog/agent-build
+/bazel/                                 @DataDog/agent-build
 /MODULE.bazel*                          @DataDog/agent-build
 # Temporary during Bazel migration
 /**/BUILD.bazel                         @DataDog/agent-build
@@ -52,6 +54,7 @@
 
 /.github/CODEOWNERS                                  # do not notify anyone
 /.github/*_TEMPLATE.md                               @DataDog/agent-devx
+/.github/chainguard/**                               @DataDog/agent-devx
 /.github/dependabot.yaml                             @DataDog/agent-devx
 /.github/workflows/serverless-benchmarks.yml         @DataDog/serverless @Datadog/serverless-aws
 /.github/workflows/serverless-binary-size.yml        @DataDog/serverless @Datadog/serverless-aws
@@ -80,6 +83,7 @@
 
 /.gitlab/.ci-linters.yml                             @DataDog/agent-devx
 /.gitlab/.pre/*                                      @DataDog/agent-devx
+/.gitlab/bazel/*                                     @DataDog/agent-build
 /.gitlab/check_deploy/*                              @DataDog/agent-delivery
 /.gitlab/check_merge/*                               @DataDog/agent-devx
 /.gitlab/deploy*/*                                   @DataDog/agent-delivery
@@ -328,6 +332,7 @@
 /comp/checks/winregistry @DataDog/windows-products
 /comp/core/autodiscovery @DataDog/container-platform
 /comp/core/config @DataDog/agent-configuration
+/comp/core/configstream @DataDog/agent-metric-pipelines @DataDog/agent-configuration
 /comp/core/configsync @DataDog/agent-configuration
 /comp/core/flare @DataDog/agent-configuration
 /comp/core/gui @DataDog/agent-configuration
@@ -347,6 +352,7 @@
 /comp/metadata/hostgpu @DataDog/ebpf-platform
 /comp/metadata/packagesigning @DataDog/agent-delivery
 /comp/metadata/softwareinventory @DataDog/windows-products
+/comp/process/connectionscheck @DataDog/networks @DataDog/universal-service-monitoring
 /comp/trace/etwtracer @DataDog/windows-products
 /comp/updater/daemonchecker @DataDog/fleet
 /comp/updater/ssistatus @DataDog/fleet
@@ -372,6 +378,7 @@
 # pkg
 /pkg/                                   @DataDog/agent-runtimes
 /pkg/api/                               @DataDog/agent-runtimes
+/pkg/api/security/cert/cert_getter_dca.go   @DataDog/agent-runtimes @DataDog/container-platform
 /pkg/aggregator/                        @DataDog/agent-metric-pipelines
 /pkg/collector/                         @DataDog/agent-runtimes
 /pkg/commonchecks/                      @DataDog/agent-runtimes
@@ -418,6 +425,7 @@
 /comp/core/autodiscovery/providers/cloudfoundry*.go  @DataDog/agent-integrations
 /comp/core/autodiscovery/providers/process_log*.go @DataDog/agent-discovery @DataDog/agent-log-pipelines
 /comp/core/autodiscovery/providers/remote_config*.go  @DataDog/remote-config
+/comp/core/autodiscovery/providers/datastreams @DataDog/data-streams-monitoring
 /pkg/cloudfoundry                       @Datadog/agent-integrations
 /pkg/clusteragent/                      @DataDog/container-platform
 /pkg/clusteragent/autoscaling/          @DataDog/container-autoscaling @DataDog/container-integrations
@@ -441,6 +449,7 @@
 /pkg/collector/corechecks/embed/apm/               @DataDog/agent-apm
 /pkg/collector/corechecks/embed/process/           @DataDog/container-experiences
 /pkg/collector/corechecks/gpu/                     @DataDog/ebpf-platform
+/pkg/collector/corechecks/networkconfigmanagement/ @DataDog/network-device-monitoring
 /pkg/collector/corechecks/network-devices/         @DataDog/ndm-integrations
 /pkg/collector/corechecks/orchestrator/   @DataDog/container-app
 /pkg/collector/corechecks/net/          @DataDog/agent-runtimes
@@ -601,29 +610,30 @@
 /pkg/network/tracer/*_windows*.go               @DataDog/windows-products
 /pkg/network/usm/                       @DataDog/universal-service-monitoring
 /pkg/network/usm/tests/*_windows*.go    @DataDog/windows-products
+/pkg/networkconfigmanagement/           @DataDog/network-device-monitoring
 /pkg/ebpf/                              @DataDog/ebpf-platform
 /pkg/ebpf/map_cleaner*.go               @DataDog/universal-service-monitoring
 /pkg/compliance/                        @DataDog/agent-cspm
 /pkg/databasemonitoring                 @DataDog/database-monitoring
-/pkg/datastreams                        @DataDog/data-streams-monitoring
 /pkg/kubestatemetrics                   @DataDog/container-integrations
 /pkg/security/                          @DataDog/agent-security
 /pkg/networkdevice/                     @DataDog/ndm-core
 /pkg/snmp/                              @DataDog/ndm-core
 /pkg/tagger/                            @DataDog/container-platform
 /pkg/windowsdriver/                     @DataDog/windows-products
-/comp/core/workloadmeta/collectors/internal/cloudfoundry  @DataDog/agent-integrations
-/comp/core/workloadmeta/collectors/internal/containerd    @DataDog/container-platform @DataDog/container-integrations
-/comp/core/workloadmeta/collectors/internal/crio          @DataDog/container-platform @DataDog/container-integrations
-/comp/core/workloadmeta/collectors/internal/docker        @DataDog/container-platform @DataDog/container-integrations
-/comp/core/workloadmeta/collectors/internal/ecs           @DataDog/container-platform @DataDog/container-integrations
-/comp/core/workloadmeta/collectors/internal/ecsfargate    @DataDog/container-platform @DataDog/container-integrations
-/comp/core/workloadmeta/collectors/internal/kubeapiserver @DataDog/container-platform @DataDog/container-integrations
-/comp/core/workloadmeta/collectors/internal/kubelet       @DataDog/container-platform @DataDog/container-integrations
-/comp/core/workloadmeta/collectors/internal/kubemetadata  @DataDog/container-platform @DataDog/container-integrations
-/comp/core/workloadmeta/collectors/internal/nvml          @DataDog/ebpf-platform
-/comp/core/workloadmeta/collectors/internal/podman        @DataDog/container-platform @DataDog/container-integrations
-/comp/core/workloadmeta/collectors/internal/process       @DataDog/container-experiences @DataDog/container-platform
+/comp/core/workloadmeta/collectors/internal/cloudfoundry     @DataDog/agent-integrations
+/comp/core/workloadmeta/collectors/internal/containerd       @DataDog/container-platform @DataDog/container-integrations
+/comp/core/workloadmeta/collectors/internal/crio             @DataDog/container-platform @DataDog/container-integrations
+/comp/core/workloadmeta/collectors/internal/docker           @DataDog/container-platform @DataDog/container-integrations
+/comp/core/workloadmeta/collectors/internal/ecs              @DataDog/container-platform @DataDog/container-integrations
+/comp/core/workloadmeta/collectors/internal/ecsfargate       @DataDog/container-platform @DataDog/container-integrations
+/comp/core/workloadmeta/collectors/internal/kubeapiserver    @DataDog/container-platform @DataDog/container-integrations
+/comp/core/workloadmeta/collectors/internal/kubelet          @DataDog/container-platform @DataDog/container-integrations
+/comp/core/workloadmeta/collectors/internal/kubemetadata     @DataDog/container-platform @DataDog/container-integrations
+/comp/core/workloadmeta/collectors/internal/nvml             @DataDog/ebpf-platform
+/comp/core/workloadmeta/collectors/internal/podman           @DataDog/container-platform @DataDog/container-integrations
+/comp/core/workloadmeta/collectors/internal/process          @DataDog/container-experiences @DataDog/container-platform
+/comp/core/workloadmeta/collectors/internal/processlanguage  @DataDog/container-experiences @DataDog/container-platform
 /comp/core/tagger/collectors            @DataDog/container-platform @DataDog/container-integrations
 /pkg/sbom/                              @DataDog/agent-security @DataDog/container-integrations
 /pkg/networkpath/                       @DataDog/cloud-network-monitoring
@@ -642,6 +652,7 @@
 /tasks/dogstatsd.py                     @DataDog/agent-metric-pipelines
 /tasks/update_go.py                     @DataDog/agent-runtimes
 /tasks/unit_tests/update_go_tests.py    @DataDog/agent-runtimes
+/tasks/unit_tests/kmt_tests.py          @DataDog/ebpf-platform
 /tasks/pkg_template.py                  @DataDog/agent-runtimes
 /tasks/cluster_agent_cloudfoundry.py    @DataDog/agent-integrations
 /tasks/devcontainer.py                  @DataDog/agent-devx @DataDog/container-platform
@@ -743,6 +754,7 @@
 /test/regression/cases/docker_containers*     @DataDog/single-machine-performance @DataDog/container-integrations
 
 /tools/                                 @DataDog/agent-devx
+/tools/bazel*                           @DataDog/agent-build
 /tools/ci                               @DataDog/agent-devx
 /tools/ebpf/                            @DataDog/ebpf-platform
 /tools/gdb/                             @DataDog/agent-runtimes

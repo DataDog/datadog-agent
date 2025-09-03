@@ -13,9 +13,9 @@ import (
 )
 
 func TestCreateConfig(t *testing.T) {
-	config := CreateConfig("fake-origin")
+	config := CreateConfig("fake-logs-source")
 	assert.Equal(t, 5*time.Second, config.FlushTimeout)
-	assert.Equal(t, "fake-origin", config.source)
+	assert.Equal(t, "fake-logs-source", config.source)
 }
 
 func TestCreateConfigWithSource(t *testing.T) {

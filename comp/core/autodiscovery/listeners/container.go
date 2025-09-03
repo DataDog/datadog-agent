@@ -129,7 +129,7 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 
 	if pod != nil {
 		svc.hosts = map[string]string{"pod": pod.IP}
-		svc.ready = pod.Ready
+		svc.ready = pod.Ready || shouldSkipPodReadiness(pod)
 
 		svc.metricsExcluded = l.filterStore.IsContainerExcluded(
 			workloadmetafilter.CreateContainer(container, workloadmetafilter.CreatePod(pod)),
@@ -139,6 +139,18 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 			workloadmetafilter.CreateContainer(container, workloadmetafilter.CreatePod(pod)),
 			workloadfilter.GetAutodiscoveryFilters(workloadfilter.LogsFilter),
 		)
+
+		adIdentifier := container.Name
+		if customADID, found := utils.ExtractCheckIDFromPodAnnotations(pod.Annotations, container.Name); found {
+			adIdentifier = customADID
+			svc.adIdentifiers = append(svc.adIdentifiers, customADID)
+		}
+
+		checkNames, err := utils.ExtractCheckNamesFromPodAnnotations(pod.Annotations, adIdentifier)
+		if err != nil {
+			log.Errorf("error extracting check names from pod annotations: %s", err)
+		}
+		svc.checkNames = checkNames
 	} else {
 		checkNames, err := utils.ExtractCheckNamesFromContainerLabels(container.Labels)
 		if err != nil {
