@@ -39,6 +39,9 @@ const (
 	recoveryInterval      = 2
 
 	maxMessageSize = 1024 * 1024 * 110 // 110MB, current backend limit
+
+	// number of update failed update attempts before reporting an error log
+	consecutiveFailuresThreshold = 5
 )
 
 // ConfigFetcher defines the interface that an agent client uses to get config updates
@@ -398,7 +401,7 @@ func (c *Client) pollLoop() {
 					// as an Info log as the race is expected. If the error persists, we log with error logs
 					if logLimit.ShouldLog() {
 						message := "retrying the first update of remote-config state (%v), consecutive failures: %d"
-						if consecutiveFailures >= 5 {
+						if consecutiveFailures >= consecutiveFailuresThreshold {
 							log.Errorf(message, err, consecutiveFailures)
 						} else {
 							log.Infof(message, err, consecutiveFailures)
