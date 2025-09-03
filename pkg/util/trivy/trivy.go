@@ -63,11 +63,14 @@ type collectorConfig struct {
 
 // Collector uses trivy to generate a SBOM
 type Collector struct {
-	config           collectorConfig
-	cacheInitialized sync.Once
-	persistentCache  CacheWithCleaner
-	marshaler        cyclonedx.Marshaler
-	wmeta            option.Option[workloadmeta.Component]
+	config collectorConfig
+
+	cacheInitialized   sync.Once
+	persistentCache    CacheWithCleaner
+	persistentCacheErr error
+
+	marshaler cyclonedx.Marshaler
+	wmeta     option.Option[workloadmeta.Component]
 
 	osScanner   ospkg.Scanner
 	langScanner langpkg.Scanner
@@ -285,20 +288,15 @@ func (c *Collector) CleanCache() error {
 // GetCache returns the persistentCache with the persistentCache Cleaner. It should initializes the persistentCache
 // only once to avoid blocking the CLI with the `flock` file system.
 func (c *Collector) GetCache() (CacheWithCleaner, error) {
-	var err error
 	c.cacheInitialized.Do(func() {
-		c.persistentCache, err = NewCustomBoltCache(
+		c.persistentCache, c.persistentCacheErr = NewCustomBoltCache(
 			c.wmeta,
 			defaultCacheDir(),
 			c.config.maxCacheSize,
 		)
 	})
 
-	if err != nil {
-		return nil, err
-	}
-
-	return c.persistentCache, nil
+	return c.persistentCache, c.persistentCacheErr
 }
 
 type artifactWithType struct {
