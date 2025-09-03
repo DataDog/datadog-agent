@@ -7,6 +7,7 @@
 package payload
 
 import (
+	"net"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/network/payload"
@@ -135,6 +136,69 @@ type NetworkPathDestination struct {
 	ReverseDNSHostname string `json:"reverse_dns_hostname,omitempty"`
 }
 
+// E2eProbe contains e2e probe results
+type E2eProbe struct {
+	Rtts                 []float64          `json:"rtts"`
+	PacketsSent          int                `json:"packets_sent"`
+	PacketsReceived      int                `json:"packets_received"`
+	PacketLossPercentage float32            `json:"packet_loss_percentage"`
+	Jitter               int                `json:"jitter"`
+	Rtt                  E2eProbeRttLatency `json:"rtt"`
+}
+
+// E2eProbeRttLatency contains e2e latency stats
+type E2eProbeRttLatency struct {
+	Avg float64 `json:"avg"`
+	Min float64 `json:"min"`
+	Max float64 `json:"max"`
+}
+
+// HopCountStats contains hop count stats
+type HopCountStats struct {
+	Avg float64 `json:"avg"`
+	Min int     `json:"min"`
+	Max int     `json:"max"`
+}
+
+// Traceroute contains traceroute results
+type Traceroute struct {
+	Runs     []TracerouteRun `json:"runs"`
+	HopCount HopCountStats   `json:"hop_count"`
+}
+
+// TracerouteRun contains traceroute results for a single run
+type TracerouteRun struct {
+	Source      TracerouteSource      `json:"source"`
+	Destination TracerouteDestination `json:"destination"`
+	Hops        []TracerouteHop       `json:"hops"`
+}
+
+// TracerouteHop encapsulates information about a single
+// hop in a traceroute
+type TracerouteHop struct {
+	TTL       int    `json:"ttl"`
+	IPAddress net.IP `json:"ip_address"`
+
+	// hostname is the reverse DNS of the ip_address
+	// TODO (separate PR): we might want to rename it to reverse_dns_hostname for consistency with destination.reverse_dns_hostname
+	Hostname string `json:"hostname,omitempty"`
+
+	RTT       float64 `json:"rtt,omitempty"`
+	Reachable bool    `json:"reachable"`
+}
+
+// TracerouteSource contains result source info
+type TracerouteSource struct {
+	IPAddress net.IP `json:"ip_address"`
+	Port      uint16 `json:"port"`
+}
+
+// TracerouteDestination contains result destination info
+type TracerouteDestination struct {
+	IPAddress net.IP `json:"ip_address"`
+	Port      uint16 `json:"port"`
+}
+
 // NetworkPath encapsulates data that defines a
 // path between two hosts as mapped by the agent
 type NetworkPath struct {
@@ -147,5 +211,7 @@ type NetworkPath struct {
 	Source       NetworkPathSource      `json:"source"`
 	Destination  NetworkPathDestination `json:"destination"`
 	Hops         []NetworkPathHop       `json:"hops"`
+	Traceroute   Traceroute             `json:"traceroute"`
+	E2eProbe     E2eProbe               `json:"e2e_probe"`
 	Tags         []string               `json:"tags,omitempty"`
 }

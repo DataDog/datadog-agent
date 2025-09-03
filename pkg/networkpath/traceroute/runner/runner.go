@@ -170,6 +170,13 @@ func (r *Runner) processResults(res *result.Results, protocol payload.Protocol, 
 			Hostname: destinationHost,
 			Port:     destinationPort,
 		},
+		Traceroute: payload.Traceroute{
+			HopCount: payload.HopCountStats{
+				Avg: res.Traceroute.HopCount.Avg,
+				Min: res.Traceroute.HopCount.Min,
+				Max: res.Traceroute.HopCount.Max,
+			},
+		},
 		Tags: slices.Clone(res.Tags),
 	}
 
@@ -190,9 +197,35 @@ func (r *Runner) processResults(res *result.Results, protocol payload.Protocol, 
 		traceroutePath.Source.Via = r.gatewayLookup.LookupWithIPs(src, dst, r.nsIno)
 	}
 
+	for _, run := range res.Traceroute.Runs {
+		var hops []payload.TracerouteHop
+		for _, hop := range run.Hops {
+			hops = append(hops, payload.TracerouteHop{
+				TTL:       hop.TTL,
+				IPAddress: hop.IPAddress,
+				RTT:       hop.RTT,
+				Reachable: hop.Reachable,
+			})
+		}
+		traceroutePath.Traceroute.Runs = append(traceroutePath.Traceroute.Runs, payload.TracerouteRun{
+			Hops: hops,
+			Source: payload.TracerouteSource{
+				IPAddress: run.Source.IPAddress,
+				Port:      run.Source.Port,
+			},
+			Destination: payload.TracerouteDestination{
+				IPAddress: run.Destination.IPAddress,
+				Port:      run.Destination.Port,
+			},
+		})
+	}
+
+	// TODO: REMOVE LEGACY FORMAT CODE BELOW
+	// TODO: REMOVE LEGACY FORMAT CODE BELOW
+	// TODO: REMOVE LEGACY FORMAT CODE BELOW
 	if len(res.Traceroute.Runs) > 0 {
 		tracerouteRun := res.Traceroute.Runs[0]
-		traceroutePath.Destination.IPAddress = tracerouteRun.Destination.IP.String()
+		traceroutePath.Destination.IPAddress = tracerouteRun.Destination.IPAddress.String()
 
 		for i, hop := range tracerouteRun.Hops {
 			ttl := i + 1
@@ -200,9 +233,9 @@ func (r *Runner) processResults(res *result.Results, protocol payload.Protocol, 
 			hopname := fmt.Sprintf("unknown_hop_%d", ttl)
 			hostname := hopname
 
-			if !hop.IP.Equal(net.IP{}) {
+			if !hop.IPAddress.Equal(net.IP{}) {
 				isReachable = true
-				hopname = hop.IP.String()
+				hopname = hop.IPAddress.String()
 				hostname = hopname // setting to ip address for now, reverse DNS lookup will override hostname field later
 			}
 
@@ -215,7 +248,6 @@ func (r *Runner) processResults(res *result.Results, protocol payload.Protocol, 
 			}
 			traceroutePath.Hops = append(traceroutePath.Hops, npHop)
 		}
-
 	}
 	return traceroutePath, nil
 }
