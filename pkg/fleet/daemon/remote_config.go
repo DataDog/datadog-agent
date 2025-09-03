@@ -76,11 +76,11 @@ func (rc *remoteConfig) SetState(state *pbgo.ClientUpdater) {
 }
 
 type installerConfig struct {
-	ID         string                     `json:"id"`
-	Operations []installerConfigOperation `json:"operations"`
+	ID             string                         `json:"id"`
+	FileOperations []installerConfigFileOperation `json:"file_operations"`
 }
 
-type installerConfigOperation struct {
+type installerConfigFileOperation struct {
 	FileOperationType string          `json:"file_op"`
 	FilePath          string          `json:"file_path"`
 	Patch             json.RawMessage `json:"patch"`
@@ -140,7 +140,7 @@ func handleInstallerConfigUpdate(h handleConfigsUpdate) func(map[string]state.Ra
 			}
 			if len(legacyConfigs.Files) > 0 {
 				for _, file := range legacyConfigs.Files {
-					installerConfig.Operations = append(installerConfig.Operations, installerConfigOperation{FileOperationType: "merge-patch", FilePath: file.Path, Patch: file.Contents})
+					installerConfig.FileOperations = append(installerConfig.FileOperations, installerConfigFileOperation{FileOperationType: "merge-patch", FilePath: file.Path, Patch: file.Contents})
 				}
 			}
 			installerConfigs[installerConfig.ID] = installerConfig

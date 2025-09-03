@@ -33,8 +33,8 @@ const (
 
 // Operations is the list of operations to perform on the configs.
 type Operations struct {
-	DeploymentID string          `json:"deployment_id"`
-	Operations   []FileOperation `json:"operations"`
+	DeploymentID   string          `json:"deployment_id"`
+	FileOperations []FileOperation `json:"file_operations"`
 }
 
 // FileOperation is the operation to perform on a config.

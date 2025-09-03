@@ -513,7 +513,7 @@ func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string,
 			fmt.Errorf("could not open config root: %w", err),
 		)
 	}
-	for _, op := range operations.Operations {
+	for _, op := range operations.FileOperations {
 		err = op.Apply(configRoot)
 		if err != nil {
 			return installerErrors.Wrap(

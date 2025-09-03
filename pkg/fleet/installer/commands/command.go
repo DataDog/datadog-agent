@@ -390,7 +390,7 @@ func installConfigExperimentCommand() *cobra.Command {
 				return err
 			}
 			i.span.SetTag("params.deployment_id", operations.DeploymentID)
-			i.span.SetTag("params.operations", operations.Operations)
+			i.span.SetTag("params.operations", operations.FileOperations)
 			return i.InstallConfigExperiment(i.ctx, args[0], operations)
 		},
 	}
