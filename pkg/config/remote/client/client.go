@@ -436,9 +436,6 @@ func (c *Client) pollLoop() {
 					log.Errorf("could not update remote-config state: %v", c.lastUpdateError)
 				}
 			} else {
-				if !successfulFirstRun {
-					log.Infof("first update successful")
-				}
 				log.Debugf("update successful: successful_first_run:%t", successfulFirstRun)
 				if c.lastUpdateError != nil {
 					c.m.Lock()
@@ -450,8 +447,13 @@ func (c *Client) pollLoop() {
 					c.m.Unlock()
 				}
 
-				c.lastUpdateError = nil
+				// record and report that the first update was successful
+				if !successfulFirstRun {
+					log.Infof("first update successful")
+				}
 				successfulFirstRun = true
+
+				c.lastUpdateError = nil
 				c.backoffErrorCount = c.backoffPolicy.DecError(c.backoffErrorCount)
 			}
 		}
