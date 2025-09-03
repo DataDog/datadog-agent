@@ -228,13 +228,6 @@ func (p *processor) unregisterContainer(ctr *workloadmeta.Container) {
 	}
 }
 
-func (p *processor) processContainerImagesRefresh(allImages []*workloadmeta.ContainerImageMetadata) {
-	// So far, the check is refreshing all the images every 5 minutes all together.
-	for _, img := range allImages {
-		p.processImageSBOM(img)
-	}
-}
-
 func (p *processor) processHostScanResult(result sbom.ScanResult) {
 	log.Debugf("processing host scanresult: %v", result)
 	sbom := &model.SBOMEntity{

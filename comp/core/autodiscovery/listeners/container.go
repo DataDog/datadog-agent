@@ -139,6 +139,18 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 			workloadmetafilter.CreateContainer(container, workloadmetafilter.CreatePod(pod)),
 			l.filterStore.GetContainerAutodiscoveryFilters(workloadfilter.LogsFilter),
 		)
+
+		adIdentifier := container.Name
+		if customADID, found := utils.ExtractCheckIDFromPodAnnotations(pod.Annotations, container.Name); found {
+			adIdentifier = customADID
+			svc.adIdentifiers = append(svc.adIdentifiers, customADID)
+		}
+
+		checkNames, err := utils.ExtractCheckNamesFromPodAnnotations(pod.Annotations, adIdentifier)
+		if err != nil {
+			log.Errorf("error extracting check names from pod annotations: %s", err)
+		}
+		svc.checkNames = checkNames
 	} else {
 		checkNames, err := utils.ExtractCheckNamesFromContainerLabels(container.Labels)
 		if err != nil {

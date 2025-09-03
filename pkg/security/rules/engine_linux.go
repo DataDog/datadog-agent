@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
+	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
@@ -31,14 +32,13 @@ func (e *RuleEngine) GetSECLVariables() map[string]*api.SECLVariableState {
 				continue
 			}
 			cgr := ebpfProbe.Resolvers.CGroupResolver
-			containerWorkloads := cgr.GetContainerWorkloads()
-			if containerWorkloads == nil {
-				continue
-			}
 
-			for _, cgce := range containerWorkloads.Values() {
+			cgr.Iterate(func(cgce *cgroupModel.CacheEntry) {
 				cgce.RLock()
 				defer cgce.RUnlock()
+				if cgce.ContainerContext.ContainerID == "" {
+					return
+				}
 
 				event := e.probe.PlatformProbe.NewEvent()
 				event.ContainerContext = &cgce.ContainerContext
@@ -46,7 +46,7 @@ func (e *RuleEngine) GetSECLVariables() map[string]*api.SECLVariableState {
 				scopedName := fmt.Sprintf("%s.%s", name, cgce.ContainerContext.ContainerID)
 				value, found := scopedVariable.GetValue(ctx)
 				if !found {
-					continue
+					return
 				}
 
 				scopedValue := fmt.Sprintf("%v", value)
@@ -54,17 +54,12 @@ func (e *RuleEngine) GetSECLVariables() map[string]*api.SECLVariableState {
 					Name:  scopedName,
 					Value: scopedValue,
 				}
-			}
+			})
 		} else if strings.HasPrefix(name, "cgroup.") {
 			scopedVariable := value.(eval.ScopedVariable)
 
 			cgr := e.probe.PlatformProbe.(*probe.EBPFProbe).Resolvers.CGroupResolver
-			containerWorkloads := cgr.GetContainerWorkloads()
-			if containerWorkloads == nil {
-				continue
-			}
-
-			for _, cgce := range containerWorkloads.Values() {
+			cgr.Iterate(func(cgce *cgroupModel.CacheEntry) {
 				cgce.RLock()
 				defer cgce.RUnlock()
 
@@ -74,7 +69,7 @@ func (e *RuleEngine) GetSECLVariables() map[string]*api.SECLVariableState {
 				scopedName := fmt.Sprintf("%s.%s", name, cgce.CGroupID)
 				value, found := scopedVariable.GetValue(ctx)
 				if !found {
-					continue
+					return
 				}
 
 				scopedValue := fmt.Sprintf("%v", value)
@@ -82,7 +77,7 @@ func (e *RuleEngine) GetSECLVariables() map[string]*api.SECLVariableState {
 					Name:  scopedName,
 					Value: scopedValue,
 				}
-			}
+			})
 		}
 	}
 	return seclVariables

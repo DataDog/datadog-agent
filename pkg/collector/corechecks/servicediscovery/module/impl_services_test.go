@@ -48,7 +48,7 @@ import (
 func getServices(t require.TestingT, url string) *model.ServicesEndpointResponse {
 	location := url + "/" + string(config.DiscoveryModule) + pathServices
 	params := &core.Params{
-		Pids: getRunningPids(t),
+		NewPids: getRunningPids(t),
 	}
 
 	return makeRequest[model.ServicesEndpointResponse](t, location, params)
@@ -284,7 +284,6 @@ func TestServicesServiceName(t *testing.T) {
 		assert.Equal(collect, "foo_bar", svc.DDService)
 		assert.Equal(collect, "sleep", svc.GeneratedName)
 		assert.Equal(collect, string(usm.CommandLine), svc.GeneratedNameSource)
-		assert.False(collect, svc.DDServiceInjected)
 	}, 30*time.Second, 100*time.Millisecond)
 
 	// Verify tracer metadata
