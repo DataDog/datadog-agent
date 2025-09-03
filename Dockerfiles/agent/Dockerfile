@@ -253,14 +253,9 @@ COPY --chmod=755 entrypoint.d /opt/entrypoints
 
 CMD ["/bin/entrypoint.sh"]
 
-FROM scratch as flattened-release
+FROM scratch AS flattened-release
 COPY --from=release / /
 
-FROM release AS test
-COPY --chmod=755 test_image_contents.py /tmp/test_image_contents.py
-RUN ./tmp/test_image_contents.py && rm -f ./tmp/test_image_contents.py
-
-# This is a full copy of one above. TODO: rework
-FROM flattened-release AS flattened-test
+FROM flattened-release AS test
 COPY --chmod=755 test_image_contents.py /tmp/test_image_contents.py
 RUN ./tmp/test_image_contents.py && rm -f ./tmp/test_image_contents.py
