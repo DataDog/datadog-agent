@@ -176,6 +176,18 @@ func (r *Runner) processResults(res *result.Results, protocol payload.Protocol, 
 				Max: res.Traceroute.HopCount.Max,
 			},
 		},
+		E2eProbe: payload.E2eProbe{
+			Rtts:                 slices.Clone(res.E2eProbe.Rtts),
+			PacketsSent:          res.E2eProbe.PacketsSent,
+			PacketsReceived:      res.E2eProbe.PacketsReceived,
+			PacketLossPercentage: res.E2eProbe.PacketLossPercentage,
+			Jitter:               res.E2eProbe.Jitter,
+			Rtt: payload.E2eProbeRttLatency{
+				Avg: res.E2eProbe.Rtt.Avg,
+				Min: res.E2eProbe.Rtt.Min,
+				Max: res.E2eProbe.Rtt.Max,
+			},
+		},
 		Tags: slices.Clone(res.Tags),
 	}
 
