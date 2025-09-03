@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
@@ -48,6 +49,7 @@ type OtelStatsWriter struct {
 
 // Write this payload to the `out` channel
 func (a *OtelStatsWriter) Write(payload *pb.StatsPayload) {
+	log.Debug("OtelStatsWriter writing stats payload: ", payload)
 	a.out <- payload
 }
 

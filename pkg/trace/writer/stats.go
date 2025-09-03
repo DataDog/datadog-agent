@@ -154,6 +154,7 @@ func (w *DatadogStatsWriter) Stop() {
 
 // Add appends this StatsPayload to the writer's buffer (flushing immediately if syncMode is enabled)
 func (w *DatadogStatsWriter) Write(sp *pb.StatsPayload) {
+	log.Debug("DatadogStatsWriter writing stats payload: ", sp)
 	w.addStats(sp)
 	if !w.syncMode {
 		w.sendPayloads()
@@ -180,6 +181,7 @@ func (w *DatadogStatsWriter) SendPayload(p *pb.StatsPayload) {
 		return
 	}
 	sendPayloads(w.senders, req, w.syncMode)
+	log.Debug("DatadogStatsWriter sent stats payload: ", req)
 }
 
 func (w *DatadogStatsWriter) sendPayloads() {
