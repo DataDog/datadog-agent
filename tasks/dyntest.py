@@ -6,6 +6,7 @@ import os
 
 from invoke import Context, task
 
+from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.git import get_modified_files
 from tasks.libs.dynamic_test.backend import S3Backend
 from tasks.libs.dynamic_test.evaluator import DatadogDynTestEvaluator
@@ -48,7 +49,7 @@ def evaluate_index(ctx: Context, bucket_uri: str, commit_sha: str, pipeline_id: 
     executor = DynTestExecutor(ctx, uploader, IndexKind.PACKAGE, commit_sha)
     evaluator = DatadogDynTestEvaluator(ctx, IndexKind.PACKAGE, executor, pipeline_id)
     if not evaluator.initialize():
-        print("Failed to initialize index for package coverage")
+        print(color_message("WARNING: Failed to initialize index for package coverage", Color.ORANGE))
         return
     changes = get_modified_files(ctx)
     results = evaluator.evaluate([os.path.dirname(change) for change in changes])
@@ -59,7 +60,7 @@ def evaluate_index(ctx: Context, bucket_uri: str, commit_sha: str, pipeline_id: 
     executor = DynTestExecutor(ctx, uploader, IndexKind.FILE, commit_sha)
     evaluator = DatadogDynTestEvaluator(ctx, IndexKind.FILE, executor, pipeline_id)
     if not evaluator.initialize():
-        print("Failed to initialize index for file coverage")
+        print(color_message("WARNING:Failed to initialize index for file coverage", Color.ORANGE))
         return
     results = evaluator.evaluate(changes)
     evaluator.print_summary(results)

@@ -248,6 +248,7 @@ class FileCoverageDynTestIndexer(CoverageDynTestIndexer):
                         covered.add(relative_file_path)
         except Exception as e:
             print(color_message(f"Error parsing coverage file {coverage_txt}: {e}", Color.ORANGE))
+            return set()
         return covered
 
 
@@ -328,4 +329,5 @@ class PackageCoverageDynTestIndexer(CoverageDynTestIndexer):
                         covered.add(package_path)
         except Exception as e:
             print(color_message(f"Error parsing coverage file {coverage_txt}: {e}", Color.ORANGE))
+            return set()
         return covered
