@@ -219,6 +219,7 @@ func getRefAndKeychain(env *env.Env, url string) urlWithKeychain {
 		if !strings.HasSuffix(registryOverride, "/") {
 			registryOverride += "/"
 		}
+		registryOverride = formatImageRef(registryOverride)
 		ref = registryOverride + imageWithIdentifier
 	}
 	keychain := getKeychain(env.RegistryAuthOverride, env.RegistryUsername, env.RegistryPassword)
@@ -229,7 +230,7 @@ func getRefAndKeychain(env *env.Env, url string) urlWithKeychain {
 		}
 	}
 	return urlWithKeychain{
-		ref:      formatImageRef(ref),
+		ref:      ref,
 		keychain: keychain,
 	}
 }
