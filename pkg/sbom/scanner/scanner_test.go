@@ -77,7 +77,7 @@ func TestRetryLogic_Error(t *testing.T) {
 	// Create a workload meta global store
 	workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		compConfig.MockModule(),
+		fx.Provide(func() compConfig.Component { return compConfig.NewMock(t) }),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
@@ -161,7 +161,7 @@ func TestRetryLogic_ImageDeleted(t *testing.T) {
 	// Create a workload meta global store
 	workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		compConfig.MockModule(),
+		fx.Provide(func() compConfig.Component { return compConfig.NewMock(t) }),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
@@ -227,7 +227,7 @@ func TestRetryChannelFull(t *testing.T) {
 	// Create a workload meta global store
 	workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		compConfig.MockModule(),
+		fx.Provide(func() compConfig.Component { return compConfig.NewMock(t) }),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
