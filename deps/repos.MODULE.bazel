@@ -25,38 +25,41 @@ http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "ht
 
 http_archive(
     name = "openssl",
-    patches = ["//omnibus/config/patches/openssl3:0001-fix-preprocessor-concatenation.patch"],
+    build_file = "//deps:openssl.BUILD.bazel",
     patch_args = ["-p1"],
-    url = "https://www.openssl.org/source/openssl-3.4.1.tar.gz",
+    patches = ["//omnibus/config/patches/openssl3:0001-fix-preprocessor-concatenation.patch"],
     sha256 = "002a2d6b30b58bf4bea46c43bdd96365aaf8daa6c428782aa4feee06da197df3",
     strip_prefix = "openssl-3.4.1",
-    build_file = "//deps:openssl.BUILD.bazel",
+    url = "https://www.openssl.org/source/openssl-3.4.1.tar.gz",
 )
 
 bazel_dep(name = "gcc_toolchain")
-
-local_path_override(
+git_override(
     module_name = "gcc_toolchain",
-    path = "../gcc-toolchain",
+    commit = "0e2242b07961107d2b05a6552d70b2ef4ef485fb",
+    patch_args = ["-p1"],
+    patches = ["//bazel/patches:datadog_agent_toolchain.patch"],
+    remote = "https://github.com/f0rmiga/gcc-toolchain.git",
 )
 
 gcc_toolchains = use_extension("@gcc_toolchain//toolchain:module_extensions.bzl", "gcc_toolchains", dev_dependency = True)
-
 gcc_toolchains.toolchain(
     name = "gcc_toolchain_x86_64",
-    target_arch = "x86_64",
-    gcc_version = "11.4.0",
     binary_prefix = "x86_64-unknown-linux-gnu-",
+    gcc_version = "11.4.0",
+    target_arch = "x86_64",
 )
-
 gcc_toolchains.toolchain(
     name = "gcc_toolchain_aarch64",
-    target_arch = "aarch64",
-    gcc_version = "12.3.0",
     binary_prefix = "aarch64-unknown-linux-gnu-",
+    gcc_version = "12.3.0",
+    target_arch = "aarch64",
 )
-
 use_repo(gcc_toolchains, "gcc_toolchain_x86_64")
 use_repo(gcc_toolchains, "gcc_toolchain_aarch64")
 
-register_toolchains("@gcc_toolchain_x86_64//:cc_toolchain", "@gcc_toolchain_aarch64//:cc_toolchain", dev_dependency = True)
+register_toolchains(
+    "@gcc_toolchain_x86_64//:cc_toolchain",
+    "@gcc_toolchain_aarch64//:cc_toolchain",
+    dev_dependency = True,
+)
