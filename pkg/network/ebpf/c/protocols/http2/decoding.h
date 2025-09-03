@@ -674,7 +674,7 @@ static __always_inline void handle_first_frame(pktbuf_t pkt, __u32 *external_dat
     
     // For new PRIORITY frames that will be cached, we need to track that PRIORITY will be consumed
     bool will_cache_priority_frame = (current_frame.type == kHeadersFrame && (current_frame.flags & HTTP2_PRIORITY_FLAG) && 
-                                     advance_length > HTTP2_PRIORITY_BUFFER_LEN);
+                                     advance_length > HTTP2_PRIORITY_BUFFER_LEN && !is_cached_priority);
 
     pktbuf_advance(pkt, advance_length);
     // We're exceeding the packet boundaries, so we have a remainder.
