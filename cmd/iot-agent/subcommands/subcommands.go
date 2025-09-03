@@ -37,9 +37,7 @@ import (
 	cmdstop "github.com/DataDog/datadog-agent/cmd/agent/subcommands/stop"
 	cmdstreamep "github.com/DataDog/datadog-agent/cmd/agent/subcommands/streamep"
 	cmdstreamlogs "github.com/DataDog/datadog-agent/cmd/agent/subcommands/streamlogs"
-	cmdtaggerlist "github.com/DataDog/datadog-agent/cmd/agent/subcommands/taggerlist"
 	cmdversion "github.com/DataDog/datadog-agent/cmd/agent/subcommands/version"
-	cmdworkloadlist "github.com/DataDog/datadog-agent/cmd/agent/subcommands/workloadlist"
 )
 
 // IotAgentSubcommands returns SubcommandFactories for the subcommands supported
@@ -67,9 +65,7 @@ func IotAgentSubcommands() []command.SubcommandFactory {
 		cmdstatus.Commands,
 		cmdstreamlogs.Commands,
 		cmdstreamep.Commands,
-		cmdtaggerlist.Commands,
 		cmdversion.Commands,
-		cmdworkloadlist.Commands,
 		cmdjmx.Commands,
 		cmdsecrethelper.Commands,
 		cmdintegrations.Commands,
