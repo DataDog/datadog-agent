@@ -84,12 +84,22 @@ func (c *Check) Run() error {
 		path.Hops[i].Hostname = traceroute.GetHostname(path.Hops[i].IPAddress)
 	}
 
+	// TODO: REMOVE ME
+	if len(path.Hops) > 0 {
+		path.Hops[0].Hostname = "legacy-data-model"
+	}
+
 	for i, run := range path.Traceroute.Runs {
 		path.Traceroute.Runs[i].Destination.ReverseDns = traceroute.GetHostname(path.Destination.IPAddress)
 		for j, hop := range run.Hops {
 			if !hop.IPAddress.Equal(net.IP{}) {
 				path.Traceroute.Runs[i].Hops[j].ReverseDns = traceroute.GetHostname(hop.IPAddress.String())
 			}
+		}
+
+		// TODO: REMOVE ME
+		if len(run.Hops) > 0 {
+			path.Traceroute.Runs[i].Hops[0].ReverseDns = "new-data-model"
 		}
 	}
 
