@@ -1899,7 +1899,7 @@ func podman(config pkgconfigmodel.Setup) {
 }
 
 // LoadProxyFromEnv overrides the proxy settings with environment variables
-func LoadProxyFromEnv(config pkgconfigmodel.Config) {
+func LoadProxyFromEnv(config pkgconfigmodel.ReaderWriter) {
 	// Viper doesn't handle mixing nested variables from files and set
 	// manually.  If we manually set one of the sub value for "proxy" all
 	// other values from the conf file will be shadowed when using

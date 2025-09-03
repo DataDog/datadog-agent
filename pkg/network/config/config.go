@@ -84,6 +84,9 @@ type Config struct {
 	// EnableRedisMonitoring specifies whether the tracer should monitor Redis traffic.
 	EnableRedisMonitoring bool
 
+	// RedisTrackResources specifies whether to track Redis resource names (keys) or only methods.
+	RedisTrackResources bool
+
 	// EnableNativeTLSMonitoring specifies whether the USM should monitor HTTPS traffic via native libraries.
 	// Supported libraries: OpenSSL, GnuTLS, LibCrypto.
 	EnableNativeTLSMonitoring bool
@@ -359,6 +362,7 @@ func New() *Config {
 		EnableKafkaMonitoring:      cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_kafka_monitoring")),
 		EnablePostgresMonitoring:   cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_postgres_monitoring")),
 		EnableRedisMonitoring:      cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_redis_monitoring")),
+		RedisTrackResources:        cfg.GetBool(sysconfig.FullKeyPath(smNS, "redis", "track_resources")),
 		EnableNativeTLSMonitoring:  cfg.GetBool(sysconfig.FullKeyPath(smNS, "tls", "native", "enabled")),
 		EnableIstioMonitoring:      cfg.GetBool(sysconfig.FullKeyPath(smNS, "tls", "istio", "enabled")),
 		EnvoyPath:                  cfg.GetString(sysconfig.FullKeyPath(smNS, "tls", "istio", "envoy_path")),

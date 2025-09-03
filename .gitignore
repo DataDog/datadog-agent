@@ -27,6 +27,8 @@ venv*/
 *.log
 /main
 
+# In-workpace cache
+/.cache/
 # Bazel convenience symlinks to output folders
 /bazel-*
 # User specific bazelrc file
