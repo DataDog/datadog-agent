@@ -562,6 +562,8 @@ func (pn *ProcessNode) EvictUnusedNodes(before time.Time) int {
 		totalEvicted += evicted
 		if evicted > 0 && len(pn.Seen) == 0 {
 			totalEvicted++
+			// we should return immediately because we don't need to evict other nodes if the process node itself should be removed
+			return totalEvicted
 		}
 	}
 
@@ -609,14 +611,12 @@ func (pn *ProcessNode) EvictUnusedNodes(before time.Time) int {
 	}
 
 	// Evict unused syscall nodes
-	if pn.Process.IsExecExec && !pn.Process.ExitTime.IsZero() {
-		for i := len(pn.Syscalls) - 1; i >= 0; i-- {
-			syscallNode := pn.Syscalls[i]
-			if syscallNode.NodeBase.EvictBeforeTimestamp(before) > 0 {
-				if len(syscallNode.Seen) == 0 {
-					pn.Syscalls = append(pn.Syscalls[:i], pn.Syscalls[i+1:]...)
-					totalEvicted++
-				}
+	for i := len(pn.Syscalls) - 1; i >= 0; i-- {
+		syscallNode := pn.Syscalls[i]
+		if syscallNode.NodeBase.EvictBeforeTimestamp(before) > 0 {
+			if len(syscallNode.Seen) == 0 {
+				pn.Syscalls = append(pn.Syscalls[:i], pn.Syscalls[i+1:]...)
+				totalEvicted++
 			}
 		}
 	}

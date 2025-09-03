@@ -2670,7 +2670,7 @@ func TestSecurityProfileNodeEviction(t *testing.T) {
 	}
 
 	var expectedFormats = []string{"profile"}
-	var testActivityDumpTracedEventTypes = []string{"exec", "open", "syscalls", "dns", "exit"}
+	var testActivityDumpTracedEventTypes = []string{"exec", "open", "syscalls", "dns"}
 
 	outputDir := t.TempDir()
 	os.MkdirAll(outputDir, 0755)
