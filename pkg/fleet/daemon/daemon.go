@@ -116,6 +116,9 @@ func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config config.Re
 	if err != nil {
 		return nil, fmt.Errorf("could not get resolve installer executable path: %w", err)
 	}
+	if runtime.GOOS != "windows" {
+		installerBin = filepath.Join(filepath.Dir(installerBin), "..", "..", "embedded", "bin", "installer")
+	}
 	dbPath := filepath.Join(paths.RunPath, "installer_tasks.db")
 	taskDB, err := newTaskDB(dbPath)
 	if err != nil {
