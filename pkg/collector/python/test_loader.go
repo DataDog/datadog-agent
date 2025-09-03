@@ -339,7 +339,7 @@ func testLoadError(t *testing.T) {
 	C.get_class_dd_wheel_py_module = nil
 	C.get_class_dd_wheel_py_class = nil
 
-	check, err := loader.Load(senderManager, conf, conf.Instances[0])
+	check, err := loader.Load(senderManager, conf, conf.Instances[0], 0)
 	require.Error(t, err)
 	require.Nil(t, check)
 }
