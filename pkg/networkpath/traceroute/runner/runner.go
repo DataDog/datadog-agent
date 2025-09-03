@@ -231,7 +231,7 @@ func (r *Runner) processResults(res *result.Results, protocol payload.Protocol, 
 			},
 		})
 	}
-
+	traceroutePath.Hops = []payload.NetworkPathHop{}
 	return traceroutePath, nil
 }
 
