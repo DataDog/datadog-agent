@@ -13,7 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
 )
 
@@ -72,7 +71,7 @@ type IRGenerator interface {
 	// GenerateIR generates the IR for the given executable and probes.
 	GenerateIR(
 		programID ir.ProgramID,
-		executable *object.ElfFile,
+		binaryPath string,
 		probes []ir.ProbeDefinition,
 	) (*ir.Program, error)
 }

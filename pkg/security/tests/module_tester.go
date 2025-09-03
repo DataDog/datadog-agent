@@ -63,7 +63,7 @@ var (
 )
 
 const (
-	testActivityDumpDuration = time.Minute * 10
+	testActivityDumpDuration = time.Second * 30
 )
 
 var testMod *testModule
@@ -109,7 +109,8 @@ func (tm *testModule) SendEvent(rule *rules.Rule, event events.Event, extTagsCb 
 	}
 }
 
-func (tm *testModule) Run(t *testing.T, name string, fnc func(t *testing.T, kind wrapperType, cmd func(bin string, args []string, envs []string) *exec.Cmd)) {
+// RunMultiMode executes the provided test function in both -std and -docker modes.
+func (tm *testModule) RunMultiMode(t *testing.T, name string, fnc func(t *testing.T, kind wrapperType, cmd func(bin string, args []string, envs []string) *exec.Cmd)) {
 	tm.cmdWrapper.Run(t, name, fnc)
 }
 
@@ -554,6 +555,15 @@ func (tm *testModule) WaitSignal(tb testing.TB, action func() error, cb onRuleHa
 	})
 }
 
+func (tm *testModule) WaitSignalWithoutProcessContext(tb testing.TB, action func() error, cb onRuleHandler) {
+	tb.Helper()
+
+	tm.waitSignal(tb, action, func(event *model.Event, rule *rules.Rule) error {
+		cb(event, rule)
+		return nil
+	})
+}
+
 //nolint:deadcode,unused
 func (tm *testModule) marshalEvent(ev *model.Event) (string, error) {
 	b, err := serializers.MarshalEvent(ev, nil)
@@ -817,6 +827,7 @@ func genTestConfigs(cfgDir string, opts testOpts) (*emconfig.Config, *secconfig.
 		"EventServerRetention":                       opts.eventServerRetention,
 		"EnableSelfTests":                            opts.enableSelfTests,
 		"NetworkFlowMonitorEnabled":                  opts.networkFlowMonitorEnabled,
+		"CapabilitiesMonitoringEnabled":              opts.capabilitiesMonitoringEnabled,
 	}); err != nil {
 		return nil, nil, err
 	}

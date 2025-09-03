@@ -46,6 +46,7 @@ func NewFakeEvent() *Event {
 		BaseEvent: BaseEvent{
 			FieldHandlers:    &FakeFieldHandlers{},
 			ContainerContext: &ContainerContext{},
+			ProcessContext:   &ProcessContext{},
 			Os:               runtime.GOOS,
 		},
 		CGroupContext: &CGroupContext{},
@@ -87,35 +88,36 @@ type Event struct {
 
 	// context
 	SpanContext    SpanContext    `field:"-"`
-	NetworkContext NetworkContext `field:"network" restricted_to:"dns,imds"` // [7.36] [Network] Network context
+	NetworkContext NetworkContext `field:"network" restricted_to:"dns,imds,packet"` // [7.36] [Network] Network context
 	CGroupContext  *CGroupContext `field:"cgroup"`
 
 	// fim events
-	Chmod       ChmodEvent     `field:"chmod" event:"chmod"`             // [7.27] [File] A file's permissions were changed
-	Chown       ChownEvent     `field:"chown" event:"chown"`             // [7.27] [File] A file's owner was changed
-	Open        OpenEvent      `field:"open" event:"open"`               // [7.27] [File] A file was opened
-	Mkdir       MkdirEvent     `field:"mkdir" event:"mkdir"`             // [7.27] [File] A directory was created
-	Rmdir       RmdirEvent     `field:"rmdir" event:"rmdir"`             // [7.27] [File] A directory was removed
-	Rename      RenameEvent    `field:"rename" event:"rename"`           // [7.27] [File] A file/directory was renamed
-	Unlink      UnlinkEvent    `field:"unlink" event:"unlink"`           // [7.27] [File] A file was deleted
-	Utimes      UtimesEvent    `field:"utimes" event:"utimes"`           // [7.27] [File] Change file access/modification times
-	Link        LinkEvent      `field:"link" event:"link"`               // [7.27] [File] Create a new name/alias for a file
-	SetXAttr    SetXAttrEvent  `field:"setxattr" event:"setxattr"`       // [7.27] [File] Set exteneded attributes
-	RemoveXAttr SetXAttrEvent  `field:"removexattr" event:"removexattr"` // [7.27] [File] Remove extended attributes
-	Splice      SpliceEvent    `field:"splice" event:"splice"`           // [7.36] [File] A splice command was executed
-	Mount       MountEvent     `field:"mount" event:"mount"`             // [7.42] [File] [Experimental] A filesystem was mounted
-	Chdir       ChdirEvent     `field:"chdir" event:"chdir"`             // [7.52] [File] [Experimental] A process changed the current directory
-	Setrlimit   SetrlimitEvent `field:"setrlimit" event:"setrlimit"`     // [7.68] [Process] A setrlimit command was executed
+	Chmod       ChmodEvent    `field:"chmod" event:"chmod"`             // [7.27] [File] A file's permissions were changed
+	Chown       ChownEvent    `field:"chown" event:"chown"`             // [7.27] [File] A file's owner was changed
+	Open        OpenEvent     `field:"open" event:"open"`               // [7.27] [File] A file was opened
+	Mkdir       MkdirEvent    `field:"mkdir" event:"mkdir"`             // [7.27] [File] A directory was created
+	Rmdir       RmdirEvent    `field:"rmdir" event:"rmdir"`             // [7.27] [File] A directory was removed
+	Rename      RenameEvent   `field:"rename" event:"rename"`           // [7.27] [File] A file/directory was renamed
+	Unlink      UnlinkEvent   `field:"unlink" event:"unlink"`           // [7.27] [File] A file was deleted
+	Utimes      UtimesEvent   `field:"utimes" event:"utimes"`           // [7.27] [File] Change file access/modification times
+	Link        LinkEvent     `field:"link" event:"link"`               // [7.27] [File] Create a new name/alias for a file
+	SetXAttr    SetXAttrEvent `field:"setxattr" event:"setxattr"`       // [7.27] [File] Set exteneded attributes
+	RemoveXAttr SetXAttrEvent `field:"removexattr" event:"removexattr"` // [7.27] [File] Remove extended attributes
+	Splice      SpliceEvent   `field:"splice" event:"splice"`           // [7.36] [File] A splice command was executed
+	Mount       MountEvent    `field:"mount" event:"mount"`             // [7.42] [File] [Experimental] A filesystem was mounted
+	Chdir       ChdirEvent    `field:"chdir" event:"chdir"`             // [7.52] [File] [Experimental] A process changed the current directory
 
 	// process events
-	Exec          ExecEvent          `field:"exec" event:"exec"`     // [7.27] [Process] A process was executed (does not trigger on fork syscalls).
-	SetUID        SetuidEvent        `field:"setuid" event:"setuid"` // [7.27] [Process] A process changed its effective uid
-	SetGID        SetgidEvent        `field:"setgid" event:"setgid"` // [7.27] [Process] A process changed its effective gid
-	Capset        CapsetEvent        `field:"capset" event:"capset"` // [7.27] [Process] A process changed its capacity set
-	Signal        SignalEvent        `field:"signal" event:"signal"` // [7.35] [Process] A signal was sent
-	Exit          ExitEvent          `field:"exit" event:"exit"`     // [7.38] [Process] A process was terminated
-	Syscalls      SyscallsEvent      `field:"-"`
-	LoginUIDWrite LoginUIDWriteEvent `field:"-"`
+	Exec              ExecEvent          `field:"exec" event:"exec"`                 // [7.27] [Process] A process was executed (does not trigger on fork syscalls).
+	SetUID            SetuidEvent        `field:"setuid" event:"setuid"`             // [7.27] [Process] A process changed its effective uid
+	SetGID            SetgidEvent        `field:"setgid" event:"setgid"`             // [7.27] [Process] A process changed its effective gid
+	Capset            CapsetEvent        `field:"capset" event:"capset"`             // [7.27] [Process] A process changed its capacity set
+	Signal            SignalEvent        `field:"signal" event:"signal"`             // [7.35] [Process] A signal was sent
+	Exit              ExitEvent          `field:"exit" event:"exit"`                 // [7.38] [Process] A process was terminated
+	Setrlimit         SetrlimitEvent     `field:"setrlimit" event:"setrlimit"`       // [7.68] [Process] A setrlimit command was executed
+	CapabilitiesUsage CapabilitiesEvent  `field:"capabilities" event:"capabilities"` // [7.70] [Process] [Experimental] A process used some capabilities
+	Syscalls          SyscallsEvent      `field:"-"`
+	LoginUIDWrite     LoginUIDWriteEvent `field:"-"`
 
 	// network syscalls
 	Bind       BindEvent       `field:"bind" event:"bind"`             // [7.37] [Network] A bind was executed
@@ -167,11 +169,9 @@ func (e *Event) Zero() {
 // CGroupContext holds the cgroup context of an event
 type CGroupContext struct {
 	Releasable
-	CGroupID      containerutils.CGroupID    `field:"id,handler:ResolveCGroupID"` // SECLDoc[id] Definition:`ID of the cgroup`
-	CGroupFlags   containerutils.CGroupFlags `field:"-"`
-	CGroupManager string                     `field:"manager,handler:ResolveCGroupManager"` // SECLDoc[manager] Definition:`[Experimental] Lifecycle manager of the cgroup`
-	CGroupFile    PathKey                    `field:"file"`
-	CGroupVersion int                        `field:"version,handler:ResolveCGroupVersion"` // SECLDoc[version] Definition:`[Experimental] Version of the cgroup API`
+	CGroupID      containerutils.CGroupID `field:"id,handler:ResolveCGroupID"` // SECLDoc[id] Definition:`ID of the cgroup`
+	CGroupFile    PathKey                 `field:"file"`
+	CGroupVersion int                     `field:"version,handler:ResolveCGroupVersion"` // SECLDoc[version] Definition:`[Experimental] Version of the cgroup API`
 }
 
 // Merge two cgroup context
@@ -179,20 +179,12 @@ func (cg *CGroupContext) Merge(cg2 *CGroupContext) {
 	if cg.CGroupID == "" {
 		cg.CGroupID = cg2.CGroupID
 	}
-	if cg.CGroupFlags == 0 {
-		cg.CGroupFlags = cg2.CGroupFlags
-	}
 	if cg.CGroupFile.Inode == 0 {
 		cg.CGroupFile.Inode = cg2.CGroupFile.Inode
 	}
 	if cg.CGroupFile.MountID == 0 {
 		cg.CGroupFile.MountID = cg2.CGroupFile.MountID
 	}
-}
-
-// IsContainer returns whether a cgroup maps to a container
-func (cg *CGroupContext) IsContainer() bool {
-	return cg.CGroupFlags.IsContainer()
 }
 
 // Hash returns a unique key for the entity
@@ -346,6 +338,9 @@ type Process struct {
 	// credentials_t section of pid_cache_t
 	Credentials
 
+	CapsAttempted uint64 `field:"caps_attempted"` // SECLDoc[caps_attempted] Definition:`Bitmask of the capabilities that the process attempted to use` Constants:`Kernel Capability constants`
+	CapsUsed      uint64 `field:"caps_used"`      // SECLDoc[caps_used] Definition:`Bitmask of the capabilities that the process successfully used` Constants:`Kernel Capability constants`
+
 	UserSession UserSessionContext `field:"user_session"` // SECLDoc[user_session] Definition:`User Session context of this process`
 
 	AWSSecurityCredentials []AWSSecurityCredentials `field:"-"`
@@ -386,6 +381,8 @@ type Process struct {
 	// lineage
 	hasValidLineage *bool `field:"-"`
 	lineageError    error `field:"-"`
+
+	IsThroughSymLink bool `field:"-"` // Indicates whether the process is through a symlink
 }
 
 // SetAncestorFields force the process cache entry to be valid
@@ -759,9 +756,8 @@ type CgroupTracingEvent struct {
 
 // CgroupWriteEvent is used to signal that a new cgroup was created
 type CgroupWriteEvent struct {
-	File        FileEvent `field:"file"` // File pointing to the cgroup
-	Pid         uint32    `field:"pid"`  // SECLDoc[pid] Definition:`PID of the process added to the cgroup`
-	CGroupFlags uint32    `field:"-"`    // CGroup flags
+	File FileEvent `field:"file"` // File pointing to the cgroup
+	Pid  uint32    `field:"pid"`  // SECLDoc[pid] Definition:`PID of the process added to the cgroup`
 }
 
 // ActivityDumpLoadConfig represents the load configuration of an activity dump
@@ -773,7 +769,6 @@ type ActivityDumpLoadConfig struct {
 	EndTimestampRaw      uint64
 	Rate                 uint16 // max number of events per sec
 	Paused               uint32
-	CGroupFlags          containerutils.CGroupFlags
 }
 
 // NetworkDeviceContext represents the network device context of a network event
@@ -1015,15 +1010,22 @@ type SetrlimitEvent struct {
 // SetSockOptEvent represents a set socket option event
 type SetSockOptEvent struct {
 	SyscallEvent
-	SocketType         uint16 `field:"socket_type"`                                                     // SECLDoc[socket_type] Definition:`Socket type`
-	SocketFamily       uint16 `field:"socket_family"`                                                   // SECLDoc[socket_family] Definition:`Socket family`
-	FilterLen          uint16 `field:"filter_len"`                                                      // SECLDoc[filter_len] Definition:`Length of the filter`
-	SocketProtocol     uint16 `field:"socket_protocol"`                                                 // SECLDoc[socket_protocol] Definition:`Socket protocol`
-	Level              uint32 `field:"level"`                                                           // SECLDoc[level] Definition:`Socket level`
-	OptName            uint32 `field:"optname"`                                                         // SECLDoc[optname] Definition:`Socket option name`
-	SizeToRead         uint32 `field:"-"`                                                               // Internal field, not exposed to users
-	IsFilterTruncated  bool   `field:"is_filter_truncated"`                                             // SECLDoc[is_filter_truncated] Definition:`Indicates that the filter is truncated`
-	RawFilter          []byte `field:"-"`                                                               // Internal field, not exposed to users
-	FilterInstructions string `field:"filter_instructions,handler:ResolveSetSockOptFilterInstructions"` // SECLDoc[filter_instructions] Definition:`Filter instructions`
-	FilterHash         string `field:"filter_hash,handler:ResolveSetSockOptFilterHash:"`                // SECLDoc[filter_hash] Definition:`Hash of the socket filter using sha256`
+	SocketType         uint16 `field:"socket_type"`                                                         // SECLDoc[socket_type] Definition:`Socket type`
+	SocketFamily       uint16 `field:"socket_family"`                                                       // SECLDoc[socket_family] Definition:`Socket family`
+	FilterLen          uint16 `field:"filter_len"`                                                          // SECLDoc[filter_len] Definition:`Length of the filter`
+	SocketProtocol     uint16 `field:"socket_protocol"`                                                     // SECLDoc[socket_protocol] Definition:`Socket protocol`
+	Level              uint32 `field:"level"`                                                               // SECLDoc[level] Definition:`Socket level`
+	OptName            uint32 `field:"optname"`                                                             // SECLDoc[optname] Definition:`Socket option name`
+	SizeToRead         uint32 `field:"-"`                                                                   // Internal field, not exposed to users
+	IsFilterTruncated  bool   `field:"is_filter_truncated"`                                                 // SECLDoc[is_filter_truncated] Definition:`Indicates that the filter is truncated`
+	RawFilter          []byte `field:"-"`                                                                   // Internal field, not exposed to users
+	FilterInstructions string `field:"filter_instructions,handler:ResolveSetSockOptFilterInstructions"`     // SECLDoc[filter_instructions] Definition:`Filter instructions`
+	FilterHash         string `field:"filter_hash,handler:ResolveSetSockOptFilterHash:"`                    // SECLDoc[filter_hash] Definition:`Hash of the socket filter using sha256`
+	UsedImmediates     []int  `field:"used_immediates,handler:ResolveSetSockOptUsedImmediates, weight:999"` // SECLDoc[used_immediates] Definition:`List of immediate values used in the filter`
+}
+
+// CapabilitiesEvent is used to report capabilities usage
+type CapabilitiesEvent struct {
+	Attempted uint64 `field:"attempted,handler:ResolveCapabilitiesAttempted"` // SECLDoc[attempted] Definition:`Bitmask of the capabilities that the process attempted to use since it started running` Constants:`Kernel Capability constants`
+	Used      uint64 `field:"used,handler:ResolveCapabilitiesUsed"`           // SECLDoc[used] Definition:`Bitmask of the capabilities that the process successfully used since it started running` Constants:`Kernel Capability constants`
 }

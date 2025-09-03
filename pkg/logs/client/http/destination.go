@@ -382,7 +382,7 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 	metrics.TlmDestinationHttpRespByStatusAndUrl.Inc(strconv.Itoa(resp.StatusCode), d.url)
 
 	if resp.StatusCode >= http.StatusBadRequest {
-		log.Warnf("failed to post http payload. code=%d host=%s response=%s", resp.StatusCode, d.host, string(response))
+		log.Warnf("failed to post http payload. code=%d, url=%s, EvP track type=%s, content type=%s, EvP category=%s, origin=%s, response=%s", resp.StatusCode, d.url, d.endpoint.TrackType, d.contentType, d.destMeta.EvpCategory(), d.origin, string(response))
 	}
 	if resp.StatusCode == http.StatusBadRequest ||
 		resp.StatusCode == http.StatusUnauthorized ||
@@ -479,9 +479,9 @@ func buildURL(endpoint config.Endpoint) string {
 		Host:   address,
 	}
 	if endpoint.Version == config.EPIntakeVersion2 && endpoint.TrackType != "" {
-		url.Path = fmt.Sprintf("/api/v2/%s", endpoint.TrackType)
+		url.Path = fmt.Sprintf("%s/api/v2/%s", endpoint.PathPrefix, endpoint.TrackType)
 	} else {
-		url.Path = "/v1/input"
+		url.Path = fmt.Sprintf("%s/v1/input", endpoint.PathPrefix)
 	}
 	return url.String()
 }

@@ -8,6 +8,7 @@
 package decode
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -16,6 +17,7 @@ import (
 	"github.com/go-json-experiment/json"
 	"github.com/google/uuid"
 
+	"github.com/DataDog/datadog-agent/pkg/dyninst/gotype"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symbol"
@@ -26,32 +28,67 @@ type probeEvent struct {
 	probe *ir.Probe
 }
 
+// TypeNameResolver resolves type names from type IDs as communicated by the
+// probe regarding types in interfaces.
+type TypeNameResolver interface {
+	ResolveTypeName(typeID gotype.TypeID) (string, error)
+}
+
+// GoTypeNameResolver is a TypeNameResolver that uses a gotype.Table to resolve
+// type names.
+type GoTypeNameResolver gotype.Table
+
+// ResolveTypeName resolves the name of a type from a type ID.
+func (r *GoTypeNameResolver) ResolveTypeName(typeID gotype.TypeID) (string, error) {
+	t, err := (*gotype.Table)(r).ParseGoType(typeID)
+	if err != nil {
+		return "", err
+	}
+	// TODO: Note that this type name is not going to be fully qualified! In
+	// order to make it match the type names we get from dwarf, we'll need to do
+	// more work. This conversion is not trivial. It's likely better to instead
+	// build a lookup table from the go runtime types to the type names we get
+	// from dwarf -- but doing so will require using disk space or something
+	// like that.
+	//
+	// As we build better name parsing support, it becomes more plausible to
+	// do the conversion.
+	return t.Name().Name(), nil
+}
+
 // Decoder decodes the output of the BPF program into a JSON format.
 // It is not guaranteed to be thread-safe.
 type Decoder struct {
-	program               *ir.Program
-	stackFrames           map[uint64][]symbol.StackFrame
-	probeEvents           map[ir.TypeID]probeEvent
-	snapshotMessage       snapshotMessage
-	addressReferenceCount map[typeAndAddr]output.DataItem
+	// These fields are initialized on decoder creation and are shared between messages.
+	program              *ir.Program
+	decoderTypes         map[ir.TypeID]decoderType
+	probeEvents          map[ir.TypeID]probeEvent
+	stackFrames          map[uint64][]symbol.StackFrame
+	typesByGoRuntimeType map[uint32]ir.TypeID
+	typeNameResolver     TypeNameResolver
+
+	// These fields are initialized and reset for each message.
+	snapshotMessage   snapshotMessage
+	dataItems         map[typeAndAddr]output.DataItem
+	currentlyEncoding map[typeAndAddr]struct{}
 }
 
 // NewDecoder creates a new Decoder for the given program.
 func NewDecoder(
 	program *ir.Program,
+	typeNameResolver TypeNameResolver,
 ) (*Decoder, error) {
 	decoder := &Decoder{
-		addressReferenceCount: make(map[typeAndAddr]output.DataItem),
-		program:               program,
-		stackFrames:           make(map[uint64][]symbol.StackFrame),
-		probeEvents:           make(map[ir.TypeID]probeEvent),
-		snapshotMessage: snapshotMessage{
-			DDSource: "dd_debugger",
-			Logger: logger{
-				Name:   "",
-				Method: "",
-			},
-		},
+		program:              program,
+		decoderTypes:         make(map[ir.TypeID]decoderType, len(program.Types)),
+		probeEvents:          make(map[ir.TypeID]probeEvent),
+		stackFrames:          make(map[uint64][]symbol.StackFrame),
+		typesByGoRuntimeType: make(map[uint32]ir.TypeID),
+		typeNameResolver:     typeNameResolver,
+
+		snapshotMessage:   snapshotMessage{},
+		dataItems:         make(map[typeAndAddr]output.DataItem),
+		currentlyEncoding: make(map[typeAndAddr]struct{}),
 	}
 	for _, probe := range program.Probes {
 		for _, event := range probe.Events {
@@ -59,6 +96,17 @@ func NewDecoder(
 				event: event,
 				probe: probe,
 			}
+		}
+	}
+	for _, t := range program.Types {
+		decoderType, err := newDecoderType(t, program.Types)
+		if err != nil {
+			return nil, fmt.Errorf("error getting decoder type for type %s: %w", t.GetName(), err)
+		}
+		id := t.GetID()
+		decoder.decoderTypes[id] = decoderType
+		if goRuntimeType, ok := t.GetGoRuntimeType(); ok {
+			decoder.typesByGoRuntimeType[goRuntimeType] = id
 		}
 	}
 	return decoder, nil
@@ -77,13 +125,24 @@ func (d *Decoder) Decode(
 	symbolicator symbol.Symbolicator,
 	out io.Writer,
 ) (probe ir.ProbeDefinition, err error) {
+	defer d.resetForNextMessage()
 	probe, err = d.snapshotMessage.init(d, event, symbolicator)
 	if err != nil {
 		return nil, err
 	}
-	defer d.snapshotMessage.clear()
 	err = json.MarshalWrite(out, &d.snapshotMessage)
+	if err != nil {
+		t, ok := out.(*bytes.Buffer)
+		if ok {
+			err = fmt.Errorf("error marshaling snapshot message: %w %q", err, t.String())
+		}
+	}
 	return probe, err
+}
+
+func (d *Decoder) resetForNextMessage() {
+	clear(d.dataItems)
+	d.snapshotMessage = snapshotMessage{}
 }
 
 // Event wraps the output Event from the BPF program. It also adds fields
@@ -94,11 +153,11 @@ type Event struct {
 }
 
 type snapshotMessage struct {
-	Service   string       `json:"service"`
-	DDSource  string       `json:"ddsource"`
-	Logger    logger       `json:"logger"`
-	Debugger  debuggerData `json:"debugger"`
-	Timestamp int          `json:"timestamp"`
+	Service   string           `json:"service"`
+	DDSource  ddDebuggerSource `json:"ddsource"`
+	Logger    logger           `json:"logger"`
+	Debugger  debuggerData     `json:"debugger"`
+	Timestamp int              `json:"timestamp"`
 
 	rootData []byte
 }
@@ -144,7 +203,7 @@ func (s *snapshotMessage) init(
 		// The value is a data item with a counter of how many times it has been referenced.
 		// If the counter is greater than 1, we know that the data item is a pointer to another data item.
 		// We can then encode the pointer as a string and not as an object.
-		decoder.addressReferenceCount[typeAndAddr{
+		decoder.dataItems[typeAndAddr{
 			irType: uint32(item.Header().Type),
 			addr:   item.Header().Address,
 		}] = item
@@ -199,8 +258,4 @@ func (s *snapshotMessage) init(
 		decoder:  decoder,
 	}
 	return probe, nil
-}
-
-func (s *snapshotMessage) clear() {
-	s.Debugger.Snapshot = snapshotData{}
 }

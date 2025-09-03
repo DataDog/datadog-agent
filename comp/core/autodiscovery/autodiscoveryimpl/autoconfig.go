@@ -32,7 +32,7 @@ import (
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	logComp "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -461,6 +461,17 @@ func (ac *AutoConfig) GetAllConfigs() []integration.Config {
 		}
 	})
 
+	return configs
+}
+
+// GetUnresolvedConfigs returns all resolved and non-template configs known to
+// AutoConfig.
+func (ac *AutoConfig) GetUnresolvedConfigs() []integration.Config {
+	configMap := ac.getUnresolvedConfigs()
+	configs := make([]integration.Config, 0, len(configMap))
+	for _, config := range configMap {
+		configs = append(configs, config)
+	}
 	return configs
 }
 

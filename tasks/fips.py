@@ -40,6 +40,7 @@ def generate_fips_e2e_pipeline(ctx, generate_config=False):
     for job, job_details in config.items():
         if (
             'variables' in job_details
+            and isinstance(job_details, dict)
             and 'ON_NIGHTLY_FIPS' in job_details['variables']
             and job_details['variables']['ON_NIGHTLY_FIPS'] == "true"
             and not job.startswith(".")
@@ -103,6 +104,7 @@ def e2e_running_in_fips_mode_on_nightly(ctx):
             continue
         if (
             'variables' in job_details
+            and isinstance(job_details, dict)
             and 'ON_NIGHTLY_FIPS' in job_details['variables']
             and job_details['variables']['ON_NIGHTLY_FIPS'] == "true"
         ):

@@ -332,9 +332,11 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 }
 
 func (c *Controller) handleScaling(ctx context.Context, podAutoscaler *datadoghq.DatadogPodAutoscaler, podAutoscalerInternal *model.PodAutoscalerInternal, targetGVK schema.GroupVersionKind, target NamespacedPodOwner) (autoscaling.ProcessResult, error) {
+	currentTime := c.clock.Now()
+
 	// Update the scaling values based on the staleness of recommendations
-	desiredHorizontalScalingSource, desiredVerticalScalingSource := getActiveScalingSources(c.clock.Now(), podAutoscalerInternal)
-	podAutoscalerInternal.MergeScalingValues(desiredHorizontalScalingSource, desiredVerticalScalingSource)
+	desiredHorizontalScalingSource, desiredVerticalScalingSource := getActiveScalingSources(currentTime, podAutoscalerInternal)
+	podAutoscalerInternal.SetActiveScalingValues(currentTime, desiredHorizontalScalingSource, desiredVerticalScalingSource)
 	c.updateLocalFallbackEnabled(podAutoscalerInternal, desiredHorizontalScalingSource)
 
 	// TODO: While horizontal scaling is in progress we should not start vertical scaling

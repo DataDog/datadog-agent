@@ -6,10 +6,13 @@
 package http
 
 import (
+	"bufio"
+	"bytes"
 	"errors"
 	"net/http"
 	"regexp"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -18,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
@@ -27,26 +31,50 @@ import (
 )
 
 func TestBuildURLShouldReturnHTTPSWithUseSSL(t *testing.T) {
-	url := buildURL(config.NewEndpoint("bar", "", "foo", 0, true))
+	url := buildURL(config.NewEndpoint("bar", "", "foo", 0, config.EmptyPathPrefix, true))
 	assert.Equal(t, "https://foo/v1/input", url)
 }
 
 func TestBuildURLShouldReturnHTTPWithoutUseSSL(t *testing.T) {
-	url := buildURL(config.NewEndpoint("bar", "", "foo", 0, false))
+	url := buildURL(config.NewEndpoint("bar", "", "foo", 0, config.EmptyPathPrefix, false))
 	assert.Equal(t, "http://foo/v1/input", url)
 }
 
 func TestBuildURLShouldReturnAddressWithPortWhenDefined(t *testing.T) {
-	url := buildURL(config.NewEndpoint("bar", "", "foo", 1234, false))
+	url := buildURL(config.NewEndpoint("bar", "", "foo", 1234, config.EmptyPathPrefix, false))
 	assert.Equal(t, "http://foo:1234/v1/input", url)
 }
 
 func TestBuildURLShouldReturnAddressForVersion2(t *testing.T) {
-	e := config.NewEndpoint("bar", "", "foo", 0, false)
+	e := config.NewEndpoint("bar", "", "foo", 0, config.EmptyPathPrefix, false)
 	e.Version = config.EPIntakeVersion2
 	e.TrackType = "test-track"
 	url := buildURL(e)
 	assert.Equal(t, "http://foo/api/v2/test-track", url)
+}
+
+func TestBuildURLPathPrefix(t *testing.T) {
+	e := config.NewEndpoint("bar", "", "foo", 0, "/prefix/url", false)
+	e.Version = config.EPIntakeVersion2
+	e.TrackType = "test-track"
+	url := buildURL(e)
+	assert.Equal(t, "http://foo/prefix/url/api/v2/test-track", url)
+}
+
+func TestBuildURLPathPrefixSSLPort(t *testing.T) {
+	e := config.NewEndpoint("bar", "", "foo", 8080, "/prefix/url", true)
+	e.Version = config.EPIntakeVersion2
+	e.TrackType = "test-track"
+	url := buildURL(e)
+	assert.Equal(t, "https://foo:8080/prefix/url/api/v2/test-track", url)
+}
+
+func TestBuildURLPathPrefixV1(t *testing.T) {
+	e := config.NewEndpoint("bar", "", "foo", 8080, "/prefix/url", true)
+	e.Version = config.EPIntakeVersion1
+	e.TrackType = "test-track"
+	url := buildURL(e)
+	assert.Equal(t, "https://foo:8080/prefix/url/v1/input", url)
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
@@ -149,6 +177,51 @@ func TestDestinationContextCancel(t *testing.T) {
 	// by the caller while the agent is shutting down
 	input <- &message.Payload{MessageMetas: []*message.MessageMetadata{}, Encoded: []byte("yo")}
 	server.Stop()
+}
+
+// TestDestinationErrorLogFormat tests that the error log format is correct
+func TestDestinationErrorLogFormat(t *testing.T) {
+	cfg := configmock.New(t)
+
+	// Create a server that returns 403 to trigger the error log
+	server := NewTestServer(403, cfg)
+	defer server.httpServer.Close()
+
+	// Set up destination with all metadata populated
+	server.Destination.destMeta = client.NewDestinationMetadata("dbm-samples", "1", "reliable", "0", "DBM")
+	server.Destination.protocol = "test-protocol"
+	server.Destination.origin = "test-origin"
+	server.Destination.endpoint.TrackType = "test-track"
+
+	// Capture log output
+	var logOutput bytes.Buffer
+	writer := bufio.NewWriter(&logOutput)
+
+	// Set up logger to capture log output
+	testLogger, err := log.LoggerFromWriterWithMinLevelAndFormat(writer, log.WarnLvl, "%Msg")
+	assert.NoError(t, err)
+	log.SetupLogger(testLogger, "warn")
+
+	// Send payload to trigger error log
+	err = server.Destination.unconditionalSend(&message.Payload{
+		Encoded:  []byte("test payload"),
+		Encoding: "gzip",
+	})
+
+	assert.Error(t, err)
+	writer.Flush()
+
+	// Verify log contains expected metadata
+	logStr := logOutput.String()
+	t.Logf("Captured log output: %s", logStr)
+
+	// Check that log contains key parts of enhanced metadata
+	assert.True(t, strings.Contains(logStr, "code=403"), "Log should contain status code")
+	assert.True(t, strings.Contains(logStr, "url="), "Log should contain URL")
+	assert.True(t, strings.Contains(logStr, "EvP track type=test-track"), "Log should contain track type")
+	assert.True(t, strings.Contains(logStr, "EvP category=DBM"), "Log should contain category")
+	assert.True(t, strings.Contains(logStr, "origin=test-origin"), "Log should contain origin")
+	assert.True(t, strings.Contains(logStr, "content type=application/json"), "Log should contain content type")
 }
 
 func TestConnectivityCheck(t *testing.T) {
@@ -585,7 +658,7 @@ func TestDestinationSourceTagBasedOnTelemetryName(t *testing.T) {
 	defer server.httpServer.Close()
 
 	// Test case: Telemetry name contains "logs" -> sourceTag should be "logs"
-	server.Destination.destMeta = client.NewDestinationMetadata("logs", "3", "reliable", "0")
+	server.Destination.destMeta = client.NewDestinationMetadata("logs", "3", "reliable", "0", "")
 	payload := &message.Payload{
 		Encoded:       []byte("payload"),
 		UnencodedSize: 7, // len("payload")
@@ -622,7 +695,7 @@ func TestDestinationSourceTagEPForwarder(t *testing.T) {
 	defer server.httpServer.Close()
 
 	// Test case: Telemetry name does not contain "logs" -> sourceTag should be "epforwarder"
-	server.Destination.destMeta = client.NewDestinationMetadata("dbm", "1", "reliable", "0")
+	server.Destination.destMeta = client.NewDestinationMetadata("dbm", "1", "reliable", "0", "")
 	payload := &message.Payload{
 		Encoded:       []byte("payload"),
 		UnencodedSize: 7, // len("payload")
@@ -661,7 +734,7 @@ func TestDestinationCompression(t *testing.T) {
 	server.Destination.endpoint.CompressionKind = "zstd"
 
 	// Test case 1: Telemetry uses zstd compression
-	server.Destination.destMeta = client.NewDestinationMetadata("dbm", "1", "reliable", "0")
+	server.Destination.destMeta = client.NewDestinationMetadata("dbm", "1", "reliable", "0", "")
 	payload := &message.Payload{
 		Encoded:       []byte("payload"),
 		UnencodedSize: 7, // len("payload")
@@ -681,7 +754,7 @@ func TestDestinationCompression(t *testing.T) {
 	// Enable compression and set gzip compression kind
 	server.Destination.endpoint.CompressionKind = "gzip"
 
-	server.Destination.destMeta = client.NewDestinationMetadata("dbm", "2", "reliable", "0")
+	server.Destination.destMeta = client.NewDestinationMetadata("dbm", "2", "reliable", "0", "")
 	payload2 := &message.Payload{
 		Encoded:       []byte("payload"),
 		UnencodedSize: 7,

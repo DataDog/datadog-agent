@@ -4,7 +4,6 @@
 #include "macros.h"
 
 #define TTY_NAME_LEN 64
-#define CONTAINER_ID_LEN 64
 #define MAX_XATTR_NAME_LEN 200
 #define CHAR_TO_UINT32_BASE_10_MAX_LEN 11
 #define BASENAME_FILTER_SIZE 256
@@ -66,9 +65,13 @@ enum TC_TAIL_CALL_KEYS {
     DNS_RESPONSE
 };
 
+// see probes/rawpacket/pcap.go
+#define RAW_PACKET_MAX_TAIL_CALL 5
+
 enum TC_RAWPACKET_KEYS {
     RAW_PACKET_FILTER,
     // reserved keys for raw packet filter tail calls
+    RAW_PACKET_DROP_ACTION = RAW_PACKET_FILTER + RAW_PACKET_MAX_TAIL_CALL + 1, // + 1 for the sender program
 };
 
 #define DNS_MAX_LENGTH 256
@@ -189,6 +192,12 @@ static __attribute__((always_inline)) u64 get_imds_ip() {
     return imds_ip;
 };
 
+static __attribute__((always_inline)) u64 get_capabilities_monitoring_period() {
+    u64 capabilities_monitoring_period = 5000000000; // 5 seconds in nanoseconds
+    LOAD_CONSTANT("capabilities_monitoring_period", capabilities_monitoring_period);
+    return capabilities_monitoring_period;
+};
+
 #define CGROUP_MANAGER_UNDEFINED 0
 #define CGROUP_MANAGER_DOCKER 1
 #define CGROUP_MANAGER_CRIO 2
@@ -260,7 +269,8 @@ enum link_target_dentry_origin {
 };
 
 enum global_rate_limiter_type {
-    RAW_PACKET_LIMITER = 0,
+    RAW_PACKET_FILTER_LIMITER = 0,
+    RAW_PACKET_ACTION_LIMITER,
 };
 
 #define TAIL_CALL_FNC_NAME(name, ...) tail_call_##name(__VA_ARGS__)

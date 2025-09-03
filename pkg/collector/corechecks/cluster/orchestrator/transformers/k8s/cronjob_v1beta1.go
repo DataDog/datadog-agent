@@ -38,6 +38,9 @@ func ExtractCronJobV1Beta1(ctx processors.ProcessorContext, cj *batchv1beta1.Cro
 	if cj.Spec.Suspend != nil {
 		cronJob.Spec.Suspend = *cj.Spec.Suspend
 	}
+	if cj.Spec.TimeZone != nil {
+		cronJob.Spec.TimeZone = *cj.Spec.TimeZone
+	}
 
 	if cj.Status.LastScheduleTime != nil {
 		cronJob.Status.LastScheduleTime = cj.Status.LastScheduleTime.Unix()

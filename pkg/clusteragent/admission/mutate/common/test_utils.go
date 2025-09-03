@@ -278,7 +278,7 @@ type MockDeployment struct {
 func FakeStoreWithDeployment(t *testing.T, deployments []MockDeployment) workloadmeta.Component {
 	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		coreconfig.MockModule(),
+		fx.Provide(func() coreconfig.Component { return coreconfig.NewMock(t) }),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
