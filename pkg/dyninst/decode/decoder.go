@@ -8,12 +8,14 @@
 package decode
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"runtime/debug"
 	"time"
 
 	"github.com/go-json-experiment/json"
+	"github.com/go-json-experiment/json/jsontext"
 	"github.com/google/uuid"
 	pkgerrors "github.com/pkg/errors"
 
@@ -127,12 +129,12 @@ type typeAndAddr struct {
 	addr   uint64
 }
 
-// Decode decodes the output Event from the BPF program into a JSON format to the specified output writer.
+// Decode decodes the output Event from the BPF program into a JSON format
 func (d *Decoder) Decode(
 	event Event,
 	symbolicator symbol.Symbolicator,
 	output []byte,
-) (b []byte, probe ir.ProbeDefinition, err error) {
+) (_ []byte, probe ir.ProbeDefinition, err error) {
 	defer d.resetForNextMessage()
 	defer func() {
 		r := recover()
@@ -148,11 +150,20 @@ func (d *Decoder) Decode(
 	if err != nil {
 		return nil, nil, err
 	}
-	output, err = json.Marshal(&d.snapshotMessage)
-	if err != nil {
-		err = fmt.Errorf("error marshaling snapshot message: %w", err)
+	output = output[:0]
+	b := bytes.NewBuffer(output)
+	enc := jsontext.NewEncoder(b)
+	for {
+		err = json.MarshalEncode(enc, &d.snapshotMessage)
+		if errors.Is(err, errEvaluation) {
+			enc.Reset(bytes.NewBuffer([]byte{}))
+			continue
+		} else if err != nil {
+			return nil, probe, pkgerrors.Wrap(err, "error marshaling snapshot message")
+		}
+		break
 	}
-	return output, probe, err
+	return b.Bytes(), probe, err
 }
 
 func (d *Decoder) resetForNextMessage() {
@@ -270,6 +281,7 @@ func (s *snapshotMessage) init(
 		rootData:         s.rootData,
 		decoder:          decoder,
 		evaluationErrors: &s.Debugger.EvaluationErrors,
+		skipIndicies:     make([]bool, len(rootType.Expressions)),
 	}
 	return probe, nil
 }
