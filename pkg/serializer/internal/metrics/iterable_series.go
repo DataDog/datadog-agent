@@ -110,6 +110,7 @@ func describeItem(serie *metrics.Serie) string {
 type Pipeline struct {
 	FilterFunc  func(s *metrics.Serie) bool
 	Destination transaction.Destination
+	UseV3       bool
 }
 
 type serieWriter interface {
@@ -127,7 +128,7 @@ type serieWriter interface {
 func (series *IterableSeries) MarshalSplitCompressPipelines(config config.Component, strategy compression.Component, pipelines []Pipeline) (transaction.BytesPayloads, error) {
 	pbs := make([]serieWriter, len(pipelines))
 	for i := range pbs {
-		if false {
+		if !pipelines[i].UseV3 {
 			bufferContext := marshaler.NewBufferContext()
 			pb, err := series.NewPayloadsBuilder(bufferContext, config, strategy)
 			if err != nil {
