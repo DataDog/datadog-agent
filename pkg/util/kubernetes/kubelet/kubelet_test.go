@@ -928,7 +928,7 @@ func (suite *KubeletTestSuite) TestGetConfig() {
 
 	kubeutil := suite.getCustomKubeUtil()
 
-	config, err := kubeutil.GetConfig(ctx)
+	_, config, err := kubeutil.GetConfig(ctx)
 	require.Nil(suite.T(), err)
 	require.NotNil(suite.T(), config)
 }
@@ -951,7 +951,7 @@ func (suite *KubeletTestSuite) TestGetConfigWithBrokenKubelet() {
 
 	kubeutil := suite.getCustomKubeUtil()
 
-	config, err := kubeutil.GetConfig(ctx)
+	_, config, err := kubeutil.GetConfig(ctx)
 	require.NotNil(suite.T(), err)
 	require.Nil(suite.T(), config)
 }
