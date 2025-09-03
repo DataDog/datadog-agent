@@ -38,6 +38,7 @@ type service struct {
 	metricsExcluded bool
 	logsExcluded    bool
 	tagger          tagger.Component
+	imageName       string
 }
 
 var _ Service = &service{}
@@ -214,4 +215,9 @@ func (s *service) GetExtraConfig(key string) (string, error) {
 	}
 
 	return result, nil
+}
+
+// GetImageName returns the image name for the monitored container
+func (s *service) GetImageName() string {
+	return s.imageName
 }
