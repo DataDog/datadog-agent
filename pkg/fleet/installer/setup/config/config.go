@@ -147,6 +147,8 @@ type DatadogConfig struct {
 	LogsConfig           LogsConfig                 `yaml:"logs_config,omitempty"`
 	CollectGPUTags       bool                       `yaml:"collect_gpu_tags,omitempty"`
 	GPUCheck             GPUCheckConfig             `yaml:"gpu,omitempty"`
+	EnableNvmlDetection  bool                       `yaml:"enable_nvml_detection,omitempty"` // Deprecated: this field won't be used after agent v7.70, GPUCheck.Enabled will be enough.
+	SBOM                 SBOMConfig                 `yaml:"sbom,omitempty"`
 }
 
 // GPUCheckConfig represents the configuration for the GPU check
@@ -236,6 +238,24 @@ type SystemProbeConfig struct {
 
 // RuntimeSecurityConfig represents the configuration for the runtime security
 type RuntimeSecurityConfig struct {
+	Enabled bool       `yaml:"enabled,omitempty"`
+	SBOM    SBOMConfig `yaml:"sbom,omitempty"`
+}
+
+// SBOMConfig represents the configuration for the SBOM
+type SBOMConfig struct {
+	Enabled        bool                     `yaml:"enabled,omitempty"`
+	ContainerImage SBOMContainerImageConfig `yaml:"container_image,omitempty"`
+	Host           SBOMHostConfig           `yaml:"host,omitempty"`
+}
+
+// SBOMContainerImageConfig represents the configuration for the SBOM container image
+type SBOMContainerImageConfig struct {
+	Enabled bool `yaml:"enabled,omitempty"`
+}
+
+// SBOMHostConfig represents the configuration for the SBOM host
+type SBOMHostConfig struct {
 	Enabled bool `yaml:"enabled,omitempty"`
 }
 

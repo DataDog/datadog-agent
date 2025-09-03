@@ -122,6 +122,7 @@ message Container {
   string cgroupPath = 12;
   repeated ContainerAllocatedResource resolvedAllocatedResources = 13;
   ContainerResources resources = 14;
+  WorkloadmetaEntityId owner = 15;
 }
 
 message KubernetesPodOwner {

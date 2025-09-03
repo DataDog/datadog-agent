@@ -266,12 +266,12 @@ func TestGetCCRID(t *testing.T) {
 	defer ts.Close()
 	metadataURL = ts.URL
 
-	_, err := GetCCRID(ctx)
+	_, err := GetHostCCRID(ctx)
 	require.Error(t, err)
 
 	errorOut = false
 
-	ccrid, err := GetCCRID(ctx)
+	ccrid, err := GetHostCCRID(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, ccrid, "//compute.googleapis.com/projects/gcp-test-project/zones/my-zone-for-test/instances/my-instance-name")
 }

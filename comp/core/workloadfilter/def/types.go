@@ -7,7 +7,6 @@ package workloadfilter
 
 import (
 	typedef "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def/proto"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
 // Result is an enumeration that represents the possible results of a filter evaluation.
@@ -26,6 +25,10 @@ type Filterable interface {
 	Serialize() any
 	// Type returns the resource type of the object.
 	Type() ResourceType
+	// GetAnnotations returns the annotations of the object.
+	GetAnnotations() map[string]string
+	// GetName returns the name of the object.
+	GetName() string
 }
 
 // ResourceType defines the type of resource.
@@ -50,62 +53,6 @@ type Container struct {
 	Owner Filterable
 }
 
-// CreateContainer creates a Filterable Container object from a workloadmeta.Container and an owner.
-func CreateContainer(container *workloadmeta.Container, owner Filterable) *Container {
-	if container == nil {
-		return nil
-	}
-
-	c := &typedef.FilterContainer{
-		Id:    container.ID,
-		Name:  container.Name,
-		Image: container.Image.RawName,
-	}
-
-	setContainerOwner(c, owner)
-
-	return &Container{
-		FilterContainer: c,
-		Owner:           owner,
-	}
-}
-
-// CreateContainerFromOrch creates a Filterable Container object from a workloadmeta.OrchestratorContainer and an owner.
-func CreateContainerFromOrch(container *workloadmeta.OrchestratorContainer, owner Filterable) *Container {
-	if container == nil {
-		return nil
-	}
-
-	c := &typedef.FilterContainer{
-		Id:    container.ID,
-		Name:  container.Name,
-		Image: container.Image.RawName,
-	}
-
-	setContainerOwner(c, owner)
-
-	return &Container{
-		FilterContainer: c,
-		Owner:           owner,
-	}
-}
-
-// setContainerOwner sets the owner field in the FilterContainer based on the owner type.
-func setContainerOwner(c *typedef.FilterContainer, owner Filterable) {
-	if owner == nil {
-		return
-	}
-
-	switch o := owner.(type) {
-	case *Pod:
-		if o != nil && o.FilterPod != nil {
-			c.Owner = &typedef.FilterContainer_Pod{
-				Pod: o.FilterPod,
-			}
-		}
-	}
-}
-
 var _ Filterable = &Container{}
 
 // Serialize converts the Container object to a filterable object.
@@ -116,6 +63,26 @@ func (c *Container) Serialize() any {
 // Type returns the resource type of the container.
 func (c *Container) Type() ResourceType {
 	return ContainerType
+}
+
+// GetAnnotations returns the annotations of the container.
+func (c *Container) GetAnnotations() map[string]string {
+	// The container object itself does not have annotations.
+	// Annotations are stored in the parent pod object.
+	if c.FilterContainer.GetPod() != nil {
+		return c.FilterContainer.GetPod().GetAnnotations()
+	}
+	return nil
+}
+
+// CreateContainerImage creates a Filterable Container Image object.
+// This is used only for container image filtering
+func CreateContainerImage(name string) *Container {
+	return &Container{
+		FilterContainer: &typedef.FilterContainer{
+			Image: name,
+		},
+	}
 }
 
 // ContainerFilter defines the type of container filter.
@@ -144,22 +111,6 @@ type Pod struct {
 	*typedef.FilterPod
 }
 
-// CreatePod creates a Filterable Pod object from a workloadmeta.KubernetesPod.
-func CreatePod(pod *workloadmeta.KubernetesPod) *Pod {
-	if pod == nil {
-		return nil
-	}
-
-	return &Pod{
-		FilterPod: &typedef.FilterPod{
-			Id:          pod.ID,
-			Name:        pod.Name,
-			Namespace:   pod.Namespace,
-			Annotations: pod.Annotations,
-		},
-	}
-}
-
 var _ Filterable = &Pod{}
 
 // Serialize converts the Pod object to a filterable object.
@@ -177,9 +128,9 @@ type PodFilter int
 
 // Defined Pod filter kinds
 const (
-	PodMetrics PodFilter = iota
-	PodLogs
-	PodGlobal
+	LegacyPod PodFilter = iota
+	PodADAnnotationsMetrics
+	PodADAnnotations
 )
 
 //
@@ -266,44 +217,4 @@ const (
 	LegacyEndpointGlobal
 	EndpointADAnnotationsMetrics
 	EndpointADAnnotations
-)
-
-//
-// Image Definition
-//
-
-// Image represents a filterable image object.
-type Image struct {
-	*typedef.FilterImage
-}
-
-// CreateImage creates a Filterable Image object.
-func CreateImage(name string) *Image {
-	return &Image{
-		FilterImage: &typedef.FilterImage{
-			Name: name,
-		},
-	}
-}
-
-var _ Filterable = &Image{}
-
-// Serialize converts the Image object to a filterable object.
-func (i *Image) Serialize() any {
-	return i.FilterImage
-}
-
-// Type returns the resource type of the image.
-func (i *Image) Type() ResourceType {
-	return ImageType
-}
-
-// ImageFilter defines the type of image filter.
-type ImageFilter int
-
-// Defined Image filter kinds
-const (
-	LegacyImage ImageFilter = iota
-	ImagePaused
-	ImageSBOM
 )

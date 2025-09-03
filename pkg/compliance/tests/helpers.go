@@ -195,6 +195,19 @@ func (c *assertedRule) AssertPassedEvent(f func(t *testing.T, evt *compliance.Ch
 	return c
 }
 
+func (c *assertedRule) AssertSkippedEvent(f func(t *testing.T, evt *compliance.CheckEvent)) *assertedRule {
+	c.asserts = append(c.asserts, func(t *testing.T, evt *compliance.CheckEvent) {
+		if assert.Equal(t, compliance.CheckSkipped, evt.Result) {
+			if f != nil {
+				f(t, evt)
+			}
+		} else {
+			t.Logf("received unexpected %q event : %v", evt.Result, evt)
+		}
+	})
+	return c
+}
+
 func (c *assertedRule) AssertFailedEvent(f func(t *testing.T, evt *compliance.CheckEvent)) *assertedRule {
 	c.asserts = append(c.asserts, func(t *testing.T, evt *compliance.CheckEvent) {
 		if assert.Equal(t, compliance.CheckFailed, evt.Result) {

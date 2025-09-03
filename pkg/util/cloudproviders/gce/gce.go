@@ -89,7 +89,7 @@ var projectIDFetcher = cachedfetch.Fetcher{
 		if err != nil {
 			return "", fmt.Errorf("unable to retrieve project ID from GCE: %s", err)
 		}
-		return projectID, err
+		return projectID, nil
 	},
 }
 
@@ -207,9 +207,9 @@ func GetNTPHosts(ctx context.Context) []string {
 var ccridFetcher = cachedfetch.Fetcher{
 	Name: "GCP CCRID",
 	Attempt: func(ctx context.Context) (interface{}, error) {
-		projectID, err := getResponse(ctx, metadataURL+"/project/project-id")
+		projectID, err := projectIDFetcher.FetchString(ctx)
 		if err != nil {
-			return "", fmt.Errorf("could not query project/project-id GCP API: %s", err)
+			return "", err
 		}
 
 		instanceName, err := nameFetcher.FetchString(ctx)
@@ -232,8 +232,8 @@ var ccridFetcher = cachedfetch.Fetcher{
 	},
 }
 
-// GetCCRID return the CCRID for the current instance
-func GetCCRID(ctx context.Context) (string, error) {
+// GetHostCCRID return the CCRID for the current instance
+func GetHostCCRID(ctx context.Context) (string, error) {
 	return ccridFetcher.FetchString(ctx)
 }
 

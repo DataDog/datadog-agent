@@ -186,7 +186,7 @@ message MetadataMessage {
     uint64 Size = 13;
     string Serialization = 14;
     string CGroupID = 15;
-    // string CGroupManager = 16 [deprecated = true];
+    string CGroupManager = 16 [deprecated = true];
 }
 
 message StorageRequestMessage {
@@ -268,6 +268,7 @@ message ActivityTreeStatsMessage {
     int64 IMDSNodesCount = 6;
     int64 SyscallNodesCount = 7;
     int64 FlowNodesCount = 8;
+    int64 CapabilityNodesCount = 9;
 }
 
 message event_type_state {

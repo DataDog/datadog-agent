@@ -22,11 +22,12 @@ import (
 
 	procmodel "github.com/DataDog/agent-payload/v5/process"
 
-	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
@@ -34,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	taggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	processapiserver "github.com/DataDog/datadog-agent/comp/process/apiserver"
@@ -88,13 +90,12 @@ func setupIPCAddress(t *testing.T, confMock model.Config, URL string) {
 	confMock.SetWithoutSource("process_config.cmd_port", port)
 }
 
-func setupProcessAPIServer(t *testing.T, port int) {
+func setupProcessAPIServer(t *testing.T) {
 	_ = fxutil.Test[processapiserver.Component](t, fx.Options(
 		processapiserver.Module(),
-		core.MockBundle(),
-		fx.Replace(config.MockParams{Overrides: map[string]interface{}{
-			"process_config.cmd_port": port,
-		}}),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		telemetryimpl.MockModule(),
 		workloadmetafx.Module(workloadmeta.NewParams()),
 		fx.Supply(
 			status.Params{
@@ -250,11 +251,11 @@ process_config:
 		port := listener.Addr().(*net.TCPAddr).Port
 		listener.Close()
 
-		setupProcessAPIServer(t, port)
-
 		cfg := configmock.New(t)
+		cfg.SetWithoutSource("process_config.cmd_port", port)
 		cfg.SetWithoutSource("process_config.process_discovery.enabled", true)
 		cfg.SetWithoutSource("process_config.cmd_port", port)
+		setupProcessAPIServer(t)
 
 		content, err := remoteProvider.getProcessAgentFullConfig()
 		require.NoError(t, err)
@@ -357,11 +358,11 @@ func TestProcessAgentChecks(t *testing.T) {
 		port := listener.Addr().(*net.TCPAddr).Port
 		listener.Close()
 
-		setupProcessAPIServer(t, port)
-
 		cfg := configmock.New(t)
+		cfg.SetWithoutSource("process_config.cmd_port", port)
 		cfg.SetWithoutSource("process_config.process_discovery.enabled", true)
 		cfg.SetWithoutSource("process_config.cmd_port", port)
+		setupProcessAPIServer(t)
 
 		mock := flarehelpers.NewFlareBuilderMock(t, false)
 		remoteProvider := RemoteFlareProvider{

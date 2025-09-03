@@ -96,7 +96,7 @@ func (c *CRCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors.Coll
 	if err != nil {
 		return nil, collectors.NewListingError(err)
 	}
-	if len(list) > c.maximumCRDQuota {
+	if !c.metadata.IsGenericCollector && len(list) > c.maximumCRDQuota {
 		return nil, collectors.NewListingError(fmt.Errorf("crd collector %s/%s has reached to the limit %d, skipping it", c.metadata.Version, c.metadata.Name, c.maximumCRDQuota))
 	}
 

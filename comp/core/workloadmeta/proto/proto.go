@@ -136,6 +136,18 @@ func protoContainerFromWorkloadmetaContainer(container *workloadmeta.Container) 
 
 	protoResolvedAllocatedResources := toProtoResolvedAllocatedResources(container.ResolvedAllocatedResources)
 
+	var ownerEntityID *pb.WorkloadmetaEntityId
+	if container.Owner != nil {
+		kind, err := toProtoKind(container.Owner.Kind)
+		if err != nil {
+			return nil, err
+		}
+		ownerEntityID = &pb.WorkloadmetaEntityId{
+			Kind: kind,
+			Id:   container.Owner.ID,
+		}
+	}
+
 	return &pb.Container{
 		EntityId:                   protoEntityID,
 		EntityMeta:                 toProtoEntityMetaFromContainer(container),
@@ -151,6 +163,7 @@ func protoContainerFromWorkloadmetaContainer(container *workloadmeta.Container) 
 		CgroupPath:                 container.CgroupPath,
 		ResolvedAllocatedResources: protoResolvedAllocatedResources,
 		Resources:                  toProtoContainerResources(container.Resources),
+		Owner:                      ownerEntityID,
 	}, nil
 }
 
@@ -639,6 +652,15 @@ func toWorkloadmetaContainer(protoContainer *pb.Container) (*workloadmeta.Contai
 
 	resources := toWorkloadmetaResolvedAllocatedResources(protoContainer.ResolvedAllocatedResources)
 
+	var owner *workloadmeta.EntityID
+	if protoContainer.Owner != nil {
+		ownerEntityID, err := toWorkloadmetaEntityID(protoContainer.Owner)
+		if err != nil {
+			return nil, err
+		}
+		owner = &ownerEntityID
+	}
+
 	return &workloadmeta.Container{
 		EntityID:                   entityID,
 		EntityMeta:                 toWorkloadmetaEntityMeta(protoContainer.EntityMeta),
@@ -654,6 +676,7 @@ func toWorkloadmetaContainer(protoContainer *pb.Container) (*workloadmeta.Contai
 		CgroupPath:                 protoContainer.CgroupPath,
 		ResolvedAllocatedResources: resources,
 		Resources:                  toWorkloadmetaContainerResources(protoContainer.Resources),
+		Owner:                      owner,
 	}, nil
 }
 

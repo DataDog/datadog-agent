@@ -91,6 +91,12 @@ func (p *PodAutoscalerInternal) String(verbose bool) string {
 		}
 		_, _ = fmt.Fprintln(&sb, "--------------------------------")
 	}
+	if p.HorizontalLastRecommendations() != nil {
+		for _, recommendation := range p.HorizontalLastRecommendations() {
+			_, _ = fmt.Fprintln(&sb, "Horizontal Last Recommendation:", formatHorizontalRecommendation(recommendation))
+		}
+		_, _ = fmt.Fprintln(&sb, "--------------------------------")
+	}
 	if p.VerticalLastActionError() != nil {
 		_, _ = fmt.Fprintln(&sb, "Vertical Last Action Error:", p.VerticalLastActionError())
 	}
@@ -238,6 +244,14 @@ func formatVerticalAction(action *datadoghqcommon.DatadogPodAutoscalerVerticalAc
 	return strings.TrimRight(sb.String(), "\n")
 }
 
+func formatHorizontalRecommendation(recommendation HorizontalScalingValues) string {
+	var sb strings.Builder
+	_, _ = fmt.Fprintln(&sb, "Source:", recommendation.Source)
+	_, _ = fmt.Fprintln(&sb, "Timestamp:", recommendation.Timestamp)
+	_, _ = fmt.Fprintln(&sb, "Replicas:", recommendation.Replicas)
+	return strings.TrimRight(sb.String(), "\n")
+}
+
 func printResourceList(resourceList corev1.ResourceList) string {
 	var sb strings.Builder
 	if cpuQuantity, exists := resourceList[corev1.ResourceCPU]; exists {
@@ -298,6 +312,7 @@ func (p *PodAutoscalerInternal) MarshalJSON() ([]byte, error) {
 		"fallback_scaling_values_horizontal_error": errorToString(p.fallbackScalingValues.HorizontalError),
 		"fallback_scaling_values_vertical_error":   errorToString(p.fallbackScalingValues.VerticalError),
 		"horizontal_last_actions":                  p.horizontalLastActions,
+		"horizontal_last_recommendations":          p.horizontalLastRecommendations,
 		"horizontal_last_limit_reason":             p.horizontalLastLimitReason,
 		"horizontal_last_action_error":             errorToString(p.horizontalLastActionError),
 		"vertical_last_action":                     p.verticalLastAction,
@@ -308,6 +323,7 @@ func (p *PodAutoscalerInternal) MarshalJSON() ([]byte, error) {
 		"deleted":                                  p.deleted,
 		"target_gvk":                               p.targetGVK,
 		"horizontal_events_retention":              p.horizontalEventsRetention,
+		"horizontal_recommendations_retention":     p.horizontalRecommendationsRetention,
 		"custom_recommender_configuration":         p.customRecommenderConfiguration,
 	})
 }
@@ -335,6 +351,7 @@ func (p *PodAutoscalerInternal) UnmarshalJSON(data []byte) error {
 		FallbackScalingValuesHorizontalError interface{}                                            `json:"fallback_scaling_values_horizontal_error"`
 		FallbackScalingValuesVerticalError   interface{}                                            `json:"fallback_scaling_values_vertical_error"`
 		HorizontalLastActions                []datadoghqcommon.DatadogPodAutoscalerHorizontalAction `json:"horizontal_last_actions"`
+		HorizontalLastRecommendations        []HorizontalScalingValues                              `json:"horizontal_last_recommendations"`
 		HorizontalLastLimitReason            string                                                 `json:"horizontal_last_limit_reason"`
 		HorizontalLastActionError            interface{}                                            `json:"horizontal_last_action_error"`
 		VerticalLastAction                   *datadoghqcommon.DatadogPodAutoscalerVerticalAction    `json:"vertical_last_action"`
@@ -345,6 +362,7 @@ func (p *PodAutoscalerInternal) UnmarshalJSON(data []byte) error {
 		Deleted                              bool                                                   `json:"deleted"`
 		TargetGVK                            schema.GroupVersionKind                                `json:"target_gvk"`
 		HorizontalEventsRetention            time.Duration                                          `json:"horizontal_events_retention"`
+		HorizontalRecommendationsRetention   time.Duration                                          `json:"horizontal_recommendations_retention"`
 		CustomRecommenderConfiguration       *RecommenderConfiguration                              `json:"custom_recommender_configuration"`
 	}
 
@@ -367,12 +385,14 @@ func (p *PodAutoscalerInternal) UnmarshalJSON(data []byte) error {
 	p.currentReplicas = temp.CurrentReplicas
 	p.scaledReplicas = temp.ScaledReplicas
 	p.horizontalLastActions = temp.HorizontalLastActions
+	p.horizontalLastRecommendations = temp.HorizontalLastRecommendations
 	p.horizontalLastLimitReason = temp.HorizontalLastLimitReason
 	p.horizontalLastActionError = stringToError(temp.HorizontalLastActionError)
 	p.verticalLastAction = temp.VerticalLastAction
 	p.verticalLastActionError = stringToError(temp.VerticalLastActionError)
 	p.targetGVK = temp.TargetGVK
 	p.horizontalEventsRetention = temp.HorizontalEventsRetention
+	p.horizontalRecommendationsRetention = temp.HorizontalRecommendationsRetention
 	p.customRecommenderConfiguration = temp.CustomRecommenderConfiguration
 	p.error = stringToError(temp.Error)
 	p.scalingValues = temp.ScalingValues

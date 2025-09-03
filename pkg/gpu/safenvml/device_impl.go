@@ -33,6 +33,14 @@ func (d *safeDeviceImpl) GetAttributes() (nvml.DeviceAttributes, error) {
 	return attrs, NewNvmlAPIErrorOrNil("GetAttributes", ret)
 }
 
+func (d *safeDeviceImpl) GetBAR1MemoryInfo() (nvml.BAR1Memory, error) {
+	if err := d.lib.lookup(toNativeName("GetBAR1MemoryInfo")); err != nil {
+		return nvml.BAR1Memory{}, err
+	}
+	bar1Info, ret := d.nvmlDevice.GetBAR1MemoryInfo()
+	return bar1Info, NewNvmlAPIErrorOrNil("GetBAR1MemoryInfo", ret)
+}
+
 func (d *safeDeviceImpl) GetClockInfo(clockType nvml.ClockType) (uint32, error) {
 	if err := d.lib.lookup(toNativeName("GetClockInfo")); err != nil {
 		return 0, err
@@ -146,6 +154,14 @@ func (d *safeDeviceImpl) GetMemoryInfo() (nvml.Memory, error) {
 	}
 	memInfo, ret := d.nvmlDevice.GetMemoryInfo()
 	return memInfo, NewNvmlAPIErrorOrNil("GetMemoryInfo", ret)
+}
+
+func (d *safeDeviceImpl) GetMemoryInfoV2() (nvml.Memory_v2, error) {
+	if err := d.lib.lookup(toNativeName("GetMemoryInfo_v2")); err != nil {
+		return nvml.Memory_v2{}, err
+	}
+	memInfo, ret := d.nvmlDevice.GetMemoryInfo_v2()
+	return memInfo, NewNvmlAPIErrorOrNil("GetMemoryInfo_v2", ret)
 }
 
 // GetMigDeviceHandleByIndex returns the MIG device handle at the given index
@@ -285,14 +301,6 @@ func (d *safeDeviceImpl) GetUtilizationRates() (nvml.Utilization, error) {
 	return utilization, NewNvmlAPIErrorOrNil("GetUtilizationRates", ret)
 }
 
-func (d *safeDeviceImpl) IsMigDeviceHandle() (bool, error) {
-	if err := d.lib.lookup(toNativeName("IsMigDeviceHandle")); err != nil {
-		return false, err
-	}
-	isMig, ret := d.nvmlDevice.IsMigDeviceHandle()
-	return isMig, NewNvmlAPIErrorOrNil("IsMigDeviceHandle", ret)
-}
-
 func (d *safeDeviceImpl) GpmQueryDeviceSupport() (nvml.GpmSupport, error) {
 	if err := d.lib.lookup("nvmlGpmQueryDeviceSupport"); err != nil {
 		return nvml.GpmSupport{}, err
@@ -307,4 +315,12 @@ func (d *safeDeviceImpl) GpmSampleGet(sample nvml.GpmSample) error {
 	}
 	ret := d.nvmlDevice.GpmSampleGet(sample)
 	return NewNvmlAPIErrorOrNil("GpmSampleGet", ret)
+}
+
+func (d *safeDeviceImpl) IsMigDeviceHandle() (bool, error) {
+	if err := d.lib.lookup(toNativeName("IsMigDeviceHandle")); err != nil {
+		return false, err
+	}
+	isMig, ret := d.nvmlDevice.IsMigDeviceHandle()
+	return isMig, NewNvmlAPIErrorOrNil("IsMigDeviceHandle", ret)
 }
