@@ -8,5 +8,5 @@
 ---
 fixes:
   - |
-    Increase the logs agent default max messsage payload size from 256 kb to 900 kb.
+    Increase the Logs Agent default max message payload size from 256 KB to 900 KB.
 
