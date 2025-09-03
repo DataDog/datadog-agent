@@ -47,15 +47,15 @@ environment to build certain bits (see [manual setup](https://datadoghq.dev/data
 
 Also note that the trace agent needs to be built and run separately. For more information, see [below](#trace-agent).
 
-<a id="trace-agent" ></a>
 ## Trace agent
 
 The [official documentation](https://docs.datadoghq.com/tracing/trace_collection/) is available on the Datadog website.
-To build the trace agent run
+To build the trace agent, run:
+
 ```
 dda inv trace-agent.build
 ```
-To run the trace agent, with the datadog agent already running, run `./bin/trace-agent/trace-agent`. If needed, pass your configuration file with `-config <path-to-yaml-file>`.
+To run the trace agent, with the Datadog Agent already running, run `./bin/trace-agent/trace-agent`. If needed, pass your configuration file with `-config <path-to-yaml-file>`.
 
 ## Additional details
 
