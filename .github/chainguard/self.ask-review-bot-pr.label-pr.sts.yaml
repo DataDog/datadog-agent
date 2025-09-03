@@ -4,11 +4,12 @@ issuer: https://token.actions.githubusercontent.com
 subject: repo:DataDog/datadog-agent:ref:refs/heads/main
 
 claim_pattern:
-  event_name: (workflow_dispatch|schedule)
+  event_name: workflow_run
   ref: refs/heads/main
-  ref_protected: "true"
-  job_workflow_ref: DataDog/datadog-agent/\.github/workflows/cws-btfhub-sync\.yml@refs/heads/main
+  ref_protected: true
+  job_workflow_ref: DataDog/datadog-agent/\.github/workflows/ask_review_bot_pr\.yml@refs/heads/main
 
 permissions:
-  contents: write
+  actions: read
+  contents: read
   pull_requests: write
