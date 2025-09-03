@@ -24,9 +24,12 @@ var (
 	maxCommand     = CommandType(0x3)
 )
 
+type EbpfEvent struct {
+	Tuple ConnTuple
+	Tx    EbpfTx
+}
 type EbpfKeyedEvent struct {
-	Tuple     ConnTuple
-	Tx        EbpfTx
+	Header    EbpfEvent
 	Key       EbpfKey
 	Pad_cgo_0 [4]byte
 }

@@ -55,7 +55,7 @@ func (s *StatsKeeper) Process(event *EventWrapper) {
 
 	if s.trackResources {
 		key.KeyName = event.KeyName()
-		key.Truncated = event.Key.Truncated
+		key.Truncated = event.Truncated
 	}
 
 	requestStats, ok := s.stats[key]

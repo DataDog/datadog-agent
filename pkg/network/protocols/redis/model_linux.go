@@ -19,7 +19,8 @@ import (
 // EventWrapper wraps an ebpf event and provides additional methods to extract information from it.
 // We use this wrapper to avoid recomputing the same values (key name) multiple times.
 type EventWrapper struct {
-	*EbpfKeyedEvent
+	*EbpfEvent
+	*EbpfKey
 
 	keyNameSet bool
 	keyName    *intern.StringValue
@@ -28,8 +29,8 @@ type EventWrapper struct {
 }
 
 // NewEventWrapper creates a new EventWrapper from an ebpf event.
-func NewEventWrapper(e *EbpfKeyedEvent) *EventWrapper {
-	return &EventWrapper{EbpfKeyedEvent: e}
+func NewEventWrapper(e *EbpfEvent, k *EbpfKey) *EventWrapper {
+	return &EventWrapper{EbpfEvent: e, EbpfKey: k}
 }
 
 // ConnTuple returns the connection tuple for the transaction
@@ -57,8 +58,8 @@ func getFragment(e *EbpfKey) []byte {
 
 // KeyName returns the key name of the key.
 func (e *EventWrapper) KeyName() *intern.StringValue {
-	if !e.keyNameSet {
-		e.keyName = Interner.Get(getFragment(&e.Key))
+	if !e.keyNameSet && e.EbpfKey != nil {
+		e.keyName = Interner.Get(getFragment(e.EbpfKey))
 		e.keyNameSet = true
 	}
 	return e.keyName
@@ -92,7 +93,7 @@ ebpfTx{
 func (e *EventWrapper) String() string {
 	var output strings.Builder
 	var truncatedPath string
-	if e.Key.Truncated {
+	if e.EbpfKey != nil && e.Truncated {
 		truncatedPath = " (truncated)"
 	}
 	output.WriteString(fmt.Sprintf(template, e.CommandType(), e.KeyName().Get(), truncatedPath, e.RequestLatency()))

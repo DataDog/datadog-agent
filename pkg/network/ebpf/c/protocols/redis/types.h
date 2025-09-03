@@ -38,10 +38,16 @@ typedef struct {
 typedef struct {
     conn_tuple_t tuple;
     redis_transaction_t tx;
+} redis_event_t;
+
+// The struct we send to userspace, containing the connection tuple and the transaction information.
+typedef struct {
+    redis_event_t header;
     redis_key_data_t key;
 } redis_with_key_event_t;
 
 // Controls the number of Redis transactions read from userspace at a time.
 #define REDIS_WITH_KEY_BATCH_SIZE (BATCH_BUFFER_SIZE / sizeof(redis_with_key_event_t))
+#define REDIS_BATCH_SIZE (BATCH_BUFFER_SIZE / sizeof(redis_event_t))
 
 #endif /* __REDIS_TYPES_H */

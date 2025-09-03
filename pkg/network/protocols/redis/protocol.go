@@ -41,6 +41,7 @@ const (
 
 type protocol struct {
 	cfg                 *config.Config
+	eventsConsumer      *events.Consumer[EbpfEvent]
 	keyedEventsConsumer *events.Consumer[EbpfKeyedEvent]
 	mapCleaner          *ddebpf.MapCleaner[netebpf.ConnTuple, EbpfTx]
 	statskeeper         *StatsKeeper
@@ -124,10 +125,6 @@ func (p *protocol) ConfigureOptions(opts *manager.Options) {
 		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
 	}
-	opts.MapSpecEditors[keyInFlightMap] = manager.MapSpecEditor{
-		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
-		EditorFlag: manager.EditMaxEntries,
-	}
 	netifProbeID := manager.ProbeIdentificationPair{
 		EBPFFuncName: netifProbe,
 		UID:          name,
@@ -136,22 +133,46 @@ func (p *protocol) ConfigureOptions(opts *manager.Options) {
 		netifProbeID.EBPFFuncName = netifProbe414
 	}
 	opts.ActivatedProbes = append(opts.ActivatedProbes, &manager.ProbeSelector{ProbeIdentificationPair: netifProbeID})
-	utils.EnableOption(opts, "redis_monitoring_enabled")
-	events.Configure(p.cfg, keyedEventStream, p.mgr, opts)
+
+	if p.cfg.RedisTrackResources {
+		utils.EnableOption(opts, "redis_with_key_monitoring_enabled")
+		opts.MapSpecEditors[keyInFlightMap] = manager.MapSpecEditor{
+			MaxEntries: p.cfg.MaxUSMConcurrentRequests,
+			EditorFlag: manager.EditMaxEntries,
+		}
+		events.Configure(p.cfg, keyedEventStream, p.mgr, opts)
+	} else {
+		utils.EnableOption(opts, "redis_monitoring_enabled")
+		opts.MapSpecEditors[keyInFlightMap] = manager.MapSpecEditor{
+			MaxEntries: 1,
+			EditorFlag: manager.EditMaxEntries,
+		}
+		events.Configure(p.cfg, name, p.mgr, opts)
+	}
 }
 
 func (p *protocol) PreStart() (err error) {
-	p.keyedEventsConsumer, err = events.NewConsumer(
-		keyedEventStream,
-		p.mgr,
-		p.processKeyedRedis,
-	)
-
-	if err != nil {
-		return
+	if p.cfg.RedisTrackResources {
+		p.keyedEventsConsumer, err = events.NewConsumer(
+			keyedEventStream,
+			p.mgr,
+			p.processKeyedRedis,
+		)
+		if err != nil {
+			return
+		}
+		p.keyedEventsConsumer.Start()
+	} else {
+		p.eventsConsumer, err = events.NewConsumer(
+			name,
+			p.mgr,
+			p.processRedis,
+		)
+		if err != nil {
+			return
+		}
+		p.eventsConsumer.Start()
 	}
-
-	p.keyedEventsConsumer.Start()
 	return
 }
 
@@ -167,6 +188,9 @@ func (p *protocol) Stop() {
 	// mapCleaner handles nil pointer receivers
 	p.mapCleaner.Stop()
 
+	if p.eventsConsumer != nil {
+		p.eventsConsumer.Stop()
+	}
 	if p.keyedEventsConsumer != nil {
 		p.keyedEventsConsumer.Stop()
 	}
@@ -195,7 +219,12 @@ func (p *protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
 
 // GetStats returns a map of Redis stats and a callback to clean resources.
 func (p *protocol) GetStats() (*protocols.ProtocolStats, func()) {
-	p.keyedEventsConsumer.Sync()
+	if p.eventsConsumer != nil {
+		p.eventsConsumer.Sync()
+	}
+	if p.keyedEventsConsumer != nil {
+		p.keyedEventsConsumer.Sync()
+	}
 
 	keysToStats := p.statskeeper.GetAndResetAllStats()
 	return &protocols.ProtocolStats{
@@ -216,7 +245,15 @@ func (*protocol) IsBuildModeSupported(buildmode.Type) bool {
 func (p *protocol) processKeyedRedis(events []EbpfKeyedEvent) {
 	for i := range events {
 		tx := &events[i]
-		eventWrapper := NewEventWrapper(tx)
+		eventWrapper := NewEventWrapper(&tx.Header, &tx.Key)
+		p.statskeeper.Process(eventWrapper)
+	}
+}
+
+func (p *protocol) processRedis(events []EbpfEvent) {
+	for i := range events {
+		tx := &events[i]
+		eventWrapper := NewEventWrapper(tx, nil)
 		p.statskeeper.Process(eventWrapper)
 	}
 }

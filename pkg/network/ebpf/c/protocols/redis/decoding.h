@@ -177,15 +177,17 @@ static __always_inline void process_redis_request(pktbuf_t pkt, conn_tuple_t *co
         return;
     }
 
-    redis_key_data_t key = {
-        .len = len,
-    };
-    if (!read_key_name(pkt, key.buf, sizeof(key.buf), &key.len, &key.truncated)) {
-        return;
+    if (is_redis_with_key_monitoring_enabled()) {
+        redis_key_data_t key = {
+            .len = len,
+        };
+        if (!read_key_name(pkt, key.buf, sizeof(key.buf), &key.len, &key.truncated)) {
+            return;
+        }
+        bpf_map_update_with_telemetry(redis_key_in_flight, conn_tuple, &key, BPF_ANY);
     }
 
     bpf_map_update_with_telemetry(redis_in_flight, conn_tuple, &transaction, BPF_ANY);
-    bpf_map_update_with_telemetry(redis_key_in_flight, conn_tuple, &key, BPF_ANY);
 }
 
 
@@ -193,10 +195,28 @@ static __always_inline void process_redis_request(pktbuf_t pkt, conn_tuple_t *co
 // Removes entries from redis_in_flight map for both directions.
 static void __always_inline redis_tcp_termination(conn_tuple_t *tup) {
     bpf_map_delete_elem(&redis_in_flight, tup);
-    bpf_map_delete_elem(&redis_key_in_flight, tup);
+    if (is_redis_with_key_monitoring_enabled()) {
+        bpf_map_delete_elem(&redis_key_in_flight, tup);
+    }
     flip_tuple(tup);
     bpf_map_delete_elem(&redis_in_flight, tup);
-    bpf_map_delete_elem(&redis_key_in_flight, tup);
+    if (is_redis_with_key_monitoring_enabled()) {
+        bpf_map_delete_elem(&redis_key_in_flight, tup);
+    }
+}
+
+// Enqueues a batch of events to the user-space. To spare stack size, we take a scratch buffer from the map, copy
+// the connection tuple and the transaction to it, and then enqueue the event.
+static __always_inline void redis_batch_enqueue_wrapper(conn_tuple_t *tuple, redis_transaction_t *tx) {
+    u32 zero = 0;
+    redis_event_t *event = bpf_map_lookup_elem(&redis_scratch_buffer, &zero);
+    if (!event) {
+        return;
+    }
+
+    bpf_memcpy(&event->tuple, tuple, sizeof(conn_tuple_t));
+    bpf_memcpy(&event->tx, tx, sizeof(redis_transaction_t));
+    redis_batch_enqueue(event);
 }
 
 // Enqueues a batch of events to the user-space. To spare stack size, we take a scratch buffer from the map, copy
@@ -208,8 +228,8 @@ static __always_inline void redis_with_key_batch_enqueue_wrapper(conn_tuple_t *t
         return;
     }
 
-    bpf_memcpy(&event->tuple, tuple, sizeof(conn_tuple_t));
-    bpf_memcpy(&event->tx, tx, sizeof(redis_transaction_t));
+    bpf_memcpy(&event->header.tuple, tuple, sizeof(conn_tuple_t));
+    bpf_memcpy(&event->header.tx, tx, sizeof(redis_transaction_t));
     bpf_memcpy(&event->key, key, sizeof(redis_key_data_t));
     redis_with_key_batch_enqueue(event);
 }
@@ -217,9 +237,12 @@ static __always_inline void redis_with_key_batch_enqueue_wrapper(conn_tuple_t *t
 // Processes Redis response messages and validates their format.
 // Handles error responses and command-specific response types.
 static void __always_inline process_redis_response(pktbuf_t pkt, conn_tuple_t *tup, redis_transaction_t *transaction) {
-    redis_key_data_t *key = bpf_map_lookup_elem(&redis_key_in_flight, tup);
-    if (key == NULL) {
-        goto cleanup;
+    redis_key_data_t *key;
+    if (is_redis_with_key_monitoring_enabled()) {
+        key = bpf_map_lookup_elem(&redis_key_in_flight, tup);
+        if (key == NULL) {
+            goto cleanup;
+        }
     }
 
     char first_byte;
@@ -240,10 +263,16 @@ static void __always_inline process_redis_response(pktbuf_t pkt, conn_tuple_t *t
 
 enqueue:
     transaction->response_last_seen = bpf_ktime_get_ns();
-    redis_with_key_batch_enqueue_wrapper(tup, transaction, key);
+    if (is_redis_with_key_monitoring_enabled()) {
+        redis_with_key_batch_enqueue_wrapper(tup, transaction, key);
+    } else {
+        redis_batch_enqueue_wrapper(tup, transaction);
+    }
 cleanup:
     bpf_map_delete_elem(&redis_in_flight, tup);
-    bpf_map_delete_elem(&redis_key_in_flight, tup);
+    if (is_redis_with_key_monitoring_enabled()) {
+        bpf_map_delete_elem(&redis_key_in_flight, tup);
+    }
 }
 
 // Main socket processing function for Redis traffic.
