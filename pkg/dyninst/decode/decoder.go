@@ -8,23 +8,23 @@
 package decode
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"runtime/debug"
 	"time"
 
 	"github.com/go-json-experiment/json"
+	"github.com/go-json-experiment/json/jsontext"
 	"github.com/google/uuid"
 	pkgerrors "github.com/pkg/errors"
-
 	"golang.org/x/time/rate"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/gotype"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symbol"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // We don't want to be too noisy about symbolication errors, but we do want to learn
@@ -127,12 +127,14 @@ type typeAndAddr struct {
 	addr   uint64
 }
 
-// Decode decodes the output Event from the BPF program into a JSON format to the specified output writer.
+// Decode decodes the output Event from the BPF program into a JSON format
+// the `output` parameter is appended to and returned as the final output.
+// It is not thread-safe.
 func (d *Decoder) Decode(
 	event Event,
 	symbolicator symbol.Symbolicator,
-	output []byte,
-) (b []byte, probe ir.ProbeDefinition, err error) {
+	buf []byte,
+) (_ []byte, probe ir.ProbeDefinition, err error) {
 	defer d.resetForNextMessage()
 	defer func() {
 		r := recover()
@@ -146,13 +148,27 @@ func (d *Decoder) Decode(
 	}()
 	probe, err = d.snapshotMessage.init(d, event, symbolicator)
 	if err != nil {
-		return nil, nil, err
+		return buf, nil, err
 	}
-	output, err = json.Marshal(&d.snapshotMessage)
-	if err != nil {
-		err = fmt.Errorf("error marshaling snapshot message: %w", err)
+	b := bytes.NewBuffer(buf)
+	enc := jsontext.NewEncoder(b)
+	numAttempts := 0
+	numExpressions := len(d.snapshotMessage.Debugger.Snapshot.Captures.Entry.Arguments.rootType.Expressions)
+	for numAttempts <= numExpressions {
+		// We loop here because when evaluation errors occur, we reduce the amount of data we attempt
+		// to encode and then try again after resetting the buffer.
+		err = json.MarshalEncode(enc, &d.snapshotMessage)
+		if errors.Is(err, errEvaluation) {
+			b = bytes.NewBuffer(buf)
+			enc.Reset(b)
+			numAttempts++
+			continue
+		} else if err != nil {
+			return buf, probe, pkgerrors.Wrap(err, "error marshaling snapshot message")
+		}
+		break
 	}
-	return output, probe, err
+	return b.Bytes(), probe, err
 }
 
 func (d *Decoder) resetForNextMessage() {
@@ -183,12 +199,14 @@ func (s *snapshotMessage) init(
 	symbolicator symbol.Symbolicator,
 ) (ir.ProbeDefinition, error) {
 	s.Service = event.ServiceName
-	s.Debugger.Snapshot = snapshotData{
-		decoder:  decoder,
-		ID:       uuid.New(),
-		Language: "go",
+	s.Debugger = debuggerData{
+		Snapshot: snapshotData{
+			decoder:  decoder,
+			ID:       uuid.New(),
+			Language: "go",
+		},
+		EvaluationErrors: []string{},
 	}
-	s.Debugger.EvaluationErrors = []string{}
 	var rootType *ir.EventRootType
 	var probe ir.ProbeDefinition
 
@@ -264,12 +282,14 @@ func (s *snapshotMessage) init(
 	s.Logger.Version = probe.GetVersion()
 	s.Debugger.Snapshot.Probe.ID = probe.GetID()
 	s.Debugger.Snapshot.Stack.frames = stackFrames
+
 	s.Debugger.Snapshot.Captures.Entry.Arguments = argumentsData{
 		event:            event,
 		rootType:         rootType,
 		rootData:         s.rootData,
 		decoder:          decoder,
 		evaluationErrors: &s.Debugger.EvaluationErrors,
+		skipIndicies:     make([]byte, len(rootType.Expressions)),
 	}
 	return probe, nil
 }
@@ -277,14 +297,14 @@ func (s *snapshotMessage) init(
 func symbolicate(event Event, stackHash uint64, symbolicator symbol.Symbolicator) ([]symbol.StackFrame, error) {
 	pcs, err := event.StackPCs()
 	if err != nil {
-		return nil, fmt.Errorf("error getting stack pcs %w", err)
+		return nil, fmt.Errorf("error getting stack pcs: %w", err)
 	}
 	if len(pcs) == 0 {
 		return nil, errors.New("no stack pcs found")
 	}
 	stackFrames, err := symbolicator.Symbolicate(pcs, stackHash)
 	if err != nil {
-		return nil, fmt.Errorf("error symbolicating stack %w", err)
+		return nil, fmt.Errorf("error symbolicating stack: %w", err)
 	}
 	return stackFrames, nil
 }

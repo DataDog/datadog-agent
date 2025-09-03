@@ -802,3 +802,43 @@ func TestDecoderFailsOnEvaluationError(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, string(out), "no decoder type found")
 }
+
+func TestDecoderFailsOnEvaluationErrorAndRetainsPassedBuffer(t *testing.T) {
+	irProg := generateIrForProbes(t, "simple", "stringArg")
+	decoder, err := NewDecoder(irProg, &noopTypeNameResolver{})
+	require.NoError(t, err)
+	caseIdx := slices.IndexFunc(cases, func(c testCase) bool {
+		return c.probeName == "stringArg"
+	})
+	testCase := &cases[caseIdx]
+	input := testCase.eventConstructor(t, irProg)
+	var stringType ir.Type
+	for _, t := range irProg.Types {
+		if t.GetName() == "string" {
+			stringType = t
+			break
+		}
+	}
+
+	buf := []byte{1, 2, 3, 4, 5}
+
+	require.NotNil(t, stringType)
+	stringID := stringType.GetID()
+	delete(decoder.decoderTypes, stringID)
+	out, _, err := decoder.Decode(Event{
+		Event:       output.Event(input),
+		ServiceName: "foo"},
+		&noopSymbolicator{},
+		buf,
+	)
+	require.NoError(t, err)
+	require.Contains(t, string(out), "no decoder type found")
+	out, _, err = decoder.Decode(Event{
+		Event:       output.Event(input),
+		ServiceName: "foo"},
+		&noopSymbolicator{},
+		buf,
+	)
+	require.Equal(t, buf, []byte{1, 2, 3, 4, 5})
+	require.NoError(t, err)
+}

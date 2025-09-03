@@ -64,36 +64,7 @@
                             "fields": {
                               "data": {
                                 "type": "main.structWithAny",
-                                "fields": {
-                                  "a": {
-                                    "type": "interface {}",
-                                    "fields": {
-                                      "data": {
-                                        "type": "main.structWithAny",
-                                        "fields": {
-                                          "a": {
-                                            "type": "interface {}",
-                                            "fields": {
-                                              "data": {
-                                                "type": "main.structWithAny",
-                                                "fields": {
-                                                  "a": {
-                                                    "type": "interface {}",
-                                                    "fields": {
-                                                      "data": {
-                                                        "isNull": true
-                                                      }
-                                                    }
-                                                  }
-                                                }
-                                              }
-                                            }
-                                          }
-                                        }
-                                      }
-                                    }
-                                  }
-                                }
+                                "notCapturedReason": "depth"
                               }
                             }
                           }
