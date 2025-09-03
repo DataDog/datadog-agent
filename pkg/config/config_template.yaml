@@ -698,18 +698,6 @@ api_key:
 
 {{ end }}
 {{- if .Agent }}
-{{- if .Python }}
-{{- if .BothPythonPresent -}}
-## @param python_version - integer - optional - default: 2
-## @env DD_PYTHON_VERSION - integer - optional - default: 2
-## The major version of Python used to run integrations and custom checks.
-## The only supported values are 2 (to use Python 2) or 3 (to use Python 3).
-## Do not change this option when using the official Docker Agent images.
-#
-# python_version: 2
-
-{{ end -}}
-{{ end }}
 
 ############################
 ## Advanced Configuration ##
@@ -837,9 +825,7 @@ api_key:
 ## @param tracemalloc_debug - boolean - optional - default: false
 ## @env DD_TRACEMALLOC_DEBUG - boolean - optional - default: false
 ## Enables debugging with tracemalloc for python checks.
-## Please note that this option is only available when python_version is set to "3".
-## Additionally when this option becomes effective the number of check runners is
-## overridden to 1.
+## Please note that when this option is enabled the number of check runners is overridden to 1.
 #
 # tracemalloc_debug: false
 

@@ -76,9 +76,6 @@ func (ts *telemetrySender) newEvent(t eventType, service model.Service) *event {
 	nameSource := ""
 	if service.DDService != "" {
 		nameSource = "provided"
-		if service.DDServiceInjected {
-			nameSource = "injected"
-		}
 	}
 
 	// Combine TCP and UDP ports for backward compatibility

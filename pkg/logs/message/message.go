@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(AML) Fix revive linter
+// Package message provides log message data structures and utilities
 package message
 
 import (
@@ -40,6 +40,7 @@ type Payload struct {
 	UnencodedSize int
 }
 
+// NewPayload creates a new payload with the given message metadata, encoded content, encoding type and unencoded size
 func NewPayload(messageMetas []*MessageMetadata, encoded []byte, encoding string, unencodedSize int) *Payload {
 	return &Payload{
 		MessageMetas:  messageMetas,
@@ -56,7 +57,7 @@ func (m *Payload) Count() int64 {
 
 // Size returns the size of the message.
 func (m *Payload) Size() int64 {
-	var size int64 = 0
+	var size int64
 	for _, m := range m.MessageMetas {
 		size += m.Size()
 	}
@@ -69,6 +70,9 @@ type Message struct {
 	MessageMetadata
 }
 
+// MessageMetadata contains metadata information about a log message
+//
+//nolint:revive // exported: ignore package name struct conflict
 type MessageMetadata struct {
 	Hostname           string
 	Origin             *Origin
@@ -382,12 +386,12 @@ func (m *MessageMetadata) GetLatency() int64 {
 	return time.Now().UnixNano() - m.IngestionTimestamp
 }
 
-// Message returns all tags that this message is attached with.
+// Tags returns all tags that this message is attached with.
 func (m *MessageMetadata) Tags() []string {
 	return m.Origin.Tags(m.ProcessingTags)
 }
 
-// Message returns all tags that this message is attached with, as a string.
+// TagsToString returns all tags that this message is attached with, as a string.
 func (m *MessageMetadata) TagsToString() string {
 	return m.Origin.TagsToString(m.ProcessingTags)
 }

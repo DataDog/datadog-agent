@@ -254,6 +254,31 @@ func TestEnableRedisMonitoring(t *testing.T) {
 	})
 }
 
+func TestRedisTrackResources(t *testing.T) {
+	t.Run("via YAML", func(t *testing.T) {
+		mockSystemProbe := mock.NewSystemProbe(t)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.redis.track_resources", true)
+		cfg := New()
+
+		assert.True(t, cfg.RedisTrackResources)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_REDIS_TRACK_RESOURCES", "true")
+		cfg := New()
+
+		assert.True(t, cfg.RedisTrackResources)
+	})
+
+	t.Run("default", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		cfg := New()
+
+		assert.False(t, cfg.RedisTrackResources)
+	})
+}
+
 func TestDefaultDisabledHTTP2Support(t *testing.T) {
 	mock.NewSystemProbe(t)
 	cfg := New()

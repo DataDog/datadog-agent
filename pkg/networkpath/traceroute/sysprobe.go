@@ -7,7 +7,9 @@ package traceroute
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"time"
 
@@ -32,6 +34,10 @@ func getTraceroute(client *http.Client, clientID string, host string, port uint1
 	req.Header.Set("Accept", "application/json")
 	resp, err := client.Do(req)
 	if err != nil {
+		var opErr *net.OpError
+		if errors.As(err, &opErr) && opErr.Op == "dial" {
+			return nil, fmt.Errorf("%w, please check that the traceroute module is enabled in the system-probe.yaml config file and that system-probe is running", err)
+		}
 		return nil, err
 	}
 	defer resp.Body.Close()
@@ -42,6 +48,8 @@ func getTraceroute(client *http.Client, clientID string, host string, port uint1
 			return nil, fmt.Errorf("traceroute request failed: url: %s, status code: %d", req.URL, resp.StatusCode)
 		}
 		return nil, fmt.Errorf("traceroute request failed: url: %s, status code: %d, error: %s", req.URL, resp.StatusCode, string(body))
+	} else if resp.StatusCode == http.StatusNotFound {
+		return nil, fmt.Errorf("traceroute request failed: url: %s, status code: %d, please check that the traceroute module is enabled in the system-probe.yaml config file", req.URL, resp.StatusCode)
 	} else if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("traceroute request failed: url: %s, status code: %d", req.URL, resp.StatusCode)
 	}

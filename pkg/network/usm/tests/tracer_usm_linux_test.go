@@ -2640,6 +2640,7 @@ func (s *USMSuite) TestVerifySketches() {
 	cfg.EnableKafkaMonitoring = true
 	cfg.EnablePostgresMonitoring = true
 	cfg.EnableRedisMonitoring = true
+	cfg.RedisTrackResources = true
 
 	tr, err := tracer.NewTracer(cfg, nil, nil)
 	require.NoError(t, err)

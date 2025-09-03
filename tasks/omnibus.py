@@ -1,8 +1,11 @@
+import hashlib
 import os
 import re
+import subprocess
 import sys
 import tempfile
 import warnings
+from collections import defaultdict
 from collections.abc import Iterator
 from typing import NamedTuple
 
@@ -90,7 +93,7 @@ def get_omnibus_env(
 ):
     env = load_dependencies(ctx)
 
-    # Discard windows variables when not on Windows
+    # Discard windows variables when not on Windows (so that they're not used in the cache key either)
     if sys.platform != 'win32':
         windows_only_vars = [
             'WINDOWS_DDNPM_DRIVER',
@@ -122,16 +125,18 @@ def get_omnibus_env(
             env[key] = value
         ref = env[key]
         if not re.fullmatch(r"[0-9a-f]{4,40}", ref):  # resolve only "moving" refs, such as `own/branch`
-            candidates = [line.split() for line in ctx.run(f"git ls-remote --refs {url} '{ref}'").stdout.splitlines()]
+            candidates = [
+                line.split()
+                for line in subprocess.check_output(["git", "ls-remote", "--refs", url, ref], text=True).splitlines()
+            ]
             if not candidates:
-                warnings.warn(f"No candidate for {url}@{ref} - leaving untouched", stacklevel=1)
-                continue
-            sha1, shortest_ref = min(candidates, key=lambda c: len(c[1]))
+                raise Exit(f"{key!r}: no candidate for {ref!r} @ {url}!")
             if len(candidates) > 1:  # happens when a branch name mimics its base or target, such as `my/own/branch`
                 warnings.warn(
-                    f"Multiple candidates for {url}@{ref}: {[c[1] for c in candidates]} - choosing shortest: {shortest_ref} -> {sha1}",
-                    stacklevel=1,
+                    f"{key!r}: multiple candidates for {ref!r} @ {url} {[c[1] for c in candidates]}", stacklevel=1
                 )
+            sha1, shortest_ref = min(candidates, key=lambda c: len(c[1]))
+            print(f"{key!r}: {ref!r} @ {url} resolves to {shortest_ref!r} -> {sha1}")
             env[key] = sha1
 
     if sys.platform == 'darwin':
@@ -621,3 +626,62 @@ def rpath_edit(ctx, install_path, target_rpath_dd_folder, platform="linux"):
         if install_path in binary_rpath:
             new_rpath = os.path.relpath(target_rpath_dd_folder, os.path.dirname(file))
             _patch_binary_rpath(ctx, new_rpath, install_path, binary_rpath, platform, file)
+
+
+@task
+def deduplicate_files(ctx, directory):
+    # Matches: .so, .so.X, .so.X.Y, .so.X.Y.Z, .bundle, .dll, .dylib, .pyd
+    LIB_PATTERN = re.compile(r"\.(bundle|dll|dylib|pyd|so(?:\.\d+)*)$")
+
+    def hash_file(filepath):
+        """Returns the SHA-256 hash of the file's contents."""
+        with open(filepath, "rb") as f:
+            return hashlib.file_digest(f, "sha256").hexdigest()
+
+    def find_duplicates(root_dir):
+        """Finds and returns duplicates as a map of hash -> list of files with that hash, excluding empty files."""
+        hash_to_files = defaultdict(list)
+        for dirpath, _, filenames in os.walk(root_dir):
+            for name in filenames:
+                if not LIB_PATTERN.search(name):
+                    continue
+
+                full_path = os.path.join(dirpath, name)
+                # Only regular files; skip symlinks
+                if os.path.isfile(full_path) and not os.path.islink(full_path):
+                    try:
+                        if os.path.getsize(full_path) == 0:
+                            continue  # Exclude empty files
+                        file_hash = hash_file(full_path)
+                        hash_to_files[file_hash].append(full_path)
+                    except Exception as e:
+                        print(f"Error hashing {full_path}: {e}")
+        return {h: paths for h, paths in hash_to_files.items() if len(paths) > 1}
+
+    def replace_with_symlinks(duplicates):
+        """Replaces all duplicates with symlinks to the first original (shortest path wins)."""
+        for files in duplicates.values():
+            files.sort(key=lambda p: (len(p), p))  # shortest path, then lexicographic
+            original = files[0]
+            for dup in files[1:]:
+                try:
+                    os.remove(dup)
+                    rel_path = os.path.relpath(original, os.path.dirname(dup))
+                    os.symlink(rel_path, dup)
+                    print(f"Replaced {dup} with symlink to {original}")
+                except Exception as e:
+                    print(f"Failed to replace {dup}: {e}")
+
+    root = os.path.abspath(directory)
+    if not os.path.isdir(root):
+        print(f"{root} is not a valid directory.")
+        return
+
+    print(f"Scanning for duplicates in: {root}")
+    duplicates = find_duplicates(root)
+
+    if not duplicates:
+        return
+
+    print(f"Found {sum(len(v) - 1 for v in duplicates.values())} duplicate files.")
+    replace_with_symlinks(duplicates)

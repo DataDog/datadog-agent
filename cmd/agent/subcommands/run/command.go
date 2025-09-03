@@ -66,6 +66,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	configstreamfx "github.com/DataDog/datadog-agent/comp/core/configstream/fx"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	diagnosefx "github.com/DataDog/datadog-agent/comp/core/diagnose/fx"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
@@ -539,6 +540,7 @@ func getSharedFxOption() fx.Option {
 		ssistatusfx.Module(),
 		workloadfilterfx.Module(),
 		connectivitycheckerfx.Module(),
+		configstreamfx.Module(),
 	)
 }
 
@@ -632,7 +634,7 @@ func startAgent(
 	if pkgconfigsetup.Datadog().GetBool("cluster_agent.enabled") && pkgconfigsetup.Datadog().GetBool("clc_runner_enabled") {
 		if err = clcrunnerapi.StartCLCRunnerServer(map[string]http.Handler{
 			"/telemetry": telemetryHandler,
-		}, ac); err != nil {
+		}, ac, ipc); err != nil {
 			return log.Errorf("Error while starting clc runner api server, exiting: %v", err)
 		}
 	}

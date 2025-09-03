@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/go-delve/delve/pkg/dwarf/godwarf"
+	"golang.org/x/time/rate"
 
 	dwarf2 "github.com/DataDog/datadog-agent/pkg/dyninst/dwarf"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dwarf/dwarfutil"
@@ -30,6 +31,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/go/dwarfutils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+var loclistErrorLogLimiter = rate.NewLimiter(rate.Every(1*time.Minute), 1)
 
 // PackagesIterator returns an iterator over the packages in the binary.
 //
@@ -145,46 +148,27 @@ type PackageStats struct {
 	// collected symbols.
 	NumTypes int
 	// NumFunctions is the number of functions in this package represented in
-	// the collected symbols.
+	// the collected symbols. This includes methods.
 	NumFunctions int
-	// NumSourceFiles is the number of source files that contain functions in
-	// this package.
-	NumSourceFiles int
 }
 
 func (s PackageStats) String() string {
-	return fmt.Sprintf("Types: %d, Functions: %d, Source files: %d",
-		s.NumTypes, s.NumFunctions, s.NumSourceFiles)
+	return fmt.Sprintf("Types: %d, Functions: %d", s.NumTypes, s.NumFunctions)
 }
 
 // Stats computes statistics about the package's symbols.
 //
-// sourceFiles will be populated with files encoutered while going through this
+// sourceFiles will be populated with files encountered while going through this
 // package's compile unit. Nil can be passed if the caller is not interested.
 // Note that it's possible for multiple compile units to reference the same file
 // due to inlined functions; in such cases, the file will arbitrarily count
 // towards the stats of the first package that adds it to the map.
-func (p Package) Stats(sourceFiles map[string]struct{}) PackageStats {
+func (p Package) Stats() PackageStats {
 	var res PackageStats
-	if sourceFiles == nil {
-		sourceFiles = make(map[string]struct{})
-	}
 	res.NumTypes += len(p.Types)
 	res.NumFunctions += len(p.Functions)
-	recordFile := func(file string) {
-		if _, ok := sourceFiles[file]; !ok {
-			sourceFiles[file] = struct{}{}
-			res.NumSourceFiles++
-		}
-	}
 	for _, t := range p.Types {
 		res.NumFunctions += len(t.Methods)
-		for _, f := range t.Methods {
-			recordFile(f.File)
-		}
-	}
-	for _, f := range p.Functions {
-		recordFile(f.File)
 	}
 	return res
 }
@@ -716,7 +700,7 @@ func newPackagesIterator(bin binaryInfo, opt ExtractOptions) *packagesIterator {
 }
 
 type binaryInfo struct {
-	obj                 *object.ElfFile
+	obj                 *object.ElfFileWithDwarf
 	mainModule          string
 	goDebugSections     *object.GoDebugSections
 	symTable            *gosym.GoSymbolTable
@@ -725,7 +709,7 @@ type binaryInfo struct {
 }
 
 func openBinary(binaryPath string, opt ExtractOptions) (binaryInfo, error) {
-	obj, err := object.OpenElfFile(binaryPath)
+	obj, err := object.OpenElfFileWithDwarf(binaryPath)
 	if err != nil {
 		return binaryInfo{}, fmt.Errorf("failed to open file: %w", err)
 	}
@@ -737,16 +721,16 @@ func openBinary(binaryPath string, opt ExtractOptions) (binaryInfo, error) {
 	}
 	mainModule := binfo.Main.Path
 
-	moduledata, err := object.ParseModuleData(obj.Underlying)
+	moduledata, err := object.ParseModuleData(obj)
 	if err != nil {
 		return binaryInfo{}, err
 	}
-	goVersion, err := object.ReadGoVersion(obj.Underlying)
+	goVersion, err := object.ReadGoVersion(obj)
 	if err != nil {
 		return binaryInfo{}, err
 	}
 
-	goDebugSections, err := moduledata.GoDebugSections(obj.Underlying)
+	goDebugSections, err := moduledata.GoDebugSections(obj)
 	if err != nil {
 		return binaryInfo{}, err
 	}
@@ -1095,7 +1079,7 @@ func (b *packagesIterator) exploreCompileUnit(
 	}
 	duration := time.Since(start)
 	if duration > 5*time.Second {
-		log.Warnf("Processing package %s took %s: %s", name, duration, res.Stats(nil))
+		log.Warnf("Processing package %s took %s: %s", name, duration, res.Stats())
 	}
 
 	return res, nil
@@ -1193,11 +1177,22 @@ func (b *packagesIterator) exploreSubprogram(
 
 	lowpc, ok := entry.Val(dwarf.AttrLowpc).(uint64)
 	if !ok {
-		return Function{}, fmt.Errorf("subprogram without lowpc: %s", funcQualifiedName)
+		return Function{}, fmt.Errorf("subprogram without lowpc: %s @ 0x%x", funcQualifiedName, entry.Offset)
 	}
-	highpc, ok := entry.Val(dwarf.AttrHighpc).(uint64)
-	if !ok {
-		return Function{}, errors.New("subprogram without highpc")
+	highPCField := entry.AttrField(dwarf.AttrHighpc)
+	if highPCField == nil {
+		return Function{}, fmt.Errorf("subprogram without highpc: %s @ 0x%x", funcQualifiedName, entry.Offset)
+	}
+	// The highpc can either be an absolute value, or a delta relative to the
+	// lowpc. We distinguish based on the field's class.
+	var highpc uint64
+	switch highPCField.Class {
+	case dwarf.ClassAddress:
+		highpc = highPCField.Val.(uint64)
+	case dwarf.ClassConstant:
+		highpc = lowpc + uint64(highPCField.Val.(int64))
+	default:
+		return Function{}, fmt.Errorf("unrecognized highpc class: %d for %s @ 0x%x", highPCField.Class, funcQualifiedName, entry.Offset)
 	}
 
 	lines, err := b.sym.FunctionLines(lowpc)
@@ -1291,17 +1286,11 @@ func (b *packagesIterator) exploreInlinedInstance(
 	af, ok := b.abstractFunctions[origin]
 	if !ok {
 		var err error
-		af, err = b.parseAbstractFunction(reader, origin)
+		af, err = b.parseAbstractFunction(origin)
 		if err != nil {
 			return err
 		}
 		b.abstractFunctions[origin] = af
-		// Reset the reader.
-		reader.Seek(entry.Offset)
-		_, err = reader.Next()
-		if err != nil {
-			return err
-		}
 	}
 	if !af.interesting {
 		return earlyExit()
@@ -1509,7 +1498,13 @@ func (b *packagesIterator) parseFunctionName(entry *dwarf.Entry) (
 	return
 }
 
-func (b *packagesIterator) parseAbstractFunction(reader *dwarf.Reader, offset dwarf.Offset) (*abstractFunction, error) {
+func (b *packagesIterator) parseAbstractFunction(offset dwarf.Offset) (*abstractFunction, error) {
+	// TODO: once we switch to Go 1.25, instead of constructing a new Reader, we
+	// should take one in and Seek() to the desired offset; that would be more
+	// efficient when seeking within the same compilation unit as the one we're
+	// already in. Unfortunately, seeking across compilation units is broken
+	// until Go 1.25 (see https://go-review.googlesource.com/c/go/+/655976).
+	reader := b.dwarfData.Reader()
 	reader.Seek(offset)
 	entry, err := reader.Next()
 	if err != nil {
@@ -1625,7 +1620,7 @@ func (b *packagesIterator) parseVariableLocations(
 	if locField == nil {
 		return out, nil
 	}
-	pcRanges, err := b.processLocations(unit, block, locField, typeSize)
+	pcRanges, err := b.processLocations(unit, block, entry.Offset, locField, typeSize)
 	if err != nil {
 		return nil, fmt.Errorf(
 			"error processing locations for variable at 0x%x: %w", entry.Offset, err,
@@ -1673,6 +1668,7 @@ func coalesceLineRanges(ranges []LineRange) []LineRange {
 func (b *packagesIterator) processLocations(
 	unit *dwarf.Entry,
 	block codeBlock,
+	entryOffset dwarf.Offset,
 	locField *dwarf.Field,
 	totalSize uint32,
 ) ([]dwarfutil.PCRange, error) {
@@ -1685,7 +1681,13 @@ func (b *packagesIterator) processLocations(
 	}
 	loclists, err := dwarfutil.ProcessLocations(locField, unit, b.loclistReader, pcRanges, totalSize, uint8(b.pointerSize))
 	if err != nil {
-		return nil, err
+		// Do not fail hard, just pretend the variable is not available.
+		if loclistErrorLogLimiter.Allow() {
+			log.Warnf(
+				"ignoring locations for variable at 0x%x: %v", entryOffset, err,
+			)
+		}
+		return nil, nil
 	}
 	loclists = dwarfutil.FilterIncompleteLocationLists(loclists)
 	res := make([]dwarfutil.PCRange, len(loclists))
