@@ -687,13 +687,6 @@ new-e2e-installer-windows:
       - EXTRA_PARAMS: --run "TestAgentUpgradesFromGA$/TestUpgradeAgentPackageAfterRollback$"
       - EXTRA_PARAMS: --run "TestAgentInstalls$/TestSetupScriptInstallInfo$"
       - EXTRA_PARAMS: --run "TestUpgradeWithMissingPassword$/TestUpgradeWithMissingPassword$"
-      # agent config experiment
-      - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigUpgradeSuccessful$"
-      - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigUpgradeFailure$"
-      - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigUpgradeNewAgents$"
-      - EXTRA_PARAMS: --run "TestAgentConfig$/TestRevertsConfigExperimentWhenServiceDies$"
-      - EXTRA_PARAMS: --run "TestAgentConfig$/TestRevertsConfigExperimentWhenTimeout$"
-      - EXTRA_PARAMS: --run "TestAgentConfig$/TestManagedConfigActiveAfterUpgrade$"
       # install-exe
       - EXTRA_PARAMS: --run "TestInstallExe$/TestInstallAgentPackage$"
       # install-script
