@@ -12,6 +12,7 @@ import (
 	"math/rand"
 	"net"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
@@ -128,7 +129,7 @@ func (r *Runner) RunTraceroute(ctx context.Context, cfg config.Config) (payload.
 	params := runner.TracerouteParams{
 		Hostname:  cfg.DestHostname,
 		Port:      int(cfg.DestPort),
-		Protocol:  string(protocol),
+		Protocol:  strings.ToLower(string(protocol)),
 		MinTTL:    0,
 		MaxTTL:    int(cfg.MaxTTL),
 		Delay:     DefaultDelay,
