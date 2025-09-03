@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	defaultServiceCommandTimeout = 30
+	DefaultServiceCommandTimeout = 30
 )
 
 // to support edge case/rase condition testing
@@ -109,7 +109,7 @@ func doStartService(service *mgr.Service, serviceArgs ...string) error {
 	// Are we in SERVICE_STOP_PENDING state?
 	if status.State == svc.StopPending {
 		// Lets wait for its completion before preceding
-		ctx, cancel := context.WithTimeout(context.Background(), defaultServiceCommandTimeout*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), DefaultServiceCommandTimeout*time.Second)
 		defer cancel()
 
 		status.State, err = waitForPendingStateChange(ctx, service, status.State)
@@ -256,7 +256,7 @@ func doStopServiceWithDependencies(manager *mgr.Mgr, service *mgr.Service,
 	}
 
 	// extend deadline to account for all services we are trying to stop
-	totalTimeout := time.Duration(len(depServices)+1) * defaultServiceCommandTimeout * time.Second
+	totalTimeout := time.Duration(len(depServices)+1) * DefaultServiceCommandTimeout * time.Second
 	ctx, cancel := context.WithTimeout(context.Background(), totalTimeout)
 	defer cancel()
 
