@@ -274,7 +274,10 @@ func (i *installerImpl) doInstall(ctx context.Context, url string, args []string
 	defer i.m.Unlock()
 	pkg, err := i.downloader.Download(ctx, url) // Downloads pkg metadata only
 	if err != nil {
-		return fmt.Errorf("could not download package: %w", err)
+		return installerErrors.Wrap(
+			installerErrors.ErrDownloadFailed,
+			fmt.Errorf("could not download package: %w", err),
+		)
 	}
 	span, ok := telemetry.SpanFromContext(ctx)
 	if ok {
