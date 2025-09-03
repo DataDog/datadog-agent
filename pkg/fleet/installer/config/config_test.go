@@ -59,10 +59,10 @@ func TestOperationApply_Patch(t *testing.T) {
 
 	// Patch: change foo to baz
 	patchJSON := `[{"op": "replace", "path": "/foo", "value": "baz"}]`
-	op := &Operation{
-		OperationType: OperationTypePatch,
-		Path:          "/datadog.yaml",
-		Patch:         []byte(patchJSON),
+	op := &FileOperation{
+		FileOperationType: FileOperationPatch,
+		FilePath:          "/datadog.yaml",
+		Patch:             []byte(patchJSON),
 	}
 
 	err = op.Apply(root)
@@ -92,10 +92,10 @@ func TestOperationApply_MergePatch(t *testing.T) {
 
 	// MergePatch: remove bar, change foo to qux
 	mergePatch := `{"foo": "qux", "bar": null}`
-	op := &Operation{
-		OperationType: OperationTypeMergePatch,
-		Path:          "/datadog.yaml",
-		Patch:         []byte(mergePatch),
+	op := &FileOperation{
+		FileOperationType: FileOperationMergePatch,
+		FilePath:          "/datadog.yaml",
+		Patch:             []byte(mergePatch),
 	}
 
 	err = op.Apply(root)
@@ -121,9 +121,9 @@ func TestOperationApply_Delete(t *testing.T) {
 	assert.NoError(t, err)
 	defer root.Close()
 
-	op := &Operation{
-		OperationType: OperationTypeDelete,
-		Path:          "/datadog.yaml",
+	op := &FileOperation{
+		FileOperationType: FileOperationDelete,
+		FilePath:          "/datadog.yaml",
 	}
 
 	err = op.Apply(root)
@@ -144,10 +144,10 @@ func TestOperationApply_EmptyYAMLFile(t *testing.T) {
 	defer root.Close()
 
 	patchJSON := `[{"op": "add", "path": "/foo", "value": "bar"}]`
-	op := &Operation{
-		OperationType: OperationTypePatch,
-		Path:          "/datadog.yaml",
-		Patch:         []byte(patchJSON),
+	op := &FileOperation{
+		FileOperationType: FileOperationPatch,
+		FilePath:          "/datadog.yaml",
+		Patch:             []byte(patchJSON),
 	}
 
 	err = op.Apply(root)
@@ -171,10 +171,10 @@ func TestOperationApply_NoFile(t *testing.T) {
 	defer root.Close()
 
 	patchJSON := `[{"op": "add", "path": "/foo", "value": "bar"}]`
-	op := &Operation{
-		OperationType: OperationTypePatch,
-		Path:          "/datadog.yaml",
-		Patch:         []byte(patchJSON),
+	op := &FileOperation{
+		FileOperationType: FileOperationPatch,
+		FilePath:          "/datadog.yaml",
+		Patch:             []byte(patchJSON),
 	}
 
 	err = op.Apply(root)
@@ -200,10 +200,10 @@ func TestOperationApply_DisallowedFile(t *testing.T) {
 	defer root.Close()
 
 	patchJSON := `[{"op": "replace", "path": "/foo", "value": "baz"}]`
-	op := &Operation{
-		OperationType: OperationTypePatch,
-		Path:          "/notallowed.yaml",
-		Patch:         []byte(patchJSON),
+	op := &FileOperation{
+		FileOperationType: FileOperationPatch,
+		FilePath:          "/notallowed.yaml",
+		Patch:             []byte(patchJSON),
 	}
 
 	err = op.Apply(root)
@@ -228,10 +228,10 @@ func TestOperationApply_NestedConfigFile(t *testing.T) {
 	defer root.Close()
 
 	patchJSON := `[{"op": "replace", "path": "/foo", "value": "newval"}, {"op": "add", "path": "/baz", "value": 42}]`
-	op := &Operation{
-		OperationType: OperationTypePatch,
-		Path:          "/conf.d/mycheck.d/config.yaml",
-		Patch:         []byte(patchJSON),
+	op := &FileOperation{
+		FileOperationType: FileOperationPatch,
+		FilePath:          "/conf.d/mycheck.d/config.yaml",
+		Patch:             []byte(patchJSON),
 	}
 
 	err = op.Apply(root)

@@ -81,9 +81,9 @@ type installerConfig struct {
 }
 
 type installerConfigOperation struct {
-	OperationType string          `json:"op"`
-	Path          string          `json:"path"`
-	Patch         json.RawMessage `json:"patch"`
+	FileOperationType string          `json:"file_op"`
+	FilePath          string          `json:"file_path"`
+	Patch             json.RawMessage `json:"patch"`
 }
 
 type legacyInstallerConfig struct {
@@ -139,14 +139,8 @@ func handleInstallerConfigUpdate(h handleConfigsUpdate) func(map[string]state.Ra
 				legacyConfigs.Files = append(legacyConfigs.Files, legacyInstallerConfigFile{Path: "/otel-config.yaml", Contents: legacyConfigs.Configs.OTelConfigYAML})
 			}
 			if len(legacyConfigs.Files) > 0 {
-				installerConfig.Operations = append(installerConfig.Operations, installerConfigOperation{OperationType: "delete", Path: "/datadog.yaml"})
-				installerConfig.Operations = append(installerConfig.Operations, installerConfigOperation{OperationType: "delete", Path: "/security-agent.yaml"})
-				installerConfig.Operations = append(installerConfig.Operations, installerConfigOperation{OperationType: "delete", Path: "/system-probe.yaml"})
-				installerConfig.Operations = append(installerConfig.Operations, installerConfigOperation{OperationType: "delete", Path: "/application_monitoring.yaml"})
-				installerConfig.Operations = append(installerConfig.Operations, installerConfigOperation{OperationType: "delete", Path: "/otel-config.yaml"})
-				installerConfig.Operations = append(installerConfig.Operations, installerConfigOperation{OperationType: "delete", Path: "/conf.d/snmp.d/ndm_core-1.yaml"})
 				for _, file := range legacyConfigs.Files {
-					installerConfig.Operations = append(installerConfig.Operations, installerConfigOperation{OperationType: "merge-patch", Path: file.Path, Patch: file.Contents})
+					installerConfig.Operations = append(installerConfig.Operations, installerConfigOperation{FileOperationType: "merge-patch", FilePath: file.Path, Patch: file.Contents})
 				}
 			}
 			installerConfigs[installerConfig.ID] = installerConfig

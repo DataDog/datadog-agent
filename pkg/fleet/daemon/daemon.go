@@ -627,10 +627,10 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 		var ops config.Operations
 		ops.DeploymentID = c.ID
 		for _, operation := range c.Operations {
-			ops.Operations = append(ops.Operations, config.Operation{
-				OperationType: config.OperationType(operation.OperationType),
-				Path:          operation.Path,
-				Patch:         operation.Patch,
+			ops.Operations = append(ops.Operations, config.FileOperation{
+				FileOperationType: config.FileOperationType(operation.FileOperationType),
+				FilePath:          operation.FilePath,
+				Patch:             operation.Patch,
 			})
 		}
 		return d.startConfigExperiment(ctx, request.Package, ops)

@@ -19,40 +19,40 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// OperationType is the type of operation to perform on the config.
-type OperationType string
+// FileOperationType is the type of operation to perform on the config.
+type FileOperationType string
 
 const (
-	// OperationTypePatch patches the config at the given path with the given JSON patch (RFC 6902).
-	OperationTypePatch OperationType = "patch"
-	// OperationTypeMergePatch merges the config at the given path with the given JSON merge patch (RFC 7396).
-	OperationTypeMergePatch OperationType = "merge-patch"
-	// OperationTypeDelete deletes the config at the given path.
-	OperationTypeDelete OperationType = "delete"
+	// FileOperationPatch patches the config at the given path with the given JSON patch (RFC 6902).
+	FileOperationPatch FileOperationType = "patch"
+	// FileOperationMergePatch merges the config at the given path with the given JSON merge patch (RFC 7396).
+	FileOperationMergePatch FileOperationType = "merge-patch"
+	// FileOperationDelete deletes the config at the given path.
+	FileOperationDelete FileOperationType = "delete"
 )
 
 // Operations is the list of operations to perform on the configs.
 type Operations struct {
-	DeploymentID string      `json:"deployment_id"`
-	Operations   []Operation `json:"operations"`
+	DeploymentID string          `json:"deployment_id"`
+	Operations   []FileOperation `json:"operations"`
 }
 
-// Operation is the operation to perform on a config.
-type Operation struct {
-	OperationType OperationType   `json:"op"`
-	Path          string          `json:"path"`
-	Patch         json.RawMessage `json:"patch,omitempty"`
+// FileOperation is the operation to perform on a config.
+type FileOperation struct {
+	FileOperationType FileOperationType `json:"file_op"`
+	FilePath          string            `json:"file_path"`
+	Patch             json.RawMessage   `json:"patch,omitempty"`
 }
 
 // Apply applies the operation to the root.
-func (a *Operation) Apply(root *os.Root) error {
-	if !configNameAllowed(a.Path) {
-		return fmt.Errorf("modifying config file %s is not allowed", a.Path)
+func (a *FileOperation) Apply(root *os.Root) error {
+	if !configNameAllowed(a.FilePath) {
+		return fmt.Errorf("modifying config file %s is not allowed", a.FilePath)
 	}
-	path := strings.TrimPrefix(a.Path, "/")
+	path := strings.TrimPrefix(a.FilePath, "/")
 
-	switch a.OperationType {
-	case OperationTypePatch, OperationTypeMergePatch:
+	switch a.FileOperationType {
+	case FileOperationPatch, FileOperationMergePatch:
 		err := ensureDir(root, path)
 		if err != nil {
 			return err
@@ -76,8 +76,8 @@ func (a *Operation) Apply(root *os.Root) error {
 			return err
 		}
 		var newJSONBytes []byte
-		switch a.OperationType {
-		case OperationTypePatch:
+		switch a.FileOperationType {
+		case FileOperationPatch:
 			patch, err := patch.DecodePatch(a.Patch)
 			if err != nil {
 				return err
@@ -86,7 +86,7 @@ func (a *Operation) Apply(root *os.Root) error {
 			if err != nil {
 				return err
 			}
-		case OperationTypeMergePatch:
+		case FileOperationMergePatch:
 			newJSONBytes, err = patch.MergePatch(previousJSONBytes, a.Patch)
 			if err != nil {
 				return err
@@ -114,14 +114,14 @@ func (a *Operation) Apply(root *os.Root) error {
 			return err
 		}
 		return err
-	case OperationTypeDelete:
+	case FileOperationDelete:
 		err := root.Remove(path)
 		if err != nil && !os.IsNotExist(err) {
 			return err
 		}
 		return nil
 	default:
-		return fmt.Errorf("unknown operation type: %s", a.OperationType)
+		return fmt.Errorf("unknown operation type: %s", a.FileOperationType)
 	}
 }
 
