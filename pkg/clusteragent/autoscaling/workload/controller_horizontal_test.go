@@ -22,7 +22,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	clock "k8s.io/utils/clock/testing"
 
-	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
+	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/com   mon"
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
@@ -248,6 +248,41 @@ func TestHorizontalControllerSyncPrerequisites(t *testing.T) {
 		recReplicas:     10,
 		scaleReplicas:   5,
 		scaleError:      testutil.NewErrorString("horizontal scaling disabled due to applyMode: Preview not allowing recommendations from source: Autoscaling"),
+	})
+	assert.Equal(t, autoscaling.NoRequeue, result)
+	assert.NoError(t, err)
+
+	// Test case: Fallback scaling direction disabled by policy
+	fakePai.Spec.Fallback = &datadoghq.DatadogFallbackPolicy{
+		Horizontal: datadoghq.DatadogPodAutoscalerHorizontalFallbackPolicy{
+			Direction: datadoghq.DatadogPodAutoscalerFallbackDirectionScaleUp,
+		},
+	}
+	result, err = f.testScalingDecision(horizontalScalingTestArgs{
+		fakePai:         fakePai,
+		dataSource:      datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+		currentReplicas: 1,
+		statusReplicas:  1,
+		recReplicas:     10,
+		scaleReplicas:   1,
+		scaleError:      testutil.NewErrorString("scaling disabled as fallback in the scaling direction is disabled"),
+	})
+	assert.Equal(t, autoscaling.NoRequeue, result)
+	assert.NoError(t, err)
+
+	fakePai.Spec.Fallback = &datadoghq.DatadogFallbackPolicy{
+		Horizontal: datadoghq.DatadogPodAutoscalerHorizontalFallbackPolicy{
+			Direction: datadoghq.DatadogPodAutoscalerFallbackDirectionScaleUp,
+		},
+	}
+	result, err = f.testScalingDecision(horizontalScalingTestArgs{
+		fakePai:         fakePai,
+		dataSource:      datadoghqcommon.DatadogPodAutoscalerLocalValueSource,
+		currentReplicas: 1,
+		statusReplicas:  1,
+		recReplicas:     10,
+		scaleReplicas:   1,
+		scaleError:      testutil.NewErrorString("scaling disabled as fallback in the scaling direction is disabled"),
 	})
 	assert.Equal(t, autoscaling.NoRequeue, result)
 	assert.NoError(t, err)
