@@ -177,27 +177,19 @@ message ECSTask {
 }
 
 message TracerMetadata {
-  int32 schemaVersion = 1;
-  string runtimeId = 2;
-  string tracerLanguage = 3;
-  string tracerVersion = 4;
-  string hostname = 5;
-  string serviceName = 6;
-  string serviceEnv = 7;
-  string serviceVersion = 8;
+  string runtimeId = 1;
+  string serviceName = 2;
 }
 
 message Service {
   string generatedName = 1;
-  repeated string logFiles = 2;
-  string generatedNameSource = 3;
+  string generatedNameSource = 2;
   repeated string additionalGeneratedNames = 4;
   repeated TracerMetadata tracerMetadata = 5;
   string ddService = 6;
   repeated int32 tcpPorts = 7;
   repeated int32 udpPorts = 8;
   string apmInstrumentation = 9;
-  string type = 10;
 }
 
 message Language {

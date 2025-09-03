@@ -582,14 +582,8 @@ func toProtoLanguage(language *languagemodels.Language) *pb.Language {
 
 func toProtoTracerMetadata(tracerMetadata tracermetadata.TracerMetadata) *pb.TracerMetadata {
 	return &pb.TracerMetadata{
-		SchemaVersion:  int32(tracerMetadata.SchemaVersion),
-		RuntimeId:      tracerMetadata.RuntimeID,
-		TracerLanguage: tracerMetadata.TracerLanguage,
-		TracerVersion:  tracerMetadata.TracerVersion,
-		Hostname:       tracerMetadata.Hostname,
-		ServiceName:    tracerMetadata.ServiceName,
-		ServiceEnv:     tracerMetadata.ServiceEnv,
-		ServiceVersion: tracerMetadata.ServiceVersion,
+		RuntimeId:   tracerMetadata.RuntimeID,
+		ServiceName: tracerMetadata.ServiceName,
 	}
 }
 
@@ -615,7 +609,6 @@ func toProtoService(service *workloadmeta.Service) *pb.Service {
 
 	return &pb.Service{
 		GeneratedName:            service.GeneratedName,
-		LogFiles:                 service.LogFiles,
 		GeneratedNameSource:      service.GeneratedNameSource,
 		AdditionalGeneratedNames: service.AdditionalGeneratedNames,
 		TracerMetadata:           protoTracerMetadata,
@@ -623,7 +616,6 @@ func toProtoService(service *workloadmeta.Service) *pb.Service {
 		TcpPorts:                 tcpPorts,
 		UdpPorts:                 udpPorts,
 		ApmInstrumentation:       service.APMInstrumentation,
-		Type:                     service.Type,
 	}
 }
 
@@ -1118,14 +1110,8 @@ func toWorkloadmetaLanguage(protoLanguage *pb.Language) *languagemodels.Language
 
 func toWorkloadmetaTracerMetadata(protoTracerMetadata *pb.TracerMetadata) tracermetadata.TracerMetadata {
 	return tracermetadata.TracerMetadata{
-		SchemaVersion:  uint8(protoTracerMetadata.SchemaVersion),
-		RuntimeID:      protoTracerMetadata.RuntimeId,
-		TracerLanguage: protoTracerMetadata.TracerLanguage,
-		TracerVersion:  protoTracerMetadata.TracerVersion,
-		Hostname:       protoTracerMetadata.Hostname,
-		ServiceName:    protoTracerMetadata.ServiceName,
-		ServiceEnv:     protoTracerMetadata.ServiceEnv,
-		ServiceVersion: protoTracerMetadata.ServiceVersion,
+		RuntimeID:   protoTracerMetadata.RuntimeId,
+		ServiceName: protoTracerMetadata.ServiceName,
 	}
 }
 
@@ -1151,7 +1137,6 @@ func toWorkloadmetaService(protoService *pb.Service) *workloadmeta.Service {
 
 	return &workloadmeta.Service{
 		GeneratedName:            protoService.GeneratedName,
-		LogFiles:                 protoService.LogFiles,
 		GeneratedNameSource:      protoService.GeneratedNameSource,
 		AdditionalGeneratedNames: protoService.AdditionalGeneratedNames,
 		TracerMetadata:           tracerMetadata,
@@ -1159,6 +1144,5 @@ func toWorkloadmetaService(protoService *pb.Service) *workloadmeta.Service {
 		TCPPorts:                 tcpPorts,
 		UDPPorts:                 udpPorts,
 		APMInstrumentation:       protoService.ApmInstrumentation,
-		Type:                     protoService.Type,
 	}
 }
