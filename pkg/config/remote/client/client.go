@@ -14,7 +14,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"slices"
-	"strings"
 	"sync"
 	"time"
 
@@ -140,12 +139,6 @@ func newAgentGRPCClient(ipcAddress string, cmdPort string, tlsConfig *tls.Config
 		grpc.MaxCallRecvMsgSize(maxMessageSize),
 	))
 	if err != nil {
-		// Skip returning "database not open" GRPC error
-		// https://datadoghq.atlassian.net/browse/RC-1858
-		if errStatus, ok := status.FromError(err); ok && errStatus.Code() == codes.Unknown && strings.Contains(errStatus.Message(), "database not open") {
-			log.Debugf("database not open error encountered: %v", err)
-			return nil, nil
-		}
 		return nil, err
 	}
 	return c, nil
