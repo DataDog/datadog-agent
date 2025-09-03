@@ -201,9 +201,9 @@ static void __always_inline redis_tcp_termination(conn_tuple_t *tup) {
 
 // Enqueues a batch of events to the user-space. To spare stack size, we take a scratch buffer from the map, copy
 // the connection tuple and the transaction to it, and then enqueue the event.
-static __always_inline void redis_batch_enqueue_wrapper(conn_tuple_t *tuple, redis_transaction_t *tx, redis_key_data_t *key) {
+static __always_inline void redis_with_key_batch_enqueue_wrapper(conn_tuple_t *tuple, redis_transaction_t *tx, redis_key_data_t *key) {
     u32 zero = 0;
-    redis_event_t *event = bpf_map_lookup_elem(&redis_scratch_buffer, &zero);
+    redis_with_key_event_t *event = bpf_map_lookup_elem(&redis_with_key_scratch_buffer, &zero);
     if (!event) {
         return;
     }
@@ -211,7 +211,7 @@ static __always_inline void redis_batch_enqueue_wrapper(conn_tuple_t *tuple, red
     bpf_memcpy(&event->tuple, tuple, sizeof(conn_tuple_t));
     bpf_memcpy(&event->tx, tx, sizeof(redis_transaction_t));
     bpf_memcpy(&event->key, key, sizeof(redis_key_data_t));
-    redis_batch_enqueue(event);
+    redis_with_key_batch_enqueue(event);
 }
 
 // Processes Redis response messages and validates their format.
@@ -240,7 +240,7 @@ static void __always_inline process_redis_response(pktbuf_t pkt, conn_tuple_t *t
 
 enqueue:
     transaction->response_last_seen = bpf_ktime_get_ns();
-    redis_batch_enqueue_wrapper(tup, transaction, key);
+    redis_with_key_batch_enqueue_wrapper(tup, transaction, key);
 cleanup:
     bpf_map_delete_elem(&redis_in_flight, tup);
     bpf_map_delete_elem(&redis_key_in_flight, tup);

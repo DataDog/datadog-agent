@@ -24,7 +24,7 @@ var (
 	maxCommand     = CommandType(0x3)
 )
 
-type EbpfEvent struct {
+type EbpfKeyedEvent struct {
 	Tuple     ConnTuple
 	Tx        EbpfTx
 	Key       EbpfKey

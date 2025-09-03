@@ -8,8 +8,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 )
 
-func TestCgoAlignment_EbpfEvent(t *testing.T) {
-	ebpftest.TestCgoAlignment[EbpfEvent](t)
+func TestCgoAlignment_EbpfKeyedEvent(t *testing.T) {
+	ebpftest.TestCgoAlignment[EbpfKeyedEvent](t)
 }
 
 func TestCgoAlignment_EbpfKey(t *testing.T) {

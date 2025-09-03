@@ -19,7 +19,7 @@ import (
 // EventWrapper wraps an ebpf event and provides additional methods to extract information from it.
 // We use this wrapper to avoid recomputing the same values (key name) multiple times.
 type EventWrapper struct {
-	*EbpfEvent
+	*EbpfKeyedEvent
 
 	keyNameSet bool
 	keyName    *intern.StringValue
@@ -28,8 +28,8 @@ type EventWrapper struct {
 }
 
 // NewEventWrapper creates a new EventWrapper from an ebpf event.
-func NewEventWrapper(e *EbpfEvent) *EventWrapper {
-	return &EventWrapper{EbpfEvent: e}
+func NewEventWrapper(e *EbpfKeyedEvent) *EventWrapper {
+	return &EventWrapper{EbpfKeyedEvent: e}
 }
 
 // ConnTuple returns the connection tuple for the transaction

@@ -70,13 +70,13 @@ int netif_receive_skb_core_postgres_4_14(void *ctx) {
 
 SEC("tracepoint/net/netif_receive_skb")
 int tracepoint__net__netif_receive_skb_redis(void *ctx) {
-    redis_batch_flush_with_telemetry(ctx);
+    redis_with_key_batch_flush_with_telemetry(ctx);
     return 0;
 }
 
 SEC("kprobe/__netif_receive_skb_core")
 int netif_receive_skb_core_redis_4_14(void *ctx) {
-    redis_batch_flush_with_telemetry(ctx);
+    redis_with_key_batch_flush_with_telemetry(ctx);
     return 0;
 }
 

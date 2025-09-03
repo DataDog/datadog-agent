@@ -33,17 +33,18 @@ const (
 	processTailCall        = "socket__redis_process"
 	tlsProcessTailCall     = "uprobe__redis_tls_process"
 	tlsTerminationTailCall = "uprobe__redis_tls_termination"
-	eventStream            = "redis"
+	name                   = "redis"
+	keyedEventStream       = "redis_with_key"
 	netifProbe             = "tracepoint__net__netif_receive_skb_redis"
 	netifProbe414          = "netif_receive_skb_core_redis_4_14"
 )
 
 type protocol struct {
-	cfg            *config.Config
-	eventsConsumer *events.Consumer[EbpfEvent]
-	mapCleaner     *ddebpf.MapCleaner[netebpf.ConnTuple, EbpfTx]
-	statskeeper    *StatsKeeper
-	mgr            *manager.Manager
+	cfg                 *config.Config
+	keyedEventsConsumer *events.Consumer[EbpfKeyedEvent]
+	mapCleaner          *ddebpf.MapCleaner[netebpf.ConnTuple, EbpfTx]
+	statskeeper         *StatsKeeper
+	mgr                 *manager.Manager
 }
 
 // Spec is the protocol spec for the redis protocol.
@@ -62,14 +63,14 @@ var Spec = &protocols.ProtocolSpec{
 			KprobeAttachMethod: manager.AttachKprobeWithPerfEventOpen,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: netifProbe414,
-				UID:          eventStream,
+				UID:          name,
 			},
 		},
 		{
 
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: netifProbe,
-				UID:          eventStream,
+				UID:          name,
 			},
 		},
 	},
@@ -113,7 +114,7 @@ func newRedisProtocol(mgr *manager.Manager, cfg *config.Config) (protocols.Proto
 
 // Name returns the name of the protocol.
 func (p *protocol) Name() string {
-	return "redis"
+	return name
 }
 
 // ConfigureOptions add the necessary options for the redis monitoring
@@ -129,28 +130,28 @@ func (p *protocol) ConfigureOptions(opts *manager.Options) {
 	}
 	netifProbeID := manager.ProbeIdentificationPair{
 		EBPFFuncName: netifProbe,
-		UID:          eventStream,
+		UID:          name,
 	}
 	if usmconfig.ShouldUseNetifReceiveSKBCoreKprobe() {
 		netifProbeID.EBPFFuncName = netifProbe414
 	}
 	opts.ActivatedProbes = append(opts.ActivatedProbes, &manager.ProbeSelector{ProbeIdentificationPair: netifProbeID})
 	utils.EnableOption(opts, "redis_monitoring_enabled")
-	events.Configure(p.cfg, eventStream, p.mgr, opts)
+	events.Configure(p.cfg, keyedEventStream, p.mgr, opts)
 }
 
 func (p *protocol) PreStart() (err error) {
-	p.eventsConsumer, err = events.NewConsumer(
-		eventStream,
+	p.keyedEventsConsumer, err = events.NewConsumer(
+		keyedEventStream,
 		p.mgr,
-		p.processRedis,
+		p.processKeyedRedis,
 	)
 
 	if err != nil {
 		return
 	}
 
-	p.eventsConsumer.Start()
+	p.keyedEventsConsumer.Start()
 	return
 }
 
@@ -166,8 +167,8 @@ func (p *protocol) Stop() {
 	// mapCleaner handles nil pointer receivers
 	p.mapCleaner.Stop()
 
-	if p.eventsConsumer != nil {
-		p.eventsConsumer.Stop()
+	if p.keyedEventsConsumer != nil {
+		p.keyedEventsConsumer.Stop()
 	}
 }
 
@@ -194,7 +195,7 @@ func (p *protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
 
 // GetStats returns a map of Redis stats and a callback to clean resources.
 func (p *protocol) GetStats() (*protocols.ProtocolStats, func()) {
-	p.eventsConsumer.Sync()
+	p.keyedEventsConsumer.Sync()
 
 	keysToStats := p.statskeeper.GetAndResetAllStats()
 	return &protocols.ProtocolStats{
@@ -212,7 +213,7 @@ func (*protocol) IsBuildModeSupported(buildmode.Type) bool {
 	return true
 }
 
-func (p *protocol) processRedis(events []EbpfEvent) {
+func (p *protocol) processKeyedRedis(events []EbpfKeyedEvent) {
 	for i := range events {
 		tx := &events[i]
 		eventWrapper := NewEventWrapper(tx)
