@@ -46,6 +46,7 @@ func StringTableFromArray(strings []string) *StringTable {
 	return st
 }
 
+// Msgsize returns the size of the message when serialized.
 func (s *StringTable) Msgsize() int {
 	size := 0
 	size += msgp.ArrayHeaderSize
@@ -131,6 +132,7 @@ type InternalTracerPayload struct {
 	Chunks []*InternalTraceChunk
 }
 
+// Msgsize returns the size of the message when serialized.
 func (tp *InternalTracerPayload) Msgsize() int {
 	size := 0
 	size += tp.Strings.Msgsize()
@@ -195,28 +197,34 @@ func (tp *InternalTracerPayload) ToProto() *TracerPayload {
 	}
 }
 
+// SetAttributes sets the attributes for the tracer payload.
 func (tp *InternalTracerPayload) SetAttributes(attributes map[uint32]*AnyValue) {
 	tp.Attributes = attributes
 }
 
+// Hostname returns the hostname from the tracer payload.
 func (tp *InternalTracerPayload) Hostname() string {
 	return tp.Strings.Get(tp.hostnameRef)
 }
 
+// SetHostname sets the hostname for the tracer payload.
 func (tp *InternalTracerPayload) SetHostname(hostname string) {
 	tp.Strings.DecrementReference(tp.hostnameRef)
 	tp.hostnameRef = tp.Strings.Add(hostname)
 }
 
+// AppVersion returns the application version from the tracer payload.
 func (tp *InternalTracerPayload) AppVersion() string {
 	return tp.Strings.Get(tp.appVersionRef)
 }
 
+// SetAppVersion sets the application version for the tracer payload.
 func (tp *InternalTracerPayload) SetAppVersion(version string) {
 	tp.Strings.DecrementReference(tp.appVersionRef)
 	tp.appVersionRef = tp.Strings.Add(version)
 }
 
+// LanguageName returns the language name from the tracer payload.
 func (tp *InternalTracerPayload) LanguageName() string {
 	return tp.Strings.Get(tp.languageNameRef)
 }
@@ -227,6 +235,7 @@ func (tp *InternalTracerPayload) SetLanguageName(name string) {
 	tp.languageNameRef = tp.Strings.Add(name)
 }
 
+// LanguageVersion returns the language version from the tracer payload.
 func (tp *InternalTracerPayload) LanguageVersion() string {
 	return tp.Strings.Get(tp.languageVersionRef)
 }
@@ -237,6 +246,7 @@ func (tp *InternalTracerPayload) SetLanguageVersion(version string) {
 	tp.languageVersionRef = tp.Strings.Add(version)
 }
 
+// TracerVersion returns the tracer version from the tracer payload.
 func (tp *InternalTracerPayload) TracerVersion() string {
 	return tp.Strings.Get(tp.tracerVersionRef)
 }
@@ -247,28 +257,34 @@ func (tp *InternalTracerPayload) SetTracerVersion(version string) {
 	tp.tracerVersionRef = tp.Strings.Add(version)
 }
 
+// ContainerID returns the container ID from the tracer payload.
 func (tp *InternalTracerPayload) ContainerID() string {
 	return tp.Strings.Get(tp.containerIDRef)
 }
 
+// SetContainerID sets the container ID for the tracer payload.
 func (tp *InternalTracerPayload) SetContainerID(containerID string) {
 	tp.Strings.DecrementReference(tp.containerIDRef)
 	tp.containerIDRef = tp.Strings.Add(containerID)
 }
 
+// Env returns the environment from the tracer payload.
 func (tp *InternalTracerPayload) Env() string {
 	return tp.Strings.Get(tp.envRef)
 }
 
+// SetEnv sets the environment for the tracer payload.
 func (tp *InternalTracerPayload) SetEnv(env string) {
 	tp.Strings.DecrementReference(tp.envRef)
 	tp.envRef = tp.Strings.Add(env)
 }
 
+// RuntimeID returns the runtime ID from the tracer payload.
 func (tp *InternalTracerPayload) RuntimeID() string {
 	return tp.Strings.Get(tp.runtimeIDRef)
 }
 
+// SetRuntimeID sets the runtime ID for the tracer payload.
 func (tp *InternalTracerPayload) SetRuntimeID(runtimeID string) {
 	tp.Strings.DecrementReference(tp.runtimeIDRef)
 	tp.runtimeIDRef = tp.Strings.Add(runtimeID)
@@ -293,10 +309,12 @@ func (tp *InternalTracerPayload) AddString(s string) uint32 {
 	return tp.Strings.Add(s)
 }
 
+// SetStringAttribute sets a string attribute for the tracer payload.
 func (tp *InternalTracerPayload) SetStringAttribute(key, value string) {
 	setStringAttribute(key, value, tp.Strings, tp.Attributes)
 }
 
+// GetAttributeAsString gets a string attribute from the tracer payload.
 func (tp *InternalTracerPayload) GetAttributeAsString(key string) (string, bool) {
 	return getAttributeAsString(key, tp.Strings, tp.Attributes)
 }
@@ -341,6 +359,7 @@ type InternalTraceChunk struct {
 	samplingMechanism uint32
 }
 
+// NewInternalTraceChunk creates a new internal trace chunk.
 func NewInternalTraceChunk(strings *StringTable, priority int32, origin string, attributes map[uint32]*AnyValue, spans []*InternalSpan, droppedTrace bool, traceID []byte, samplingMechanism uint32) *InternalTraceChunk {
 	return &InternalTraceChunk{
 		Strings:           strings,
@@ -354,6 +373,7 @@ func NewInternalTraceChunk(strings *StringTable, priority int32, origin string, 
 	}
 }
 
+// ShallowCopy creates a shallow copy of the internal trace chunk.
 // TODO: add a test to verify we have all fields
 func (c *InternalTraceChunk) ShallowCopy() *InternalTraceChunk {
 	return &InternalTraceChunk{
@@ -368,6 +388,7 @@ func (c *InternalTraceChunk) ShallowCopy() *InternalTraceChunk {
 	}
 }
 
+// Msgsize returns the size of the message when serialized.
 func (c *InternalTraceChunk) Msgsize() int {
 	size := 0
 	size += c.Strings.Msgsize()
@@ -392,19 +413,23 @@ func (c *InternalTraceChunk) LegacyTraceID() uint64 {
 	return binary.BigEndian.Uint64(c.TraceID[8:])
 }
 
+// Origin returns the origin from the trace chunk.
 func (c *InternalTraceChunk) Origin() string {
 	return c.Strings.Get(c.originRef)
 }
 
+// SetOrigin sets the origin for the trace chunk.
 func (c *InternalTraceChunk) SetOrigin(origin string) {
 	c.Strings.DecrementReference(c.originRef)
 	c.originRef = c.Strings.Add(origin)
 }
 
+// SamplingMechanism returns the sampling mechanism from the trace chunk.
 func (c *InternalTraceChunk) SamplingMechanism() uint32 {
 	return c.samplingMechanism
 }
 
+// SetSamplingMechanism sets the sampling mechanism for the trace chunk.
 func (c *InternalTraceChunk) SetSamplingMechanism(samplingMechanism uint32) {
 	c.samplingMechanism = samplingMechanism
 }
@@ -414,6 +439,7 @@ func (c *InternalTraceChunk) GetAttributeAsString(key string) (string, bool) {
 	return getAttributeAsString(key, c.Strings, c.Attributes)
 }
 
+// SetStringAttribute sets a string attribute for the trace chunk.
 func (c *InternalTraceChunk) SetStringAttribute(key, value string) {
 	setStringAttribute(key, value, c.Strings, c.Attributes)
 }
@@ -446,6 +472,7 @@ type InternalSpan struct {
 	span    *Span
 }
 
+// NewInternalSpan creates a new internal span.
 func NewInternalSpan(strings *StringTable, span *Span) *InternalSpan {
 	return &InternalSpan{
 		Strings: strings,
@@ -453,6 +480,7 @@ func NewInternalSpan(strings *StringTable, span *Span) *InternalSpan {
 	}
 }
 
+// ShallowCopy creates a shallow copy of the internal span.
 func (s *InternalSpan) ShallowCopy() *InternalSpan {
 	return &InternalSpan{
 		Strings: s.Strings,
@@ -460,6 +488,7 @@ func (s *InternalSpan) ShallowCopy() *InternalSpan {
 	}
 }
 
+// ToProto converts the internal span to a protobuf span.
 func (s *InternalSpan) ToProto(usedStrings []bool) *Span {
 	usedStrings[s.span.ServiceRef] = true
 	usedStrings[s.span.NameRef] = true
@@ -558,10 +587,12 @@ func (s *InternalSpan) Links() []*InternalSpanLink {
 	return links
 }
 
+// LenLinks returns the number of links in the span.
 func (s *InternalSpan) LenLinks() int {
 	return len(s.span.Links)
 }
 
+// Msgsize returns the size of the message when serialized.
 // TODO: how can we maintain this as we add more fields?
 func (s *InternalSpan) Msgsize() int {
 	size := 0
@@ -612,71 +643,87 @@ func (s *InternalSpan) SpanKind() string {
 	}
 }
 
+// Service returns the service name from the span.
 func (s *InternalSpan) Service() string {
 	return s.Strings.Get(s.span.ServiceRef)
 }
 
+// SetService sets the service name for the span.
 func (s *InternalSpan) SetService(svc string) {
 	s.Strings.DecrementReference(s.span.ServiceRef)
 	s.span.ServiceRef = s.Strings.Add(svc)
 }
 
+// Name returns the span name.
 func (s *InternalSpan) Name() string {
 	return s.Strings.Get(s.span.NameRef)
 }
 
+// SetName sets the span name.
 func (s *InternalSpan) SetName(name string) {
 	s.Strings.DecrementReference(s.span.NameRef)
 	s.span.NameRef = s.Strings.Add(name)
 }
 
+// Resource returns the resource from the span.
 func (s *InternalSpan) Resource() string {
 	return s.Strings.Get(s.span.ResourceRef)
 }
 
+// SetResource sets the resource for the span.
 func (s *InternalSpan) SetResource(resource string) {
 	s.Strings.DecrementReference(s.span.ResourceRef)
 	s.span.ResourceRef = s.Strings.Add(resource)
 }
 
+// Type returns the span type.
 func (s *InternalSpan) Type() string {
 	return s.Strings.Get(s.span.TypeRef)
 }
 
+// SetType sets the span type.
 func (s *InternalSpan) SetType(t string) {
 	s.Strings.DecrementReference(s.span.TypeRef)
 	s.span.TypeRef = s.Strings.Add(t)
 }
 
+// Env returns the environment from the span.
 func (s *InternalSpan) Env() string {
 	return s.Strings.Get(s.span.EnvRef)
 }
 
+// SetEnv sets the environment for the span.
 func (s *InternalSpan) SetEnv(e string) {
 	s.Strings.DecrementReference(s.span.EnvRef)
 	s.span.EnvRef = s.Strings.Add(e)
 }
 
+// ParentID returns the parent span ID.
 func (s *InternalSpan) ParentID() uint64 {
 	return s.span.ParentID
 }
 
+// SetParentID sets the parent span ID.
 func (s *InternalSpan) SetParentID(parentID uint64) {
 	s.span.ParentID = parentID
 }
 
+// SpanID returns the span ID.
 func (s *InternalSpan) SpanID() uint64 {
 	return s.span.SpanID
 }
 
+// SetSpanID sets the span ID.
 func (s *InternalSpan) SetSpanID(spanID uint64) {
 	s.span.SpanID = spanID
 }
 
+// Start returns the start time of the span.
 func (s *InternalSpan) Start() uint64 {
 	return s.span.Start
 }
 
+// SetStart sets the start time of the span.
 func (s *InternalSpan) SetStart(start uint64) {
 	s.span.Start = start
 }
@@ -685,43 +732,53 @@ func (s *InternalSpan) Error() bool {
 	return s.span.Error
 }
 
+// SetError sets the error flag for the span.
 func (s *InternalSpan) SetError(error bool) {
 	s.span.Error = error
 }
 
+// Attributes returns the attributes of the span.
 func (s *InternalSpan) Attributes() map[uint32]*AnyValue {
 	return s.span.Attributes
 }
 
+// Duration returns the duration of the span.
 func (s *InternalSpan) Duration() uint64 {
 	return s.span.Duration
 }
 
+// SetDuration sets the duration of the span.
 func (s *InternalSpan) SetDuration(duration uint64) {
 	s.span.Duration = duration
 }
 
+// Kind returns the span kind.
 func (s *InternalSpan) Kind() SpanKind {
 	return s.span.Kind
 }
 
+// SetSpanKind sets the span kind.
 func (s *InternalSpan) SetSpanKind(kind SpanKind) {
 	s.span.Kind = kind
 }
 
+// Component returns the component from the span.
 func (s *InternalSpan) Component() string {
 	return s.Strings.Get(s.span.ComponentRef)
 }
 
+// SetComponent sets the component for the span.
 func (s *InternalSpan) SetComponent(component string) {
 	s.Strings.DecrementReference(s.span.ComponentRef)
 	s.span.ComponentRef = s.Strings.Add(component)
 }
 
+// Version returns the version from the span.
 func (s *InternalSpan) Version() string {
 	return s.Strings.Get(s.span.VersionRef)
 }
 
+// SetVersion sets the version for the span.
 func (s *InternalSpan) SetVersion(version string) {
 	s.Strings.DecrementReference(s.span.VersionRef)
 	s.span.VersionRef = s.Strings.Add(version)
@@ -769,6 +826,7 @@ func (s *InternalSpan) SetStringAttribute(key, value string) {
 	setStringAttribute(key, value, s.Strings, s.span.Attributes)
 }
 
+// SetFloat64Attribute sets a float64 attribute for the span.
 func (s *InternalSpan) SetFloat64Attribute(key string, value float64) {
 	if s.span.Attributes == nil {
 		s.span.Attributes = make(map[uint32]*AnyValue)
@@ -830,6 +888,7 @@ func (s *InternalSpan) SetAttributeFromString(key, value string) {
 	setAttribute(key, FromString(s.Strings, value), s.Strings, s.span.Attributes)
 }
 
+// DeleteAttribute deletes an attribute from the span.
 func (s *InternalSpan) DeleteAttribute(key string) {
 	deleteAttribute(key, s.Strings, s.span.Attributes)
 }
@@ -861,6 +920,7 @@ type InternalSpanLink struct {
 	link    *SpanLink
 }
 
+// Msgsize returns the size of the message when serialized.
 func (sl *SpanLink) Msgsize() int {
 	size := 0
 	size += msgp.MapHeaderSize                          // Map
@@ -875,30 +935,37 @@ func (sl *SpanLink) Msgsize() int {
 	return size
 }
 
+// TraceID returns the trace ID from the span link.
 func (sl *InternalSpanLink) TraceID() []byte {
 	return sl.link.TraceID
 }
 
+// SpanID returns the span ID from the span link.
 func (sl *InternalSpanLink) SpanID() uint64 {
 	return sl.link.SpanID
 }
 
+// Flags returns the flags from the span link.
 func (sl *InternalSpanLink) Flags() uint32 {
 	return sl.link.Flags
 }
 
+// GetAttributeAsString gets a string attribute from the span link.
 func (sl *InternalSpanLink) GetAttributeAsString(key string) (string, bool) {
 	return getAttributeAsString(key, sl.Strings, sl.link.Attributes)
 }
 
+// SetStringAttribute sets a string attribute for the span link.
 func (sl *InternalSpanLink) SetStringAttribute(key, value string) {
 	setStringAttribute(key, value, sl.Strings, sl.link.Attributes)
 }
 
+// Tracestate returns the tracestate from the span link.
 func (sl *InternalSpanLink) Tracestate() string {
 	return sl.Strings.Get(sl.link.TracestateRef)
 }
 
+// Attributes returns the attributes of the span link.
 func (sl *InternalSpanLink) Attributes() map[uint32]*AnyValue {
 	return sl.link.Attributes
 }
@@ -911,14 +978,17 @@ type InternalSpanEvent struct {
 	event   *SpanEvent
 }
 
+// Name returns the name from the span event.
 func (se *InternalSpanEvent) Name() string {
 	return se.Strings.Get(se.event.NameRef)
 }
 
+// Attributes returns the attributes of the span event.
 func (se *InternalSpanEvent) Attributes() map[uint32]*AnyValue {
 	return se.event.Attributes
 }
 
+// Msgsize returns the size of the message when serialized.
 func (se *SpanEvent) Msgsize() int {
 	size := 0
 	size += msgp.MapHeaderSize                   // Map
@@ -931,6 +1001,7 @@ func (se *SpanEvent) Msgsize() int {
 	return size
 }
 
+// GetAttributeAsString gets a string attribute from the span event.
 func (se *InternalSpanEvent) GetAttributeAsString(key string) (string, bool) {
 	return getAttributeAsString(key, se.Strings, se.event.Attributes)
 }
@@ -973,7 +1044,7 @@ func (attr *AnyValue) AsString(strTable *StringTable) string {
 	}
 }
 
-// DecStringRefs decrements the ref count for all strings (including nested values) in this AnyValue as this value is being removed / replaced
+// RemoveStringRefs decrements the ref count for all strings (including nested values) in this AnyValue as this value is being removed / replaced
 // Noop for non-string values
 func (attr *AnyValue) RemoveStringRefs(strTable *StringTable) {
 	switch v := attr.Value.(type) {

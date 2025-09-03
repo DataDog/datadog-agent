@@ -227,7 +227,7 @@ func tracesEqualV1(from *idx.InternalTraceChunk, toStrings []string, to *idx.Tra
 	if from.Origin() != toStrings[to.OriginRef] {
 		return false
 	}
-	if from.DecisionMaker() != toStrings[to.DecisionMakerRef] {
+	if from.SamplingMechanism() != to.SamplingMechanism {
 		return false
 	}
 	if from.DroppedTrace != to.DroppedTrace {

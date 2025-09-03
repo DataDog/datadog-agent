@@ -563,6 +563,7 @@ func MarshalAttributesMap(bts []byte, attributes map[uint32]*AnyValue, strings *
 	return
 }
 
+// Msgsize returns the size of the message when serialized.
 func (val *AnyValue) Msgsize() int {
 	size := msgp.Uint32Size // For the type
 	switch v := val.Value.(type) {
@@ -665,14 +666,14 @@ func (sl *SpanLink) MarshalMsg(bts []byte, strings *StringTable, serStrings *Ser
 }
 
 // MarshalMsg marshals a SpanEvent into a byte stream
-func (evt *SpanEvent) MarshalMsg(bts []byte, strings *StringTable, serStrings *SerializedStrings) (o []byte, err error) {
+func (spanEvent *SpanEvent) MarshalMsg(bts []byte, strings *StringTable, serStrings *SerializedStrings) (o []byte, err error) {
 	o = msgp.AppendMapHeader(bts, 3)
 	o = msgp.AppendUint32(o, 1) // time
-	o = msgp.AppendUint64(o, evt.Time)
+	o = msgp.AppendUint64(o, spanEvent.Time)
 	o = msgp.AppendUint32(o, 2) // name
-	o = serStrings.AppendStreamingString(strings.Get(evt.NameRef), evt.NameRef, o)
+	o = serStrings.AppendStreamingString(strings.Get(spanEvent.NameRef), spanEvent.NameRef, o)
 	o = msgp.AppendUint32(o, 3) // attributes
-	o, err = MarshalAttributesMap(o, evt.Attributes, strings, serStrings)
+	o, err = MarshalAttributesMap(o, spanEvent.Attributes, strings, serStrings)
 	if err != nil {
 		err = msgp.WrapError(err, "Failed to marshal attributes")
 		return

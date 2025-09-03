@@ -189,7 +189,7 @@ func (s *Runner) Post(traceList pb.Traces) error {
 	return s.doRequest(req)
 }
 
-// Post posts the given list of traces to the trace agent. Before posting, agent must
+// PostV1 posts the given list of traces to the trace agent. Before posting, agent must
 // be started. You can start an agent using RunAgent.
 func (s *Runner) PostV1(tracerPayload *idx.InternalTracerPayload) error {
 	if s.agent == nil {
