@@ -5,6 +5,7 @@
 
 //go:build kubelet || docker
 
+// Package container provides container-related log tailers
 package container
 
 import (
