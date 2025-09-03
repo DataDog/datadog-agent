@@ -129,10 +129,12 @@ type NetworkPathSource struct {
 // NetworkPathDestination encapsulates information
 // about the destination of a path
 type NetworkPathDestination struct {
-	Hostname           string `json:"hostname"`
+	Hostname string `json:"hostname"`
+	Port     uint16 `json:"port"`
+	Service  string `json:"service,omitempty"`
+
+	// TODO: IPAddress and ReverseDNSHostname should be part of traceroute.run
 	IPAddress          string `json:"ip_address"`
-	Port               uint16 `json:"port"`
-	Service            string `json:"service,omitempty"`
 	ReverseDNSHostname string `json:"reverse_dns_hostname,omitempty"`
 }
 
