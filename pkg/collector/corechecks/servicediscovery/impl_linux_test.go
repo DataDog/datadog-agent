@@ -167,6 +167,7 @@ func cmpEvents(a, b *event) bool {
 func Test_linuxImpl(t *testing.T) {
 	host := "test-host"
 	t.Setenv("DD_DISCOVERY_ENABLED", "true")
+	t.Setenv("DD_PROCESS_CONFIG_PROCESS_COLLECTION_USE_WLM", "false")
 
 	type checkRun struct {
 		servicesResp *model.ServicesResponse
