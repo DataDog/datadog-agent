@@ -36,7 +36,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/decode"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/gosym"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/gotype"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
@@ -238,27 +237,11 @@ func testDyninst(
 	require.NoError(t, err)
 	defer func() { require.NoError(t, obj.Close()) }()
 
-	moduledata, err := object.ParseModuleData(obj)
+	symbolTable, err := object.ParseGoSymbolTable(obj)
 	require.NoError(t, err)
-
-	goVersion, err := object.ReadGoVersion(obj)
+	defer func() { require.NoError(t, symbolTable.Close()) }()
 	require.NoError(t, err)
-
-	goDebugSections, err := moduledata.GoDebugSections(obj)
-	require.NoError(t, err)
-	defer func() { require.NoError(t, goDebugSections.Close()) }()
-
-	symbolTable, err := gosym.ParseGoSymbolTable(
-		goDebugSections.PcLnTab.Data(),
-		goDebugSections.GoFunc.Data(),
-		moduledata.Text,
-		moduledata.EText,
-		moduledata.MinPC,
-		moduledata.MaxPC,
-		goVersion,
-	)
-	require.NoError(t, err)
-	symbolicator := symbol.NewGoSymbolicator(symbolTable)
+	symbolicator := symbol.NewGoSymbolicator(&symbolTable.GoSymbolTable)
 	require.NotNil(t, symbolicator)
 
 	cachingSymbolicator, err := symbol.NewCachingSymbolicator(symbolicator, 10000)
