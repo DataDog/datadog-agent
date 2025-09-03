@@ -1,6 +1,7 @@
 ---
 include:
   - .gitlab/.pre/include.yml
+  - .gitlab/bazel/*.yaml
   - .gitlab/benchmarks/include.yml
   - .gitlab/binary_build/include.yml
   - .gitlab/check_deploy/check_deploy.yml
@@ -765,8 +766,11 @@ workflow:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
+        - cmd/agent/dist/conf.d/discovery.d/*
         - cmd/agent/dist/conf.d/service_discovery.d/*
+        - comp/core/autodiscovery/providers/process_log.go
         - test/new-e2e/tests/discovery/**/*
+        - pkg/collector/corechecks/discovery/**/*
         - pkg/collector/corechecks/servicediscovery/**/*
         - pkg/discovery/**/*
       compare_to: $COMPARE_TO_BRANCH
@@ -985,6 +989,10 @@ workflow:
 .on_scheduled_main:
   - <<: *if_scheduled_main
     when: always
+
+.on_scheduled_main_on_success:
+  - <<: *if_scheduled_main
+    when: on_success
 
 .on_main_or_rc_and_no_skip_e2e:
   - <<: *if_disable_e2e_tests

@@ -713,7 +713,7 @@ func (s *upgradeScenarioSuite) TestRemoteInstallUninstall() {
 
 func (s *upgradeScenarioSuite) installPackage(pkg packageName, version string) (string, error) {
 	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
-	cmd := fmt.Sprintf("sudo datadog-installer daemon install %s %s > /tmp/install_package.log 2>&1", pkg, version)
+	cmd := fmt.Sprintf("sudo DD_BUNDLED_AGENT=installer datadog-agent daemon install %s %s > /tmp/install_package.log 2>&1", pkg, version)
 	s.T().Logf("Running install command: %s", cmd)
 	return s.Env().RemoteHost.Execute(cmd)
 }
@@ -730,7 +730,7 @@ func (s *upgradeScenarioSuite) mustInstallPackage(pkg packageName, version strin
 
 func (s *upgradeScenarioSuite) removePackage(pkg packageName) (string, error) {
 	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
-	cmd := fmt.Sprintf("sudo datadog-installer daemon remove %s > /tmp/install_package.log 2>&1", pkg)
+	cmd := fmt.Sprintf("sudo DD_BUNDLED_AGENT=installer datadog-agent daemon remove %s > /tmp/install_package.log 2>&1", pkg)
 
 	s.T().Logf("Running remove command: %s", cmd)
 	return s.Env().RemoteHost.Execute(cmd)
@@ -748,21 +748,21 @@ func (s *upgradeScenarioSuite) mustRemovePackage(pkg packageName) string {
 
 func (s *upgradeScenarioSuite) startExperiment(pkg packageName, version string) (string, error) {
 	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
-	cmd := fmt.Sprintf("sudo datadog-installer daemon start-experiment %s %s > /tmp/start_experiment.log 2>&1", pkg, version)
+	cmd := fmt.Sprintf("sudo DD_BUNDLED_AGENT=installer datadog-agent daemon start-experiment %s %s > /tmp/start_experiment.log 2>&1", pkg, version)
 	s.T().Logf("Running start command: %s", cmd)
 	return s.Env().RemoteHost.Execute(cmd)
 }
 
 func (s *upgradeScenarioSuite) promoteExperiment(pkg packageName) (string, error) {
 	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
-	cmd := fmt.Sprintf("sudo datadog-installer daemon promote-experiment %s > /tmp/promote_experiment.log 2>&1", pkg)
+	cmd := fmt.Sprintf("sudo DD_BUNDLED_AGENT=installer datadog-agent daemon promote-experiment %s > /tmp/promote_experiment.log 2>&1", pkg)
 	s.T().Logf("Running promote command: %s", cmd)
 	return s.Env().RemoteHost.Execute(cmd)
 }
 
 func (s *upgradeScenarioSuite) stopExperiment(pkg packageName) (string, error) {
 	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
-	cmd := fmt.Sprintf("sudo datadog-installer daemon stop-experiment %s > /tmp/stop_experiment.log 2>&1", pkg)
+	cmd := fmt.Sprintf("sudo DD_BUNDLED_AGENT=installer datadog-agent daemon stop-experiment %s > /tmp/stop_experiment.log 2>&1", pkg)
 	s.T().Logf("Running stop command: %s", cmd)
 	return s.Env().RemoteHost.Execute(cmd)
 }
@@ -776,7 +776,7 @@ func (s *upgradeScenarioSuite) setCatalog(newCatalog catalog) {
 
 	assert.Eventually(s.T(), func() bool {
 		_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(
-			"sudo datadog-installer daemon set-catalog '%s'", serializedCatalog),
+			"sudo DD_BUNDLED_AGENT=installer datadog-agent daemon set-catalog '%s'", serializedCatalog),
 		)
 
 		return err == nil

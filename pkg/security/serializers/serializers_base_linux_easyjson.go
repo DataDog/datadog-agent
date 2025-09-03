@@ -486,6 +486,8 @@ func easyjsonA1e47abeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers4(i
 			out.Size = uint32(in.Uint32())
 		case "network_direction":
 			out.NetworkDirection = string(in.String())
+		case "type":
+			out.Type = string(in.String())
 		default:
 			in.SkipRecursive()
 		}
@@ -556,10 +558,15 @@ func easyjsonA1e47abeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers4(o
 		out.RawString(prefix)
 		out.Uint32(uint32(in.Size))
 	}
-	{
+	if in.NetworkDirection != "" {
 		const prefix string = ",\"network_direction\":"
 		out.RawString(prefix)
 		out.String(string(in.NetworkDirection))
+	}
+	if in.Type != "" {
+		const prefix string = ",\"type\":"
+		out.RawString(prefix)
+		out.String(string(in.Type))
 	}
 	out.RawByte('}')
 }
@@ -1515,6 +1522,8 @@ func easyjsonA1e47abeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers9(i
 			out.Size = uint32(in.Uint32())
 		case "network_direction":
 			out.NetworkDirection = string(in.String())
+		case "type":
+			out.Type = string(in.String())
 		default:
 			in.SkipRecursive()
 		}
@@ -1565,10 +1574,15 @@ func easyjsonA1e47abeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers9(o
 		out.RawString(prefix)
 		out.Uint32(uint32(in.Size))
 	}
-	{
+	if in.NetworkDirection != "" {
 		const prefix string = ",\"network_direction\":"
 		out.RawString(prefix)
 		out.String(string(in.NetworkDirection))
+	}
+	if in.Type != "" {
+		const prefix string = ",\"type\":"
+		out.RawString(prefix)
+		out.String(string(in.Type))
 	}
 	out.RawByte('}')
 }

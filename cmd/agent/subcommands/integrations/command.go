@@ -104,7 +104,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	integrationCmd.PersistentFlags().CountVarP(&cliParams.verbose, "verbose", "v", "enable verbose logging")
 	integrationCmd.PersistentFlags().BoolVarP(&cliParams.allowRoot, "allow-root", "r", false, "flag to enable root to install packages")
 	integrationCmd.PersistentFlags().BoolVarP(&cliParams.useSysPython, "use-sys-python", "p", false, "use system python instead [dev flag]")
-	integrationCmd.PersistentFlags().StringVarP(&cliParams.pythonMajorVersion, "python", "", "", "the version of Python to act upon (2 or 3). defaults to the python_version setting in datadog.yaml")
+	integrationCmd.PersistentFlags().StringVarP(&cliParams.pythonMajorVersion, "python", "", "", "the version of Python to act upon (2 or 3). Defaults to 3.")
 
 	// Power user flags - mark as hidden
 	_ = integrationCmd.PersistentFlags().MarkHidden("use-sys-python")
@@ -183,7 +183,7 @@ You must specify a version of the package to install using the syntax: <package>
 	return []*cobra.Command{integrationCmd}
 }
 
-func loadPythonInfo(config config.Component, cliParams *cliParams) error {
+func loadPythonInfo(cliParams *cliParams) error {
 	rootDir, _ = executable.Folder()
 	for {
 		agentReleaseFile := filepath.Join(rootDir, reqAgentReleaseFile)
@@ -201,7 +201,7 @@ func loadPythonInfo(config config.Component, cliParams *cliParams) error {
 	}
 
 	if cliParams.pythonMajorVersion == "" {
-		cliParams.pythonMajorVersion = config.GetString("python_version")
+		cliParams.pythonMajorVersion = "3"
 	}
 
 	constraintsPath = filepath.Join(rootDir, fmt.Sprintf("final_constraints-py%s.txt", cliParams.pythonMajorVersion))
@@ -370,8 +370,8 @@ func pip(cliParams *cliParams, args []string, stdout io.Writer, stderr io.Writer
 	return nil
 }
 
-func install(config config.Component, cliParams *cliParams, _ log.Component) error {
-	if err := loadPythonInfo(config, cliParams); err != nil {
+func install(cliParams *cliParams, _ log.Component) error {
+	if err := loadPythonInfo(cliParams); err != nil {
 		return err
 	}
 
@@ -867,8 +867,8 @@ func moveConfigurationFiles(srcFolder string, dstFolder string) error {
 	return nil
 }
 
-func remove(config config.Component, cliParams *cliParams, _ log.Component) error {
-	if err := loadPythonInfo(config, cliParams); err != nil {
+func remove(cliParams *cliParams, _ log.Component) error {
+	if err := loadPythonInfo(cliParams); err != nil {
 		return err
 	}
 
@@ -891,8 +891,8 @@ func remove(config config.Component, cliParams *cliParams, _ log.Component) erro
 	return pip(cliParams, pipArgs, os.Stdout, os.Stderr)
 }
 
-func list(config config.Component, cliParams *cliParams, _ log.Component) error {
-	if err := loadPythonInfo(config, cliParams); err != nil {
+func list(cliParams *cliParams, _ log.Component) error {
+	if err := loadPythonInfo(cliParams); err != nil {
 		return err
 	}
 
@@ -918,8 +918,8 @@ func list(config config.Component, cliParams *cliParams, _ log.Component) error 
 	return nil
 }
 
-func show(config config.Component, cliParams *cliParams, _ log.Component) error {
-	if err := loadPythonInfo(config, cliParams); err != nil {
+func show(cliParams *cliParams, _ log.Component) error {
+	if err := loadPythonInfo(cliParams); err != nil {
 		return err
 	}
 
