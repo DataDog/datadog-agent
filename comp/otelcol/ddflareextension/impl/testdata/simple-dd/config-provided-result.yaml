@@ -73,7 +73,7 @@ receivers:
       grpc: null
       http: null
   prometheus:
-    api_server: 
+    api_server:
       enabled: false
       server_config:
         cors: null
