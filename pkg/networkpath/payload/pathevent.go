@@ -134,6 +134,8 @@ type NetworkPathDestination struct {
 	Service  string `json:"service,omitempty"`
 
 	// TODO: IPAddress and ReverseDNSHostname should be part of traceroute.run
+	// TODO: IPAddress and ReverseDNSHostname should be part of traceroute.run
+	// TODO: IPAddress and ReverseDNSHostname should be part of traceroute.run
 	IPAddress          string `json:"ip_address"`
 	ReverseDNSHostname string `json:"reverse_dns_hostname,omitempty"`
 }
@@ -212,8 +214,13 @@ type NetworkPath struct {
 	Protocol     Protocol               `json:"protocol"`
 	Source       NetworkPathSource      `json:"source"`
 	Destination  NetworkPathDestination `json:"destination"`
-	Hops         []NetworkPathHop       `json:"hops"`
-	Traceroute   Traceroute             `json:"traceroute"`
-	E2eProbe     E2eProbe               `json:"e2e_probe"`
-	Tags         []string               `json:"tags,omitempty"`
+
+	// TODO: Remove legacy hops
+	// TODO: Remove legacy hops
+	// TODO: Remove legacy hops
+	Hops []NetworkPathHop `json:"hops"`
+
+	Traceroute Traceroute `json:"traceroute"`
+	E2eProbe   E2eProbe   `json:"e2e_probe"`
+	Tags       []string   `json:"tags,omitempty"`
 }
