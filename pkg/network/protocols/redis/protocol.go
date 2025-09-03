@@ -198,7 +198,8 @@ func (p *protocol) Stop() {
 
 // DumpMaps dumps map contents for debugging.
 func (p *protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
-	if mapName == inFlightMap { // maps/redis_in_flight (BPF_MAP_TYPE_HASH), key ConnTuple, value EbpfTx
+	switch mapName {
+	case inFlightMap: // maps/redis_in_flight (BPF_MAP_TYPE_HASH), key ConnTuple, value EbpfTx
 		var key netebpf.ConnTuple
 		var value EbpfTx
 		protocols.WriteMapDumpHeader(w, currentMap, mapName, key, value)
@@ -206,7 +207,7 @@ func (p *protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			spew.Fdump(w, key, value)
 		}
-	} else if mapName == keyInFlightMap {
+	case keyInFlightMap:
 		var key netebpf.ConnTuple
 		var value EbpfKey
 		protocols.WriteMapDumpHeader(w, currentMap, mapName, key, value)
