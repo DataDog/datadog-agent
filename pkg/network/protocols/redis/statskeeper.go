@@ -51,11 +51,11 @@ func (s *StatsKeeper) Process(event *EventWrapper) {
 	key := Key{
 		Command:       event.CommandType(),
 		ConnectionKey: event.ConnTuple(),
-		Truncated:     event.Tx.Truncated,
 	}
 
 	if s.trackResources {
 		key.KeyName = event.KeyName()
+		key.Truncated = event.Key.Truncated
 	}
 
 	requestStats, ok := s.stats[key]

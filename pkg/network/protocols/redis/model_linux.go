@@ -45,20 +45,20 @@ func (e *EventWrapper) ConnTuple() types.ConnectionKey {
 }
 
 // getFragment returns the actual query fragment from the event.
-func getFragment(e *EbpfTx) []byte {
-	if e.Buf_len == 0 {
+func getFragment(e *EbpfKey) []byte {
+	if e.Len == 0 {
 		return nil
 	}
-	if e.Buf_len > uint16(len(e.Buf)) {
+	if e.Len > uint16(len(e.Buf)) {
 		return e.Buf[:len(e.Buf)]
 	}
-	return e.Buf[:e.Buf_len]
+	return e.Buf[:e.Len]
 }
 
 // KeyName returns the key name of the key.
 func (e *EventWrapper) KeyName() *intern.StringValue {
 	if !e.keyNameSet {
-		e.keyName = Interner.Get(getFragment(&e.Tx))
+		e.keyName = Interner.Get(getFragment(&e.Key))
 		e.keyNameSet = true
 	}
 	return e.keyName
@@ -92,7 +92,7 @@ ebpfTx{
 func (e *EventWrapper) String() string {
 	var output strings.Builder
 	var truncatedPath string
-	if e.Tx.Truncated {
+	if e.Key.Truncated {
 		truncatedPath = " (truncated)"
 	}
 	output.WriteString(fmt.Sprintf(template, e.CommandType(), e.KeyName().Get(), truncatedPath, e.RequestLatency()))

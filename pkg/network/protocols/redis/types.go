@@ -25,4 +25,5 @@ var (
 )
 
 type EbpfEvent C.redis_event_t
+type EbpfKey C.redis_key_data_t
 type EbpfTx C.redis_transaction_t
