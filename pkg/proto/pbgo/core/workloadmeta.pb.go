@@ -1533,17 +1533,11 @@ func (x *ECSTask) GetAwsAccountID() string {
 }
 
 type TracerMetadata struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	SchemaVersion  int32                  `protobuf:"varint,1,opt,name=schemaVersion,proto3" json:"schemaVersion,omitempty"`
-	RuntimeId      string                 `protobuf:"bytes,2,opt,name=runtimeId,proto3" json:"runtimeId,omitempty"`
-	TracerLanguage string                 `protobuf:"bytes,3,opt,name=tracerLanguage,proto3" json:"tracerLanguage,omitempty"`
-	TracerVersion  string                 `protobuf:"bytes,4,opt,name=tracerVersion,proto3" json:"tracerVersion,omitempty"`
-	Hostname       string                 `protobuf:"bytes,5,opt,name=hostname,proto3" json:"hostname,omitempty"`
-	ServiceName    string                 `protobuf:"bytes,6,opt,name=serviceName,proto3" json:"serviceName,omitempty"`
-	ServiceEnv     string                 `protobuf:"bytes,7,opt,name=serviceEnv,proto3" json:"serviceEnv,omitempty"`
-	ServiceVersion string                 `protobuf:"bytes,8,opt,name=serviceVersion,proto3" json:"serviceVersion,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RuntimeId     string                 `protobuf:"bytes,1,opt,name=runtimeId,proto3" json:"runtimeId,omitempty"`
+	ServiceName   string                 `protobuf:"bytes,2,opt,name=serviceName,proto3" json:"serviceName,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *TracerMetadata) Reset() {
@@ -1576,37 +1570,9 @@ func (*TracerMetadata) Descriptor() ([]byte, []int) {
 	return file_datadog_workloadmeta_workloadmeta_proto_rawDescGZIP(), []int{14}
 }
 
-func (x *TracerMetadata) GetSchemaVersion() int32 {
-	if x != nil {
-		return x.SchemaVersion
-	}
-	return 0
-}
-
 func (x *TracerMetadata) GetRuntimeId() string {
 	if x != nil {
 		return x.RuntimeId
-	}
-	return ""
-}
-
-func (x *TracerMetadata) GetTracerLanguage() string {
-	if x != nil {
-		return x.TracerLanguage
-	}
-	return ""
-}
-
-func (x *TracerMetadata) GetTracerVersion() string {
-	if x != nil {
-		return x.TracerVersion
-	}
-	return ""
-}
-
-func (x *TracerMetadata) GetHostname() string {
-	if x != nil {
-		return x.Hostname
 	}
 	return ""
 }
@@ -1618,32 +1584,16 @@ func (x *TracerMetadata) GetServiceName() string {
 	return ""
 }
 
-func (x *TracerMetadata) GetServiceEnv() string {
-	if x != nil {
-		return x.ServiceEnv
-	}
-	return ""
-}
-
-func (x *TracerMetadata) GetServiceVersion() string {
-	if x != nil {
-		return x.ServiceVersion
-	}
-	return ""
-}
-
 type Service struct {
 	state                    protoimpl.MessageState `protogen:"open.v1"`
 	GeneratedName            string                 `protobuf:"bytes,1,opt,name=generatedName,proto3" json:"generatedName,omitempty"`
-	LogFiles                 []string               `protobuf:"bytes,2,rep,name=logFiles,proto3" json:"logFiles,omitempty"`
-	GeneratedNameSource      string                 `protobuf:"bytes,3,opt,name=generatedNameSource,proto3" json:"generatedNameSource,omitempty"`
+	GeneratedNameSource      string                 `protobuf:"bytes,2,opt,name=generatedNameSource,proto3" json:"generatedNameSource,omitempty"`
 	AdditionalGeneratedNames []string               `protobuf:"bytes,4,rep,name=additionalGeneratedNames,proto3" json:"additionalGeneratedNames,omitempty"`
 	TracerMetadata           []*TracerMetadata      `protobuf:"bytes,5,rep,name=tracerMetadata,proto3" json:"tracerMetadata,omitempty"`
 	DdService                string                 `protobuf:"bytes,6,opt,name=ddService,proto3" json:"ddService,omitempty"`
 	TcpPorts                 []int32                `protobuf:"varint,7,rep,packed,name=tcpPorts,proto3" json:"tcpPorts,omitempty"`
 	UdpPorts                 []int32                `protobuf:"varint,8,rep,packed,name=udpPorts,proto3" json:"udpPorts,omitempty"`
 	ApmInstrumentation       string                 `protobuf:"bytes,9,opt,name=apmInstrumentation,proto3" json:"apmInstrumentation,omitempty"`
-	Type                     string                 `protobuf:"bytes,10,opt,name=type,proto3" json:"type,omitempty"`
 	unknownFields            protoimpl.UnknownFields
 	sizeCache                protoimpl.SizeCache
 }
@@ -1683,13 +1633,6 @@ func (x *Service) GetGeneratedName() string {
 		return x.GeneratedName
 	}
 	return ""
-}
-
-func (x *Service) GetLogFiles() []string {
-	if x != nil {
-		return x.LogFiles
-	}
-	return nil
 }
 
 func (x *Service) GetGeneratedNameSource() string {
@@ -1737,13 +1680,6 @@ func (x *Service) GetUdpPorts() []int32 {
 func (x *Service) GetApmInstrumentation() string {
 	if x != nil {
 		return x.ApmInstrumentation
-	}
-	return ""
-}
-
-func (x *Service) GetType() string {
-	if x != nil {
-		return x.Type
 	}
 	return ""
 }
@@ -2232,30 +2168,19 @@ const file_datadog_workloadmeta_workloadmeta_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1aH\n" +
 	"\x1aContainerInstanceTagsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xa8\x02\n" +
-	"\x0eTracerMetadata\x12$\n" +
-	"\rschemaVersion\x18\x01 \x01(\x05R\rschemaVersion\x12\x1c\n" +
-	"\truntimeId\x18\x02 \x01(\tR\truntimeId\x12&\n" +
-	"\x0etracerLanguage\x18\x03 \x01(\tR\x0etracerLanguage\x12$\n" +
-	"\rtracerVersion\x18\x04 \x01(\tR\rtracerVersion\x12\x1a\n" +
-	"\bhostname\x18\x05 \x01(\tR\bhostname\x12 \n" +
-	"\vserviceName\x18\x06 \x01(\tR\vserviceName\x12\x1e\n" +
-	"\n" +
-	"serviceEnv\x18\a \x01(\tR\n" +
-	"serviceEnv\x12&\n" +
-	"\x0eserviceVersion\x18\b \x01(\tR\x0eserviceVersion\"\xa1\x03\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"P\n" +
+	"\x0eTracerMetadata\x12\x1c\n" +
+	"\truntimeId\x18\x01 \x01(\tR\truntimeId\x12 \n" +
+	"\vserviceName\x18\x02 \x01(\tR\vserviceName\"\xf1\x02\n" +
 	"\aService\x12$\n" +
-	"\rgeneratedName\x18\x01 \x01(\tR\rgeneratedName\x12\x1a\n" +
-	"\blogFiles\x18\x02 \x03(\tR\blogFiles\x120\n" +
-	"\x13generatedNameSource\x18\x03 \x01(\tR\x13generatedNameSource\x12:\n" +
+	"\rgeneratedName\x18\x01 \x01(\tR\rgeneratedName\x120\n" +
+	"\x13generatedNameSource\x18\x02 \x01(\tR\x13generatedNameSource\x12:\n" +
 	"\x18additionalGeneratedNames\x18\x04 \x03(\tR\x18additionalGeneratedNames\x12L\n" +
 	"\x0etracerMetadata\x18\x05 \x03(\v2$.datadog.workloadmeta.TracerMetadataR\x0etracerMetadata\x12\x1c\n" +
 	"\tddService\x18\x06 \x01(\tR\tddService\x12\x1a\n" +
 	"\btcpPorts\x18\a \x03(\x05R\btcpPorts\x12\x1a\n" +
 	"\budpPorts\x18\b \x03(\x05R\budpPorts\x12.\n" +
-	"\x12apmInstrumentation\x18\t \x01(\tR\x12apmInstrumentation\x12\x12\n" +
-	"\x04type\x18\n" +
-	" \x01(\tR\x04type\"8\n" +
+	"\x12apmInstrumentation\x18\t \x01(\tR\x12apmInstrumentation\"8\n" +
 	"\bLanguage\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x18\n" +
 	"\aversion\x18\x02 \x01(\tR\aversion\"\x98\x04\n" +
