@@ -319,6 +319,18 @@ function Invoke-BuildScript {
             Install-TestingDeps
         }
 
+        go install github.com/DataDog/orchestrion@v1.4.0
+        orchestrion pin
+        # Ensure GOFLAGS includes orchestrion toolexec for code instrumentation
+        if ($env:GOFLAGS) {
+            $env:GOFLAGS = "$env:GOFLAGS '-toolexec=orchestrion toolexec'"
+        } else {
+            $env:GOFLAGS = "'-toolexec=orchestrion toolexec'"
+        }
+        $env:DD_ENV = "nativetest" # TODO: Remove after testing native instrumentation
+        $env:DD_CIVISIBILITY_ENABLED = "true"
+        $env:DD_CIVISIBILITY_AGENTLESS_ENABLED = "true"
+        $env:DD_API_KEY = $env:API_KEY_ORG2
         if ($CheckGoVersion) {
             dda inv -- -e check-go-version
             if ($LASTEXITCODE -ne 0) {
