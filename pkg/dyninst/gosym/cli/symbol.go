@@ -77,7 +77,7 @@ var listCmd = &cobra.Command{
 		}
 		defer func() { retErr = errors.Join(retErr, closeFn()) }()
 		for fn := range symtab.Functions() {
-			fmt.Printf("%s %#x-%#x\n", fn.Name, fn.Entry, fn.End)
+			fmt.Printf("%s %#x-%#x\n", fn.Name(), fn.Entry, fn.End)
 		}
 		return nil
 	},
