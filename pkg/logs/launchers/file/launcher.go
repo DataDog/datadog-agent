@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(AML) Fix revive linter
+// Package file provides file-based log launchers
 package file
 
 import (
@@ -233,7 +233,7 @@ func (s *Launcher) scan() {
 
 	for _, tailer := range s.tailers.All() {
 		// stop all tailers which have not been selected
-		_, shouldTail := filesTailed[tailer.GetId()]
+		_, shouldTail := filesTailed[tailer.GetID()]
 		if !shouldTail {
 			s.stopTailer(tailer)
 		}
@@ -556,7 +556,7 @@ func (s *Launcher) createRotatedTailer(t *tailer.Tailer, file *tailer.File, patt
 	return t.NewRotatedTailer(file, channel, monitor, decoder.NewDecoderFromSourceWithPattern(file.Source, pattern, tailerInfo), tailerInfo, s.tagger, fingerprint, s.registry)
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
+// CheckProcessTelemetry checks process file statistics and logs warnings about file handle usage
 func CheckProcessTelemetry(stats *procfilestats.ProcessFileStats) {
 	ratio := float64(stats.AgentOpenFiles) / float64(stats.OsFileLimit)
 	if ratio > 0.9 {

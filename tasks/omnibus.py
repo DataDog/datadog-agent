@@ -1,9 +1,11 @@
+import hashlib
 import os
 import re
 import subprocess
 import sys
 import tempfile
 import warnings
+from collections import defaultdict
 from collections.abc import Iterator
 from typing import NamedTuple
 
@@ -624,3 +626,62 @@ def rpath_edit(ctx, install_path, target_rpath_dd_folder, platform="linux"):
         if install_path in binary_rpath:
             new_rpath = os.path.relpath(target_rpath_dd_folder, os.path.dirname(file))
             _patch_binary_rpath(ctx, new_rpath, install_path, binary_rpath, platform, file)
+
+
+@task
+def deduplicate_files(ctx, directory):
+    # Matches: .so, .so.X, .so.X.Y, .so.X.Y.Z, .bundle, .dll, .dylib, .pyd
+    LIB_PATTERN = re.compile(r"\.(bundle|dll|dylib|pyd|so(?:\.\d+)*)$")
+
+    def hash_file(filepath):
+        """Returns the SHA-256 hash of the file's contents."""
+        with open(filepath, "rb") as f:
+            return hashlib.file_digest(f, "sha256").hexdigest()
+
+    def find_duplicates(root_dir):
+        """Finds and returns duplicates as a map of hash -> list of files with that hash, excluding empty files."""
+        hash_to_files = defaultdict(list)
+        for dirpath, _, filenames in os.walk(root_dir):
+            for name in filenames:
+                if not LIB_PATTERN.search(name):
+                    continue
+
+                full_path = os.path.join(dirpath, name)
+                # Only regular files; skip symlinks
+                if os.path.isfile(full_path) and not os.path.islink(full_path):
+                    try:
+                        if os.path.getsize(full_path) == 0:
+                            continue  # Exclude empty files
+                        file_hash = hash_file(full_path)
+                        hash_to_files[file_hash].append(full_path)
+                    except Exception as e:
+                        print(f"Error hashing {full_path}: {e}")
+        return {h: paths for h, paths in hash_to_files.items() if len(paths) > 1}
+
+    def replace_with_symlinks(duplicates):
+        """Replaces all duplicates with symlinks to the first original (shortest path wins)."""
+        for files in duplicates.values():
+            files.sort(key=lambda p: (len(p), p))  # shortest path, then lexicographic
+            original = files[0]
+            for dup in files[1:]:
+                try:
+                    os.remove(dup)
+                    rel_path = os.path.relpath(original, os.path.dirname(dup))
+                    os.symlink(rel_path, dup)
+                    print(f"Replaced {dup} with symlink to {original}")
+                except Exception as e:
+                    print(f"Failed to replace {dup}: {e}")
+
+    root = os.path.abspath(directory)
+    if not os.path.isdir(root):
+        print(f"{root} is not a valid directory.")
+        return
+
+    print(f"Scanning for duplicates in: {root}")
+    duplicates = find_duplicates(root)
+
+    if not duplicates:
+        return
+
+    print(f"Found {sum(len(v) - 1 for v in duplicates.values())} duplicate files.")
+    replace_with_symlinks(duplicates)

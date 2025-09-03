@@ -990,6 +990,10 @@ workflow:
   - <<: *if_scheduled_main
     when: always
 
+.on_scheduled_main_on_success:
+  - <<: *if_scheduled_main
+    when: on_success
+
 .on_main_or_rc_and_no_skip_e2e:
   - <<: *if_disable_e2e_tests
     when: never

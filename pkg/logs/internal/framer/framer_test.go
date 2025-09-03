@@ -12,9 +12,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
 const contentLenLimit = 900000
@@ -39,10 +40,9 @@ func chunk(input []byte, size int) [][]byte {
 		if size <= len(iter) {
 			rv = append(rv, iter)
 			break
-		} else { //nolint:revive // TODO(AML) Fix revive linter
-			rv = append(rv, iter[:size])
-			iter = iter[size:]
 		}
+		rv = append(rv, iter[:size])
+		iter = iter[size:]
 	}
 	return rv
 }
