@@ -228,6 +228,14 @@ func TestRemoteConfigImageResolver_Resolve(t *testing.T) {
 			tag:        "2",
 			expectedOK: false,
 		},
+		{
+			name:           "versioned_tag_with_v",
+			registry:       "gcr.io/datadoghq",
+			repository:     "dd-lib-python-init",
+			tag:            "v3",
+			expectedResult: "gcr.io/datadoghq/dd-lib-python-init@sha256:def456",
+			expectedOK:     true,
+		},
 	}
 
 	for _, tc := range testCases {

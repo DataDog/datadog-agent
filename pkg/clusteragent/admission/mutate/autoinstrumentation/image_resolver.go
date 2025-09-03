@@ -10,6 +10,7 @@ package autoinstrumentation
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -122,9 +123,11 @@ func (r *remoteConfigImageResolver) Resolve(registry string, repository string, 
 		return nil, false
 	}
 
-	resolved, exists := repoCache[tag]
+	normalizedTag := strings.TrimPrefix(tag, "v")
+
+	resolved, exists := repoCache[normalizedTag]
 	if !exists {
-		log.Debugf("No mapping found for %s:%s", requestedURL, tag)
+		log.Debugf("No mapping found for %s:%s", requestedURL, normalizedTag)
 		return nil, false
 	}
 
