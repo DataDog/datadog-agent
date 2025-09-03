@@ -14,6 +14,7 @@ message SecurityEventMessage {
     repeated string Tags = 3;
     string Service = 4;
     google.protobuf.Timestamp Timestamp = 5;
+    string OriginalRuleID = 6;
 }
 
 message DumpProcessCacheParams {
