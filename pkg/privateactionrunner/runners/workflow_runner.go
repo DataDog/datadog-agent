@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package runners
 
 import (
@@ -113,4 +118,31 @@ func (n *WorkflowRunner) startHeartbeat(ctx context.Context, task *types.Task) {
 			}
 		}
 	}
+}
+
+// TaskExecutor interface implementation
+
+// GetOpmsClient returns the OPMS client for task operations
+func (n *WorkflowRunner) GetOpmsClient() opms.Client {
+	return n.opmsClient
+}
+
+// GetTaskVerifier returns the task verifier for signature verification
+func (n *WorkflowRunner) GetTaskVerifier() *taskverifier.TaskVerifier {
+	return n.taskVerifier
+}
+
+// GetResolver returns the credential resolver
+func (n *WorkflowRunner) GetResolver() credentials.PrivateCredentialResolver {
+	return n.resolver
+}
+
+// GetConfig returns the configuration
+func (n *WorkflowRunner) GetConfig() *config.Config {
+	return n.config
+}
+
+// GetKeysManager returns the keys manager
+func (n *WorkflowRunner) GetKeysManager() remoteconfig.KeysManager {
+	return n.keysManager
 }
