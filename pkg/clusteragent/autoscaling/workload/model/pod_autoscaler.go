@@ -309,12 +309,11 @@ func (p *PodAutoscalerInternal) UpdateFromStatus(status *datadoghqcommon.Datadog
 		if len(status.Horizontal.LastActions) > 0 {
 			p.horizontalLastActions = status.Horizontal.LastActions
 
-			// TODO: Store the recommendations history as well, the last actions miss data
-			for _, recommendation := range status.Horizontal.LastActions {
-				if recommendation.RecommendedReplicas != nil {
-					p.horizontalLastRecommendations = addRecommendationToHistory(recommendation.Time.Time, p.horizontalRecommendationsRetention, p.horizontalLastRecommendations, HorizontalScalingValues{
-						Timestamp: recommendation.Time.Time,
-						Replicas:  *recommendation.RecommendedReplicas,
+			for _, recommendation := range status.Horizontal.LastRecommendations {
+				if recommendation.Replicas != 0 {
+					p.horizontalLastRecommendations = addRecommendationToHistory(recommendation.GeneratedAt.Time, p.horizontalRecommendationsRetention, p.horizontalLastRecommendations, HorizontalScalingValues{
+						Timestamp: recommendation.GeneratedAt.Time,
+						Replicas:  recommendation.Replicas,
 					})
 				}
 			}
@@ -504,7 +503,7 @@ func (p *PodAutoscalerInternal) BuildStatus(currentTime metav1.Time, currentStat
 	// Produce Horizontal status only if we have a desired number of replicas
 	if p.scalingValues.Horizontal != nil {
 		status.Horizontal = &datadoghqcommon.DatadogPodAutoscalerHorizontalStatus{
-			Target: &datadoghqcommon.DatadogPodAutoscalerHorizontalTargetStatus{
+			Target: &datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation{
 				Source:      p.scalingValues.Horizontal.Source,
 				GeneratedAt: metav1.NewTime(p.scalingValues.Horizontal.Timestamp),
 				Replicas:    p.scalingValues.Horizontal.Replicas,

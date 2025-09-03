@@ -344,7 +344,7 @@ func TestUpdateFromStatus(t *testing.T) {
 
 	status := &datadoghqcommon.DatadogPodAutoscalerStatus{
 		Horizontal: &datadoghqcommon.DatadogPodAutoscalerHorizontalStatus{
-			Target: &datadoghqcommon.DatadogPodAutoscalerHorizontalTargetStatus{
+			Target: &datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation{
 				Source:      datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
 				GeneratedAt: metav1.NewTime(now),
 				Replicas:    5,
@@ -353,6 +353,11 @@ func TestUpdateFromStatus(t *testing.T) {
 				{Time: metav1.NewTime(earlierActionTime), FromReplicas: 2, ToReplicas: 3, RecommendedReplicas: &earlierRecommended},
 				{Time: metav1.NewTime(midActionTime), FromReplicas: 3, ToReplicas: 4},
 				{Time: metav1.NewTime(lastRecommendedTime), FromReplicas: 4, ToReplicas: 5, RecommendedReplicas: &lastRecommended, LimitedReason: &limitReason},
+			},
+			LastRecommendations: []datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation{
+				{GeneratedAt: metav1.NewTime(earlierActionTime), Replicas: 2},
+				{GeneratedAt: metav1.NewTime(midActionTime), Replicas: 3},
+				{GeneratedAt: metav1.NewTime(lastRecommendedTime), Replicas: 5},
 			},
 		},
 		Vertical: &datadoghqcommon.DatadogPodAutoscalerVerticalStatus{
@@ -384,6 +389,7 @@ func TestUpdateFromStatus(t *testing.T) {
 	}
 
 	var actual PodAutoscalerInternal
+	actual.horizontalRecommendationsRetention = 10 * time.Minute
 	actual.UpdateFromStatus(status)
 
 	expected := FakePodAutoscalerInternal{
@@ -409,9 +415,12 @@ func TestUpdateFromStatus(t *testing.T) {
 			HorizontalError: errors.New("hRecErr"),
 			VerticalError:   errors.New("vRecErr"),
 		},
-		HorizontalLastActions: status.Horizontal.LastActions,
+		HorizontalLastActions:              status.Horizontal.LastActions,
+		HorizontalRecommendationsRetention: 10 * time.Minute,
 		HorizontalLastRecommendations: []HorizontalScalingValues{
-			{Timestamp: lastRecommendedTime, Replicas: lastRecommended},
+			{Timestamp: earlierActionTime, Replicas: 2},
+			{Timestamp: midActionTime, Replicas: 3},
+			{Timestamp: lastRecommendedTime, Replicas: 5},
 		},
 		HorizontalLastLimitReason: limitReason,
 		HorizontalLastActionError: errors.New("hScaleErr"),
