@@ -59,7 +59,7 @@ class LinuxBasePackages(Requirement):
         # These packages might have alternative means of installation, so
         # check if the command exists rather than checking for the package
         if shutil.which("aws") is None:
-            snap_packages.append("awscli")
+            snap_packages.append("aws-cli")
 
         # Not on the default repos, so we have to use snap
         snap_pkg_state = UbuntuSnapPackageManager(ctx).check(snap_packages, fix)
