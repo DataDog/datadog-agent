@@ -303,20 +303,17 @@ def finish(ctx, release_branch, release_date=None, upstream="origin"):
 
     Updates internal module dependencies with the new version.
     """
-    release_date_fmt = "%Y-%m-%d"
-
     # Step 1: Preparation
+
+    # Validate release_date (if provided)
     try:
-        if not release_date:
-            release_date = datetime.today()
-        else:
-            release_date = datetime.strptime(release_date, release_date_fmt)
-        release_date = release_date.strftime(release_date_fmt)
-    except ValueError as e:
-        raise ValueError(f"Invalid date - `{release_date}`. Expected date to be in format YYYY-MM-DD.")
+        if release_date:
+            datetime.strptime(release_date, "%Y-%m-%d")
+    except ValueError:
+        raise ValueError(f"Invalid date `{release_date}`. Date should be valid and in format YYYY-MM-DD.")
 
     major_version = get_version_major(release_branch)
-    print(f"Finishing release for major version {major_version} on {release_date}")
+    print(f"Finishing release for major version {major_version}")
 
     with agent_context(ctx, release_branch):
         # NOTE: the release process assumes that at least one RC
@@ -331,7 +328,7 @@ def finish(ctx, release_branch, release_date=None, upstream="origin"):
             f'Do you want to finish the release with version {new_version}?', color="bold", default=False
         ):
             raise Exit(color_message("Aborting.", "red"), code=1)
-        update_release_json(new_version, new_version, release_date)
+        update_release_json(new_version, new_version)
 
         next_milestone = next_final_version(ctx, release_branch, True)
         next_milestone = next_milestone.next_version(bump_patch=True)
@@ -377,10 +374,10 @@ def finish(ctx, release_branch, release_date=None, upstream="origin"):
 
         # Step 4: Add release changelog preludes
         print(color_message("Adding Agent release changelog prelude", "bold"))
-        _add_prelude(ctx, str(new_version))
+        _add_prelude(ctx, str(new_version), release_date)
 
         print(color_message("Adding DCA release changelog prelude", "bold"))
-        _add_dca_prelude(ctx, str(new_version))
+        _add_dca_prelude(ctx, str(new_version), release_date)
 
         ok = try_git_command(ctx, f"git commit -m 'Add preludes for {new_version} release'")
         if not ok:

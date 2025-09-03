@@ -12,7 +12,6 @@ from tasks.libs.common.git import get_default_branch, is_agent6
 from tasks.libs.releasing.documentation import _stringify_config
 from tasks.libs.releasing.version import (
     RELEASE_JSON_DEPENDENCIES,
-    RELEASE_JSON_DATE,
     VERSION_RE,
     _fetch_dependency_repo_version,
     _get_release_version_from_release_json,
@@ -136,7 +135,6 @@ def _update_release_json_entry(
     windows_ddprocmon_driver,
     windows_ddprocmon_version,
     windows_ddprocmon_shasum,
-    release_date = None,
 ):
     """
     Adds a new entry to provided release_json object with the provided parameters, and returns the new release_json object.
@@ -166,10 +164,6 @@ def _update_release_json_entry(
     for key, value in release_json.items():
         new_release_json[key] = value
 
-    # Add date if provided
-    if release_date:
-        new_release_json[RELEASE_JSON_DATE] = release_date
-
     # Then update the entry
     new_release_json[RELEASE_JSON_DEPENDENCIES] = _stringify_config(new_version_config)
 
@@ -181,7 +175,7 @@ def _update_release_json_entry(
 ##
 
 
-def _update_release_json(release_json, new_version: Version, max_version: Version, release_date: str | None = None):
+def _update_release_json(release_json, new_version: Version, max_version: Version):
     """
     Updates the provided release.json object by fetching compatible versions for all dependencies
     of the provided Agent version, constructing the new entry, adding it to the release.json object
@@ -253,11 +247,10 @@ def _update_release_json(release_json, new_version: Version, max_version: Versio
         windows_ddprocmon_driver,
         windows_ddprocmon_version,
         windows_ddprocmon_shasum,
-        release_date,
     )
 
 
-def update_release_json(new_version: Version, max_version: Version, release_date: str | None = None):
+def update_release_json(new_version: Version, max_version: Version):
     """
     Updates the release entries in release.json to prepare the next RC or final build.
     """
@@ -266,7 +259,7 @@ def update_release_json(new_version: Version, max_version: Version, release_date
     print(f"Updating release json for {new_version}")
 
     # Update release.json object with the entry for the new version
-    release_json = _update_release_json(release_json, new_version, max_version, release_date)
+    release_json = _update_release_json(release_json, new_version, max_version)
 
     _save_release_json(release_json)
 
