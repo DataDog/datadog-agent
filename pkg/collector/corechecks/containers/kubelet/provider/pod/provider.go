@@ -151,23 +151,8 @@ func (p *Provider) generateContainerSpecMetrics(sender sender.Sender, pod *kubel
 	tagList = utils.ConcatenateTags(tagList, p.config.Tags)
 
 	if container.Resources != nil { // Ephemeral containers do not have resources defined
-		wmetaKubelet, _ := p.store.GetKubelet()
-		if wmetaKubelet != nil {
-			cpuManagerPolicy := wmetaKubelet.ConfigDocument.KubeletConfig.CPUManagerPolicy
-			wmetaContainer, _ := p.store.GetContainer(containerID.GetID())
 
-			requestedWholeCores := false
-			if wmetaContainer.Resources.RequestedWholeCores != nil {
-				requestedWholeCores = *wmetaContainer.Resources.RequestedWholeCores
-			}
-			if pod.Status.QOSClass == "Guaranteed" &&
-				requestedWholeCores &&
-				cpuManagerPolicy == "static" {
-				tagList = utils.ConcatenateStringTags(tagList, tags.KubeRequestedCPUManagement+":static")
-			} else {
-				tagList = utils.ConcatenateStringTags(tagList, tags.KubeRequestedCPUManagement+":none")
-			}
-		}
+		tagList = common.AppendCPUManagementTag(p.store, pod.Status.QOSClass, containerID, tagList)
 
 		for r, value := range container.Resources.Requests {
 			sender.Gauge(common.KubeletMetricsPrefix+string(r)+".requests", value.AsApproximateFloat64(), "", tagList)

@@ -19,7 +19,6 @@ import (
 
 	taggercommon "github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	taglist "github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
@@ -169,24 +168,7 @@ func (p *Provider) processContainerMetric(metricType, metricName string, metricF
 			cID, _ := kubelet.KubeContainerIDToTaggerEntityID(containerID)
 			tags, _ = p.tagger.Tag(cID, types.HighCardinality)
 
-			wmetaKubelet, _ := p.store.GetKubelet()
-			if wmetaKubelet != nil {
-				cpuManagerPolicy := wmetaKubelet.ConfigDocument.KubeletConfig.CPUManagerPolicy
-				container, _ := p.store.GetContainer(cID.GetID())
-
-				requestedWholeCores := false
-				if container.Resources.RequestedWholeCores != nil {
-					requestedWholeCores = *container.Resources.RequestedWholeCores
-				}
-
-				if pod.QOSClass == "Guaranteed" &&
-					requestedWholeCores &&
-					cpuManagerPolicy == "static" {
-					tags = utils.ConcatenateStringTags(tags, taglist.KubeRequestedCPUManagement+":static")
-				} else {
-					tags = utils.ConcatenateStringTags(tags, taglist.KubeRequestedCPUManagement+":none")
-				}
-			}
+			tags = common.AppendCPUManagementTag(p.store, pod.QOSClass, cID, tags)
 		}
 
 		if len(tags) == 0 {
