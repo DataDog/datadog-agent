@@ -177,8 +177,6 @@ func (r *Runner) processResults(res *result.Results, protocol payload.Protocol, 
 		tracerouteRun := res.Traceroute.Runs[0]
 		traceroutePath.Destination.IPAddress = tracerouteRun.Destination.IPAddress.String()
 
-		fmt.Println("tracerouteRun.Destination.IPAddress.String():", tracerouteRun.Destination.IPAddress.String())
-
 		// get hardware interface info
 		//
 		// TODO: using a gateway lookup may be a more performant
