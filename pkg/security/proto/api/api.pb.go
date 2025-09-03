@@ -2655,17 +2655,18 @@ func (x *InstanceMessage) GetCGroupID() string {
 }
 
 type ActivityTreeStatsMessage struct {
-	state             protoimpl.MessageState `protogen:"open.v1"`
-	ProcessNodesCount int64                  `protobuf:"varint,1,opt,name=ProcessNodesCount,proto3" json:"ProcessNodesCount,omitempty"`
-	FileNodesCount    int64                  `protobuf:"varint,2,opt,name=FileNodesCount,proto3" json:"FileNodesCount,omitempty"`
-	DNSNodesCount     int64                  `protobuf:"varint,3,opt,name=DNSNodesCount,proto3" json:"DNSNodesCount,omitempty"`
-	SocketNodesCount  int64                  `protobuf:"varint,4,opt,name=SocketNodesCount,proto3" json:"SocketNodesCount,omitempty"`
-	ApproximateSize   int64                  `protobuf:"varint,5,opt,name=ApproximateSize,proto3" json:"ApproximateSize,omitempty"`
-	IMDSNodesCount    int64                  `protobuf:"varint,6,opt,name=IMDSNodesCount,proto3" json:"IMDSNodesCount,omitempty"`
-	SyscallNodesCount int64                  `protobuf:"varint,7,opt,name=SyscallNodesCount,proto3" json:"SyscallNodesCount,omitempty"`
-	FlowNodesCount    int64                  `protobuf:"varint,8,opt,name=FlowNodesCount,proto3" json:"FlowNodesCount,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	ProcessNodesCount    int64                  `protobuf:"varint,1,opt,name=ProcessNodesCount,proto3" json:"ProcessNodesCount,omitempty"`
+	FileNodesCount       int64                  `protobuf:"varint,2,opt,name=FileNodesCount,proto3" json:"FileNodesCount,omitempty"`
+	DNSNodesCount        int64                  `protobuf:"varint,3,opt,name=DNSNodesCount,proto3" json:"DNSNodesCount,omitempty"`
+	SocketNodesCount     int64                  `protobuf:"varint,4,opt,name=SocketNodesCount,proto3" json:"SocketNodesCount,omitempty"`
+	ApproximateSize      int64                  `protobuf:"varint,5,opt,name=ApproximateSize,proto3" json:"ApproximateSize,omitempty"`
+	IMDSNodesCount       int64                  `protobuf:"varint,6,opt,name=IMDSNodesCount,proto3" json:"IMDSNodesCount,omitempty"`
+	SyscallNodesCount    int64                  `protobuf:"varint,7,opt,name=SyscallNodesCount,proto3" json:"SyscallNodesCount,omitempty"`
+	FlowNodesCount       int64                  `protobuf:"varint,8,opt,name=FlowNodesCount,proto3" json:"FlowNodesCount,omitempty"`
+	CapabilityNodesCount int64                  `protobuf:"varint,9,opt,name=CapabilityNodesCount,proto3" json:"CapabilityNodesCount,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *ActivityTreeStatsMessage) Reset() {
@@ -2750,6 +2751,13 @@ func (x *ActivityTreeStatsMessage) GetSyscallNodesCount() int64 {
 func (x *ActivityTreeStatsMessage) GetFlowNodesCount() int64 {
 	if x != nil {
 		return x.FlowNodesCount
+	}
+	return 0
+}
+
+func (x *ActivityTreeStatsMessage) GetCapabilityNodesCount() int64 {
+	if x != nil {
+		return x.CapabilityNodesCount
 	}
 	return 0
 }

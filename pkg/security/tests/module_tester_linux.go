@@ -105,9 +105,10 @@ event_monitoring_config:
   {{range .EnvsWithValue}}
     - {{.}}
   {{end}}
-
   span_tracking:
     enabled: true
+  capabilities_monitoring:
+    enabled: {{ .CapabilitiesMonitoringEnabled }}
 
 runtime_security_config:
   enabled: {{ .RuntimeSecurityEnabled }}
@@ -817,9 +818,9 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		}
 	}
 
-	if opts.staticOpts.snapshotRuleMatchHandler != nil {
+	if opts.staticOpts.ruleMatchHandler != nil {
 		testMod.RegisterRuleEventHandler(func(e *model.Event, r *rules.Rule) {
-			opts.staticOpts.snapshotRuleMatchHandler(testMod, e, r)
+			opts.staticOpts.ruleMatchHandler(testMod, e, r)
 		})
 		t.Cleanup(func() {
 			testMod.RegisterRuleEventHandler(nil)

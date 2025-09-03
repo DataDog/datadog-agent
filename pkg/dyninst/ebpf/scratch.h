@@ -108,7 +108,7 @@ static long copy_stack_loop(unsigned long i, void* _ctx) {
 // and that the static length should be used.
 #define ENQUEUE_LEN_SENTINEL __UINT32_MAX__
 
-const uint64_t FAILED_READ_OFFSET_BIT = 1LL << 63;
+static const uint64_t FAILED_READ_OFFSET_BIT = 1LL << 63;
 
 // Write the queue entry to the scratch buffer, and return the offset of the
 // data in the scratch buffer on success or 0 on failure.

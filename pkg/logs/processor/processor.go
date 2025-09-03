@@ -112,6 +112,14 @@ func (p *Processor) processMessage(msg *message.Message) {
 	defer p.pipelineMonitor.ReportComponentEgress(msg, metrics.ProcessorTlmName, p.instanceID)
 	metrics.LogsDecoded.Add(1)
 	metrics.TlmLogsDecoded.Inc()
+	// Record truncation metrics if the message is truncated
+	if msg.ParsingExtra.IsTruncated {
+		if msg.Origin != nil {
+			metrics.TlmTruncatedCount.Inc(msg.Origin.Service(), msg.Origin.Source())
+		} else {
+			metrics.TlmTruncatedCount.Inc("", "")
+		}
+	}
 
 	if toSend := p.applyRedactingRules(msg); toSend {
 		metrics.LogsProcessed.Add(1)

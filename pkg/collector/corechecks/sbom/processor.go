@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmetafilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/sbomutil"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -227,13 +228,6 @@ func (p *processor) unregisterContainer(ctr *workloadmeta.Container) {
 	}
 }
 
-func (p *processor) processContainerImagesRefresh(allImages []*workloadmeta.ContainerImageMetadata) {
-	// So far, the check is refreshing all the images every 5 minutes all together.
-	for _, img := range allImages {
-		p.processImageSBOM(img)
-	}
-}
-
 func (p *processor) processHostScanResult(result sbom.ScanResult) {
 	log.Debugf("processing host scanresult: %v", result)
 	sbom := &model.SBOMEntity{
@@ -339,7 +333,7 @@ func (p *processor) processImageSBOM(img *workloadmeta.ContainerImageMetadata) {
 		return
 	}
 
-	if img.SBOM.Status == workloadmeta.Success && img.SBOM.CycloneDXBOM == nil {
+	if img.SBOM.Status == workloadmeta.Success && len(img.SBOM.Bom) == 0 {
 		log.Debug("received a sbom with incorrect status")
 		return
 	}
@@ -369,6 +363,11 @@ func (p *processor) processImageSBOM(img *workloadmeta.ContainerImageMetadata) {
 			inUse = true
 			break
 		}
+	}
+
+	cyclosbom, err := sbomutil.UncompressSBOM(img.SBOM)
+	if err != nil {
+		log.Errorf("Failed to uncompress SBOM for image %s: %v", img.ID, err)
 	}
 
 	for repo := range repos {
@@ -434,20 +433,20 @@ func (p *processor) processImageSBOM(img *workloadmeta.ContainerImageMetadata) {
 			InUse:       inUse,
 		}
 
-		switch img.SBOM.Status {
+		switch cyclosbom.Status {
 		case workloadmeta.Pending:
 			sbom.Status = model.SBOMStatus_PENDING
 		case workloadmeta.Failed:
 			sbom.Status = model.SBOMStatus_FAILED
 			sbom.Sbom = &model.SBOMEntity_Error{
-				Error: img.SBOM.Error,
+				Error: cyclosbom.Error,
 			}
 		default:
 			sbom.Status = model.SBOMStatus_SUCCESS
-			sbom.GeneratedAt = timestamppb.New(img.SBOM.GenerationTime)
-			sbom.GenerationDuration = bomconvert.ConvertDuration(img.SBOM.GenerationDuration)
+			sbom.GeneratedAt = timestamppb.New(cyclosbom.GenerationTime)
+			sbom.GenerationDuration = bomconvert.ConvertDuration(cyclosbom.GenerationDuration)
 			sbom.Sbom = &model.SBOMEntity_Cyclonedx{
-				Cyclonedx: img.SBOM.CycloneDXBOM,
+				Cyclonedx: cyclosbom.CycloneDXBOM,
 			}
 		}
 		p.queue <- sbom

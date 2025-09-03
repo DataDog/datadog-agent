@@ -65,9 +65,6 @@ issues:
       linters: [staticcheck]
     # Treat this list as a TODO for fixing issues with pkgconfigusage custom linter
     # DO NOT ADD NEW ENTRIES
-    - path: comp/agent/jmxlogger/jmxloggerimpl/jmxlogger.go
-      linters:
-        - pkgconfigusage
     - path: comp/aggregator/demultiplexer/demultiplexerimpl/test_agent_demultiplexer.go
       linters:
         - pkgconfigusage

@@ -269,6 +269,7 @@ message ActivityTreeStatsMessage {
     int64 IMDSNodesCount = 6;
     int64 SyscallNodesCount = 7;
     int64 FlowNodesCount = 8;
+    int64 CapabilityNodesCount = 9;
 }
 
 message event_type_state {

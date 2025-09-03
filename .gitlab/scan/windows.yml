@@ -67,12 +67,27 @@
         echo "Go to https://www.virustotal.com/gui/file/$SHA256 for more details"
       }
 
-      # tee result so we can see output in case of errors
-      ./vt --apikey "$VT_API_KEY" scan file "$MSI_FILE" | tee result.txt
-      # Expected output
-      # filename analysis_id
-      ANALYSIS_ID=$(head -n1 result.txt | awk '{print $2}')
-      echo "Submitted file for analysis, analysis id: $ANALYSIS_ID"
+      # Scan file and verify output contains the expected filename; retry if not (max 5 minutes)
+      SECONDS=0
+      while true; do
+        ./vt --apikey "$VT_API_KEY" scan file "$MSI_FILE" | tee result.txt
+        # at the moment, vt does not exit with a non-zero code on errors, so
+        # we try to sanity check the output to detect errors.
+        # Expected output:
+        # filename analysis_id
+        if grep -Fq "$MSI_FILE" result.txt; then
+          ANALYSIS_ID=$(head -n1 result.txt | awk '{print $2}')
+          echo "Submitted file for analysis, analysis id: $ANALYSIS_ID"
+          break
+        else
+          if [ "$SECONDS" -ge 300 ]; then
+            echo "Timed out submitting file for scan after 5 minutes"
+            exit 1
+          fi
+          echo "Scan output did not contain expected filename; retrying..."
+          sleep 30
+        fi
+      done
 
       # Poll for analysis results
       while true; do
@@ -92,7 +107,7 @@
               else
                   echo "ALL GOOD"
                   print_report
-              exit 0
+                  exit 0
               fi
           fi
       done
