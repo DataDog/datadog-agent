@@ -2809,10 +2809,7 @@ func TestSecurityProfileNodeEviction(t *testing.T) {
 			func(sp *profile.Profile) bool {
 				imageName, _ = sp.GetImageNameTag()
 				nodes := WalkActivityTree(sp.ActivityTree, func(node *ProcessNodeAndParent) bool {
-					if node.Node.Process.Argv0+" "+strings.Join(node.Node.Process.Argv, " ") == syscallTester+" sleep "+waitingTime {
-						return true
-					}
-					return false
+					return node.Node.Process.Argv0+" "+strings.Join(node.Node.Process.Argv, " ") == syscallTester+" sleep "+waitingTime
 				})
 
 				// Check that the long running process is in the profile
@@ -2837,10 +2834,7 @@ func TestSecurityProfileNodeEviction(t *testing.T) {
 		}
 
 		nodes := WalkActivityTree(profile.ActivityTree, func(node *ProcessNodeAndParent) bool {
-			if node.Node.Process.Argv0+" "+strings.Join(node.Node.Process.Argv, " ") == syscallTester+" sleep "+waitingTime {
-				return true
-			}
-			return false
+			return node.Node.Process.Argv0+" "+strings.Join(node.Node.Process.Argv, " ") == syscallTester+" sleep "+waitingTime
 		})
 
 		// the long running process should still be in the profile as it hasn't exited
