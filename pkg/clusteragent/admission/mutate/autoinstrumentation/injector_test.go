@@ -59,11 +59,11 @@ func TestInjectorWithRemoteConfigImageResolver(t *testing.T) {
 		description   string
 	}{
 		{
-			name:          "datadog_registry_with_remote_config",
+			name:          "datadog_registry_with_remote_config_during_init",
 			registry:      "gcr.io/datadoghq",
 			tag:           "0",
-			hasRemoteData: true,
-			expectedImage: "gcr.io/datadoghq/apm-inject@sha256:inject456",
+			hasRemoteData: false,
+			expectedImage: "gcr.io/datadoghq/apm-inject:0",
 			description:   "Should use digest from remote config for Datadog registry",
 		},
 		{
@@ -97,7 +97,7 @@ func TestInjectorWithRemoteConfigImageResolver(t *testing.T) {
 			var resolver ImageResolver
 			if tc.hasRemoteData {
 				mockClient := newMockRCClient("image_resolver_multi_repo.json")
-				resolver = newRemoteConfigImageResolver(mockClient)
+				resolver = newRemoteConfigImageResolverWithRetryConfig(mockClient, 2, 1*time.Millisecond)
 			} else {
 				resolver = newNoOpImageResolver()
 			}
@@ -110,4 +110,21 @@ func TestInjectorWithRemoteConfigImageResolver(t *testing.T) {
 			assert.Equal(t, tc.expectedImage, i.image, tc.description)
 		})
 	}
+}
+
+func TestInjectorWithRemoteConfigImageResolverAfterInit(t *testing.T) {
+	mockClient := newMockRCClient("image_resolver_multi_repo.json")
+	resolver := newRemoteConfigImageResolverWithRetryConfig(mockClient, 2, 1*time.Millisecond)
+
+	assert.Eventually(t, func() bool {
+		_, ok := resolver.Resolve("gcr.io/datadoghq", "apm-inject", "0")
+		return ok
+	}, 100*time.Millisecond, 5*time.Millisecond, "Resolver should initialize")
+
+	i := newInjector(time.Now(), "gcr.io/datadoghq",
+		injectorWithImageResolver(resolver),
+		injectorWithImageTag("0"),
+	)
+
+	assert.Equal(t, "gcr.io/datadoghq/apm-inject@sha256:inject456", i.image)
 }

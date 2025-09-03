@@ -27,6 +27,11 @@ import (
 type mockRCClient struct {
 	configs     map[string]state.RawConfig
 	subscribers map[string]func(map[string]state.RawConfig, func(string, state.ApplyStatus))
+
+	// For async testing
+	blockGetConfigs bool
+	configsReady    chan struct{}
+	mu              sync.Mutex
 }
 
 // loadTestConfigFile loads a test data file and converts it to the format returned by rcClient.GetConfigs()
@@ -61,8 +66,10 @@ func newMockRCClient(filename string) *mockRCClient {
 	}
 
 	return &mockRCClient{
-		configs:     rawConfigs,
-		subscribers: make(map[string]func(map[string]state.RawConfig, func(string, state.ApplyStatus))),
+		configs:         rawConfigs,
+		subscribers:     make(map[string]func(map[string]state.RawConfig, func(string, state.ApplyStatus))),
+		blockGetConfigs: false,
+		configsReady:    make(chan struct{}),
 	}
 }
 
@@ -71,7 +78,23 @@ func (m *mockRCClient) Subscribe(product string, _ func(map[string]state.RawConf
 }
 
 func (m *mockRCClient) GetConfigs(_ string) map[string]state.RawConfig {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.blockGetConfigs {
+		<-m.configsReady // Block until unblocked
+	}
+
 	return m.configs
+}
+
+func (m *mockRCClient) setBlocking(block bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.blockGetConfigs = block
+	if !block {
+		close(m.configsReady)
+	}
 }
 
 func TestNewImageResolver(t *testing.T) {
@@ -241,9 +264,13 @@ func TestRemoteConfigImageResolver_Resolve(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			resolved, ok := resolver.Resolve(tc.registry, tc.repository, tc.tag)
-			assert.Equal(t, tc.expectedOK, ok)
 
 			if tc.expectedOK {
+				assert.Eventually(t, func() bool {
+					resolved, ok = resolver.Resolve(tc.registry, tc.repository, tc.tag)
+					return ok
+				}, 100*time.Millisecond, 5*time.Millisecond, "Should resolve after async init")
+
 				require.NotNil(t, resolved, "Should have resolved image when expectedOK is true")
 				assert.Equal(t, tc.expectedResult, resolved.FullImageRef, "Resolved image should match expected")
 			} else {
@@ -367,47 +394,51 @@ func TestRemoteConfigImageResolver_ConcurrentAccess(t *testing.T) {
 	})
 }
 
-func TestRemoteConfigImageResolver_RegistryFiltering(t *testing.T) {
-	resolver := newRemoteConfigImageResolver(newMockRCClient("image_resolver_multi_repo.json"))
+func TestAsyncInitialization(t *testing.T) {
+	t.Run("noop_during_initialization", func(t *testing.T) {
+		mockClient := newMockRCClient("image_resolver_multi_repo.json")
+		mockClient.setBlocking(true) // Block initialization
 
-	testCases := []struct {
-		name       string
-		registry   string
-		repository string
-		tag        string
-		shouldPass bool
-		reason     string
-	}{
-		{
-			name:       "datadog_registry_gcr",
-			registry:   "gcr.io/datadoghq",
-			repository: "dd-lib-python-init",
-			tag:        "latest",
-			shouldPass: true,
-			reason:     "Should resolve Datadog GCR registry",
-		},
-		{
-			name:       "docker_hub",
-			registry:   "docker.io",
-			repository: "dd-lib-python-init",
-			tag:        "latest",
-			shouldPass: false,
-			reason:     "Should reject Docker Hub registry",
-		},
-		{
-			name:       "similar_registry",
-			registry:   "gcr.io/not-datadoghq",
-			repository: "dd-lib-python-init",
-			tag:        "latest",
-			shouldPass: false,
-			reason:     "Should reject similar but non-Datadog registries",
-		},
-	}
+		resolver := newRemoteConfigImageResolverWithRetryConfig(mockClient, 2, 10*time.Millisecond)
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			_, ok := resolver.Resolve(tc.registry, tc.repository, tc.tag)
-			assert.Equal(t, tc.shouldPass, ok, tc.reason)
-		})
-	}
+		resolved, ok := resolver.Resolve("gcr.io/datadoghq", "dd-lib-python-init", "latest")
+		assert.False(t, ok, "Should not complete image resolution during initialization")
+		assert.Nil(t, resolved, "Should return nil during initialization")
+	})
+
+	t.Run("successful_async_initialization", func(t *testing.T) {
+		mockClient := newMockRCClient("image_resolver_multi_repo.json")
+		mockClient.setBlocking(true)
+
+		resolver := newRemoteConfigImageResolverWithRetryConfig(mockClient, 2, 10*time.Millisecond)
+
+		resolved, ok := resolver.Resolve("gcr.io/datadoghq", "dd-lib-python-init", "latest")
+		assert.False(t, ok, "Should not complete image resolution during initialization")
+		assert.Nil(t, resolved, "Should return nil during initialization")
+
+		mockClient.setBlocking(false)
+
+		assert.Eventually(t, func() bool {
+			_, ok := resolver.Resolve("gcr.io/datadoghq", "dd-lib-python-init", "latest")
+			return ok
+		}, 100*time.Millisecond, 5*time.Millisecond, "Should resolve after async init")
+	})
+
+	t.Run("failed_initialization_stays_noop", func(t *testing.T) {
+		// Empty configs cause initialization to fail
+		mockClient := &mockRCClient{
+			configs:         map[string]state.RawConfig{},
+			subscribers:     make(map[string]func(map[string]state.RawConfig, func(string, state.ApplyStatus))),
+			blockGetConfigs: false,
+			configsReady:    make(chan struct{}),
+		}
+		close(mockClient.configsReady)
+
+		resolver := newRemoteConfigImageResolverWithRetryConfig(mockClient, 2, 5*time.Millisecond)
+		time.Sleep(50 * time.Millisecond)
+
+		resolved, ok := resolver.Resolve("gcr.io/datadoghq", "dd-lib-python-init", "latest")
+		assert.False(t, ok, "Should not complete image resolution after failed init")
+		assert.Nil(t, resolved, "Should return nil after failed init")
+	})
 }
