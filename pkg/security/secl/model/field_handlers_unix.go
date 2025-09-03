@@ -38,13 +38,13 @@ func (ev *Event) resolveFields(forADs bool) {
 	}
 	_ = ev.FieldHandlers.ResolveSource(ev, &ev.BaseEvent)
 	_ = ev.FieldHandlers.ResolveEventTimestamp(ev, &ev.BaseEvent)
-	if !forADs && (eventType == "dns" || eventType == "imds") {
+	if !forADs && (eventType == "dns" || eventType == "imds" || eventType == "packet") {
 		_ = ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.NetworkContext.Destination)
 	}
-	if eventType == "dns" || eventType == "imds" {
+	if eventType == "dns" || eventType == "imds" || eventType == "packet" {
 		_ = ev.FieldHandlers.ResolveNetworkDeviceIfName(ev, &ev.NetworkContext.Device)
 	}
-	if !forADs && (eventType == "dns" || eventType == "imds") {
+	if !forADs && (eventType == "dns" || eventType == "imds" || eventType == "packet") {
 		_ = ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.NetworkContext.Source)
 	}
 	if !forADs {
