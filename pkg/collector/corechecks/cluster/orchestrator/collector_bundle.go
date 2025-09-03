@@ -479,6 +479,7 @@ func newBuiltinCRDConfigs() []builtinCRDConfig {
 		},
 		{
 			group:   KarpenterAzureAPIGroup,
+			version: "v1beta1",
 			enabled: isThirdPartyCRDEnabled,
 		},
 	}
