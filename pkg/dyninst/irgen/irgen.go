@@ -34,14 +34,19 @@ import (
 	"runtime/debug"
 	"slices"
 	"strings"
+	"time"
 
 	pkgerrors "github.com/pkg/errors"
+	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dwarf/dwarfutil"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dwarf/loclist"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+var loclistErrorLogLimiter = rate.NewLimiter(rate.Every(1*time.Minute), 1)
 
 // TODO: This code creates a lot of allocations, but we could greatly reduce
 // the number of distinct allocations by using a batched allocation scheme.
@@ -487,19 +492,10 @@ func applyInlineToAbstractSubprogram(
 			var locations []ir.Location
 			locField := inlinedVariable.AttrField(dwarf.AttrLocation)
 			if locField != nil {
-				locations, err = computeLocations(
-					unit, ranges, variable.Type, locField,
+				locations = computeLocations(
+					unit, inlinedVariable.Offset, ranges, variable.Type, locField,
 					loclistReader, pointerSize,
 				)
-				if err != nil {
-					return ir.Issue{
-						Kind: ir.IssueKindMalformedExecutable,
-						Message: fmt.Sprintf(
-							"failed to compute locations for inlined variable %q: %v",
-							variable.Name, err,
-						),
-					}
-				}
 				variable.Locations = append(variable.Locations, locations...)
 			}
 		} else {
@@ -1521,13 +1517,10 @@ func processVariable(
 			// here: we only really need to locations for some specific
 			// PCs (such as the prologue end), but we don't know what
 			// those PCs are here, and figuring them out can be expensive.
-			locations, err = computeLocations(
-				unit, subprogramPCRanges, typ, locField, loclistReader,
+			locations = computeLocations(
+				unit, entry.Offset, subprogramPCRanges, typ, locField, loclistReader,
 				pointerSize,
 			)
-			if err != nil {
-				return nil, err
-			}
 		}
 	}
 	isReturn, _, err := maybeGetAttr[bool](entry, dwarf.AttrVarParam)
@@ -1629,17 +1622,27 @@ func (v *inlinedSubroutineChildVisitor) pop(_ *dwarf.Entry, _ visitor) error {
 
 func computeLocations(
 	unit *dwarf.Entry,
+	entryOffset dwarf.Offset,
 	subprogramRanges []ir.PCRange,
 	typ ir.Type,
 	locField *dwarf.Field,
 	loclistReader *loclist.Reader,
 	pointerSize uint8,
-) ([]ir.Location, error) {
+) []ir.Location {
 	// BUG: We shouldn't pass subprogramRanges below; we should take into
 	// consideration the ranges of the current block, not necessarily the ranges
 	// of the subprogram.
-	return dwarfutil.ProcessLocations(
+	locations, err := dwarfutil.ProcessLocations(
 		locField, unit, loclistReader, subprogramRanges, typ.GetByteSize(), pointerSize)
+	if err != nil {
+		if loclistErrorLogLimiter.Allow() {
+			log.Warnf(
+				"ignoring locations for variable at 0x%x: %v", entryOffset, err,
+			)
+		}
+		return nil
+	}
+	return locations
 }
 
 // maybeGetAttr is a helper function that returns the value of an attribute if
