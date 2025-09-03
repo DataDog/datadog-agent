@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Upgrade datadog-traceroute to ``v0.1.3``.
+    Upgrade datadog-traceroute to v0.1.3.
