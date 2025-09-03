@@ -237,6 +237,7 @@ def generate_flake_finder_pipeline(ctx, n=3, generate_config=False):
     for job, job_details in config.items():
         if (
             'variables' in job_details
+            and isinstance(job_details, dict)
             and 'SHOULD_RUN_IN_FLAKES_FINDER' in job_details['variables']
             and job_details['variables']['SHOULD_RUN_IN_FLAKES_FINDER'] == "true"
             and not job.startswith(".")

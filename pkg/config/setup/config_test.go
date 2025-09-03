@@ -260,7 +260,9 @@ func TestProxy(t *testing.T) {
 		{
 			name: "from configuration",
 			setup: func(_ *testing.T, config pkgconfigmodel.Config) {
-				config.SetWithoutSource("proxy", expectedProxy)
+				config.SetWithoutSource("proxy.http", expectedProxy.HTTP)
+				config.SetWithoutSource("proxy.https", expectedProxy.HTTPS)
+				config.SetWithoutSource("proxy.no_proxy", expectedProxy.NoProxy)
 			},
 			tests: func(t *testing.T, config pkgconfigmodel.Config) {
 				assert.Equal(t, expectedProxy, config.GetProxies())
@@ -615,22 +617,11 @@ func TestSanitizeAPIKeyConfig(t *testing.T) {
 func TestNumWorkers(t *testing.T) {
 	config := newTestConf(t)
 
-	config.SetWithoutSource("python_version", "2")
-	config.SetWithoutSource("tracemalloc_debug", true)
 	config.SetWithoutSource("check_runners", 4)
+	config.SetWithoutSource("tracemalloc_debug", false)
 
 	setNumWorkers(config)
 	workers := config.GetInt("check_runners")
-	assert.Equal(t, workers, config.GetInt("check_runners"))
-
-	config.SetWithoutSource("tracemalloc_debug", false)
-	setNumWorkers(config)
-	workers = config.GetInt("check_runners")
-	assert.Equal(t, workers, config.GetInt("check_runners"))
-
-	config.SetWithoutSource("python_version", "3")
-	setNumWorkers(config)
-	workers = config.GetInt("check_runners")
 	assert.Equal(t, workers, config.GetInt("check_runners"))
 
 	config.SetWithoutSource("tracemalloc_debug", true)
@@ -749,6 +740,7 @@ skip_ssl_validation: true
 apm_config:
   apm_dd_url: https://somehost:1234
   profiling_dd_url: https://somehost:1234
+  profiling_receiver_timeout: 30
   telemetry:
     dd_url: https://somehost:1234
 

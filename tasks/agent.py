@@ -84,6 +84,7 @@ AGENT_CORECHECKS = [
     "service_discovery",
     "gpu",
     "wlan",
+    "discovery",
 ]
 
 WINDOWS_CORECHECKS = [
