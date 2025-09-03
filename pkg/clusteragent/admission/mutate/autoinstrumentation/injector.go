@@ -180,7 +180,8 @@ func injectorWithImageName(name string) injectorOption {
 func injectorWithImageTag(tag string) injectorOption {
 	return func(i *injector) {
 		if i.imageResolver == nil {
-			panic("injectorWithImageTag called without imageResolver")
+			log.Error("injectorWithImageTag called without imageResolver")
+			return
 		}
 		if resolvedImage, ok := i.imageResolver.Resolve(i.registry, "apm-inject", tag); ok {
 			log.Debugf("Resolved image for %s/apm-inject:%s: %s", i.registry, tag, resolvedImage.FullImageRef)
