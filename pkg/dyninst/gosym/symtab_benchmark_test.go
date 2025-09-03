@@ -5,7 +5,7 @@
 
 //go:build linux_bpf
 
-package gosym
+package gosym_test
 
 import (
 	"math/rand"
@@ -13,6 +13,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/dyninst/gosym"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 )
@@ -22,38 +23,28 @@ func BenchmarkParseGoSymbolTable(b *testing.B) {
 		GOARCH:      "arm64",
 		GOTOOLCHAIN: "go1.24.3",
 	})
-	if err != nil {
-		b.Fatal(err)
-	}
+	require.NoError(b, err)
 	mef, err := object.OpenMMappingElfFile(binPath)
-	if err != nil {
-		b.Fatal(err)
-	}
+	require.NoError(b, err)
 	defer mef.Close()
 
 	b.Run("ParseModuleData", func(b *testing.B) {
 		for b.Loop() {
 			_, err := object.ParseModuleData(mef)
-			if err != nil {
-				b.Fatal(err)
-			}
+			require.NoError(b, err)
 		}
 	})
 
 	moduledata, err := object.ParseModuleData(mef)
-	if err != nil {
-		b.Fatal(err)
-	}
+	require.NoError(b, err)
 
 	goDebugSections, err := moduledata.GoDebugSections(mef)
-	if err != nil {
-		b.Fatal(err)
-	}
+	require.NoError(b, err)
 	defer func() { require.NoError(b, goDebugSections.Close()) }()
 
 	b.Run("ParseGoSymbolTable", func(b *testing.B) {
 		for b.Loop() {
-			_, err := ParseGoSymbolTable(
+			_, err := gosym.ParseGoSymbolTable(
 				goDebugSections.PcLnTab.Data(),
 				goDebugSections.GoFunc.Data(),
 				moduledata.Text,
@@ -67,7 +58,7 @@ func BenchmarkParseGoSymbolTable(b *testing.B) {
 		}
 	})
 
-	symtab, err := ParseGoSymbolTable(
+	symtab, err := gosym.ParseGoSymbolTable(
 		goDebugSections.PcLnTab.Data(),
 		goDebugSections.GoFunc.Data(),
 		moduledata.Text,
@@ -75,9 +66,7 @@ func BenchmarkParseGoSymbolTable(b *testing.B) {
 		moduledata.MinPC,
 		moduledata.MaxPC,
 	)
-	if err != nil {
-		b.Fatal(err)
-	}
+	require.NoError(b, err)
 
 	b.Run("ListFunctions", func(b *testing.B) {
 		for b.Loop() {

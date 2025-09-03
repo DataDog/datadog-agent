@@ -11,13 +11,11 @@ package main
 import (
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"strconv"
 
 	"github.com/spf13/cobra"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/gosym"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 )
 
@@ -47,11 +45,11 @@ var addr2lineCmd = &cobra.Command{
 		}
 		binary := args[0]
 		cmd.SilenceUsage = true
-		symtab, closeFn, err := openGoSymbolTable(binary)
+		symtab, err := object.OpenGoSymbolTable(binary)
 		if err != nil {
 			return err
 		}
-		defer func() { retErr = errors.Join(retErr, closeFn()) }()
+		defer func() { retErr = errors.Join(retErr, symtab.Close()) }()
 		locations := symtab.LocatePC(pc)
 		if len(locations) == 0 {
 			return fmt.Errorf("no location found for pc 0x%x", pc)
@@ -71,65 +69,14 @@ var listCmd = &cobra.Command{
 		binary := args[0]
 		cmd.SilenceUsage = true
 
-		symtab, closeFn, err := openGoSymbolTable(binary)
+		symtab, err := object.OpenGoSymbolTable(binary)
 		if err != nil {
 			return err
 		}
-		defer func() { retErr = errors.Join(retErr, closeFn()) }()
+		defer func() { retErr = errors.Join(retErr, symtab.Close()) }()
 		for fn := range symtab.Functions() {
 			fmt.Printf("%s %#x-%#x\n", fn.Name(), fn.Entry, fn.End)
 		}
 		return nil
 	},
-}
-
-// openGoSymbolTable opens the binary and constructs the Go symbol table.
-// The returned close function must be called to release resources.
-func openGoSymbolTable(binary string) (
-	_ *gosym.GoSymbolTable, _ func() error, retErr error,
-) {
-	var closers []io.Closer
-	cleanupFn := func() error {
-		var err error
-		for _, closer := range closers {
-			err = errors.Join(err, closer.Close())
-		}
-		return err
-	}
-	defer func() {
-		if retErr != nil {
-			retErr = errors.Join(retErr, cleanupFn())
-		}
-	}()
-
-	mef, err := object.OpenMMappingElfFile(binary)
-	if err != nil {
-		return nil, nil, err
-	}
-	closers = append(closers, mef)
-
-	moduledata, err := object.ParseModuleData(mef)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	goDebugSections, err := moduledata.GoDebugSections(mef)
-	if err != nil {
-		return nil, nil, err
-	}
-	closers = append(closers, goDebugSections)
-
-	symtab, err := gosym.ParseGoSymbolTable(
-		goDebugSections.PcLnTab.Data(),
-		goDebugSections.GoFunc.Data(),
-		moduledata.Text,
-		moduledata.EText,
-		moduledata.MinPC,
-		moduledata.MaxPC,
-	)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return symtab, cleanupFn, nil
 }
