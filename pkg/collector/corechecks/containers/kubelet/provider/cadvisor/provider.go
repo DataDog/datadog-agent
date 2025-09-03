@@ -168,7 +168,7 @@ func (p *Provider) processContainerMetric(metricType, metricName string, metricF
 			cID, _ := kubelet.KubeContainerIDToTaggerEntityID(containerID)
 			tags, _ = p.tagger.Tag(cID, types.HighCardinality)
 
-			tags = common.AppendCPUManagementTag(p.store, pod.QOSClass, cID, tags)
+			tags = common.AppendKubeRequestedCPUManagementTag(p.store, pod.QOSClass, cID, tags)
 		}
 
 		if len(tags) == 0 {
