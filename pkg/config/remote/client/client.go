@@ -371,6 +371,7 @@ func (c *Client) startFn() {
 // structure in startFn.
 func (c *Client) pollLoop() {
 	successfulFirstRun := false
+	consecutiveFailures := 0
 	logLimit := log.NewLogLimit(5, time.Minute)
 	interval := 0 * time.Second
 
@@ -381,6 +382,7 @@ func (c *Client) pollLoop() {
 		case <-time.After(interval):
 			err := c.update()
 			if err != nil {
+				consecutiveFailures++
 				if status.Code(err) == codes.Unimplemented {
 					// Remote Configuration is disabled as the server isn't initialized
 					//
@@ -395,7 +397,12 @@ func (c *Client) pollLoop() {
 					// As some clients may start before the core-agent server is up, we log the first error
 					// as an Info log as the race is expected. If the error persists, we log with error logs
 					if logLimit.ShouldLog() {
-						log.Infof("retrying the first update of remote-config state (%v)", err)
+						message := "retrying the first update of remote-config state (%v), consecutive failures: %d"
+						if consecutiveFailures >= 5 {
+							log.Errorf(message, err, consecutiveFailures)
+						} else {
+							log.Infof(message, err, consecutiveFailures)
+						}
 					}
 				} else {
 					c.m.Lock()
@@ -408,10 +415,10 @@ func (c *Client) pollLoop() {
 
 					c.lastUpdateError = err
 					c.backoffErrorCount = c.backoffPolicy.IncError(c.backoffErrorCount)
-					log.Errorf("could not update remote-config state: %v", c.lastUpdateError)
+					log.Errorf("could not update remote-config state:%v; consecutive failures:%d", c.lastUpdateError, consecutiveFailures)
 				}
 			} else {
-				log.Debugf("update successful: successful_first_run:%t", successfulFirstRun)
+				log.Debugf("update successful: successful_first_run:%t, consecutive failures:%d", successfulFirstRun, consecutiveFailures)
 				if c.lastUpdateError != nil {
 					c.m.Lock()
 					for _, productListeners := range c.listeners {
@@ -424,9 +431,10 @@ func (c *Client) pollLoop() {
 
 				// record and report that the first update was successful
 				if !successfulFirstRun {
-					log.Infof("first update successful")
+					log.Infof("first update successful after %d attempts", consecutiveFailures)
 				}
 				successfulFirstRun = true
+				consecutiveFailures = 0
 
 				c.lastUpdateError = nil
 				c.backoffErrorCount = c.backoffPolicy.DecError(c.backoffErrorCount)
