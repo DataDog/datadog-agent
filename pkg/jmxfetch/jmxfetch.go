@@ -305,16 +305,15 @@ func (j *JMXFetch) Start(manage bool) error {
 		jmxLogLevel = "INFO"
 	}
 
-	ipcHost, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	ipcHost, ipcPort, err := pkgconfigsetup.GetIPCAddressAndPort(pkgconfigsetup.Datadog())
 	if err != nil {
 		return err
 	}
-	ipcPort := pkgconfigsetup.Datadog().GetInt("cmd_port")
 	if j.IPCHost != "" {
 		ipcHost = j.IPCHost
 	}
 	if j.IPCPort != 0 {
-		ipcPort = j.IPCPort
+		ipcPort = fmt.Sprintf("%v", j.IPCPort)
 	}
 
 	// checks are now enabled via IPC on JMXFetch
@@ -322,7 +321,7 @@ func (j *JMXFetch) Start(manage bool) error {
 		"-classpath", classpath,
 		jmxMainClass,
 		"--ipc_host", ipcHost,
-		"--ipc_port", fmt.Sprintf("%v", ipcPort),
+		"--ipc_port", ipcPort,
 		"--check_period", fmt.Sprintf("%v", pkgconfigsetup.Datadog().GetInt("jmx_check_period")), // Period of the main loop of jmxfetch in ms
 		"--thread_pool_size", fmt.Sprintf("%v", pkgconfigsetup.Datadog().GetInt("jmx_thread_pool_size")), // Size for the JMXFetch thread pool
 		"--collection_timeout", fmt.Sprintf("%v", pkgconfigsetup.Datadog().GetInt("jmx_collection_timeout")), // Timeout for metric collection in seconds

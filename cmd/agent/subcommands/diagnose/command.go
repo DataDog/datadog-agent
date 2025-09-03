@@ -436,12 +436,12 @@ func cmdDiagnose(cliParams *cliParams,
 
 // NOTE: This and related will be moved to separate "agent telemetry" command in future
 func printPayload(name payloadName, _ log.Component, config config.Component, client ipc.HTTPClient) error {
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	ipcAddress, ipcPort, err := pkgconfigsetup.GetIPCAddressAndPort(config)
 	if err != nil {
 		return err
 	}
 	apiConfigURL := fmt.Sprintf("https://%v:%d%s%s",
-		ipcAddress, config.GetInt("cmd_port"), metadataEndpoint, name)
+		ipcAddress, ipcPort, metadataEndpoint, name)
 
 	r, err := client.Get(apiConfigURL, ipchttp.WithCloseConnection)
 	if err != nil {
@@ -454,14 +454,14 @@ func printPayload(name payloadName, _ log.Component, config config.Component, cl
 
 func requestDiagnosesFromAgentProcess(diagCfg diagnose.Config, client ipc.HTTPClient) (*diagnose.Result, error) {
 	// Get client to Agent's RPC call
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	ipcAddress, ipcPort, err := pkgconfigsetup.GetIPCAddressAndPort(pkgconfigsetup.Datadog())
 	if err != nil {
 		return nil, fmt.Errorf("error getting IPC address for the agent: %w", err)
 	}
 
 	// Form call end-point
 	//nolint:revive // TODO(CINT) Fix revive linter
-	diagnoseURL := fmt.Sprintf("https://%v:%v/agent/diagnose", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port"))
+	diagnoseURL := fmt.Sprintf("https://%v:%v/agent/diagnose", ipcAddress, ipcPort)
 
 	// Serialized diag config to pass it to Agent execution context
 	var cfgSer []byte

@@ -33,9 +33,9 @@ func GetPythonPaths() []string {
 
 // NewSettingsClient returns a configured runtime settings client.
 func NewSettingsClient(client ipc.HTTPClient) (settings.Client, error) {
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	ipcAddress, ipcPort, err := pkgconfigsetup.GetIPCAddressAndPort(pkgconfigsetup.Datadog())
 	if err != nil {
 		return nil, err
 	}
-	return settingshttp.NewHTTPSClient(client, fmt.Sprintf("https://%v:%v/agent/config", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port")), "agent", ipchttp.WithLeaveConnectionOpen), nil
+	return settingshttp.NewHTTPSClient(client, fmt.Sprintf("https://%v:%v/agent/config", ipcAddress, ipcPort), "agent", ipchttp.WithLeaveConnectionOpen), nil
 }

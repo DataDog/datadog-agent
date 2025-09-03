@@ -265,12 +265,12 @@ func (r *RemoteFlareProvider) getChecksFromProcessAgent(fb flaretypes.FlareBuild
 }
 
 func (r *RemoteFlareProvider) getAgentTaggerList() ([]byte, error) {
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	ipcAddress, ipcPort, err := pkgconfigsetup.GetIPCAddressAndPort(pkgconfigsetup.Datadog())
 	if err != nil {
 		return nil, err
 	}
 
-	taggerListURL := fmt.Sprintf("https://%v:%v/agent/tagger-list", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port"))
+	taggerListURL := fmt.Sprintf("https://%v:%v/agent/tagger-list", ipcAddress, ipcPort)
 
 	return r.GetTaggerList(taggerListURL)
 }
@@ -305,12 +305,12 @@ func (r *RemoteFlareProvider) GetTaggerList(remoteURL string) ([]byte, error) {
 }
 
 func (r *RemoteFlareProvider) getAgentWorkloadList() ([]byte, error) {
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	ipcAddress, ipcPort, err := pkgconfigsetup.GetIPCAddressAndPort(pkgconfigsetup.Datadog())
 	if err != nil {
 		return nil, err
 	}
 
-	return r.GetWorkloadList(fmt.Sprintf("https://%v:%v/agent/workload-list?verbose=true", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port")))
+	return r.GetWorkloadList(fmt.Sprintf("https://%v:%v/agent/workload-list?verbose=true", ipcAddress, ipcPort))
 }
 
 // GetWorkloadList fetches the workload list from the given URL.

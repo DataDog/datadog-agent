@@ -73,11 +73,11 @@ func requestDogstatsdStats(_ log.Component, config config.Component, cliParams *
 	fmt.Printf("Getting the dogstatsd stats from the agent.\n\n")
 	var e error
 	var s string
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	ipcAddress, ipcPort, err := pkgconfigsetup.GetIPCAddressAndPort(pkgconfigsetup.Datadog())
 	if err != nil {
 		return err
 	}
-	urlstr := fmt.Sprintf("https://%v:%v/agent/dogstatsd-stats", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port"))
+	urlstr := fmt.Sprintf("https://%v:%v/agent/dogstatsd-stats", ipcAddress, ipcPort)
 
 	r, e := client.Get(urlstr, ipchttp.WithLeaveConnectionOpen)
 	if e != nil {

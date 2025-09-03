@@ -154,11 +154,11 @@ func profilingConfig(tracecfg *tracecfg.AgentConfig, disableInternalProfiling bo
 }
 
 func newConfigFetcher(ipc ipc.Component) (rc.ConfigFetcher, error) {
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	ipcAddress, ipcPort, err := pkgconfigsetup.GetIPCAddressAndPort(pkgconfigsetup.Datadog())
 	if err != nil {
 		return nil, err
 	}
 
 	// Auth tokens are handled by the rcClient
-	return rc.NewAgentGRPCConfigFetcher(ipcAddress, pkgconfigsetup.GetIPCPort(), ipc.GetAuthToken(), ipc.GetTLSClientConfig()) // TODO IPC: GRPC client will be provided by the IPC component
+	return rc.NewAgentGRPCConfigFetcher(ipcAddress, ipcPort, ipc.GetAuthToken(), ipc.GetTLSClientConfig()) // TODO IPC: GRPC client will be provided by the IPC component
 }

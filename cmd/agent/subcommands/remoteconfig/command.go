@@ -94,12 +94,12 @@ func reset(_ *cliParams, config config.Component, ipc ipc.Component) error {
 	}
 	ctx = metadata.NewOutgoingContext(ctx, md)
 
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	ipcAddress, ipcPort, err := pkgconfigsetup.GetIPCAddressAndPort(pkgconfigsetup.Datadog())
 	if err != nil {
 		return err
 	}
 
-	cli, err := agentgrpc.GetDDAgentSecureClient(ctx, ipcAddress, pkgconfigsetup.GetIPCPort(), ipc.GetTLSClientConfig())
+	cli, err := agentgrpc.GetDDAgentSecureClient(ctx, ipcAddress, ipcPort, ipc.GetTLSClientConfig())
 	if err != nil {
 		return err
 	}
@@ -126,12 +126,12 @@ func state(_ *cliParams, config config.Component, ipc ipc.Component) error {
 	}
 	ctx = metadata.NewOutgoingContext(ctx, md)
 
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	ipcAddress, ipcPort, err := pkgconfigsetup.GetIPCAddressAndPort(pkgconfigsetup.Datadog())
 	if err != nil {
 		return err
 	}
 
-	cli, err := agentgrpc.GetDDAgentSecureClient(ctx, ipcAddress, pkgconfigsetup.GetIPCPort(), ipc.GetTLSClientConfig())
+	cli, err := agentgrpc.GetDDAgentSecureClient(ctx, ipcAddress, ipcPort, ipc.GetTLSClientConfig())
 	if err != nil {
 		return err
 	}

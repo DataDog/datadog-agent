@@ -6,7 +6,6 @@
 package apiimpl
 
 import (
-	"fmt"
 	"net"
 	"strconv"
 
@@ -15,11 +14,11 @@ import (
 
 // getIPCAddressPort returns a listening connection
 func getIPCAddressPort() (string, error) {
-	address, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	address, port, err := pkgconfigsetup.GetIPCAddressAndPort(pkgconfigsetup.Datadog())
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("%v:%v", address, pkgconfigsetup.Datadog().GetInt("cmd_port")), nil
+	return net.JoinHostPort(address, port), nil
 }
 
 // getListener returns a listening connection
