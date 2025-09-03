@@ -19,6 +19,7 @@ import (
 )
 
 const (
+	// DefaultServiceCommandTimeout is the default timeout for a service commands
 	DefaultServiceCommandTimeout = 30
 )
 
