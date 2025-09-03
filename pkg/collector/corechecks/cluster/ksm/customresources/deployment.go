@@ -23,12 +23,10 @@ import (
 	generator "k8s.io/kube-state-metrics/v2/pkg/metric_generator"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // NewDeploymentRolloutFactory returns a new Deployment rollout factory that provides rollout duration metrics
 func NewDeploymentRolloutFactory(client *apiserver.APIClient) customresource.RegistryFactory {
-	log.Infof("ROLLOUT-DEPLOYMENT: Deployment factory created")
 	return &deploymentRolloutFactory{
 		client: client.Cl,
 	}
@@ -55,10 +53,6 @@ func (f *deploymentRolloutFactory) MetricFamilyGenerators() []generator.FamilyGe
 			basemetrics.ALPHA,
 			"",
 			wrapDeploymentFunc(func(d *appsv1.Deployment) *metric.Family {
-				log.Infof("ROLLOUT-DEPLOYMENT: Processing deployment %s/%s - generation: %d, observedGeneration: %d, spec.replicas: %d, readyReplicas: %d",
-					d.Namespace, d.Name, d.Generation, d.Status.ObservedGeneration,
-					getReplicasValue(d.Spec.Replicas), d.Status.ReadyReplicas)
-
 				// NOTE: Was trying to track deleted deployments here, but we aren't getting events for when that happens.
 
 				// Check if deployment has an ongoing rollout
@@ -66,12 +60,10 @@ func (f *deploymentRolloutFactory) MetricFamilyGenerators() []generator.FamilyGe
 					(d.Spec.Replicas != nil && d.Status.ReadyReplicas != *d.Spec.Replicas)
 
 				if isOngoing {
-					log.Infof("ROLLOUT-DEPLOYMENT: Deployment %s/%s has ONGOING rollout - will store and emit dummy metric", d.Namespace, d.Name)
 					// Store deployment for rollout tracking
 					StoreDeployment(d)
 
 					// Return dummy metric with value 1 to trigger transformer
-					log.Infof("ROLLOUT-DEPLOYMENT: Deployment %s/%s has ONGOING rollout - emitting dummy metric", d.Namespace, d.Name)
 					return &metric.Family{
 						Metrics: []*metric.Metric{
 							{
@@ -81,19 +73,17 @@ func (f *deploymentRolloutFactory) MetricFamilyGenerators() []generator.FamilyGe
 							},
 						},
 					}
-				} else {
-					log.Infof("ROLLOUT-DEPLOYMENT: Deployment %s/%s rollout is COMPLETED - will cleanup and emit 0 metric", d.Namespace, d.Name)
-					// Rollout complete - cleanup and return 0
-					CleanupCompletedDeployment(d)
-					return &metric.Family{
-						Metrics: []*metric.Metric{
-							{
-								LabelKeys:   []string{"namespace", "deployment"},
-								LabelValues: []string{d.Namespace, d.Name},
-								Value:       0,
-							},
+				}
+				// Rollout complete - cleanup and return 0
+				CleanupCompletedDeployment(d)
+				return &metric.Family{
+					Metrics: []*metric.Metric{
+						{
+							LabelKeys:   []string{"namespace", "deployment"},
+							LabelValues: []string{d.Namespace, d.Name},
+							Value:       0,
 						},
-					}
+					},
 				}
 			}),
 		),

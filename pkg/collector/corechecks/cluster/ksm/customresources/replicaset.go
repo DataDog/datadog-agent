@@ -9,7 +9,6 @@ package customresources
 
 import (
 	"context"
-	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -24,7 +23,6 @@ import (
 	generator "k8s.io/kube-state-metrics/v2/pkg/metric_generator"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // NewReplicaSetRolloutFactory returns a new ReplicaSet rollout factory that tracks ReplicaSet events for deployment rollouts
@@ -55,19 +53,12 @@ func (f *replicaSetRolloutFactory) MetricFamilyGenerators() []generator.FamilyGe
 			basemetrics.ALPHA,
 			"",
 			wrapReplicaSetFunc(func(rs *appsv1.ReplicaSet) *metric.Family {
-				log.Infof("ROLLOUT-REP: Processing ReplicaSet %s/%s, created at %s",
-					rs.Namespace, rs.Name, rs.CreationTimestamp.Time.Format(time.RFC3339))
-
 				// NOTE: Was trying to track deleted replicasets here, but we aren't getting events for when that happens.
 
 				// Store ReplicaSet info if it's owned by a Deployment
 				ownerName, ownerUID := f.getDeploymentOwner(rs)
 				if ownerName != "" && ownerUID != "" {
-					log.Infof("ROLLOUT-REP: ReplicaSet %s/%s is owned by Deployment %s (UID: %s) - will store for tracking",
-						rs.Namespace, rs.Name, ownerName, ownerUID)
 					StoreReplicaSet(rs, ownerName, ownerUID)
-				} else {
-					log.Infof("ROLLOUT-REP: ReplicaSet %s/%s has no Deployment owner - ignoring", rs.Namespace, rs.Name)
 				}
 
 				// Return empty metric family - we don't emit actual metrics for ReplicaSets

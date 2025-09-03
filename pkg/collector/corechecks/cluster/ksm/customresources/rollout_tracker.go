@@ -8,7 +8,6 @@
 package customresources
 
 import (
-	"fmt"
 	"sync"
 	"time"
 
@@ -44,8 +43,6 @@ func init() {
 
 // StoreReplicaSet stores a ReplicaSet for deployment rollout tracking
 func StoreReplicaSet(rs *appsv1.ReplicaSet, ownerName, ownerUID string) {
-	log.Infof("ROLLOUT-TEST-TIME: StoreReplicaSet called for RS %s/%s owned by deployment %s (UID: %s), created at %s",
-		rs.Namespace, rs.Name, ownerName, ownerUID, rs.CreationTimestamp.Time.Format(time.RFC3339))
 
 	rolloutMutex.Lock()
 	defer rolloutMutex.Unlock()
@@ -59,12 +56,10 @@ func StoreReplicaSet(rs *appsv1.ReplicaSet, ownerName, ownerUID string) {
 		OwnerName:    ownerName,
 	}
 
-	log.Infof("ROLLOUT-TEST-TIME: ReplicaSet stored. Total ReplicaSets in map: %d", len(replicaSetMap))
 }
 
 // GetDeploymentRolloutDurationFromMaps calculates rollout duration using stored maps (used by transformers)
 func GetDeploymentRolloutDurationFromMaps(namespace, deploymentName string) float64 {
-	log.Infof("ROLLOUT-TEST: GetDeploymentRolloutDurationFromMaps called for deployment %s/%s", namespace, deploymentName)
 
 	rolloutMutex.RLock()
 	defer rolloutMutex.RUnlock()
@@ -78,7 +73,6 @@ func GetDeploymentRolloutDurationFromMaps(namespace, deploymentName string) floa
 
 	// Hybrid approach: try to use the newest ReplicaSet creation time, fall back to deployment start time
 	var startTime time.Time
-	var timeSource string
 
 	// First, look for the newest ReplicaSet owned by this deployment
 	var newestRS *ReplicaSetInfo
@@ -92,29 +86,21 @@ func GetDeploymentRolloutDurationFromMaps(namespace, deploymentName string) floa
 
 	if newestRS != nil {
 		startTime = newestRS.CreationTime
-		timeSource = fmt.Sprintf("ReplicaSet %s creation time", newestRS.Name)
 	} else {
 		// Fall back to deployment start time
 		deploymentStartTime, hasStartTime := deploymentStartTime[deploymentKey]
 		if !hasStartTime || deploymentStartTime.IsZero() {
-			log.Infof("ROLLOUT-TEST: No ReplicaSet or deployment start time found for deployment %s/%s, returning 0 duration", namespace, deploymentName)
 			return 0
 		}
 		startTime = deploymentStartTime
-		timeSource = "deployment generation change detection"
 	}
 
 	duration := time.Since(startTime)
-	log.Infof("ROLLOUT-TEST: Calculated rollout duration for deployment %s/%s: %.2f seconds (from %s at %s)",
-		namespace, deploymentName, duration.Seconds(), timeSource, startTime.Format(time.RFC3339))
 	return duration.Seconds()
 }
 
 // StoreDeployment stores a deployment for rollout tracking
 func StoreDeployment(dep *appsv1.Deployment) {
-	log.Infof("ROLLOUT-TEST: StoreDeployment called for deployment %s/%s (generation: %d, observedGeneration: %d, replicas: %d, readyReplicas: %d)",
-		dep.Namespace, dep.Name, dep.Generation, dep.Status.ObservedGeneration,
-		getReplicasValue(dep.Spec.Replicas), dep.Status.ReadyReplicas)
 
 	rolloutMutex.Lock()
 	defer rolloutMutex.Unlock()
@@ -125,27 +111,12 @@ func StoreDeployment(dep *appsv1.Deployment) {
 	existingDep, exists := deploymentMap[key]
 	if !exists {
 		deploymentStartTime[key] = time.Now()
-		log.Infof("ROLLOUT-TEST: New rollout detected for deployment %s/%s (generation: %d), setting start time to %s",
-			dep.Namespace, dep.Name, dep.Generation, time.Now().Format(time.RFC3339))
 	} else if existingDep.Generation != dep.Generation {
-		oldGeneration := existingDep.Generation
 		deploymentStartTime[key] = time.Now()
-		log.Infof("ROLLOUT-TEST-TIME: Generation change detected for deployment %s/%s (generation: %d->%d), RESETTING rollout start time to %s",
-			dep.Namespace, dep.Name, oldGeneration, dep.Generation, time.Now().Format(time.RFC3339))
-	} else {
-		log.Infof("ROLLOUT-TEST: Same generation for deployment %s/%s (generation: %d), keeping existing rollout start time",
-			dep.Namespace, dep.Name, dep.Generation)
 	}
 
 	deploymentMap[key] = dep.DeepCopy()
 	deploymentAccessTime[key] = time.Now() // Track when we stored it
-
-	log.Infof("ROLLOUT-TEST: Deployment stored. Total deployments in map: %d", len(deploymentMap))
-
-	// Run periodic cleanup occasionally (less frequent than transformer calls)
-	go func() {
-		PeriodicCleanup()
-	}()
 }
 
 // Helper function to safely get replicas value

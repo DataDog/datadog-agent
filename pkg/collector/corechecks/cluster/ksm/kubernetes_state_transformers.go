@@ -127,7 +127,7 @@ func defaultMetricTransformers() map[string]metricTransformerFunc {
 		"kube_persistentvolume_status_phase":              pvPhaseTransformer,
 		"kube_service_spec_type":                          serviceTypeTransformer,
 		"kube_ingress_tls":                                removeSecretTransformer,
-    "kube_deployment_ongoing_rollout_duration":      deploymentRolloutDurationTransformer,
+		"kube_deployment_ongoing_rollout_duration":        deploymentRolloutDurationTransformer,
 	}
 }
 
@@ -608,12 +608,9 @@ func removeSecretTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric
 
 // deploymentRolloutDurationTransformer calculates deployment rollout duration using stored ReplicaSet data
 func deploymentRolloutDurationTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
-	log.Infof("ROLLOUT-TRANS: deploymentRolloutDurationTransformer called with metric value: %.0f, labels: %+v", metric.Val, metric.Labels)
-	log.Infof("ROLLOUT-TRANS: tags: %+v", tags)
 
 	// Only process ongoing rollouts (value 1), not completed ones (value 0)
 	if metric.Val != 1.0 {
-		log.Infof("ROLLOUT-TRANS: Skipping transformer for completed rollout (value: %.0f)", metric.Val)
 		return
 	}
 
@@ -621,35 +618,11 @@ func deploymentRolloutDurationTransformer(s sender.Sender, _ string, metric ksms
 	deploymentName, hasDeployment := metric.Labels["deployment"]
 
 	if !hasNamespace || !hasDeployment {
-		log.Infof("ROLLOUT-TRANS: Missing required labels for deployment rollout duration metric - namespace: %v, deployment: %v", hasNamespace, hasDeployment)
 		return
 	}
-
-	log.Infof("ROLLOUT-TRANS: Transformer will calculate duration for deployment %s/%s", namespace, deploymentName)
 
 	// Calculate actual rollout duration using stored ReplicaSet data
-	duration := customresources.GetDeploymentRolloutDurationFromMaps(namespace, deploymentName)
-
-	log.Infof("ROLLOUT-TRANS: Sending deployment rollout duration metric for %s/%s: %.2f seconds", namespace, deploymentName, duration)
+	duration := crs.GetDeploymentRolloutDurationFromMaps(namespace, deploymentName)
 
 	s.Gauge(ksmMetricPrefix+"deployment.rollout_duration", duration, hostname, tags)
-}
-
-// statefulsetRolloutDurationTransformer calculates statefulset rollout duration
-func statefulsetRolloutDurationTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
-	// Extract statefulset info from labels
-	_, hasNamespace := metric.Labels["namespace"]
-	_, hasStatefulSet := metric.Labels["statefulset"]
-
-	if !hasNamespace || !hasStatefulSet {
-		log.Debugf("Missing required labels for statefulset rollout duration metric")
-		return
-	}
-
-	// For StatefulSets, we'll use a placeholder for now - can be implemented similar to deployments
-	// with ControllerRevision tracking if needed
-	duration := 0.0
-
-	// Send the calculated duration
-	s.Gauge(ksmMetricPrefix+"statefulset.rollout_duration", duration, hostname, tags)
 }

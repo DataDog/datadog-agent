@@ -462,6 +462,15 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 		return err
 	}
 
+	// Start periodic cleanup goroutine for rollout tracking maps
+	go func() {
+		ticker := time.NewTicker(2 * time.Minute)
+		defer ticker.Stop()
+
+		for range ticker.C {
+			customresources.PeriodicCleanup()
+		}
+	}()
 	return nil
 }
 
@@ -538,7 +547,6 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 		customresources.NewExtendedNodeFactory(c),
 		customresources.NewExtendedPodFactory(c),
 		customresources.NewVerticalPodAutoscalerFactory(c),
-		// customresources.NewStatefulSetRolloutFactory(c),
 		customresources.NewDeploymentRolloutFactory(c),
 		customresources.NewReplicaSetRolloutFactory(c),
 	}
@@ -660,9 +668,6 @@ func (k *KSMCheck) Run() error {
 
 	// Print current rollout tracker map contents for visibility
 	customresources.PrintMapContents()
-
-	// Run periodic cleanup of stale rollout entries
-	customresources.PeriodicCleanup()
 
 	defer sender.Commit()
 
