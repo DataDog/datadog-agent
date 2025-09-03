@@ -14,15 +14,105 @@ deploy:
             appKey: "{{cmd \"bash\" \"-c\" \"echo $DD_APP_KEY\"}}"
             kubelet:
               tlsVerify: false
-          agents.image:
-            repository: "{{.IMAGE_REPO_agent}}"
-            tag: "{{.IMAGE_TAG_agent}}@{{.IMAGE_DIGEST_agent}}"
-            doNotCheckTag: true
+              coreCheck: true
+            logLevel: DEBUG
+            clusterName: wassim-minikube
+            processAgent:
+              enabled: true
+              processCollection: true
+            prometheusScrape:
+              enabled: true
+            apm:
+              instrumentation:
+                enabled: true
+              hostPortConfig:
+                enabled: true
+            logs:
+              enabled: true
+              containerCollectAll: true
+              containerCollectUsingFiles: true
+            securityAgent:
+              runtime:
+                enabled: true
+              compliance:
+                enabled: true
+            sbom:
+              containerImage:
+                enabled: true
+              host:
+                enabled: true
+            serviceMonitoring:
+              enabled: true
+            networkMonitoring:
+              enabled: true
+            liveProcessCollection:
+              enabled: true
+            admissionController:
+              enabled: true
+            externalMetricsServer:
+              enabled: true
+            cspm:
+              enabled: true
+            clusterChecks:
+              enabled: true
+              useClusterChecksRunners: true
+            orchestratorExplorer:
+              enabled: true
+            dogstatsd:
+              originDetectionEnabled: true
+              hostPortConfig:
+                enabled: true
+            kubeStateMetricsCore:
+              enabled: true
+          agents:
+            image:
+              repository: "{{.IMAGE_REPO_agent}}"
+              tag: "{{.IMAGE_TAG_agent}}@{{.IMAGE_DIGEST_agent}}"
+              doNotCheckTag: true
+            containers:
+              env:
+                - name: DD_LANGUAGE_DETECTION_ENABLED
+                  value: true
+                - name: DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED
+                  value: true
+                - name: DD_DOGSTATSD_ORIGIN_DETECTION_ENABLED
+                  value: true
+                - name: DD_DOGSTATSD_ORIGIN_DETECTION_ENABLED_CLIENT
+                  value: true
+                - name: DD_DOGSTATSD_TAG_CARDINALITY
+                  value: high
+                - name: DD_TELEMETRY_ENABLED
+                  value: true
+                - name: DD_KUBERNETES_NAMESPACE_ANNOTATIONS_AS_TAGS
+                  value: '{"related_email":"email"}'
           clusterAgent:
             image:
               repository: "{{.IMAGE_REPO_clusteragent}}"
               tag: "{{.IMAGE_TAG_clusteragent}}"
               doNotCheckTag: true
+            enabled: true
+            replicas: 2
+            createPodDisruptionBudget: true
+            admissionController:
+              enabled: true
+              mutateUnlabelled: true
+              configMode: socket
+              failurePolicy: Fail
+            env:
+              - name: DD_LANGUAGE_DETECTION_ENABLED
+                value: true
+              - name: DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED
+                value: true
+              - name: DD_DOGSTATSD_ORIGIN_DETECTION_ENABLED
+                value: true
+              - name: DD_DOGSTATSD_ORIGIN_DETECTION_ENABLED_CLIENT
+                value: true
+              - name: DD_DOGSTATSD_TAG_CARDINALITY
+                value: "high"
+              - name: DD_KUBERNETES_NAMESPACE_COLLECTION_ENABLED
+                value: true
+              - name: DD_KUBERNETES_NAMESPACE_ANNOTATIONS_AS_TAGS
+                value: '{"related_email":"email"}'
           clusterCheckRunner.image:
             repository: "{{.IMAGE_REPO_agent}}"
             tag: "{{.IMAGE_TAG_agent}}"

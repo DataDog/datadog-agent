@@ -16,7 +16,7 @@ deploy:
     releases:
       - name: datadog-agent
         remoteChart: datadog/datadog
-        version: 3.88.1
+        version: 3.131.2
         setValueTemplates:
           datadog:
             apiKey: "{{cmd \"bash\" \"-c\" \"echo $DD_API_KEY\"}}"
@@ -37,6 +37,9 @@ deploy:
             tag: "{{.IMAGE_TAG_agent}}"
             doNotCheckTag: true
 profiles:
+  - name: override
+    activation:
+    - command: dev
   - name: kind
     activation:
     - kubeContext: kind

@@ -240,3 +240,6 @@ go.work.sum
 
 # CLAUDE override file for personal use
 CLAUDE_PERSONAL.md
+
+# Skaffold override file for personal use
+skaffold_override.yaml
