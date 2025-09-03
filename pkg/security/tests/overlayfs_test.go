@@ -9,6 +9,7 @@
 package tests
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path"
@@ -618,6 +619,10 @@ func TestOverlayOpOverride(t *testing.T) {
 			ID:         "test_rule_open",
 			Expression: `open.file.path == "/tmp/target.txt"`,
 		},
+		{
+			ID:         "test_rule_mkdir",
+			Expression: `mkdir.file.path == "/target_dir"`,
+		},
 	}
 
 	test, err := newTestModule(t, nil, ruleDefs)
@@ -646,16 +651,18 @@ func TestOverlayOpOverride(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to get merged dir: %s: %s", string(output), err)
 	}
+	containerOverlayMount := strings.TrimSpace(strings.TrimSpace(string(output)))
 
-	targetFromOverlayMnt := filepath.Join(strings.TrimSpace(string(output)), "/tmp/target.txt")
+	openTargetFromOverlayMnt := filepath.Join(containerOverlayMount, "/tmp/target.txt")
+	mkdirTargetFromOverlayMnt := filepath.Join(containerOverlayMount, "/target_dir")
 
 	t.Run("open-from-container", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			output, err := dockerWrapper.Command("touch", []string{"/tmp/target.txt"}, nil).CombinedOutput()
 			if err != nil {
-				t.Errorf("failed to touch file from container: %s:\n%s", err, string(output))
+				return fmt.Errorf("failed to touch file from container: %w:\n%s", err, string(output))
 			}
-			return err
+			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_open")
 			assertFieldEqual(t, event, "open.file.path", "/tmp/target.txt")
@@ -665,14 +672,28 @@ func TestOverlayOpOverride(t *testing.T) {
 
 	t.Run("open-from-overlay-mnt", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			output, err := exec.Command("touch", targetFromOverlayMnt).CombinedOutput()
+			output, err := exec.Command("touch", openTargetFromOverlayMnt).CombinedOutput()
 			if err != nil {
-				t.Errorf("failed to touch file from overlay mount: %s:\n%s", err, string(output))
+				return fmt.Errorf("failed to touch file from overlay mount: %w:\n%s", err, string(output))
 			}
-			return err
+			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_open")
-			assertFieldEqual(t, event, "open.file.path", targetFromOverlayMnt)
+			assertFieldEqual(t, event, "open.file.path", openTargetFromOverlayMnt)
+			assertFieldEqual(t, event, "container.id", "", "container id should be empty")
+		})
+	})
+
+	t.Run("mkdir-from-overlay-mnt", func(t *testing.T) {
+		test.WaitSignal(t, func() error {
+			output, err := exec.Command("mkdir", mkdirTargetFromOverlayMnt).CombinedOutput()
+			if err != nil {
+				return fmt.Errorf("failed to mkdir from overlay mount: %w:\n%s", err, string(output))
+			}
+			return nil
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_rule_mkdir")
+			assertFieldEqual(t, event, "mkdir.file.path", mkdirTargetFromOverlayMnt)
 			assertFieldEqual(t, event, "container.id", "", "container id should be empty")
 		})
 	})
