@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/core"
@@ -112,12 +113,6 @@ func TestFilterPidsToRequest(t *testing.T) {
 func TestServiceStoreLifetimeProcessCollectionDisabled(t *testing.T) {
 	const collectionInterval = 1 * time.Minute
 
-	configOverrides := map[string]interface{}{
-		"process_config.process_collection.enabled": false,
-		"language_detection.enabled":                false,
-		"process_config.process_collection.use_wlm": true,
-	}
-
 	sysConfigOverrides := map[string]interface{}{
 		"discovery.enabled": true,
 	}
@@ -204,7 +199,12 @@ func TestServiceStoreLifetimeProcessCollectionDisabled(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			c := setUpCollectorTest(t, configOverrides, sysConfigOverrides, nil)
+			cfg := config.NewMock(t)
+			cfg.SetWithoutSource("process_config.process_collection.enabled", false)
+			cfg.SetWithoutSource("language_detection.enabled", false)
+			cfg.SetWithoutSource("process_config.process_collection.use_wlm", true)
+
+			c := setUpCollectorTest(t, cfg, sysConfigOverrides, nil)
 			defer c.cleanup()
 			ctx := t.Context()
 
@@ -254,15 +254,6 @@ func TestServiceStoreLifetimeProcessCollectionDisabled(t *testing.T) {
 func TestServiceStoreLifetime(t *testing.T) {
 	const collectionIntervalSeconds = 60
 	const collectionInterval = time.Duration(collectionIntervalSeconds) * time.Second
-
-	configOverrides := map[string]interface{}{
-		"process_config.process_collection.enabled": true,
-		"process_config.process_collection.use_wlm": true,
-		"language_detection.enabled":                true,
-		// setting process collection interval to the same as the service collection interval
-		// because it makes the test simpler until the service collection interval is configurable
-		"process_config.intervals.process": collectionIntervalSeconds,
-	}
 
 	sysConfigOverrides := map[string]interface{}{
 		"discovery.enabled": true,
@@ -359,8 +350,16 @@ func TestServiceStoreLifetime(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			cfg := config.NewMock(t)
+			cfg.SetWithoutSource("process_config.process_collection.enabled", true)
+			cfg.SetWithoutSource("process_config.process_collection.use_wlm", true)
+			cfg.SetWithoutSource("language_detection.enabled", true)
+			// setting process collection interval to the same as the service collection interval
+			// because it makes the test simpler until the service collection interval is configurable
+			cfg.SetWithoutSource("process_config.intervals.process", collectionIntervalSeconds)
+
 			// Collector setup
-			c := setUpCollectorTest(t, configOverrides, sysConfigOverrides, nil)
+			c := setUpCollectorTest(t, cfg, sysConfigOverrides, nil)
 			defer c.cleanup()
 			ctx := t.Context()
 
@@ -440,20 +439,19 @@ func TestProcessDeathRemovesServiceData(t *testing.T) {
 	const collectionIntervalSeconds = 60
 	const collectionInterval = time.Duration(collectionIntervalSeconds) * time.Second
 
-	configOverrides := map[string]interface{}{
-		"process_config.process_collection.enabled": true,
-		"process_config.process_collection.use_wlm": true,
-		"language_detection.enabled":                true,
-		// setting process collection interval to the same as the service collection interval
-		// because it makes the test simpler until the service collection interval is configurable
-		"process_config.intervals.process": collectionIntervalSeconds,
-	}
-
 	sysConfigOverrides := map[string]interface{}{
 		"discovery.enabled": true,
 	}
 
-	c := setUpCollectorTest(t, configOverrides, sysConfigOverrides, nil)
+	cfg := config.NewMock(t)
+	cfg.SetWithoutSource("process_config.process_collection.enabled", true)
+	cfg.SetWithoutSource("process_config.process_collection.use_wlm", true)
+	cfg.SetWithoutSource("language_detection.enabled", true)
+	// setting process collection interval to the same as the service collection interval
+	// because it makes the test simpler until the service collection interval is configurable
+	cfg.SetWithoutSource("process_config.intervals.process", collectionIntervalSeconds)
+
+	c := setUpCollectorTest(t, cfg, sysConfigOverrides, nil)
 	ctx := t.Context()
 
 	// Set initial state: process entity in the store, SD was tracking a service,
@@ -550,7 +548,6 @@ func makeModelService(pid int32, name string) model.Service {
 			},
 		},
 		DDService:          "dd-model-" + name,
-		DDServiceInjected:  false,
 		TCPPorts:           []uint16{3000, 4000},
 		APMInstrumentation: "manual",
 		Language:           "python",
@@ -580,7 +577,6 @@ func makeProcessEntityService(pid int32, name string) *workloadmeta.Process {
 				},
 			},
 			DDService:          "dd-model-" + name,
-			DDServiceInjected:  false,
 			TCPPorts:           []uint16{3000, 4000},
 			APMInstrumentation: "manual",
 			Type:               "database",
@@ -656,7 +652,6 @@ func assertStoredServices(t *testing.T, store workloadmetamock.Mock, expected []
 				assert.Equal(collectT, expectedProcess.Service.AdditionalGeneratedNames, entity.Service.AdditionalGeneratedNames)
 				assert.Equal(collectT, expectedProcess.Service.TracerMetadata, entity.Service.TracerMetadata)
 				assert.Equal(collectT, expectedProcess.Service.DDService, entity.Service.DDService)
-				assert.Equal(collectT, expectedProcess.Service.DDServiceInjected, entity.Service.DDServiceInjected)
 				assert.Equal(collectT, expectedProcess.Service.TCPPorts, entity.Service.TCPPorts)
 				assert.Equal(collectT, expectedProcess.Service.UDPPorts, entity.Service.UDPPorts)
 				assert.Equal(collectT, expectedProcess.Service.APMInstrumentation, entity.Service.APMInstrumentation)

@@ -81,9 +81,28 @@ func TestDebuggerProxyHandler(t *testing.T) {
 		assert.NoError(t, err)
 		conf := getConf()
 		conf.Hostname = "myhost"
-		conf.DebuggerDiagnosticsProxy.DDURL = srv.URL
+		conf.DebuggerIntakeProxy.DDURL = srv.URL
 		receiver := newTestReceiverFromConfig(conf)
 		receiver.debuggerDiagnosticsProxyHandler().ServeHTTP(httptest.NewRecorder(), req)
+		assert.True(t, called, "request not proxied")
+	})
+
+	t.Run("ok_v2_intake_proxy", func(t *testing.T) {
+		var called bool
+		srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, req *http.Request) {
+			ddtags := req.URL.Query().Get("ddtags")
+			assert.False(t, strings.Contains(ddtags, "orchestrator"), "ddtags should not contain orchestrator: %v", ddtags)
+			assert.Equal(t, "host:myhost,default_env:test,agent_version:v1", ddtags)
+			called = true
+		}))
+		defer srv.Close()
+		req, err := http.NewRequest("POST", "/some/path", nil)
+		assert.NoError(t, err)
+		conf := getConf()
+		conf.Hostname = "myhost"
+		conf.DebuggerIntakeProxy.DDURL = srv.URL
+		receiver := newTestReceiverFromConfig(conf)
+		receiver.debuggerV2IntakeProxyHandler().ServeHTTP(httptest.NewRecorder(), req)
 		assert.True(t, called, "request not proxied")
 	})
 
@@ -276,6 +295,7 @@ func TestDebuggerProxyHandler(t *testing.T) {
 func getConf() *traceconfig.AgentConfig {
 	conf := newTestReceiverConfig()
 	conf.DebuggerProxy.AdditionalEndpoints = make(map[string][]string)
+	conf.DebuggerIntakeProxy.AdditionalEndpoints = make(map[string][]string)
 	conf.DefaultEnv = "test"
 	conf.Hostname = "myhost"
 	conf.AgentVersion = "v1"

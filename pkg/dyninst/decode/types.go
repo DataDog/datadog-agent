@@ -18,6 +18,7 @@ import (
 
 	"github.com/go-json-experiment/json/jsontext"
 
+	"github.com/DataDog/datadog-agent/pkg/dyninst/gotype"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
 )
@@ -1131,9 +1132,13 @@ func encodeInterface(
 	runtimeType := binary.NativeEndian.Uint64(data[goRuntimeTypeOffset : goRuntimeTypeOffset+8])
 	typeID, ok := d.typesByGoRuntimeType[uint32(runtimeType)]
 	if !ok {
+		name, err := d.typeNameResolver.ResolveTypeName(gotype.TypeID(runtimeType))
+		if err != nil {
+			name = fmt.Sprintf("UnknownType(0x%x): %v", runtimeType, err)
+		}
 		if err := writeTokens(enc,
 			jsontext.String("type"),
-			jsontext.String(fmt.Sprintf("UnknownType(0x%x)", runtimeType)),
+			jsontext.String(name),
 			tokenNotCapturedReason,
 			tokenNotCapturedReasonMissingTypeInfo,
 		); err != nil {

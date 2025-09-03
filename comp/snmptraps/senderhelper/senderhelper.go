@@ -10,11 +10,15 @@
 package senderhelper
 
 import (
+	"testing"
+
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
-	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -25,7 +29,8 @@ import (
 var Opts = fx.Options(
 	defaultforwarder.MockModule(),
 	demultiplexerimpl.MockModule(),
-	core.MockBundle(),
+	hostnameimpl.MockModule(),
+	fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 	fx.Provide(func() (*mocksender.MockSender, sender.Sender) {
 		mockSender := mocksender.NewMockSender("mock-sender")
 		mockSender.SetupAcceptAll()

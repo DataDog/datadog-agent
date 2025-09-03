@@ -70,7 +70,7 @@ func TestHandleKubePod(t *testing.T) {
 
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		config.MockModule(),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
@@ -754,6 +754,10 @@ func TestHandleKubePod(t *testing.T) {
 				EntityMeta: workloadmeta.EntityMeta{
 					Name:      podName,
 					Namespace: podNamespace,
+					Labels: map[string]string{
+						// Argo Rollout tags
+						"rollouts-pod-template-hash": "490794276",
+					},
 				},
 				Owners: []workloadmeta.KubernetesPodOwner{
 					{
@@ -781,6 +785,7 @@ func TestHandleKubePod(t *testing.T) {
 						"kube_ownerref_kind:replicaset",
 						"kube_replica_set:some_deployment-bcd2",
 						"kube_deployment:some_deployment",
+						"kube_argo_rollout:some_deployment",
 					},
 					StandardTags: []string{},
 				},
@@ -970,12 +975,14 @@ func TestHandleKubePodWithoutPvcAsTags(t *testing.T) {
 
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		config.MockModule(),
+		fx.Provide(func() config.Component {
+			return config.NewMockWithOverrides(t, map[string]any{
+				"kubernetes_persistent_volume_claims_as_tags": false,
+			})
+		}),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-	), fx.Replace(config.MockParams{Overrides: map[string]any{
-		"kubernetes_persistent_volume_claims_as_tags": false,
-	}}))
+	))
 	store.Set(&workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindContainer,
@@ -1112,7 +1119,7 @@ func TestHandleKubePodNoContainerName(t *testing.T) {
 
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		config.MockModule(),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
@@ -1231,7 +1238,7 @@ func TestHandleKubeMetadata(t *testing.T) {
 
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		config.MockModule(),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
@@ -1320,7 +1327,7 @@ func TestHandleKubeDeployment(t *testing.T) {
 
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		config.MockModule(),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
@@ -1462,11 +1469,13 @@ func TestHandleECSTask(t *testing.T) {
 
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		config.MockModule(),
+		fx.Provide(func() config.Component {
+			return config.NewMockWithOverrides(t, map[string]any{
+				"ecs_collect_resource_tags_ec2": true,
+			})
+		}),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-	), fx.Replace(config.MockParams{Overrides: map[string]any{
-		"ecs_collect_resource_tags_ec2": true,
-	}}))
+	))
 
 	store.Set(&workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
@@ -2487,7 +2496,7 @@ func TestHandleDelete(t *testing.T) {
 
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		config.MockModule(),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
@@ -2563,7 +2572,7 @@ func TestHandlePodWithDeletedContainer(t *testing.T) {
 
 	fakeStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		config.MockModule(),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 	collector := NewWorkloadMetaCollector(context.Background(), configmock.New(t), fakeStore, &fakeProcessor{collectorCh})
