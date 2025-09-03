@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // team: agent-metrics-logs
@@ -28,7 +28,7 @@ type ServerlessDogstatsd interface {
 
 //nolint:revive // TODO(AML) Fix revive linter
 func NewServerlessServer(demux aggregator.Demultiplexer) (ServerlessDogstatsd, error) {
-	wmeta := optional.NewNoneOption[workloadmeta.Component]()
+	wmeta := option.None[workloadmeta.Component]()
 	s := newServerCompat(config.Datadog, logComponentImpl.NewTemporaryLoggerWithoutInit(), replay.NewServerlessTrafficCapture(), serverdebugimpl.NewServerlessServerDebug(), true, demux, wmeta)
 
 	err := s.start(context.TODO())

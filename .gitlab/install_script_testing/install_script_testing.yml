@@ -9,12 +9,15 @@ test_install_script:
     - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_SCHEDULER_TOKEN_SSM_NAME)
     - export TESTING_APT_URL=$DEB_TESTING_S3_BUCKET
     - export TESTING_YUM_URL=$RPM_TESTING_S3_BUCKET
+    # test repositories are signed with the test keys
+    - export TESTING_KEYS_URL=$TEST_KEYS_URL
     - export TEST_PIPELINE_ID=$CI_PIPELINE_ID
     - export MAJOR_VERSION=6
     - "inv pipeline.trigger-child-pipeline --project-name DataDog/agent-linux-install-script --git-ref main
       --variable MAJOR_VERSION
       --variable TESTING_APT_URL
       --variable TESTING_YUM_URL
+      --variable TESTING_KEYS_URL
       --variable TEST_PIPELINE_ID"
   needs: ["deploy_deb_testing-a6_x64", "deploy_rpm_testing-a6_x64", "deploy_suse_rpm_testing_x64-a6"]
   rules:

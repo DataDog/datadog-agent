@@ -11,7 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const (
@@ -24,7 +24,7 @@ const (
 )
 
 // NewProbe instantiates a new runtime security agent probe
-func NewProbe(config *config.Config, opts Opts, wmeta optional.Option[workloadmeta.Component]) (*Probe, error) {
+func NewProbe(config *config.Config, opts Opts, wmeta option.Option[workloadmeta.Component]) (*Probe, error) {
 	opts.normalize()
 
 	p := &Probe{

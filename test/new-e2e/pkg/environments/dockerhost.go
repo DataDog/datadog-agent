@@ -7,7 +7,7 @@ package environments
 
 import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
 )
 
 // DockerHost is an environment that contains a Docker VM, FakeIntake and Agent configured to talk to each other.
@@ -19,9 +19,9 @@ type DockerHost struct {
 	Docker     *components.RemoteHostDocker
 }
 
-var _ e2e.Initializable = &DockerHost{}
+var _ common.Initializable = &DockerHost{}
 
 // Init initializes the environment
-func (e *DockerHost) Init(_ e2e.Context) error {
+func (e *DockerHost) Init(_ common.Context) error {
 	return nil
 }

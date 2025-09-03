@@ -114,7 +114,7 @@ modules:
   pkg/util/json: default
   pkg/util/log:
     used_by_otel: true
-  pkg/util/optional: default
+  pkg/util/option: default
   pkg/util/pointer:
     used_by_otel: true
   pkg/util/scrubber:

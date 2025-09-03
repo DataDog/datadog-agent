@@ -31,7 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
@@ -86,8 +86,8 @@ func (cc *checkConfig) Parse(data []byte) error {
 }
 
 // Factory creates a new check factory
-func Factory() optional.Option[func() check.Check] {
-	return optional.NewOption(newCheck)
+func Factory() option.Option[func() check.Check] {
+	return option.New(newCheck)
 }
 
 func newCheck() check.Check {

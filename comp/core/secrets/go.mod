@@ -10,7 +10,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/log => ../../../pkg/util/log
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../../pkg/util/scrubber
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../pkg/util/winutil
-
 )
 
 require (

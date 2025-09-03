@@ -16,7 +16,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../fxutil
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../hostname/validate
 	github.com/DataDog/datadog-agent/pkg/util/log => ../log
-	github.com/DataDog/datadog-agent/pkg/util/optional => ../optional
+	github.com/DataDog/datadog-agent/pkg/util/option => ../option
 	github.com/DataDog/datadog-agent/pkg/util/pointer => ../pointer
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../scrubber
 	github.com/DataDog/datadog-agent/pkg/util/system => ../system
@@ -39,7 +39,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.53.2-rc.15 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.53.2-rc.15 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log v0.53.2-rc.15 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/optional v0.53.2-rc.15 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/option v0.53.2-rc.15 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.53.2-rc.15 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.53.2-rc.15 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system v0.53.2-rc.15 // indirect
