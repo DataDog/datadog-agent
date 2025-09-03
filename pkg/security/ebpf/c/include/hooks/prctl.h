@@ -64,4 +64,9 @@ HOOK_SYSCALL_EXIT(prctl) {
     int retval = SYSCALL_PARMRET(ctx);
     return sys_prctl_ret(ctx, retval);
 }
+
+TAIL_CALL_TRACEPOINT_FNC(handle_sys_prctl_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
+    return sys_prctl_ret(args, args->ret);
+}
+
 #endif
