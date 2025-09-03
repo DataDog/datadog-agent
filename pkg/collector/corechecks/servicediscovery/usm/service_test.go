@@ -56,7 +56,6 @@ func TestExtractServiceMetadata(t *testing.T) {
 		expectedDDService           string
 		expectedAdditionalServices  []string
 		expectedGeneratedNameSource ServiceNameSource
-		ddServiceInjected           bool
 		fs                          *SubDirFS
 		skipOnWindows               bool
 	}{
@@ -725,16 +724,6 @@ func TestExtractServiceMetadata(t *testing.T) {
 			expectedGeneratedNameSource: CommandLine,
 		},
 		{
-			name:                        "DD_SERVICE_set_manually_injection",
-			cmdline:                     []string{"java", "-jar", "Foo.jar"},
-			lang:                        language.Java,
-			envs:                        map[string]string{"DD_SERVICE": "howdy", "DD_INJECTION_ENABLED": "tracer,service_name"},
-			expectedDDService:           "howdy",
-			expectedGeneratedName:       "Foo",
-			expectedGeneratedNameSource: CommandLine,
-			ddServiceInjected:           true,
-		},
-		{
 			name: "gunicorn simple",
 			cmdline: []string{
 				"gunicorn",
@@ -959,7 +948,6 @@ func TestExtractServiceMetadata(t *testing.T) {
 				require.Equal(t, tt.expectedDDService, meta.DDService)
 				require.Equal(t, tt.expectedGeneratedName, meta.Name)
 				require.Equal(t, tt.expectedAdditionalServices, meta.AdditionalNames)
-				require.Equal(t, tt.ddServiceInjected, meta.DDServiceInjected)
 				require.Equal(t, tt.expectedGeneratedNameSource, meta.Source)
 			}
 		})
