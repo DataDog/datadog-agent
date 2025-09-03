@@ -17,14 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var datadoghqRegistries = map[string]struct{}{
-	"gcr.io/datadoghq": {},
-	// TODO: Add these back when we have remote config for them
-	// "datadoghq.azurecr.io":   {},
-	// "dockerhub.io/datadog":   {},
-	// "public.ecr.aws/datadog": {},
-}
-
 // RemoteConfigClient defines the interface we need for remote config operations
 type RemoteConfigClient interface {
 	GetConfigs(product string) map[string]state.RawConfig
@@ -60,7 +52,7 @@ type remoteConfigImageResolver struct {
 	rcClient RemoteConfigClient
 
 	mu            sync.RWMutex
-	imageMappings map[string]map[string]ResolvedImage // repository -> tag -> resolved image
+	imageMappings map[string]map[string]ResolvedImage // repository URL -> tag -> resolved image
 }
 
 // newRemoteConfigImageResolver creates a new remoteConfigImageResolver.
@@ -74,7 +66,8 @@ func newRemoteConfigImageResolver(rcClient RemoteConfigClient) ImageResolver {
 	rcClient.Subscribe(state.ProductGradualRollout, resolver.processUpdate)
 	log.Debugf("Subscribed to %s", state.ProductGradualRollout)
 
-	if err := resolver.waitForInitialConfig(); err != nil {
+	maxRetries := 5
+	if err := resolver.waitForInitialConfig(maxRetries); err != nil {
 		log.Warnf("Failed to load initial image resolution config: %v. Image resolution will be disabled.", err)
 		return newNoOpImageResolver()
 	}
@@ -82,15 +75,14 @@ func newRemoteConfigImageResolver(rcClient RemoteConfigClient) ImageResolver {
 	return resolver
 }
 
-func (r *remoteConfigImageResolver) waitForInitialConfig() error {
+func (r *remoteConfigImageResolver) waitForInitialConfig(maxRetries int) error {
 	if currentConfigs := r.rcClient.GetConfigs(state.ProductGradualRollout); len(currentConfigs) > 0 {
 		log.Debugf("Initial configs available immediately: %d configurations", len(currentConfigs))
 		r.updateCache(currentConfigs)
 		return nil
 	}
 
-	maxRetries := 5
-	retryDelay := 200 * time.Millisecond
+	retryDelay := 1 * time.Second
 
 	for attempt := 1; attempt <= maxRetries; attempt++ {
 		time.Sleep(retryDelay)
@@ -114,38 +106,30 @@ func (r *remoteConfigImageResolver) waitForInitialConfig() error {
 // If resolution fails or is not available, it returns nil.
 // Output: nil, false
 func (r *remoteConfigImageResolver) Resolve(registry string, repository string, tag string) (*ResolvedImage, bool) {
-	if !isDatadoghqRegistry(registry) {
-		log.Debugf("Not a Datadoghq registry, not resolving")
-		return nil, false
-	}
-
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
 	if len(r.imageMappings) == 0 {
-		log.Debugf("Cache empty, no resolution available")
+		// log.Debugf("Cache empty, no resolution available")
 		return nil, false
 	}
 
-	repoCache, exists := r.imageMappings[repository]
+	requestedURL := registry + "/" + repository
+
+	repoCache, exists := r.imageMappings[requestedURL]
 	if !exists {
-		log.Debugf("No mapping found for repository %s", repository)
+		log.Debugf("No mapping found for repository URL %s", requestedURL)
 		return nil, false
 	}
 
 	resolved, exists := repoCache[tag]
 	if !exists {
-		log.Debugf("No mapping found for %s:%s", repository, tag)
+		log.Debugf("No mapping found for %s:%s", requestedURL, tag)
 		return nil, false
 	}
 
-	log.Debugf("Resolved %s:%s -> %s", repository, tag, resolved)
+	log.Debugf("Resolved %s:%s -> %s", requestedURL, tag, resolved.FullImageRef)
 	return &resolved, true
-}
-
-func isDatadoghqRegistry(registry string) bool {
-	_, exists := datadoghqRegistries[registry]
-	return exists
 }
 
 // updateCache processes configuration data and updates the image mappings cache.
@@ -186,7 +170,7 @@ func (r *remoteConfigImageResolver) updateCacheFromParsedConfigs(validConfigs ma
 		tagMap := make(map[string]ResolvedImage)
 		for _, imageInfo := range repo.Images {
 			if imageInfo.Tag == "" || imageInfo.Digest == "" {
-				log.Warnf("Skipping invalid image entry (missing tag or digest) in %s", repo.RepositoryName)
+				log.Warnf("Skipping invalid image entry (missing tag or digest) in %s", repo.RepositoryURL)
 				continue
 			}
 
@@ -197,8 +181,9 @@ func (r *remoteConfigImageResolver) updateCacheFromParsedConfigs(validConfigs ma
 				CanonicalVersion: imageInfo.CanonicalVersion,
 			}
 		}
-		newCache[repo.RepositoryName] = tagMap
-		log.Debugf("Processed config for repository %s with %d images", repo.RepositoryName, len(tagMap))
+
+		newCache[repo.RepositoryURL] = tagMap
+		log.Debugf("Processed config for repository %s with %d images", repo.RepositoryURL, len(tagMap))
 	}
 
 	r.mu.Lock()
