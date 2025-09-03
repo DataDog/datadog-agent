@@ -125,15 +125,15 @@ func (r *Runner) RunTraceroute(ctx context.Context, cfg config.Config) (payload.
 	}
 
 	params := runner.TracerouteParams{
-		Hostname:        cfg.DestHostname,
-		Protocol:        strings.ToLower(string(cfg.Protocol)),
-		MinTTL:          0,
-		MaxTTL:          int(cfg.MaxTTL),
-		Delay:           DefaultDelay,
-		Timeout:         timeout,
-		TCPMethod:       traceroute.TCPMethod(cfg.TCPMethod),
-		DestinationPort: int(cfg.DestPort),
-		WantV6:          false,
+		Hostname:  cfg.DestHostname,
+		Port:      int(cfg.DestPort),
+		Protocol:  strings.ToLower(string(cfg.Protocol)),
+		MinTTL:    0,
+		MaxTTL:    int(cfg.MaxTTL),
+		Delay:     DefaultDelay,
+		Timeout:   timeout,
+		TCPMethod: traceroute.TCPMethod(cfg.TCPMethod),
+		WantV6:    false,
 	}
 
 	results, err := runner.RunTraceroute(ctx, params)
