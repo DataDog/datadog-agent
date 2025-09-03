@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    In a default configuration with no `logs_enabled` set, the Logs Agent is now lazy loaded and won't start until the first log is received.
+    In a default configuration without `logs_enabled` set, the Logs Agent is now lazy-loaded and doesn't start until the first log is received.
