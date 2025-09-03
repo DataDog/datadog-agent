@@ -580,7 +580,6 @@ func (pn *ProcessNode) EvictUnusedNodes(before time.Time) int {
 		if dnsNode.NodeBase.EvictBeforeTimestamp(before) > 0 {
 			if len(dnsNode.Seen) == 0 {
 				delete(pn.DNSNames, name)
-				fmt.Println("============ Removing DNSNode", name)
 				totalEvicted++
 			}
 		}
