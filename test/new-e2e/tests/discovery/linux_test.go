@@ -8,6 +8,7 @@ package discovery
 import (
 	_ "embed"
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -46,6 +47,7 @@ type linuxTestSuite struct {
 var services = []string{
 	"python-svc",
 	"python-instrumented",
+	"python-restricted",
 	"node-json-server",
 	"node-instrumented",
 	"rails-svc",
@@ -107,6 +109,33 @@ func (s *linuxTestSuite) testLogs(t *testing.T) {
 
 		assert.True(c, foundStartupLog, "Should find startup log message")
 		assert.True(c, foundRequestLog, "Should find request log message")
+	}, 2*time.Minute, 10*time.Second)
+
+	// Verify discovery check reports permission warnings for restricted log
+	// files.  There is no fake intake for the check status and the check status
+	// is also sent out once every 10 minutes, so check the agent status
+	// instead, which should be good enough.
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		warnings, err := getDiscoveryCheckWarnings(t, s.Env().RemoteHost)
+		assert.NoError(c, err, "failed to get discovery check warnings from agent status")
+
+		foundPermissionWarning := false
+
+		for _, warning := range warnings {
+			t.Logf("Discovery warning: type=%s, error_code=%s, resource=%s, message=%s",
+				warning.Type, warning.ErrorCode, warning.Resource, warning.Message)
+
+			if warning.Type == "log_file" &&
+				warning.ErrorCode == "permission-denied" &&
+				strings.HasPrefix(warning.Resource, "/tmp/python-restricted") &&
+				warning.ErrorString != "" &&
+				warning.Message != "" {
+				foundPermissionWarning = true
+				break
+			}
+		}
+
+		assert.True(c, foundPermissionWarning, "Should find permission warning for restricted log file")
 	}, 2*time.Minute, 10*time.Second)
 }
 
@@ -270,26 +299,65 @@ func (s *linuxTestSuite) testProcessCheckWithServiceDiscovery(agentConfigStr str
 }
 
 type checkStatus struct {
-	CheckID           string `json:"CheckID"`
-	CheckName         string `json:"CheckName"`
-	CheckConfigSource string `json:"CheckConfigSource"`
-	ExecutionTimes    []int  `json:"ExecutionTimes"`
+	CheckID           string   `json:"CheckID"`
+	CheckName         string   `json:"CheckName"`
+	CheckConfigSource string   `json:"CheckConfigSource"`
+	ExecutionTimes    []int    `json:"ExecutionTimes"`
+	LastWarnings      []string `json:"LastWarnings"`
 }
 
-type runnerStats struct {
-	Checks map[string]checkStatus `json:"Checks"`
-}
+type (
+	checkName    = string
+	instanceName = string
+	runnerStats  struct {
+		Checks map[checkName]map[instanceName]checkStatus `json:"Checks"`
+	}
+)
 
 type collectorStatus struct {
 	RunnerStats runnerStats `json:"runnerStats"`
 }
 
-func assertCollectorStatusFromJSON(t *assert.CollectT, statusOutput, check string) {
+// Warning represents a structured warning from discovery check
+type Warning struct {
+	Type        string `json:"type"`
+	Version     int    `json:"version"`
+	Resource    string `json:"resource"`
+	ErrorCode   string `json:"error_code"`
+	ErrorString string `json:"error_string"`
+	Message     string `json:"message"`
+}
+
+// getDiscoveryCheckWarnings parses discovery check warnings from agent status
+func getDiscoveryCheckWarnings(t *testing.T, remoteHost *components.RemoteHost) ([]Warning, error) {
+	statusOutput := remoteHost.MustExecute("sudo datadog-agent status collector --json")
 	var status collectorStatus
 	err := json.Unmarshal([]byte(statusOutput), &status)
-	require.NoError(t, err, "failed to unmarshal agent status")
+	if err != nil {
+		return nil, err
+	}
 
-	assert.Contains(t, status.RunnerStats.Checks, check)
+	instances, exists := status.RunnerStats.Checks["discovery"]
+	if !exists {
+		return []Warning{}, nil
+	}
+
+	discoveryCheck, exists := instances["discovery"]
+	if !exists {
+		return []Warning{}, nil
+	}
+
+	t.Logf("Discovery check warnings: %+v", discoveryCheck.LastWarnings)
+
+	var warnings []Warning
+	for _, warningStr := range discoveryCheck.LastWarnings {
+		var warning Warning
+		if err := json.Unmarshal([]byte(warningStr), &warning); err == nil {
+			warnings = append(warnings, warning)
+		}
+	}
+
+	return warnings, nil
 }
 
 // assertNotRunningCheck asserts that the given agent check is not running

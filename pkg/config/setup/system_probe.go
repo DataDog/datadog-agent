@@ -24,6 +24,7 @@ const (
 	netNS                        = "network_config"
 	smNS                         = "service_monitoring_config"
 	evNS                         = "event_monitoring_config"
+	compNS                       = "compliance_config"
 	ccmNS                        = "ccm_network_config"
 	diNS                         = "dynamic_instrumentation"
 	wcdNS                        = "windows_crash_detection"
@@ -266,6 +267,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_kafka_monitoring"), false)
 	cfg.BindEnv(join(smNS, "enable_postgres_monitoring"))
 	cfg.BindEnv(join(smNS, "enable_redis_monitoring"))
+	cfg.BindEnvAndSetDefault(join(smNS, "redis", "track_resources"), false)
 	cfg.BindEnvAndSetDefault(join(smNS, "tls", "istio", "enabled"), true)
 	cfg.BindEnvAndSetDefault(join(smNS, "tls", "istio", "envoy_path"), defaultEnvoyPath)
 	cfg.BindEnv(join(smNS, "tls", "nodejs", "enabled"))
@@ -415,6 +417,8 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 
 	// process event monitoring data limits for network tracer
 	eventMonitorBindEnv(cfg, join(evNS, "network_process", "max_processes_tracked"))
+
+	cfg.BindEnvAndSetDefault(join(compNS, "enabled"), false)
 
 	// enable/disable use of root net namespace
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_root_netns"), true)
