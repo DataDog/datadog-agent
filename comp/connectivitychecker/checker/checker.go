@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
 )
 
@@ -43,12 +44,40 @@ func Check(
 
 	diagnosesPayload := []DiagnosisPayload{}
 	for _, diagnosis := range diagnoses {
-		diagnosesPayload = append(diagnosesPayload, DiagnosisPayload{
+		payload := DiagnosisPayload{
 			Status:      toStatus(diagnosis.Status),
 			Description: diagnosis.Name,
-			Error:       diagnosis.Diagnosis,
 			Metadata:    diagnosis.Metadata,
-		})
+		}
+		if diagnosis.Status == diagnose.DiagnosisFail {
+			payload.Error = diagnosis.Diagnosis
+		}
+		diagnosesPayload = append(diagnosesPayload, payload)
+	}
+
+	eventplatformDiagnoses := eventplatformimpl.Diagnose()
+	for _, diagnosis := range eventplatformDiagnoses {
+		payload := DiagnosisPayload{
+			Status:      toStatus(diagnosis.Status),
+			Description: diagnosis.Name,
+			Metadata:    diagnosis.Metadata,
+		}
+		if diagnosis.Status == diagnose.DiagnosisFail {
+			payload.Error = diagnosis.Diagnosis
+		}
+		diagnosesPayload = append(diagnosesPayload, payload)
+	}
+
+	for _, diagnosis := range connectivity.Diagnose(diagnose.Config{}, log) {
+		payload := DiagnosisPayload{
+			Status:      toStatus(diagnosis.Status),
+			Description: diagnosis.Name,
+			Metadata:    diagnosis.Metadata,
+		}
+		if diagnosis.Status == diagnose.DiagnosisFail {
+			payload.Error = diagnosis.Diagnosis
+		}
+		diagnosesPayload = append(diagnosesPayload, payload)
 	}
 
 	return map[string][]DiagnosisPayload{

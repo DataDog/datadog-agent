@@ -26,7 +26,6 @@ func TestBuildRoute(t *testing.T) {
 		domain         domain
 		path           string
 		urlOverrideKey string
-		versioned      bool
 		expected       string
 	}{
 		{
@@ -60,17 +59,6 @@ func TestBuildRoute(t *testing.T) {
 			expected: "https://install.datadoghq.eu./api/v1/validate",
 		},
 		{
-			name:   "versioned route",
-			prefix: "app",
-			domain: domain{
-				site:          "datadoghq.com",
-				infraEndpoint: "https://app.datadoghq.com",
-			},
-			path:      "api/v1/validate",
-			versioned: true,
-			expected:  "https://6-0-0-app.agent.datadoghq.com/api/v1/validate",
-		},
-		{
 			name:   "with url override",
 			prefix: "intake.profile",
 			domain: domain{
@@ -88,7 +76,6 @@ func TestBuildRoute(t *testing.T) {
 			endpointDescription := endpointDescription{
 				prefix:            tt.prefix,
 				routePath:         tt.path,
-				versioned:         tt.versioned,
 				altURLOverrideKey: tt.urlOverrideKey,
 			}
 			version.AgentVersion = "6.0.0"

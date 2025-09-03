@@ -33,7 +33,6 @@ type endpointDescription struct {
 	routePath         string
 	configPrefix      string
 	limitRedirect     bool
-	versioned         bool
 	altURLOverrideKey string
 	handlesFailover   bool
 }
@@ -45,22 +44,12 @@ func getEndpointsDescriptions(cfg model.Reader) []endpointDescription {
 		{name: "Agent package apt", route: "https://apt.datadoghq.com", method: http.MethodHead},
 		{name: "Agent keys", route: "https://keys.datadoghq.com", method: http.MethodHead},
 		{name: "APM traces", prefix: "trace.agent", routePath: "_health", method: http.MethodGet, altURLOverrideKey: "apm_config.apm_dd_url"},
-		{name: "APM telemetry", prefix: "instrumentation-telemetry-intake", routePath: "probe", method: http.MethodGet, configPrefix: "service_discovery.forwarder", altURLOverrideKey: "apm_config.telemetry.dd_url"},
-		{name: "LLM obs", prefix: "llmobs-intake", routePath: "probe", method: http.MethodGet},
-		{name: "Container image", prefix: "contimage-intake", routePath: "probe", method: http.MethodGet, configPrefix: "container_image"},
-		{name: "Live container/process/USM", prefix: "process", configPrefix: "process_config", altURLOverrideKey: "process_config.process_dd_url", routePath: "probe", method: http.MethodGet},
-		{name: "Network device monitoring metadata", prefix: "ndm-intake", routePath: "probe", method: http.MethodGet, configPrefix: "network_devices.metadata", altURLOverrideKey: "network_devices.metadata_dd_url"},
-		{name: "Network device monitoring netflow", prefix: "ndmflow-intake", routePath: "probe", method: http.MethodGet, configPrefix: "network_devices.netflow.forwarder"},
-		{name: "Network device monitoring snmp", prefix: "snmp-traps-intake", routePath: "probe", method: http.MethodGet, configPrefix: "network_devices.snmp_traps.forwarder", altURLOverrideKey: "network_devices.snmp_traps_dd_url"},
-		{name: "Network path", prefix: "netpath-intake", routePath: "probe", method: http.MethodGet, configPrefix: "network_path.forwarder"},
-		{name: "Orchestrator ", prefix: "orchestrator", routePath: "probe", method: http.MethodGet, altURLOverrideKey: "orchestrator_explorer.orchestrator_dd_url"},
-		{name: "Orchestrator container lifecycle", prefix: "contlcycle-intake", routePath: "probe", method: http.MethodGet, configPrefix: "container_lifecycle.forwarder"},
-		{name: "Profiling", prefix: "intake.profile", routePath: "probe", method: http.MethodGet, altURLOverrideKey: "apm_config.profiling_dd_url"},
+		{name: "LLM obs", prefix: "llmobs-intake", routePath: "api/v2/llmobs", method: http.MethodPost},
+		//{name: "Live container/process/USM", prefix: "process", configPrefix: "process_config", altURLOverrideKey: "process_config.process_dd_url", routePath: "probe", method: http.MethodGet},
+		//{name: "Orchestrator ", prefix: "orchestrator", routePath: "probe", method: http.MethodGet, altURLOverrideKey: "orchestrator_explorer.orchestrator_dd_url"},
+		//{name: "Profiling", prefix: "intake.profile", routePath: "probe", method: http.MethodGet, altURLOverrideKey: "apm_config.profiling_dd_url"},
 		{name: "Remote configuration", prefix: "config", configPrefix: "remote_configuration", altURLOverrideKey: "remote_configuration.rc_dd_url", handlesFailover: true, routePath: "_health", method: http.MethodGet},
-		{name: "Database monitoring metrics", prefix: "dbm-metrics-intake", routePath: "probe", method: http.MethodGet, configPrefix: "database_monitoring.samples", altURLOverrideKey: "database_monitoring.metrics.dd_url"},
 		{name: "Agent flare", route: helpers.GetFlareEndpoint(cfg), method: http.MethodHead, limitRedirect: true},
-		{name: "Logs", prefix: "agent-http-intake.logs", routePath: "probe", method: http.MethodGet, configPrefix: "logs_config", altURLOverrideKey: "logs_config.logs_dd_url", handlesFailover: true},
-		{name: "Metrics/events/agent metadata", prefix: "app", routePath: "probe", versioned: true, method: http.MethodGet, altURLOverrideKey: "dd_url", handlesFailover: true},
 	}
 }
 
@@ -173,16 +162,12 @@ func getDomains(cfg model.Reader) []domain {
 
 func (e *endpointDescription) buildRoute(cfg model.Reader, domain domain) string {
 	baseURL := ""
-	if e.versioned {
-		baseURL, _ = utils.AddAgentVersionToDomain(domain.infraEndpoint, e.prefix)
+	urlOverrideKey := getURLOverrideKey(e.altURLOverrideKey, domain.isFailover)
+	schemedPrefix := fmt.Sprintf("https://%s", joinSuffix(e.prefix, "."))
+	if domain.isFailover {
+		baseURL, _ = utils.GetMRFEndpoint(cfg, schemedPrefix, urlOverrideKey)
 	} else {
-		urlOverrideKey := getURLOverrideKey(e.altURLOverrideKey, domain.isFailover)
-		schemedPrefix := fmt.Sprintf("https://%s", joinSuffix(e.prefix, "."))
-		if domain.isFailover {
-			baseURL, _ = utils.GetMRFEndpoint(cfg, schemedPrefix, urlOverrideKey)
-		} else {
-			baseURL = utils.GetMainEndpoint(cfg, schemedPrefix, urlOverrideKey)
-		}
+		baseURL = utils.GetMainEndpoint(cfg, schemedPrefix, urlOverrideKey)
 	}
 
 	path := e.routePath
@@ -334,6 +319,8 @@ func (e resolvedEndpoint) checkServiceConnectivity(ctx context.Context, client *
 		return e.checkHead(ctx, client)
 	case http.MethodGet:
 		return e.checkGet(ctx, client)
+	case http.MethodPost:
+		return e.checkPost(ctx, client)
 	default:
 		return "Unknown Method", fmt.Errorf("unknown Method for service %s", e.url)
 	}
@@ -351,6 +338,19 @@ func (e resolvedEndpoint) checkGet(ctx context.Context, client *http.Client) (st
 	httpTraces := []string{}
 	ctx = httptrace.WithClientTrace(ctx, createDiagnoseTraces(&httpTraces, true))
 	statusCode, _, _, err := sendGet(ctx, client, e.url, map[string]string{
+		"DD-API-KEY":   e.apiKey,
+		"Content-Type": "application/json",
+	})
+	if err != nil {
+		return "Failed to connect", fmt.Errorf("%s\n%w", strings.Join(httpTraces, "\n"), err)
+	}
+	return validateStatusCode(e, statusCode)
+}
+
+func (e resolvedEndpoint) checkPost(ctx context.Context, client *http.Client) (string, error) {
+	httpTraces := []string{}
+	ctx = httptrace.WithClientTrace(ctx, createDiagnoseTraces(&httpTraces, true))
+	statusCode, _, _, err := sendPost(ctx, client, e.url, nil, map[string]string{
 		"DD-API-KEY": e.apiKey,
 	})
 	if err != nil {
