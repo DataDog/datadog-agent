@@ -296,7 +296,7 @@ func (m *Manager) unloadProfileMap(profile *profile.Profile) {
 
 // linkProfile (thread unsafe) updates the kernel space mapping between a workload and its profile
 func (m *Manager) linkProfileMap(profile *profile.Profile, workload *tags.Workload) {
-	if err := m.securityProfileMap.Put(workload.CGroupFile, profile.GetProfileCookie()); err != nil {
+	if err := m.securityProfileMap.Put(workload.CGroupFile.Inode, profile.GetProfileCookie()); err != nil {
 		seclog.Errorf("couldn't link workload %s (selector: %s, key: %v) with profile %s (check map size limit ?): %v", workload.ContainerID, workload.Selector.String(), workload.CGroupFile, profile.Metadata.Name, err)
 		return
 	}
@@ -331,7 +331,7 @@ func (m *Manager) unlinkProfileMap(profile *profile.Profile, workload *tags.Work
 		return
 	}
 
-	if err := m.securityProfileMap.Delete(workload.CGroupFile); err != nil {
+	if err := m.securityProfileMap.Delete(workload.CGroupFile.Inode); err != nil {
 		seclog.Errorf("couldn't unlink workload %s (selector: %s, key: %v) with profile %s: %v", workload.ContainerID, workload.Selector.String(), workload.CGroupFile, profile.Metadata.Name, err)
 		return
 	}
