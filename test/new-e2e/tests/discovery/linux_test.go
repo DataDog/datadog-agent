@@ -386,8 +386,10 @@ type checkStatus struct {
 	LastWarnings      []string `json:"LastWarnings"`
 }
 
+type checkName = string
+type instanceName = string
 type runnerStats struct {
-	Checks map[string]map[string]checkStatus `json:"Checks"`
+	Checks map[checkName]map[instanceName]checkStatus `json:"Checks"`
 }
 
 type collectorStatus struct {
@@ -421,12 +423,12 @@ func getDiscoveryCheckWarnings(t *testing.T, remoteHost *components.RemoteHost) 
 		return nil, err
 	}
 
-	checkGroup, exists := status.RunnerStats.Checks["discovery"]
+	instances, exists := status.RunnerStats.Checks["discovery"]
 	if !exists {
 		return []Warning{}, nil
 	}
 
-	discoveryCheck, exists := checkGroup["discovery"]
+	discoveryCheck, exists := instances["discovery"]
 	if !exists {
 		return []Warning{}, nil
 	}
