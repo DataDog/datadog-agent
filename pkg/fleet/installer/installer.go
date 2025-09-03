@@ -17,8 +17,7 @@ import (
 	"sync"
 	"time"
 
-	"gopkg.in/yaml.v3"
-
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 
