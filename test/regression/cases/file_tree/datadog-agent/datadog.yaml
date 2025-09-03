@@ -5,7 +5,7 @@ auth_token_file_path: /tmp/agent-auth-token
 # has network access.
 cloud_provider_metadata: []
 
-logs_enabled: true
+
 
 dd_url: http://127.0.0.1:9091
 telemetry:

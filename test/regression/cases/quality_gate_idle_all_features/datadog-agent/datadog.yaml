@@ -12,7 +12,7 @@ dogstatsd_socket: '/tmp/dsd.socket'
 telemetry.enabled: true
 telemetry.checks: '*'
 
-logs_enabled: true
+
 logs_config:
   logs_dd_url: 127.0.0.1:9091
   logs_no_ssl: true

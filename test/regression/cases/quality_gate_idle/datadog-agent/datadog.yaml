@@ -10,3 +10,5 @@ cloud_provider_metadata: []
 
 telemetry.enabled: true
 telemetry.checks: '*'
+
+logs_enabled: false

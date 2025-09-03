@@ -15,8 +15,8 @@ telemetry:
 checks_tag_cardinality: high
 dogstatsd_origin_detection: true
 dogstatsd_tag_cardinality: high
-log_enabled: true
-logs_enabled: true
+
+
 container_labels_as_tags:
   foo: label_foo
   bar: label_bar

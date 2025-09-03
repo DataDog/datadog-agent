@@ -11,7 +11,7 @@ telemetry.checks: '*'
 # has network access.
 cloud_provider_metadata: []
 
-logs_enabled: true
+
 logs_config:
   logs_dd_url: 127.0.0.1:9092
   logs_no_ssl: true
