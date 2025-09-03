@@ -725,10 +725,6 @@ func openBinary(binaryPath string, opt ExtractOptions) (binaryInfo, error) {
 	if err != nil {
 		return binaryInfo{}, err
 	}
-	goVersion, err := object.ReadGoVersion(obj)
-	if err != nil {
-		return binaryInfo{}, err
-	}
 
 	goDebugSections, err := moduledata.GoDebugSections(obj)
 	if err != nil {
@@ -745,7 +741,6 @@ func openBinary(binaryPath string, opt ExtractOptions) (binaryInfo, error) {
 		moduledata.EText,
 		moduledata.MinPC,
 		moduledata.MaxPC,
-		goVersion,
 	)
 	if err != nil {
 		return binaryInfo{}, err

@@ -18,8 +18,6 @@ import (
 	"iter"
 	"math"
 	"slices"
-
-	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 )
 
 // GoFunction represents function information stored in the pclntab.
@@ -80,20 +78,37 @@ type GoSymbolTable struct {
 func ParseGoSymbolTable(
 	pclntabData []byte, goFuncData []byte,
 	textStart, textEnd, minPC, maxPC uint64,
-	goVersion *object.GoVersion,
 ) (*GoSymbolTable, error) {
 	textRange := [2]uint64{textStart, textEnd}
 	pcRange := [2]uint64{minPC, maxPC}
 
-	lineTable, err := parselineTable(pclntabData, textRange, pcRange, goVersion)
+	lineTable, err := parselineTable(pclntabData, textRange, pcRange)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse line table: %w", err)
 	}
-
-	return &GoSymbolTable{
+	st := &GoSymbolTable{
 		pclntab: *lineTable,
 		gofunc:  goFuncData,
-	}, nil
+	}
+
+	// Default the wrapperFuncID to the maximum value, which is not a valid
+	// function ID. Search the symbol table for the magic function that is known
+	// to be marked as a wrapper function. If we find it, set the wrapper
+	// function ID to the actual value. If we don't find it, then we'll end up
+	// not actually considering any function to be a wrapper function.
+	const invalidWrapperFuncID = math.MaxUint8
+	const magicFuncName = "runtime.deferreturn"
+	st.pclntab.wrapperFuncID = invalidWrapperFuncID
+	for f := range st.Functions() {
+		if f.HasName(magicFuncName) {
+			if fid, ok := f.funcInfo.funcID(); ok {
+				st.pclntab.wrapperFuncID = fid
+			}
+			break
+		}
+	}
+
+	return st, nil
 }
 
 // CollectFunctions collects all the functions in the symbol table.
@@ -157,9 +172,6 @@ const (
 	pcdataInlTreeIndex = 2
 	funcdataInlTree    = 3
 
-	funcIDWrapperGo117ThroughGo121 = 21
-	funcIDWrapperGo122Plus         = 22
-
 	go12Magic  = 0xfffffffb
 	go116Magic = 0xfffffffa
 	go118Magic = 0xfffffff0
@@ -221,7 +233,7 @@ type lineTable struct {
 	wrapperFuncID uint8
 }
 
-func parselineTable(data []byte, textRange, pcRange [2]uint64, goVersion *object.GoVersion) (*lineTable, error) {
+func parselineTable(data []byte, textRange, pcRange [2]uint64) (*lineTable, error) {
 	if len(data) < 8 {
 		return nil, fmt.Errorf("pclntab too short")
 	}
@@ -252,27 +264,6 @@ func parselineTable(data []byte, textRange, pcRange [2]uint64, goVersion *object
 
 	if ptrSize != 4 && ptrSize != 8 {
 		return nil, fmt.Errorf("invalid pointer size in pclntab: %d", ptrSize)
-	}
-
-	// Determine wrapper function ID based on Go version
-	const defaultWrapperFuncID = funcIDWrapperGo122Plus
-	wrapperFuncID := uint8(defaultWrapperFuncID)
-
-	if goVersion != nil {
-		if goVersion.Major == 1 && goVersion.Minor < 22 {
-			wrapperFuncID = funcIDWrapperGo117ThroughGo121
-		} else if goVersion.Major == 1 && goVersion.Minor >= 22 {
-			wrapperFuncID = funcIDWrapperGo122Plus
-		}
-	} else {
-		switch version {
-		case ver118:
-			wrapperFuncID = funcIDWrapperGo117ThroughGo121
-		case ver120:
-			wrapperFuncID = funcIDWrapperGo122Plus
-		default:
-			wrapperFuncID = defaultWrapperFuncID
-		}
 	}
 
 	readOffset := func(word uint32) (uint64, error) {
@@ -354,21 +345,20 @@ func parselineTable(data []byte, textRange, pcRange [2]uint64, goVersion *object
 		funcdata := [2]int{base, len(data)}
 
 		return &lineTable{
-			data:          data,
-			version:       version,
-			quantum:       quantum,
-			ptrSize:       ptrSize,
-			nfunctab:      nfunctab,
-			nfiletab:      nfiletab,
-			functab:       functab,
-			funcdata:      funcdata,
-			funcnametab:   funcnametab,
-			filetab:       filetab,
-			pcTab:         pcTab,
-			cutab:         &cutab,
-			textRange:     textRange,
-			pcRange:       pcRange,
-			wrapperFuncID: wrapperFuncID,
+			data:        data,
+			version:     version,
+			quantum:     quantum,
+			ptrSize:     ptrSize,
+			nfunctab:    nfunctab,
+			nfiletab:    nfiletab,
+			functab:     functab,
+			funcdata:    funcdata,
+			funcnametab: funcnametab,
+			filetab:     filetab,
+			pcTab:       pcTab,
+			cutab:       &cutab,
+			textRange:   textRange,
+			pcRange:     pcRange,
 		}, nil
 
 	// --- Go 1.16 ---
@@ -439,21 +429,20 @@ func parselineTable(data []byte, textRange, pcRange [2]uint64, goVersion *object
 		funcdata := [2]int{base, len(data)}
 
 		return &lineTable{
-			data:          data,
-			version:       version,
-			quantum:       quantum,
-			ptrSize:       ptrSize,
-			nfunctab:      nfunctab,
-			nfiletab:      nfiletab,
-			functab:       functab,
-			funcdata:      funcdata,
-			funcnametab:   funcnametab,
-			filetab:       filetab,
-			pcTab:         pcTab,
-			cutab:         &cutab,
-			textRange:     textRange,
-			pcRange:       pcRange,
-			wrapperFuncID: wrapperFuncID,
+			data:        data,
+			version:     version,
+			quantum:     quantum,
+			ptrSize:     ptrSize,
+			nfunctab:    nfunctab,
+			nfiletab:    nfiletab,
+			functab:     functab,
+			funcdata:    funcdata,
+			funcnametab: funcnametab,
+			filetab:     filetab,
+			pcTab:       pcTab,
+			cutab:       &cutab,
+			textRange:   textRange,
+			pcRange:     pcRange,
 		}, nil
 
 	// --- Go 1.2 ---
@@ -494,21 +483,20 @@ func parselineTable(data []byte, textRange, pcRange [2]uint64, goVersion *object
 		pcTab := [2]int{0, len(data)}
 
 		return &lineTable{
-			data:          data,
-			version:       version,
-			quantum:       quantum,
-			ptrSize:       ptrSize,
-			nfunctab:      nfunctab,
-			nfiletab:      nfiletab,
-			functab:       functab,
-			funcdata:      funcdata,
-			funcnametab:   funcnametab,
-			filetab:       filetab,
-			pcTab:         pcTab,
-			cutab:         nil,
-			textRange:     textRange,
-			pcRange:       pcRange,
-			wrapperFuncID: wrapperFuncID,
+			data:        data,
+			version:     version,
+			quantum:     quantum,
+			ptrSize:     ptrSize,
+			nfunctab:    nfunctab,
+			nfiletab:    nfiletab,
+			functab:     functab,
+			funcdata:    funcdata,
+			funcnametab: funcnametab,
+			filetab:     filetab,
+			pcTab:       pcTab,
+			cutab:       nil,
+			textRange:   textRange,
+			pcRange:     pcRange,
 		}, nil
 
 	default:

@@ -241,9 +241,6 @@ func testDyninst(
 	moduledata, err := object.ParseModuleData(obj)
 	require.NoError(t, err)
 
-	goVersion, err := object.ReadGoVersion(obj)
-	require.NoError(t, err)
-
 	goDebugSections, err := moduledata.GoDebugSections(obj)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, goDebugSections.Close()) }()
@@ -255,7 +252,6 @@ func testDyninst(
 		moduledata.EText,
 		moduledata.MinPC,
 		moduledata.MaxPC,
-		goVersion,
 	)
 	require.NoError(t, err)
 	symbolicator := symbol.NewGoSymbolicator(symbolTable)

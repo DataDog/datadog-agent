@@ -29,7 +29,7 @@ type GoVersion struct {
 	PatchOrRC PatchOrReleaseCandidate
 }
 
-// ReadGoVersion extracts the Go version from an object file
+// ReadGoVersion extracts the Go version from an object file.
 func ReadGoVersion(mef File) (*GoVersion, error) {
 	// Find the runtime.buildVersion symbol
 	symbols, err := mef.Symbols()

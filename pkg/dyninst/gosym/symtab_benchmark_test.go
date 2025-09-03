@@ -45,11 +45,6 @@ func BenchmarkParseGoSymbolTable(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	goVersion, err := object.ReadGoVersion(mef)
-	if err != nil {
-		b.Fatal(err)
-	}
-
 	goDebugSections, err := moduledata.GoDebugSections(mef)
 	if err != nil {
 		b.Fatal(err)
@@ -65,7 +60,6 @@ func BenchmarkParseGoSymbolTable(b *testing.B) {
 				moduledata.EText,
 				moduledata.MinPC,
 				moduledata.MaxPC,
-				goVersion,
 			)
 			if err != nil {
 				b.Fatal(err)
@@ -80,7 +74,6 @@ func BenchmarkParseGoSymbolTable(b *testing.B) {
 		moduledata.EText,
 		moduledata.MinPC,
 		moduledata.MaxPC,
-		goVersion,
 	)
 	if err != nil {
 		b.Fatal(err)

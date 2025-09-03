@@ -119,12 +119,6 @@ func openGoSymbolTable(binary string) (
 	}
 	closers = append(closers, goDebugSections)
 
-	goVersion, err := object.ReadGoVersion(mef)
-	if err != nil {
-		_ = errors.Join(goDebugSections.Close(), mef.Close())
-		return nil, nil, err
-	}
-
 	symtab, err := gosym.ParseGoSymbolTable(
 		goDebugSections.PcLnTab.Data(),
 		goDebugSections.GoFunc.Data(),
@@ -132,7 +126,6 @@ func openGoSymbolTable(binary string) (
 		moduledata.EText,
 		moduledata.MinPC,
 		moduledata.MaxPC,
-		goVersion,
 	)
 	if err != nil {
 		return nil, nil, err

@@ -58,11 +58,6 @@ func newSymbolicator(executable actuator.Executable) (_ symbol.Symbolicator, _ i
 		return nil, nil, fmt.Errorf("error parsing module data: %w", err)
 	}
 
-	goVersion, err := object.ReadGoVersion(mef)
-	if err != nil {
-		return nil, nil, fmt.Errorf("error parsing go version: %w", err)
-	}
-
 	goDebugSections, err := moduledata.GoDebugSections(mef)
 	if err != nil {
 		return nil, nil, fmt.Errorf("error getting go debug sections: %w", err)
@@ -75,7 +70,6 @@ func newSymbolicator(executable actuator.Executable) (_ symbol.Symbolicator, _ i
 		moduledata.EText,
 		moduledata.MinPC,
 		moduledata.MaxPC,
-		goVersion,
 	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("error parsing go symbol table: %w", err)
