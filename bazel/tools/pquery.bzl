@@ -73,7 +73,14 @@ It may contain Datadog local changes.
 """
 
 def format(target):
-    """Entry point which formats the providers for the given target."""
+    """Entry point which formats the providers for the given target.
+
+    Args:
+      target: a target
+
+    Returns:
+      string
+    """
     target_providers = providers(target)
     if not target_providers:
         return "No providers for target - %s" % target
@@ -89,7 +96,7 @@ def format(target):
     # available number of times. Starlark requires the value be a 32-bit signed
     # integer, so `2 ^ 31 - 1` is the best we can do.
     result = ""
-    for i in range(_pow(2, 31) - 1):
+    for i in range(_pow(2, 31) - 1):  # buildifier: disable=unused-variable
         if not stack:
             break
 
@@ -148,13 +155,14 @@ def _process(stack, item):
         # Assume any other types are providers and "struct-like".
         _process_struct_like(stack, item)
 
+# buildifier: disable=unused-variable
 def _process_none(stack, item):
     _push(stack, [_raw("None")])
 
 def _process_string(stack, item):
     formatted = "\"\"\"%s\"\"\"" % item["value"] if "\n" in item["value"] else "\"%s\"" % item["value"]
     _push(stack, [
-        _raw("%s%s" % (_indent(item["indent"]), formatted))
+        _raw("%s%s" % (_indent(item["indent"]), formatted)),
     ])
 
 def _process_boolean(stack, item):
