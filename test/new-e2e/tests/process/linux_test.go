@@ -350,6 +350,7 @@ func (s *linuxTestSuite) TestProcessChecksWithNPM() {
 }
 
 func (s *linuxTestSuite) TestManualProcessCheck() {
+	s.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr))))
 	check := s.Env().RemoteHost.MustExecute("sudo /opt/datadog-agent/embedded/bin/process-agent check process --json")
 
 	assertManualProcessCheck(s.T(), check, false, "stress")
