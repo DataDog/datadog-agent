@@ -15,8 +15,8 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.68.3
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.68.3
 	github.com/benbjohnson/clock v1.3.5
-	github.com/stretchr/testify v1.10.0
-	golang.org/x/exp v0.0.0-20250808145144-a408d31f581a
+	github.com/stretchr/testify v1.11.1
+	golang.org/x/exp v0.0.0-20250819193227-8b4c13bb791b
 	golang.org/x/sys v0.35.0
 	gopkg.in/yaml.v2 v2.4.0
 )
