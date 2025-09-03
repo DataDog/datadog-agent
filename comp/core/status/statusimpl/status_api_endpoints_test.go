@@ -31,7 +31,7 @@ import (
 
 func getTestComp(t *testing.T, withError bool) provides {
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		config.MockModule(),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Supply(
 			agentParams,

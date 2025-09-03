@@ -9,6 +9,7 @@ multitool.hub(lockfile = "//bazel:prebuilt_buildtools.json")
 multitool.hub(lockfile = "//bazel:prebuilt_jq.json")
 use_repo(multitool, "multitool")
 register_toolchains("@multitool//toolchains:all")
+bazel_dep(name = "buildifier_prebuilt", version = "8.2.0.2", dev_dependency = True)
 
 #########################
 ## Native dependencies ##

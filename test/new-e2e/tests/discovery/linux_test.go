@@ -8,6 +8,7 @@ package discovery
 import (
 	_ "embed"
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -46,6 +47,7 @@ type linuxTestSuite struct {
 var services = []string{
 	"python-svc",
 	"python-instrumented",
+	"python-restricted",
 	"node-json-server",
 	"node-instrumented",
 	"rails-svc",
@@ -68,6 +70,11 @@ func (s *linuxTestSuite) SetupSuite() {
 	defer s.CleanupOnSetupFailure()
 
 	s.provisionServer()
+}
+
+type nameKey struct {
+	generatedServiceName string
+	ddService            string
 }
 
 func (s *linuxTestSuite) TestServiceDiscoveryCheck() {
@@ -93,10 +100,13 @@ func (s *linuxTestSuite) TestServiceDiscoveryCheck() {
 		payloads, err := client.GetServiceDiscoveries()
 		require.NoError(t, err)
 
-		foundMap := make(map[string]*aggregator.ServiceDiscoveryPayload)
+		foundMap := make(map[nameKey]*aggregator.ServiceDiscoveryPayload)
 		for _, p := range payloads {
-			name := p.Payload.GeneratedServiceName
-			t.Log("RequestType", p.RequestType, "GeneratedServiceName", name)
+			name := nameKey{
+				generatedServiceName: p.Payload.GeneratedServiceName,
+				ddService:            p.Payload.DDService,
+			}
+			t.Log("RequestType", p.RequestType, "Name", name)
 
 			if p.RequestType == "start-service" {
 				foundMap[name] = p
@@ -139,8 +149,6 @@ func (s *linuxTestSuite) TestServiceDiscoveryCheck() {
 			ddService:            "",
 			serviceNameSource:    "",
 		})
-
-		assert.Contains(c, foundMap, "json-server")
 	}, 3*time.Minute, 10*time.Second)
 }
 
@@ -181,6 +189,33 @@ func (s *linuxTestSuite) testLogs(t *testing.T) {
 
 		assert.True(c, foundStartupLog, "Should find startup log message")
 		assert.True(c, foundRequestLog, "Should find request log message")
+	}, 2*time.Minute, 10*time.Second)
+
+	// Verify discovery check reports permission warnings for restricted log
+	// files.  There is no fake intake for the check status and the check status
+	// is also sent out once every 10 minutes, so check the agent status
+	// instead, which should be good enough.
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		warnings, err := getDiscoveryCheckWarnings(t, s.Env().RemoteHost)
+		assert.NoError(c, err, "failed to get discovery check warnings from agent status")
+
+		foundPermissionWarning := false
+
+		for _, warning := range warnings {
+			t.Logf("Discovery warning: type=%s, error_code=%s, resource=%s, message=%s",
+				warning.Type, warning.ErrorCode, warning.Resource, warning.Message)
+
+			if warning.Type == "log_file" &&
+				warning.ErrorCode == "permission-denied" &&
+				strings.HasPrefix(warning.Resource, "/tmp/python-restricted") &&
+				warning.ErrorString != "" &&
+				warning.Message != "" {
+				foundPermissionWarning = true
+				break
+			}
+		}
+
+		assert.True(c, foundPermissionWarning, "Should find permission warning for restricted log file")
 	}, 2*time.Minute, 10*time.Second)
 }
 
@@ -344,18 +379,31 @@ func (s *linuxTestSuite) testProcessCheckWithServiceDiscovery(agentConfigStr str
 }
 
 type checkStatus struct {
-	CheckID           string `json:"CheckID"`
-	CheckName         string `json:"CheckName"`
-	CheckConfigSource string `json:"CheckConfigSource"`
-	ExecutionTimes    []int  `json:"ExecutionTimes"`
+	CheckID           string   `json:"CheckID"`
+	CheckName         string   `json:"CheckName"`
+	CheckConfigSource string   `json:"CheckConfigSource"`
+	ExecutionTimes    []int    `json:"ExecutionTimes"`
+	LastWarnings      []string `json:"LastWarnings"`
 }
 
+type checkName = string
+type instanceName = string
 type runnerStats struct {
-	Checks map[string]checkStatus `json:"Checks"`
+	Checks map[checkName]map[instanceName]checkStatus `json:"Checks"`
 }
 
 type collectorStatus struct {
 	RunnerStats runnerStats `json:"runnerStats"`
+}
+
+// Warning represents a structured warning from discovery check
+type Warning struct {
+	Type        string `json:"type"`
+	Version     int    `json:"version"`
+	Resource    string `json:"resource"`
+	ErrorCode   string `json:"error_code"`
+	ErrorString string `json:"error_string"`
+	Message     string `json:"message"`
 }
 
 func assertCollectorStatusFromJSON(t *assert.CollectT, statusOutput, check string) {
@@ -364,6 +412,38 @@ func assertCollectorStatusFromJSON(t *assert.CollectT, statusOutput, check strin
 	require.NoError(t, err, "failed to unmarshal agent status")
 
 	assert.Contains(t, status.RunnerStats.Checks, check)
+}
+
+// getDiscoveryCheckWarnings parses discovery check warnings from agent status
+func getDiscoveryCheckWarnings(t *testing.T, remoteHost *components.RemoteHost) ([]Warning, error) {
+	statusOutput := remoteHost.MustExecute("sudo datadog-agent status collector --json")
+	var status collectorStatus
+	err := json.Unmarshal([]byte(statusOutput), &status)
+	if err != nil {
+		return nil, err
+	}
+
+	instances, exists := status.RunnerStats.Checks["discovery"]
+	if !exists {
+		return []Warning{}, nil
+	}
+
+	discoveryCheck, exists := instances["discovery"]
+	if !exists {
+		return []Warning{}, nil
+	}
+
+	t.Logf("Discovery check warnings: %+v", discoveryCheck.LastWarnings)
+
+	var warnings []Warning
+	for _, warningStr := range discoveryCheck.LastWarnings {
+		var warning Warning
+		if err := json.Unmarshal([]byte(warningStr), &warning); err == nil {
+			warnings = append(warnings, warning)
+		}
+	}
+
+	return warnings, nil
 }
 
 // assertRunningCheck asserts that the given agent check is running
@@ -504,10 +584,13 @@ type serviceExpectedPayload struct {
 	tracerServiceNames   []string
 }
 
-func (s *linuxTestSuite) assertService(t *testing.T, c *assert.CollectT, foundMap map[string]*aggregator.ServiceDiscoveryPayload, expected serviceExpectedPayload) {
+func (s *linuxTestSuite) assertService(t *testing.T, c *assert.CollectT, foundMap map[nameKey]*aggregator.ServiceDiscoveryPayload, expected serviceExpectedPayload) {
 	t.Helper()
 
-	name := expected.generatedServiceName
+	name := nameKey{
+		generatedServiceName: expected.generatedServiceName,
+		ddService:            expected.ddService,
+	}
 	found := foundMap[name]
 	if assert.NotNil(c, found, "could not find service %q", name) {
 		assert.Equal(c, expected.instrumentation, found.Payload.APMInstrumentation, "service %q: APM instrumentation", name)

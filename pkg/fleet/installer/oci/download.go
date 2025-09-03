@@ -427,6 +427,10 @@ func isRetryableNetworkError(err error) bool {
 		return true
 	}
 
+	if strings.Contains(err.Error(), "connectex") { // Windows
+		return true
+	}
+
 	return isStreamResetError(err)
 }
 

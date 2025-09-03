@@ -12,7 +12,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/fx"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -22,7 +21,6 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 const (
@@ -31,20 +29,11 @@ const (
 	barSource       = "bar"
 )
 
-type testDependencies struct {
-	fx.In
-	Config config.Component
-}
-
 func newWorkloadmetaObject(t *testing.T) *workloadmeta {
-	testDeps := fxutil.Test[testDependencies](t, fx.Options(
-		config.MockModule(),
-	))
-
 	deps := Dependencies{
 		Lc:     compdef.NewTestLifecycle(t),
 		Log:    logmock.New(t),
-		Config: testDeps.Config,
+		Config: config.NewMock(t),
 		Params: wmdef.NewParams(),
 	}
 
