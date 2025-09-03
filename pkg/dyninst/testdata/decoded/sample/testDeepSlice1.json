@@ -4,7 +4,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.testBigStruct",
+      "method": "main.testDeepSlice1",
       "version": 0,
       "thread_id": 0,
       "thread_name": ""
@@ -16,14 +16,14 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.testBigStruct",
+            "function": "main.testDeepSlice1",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
-            "lineNumber": 81
+            "lineNumber": 142
           },
           {
             "function": "main.executeComplexFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
-            "lineNumber": 217
+            "lineNumber": 256
           },
           {
             "function": "main.main",
@@ -42,35 +42,38 @@
           }
         ],
         "probe": {
-          "id": "testBigStruct",
+          "id": "testDeepSlice1",
           "location": {
-            "method": "main.testBigStruct"
+            "method": "main.testDeepSlice1"
           }
         },
         "captures": {
           "entry": {
             "arguments": {
-              "b": {
-                "type": "main.bigStruct",
+              "a": {
+                "type": "main.deepSlice1",
                 "fields": {
-                  "x": {
-                    "type": "[]*string",
+                  "a": {
+                    "type": "[]*main.deepSlice2",
                     "size": "1",
                     "elements": [
                       {
-                        "type": "*string",
+                        "type": "*main.deepSlice2",
                         "address": "[addr]",
-                        "value": "abc"
+                        "fields": {
+                          "a": {
+                            "type": "[]*main.deepSlice3",
+                            "size": "1",
+                            "elements": [
+                              {
+                                "type": "*main.deepSlice3",
+                                "notCapturedReason": "depth"
+                              }
+                            ]
+                          }
+                        }
                       }
                     ]
-                  },
-                  "z": {
-                    "type": "int",
-                    "value": "5"
-                  },
-                  "writer": {
-                    "type": "io.discard",
-                    "notCapturedReason": "missing type information"
                   }
                 }
               }
