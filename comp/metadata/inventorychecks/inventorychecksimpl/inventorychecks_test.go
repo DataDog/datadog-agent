@@ -113,7 +113,7 @@ func TestGetPayload(t *testing.T) {
 			check.MockInfo{
 				Name:         "check1",
 				CheckID:      checkid.ID("check1_instance1"),
-				Source:       "provider1:/etc/datadog-agent/conf.d/redis.yaml",
+				Source:       "provider1:/etc/datadog-agent/conf.d/redis.yaml[0]",
 				InitConf:     "",
 				InstanceConf: "{\"test\":21}",
 			},
@@ -127,7 +127,7 @@ func TestGetPayload(t *testing.T) {
 			check.MockInfo{
 				Name:         "check2",
 				CheckID:      checkid.ID("check2_instance1"),
-				Source:       "provider2:/etc/datadog-agent/conf.d/redis2.yaml",
+				Source:       "provider2:/etc/datadog-agent/conf.d/redis2.yaml[0]",
 				InitConf:     "{}",
 				InstanceConf: "{}",
 			},
@@ -200,7 +200,7 @@ func TestGetPayload(t *testing.T) {
 			check1Instance1 := p.Metadata["check1"][0]
 			assert.Equal(t, "check1_instance1", check1Instance1["config.hash"])
 			assert.Equal(t, "provider1", check1Instance1["config.provider"])
-			assert.Equal(t, "/etc/datadog-agent/conf.d/redis.yaml", check1Instance1["config.source"])
+			assert.Equal(t, "/etc/datadog-agent/conf.d/redis.yaml[0]", check1Instance1["config.source"])
 			assert.Equal(t, 123, check1Instance1["check_provided_key1"])
 			assert.Equal(t, "Hi", check1Instance1["check_provided_key2"])
 			if invChecksCfgEnabled {
@@ -227,7 +227,7 @@ func TestGetPayload(t *testing.T) {
 			check2Instance1 := p.Metadata["check2"][0]
 			assert.Equal(t, "check2_instance1", check2Instance1["config.hash"])
 			assert.Equal(t, "provider2", check2Instance1["config.provider"])
-			assert.Equal(t, "/etc/datadog-agent/conf.d/redis2.yaml", check2Instance1["config.source"])
+			assert.Equal(t, "/etc/datadog-agent/conf.d/redis2.yaml[0]", check2Instance1["config.source"])
 			if invChecksCfgEnabled {
 				assert.Equal(t, "{}", check2Instance1["init_config"])
 				assert.Equal(t, "{}", check2Instance1["instance_config"])

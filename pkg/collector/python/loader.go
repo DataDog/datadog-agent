@@ -236,7 +236,7 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 	}
 
 	configSource := config.Source
-	if instanceIndex > 0 {
+	if instanceIndex >= 0 {
 		configSource = fmt.Sprintf("%s[%d]", configSource, instanceIndex)
 	}
 	// The GIL should be unlocked at this point, `check.Configure` uses its own stickyLock and stickyLocks must not be nested
