@@ -92,7 +92,7 @@ def _render_tool_repos(hub_name, tools):
 
 def _tools_subs(hub_name, tools):
     return {
-        "{tool_labels}": _renter_tool_labels(tools),
+        "{tool_labels}": _render_tool_labels(tools),
         "{tool_repos}": _render_tool_repos(hub_name, tools),
     }
 
