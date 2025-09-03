@@ -14,7 +14,6 @@ import (
 type libRequirementOptions struct {
 	initContainerMutators containerMutators
 	containerMutators     containerMutators
-	podMutators           []podMutator
 	containerFilter       containerFilter
 }
 
@@ -65,12 +64,6 @@ func (reqs libRequirement) injectPod(pod *corev1.Pod, ctrName string) error {
 
 	for _, v := range reqs.volumes {
 		if err := v.mutatePod(pod); err != nil {
-			return err
-		}
-	}
-
-	for _, m := range reqs.podMutators {
-		if err := m.mutatePod(pod); err != nil {
 			return err
 		}
 	}

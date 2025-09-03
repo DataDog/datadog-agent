@@ -55,47 +55,8 @@ const (
 	customLibAnnotationKeyCtrFormat  = "admission.datadoghq.com/%s.%s-lib.custom-image"
 )
 
-func (l language) customLibAnnotationExtractor() annotationExtractor[libInfo] {
-	return annotationExtractor[libInfo]{
-		key: fmt.Sprintf(customLibAnnotationKeyFormat, l),
-		do: func(image string) (libInfo, error) {
-			return l.libInfo("", image), nil
-		},
-	}
-}
-
-func (l language) libVersionAnnotationExtractor(registry string) annotationExtractor[libInfo] {
-	return annotationExtractor[libInfo]{
-		key: fmt.Sprintf(libVersionAnnotationKeyFormat, l),
-		do: func(version string) (libInfo, error) {
-			return l.libInfo("", l.libImageName(registry, version)), nil
-		},
-	}
-}
-
-func (l language) ctrCustomLibAnnotationExtractor(ctr string) annotationExtractor[libInfo] {
-	return annotationExtractor[libInfo]{
-		key: fmt.Sprintf(customLibAnnotationKeyCtrFormat, ctr, l),
-		do: func(image string) (libInfo, error) {
-			return l.libInfo(ctr, image), nil
-		},
-	}
-}
-
-func (l language) ctrLibVersionAnnotationExtractor(ctr, registry string) annotationExtractor[libInfo] {
-	return annotationExtractor[libInfo]{
-		key: fmt.Sprintf(libVersionAnnotationKeyCtrFormat, ctr, l),
-		do: func(version string) (libInfo, error) {
-			return l.libInfo(ctr, l.libImageName(registry, version)), nil
-		},
-	}
-}
-
-func (l language) libConfigAnnotationExtractor() annotationExtractor[common.LibConfig] {
-	return annotationExtractor[common.LibConfig]{
-		key: fmt.Sprintf(common.LibConfigV1AnnotKeyFormat, l),
-		do:  parseConfigJSON,
-	}
+func (l language) libConfigV1AnnotationKey() string {
+	return fmt.Sprintf(common.LibConfigV1AnnotKeyFormat, l)
 }
 
 // supportedLanguages defines a list of the languages that we will attempt
