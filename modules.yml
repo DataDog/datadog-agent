@@ -16,6 +16,8 @@ modules:
     used_by_otel: true
   comp/core/agenttelemetry/def:
     used_by_otel: true
+  comp/core/agenttelemetry/fx:
+    used_by_otel: true
   comp/core/agenttelemetry/impl:
     used_by_otel: true
   comp/core/config:
