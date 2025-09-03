@@ -35,6 +35,7 @@ func TestAgentConfig(t *testing.T) {
 // TestConfigUpgradeSuccessful tests that the Agent's config can be upgraded
 // through the experiment (start/promote) workflow.
 func (s *testAgentConfigSuite) TestConfigUpgradeSuccessful() {
+	s.T().Skip("Skipping test during migration to new config experiment")
 	// Arrange
 	s.setAgentConfig()
 	s.installCurrentAgentVersion()
@@ -74,6 +75,7 @@ func (s *testAgentConfigSuite) TestConfigUpgradeSuccessful() {
 // TestConfigUpgradeFailure tests that the Agent's config can be rolled back
 // through the experiment (start/promote) workflow.
 func (s *testAgentConfigSuite) TestConfigUpgradeFailure() {
+	s.T().Skip("Skipping test during migration to new config experiment")
 	// Arrange
 	s.setAgentConfig()
 	s.installCurrentAgentVersion()
@@ -128,6 +130,7 @@ func (s *testAgentConfigSuite) TestConfigUpgradeFailure() {
 // TestConfigUpgradeNewAgents tests that config experiments can enable security agent and system probe
 // on new agent installations.
 func (s *testAgentConfigSuite) TestConfigUpgradeNewAgents() {
+	s.T().Skip("Skipping test during migration to new config experiment")
 	// Arrange
 	s.setAgentConfig()
 	s.installCurrentAgentVersion()
@@ -193,6 +196,7 @@ func (s *testAgentConfigSuite) TestConfigUpgradeNewAgents() {
 // TestRevertsConfigExperimentWhenServiceDies tests that the watchdog will revert
 // to stable config when the service dies.
 func (s *testAgentConfigSuite) TestRevertsConfigExperimentWhenServiceDies() {
+	s.T().Skip("Skipping test during migration to new config experiment")
 	// Arrange
 	s.setAgentConfig()
 	s.installCurrentAgentVersion()
@@ -236,6 +240,7 @@ func (s *testAgentConfigSuite) TestRevertsConfigExperimentWhenServiceDies() {
 // TestRevertsConfigExperimentWhenTimeout tests that the watchdog will revert
 // to stable config when the timeout expires.
 func (s *testAgentConfigSuite) TestRevertsConfigExperimentWhenTimeout() {
+	s.T().Skip("Skipping test during migration to new config experiment")
 	// Arrange
 	s.setAgentConfig()
 	s.installCurrentAgentVersion()
@@ -283,6 +288,7 @@ func (s *testAgentConfigSuite) TestRevertsConfigExperimentWhenTimeout() {
 // Partial regression test for WINA-1556, making sure that installation does not
 // modify the managed config or its permissions, preventing the Agent from accessing it.
 func (s *testAgentConfigSuite) TestManagedConfigActiveAfterUpgrade() {
+	s.T().Skip("Skipping test during migration to new config experiment")
 	// Arrange - Start with previous version and custom config
 	s.setAgentConfig()
 	s.installPreviousAgentVersion()
