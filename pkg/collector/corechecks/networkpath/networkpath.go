@@ -98,7 +98,10 @@ func (c *Check) Run() error {
 		}
 
 		// TODO: REMOVE ME
+		// TODO: REMOVE ME
+		// TODO: REMOVE ME
 		if len(run.Hops) > 0 {
+			path.Traceroute.Runs[i].Hops[0].IPAddress = net.ParseIP("2.2.2.2")
 			path.Traceroute.Runs[i].Hops[0].ReverseDns = "new-data-model"
 		}
 	}
