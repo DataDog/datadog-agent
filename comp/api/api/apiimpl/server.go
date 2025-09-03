@@ -12,7 +12,6 @@ import (
 	stdLog "log"
 	"net"
 	"net/http"
-	"strconv"
 
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -66,10 +65,7 @@ func (server *apiServer) startServers() error {
 	}
 
 	// start the IPC server
-	if ipcServerPort := server.cfg.GetInt("agent_ipc.port"); ipcServerPort > 0 {
-		ipcServerHost := server.cfg.GetString("agent_ipc.host")
-		ipcServerHostPort := net.JoinHostPort(ipcServerHost, strconv.Itoa(ipcServerPort))
-
+	if _, ipcServerHostPort, enabled := getIPCServerAddressPort(); enabled {
 		if err := server.startIPCServer(ipcServerHostPort, tmf); err != nil {
 			// if we fail to start the IPC server, we should stop the CMD server
 			server.stopServers()
