@@ -512,9 +512,9 @@ func (a *APIServer) expireDump(dump *api.ActivityDumpStreamMessage) {
 	seclog.Tracef("the activity dump server channel is full, a dump of [%s] was dropped\n", selectorStr)
 }
 
-// GetStats returns a map indexed by ruleIDs that describes the amount of events
+// getStats returns a map indexed by ruleIDs that describes the amount of events
 // that were expired or rate limited before reaching
-func (a *APIServer) GetStats() map[string]int64 {
+func (a *APIServer) getStats() map[string]int64 {
 	a.expiredEventsLock.RLock()
 	defer a.expiredEventsLock.RUnlock()
 
@@ -525,9 +525,10 @@ func (a *APIServer) GetStats() map[string]int64 {
 	return stats
 }
 
-// SendStats sends statistics about the number of dropped events
+// SendStats sends statistics
 func (a *APIServer) SendStats() error {
-	for ruleID, val := range a.GetStats() {
+	// statistics about the number of dropped events
+	for ruleID, val := range a.getStats() {
 		tags := []string{fmt.Sprintf("rule_id:%s", ruleID)}
 		if val > 0 {
 			if err := a.statsdClient.Count(metrics.MetricEventServerExpired, val, tags, 1.0); err != nil {
@@ -535,6 +536,11 @@ func (a *APIServer) SendStats() error {
 			}
 		}
 	}
+
+	// telemetry for msg senders
+	a.msgSender.SendTelemetry(a.statsdClient)
+	a.activityDumpSender.SendTelemetry(a.statsdClient)
+
 	return nil
 }
 

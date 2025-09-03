@@ -21,11 +21,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // MsgSender defines a message sender
 type MsgSender[T any] interface {
 	Send(msg *T, expireFnc func(*T))
+	SendTelemetry(statsd.ClientInterface)
 }
 
 // EventMsgSender defines a message sender for security events
@@ -66,6 +68,9 @@ func (cs *ChanMsgSender[T]) Send(msg *T, expireFnc func(*T)) {
 	}
 }
 
+// SendTelemetry sends telemetry data
+func (cs *ChanMsgSender[T]) SendTelemetry(statsd.ClientInterface) {}
+
 // NewChanMsgSender returns a new chan sender
 func NewChanMsgSender[T any](msgs chan *T) *ChanMsgSender[T] {
 	return &ChanMsgSender[T]{
@@ -82,6 +87,9 @@ type DirectEventMsgSender struct {
 func (ds *DirectEventMsgSender) Send(msg *api.SecurityEventMessage, _ func(*api.SecurityEventMessage)) {
 	ds.reporter.ReportRaw(msg.Data, msg.Service, msg.Timestamp.AsTime(), msg.Tags...)
 }
+
+// SendTelemetry sends telemetry data
+func (ds *DirectEventMsgSender) SendTelemetry(statsd.ClientInterface) {}
 
 // NewDirectEventMsgSender returns a new direct sender
 func NewDirectEventMsgSender(stopper startstop.Stopper, compression compression.Component, ipc ipc.Component) (*DirectEventMsgSender, error) {
@@ -140,4 +148,9 @@ func (ds *DirectActivityDumpMsgSender) Send(msg *api.ActivityDumpStreamMessage, 
 	if err != nil {
 		seclog.Errorf("couldn't handle activity dump: %v", err)
 	}
+}
+
+// SendTelemetry sends telemetry data
+func (ds *DirectActivityDumpMsgSender) SendTelemetry(statsd statsd.ClientInterface) {
+	ds.backend.SendTelemetry(statsd)
 }
