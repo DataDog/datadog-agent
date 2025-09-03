@@ -51,7 +51,7 @@ def file_extension(os):
         return ".exe"
     return ""
 
-def _download_extract_tool(rctx, tool_name, binary):
+def _download_and_extract_tool(rctx, tool_name, binary):
     target_filename = "{os}_{cpu}_executable{ext}".format(
         cpu = binary["cpu"],
         os = binary["os"],
