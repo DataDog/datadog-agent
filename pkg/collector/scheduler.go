@@ -10,12 +10,12 @@ import (
 	"expvar"
 	"fmt"
 	"slices"
-	"strings"
+	_ "strings" // unused import
 	"sync"
 
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
-	yaml "gopkg.in/yaml.v2"
+	_ "gopkg.in/yaml.v2" // unused import
 
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -36,13 +36,13 @@ var (
 	checkScheduler *CheckScheduler
 )
 
-type commonInitConfig struct {
-	LoaderName string `yaml:"loader"`
-}
+// type commonInitConfig struct {
+// 	LoaderName string `yaml:"loader"`
+// }
 
-type commonInstanceConfig struct {
-	LoaderName string `yaml:"loader"`
-}
+// type commonInstanceConfig struct {
+// 	LoaderName string `yaml:"loader"`
+// }
 
 func init() {
 	schedulerErrs = expvar.NewMap("CheckScheduler")
@@ -154,64 +154,66 @@ func (s *CheckScheduler) addLoader(loader check.Loader) {
 
 // getChecks takes a check configuration and returns a slice of Check instances
 // along with any error it might happen during the process
-func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, error) {
-	checks := []check.Check{}
-	numLoaders := len(s.loaders)
+func (s *CheckScheduler) getChecks(_ integration.Config) ([]check.Check, error) {
+	return []check.Check{}, nil
 
-	initConfig := commonInitConfig{}
-	err := yaml.Unmarshal(config.InitConfig, &initConfig)
-	if err != nil {
-		return nil, err
-	}
-	selectedLoader := initConfig.LoaderName
+	// checks := []check.Check{}
+	// numLoaders := len(s.loaders)
 
-	for _, instance := range config.Instances {
-		if check.IsJMXInstance(config.Name, instance, config.InitConfig) {
-			log.Debugf("skip loading jmx check '%s', it is handled elsewhere", config.Name)
-			continue
-		}
+	// initConfig := commonInitConfig{}
+	// err := yaml.Unmarshal(config.InitConfig, &initConfig)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// selectedLoader := initConfig.LoaderName
 
-		errors := []string{}
-		selectedInstanceLoader := selectedLoader
-		instanceConfig := commonInstanceConfig{}
+	// for _, instance := range config.Instances {
+	// 	if check.IsJMXInstance(config.Name, instance, config.InitConfig) {
+	// 		log.Debugf("skip loading jmx check '%s', it is handled elsewhere", config.Name)
+	// 		continue
+	// 	}
 
-		err := yaml.Unmarshal(instance, &instanceConfig)
-		if err != nil {
-			log.Warnf("Unable to parse instance config for check `%s`: %v", config.Name, instance)
-			continue
-		}
+	// 	errors := []string{}
+	// 	selectedInstanceLoader := selectedLoader
+	// 	instanceConfig := commonInstanceConfig{}
 
-		if instanceConfig.LoaderName != "" {
-			selectedInstanceLoader = instanceConfig.LoaderName
-		}
-		if selectedInstanceLoader != "" {
-			log.Debugf("Loading check instance for check '%s' using loader %s (init_config loader: %s, instance loader: %s)", config.Name, selectedInstanceLoader, initConfig.LoaderName, instanceConfig.LoaderName)
-		} else {
-			log.Debugf("Loading check instance for check '%s' using default loaders", config.Name)
-		}
+	// 	err := yaml.Unmarshal(instance, &instanceConfig)
+	// 	if err != nil {
+	// 		log.Warnf("Unable to parse instance config for check `%s`: %v", config.Name, instance)
+	// 		continue
+	// 	}
 
-		for _, loader := range s.loaders {
-			// the loader is skipped if the loader name is set and does not match
-			if (selectedInstanceLoader != "") && (selectedInstanceLoader != loader.Name()) {
-				log.Debugf("Loader name %v does not match, skip loader %v for check %v", selectedInstanceLoader, loader.Name(), config.Name)
-				continue
-			}
-			_, err := loader.Load(s.senderManager, config, instance)
-			if err == nil {
-				log.Debugf("%v: skipped check '%s', agent should have no checks", loader, config.Name)
-				errorStats.removeLoaderErrors(config.Name)
-				break
-			}
-			errorStats.setLoaderError(config.Name, fmt.Sprintf("%v", loader), err.Error())
-			errors = append(errors, fmt.Sprintf("%v: %s", loader, err))
-		}
+	// 	if instanceConfig.LoaderName != "" {
+	// 		selectedInstanceLoader = instanceConfig.LoaderName
+	// 	}
+	// 	if selectedInstanceLoader != "" {
+	// 		log.Debugf("Loading check instance for check '%s' using loader %s (init_config loader: %s, instance loader: %s)", config.Name, selectedInstanceLoader, initConfig.LoaderName, instanceConfig.LoaderName)
+	// 	} else {
+	// 		log.Debugf("Loading check instance for check '%s' using default loaders", config.Name)
+	// 	}
 
-		if len(errors) == numLoaders {
-			log.Errorf("Unable to load a check from instance of config '%s': %s", config.Name, strings.Join(errors, "; "))
-		}
-	}
+	// 	for _, loader := range s.loaders {
+	// 		// the loader is skipped if the loader name is set and does not match
+	// 		if (selectedInstanceLoader != "") && (selectedInstanceLoader != loader.Name()) {
+	// 			log.Debugf("Loader name %v does not match, skip loader %v for check %v", selectedInstanceLoader, loader.Name(), config.Name)
+	// 			continue
+	// 		}
+	// 		_, err := loader.Load(s.senderManager, config, instance)
+	// 		if err == nil {
+	// 			log.Debugf("%v: skipped check '%s', agent should have no checks", loader, config.Name)
+	// 			errorStats.removeLoaderErrors(config.Name)
+	// 			break
+	// 		}
+	// 		errorStats.setLoaderError(config.Name, fmt.Sprintf("%v", loader), err.Error())
+	// 		errors = append(errors, fmt.Sprintf("%v: %s", loader, err))
+	// 	}
 
-	return checks, nil
+	// 	if len(errors) == numLoaders {
+	// 		log.Errorf("Unable to load a check from instance of config '%s': %s", config.Name, strings.Join(errors, "; "))
+	// 	}
+	// }
+
+	// return checks, nil
 }
 
 // GetChecksByNameForConfigs returns checks matching name for passed in configs
