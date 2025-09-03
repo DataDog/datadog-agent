@@ -61,7 +61,7 @@ func TestAppendKubeRequestedCPUManagementTag(t *testing.T) {
 			qos:         "Guaranteed",
 			containerID: types.NewEntityID(types.ContainerID, "container-123"),
 			initialTags: []string{"existing:tag"},
-			setupMock: func(mockStore workloadmetamock.Mock) {
+			setupMock: func(_ workloadmetamock.Mock) {
 				// Don't set any kubelet, so GetKubelet will return nil
 			},
 			expectedTags: []string{"existing:tag"},
