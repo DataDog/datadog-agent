@@ -63,6 +63,7 @@ func TestProcessResults(t *testing.T) {
 				Traceroute: result.Traceroute{
 					Runs: []result.TracerouteRun{
 						{
+							RunID: "aa-bb-cc",
 							Source: result.TracerouteSource{
 								IPAddress: net.ParseIP("10.0.0.5"),
 								Port:      12345,
@@ -117,6 +118,7 @@ func TestProcessResults(t *testing.T) {
 				Traceroute: payload.Traceroute{
 					Runs: []payload.TracerouteRun{
 						{
+							RunID: "aa-bb-cc",
 							Source: payload.TracerouteSource{
 								IPAddress: net.ParseIP("10.0.0.5"),
 								Port:      12345,

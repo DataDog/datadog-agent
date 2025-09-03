@@ -219,7 +219,8 @@ func (r *Runner) processResults(res *result.Results, protocol payload.Protocol, 
 			})
 		}
 		traceroutePath.Traceroute.Runs = append(traceroutePath.Traceroute.Runs, payload.TracerouteRun{
-			Hops: hops,
+			RunID: run.RunID,
+			Hops:  hops,
 			Source: payload.TracerouteSource{
 				IPAddress: run.Source.IPAddress,
 				Port:      run.Source.Port,

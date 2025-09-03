@@ -172,6 +172,7 @@ type Traceroute struct {
 
 // TracerouteRun contains traceroute results for a single run
 type TracerouteRun struct {
+	RunID       string                `json:"run_id"`
 	Source      TracerouteSource      `json:"source"`
 	Destination TracerouteDestination `json:"destination"`
 	Hops        []TracerouteHop       `json:"hops"`
