@@ -231,7 +231,10 @@ func (r *Runner) processResults(res *result.Results, protocol payload.Protocol, 
 			},
 		})
 	}
+
+	// TODO: needed to avoid failing in evp worker schema check
 	traceroutePath.Hops = []payload.NetworkPathHop{}
+
 	return traceroutePath, nil
 }
 
