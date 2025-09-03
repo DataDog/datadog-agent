@@ -23,6 +23,7 @@ package irgen
 
 import (
 	"cmp"
+	"container/heap"
 	"debug/dwarf"
 	"errors"
 	"fmt"
@@ -184,51 +185,19 @@ func generateIR(
 		return nil, err
 	}
 
-	// Resolve all placeholder types until we reach a fixed point.
+	// Resolve placeholder types by a unified, budgeted expansion from
+	// subprogram parameter roots. Container internals are zero-cost.
 	{
-		var maxDepth uint32
-		for _, t := range probeDefs {
-			maxDepth = max(maxDepth, t.GetCaptureConfig().GetMaxReferenceDepth())
+		budgets := computeDepthBudgets(processed.pendingSubprograms)
+		// Specialize any already-added container types before traversal.
+		if err := completeGoTypes(typeCatalog, 1, typeCatalog.idAlloc.alloc); err != nil {
+			return nil, err
 		}
-		tc := typeCatalog
-		var nextToCheck ir.TypeID = 1
-		for it := uint32(0); it < maxDepth; it++ {
-			m := tc.idAlloc.alloc
-			var added int
-			for i := nextToCheck; i <= m; i++ {
-				t, ok := tc.typesByID[i].(*pointeePlaceholderType)
-				if !ok {
-					continue
-				}
-				if _, err := tc.addType(t.offset); err != nil {
-					return nil, err
-				}
-				added++
-			}
-			if added == 0 {
-				break
-			}
-			if err := completeGoTypes(tc, nextToCheck, m); err != nil {
-				return nil, err
-			}
-			nextToCheck = m
-		}
-
-		// Get to a fixed point for completing the Go types.
-		for cur := nextToCheck; cur < tc.idAlloc.alloc; {
-			next := tc.idAlloc.alloc
-			if err := completeGoTypes(tc, cur, next); err != nil {
-				return nil, err
-			}
-			cur = next
-		}
-		// Now we need to go and rewrite placeholders to the UnchasedPointeeType.
-		if err := rewritePlaceholdersToUnresolvedPointeeType(
-			tc, nextToCheck, tc.idAlloc.alloc,
-		); err != nil {
+		if err := expandTypesWithBudgets(typeCatalog, materializedSubprograms, budgets); err != nil {
 			return nil, err
 		}
 	}
+
 	idToSub := make(map[ir.SubprogramID]*ir.Subprogram, len(materializedSubprograms))
 	for _, sp := range materializedSubprograms {
 		idToSub[sp.ID] = sp
@@ -273,6 +242,233 @@ func generateIR(
 		Issues:           issues,
 		GoModuledataInfo: processed.goModuledataInfo,
 	}, nil
+}
+
+// computeDepthBudgets returns the maximum reference depth per subprogram ID
+// across all probes configured for that subprogram.
+func computeDepthBudgets(pending []*pendingSubprogram) map[ir.SubprogramID]uint32 {
+	budgets := make(map[ir.SubprogramID]uint32, len(pending))
+	for _, p := range pending {
+		var maxDepth uint32
+		for _, cfg := range p.probesCfgs {
+			maxDepth = max(maxDepth, cfg.GetCaptureConfig().GetMaxReferenceDepth())
+		}
+		budgets[p.id] = maxDepth
+	}
+	return budgets
+}
+
+type typeQueueEntry struct {
+	id        ir.TypeID
+	remaining uint32
+}
+type typeQueue struct {
+	items []typeQueueEntry
+	pos   map[ir.TypeID]uint32 // current index in items if present
+}
+
+var _ heap.Interface = (*typeQueue)(nil)
+
+// heap.Interface
+func (q *typeQueue) Len() int { return len(q.items) }
+func (q *typeQueue) Less(i, j int) bool {
+	// Explore the types with the highest remaining budget first.
+	return cmp.Or(
+		cmp.Compare(q.items[i].remaining, q.items[j].remaining),
+		cmp.Compare(q.items[i].id, q.items[j].id),
+	) < 0
+}
+func (q *typeQueue) Swap(i, j int) {
+	q.items[i], q.items[j] = q.items[j], q.items[i]
+	q.pos[q.items[i].id] = uint32(i)
+	q.pos[q.items[j].id] = uint32(j)
+}
+
+// No-op the heap interface methods so we avoid allocations.
+func (q *typeQueue) Push(any) {}
+func (q *typeQueue) Pop() any { return nil }
+
+func (q *typeQueue) push(e typeQueueEntry) {
+	q.items = append(q.items, e)
+	q.pos[e.id] = uint32(len(q.items) - 1)
+	heap.Push(q, nil)
+}
+func (q *typeQueue) pop() typeQueueEntry {
+	heap.Pop(q)
+	n := len(q.items)
+	e := q.items[n-1]
+	q.items = q.items[:n-1]
+	delete(q.pos, e.id)
+	return e
+}
+
+func newTypeQueue() *typeQueue {
+	return &typeQueue{
+		pos: make(map[ir.TypeID]uint32),
+	}
+}
+
+// expandTypesWithBudgets performs a unified graph expansion starting from all
+// subprogram parameter roots, observing per-subprogram depth budgets. Only
+// pointer dereferences consume depth; container internals (strings, slices,
+// maps) are zero-cost. Newly materialized types are immediately completed to
+// ensure correct container specialization.
+func expandTypesWithBudgets(
+	tc *typeCatalog,
+	subprograms []*ir.Subprogram,
+	budgets map[ir.SubprogramID]uint32,
+) error {
+	// Track the best (maximum) processed remaining depth per type.
+	processedBest := make(map[ir.TypeID]uint32)
+
+	q := newTypeQueue()
+	// push enqueues (or improves) only if strictly better than any
+	// already processed or enqueued remaining budget.
+	push := func(t ir.Type, remaining uint32) {
+		id := t.GetID()
+		if r, ok := processedBest[id]; ok && remaining <= r {
+			return
+		}
+		if idx, ok := q.pos[id]; ok {
+			if remaining <= q.items[idx].remaining {
+				return
+			}
+			q.items[idx].remaining = remaining
+			heap.Fix(q, int(idx))
+			return
+		}
+		q.push(typeQueueEntry{id: id, remaining: remaining})
+	}
+
+	// Seed from all parameter variables of all subprograms.
+	for _, sp := range subprograms {
+		budget := budgets[sp.ID]
+		for _, v := range sp.Variables {
+			if !v.IsParameter || v.IsReturn || v.Type == nil {
+				continue
+			}
+			push(v.Type, budget)
+		}
+	}
+
+	// Local helper to complete a just-added type ID.
+	ensureCompleted := func(id ir.TypeID) error {
+		return completeGoTypes(tc, id, id)
+	}
+
+	for q.Len() > 0 {
+		wi := q.pop()
+		if r, ok := processedBest[wi.id]; ok && wi.remaining <= r {
+			continue
+		}
+
+		// Ensure the current type is specialized before visiting.
+		if err := ensureCompleted(wi.id); err != nil {
+			return err
+		}
+
+		t := tc.typesByID[wi.id]
+		if t == nil {
+			continue
+		}
+
+		switch tt := t.(type) {
+
+		// Nothing to do for these types.
+		case *ir.BaseType,
+			*ir.EventRootType,
+			*ir.GoChannelType,
+			*ir.GoEmptyInterfaceType,
+			*ir.GoInterfaceType,
+			*ir.GoStringDataType,
+			*ir.GoSubroutineType,
+			*ir.UnresolvedPointeeType,
+			*ir.VoidPointerType:
+
+		// Zero-cost neighbors (do not dereference pointers here).
+		case *ir.StructureType:
+			for i := range tt.RawFields {
+				push(tt.RawFields[i].Type, wi.remaining)
+			}
+		case *ir.GoSliceHeaderType:
+			push(tt.Data, wi.remaining)
+		case *ir.GoStringHeaderType:
+			push(tt.Data, wi.remaining)
+		case *ir.ArrayType:
+			push(tt.Element, wi.remaining)
+		case *ir.GoMapType:
+			push(tt.HeaderType, wi.remaining)
+		case *ir.GoHMapHeaderType:
+			push(tt.BucketsType, wi.remaining)
+			push(tt.BucketType, wi.remaining)
+		case *ir.GoSwissMapHeaderType:
+			push(tt.TablePtrSliceType, wi.remaining)
+			push(tt.GroupType, wi.remaining)
+		case *ir.GoSliceDataType:
+			push(tt.Element, wi.remaining)
+		case *ir.GoHMapBucketType:
+			push(tt.KeyType, wi.remaining)
+			push(tt.ValueType, wi.remaining)
+		case *ir.GoSwissMapGroupsType:
+			push(tt.GroupType, wi.remaining)
+			push(tt.GroupSliceType, wi.remaining)
+
+		// Depth-cost step: pointer dereference.
+		case *ir.PointerType:
+			if wi.remaining == 0 {
+				break
+			}
+			if placeholder, ok := tt.Pointee.(*pointeePlaceholderType); ok {
+				newT, err := tc.addType(placeholder.offset)
+				if err != nil {
+					return err
+				}
+				tt.Pointee = newT
+				if err := ensureCompleted(newT.GetID()); err != nil {
+					return err
+				}
+			}
+			push(tt.Pointee, wi.remaining-1)
+
+		default:
+			return fmt.Errorf("unexpected ir.Type %[1]T: %#[1]v", tt)
+		}
+
+		// Mark processed with this best remaining.
+		processedBest[wi.id] = wi.remaining
+	}
+
+	// Rewrite placeholders to unresolved pointee types.
+	var r *dwarf.Reader
+	for i := ir.TypeID(1); i <= ir.TypeID(tc.idAlloc.alloc); i++ {
+		ppt, ok := tc.typesByID[i].(*pointeePlaceholderType)
+		if !ok {
+			continue
+		}
+		if r == nil {
+			r = tc.dwarf.Reader()
+		}
+		r.Seek(ppt.offset)
+		entry, err := r.Next()
+		if err != nil {
+			return fmt.Errorf("failed to get next entry: %w", err)
+		}
+		if entry == nil {
+			return fmt.Errorf("unexpected EOF while reading type")
+		}
+		name, err := getAttr[string](entry, dwarf.AttrName)
+		if err != nil {
+			return fmt.Errorf("failed to get name for type: %w", err)
+		}
+		tc.typesByID[ppt.id] = &ir.UnresolvedPointeeType{
+			TypeCommon: ir.TypeCommon{
+				ID:       ppt.id,
+				Name:     name,
+				ByteSize: uint32(tc.ptrSize),
+			},
+		}
+	}
+	return nil
 }
 
 func materializePending(
@@ -645,39 +841,6 @@ func completeGoTypes(tc *typeCatalog, minID, maxID ir.TypeID) error {
 			if err := completeGoMapType(tc, t); err != nil {
 				return err
 			}
-		}
-	}
-	return nil
-}
-
-func rewritePlaceholdersToUnresolvedPointeeType(tc *typeCatalog, minID, maxID ir.TypeID) error {
-	var r *dwarf.Reader
-	for i := minID; i <= maxID; i++ {
-		ppt, ok := tc.typesByID[i].(*pointeePlaceholderType)
-		if !ok {
-			continue
-		}
-		if r == nil {
-			r = tc.dwarf.Reader()
-		}
-		r.Seek(ppt.offset)
-		entry, err := r.Next()
-		if err != nil {
-			return fmt.Errorf("failed to get next entry: %w", err)
-		}
-		if entry == nil {
-			return fmt.Errorf("unexpected EOF while reading type")
-		}
-		name, err := getAttr[string](entry, dwarf.AttrName)
-		if err != nil {
-			return fmt.Errorf("failed to get name for type: %w", err)
-		}
-		tc.typesByID[ppt.id] = &ir.UnresolvedPointeeType{
-			TypeCommon: ir.TypeCommon{
-				ID:       ppt.id,
-				Name:     name,
-				ByteSize: uint32(tc.ptrSize),
-			},
 		}
 	}
 	return nil

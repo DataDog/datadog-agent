@@ -3095,7 +3095,7 @@ Subprograms:
           IsReturn: false
 Types:
     - __kind: PointerType
-      ID: 173
+      ID: 277
       Name: '**main.t'
       ByteSize: 8
       Pointee: 133 PointerType *main.t
@@ -3167,50 +3167,50 @@ Types:
       ByteSize: 8
       Pointee: 112 PointerType *table<uint8,uint8>
     - __kind: PointerType
-      ID: 177
+      ID: 154
       Name: '*[]*string.array'
       ByteSize: 8
-      Pointee: 176 GoSliceDataType []*string.array
+      Pointee: 153 GoSliceDataType []*string.array
     - __kind: PointerType
-      ID: 271
+      ID: 258
       Name: '*[][]uint.array'
       ByteSize: 8
-      Pointee: 270 GoSliceDataType [][]uint.array
+      Pointee: 257 GoSliceDataType [][]uint.array
     - __kind: PointerType
-      ID: 277
+      ID: 264
       Name: '*[]bool.array'
       ByteSize: 8
-      Pointee: 276 GoSliceDataType []bool.array
+      Pointee: 263 GoSliceDataType []bool.array
     - __kind: PointerType
       ID: 281
       Name: '*[]main.structWithMap.array'
       ByteSize: 8
       Pointee: 280 GoSliceDataType []main.structWithMap.array
     - __kind: PointerType
-      ID: 273
+      ID: 260
       Name: '*[]main.structWithNoStrings.array'
       ByteSize: 8
-      Pointee: 272 GoSliceDataType []main.structWithNoStrings.array
+      Pointee: 259 GoSliceDataType []main.structWithNoStrings.array
     - __kind: PointerType
-      ID: 275
+      ID: 262
       Name: '*[]string.array'
       ByteSize: 8
-      Pointee: 274 GoSliceDataType []string.array
+      Pointee: 261 GoSliceDataType []string.array
     - __kind: PointerType
       ID: 137
       Name: '*[]uint'
       ByteSize: 8
       Pointee: 135 GoSliceHeaderType []uint
     - __kind: PointerType
-      ID: 269
+      ID: 256
       Name: '*[]uint.array'
       ByteSize: 8
-      Pointee: 268 GoSliceDataType []uint.array
+      Pointee: 255 GoSliceDataType []uint.array
     - __kind: PointerType
-      ID: 279
+      ID: 266
       Name: '*[]uint16.array'
       ByteSize: 8
-      Pointee: 278 GoSliceDataType []uint16.array
+      Pointee: 265 GoSliceDataType []uint16.array
     - __kind: PointerType
       ID: 11
       Name: '*bool'
@@ -3295,7 +3295,7 @@ Types:
       GoKind: 22
       Pointee: 147 StructureType main.oneStringStruct
     - __kind: PointerType
-      ID: 220
+      ID: 203
       Name: '*main.structWithMap'
       ByteSize: 8
       GoRuntimeType: 380160
@@ -3319,10 +3319,10 @@ Types:
       GoKind: 22
       Pointee: 134 GoSliceHeaderType main.t
     - __kind: PointerType
-      ID: 267
+      ID: 279
       Name: '*main.t.array'
       ByteSize: 8
-      Pointee: 266 GoSliceDataType main.t.array
+      Pointee: 278 GoSliceDataType main.t.array
     - __kind: PointerType
       ID: 145
       Name: '*main.threeStringStruct'
@@ -3396,65 +3396,65 @@ Types:
       GoKind: 22
       Pointee: 76 GoMapType map[string]int
     - __kind: PointerType
-      ID: 260
+      ID: 249
       Name: '*noalg.map.group[[4]int][4]int'
       ByteSize: 8
-      Pointee: 261 StructureType noalg.map.group[[4]int][4]int
+      Pointee: 250 StructureType noalg.map.group[[4]int][4]int
     - __kind: PointerType
-      ID: 253
+      ID: 241
       Name: '*noalg.map.group[[4]int]uint8'
       ByteSize: 8
-      Pointee: 254 StructureType noalg.map.group[[4]int]uint8
+      Pointee: 242 StructureType noalg.map.group[[4]int]uint8
     - __kind: PointerType
-      ID: 207
+      ID: 189
       Name: '*noalg.map.group[[4]string][2]int'
       ByteSize: 8
-      Pointee: 208 StructureType noalg.map.group[[4]string][2]int
+      Pointee: 190 StructureType noalg.map.group[[4]string][2]int
     - __kind: PointerType
-      ID: 224
+      ID: 208
       Name: '*noalg.map.group[bool]main.node'
       ByteSize: 8
-      Pointee: 225 StructureType noalg.map.group[bool]main.node
+      Pointee: 209 StructureType noalg.map.group[bool]main.node
     - __kind: PointerType
-      ID: 179
+      ID: 157
       Name: '*noalg.map.group[int]int'
       ByteSize: 8
-      Pointee: 180 StructureType noalg.map.group[int]int
+      Pointee: 158 StructureType noalg.map.group[int]int
     - __kind: PointerType
-      ID: 231
+      ID: 216
       Name: '*noalg.map.group[int]uint8'
       ByteSize: 8
-      Pointee: 232 StructureType noalg.map.group[int]uint8
+      Pointee: 217 StructureType noalg.map.group[int]uint8
     - __kind: PointerType
-      ID: 215
+      ID: 198
       Name: '*noalg.map.group[string][]main.structWithMap'
       ByteSize: 8
-      Pointee: 216 StructureType noalg.map.group[string][]main.structWithMap
+      Pointee: 199 StructureType noalg.map.group[string][]main.structWithMap
     - __kind: PointerType
-      ID: 200
+      ID: 181
       Name: '*noalg.map.group[string][]string'
       ByteSize: 8
-      Pointee: 201 StructureType noalg.map.group[string][]string
+      Pointee: 182 StructureType noalg.map.group[string][]string
     - __kind: PointerType
-      ID: 193
+      ID: 173
       Name: '*noalg.map.group[string]int'
       ByteSize: 8
-      Pointee: 194 StructureType noalg.map.group[string]int
+      Pointee: 174 StructureType noalg.map.group[string]int
     - __kind: PointerType
-      ID: 186
+      ID: 165
       Name: '*noalg.map.group[string]main.nestedStruct'
       ByteSize: 8
-      Pointee: 187 StructureType noalg.map.group[string]main.nestedStruct
+      Pointee: 166 StructureType noalg.map.group[string]main.nestedStruct
     - __kind: PointerType
-      ID: 245
+      ID: 232
       Name: '*noalg.map.group[uint8][4]int'
       ByteSize: 8
-      Pointee: 246 StructureType noalg.map.group[uint8][4]int
+      Pointee: 233 StructureType noalg.map.group[uint8][4]int
     - __kind: PointerType
-      ID: 238
+      ID: 224
       Name: '*noalg.map.group[uint8]uint8'
       ByteSize: 8
-      Pointee: 239 StructureType noalg.map.group[uint8]uint8
+      Pointee: 225 StructureType noalg.map.group[uint8]uint8
     - __kind: PointerType
       ID: 22
       Name: '*string'
@@ -3463,70 +3463,70 @@ Types:
       GoKind: 22
       Pointee: 9 GoStringHeaderType string
     - __kind: PointerType
-      ID: 175
+      ID: 152
       Name: '*string.str'
       ByteSize: 8
-      Pointee: 174 GoStringDataType string.str
+      Pointee: 151 GoStringDataType string.str
     - __kind: PointerType
       ID: 127
       Name: '*table<[4]int,[4]int>'
       ByteSize: 8
-      Pointee: 172 StructureType table<[4]int,[4]int>
+      Pointee: 247 StructureType table<[4]int,[4]int>
     - __kind: PointerType
       ID: 122
       Name: '*table<[4]int,uint8>'
       ByteSize: 8
-      Pointee: 171 StructureType table<[4]int,uint8>
+      Pointee: 239 StructureType table<[4]int,uint8>
     - __kind: PointerType
       ID: 90
       Name: '*table<[4]string,[2]int>'
       ByteSize: 8
-      Pointee: 165 StructureType table<[4]string,[2]int>
+      Pointee: 187 StructureType table<[4]string,[2]int>
     - __kind: PointerType
       ID: 102
       Name: '*table<bool,main.node>'
       ByteSize: 8
-      Pointee: 167 StructureType table<bool,main.node>
+      Pointee: 206 StructureType table<bool,main.node>
     - __kind: PointerType
       ID: 70
       Name: '*table<int,int>'
       ByteSize: 8
-      Pointee: 161 StructureType table<int,int>
+      Pointee: 155 StructureType table<int,int>
     - __kind: PointerType
       ID: 107
       Name: '*table<int,uint8>'
       ByteSize: 8
-      Pointee: 168 StructureType table<int,uint8>
+      Pointee: 214 StructureType table<int,uint8>
     - __kind: PointerType
       ID: 97
       Name: '*table<string,[]main.structWithMap>'
       ByteSize: 8
-      Pointee: 166 StructureType table<string,[]main.structWithMap>
+      Pointee: 196 StructureType table<string,[]main.structWithMap>
     - __kind: PointerType
       ID: 85
       Name: '*table<string,[]string>'
       ByteSize: 8
-      Pointee: 164 StructureType table<string,[]string>
+      Pointee: 179 StructureType table<string,[]string>
     - __kind: PointerType
       ID: 80
       Name: '*table<string,int>'
       ByteSize: 8
-      Pointee: 163 StructureType table<string,int>
+      Pointee: 171 StructureType table<string,int>
     - __kind: PointerType
       ID: 75
       Name: '*table<string,main.nestedStruct>'
       ByteSize: 8
-      Pointee: 162 StructureType table<string,main.nestedStruct>
+      Pointee: 163 StructureType table<string,main.nestedStruct>
     - __kind: PointerType
       ID: 117
       Name: '*table<uint8,[4]int>'
       ByteSize: 8
-      Pointee: 170 StructureType table<uint8,[4]int>
+      Pointee: 230 StructureType table<uint8,[4]int>
     - __kind: PointerType
       ID: 112
       Name: '*table<uint8,uint8>'
       ByteSize: 8
-      Pointee: 169 StructureType table<uint8,uint8>
+      Pointee: 222 StructureType table<uint8,uint8>
     - __kind: PointerType
       ID: 34
       Name: '*uint'
@@ -5338,7 +5338,7 @@ Types:
       HasCount: true
       Element: 3 BaseType uint8
     - __kind: ArrayType
-      ID: 249
+      ID: 236
       Name: '[4]int'
       ByteSize: 32
       GoRuntimeType: 672896
@@ -5347,7 +5347,7 @@ Types:
       HasCount: true
       Element: 7 BaseType int
     - __kind: ArrayType
-      ID: 211
+      ID: 193
       Name: '[4]string'
       ByteSize: 64
       GoRuntimeType: 673184
@@ -5379,69 +5379,69 @@ Types:
         - Name: cap
           Offset: 16
           Type: 7 BaseType int
-      Data: 176 GoSliceDataType []*string.array
+      Data: 153 GoSliceDataType []*string.array
     - __kind: GoSliceDataType
-      ID: 176
+      ID: 153
       Name: '[]*string.array'
       ByteSize: 2048
       Element: 22 PointerType *string
     - __kind: GoSliceDataType
-      ID: 264
+      ID: 253
       Name: '[]*table<[4]int,[4]int>.array'
       ByteSize: 8192
       Element: 127 PointerType *table<[4]int,[4]int>
     - __kind: GoSliceDataType
-      ID: 257
+      ID: 245
       Name: '[]*table<[4]int,uint8>.array'
       ByteSize: 8192
       Element: 122 PointerType *table<[4]int,uint8>
     - __kind: GoSliceDataType
-      ID: 212
+      ID: 194
       Name: '[]*table<[4]string,[2]int>.array'
       ByteSize: 8192
       Element: 90 PointerType *table<[4]string,[2]int>
     - __kind: GoSliceDataType
-      ID: 228
+      ID: 212
       Name: '[]*table<bool,main.node>.array'
       ByteSize: 8192
       Element: 102 PointerType *table<bool,main.node>
     - __kind: GoSliceDataType
-      ID: 183
+      ID: 161
       Name: '[]*table<int,int>.array'
       ByteSize: 8192
       Element: 70 PointerType *table<int,int>
     - __kind: GoSliceDataType
-      ID: 235
+      ID: 220
       Name: '[]*table<int,uint8>.array'
       ByteSize: 8192
       Element: 107 PointerType *table<int,uint8>
     - __kind: GoSliceDataType
-      ID: 221
+      ID: 204
       Name: '[]*table<string,[]main.structWithMap>.array'
       ByteSize: 8192
       Element: 97 PointerType *table<string,[]main.structWithMap>
     - __kind: GoSliceDataType
-      ID: 204
+      ID: 185
       Name: '[]*table<string,[]string>.array'
       ByteSize: 8192
       Element: 85 PointerType *table<string,[]string>
     - __kind: GoSliceDataType
-      ID: 197
+      ID: 177
       Name: '[]*table<string,int>.array'
       ByteSize: 8192
       Element: 80 PointerType *table<string,int>
     - __kind: GoSliceDataType
-      ID: 190
+      ID: 169
       Name: '[]*table<string,main.nestedStruct>.array'
       ByteSize: 8192
       Element: 75 PointerType *table<string,main.nestedStruct>
     - __kind: GoSliceDataType
-      ID: 250
+      ID: 237
       Name: '[]*table<uint8,[4]int>.array'
       ByteSize: 8192
       Element: 117 PointerType *table<uint8,[4]int>
     - __kind: GoSliceDataType
-      ID: 242
+      ID: 228
       Name: '[]*table<uint8,uint8>.array'
       ByteSize: 8192
       Element: 112 PointerType *table<uint8,uint8>
@@ -5460,9 +5460,9 @@ Types:
         - Name: cap
           Offset: 16
           Type: 7 BaseType int
-      Data: 270 GoSliceDataType [][]uint.array
+      Data: 257 GoSliceDataType [][]uint.array
     - __kind: GoSliceDataType
-      ID: 270
+      ID: 257
       Name: '[][]uint.array'
       ByteSize: 2048
       Element: 135 GoSliceHeaderType []uint
@@ -5482,14 +5482,14 @@ Types:
         - Name: cap
           Offset: 16
           Type: 7 BaseType int
-      Data: 276 GoSliceDataType []bool.array
+      Data: 263 GoSliceDataType []bool.array
     - __kind: GoSliceDataType
-      ID: 276
+      ID: 263
       Name: '[]bool.array'
       ByteSize: 2048
       Element: 4 BaseType bool
     - __kind: GoSliceHeaderType
-      ID: 219
+      ID: 202
       Name: '[]main.structWithMap'
       ByteSize: 24
       GoRuntimeType: 469888
@@ -5497,7 +5497,7 @@ Types:
       RawFields:
         - Name: array
           Offset: 0
-          Type: 220 PointerType *main.structWithMap
+          Type: 203 PointerType *main.structWithMap
         - Name: len
           Offset: 8
           Type: 7 BaseType int
@@ -5525,72 +5525,72 @@ Types:
         - Name: cap
           Offset: 16
           Type: 7 BaseType int
-      Data: 272 GoSliceDataType []main.structWithNoStrings.array
+      Data: 259 GoSliceDataType []main.structWithNoStrings.array
     - __kind: GoSliceDataType
-      ID: 272
+      ID: 259
       Name: '[]main.structWithNoStrings.array'
       ByteSize: 2048
       Element: 140 StructureType main.structWithNoStrings
     - __kind: GoSliceDataType
-      ID: 265
+      ID: 254
       Name: '[]noalg.map.group[[4]int][4]int.array'
       ByteSize: 2048
-      Element: 261 StructureType noalg.map.group[[4]int][4]int
+      Element: 250 StructureType noalg.map.group[[4]int][4]int
     - __kind: GoSliceDataType
-      ID: 258
+      ID: 246
       Name: '[]noalg.map.group[[4]int]uint8.array'
       ByteSize: 2048
-      Element: 254 StructureType noalg.map.group[[4]int]uint8
+      Element: 242 StructureType noalg.map.group[[4]int]uint8
     - __kind: GoSliceDataType
-      ID: 213
+      ID: 195
       Name: '[]noalg.map.group[[4]string][2]int.array'
       ByteSize: 2048
-      Element: 208 StructureType noalg.map.group[[4]string][2]int
+      Element: 190 StructureType noalg.map.group[[4]string][2]int
     - __kind: GoSliceDataType
-      ID: 229
+      ID: 213
       Name: '[]noalg.map.group[bool]main.node.array'
       ByteSize: 2048
-      Element: 225 StructureType noalg.map.group[bool]main.node
+      Element: 209 StructureType noalg.map.group[bool]main.node
     - __kind: GoSliceDataType
-      ID: 184
+      ID: 162
       Name: '[]noalg.map.group[int]int.array'
       ByteSize: 2048
-      Element: 180 StructureType noalg.map.group[int]int
+      Element: 158 StructureType noalg.map.group[int]int
     - __kind: GoSliceDataType
-      ID: 236
+      ID: 221
       Name: '[]noalg.map.group[int]uint8.array'
       ByteSize: 2048
-      Element: 232 StructureType noalg.map.group[int]uint8
-    - __kind: GoSliceDataType
-      ID: 222
-      Name: '[]noalg.map.group[string][]main.structWithMap.array'
-      ByteSize: 2048
-      Element: 216 StructureType noalg.map.group[string][]main.structWithMap
+      Element: 217 StructureType noalg.map.group[int]uint8
     - __kind: GoSliceDataType
       ID: 205
+      Name: '[]noalg.map.group[string][]main.structWithMap.array'
+      ByteSize: 2048
+      Element: 199 StructureType noalg.map.group[string][]main.structWithMap
+    - __kind: GoSliceDataType
+      ID: 186
       Name: '[]noalg.map.group[string][]string.array'
       ByteSize: 2048
-      Element: 201 StructureType noalg.map.group[string][]string
+      Element: 182 StructureType noalg.map.group[string][]string
     - __kind: GoSliceDataType
-      ID: 198
+      ID: 178
       Name: '[]noalg.map.group[string]int.array'
       ByteSize: 2048
-      Element: 194 StructureType noalg.map.group[string]int
+      Element: 174 StructureType noalg.map.group[string]int
     - __kind: GoSliceDataType
-      ID: 191
+      ID: 170
       Name: '[]noalg.map.group[string]main.nestedStruct.array'
       ByteSize: 2048
-      Element: 187 StructureType noalg.map.group[string]main.nestedStruct
+      Element: 166 StructureType noalg.map.group[string]main.nestedStruct
     - __kind: GoSliceDataType
-      ID: 251
+      ID: 238
       Name: '[]noalg.map.group[uint8][4]int.array'
       ByteSize: 2048
-      Element: 246 StructureType noalg.map.group[uint8][4]int
+      Element: 233 StructureType noalg.map.group[uint8][4]int
     - __kind: GoSliceDataType
-      ID: 243
+      ID: 229
       Name: '[]noalg.map.group[uint8]uint8.array'
       ByteSize: 2048
-      Element: 239 StructureType noalg.map.group[uint8]uint8
+      Element: 225 StructureType noalg.map.group[uint8]uint8
     - __kind: GoSliceHeaderType
       ID: 141
       Name: '[]string'
@@ -5607,9 +5607,9 @@ Types:
         - Name: cap
           Offset: 16
           Type: 7 BaseType int
-      Data: 274 GoSliceDataType []string.array
+      Data: 261 GoSliceDataType []string.array
     - __kind: GoSliceDataType
-      ID: 274
+      ID: 261
       Name: '[]string.array'
       ByteSize: 2048
       Element: 9 GoStringHeaderType string
@@ -5629,9 +5629,9 @@ Types:
         - Name: cap
           Offset: 16
           Type: 7 BaseType int
-      Data: 268 GoSliceDataType []uint.array
+      Data: 255 GoSliceDataType []uint.array
     - __kind: GoSliceDataType
-      ID: 268
+      ID: 255
       Name: '[]uint.array'
       ByteSize: 2048
       Element: 16 BaseType uint
@@ -5651,9 +5651,9 @@ Types:
         - Name: cap
           Offset: 16
           Type: 7 BaseType int
-      Data: 278 GoSliceDataType []uint16.array
+      Data: 265 GoSliceDataType []uint16.array
     - __kind: GoSliceDataType
-      ID: 278
+      ID: 265
       Name: '[]uint16.array'
       ByteSize: 2048
       Element: 6 BaseType uint16
@@ -5717,173 +5717,173 @@ Types:
       GoRuntimeType: 468928
       GoKind: 19
     - __kind: GoSwissMapGroupsType
-      ID: 259
+      ID: 248
       Name: groupReference<[4]int,[4]int>
       ByteSize: 16
       GoKind: 25
       RawFields:
         - Name: data
           Offset: 0
-          Type: 260 PointerType *noalg.map.group[[4]int][4]int
+          Type: 249 PointerType *noalg.map.group[[4]int][4]int
         - Name: lengthMask
           Offset: 8
           Type: 8 BaseType uint64
-      GroupType: 261 StructureType noalg.map.group[[4]int][4]int
-      GroupSliceType: 265 GoSliceDataType []noalg.map.group[[4]int][4]int.array
+      GroupType: 250 StructureType noalg.map.group[[4]int][4]int
+      GroupSliceType: 254 GoSliceDataType []noalg.map.group[[4]int][4]int.array
     - __kind: GoSwissMapGroupsType
-      ID: 252
+      ID: 240
       Name: groupReference<[4]int,uint8>
       ByteSize: 16
       GoKind: 25
       RawFields:
         - Name: data
           Offset: 0
-          Type: 253 PointerType *noalg.map.group[[4]int]uint8
+          Type: 241 PointerType *noalg.map.group[[4]int]uint8
         - Name: lengthMask
           Offset: 8
           Type: 8 BaseType uint64
-      GroupType: 254 StructureType noalg.map.group[[4]int]uint8
-      GroupSliceType: 258 GoSliceDataType []noalg.map.group[[4]int]uint8.array
+      GroupType: 242 StructureType noalg.map.group[[4]int]uint8
+      GroupSliceType: 246 GoSliceDataType []noalg.map.group[[4]int]uint8.array
     - __kind: GoSwissMapGroupsType
-      ID: 206
+      ID: 188
       Name: groupReference<[4]string,[2]int>
       ByteSize: 16
       GoKind: 25
       RawFields:
         - Name: data
           Offset: 0
-          Type: 207 PointerType *noalg.map.group[[4]string][2]int
+          Type: 189 PointerType *noalg.map.group[[4]string][2]int
         - Name: lengthMask
           Offset: 8
           Type: 8 BaseType uint64
-      GroupType: 208 StructureType noalg.map.group[[4]string][2]int
-      GroupSliceType: 213 GoSliceDataType []noalg.map.group[[4]string][2]int.array
+      GroupType: 190 StructureType noalg.map.group[[4]string][2]int
+      GroupSliceType: 195 GoSliceDataType []noalg.map.group[[4]string][2]int.array
     - __kind: GoSwissMapGroupsType
-      ID: 223
+      ID: 207
       Name: groupReference<bool,main.node>
       ByteSize: 16
       GoKind: 25
       RawFields:
         - Name: data
           Offset: 0
-          Type: 224 PointerType *noalg.map.group[bool]main.node
+          Type: 208 PointerType *noalg.map.group[bool]main.node
         - Name: lengthMask
           Offset: 8
           Type: 8 BaseType uint64
-      GroupType: 225 StructureType noalg.map.group[bool]main.node
-      GroupSliceType: 229 GoSliceDataType []noalg.map.group[bool]main.node.array
+      GroupType: 209 StructureType noalg.map.group[bool]main.node
+      GroupSliceType: 213 GoSliceDataType []noalg.map.group[bool]main.node.array
     - __kind: GoSwissMapGroupsType
-      ID: 178
+      ID: 156
       Name: groupReference<int,int>
       ByteSize: 16
       GoKind: 25
       RawFields:
         - Name: data
           Offset: 0
-          Type: 179 PointerType *noalg.map.group[int]int
+          Type: 157 PointerType *noalg.map.group[int]int
         - Name: lengthMask
           Offset: 8
           Type: 8 BaseType uint64
-      GroupType: 180 StructureType noalg.map.group[int]int
-      GroupSliceType: 184 GoSliceDataType []noalg.map.group[int]int.array
+      GroupType: 158 StructureType noalg.map.group[int]int
+      GroupSliceType: 162 GoSliceDataType []noalg.map.group[int]int.array
     - __kind: GoSwissMapGroupsType
-      ID: 230
+      ID: 215
       Name: groupReference<int,uint8>
       ByteSize: 16
       GoKind: 25
       RawFields:
         - Name: data
           Offset: 0
-          Type: 231 PointerType *noalg.map.group[int]uint8
+          Type: 216 PointerType *noalg.map.group[int]uint8
         - Name: lengthMask
           Offset: 8
           Type: 8 BaseType uint64
-      GroupType: 232 StructureType noalg.map.group[int]uint8
-      GroupSliceType: 236 GoSliceDataType []noalg.map.group[int]uint8.array
+      GroupType: 217 StructureType noalg.map.group[int]uint8
+      GroupSliceType: 221 GoSliceDataType []noalg.map.group[int]uint8.array
     - __kind: GoSwissMapGroupsType
-      ID: 214
+      ID: 197
       Name: groupReference<string,[]main.structWithMap>
       ByteSize: 16
       GoKind: 25
       RawFields:
         - Name: data
           Offset: 0
-          Type: 215 PointerType *noalg.map.group[string][]main.structWithMap
+          Type: 198 PointerType *noalg.map.group[string][]main.structWithMap
         - Name: lengthMask
           Offset: 8
           Type: 8 BaseType uint64
-      GroupType: 216 StructureType noalg.map.group[string][]main.structWithMap
-      GroupSliceType: 222 GoSliceDataType []noalg.map.group[string][]main.structWithMap.array
+      GroupType: 199 StructureType noalg.map.group[string][]main.structWithMap
+      GroupSliceType: 205 GoSliceDataType []noalg.map.group[string][]main.structWithMap.array
     - __kind: GoSwissMapGroupsType
-      ID: 199
+      ID: 180
       Name: groupReference<string,[]string>
       ByteSize: 16
       GoKind: 25
       RawFields:
         - Name: data
           Offset: 0
-          Type: 200 PointerType *noalg.map.group[string][]string
+          Type: 181 PointerType *noalg.map.group[string][]string
         - Name: lengthMask
           Offset: 8
           Type: 8 BaseType uint64
-      GroupType: 201 StructureType noalg.map.group[string][]string
-      GroupSliceType: 205 GoSliceDataType []noalg.map.group[string][]string.array
+      GroupType: 182 StructureType noalg.map.group[string][]string
+      GroupSliceType: 186 GoSliceDataType []noalg.map.group[string][]string.array
     - __kind: GoSwissMapGroupsType
-      ID: 192
+      ID: 172
       Name: groupReference<string,int>
       ByteSize: 16
       GoKind: 25
       RawFields:
         - Name: data
           Offset: 0
-          Type: 193 PointerType *noalg.map.group[string]int
+          Type: 173 PointerType *noalg.map.group[string]int
         - Name: lengthMask
           Offset: 8
           Type: 8 BaseType uint64
-      GroupType: 194 StructureType noalg.map.group[string]int
-      GroupSliceType: 198 GoSliceDataType []noalg.map.group[string]int.array
+      GroupType: 174 StructureType noalg.map.group[string]int
+      GroupSliceType: 178 GoSliceDataType []noalg.map.group[string]int.array
     - __kind: GoSwissMapGroupsType
-      ID: 185
+      ID: 164
       Name: groupReference<string,main.nestedStruct>
       ByteSize: 16
       GoKind: 25
       RawFields:
         - Name: data
           Offset: 0
-          Type: 186 PointerType *noalg.map.group[string]main.nestedStruct
+          Type: 165 PointerType *noalg.map.group[string]main.nestedStruct
         - Name: lengthMask
           Offset: 8
           Type: 8 BaseType uint64
-      GroupType: 187 StructureType noalg.map.group[string]main.nestedStruct
-      GroupSliceType: 191 GoSliceDataType []noalg.map.group[string]main.nestedStruct.array
+      GroupType: 166 StructureType noalg.map.group[string]main.nestedStruct
+      GroupSliceType: 170 GoSliceDataType []noalg.map.group[string]main.nestedStruct.array
     - __kind: GoSwissMapGroupsType
-      ID: 244
+      ID: 231
       Name: groupReference<uint8,[4]int>
       ByteSize: 16
       GoKind: 25
       RawFields:
         - Name: data
           Offset: 0
-          Type: 245 PointerType *noalg.map.group[uint8][4]int
+          Type: 232 PointerType *noalg.map.group[uint8][4]int
         - Name: lengthMask
           Offset: 8
           Type: 8 BaseType uint64
-      GroupType: 246 StructureType noalg.map.group[uint8][4]int
-      GroupSliceType: 251 GoSliceDataType []noalg.map.group[uint8][4]int.array
+      GroupType: 233 StructureType noalg.map.group[uint8][4]int
+      GroupSliceType: 238 GoSliceDataType []noalg.map.group[uint8][4]int.array
     - __kind: GoSwissMapGroupsType
-      ID: 237
+      ID: 223
       Name: groupReference<uint8,uint8>
       ByteSize: 16
       GoKind: 25
       RawFields:
         - Name: data
           Offset: 0
-          Type: 238 PointerType *noalg.map.group[uint8]uint8
+          Type: 224 PointerType *noalg.map.group[uint8]uint8
         - Name: lengthMask
           Offset: 8
           Type: 8 BaseType uint64
-      GroupType: 239 StructureType noalg.map.group[uint8]uint8
-      GroupSliceType: 243 GoSliceDataType []noalg.map.group[uint8]uint8.array
+      GroupType: 225 StructureType noalg.map.group[uint8]uint8
+      GroupSliceType: 229 GoSliceDataType []noalg.map.group[uint8]uint8.array
     - __kind: BaseType
       ID: 7
       Name: int
@@ -5928,7 +5928,7 @@ Types:
           Offset: 8
           Type: 14 VoidPointerType unsafe.Pointer
     - __kind: StructureType
-      ID: 153
+      ID: 269
       Name: internal/sync.Mutex
       ByteSize: 8
       GoRuntimeType: 1.454624e+06
@@ -6016,16 +6016,16 @@ Types:
           Type: 56 StructureType main.esotericStack
         - Name: mu
           Offset: 64
-          Type: 151 StructureType sync.Mutex
+          Type: 267 StructureType sync.Mutex
         - Name: once
           Offset: 72
-          Type: 154 StructureType sync.Once
+          Type: 270 StructureType sync.Once
         - Name: wg
           Offset: 88
-          Type: 157 StructureType sync.WaitGroup
+          Type: 273 StructureType sync.WaitGroup
         - Name: a
           Offset: 104
-          Type: 160 StructureType sync/atomic.Int32
+          Type: 276 StructureType sync/atomic.Int32
     - __kind: StructureType
       ID: 56
       Name: main.esotericStack
@@ -6144,16 +6144,16 @@ Types:
       RawFields:
         - Name: array
           Offset: 0
-          Type: 173 PointerType **main.t
+          Type: 277 PointerType **main.t
         - Name: len
           Offset: 8
           Type: 7 BaseType int
         - Name: cap
           Offset: 16
           Type: 7 BaseType int
-      Data: 266 GoSliceDataType main.t.array
+      Data: 278 GoSliceDataType main.t.array
     - __kind: GoSliceDataType
-      ID: 266
+      ID: 278
       Name: main.t.array
       ByteSize: 2048
       Element: 133 PointerType *main.t
@@ -6207,8 +6207,8 @@ Types:
         - Name: clearSeq
           Offset: 40
           Type: 8 BaseType uint64
-      TablePtrSliceType: 264 GoSliceDataType []*table<[4]int,[4]int>.array
-      GroupType: 261 StructureType noalg.map.group[[4]int][4]int
+      TablePtrSliceType: 253 GoSliceDataType []*table<[4]int,[4]int>.array
+      GroupType: 250 StructureType noalg.map.group[[4]int][4]int
     - __kind: GoSwissMapHeaderType
       ID: 120
       Name: map<[4]int,uint8>
@@ -6239,8 +6239,8 @@ Types:
         - Name: clearSeq
           Offset: 40
           Type: 8 BaseType uint64
-      TablePtrSliceType: 257 GoSliceDataType []*table<[4]int,uint8>.array
-      GroupType: 254 StructureType noalg.map.group[[4]int]uint8
+      TablePtrSliceType: 245 GoSliceDataType []*table<[4]int,uint8>.array
+      GroupType: 242 StructureType noalg.map.group[[4]int]uint8
     - __kind: GoSwissMapHeaderType
       ID: 88
       Name: map<[4]string,[2]int>
@@ -6271,8 +6271,8 @@ Types:
         - Name: clearSeq
           Offset: 40
           Type: 8 BaseType uint64
-      TablePtrSliceType: 212 GoSliceDataType []*table<[4]string,[2]int>.array
-      GroupType: 208 StructureType noalg.map.group[[4]string][2]int
+      TablePtrSliceType: 194 GoSliceDataType []*table<[4]string,[2]int>.array
+      GroupType: 190 StructureType noalg.map.group[[4]string][2]int
     - __kind: GoSwissMapHeaderType
       ID: 100
       Name: map<bool,main.node>
@@ -6303,8 +6303,8 @@ Types:
         - Name: clearSeq
           Offset: 40
           Type: 8 BaseType uint64
-      TablePtrSliceType: 228 GoSliceDataType []*table<bool,main.node>.array
-      GroupType: 225 StructureType noalg.map.group[bool]main.node
+      TablePtrSliceType: 212 GoSliceDataType []*table<bool,main.node>.array
+      GroupType: 209 StructureType noalg.map.group[bool]main.node
     - __kind: GoSwissMapHeaderType
       ID: 68
       Name: map<int,int>
@@ -6335,8 +6335,8 @@ Types:
         - Name: clearSeq
           Offset: 40
           Type: 8 BaseType uint64
-      TablePtrSliceType: 183 GoSliceDataType []*table<int,int>.array
-      GroupType: 180 StructureType noalg.map.group[int]int
+      TablePtrSliceType: 161 GoSliceDataType []*table<int,int>.array
+      GroupType: 158 StructureType noalg.map.group[int]int
     - __kind: GoSwissMapHeaderType
       ID: 105
       Name: map<int,uint8>
@@ -6367,8 +6367,8 @@ Types:
         - Name: clearSeq
           Offset: 40
           Type: 8 BaseType uint64
-      TablePtrSliceType: 235 GoSliceDataType []*table<int,uint8>.array
-      GroupType: 232 StructureType noalg.map.group[int]uint8
+      TablePtrSliceType: 220 GoSliceDataType []*table<int,uint8>.array
+      GroupType: 217 StructureType noalg.map.group[int]uint8
     - __kind: GoSwissMapHeaderType
       ID: 95
       Name: map<string,[]main.structWithMap>
@@ -6399,8 +6399,8 @@ Types:
         - Name: clearSeq
           Offset: 40
           Type: 8 BaseType uint64
-      TablePtrSliceType: 221 GoSliceDataType []*table<string,[]main.structWithMap>.array
-      GroupType: 216 StructureType noalg.map.group[string][]main.structWithMap
+      TablePtrSliceType: 204 GoSliceDataType []*table<string,[]main.structWithMap>.array
+      GroupType: 199 StructureType noalg.map.group[string][]main.structWithMap
     - __kind: GoSwissMapHeaderType
       ID: 83
       Name: map<string,[]string>
@@ -6431,8 +6431,8 @@ Types:
         - Name: clearSeq
           Offset: 40
           Type: 8 BaseType uint64
-      TablePtrSliceType: 204 GoSliceDataType []*table<string,[]string>.array
-      GroupType: 201 StructureType noalg.map.group[string][]string
+      TablePtrSliceType: 185 GoSliceDataType []*table<string,[]string>.array
+      GroupType: 182 StructureType noalg.map.group[string][]string
     - __kind: GoSwissMapHeaderType
       ID: 78
       Name: map<string,int>
@@ -6463,8 +6463,8 @@ Types:
         - Name: clearSeq
           Offset: 40
           Type: 8 BaseType uint64
-      TablePtrSliceType: 197 GoSliceDataType []*table<string,int>.array
-      GroupType: 194 StructureType noalg.map.group[string]int
+      TablePtrSliceType: 177 GoSliceDataType []*table<string,int>.array
+      GroupType: 174 StructureType noalg.map.group[string]int
     - __kind: GoSwissMapHeaderType
       ID: 73
       Name: map<string,main.nestedStruct>
@@ -6495,8 +6495,8 @@ Types:
         - Name: clearSeq
           Offset: 40
           Type: 8 BaseType uint64
-      TablePtrSliceType: 190 GoSliceDataType []*table<string,main.nestedStruct>.array
-      GroupType: 187 StructureType noalg.map.group[string]main.nestedStruct
+      TablePtrSliceType: 169 GoSliceDataType []*table<string,main.nestedStruct>.array
+      GroupType: 166 StructureType noalg.map.group[string]main.nestedStruct
     - __kind: GoSwissMapHeaderType
       ID: 115
       Name: map<uint8,[4]int>
@@ -6527,8 +6527,8 @@ Types:
         - Name: clearSeq
           Offset: 40
           Type: 8 BaseType uint64
-      TablePtrSliceType: 250 GoSliceDataType []*table<uint8,[4]int>.array
-      GroupType: 246 StructureType noalg.map.group[uint8][4]int
+      TablePtrSliceType: 237 GoSliceDataType []*table<uint8,[4]int>.array
+      GroupType: 233 StructureType noalg.map.group[uint8][4]int
     - __kind: GoSwissMapHeaderType
       ID: 110
       Name: map<uint8,uint8>
@@ -6559,8 +6559,8 @@ Types:
         - Name: clearSeq
           Offset: 40
           Type: 8 BaseType uint64
-      TablePtrSliceType: 242 GoSliceDataType []*table<uint8,uint8>.array
-      GroupType: 239 StructureType noalg.map.group[uint8]uint8
+      TablePtrSliceType: 228 GoSliceDataType []*table<uint8,uint8>.array
+      GroupType: 225 StructureType noalg.map.group[uint8]uint8
     - __kind: GoMapType
       ID: 123
       Name: map[[4]int][4]int
@@ -6646,115 +6646,115 @@ Types:
       GoKind: 21
       HeaderType: 110 GoSwissMapHeaderType map<uint8,uint8>
     - __kind: ArrayType
-      ID: 262
+      ID: 251
       Name: noalg.[8]struct { key [4]int; elem [4]int }
       ByteSize: 512
       GoRuntimeType: 672992
       GoKind: 17
       Count: 8
       HasCount: true
-      Element: 263 StructureType noalg.struct { key [4]int; elem [4]int }
+      Element: 252 StructureType noalg.struct { key [4]int; elem [4]int }
     - __kind: ArrayType
-      ID: 255
+      ID: 243
       Name: noalg.[8]struct { key [4]int; elem uint8 }
       ByteSize: 320
       GoRuntimeType: 673088
       GoKind: 17
       Count: 8
       HasCount: true
-      Element: 256 StructureType noalg.struct { key [4]int; elem uint8 }
+      Element: 244 StructureType noalg.struct { key [4]int; elem uint8 }
     - __kind: ArrayType
-      ID: 209
+      ID: 191
       Name: noalg.[8]struct { key [4]string; elem [2]int }
       ByteSize: 640
       GoRuntimeType: 673376
       GoKind: 17
       Count: 8
       HasCount: true
-      Element: 210 StructureType noalg.struct { key [4]string; elem [2]int }
+      Element: 192 StructureType noalg.struct { key [4]string; elem [2]int }
     - __kind: ArrayType
-      ID: 226
+      ID: 210
       Name: noalg.[8]struct { key bool; elem main.node }
       ByteSize: 192
       GoRuntimeType: 673472
       GoKind: 17
       Count: 8
       HasCount: true
-      Element: 227 StructureType noalg.struct { key bool; elem main.node }
+      Element: 211 StructureType noalg.struct { key bool; elem main.node }
     - __kind: ArrayType
-      ID: 181
+      ID: 159
       Name: noalg.[8]struct { key int; elem int }
       ByteSize: 128
       GoRuntimeType: 671264
       GoKind: 17
       Count: 8
       HasCount: true
-      Element: 182 StructureType noalg.struct { key int; elem int }
+      Element: 160 StructureType noalg.struct { key int; elem int }
     - __kind: ArrayType
-      ID: 233
+      ID: 218
       Name: noalg.[8]struct { key int; elem uint8 }
       ByteSize: 128
       GoRuntimeType: 673568
       GoKind: 17
       Count: 8
       HasCount: true
-      Element: 234 StructureType noalg.struct { key int; elem uint8 }
+      Element: 219 StructureType noalg.struct { key int; elem uint8 }
     - __kind: ArrayType
-      ID: 217
+      ID: 200
       Name: noalg.[8]struct { key string; elem []main.structWithMap }
       ByteSize: 320
       GoRuntimeType: 673664
       GoKind: 17
       Count: 8
       HasCount: true
-      Element: 218 StructureType noalg.struct { key string; elem []main.structWithMap }
+      Element: 201 StructureType noalg.struct { key string; elem []main.structWithMap }
     - __kind: ArrayType
-      ID: 202
+      ID: 183
       Name: noalg.[8]struct { key string; elem []string }
       ByteSize: 320
       GoRuntimeType: 673760
       GoKind: 17
       Count: 8
       HasCount: true
-      Element: 203 StructureType noalg.struct { key string; elem []string }
+      Element: 184 StructureType noalg.struct { key string; elem []string }
     - __kind: ArrayType
-      ID: 195
+      ID: 175
       Name: noalg.[8]struct { key string; elem int }
       ByteSize: 192
       GoRuntimeType: 673856
       GoKind: 17
       Count: 8
       HasCount: true
-      Element: 196 StructureType noalg.struct { key string; elem int }
+      Element: 176 StructureType noalg.struct { key string; elem int }
     - __kind: ArrayType
-      ID: 188
+      ID: 167
       Name: noalg.[8]struct { key string; elem main.nestedStruct }
       ByteSize: 320
       GoRuntimeType: 673952
       GoKind: 17
       Count: 8
       HasCount: true
-      Element: 189 StructureType noalg.struct { key string; elem main.nestedStruct }
+      Element: 168 StructureType noalg.struct { key string; elem main.nestedStruct }
     - __kind: ArrayType
-      ID: 247
+      ID: 234
       Name: noalg.[8]struct { key uint8; elem [4]int }
       ByteSize: 320
       GoRuntimeType: 674048
       GoKind: 17
       Count: 8
       HasCount: true
-      Element: 248 StructureType noalg.struct { key uint8; elem [4]int }
+      Element: 235 StructureType noalg.struct { key uint8; elem [4]int }
     - __kind: ArrayType
-      ID: 240
+      ID: 226
       Name: noalg.[8]struct { key uint8; elem uint8 }
       ByteSize: 16
       GoRuntimeType: 674144
       GoKind: 17
       Count: 8
       HasCount: true
-      Element: 241 StructureType noalg.struct { key uint8; elem uint8 }
+      Element: 227 StructureType noalg.struct { key uint8; elem uint8 }
     - __kind: StructureType
-      ID: 261
+      ID: 250
       Name: noalg.map.group[[4]int][4]int
       ByteSize: 520
       GoRuntimeType: 1.277248e+06
@@ -6765,9 +6765,9 @@ Types:
           Type: 8 BaseType uint64
         - Name: slots
           Offset: 8
-          Type: 262 ArrayType noalg.[8]struct { key [4]int; elem [4]int }
+          Type: 251 ArrayType noalg.[8]struct { key [4]int; elem [4]int }
     - __kind: StructureType
-      ID: 254
+      ID: 242
       Name: noalg.map.group[[4]int]uint8
       ByteSize: 328
       GoRuntimeType: 1.277504e+06
@@ -6778,9 +6778,9 @@ Types:
           Type: 8 BaseType uint64
         - Name: slots
           Offset: 8
-          Type: 255 ArrayType noalg.[8]struct { key [4]int; elem uint8 }
+          Type: 243 ArrayType noalg.[8]struct { key [4]int; elem uint8 }
     - __kind: StructureType
-      ID: 208
+      ID: 190
       Name: noalg.map.group[[4]string][2]int
       ByteSize: 648
       GoRuntimeType: 1.27776e+06
@@ -6791,9 +6791,9 @@ Types:
           Type: 8 BaseType uint64
         - Name: slots
           Offset: 8
-          Type: 209 ArrayType noalg.[8]struct { key [4]string; elem [2]int }
+          Type: 191 ArrayType noalg.[8]struct { key [4]string; elem [2]int }
     - __kind: StructureType
-      ID: 225
+      ID: 209
       Name: noalg.map.group[bool]main.node
       ByteSize: 200
       GoRuntimeType: 1.278016e+06
@@ -6804,9 +6804,9 @@ Types:
           Type: 8 BaseType uint64
         - Name: slots
           Offset: 8
-          Type: 226 ArrayType noalg.[8]struct { key bool; elem main.node }
+          Type: 210 ArrayType noalg.[8]struct { key bool; elem main.node }
     - __kind: StructureType
-      ID: 180
+      ID: 158
       Name: noalg.map.group[int]int
       ByteSize: 136
       GoRuntimeType: 1.27648e+06
@@ -6817,9 +6817,9 @@ Types:
           Type: 8 BaseType uint64
         - Name: slots
           Offset: 8
-          Type: 181 ArrayType noalg.[8]struct { key int; elem int }
+          Type: 159 ArrayType noalg.[8]struct { key int; elem int }
     - __kind: StructureType
-      ID: 232
+      ID: 217
       Name: noalg.map.group[int]uint8
       ByteSize: 136
       GoRuntimeType: 1.278272e+06
@@ -6830,9 +6830,9 @@ Types:
           Type: 8 BaseType uint64
         - Name: slots
           Offset: 8
-          Type: 233 ArrayType noalg.[8]struct { key int; elem uint8 }
+          Type: 218 ArrayType noalg.[8]struct { key int; elem uint8 }
     - __kind: StructureType
-      ID: 216
+      ID: 199
       Name: noalg.map.group[string][]main.structWithMap
       ByteSize: 328
       GoRuntimeType: 1.278528e+06
@@ -6843,9 +6843,9 @@ Types:
           Type: 8 BaseType uint64
         - Name: slots
           Offset: 8
-          Type: 217 ArrayType noalg.[8]struct { key string; elem []main.structWithMap }
+          Type: 200 ArrayType noalg.[8]struct { key string; elem []main.structWithMap }
     - __kind: StructureType
-      ID: 201
+      ID: 182
       Name: noalg.map.group[string][]string
       ByteSize: 328
       GoRuntimeType: 1.278784e+06
@@ -6856,9 +6856,9 @@ Types:
           Type: 8 BaseType uint64
         - Name: slots
           Offset: 8
-          Type: 202 ArrayType noalg.[8]struct { key string; elem []string }
+          Type: 183 ArrayType noalg.[8]struct { key string; elem []string }
     - __kind: StructureType
-      ID: 194
+      ID: 174
       Name: noalg.map.group[string]int
       ByteSize: 200
       GoRuntimeType: 1.27904e+06
@@ -6869,9 +6869,9 @@ Types:
           Type: 8 BaseType uint64
         - Name: slots
           Offset: 8
-          Type: 195 ArrayType noalg.[8]struct { key string; elem int }
+          Type: 175 ArrayType noalg.[8]struct { key string; elem int }
     - __kind: StructureType
-      ID: 187
+      ID: 166
       Name: noalg.map.group[string]main.nestedStruct
       ByteSize: 328
       GoRuntimeType: 1.279296e+06
@@ -6882,9 +6882,9 @@ Types:
           Type: 8 BaseType uint64
         - Name: slots
           Offset: 8
-          Type: 188 ArrayType noalg.[8]struct { key string; elem main.nestedStruct }
+          Type: 167 ArrayType noalg.[8]struct { key string; elem main.nestedStruct }
     - __kind: StructureType
-      ID: 246
+      ID: 233
       Name: noalg.map.group[uint8][4]int
       ByteSize: 328
       GoRuntimeType: 1.279552e+06
@@ -6895,9 +6895,9 @@ Types:
           Type: 8 BaseType uint64
         - Name: slots
           Offset: 8
-          Type: 247 ArrayType noalg.[8]struct { key uint8; elem [4]int }
+          Type: 234 ArrayType noalg.[8]struct { key uint8; elem [4]int }
     - __kind: StructureType
-      ID: 239
+      ID: 225
       Name: noalg.map.group[uint8]uint8
       ByteSize: 24
       GoRuntimeType: 1.279808e+06
@@ -6908,9 +6908,9 @@ Types:
           Type: 8 BaseType uint64
         - Name: slots
           Offset: 8
-          Type: 240 ArrayType noalg.[8]struct { key uint8; elem uint8 }
+          Type: 226 ArrayType noalg.[8]struct { key uint8; elem uint8 }
     - __kind: StructureType
-      ID: 263
+      ID: 252
       Name: noalg.struct { key [4]int; elem [4]int }
       ByteSize: 64
       GoRuntimeType: 1.27712e+06
@@ -6918,12 +6918,12 @@ Types:
       RawFields:
         - Name: key
           Offset: 0
-          Type: 249 ArrayType [4]int
+          Type: 236 ArrayType [4]int
         - Name: elem
           Offset: 32
-          Type: 249 ArrayType [4]int
+          Type: 236 ArrayType [4]int
     - __kind: StructureType
-      ID: 256
+      ID: 244
       Name: noalg.struct { key [4]int; elem uint8 }
       ByteSize: 40
       GoRuntimeType: 1.277376e+06
@@ -6931,12 +6931,12 @@ Types:
       RawFields:
         - Name: key
           Offset: 0
-          Type: 249 ArrayType [4]int
+          Type: 236 ArrayType [4]int
         - Name: elem
           Offset: 32
           Type: 3 BaseType uint8
     - __kind: StructureType
-      ID: 210
+      ID: 192
       Name: noalg.struct { key [4]string; elem [2]int }
       ByteSize: 80
       GoRuntimeType: 1.277632e+06
@@ -6944,12 +6944,12 @@ Types:
       RawFields:
         - Name: key
           Offset: 0
-          Type: 211 ArrayType [4]string
+          Type: 193 ArrayType [4]string
         - Name: elem
           Offset: 64
           Type: 40 ArrayType [2]int
     - __kind: StructureType
-      ID: 227
+      ID: 211
       Name: noalg.struct { key bool; elem main.node }
       ByteSize: 24
       GoRuntimeType: 1.277888e+06
@@ -6962,7 +6962,7 @@ Types:
           Offset: 8
           Type: 131 StructureType main.node
     - __kind: StructureType
-      ID: 182
+      ID: 160
       Name: noalg.struct { key int; elem int }
       ByteSize: 16
       GoRuntimeType: 1.276352e+06
@@ -6975,7 +6975,7 @@ Types:
           Offset: 8
           Type: 7 BaseType int
     - __kind: StructureType
-      ID: 234
+      ID: 219
       Name: noalg.struct { key int; elem uint8 }
       ByteSize: 16
       GoRuntimeType: 1.278144e+06
@@ -6988,7 +6988,7 @@ Types:
           Offset: 8
           Type: 3 BaseType uint8
     - __kind: StructureType
-      ID: 218
+      ID: 201
       Name: noalg.struct { key string; elem []main.structWithMap }
       ByteSize: 40
       GoRuntimeType: 1.2784e+06
@@ -6999,9 +6999,9 @@ Types:
           Type: 9 GoStringHeaderType string
         - Name: elem
           Offset: 16
-          Type: 219 GoSliceHeaderType []main.structWithMap
+          Type: 202 GoSliceHeaderType []main.structWithMap
     - __kind: StructureType
-      ID: 203
+      ID: 184
       Name: noalg.struct { key string; elem []string }
       ByteSize: 40
       GoRuntimeType: 1.278656e+06
@@ -7014,7 +7014,7 @@ Types:
           Offset: 16
           Type: 141 GoSliceHeaderType []string
     - __kind: StructureType
-      ID: 196
+      ID: 176
       Name: noalg.struct { key string; elem int }
       ByteSize: 24
       GoRuntimeType: 1.278912e+06
@@ -7027,7 +7027,7 @@ Types:
           Offset: 16
           Type: 7 BaseType int
     - __kind: StructureType
-      ID: 189
+      ID: 168
       Name: noalg.struct { key string; elem main.nestedStruct }
       ByteSize: 40
       GoRuntimeType: 1.279168e+06
@@ -7040,7 +7040,7 @@ Types:
           Offset: 16
           Type: 149 StructureType main.nestedStruct
     - __kind: StructureType
-      ID: 248
+      ID: 235
       Name: noalg.struct { key uint8; elem [4]int }
       ByteSize: 40
       GoRuntimeType: 1.279424e+06
@@ -7051,9 +7051,9 @@ Types:
           Type: 3 BaseType uint8
         - Name: elem
           Offset: 8
-          Type: 249 ArrayType [4]int
+          Type: 236 ArrayType [4]int
     - __kind: StructureType
-      ID: 241
+      ID: 227
       Name: noalg.struct { key uint8; elem uint8 }
       ByteSize: 2
       GoRuntimeType: 1.27968e+06
@@ -7074,17 +7074,17 @@ Types:
       RawFields:
         - Name: str
           Offset: 0
-          Type: 175 PointerType *string.str
+          Type: 152 PointerType *string.str
         - Name: len
           Offset: 8
           Type: 7 BaseType int
-      Data: 174 GoStringDataType string.str
+      Data: 151 GoStringDataType string.str
     - __kind: GoStringDataType
-      ID: 174
+      ID: 151
       Name: string.str
       ByteSize: 2048
     - __kind: StructureType
-      ID: 151
+      ID: 267
       Name: sync.Mutex
       ByteSize: 8
       GoRuntimeType: 1.445344e+06
@@ -7092,12 +7092,12 @@ Types:
       RawFields:
         - Name: _
           Offset: 0
-          Type: 152 StructureType sync.noCopy
+          Type: 268 StructureType sync.noCopy
         - Name: mu
           Offset: 0
-          Type: 153 StructureType internal/sync.Mutex
+          Type: 269 StructureType internal/sync.Mutex
     - __kind: StructureType
-      ID: 154
+      ID: 270
       Name: sync.Once
       ByteSize: 12
       GoRuntimeType: 1.593696e+06
@@ -7105,15 +7105,15 @@ Types:
       RawFields:
         - Name: _
           Offset: 0
-          Type: 152 StructureType sync.noCopy
+          Type: 268 StructureType sync.noCopy
         - Name: done
           Offset: 0
-          Type: 155 StructureType sync/atomic.Uint32
+          Type: 271 StructureType sync/atomic.Uint32
         - Name: m
           Offset: 4
-          Type: 151 StructureType sync.Mutex
+          Type: 267 StructureType sync.Mutex
     - __kind: StructureType
-      ID: 157
+      ID: 273
       Name: sync.WaitGroup
       ByteSize: 16
       GoRuntimeType: 1.593888e+06
@@ -7121,21 +7121,21 @@ Types:
       RawFields:
         - Name: noCopy
           Offset: 0
-          Type: 152 StructureType sync.noCopy
+          Type: 268 StructureType sync.noCopy
         - Name: state
           Offset: 0
-          Type: 158 StructureType sync/atomic.Uint64
+          Type: 274 StructureType sync/atomic.Uint64
         - Name: sema
           Offset: 8
           Type: 2 BaseType uint32
     - __kind: StructureType
-      ID: 152
+      ID: 268
       Name: sync.noCopy
       GoRuntimeType: 977728
       GoKind: 25
       RawFields: []
     - __kind: StructureType
-      ID: 160
+      ID: 276
       Name: sync/atomic.Int32
       ByteSize: 4
       GoRuntimeType: 1.446624e+06
@@ -7143,12 +7143,12 @@ Types:
       RawFields:
         - Name: _
           Offset: 0
-          Type: 156 StructureType sync/atomic.noCopy
+          Type: 272 StructureType sync/atomic.noCopy
         - Name: v
           Offset: 0
           Type: 10 BaseType int32
     - __kind: StructureType
-      ID: 155
+      ID: 271
       Name: sync/atomic.Uint32
       ByteSize: 4
       GoRuntimeType: 1.446784e+06
@@ -7156,12 +7156,12 @@ Types:
       RawFields:
         - Name: _
           Offset: 0
-          Type: 156 StructureType sync/atomic.noCopy
+          Type: 272 StructureType sync/atomic.noCopy
         - Name: v
           Offset: 0
           Type: 2 BaseType uint32
     - __kind: StructureType
-      ID: 158
+      ID: 274
       Name: sync/atomic.Uint64
       ByteSize: 8
       GoRuntimeType: 1.594272e+06
@@ -7169,27 +7169,27 @@ Types:
       RawFields:
         - Name: _
           Offset: 0
-          Type: 156 StructureType sync/atomic.noCopy
+          Type: 272 StructureType sync/atomic.noCopy
         - Name: _
           Offset: 0
-          Type: 159 StructureType sync/atomic.align64
+          Type: 275 StructureType sync/atomic.align64
         - Name: v
           Offset: 0
           Type: 8 BaseType uint64
     - __kind: StructureType
-      ID: 159
+      ID: 275
       Name: sync/atomic.align64
       GoRuntimeType: 977920
       GoKind: 25
       RawFields: []
     - __kind: StructureType
-      ID: 156
+      ID: 272
       Name: sync/atomic.noCopy
       GoRuntimeType: 977824
       GoKind: 25
       RawFields: []
     - __kind: StructureType
-      ID: 172
+      ID: 247
       Name: table<[4]int,[4]int>
       ByteSize: 32
       GoKind: 25
@@ -7211,9 +7211,9 @@ Types:
           Type: 7 BaseType int
         - Name: groups
           Offset: 16
-          Type: 259 GoSwissMapGroupsType groupReference<[4]int,[4]int>
+          Type: 248 GoSwissMapGroupsType groupReference<[4]int,[4]int>
     - __kind: StructureType
-      ID: 171
+      ID: 239
       Name: table<[4]int,uint8>
       ByteSize: 32
       GoKind: 25
@@ -7235,9 +7235,9 @@ Types:
           Type: 7 BaseType int
         - Name: groups
           Offset: 16
-          Type: 252 GoSwissMapGroupsType groupReference<[4]int,uint8>
+          Type: 240 GoSwissMapGroupsType groupReference<[4]int,uint8>
     - __kind: StructureType
-      ID: 165
+      ID: 187
       Name: table<[4]string,[2]int>
       ByteSize: 32
       GoKind: 25
@@ -7259,9 +7259,9 @@ Types:
           Type: 7 BaseType int
         - Name: groups
           Offset: 16
-          Type: 206 GoSwissMapGroupsType groupReference<[4]string,[2]int>
+          Type: 188 GoSwissMapGroupsType groupReference<[4]string,[2]int>
     - __kind: StructureType
-      ID: 167
+      ID: 206
       Name: table<bool,main.node>
       ByteSize: 32
       GoKind: 25
@@ -7283,9 +7283,9 @@ Types:
           Type: 7 BaseType int
         - Name: groups
           Offset: 16
-          Type: 223 GoSwissMapGroupsType groupReference<bool,main.node>
+          Type: 207 GoSwissMapGroupsType groupReference<bool,main.node>
     - __kind: StructureType
-      ID: 161
+      ID: 155
       Name: table<int,int>
       ByteSize: 32
       GoKind: 25
@@ -7307,9 +7307,9 @@ Types:
           Type: 7 BaseType int
         - Name: groups
           Offset: 16
-          Type: 178 GoSwissMapGroupsType groupReference<int,int>
+          Type: 156 GoSwissMapGroupsType groupReference<int,int>
     - __kind: StructureType
-      ID: 168
+      ID: 214
       Name: table<int,uint8>
       ByteSize: 32
       GoKind: 25
@@ -7331,9 +7331,9 @@ Types:
           Type: 7 BaseType int
         - Name: groups
           Offset: 16
-          Type: 230 GoSwissMapGroupsType groupReference<int,uint8>
+          Type: 215 GoSwissMapGroupsType groupReference<int,uint8>
     - __kind: StructureType
-      ID: 166
+      ID: 196
       Name: table<string,[]main.structWithMap>
       ByteSize: 32
       GoKind: 25
@@ -7355,9 +7355,9 @@ Types:
           Type: 7 BaseType int
         - Name: groups
           Offset: 16
-          Type: 214 GoSwissMapGroupsType groupReference<string,[]main.structWithMap>
+          Type: 197 GoSwissMapGroupsType groupReference<string,[]main.structWithMap>
     - __kind: StructureType
-      ID: 164
+      ID: 179
       Name: table<string,[]string>
       ByteSize: 32
       GoKind: 25
@@ -7379,9 +7379,9 @@ Types:
           Type: 7 BaseType int
         - Name: groups
           Offset: 16
-          Type: 199 GoSwissMapGroupsType groupReference<string,[]string>
+          Type: 180 GoSwissMapGroupsType groupReference<string,[]string>
     - __kind: StructureType
-      ID: 163
+      ID: 171
       Name: table<string,int>
       ByteSize: 32
       GoKind: 25
@@ -7403,9 +7403,9 @@ Types:
           Type: 7 BaseType int
         - Name: groups
           Offset: 16
-          Type: 192 GoSwissMapGroupsType groupReference<string,int>
+          Type: 172 GoSwissMapGroupsType groupReference<string,int>
     - __kind: StructureType
-      ID: 162
+      ID: 163
       Name: table<string,main.nestedStruct>
       ByteSize: 32
       GoKind: 25
@@ -7427,9 +7427,9 @@ Types:
           Type: 7 BaseType int
         - Name: groups
           Offset: 16
-          Type: 185 GoSwissMapGroupsType groupReference<string,main.nestedStruct>
+          Type: 164 GoSwissMapGroupsType groupReference<string,main.nestedStruct>
     - __kind: StructureType
-      ID: 170
+      ID: 230
       Name: table<uint8,[4]int>
       ByteSize: 32
       GoKind: 25
@@ -7451,9 +7451,9 @@ Types:
           Type: 7 BaseType int
         - Name: groups
           Offset: 16
-          Type: 244 GoSwissMapGroupsType groupReference<uint8,[4]int>
+          Type: 231 GoSwissMapGroupsType groupReference<uint8,[4]int>
     - __kind: StructureType
-      ID: 169
+      ID: 222
       Name: table<uint8,uint8>
       ByteSize: 32
       GoKind: 25
@@ -7475,7 +7475,7 @@ Types:
           Type: 7 BaseType int
         - Name: groups
           Offset: 16
-          Type: 237 GoSwissMapGroupsType groupReference<uint8,uint8>
+          Type: 223 GoSwissMapGroupsType groupReference<uint8,uint8>
     - __kind: BaseType
       ID: 16
       Name: uint
