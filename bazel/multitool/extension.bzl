@@ -136,7 +136,7 @@ def _download_and_extract_tool(rctx, tool_name, binary):
     templates.tool_tool(rctx, tool_name, "BUILD.bazel", {"{target_filename}": target_filename})
 
 def _tool_repo_impl(rctx):
-    _download_extract_tool(rctx, rctx.attr.tool_name, json.decode(rctx.attr.binary))
+    _download_and_extract_tool(rctx, rctx.attr.tool_name, json.decode(rctx.attr.binary))
     templates.tool(rctx, "tools/BUILD.bazel")
     templates.tool(rctx, "BUILD.bazel")
 
