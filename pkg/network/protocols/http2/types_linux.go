@@ -89,10 +89,11 @@ type HTTP2Telemetry struct {
 	Path_size_bucket                 [8]uint64
 }
 type HTTP2IncompleteFrameEntry struct {
-	Remainder uint32
-	Length    uint32
-	Buf       [9]byte
-	Pad_cgo_0 [3]byte
+	Remainder         uint32
+	Header_length     uint32
+	Buf               [9]byte
+	Has_priority_flag bool
+	Pad_cgo_0         [2]byte
 }
 
 type StaticTableEnumValue = uint8

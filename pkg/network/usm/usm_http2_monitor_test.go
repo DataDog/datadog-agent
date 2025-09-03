@@ -662,7 +662,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 		},
 		{
 			name: "validate max interesting frames limit with PRIORITY",
-			// PRIORITY frames should not be supported and cause failure
+			// PRIORITY frames are now supported and should work correctly
 			messageBuilder: func() [][]byte {
 				const iterations = 119
 				framer := newFramer()
@@ -674,7 +674,12 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				}
 				return [][]byte{framer.bytes()}
 			},
-			expectedEndpoints: nil, // PRIORITY not supported
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPost,
+				}: 119,
+			},
 		},
 		{
 			name: "validate literal header field without indexing",
@@ -717,7 +722,12 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				}
 				return [][]byte{framer.bytes()}
 			},
-			expectedEndpoints: nil, // PRIORITY not supported
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/" + strings.Repeat("a", defaultDynamicTableSize))},
+					Method: usmhttp.MethodPost,
+				}: 5,
+			},
 		},
 		{
 			name: "validate literal header field never indexed",
@@ -758,7 +768,12 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				}
 				return [][]byte{framer.bytes()}
 			},
-			expectedEndpoints: nil, // PRIORITY not supported
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPost,
+				}: 5,
+			},
 		},
 		{
 			name: "validate path with index 4",
@@ -1146,7 +1161,12 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 					secondMessage,
 				}
 			},
-			expectedEndpoints: nil, // PRIORITY not supported
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPost,
+				}: 1,
+			},
 		},
 		{
 			name: "Not interesting frame header sent separately from frame payload",
@@ -1209,7 +1229,12 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				}
 				return [][]byte{framer.bytes()}
 			},
-			expectedEndpoints: nil, // PRIORITY not supported
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/")},
+					Method: usmhttp.MethodPost,
+				}: 5,
+			},
 		},
 		{
 			name: "validate dynamic table update with high value and indexed header field",
@@ -1283,7 +1308,12 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 					secondMessage,
 				}
 			},
-			expectedEndpoints: nil, // PRIORITY not supported
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPost,
+				}: 2,
+			},
 		},
 		{
 			name: "Data frame header sent separately from frame payload with PING between them",
@@ -1362,7 +1392,12 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 					secondMessage,
 				}
 			},
-			expectedEndpoints: nil, // PRIORITY not supported
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPost,
+				}: 2,
+			},
 		},
 		{
 			name: "validate CONTINUATION frame support",
@@ -1457,7 +1492,16 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 					request2[5:],
 				}
 			},
-			expectedEndpoints: nil, // PRIORITY not supported
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPost,
+				}: 1,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/bbb")},
+					Method: usmhttp.MethodPost,
+				}: 1,
+			},
 		},
 	}
 	for _, tt := range tests {
@@ -1619,7 +1663,7 @@ func (s *usmHTTP2Suite) TestIncompleteFrameTable() {
 					b[11:],
 				}
 			},
-			mapSize: 0, // PRIORITY not supported, so map should be empty
+			mapSize: 0,
 		},
 		{
 			name: "validate remainder in map",

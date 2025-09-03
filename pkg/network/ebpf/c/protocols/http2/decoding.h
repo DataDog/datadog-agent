@@ -579,6 +579,7 @@ static __always_inline bool pktbuf_find_relevant_frames(pktbuf_t pkt, http2_tail
             if (is_headers_or_rst_frame || is_data_end_of_stream) {
                 iteration_value->frames_array[iteration_value->frames_count].frame = current_frame;
                 iteration_value->frames_array[iteration_value->frames_count].offset = pktbuf_data_offset(pkt);
+                iteration_value->frames_array[iteration_value->frames_count].is_cached_priority_frame = false;
                 iteration_value->frames_count++;
             } else if (current_frame.type == kContinuationFrame) {
                 __sync_fetch_and_add(&http2_tel->continuation_frames, 1);
@@ -652,15 +653,30 @@ static __always_inline void handle_first_frame(pktbuf_t pkt, __u32 *external_dat
         return;
     }
 
+    // For cached PRIORITY frames, adjust advance length since PRIORITY was already consumed
+    __u32 advance_length = current_frame.length;
+    bool is_cached_priority = (current_frame.type == kHeadersFrame && (current_frame.flags & HTTP2_PRIORITY_FLAG) && 
+                              incomplete_frame != NULL && incomplete_frame->header_length == HTTP2_FRAME_HEADER_SIZE &&
+                              advance_length > HTTP2_PRIORITY_BUFFER_LEN);
+
     bool is_headers_or_rst_frame = current_frame.type == kHeadersFrame || current_frame.type == kRSTStreamFrame;
     bool is_data_end_of_stream = ((current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) && (current_frame.type == kDataFrame);
     if (is_headers_or_rst_frame || is_data_end_of_stream) {
         iteration_value->frames_array[0].frame = current_frame;
         iteration_value->frames_array[0].offset = pktbuf_data_offset(pkt);
+        // Mark if this is a cached PRIORITY frame (PRIORITY section was consumed in previous packet)
+        iteration_value->frames_array[0].is_cached_priority_frame = is_cached_priority;
         iteration_value->frames_count = 1;
     }
+    if (is_cached_priority) {
+        advance_length -= HTTP2_PRIORITY_BUFFER_LEN;
+    }
+    
+    // For new PRIORITY frames that will be cached, we need to track that PRIORITY will be consumed
+    bool will_cache_priority_frame = (current_frame.type == kHeadersFrame && (current_frame.flags & HTTP2_PRIORITY_FLAG) && 
+                                     advance_length > HTTP2_PRIORITY_BUFFER_LEN);
 
-    pktbuf_advance(pkt, current_frame.length);
+    pktbuf_advance(pkt, advance_length);
     // We're exceeding the packet boundaries, so we have a remainder.
     if (pktbuf_data_offset(pkt) > pktbuf_data_end(pkt)) {
         incomplete_frame_t new_incomplete_frame = { 0 };
@@ -671,6 +687,8 @@ static __always_inline void handle_first_frame(pktbuf_t pkt, __u32 *external_dat
         // next call.
         if (iteration_value->frames_count == 1) {
             new_incomplete_frame.header_length = HTTP2_FRAME_HEADER_SIZE;
+            // Set priority flag when we will be caching a PRIORITY frame (i.e., the PRIORITY section will be consumed)
+            new_incomplete_frame.has_priority_flag = will_cache_priority_frame;
             bpf_memcpy(new_incomplete_frame.buf, (char *)&current_frame, HTTP2_FRAME_HEADER_SIZE);
         }
 
@@ -679,6 +697,13 @@ static __always_inline void handle_first_frame(pktbuf_t pkt, __u32 *external_dat
         // Not calling the next tail call as we have nothing to process.
         return;
     }
+
+    // After processing cached frame, check for additional frames in the current packet
+    http2_telemetry_t *http2_tel = get_telemetry(pkt);
+    if (http2_tel != NULL && incomplete_frame != NULL && iteration_value->frames_count < HTTP2_MAX_FRAMES_ITERATIONS) {
+        pktbuf_find_relevant_frames(pkt, iteration_value, http2_tel);
+    }
+
     // Overriding the data_off field of the cached packet. The next prog will start from the offset of the next valid
     // frame.
     *external_data_offset = pktbuf_data_offset(pkt);
@@ -931,6 +956,23 @@ static __always_inline void headers_parser(pktbuf_t pkt, void *map_key, conn_tup
         current_stream->tags = tags;
         pktbuf_set_offset(pkt, current_frame.offset);
 
+        // Handle PRIORITY section for HEADERS frames with PRIORITY flag (0x20)
+        // See: https://datatracker.ietf.org/doc/html/rfc7540#section-6.2
+        if (current_frame.frame.flags & HTTP2_PRIORITY_FLAG) {
+            if (current_frame.frame.length > HTTP2_PRIORITY_BUFFER_LEN) {
+                if (!current_frame.is_cached_priority_frame) {
+                    // Fresh PRIORITY frame - skip the 5-byte PRIORITY section
+                    current_frame.frame.length -= HTTP2_PRIORITY_BUFFER_LEN;
+                    pktbuf_advance(pkt, HTTP2_PRIORITY_BUFFER_LEN);
+                } else {
+                    // For cached frames where PRIORITY was consumed in the previous packet,
+                    // the current packet starts directly with HPACK data, so no skip needed
+                }
+            } else {
+                continue;
+            }
+        }
+        
         interesting_headers = pktbuf_filter_relevant_headers(pkt, global_dynamic_counter, &http2_ctx->dynamic_index, headers_to_process, current_frame.frame.length, http2_tel);
         pktbuf_process_headers(pkt, &http2_ctx->dynamic_index, current_stream, headers_to_process, interesting_headers, http2_tel);
     }
