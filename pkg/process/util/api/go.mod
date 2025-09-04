@@ -7,7 +7,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.64.1
 	github.com/gogo/protobuf v1.3.2
-	github.com/stretchr/testify v1.10.0
+	github.com/stretchr/testify v1.11.1
 )
 
 require (
@@ -82,7 +82,7 @@ require (
 	golang.org/x/sys v0.35.0 // indirect
 	golang.org/x/text v0.28.0 // indirect
 	golang.org/x/time v0.12.0 // indirect
-	google.golang.org/protobuf v1.36.7 // indirect
+	google.golang.org/protobuf v1.36.8 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
