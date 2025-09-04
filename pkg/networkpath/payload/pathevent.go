@@ -176,6 +176,7 @@ type TracerouteRun struct {
 	Source      TracerouteSource      `json:"source"`
 	Destination TracerouteDestination `json:"destination"`
 	Hops        []TracerouteHop       `json:"hops"`
+	E2eProbe    E2eProbe              `json:"e2e_probe"`
 }
 
 // TracerouteHop encapsulates information about a single

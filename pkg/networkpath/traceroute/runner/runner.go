@@ -179,19 +179,8 @@ func (r *Runner) processResults(res *result.Results, protocol payload.Protocol, 
 				Max: res.Traceroute.HopCount.Max,
 			},
 		},
-		E2eProbe: payload.E2eProbe{
-			Rtts:                 slices.Clone(res.E2eProbe.Rtts),
-			PacketsSent:          res.E2eProbe.PacketsSent,
-			PacketsReceived:      res.E2eProbe.PacketsReceived,
-			PacketLossPercentage: res.E2eProbe.PacketLossPercentage,
-			Jitter:               float64(res.E2eProbe.Jitter),
-			Rtt: payload.E2eProbeRttLatency{
-				Avg: res.E2eProbe.Rtt.Avg,
-				Min: res.E2eProbe.Rtt.Min,
-				Max: res.E2eProbe.Rtt.Max,
-			},
-		},
-		Tags: slices.Clone(res.Tags),
+		E2eProbe: convertE2eProbe(res.E2eProbe),
+		Tags:     slices.Clone(res.Tags),
 	}
 
 	// get hardware interface info
@@ -232,6 +221,7 @@ func (r *Runner) processResults(res *result.Results, protocol payload.Protocol, 
 				IPAddress: run.Destination.IPAddress,
 				Port:      run.Destination.Port,
 			},
+			E2eProbe: convertE2eProbe(run.E2eProbe),
 		})
 	}
 
@@ -265,6 +255,22 @@ func (r *Runner) processResults(res *result.Results, protocol payload.Protocol, 
 		}
 	}
 	return traceroutePath, nil
+}
+
+func convertE2eProbe(probe *result.E2eProbe) payload.E2eProbe {
+	// TODO: TEST ME
+	return payload.E2eProbe{
+		Rtts:                 slices.Clone(probe.Rtts),
+		PacketsSent:          probe.PacketsSent,
+		PacketsReceived:      probe.PacketsReceived,
+		PacketLossPercentage: probe.PacketLossPercentage,
+		Jitter:               probe.Jitter,
+		Rtt: payload.E2eProbeRttLatency{
+			Avg: probe.Rtt.Avg,
+			Min: probe.Rtt.Min,
+			Max: probe.Rtt.Max,
+		},
+	}
 }
 
 func getPorts(configDestPort uint16) (uint16, uint16, bool) {
