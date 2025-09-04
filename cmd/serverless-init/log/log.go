@@ -27,7 +27,7 @@ import (
 const (
 	defaultFlushTimeout   = 5 * time.Second
 	defaultTailingPath    = "/home/LogFiles/*$COMPUTERNAME*.log"
-	modifiableTailingPath = "/home/LogFiles/*$COMPUTERNAME*.%s.log"
+	modifiableTailingPath = "/home/LogFiles/*$COMPUTERNAME*_%s.log"
 	logEnabledEnvVar      = "DD_LOGS_ENABLED"
 	envVarTailFilePath    = "DD_SERVERLESS_LOG_PATH"
 	aasInstanceTailing    = "DD_AAS_INSTANCE_LOGGING_ENABLED"

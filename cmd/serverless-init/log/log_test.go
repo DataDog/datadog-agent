@@ -59,5 +59,5 @@ func TestSetAasInstanceTailingPath(t *testing.T) {
 
 	// Custom path
 	t.Setenv("DD_AAS_INSTANCE_LOGGING_PATH_SUFFIX", "customsuffix")
-	assert.Equal(t, "/home/LogFiles/*testInstance*.customsuffix.log", setAasInstanceTailingPath())
+	assert.Equal(t, "/home/LogFiles/*testInstance*_customsuffix.log", setAasInstanceTailingPath())
 }
