@@ -138,7 +138,7 @@ def run(
             if jq_result.returncode != 0:
                 print(result.text)
     except requests.Timeout as e:
-        if ignore_timeout:
+        if ignore_timeout_error:
             print(
                 f'{color_message("Warning", Color.ORANGE)}: Agent CI API request {url} timed out after {timeout} seconds, ignoring error...',
                 file=sys.stderr,
