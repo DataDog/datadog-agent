@@ -98,7 +98,7 @@ func (cc *collectorCache) GetContainerOpenFilesCount(containerNS, containerID st
 	})
 }
 
-// GetPIDs returns the container ID for given PID
+// GetPIDs returns the PIDs of processes belonging to a given container ID
 // errors are cached as well to avoid hammering underlying collector
 func (cc *collectorCache) GetPIDs(containerNS, containerID string, cacheValidity time.Duration) ([]int, error) {
 	cacheKey := ccKey{cc.providerID, contPidsCachePrefix, containerNS, containerID, "", 0}
