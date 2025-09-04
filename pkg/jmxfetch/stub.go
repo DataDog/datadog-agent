@@ -10,6 +10,7 @@ package jmxfetch
 import (
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 )
@@ -27,4 +28,9 @@ func StopJmxfetch() {}
 // GetIntegrations returns an empty result when the agent does not ship jmx
 func GetIntegrations() (map[string]interface{}, error) {
 	return map[string]interface{}{}, nil
+}
+
+// GetScheduledConfigs returns an empty result when the agent does not ship jmx
+func GetScheduledConfigs() map[string]integration.Config {
+	return map[string]integration.Config{}
 }
