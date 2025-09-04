@@ -121,6 +121,7 @@ type goEmptyInterfaceType ir.GoEmptyInterfaceType
 type goInterfaceType ir.GoInterfaceType
 type goSubroutineType ir.GoSubroutineType
 type eventRootType ir.EventRootType
+type unresolvedPointeeType ir.UnresolvedPointeeType
 
 // Compile-time type assertions
 var (
@@ -142,6 +143,7 @@ var (
 	_ decoderType = (*goInterfaceType)(nil)
 	_ decoderType = (*goSubroutineType)(nil)
 	_ decoderType = (*eventRootType)(nil)
+	_ decoderType = (*unresolvedPointeeType)(nil)
 )
 
 func newDecoderType(
@@ -356,8 +358,10 @@ func newDecoderType(
 		return (*goSubroutineType)(s), nil
 	case *ir.EventRootType:
 		return (*eventRootType)(s), nil
+	case *ir.UnresolvedPointeeType:
+		return (*unresolvedPointeeType)(s), nil
 	default:
-		return nil, fmt.Errorf("unknown type %s", irType.GetName())
+		return nil, fmt.Errorf("unknown type %s (%T)", irType.GetName(), irType)
 	}
 }
 
@@ -1182,6 +1186,16 @@ func (s *goSubroutineType) encodeValueFields(
 	)
 }
 func (*goSubroutineType) hasDynamicType() bool { return false }
+
+func (u *unresolvedPointeeType) irType() ir.Type    { return (*ir.UnresolvedPointeeType)(u) }
+func (*unresolvedPointeeType) hasDynamicType() bool { return false }
+func (u *unresolvedPointeeType) encodeValueFields(
+	_ *Decoder,
+	enc *jsontext.Encoder,
+	_ []byte,
+) error {
+	return writeTokens(enc, tokenNotCapturedReason, tokenNotCapturedReasonDepth)
+}
 
 func getFieldByName(fields []ir.Field, name string) (*ir.Field, error) {
 	for _, f := range fields {

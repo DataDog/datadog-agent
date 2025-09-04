@@ -33,7 +33,7 @@
 '@datadog/container-platform': '#container-platform'
 '@datadog/data-jobs-monitoring': '#data-jobs-monitoring'
 '@datadog/database-monitoring': '#database-monitoring'
-'@datadog/debugger': '#debugger'
+'@datadog/debugger-go': '#debugger-go'
 '@datadog/documentation': '#documentation'
 '@datadog/ebpf-platform': '#ebpf-platform'
 '@datadog/fleet': '#fleet-automation-monitoring'
