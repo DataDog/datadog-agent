@@ -88,7 +88,7 @@ type Event struct {
 
 	// context
 	SpanContext    SpanContext    `field:"-"`
-	NetworkContext NetworkContext `field:"network" restricted_to:"dns,imds"` // [7.36] [Network] Network context
+	NetworkContext NetworkContext `field:"network" restricted_to:"dns,imds,packet"` // [7.36] [Network] Network context
 	CGroupContext  *CGroupContext `field:"cgroup"`
 
 	// fim events
@@ -118,6 +118,7 @@ type Event struct {
 	CapabilitiesUsage CapabilitiesEvent  `field:"capabilities" event:"capabilities"` // [7.70] [Process] [Experimental] A process used some capabilities
 	Syscalls          SyscallsEvent      `field:"-"`
 	LoginUIDWrite     LoginUIDWriteEvent `field:"-"`
+	PrCtl             PrCtlEvent         `field:"prctl" event:"prctl"` // [7.71] [Process] A prctl command was executed
 
 	// network syscalls
 	Bind       BindEvent       `field:"bind" event:"bind"`             // [7.37] [Network] A bind was executed
@@ -436,10 +437,10 @@ type FileFields struct {
 type FileEvent struct {
 	FileFields
 
-	PathnameStr string `field:"path,handler:ResolveFilePath,opts:length" op_override:"ProcessSymlinkPathname"`     // SECLDoc[path] Definition:`File's path` Example:`exec.file.path == "/usr/bin/apt"` Description:`Matches the execution of the file located at /usr/bin/apt` Example:`open.file.path == "/etc/passwd"` Description:`Matches any process opening the /etc/passwd file.`
-	BasenameStr string `field:"name,handler:ResolveFileBasename,opts:length" op_override:"ProcessSymlinkBasename"` // SECLDoc[name] Definition:`File's basename` Example:`exec.file.name == "apt"` Description:`Matches the execution of any file named apt.`
-	Filesystem  string `field:"filesystem,handler:ResolveFileFilesystem"`                                          // SECLDoc[filesystem] Definition:`File's filesystem`
-	Extension   string `field:"extension,handler:ResolveFileExtension"`                                            // SECLDoc[extension] Definition:`File's extension`
+	PathnameStr string `field:"path,handler:ResolveFilePath,opts:length" op_override:"ProcessSymlinkPathname,OverlayFSPathname"` // SECLDoc[path] Definition:`File's path` Example:`exec.file.path == "/usr/bin/apt"` Description:`Matches the execution of the file located at /usr/bin/apt` Example:`open.file.path == "/etc/passwd"` Description:`Matches any process opening the /etc/passwd file.`
+	BasenameStr string `field:"name,handler:ResolveFileBasename,opts:length" op_override:"ProcessSymlinkBasename"`               // SECLDoc[name] Definition:`File's basename` Example:`exec.file.name == "apt"` Description:`Matches the execution of any file named apt.`
+	Filesystem  string `field:"filesystem,handler:ResolveFileFilesystem"`                                                        // SECLDoc[filesystem] Definition:`File's filesystem`
+	Extension   string `field:"extension,handler:ResolveFileExtension"`                                                          // SECLDoc[extension] Definition:`File's extension`
 
 	MountPath               string `field:"-"`
 	MountSource             uint32 `field:"-"`
@@ -1028,4 +1029,12 @@ type SetSockOptEvent struct {
 type CapabilitiesEvent struct {
 	Attempted uint64 `field:"attempted,handler:ResolveCapabilitiesAttempted"` // SECLDoc[attempted] Definition:`Bitmask of the capabilities that the process attempted to use since it started running` Constants:`Kernel Capability constants`
 	Used      uint64 `field:"used,handler:ResolveCapabilitiesUsed"`           // SECLDoc[used] Definition:`Bitmask of the capabilities that the process successfully used since it started running` Constants:`Kernel Capability constants`
+}
+
+// PrCtlEvent represents a prctl event
+type PrCtlEvent struct {
+	SyscallEvent
+	Option          int    `field:"option"`            // SECLDoc[option] Definition:`prctl option`
+	NewName         string `field:"new_name"`          // SECLDoc[new_name] Definition:`New name of the process`
+	IsNameTruncated bool   `field:"is_name_truncated"` // SECLDoc[is_name_truncated] Definition:`Indicates that the name field is truncated`
 }

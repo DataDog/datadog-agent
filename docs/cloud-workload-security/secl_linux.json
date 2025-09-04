@@ -2315,6 +2315,11 @@
           "name": "network.source.port",
           "definition": "Port number",
           "property_doc_link": "common-ipportcontext-port-doc"
+        },
+        {
+          "name": "network.type",
+          "definition": "Type of the network packet",
+          "property_doc_link": "common-networkcontext-type-doc"
         }
       ]
     },
@@ -3382,6 +3387,11 @@
           "name": "network.source.port",
           "definition": "Port number",
           "property_doc_link": "common-ipportcontext-port-doc"
+        },
+        {
+          "name": "network.type",
+          "definition": "Type of the network packet",
+          "property_doc_link": "common-networkcontext-type-doc"
         }
       ]
     },
@@ -4405,6 +4415,66 @@
       "experimental": false,
       "properties": [
         {
+          "name": "network.destination.ip",
+          "definition": "IP address",
+          "property_doc_link": "common-ipportcontext-ip-doc"
+        },
+        {
+          "name": "network.destination.is_public",
+          "definition": "Whether the IP address belongs to a public network",
+          "property_doc_link": "common-ipportcontext-is_public-doc"
+        },
+        {
+          "name": "network.destination.port",
+          "definition": "Port number",
+          "property_doc_link": "common-ipportcontext-port-doc"
+        },
+        {
+          "name": "network.device.ifname",
+          "definition": "Interface ifname",
+          "property_doc_link": "common-networkdevicecontext-ifname-doc"
+        },
+        {
+          "name": "network.l3_protocol",
+          "definition": "L3 protocol of the network packet",
+          "property_doc_link": "common-networkcontext-l3_protocol-doc"
+        },
+        {
+          "name": "network.l4_protocol",
+          "definition": "L4 protocol of the network packet",
+          "property_doc_link": "common-networkcontext-l4_protocol-doc"
+        },
+        {
+          "name": "network.network_direction",
+          "definition": "Network direction of the network packet",
+          "property_doc_link": "common-networkcontext-network_direction-doc"
+        },
+        {
+          "name": "network.size",
+          "definition": "Size in bytes of the network packet",
+          "property_doc_link": "common-networkcontext-size-doc"
+        },
+        {
+          "name": "network.source.ip",
+          "definition": "IP address",
+          "property_doc_link": "common-ipportcontext-ip-doc"
+        },
+        {
+          "name": "network.source.is_public",
+          "definition": "Whether the IP address belongs to a public network",
+          "property_doc_link": "common-ipportcontext-is_public-doc"
+        },
+        {
+          "name": "network.source.port",
+          "definition": "Port number",
+          "property_doc_link": "common-ipportcontext-port-doc"
+        },
+        {
+          "name": "network.type",
+          "definition": "Type of the network packet",
+          "property_doc_link": "common-networkcontext-type-doc"
+        },
+        {
           "name": "packet.destination.ip",
           "definition": "IP address",
           "property_doc_link": "common-ipportcontext-ip-doc"
@@ -4468,6 +4538,40 @@
           "name": "packet.tls.version",
           "definition": "TLS version",
           "property_doc_link": "packet-tls-version-doc"
+        },
+        {
+          "name": "packet.type",
+          "definition": "Type of the network packet",
+          "property_doc_link": "common-networkcontext-type-doc"
+        }
+      ]
+    },
+    {
+      "name": "prctl",
+      "definition": "A prctl command was executed",
+      "type": "Process",
+      "from_agent_version": "7.71",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "prctl.is_name_truncated",
+          "definition": "Indicates that the name field is truncated",
+          "property_doc_link": "prctl-is_name_truncated-doc"
+        },
+        {
+          "name": "prctl.new_name",
+          "definition": "New name of the process",
+          "property_doc_link": "prctl-new_name-doc"
+        },
+        {
+          "name": "prctl.option",
+          "definition": "prctl option",
+          "property_doc_link": "prctl-option-doc"
+        },
+        {
+          "name": "prctl.retval",
+          "definition": "Return value of the syscall",
+          "property_doc_link": "common-syscallevent-retval-doc"
         }
       ]
     },
@@ -12181,6 +12285,7 @@
         "mount",
         "mprotect",
         "open",
+        "prctl",
         "ptrace",
         "removexattr",
         "rename",
@@ -12316,6 +12421,19 @@
       ],
       "constants": "",
       "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.type",
+      "link": "common-networkcontext-type-doc",
+      "type": "int",
+      "definition": "Type of the network packet",
+      "prefixes": [
+        "network",
+        "packet"
+      ],
+      "constants": "Network Protocol Types",
+      "constants_link": "network-protocol-types",
       "examples": []
     },
     {
@@ -13732,6 +13850,42 @@
       "definition": "TLS version",
       "prefixes": [
         "packet.tls"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "prctl.is_name_truncated",
+      "link": "prctl-is_name_truncated-doc",
+      "type": "bool",
+      "definition": "Indicates that the name field is truncated",
+      "prefixes": [
+        "prctl"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "prctl.new_name",
+      "link": "prctl-new_name-doc",
+      "type": "string",
+      "definition": "New name of the process",
+      "prefixes": [
+        "prctl"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "prctl.option",
+      "link": "prctl-option-doc",
+      "type": "int",
+      "definition": "prctl option",
+      "prefixes": [
+        "prctl"
       ],
       "constants": "",
       "constants_link": "",
@@ -17910,6 +18064,61 @@
       ]
     },
     {
+      "name": "Network Protocol Types",
+      "link": "network-protocol-types",
+      "description": "Types of specific network protocols.",
+      "all": [
+        {
+          "name": "ICMP_ECHO_REQUEST",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_ECHO_REPLY",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_ROUTER_SOLICITATION",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_ROUTER_ADVERTISEMENT",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_NEIGHBOR_SOLICITATION",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_NEIGHBOR_ADVERTISEMENT",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_V6_ECHO_REQUEST",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_V6_ECHO_REPLY",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_V6_ROUTER_SOLICITATION",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_V6_ROUTER_ADVERTISEMENT",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_V6_NEIGHBOR_SOLICITATION",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_V6_NEIGHBOR_ADVERTISEMENT",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
       "name": "Network directions",
       "link": "network-directions",
       "description": "Network directions are the supported directions of network packets.",
@@ -18046,6 +18255,257 @@
         },
         {
           "name": "PIPE_BUF_FLAG_LOSS",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "PrCtl Options",
+      "link": "prctl-options",
+      "description": "PrCtl Options are the supported options for the prctl event",
+      "all": [
+        {
+          "name": "PR_CAP_AMBIENT",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_CAPBSET_READ",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_CAPBSET_DROP",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_CHILD_SUBREAPER",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_CHILD_SUBREAPER",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_DUMPABLE",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_DUMPABLE",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_ENDIAN",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_ENDIAN",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_FP_MODE",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_FP_MODE",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_FPEMU",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_FPEMU",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_FPEXC",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_FPEXC",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_IO_FLUSHER",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_IO_FLUSHER",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_KEEPCAPS",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_KEEPCAPS",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_MCE_KILL",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_MCE_KILL_GET",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_MM",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_VMA",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_MPX_ENABLE_MANAGEMENT",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_MPX_DISABLE_MANAGEMENT",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_NAME",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_NAME",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_NO_NEW_PRIVS",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_NO_NEW_PRIVS",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_PAC_RESET_KEYS",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_PDEATHSIG",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_PDEATHSIG",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_PTRACER",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_SECCOMP",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_SECCOMP",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_SECUREBITS",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_SECUREBITS",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_SPECULATION_CTRL",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_SPECULATION_CTRL",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SVE_SET_VL",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SVE_GET_VL",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_SYSCALL_USER_DISPATCH",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_TAGGED_ADDR_CTRL",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_TAGGED_ADDR_CTRL",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_TASK_PERF_EVENTS_DISABLE",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_TASK_PERF_EVENTS_ENABLE",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_THP_DISABLE",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_THP_DISABLE",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_TID_ADDRESS",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_TIMERSLACK",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_TIMERSLACK",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_TIMING",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_TIMING",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_TSC",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_TSC",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_UNALIGN",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_UNALIGN",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_AUXV",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_MDWE",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_MDWE",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_RISCV_SET_ICACHE_FLUSH_CTX",
           "architecture": "all"
         }
       ]

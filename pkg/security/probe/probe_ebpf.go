@@ -186,6 +186,9 @@ type EBPFProbe struct {
 
 	// raw packet filter for actions
 	rawPacketActionFilters []rawpacket.Filter
+
+	// PrCtl and name truncation
+	MetricNameTruncated *atomic.Uint64
 }
 
 // GetUseRingBuffers returns p.useRingBuffers
@@ -901,6 +904,11 @@ func (p *EBPFProbe) SendStats() error {
 		return err
 	}
 
+	valueNameTruncated := p.MetricNameTruncated.Swap(0)
+	if err := p.statsdClient.Count(metrics.MetricNameTruncated, int64(valueNameTruncated), []string{}, 1.0); err != nil {
+		return err
+	}
+
 	return p.monitors.SendStats()
 }
 
@@ -1562,11 +1570,13 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode RawPacket event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+		event.NetworkContext = event.RawPacket.NetworkContext
 	case model.RawPacketActionEventType:
 		if _, err = event.RawPacket.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode RawPacket event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+		event.NetworkContext = event.RawPacket.NetworkContext
 
 		tags := p.probe.GetEventTags(event.ContainerContext.ContainerID)
 		if service := p.probe.GetService(event); service != "" {
@@ -1657,6 +1667,14 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		// is this thread-safe?
 		event.ProcessCacheEntry.CapsAttempted |= event.CapabilitiesUsage.Attempted
 		event.ProcessCacheEntry.CapsUsed |= event.CapabilitiesUsage.Used
+	case model.PrCtlEventType:
+		if _, err = event.PrCtl.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode prctl event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+		if event.PrCtl.IsNameTruncated {
+			p.MetricNameTruncated.Add(1)
+		}
 	}
 
 	// send related events
@@ -2756,6 +2774,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, ipc ipc.Component, opts O
 		dnsLayer:             new(layers.DNS),
 		ipc:                  ipc,
 		BPFFilterTruncated:   atomic.NewUint64(0),
+		MetricNameTruncated:  atomic.NewUint64(0),
 	}
 
 	if err := p.detectKernelVersion(); err != nil {
