@@ -17,6 +17,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	typedef "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def/proto"
 	workloadmetafilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/workloadmeta"
@@ -243,4 +244,34 @@ func CreateFilterablePodFromKubelet(pod *kubelet.Pod) *workloadfilter.Pod {
 	return &workloadfilter.Pod{
 		FilterPod: p,
 	}
+}
+
+// AppendKubeRequestedCPUManagementTag accepts a list of tags and returns
+// a list of tags with the proper kube_requested_cpu_management tag appended
+func AppendKubeRequestedCPUManagementTag(w workloadmeta.Component, qos string, containerID types.EntityID, tagList []string) []string {
+	wmetaKubelet, _ := w.GetKubelet()
+	if wmetaKubelet != nil {
+		cpuManagerPolicy := wmetaKubelet.ConfigDocument.KubeletConfig.CPUManagerPolicy
+
+		wmetaContainer, err := w.GetContainer(containerID.GetID())
+		if err != nil {
+			log.Errorf("error getting container with ID '%s': %v", containerID.GetID(), err)
+			return tagList
+		}
+
+		requestedWholeCores := false
+		if wmetaContainer.Resources.RequestedWholeCores != nil {
+			requestedWholeCores = *wmetaContainer.Resources.RequestedWholeCores
+		}
+
+		if qos == "Guaranteed" &&
+			requestedWholeCores &&
+			cpuManagerPolicy == "static" {
+			tagList = utils.ConcatenateStringTags(tagList, tags.KubeRequestedCPUManagement+":static")
+		} else {
+			tagList = utils.ConcatenateStringTags(tagList, tags.KubeRequestedCPUManagement+":none")
+		}
+	}
+
+	return tagList
 }
