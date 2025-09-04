@@ -21,7 +21,8 @@ const (
 
 // Params represents the parameters for service discovery requests.
 type Params struct {
-	Pids []int `json:"pids,omitzero"`
+	NewPids       []int32       `json:"new_pids,omitempty"`       // PIDs never seen before, require full service info
+	HeartbeatPids []int32       `json:"heartbeat_pids,omitempty"` // PIDs needing heartbeat refresh, minimal updates
 }
 
 // ToJSON serializes the Params to JSON bytes.

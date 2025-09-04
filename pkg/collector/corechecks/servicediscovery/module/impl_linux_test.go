@@ -113,16 +113,10 @@ func makeRequest[T any](t require.TestingT, url string, params *core.Params) *T 
 
 // getRunningPids wraps the process.Pids function, returning a slice of ints
 // that can be used as the pids query param.
-func getRunningPids(t require.TestingT) []int {
+func getRunningPids(t require.TestingT) []int32 {
 	pids, err := process.Pids()
 	require.NoError(t, err)
-
-	pidsInt := make([]int, len(pids))
-	for i, v := range pids {
-		pidsInt[i] = int(v)
-	}
-
-	return pidsInt
+	return pids
 }
 
 func startTCPServer(t *testing.T, proto string, address string) (*os.File, *net.TCPAddr) {
