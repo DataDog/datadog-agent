@@ -269,6 +269,8 @@ type remoteAPIRequest struct {
 	ExpectedState expectedState   `json:"expected_state"`
 	Method        string          `json:"method"`
 	Params        json.RawMessage `json:"params"`
+
+	UseLegacyFleetDir bool `json:"use_legacy_fleet_dir"`
 }
 
 type expectedState struct {

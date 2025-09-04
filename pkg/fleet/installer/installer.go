@@ -58,9 +58,9 @@ type Installer interface {
 	RemoveExperiment(ctx context.Context, pkg string) error
 	PromoteExperiment(ctx context.Context, pkg string) error
 
-	InstallConfigExperiment(ctx context.Context, pkg string, operations config.Operations) error
-	RemoveConfigExperiment(ctx context.Context, pkg string) error
-	PromoteConfigExperiment(ctx context.Context, pkg string) error
+	InstallConfigExperiment(ctx context.Context, pkg string, operations config.Operations, useLegacyFleetDir bool) error
+	RemoveConfigExperiment(ctx context.Context, pkg string, useLegacyFleetDir bool) error
+	PromoteConfigExperiment(ctx context.Context, pkg string, useLegacyFleetDir bool) error
 
 	GarbageCollect(ctx context.Context) error
 
@@ -79,6 +79,7 @@ type installerImpl struct {
 	downloader *oci.Downloader
 	packages   *repository.Repositories
 	configs    *repository.Repositories
+	config     *config.Directories
 	hooks      packages.Hooks
 
 	packagesDir    string
@@ -103,7 +104,11 @@ func NewInstaller(env *env.Env) (Installer, error) {
 		downloader: oci.NewDownloader(env, env.HTTPClient()),
 		packages:   pkgs,
 		configs:    configs,
-		hooks:      packages.NewHooks(env, pkgs),
+		config: &config.Directories{
+			StablePath:     filepath.Join(paths.DefaultUserConfigsDir, "datadog-agent"),
+			ExperimentPath: filepath.Join(paths.DefaultUserConfigsDir, "datadog-agent-exp"),
+		},
+		hooks: packages.NewHooks(env, pkgs),
 
 		userConfigsDir: paths.DefaultUserConfigsDir,
 		packagesDir:    paths.PackagesPath,
@@ -494,41 +499,36 @@ func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) error
 }
 
 // InstallConfigExperiment installs an experiment on top of an existing package.
-func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string, operations config.Operations) error {
+func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string, operations config.Operations, useLegacyFleetDir bool) error {
 	i.m.Lock()
 	defer i.m.Unlock()
 
-	tmpDir, err := i.configs.MkdirTemp()
-	if err != nil {
-		return installerErrors.Wrap(
-			installerErrors.ErrFilesystemIssue,
-			fmt.Errorf("could not create temporary directory: %w", err),
-		)
-	}
-	defer os.RemoveAll(tmpDir)
-	configRoot, err := os.OpenRoot(tmpDir)
-	if err != nil {
-		return installerErrors.Wrap(
-			installerErrors.ErrFilesystemIssue,
-			fmt.Errorf("could not open config root: %w", err),
-		)
-	}
-	for _, op := range operations.FileOperations {
-		err = op.Apply(configRoot)
+	switch useLegacyFleetDir {
+	case false:
+		err := i.config.WriteExperiment(operations)
+		if err != nil {
+			return fmt.Errorf("could not write experiment: %w", err)
+		}
+	case true:
+		tmpDir, err := i.configs.MkdirTemp()
 		if err != nil {
 			return installerErrors.Wrap(
 				installerErrors.ErrFilesystemIssue,
-				fmt.Errorf("could not write agent config: %w", err),
+				fmt.Errorf("could not create temporary directory: %w", err),
 			)
 		}
-	}
-	configRepo := i.configs.Get(pkg)
-	err = configRepo.SetExperiment(ctx, operations.DeploymentID, tmpDir)
-	if err != nil {
-		return installerErrors.Wrap(
-			installerErrors.ErrFilesystemIssue,
-			fmt.Errorf("could not set experiment: %w", err),
-		)
+		defer os.RemoveAll(tmpDir)
+		err = operations.Apply(tmpDir)
+		if err != nil {
+			return fmt.Errorf("could not apply operations: %w", err)
+		}
+		err = i.configs.Get(pkg).SetExperiment(ctx, operations.DeploymentID, tmpDir)
+		if err != nil {
+			return installerErrors.Wrap(
+				installerErrors.ErrFilesystemIssue,
+				fmt.Errorf("could not set experiment: %w", err),
+			)
+		}
 	}
 
 	// HACK: close so package can be updated as watchdog runs
@@ -540,46 +540,60 @@ func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string,
 }
 
 // RemoveConfigExperiment removes an experiment.
-func (i *installerImpl) RemoveConfigExperiment(ctx context.Context, pkg string) error {
+func (i *installerImpl) RemoveConfigExperiment(ctx context.Context, pkg string, useLegacyFleetDir bool) error {
 	i.m.Lock()
 	defer i.m.Unlock()
 
-	repository := i.configs.Get(pkg)
-	state, err := repository.GetState()
-	if err != nil {
-		return fmt.Errorf("could not get repository state: %w", err)
-	}
-	if !state.HasExperiment() {
-		// Return early
-		return nil
-	}
-
-	err = i.hooks.PreStopConfigExperiment(ctx, pkg)
+	err := i.hooks.PreStopConfigExperiment(ctx, pkg)
 	if err != nil {
 		return fmt.Errorf("could not stop experiment: %w", err)
 	}
-	err = repository.DeleteExperiment(ctx)
-	if err != nil {
-		return installerErrors.Wrap(
-			installerErrors.ErrFilesystemIssue,
-			fmt.Errorf("could not delete experiment: %w", err),
-		)
+
+	switch useLegacyFleetDir {
+	case false:
+		err := i.config.RemoveExperiment()
+		if err != nil {
+			return fmt.Errorf("could not remove experiment: %w", err)
+		}
+	case true:
+		repository := i.configs.Get(pkg)
+		state, err := repository.GetState()
+		if err != nil {
+			return fmt.Errorf("could not get repository state: %w", err)
+		}
+		if !state.HasExperiment() {
+			return nil
+		}
+		err = repository.DeleteExperiment(ctx)
+		if err != nil {
+			return installerErrors.Wrap(
+				installerErrors.ErrFilesystemIssue,
+				fmt.Errorf("could not delete experiment: %w", err),
+			)
+		}
 	}
 	return nil
 }
 
 // PromoteConfigExperiment promotes an experiment to stable.
-func (i *installerImpl) PromoteConfigExperiment(ctx context.Context, pkg string) error {
+func (i *installerImpl) PromoteConfigExperiment(ctx context.Context, pkg string, useLegacyFleetDir bool) error {
 	i.m.Lock()
 	defer i.m.Unlock()
 
-	repository := i.configs.Get(pkg)
-	err := repository.PromoteExperiment(ctx)
-	if err != nil {
-		return installerErrors.Wrap(
-			installerErrors.ErrFilesystemIssue,
-			fmt.Errorf("could not promote experiment: %w", err),
-		)
+	switch useLegacyFleetDir {
+	case false:
+		err := i.config.PromoteExperiment()
+		if err != nil {
+			return fmt.Errorf("could not promote experiment: %w", err)
+		}
+	case true:
+		err := i.configs.Get(pkg).PromoteExperiment(ctx)
+		if err != nil {
+			return installerErrors.Wrap(
+				installerErrors.ErrFilesystemIssue,
+				fmt.Errorf("could not promote experiment: %w", err),
+			)
+		}
 	}
 	return i.hooks.PostPromoteConfigExperiment(ctx, pkg)
 }
@@ -773,6 +787,16 @@ func (i *installerImpl) ensurePackagesAreConfigured(ctx context.Context) (err er
 		err = i.initPackageConfig(ctx, pkg)
 		if err != nil {
 			return err
+		}
+	}
+	_, err = os.Stat(i.config.ExperimentPath)
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("could not stat experiment path: %w", err)
+	}
+	if os.IsNotExist(err) && runtime.GOOS != "windows" {
+		err = os.Symlink(i.config.StablePath, i.config.ExperimentPath)
+		if err != nil {
+			return fmt.Errorf("could not symlink experiment path: %w", err)
 		}
 	}
 	return nil

@@ -70,9 +70,9 @@ type Daemon interface {
 	StartExperiment(ctx context.Context, url string) error
 	StopExperiment(ctx context.Context, pkg string) error
 	PromoteExperiment(ctx context.Context, pkg string) error
-	StartConfigExperiment(ctx context.Context, pkg string, operations config.Operations) error
-	StopConfigExperiment(ctx context.Context, pkg string) error
-	PromoteConfigExperiment(ctx context.Context, pkg string) error
+	StartConfigExperiment(ctx context.Context, pkg string, operations config.Operations, useLegacyFleetDir bool) error
+	StopConfigExperiment(ctx context.Context, pkg string, useLegacyFleetDir bool) error
+	PromoteConfigExperiment(ctx context.Context, pkg string, useLegacyFleetDir bool) error
 
 	GetPackage(pkg string, version string) (Package, error)
 	GetState(ctx context.Context) (map[string]PackageState, error)
@@ -451,20 +451,20 @@ func (d *daemonImpl) stopExperiment(ctx context.Context, pkg string) (err error)
 }
 
 // StartConfigExperiment starts a config experiment with the given package.
-func (d *daemonImpl) StartConfigExperiment(ctx context.Context, pkg string, operations config.Operations) error {
+func (d *daemonImpl) StartConfigExperiment(ctx context.Context, pkg string, operations config.Operations, useLegacyFleetDir bool) error {
 	d.m.Lock()
 	defer d.m.Unlock()
-	return d.startConfigExperiment(ctx, pkg, operations)
+	return d.startConfigExperiment(ctx, pkg, operations, useLegacyFleetDir)
 }
 
-func (d *daemonImpl) startConfigExperiment(ctx context.Context, pkg string, operations config.Operations) (err error) {
+func (d *daemonImpl) startConfigExperiment(ctx context.Context, pkg string, operations config.Operations, useLegacyFleetDir bool) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "start_config_experiment")
 	defer func() { span.Finish(err) }()
 	d.refreshState(ctx)
 	defer d.refreshState(ctx)
 
 	log.Infof("Daemon: Starting config experiment for package %s (deployment id: %s)", pkg, operations.DeploymentID)
-	err = d.installer(d.env).InstallConfigExperiment(ctx, pkg, operations)
+	err = d.installer(d.env).InstallConfigExperiment(ctx, pkg, operations, useLegacyFleetDir)
 	if err != nil {
 		return fmt.Errorf("could not start config experiment: %w", err)
 	}
@@ -473,20 +473,20 @@ func (d *daemonImpl) startConfigExperiment(ctx context.Context, pkg string, oper
 }
 
 // PromoteConfigExperiment promotes the experiment to stable.
-func (d *daemonImpl) PromoteConfigExperiment(ctx context.Context, pkg string) error {
+func (d *daemonImpl) PromoteConfigExperiment(ctx context.Context, pkg string, useLegacyFleetDir bool) error {
 	d.m.Lock()
 	defer d.m.Unlock()
-	return d.promoteConfigExperiment(ctx, pkg)
+	return d.promoteConfigExperiment(ctx, pkg, useLegacyFleetDir)
 }
 
-func (d *daemonImpl) promoteConfigExperiment(ctx context.Context, pkg string) (err error) {
+func (d *daemonImpl) promoteConfigExperiment(ctx context.Context, pkg string, useLegacyFleetDir bool) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "promote_config_experiment")
 	defer func() { span.Finish(err) }()
 	d.refreshState(ctx)
 	defer d.refreshState(ctx)
 
 	log.Infof("Daemon: Promoting config experiment for package %s", pkg)
-	err = d.installer(d.env).PromoteConfigExperiment(ctx, pkg)
+	err = d.installer(d.env).PromoteConfigExperiment(ctx, pkg, useLegacyFleetDir)
 	if err != nil {
 		return fmt.Errorf("could not promote config experiment: %w", err)
 	}
@@ -495,20 +495,20 @@ func (d *daemonImpl) promoteConfigExperiment(ctx context.Context, pkg string) (e
 }
 
 // StopConfigExperiment stops the experiment.
-func (d *daemonImpl) StopConfigExperiment(ctx context.Context, pkg string) error {
+func (d *daemonImpl) StopConfigExperiment(ctx context.Context, pkg string, useLegacyFleetDir bool) error {
 	d.m.Lock()
 	defer d.m.Unlock()
-	return d.stopConfigExperiment(ctx, pkg)
+	return d.stopConfigExperiment(ctx, pkg, useLegacyFleetDir)
 }
 
-func (d *daemonImpl) stopConfigExperiment(ctx context.Context, pkg string) (err error) {
+func (d *daemonImpl) stopConfigExperiment(ctx context.Context, pkg string, useLegacyFleetDir bool) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "stop_config_experiment")
 	defer func() { span.Finish(err) }()
 	d.refreshState(ctx)
 	defer d.refreshState(ctx)
 
 	log.Infof("Daemon: Stopping config experiment for package %s", pkg)
-	err = d.installer(d.env).RemoveConfigExperiment(ctx, pkg)
+	err = d.installer(d.env).RemoveConfigExperiment(ctx, pkg, useLegacyFleetDir)
 	if err != nil {
 		return fmt.Errorf("could not stop config experiment: %w", err)
 	}
@@ -636,15 +636,15 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 				Patch:             operation.Patch,
 			})
 		}
-		return d.startConfigExperiment(ctx, request.Package, ops)
+		return d.startConfigExperiment(ctx, request.Package, ops, request.UseLegacyFleetDir)
 
 	case methodStopConfigExperiment:
 		log.Infof("Installer: Received remote request %s to stop config experiment for package %s", request.ID, request.Package)
-		return d.stopConfigExperiment(ctx, request.Package)
+		return d.stopConfigExperiment(ctx, request.Package, request.UseLegacyFleetDir)
 
 	case methodPromoteConfigExperiment:
 		log.Infof("Installer: Received remote request %s to promote config experiment for package %s", request.ID, request.Package)
-		return d.promoteConfigExperiment(ctx, request.Package)
+		return d.promoteConfigExperiment(ctx, request.Package, request.UseLegacyFleetDir)
 
 	default:
 		return fmt.Errorf("unknown method: %s", request.Method)

@@ -19,6 +19,10 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+const (
+	deploymentIDFile = ".deployment-id"
+)
+
 // FileOperationType is the type of operation to perform on the config.
 type FileOperationType string
 
@@ -31,10 +35,101 @@ const (
 	FileOperationDelete FileOperationType = "delete"
 )
 
+// Directories is the directories of the config.
+type Directories struct {
+	StablePath     string
+	ExperimentPath string
+}
+
+// State is the state of the directories.
+type State struct {
+	StableDeploymentID     string
+	ExperimentDeploymentID string
+}
+
+// GetState returns the state of the directories.
+func (d *Directories) GetState() (State, error) {
+	stableDeploymentID, err := os.ReadFile(filepath.Join(d.StablePath, deploymentIDFile))
+	if err != nil && !os.IsNotExist(err) {
+		return State{}, err
+	}
+	experimentDeploymentID, err := os.ReadFile(filepath.Join(d.ExperimentPath, deploymentIDFile))
+	if err != nil && !os.IsNotExist(err) {
+		return State{}, err
+	}
+	return State{
+		StableDeploymentID:     string(stableDeploymentID),
+		ExperimentDeploymentID: string(experimentDeploymentID),
+	}, nil
+}
+
+// WriteExperiment writes the experiment to the directories.
+func (d *Directories) WriteExperiment(operations Operations) error {
+	err := os.RemoveAll(d.ExperimentPath)
+	if err != nil {
+		return err
+	}
+	err = os.MkdirAll(d.ExperimentPath, 0755)
+	if err != nil {
+		return err
+	}
+	err = copyDirectory(d.StablePath, d.ExperimentPath)
+	if err != nil {
+		return err
+	}
+	err = operations.Apply(d.ExperimentPath)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// PromoteExperiment promotes the experiment to the stable.
+func (d *Directories) PromoteExperiment() error {
+	// check if experiment path exists using os
+	_, err := os.Stat(d.ExperimentPath)
+	if err != nil {
+		return err
+	}
+	err = swapConfigDirectories(d.ExperimentPath, d.StablePath)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// RemoveExperiment removes the experiment from the directories.
+func (d *Directories) RemoveExperiment() error {
+	err := os.RemoveAll(d.ExperimentPath)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 // Operations is the list of operations to perform on the configs.
 type Operations struct {
 	DeploymentID   string          `json:"deployment_id"`
 	FileOperations []FileOperation `json:"file_operations"`
+}
+
+// Apply applies the operations to the root.
+func (o *Operations) Apply(rootPath string) error {
+	root, err := os.OpenRoot(rootPath)
+	if err != nil {
+		return err
+	}
+	for _, operation := range o.FileOperations {
+		err := operation.apply(root)
+		if err != nil {
+			return err
+		}
+	}
+	err = os.WriteFile(filepath.Join(rootPath, deploymentIDFile), []byte(o.DeploymentID), 0644)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // FileOperation is the operation to perform on a config.
@@ -44,8 +139,7 @@ type FileOperation struct {
 	Patch             json.RawMessage   `json:"patch,omitempty"`
 }
 
-// Apply applies the operation to the root.
-func (a *FileOperation) Apply(root *os.Root) error {
+func (a *FileOperation) apply(root *os.Root) error {
 	if !configNameAllowed(a.FilePath) {
 		return fmt.Errorf("modifying config file %s is not allowed", a.FilePath)
 	}
@@ -169,36 +263,4 @@ func configNameAllowed(file string) bool {
 		}
 	}
 	return false
-}
-
-// writeConfigSymlinks writes `.override` symlinks to help surface configurations to the user
-func writeConfigSymlinks(userDir string, fleetDir string) error {
-	userFiles, err := os.ReadDir(userDir)
-	if err != nil {
-		return fmt.Errorf("could not list user config files: %w", err)
-	}
-	for _, userFile := range userFiles {
-		if userFile.Type()&os.ModeSymlink != 0 && strings.HasSuffix(userFile.Name(), ".override") {
-			err = os.Remove(filepath.Join(userDir, userFile.Name()))
-			if err != nil {
-				return fmt.Errorf("could not remove existing symlink: %w", err)
-			}
-		}
-	}
-	var files []string
-	fleetFiles, err := os.ReadDir(fleetDir)
-	if err != nil {
-		return fmt.Errorf("could not list fleet config files: %w", err)
-	}
-	for _, fleetFile := range fleetFiles {
-		files = append(files, fleetFile.Name())
-	}
-	for _, file := range files {
-		overrideFile := file + ".override"
-		err = os.Symlink(filepath.Join(fleetDir, file), filepath.Join(userDir, overrideFile))
-		if err != nil {
-			return fmt.Errorf("could not create symlink: %w", err)
-		}
-	}
-	return nil
 }
