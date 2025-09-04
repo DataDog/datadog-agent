@@ -165,8 +165,10 @@ func (r *Runner) processResults(res *result.Results, protocol payload.Protocol, 
 		Protocol:     protocol,
 		Timestamp:    time.Now().UnixMilli(),
 		Source: payload.NetworkPathSource{
-			Hostname:  hname,
-			NetworkID: r.networkID,
+			Name:        hname,
+			DisplayName: hname,
+			Hostname:    hname,
+			NetworkID:   r.networkID,
 		},
 		Destination: payload.NetworkPathDestination{
 			Hostname: destinationHost,
@@ -191,7 +193,6 @@ func (r *Runner) processResults(res *result.Results, protocol payload.Protocol, 
 				Max: res.E2eProbe.RTT.Max,
 			},
 		},
-		Tags: slices.Clone(res.Tags),
 	}
 
 	// get hardware interface info

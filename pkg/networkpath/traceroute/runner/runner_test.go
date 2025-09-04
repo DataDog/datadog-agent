@@ -109,7 +109,9 @@ func TestProcessResults(t *testing.T) {
 				AgentVersion: version.AgentVersion,
 				Protocol:     payload.ProtocolUDP,
 				Source: payload.NetworkPathSource{
-					Hostname: "test-hostname",
+					Hostname:    "test-hostname",
+					Name:        "test-hostname",
+					DisplayName: "test-hostname",
 				},
 				Destination: payload.NetworkPathDestination{
 					Hostname:  "test-destination-hostname",
@@ -227,7 +229,9 @@ func TestProcessResults(t *testing.T) {
 				AgentVersion: version.AgentVersion,
 				Protocol:     payload.ProtocolUDP,
 				Source: payload.NetworkPathSource{
-					Hostname: "test-hostname",
+					Hostname:    "test-hostname",
+					Name:        "test-hostname",
+					DisplayName: "test-hostname",
 				},
 				Destination: payload.NetworkPathDestination{
 					Hostname:  "test-destination-hostname",
@@ -332,7 +336,9 @@ func TestProcessResults(t *testing.T) {
 				AgentVersion: version.AgentVersion,
 				Protocol:     payload.ProtocolTCP,
 				Source: payload.NetworkPathSource{
-					Hostname: "test-hostname",
+					Hostname:    "test-hostname",
+					Name:        "test-hostname",
+					DisplayName: "test-hostname",
 					Via: &network.Via{
 						Subnet: network.Subnet{
 							Alias: "test-subnet",
@@ -447,7 +453,9 @@ func TestProcessResults(t *testing.T) {
 				AgentVersion: version.AgentVersion,
 				Protocol:     payload.ProtocolUDP,
 				Source: payload.NetworkPathSource{
-					Hostname: "test-hostname",
+					Hostname:    "test-hostname",
+					Name:        "test-hostname",
+					DisplayName: "test-hostname",
 					Via: &network.Via{
 						Subnet: network.Subnet{
 							Alias: "test-subnet",
