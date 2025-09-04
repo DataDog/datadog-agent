@@ -236,13 +236,13 @@ func (f *workloadfilterStore) GetPodAutodiscoveryFilters(filterScope workloadfil
 }
 
 // GetServiceAutodiscoveryFilters returns the pre-computed service autodiscovery filters
-func (f *workloadfilterStore) GetServiceAutodiscoveryFilters(filterScope workloadfilter.Scope) [][]workloadfilter.ServiceFilter {
-	return f.selection.GetServiceAutodiscoveryFilters(filterScope)
+func (f *workloadfilterStore) GetServiceAutodiscoveryFilters(filterScope workloadfilter.Scope) workloadfilter.FilterBundle {
+	return f.GetServiceFilters(f.selection.GetServiceAutodiscoveryFilters(filterScope))
 }
 
 // GetEndpointAutodiscoveryFilters returns the pre-computed endpoint autodiscovery filters
-func (f *workloadfilterStore) GetEndpointAutodiscoveryFilters(filterScope workloadfilter.Scope) [][]workloadfilter.EndpointFilter {
-	return f.selection.GetEndpointAutodiscoveryFilters(filterScope)
+func (f *workloadfilterStore) GetEndpointAutodiscoveryFilters(filterScope workloadfilter.Scope) workloadfilter.FilterBundle {
+	return f.GetEndpointFilters(f.selection.GetEndpointAutodiscoveryFilters(filterScope))
 }
 
 // GetContainerSharedMetricFilters returns the pre-computed container shared metric filters

@@ -30,9 +30,8 @@ type Component interface {
 	// Get Autodiscovery filters
 	GetContainerAutodiscoveryFilters(filterScope Scope) [][]ContainerFilter
 	GetPodAutodiscoveryFilters(filterScope Scope) [][]PodFilter
-	GetServiceAutodiscoveryFilters(filterScope Scope) [][]ServiceFilter
-	GetEndpointAutodiscoveryFilters(filterScope Scope) [][]EndpointFilter
-
+	GetServiceAutodiscoveryFilters(filterScope Scope) FilterBundle
+	GetEndpointAutodiscoveryFilters(filterScope Scope) FilterBundle
 	// Get Shared Metric filters
 	GetContainerSharedMetricFilters() [][]ContainerFilter
 	GetPodSharedMetricFilters() [][]PodFilter
@@ -46,10 +45,4 @@ type Component interface {
 	GetPodFilters(podFilters [][]PodFilter) FilterBundle
 	GetServiceFilters(serviceFilters [][]ServiceFilter) FilterBundle
 	GetEndpointFilters(endpointFilters [][]EndpointFilter) FilterBundle
-}
-
-// FilterBundle represents a bundle of filters for a given resource type.
-type FilterBundle interface {
-	IsExcluded(obj Filterable) bool
-	GetErrors() []error
 }
