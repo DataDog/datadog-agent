@@ -96,3 +96,48 @@ func TestEnableDiscovery(t *testing.T) {
 		assert.False(t, cfg.GetBool(discoveryNS("enabled")))
 	})
 }
+
+func TestEnablePrivilegedLogs(t *testing.T) {
+	t.Run("via YAML", func(t *testing.T) {
+		cfg := mock.NewSystemProbe(t)
+		cfg.SetWithoutSource("privileged_logs.enabled", true)
+		assert.True(t, cfg.GetBool(privilegedLogsNS("enabled")))
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		t.Setenv("DD_PRIVILEGED_LOGS_ENABLED", "true")
+		cfg := mock.NewSystemProbe(t)
+		assert.True(t, cfg.GetBool(privilegedLogsNS("enabled")))
+	})
+
+	t.Run("default", func(t *testing.T) {
+		cfg := mock.NewSystemProbe(t)
+		assert.False(t, cfg.GetBool(privilegedLogsNS("enabled")))
+	})
+
+	t.Run("module enabled when configured", func(t *testing.T) {
+		if runtime.GOOS != "linux" {
+			t.Skip("Privileged logs module is only available on Linux")
+		}
+
+		cfg := mock.NewSystemProbe(t)
+		cfg.SetWithoutSource("privileged_logs.enabled", true)
+
+		sysprobeCfg, err := New("/doesnotexist", "")
+		require.NoError(t, err)
+		assert.True(t, sysprobeCfg.ModuleIsEnabled(PrivilegedLogsModule))
+	})
+
+	t.Run("module disabled when not configured", func(t *testing.T) {
+		if runtime.GOOS != "linux" {
+			t.Skip("Privileged logs module is only available on Linux")
+		}
+
+		cfg := mock.NewSystemProbe(t)
+		cfg.SetWithoutSource("privileged_logs.enabled", false)
+
+		sysprobeCfg, err := New("/doesnotexist", "")
+		require.NoError(t, err)
+		assert.False(t, sysprobeCfg.ModuleIsEnabled(PrivilegedLogsModule))
+	})
+}

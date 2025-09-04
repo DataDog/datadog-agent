@@ -11,8 +11,8 @@ import (
 	"io"
 	"os"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/opener"
 	"github.com/DataDog/datadog-agent/pkg/logs/types"
-	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -141,7 +141,7 @@ func computeFingerprint(filePath string, fingerprintConfig *types.FingerprintCon
 		fingerprintConfig.CountToSkip,
 		fingerprintConfig.MaxBytes)
 
-	fpFile, err := filesystem.OpenShared(filePath)
+	fpFile, err := opener.OpenLogFile(filePath)
 	if err != nil {
 		log.Warnf("could not open file for fingerprinting %s: %v", filePath, err)
 		return newInvalidFingerprint(nil), err
