@@ -29,26 +29,8 @@ instances:
     #
     # password: <PASSWORD>
 
-    ## @param auth_method - string - optional - default: basic
-    ## Authentication method to use. Valid options are: basic, oauth
-    ##   - basic: Uses HTTP Basic authentication (port 9182)
-    ##   - oauth: Uses OAuth 2.0 authentication (requires client_id and client_secret, port 9183)
-    ## Invalid values will cause the integration to fail to start.
-    #
-    # auth_method: basic
-
-    ## @param client_id - string - optional
-    ## OAuth client ID (required when auth_method is oauth)
-    #
-    # client_id: <CLIENT_ID>
-
-    ## @param client_secret - string - optional
-    ## OAuth client secret (required when auth_method is oauth)
-    #
-    # client_secret: <CLIENT_SECRET>
-
     ## @param director_port - integer - optional - default: auto-detected based on auth_method
-    ## Port of the Versa Director instance. Defaults to 9182 for basic auth, 9183 for oauth.
+    ## Port of the Versa Director instance. Defaults to 9182 using basic auth.
     ## Only needs to be set if using non-standard ports.
     #
     # director_port: 9182
