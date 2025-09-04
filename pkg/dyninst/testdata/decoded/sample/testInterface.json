@@ -51,8 +51,13 @@
           "entry": {
             "arguments": {
               "b": {
-                "type": "main.firstBehavior",
-                "notCapturedReason": "missing type information"
+                "type": "main.behavior",
+                "fields": {
+                  "data": {
+                    "type": "main.firstBehavior",
+                    "notCapturedReason": "missing type information"
+                  }
+                }
               }
             }
           }
@@ -113,8 +118,13 @@
           "entry": {
             "arguments": {
               "b": {
-                "type": "*main.firstBehavior",
-                "notCapturedReason": "missing type information"
+                "type": "main.behavior",
+                "fields": {
+                  "data": {
+                    "type": "*main.firstBehavior",
+                    "notCapturedReason": "missing type information"
+                  }
+                }
               }
             }
           }
@@ -175,8 +185,13 @@
           "entry": {
             "arguments": {
               "b": {
-                "type": "main.secondBehavior",
-                "notCapturedReason": "missing type information"
+                "type": "main.behavior",
+                "fields": {
+                  "data": {
+                    "type": "main.secondBehavior",
+                    "notCapturedReason": "missing type information"
+                  }
+                }
               }
             }
           }
@@ -237,8 +252,13 @@
           "entry": {
             "arguments": {
               "b": {
-                "type": "*main.secondBehavior",
-                "notCapturedReason": "missing type information"
+                "type": "main.behavior",
+                "fields": {
+                  "data": {
+                    "type": "*main.secondBehavior",
+                    "notCapturedReason": "missing type information"
+                  }
+                }
               }
             }
           }

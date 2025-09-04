@@ -51,8 +51,13 @@
           "entry": {
             "arguments": {
               "a": {
-                "type": "main.firstBehavior",
-                "notCapturedReason": "missing type information"
+                "type": "interface {}",
+                "fields": {
+                  "data": {
+                    "type": "main.firstBehavior",
+                    "notCapturedReason": "missing type information"
+                  }
+                }
               }
             }
           }
@@ -113,8 +118,13 @@
           "entry": {
             "arguments": {
               "a": {
-                "type": "*main.firstBehavior",
-                "notCapturedReason": "missing type information"
+                "type": "interface {}",
+                "fields": {
+                  "data": {
+                    "type": "*main.firstBehavior",
+                    "notCapturedReason": "missing type information"
+                  }
+                }
               }
             }
           }
@@ -175,8 +185,13 @@
           "entry": {
             "arguments": {
               "a": {
-                "type": "main.secondBehavior",
-                "notCapturedReason": "missing type information"
+                "type": "interface {}",
+                "fields": {
+                  "data": {
+                    "type": "main.secondBehavior",
+                    "notCapturedReason": "missing type information"
+                  }
+                }
               }
             }
           }
@@ -237,8 +252,13 @@
           "entry": {
             "arguments": {
               "a": {
-                "type": "*main.secondBehavior",
-                "notCapturedReason": "missing type information"
+                "type": "interface {}",
+                "fields": {
+                  "data": {
+                    "type": "*main.secondBehavior",
+                    "notCapturedReason": "missing type information"
+                  }
+                }
               }
             }
           }
@@ -299,8 +319,13 @@
           "entry": {
             "arguments": {
               "a": {
-                "type": "lib_v2.V2Type",
-                "notCapturedReason": "missing type information"
+                "type": "interface {}",
+                "fields": {
+                  "data": {
+                    "type": "lib_v2.V2Type",
+                    "notCapturedReason": "missing type information"
+                  }
+                }
               }
             }
           }
@@ -361,8 +386,13 @@
           "entry": {
             "arguments": {
               "a": {
-                "type": "*lib_v2.V2Type",
-                "notCapturedReason": "missing type information"
+                "type": "interface {}",
+                "fields": {
+                  "data": {
+                    "type": "*lib_v2.V2Type",
+                    "notCapturedReason": "missing type information"
+                  }
+                }
               }
             }
           }
@@ -423,8 +453,13 @@
           "entry": {
             "arguments": {
               "a": {
-                "type": "int",
-                "value": "1"
+                "type": "interface {}",
+                "fields": {
+                  "data": {
+                    "type": "int",
+                    "value": "1"
+                  }
+                }
               }
             }
           }
@@ -485,9 +520,14 @@
           "entry": {
             "arguments": {
               "a": {
-                "type": "*int",
-                "address": "[addr]",
-                "value": "1"
+                "type": "interface {}",
+                "fields": {
+                  "data": {
+                    "type": "*int",
+                    "address": "[addr]",
+                    "value": "1"
+                  }
+                }
               }
             }
           }
@@ -548,8 +588,13 @@
           "entry": {
             "arguments": {
               "a": {
-                "type": "string",
-                "value": "foo"
+                "type": "interface {}",
+                "fields": {
+                  "data": {
+                    "type": "string",
+                    "value": "foo"
+                  }
+                }
               }
             }
           }
@@ -610,9 +655,14 @@
           "entry": {
             "arguments": {
               "a": {
-                "type": "*string",
-                "address": "[addr]",
-                "value": "foo"
+                "type": "interface {}",
+                "fields": {
+                  "data": {
+                    "type": "*string",
+                    "address": "[addr]",
+                    "value": "foo"
+                  }
+                }
               }
             }
           }

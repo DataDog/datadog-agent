@@ -51,8 +51,13 @@
           "entry": {
             "arguments": {
               "e": {
-                "type": "*errors.errorString",
-                "notCapturedReason": "missing type information"
+                "type": "error",
+                "fields": {
+                  "data": {
+                    "type": "*errors.errorString",
+                    "notCapturedReason": "missing type information"
+                  }
+                }
               }
             }
           }

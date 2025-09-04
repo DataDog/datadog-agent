@@ -25,8 +25,13 @@
           "entry": {
             "arguments": {
               "w": {
-                "type": "struct { httptrace.monitoredResponseWriter; http.Flusher; http.CloseNotifier; http.Hijacker }",
-                "notCapturedReason": "missing type information"
+                "type": "net/http.ResponseWriter",
+                "fields": {
+                  "data": {
+                    "type": "struct { httptrace.monitoredResponseWriter; http.Flusher; http.CloseNotifier; http.Hijacker }",
+                    "notCapturedReason": "missing type information"
+                  }
+                }
               },
               "r": {
                 "type": "*net/http.Request",
@@ -137,8 +142,13 @@
                     ]
                   },
                   "Body": {
-                    "type": "http.noBody",
-                    "notCapturedReason": "missing type information"
+                    "type": "io.ReadCloser",
+                    "fields": {
+                      "data": {
+                        "type": "http.noBody",
+                        "notCapturedReason": "missing type information"
+                      }
+                    }
                   },
                   "GetBody": {
                     "type": "func() (io.ReadCloser, error)",
@@ -201,8 +211,13 @@
                     "value": "/"
                   },
                   "ctx": {
-                    "type": "*context.valueCtx",
-                    "notCapturedReason": "missing type information"
+                    "type": "context.Context",
+                    "fields": {
+                      "data": {
+                        "type": "*context.valueCtx",
+                        "notCapturedReason": "missing type information"
+                      }
+                    }
                   },
                   "pat": {
                     "type": "*net/http.pattern",
@@ -328,8 +343,13 @@
           "entry": {
             "arguments": {
               "w": {
-                "type": "struct { httptrace.monitoredResponseWriter; http.Flusher; http.CloseNotifier; http.Hijacker }",
-                "notCapturedReason": "missing type information"
+                "type": "net/http.ResponseWriter",
+                "fields": {
+                  "data": {
+                    "type": "struct { httptrace.monitoredResponseWriter; http.Flusher; http.CloseNotifier; http.Hijacker }",
+                    "notCapturedReason": "missing type information"
+                  }
+                }
               },
               "r": {
                 "type": "*net/http.Request",
@@ -440,8 +460,13 @@
                     ]
                   },
                   "Body": {
-                    "type": "http.noBody",
-                    "notCapturedReason": "missing type information"
+                    "type": "io.ReadCloser",
+                    "fields": {
+                      "data": {
+                        "type": "http.noBody",
+                        "notCapturedReason": "missing type information"
+                      }
+                    }
                   },
                   "GetBody": {
                     "type": "func() (io.ReadCloser, error)",
@@ -504,8 +529,13 @@
                     "value": "/"
                   },
                   "ctx": {
-                    "type": "*context.valueCtx",
-                    "notCapturedReason": "missing type information"
+                    "type": "context.Context",
+                    "fields": {
+                      "data": {
+                        "type": "*context.valueCtx",
+                        "notCapturedReason": "missing type information"
+                      }
+                    }
                   },
                   "pat": {
                     "type": "*net/http.pattern",
@@ -631,8 +661,13 @@
           "entry": {
             "arguments": {
               "w": {
-                "type": "struct { httptrace.monitoredResponseWriter; http.Flusher; http.CloseNotifier; http.Hijacker }",
-                "notCapturedReason": "missing type information"
+                "type": "net/http.ResponseWriter",
+                "fields": {
+                  "data": {
+                    "type": "struct { httptrace.monitoredResponseWriter; http.Flusher; http.CloseNotifier; http.Hijacker }",
+                    "notCapturedReason": "missing type information"
+                  }
+                }
               },
               "r": {
                 "type": "*net/http.Request",
@@ -743,8 +778,13 @@
                     ]
                   },
                   "Body": {
-                    "type": "http.noBody",
-                    "notCapturedReason": "missing type information"
+                    "type": "io.ReadCloser",
+                    "fields": {
+                      "data": {
+                        "type": "http.noBody",
+                        "notCapturedReason": "missing type information"
+                      }
+                    }
                   },
                   "GetBody": {
                     "type": "func() (io.ReadCloser, error)",
@@ -807,8 +847,13 @@
                     "value": "/"
                   },
                   "ctx": {
-                    "type": "*context.valueCtx",
-                    "notCapturedReason": "missing type information"
+                    "type": "context.Context",
+                    "fields": {
+                      "data": {
+                        "type": "*context.valueCtx",
+                        "notCapturedReason": "missing type information"
+                      }
+                    }
                   },
                   "pat": {
                     "type": "*net/http.pattern",

@@ -69,8 +69,13 @@
                     "value": "5"
                   },
                   "writer": {
-                    "type": "io.discard",
-                    "notCapturedReason": "missing type information"
+                    "type": "io.Writer",
+                    "fields": {
+                      "data": {
+                        "type": "io.discard",
+                        "notCapturedReason": "missing type information"
+                      }
+                    }
                   }
                 }
               }
