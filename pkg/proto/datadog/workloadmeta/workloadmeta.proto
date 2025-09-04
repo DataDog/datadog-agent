@@ -198,7 +198,7 @@ message Language {
 }
 
 message Process {
-	WorkloadmetaEntityId entityId = 1;
+  WorkloadmetaEntityId entityId = 1;
   int32 pid = 2;
   int32 nspid = 3;
   int32 ppid = 4;
