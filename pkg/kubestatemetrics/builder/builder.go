@@ -456,17 +456,16 @@ func createConfigMapListWatch(metadataClient metadata.Interface, gvr schema.Grou
 	}
 }
 
-// createStoreForType creates the appropriate store type based on the expected type
+// Added this because we aren't receiving events for when a deployment or replica set is deleted
+// in the MetricFamilyGenerators.
 func createStoreForType(composedMetricGenFuncs func(interface{}) []metric.FamilyInterface, expectedType interface{}) cache.Store {
 	typeName := reflect.TypeOf(expectedType).String()
-	
+
 	// Use rollout-aware stores for deployments and replica sets
 	switch typeName {
 	case "*v1.Deployment":
-		log.Infof("ROLLOUT-BUILDER: Creating RolloutMetricsStore for deployments")
 		return store.NewRolloutMetricsStore(composedMetricGenFuncs, typeName, "deployments")
 	case "*v1.ReplicaSet":
-		log.Infof("ROLLOUT-BUILDER: Creating RolloutMetricsStore for replicasets")
 		return store.NewRolloutMetricsStore(composedMetricGenFuncs, typeName, "replicasets")
 	default:
 		// Use regular store for other types

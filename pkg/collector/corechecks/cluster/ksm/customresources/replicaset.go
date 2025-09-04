@@ -23,7 +23,6 @@ import (
 	generator "k8s.io/kube-state-metrics/v2/pkg/metric_generator"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // NewReplicaSetRolloutFactory returns a new ReplicaSet rollout factory that tracks ReplicaSet events for deployment rollouts
@@ -54,9 +53,6 @@ func (f *replicaSetRolloutFactory) MetricFamilyGenerators() []generator.FamilyGe
 			basemetrics.ALPHA,
 			"",
 			wrapReplicaSetFunc(func(rs *appsv1.ReplicaSet) *metric.Family {
-				// NOTE: Was trying to track deleted replicasets here, but we aren't getting events for when that happens.
-				log.Infof("ROLLOUT-REP: ReplicaSet %s/%s gen called", rs.Namespace, rs.Name)
-
 				// Store ReplicaSet info if it's owned by a Deployment
 				ownerName, ownerUID := f.getDeploymentOwner(rs)
 				if ownerName != "" && ownerUID != "" {

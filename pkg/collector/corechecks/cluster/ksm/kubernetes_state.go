@@ -462,15 +462,6 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 		return err
 	}
 
-	// Start periodic cleanup goroutine for rollout tracking maps
-	go func() {
-		ticker := time.NewTicker(2 * time.Minute)
-		defer ticker.Stop()
-
-		for range ticker.C {
-			customresources.PeriodicCleanup()
-		}
-	}()
 	return nil
 }
 
@@ -632,9 +623,6 @@ func (k *KSMCheck) Run() error {
 	// It's fast and safe to set it after we get the sender.
 	sender.SetCheckCustomTags(k.instance.Tags)
 
-	// Print current map contents for debugging
-	customresources.PrintMapContents()
-
 	// Do not fallback to the Agent hostname if the hostname corresponding to the KSM metric is unknown
 	// Note that by design, some metrics cannot have hostnames (e.g kubernetes_state.pod.unschedulable)
 	sender.DisableDefaultHostname(true)
@@ -652,7 +640,7 @@ func (k *KSMCheck) Run() error {
 			} else if rolloutStore, ok := store.(*ksmstore.RolloutMetricsStore); ok {
 				metricsStore = rolloutStore.MetricsStore
 			}
-			
+
 			if metricsStore != nil {
 				metrics := metricsStore.Push(k.familyFilter, k.metricFilter)
 				labelJoiner.insertFamilies(metrics)
@@ -669,7 +657,7 @@ func (k *KSMCheck) Run() error {
 			} else if rolloutStore, ok := store.(*ksmstore.RolloutMetricsStore); ok {
 				metricsStore = rolloutStore.MetricsStore
 			}
-			
+
 			if metricsStore != nil {
 				metrics := metricsStore.Push(ksmstore.GetAllFamilies, ksmstore.GetAllMetrics)
 				k.processMetrics(sender, metrics, labelJoiner, currentTime)

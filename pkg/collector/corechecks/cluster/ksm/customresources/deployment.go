@@ -9,7 +9,6 @@ package customresources
 
 import (
 	"context"
-	log "github.com/cihub/seelog"
 
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -54,20 +53,15 @@ func (f *deploymentRolloutFactory) MetricFamilyGenerators() []generator.FamilyGe
 			basemetrics.ALPHA,
 			"",
 			wrapDeploymentFunc(func(d *appsv1.Deployment) *metric.Family {
-				log.Info("ROLLOUT-DEP: Deployment gen")
-				// NOTE: Was trying to track deleted deployments here, but we aren't getting events for when that happens.
-
 				// Check if deployment has an ongoing rollout
 				isOngoing := d.Generation != d.Status.ObservedGeneration ||
 					(d.Spec.Replicas != nil && d.Status.ReadyReplicas != *d.Spec.Replicas)
 
 				if isOngoing {
-					log.Info("ROLLOUT-DEP: ongoing gen")
 					// Store deployment for rollout tracking
 					StoreDeployment(d)
 
 					// Return dummy metric with value 1 to trigger transformer
-					log.Info("ROLLOUT-DEP: returning gen")
 					return &metric.Family{
 						Metrics: []*metric.Metric{
 							{

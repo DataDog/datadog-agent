@@ -608,11 +608,8 @@ func removeSecretTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric
 
 // deploymentRolloutDurationTransformer calculates deployment rollout duration using stored ReplicaSet data
 func deploymentRolloutDurationTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
-	log.Infof("ROLLOUT-TRANS: Transformer called with metric value: %f, labels: %+v", metric.Val, metric.Labels)
-
 	// Only process ongoing rollouts (value 1), not completed ones (value 0)
 	if metric.Val != 1.0 {
-		log.Infof("ROLLOUT-TRANS: Skipping metric with value %f (not 1.0)", metric.Val)
 		return
 	}
 
@@ -620,17 +617,11 @@ func deploymentRolloutDurationTransformer(s sender.Sender, _ string, metric ksms
 	deploymentName, hasDeployment := metric.Labels["deployment"]
 
 	if !hasNamespace || !hasDeployment {
-		log.Infof("ROLLOUT-TRANS: Missing required labels - namespace: %v, deployment: %v", hasNamespace, hasDeployment)
 		return
 	}
 
-	log.Infof("ROLLOUT-TRANS: Calculating deployment rollout duration for deployment %s/%s", namespace, deploymentName)
-
 	// Calculate actual rollout duration using stored ReplicaSet data
 	duration := crs.GetDeploymentRolloutDurationFromMaps(namespace, deploymentName)
-	
-	log.Infof("ROLLOUT-TRANS: Calculated duration: %f seconds for deployment %s/%s", duration, namespace, deploymentName)
 
 	s.Gauge(ksmMetricPrefix+"deployment.rollout_duration", duration, hostname, tags)
-	log.Infof("ROLLOUT-TRANS: Sent metric kubernetes_state.deployment.rollout_duration with value %f", duration)
 }
