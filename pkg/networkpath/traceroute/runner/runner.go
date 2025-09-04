@@ -177,15 +177,15 @@ func (r *Runner) processResults(res *result.Results, protocol payload.Protocol, 
 			},
 		},
 		E2eProbe: payload.E2eProbe{
-			Rtts:                 slices.Clone(res.E2eProbe.Rtts),
+			RTTs:                 slices.Clone(res.E2eProbe.RTTs),
 			PacketsSent:          res.E2eProbe.PacketsSent,
 			PacketsReceived:      res.E2eProbe.PacketsReceived,
 			PacketLossPercentage: res.E2eProbe.PacketLossPercentage,
 			Jitter:               float64(res.E2eProbe.Jitter),
-			Rtt: payload.E2eProbeRttLatency{
-				Avg: res.E2eProbe.Rtt.Avg,
-				Min: res.E2eProbe.Rtt.Min,
-				Max: res.E2eProbe.Rtt.Max,
+			RTT: payload.E2eProbeRttLatency{
+				Avg: res.E2eProbe.RTT.Avg,
+				Min: res.E2eProbe.RTT.Min,
+				Max: res.E2eProbe.RTT.Max,
 			},
 		},
 		Tags: slices.Clone(res.Tags),
@@ -214,7 +214,7 @@ func (r *Runner) processResults(res *result.Results, protocol payload.Protocol, 
 			hops = append(hops, payload.TracerouteHop{
 				TTL:       hop.TTL,
 				IPAddress: hop.IPAddress,
-				Rtt:       hop.Rtt,
+				RTT:       hop.RTT,
 				Reachable: hop.Reachable,
 			})
 		}
@@ -255,7 +255,7 @@ func (r *Runner) processResults(res *result.Results, protocol payload.Protocol, 
 				TTL:       ttl,
 				IPAddress: hopname,
 				Hostname:  hostname,
-				Rtt:       hop.Rtt,
+				RTT:       hop.RTT,
 				Reachable: isReachable,
 			}
 			traceroutePath.Hops = append(traceroutePath.Hops, npHop)

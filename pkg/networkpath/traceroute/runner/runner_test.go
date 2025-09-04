@@ -77,7 +77,7 @@ func TestProcessResults(t *testing.T) {
 									IPAddress: net.ParseIP("10.0.0.1"),
 									ICMPType:  11,
 									ICMPCode:  0,
-									Rtt:       0.001, // seconds
+									RTT:       0.001, // seconds
 								},
 								{
 									IPAddress: net.IP{},
@@ -86,19 +86,19 @@ func TestProcessResults(t *testing.T) {
 									IPAddress: net.ParseIP("172.0.0.255"),
 									ICMPType:  11,
 									ICMPCode:  0,
-									Rtt:       0.003512345, // seconds
+									RTT:       0.003512345, // seconds
 								},
 							},
 						},
 					},
 				},
 				E2eProbe: result.E2eProbe{
-					Rtts:                 []float64{0.100, 0.200},
+					RTTs:                 []float64{0.100, 0.200},
 					PacketsSent:          10,
 					PacketsReceived:      5,
 					PacketLossPercentage: 0.5,
 					Jitter:               10,
-					Rtt: result.E2eProbeRttLatency{
+					RTT: result.E2eProbeRTT{
 						Avg: 15,
 						Min: 10,
 						Max: 20,
@@ -131,26 +131,26 @@ func TestProcessResults(t *testing.T) {
 							Hops: []payload.TracerouteHop{
 								{
 									IPAddress: net.ParseIP("10.0.0.1"),
-									Rtt:       0.001, // seconds
+									RTT:       0.001, // seconds
 								},
 								{
 									IPAddress: net.IP{},
 								},
 								{
 									IPAddress: net.ParseIP("172.0.0.255"),
-									Rtt:       0.003512345, // seconds
+									RTT:       0.003512345, // seconds
 								},
 							},
 						},
 					},
 				},
 				E2eProbe: payload.E2eProbe{
-					Rtts:                 []float64{0.100, 0.200},
+					RTTs:                 []float64{0.100, 0.200},
 					PacketsSent:          10,
 					PacketsReceived:      5,
 					PacketLossPercentage: 0.5,
 					Jitter:               10,
-					Rtt: payload.E2eProbeRttLatency{
+					RTT: payload.E2eProbeRttLatency{
 						Avg: 15,
 						Min: 10,
 						Max: 20,
@@ -161,21 +161,21 @@ func TestProcessResults(t *testing.T) {
 						TTL:       1,
 						IPAddress: "10.0.0.1",
 						Hostname:  "10.0.0.1",
-						Rtt:       0.001,
+						RTT:       0.001,
 						Reachable: true,
 					},
 					{
 						TTL:       2,
 						IPAddress: "unknown_hop_2",
 						Hostname:  "unknown_hop_2",
-						Rtt:       0,
+						RTT:       0,
 						Reachable: false,
 					},
 					{
 						TTL:       3,
 						IPAddress: "172.0.0.255",
 						Hostname:  "172.0.0.255",
-						Rtt:       0.003512345,
+						RTT:       0.003512345,
 						Reachable: true,
 					},
 				},
@@ -207,7 +207,7 @@ func TestProcessResults(t *testing.T) {
 									IPAddress: net.ParseIP("10.0.0.1"),
 									ICMPType:  11,
 									ICMPCode:  0,
-									Rtt:       0.001, // seconds
+									RTT:       0.001, // seconds
 								},
 								{
 									IPAddress: net.IP{},
@@ -216,7 +216,7 @@ func TestProcessResults(t *testing.T) {
 									IPAddress: net.ParseIP("172.0.0.255"),
 									ICMPType:  11,
 									ICMPCode:  0,
-									Rtt:       0.003512345, // seconds
+									RTT:       0.003512345, // seconds
 								},
 							},
 						},
@@ -248,14 +248,14 @@ func TestProcessResults(t *testing.T) {
 							Hops: []payload.TracerouteHop{
 								{
 									IPAddress: net.ParseIP("10.0.0.1"),
-									Rtt:       0.001, // seconds
+									RTT:       0.001, // seconds
 								},
 								{
 									IPAddress: net.IP{},
 								},
 								{
 									IPAddress: net.ParseIP("172.0.0.255"),
-									Rtt:       0.003512345, // seconds
+									RTT:       0.003512345, // seconds
 								},
 							},
 						},
@@ -266,21 +266,21 @@ func TestProcessResults(t *testing.T) {
 						TTL:       1,
 						IPAddress: "10.0.0.1",
 						Hostname:  "10.0.0.1",
-						Rtt:       0.001,
+						RTT:       0.001,
 						Reachable: true,
 					},
 					{
 						TTL:       2,
 						IPAddress: "unknown_hop_2",
 						Hostname:  "unknown_hop_2",
-						Rtt:       0,
+						RTT:       0,
 						Reachable: false,
 					},
 					{
 						TTL:       3,
 						IPAddress: "172.0.0.255",
 						Hostname:  "172.0.0.255",
-						Rtt:       0.003512345,
+						RTT:       0.003512345,
 						Reachable: true,
 					},
 				},
@@ -312,7 +312,7 @@ func TestProcessResults(t *testing.T) {
 									IPAddress: net.ParseIP("10.0.0.1"),
 									ICMPType:  11,
 									ICMPCode:  0,
-									Rtt:       0.001, // 1ms
+									RTT:       0.001, // 1ms
 								},
 								{
 									IPAddress: net.IP{},
@@ -321,7 +321,7 @@ func TestProcessResults(t *testing.T) {
 									IPAddress: net.ParseIP("172.0.0.255"),
 									ICMPType:  11,
 									ICMPCode:  0,
-									Rtt:       0.04, // 40ms
+									RTT:       0.04, // 40ms
 								},
 							},
 						},
@@ -358,14 +358,14 @@ func TestProcessResults(t *testing.T) {
 							Hops: []payload.TracerouteHop{
 								{
 									IPAddress: net.ParseIP("10.0.0.1"),
-									Rtt:       0.001, // 1ms
+									RTT:       0.001, // 1ms
 								},
 								{
 									IPAddress: net.IP{},
 								},
 								{
 									IPAddress: net.ParseIP("172.0.0.255"),
-									Rtt:       0.04, // 40ms
+									RTT:       0.04, // 40ms
 								},
 							},
 						},
@@ -376,21 +376,21 @@ func TestProcessResults(t *testing.T) {
 						TTL:       1,
 						IPAddress: "10.0.0.1",
 						Hostname:  "10.0.0.1",
-						Rtt:       0.001,
+						RTT:       0.001,
 						Reachable: true,
 					},
 					{
 						TTL:       2,
 						IPAddress: "unknown_hop_2",
 						Hostname:  "unknown_hop_2",
-						Rtt:       0,
+						RTT:       0,
 						Reachable: false,
 					},
 					{
 						TTL:       3,
 						IPAddress: "172.0.0.255",
 						Hostname:  "172.0.0.255",
-						Rtt:       0.040,
+						RTT:       0.040,
 						Reachable: true,
 					},
 				},
@@ -422,7 +422,7 @@ func TestProcessResults(t *testing.T) {
 									IPAddress: net.ParseIP("10.0.0.1"),
 									ICMPType:  11,
 									ICMPCode:  0,
-									Rtt:       0.001, // 1ms
+									RTT:       0.001, // 1ms
 								},
 								{
 									IPAddress: net.IP{},
@@ -431,12 +431,12 @@ func TestProcessResults(t *testing.T) {
 									IPAddress: net.ParseIP("172.0.0.255"),
 									ICMPType:  11,
 									ICMPCode:  0,
-									Rtt:       0.08, // 80ms
+									RTT:       0.08, // 80ms
 								},
 								{
 									IPAddress: net.ParseIP("8.8.8.8"),
 									Port:      443,
-									Rtt:       0.120,
+									RTT:       0.120,
 								},
 							},
 						},
@@ -473,18 +473,18 @@ func TestProcessResults(t *testing.T) {
 							Hops: []payload.TracerouteHop{
 								{
 									IPAddress: net.ParseIP("10.0.0.1"),
-									Rtt:       0.001, // 1ms
+									RTT:       0.001, // 1ms
 								},
 								{
 									IPAddress: net.IP{},
 								},
 								{
 									IPAddress: net.ParseIP("172.0.0.255"),
-									Rtt:       0.08, // 80ms
+									RTT:       0.08, // 80ms
 								},
 								{
 									IPAddress: net.ParseIP("8.8.8.8"),
-									Rtt:       0.120,
+									RTT:       0.120,
 								},
 							},
 						},
@@ -495,28 +495,28 @@ func TestProcessResults(t *testing.T) {
 						TTL:       1,
 						IPAddress: "10.0.0.1",
 						Hostname:  "10.0.0.1",
-						Rtt:       0.001,
+						RTT:       0.001,
 						Reachable: true,
 					},
 					{
 						TTL:       2,
 						IPAddress: "unknown_hop_2",
 						Hostname:  "unknown_hop_2",
-						Rtt:       0,
+						RTT:       0,
 						Reachable: false,
 					},
 					{
 						TTL:       3,
 						IPAddress: "172.0.0.255",
 						Hostname:  "172.0.0.255",
-						Rtt:       0.08,
+						RTT:       0.08,
 						Reachable: true,
 					},
 					{
 						TTL:       4,
 						IPAddress: "8.8.8.8",
 						Hostname:  "8.8.8.8",
-						Rtt:       0.12,
+						RTT:       0.12,
 						Reachable: true,
 					},
 				},

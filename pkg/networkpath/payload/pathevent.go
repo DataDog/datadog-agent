@@ -112,7 +112,7 @@ type NetworkPathHop struct {
 	// TODO (separate PR): we might want to rename it to reverse_dns_hostname for consistency with destination.reverse_dns_hostname
 	Hostname string `json:"hostname,omitempty"`
 
-	Rtt       float64 `json:"rtt,omitempty"` // ms
+	RTT       float64 `json:"rtt,omitempty"` // ms
 	Reachable bool    `json:"reachable"`
 }
 
@@ -142,12 +142,12 @@ type NetworkPathDestination struct {
 
 // E2eProbe contains e2e probe results
 type E2eProbe struct {
-	Rtts                 []float64          `json:"rtts"` // ms
+	RTTs                 []float64          `json:"rtts"` // ms
 	PacketsSent          int                `json:"packets_sent"`
 	PacketsReceived      int                `json:"packets_received"`
 	PacketLossPercentage float32            `json:"packet_loss_percentage"`
 	Jitter               float64            `json:"jitter"` // ms
-	Rtt                  E2eProbeRttLatency `json:"rtt"`    // ms
+	RTT                  E2eProbeRttLatency `json:"rtt"`    // ms
 }
 
 // E2eProbeRttLatency contains e2e latency stats
@@ -184,7 +184,7 @@ type TracerouteHop struct {
 	TTL        int     `json:"ttl"`
 	IPAddress  net.IP  `json:"ip_address"`
 	ReverseDns string  `json:"reverse_dns,omitempty"`
-	Rtt        float64 `json:"rtt,omitempty"`
+	RTT        float64 `json:"rtt,omitempty"`
 	Reachable  bool    `json:"reachable"`
 }
 
