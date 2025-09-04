@@ -48,7 +48,7 @@ def run(
     jq='auto',
     query='.errors // .data',
     timeout: float = 600.0,
-    ignore_timeout: bool = False,
+    ignore_timeout_error: bool = False,
 ):
     """Triggers the agent-ci-api service.
 
