@@ -26,6 +26,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// Loader abstracts the loading of object files.
+type Loader interface {
+	Load(path string) (FileWithDwarf, error)
+}
+
 // DiskCacheConfig is the configuration for a DiskCache.
 type DiskCacheConfig struct {
 	// DirPath is the directory to store cached sections.
