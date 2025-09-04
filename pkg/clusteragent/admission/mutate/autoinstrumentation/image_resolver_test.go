@@ -17,10 +17,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // mockRCClient is a lightweight mock that implements RemoteConfigClient
@@ -106,7 +107,14 @@ func TestNewImageResolver(t *testing.T) {
 		assert.True(t, ok, "Should return remoteConfigImageResolver when rcClient is not nil")
 	})
 
-	t.Run("without_remote_config_client", func(t *testing.T) {
+	t.Run("without_remote_config_client__typed_nil", func(t *testing.T) {
+		resolver := NewImageResolver((*mockRCClient)(nil))
+
+		_, ok := resolver.(*noOpImageResolver)
+		assert.True(t, ok, "Should return noOpImageResolver when rcClient is nil")
+	})
+
+	t.Run("without_remote_config_client__untyped_nil", func(t *testing.T) {
 		resolver := NewImageResolver(nil)
 
 		_, ok := resolver.(*noOpImageResolver)

@@ -10,6 +10,7 @@ package autoinstrumentation
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -256,9 +257,9 @@ type ResolvedImage struct {
 // NewImageResolver creates the appropriate ImageResolver based on whether
 // a remote config client is available.
 func NewImageResolver(rcClient RemoteConfigClient) ImageResolver {
-	if rcClient != nil {
-		return newRemoteConfigImageResolver(rcClient)
+	if rcClient == nil || reflect.ValueOf(rcClient).IsNil() {
+		log.Debugf("No remote config client available")
+		return newNoOpImageResolver()
 	}
-	log.Debugf("No remote config client available")
-	return newNoOpImageResolver()
+	return newRemoteConfigImageResolver(rcClient)
 }
