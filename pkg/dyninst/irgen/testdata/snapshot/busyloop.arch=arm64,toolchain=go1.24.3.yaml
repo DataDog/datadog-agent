@@ -11,7 +11,7 @@ Probes:
       events:
         - ID: 1
           Type: 36 EventRootType Probe[main.noop]
-          InjectionPoints: [{PC: 741744, Frameless: true}]
+          InjectionPoints: [{PC: "0xb5170", Frameless: true}]
           Condition: null
 Subprograms:
     - ID: 1
@@ -20,75 +20,6 @@ Subprograms:
       InlinePCRanges: []
       Variables: []
 Types:
-    - __kind: BaseType
-      ID: 1
-      Name: uintptr
-      ByteSize: 8
-      GoRuntimeType: 41280
-      GoKind: 12
-    - __kind: BaseType
-      ID: 2
-      Name: uint32
-      ByteSize: 4
-      GoRuntimeType: 40960
-      GoKind: 10
-    - __kind: BaseType
-      ID: 3
-      Name: uint8
-      ByteSize: 1
-      GoRuntimeType: 40704
-      GoKind: 8
-    - __kind: BaseType
-      ID: 4
-      Name: bool
-      ByteSize: 1
-      GoRuntimeType: 41600
-      GoKind: 1
-    - __kind: PointerType
-      ID: 5
-      Name: '*uint8'
-      ByteSize: 8
-      GoRuntimeType: 28320
-      GoKind: 22
-      Pointee: 3 BaseType uint8
-    - __kind: BaseType
-      ID: 6
-      Name: uint16
-      ByteSize: 2
-      GoRuntimeType: 40832
-      GoKind: 9
-    - __kind: BaseType
-      ID: 7
-      Name: int
-      ByteSize: 8
-      GoRuntimeType: 41152
-      GoKind: 2
-    - __kind: BaseType
-      ID: 8
-      Name: uint64
-      ByteSize: 8
-      GoRuntimeType: 41088
-      GoKind: 11
-    - __kind: GoStringHeaderType
-      ID: 9
-      Name: string
-      ByteSize: 16
-      GoRuntimeType: 40576
-      GoKind: 24
-      RawFields:
-        - Name: str
-          Offset: 0
-          Type: 35 PointerType *string.str
-        - Name: len
-          Offset: 8
-          Type: 7 BaseType int
-      Data: 34 GoStringDataType string.str
-    - __kind: BaseType
-      ID: 10
-      Name: uint
-      ByteSize: 8
-      GoRuntimeType: 41216
-      GoKind: 7
     - __kind: PointerType
       ID: 11
       Name: '*bool'
@@ -96,129 +27,6 @@ Types:
       GoRuntimeType: 29216
       GoKind: 22
       Pointee: 4 BaseType bool
-    - __kind: BaseType
-      ID: 12
-      Name: int32
-      ByteSize: 4
-      GoRuntimeType: 40896
-      GoKind: 5
-    - __kind: BaseType
-      ID: 13
-      Name: int64
-      ByteSize: 8
-      GoRuntimeType: 41024
-      GoKind: 6
-    - __kind: GoInterfaceType
-      ID: 14
-      Name: error
-      ByteSize: 16
-      GoRuntimeType: 61984
-      GoKind: 20
-      RawFields:
-        - Name: tab
-          Offset: 0
-          Type: 15 VoidPointerType unsafe.Pointer
-        - Name: data
-          Offset: 8
-          Type: 15 VoidPointerType unsafe.Pointer
-    - __kind: VoidPointerType
-      ID: 15
-      Name: unsafe.Pointer
-      ByteSize: 8
-      GoRuntimeType: 41664
-      GoKind: 26
-    - __kind: BaseType
-      ID: 16
-      Name: int8
-      ByteSize: 1
-      GoRuntimeType: 40640
-      GoKind: 3
-    - __kind: BaseType
-      ID: 17
-      Name: float32
-      ByteSize: 4
-      GoRuntimeType: 41472
-      GoKind: 13
-    - __kind: BaseType
-      ID: 18
-      Name: float64
-      ByteSize: 8
-      GoRuntimeType: 41536
-      GoKind: 14
-    - __kind: PointerType
-      ID: 19
-      Name: '*uintptr'
-      ByteSize: 8
-      GoRuntimeType: 28896
-      GoKind: 22
-      Pointee: 1 BaseType uintptr
-    - __kind: PointerType
-      ID: 20
-      Name: '*int32'
-      ByteSize: 8
-      GoRuntimeType: 28512
-      GoKind: 22
-      Pointee: 12 BaseType int32
-    - __kind: PointerType
-      ID: 21
-      Name: '*uint32'
-      ByteSize: 8
-      GoRuntimeType: 28576
-      GoKind: 22
-      Pointee: 2 BaseType uint32
-    - __kind: PointerType
-      ID: 22
-      Name: '*string'
-      ByteSize: 8
-      GoRuntimeType: 28192
-      GoKind: 22
-      Pointee: 9 GoStringHeaderType string
-    - __kind: BaseType
-      ID: 23
-      Name: int16
-      ByteSize: 2
-      GoRuntimeType: 40768
-      GoKind: 4
-    - __kind: BaseType
-      ID: 24
-      Name: complex64
-      ByteSize: 8
-      GoRuntimeType: 41344
-      GoKind: 15
-    - __kind: BaseType
-      ID: 25
-      Name: complex128
-      ByteSize: 16
-      GoRuntimeType: 41408
-      GoKind: 16
-    - __kind: PointerType
-      ID: 26
-      Name: '*float64'
-      ByteSize: 8
-      GoRuntimeType: 29152
-      GoKind: 22
-      Pointee: 18 BaseType float64
-    - __kind: PointerType
-      ID: 27
-      Name: '*int64'
-      ByteSize: 8
-      GoRuntimeType: 28640
-      GoKind: 22
-      Pointee: 13 BaseType int64
-    - __kind: PointerType
-      ID: 28
-      Name: '*int'
-      ByteSize: 8
-      GoRuntimeType: 28768
-      GoKind: 22
-      Pointee: 7 BaseType int
-    - __kind: PointerType
-      ID: 29
-      Name: '*uint64'
-      ByteSize: 8
-      GoRuntimeType: 28704
-      GoKind: 22
-      Pointee: 8 BaseType uint64
     - __kind: PointerType
       ID: 30
       Name: '*error'
@@ -234,6 +42,46 @@ Types:
       GoKind: 22
       Pointee: 17 BaseType float32
     - __kind: PointerType
+      ID: 26
+      Name: '*float64'
+      ByteSize: 8
+      GoRuntimeType: 29152
+      GoKind: 22
+      Pointee: 18 BaseType float64
+    - __kind: PointerType
+      ID: 28
+      Name: '*int'
+      ByteSize: 8
+      GoRuntimeType: 28768
+      GoKind: 22
+      Pointee: 7 BaseType int
+    - __kind: PointerType
+      ID: 20
+      Name: '*int32'
+      ByteSize: 8
+      GoRuntimeType: 28512
+      GoKind: 22
+      Pointee: 12 BaseType int32
+    - __kind: PointerType
+      ID: 27
+      Name: '*int64'
+      ByteSize: 8
+      GoRuntimeType: 28640
+      GoKind: 22
+      Pointee: 13 BaseType int64
+    - __kind: PointerType
+      ID: 22
+      Name: '*string'
+      ByteSize: 8
+      GoRuntimeType: 28192
+      GoKind: 22
+      Pointee: 9 GoStringHeaderType string
+    - __kind: PointerType
+      ID: 35
+      Name: '*string.str'
+      ByteSize: 8
+      Pointee: 34 GoStringDataType string.str
+    - __kind: PointerType
       ID: 32
       Name: '*uint'
       ByteSize: 8
@@ -247,18 +95,170 @@ Types:
       GoRuntimeType: 28448
       GoKind: 22
       Pointee: 6 BaseType uint16
+    - __kind: PointerType
+      ID: 21
+      Name: '*uint32'
+      ByteSize: 8
+      GoRuntimeType: 28576
+      GoKind: 22
+      Pointee: 2 BaseType uint32
+    - __kind: PointerType
+      ID: 29
+      Name: '*uint64'
+      ByteSize: 8
+      GoRuntimeType: 28704
+      GoKind: 22
+      Pointee: 8 BaseType uint64
+    - __kind: PointerType
+      ID: 5
+      Name: '*uint8'
+      ByteSize: 8
+      GoRuntimeType: 28320
+      GoKind: 22
+      Pointee: 3 BaseType uint8
+    - __kind: PointerType
+      ID: 19
+      Name: '*uintptr'
+      ByteSize: 8
+      GoRuntimeType: 28896
+      GoKind: 22
+      Pointee: 1 BaseType uintptr
+    - __kind: EventRootType
+      ID: 36
+      Name: Probe[main.noop]
+    - __kind: BaseType
+      ID: 4
+      Name: bool
+      ByteSize: 1
+      GoRuntimeType: 41600
+      GoKind: 1
+    - __kind: BaseType
+      ID: 25
+      Name: complex128
+      ByteSize: 16
+      GoRuntimeType: 41408
+      GoKind: 16
+    - __kind: BaseType
+      ID: 24
+      Name: complex64
+      ByteSize: 8
+      GoRuntimeType: 41344
+      GoKind: 15
+    - __kind: GoInterfaceType
+      ID: 14
+      Name: error
+      ByteSize: 16
+      GoRuntimeType: 61984
+      GoKind: 20
+      RawFields:
+        - Name: tab
+          Offset: 0
+          Type: 15 VoidPointerType unsafe.Pointer
+        - Name: data
+          Offset: 8
+          Type: 15 VoidPointerType unsafe.Pointer
+    - __kind: BaseType
+      ID: 17
+      Name: float32
+      ByteSize: 4
+      GoRuntimeType: 41472
+      GoKind: 13
+    - __kind: BaseType
+      ID: 18
+      Name: float64
+      ByteSize: 8
+      GoRuntimeType: 41536
+      GoKind: 14
+    - __kind: BaseType
+      ID: 7
+      Name: int
+      ByteSize: 8
+      GoRuntimeType: 41152
+      GoKind: 2
+    - __kind: BaseType
+      ID: 23
+      Name: int16
+      ByteSize: 2
+      GoRuntimeType: 40768
+      GoKind: 4
+    - __kind: BaseType
+      ID: 12
+      Name: int32
+      ByteSize: 4
+      GoRuntimeType: 40896
+      GoKind: 5
+    - __kind: BaseType
+      ID: 13
+      Name: int64
+      ByteSize: 8
+      GoRuntimeType: 41024
+      GoKind: 6
+    - __kind: BaseType
+      ID: 16
+      Name: int8
+      ByteSize: 1
+      GoRuntimeType: 40640
+      GoKind: 3
+    - __kind: GoStringHeaderType
+      ID: 9
+      Name: string
+      ByteSize: 16
+      GoRuntimeType: 40576
+      GoKind: 24
+      RawFields:
+        - Name: str
+          Offset: 0
+          Type: 35 PointerType *string.str
+        - Name: len
+          Offset: 8
+          Type: 7 BaseType int
+      Data: 34 GoStringDataType string.str
     - __kind: GoStringDataType
       ID: 34
       Name: string.str
       ByteSize: 2048
-    - __kind: PointerType
-      ID: 35
-      Name: '*string.str'
+    - __kind: BaseType
+      ID: 10
+      Name: uint
       ByteSize: 8
-      Pointee: 34 GoStringDataType string.str
-    - __kind: EventRootType
-      ID: 36
-      Name: Probe[main.noop]
+      GoRuntimeType: 41216
+      GoKind: 7
+    - __kind: BaseType
+      ID: 6
+      Name: uint16
+      ByteSize: 2
+      GoRuntimeType: 40832
+      GoKind: 9
+    - __kind: BaseType
+      ID: 2
+      Name: uint32
+      ByteSize: 4
+      GoRuntimeType: 40960
+      GoKind: 10
+    - __kind: BaseType
+      ID: 8
+      Name: uint64
+      ByteSize: 8
+      GoRuntimeType: 41088
+      GoKind: 11
+    - __kind: BaseType
+      ID: 3
+      Name: uint8
+      ByteSize: 1
+      GoRuntimeType: 40704
+      GoKind: 8
+    - __kind: BaseType
+      ID: 1
+      Name: uintptr
+      ByteSize: 8
+      GoRuntimeType: 41280
+      GoKind: 12
+    - __kind: VoidPointerType
+      ID: 15
+      Name: unsafe.Pointer
+      ByteSize: 8
+      GoRuntimeType: 41664
+      GoKind: 26
 MaxTypeID: 36
 Issues: []
 GoModuledataInfo: {FirstModuledataAddr: "0x191360", TypesOffset: 296}
