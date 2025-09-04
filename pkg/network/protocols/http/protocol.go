@@ -142,6 +142,14 @@ func newHTTPProtocol(mgr *manager.Manager, cfg *config.Config) (protocols.Protoc
 
 // Modifiers implements the ModifierProvider interface
 func (p *protocol) Modifiers() []ddebpf.Modifier {
+	if p.consumer == nil {
+		// BatchConsumer case: consumer created in PreStart(), return empty modifiers for now
+		if !p.useDirectConsumer {
+			return []ddebpf.Modifier{}
+		}
+		// This shouldn't happen for DirectConsumer, but return empty as fallback
+		return []ddebpf.Modifier{}
+	}
 	return p.consumer.Modifiers()
 }
 
@@ -187,6 +195,18 @@ func (p *protocol) ConfigureOptions(opts *manager.Options) {
 }
 
 func (p *protocol) PreStart() (err error) {
+	// If using BatchConsumer, create it now (after manager initialization)
+	if !p.useDirectConsumer {
+		batchConsumer, err := events.NewBatchConsumer("http", p.mgr, p.processHTTP)
+		if err != nil {
+			return err
+		}
+		p.consumer = events.NewKernelAdaptiveConsumer[EbpfEvent](
+			batchConsumer,
+			[]ddebpf.Modifier{}, // BatchConsumer needs no modifiers
+		)
+	}
+
 	p.statkeeper = NewStatkeeper(p.cfg, p.telemetry, NewIncompleteBuffer(p.cfg, p.telemetry))
 
 	// Start the consumer (works for both DirectConsumer and BatchConsumer)
@@ -295,8 +315,8 @@ func (p *protocol) createAdaptiveConsumer() error {
 		return err
 	}
 
-	if kernelVersion >= kernel.VersionCode(5, 4, 0) {
-		// Use DirectConsumer for kernel ≥5.4 (supports bpf_perf_event_output in socket filters)
+	if kernelVersion >= kernel.VersionCode(5, 8, 0) {
+		// Use DirectConsumer for kernel ≥5.8 (supports bpf_perf_event_output in socket filters)
 		directConsumer, err := events.NewDirectConsumer("http", p.processHTTPDirect, p.cfg)
 		if err != nil {
 			return err
@@ -307,15 +327,8 @@ func (p *protocol) createAdaptiveConsumer() error {
 		)
 		p.useDirectConsumer = true
 	} else {
-		// Use BatchConsumer for kernel <5.4 (avoid bpf_perf_event_output issue)
-		batchConsumer, err := events.NewBatchConsumer("http", p.mgr, p.processHTTP)
-		if err != nil {
-			return err
-		}
-		p.consumer = events.NewKernelAdaptiveConsumer[EbpfEvent](
-			batchConsumer,
-			[]ddebpf.Modifier{}, // BatchConsumer needs no modifiers
-		)
+		// BatchConsumer will be created in PreStart() after manager initialization
+		// to avoid "manager must be initialized first" error
 		p.useDirectConsumer = false
 	}
 
