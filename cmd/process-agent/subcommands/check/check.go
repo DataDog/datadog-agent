@@ -206,6 +206,8 @@ func RunCheckCmd(deps Dependencies) error {
 		}
 	}()
 
+	// Wait for Workloadmeta to be initialized otherwise results may be empty as this is a hard dependency
+	// for some checks
 	waitForWorkloadMeta(deps.Log, deps.WorkloadMeta)
 
 	names := make([]string, 0, len(deps.Checks))
