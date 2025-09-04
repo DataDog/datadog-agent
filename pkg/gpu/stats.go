@@ -61,7 +61,7 @@ func (g *statsGenerator) getStats(nowKtime int64) (*model.GPUStats, error) {
 		aggr.isActive = false
 	}
 
-	for handler := range g.streamHandlers.allStreams() {
+	for _, handler := range g.streamHandlers.allStreams() {
 		aggr, err := g.getOrCreateAggregator(handler.metadata)
 		if err != nil {
 			log.Errorf("Error getting or creating aggregator for handler metadata %v: %s", handler.metadata, err)

@@ -122,6 +122,12 @@ Package autodiscovery provides the autodiscovery component for the Datadog Agent
 Package config implements a component to handle agent configuration.  This
 component temporarily wraps pkg/config.
 
+### [comp/core/configstream](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/configstream)
+
+*Datadog Team*: agent-metric-pipelines agent-configuration
+
+Package configstream implements a component to handle streaming configuration events to subscribers.
+
 ### [comp/core/configsync](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/configsync)
 
 *Datadog Team*: agent-configuration
@@ -298,7 +304,7 @@ Package orchestratorinterface defines the interface for the orchestrator forward
 
 *Datadog Team*: agent-log-pipelines
 
-
+Package logs provides the logs component bundle
 
 ### [comp/logs/adscheduler](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs/adscheduler)
 

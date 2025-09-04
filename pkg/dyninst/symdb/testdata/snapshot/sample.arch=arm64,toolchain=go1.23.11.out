@@ -108,11 +108,33 @@ Package: main
 		Arg: a: int (declared at line 93, available: [93-93])
 		Arg: b: error (declared at line 93, available: [93-93])
 		Arg: c: uint (declared at line 93, available: [93-93])
-	Function: executeComplexFuncs (main.executeComplexFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go [96:146]
-		Var: o: main.outer (declared at line 97, available: )
-		Var: s: []*string (declared at line 108, available: )
-		Var: str: string (declared at line 107, available: [96-146])
-		Var: circ: main.circularReferenceType (declared at line 129, available: [96-146])
+	Function: init.0 (main.init.0) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go [113:113]
+	Function: testDeepPtr1 (main.testDeepPtr1) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go [116:116]
+		Arg: a: main.deepPtr1 (declared at line 116, available: [116-116])
+	Function: testDeepPtr7 (main.testDeepPtr7) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go [119:119]
+		Arg: a: *main.deepPtr7 (declared at line 119, available: [119-119])
+	Function: init.1 (main.init.1) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go [139:139]
+	Function: testDeepSlice1 (main.testDeepSlice1) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go [142:142]
+		Arg: a: main.deepSlice1 (declared at line 142, available: [142-142])
+	Function: testDeepSlice7 (main.testDeepSlice7) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go [145:145]
+		Arg: a: *main.deepSlice7 (declared at line 145, available: [145-145])
+	Function: init.2 (main.init.2) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go [177:177]
+	Function: testDeepMap1 (main.testDeepMap1) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go [180:180]
+		Arg: a: main.deepMap1 (declared at line 180, available: [180-180])
+	Function: testDeepMap7 (main.testDeepMap7) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go [183:183]
+		Arg: a: *main.deepMap7 (declared at line 183, available: [183-183])
+	Function: testStringType1 (main.testStringType1) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go [194:194]
+		Arg: a: *main.stringType1 (declared at line 194, available: [194-194])
+	Function: testStringType2 (main.testStringType2) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go [200:200]
+		Arg: a: **main.stringType2 (declared at line 200, available: [200-200])
+	Function: executeComplexFuncs (main.executeComplexFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go [203:267]
+		Var: o: main.outer (declared at line 204, available: )
+		Var: s: []*string (declared at line 215, available: )
+		Var: str: string (declared at line 214, available: [203-267])
+		Var: circ: main.circularReferenceType (declared at line 236, available: [203-267])
+		Var: s1: main.stringType1 (declared at line 262, available: [257-267])
+		Var: s2: main.stringType2 (declared at line 263, available: [257-267])
+		Var: s2p: *main.stringType2 (declared at line 264, available: [257-267])
 	Function: testEsotericStack (main.testEsotericStack) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/esoteric.go [42:44]
 		Arg: e: main.esotericStack (declared at line 42, available: [42-43])
 	Function: testEsotericHeap (main.testEsotericHeap) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/esoteric.go [47:49]
@@ -156,16 +178,18 @@ Package: main
 		Var: x: int (declared at line 99, available: )
 		Var: y: int (declared at line 100, available: [97-106])
 		Var: a: [5]int (declared at line 98, available: [97-106])
-	Function: testInterface (main.testInterface) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go [48:55]
-		Arg: b: main.behavior (declared at line 48, available: [48-51])
-		Arg: ~r0: string (declared at line 48, available: )
-		Var: hash: string (declared at line 51, available: [48-55])
-		Var: inter: string (declared at line 52, available: [48-55])
-		Var: iType: string (declared at line 53, available: [48-55])
-		Var: iFun: string (declared at line 54, available: [48-48], [55-55])
-	Function: testError (main.testError) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go [60:60]
-		Arg: e: error (declared at line 60, available: [60-60])
-	Function: executeInterfaceFuncs (main.executeInterfaceFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go [63:67]
+	Function: testInterface (main.testInterface) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go [50:51]
+		Arg: b: main.behavior (declared at line 50, available: [50-51])
+		Arg: ~r0: string (declared at line 50, available: )
+	Function: testAny (main.testAny) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go [56:57]
+		Arg: a: interface {} (declared at line 56, available: [56-57])
+		Arg: ~r0: string (declared at line 56, available: )
+	Function: testError (main.testError) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go [62:62]
+		Arg: e: error (declared at line 62, available: [62-62])
+	Function: executeInterfaceFuncs (main.executeInterfaceFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go [65:83]
+		Var: &one: *int (declared at line 76, available: [65-83])
+		Var: &foo: *string (declared at line 79, available: [65-83])
+		Var: .autotmp_8: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2.V2Type (declared at line 74, available: [65-83])
 	Function: main (main.main) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go [19:48]
 		Var: scanner: *bufio.Scanner (declared at line 23, available: )
 		Var: t: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2.V2Type (declared at line 39, available: [19-48])
@@ -537,6 +561,18 @@ Package: main
 		Field: writer: io.Writer
 	Type: main.circularReferenceType
 		Field: t: *main.circularReferenceType
+	Type: main.deepPtr1
+		Field: a: *main.deepPtr2
+	Type: main.deepPtr7
+		Field: a: *main.deepPtr8
+	Type: main.deepSlice1
+		Field: a: []*main.deepSlice2
+	Type: main.deepSlice7
+		Field: a: []*main.deepSlice8
+	Type: main.deepMap1
+		Field: a: map[int]*main.deepMap2
+	Type: main.deepMap7
+		Field: a: map[int]*main.deepMap8
 	Type: main.somethingImpl
 		Function: Do (main.(*somethingImpl).Do) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/esoteric.go [21:21]
 			Arg: s: *main.somethingImpl (declared at line 21, available: [21-21])
@@ -556,12 +592,12 @@ Package: main
 		Field: a: sync/atomic.Int32
 	Type: main.firstBehavior
 		Field: s: string
-		Function: DoSomething (main.firstBehavior.DoSomething) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go [26:27]
-			Arg: b: main.firstBehavior (declared at line 0, available: [26-27])
+		Function: DoSomething (main.firstBehavior.DoSomething) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go [28:29]
+			Arg: b: main.firstBehavior (declared at line 0, available: [28-29])
 	Type: main.secondBehavior
 		Field: i: int
-		Function: DoSomething (main.secondBehavior.DoSomething) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go [30:31]
-			Arg: b: main.secondBehavior (declared at line 0, available: [30-31])
+		Function: DoSomething (main.secondBehavior.DoSomething) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go [32:33]
+			Arg: b: main.secondBehavior (declared at line 0, available: [32-33])
 	Type: main.structWithMap
 		Field: m: map[int]int
 	Type: main.node
@@ -687,5 +723,7 @@ Package: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib
 Package: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2
 	Function: FooV2 (github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib%2ev2.FooV2) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2/lib.go [17:18]
 	Type: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2.V2Type
+		Function: MyMethod (github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib%2ev2.(*V2Type).MyMethod) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2/lib.go [22:24]
+			Arg: v: *github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib%2ev2.V2Type (declared at line 22, available: [22-23])
 		Function: MyMethod (github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib%2ev2.(*V2Type).MyMethod) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2/lib.go [22:23]
 			Arg: v: *github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib%2ev2.V2Type (declared at line 0, available: )
