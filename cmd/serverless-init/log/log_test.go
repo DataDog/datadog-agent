@@ -49,3 +49,15 @@ func TestIsInstanceTailingEnabled(t *testing.T) {
 	t.Setenv("DD_AAS_INSTANCE_LOGGING_ENABLED", "")
 	assert.False(t, isInstanceTailingEnabled())
 }
+
+func TestSetAasInstanceTailingPath(t *testing.T) {
+	t.Setenv("COMPUTERNAME", "testInstance")
+	// Default path
+	t.Setenv("DD_AAS_INSTANCE_LOGGING_ENABLED", "true")
+	t.Setenv("DD_AAS_INSTANCE_LOGGING_PATH_SUFFIX", "")
+	assert.Equal(t, "/home/LogFiles/*testInstance*.log", setAasInstanceTailingPath())
+
+	// Custom path
+	t.Setenv("DD_AAS_INSTANCE_LOGGING_PATH_SUFFIX", "customsuffix")
+	assert.Equal(t, "/home/LogFiles/*testInstance*.customsuffix.log", setAasInstanceTailingPath())
+}
