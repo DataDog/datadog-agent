@@ -312,14 +312,14 @@ def finish(ctx, release_branch, upstream="origin", release_date=None):
     # Step 1: Preparation
 
     # Validate release_date (if provided)
-    try:
-        if release_date:
+    if release_date:
+        try:
             datetime.strptime(release_date, "%Y-%m-%d")
-    except ValueError as err:
-        raise Exit(
-            color_message(f"Invalid date `{release_date}`. Date should be valid and in format YYYY-MM-DD.", "red"),
-            code=1,
-        ) from err
+        except ValueError as err:
+            raise Exit(
+                color_message(f"Invalid date `{release_date}`. Date should be valid and in format YYYY-MM-DD.", "red"),
+                code=1,
+            ) from err
 
     major_version = get_version_major(release_branch)
     print(f"Finishing release for major version {major_version}")
