@@ -36,6 +36,7 @@ func TmpMountAt(dir string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
+	defer unix.Close(openfd)
 
 	_ = fsconfigStr(openfd, unix.FSCONFIG_SET_STRING, "source", "tmpfs", 0)
 	_ = fsconfigStr(openfd, unix.FSCONFIG_SET_STRING, "size", "1M", 0)
@@ -48,6 +49,7 @@ func TmpMountAt(dir string) (int, error) {
 	if dir != "" {
 		err = unix.MoveMount(mountfd, "", unix.AT_FDCWD, dir, unix.MOVE_MOUNT_F_EMPTY_PATH)
 		if err != nil {
+			unix.Close(mountfd)
 			return 0, err
 		}
 	}
@@ -140,11 +142,12 @@ func TestOpenTree(t *testing.T) {
 	dir := t.TempDir()
 	tounmount = append(tounmount, dir)
 
-	_, err = TmpMountAt(dir)
+	fdRoot, err := TmpMountAt(dir)
 	if err != nil {
 		// Syscall not available in this kernel
 		t.Skip(err)
 	}
+	defer unix.Close(fdRoot)
 
 	if id, err := getMountID(dir); err != nil {
 		t.Fatal(err)
@@ -161,10 +164,11 @@ func TestOpenTree(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = TmpMountAt(fullpath)
+		fd, err := TmpMountAt(fullpath)
 		if err != nil {
 			t.Fatal(err)
 		}
+		defer unix.Close(fd)
 
 		if id, err := getMountID(fullpath); err != nil {
 			t.Fatal(err)
