@@ -18,12 +18,12 @@
           {
             "function": "main.testError",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
-            "lineNumber": 62
+            "lineNumber": 61
           },
           {
             "function": "main.executeInterfaceFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
-            "lineNumber": 82
+            "lineNumber": 90
           },
           {
             "function": "main.main",

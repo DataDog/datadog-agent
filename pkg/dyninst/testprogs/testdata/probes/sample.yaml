@@ -798,3 +798,10 @@ probes:
   where:
     methodName: main.testEmptyStructPointer
   captureSnapshot: true
+- id: testAnyPtr
+  type: LOG_PROBE
+  where:
+    methodName: main.testAnyPtr
+  captureSnapshot: true
+  sampling:
+    snapshotsPerSecond: 10
