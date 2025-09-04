@@ -56,8 +56,6 @@ func CheckCgroupSocketReturnCode(progSpecs map[string]*ebpf.ProgramSpec) error {
 			r0 := int32(255)
 
 			for _, inst := range progSpec.Instructions {
-				fmt.Printf(">> %v\n", inst)
-
 				class := inst.OpCode.Class()
 				if class.IsJump() {
 					if inst.OpCode.JumpOp() == asm.Exit {
