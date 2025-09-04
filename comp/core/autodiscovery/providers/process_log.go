@@ -303,7 +303,7 @@ var generatedNameToSource = map[string]string{
 	"cockroach":         "cockroachdb",
 	"kafka.Kafka":       "kafka",
 	"postgres":          "postgresql",
-	"mongodb":           "mongodb",
+	"mongod":            "mongodb",
 	"mysqld":            "mysql",
 	"redis-server":      "redis",
 	"slapd":             "openldap",
