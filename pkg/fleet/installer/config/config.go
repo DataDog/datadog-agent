@@ -88,7 +88,7 @@ func (d *Directories) PromoteExperiment(_ context.Context) error {
 	if err != nil {
 		return err
 	}
-	err = swapConfigDirectories(d.ExperimentPath, d.StablePath)
+	err = replaceConfigDirectory(d.StablePath, d.ExperimentPath)
 	if err != nil {
 		return err
 	}

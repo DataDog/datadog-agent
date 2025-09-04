@@ -134,7 +134,7 @@ func (i *installerImpl) States(_ context.Context) (map[string]repository.State, 
 }
 
 // ConfigState returns the state of a package.
-func (i *installerImpl) ConfigState(_ context.Context, pkg string) (repository.State, error) {
+func (i *installerImpl) ConfigState(_ context.Context, _ string) (repository.State, error) {
 	state, err := i.config.GetState()
 	if err != nil {
 		return repository.State{}, fmt.Errorf("could not get config state: %w", err)

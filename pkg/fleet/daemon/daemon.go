@@ -460,7 +460,9 @@ func (d *daemonImpl) StartConfigExperiment(ctx context.Context, pkg string, oper
 func (d *daemonImpl) startConfigExperiment(ctx context.Context, pkg string, operations config.Operations) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "start_config_experiment")
 	defer func() { span.Finish(err) }()
+	log.Infof("[debug] 1")
 	d.refreshState(ctx)
+	log.Infof("[debug] 2")
 	defer d.refreshState(ctx)
 
 	log.Infof("Daemon: Starting config experiment for package %s (deployment id: %s)", pkg, operations.DeploymentID)
@@ -723,6 +725,7 @@ func setRequestDone(ctx context.Context, err error) {
 }
 
 func (d *daemonImpl) refreshState(ctx context.Context) {
+	log.Infof("[debug] 3")
 	request, ok := ctx.Value(requestStateKey).(*requestState)
 	if ok {
 		err := d.taskDB.SetTaskState(*request)
@@ -730,25 +733,30 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 			log.Errorf("could not set task state: %v", err)
 		}
 	}
+	log.Infof("[debug] 4")
 	state, err := d.installer(d.env).States(ctx)
 	if err != nil {
 		// TODO: we should report this error through RC in some way
 		log.Errorf("could not get installer state: %v", err)
 		return
 	}
+	log.Infof("[debug] 5")
 	configState, err := d.installer(d.env).ConfigStates(ctx)
 	if err != nil {
 		log.Errorf("could not get installer config state: %v", err)
 		return
 	}
+	log.Infof("[debug] 6")
 	availableSpace, err := d.installer(d.env).AvailableDiskSpace()
 	if err != nil {
 		log.Errorf("could not get available size: %v", err)
 	}
+	log.Infof("[debug] 7")
 	tasksState, err := d.taskDB.GetTasksState()
 	if err != nil {
 		log.Errorf("could not get tasks state: %v", err)
 	}
+	log.Infof("[debug] 8")
 	var packages []*pbgo.PackageState
 	for pkg, s := range state {
 		p := &pbgo.PackageState{
@@ -776,8 +784,10 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 		}
 		packages = append(packages, p)
 	}
+	log.Infof("[debug] 9")
 	d.rc.SetState(&pbgo.ClientUpdater{
 		Packages:           packages,
 		AvailableDiskSpace: availableSpace,
 	})
+	log.Infof("[debug] 10")
 }
