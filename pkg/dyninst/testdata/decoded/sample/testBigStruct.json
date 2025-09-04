@@ -23,7 +23,7 @@
           {
             "function": "main.executeComplexFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
-            "lineNumber": 110
+            "lineNumber": 217
           },
           {
             "function": "main.main",
@@ -69,7 +69,7 @@
                     "value": "5"
                   },
                   "writer": {
-                    "type": "UnknownType(0x[GoRuntimeType])",
+                    "type": "io.discard",
                     "notCapturedReason": "missing type information"
                   }
                 }

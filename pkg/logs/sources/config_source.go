@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package sources provides log source configuration and management
 package sources
 
 // ConfigSources receives file paths to log configs and creates sources. The sources are added to a channel and read by the launcher.

@@ -444,7 +444,7 @@ func Test_metricSender_reportMetrics(t *testing.T) {
 					method: "Gauge",
 					name:   "snmp.interfaceMetric",
 					value:  float64(1),
-					tags:   []string{"dd.internal.resource:ndm_interface_user_tags:device_id:1"},
+					tags:   []string{"dd.internal.resource:ndm_interface:device_id:1"},
 				},
 			},
 		},

@@ -166,7 +166,7 @@ func (ms *MetricSender) reportColumnMetrics(metricConfig profiledefinition.Metri
 					}
 					tmpTags = append(tmpTags, interfaceCfg.Tags...)
 
-					tmpTags = addInternalResourceTag(tmpTags, fmt.Sprintf("ndm_interface_user_tags:%s:%s", deviceID, fullIndex))
+					tmpTags = addInternalResourceTag(tmpTags, fmt.Sprintf("ndm_interface:%s:%s", deviceID, fullIndex))
 				}
 				rowTagsCache[fullIndex] = tmpTags
 			}

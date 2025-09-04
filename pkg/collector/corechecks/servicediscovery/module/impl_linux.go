@@ -525,7 +525,6 @@ func (s *discovery) getServiceInfo(pid int32) (*core.ServiceInfo, error) {
 			GeneratedNameSource:      string(nameMeta.Source),
 			AdditionalGeneratedNames: nameMeta.AdditionalNames,
 			DDService:                nameMeta.DDService,
-			DDServiceInjected:        nameMeta.DDServiceInjected,
 			TracerMetadata:           tracerMetadataArr,
 			Language:                 string(lang),
 			APMInstrumentation:       string(apmInstrumentation),
@@ -533,6 +532,39 @@ func (s *discovery) getServiceInfo(pid int32) (*core.ServiceInfo, error) {
 			StartTimeMilli:           uint64(createTime),
 		},
 	}, nil
+}
+
+// getHeartbeatServiceInfo gets minimal service information for heartbeat processes.
+// This only collects dynamic fields (ports and log files) and skips expensive operations
+// like language detection, service name generation, and APM instrumentation detection.
+func (s *discovery) getHeartbeatServiceInfo(context parsingContext, pid int32) *model.Service {
+	if s.shouldIgnoreComm(pid) {
+		return nil
+	}
+
+	openFileInfo, err := getOpenFilesInfo(pid, context.readlinkBuffer)
+	if err != nil {
+		return nil
+	}
+	tcpPorts, udpPorts, err := s.getPorts(context, pid, openFileInfo.sockets)
+	if err != nil {
+		return nil
+	}
+
+	totalPorts := len(tcpPorts) + len(udpPorts)
+	if totalPorts == 0 {
+		return nil
+	}
+
+	logFiles := getLogFiles(pid, openFileInfo.logs)
+
+	// Return minimal service info with only dynamic fields
+	return &model.Service{
+		PID:      int(pid),
+		TCPPorts: tcpPorts,
+		UDPPorts: udpPorts,
+		LogFiles: logFiles,
+	}
 }
 
 // maxNumberOfPorts is the maximum number of listening ports which we report per
@@ -704,10 +736,10 @@ func (s *discovery) getCheckServices(params core.Params) (*model.ServicesRespons
 	})
 }
 
-// getServices processes a list of PIDs and returns service information for each.
+// getServices processes categorized PID lists and returns service information for each.
 // This is used by the /services endpoint which accepts explicit PID lists and bypasses
 // the port retry logic used by the /check endpoint. The caller (the Core-Agent
-// process collector) will handle the retry..
+// process collector) will handle the retry.
 func (s *discovery) getServices(params core.Params) (*model.ServicesEndpointResponse, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
@@ -717,8 +749,18 @@ func (s *discovery) getServices(params core.Params) (*model.ServicesEndpointResp
 
 	context := newParsingContext()
 
-	for _, pid := range params.Pids {
-		service := s.getServiceWithoutRetry(context, int32(pid))
+	// Process new PIDs with full service info collection
+	for _, pid := range params.NewPids {
+		service := s.getServiceWithoutRetry(context, pid)
+		if service == nil {
+			continue
+		}
+		response.Services = append(response.Services, *service)
+	}
+
+	// Process heartbeat PIDs with minimal updates (only ports and log files)
+	for _, pid := range params.HeartbeatPids {
+		service := s.getHeartbeatServiceInfo(context, pid)
 		if service == nil {
 			continue
 		}
