@@ -69,7 +69,7 @@ func GetDeploymentRolloutDurationFromMaps(namespace, deploymentName string) floa
 		deploymentAccessTime[deploymentKey] = time.Now()
 	}
 
-	// Hybrid approach: try to use the newest ReplicaSet creation time, fall back to deployment start time
+	// Try to use the newest ReplicaSet creation time, fall back to deployment start time
 	var startTime time.Time
 
 	// First, look for the newest ReplicaSet owned by this deployment
@@ -117,52 +117,13 @@ func StoreDeployment(dep *appsv1.Deployment) {
 	deploymentAccessTime[key] = time.Now() // Track when we stored it
 }
 
-// CleanupCompletedDeployment removes completed deployment and its ReplicaSets from tracking
-func CleanupCompletedDeployment(dep *appsv1.Deployment) {
-
-	rolloutMutex.Lock()
-	defer rolloutMutex.Unlock()
-
-	key := dep.Namespace + "/" + dep.Name
-
-	// Count associated ReplicaSets before cleanup
-	var rsCount int
-	for _, rsInfo := range replicaSetMap {
-		if rsInfo.Namespace == dep.Namespace && rsInfo.OwnerName == dep.Name {
-			rsCount++
-		}
-	}
-
-	// Remove deployment
-	delete(deploymentMap, key)
-	delete(deploymentAccessTime, key) // Also remove access time tracking
-	delete(deploymentStartTime, key)  // Also remove rollout start time
-
-	// Remove associated ReplicaSets
-	for rsKey, rsInfo := range replicaSetMap {
-		if rsInfo.Namespace == dep.Namespace && rsInfo.OwnerName == dep.Name {
-			delete(replicaSetMap, rsKey)
-		}
-	}
-
-}
-
-// CleanupDeletedDeployment removes a deleted deployment and its ReplicaSets from tracking
-func CleanupDeletedDeployment(namespace, name string) {
-
+// CleanupDeployment removes a deployment and its ReplicaSets from tracking
+func CleanupDeployment(namespace, name string) {
 	rolloutMutex.Lock()
 	defer rolloutMutex.Unlock()
 
 	key := namespace + "/" + name
 
-	// Count associated ReplicaSets before cleanup
-	var rsCount int
-	for _, rsInfo := range replicaSetMap {
-		if rsInfo.Namespace == namespace && rsInfo.OwnerName == name {
-			rsCount++
-		}
-	}
-
 	// Remove deployment
 	delete(deploymentMap, key)
 	delete(deploymentAccessTime, key) // Also remove access time tracking
@@ -174,14 +135,6 @@ func CleanupDeletedDeployment(namespace, name string) {
 			delete(replicaSetMap, rsKey)
 		}
 	}
-
-}
-
-// GetMapStats returns current size of the tracking maps (for debugging)
-func GetMapStats() (deployments int, replicaSets int) {
-	rolloutMutex.RLock()
-	defer rolloutMutex.RUnlock()
-	return len(deploymentMap), len(replicaSetMap)
 }
 
 // CleanupDeletedReplicaSet removes a deleted ReplicaSet from tracking
@@ -192,7 +145,6 @@ func CleanupDeletedReplicaSet(namespace, name string) {
 
 	key := namespace + "/" + name
 
-	// Remove the ReplicaSet from tracking
 	delete(replicaSetMap, key)
 
 }

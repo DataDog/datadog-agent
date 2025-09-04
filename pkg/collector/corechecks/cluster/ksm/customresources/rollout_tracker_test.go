@@ -228,7 +228,7 @@ func TestCleanupCompletedDeployment(t *testing.T) {
 	rolloutMutex.RUnlock()
 
 	// Cleanup
-	CleanupCompletedDeployment(deployment)
+	CleanupDeployment(deployment.Namespace, deployment.Name)
 
 	// Verify cleanup
 	rolloutMutex.RLock()
@@ -283,7 +283,7 @@ func TestCleanupDeletedDeployment(t *testing.T) {
 	rolloutMutex.Unlock()
 
 	// Cleanup by name
-	CleanupDeletedDeployment(namespace, deploymentName)
+	CleanupDeployment(namespace, deploymentName)
 
 	// Verify cleanup
 	rolloutMutex.RLock()
@@ -309,7 +309,7 @@ func TestCleanupDeletedDeployment_NonExistent(t *testing.T) {
 	rolloutMutex.Unlock()
 
 	// Cleanup non-existent deployment should not panic
-	CleanupDeletedDeployment("default", "non-existent")
+	CleanupDeployment("default", "non-existent")
 
 	// Maps should remain empty
 	rolloutMutex.RLock()

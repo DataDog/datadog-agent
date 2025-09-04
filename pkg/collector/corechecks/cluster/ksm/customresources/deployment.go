@@ -73,7 +73,7 @@ func (f *deploymentRolloutFactory) MetricFamilyGenerators() []generator.FamilyGe
 					}
 				}
 				// Rollout complete - cleanup and return 0
-				CleanupCompletedDeployment(d)
+				CleanupDeployment(d.Namespace, d.Name)
 				return &metric.Family{
 					Metrics: []*metric.Metric{
 						{

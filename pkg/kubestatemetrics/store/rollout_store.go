@@ -29,7 +29,7 @@ func (s *RolloutMetricsStore) Delete(obj interface{}) error {
 	switch s.resourceType {
 	case "deployments":
 		if dep, ok := obj.(*appsv1.Deployment); ok {
-			customresources.CleanupDeletedDeployment(dep.Namespace, dep.Name)
+			customresources.CleanupDeployment(dep.Namespace, dep.Name)
 		}
 	case "replicasets":
 		if rs, ok := obj.(*appsv1.ReplicaSet); ok {
