@@ -456,8 +456,7 @@
                 "type": "interface {}",
                 "fields": {
                   "data": {
-                    "type": "",
-                    "notCapturedReason": "missing type information"
+                    "isNull": true
                   }
                 }
               }

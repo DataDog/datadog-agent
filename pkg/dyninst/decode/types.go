@@ -1135,6 +1135,15 @@ func encodeInterface(
 	}
 
 	runtimeType := binary.NativeEndian.Uint64(data[goRuntimeTypeOffset : goRuntimeTypeOffset+8])
+	if runtimeType == 0 {
+		return writeTokens(enc,
+			jsontext.String("isNull"),
+			jsontext.Bool(true),
+			jsontext.EndObject,
+			jsontext.EndObject,
+		)
+	}
+
 	typeID, ok := d.typesByGoRuntimeType[uint32(runtimeType)]
 	if !ok {
 		name, err := d.typeNameResolver.ResolveTypeName(gotype.TypeID(runtimeType))
