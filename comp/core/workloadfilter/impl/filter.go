@@ -25,8 +25,8 @@ type filterFactory struct {
 	factory func(cfg config.Component, logger log.Component) program.FilterProgram
 }
 
-// filter is the implementation of the filter component.
-type filter struct {
+// workloadfilterStore is the implementation of the workloadfilterStore component.
+type workloadfilterStore struct {
 	config              config.Component
 	log                 log.Component
 	telemetry           coretelemetry.Component
@@ -62,9 +62,9 @@ func NewComponent(req Requires) (Provides, error) {
 	}, nil
 }
 
-var _ workloadfilter.Component = (*filter)(nil)
+var _ workloadfilter.Component = (*workloadfilterStore)(nil)
 
-func (f *filter) registerFactory(resourceType workloadfilter.ResourceType, programType int, factory func(cfg config.Component, logger log.Component) program.FilterProgram) {
+func (f *workloadfilterStore) registerFactory(resourceType workloadfilter.ResourceType, programType int, factory func(cfg config.Component, logger log.Component) program.FilterProgram) {
 	if f.programFactoryStore[resourceType] == nil {
 		f.programFactoryStore[resourceType] = make(map[int]*filterFactory)
 	}
@@ -73,7 +73,7 @@ func (f *filter) registerFactory(resourceType workloadfilter.ResourceType, progr
 	}
 }
 
-func (f *filter) getProgram(resourceType workloadfilter.ResourceType, programType int) program.FilterProgram {
+func (f *workloadfilterStore) getProgram(resourceType workloadfilter.ResourceType, programType int) program.FilterProgram {
 	if f.programFactoryStore == nil {
 		return nil
 	}
@@ -96,7 +96,7 @@ func (f *filter) getProgram(resourceType workloadfilter.ResourceType, programTyp
 }
 
 func newFilter(cfg config.Component, logger log.Component, telemetry coretelemetry.Component) (workloadfilter.Component, error) {
-	filter := &filter{
+	filter := &workloadfilterStore{
 		config:              cfg,
 		log:                 logger,
 		telemetry:           telemetry,
@@ -145,26 +145,26 @@ func newFilter(cfg config.Component, logger log.Component, telemetry coretelemet
 }
 
 // IsContainerExcluded checks if a container is excluded based on the provided filters.
-func (f *filter) IsContainerExcluded(container *workloadfilter.Container, containerFilters [][]workloadfilter.ContainerFilter) bool {
+func (f *workloadfilterStore) IsContainerExcluded(container *workloadfilter.Container, containerFilters [][]workloadfilter.ContainerFilter) bool {
 	return evaluateResource(f, container, containerFilters) == workloadfilter.Excluded
 }
 
 // IsPodExcluded checks if a pod is excluded based on the provided filters.
-func (f *filter) IsPodExcluded(pod *workloadfilter.Pod, podFilters [][]workloadfilter.PodFilter) bool {
+func (f *workloadfilterStore) IsPodExcluded(pod *workloadfilter.Pod, podFilters [][]workloadfilter.PodFilter) bool {
 	return evaluateResource(f, pod, podFilters) == workloadfilter.Excluded
 }
 
-func (f *filter) IsServiceExcluded(service *workloadfilter.Service, serviceFilters [][]workloadfilter.ServiceFilter) bool {
+func (f *workloadfilterStore) IsServiceExcluded(service *workloadfilter.Service, serviceFilters [][]workloadfilter.ServiceFilter) bool {
 	return evaluateResource(f, service, serviceFilters) == workloadfilter.Excluded
 }
 
-func (f *filter) IsEndpointExcluded(endpoint *workloadfilter.Endpoint, endpointFilters [][]workloadfilter.EndpointFilter) bool {
+func (f *workloadfilterStore) IsEndpointExcluded(endpoint *workloadfilter.Endpoint, endpointFilters [][]workloadfilter.EndpointFilter) bool {
 	return evaluateResource(f, endpoint, endpointFilters) == workloadfilter.Excluded
 }
 
 // evaluateResource checks if a resource is excluded based on the provided filters.
 func evaluateResource[T ~int](
-	f *filter,
+	f *workloadfilterStore,
 	resource workloadfilter.Filterable, // Filterable resource (e.g., Container, Pod)
 	filterSets [][]T, // Generic filter types
 ) workloadfilter.Result {
@@ -204,13 +204,13 @@ func evaluateResource[T ~int](
 }
 
 // GetContainerFilterInitializationErrors returns initialization errors for a specific container filter
-func (f *filter) GetContainerFilterInitializationErrors(filters []workloadfilter.ContainerFilter) []error {
+func (f *workloadfilterStore) GetContainerFilterInitializationErrors(filters []workloadfilter.ContainerFilter) []error {
 	return getFilterErrors(f, workloadfilter.ContainerType, filters)
 }
 
 // getFilterErrors returns initialization errors for a specific filter
 func getFilterErrors[T ~int](
-	f *filter,
+	f *workloadfilterStore,
 	resourceType workloadfilter.ResourceType, // Filterable resource (e.g., Container, Pod)
 	filters []T, // Generic filter types
 ) []error {
@@ -226,41 +226,76 @@ func getFilterErrors[T ~int](
 }
 
 // GetContainerAutodiscoveryFilters returns the pre-computed container autodiscovery filters
-func (f *filter) GetContainerAutodiscoveryFilters(filterScope workloadfilter.Scope) [][]workloadfilter.ContainerFilter {
+func (f *workloadfilterStore) GetContainerAutodiscoveryFilters(filterScope workloadfilter.Scope) [][]workloadfilter.ContainerFilter {
 	return f.selection.GetContainerAutodiscoveryFilters(filterScope)
 }
 
 // GetPodAutodiscoveryFilters returns the pre-computed pod autodiscovery filters
-func (f *filter) GetPodAutodiscoveryFilters(filterScope workloadfilter.Scope) [][]workloadfilter.PodFilter {
+func (f *workloadfilterStore) GetPodAutodiscoveryFilters(filterScope workloadfilter.Scope) [][]workloadfilter.PodFilter {
 	return f.selection.GetPodAutodiscoveryFilters(filterScope)
 }
 
 // GetServiceAutodiscoveryFilters returns the pre-computed service autodiscovery filters
-func (f *filter) GetServiceAutodiscoveryFilters(filterScope workloadfilter.Scope) [][]workloadfilter.ServiceFilter {
+func (f *workloadfilterStore) GetServiceAutodiscoveryFilters(filterScope workloadfilter.Scope) [][]workloadfilter.ServiceFilter {
 	return f.selection.GetServiceAutodiscoveryFilters(filterScope)
 }
 
 // GetEndpointAutodiscoveryFilters returns the pre-computed endpoint autodiscovery filters
-func (f *filter) GetEndpointAutodiscoveryFilters(filterScope workloadfilter.Scope) [][]workloadfilter.EndpointFilter {
+func (f *workloadfilterStore) GetEndpointAutodiscoveryFilters(filterScope workloadfilter.Scope) [][]workloadfilter.EndpointFilter {
 	return f.selection.GetEndpointAutodiscoveryFilters(filterScope)
 }
 
 // GetContainerSharedMetricFilters returns the pre-computed container shared metric filters
-func (f *filter) GetContainerSharedMetricFilters() [][]workloadfilter.ContainerFilter {
+func (f *workloadfilterStore) GetContainerSharedMetricFilters() [][]workloadfilter.ContainerFilter {
 	return f.selection.GetContainerSharedMetricFilters()
 }
 
 // GetPodSharedMetricFilters returns the pre-computed pod shared metric filters
-func (f *filter) GetPodSharedMetricFilters() [][]workloadfilter.PodFilter {
+func (f *workloadfilterStore) GetPodSharedMetricFilters() [][]workloadfilter.PodFilter {
 	return f.selection.GetPodSharedMetricFilters()
 }
 
 // GetContainerPausedFilters returns the pre-computed container paused filters
-func (f *filter) GetContainerPausedFilters() [][]workloadfilter.ContainerFilter {
+func (f *workloadfilterStore) GetContainerPausedFilters() [][]workloadfilter.ContainerFilter {
 	return f.selection.GetContainerPausedFilters()
 }
 
 // GetContainerSBOMFilters returns the pre-computed container SBOM filters
-func (f *filter) GetContainerSBOMFilters() [][]workloadfilter.ContainerFilter {
+func (f *workloadfilterStore) GetContainerSBOMFilters() [][]workloadfilter.ContainerFilter {
 	return f.selection.GetContainerSBOMFilters()
+}
+
+func (f *workloadfilterStore) GetContainerFilters(containerFilters [][]workloadfilter.ContainerFilter) workloadfilter.FilterBundle {
+	return getFilterBundle(f, workloadfilter.ContainerType, containerFilters)
+}
+
+func (f *workloadfilterStore) GetPodFilters(podFilters [][]workloadfilter.PodFilter) workloadfilter.FilterBundle {
+	return getFilterBundle(f, workloadfilter.PodType, podFilters)
+}
+
+func (f *workloadfilterStore) GetServiceFilters(serviceFilters [][]workloadfilter.ServiceFilter) workloadfilter.FilterBundle {
+	return getFilterBundle(f, workloadfilter.ServiceType, serviceFilters)
+}
+
+func (f *workloadfilterStore) GetEndpointFilters(endpointFilters [][]workloadfilter.EndpointFilter) workloadfilter.FilterBundle {
+	return getFilterBundle(f, workloadfilter.EndpointType, endpointFilters)
+}
+
+// getFilterBundle constructs a filter bundle for a given resource type and filters.
+func getFilterBundle[T ~int](f *workloadfilterStore, objType workloadfilter.ResourceType, filters [][]T) workloadfilter.FilterBundle {
+	var filterSets [][]program.FilterProgram
+	for _, filterSet := range filters {
+		var set []program.FilterProgram
+		for _, filter := range filterSet {
+			prg := f.getProgram(objType, int(filter))
+			if prg != nil {
+				set = append(set, prg)
+			}
+		}
+		filterSets = append(filterSets, set)
+	}
+	return &filterBundle{
+		log:        f.log,
+		filterSets: filterSets,
+	}
 }

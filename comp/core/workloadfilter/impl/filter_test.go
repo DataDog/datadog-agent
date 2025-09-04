@@ -24,24 +24,24 @@ import (
 )
 
 // Create a new filter object for testing purposes
-func newFilterObject(t *testing.T, config config.Component) *filter {
+func newFilterStoreObject(t *testing.T, config config.Component) *workloadfilterStore {
 	reqs := Requires{
 		Log:    logmock.New(t),
 		Config: config,
 	}
 	f, _ := NewComponent(reqs)
-	return f.Comp.(*filter)
+	return f.Comp.(*workloadfilterStore)
 }
 
 func TestBasicFilter(t *testing.T) {
 	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("container_include", []string{"name:dd-agent"})
 	mockConfig.SetWithoutSource("container_exclude", []string{"image:datadog/agent:latest"})
-	f := newFilterObject(t, mockConfig)
+	filterStore := newFilterStoreObject(t, mockConfig)
 
 	t.Run("empty filters, empty container", func(t *testing.T) {
 		container := &workloadfilter.Container{}
-		res := evaluateResource(f, container, [][]workloadfilter.ContainerFilter{})
+		res := evaluateResource(filterStore, container, [][]workloadfilter.ContainerFilter{})
 		assert.Equal(t, workloadfilter.Unknown, res)
 	})
 
@@ -55,7 +55,7 @@ func TestBasicFilter(t *testing.T) {
 			nil,
 		)
 
-		res := evaluateResource(f, container, [][]workloadfilter.ContainerFilter{{workloadfilter.LegacyContainerGlobal}})
+		res := evaluateResource(filterStore, container, [][]workloadfilter.ContainerFilter{{workloadfilter.LegacyContainerGlobal}})
 		assert.Equal(t, workloadfilter.Included, res)
 	})
 
@@ -69,7 +69,7 @@ func TestBasicFilter(t *testing.T) {
 			nil,
 		)
 
-		res := evaluateResource(f, container, [][]workloadfilter.ContainerFilter{{workloadfilter.LegacyContainerGlobal}})
+		res := evaluateResource(filterStore, container, [][]workloadfilter.ContainerFilter{{workloadfilter.LegacyContainerGlobal}})
 		assert.Equal(t, workloadfilter.Excluded, res)
 	})
 
@@ -85,7 +85,7 @@ func TestBasicFilter(t *testing.T) {
 			},
 			nil,
 		)
-		res := evaluateResource(f, container, [][]workloadfilter.ContainerFilter{{workloadfilter.LegacyContainerGlobal}})
+		res := evaluateResource(filterStore, container, [][]workloadfilter.ContainerFilter{{workloadfilter.LegacyContainerGlobal}})
 		assert.Equal(t, workloadfilter.Included, res)
 	})
 
@@ -93,7 +93,7 @@ func TestBasicFilter(t *testing.T) {
 
 func TestADAnnotationFilter(t *testing.T) {
 	mockConfig := configmock.New(t)
-	f := newFilterObject(t, mockConfig)
+	filterStore := newFilterStoreObject(t, mockConfig)
 
 	t.Run("improper exclude annotation", func(t *testing.T) {
 		pod := workloadmetafilter.CreatePod(
@@ -114,7 +114,7 @@ func TestADAnnotationFilter(t *testing.T) {
 			pod,
 		)
 
-		res := evaluateResource(f, container, [][]workloadfilter.ContainerFilter{{workloadfilter.ContainerADAnnotations}})
+		res := evaluateResource(filterStore, container, [][]workloadfilter.ContainerFilter{{workloadfilter.ContainerADAnnotations}})
 		assert.Equal(t, workloadfilter.Unknown, res)
 	})
 
@@ -137,7 +137,7 @@ func TestADAnnotationFilter(t *testing.T) {
 			pod,
 		)
 
-		res := evaluateResource(f, container, [][]workloadfilter.ContainerFilter{{workloadfilter.ContainerADAnnotations}})
+		res := evaluateResource(filterStore, container, [][]workloadfilter.ContainerFilter{{workloadfilter.ContainerADAnnotations}})
 		assert.Equal(t, workloadfilter.Excluded, res)
 	})
 
@@ -162,7 +162,7 @@ func TestADAnnotationFilter(t *testing.T) {
 			},
 			pod,
 		)
-		res := evaluateResource(f, container, [][]workloadfilter.ContainerFilter{{workloadfilter.ContainerADAnnotations}})
+		res := evaluateResource(filterStore, container, [][]workloadfilter.ContainerFilter{{workloadfilter.ContainerADAnnotations}})
 		assert.Equal(t, workloadfilter.Unknown, res)
 	})
 
@@ -175,7 +175,7 @@ func TestCombinedFilter(t *testing.T) {
 	mockConfig.SetWithoutSource("ac_include", []string{"kube_namespace:default"})
 	mockConfig.SetWithoutSource("ac_exclude", []string{"kube_namespace:datadog-agent"})
 
-	f := newFilterObject(t, mockConfig)
+	filterStore := newFilterStoreObject(t, mockConfig)
 
 	container := workloadmetafilter.CreateContainer(
 		&workloadmeta.Container{
@@ -186,7 +186,8 @@ func TestCombinedFilter(t *testing.T) {
 		nil,
 	)
 
-	res := f.IsContainerExcluded(container, [][]workloadfilter.ContainerFilter{{workloadfilter.LegacyContainerGlobal}})
+	filterBundle := filterStore.GetContainerFilters([][]workloadfilter.ContainerFilter{{workloadfilter.LegacyContainerGlobal}})
+	res := filterBundle.IsExcluded(container)
 	assert.Equal(t, false, res)
 
 	pod := workloadmetafilter.CreatePod(
@@ -205,7 +206,8 @@ func TestCombinedFilter(t *testing.T) {
 		pod,
 	)
 
-	res = f.IsContainerExcluded(container, [][]workloadfilter.ContainerFilter{{workloadfilter.LegacyContainerGlobal, workloadfilter.LegacyContainerACExclude, workloadfilter.LegacyContainerACInclude}})
+	filterBundle = filterStore.GetContainerFilters([][]workloadfilter.ContainerFilter{{workloadfilter.LegacyContainerGlobal, workloadfilter.LegacyContainerACInclude}})
+	res = filterBundle.IsExcluded(container)
 	assert.Equal(t, false, res)
 
 	container = workloadmetafilter.CreateContainer(
@@ -216,7 +218,9 @@ func TestCombinedFilter(t *testing.T) {
 		},
 		pod,
 	)
-	res = f.IsContainerExcluded(container, [][]workloadfilter.ContainerFilter{{workloadfilter.LegacyContainerGlobal, workloadfilter.LegacyContainerACExclude, workloadfilter.LegacyContainerACInclude}})
+
+	filterBundle = filterStore.GetContainerFilters([][]workloadfilter.ContainerFilter{{workloadfilter.LegacyContainerGlobal, workloadfilter.LegacyContainerACExclude, workloadfilter.LegacyContainerACInclude}})
+	res = filterBundle.IsExcluded(container)
 	assert.Equal(t, false, res)
 
 	pod = workloadmetafilter.CreatePod(
@@ -234,7 +238,8 @@ func TestCombinedFilter(t *testing.T) {
 		},
 		pod,
 	)
-	res = f.IsContainerExcluded(container, [][]workloadfilter.ContainerFilter{{workloadfilter.LegacyContainerGlobal, workloadfilter.LegacyContainerACExclude, workloadfilter.LegacyContainerACInclude}})
+	filterBundle = filterStore.GetContainerFilters([][]workloadfilter.ContainerFilter{{workloadfilter.LegacyContainerGlobal, workloadfilter.LegacyContainerACExclude, workloadfilter.LegacyContainerACInclude}})
+	res = filterBundle.IsExcluded(container)
 	assert.Equal(t, true, res)
 }
 
@@ -363,9 +368,9 @@ func TestContainerSBOMFilter(t *testing.T) {
 			mockConfig.SetWithoutSource("sbom.container_image.container_exclude", tt.exclude)
 			mockConfig.SetWithoutSource("sbom.container_image.exclude_pause_container", tt.pauseCtn)
 
-			f := newFilterObject(t, mockConfig)
-
-			res := f.IsContainerExcluded(tt.container, [][]workloadfilter.ContainerFilter{{workloadfilter.LegacyContainerSBOM}})
+			filterStore := newFilterStoreObject(t, mockConfig)
+			filterBundle := filterStore.GetContainerFilters([][]workloadfilter.ContainerFilter{{workloadfilter.LegacyContainerSBOM}})
+			res := filterBundle.IsExcluded(tt.container)
 			assert.Equal(t, tt.expected, res, "Container exclusion result mismatch")
 		})
 	}
@@ -376,7 +381,7 @@ func TestFilterPrecedence(t *testing.T) {
 	mockConfig.SetWithoutSource("container_exclude", []string{"name:dd-agent"})
 	mockConfig.SetWithoutSource("container_include_metrics", []string{"name:dd-agent"})
 
-	f := newFilterObject(t, mockConfig)
+	filterStore := newFilterStoreObject(t, mockConfig)
 
 	container := workloadmetafilter.CreateContainer(
 		&workloadmeta.Container{
@@ -396,7 +401,7 @@ func TestFilterPrecedence(t *testing.T) {
 			{workloadfilter.LegacyContainerMetrics}, // Includes (but lower priority)
 		}
 
-		res := evaluateResource(f, container, precedenceFilters)
+		res := evaluateResource(filterStore, container, precedenceFilters)
 		assert.Equal(t, workloadfilter.Excluded, res)
 	})
 
@@ -406,7 +411,7 @@ func TestFilterPrecedence(t *testing.T) {
 			{workloadfilter.LegacyContainerGlobal},  // Excludes (but lower priority)
 		}
 
-		res := evaluateResource(f, container, precedenceFilters)
+		res := evaluateResource(filterStore, container, precedenceFilters)
 		assert.Equal(t, workloadfilter.Included, res)
 	})
 
@@ -416,7 +421,7 @@ func TestFilterPrecedence(t *testing.T) {
 			{workloadfilter.LegacyContainerGlobal}, // Excludes
 		}
 
-		res := evaluateResource(f, container, precedenceFilters)
+		res := evaluateResource(filterStore, container, precedenceFilters)
 		assert.Equal(t, workloadfilter.Excluded, res)
 	})
 
@@ -426,14 +431,14 @@ func TestFilterPrecedence(t *testing.T) {
 			{workloadfilter.LegacyContainerMetrics}, // Includes
 		}
 
-		res := evaluateResource(f, container, precedenceFilters)
+		res := evaluateResource(filterStore, container, precedenceFilters)
 		assert.Equal(t, workloadfilter.Included, res)
 	})
 }
 
 func TestEvaluateResourceNoFilters(t *testing.T) {
 	mockConfig := configmock.New(t)
-	f := newFilterObject(t, mockConfig)
+	filterStore := newFilterStoreObject(t, mockConfig)
 
 	container := workloadmetafilter.CreateContainer(
 		&workloadmeta.Container{
@@ -446,7 +451,7 @@ func TestEvaluateResourceNoFilters(t *testing.T) {
 
 	t.Run("No filter sets", func(t *testing.T) {
 		precedenceFilters := [][]workloadfilter.ContainerFilter{}
-		res := evaluateResource(f, container, precedenceFilters)
+		res := evaluateResource(filterStore, container, precedenceFilters)
 		assert.Equal(t, workloadfilter.Unknown, res)
 	})
 
@@ -454,7 +459,7 @@ func TestEvaluateResourceNoFilters(t *testing.T) {
 		precedenceFilters := [][]workloadfilter.ContainerFilter{
 			{}, {}, {}, {}, {}, {}, {}, {}, {},
 		}
-		res := evaluateResource(f, container, precedenceFilters)
+		res := evaluateResource(filterStore, container, precedenceFilters)
 		assert.Equal(t, workloadfilter.Unknown, res)
 	})
 }
@@ -465,23 +470,23 @@ func TestContainerFilterInitializationError(t *testing.T) {
 	mockConfig.SetWithoutSource("container_exclude", []string{"bad_name:nginx"})
 	mockConfig.SetWithoutSource("container_include_metrics", []string{"name:dd-agent"})
 	mockConfig.SetWithoutSource("ac_include", []string{"other_bad_name:nginx"})
-	f := newFilterObject(t, mockConfig)
+	filterStore := newFilterStoreObject(t, mockConfig)
 
 	t.Run("Properly defined filter", func(t *testing.T) {
-		errs := f.GetContainerFilterInitializationErrors([]workloadfilter.ContainerFilter{workloadfilter.LegacyContainerMetrics})
+		errs := filterStore.GetContainerFilterInitializationErrors([]workloadfilter.ContainerFilter{workloadfilter.LegacyContainerMetrics})
 		assert.Empty(t, errs, "Expected no initialization errors for properly defined filter")
 	})
 
 	t.Run("Improperly defined filter", func(t *testing.T) {
-		errs := f.GetContainerFilterInitializationErrors([]workloadfilter.ContainerFilter{workloadfilter.LegacyContainerGlobal})
+		errs := filterStore.GetContainerFilterInitializationErrors([]workloadfilter.ContainerFilter{workloadfilter.LegacyContainerGlobal})
 		assert.NotEmpty(t, errs, "Expected initialization errors for improperly defined filter")
 		assert.True(t, containsErrorWithMessage(errs, "bad_name"), "Expected error message to contain the improper key 'bad_name'")
 	})
 
 	t.Run("Improperly defined filter with multiple filters", func(t *testing.T) {
-		errs := f.GetContainerFilterInitializationErrors(
+		errs := filterStore.GetContainerFilterInitializationErrors(
 			append(
-				workloadfilter.FlattenFilterSets(f.GetContainerAutodiscoveryFilters(workloadfilter.GlobalFilter)),
+				workloadfilter.FlattenFilterSets(filterStore.GetContainerAutodiscoveryFilters(workloadfilter.GlobalFilter)),
 				workloadfilter.LegacyContainerACInclude,
 			),
 		)
@@ -513,7 +518,7 @@ func (p errorExclProgram) GetInitializationErrors() []error {
 
 func TestProgramErrorHandling(t *testing.T) {
 	mockConfig := configmock.New(t)
-	f := newFilterObject(t, mockConfig)
+	filterStore := newFilterStoreObject(t, mockConfig)
 
 	container := workloadmetafilter.CreateContainer(
 		&workloadmeta.Container{
@@ -529,10 +534,10 @@ func TestProgramErrorHandling(t *testing.T) {
 
 	t.Run("Include with error thrown", func(t *testing.T) {
 		// Create a new filter with injected error factory
-		errorFilter := &filter{
-			config:              f.config,
-			log:                 f.log,
-			telemetry:           f.telemetry,
+		errorFilter := &workloadfilterStore{
+			config:              filterStore.config,
+			log:                 filterStore.log,
+			telemetry:           filterStore.telemetry,
 			programFactoryStore: make(map[workloadfilter.ResourceType]map[int]*filterFactory),
 		}
 
@@ -548,10 +553,10 @@ func TestProgramErrorHandling(t *testing.T) {
 
 	t.Run("Exclude with error thrown", func(t *testing.T) {
 		// Create a new filter with injected error factory
-		errorFilter := &filter{
-			config:              f.config,
-			log:                 f.log,
-			telemetry:           f.telemetry,
+		errorFilter := &workloadfilterStore{
+			config:              filterStore.config,
+			log:                 filterStore.log,
+			telemetry:           filterStore.telemetry,
 			programFactoryStore: make(map[workloadfilter.ResourceType]map[int]*filterFactory),
 		}
 
@@ -569,7 +574,7 @@ func TestProgramErrorHandling(t *testing.T) {
 func TestSpecialCharacters(t *testing.T) {
 	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("container_include", []string{`name:g'oba\\r\d-0x[0-9a-fA-F]+\\n`})
-	f := newFilterObject(t, mockConfig)
+	filterStore := newFilterStoreObject(t, mockConfig)
 
 	container := workloadmetafilter.CreateContainer(
 		&workloadmeta.Container{
@@ -580,7 +585,7 @@ func TestSpecialCharacters(t *testing.T) {
 		nil,
 	)
 
-	res := evaluateResource(f, container, [][]workloadfilter.ContainerFilter{{workloadfilter.LegacyContainerGlobal}})
+	res := evaluateResource(filterStore, container, [][]workloadfilter.ContainerFilter{{workloadfilter.LegacyContainerGlobal}})
 	assert.Equal(t, workloadfilter.Included, res)
 }
 
@@ -651,11 +656,11 @@ func TestServiceFiltering(t *testing.T) {
 			if len(tt.exclude) > 0 {
 				mockConfig.SetWithoutSource("container_exclude", tt.exclude)
 			}
-			f := newFilterObject(t, mockConfig)
+			filterStore := newFilterStoreObject(t, mockConfig)
 
 			service := workloadfilter.CreateService(tt.serviceName, tt.namespace, tt.annotations)
 
-			res := evaluateResource(f, service, tt.filters)
+			res := evaluateResource(filterStore, service, tt.filters)
 			assert.Equal(t, tt.expected, res)
 		})
 	}
@@ -728,11 +733,11 @@ func TestEndpointFiltering(t *testing.T) {
 			if len(tt.exclude) > 0 {
 				mockConfig.SetWithoutSource("container_exclude", tt.exclude)
 			}
-			f := newFilterObject(t, mockConfig)
+			filterStore := newFilterStoreObject(t, mockConfig)
 
 			endpoint := workloadfilter.CreateEndpoint(tt.endpointName, tt.namespace, tt.annotations)
 
-			res := evaluateResource(f, endpoint, tt.filters)
+			res := evaluateResource(filterStore, endpoint, tt.filters)
 			assert.Equal(t, tt.expected, res)
 		})
 	}
@@ -768,11 +773,11 @@ func TestImageFiltering(t *testing.T) {
 			mockConfig.SetWithoutSource("container_include", tt.include)
 			mockConfig.SetWithoutSource("container_exclude", tt.exclude)
 
-			f := newFilterObject(t, mockConfig)
+			filterStore := newFilterStoreObject(t, mockConfig)
 
 			containerImage := workloadfilter.CreateContainerImage(tt.imageName)
 
-			res := evaluateResource(f, containerImage, f.GetContainerSharedMetricFilters())
+			res := evaluateResource(filterStore, containerImage, filterStore.GetContainerSharedMetricFilters())
 			assert.Equal(t, tt.expected, res)
 		})
 	}
@@ -856,11 +861,11 @@ func TestPodFiltering(t *testing.T) {
 			mockConfig := configmock.New(t)
 			mockConfig.SetWithoutSource("container_include", tt.include)
 			mockConfig.SetWithoutSource("container_exclude", tt.exclude)
-			f := newFilterObject(t, mockConfig)
+			filterStore := newFilterStoreObject(t, mockConfig)
 
 			pod := workloadmetafilter.CreatePod(tt.wmetaPod)
 
-			res := evaluateResource(f, pod, tt.filters)
+			res := evaluateResource(filterStore, pod, tt.filters)
 			assert.Equal(t, tt.expected, res)
 		})
 	}

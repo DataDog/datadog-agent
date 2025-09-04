@@ -40,4 +40,16 @@ type Component interface {
 	// Get Container Specific filters
 	GetContainerPausedFilters() [][]ContainerFilter
 	GetContainerSBOMFilters() [][]ContainerFilter
+
+	// Gets the filter bundle
+	GetContainerFilters(containerFilters [][]ContainerFilter) FilterBundle
+	GetPodFilters(podFilters [][]PodFilter) FilterBundle
+	GetServiceFilters(serviceFilters [][]ServiceFilter) FilterBundle
+	GetEndpointFilters(endpointFilters [][]EndpointFilter) FilterBundle
+}
+
+// FilterBundle represents a bundle of filters for a given resource type.
+type FilterBundle interface {
+	IsExcluded(obj Filterable) bool
+	GetErrors() []error
 }
