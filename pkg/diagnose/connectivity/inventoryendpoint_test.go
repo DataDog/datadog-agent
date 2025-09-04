@@ -383,31 +383,6 @@ func TestCheckGet(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid status code: 401")
 }
 
-func TestCheckHeadWithRedirectLimit(t *testing.T) {
-	// Create a test server that always returns a 307 Temporary Redirect
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == "HEAD" {
-			w.WriteHeader(http.StatusTemporaryRedirect)
-		} else {
-			w.WriteHeader(http.StatusMethodNotAllowed)
-			w.Write([]byte("OK"))
-		}
-	}))
-	defer ts.Close()
-
-	endpoint := resolvedEndpoint{
-		url:           ts.URL,
-		method:        http.MethodHead,
-		apiKey:        "irrelevant",
-		limitRedirect: true,
-	}
-
-	client := &http.Client{}
-	result, err := endpoint.checkHead(context.Background(), client)
-	assert.NoError(t, err)
-	assert.Equal(t, "Success", result)
-}
-
 func TestRun(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.BindEnvAndSetDefault("api_key", "test-api-key")
@@ -444,10 +419,9 @@ func TestRun(t *testing.T) {
 		},
 	}
 
-	clientNormal := getClient(cfg, 2, logmock.New(t))
-	clientRedirect := getClient(cfg, 2, logmock.New(t), withOneRedirect())
+	client := getClient(cfg, 2, logmock.New(t))
 
-	diagnoses, err := checkEndpoints(context.Background(), testEndpoints, clientNormal, clientRedirect)
+	diagnoses, err := checkEndpoints(context.Background(), testEndpoints, client)
 	assert.NoError(t, err)
 	assert.Len(t, diagnoses, len(testEndpoints))
 	successCount := 0

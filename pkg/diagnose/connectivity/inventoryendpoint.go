@@ -17,7 +17,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
-	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 
@@ -32,12 +31,12 @@ type endpointDescription struct {
 	prefix            string
 	routePath         string
 	configPrefix      string
-	limitRedirect     bool
 	altURLOverrideKey string
 	handlesFailover   bool
 }
 
-func getEndpointsDescriptions(cfg model.Reader) []endpointDescription {
+func getEndpointsDescriptions() []endpointDescription {
+	// TODO: find a way to check process, orchestrator, profiling
 	return []endpointDescription{
 		{name: "Agent installation", route: "https://install.datadoghq.com", method: http.MethodHead, altURLOverrideKey: "installer.registry.url"},
 		{name: "Agent package yum", route: "https://yum.datadoghq.com", method: http.MethodHead},
@@ -49,17 +48,15 @@ func getEndpointsDescriptions(cfg model.Reader) []endpointDescription {
 		//{name: "Orchestrator ", prefix: "orchestrator", routePath: "probe", method: http.MethodGet, altURLOverrideKey: "orchestrator_explorer.orchestrator_dd_url"},
 		//{name: "Profiling", prefix: "intake.profile", routePath: "probe", method: http.MethodGet, altURLOverrideKey: "apm_config.profiling_dd_url"},
 		{name: "Remote configuration", prefix: "config", configPrefix: "remote_configuration", altURLOverrideKey: "remote_configuration.rc_dd_url", handlesFailover: true, routePath: "_health", method: http.MethodGet},
-		{name: "Agent flare", route: helpers.GetFlareEndpoint(cfg), method: http.MethodHead, limitRedirect: true},
 	}
 }
 
 type resolvedEndpoint struct {
-	name          string
-	url           string
-	method        string
-	apiKey        string
-	limitRedirect bool
-	isFailover    bool
+	name       string
+	url        string
+	method     string
+	apiKey     string
+	isFailover bool
 }
 
 func (e *endpointDescription) buildEndpoints(cfg model.Reader, domains []domain) []resolvedEndpoint {
@@ -78,11 +75,10 @@ func (e *endpointDescription) buildEndpoints(cfg model.Reader, domains []domain)
 
 		return []resolvedEndpoint{
 			{
-				name:          e.name,
-				url:           route,
-				method:        e.method,
-				apiKey:        getAPIKey(cfg, e.configPrefix, mainDomain.defaultAPIKey, false),
-				limitRedirect: e.limitRedirect,
+				name:   e.name,
+				url:    route,
+				method: e.method,
+				apiKey: getAPIKey(cfg, e.configPrefix, mainDomain.defaultAPIKey, false),
 			},
 		}
 	}
@@ -95,12 +91,11 @@ func (e *endpointDescription) buildEndpoints(cfg model.Reader, domains []domain)
 
 		url := e.buildRoute(cfg, domain)
 		routes = append(routes, resolvedEndpoint{
-			name:          e.name,
-			url:           url,
-			method:        e.method,
-			apiKey:        getAPIKey(cfg, e.configPrefix, domain.defaultAPIKey, domain.useAltAPIKey),
-			limitRedirect: e.limitRedirect,
-			isFailover:    domain.isFailover,
+			name:       e.name,
+			url:        url,
+			method:     e.method,
+			apiKey:     getAPIKey(cfg, e.configPrefix, domain.defaultAPIKey, domain.useAltAPIKey),
+			isFailover: domain.isFailover,
 		})
 	}
 	return routes
@@ -198,7 +193,7 @@ const (
 
 // DiagnoseInventory checks the connectivity of the endpoints
 func DiagnoseInventory(ctx context.Context, cfg config.Component, log log.Component) ([]diagnose.Diagnosis, error) {
-	endpointsDescription := getEndpointsDescriptions(cfg)
+	endpointsDescription := getEndpointsDescriptions()
 	domains := getDomains(cfg)
 
 	// Collect all endpoints to check
@@ -209,14 +204,13 @@ func DiagnoseInventory(ctx context.Context, cfg config.Component, log log.Compon
 	}
 
 	// Create HTTP clients for workers
-	clientNormal := getClient(cfg, min(maxParallelWorkers, len(allEndpoints)), log, withTimeout(httpClientTimeout))                      // unlimited redirects
-	clientRedirect := getClient(cfg, min(maxParallelWorkers, len(allEndpoints)), log, withTimeout(httpClientTimeout), withOneRedirect()) // limited redirects
+	client := getClient(cfg, min(maxParallelWorkers, len(allEndpoints)), log, withTimeout(httpClientTimeout)) // unlimited redirects
 
-	return checkEndpoints(ctx, allEndpoints, clientNormal, clientRedirect)
+	return checkEndpoints(ctx, allEndpoints, client)
 }
 
 // checkEndpoints checks the connectivity of the provided endpoints in parallel
-func checkEndpoints(ctx context.Context, endpoints []resolvedEndpoint, clientNormal, clientRedirect *http.Client) ([]diagnose.Diagnosis, error) {
+func checkEndpoints(ctx context.Context, endpoints []resolvedEndpoint, client *http.Client) ([]diagnose.Diagnosis, error) {
 	workerCount := min(maxParallelWorkers, len(endpoints))
 
 	// Create channels for work distribution and results collection
@@ -239,14 +233,6 @@ func checkEndpoints(ctx context.Context, endpoints []resolvedEndpoint, clientNor
 				description := endpoint.name
 				if endpoint.isFailover {
 					description += " - failover"
-				}
-
-				// Select the appropriate client based on redirect configuration
-				var client *http.Client
-				if endpoint.limitRedirect {
-					client = clientRedirect
-				} else {
-					client = clientNormal
 				}
 
 				diagnosis, err := endpoint.checkServiceConnectivity(ctx, client)
@@ -331,7 +317,7 @@ func (e resolvedEndpoint) checkHead(ctx context.Context, client *http.Client) (s
 	if err != nil {
 		return "Failed to connect", err
 	}
-	return validateStatusCode(e, statusCode)
+	return validateStatusCode(statusCode)
 }
 
 func (e resolvedEndpoint) checkGet(ctx context.Context, client *http.Client) (string, error) {
@@ -344,31 +330,29 @@ func (e resolvedEndpoint) checkGet(ctx context.Context, client *http.Client) (st
 	if err != nil {
 		return "Failed to connect", fmt.Errorf("%s\n%w", strings.Join(httpTraces, "\n"), err)
 	}
-	return validateStatusCode(e, statusCode)
+	return validateStatusCode(statusCode)
 }
 
 func (e resolvedEndpoint) checkPost(ctx context.Context, client *http.Client) (string, error) {
 	httpTraces := []string{}
 	ctx = httptrace.WithClientTrace(ctx, createDiagnoseTraces(&httpTraces, true))
 	statusCode, _, _, err := sendPost(ctx, client, e.url, nil, map[string]string{
-		"DD-API-KEY": e.apiKey,
+		"DD-API-KEY":   e.apiKey,
+		"Content-Type": "application/json",
 	})
 	if err != nil {
 		return "Failed to connect", fmt.Errorf("%s\n%w", strings.Join(httpTraces, "\n"), err)
 	}
-	return validateStatusCode(e, statusCode)
+	return validateStatusCode(statusCode)
 }
 
-func validateStatusCode(endpoint resolvedEndpoint, statusCode int) (string, error) {
-	if !isSuccessStatusCode(endpoint, statusCode) {
+func validateStatusCode(statusCode int) (string, error) {
+	if !isSuccessStatusCode(statusCode) {
 		return "invalid status code", fmt.Errorf("invalid status code: %d", statusCode)
 	}
 	return "Success", nil
 }
 
-func isSuccessStatusCode(endpoint resolvedEndpoint, statusCode int) bool {
-	if statusCode == http.StatusTemporaryRedirect || statusCode == http.StatusPermanentRedirect {
-		return endpoint.limitRedirect
-	}
+func isSuccessStatusCode(statusCode int) bool {
 	return statusCode >= 200 && statusCode < 300
 }

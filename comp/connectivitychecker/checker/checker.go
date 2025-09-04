@@ -44,45 +44,43 @@ func Check(
 
 	diagnosesPayload := []DiagnosisPayload{}
 	for _, diagnosis := range diagnoses {
-		payload := DiagnosisPayload{
-			Status:      toStatus(diagnosis.Status),
-			Description: diagnosis.Name,
-			Metadata:    diagnosis.Metadata,
-		}
-		if diagnosis.Status == diagnose.DiagnosisFail {
-			payload.Error = diagnosis.Diagnosis
-		}
-		diagnosesPayload = append(diagnosesPayload, payload)
+		diagnosesPayload = append(diagnosesPayload, toPayload(diagnosis))
 	}
 
 	eventplatformDiagnoses := eventplatformimpl.Diagnose()
 	for _, diagnosis := range eventplatformDiagnoses {
-		payload := DiagnosisPayload{
-			Status:      toStatus(diagnosis.Status),
-			Description: diagnosis.Name,
-			Metadata:    diagnosis.Metadata,
-		}
-		if diagnosis.Status == diagnose.DiagnosisFail {
-			payload.Error = diagnosis.Diagnosis
-		}
-		diagnosesPayload = append(diagnosesPayload, payload)
+		diagnosesPayload = append(diagnosesPayload, toPayload(diagnosis))
 	}
 
 	for _, diagnosis := range connectivity.Diagnose(diagnose.Config{}, log) {
-		payload := DiagnosisPayload{
-			Status:      toStatus(diagnosis.Status),
-			Description: diagnosis.Name,
-			Metadata:    diagnosis.Metadata,
-		}
-		if diagnosis.Status == diagnose.DiagnosisFail {
-			payload.Error = diagnosis.Diagnosis
-		}
-		diagnosesPayload = append(diagnosesPayload, payload)
+		diagnosesPayload = append(diagnosesPayload, toPayload(diagnosis))
 	}
 
 	return map[string][]DiagnosisPayload{
 		"connectivity": diagnosesPayload,
 	}, nil
+}
+
+func toPayload(diagnosis diagnose.Diagnosis) DiagnosisPayload {
+	payload := DiagnosisPayload{
+		Status:      toStatus(diagnosis.Status),
+		Description: diagnosis.Name,
+		Metadata:    diagnosis.Metadata,
+	}
+	if diagnosis.Remediation != "" {
+		if payload.Metadata == nil {
+			payload.Metadata = make(map[string]string)
+		}
+		payload.Metadata["remediation"] = diagnosis.Remediation
+	}
+	if diagnosis.Status == diagnose.DiagnosisFail {
+		if len(diagnosis.Diagnosis) > 200 {
+			payload.Error = diagnosis.Diagnosis[:200] + "..."
+		} else {
+			payload.Error = diagnosis.Diagnosis
+		}
+	}
+	return payload
 }
 
 func toStatus(ds diagnose.Status) status {
