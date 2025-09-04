@@ -2001,7 +2001,7 @@ api_key:
 #   # @param memory_controller - custom object - optional
 #   # Cgroup memory controller for internal memory profiling.
 #   #
-#   # memory_controller:
+#   memory_controller:
 #
 #     # @param enabled - boolean - optional - default: false
 #     # Enable cgroup memory controller.
@@ -2194,19 +2194,19 @@ api_key:
 #     # @env DD_RUNTIME_SECURITY_CONFIG_ACTIVITY_DUMP_ENABLED - boolean - optional - default: false
 #     # Set to true to activate the security profiles feature.
 #
-#      enabled: false
+#     enabled: false
 
 #     # @param traced_cgroups_count - integer - optional - default: 5
 #     # @env DD_RUNTIME_SECURITY_CONFIG_ACTIVITY_DUMP_TRACED_CGROUPS_COUNT - integer - optional - default: 5
 #     # Defines the number of concurrent cgroups to be traced.
 #
-#      traced_cgroups_count: 5
+#     traced_cgroups_count: 5
 
 #     # @param dump_duration - duration - optional - default: 30m
 #     # @env DD_RUNTIME_SECURITY_CONFIG_ACTIVITY_DUMP_DUMP_DURATION - duration - optional - default: 30m
 #     # Defines the duration of cgroups learning phase. Minimum value is 10m.
 #
-#      dump_duration: 30m
+#     dump_duration: 30m
 
 #   # @param network - custom object - optional
 #   # Network section is used to configure Cloud Workload Security (CWS) network features.
@@ -2217,7 +2217,7 @@ api_key:
 #     # @env DD_RUNTIME_SECURITY_CONFIG_NETWORK_ENABLED - boolean - optional - default: true
 #     # Set to true to activate the CWS network detections.
 #
-#      enabled: true
+#     enabled: true
 
 {{- if (eq .OS "windows")}}
 
@@ -3017,20 +3017,20 @@ api_key:
 #
 #   server:
 
-#       # @param read_timeout_seconds - integer - optional - default: 2
-#       # Read timeout in seconds.
+#     # @param read_timeout_seconds - integer - optional - default: 2
+#     # Read timeout in seconds.
 #
-#       read_timeout_seconds: 2
+#     read_timeout_seconds: 2
 
-#       # @param write_timeout_seconds - integer - optional - default: 2
-#       # Write timeout in seconds.
+#     # @param write_timeout_seconds - integer - optional - default: 2
+#     # Write timeout in seconds.
 #
-#       write_timeout_seconds: 2
+#     write_timeout_seconds: 2
 
-#       # @param idle_timeout_seconds - integer - optional - default: 60
-#       # Idle timeout in seconds.
+#     # @param idle_timeout_seconds - integer - optional - default: 60
+#     # Idle timeout in seconds.
 #
-#       idle_timeout_seconds: 60
+#     idle_timeout_seconds: 60
 
 {{ end -}}
 {{- if .ClusterChecks }}
