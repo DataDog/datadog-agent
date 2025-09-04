@@ -55,7 +55,7 @@ COPY readsecret.sh readsecret_multiple_providers.sh ./
 # Actual docker image construction #
 ####################################
 
-FROM release-base
+FROM release-base AS cluster-agent
 
 ARG DD_GIT_REPOSITORY_URL
 ARG DD_GIT_COMMIT_SHA
@@ -111,3 +111,6 @@ ENTRYPOINT ["/entrypoint.sh"]
 # on port 5005 and/or 443 on Kubernetes
 
 CMD ["datadog-cluster-agent", "start"]
+
+FROM scratch AS cluster-agent-flattened
+COPY --from=cluster-agent / /
