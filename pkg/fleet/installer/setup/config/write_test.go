@@ -35,22 +35,38 @@ func runWriteConfigTestCase(t *testing.T, tc writeConfigTestCase) {
 		}
 	}
 
-	err := writeConfig(configPath, tc.config, 0644, tc.merge)
-	if err != nil {
-		t.Fatalf("writeConfig failed: %v", err)
-	}
+	// Call writeConfig twice to ensure that the content does not change on re-run
+	// e.g. disclaimer added once or not at all
+	for i := 0; i < 2; i++ {
+		err := writeConfig(configPath, tc.config, 0644, tc.merge)
+		if err != nil {
+			t.Fatalf("writeConfig failed: %v", err)
+		}
 
-	got, err := os.ReadFile(configPath)
-	if err != nil {
-		t.Fatalf("failed to read written yaml: %v", err)
-	}
+		got, err := os.ReadFile(configPath)
+		if err != nil {
+			t.Fatalf("failed to read written yaml: %v", err)
+		}
 
-	if string(got) != tc.expectedYAML {
-		t.Errorf("test %q failed:\nGot:\n%s\nExpected:\n%s", tc.name, got, tc.expectedYAML)
+		if string(got) != tc.expectedYAML {
+			t.Errorf("test %q failed:\nGot:\n%s\nExpected:\n%s", tc.name, got, tc.expectedYAML)
+			break
+		}
 	}
 }
 
+// clearDisclaimer clears disclaimerGenerated to allow for simpler test cases
+func clearDisclaimer(t *testing.T) {
+	originalDisclaimer := disclaimerGenerated
+	t.Cleanup(func() {
+		disclaimerGenerated = originalDisclaimer
+	})
+	disclaimerGenerated = ""
+}
+
 func TestWriteConfig(t *testing.T) {
+	clearDisclaimer(t)
+
 	testCases := []writeConfigTestCase{
 		{
 			name:        "write new config file",
@@ -288,6 +304,45 @@ installer:
   registry:
     url: newregistry.com
 api_key: newkey
+`,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			runWriteConfigTestCase(t, tc)
+		})
+	}
+}
+
+func TestWriteConfigWithDisclaimer(t *testing.T) {
+	testCases := []writeConfigTestCase{
+		{
+			name:        "write new config file with disclaimer",
+			initialYAML: "",
+			config:      simpleConfig{Site: "datadoghq.com"},
+			merge:       false,
+			expectedYAML: disclaimerGenerated + "\n\n" + `site: datadoghq.com
+`,
+		},
+		{
+			name:        "does not add disclaimer to existing config file",
+			initialYAML: `site: datadoghq.com`,
+			config:      simpleConfig{Site: "datadoghq.com"},
+			merge:       true,
+			expectedYAML: `site: datadoghq.com
+`,
+		},
+		{
+			name: "adds disclaimer to file with only comments",
+			initialYAML: `# site: oldvalue
+# api_key: oldkey
+`,
+			config: simpleConfig{Site: "datadoghq.com"},
+			merge:  true,
+			expectedYAML: disclaimerGenerated + "\n\n" + `# site: oldvalue
+# api_key: oldkey
+site: datadoghq.com
 `,
 		},
 	}

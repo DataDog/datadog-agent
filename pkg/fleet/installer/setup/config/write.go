@@ -57,12 +57,18 @@ func writeConfig(path string, config any, perms os.FileMode, merge bool) error {
 
 	// Save result
 	var buf bytes.Buffer
-	if rootIsEmpty && len(originalBytes) > 0 {
-		// file only contained comments and those are not preserved by yaml.Node
+	if rootIsEmpty {
+		// Add generated disclaimer
+		if disclaimerGenerated != "" && !bytes.HasPrefix(originalBytes, []byte(disclaimerGenerated+"\n\n")) {
+			buf.WriteString(disclaimerGenerated + "\n\n")
+		}
+		// file may contain only comments and those are not preserved by yaml.Node
 		// write them manually here
-		buf.WriteString(string(originalBytes))
-		if !bytes.HasSuffix(originalBytes, []byte("\n")) {
-			buf.WriteString("\n")
+		if len(originalBytes) > 0 {
+			buf.WriteString(string(originalBytes))
+			if !bytes.HasSuffix(originalBytes, []byte("\n")) {
+				buf.WriteString("\n")
+			}
 		}
 	}
 	enc := yaml.NewEncoder(&buf)
