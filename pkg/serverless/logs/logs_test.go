@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/executioncontext"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
 func TestUnmarshalExtensionLog(t *testing.T) {
@@ -217,7 +218,7 @@ func TestProcessMessageValid(t *testing.T) {
 	mockExecutionContext := &executioncontext.ExecutionContext{}
 	mockExecutionContext.SetFromInvocation(arn, lastRequestID)
 	tags := Tags{
-		Tags: metricTags,
+		Tags: utilstrings.ToUnique(metricTags),
 	}
 	lc := NewLambdaLogCollector(make(chan<- *config.ChannelMessage), demux, &tags, true, computeEnhancedMetrics, mockExecutionContext, func() {}, make(chan<- *LambdaInitMetric))
 	lc.invocationStartTime = time.Now()
@@ -262,7 +263,7 @@ func TestProcessMessageStartValid(t *testing.T) {
 		runtimeDoneCallbackWasCalled = true
 	}
 	tags := Tags{
-		Tags: metricTags,
+		Tags: utilstrings.ToUnique(metricTags),
 	}
 	lc := NewLambdaLogCollector(make(chan<- *config.ChannelMessage), demux, &tags, true, computeEnhancedMetrics, mockExecutionContext, mockRuntimeDone, make(chan<- *LambdaInitMetric))
 	lc.lastRequestID = lastRequestID
@@ -285,7 +286,7 @@ func TestProcessMessagePlatformRuntimeDoneValid(t *testing.T) {
 	lastRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
 	metricTags := []string{"functionname:test-function"}
 	tags := Tags{
-		Tags: metricTags,
+		Tags: utilstrings.ToUnique(metricTags),
 	}
 	computeEnhancedMetrics := true
 
@@ -320,7 +321,7 @@ func TestProcessMessagePlatformRuntimeDonePreviousInvocation(t *testing.T) {
 	lastRequestID := currentRequestID
 	metricTags := []string{"functionname:test-function"}
 	tags := Tags{
-		Tags: metricTags,
+		Tags: utilstrings.ToUnique(metricTags),
 	}
 
 	computeEnhancedMetrics := true
@@ -357,7 +358,7 @@ func TestProcessMessageShouldNotProcessArnNotSet(t *testing.T) {
 
 	metricTags := []string{"functionname:test-function"}
 	tags := Tags{
-		Tags: metricTags,
+		Tags: utilstrings.ToUnique(metricTags),
 	}
 
 	mockExecutionContext := &executioncontext.ExecutionContext{}
@@ -385,7 +386,7 @@ func TestProcessMessageShouldNotProcessLogsDropped(t *testing.T) {
 	lastRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
 	metricTags := []string{"functionname:test-function"}
 	tags := Tags{
-		Tags: metricTags,
+		Tags: utilstrings.ToUnique(metricTags),
 	}
 	computeEnhancedMetrics := true
 
@@ -413,7 +414,7 @@ func TestProcessMessageShouldProcessLogTypeFunctionOutOfMemory(t *testing.T) {
 	lastRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
 	metricTags := []string{"functionname:test-function"}
 	tags := Tags{
-		Tags: metricTags,
+		Tags: utilstrings.ToUnique(metricTags),
 	}
 	computeEnhancedMetrics := true
 
@@ -454,7 +455,7 @@ func TestProcessMessageShouldProcessLogTypePlatformReportOutOfMemory(t *testing.
 	lastRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
 	metricTags := []string{"functionname:test-function"}
 	tags := Tags{
-		Tags: metricTags,
+		Tags: utilstrings.ToUnique(metricTags),
 	}
 	computeEnhancedMetrics := true
 
@@ -491,7 +492,7 @@ func TestProcessMessageShouldSendFailoverMetric(t *testing.T) {
 	mockExecutionContext := &executioncontext.ExecutionContext{}
 	mockExecutionContext.SetFromInvocation(arn, lastRequestID)
 	tags := Tags{
-		Tags: metricTags,
+		Tags: utilstrings.ToUnique(metricTags),
 	}
 	logChannel := make(chan<- *config.ChannelMessage)
 	lc := NewLambdaLogCollector(logChannel, demux, &tags, true, computeEnhancedMetrics, mockExecutionContext, func() {}, make(chan<- *LambdaInitMetric))
@@ -528,7 +529,7 @@ func TestProcessLogMessageLogsEnabled(t *testing.T) {
 		logsEnabled:   true,
 		out:           logChannel,
 		extraTags: &Tags{
-			Tags: []string{"tag0:value0,tag1:value1"},
+			Tags: utilstrings.ToUnique([]string{"tag0:value0,tag1:value1"}),
 		},
 		executionContext: mockExecutionContext,
 	}
@@ -571,7 +572,7 @@ func TestProcessLogMessageLogsEnabledForMixedUnorderedMessages(t *testing.T) {
 		lastRequestID: "myRequestID",
 		out:           logChannel,
 		extraTags: &Tags{
-			Tags: []string{"tag0:value0,tag1:value1"},
+			Tags: utilstrings.ToUnique([]string{"tag0:value0,tag1:value1"}),
 		},
 		executionContext: mockExecutionContext,
 	}
@@ -616,7 +617,7 @@ func TestProcessLogMessageNoStringRecordPlatformLog(t *testing.T) {
 		logsEnabled: true,
 		out:         logChannel,
 		extraTags: &Tags{
-			Tags: []string{"tag0:value0,tag1:value1"},
+			Tags: utilstrings.ToUnique([]string{"tag0:value0,tag1:value1"}),
 		},
 		executionContext: mockExecutionContext,
 	}
@@ -649,7 +650,7 @@ func TestProcessLogMessageNoStringRecordFunctionLog(t *testing.T) {
 		arn:           "my-arn",
 		lastRequestID: "myRequestID",
 		extraTags: &Tags{
-			Tags: []string{"tag0:value0,tag1:value1"},
+			Tags: utilstrings.ToUnique([]string{"tag0:value0,tag1:value1"}),
 		},
 		executionContext: mockExecutionContext,
 	}
@@ -682,7 +683,7 @@ func TestProcessLogMessageLogsNotEnabled(t *testing.T) {
 		logsEnabled: false,
 		out:         logChannel,
 		extraTags: &Tags{
-			Tags: []string{"tag0:value0,tag1:value1"},
+			Tags: utilstrings.ToUnique([]string{"tag0:value0,tag1:value1"}),
 		},
 		executionContext: mockExecutionContext,
 	}
@@ -723,7 +724,7 @@ func TestProcessLogMessagesTimeoutLogFromReportLog(t *testing.T) {
 				enhancedMetricsEnabled: enhancedMetricsEnabled,
 				out:                    logChannel,
 				extraTags: &Tags{
-					Tags: []string{"tag0:value0,tag1:value1"},
+					Tags: utilstrings.ToUnique([]string{"tag0:value0,tag1:value1"}),
 				},
 				executionContext:    mockExecutionContext,
 				demux:               demux,
@@ -786,7 +787,7 @@ func TestProcessMultipleLogMessagesTimeoutLogFromReportLog(t *testing.T) {
 		enhancedMetricsEnabled: true,
 		out:                    logChannel,
 		extraTags: &Tags{
-			Tags: []string{"tag0:value0,tag1:value1"},
+			Tags: utilstrings.ToUnique([]string{"tag0:value0,tag1:value1"}),
 		},
 		executionContext:    mockExecutionContext,
 		demux:               demux,
@@ -880,7 +881,7 @@ func TestProcessLogMessagesOutOfMemoryError(t *testing.T) {
 		enhancedMetricsEnabled: true,
 		out:                    logChannel,
 		extraTags: &Tags{
-			Tags: []string{"tag0:value0,tag1:value1"},
+			Tags: utilstrings.ToUnique([]string{"tag0:value0,tag1:value1"}),
 		},
 		executionContext: mockExecutionContext,
 		demux:            demux,
@@ -924,7 +925,7 @@ func TestProcessLogMessageLogsNoRequestID(t *testing.T) {
 		logsEnabled: true,
 		out:         logChannel,
 		extraTags: &Tags{
-			Tags: []string{"tag0:value0,tag1:value1"},
+			Tags: utilstrings.ToUnique([]string{"tag0:value0,tag1:value1"}),
 		},
 		executionContext: mockExecutionContext,
 		orphanLogsChan:   orphanLogsChan,
@@ -1197,7 +1198,7 @@ func TestRuntimeMetricsMatchLogs(t *testing.T) {
 	mockExecutionContext.UpdateStartTime(startTime)
 	computeEnhancedMetrics := true
 	tags := Tags{
-		Tags: []string{},
+		Tags: utilstrings.ToUnique([]string{}),
 	}
 
 	startMessage := &LambdaLogAPIMessage{
@@ -1238,7 +1239,7 @@ func TestRuntimeMetricsMatchLogs(t *testing.T) {
 		Name:       "aws.lambda.enhanced.runtime_duration",
 		Value:      runtimeDurationMs, // in milliseconds
 		Mtype:      metrics.DistributionType,
-		Tags:       []string{"cold_start:true"},
+		Tags:       utilstrings.ToUnique([]string{"cold_start:true"}),
 		SampleRate: 1,
 		Timestamp:  runtimeMetricTimestamp,
 		Source:     metrics.MetricSourceAwsLambdaEnhanced,
@@ -1247,7 +1248,7 @@ func TestRuntimeMetricsMatchLogs(t *testing.T) {
 		Name:       "aws.lambda.enhanced.duration",
 		Value:      durationMs / 1000, // in seconds
 		Mtype:      metrics.DistributionType,
-		Tags:       []string{"cold_start:true"},
+		Tags:       utilstrings.ToUnique([]string{"cold_start:true"}),
 		SampleRate: 1,
 		Timestamp:  postRuntimeMetricTimestamp,
 		Source:     metrics.MetricSourceAwsLambdaEnhanced,
@@ -1256,7 +1257,7 @@ func TestRuntimeMetricsMatchLogs(t *testing.T) {
 		Name:       "aws.lambda.enhanced.post_runtime_duration",
 		Value:      postRuntimeDurationMs, // in milliseconds
 		Mtype:      metrics.DistributionType,
-		Tags:       []string{"cold_start:true"},
+		Tags:       utilstrings.ToUnique([]string{"cold_start:true"}),
 		SampleRate: 1,
 		Timestamp:  postRuntimeMetricTimestamp,
 		Source:     metrics.MetricSourceAwsLambdaEnhanced,
@@ -1286,7 +1287,7 @@ func TestRuntimeMetricsMatchLogsProactiveInit(t *testing.T) {
 	mockExecutionContext.UpdateStartTime(startTime)
 	computeEnhancedMetrics := true
 	tags := Tags{
-		Tags: []string{},
+		Tags: utilstrings.ToUnique([]string{}),
 	}
 
 	startMessage := &LambdaLogAPIMessage{
@@ -1327,7 +1328,7 @@ func TestRuntimeMetricsMatchLogsProactiveInit(t *testing.T) {
 		Name:       "aws.lambda.enhanced.runtime_duration",
 		Value:      runtimeDurationMs, // in milliseconds
 		Mtype:      metrics.DistributionType,
-		Tags:       []string{"cold_start:false", "proactive_initialization:true"},
+		Tags:       utilstrings.ToUnique([]string{"cold_start:false", "proactive_initialization:true"}),
 		SampleRate: 1,
 		Timestamp:  runtimeMetricTimestamp,
 		Source:     metrics.MetricSourceAwsLambdaEnhanced,
@@ -1336,7 +1337,7 @@ func TestRuntimeMetricsMatchLogsProactiveInit(t *testing.T) {
 		Name:       "aws.lambda.enhanced.duration",
 		Value:      durationMs / 1000, // in seconds
 		Mtype:      metrics.DistributionType,
-		Tags:       []string{"cold_start:false", "proactive_initialization:true"},
+		Tags:       utilstrings.ToUnique([]string{"cold_start:false", "proactive_initialization:true"}),
 		SampleRate: 1,
 		Timestamp:  postRuntimeMetricTimestamp,
 		Source:     metrics.MetricSourceAwsLambdaEnhanced,
@@ -1345,7 +1346,7 @@ func TestRuntimeMetricsMatchLogsProactiveInit(t *testing.T) {
 		Name:       "aws.lambda.enhanced.post_runtime_duration",
 		Value:      postRuntimeDurationMs, // in milliseconds
 		Mtype:      metrics.DistributionType,
-		Tags:       []string{"cold_start:false", "proactive_initialization:true"},
+		Tags:       utilstrings.ToUnique([]string{"cold_start:false", "proactive_initialization:true"}),
 		SampleRate: 1,
 		Timestamp:  postRuntimeMetricTimestamp,
 		Source:     metrics.MetricSourceAwsLambdaEnhanced,
@@ -1382,7 +1383,7 @@ func TestRuntimeMetricsOnTimeout(t *testing.T) {
 	mockExecutionContext.UpdateStartTime(startTime)
 	computeEnhancedMetrics := true
 	tags := Tags{
-		Tags: []string{},
+		Tags: utilstrings.ToUnique([]string{}),
 	}
 
 	startMessage := &LambdaLogAPIMessage{
@@ -1432,7 +1433,7 @@ func TestRuntimeMetricsOnTimeout(t *testing.T) {
 		Name:       "aws.lambda.enhanced.runtime_duration",
 		Value:      runtimeDurationMs, // in milliseconds
 		Mtype:      metrics.DistributionType,
-		Tags:       []string{"cold_start:false", "proactive_initialization:true"},
+		Tags:       utilstrings.ToUnique([]string{"cold_start:false", "proactive_initialization:true"}),
 		SampleRate: 1,
 		Timestamp:  runtimeMetricTimestamp,
 		Source:     metrics.MetricSourceAwsLambdaEnhanced,
@@ -1441,7 +1442,7 @@ func TestRuntimeMetricsOnTimeout(t *testing.T) {
 		Name:       "aws.lambda.enhanced.duration",
 		Value:      durationMs / 1000, // in seconds
 		Mtype:      metrics.DistributionType,
-		Tags:       []string{"cold_start:false", "proactive_initialization:true"},
+		Tags:       utilstrings.ToUnique([]string{"cold_start:false", "proactive_initialization:true"}),
 		SampleRate: 1,
 		Timestamp:  postRuntimeMetricTimestamp,
 		Source:     metrics.MetricSourceAwsLambdaEnhanced,
@@ -1450,7 +1451,7 @@ func TestRuntimeMetricsOnTimeout(t *testing.T) {
 		Name:       "aws.lambda.enhanced.post_runtime_duration",
 		Value:      postRuntimeDurationMs, // in milliseconds
 		Mtype:      metrics.DistributionType,
-		Tags:       []string{"cold_start:false", "proactive_initialization:true"},
+		Tags:       utilstrings.ToUnique([]string{"cold_start:false", "proactive_initialization:true"}),
 		SampleRate: 1,
 		Timestamp:  postRuntimeMetricTimestamp,
 		Source:     metrics.MetricSourceAwsLambdaEnhanced,
@@ -1467,7 +1468,7 @@ func TestMultipleStartLogCollection(t *testing.T) {
 	lastRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
 	metricTags := []string{"functionname:test-function"}
 	tags := Tags{
-		Tags: metricTags,
+		Tags: utilstrings.ToUnique(metricTags),
 	}
 	computeEnhancedMetrics := true
 

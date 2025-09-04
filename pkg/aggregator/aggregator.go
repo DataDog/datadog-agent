@@ -445,7 +445,7 @@ func (agg *BufferedAggregator) handleSenderSample(ss senderMetricSample) {
 		if ss.commit {
 			checkSampler.commit(timeNowNano())
 		} else {
-			ss.metricSample.Tags = sort.UniqInPlace(ss.metricSample.Tags)
+			ss.metricSample.Tags = sort.UniqInPlace2(ss.metricSample.Tags)
 			checkSampler.addSample(ss.metricSample)
 		}
 	} else {
@@ -881,6 +881,7 @@ func (agg *BufferedAggregator) tags(withVersion bool) []string {
 	if tags == nil {
 		tags = []string{}
 	}
+
 	return tags
 }
 

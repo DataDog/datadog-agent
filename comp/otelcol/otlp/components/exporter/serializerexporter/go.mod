@@ -158,7 +158,7 @@ require (
 require (
 	github.com/DataDog/datadog-agent/comp/serializer/metricscompression v0.69.2
 	github.com/DataDog/datadog-agent/pkg/config/create v0.69.2
-	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata v0.67.0
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata v0.71.0-devel.0.20250820180704-be0d2d237646
 	github.com/DataDog/datadog-agent/pkg/util/compression v0.69.2
 	github.com/DataDog/datadog-agent/pkg/util/otel v0.64.0
 	github.com/DataDog/datadog-agent/pkg/util/quantile v0.71.0-devel.0.20250820180704-be0d2d237646
@@ -210,11 +210,13 @@ require (
 )
 
 require (
+	github.com/DataDog/datadog-agent v0.0.0-20250903144728-43f4ec16905c // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/comp/core/secrets/mock v0.70.0-rc.7 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.69.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.69.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/fips v0.69.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/logs/types v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/types v0.0.0-20250827162834-c4a924b8c411 // indirect
 	github.com/DataDog/datadog-agent/pkg/template v0.69.2 // indirect
 	github.com/ebitengine/purego v0.8.4 // indirect
 	github.com/gofrs/flock v0.12.1 // indirect

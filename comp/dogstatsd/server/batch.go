@@ -82,7 +82,7 @@ func (s *shardKeyGenerator) Generate(sample metrics.MetricSample, shards int) ui
 	// TODO(remy): re-using this tagsBuffer later in the pipeline (by sharing
 	// it in the sample?) would reduce CPU usage, avoiding to recompute
 	// the tags hashes while generating the context key.
-	s.tagsBuffer.Append(sample.Tags...)
+	s.tagsBuffer.AppendUnique(sample.Tags)
 	h := s.keyGenerator.Generate(sample.Name, sample.Host, s.tagsBuffer)
 	s.tagsBuffer.Reset()
 	return fastrange(h, shards)

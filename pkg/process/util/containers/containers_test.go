@@ -414,7 +414,7 @@ func TestGetContainers(t *testing.T) {
 			},
 			ThreadCount: 10,
 			ThreadLimit: 20,
-			Tags:        []string{},
+			Tags:        nil,
 		},
 		{
 			Type:         "garden",
@@ -627,7 +627,7 @@ func TestGetContainers(t *testing.T) {
 			},
 			ThreadCount: 10,
 			ThreadLimit: 20,
-			Tags:        []string{},
+			Tags:        nil,
 		},
 		{
 			Type:         "garden",
