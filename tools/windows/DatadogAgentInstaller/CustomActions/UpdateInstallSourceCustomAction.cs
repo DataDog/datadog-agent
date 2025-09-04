@@ -20,9 +20,8 @@ namespace Datadog.CustomActions
         /// </remarks>
         /// <param name="s">The session object.</param>
         /// <returns><see cref="ActionResult.Success"/></returns>
-        public static ActionResult UpdateInstallSource(Session s)
+        public static ActionResult UpdateInstallSource(ISession session)
         {
-            ISession session = new SessionWrapper(s);
             var msiPath = session.Property("DATABASE");
             // get installer path
             var installerPath = session.Property("PROJECTLOCATION");
@@ -35,6 +34,15 @@ namespace Datadog.CustomActions
                 session.Log("Skipping install source update as this is a FLEET install.");
                 return ActionResult.Success;
             }
+
+            // check if this is a FIPS install
+            var agentFlavor = session.Property("AgentFlavor");
+            if (!string.IsNullOrEmpty(agentFlavor) && agentFlavor == Constants.FipsFlavor)
+            {
+                session.Log("Skipping install source update as this is a FIPS install.");
+                return ActionResult.Success;
+            }
+
             // verify that msiPath is a valid path
             if (!File.Exists(msiPath))
             {
@@ -43,16 +51,20 @@ namespace Datadog.CustomActions
             }
 
             // run the package-command datadog-agent updateRegistryInstallSource
-            var proc = session.RunCommand(installerPath, $"package-command datadog-agent updateRegistryInstallSource");
-
-            if (proc.ExitCode != 0)
+            using (var proc = session.RunCommand(installerPath, $"package-command datadog-agent updateRegistryInstallSource"))
             {
-                session.Log($"install script exited with code: {proc.ExitCode}");
-                proc.Close();
-                return ActionResult.Failure;
+                if (proc.ExitCode != 0)
+                {
+                    session.Log($"install script exited with code: {proc.ExitCode}");
+                    return ActionResult.Failure;
+                }
+                return ActionResult.Success;
             }
-            proc.Close();
-            return ActionResult.Success;
+        }
+
+        public static ActionResult UpdateInstallSource(Session session)
+        {
+            return UpdateInstallSource(new SessionWrapper(session));
         }
     }
 }
