@@ -10,14 +10,15 @@ package tests
 
 import (
 	"fmt"
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
-	"github.com/DataDog/datadog-agent/pkg/security/tests/testutils"
-	"github.com/stretchr/testify/assert"
 	"os"
 	"strings"
 	"syscall"
 	"testing"
 	"time"
+
+	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/tests/testutils"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"golang.org/x/sys/unix"
@@ -50,10 +51,14 @@ func TestMoveMount(t *testing.T) {
 	fsmountfd := 0
 	var mountid uint64
 	// Create a temporary mount
-	TmpMountAt(mountDir)
+	fdTmp, err := TmpMountAt(mountDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer unix.Close(fdTmp)
 
 	// Make this mount private, so that the second mount doesn't propagate to all namespaces
-	err := unix.Mount("", mountDir, "", unix.MS_REC|unix.MS_PRIVATE, "")
+	err = unix.Mount("", mountDir, "", unix.MS_REC|unix.MS_PRIVATE, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,6 +73,7 @@ func TestMoveMount(t *testing.T) {
 	if err != nil {
 		t.Fatal("fsopen error %w", err)
 	}
+	defer unix.Close(openfd)
 
 	_ = fsconfigStr(openfd, unix.FSCONFIG_SET_STRING, "source", "tmpfs", 0)
 	_ = fsconfigStr(openfd, unix.FSCONFIG_SET_STRING, "size", "1M", 0)
@@ -76,6 +82,7 @@ func TestMoveMount(t *testing.T) {
 	if err != nil {
 		t.Fatal(fmt.Errorf("fsmount error %w", err))
 	}
+	defer unix.Close(fsmountfd)
 
 	mountid, _ = GetMountID(fsmountfd)
 
@@ -110,8 +117,12 @@ func TestMoveMount(t *testing.T) {
 		}
 	})
 
-	_ = unix.Unmount(submountDir, unix.MNT_FORCE|unix.MNT_DETACH)
-	_ = unix.Unmount(mountDir, unix.MNT_FORCE|unix.MNT_DETACH)
+	if err := unix.Unmount(submountDir, unix.MNT_DETACH); err != nil {
+		t.Logf("Failed to unmount %s: %v", submountDir, err)
+	}
+	if err := unix.Unmount(mountDir, unix.MNT_DETACH); err != nil {
+		t.Logf("Failed to unmount %s: %v", mountDir, err)
+	}
 }
 
 type MountEnvironment struct {
@@ -129,10 +140,11 @@ func newTestEnvironment(private bool, mountDir string) (*MountEnvironment, error
 	r.mountDir = mountDir
 	r.tounmount = []string{mountDir}
 
-	_, err := TmpMountAt(mountDir)
+	fd, err := TmpMountAt(mountDir)
 	if err != nil {
 		return nil, err
 	}
+	unix.Close(fd)
 
 	if private {
 		// Make this mount private, so that the second mount doesn't propagate to all namespaces
@@ -187,10 +199,11 @@ func newTestEnvironment(private bool, mountDir string) (*MountEnvironment, error
 		if err != nil {
 			return err
 		}
-		_, err = TmpMountAt(fullpath)
+		fd2, err := TmpMountAt(fullpath)
 		if err != nil {
 			return err
 		}
+		unix.Close(fd2)
 
 		id, err := getMountID(fullpath)
 		if err != nil {
@@ -214,6 +227,9 @@ func newTestEnvironment(private bool, mountDir string) (*MountEnvironment, error
 func (r *MountEnvironment) UnmountAll() {
 	for i := len(r.tounmount) - 1; i >= 0; i-- {
 		unix.Unmount(r.tounmount[i], syscall.MNT_DETACH)
+	}
+	if r.fsmountfd > 0 {
+		unix.Close(r.fsmountfd)
 	}
 }
 
@@ -288,6 +304,7 @@ func TestMoveMountRecursivePropagation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer unix.Close(fd)
 
 	test, err := newTestModule(t, nil, nil)
 	if err != nil {
