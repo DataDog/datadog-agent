@@ -38,6 +38,7 @@
 #include "chdir.h"
 #include "setrlimit.h"
 #include "caps.h"
+#include "prctl.h"
 
 #include "network/accept.h"
 #include "network/bind.h"
