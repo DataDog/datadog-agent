@@ -659,6 +659,10 @@ static __always_inline void handle_first_frame(pktbuf_t pkt, __u32 *external_dat
                               incomplete_frame != NULL && incomplete_frame->header_length == HTTP2_FRAME_HEADER_SIZE &&
                               advance_length > HTTP2_PRIORITY_BUFFER_LEN);
 
+    // Evaluate will_cache_priority_frame BEFORE modifying advance_length to avoid incorrect evaluation
+    bool will_cache_priority_frame = (current_frame.type == kHeadersFrame && (current_frame.flags & HTTP2_PRIORITY_FLAG) && 
+                                     advance_length > HTTP2_PRIORITY_BUFFER_LEN && !is_cached_priority);
+
     bool is_headers_or_rst_frame = current_frame.type == kHeadersFrame || current_frame.type == kRSTStreamFrame;
     bool is_data_end_of_stream = ((current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) && (current_frame.type == kDataFrame);
     if (is_headers_or_rst_frame || is_data_end_of_stream) {
@@ -671,10 +675,6 @@ static __always_inline void handle_first_frame(pktbuf_t pkt, __u32 *external_dat
     if (is_cached_priority) {
         advance_length -= HTTP2_PRIORITY_BUFFER_LEN;
     }
-    
-    // For new PRIORITY frames that will be cached, we need to track that PRIORITY will be consumed
-    bool will_cache_priority_frame = (current_frame.type == kHeadersFrame && (current_frame.flags & HTTP2_PRIORITY_FLAG) && 
-                                     advance_length > HTTP2_PRIORITY_BUFFER_LEN && !is_cached_priority);
 
     pktbuf_advance(pkt, advance_length);
     // We're exceeding the packet boundaries, so we have a remainder.
