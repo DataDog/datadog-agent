@@ -6,7 +6,6 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-fixes:
+enhancements:
   - |
     Increase the Logs Agent default max message payload size from 256 KB to 900 KB.
-
