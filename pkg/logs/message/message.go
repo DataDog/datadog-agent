@@ -38,6 +38,8 @@ type Payload struct {
 	Encoding string
 	// The size of the unencoded payload
 	UnencodedSize int
+	// Indicates if this payload is a snapshot for stream rotation
+	IsSnapshot bool
 }
 
 // NewPayload creates a new payload with the given message metadata, encoded content, encoding type and unencoded size

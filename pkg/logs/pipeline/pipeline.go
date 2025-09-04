@@ -105,7 +105,7 @@ func getStrategy(
 	compressor logscompression.Component,
 	instanceID string,
 ) sender.Strategy {
-	if endpoints.UseHTTP || serverlessMeta.IsEnabled() {
+	if endpoints.UseHTTP || endpoints.UseGRPC || serverlessMeta.IsEnabled() {
 		var encoder compressioncommon.Compressor
 		encoder = compressor.NewCompressor(compressioncommon.NoneKind, 0)
 		if endpoints.Main.UseCompression {
