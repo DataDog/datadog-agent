@@ -10,15 +10,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
-	"strings"
 
 	"gopkg.in/yaml.v3"
-)
-
-var (
-	activeKeyCommentRegex  = regexp.MustCompile(`^(\s*)([\w\-]+)\s*:\s*([^\n#]*?)(\s*)(#[^\"\']*)?$`)
-	commentedKeyValueRegex = regexp.MustCompile(`^(\s*)#\s*([\w\-]+)\s*:\s*(.*?)(\s*)(#.*)?$`)
 )
 
 func writeConfig(path string, config any, perms os.FileMode, merge bool) error {
@@ -27,7 +20,7 @@ func writeConfig(path string, config any, perms os.FileMode, merge bool) error {
 		return fmt.Errorf("could not create config directory: %w", err)
 	}
 
-	// Step 1: Marshal the given `config` to yaml.Node
+	// Marshal the given `config` to yaml.Node
 	updatedBytes, err := yaml.Marshal(config)
 	if err != nil {
 		return err
@@ -37,7 +30,7 @@ func writeConfig(path string, config any, perms os.FileMode, merge bool) error {
 		return err
 	}
 
-	// Step 2: (maybe) Load original YAML & replace commented-out scalar keys (like "# site: xxx")
+	// Load original YAML into a node tree
 	var originalBytes []byte
 	if merge {
 		// Read the original YAML (for preserving comments)
@@ -45,33 +38,33 @@ func writeConfig(path string, config any, perms os.FileMode, merge bool) error {
 		if err != nil && !os.IsNotExist(err) {
 			return err
 		}
+		// Remove CR (\r) from originalBytes
+		// TODO: There seems to be an issue with how the yaml package handles CRLF
+		originalBytes = bytes.ReplaceAll(originalBytes, []byte("\r"), []byte(""))
 	}
-	lines := strings.Split(string(originalBytes), "\n")
-	inlineComments := extractInlineComments(lines)
-	updatedLines, reactivatedComments := replaceCommentedKeysInLines(lines, &updatedRoot, inlineComments)
-	for k, v := range reactivatedComments {
-		inlineComments[k] = v
-	}
-	updatedYamlText := strings.Join(updatedLines, "\n")
-
-	// Step 3: Load original YAML into a node tree
 	var root yaml.Node
-	if err := yaml.Unmarshal([]byte(updatedYamlText), &root); err != nil {
+	if err := yaml.Unmarshal([]byte(originalBytes), &root); err != nil {
 		return err
 	}
 
-	// Step 4: Merge the updated `config` node tree into the original YAML
+	// Merge the updated `config` node tree into the original YAML
+	rootIsEmpty := len(root.Content) == 0
 	if len(root.Content) > 0 && len(updatedRoot.Content) > 0 {
 		mergeNodes(root.Content[0], updatedRoot.Content[0])
-	} else if len(root.Content) == 0 {
+	} else if rootIsEmpty {
 		root = updatedRoot
 	}
 
-	// Step 5: Attach any inline comments to final YAML node
-	attachInlineCommentsToNodes(&root, inlineComments)
-
-	// Step 6: Save result
+	// Save result
 	var buf bytes.Buffer
+	if rootIsEmpty && len(originalBytes) > 0 {
+		// file only contained comments and those are not preserved by yaml.Node
+		// write them manually here
+		buf.WriteString(string(originalBytes))
+		if !bytes.HasSuffix(originalBytes, []byte("\n")) {
+			buf.WriteString("\n")
+		}
+	}
 	enc := yaml.NewEncoder(&buf)
 	enc.SetIndent(2)
 	if err := enc.Encode(&root); err != nil {
@@ -80,133 +73,11 @@ func writeConfig(path string, config any, perms os.FileMode, merge bool) error {
 	return os.WriteFile(path, buf.Bytes(), perms)
 }
 
-type commentedLine struct {
-	lineIndex           int
-	leadingSpaces       string
-	key                 string
-	value               string
-	spacesBeforeComment string
-	trailingComment     string
-}
-
-func parseCommentedKeysFromLines(lines []string) map[string]commentedLine {
-	result := map[string]commentedLine{}
-	for i, line := range lines {
-		m := commentedKeyValueRegex.FindStringSubmatch(line)
-		if m != nil {
-			result[m[2]] = commentedLine{
-				lineIndex:           i,
-				leadingSpaces:       m[1],
-				key:                 m[2],
-				value:               m[3],
-				spacesBeforeComment: m[4],
-				trailingComment:     m[5],
-			}
-		}
-	}
-	return result
-}
-
-func extractInlineComments(lines []string) map[string]string {
-	comments := make(map[string]string)
-	for _, line := range lines {
-		m := activeKeyCommentRegex.FindStringSubmatch(line)
-		if m != nil && m[5] != "" {
-			key := m[2]
-			comments[key] = m[5]
-		}
-	}
-	return comments
-}
-
-func replaceCommentedKeysInLines(
-	lines []string,
-	updatedRoot *yaml.Node,
-	inlineComments map[string]string,
-) ([]string, map[string]string) {
-	commentedKeys := parseCommentedKeysFromLines(lines)
-
-	// Detect existing non-commented top-level keys
-	actualKeys := make(map[string]bool)
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "#") || !strings.Contains(trimmed, ":") {
-			continue
-		}
-		parts := strings.SplitN(trimmed, ":", 2)
-		key := strings.TrimSpace(parts[0])
-		if key != "" {
-			actualKeys[key] = true
-		}
-	}
-
-	// Build a map of top-level scalar values from updated YAML
-	updatedValues := map[string]*yaml.Node{}
-	if updatedRoot.Kind == yaml.DocumentNode && len(updatedRoot.Content) > 0 {
-		mapping := updatedRoot.Content[0]
-		if mapping.Kind == yaml.MappingNode {
-			for i := 0; i < len(mapping.Content); i += 2 {
-				key := mapping.Content[i].Value
-				val := mapping.Content[i+1]
-				if val.Kind == yaml.ScalarNode {
-					updatedValues[key] = val
-				}
-			}
-		}
-	}
-
-	updatedLines := make([]string, len(lines))
-	copy(updatedLines, lines)
-
-	reactivatedComments := make(map[string]string)
-
-	// Reactivate commented-out keys
-	for key, commentLine := range commentedKeys {
-		valNode, ok := updatedValues[key]
-		if !ok {
-			continue
-		}
-		newLine := fmt.Sprintf("%s%s: %s%s%s",
-			commentLine.leadingSpaces,
-			key,
-			valNode.Value,
-			commentLine.spacesBeforeComment,
-			commentLine.trailingComment,
-		)
-		updatedLines[commentLine.lineIndex] = newLine
-
-		if commentLine.trailingComment != "" {
-			reactivatedComments[key] = commentLine.trailingComment
-		}
-	}
-
-	// Append missing scalar keys
-	for key, val := range updatedValues {
-		if _, inComments := commentedKeys[key]; !inComments && !actualKeys[key] {
-			comment := inlineComments[key]
-			if comment != "" {
-				updatedLines = append(updatedLines, fmt.Sprintf("%s: %s %s", key, val.Value, comment))
-			} else {
-				updatedLines = append(updatedLines, fmt.Sprintf("%s: %s", key, val.Value))
-			}
-		}
-	}
-
-	// Reapply preserved inline comments to active keys
-	for i, line := range updatedLines {
-		m := activeKeyCommentRegex.FindStringSubmatch(line)
-		if m != nil {
-			key := m[2]
-			if comment, exists := inlineComments[key]; exists {
-				updatedLines[i] = fmt.Sprintf("%s%s: %s%s%s",
-					m[1], key, strings.TrimSpace(m[3]), m[4], comment)
-			}
-		}
-	}
-
-	return updatedLines, reactivatedComments
-}
-
+// mergeNodes merges the src node into the dst node
+//
+// The values are merged as follows:
+// - If the value is a mapping, the nodes are merged recursively
+// - for other types, the src value overrides the dst value
 func mergeNodes(dst *yaml.Node, src *yaml.Node) {
 	if dst.Kind != yaml.MappingNode || src.Kind != yaml.MappingNode {
 		return
@@ -225,30 +96,25 @@ func mergeNodes(dst *yaml.Node, src *yaml.Node) {
 		if idx, found := keyIndex[srcKey.Value]; found {
 			dstVal := dst.Content[idx+1]
 			if dstVal.Kind == yaml.MappingNode && srcVal.Kind == yaml.MappingNode {
+				// If the value is a mapping, the nodes are merged recursively
 				mergeNodes(dstVal, srcVal)
 			} else {
+				// for other types, the src value overrides the dst value
+
+				// Copy node-level comments if missing on current
+				if srcVal.HeadComment == "" && dstVal.HeadComment != "" {
+					srcVal.HeadComment = dstVal.HeadComment
+				}
+				if srcVal.LineComment == "" && dstVal.LineComment != "" {
+					srcVal.LineComment = dstVal.LineComment
+				}
+				if srcVal.FootComment == "" && dstVal.FootComment != "" {
+					srcVal.FootComment = dstVal.FootComment
+				}
 				dst.Content[idx+1] = srcVal
 			}
 		} else {
 			dst.Content = append(dst.Content, srcKey, srcVal)
-		}
-	}
-}
-
-func attachInlineCommentsToNodes(root *yaml.Node, inlineComments map[string]string) {
-	if root.Kind != yaml.DocumentNode || len(root.Content) == 0 {
-		return
-	}
-	mapping := root.Content[0]
-	if mapping.Kind != yaml.MappingNode {
-		return
-	}
-	for i := 0; i < len(mapping.Content); i += 2 {
-		keyNode := mapping.Content[i]
-		valNode := mapping.Content[i+1]
-		key := keyNode.Value
-		if comment, ok := inlineComments[key]; ok {
-			valNode.LineComment = strings.TrimSpace(comment)
 		}
 	}
 }

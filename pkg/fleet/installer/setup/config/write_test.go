@@ -8,6 +8,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -60,15 +61,68 @@ func TestWriteConfig(t *testing.T) {
 `,
 		},
 		{
-			name: "merge with commented keys",
+			name: "preserves file with only comments",
+			initialYAML: `# site: oldvalue
+# api_key: oldkey
+`,
+			config: simpleConfig{Site: "datadoghq.com"},
+			merge:  true,
+			expectedYAML: `# site: oldvalue
+# api_key: oldkey
+site: datadoghq.com
+`,
+		},
+		{
+			name: "preserves block style comments",
+			initialYAML: `api_key: oldkey
+###########################
+## Dogfood Configuration ##
+###########################
+`,
+			config: simpleConfig{Site: "datadoghq.com"},
+			merge:  true,
+			expectedYAML: `api_key: oldkey
+###########################
+## Dogfood Configuration ##
+###########################
+
+site: datadoghq.com
+`,
+		},
+		{
+			name: "maintains structure with CRLF line endings",
+			initialYAML: strings.ReplaceAll(`api_key: oldkey
+###########################
+## Dogfood Configuration ##
+###########################
+`, "\n", "\r\n"),
+			config: simpleConfig{Site: "datadoghq.com"},
+			merge:  true,
+			expectedYAML: `api_key: oldkey
+###########################
+## Dogfood Configuration ##
+###########################
+
+site: datadoghq.com
+`,
+		},
+		{
+			// We don't want to overwrite commented keys.
+			// They could be old/testing values that the customer wants to preserve.
+			// If we ensure our config template has specific values then we could
+			// target those.
+			name: "preserves commented keys",
 			initialYAML: `
 # site: oldvalue
 # api_key: oldkey
+api_key: oldvalue
 `,
 			config: simpleConfig{Site: "newsite", APIKey: "newkey"},
 			merge:  true,
-			expectedYAML: `site: newsite
+			expectedYAML: `# site: oldvalue
+# api_key: oldkey
 api_key: newkey
+site: newsite
 `,
 		},
 		{
@@ -80,6 +134,8 @@ site: datadoghq.eu
 			config: simpleConfig{Site: "datadoghq.com", APIKey: "newkey"},
 			merge:  true,
 			expectedYAML: `site: datadoghq.com
+# api_key: oldkey
+
 api_key: newkey
 `,
 		},
@@ -99,6 +155,7 @@ api_key: added
 			initialYAML: `
 site: datadoghq.com
 nested:
+# nested comment (will be tabbed over)
   foo: bar
 `,
 			config: struct {
@@ -117,6 +174,7 @@ nested:
 			merge: true,
 			expectedYAML: `site: datadoghq.com
 nested:
+  # nested comment (will be tabbed over)
   foo: baz
   baz: qux
 `,
@@ -127,19 +185,22 @@ nested:
 # This is a config file
 # site: oldvalue
 # api_key: oldkey
+api_key: oldvalue
 `,
 			config: simpleConfig{Site: "newsite", APIKey: "newkey"},
 			merge:  true,
 			expectedYAML: `# This is a config file
-site: newsite
+# site: oldvalue
+# api_key: oldkey
 api_key: newkey
+site: newsite
 `,
 		},
 		{
 			name: "preserves inline comments",
 			initialYAML: `
-# site: oldvalue # site comment
-# api_key: oldkey # api comment
+site: oldvalue # site comment
+api_key: oldkey # api comment
 `,
 			config: simpleConfig{Site: "withcomment", APIKey: "withapicomment"},
 			merge:  true,
@@ -160,9 +221,11 @@ other: value
 			merge:  true,
 			expectedYAML: `# global comment
 site: datadoghq.eu
-api_key: mergedkey
+# api_key: oldkey
 other: value
 # end comment
+
+api_key: mergedkey
 `,
 		},
 		{
@@ -170,11 +233,13 @@ other: value
 			initialYAML: `
 # unrelated comment
 # site: oldvalue
+site: somevalue
 # another comment
 `,
 			config: simpleConfig{Site: "merged", APIKey: ""},
 			merge:  true,
 			expectedYAML: `# unrelated comment
+# site: oldvalue
 site: merged
 # another comment
 `,
@@ -188,6 +253,41 @@ api_key: "#value"
 			merge:  true,
 			expectedYAML: `api_key: '#newkey'
 site: datadoghq.com
+`,
+		},
+		{
+			name: "empty value",
+			initialYAML: `
+api_key:
+`,
+			config: simpleConfig{Site: "datadoghq.com", APIKey: "#newkey"},
+			merge:  true,
+			expectedYAML: `api_key: '#newkey'
+site: datadoghq.com
+`,
+		},
+		{
+			name: "comments on maps are preserved",
+			initialYAML: `
+# map comment
+installer:
+  registry:
+    url: registry.com
+`,
+			config: DatadogConfig{
+				APIKey: "newkey",
+				Installer: DatadogConfigInstaller{
+					Registry: DatadogConfigInstallerRegistry{
+						URL: "newregistry.com",
+					},
+				},
+			},
+			merge: true,
+			expectedYAML: `# map comment
+installer:
+  registry:
+    url: newregistry.com
+api_key: newkey
 `,
 		},
 	}
