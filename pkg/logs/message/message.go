@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/statefulpb"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -68,6 +69,13 @@ func (m *Payload) Size() int64 {
 type Message struct {
 	MessageContent
 	MessageMetadata
+}
+
+// StatefulMessage represents a log message for gRPC stateful streaming
+// It contains a Datum (from stateful_encoding.proto) and associated metadata
+type StatefulMessage struct {
+	Datum    *statefulpb.Datum
+	Metadata *MessageMetadata
 }
 
 // MessageMetadata contains metadata information about a log message

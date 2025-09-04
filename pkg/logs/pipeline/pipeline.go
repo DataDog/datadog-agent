@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/processor"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
+	grpcsender "github.com/DataDog/datadog-agent/pkg/logs/sender/grpc"
 	compressioncommon "github.com/DataDog/datadog-agent/pkg/util/compression"
 )
 
@@ -54,6 +55,10 @@ func NewPipeline(
 		} else {
 			encoder = processor.JSONServerlessInitEncoder
 		}
+	} else if endpoints.UseGRPC {
+		// Throwaway code to test with existing pipelines
+		// TODO change to real encoder once State component is ready
+		encoder = grpcsender.MockEncoder
 	} else if endpoints.UseHTTP {
 		encoder = processor.JSONEncoder
 	} else if endpoints.UseProto {
@@ -105,13 +110,24 @@ func getStrategy(
 	compressor logscompression.Component,
 	instanceID string,
 ) sender.Strategy {
-	if endpoints.UseHTTP || serverlessMeta.IsEnabled() {
+	if endpoints.UseGRPC || endpoints.UseHTTP || serverlessMeta.IsEnabled() {
 		var encoder compressioncommon.Compressor
 		encoder = compressor.NewCompressor(compressioncommon.NoneKind, 0)
 		if endpoints.Main.UseCompression {
 			encoder = compressor.NewCompressor(endpoints.Main.CompressionKind, endpoints.Main.CompressionLevel)
 		}
+		if endpoints.UseGRPC {
+			// Throwaway code to test with existing pipelines
+			// TODO: Remove this once we have a real State component
 
+			// The interface of stateful transport layer is input channel to the GRPCBatchStrategy
+			// The input type is StatefulMessage, which should be emitted by the State component
+			// Here is the temporary translation from Message to StatefulMessage
+			statefulInputChan := make(chan *message.StatefulMessage, pkgconfigsetup.Datadog().GetInt("logs_config.message_channel_size"))
+			grpcsender.StartMessageTranslator(inputChan, statefulInputChan)
+
+			return grpcsender.NewBatchStrategy(statefulInputChan, outputChan, flushChan, endpoints.BatchWait, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs", encoder, pipelineMonitor, instanceID)
+		}
 		return sender.NewBatchStrategy(
 			inputChan,
 			outputChan,
