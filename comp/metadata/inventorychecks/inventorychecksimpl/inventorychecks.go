@@ -255,10 +255,12 @@ func (ic *inventorychecksImpl) getPayload(withConfigs bool) marshaler.JSONMarsha
 						"error":  logSource.Status.GetError(),
 						"status": logSource.Status.String(),
 					},
-					"service":          logSource.Config.Service,
-					"source":           logSource.Config.Source,
-					"integration_name": logSource.Config.IntegrationName,
-					"tags":             tags,
+					"service":                  logSource.Config.Service,
+					"source":                   logSource.Config.Source,
+					"integration_name":         logSource.Config.IntegrationName,
+					"integration_source":       logSource.Config.IntegrationSource,
+					"integration_source_index": logSource.Config.IntegrationSourceIndex,
+					"tags":                     tags,
 				})
 			}
 		}

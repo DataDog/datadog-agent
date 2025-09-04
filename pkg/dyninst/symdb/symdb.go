@@ -721,32 +721,7 @@ func openBinary(binaryPath string, opt ExtractOptions) (binaryInfo, error) {
 	}
 	mainModule := binfo.Main.Path
 
-	moduledata, err := object.ParseModuleData(obj)
-	if err != nil {
-		return binaryInfo{}, err
-	}
-	goVersion, err := object.ReadGoVersion(obj)
-	if err != nil {
-		return binaryInfo{}, err
-	}
-
-	goDebugSections, err := moduledata.GoDebugSections(obj)
-	if err != nil {
-		return binaryInfo{}, err
-	}
-
-	// goDebugSections cannot be Close()'ed while symTable is in use. Ownership of
-	// goDebugSections is transferred to the SymDBBuilder.
-
-	symTable, err := gosym.ParseGoSymbolTable(
-		goDebugSections.PcLnTab.Data(),
-		goDebugSections.GoFunc.Data(),
-		moduledata.Text,
-		moduledata.EText,
-		moduledata.MinPC,
-		moduledata.MaxPC,
-		goVersion,
-	)
+	symTable, err := object.ParseGoSymbolTable(obj)
 	if err != nil {
 		return binaryInfo{}, err
 	}
@@ -776,8 +751,8 @@ func openBinary(binaryPath string, opt ExtractOptions) (binaryInfo, error) {
 	return binaryInfo{
 		obj:                 obj,
 		mainModule:          mainModule,
-		goDebugSections:     goDebugSections,
-		symTable:            symTable,
+		goDebugSections:     &symTable.GoDebugSections,
+		symTable:            &symTable.GoSymbolTable,
 		firstPartyPkgPrefix: firstPartyPkgPrefix,
 		filesFilter:         filesFilter,
 	}, nil

@@ -105,6 +105,9 @@ const (
 	KubeAppManagedBy = "kube_app_managed_by"
 	// KubeAutoscalerKind is the tag reflecting if a pod is managed by an Autoscaler
 	KubeAutoscalerKind = "kube_autoscaler_kind"
+	// KubeRequestedCPUManagement is the tag that describes a container's cpu management
+	// which is either static (dedicated) or none
+	KubeRequestedCPUManagement = "kube_requested_cpu_management"
 
 	// GPU related tags
 

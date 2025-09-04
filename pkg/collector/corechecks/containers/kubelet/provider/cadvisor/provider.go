@@ -167,6 +167,8 @@ func (p *Provider) processContainerMetric(metricType, metricName string, metricF
 		} else {
 			cID, _ := kubelet.KubeContainerIDToTaggerEntityID(containerID)
 			tags, _ = p.tagger.Tag(cID, types.HighCardinality)
+
+			tags = common.AppendKubeRequestedCPUManagementTag(p.store, pod.QOSClass, cID, tags)
 		}
 
 		if len(tags) == 0 {
@@ -204,7 +206,7 @@ func (p *Provider) processPodRate(metricName string, metricFam *prom.MetricFamil
 			continue
 		}
 		filterablePod := workloadmetafilter.CreatePod(pod)
-		selectedFilters := workloadfilter.GetPodSharedMetricFilters()
+		selectedFilters := p.filterStore.GetPodSharedMetricFilters()
 		if p.filterStore.IsPodExcluded(filterablePod, selectedFilters) {
 			continue
 		}
@@ -383,7 +385,7 @@ func (p *Provider) getPodByMetricLabel(labels model.Metric) *workloadmeta.Kubern
 	}
 	if pod, err := p.store.GetKubernetesPodByName(string(podName), string(namespace)); err == nil {
 		filterablePod := workloadmetafilter.CreatePod(pod)
-		selectedFilters := workloadfilter.GetPodSharedMetricFilters()
+		selectedFilters := p.filterStore.GetPodSharedMetricFilters()
 		if !p.filterStore.IsPodExcluded(filterablePod, selectedFilters) {
 			return pod
 		}

@@ -58,6 +58,13 @@ func ExamplePrintJSON() {
 	//   "Subprograms": [],
 	//   "Types": [
 	//     {
+	//       "__kind": "PointerType",
+	//       "ID": 3,
+	//       "Name": "*Node",
+	//       "ByteSize": 8,
+	//       "Pointee": "1 StructureType Node"
+	//     },
+	//     {
 	//       "__kind": "StructureType",
 	//       "ID": 1,
 	//       "Name": "Node",
@@ -81,13 +88,6 @@ func ExamplePrintJSON() {
 	//       "Name": "int",
 	//       "ByteSize": 8,
 	//       "GoKind": 2
-	//     },
-	//     {
-	//       "__kind": "PointerType",
-	//       "ID": 3,
-	//       "Name": "*Node",
-	//       "ByteSize": 8,
-	//       "Pointee": "1 StructureType Node"
 	//     }
 	//   ],
 	//   "MaxTypeID": 3,
@@ -97,7 +97,6 @@ func ExamplePrintJSON() {
 	//     "TypesOffset": 1234
 	//   }
 	// }
-
 }
 
 func ExamplePrintYAML() {
@@ -114,6 +113,11 @@ func ExamplePrintYAML() {
 	// Probes: []
 	// Subprograms: []
 	// Types:
+	//     - __kind: PointerType
+	//       ID: 3
+	//       Name: '*Node'
+	//       ByteSize: 8
+	//       Pointee: 1 StructureType Node
 	//     - __kind: StructureType
 	//       ID: 1
 	//       Name: Node
@@ -130,14 +134,10 @@ func ExamplePrintYAML() {
 	//       Name: int
 	//       ByteSize: 8
 	//       GoKind: 2
-	//     - __kind: PointerType
-	//       ID: 3
-	//       Name: '*Node'
-	//       ByteSize: 8
-	//       Pointee: 1 StructureType Node
 	// MaxTypeID: 3
 	// Issues: []
 	// GoModuledataInfo: {FirstModuledataAddr: "0xdeadbeef", TypesOffset: 1234}
+
 }
 
 func constructExampleProgram() *ir.Program {

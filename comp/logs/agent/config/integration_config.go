@@ -101,6 +101,11 @@ type LogsConfig struct {
 	AutoMultiLineSamples           []*AutoMultilineSample   `mapstructure:"auto_multi_line_detection_custom_samples" json:"auto_multi_line_detection_custom_samples" yaml:"auto_multi_line_detection_custom_samples"`
 	FingerprintConfig              *types.FingerprintConfig `mapstructure:"fingerprint_config" json:"fingerprint_config" yaml:"fingerprint_config"`
 	ExperimentalFingerprintEnabled bool                     `mapstructure:"fingerprint_enabled_experimental" json:"fingerprint_enabled_experimental" yaml:"fingerprint_enabled_experimental"`
+
+	// IntegrationSource is the source of the integration file that contains this source.
+	IntegrationSource string `mapstructure:"integration_source" json:"integration_source" yaml:"integration_source"`
+	// IntegrationFileIndex is the index of the integration file that contains this source.
+	IntegrationSourceIndex int `mapstructure:"integration_source_index" json:"integration_source_index" yaml:"integration_source_index"`
 }
 
 // SourceAutoMultiLineOptions defines per-source auto multi-line detection overrides.

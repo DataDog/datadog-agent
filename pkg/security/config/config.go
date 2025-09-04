@@ -421,8 +421,8 @@ type RuntimeSecurityConfig struct {
 	// IMDSIPv4 is used to provide a custom IP address for the IMDS endpoint
 	IMDSIPv4 uint32
 
-	// SendEventFromSystemProbe defines when the event are sent directly from system-probe
-	SendEventFromSystemProbe bool
+	// SendPayloadsFromSystemProbe defines when the event and activity dumps are sent directly from system-probe
+	SendPayloadsFromSystemProbe bool
 
 	// FileMetadataResolverEnabled defines if the file metadata is enabled
 	FileMetadataResolverEnabled bool
@@ -632,7 +632,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		IMDSIPv4: parseIMDSIPv4(),
 
 		// direct sender
-		SendEventFromSystemProbe: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.direct_send_from_system_probe"),
+		SendPayloadsFromSystemProbe: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.direct_send_from_system_probe"),
 
 		// FileMetadataResolverEnabled
 		FileMetadataResolverEnabled: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.file_metadata_resolver.enabled"),

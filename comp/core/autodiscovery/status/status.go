@@ -27,7 +27,8 @@ func populateStatus(ac autodiscovery.Component, wf workloadfilter.Component, sta
 func getAutodiscoveryFilterErrors(wf workloadfilter.Component) map[string]struct{} {
 	var workloadfilterList []workloadfilter.ContainerFilter
 	for _, filterScope := range []workloadfilter.Scope{workloadfilter.MetricsFilter, workloadfilter.LogsFilter, workloadfilter.GlobalFilter} {
-		workloadfilterList = append(workloadfilterList, workloadfilter.FlattenFilterSets(workloadfilter.GetAutodiscoveryFilters(filterScope))...)
+		autoDiscoveryFilterSelection := wf.GetContainerAutodiscoveryFilters(filterScope)
+		workloadfilterList = append(workloadfilterList, workloadfilter.FlattenFilterSets(autoDiscoveryFilterSelection)...)
 	}
 	workloadfilterErrors := wf.GetContainerFilterInitializationErrors(workloadfilterList)
 

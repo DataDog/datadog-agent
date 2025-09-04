@@ -22,7 +22,7 @@ int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
     // check if this event should trigger a syscall drift event
     if (is_anomaly_syscalls_enabled()) {
         // fetch the profile for the current cgroup
-        struct security_profile_t *profile = bpf_map_lookup_elem(&security_profiles, &event.cgroup);
+        struct security_profile_t *profile = bpf_map_lookup_elem(&security_profiles, &event.cgroup.cgroup_file.ino);
         if (profile) {
             u64 cookie = profile->cookie;
             struct security_profile_syscalls_t *syscalls = bpf_map_lookup_elem(&secprofs_syscalls, &cookie);

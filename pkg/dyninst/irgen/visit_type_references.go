@@ -18,9 +18,11 @@ import (
 // rewrites the references to the types to the actual types after
 func rewritePlaceholderReferences(tc *typeCatalog) {
 	visitTypeReferences(tc, func(t *ir.Type) {
-		if placeholder, ok := (*t).(*placeHolderType); ok {
-			(*t) = tc.typesByID[placeholder.id]
-			return
+		switch tt := (*t).(type) {
+		case *placeHolderType:
+			(*t) = tc.typesByID[tt.id]
+		case *pointeePlaceholderType:
+			(*t) = tc.typesByID[tt.id]
 		}
 	})
 }
@@ -67,6 +69,7 @@ func visitTypeReferences(tc *typeCatalog, f func(t *ir.Type)) {
 		case *ir.GoSwissMapGroupsType:
 		case *ir.GoSwissMapHeaderType:
 		case *ir.VoidPointerType:
+		case *ir.UnresolvedPointeeType:
 		default:
 			panic(fmt.Sprintf("unexpected ir.Type to visit: %#v", t))
 		}

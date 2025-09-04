@@ -244,11 +244,14 @@ func CreateSources(config integration.Config) ([]*sourcesPkg.LogSource, error) {
 
 	configName := configName(config)
 	var sources []*sourcesPkg.LogSource
-	for _, cfg := range configs {
+	for index, cfg := range configs {
 		// if no service is set fall back to the global one
 		if cfg.Service == "" && globalServiceDefined {
 			cfg.Service = commonGlobalOptions.Service
 		}
+
+		cfg.IntegrationSourceIndex = index
+		cfg.IntegrationSource = config.Source
 
 		if service != nil {
 			// a config defined in a container label or a pod annotation does not always contain a type,

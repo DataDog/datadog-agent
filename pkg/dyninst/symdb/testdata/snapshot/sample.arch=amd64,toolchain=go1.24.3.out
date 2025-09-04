@@ -108,10 +108,32 @@ Package: main
 		Arg: a: int (declared at line 93, available: [93-93])
 		Arg: b: error (declared at line 93, available: [93-93])
 		Arg: c: uint (declared at line 93, available: [93-93])
-	Function: executeComplexFuncs (main.executeComplexFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go [96:146]
-		Var: s: []*string (declared at line 108, available: )
-		Var: str: string (declared at line 107, available: [96-146])
-		Var: circ: main.circularReferenceType (declared at line 129, available: [96-146])
+	Function: init.0 (main.init.0) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go [113:113]
+	Function: testDeepPtr1 (main.testDeepPtr1) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go [116:116]
+		Arg: a: main.deepPtr1 (declared at line 116, available: [116-116])
+	Function: testDeepPtr7 (main.testDeepPtr7) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go [119:119]
+		Arg: a: *main.deepPtr7 (declared at line 119, available: [119-119])
+	Function: init.1 (main.init.1) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go [139:139]
+	Function: testDeepSlice1 (main.testDeepSlice1) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go [142:142]
+		Arg: a: main.deepSlice1 (declared at line 142, available: [142-142])
+	Function: testDeepSlice7 (main.testDeepSlice7) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go [145:145]
+		Arg: a: *main.deepSlice7 (declared at line 145, available: [145-145])
+	Function: init.2 (main.init.2) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go [177:177]
+	Function: testDeepMap1 (main.testDeepMap1) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go [180:180]
+		Arg: a: main.deepMap1 (declared at line 180, available: [180-180])
+	Function: testDeepMap7 (main.testDeepMap7) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go [183:183]
+		Arg: a: *main.deepMap7 (declared at line 183, available: [183-183])
+	Function: testStringType1 (main.testStringType1) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go [194:194]
+		Arg: a: *main.stringType1 (declared at line 194, available: [194-194])
+	Function: testStringType2 (main.testStringType2) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go [200:200]
+		Arg: a: **main.stringType2 (declared at line 200, available: [200-200])
+	Function: executeComplexFuncs (main.executeComplexFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go [203:267]
+		Var: s: []*string (declared at line 215, available: )
+		Var: str: string (declared at line 214, available: [203-267])
+		Var: circ: main.circularReferenceType (declared at line 236, available: [203-267])
+		Var: s1: main.stringType1 (declared at line 262, available: [257-267])
+		Var: s2: main.stringType2 (declared at line 263, available: [257-267])
+		Var: s2p: *main.stringType2 (declared at line 264, available: [257-267])
 	Function: testEsotericStack (main.testEsotericStack) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/esoteric.go [42:44]
 		Arg: e: main.esotericStack (declared at line 42, available: [42-43])
 	Function: testEsotericHeap (main.testEsotericHeap) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/esoteric.go [47:49]
@@ -526,6 +548,18 @@ Package: main
 		Field: writer: io.Writer
 	Type: main.circularReferenceType
 		Field: t: *main.circularReferenceType
+	Type: main.deepPtr1
+		Field: a: *main.deepPtr2
+	Type: main.deepPtr7
+		Field: a: *main.deepPtr8
+	Type: main.deepSlice1
+		Field: a: []*main.deepSlice2
+	Type: main.deepSlice7
+		Field: a: []*main.deepSlice8
+	Type: main.deepMap1
+		Field: a: map[int]*main.deepMap2
+	Type: main.deepMap7
+		Field: a: map[int]*main.deepMap8
 	Type: main.somethingImpl
 		Function: Do (main.(*somethingImpl).Do) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/esoteric.go [21:21]
 			Arg: s: *main.somethingImpl (declared at line 21, available: [21-21])

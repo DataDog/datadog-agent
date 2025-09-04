@@ -224,7 +224,7 @@ func (c *CWSConsumer) Start() error {
 	}
 
 	// do not wait external api connection, send directly running metrics
-	if c.config.SendEventFromSystemProbe {
+	if c.config.SendPayloadsFromSystemProbe {
 		c.startRunningMetrics()
 	}
 
@@ -330,15 +330,7 @@ func (c *CWSConsumer) APIServer() *APIServer {
 
 // HandleActivityDump sends an activity dump to the backend
 func (c *CWSConsumer) HandleActivityDump(imageName string, imageTag string, header []byte, data []byte) error {
-	msg := &api.ActivityDumpStreamMessage{
-		Selector: &api.WorkloadSelectorMessage{
-			Name: imageName,
-			Tag:  imageTag,
-		},
-		Header: header,
-		Data:   data,
-	}
-	c.apiServer.SendActivityDump(msg)
+	c.apiServer.SendActivityDump(imageName, imageTag, header, data)
 	return nil
 }
 

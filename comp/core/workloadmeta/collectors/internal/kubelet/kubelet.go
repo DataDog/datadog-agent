@@ -28,13 +28,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 const (
-	collectorID         = "kubelet"
-	componentName       = "workloadmeta-kubelet"
-	expireFreq          = 15 * time.Second
-	dockerImageIDPrefix = "docker-pullable://"
+	collectorID             = "kubelet"
+	componentName           = "workloadmeta-kubelet"
+	expireFreq              = 15 * time.Second
+	kubeletConfigExpireFreq = 20 * time.Minute // It's unlikely that the kubelet config would change frequently
+	dockerImageIDPrefix     = "docker-pullable://"
 )
 
 type dependencies struct {
@@ -53,6 +55,9 @@ type collector struct {
 	kubeUtil             kubelet.KubeUtilInterface
 	lastSeenPodUIDs      map[string]time.Time
 	lastSeenContainerIDs map[string]time.Time
+
+	// These fields are used to pull the kubelet config
+	kubeletConfigLastExpire time.Time
 
 	// usePodWatcher indicates whether to use the pod watcher for collecting
 	// pods. The new implementation queries the Kubelet directly instead. This
@@ -115,13 +120,54 @@ func (c *collector) Pull(ctx context.Context) error {
 	return c.pullFromKubelet(ctx)
 }
 
+func (c *collector) pullKubeletConfig(ctx context.Context) (workloadmeta.CollectorEvent, error) {
+	_, config, err := c.kubeUtil.GetConfig(ctx)
+	if err != nil {
+		return workloadmeta.CollectorEvent{}, err
+	}
+
+	wmetaConfigDocument := workloadmeta.KubeletConfigDocument{
+		KubeletConfig: workloadmeta.KubeletConfigSpec{
+			CPUManagerPolicy: config.KubeletConfig.CPUManagerPolicy,
+		},
+	}
+
+	return workloadmeta.CollectorEvent{
+		Type:   workloadmeta.EventTypeSet,
+		Source: workloadmeta.SourceNodeOrchestrator,
+		Entity: &workloadmeta.Kubelet{
+			EntityID: workloadmeta.EntityID{
+				ID:   workloadmeta.KubeletID,
+				Kind: workloadmeta.KindKubelet,
+			},
+			EntityMeta: workloadmeta.EntityMeta{
+				Name: workloadmeta.KubeletName,
+			},
+			ConfigDocument: wmetaConfigDocument,
+		},
+	}, nil
+}
+
 func (c *collector) pullFromKubelet(ctx context.Context) error {
+	events := []workloadmeta.CollectorEvent{}
+
 	podList, err := c.kubeUtil.GetLocalPodList(ctx)
 	if err != nil {
 		return err
 	}
 
-	events := parsePods(podList, c.collectEphemeralContainers)
+	// Pull the kubelet config every kubeletConfigExpireFreq
+	// This needs to be before the pod list
+	if time.Since(c.kubeletConfigLastExpire) > kubeletConfigExpireFreq {
+		configEvent, err := c.pullKubeletConfig(ctx)
+		if err == nil {
+			events = append(events, configEvent)
+			// only update last expiry if the config was successfully retrieved
+			c.kubeletConfigLastExpire = time.Now()
+		}
+	}
+
+	events = append(events, parsePods(podList, c.collectEphemeralContainers)...)
 
 	// Mark return pods and containers as seen now
 	now := time.Now()
@@ -653,6 +699,13 @@ func extractResources(spec *kubelet.ContainerSpec) workloadmeta.ContainerResourc
 
 	if memoryLimit, found := spec.Resources.Limits[kubelet.ResourceMemory]; found {
 		resources.MemoryLimit = kubernetes.FormatMemoryRequests(memoryLimit)
+	}
+
+	// Check if the CPU Requested is a whole core or cores
+	if cpuReq, found := spec.Resources.Requests[kubelet.ResourceCPU]; found {
+		if cpuReq.MilliValue()%1000 == 0 {
+			resources.RequestedWholeCores = pointer.Ptr(true)
+		}
 	}
 
 	// extract GPU resource info from the possible GPU sources

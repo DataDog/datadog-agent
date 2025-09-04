@@ -72,12 +72,13 @@ var volumeMountETCDPreloadAppContainer = etcVolume.mount(corev1.VolumeMount{
 })
 
 type injector struct {
-	image      string
-	registry   string
-	debug      bool
-	injected   bool
-	injectTime time.Time
-	opts       libRequirementOptions
+	image         string
+	registry      string
+	debug         bool
+	injected      bool
+	injectTime    time.Time
+	opts          libRequirementOptions
+	imageResolver ImageResolver
 }
 
 func (i *injector) initContainer() initContainer {
@@ -178,6 +179,16 @@ func injectorWithImageName(name string) injectorOption {
 
 func injectorWithImageTag(tag string) injectorOption {
 	return func(i *injector) {
+		if i.imageResolver == nil {
+			log.Error("injectorWithImageTag called without imageResolver")
+			return
+		}
+		if resolvedImage, ok := i.imageResolver.Resolve(i.registry, "apm-inject", tag); ok {
+			log.Debugf("Resolved image for %s/apm-inject:%s: %s", i.registry, tag, resolvedImage.FullImageRef)
+			i.image = resolvedImage.FullImageRef
+			return
+		}
+		log.Debugf("No resolved image found for %s/apm-inject:%s, falling back to tag-based image", i.registry, tag)
 		i.image = fmt.Sprintf("%s/apm-inject:%s", i.registry, tag)
 	}
 }
@@ -193,6 +204,12 @@ func injectorDebug(boolean string) injectorOption {
 	}
 	return func(i *injector) {
 		i.debug = debug
+	}
+}
+
+func injectorWithImageResolver(imageResolver ImageResolver) injectorOption {
+	return func(i *injector) {
+		i.imageResolver = imageResolver
 	}
 }
 

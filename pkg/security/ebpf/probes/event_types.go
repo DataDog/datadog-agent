@@ -576,6 +576,9 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 				hookFunc("hook_security_task_setrlimit"),
 			}},
 		},
+		"prctl": {
+			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "prctl", fentry, EntryAndExit)},
+		},
 	}
 
 	// Add probes required to track network interfaces and map network flows to processes
