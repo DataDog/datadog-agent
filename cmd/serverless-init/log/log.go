@@ -27,11 +27,11 @@ import (
 const (
 	defaultFlushTimeout   = 5 * time.Second
 	defaultTailingPath    = "/home/LogFiles/*$COMPUTERNAME*.log"
-	modifiableTailingPath = "/home/LogFiles/*$COMPUTERNAME*_%s.log"
+	modifiableTailingPath = "/home/LogFiles/*$COMPUTERNAME*%s.log"
 	logEnabledEnvVar      = "DD_LOGS_ENABLED"
 	envVarTailFilePath    = "DD_SERVERLESS_LOG_PATH"
 	aasInstanceTailing    = "DD_AAS_INSTANCE_LOGGING_ENABLED"
-	aasLoggingSuffix      = "DD_AAS_INSTANCE_LOGGING_PATH_SUFFIX"
+	aasLoggingDescriptor  = "DD_AAS_INSTANCE_LOG_FILE_DESCRIPTOR"
 	sourceEnvVar          = "DD_SOURCE"
 	sourceName            = "Datadog Agent"
 )
@@ -109,7 +109,7 @@ func isInstanceTailingEnabled() bool {
 }
 
 func setAasInstanceTailingPath() string {
-	customPath, set := os.LookupEnv(aasLoggingSuffix)
+	customPath, set := os.LookupEnv(aasLoggingDescriptor)
 	if set && customPath != "" {
 		return os.ExpandEnv(fmt.Sprintf(modifiableTailingPath, customPath))
 	}
