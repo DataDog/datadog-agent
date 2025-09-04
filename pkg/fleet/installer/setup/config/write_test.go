@@ -306,6 +306,29 @@ installer:
 api_key: newkey
 `,
 		},
+		{
+			name:        "initial yaml does not have trailing newline",
+			initialYAML: `site: datadoghq.com`,
+			config:      simpleConfig{Site: "datadoghq.com", APIKey: "newkey"},
+			merge:       true,
+			expectedYAML: `site: datadoghq.com
+api_key: newkey
+`,
+		},
+		{
+			name: "replaces tags block",
+			initialYAML: `tags:
+  - 'env:prod'
+  - 'team:sre'
+`,
+			config: DatadogConfig{APIKey: "newkey", Tags: []string{"env:qa", "team:platform"}},
+			merge:  true,
+			expectedYAML: `tags:
+  - env:qa
+  - team:platform
+api_key: newkey
+`,
+		},
 	}
 
 	for _, tc := range testCases {
