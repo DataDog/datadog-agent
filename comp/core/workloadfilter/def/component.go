@@ -26,4 +26,18 @@ type Component interface {
 	// GetContainerFilterInitializationErrors returns a list of errors
 	// encountered during the initialization of the selected container filters.
 	GetContainerFilterInitializationErrors(filters []ContainerFilter) []error
+
+	// Get Autodiscovery filters
+	GetContainerAutodiscoveryFilters(filterScope Scope) [][]ContainerFilter
+	GetPodAutodiscoveryFilters(filterScope Scope) [][]PodFilter
+	GetServiceAutodiscoveryFilters(filterScope Scope) [][]ServiceFilter
+	GetEndpointAutodiscoveryFilters(filterScope Scope) [][]EndpointFilter
+
+	// Get Shared Metric filters
+	GetContainerSharedMetricFilters() [][]ContainerFilter
+	GetPodSharedMetricFilters() [][]PodFilter
+
+	// Get Container Specific filters
+	GetContainerPausedFilters() [][]ContainerFilter
+	GetContainerSBOMFilters() [][]ContainerFilter
 }

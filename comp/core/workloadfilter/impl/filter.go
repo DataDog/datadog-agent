@@ -31,6 +31,7 @@ type filter struct {
 	log                 log.Component
 	telemetry           coretelemetry.Component
 	programFactoryStore map[workloadfilter.ResourceType]map[int]*filterFactory
+	selection           *filterSelection
 }
 
 // Requires defines the dependencies of the filter component.
@@ -100,6 +101,7 @@ func newFilter(cfg config.Component, logger log.Component, telemetry coretelemet
 		log:                 logger,
 		telemetry:           telemetry,
 		programFactoryStore: make(map[workloadfilter.ResourceType]map[int]*filterFactory),
+		selection:           newFilterSelection(cfg),
 	}
 
 	genericADProgram := catalog.AutodiscoveryAnnotations()
@@ -221,4 +223,44 @@ func getFilterErrors[T ~int](
 		errs = append(errs, prg.GetInitializationErrors()...)
 	}
 	return errs
+}
+
+// GetContainerAutodiscoveryFilters returns the pre-computed container autodiscovery filters
+func (f *filter) GetContainerAutodiscoveryFilters(filterScope workloadfilter.Scope) [][]workloadfilter.ContainerFilter {
+	return f.selection.GetContainerAutodiscoveryFilters(filterScope)
+}
+
+// GetPodAutodiscoveryFilters returns the pre-computed pod autodiscovery filters
+func (f *filter) GetPodAutodiscoveryFilters(filterScope workloadfilter.Scope) [][]workloadfilter.PodFilter {
+	return f.selection.GetPodAutodiscoveryFilters(filterScope)
+}
+
+// GetServiceAutodiscoveryFilters returns the pre-computed service autodiscovery filters
+func (f *filter) GetServiceAutodiscoveryFilters(filterScope workloadfilter.Scope) [][]workloadfilter.ServiceFilter {
+	return f.selection.GetServiceAutodiscoveryFilters(filterScope)
+}
+
+// GetEndpointAutodiscoveryFilters returns the pre-computed endpoint autodiscovery filters
+func (f *filter) GetEndpointAutodiscoveryFilters(filterScope workloadfilter.Scope) [][]workloadfilter.EndpointFilter {
+	return f.selection.GetEndpointAutodiscoveryFilters(filterScope)
+}
+
+// GetContainerSharedMetricFilters returns the pre-computed container shared metric filters
+func (f *filter) GetContainerSharedMetricFilters() [][]workloadfilter.ContainerFilter {
+	return f.selection.GetContainerSharedMetricFilters()
+}
+
+// GetPodSharedMetricFilters returns the pre-computed pod shared metric filters
+func (f *filter) GetPodSharedMetricFilters() [][]workloadfilter.PodFilter {
+	return f.selection.GetPodSharedMetricFilters()
+}
+
+// GetContainerPausedFilters returns the pre-computed container paused filters
+func (f *filter) GetContainerPausedFilters() [][]workloadfilter.ContainerFilter {
+	return f.selection.GetContainerPausedFilters()
+}
+
+// GetContainerSBOMFilters returns the pre-computed container SBOM filters
+func (f *filter) GetContainerSBOMFilters() [][]workloadfilter.ContainerFilter {
+	return f.selection.GetContainerSBOMFilters()
 }

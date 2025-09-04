@@ -698,18 +698,6 @@ api_key:
 
 {{ end }}
 {{- if .Agent }}
-{{- if .Python }}
-{{- if .BothPythonPresent -}}
-## @param python_version - integer - optional - default: 2
-## @env DD_PYTHON_VERSION - integer - optional - default: 2
-## The major version of Python used to run integrations and custom checks.
-## The only supported values are 2 (to use Python 2) or 3 (to use Python 3).
-## Do not change this option when using the official Docker Agent images.
-#
-# python_version: 2
-
-{{ end -}}
-{{ end }}
 
 ############################
 ## Advanced Configuration ##
@@ -837,9 +825,7 @@ api_key:
 ## @param tracemalloc_debug - boolean - optional - default: false
 ## @env DD_TRACEMALLOC_DEBUG - boolean - optional - default: false
 ## Enables debugging with tracemalloc for python checks.
-## Please note that this option is only available when python_version is set to "3".
-## Additionally when this option becomes effective the number of check runners is
-## overridden to 1.
+## Please note that when this option is enabled the number of check runners is overridden to 1.
 #
 # tracemalloc_debug: false
 
@@ -1129,13 +1115,13 @@ api_key:
 #
 #    file_wildcard_selection_mode: by_name
 
-##    @param max_message_size_bytes - integer - optional - default: 256000
-##    @env DD_LOGS_CONFIG_MAX_MESSAGE_SIZE_BYTES - integer - optional - default : 256000
+##    @param max_message_size_bytes - integer - optional - default: 900000
+##    @env DD_LOGS_CONFIG_MAX_MESSAGE_SIZE_BYTES - integer - optional - default : 900000
 ##    The maximum size of single log message in bytes. If maxMessageSizeBytes exceeds
 ##    the documented API limit of 1MB - any payloads larger than 1MB will be dropped by the intake.
-#    https://docs.datadoghq.com/api/latest/logs/
+##    https://docs.datadoghq.com/api/latest/logs/
 #
-#    max_message_size_bytes: 256000
+#    max_message_size_bytes: 900000
 
 ##    @param integrations_logs_files_max_size - integer - optional - default: 10
 ##    @env DD_LOGS_CONFIG_INTEGRATIONS_LOGS_FILES_MAX_SIZE - integer - optional - default: 10
@@ -1691,15 +1677,6 @@ api_key:
 ## See https://docs.datadoghq.com/graphing/infrastructure/process/
 #
 # process_config:
-
-  {{- if (eq .OS "linux")}}
-##    @param run_in_core_agent - custom object - optional
-##    Controls whether the process Agent or core Agent collects process and/or container information (Linux only).
-#    run_in_core_agent:
-##      @param enabled - boolean - optional - default: true
-##      Enables process/container collection on the core Agent instead of the process Agent.
-#      enabled: true
-  {{ end }}
 
 ##    @param process_collection - custom object - optional
 ##    Specifies settings for collecting processes.
@@ -4208,7 +4185,7 @@ api_key:
 #          oid_batch_size: 5
 
 ##        @param interface_configs - map - optional
-##        This option is used to override interface inbound/outbound speed and add interface tags
+##        This option is used to override interface inbound/outbound speed, add interface tags, or disable monitoring for specific interfaces
 ##        Example:
 ##        interface_configs:
 ##          "10.0.0.1":              # target device IP address
@@ -4219,6 +4196,7 @@ api_key:
 ##              tags:                # (optional) interface level tags
 ##                - "testTagKey:testTagValue"
 ##                - "tagKey2:tagValue2"
+##              disabled: true         # (optional) disables monitoring for matched interfaces, default value is false
 #
 #          interface_config:
 #            "10.0.0.1":
@@ -4241,6 +4219,10 @@ api_key:
 #                tags:
 #                  - "monitored:true"
 #                  - "customKey:customValue"
+#            "10.0.0.4":
+#              - match_field: index
+#                match_value: '2'
+#                disabled: true
 
 ##        @param ping - custom object - optional
 ##        Configure ICMP pings for all hosts in SNMP autodiscovery
