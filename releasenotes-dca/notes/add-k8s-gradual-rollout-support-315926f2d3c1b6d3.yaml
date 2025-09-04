@@ -1,0 +1,17 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    Added support for gradual rollout in K8s SSI deployments.
+    This feature is enabled if the following conditions are met:
+    - ``DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_ENABLED=true`` and/or ``DD_APM_INSTRUMENTATION_ENABLED=true``
+    - Remote config is enabled in the organization
+    - Using the `gcr.io/datadoghq` registry
+    This gradually rolls out access to new injector and tracer library releases to subsets of customers, with the ability to pause if issues are detected.
+
