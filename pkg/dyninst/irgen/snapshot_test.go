@@ -9,17 +9,21 @@ package irgen_test
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"path"
+	"slices"
 	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irprinter"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 )
 
@@ -49,18 +53,65 @@ func TestSnapshotTesting(t *testing.T) {
 	}
 }
 
+func probeConfigsWithMaxReferenceDepth(
+	probesCfgs []ir.ProbeDefinition, limit int,
+) []ir.ProbeDefinition {
+	for _, cfg := range probesCfgs {
+		switch cfg := cfg.(type) {
+		case *rcjson.LogProbe:
+			if cfg.Capture == nil {
+				cfg.Capture = new(rcjson.Capture)
+				cfg.Capture.MaxReferenceDepth = limit
+			}
+		case *rcjson.SnapshotProbe:
+			if cfg.Capture == nil {
+				cfg.Capture = new(rcjson.Capture)
+				cfg.Capture.MaxReferenceDepth = limit
+			}
+		}
+	}
+	return probesCfgs
+}
+
 func runTest(t *testing.T, cfg testprogs.Config, prog string) {
 	binPath := testprogs.MustGetBinary(t, prog, cfg)
 	probesCfgs := testprogs.MustGetProbeDefinitions(t, prog)
 	obj, err := object.OpenElfFileWithDwarf(binPath)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, obj.Close()) }()
-	ir, err := irgen.GenerateIR(1, obj, probesCfgs)
+	irp, err := irgen.GenerateIR(1, obj, probesCfgs)
 	require.NoError(t, err)
-	require.Empty(t, ir.Issues)
+	require.Empty(t, irp.Issues)
 
-	marshaled, err := irprinter.PrintYAML(ir)
+	marshaled, err := irprinter.PrintYAML(irp)
 	require.NoError(t, err)
+
+	// Make sure that the IR eventually gets to the same set of types as
+	// when we don't have a limit.
+	for i := 1; ; i++ {
+		probesCfgs := testprogs.MustGetProbeDefinitions(t, prog)
+		probesCfgs = probeConfigsWithMaxReferenceDepth(probesCfgs, i)
+		irWithLimit, err := irgen.GenerateIR(1, obj, probesCfgs)
+		require.NoError(t, err)
+		require.Empty(t, irWithLimit.Issues)
+		if len(irWithLimit.Types) < len(irp.Types) {
+			t.Logf(
+				"IR with limit %d has %d types < %d types",
+				i, len(irWithLimit.Types), len(irp.Types),
+			)
+			continue
+		}
+		typeNames := func(p *ir.Program) []string {
+			var names []string
+			for _, t := range p.Types {
+				names = append(names, fmt.Sprintf("%T:%s", t, t.GetName()))
+			}
+			slices.Sort(names)
+			return names
+		}
+		require.Equal(t, typeNames(irp), typeNames(irWithLimit))
+		break
+	}
 
 	outputFile := path.Join(snapshotDir, prog+"."+cfg.String()+".yaml")
 	if *rewrite {
