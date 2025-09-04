@@ -119,6 +119,8 @@ type NetworkPathHop struct {
 // NetworkPathSource encapsulates information
 // about the source of a path
 type NetworkPathSource struct {
+	Name        string       `json:"name"`
+	DisplayName string       `json:"display_name"`
 	Hostname    string       `json:"hostname"`
 	Via         *payload.Via `json:"via,omitempty"`
 	NetworkID   string       `json:"network_id,omitempty"` // Today this will be a VPC ID since we only resolve AWS resources
