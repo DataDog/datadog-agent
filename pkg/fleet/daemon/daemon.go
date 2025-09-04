@@ -636,15 +636,15 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 				Patch:             operation.Patch,
 			})
 		}
-		return d.startConfigExperiment(ctx, request.Package, ops, request.UseLegacyFleetDir)
+		return d.startConfigExperiment(ctx, request.Package, ops, !request.WriteLocalConfig)
 
 	case methodStopConfigExperiment:
 		log.Infof("Installer: Received remote request %s to stop config experiment for package %s", request.ID, request.Package)
-		return d.stopConfigExperiment(ctx, request.Package, request.UseLegacyFleetDir)
+		return d.stopConfigExperiment(ctx, request.Package, !request.WriteLocalConfig)
 
 	case methodPromoteConfigExperiment:
 		log.Infof("Installer: Received remote request %s to promote config experiment for package %s", request.ID, request.Package)
-		return d.promoteConfigExperiment(ctx, request.Package, request.UseLegacyFleetDir)
+		return d.promoteConfigExperiment(ctx, request.Package, !request.WriteLocalConfig)
 
 	default:
 		return fmt.Errorf("unknown method: %s", request.Method)

@@ -270,7 +270,7 @@ type remoteAPIRequest struct {
 	Method        string          `json:"method"`
 	Params        json.RawMessage `json:"params"`
 
-	UseLegacyFleetDir bool `json:"use_legacy_fleet_dir"`
+	WriteLocalConfig bool `json:"write_local_config"`
 }
 
 type expectedState struct {
