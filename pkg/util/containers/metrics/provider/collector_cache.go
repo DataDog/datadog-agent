@@ -33,14 +33,12 @@ type collectorCache struct {
 	selfContainerIDCache string
 }
 
-
 type ccKey struct {
 	providerID string
 	prefix     string
 	s1, s2, s3 string
 	number     uint64
 }
-
 
 // Make sure all methods are implemented
 var (
