@@ -350,11 +350,11 @@ func (c *collector) filterPidsToRequest(alivePids core.PidSet, procs map[int32]*
 }
 
 // getDiscoveryServices calls the system-probe /discovery/services endpoint
-func (c *collector) getDiscoveryServices(newPids []int32, heartbeatPids []int32) (*model.ServicesEndpointResponse, error) {
-	var responseData model.ServicesEndpointResponse
+func (c *collector) getDiscoveryServices(newPids []int32, heartbeatPids []int32) (*model.ServicesResponse, error) {
+	var responseData model.ServicesResponse
 
 	// Create params with categorized PIDs and convert to JSON
-	params := core.DefaultParams()
+	params := core.Params{}
 	params.NewPids = newPids
 	params.HeartbeatPids = heartbeatPids
 
