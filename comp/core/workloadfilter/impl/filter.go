@@ -203,28 +203,6 @@ func evaluateResource[T ~int](
 	return workloadfilter.Unknown
 }
 
-// GetContainerFilterInitializationErrors returns initialization errors for a specific container filter
-func (f *workloadfilterStore) GetContainerFilterInitializationErrors(filters []workloadfilter.ContainerFilter) []error {
-	return getFilterErrors(f, workloadfilter.ContainerType, filters)
-}
-
-// getFilterErrors returns initialization errors for a specific filter
-func getFilterErrors[T ~int](
-	f *workloadfilterStore,
-	resourceType workloadfilter.ResourceType, // Filterable resource (e.g., Container, Pod)
-	filters []T, // Generic filter types
-) []error {
-	errs := []error{}
-	for _, filter := range filters {
-		prg := f.getProgram(resourceType, int(filter))
-		if prg == nil {
-			continue
-		}
-		errs = append(errs, prg.GetInitializationErrors()...)
-	}
-	return errs
-}
-
 // GetContainerAutodiscoveryFilters returns the pre-computed container autodiscovery filters
 func (f *workloadfilterStore) GetContainerAutodiscoveryFilters(filterScope workloadfilter.Scope) workloadfilter.FilterBundle {
 	return f.GetContainerFilters(f.selection.GetContainerAutodiscoveryFilters(filterScope))
@@ -256,8 +234,8 @@ func (f *workloadfilterStore) GetContainerPausedFilters() [][]workloadfilter.Con
 }
 
 // GetContainerSBOMFilters returns the pre-computed container SBOM filters
-func (f *workloadfilterStore) GetContainerSBOMFilters() [][]workloadfilter.ContainerFilter {
-	return f.selection.GetContainerSBOMFilters()
+func (f *workloadfilterStore) GetContainerSBOMFilters() workloadfilter.FilterBundle {
+	return f.GetContainerFilters(f.selection.GetContainerSBOMFilters())
 }
 
 func (f *workloadfilterStore) GetContainerFilters(containerFilters [][]workloadfilter.ContainerFilter) workloadfilter.FilterBundle {
