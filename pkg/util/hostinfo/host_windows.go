@@ -7,7 +7,7 @@
 // https://github.com/shirou/gopsutil .  This code is licensed under the New BSD License
 // copyright WAKAYAMA Shirou, and the gopsutil contributors
 
-package utils
+package hostinfo
 
 import (
 	"fmt"

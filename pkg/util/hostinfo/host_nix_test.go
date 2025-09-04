@@ -5,7 +5,7 @@
 
 //go:build !windows
 
-package utils
+package hostinfo
 
 import (
 	"runtime"
