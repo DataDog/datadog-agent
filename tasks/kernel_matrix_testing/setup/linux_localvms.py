@@ -27,7 +27,7 @@ class LinuxPackages(Requirement):
             "aria2",
             "fio",
             "socat",
-            "qemu-kvm",
+            "qemu-system",
             "libvirt-daemon-system",
             "curl",
             "debootstrap",
