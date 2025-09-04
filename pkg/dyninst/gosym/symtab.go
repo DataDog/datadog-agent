@@ -12,28 +12,50 @@
 package gosym
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"iter"
 	"math"
-
-	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
+	"slices"
 )
 
 // GoFunction represents function information stored in the pclntab.
 type GoFunction struct {
-	// The underlying symbol name
-	Name string
 	// The function's entry point
 	Entry uint64
 	// The function's end address
 	End uint64
 	// The function's deferreturn address, if any
 	DeferReturn uint32
+	// The function name, lazily populated.
+	name string
+	// The function name offset.
+	nameOff nameOff
 	// The index of the function in the symbol table
 	idx uint32
 	// The internal function info
-	funcInfo *funcInfo
+	funcInfo funcInfo
+}
+
+// Name returns the function name.
+func (f *GoFunction) Name() string {
+	if f.name != "" || f.nameOff == math.MaxUint32 {
+		return f.name
+	}
+	f.name = f.funcInfo.lt.funcName(uint32(f.nameOff))
+	return f.name
+}
+
+// HasName returns true if the function name is equal to the given string.
+func (f *GoFunction) HasName(s string) bool {
+	if f.nameOff == math.MaxUint32 {
+		return false
+	}
+	if f.name != "" {
+		return f.name == s
+	}
+	return bytes.Equal(f.funcInfo.lt.funcNameData(uint32(f.nameOff)), []byte(s))
 }
 
 // GoLocation represents a resolved source code location.
@@ -56,37 +78,66 @@ type GoSymbolTable struct {
 func ParseGoSymbolTable(
 	pclntabData []byte, goFuncData []byte,
 	textStart, textEnd, minPC, maxPC uint64,
-	goVersion *object.GoVersion,
 ) (*GoSymbolTable, error) {
 	textRange := [2]uint64{textStart, textEnd}
 	pcRange := [2]uint64{minPC, maxPC}
 
-	lineTable, err := parselineTable(pclntabData, textRange, pcRange, goVersion)
+	lineTable, err := parselineTable(pclntabData, textRange, pcRange)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse line table: %w", err)
 	}
-
-	return &GoSymbolTable{
+	st := &GoSymbolTable{
 		pclntab: *lineTable,
 		gofunc:  goFuncData,
-	}, nil
+	}
+
+	// Default the wrapperFuncID to the maximum value, which is not a valid
+	// function ID. Search the symbol table for the magic function that is known
+	// to be marked as a wrapper function. If we find it, set the wrapper
+	// function ID to the actual value. If we don't find it, then we'll end up
+	// not actually considering any function to be a wrapper function.
+	const invalidWrapperFuncID = math.MaxUint8
+	const magicFuncName = "runtime.deferreturn"
+	st.pclntab.wrapperFuncID = invalidWrapperFuncID
+	for f := range st.Functions() {
+		if f.HasName(magicFuncName) {
+			if fid, ok := f.funcInfo.funcID(); ok {
+				st.pclntab.wrapperFuncID = fid
+			}
+			break
+		}
+	}
+
+	return st, nil
+}
+
+// CollectFunctions collects all the functions in the symbol table.
+func (gst *GoSymbolTable) CollectFunctions() []GoFunction {
+	res := make([]GoFunction, 0, gst.pclntab.nfunctab)
+	return slices.AppendSeq(res, gst.Functions())
 }
 
 // Functions returns an iterator over the functions in the symbol table.
-func (gst *GoSymbolTable) Functions() []*GoFunction {
-	var functions []*GoFunction
-	for i := uint32(0); i < gst.pclntab.nfunctab; i++ {
-		if fn := gst.pclntab.getGoFunctionByIndex(i); fn != nil {
-			functions = append(functions, fn)
+func (gst *GoSymbolTable) Functions() iter.Seq[GoFunction] {
+	return func(yield func(v GoFunction) bool) {
+		for i := range gst.pclntab.nfunctab {
+			if fn, ok := gst.pclntab.getGoFunctionByIndex(i); ok {
+				if !yield(fn) {
+					return
+				}
+			}
 		}
 	}
-	return functions
 }
 
 // PCToFunction returns the function that contains the given PC. Inlined
 // functions are not returned, only the functions that remain in the object file.
 func (gst *GoSymbolTable) PCToFunction(pc uint64) *GoFunction {
-	return gst.pclntab.getGoFunctionByPC(pc)
+	fn, ok := gst.pclntab.getGoFunctionByPC(pc)
+	if !ok {
+		return nil
+	}
+	return &fn
 }
 
 // LocatePC returns the location that contains the given PC.
@@ -120,9 +171,6 @@ func (gst *GoSymbolTable) FunctionLines(pc uint64) (map[string]FunctionLines, er
 const (
 	pcdataInlTreeIndex = 2
 	funcdataInlTree    = 3
-
-	funcIDWrapperGo117ThroughGo121 = 21
-	funcIDWrapperGo122Plus         = 22
 
 	go12Magic  = 0xfffffffb
 	go116Magic = 0xfffffffa
@@ -185,7 +233,7 @@ type lineTable struct {
 	wrapperFuncID uint8
 }
 
-func parselineTable(data []byte, textRange, pcRange [2]uint64, goVersion *object.GoVersion) (*lineTable, error) {
+func parselineTable(data []byte, textRange, pcRange [2]uint64) (*lineTable, error) {
 	if len(data) < 8 {
 		return nil, fmt.Errorf("pclntab too short")
 	}
@@ -216,27 +264,6 @@ func parselineTable(data []byte, textRange, pcRange [2]uint64, goVersion *object
 
 	if ptrSize != 4 && ptrSize != 8 {
 		return nil, fmt.Errorf("invalid pointer size in pclntab: %d", ptrSize)
-	}
-
-	// Determine wrapper function ID based on Go version
-	const defaultWrapperFuncID = funcIDWrapperGo122Plus
-	wrapperFuncID := uint8(defaultWrapperFuncID)
-
-	if goVersion != nil {
-		if goVersion.Major == 1 && goVersion.Minor < 22 {
-			wrapperFuncID = funcIDWrapperGo117ThroughGo121
-		} else if goVersion.Major == 1 && goVersion.Minor >= 22 {
-			wrapperFuncID = funcIDWrapperGo122Plus
-		}
-	} else {
-		switch version {
-		case ver118:
-			wrapperFuncID = funcIDWrapperGo117ThroughGo121
-		case ver120:
-			wrapperFuncID = funcIDWrapperGo122Plus
-		default:
-			wrapperFuncID = defaultWrapperFuncID
-		}
 	}
 
 	readOffset := func(word uint32) (uint64, error) {
@@ -318,21 +345,20 @@ func parselineTable(data []byte, textRange, pcRange [2]uint64, goVersion *object
 		funcdata := [2]int{base, len(data)}
 
 		return &lineTable{
-			data:          data,
-			version:       version,
-			quantum:       quantum,
-			ptrSize:       ptrSize,
-			nfunctab:      nfunctab,
-			nfiletab:      nfiletab,
-			functab:       functab,
-			funcdata:      funcdata,
-			funcnametab:   funcnametab,
-			filetab:       filetab,
-			pcTab:         pcTab,
-			cutab:         &cutab,
-			textRange:     textRange,
-			pcRange:       pcRange,
-			wrapperFuncID: wrapperFuncID,
+			data:        data,
+			version:     version,
+			quantum:     quantum,
+			ptrSize:     ptrSize,
+			nfunctab:    nfunctab,
+			nfiletab:    nfiletab,
+			functab:     functab,
+			funcdata:    funcdata,
+			funcnametab: funcnametab,
+			filetab:     filetab,
+			pcTab:       pcTab,
+			cutab:       &cutab,
+			textRange:   textRange,
+			pcRange:     pcRange,
 		}, nil
 
 	// --- Go 1.16 ---
@@ -403,21 +429,20 @@ func parselineTable(data []byte, textRange, pcRange [2]uint64, goVersion *object
 		funcdata := [2]int{base, len(data)}
 
 		return &lineTable{
-			data:          data,
-			version:       version,
-			quantum:       quantum,
-			ptrSize:       ptrSize,
-			nfunctab:      nfunctab,
-			nfiletab:      nfiletab,
-			functab:       functab,
-			funcdata:      funcdata,
-			funcnametab:   funcnametab,
-			filetab:       filetab,
-			pcTab:         pcTab,
-			cutab:         &cutab,
-			textRange:     textRange,
-			pcRange:       pcRange,
-			wrapperFuncID: wrapperFuncID,
+			data:        data,
+			version:     version,
+			quantum:     quantum,
+			ptrSize:     ptrSize,
+			nfunctab:    nfunctab,
+			nfiletab:    nfiletab,
+			functab:     functab,
+			funcdata:    funcdata,
+			funcnametab: funcnametab,
+			filetab:     filetab,
+			pcTab:       pcTab,
+			cutab:       &cutab,
+			textRange:   textRange,
+			pcRange:     pcRange,
 		}, nil
 
 	// --- Go 1.2 ---
@@ -458,21 +483,20 @@ func parselineTable(data []byte, textRange, pcRange [2]uint64, goVersion *object
 		pcTab := [2]int{0, len(data)}
 
 		return &lineTable{
-			data:          data,
-			version:       version,
-			quantum:       quantum,
-			ptrSize:       ptrSize,
-			nfunctab:      nfunctab,
-			nfiletab:      nfiletab,
-			functab:       functab,
-			funcdata:      funcdata,
-			funcnametab:   funcnametab,
-			filetab:       filetab,
-			pcTab:         pcTab,
-			cutab:         nil,
-			textRange:     textRange,
-			pcRange:       pcRange,
-			wrapperFuncID: wrapperFuncID,
+			data:        data,
+			version:     version,
+			quantum:     quantum,
+			ptrSize:     ptrSize,
+			nfunctab:    nfunctab,
+			nfiletab:    nfiletab,
+			functab:     functab,
+			funcdata:    funcdata,
+			funcnametab: funcnametab,
+			filetab:     filetab,
+			pcTab:       pcTab,
+			cutab:       nil,
+			textRange:   textRange,
+			pcRange:     pcRange,
 		}, nil
 
 	default:
@@ -489,22 +513,22 @@ func functabFieldSize(ptrSize int, version pclnTabVersion) int {
 	}
 }
 
-func (lt *lineTable) getGoFunctionByIndex(idx uint32) *GoFunction {
+func (lt *lineTable) getGoFunctionByIndex(idx uint32) (GoFunction, bool) {
 	if idx >= lt.nfunctab {
-		return nil
+		return GoFunction{}, false
 	}
 
 	funcTab := lt.funcTab()
 	pc, err := funcTab.pc(idx)
 	if err != nil {
-		return nil
+		return GoFunction{}, false
 	}
 
 	var end uint64
 	if idx+1 < lt.nfunctab {
 		end, err = funcTab.pc(idx + 1)
 		if err != nil {
-			return nil
+			return GoFunction{}, false
 		}
 	} else {
 		end = lt.textRange[1]
@@ -512,33 +536,32 @@ func (lt *lineTable) getGoFunctionByIndex(idx uint32) *GoFunction {
 
 	funcInfo, err := lt.funcInfo(idx)
 	if err != nil {
-		return nil
+		return GoFunction{}, false
 	}
 
-	name := ""
-	if nameOff, found := funcInfo.nameOff(); found {
-		name = lt.funcName(nameOff)
+	nameOff, ok := funcInfo.nameOff()
+	if !ok {
+		nameOff = math.MaxUint32
 	}
-
 	deferReturn := uint32(0)
 	if dr, found := funcInfo.deferReturn(); found {
 		deferReturn = dr
 	}
 
-	return &GoFunction{
-		Name:        name,
+	return GoFunction{
 		Entry:       pc,
 		End:         end,
 		DeferReturn: deferReturn,
+		nameOff:     nameOff,
 		idx:         idx,
 		funcInfo:    funcInfo,
-	}
+	}, true
 }
 
-func (lt *lineTable) getGoFunctionByPC(pc uint64) *GoFunction {
+func (lt *lineTable) getGoFunctionByPC(pc uint64) (GoFunction, bool) {
 	idx, found := lt.findFunc(pc)
 	if !found {
-		return nil
+		return GoFunction{}, false
 	}
 	return lt.getGoFunctionByIndex(idx)
 }
@@ -547,38 +570,41 @@ func (lt *lineTable) funcTab() *funcTab {
 	return (*funcTab)(lt)
 }
 
-func (lt *lineTable) funcInfo(i uint32) (*funcInfo, error) {
+func (lt *lineTable) funcInfo(i uint32) (funcInfo, error) {
 	funcTab := lt.funcTab()
 	funcOff, err := funcTab.funcOff(i)
 	if err != nil {
-		return nil, err
+		return funcInfo{}, err
 	}
 
 	actualOffset := lt.funcdata[0] + int(funcOff)
 	if actualOffset >= len(lt.data) {
-		return nil, fmt.Errorf("function offset out of bounds")
+		return funcInfo{}, fmt.Errorf("function offset out of bounds")
 	}
 
-	return &funcInfo{
+	return funcInfo{
 		lt:   lt,
 		data: lt.data[actualOffset:],
 	}, nil
 }
 
 func (lt *lineTable) funcName(off uint32) string {
+	return string(lt.funcNameData(off))
+}
+
+func (lt *lineTable) funcNameData(off uint32) []byte {
 	offset := lt.funcnametab[0] + int(off)
 	if offset >= lt.funcnametab[1] {
-		return ""
+		return nil
 	}
 
-	name := stringFromOffset(lt.data, offset)
-	return name
+	return stringDataFromOffset(lt.data, offset)
 }
 
 func (gst *GoSymbolTable) locatePC(pc uint64) []GoLocation {
 	lt := gst.pclntab
-	function := lt.getGoFunctionByPC(pc)
-	if function == nil {
+	function, ok := lt.getGoFunctionByPC(pc)
+	if !ok {
 		return nil
 	}
 
@@ -604,7 +630,7 @@ func (gst *GoSymbolTable) locatePC(pc uint64) []GoLocation {
 
 	inlinedCalls := unwindInlinedCalls(function.funcInfo, adjustedPC, gst.gofunc)
 	if inlinedCalls == nil {
-		return []GoLocation{makeLocation(function.idx, adjustedPC, function.Name)}
+		return []GoLocation{makeLocation(function.idx, adjustedPC, function.Name())}
 	}
 
 	var locations []GoLocation
@@ -621,9 +647,11 @@ func (gst *GoSymbolTable) locatePC(pc uint64) []GoLocation {
 			continue
 		}
 
-		functionName := function.Name
+		var functionName string
 		if call.Function != nil {
 			functionName = *call.Function
+		} else {
+			functionName = function.Name()
 		}
 
 		locations = append(locations, makeLocation(function.idx, call.PC, functionName))
@@ -655,11 +683,11 @@ type fileRange struct {
 func (lt *lineTable) fileRanges(f *GoFunction) ([]fileRange, error) {
 	offset, found := f.funcInfo.pcfile()
 	if !found {
-		return nil, fmt.Errorf("no file data for function %s", f.Name)
+		return nil, fmt.Errorf("no file data for function %s", f.Name())
 	}
 	offset += uint32(lt.pcTab[0])
 	if int(offset) >= len(lt.data) {
-		return nil, fmt.Errorf("file data offset out of range for function %s", f.Name)
+		return nil, fmt.Errorf("file data offset out of range for function %s", f.Name())
 	}
 
 	names := map[uint32]string{}
@@ -670,7 +698,7 @@ func (lt *lineTable) fileRanges(f *GoFunction) ([]fileRange, error) {
 		var name string
 		var ok bool
 		if name, ok = names[fno]; !ok {
-			name = lt.fileName(f.funcInfo, fno)
+			name = lt.fileName(&f.funcInfo, fno)
 			names[fno] = name
 		}
 		ranges = append(ranges, fileRange{
@@ -724,7 +752,7 @@ func (gst *GoSymbolTable) inlinedFunctionsMapping(f *GoFunction) []functionRange
 		if inlinedFuncIdx.Val < 0 {
 			// This range doesn't correspond to any inlined function,
 			// it belongs to f itself.
-			functionName = f.Name
+			functionName = f.Name()
 		} else {
 			funcID, nameOff, _, found := readInlTree(inlineTree, uint32(inlinedFuncIdx.Val))
 			if !found || funcID == lt.wrapperFuncID {
@@ -759,19 +787,19 @@ func (gst *GoSymbolTable) inlinedFunctionsMapping(f *GoFunction) []functionRange
 
 func (gst *GoSymbolTable) functionLines(pc uint64) (map[string]FunctionLines, error) {
 	lt := gst.pclntab
-	f := lt.getGoFunctionByPC(pc)
-	if f == nil {
+	f, ok := lt.getGoFunctionByPC(pc)
+	if !ok {
 		return nil, fmt.Errorf("no function for PC 0x%x", pc)
 	}
 
 	// Collect pc range -> function name/file mapping
-	funcs := gst.inlinedFunctionsMapping(f)
+	funcs := gst.inlinedFunctionsMapping(&f)
 	if funcs == nil {
 		funcs = []functionRange{
 			{
 				pcLo: 0,
 				pcHi: math.MaxUint64,
-				name: f.Name,
+				name: f.Name(),
 				file: lt.pcToFile(f.idx, f.Entry),
 			},
 		}
@@ -779,11 +807,11 @@ func (gst *GoSymbolTable) functionLines(pc uint64) (map[string]FunctionLines, er
 
 	offset, found := f.funcInfo.pcln()
 	if !found {
-		return nil, fmt.Errorf("no line data for function %s", f.Name)
+		return nil, fmt.Errorf("no line data for function %s", f.Name())
 	}
 	offset += uint32(lt.pcTab[0])
 	if int(offset) >= len(lt.data) {
-		return nil, fmt.Errorf("line data offset out of range for function %s", f.Name)
+		return nil, fmt.Errorf("line data offset out of range for function %s", f.Name())
 	}
 
 	res := make(map[string]FunctionLines, len(funcs))
@@ -879,7 +907,7 @@ func (lt *lineTable) pcToFile(funcIdx uint32, pc uint64) string {
 		return unknownFile
 	}
 
-	return lt.fileName(funcInfo, fno)
+	return lt.fileName(&funcInfo, fno)
 }
 
 const unknownFile = "<unknown>"
@@ -1030,7 +1058,7 @@ type inlinedCall struct {
 	Function *string
 }
 
-func unwindInlinedCalls(f *funcInfo, pc uint64, goFuncData []byte) []inlinedCall {
+func unwindInlinedCalls(f funcInfo, pc uint64, goFuncData []byte) []inlinedCall {
 	inlineTree := f.funcData(funcdataInlTree, goFuncData)
 	if inlineTree == nil {
 		return nil
@@ -1188,8 +1216,11 @@ func (fi *funcInfo) getFuncInfoOffset(n uint32) (int, bool) {
 	return offset, true
 }
 
-func (fi *funcInfo) nameOff() (uint32, bool) {
-	return fi.field(1)
+type nameOff uint32
+
+func (fi *funcInfo) nameOff() (nameOff, bool) {
+	val, found := fi.field(1)
+	return nameOff(val), found
 }
 
 func (fi *funcInfo) deferReturn() (uint32, bool) {
@@ -1255,11 +1286,11 @@ func (fi *funcInfo) entryPC() (uint64, bool) {
 	}
 }
 
-func (fi *funcInfo) cuOffset() (uint32, bool) {
+func (fi funcInfo) cuOffset() (uint32, bool) {
 	return fi.field(8)
 }
 
-func (fi *funcInfo) funcData(i uint8, goFuncData []byte) []byte {
+func (fi funcInfo) funcData(i uint8, goFuncData []byte) []byte {
 	nfuncdata, found := fi.nfuncdata()
 	if !found || i >= nfuncdata {
 		return nil
@@ -1337,15 +1368,17 @@ func (fi *funcInfo) pcValue(table uint8, targetPC uint64) (uint32, bool) {
 }
 
 func stringFromOffset(data []byte, offset int) string {
+	return string(stringDataFromOffset(data, offset))
+}
+
+func stringDataFromOffset(data []byte, offset int) []byte {
 	if offset >= len(data) {
-		return ""
+		return nil
 	}
-
-	// Find null terminator
-	end := offset
-	for end < len(data) && data[end] != 0 {
-		end++
+	data = data[offset:]
+	// Find the null terminator.
+	if end := bytes.IndexByte(data, 0); end != -1 {
+		data = data[:end]
 	}
-
-	return string(data[offset:end])
+	return data
 }
