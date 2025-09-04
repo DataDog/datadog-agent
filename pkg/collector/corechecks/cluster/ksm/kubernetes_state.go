@@ -627,7 +627,32 @@ func (k *KSMCheck) Run() error {
 	// Note that by design, some metrics cannot have hostnames (e.g kubernetes_state.pod.unschedulable)
 	sender.DisableDefaultHostname(true)
 
-	// Leader election code removed for simplicity
+	// If KSM is running in the node agent, and it's configured to collect only
+	// pods and from the node agent, we don't need to run leader election,
+	// because each node agent is responsible for collecting its own pods.
+	podsFromKubeletInNodeAgent := k.isRunningOnNodeAgent && k.instance.PodCollectionMode == nodeKubeletPodCollection
+
+	// If the check is configured as a cluster check, the cluster check worker needs to skip the leader election section.
+	// we also do a safety check for dedicated runners to avoid trying the leader election
+	if (!k.isCLCRunner || !k.instance.LeaderSkip) && !podsFromKubeletInNodeAgent {
+		// Only run if Leader Election is enabled.
+		if !pkgconfigsetup.Datadog().GetBool("leader_election") {
+			return log.Error("Leader Election not enabled. The cluster-agent will not run the kube-state-metrics core check.")
+		}
+
+		leader, errLeader := cluster.RunLeaderElection()
+		if errLeader != nil {
+			if errLeader == apiserver.ErrNotLeader {
+				log.Debugf("Not leader (leader is %q). Skipping the kube-state-metrics core check", leader)
+				return nil
+			}
+
+			_ = k.Warn("Leader Election error. Not running the kube-state-metrics core check.")
+			return err
+		}
+
+		log.Tracef("Current leader: %q, running kube-state-metrics core check", leader)
+	}
 
 	defer sender.Commit()
 
