@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/gohai/cpu"
 	"github.com/DataDog/datadog-agent/pkg/gohai/platform"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
-	"github.com/DataDog/datadog-agent/pkg/util/hostinfo"
+	hostinfoutils "github.com/DataDog/datadog-agent/pkg/util/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
@@ -32,7 +32,7 @@ func TestGetSystemStats(t *testing.T) {
 	assert.Equal(t, int32(cpuInfo.CPUCores.ValueOrDefault()), ss.CPUCores)
 	assert.Equal(t, python.GetPythonVersion(), ss.Pythonv)
 
-	hostInfo := hostinfo.GetInformation()
+	hostInfo := hostinfoutils.GetInformation()
 	assert.Equal(t, osVersion{hostInfo.Platform, hostInfo.PlatformVersion}, ss.Winver)
 }
 
