@@ -341,3 +341,111 @@ func TestIgnoreRemoteConfigIfDisabled(t *testing.T) {
 		})
 	}
 }
+
+func TestScheduleWithNilLogConfigurations(t *testing.T) {
+	testCases := []struct {
+		name             string
+		logsConfig       []byte
+		expectedEvents   int
+		expectedServices []string
+	}{
+		{
+			name:             "mixed nil and valid configurations",
+			logsConfig:       []byte(`[null, {"service":"foo","source":"bar"}, null, {"service":"baz","source":"qux"}]`),
+			expectedEvents:   2,
+			expectedServices: []string{"foo", "baz"},
+		},
+		{
+			name:             "all nil configurations",
+			logsConfig:       []byte(`[null, null, null]`),
+			expectedEvents:   0,
+			expectedServices: []string{},
+		},
+		{
+			name:             "single nil configuration",
+			logsConfig:       []byte(`[null]`),
+			expectedEvents:   0,
+			expectedServices: []string{},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			scheduler, spy := setup()
+			configSource := integration.Config{
+				LogsConfig:    tc.logsConfig,
+				ADIdentifiers: []string{"docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b"},
+				Provider:      names.Kubernetes,
+				TaggerEntity:  "container_id://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
+				ServiceID:     "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
+				ClusterCheck:  false,
+			}
+
+			scheduler.Schedule([]integration.Config{configSource})
+
+			require.Equal(t, tc.expectedEvents, len(spy.Events))
+			for i, expectedService := range tc.expectedServices {
+				require.True(t, spy.Events[i].Add)
+				assert.Equal(t, expectedService, spy.Events[i].Source.Config.Service)
+			}
+		})
+	}
+}
+
+func TestCreateSourcesWithNilConfigurations(t *testing.T) {
+	testCases := []struct {
+		name            string
+		config          integration.Config
+		expectedSources int
+		expectedService string
+	}{
+		{
+			name: "JSON mixed configurations",
+			config: integration.Config{
+				LogsConfig: []byte(`[null, {"service":"foo","source":"bar","type":"file","path":"/test/path"}, null]`),
+				Provider:   names.Kubernetes,
+				ServiceID:  "docker://test",
+			},
+			expectedSources: 1,
+			expectedService: "foo",
+		},
+		{
+			name: "JSON all nil configurations",
+			config: integration.Config{
+				LogsConfig: []byte(`[null, null]`),
+				Provider:   names.Kubernetes,
+				ServiceID:  "docker://test",
+			},
+			expectedSources: 0,
+		},
+		{
+			name: "YAML mixed configurations",
+			config: integration.Config{
+				LogsConfig: []byte(`logs:
+  - null
+  - service: "yaml-service"
+    source: "yaml-source"
+    type: "file"
+    path: "/yaml/path"
+  - null`),
+				Provider:  names.File,
+				ServiceID: "",
+			},
+			expectedSources: 1,
+			expectedService: "yaml-service",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			sources, err := CreateSources(tc.config)
+
+			require.NoError(t, err)
+			require.Equal(t, tc.expectedSources, len(sources))
+
+			if tc.expectedSources > 0 {
+				assert.Equal(t, tc.expectedService, sources[0].Config.Service)
+			}
+		})
+	}
+}
