@@ -206,8 +206,10 @@ type TracerouteDestination struct {
 type NetworkPath struct {
 	Timestamp    int64                  `json:"timestamp"`
 	AgentVersion string                 `json:"agent_version"`
-	Namespace    string                 `json:"namespace"` // namespace used to resolve NDM resources
-	PathtraceID  string                 `json:"pathtrace_id"`
+	Namespace    string                 `json:"namespace"`      // namespace used to resolve NDM resources
+	TestConfigID string                 `json:"test_config_id"` // ID represent the test configuration created in UI/backend/Agent
+	TestResultID string                 `json:"test_result_id"` // ID of specific test result (test run)
+	PathtraceID  string                 `json:"pathtrace_id"`   // DEPRECATED
 	Origin       PathOrigin             `json:"origin"`
 	Protocol     Protocol               `json:"protocol"`
 	Source       NetworkPathSource      `json:"source"`
