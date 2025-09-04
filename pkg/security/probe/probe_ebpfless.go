@@ -359,6 +359,10 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 			pce = model.NewPlaceholderProcessCacheEntry(event.Setrlimit.TargetPid, event.Setrlimit.TargetPid, false)
 		}
 		event.Setrlimit.Target = &pce.ProcessContext
+	case ebpfless.SyscallTypePrctl:
+		event.Type = uint32(model.PrCtlEventType)
+		event.PrCtl.Option = syscallMsg.Prctl.Option
+		event.PrCtl.NewName = syscallMsg.Prctl.NewName
 	}
 
 	// container context
