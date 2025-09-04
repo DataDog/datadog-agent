@@ -258,22 +258,8 @@ func TestHorizontalControllerSyncPrerequisites(t *testing.T) {
 			Direction: datadoghq.DatadogPodAutoscalerFallbackDirectionScaleUp,
 		},
 	}
-	result, err = f.testScalingDecision(horizontalScalingTestArgs{
-		fakePai:         fakePai,
-		dataSource:      datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
-		currentReplicas: 1,
-		statusReplicas:  1,
-		recReplicas:     10,
-		scaleReplicas:   1,
-		scaleError:      testutil.NewErrorString("scaling disabled as fallback in the scaling direction is disabled"),
-	})
-	assert.Equal(t, autoscaling.NoRequeue, result)
-	assert.NoError(t, err)
-
-	fakePai.Spec.Fallback = &datadoghq.DatadogFallbackPolicy{
-		Horizontal: datadoghq.DatadogPodAutoscalerHorizontalFallbackPolicy{
-			Direction: datadoghq.DatadogPodAutoscalerFallbackDirectionScaleUp,
-		},
+	fakePai.Spec.ApplyPolicy = &datadoghq.DatadogPodAutoscalerApplyPolicy{
+		Mode: datadoghq.DatadogPodAutoscalerApplyModeApply,
 	}
 	result, err = f.testScalingDecision(horizontalScalingTestArgs{
 		fakePai:         fakePai,
