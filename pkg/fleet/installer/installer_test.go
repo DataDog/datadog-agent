@@ -42,7 +42,6 @@ type testPackageManager struct {
 
 func newTestPackageManager(t *testing.T, s *fixtures.Server, rootPath string) *testPackageManager {
 	packages := repository.NewRepositories(rootPath, nil)
-	configs := repository.NewRepositories(t.TempDir(), nil)
 	db, err := db.New(filepath.Join(rootPath, "packages.db"))
 	assert.NoError(t, err)
 	hooks := &testHooks{}
@@ -52,7 +51,6 @@ func newTestPackageManager(t *testing.T, s *fixtures.Server, rootPath string) *t
 			db:             db,
 			downloader:     oci.NewDownloader(&env.Env{}, s.Client()),
 			packages:       packages,
-			configs:        configs,
 			userConfigsDir: t.TempDir(),
 			packagesDir:    rootPath,
 			hooks:          hooks,
