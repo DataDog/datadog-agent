@@ -1793,7 +1793,7 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// Do not store logs on disk when the disk usage exceeds 80% of the disk capacity.
 	config.BindEnvAndSetDefault("logs_config.integrations_logs_disk_ratio", 0.80)
 	// Timeout for integration logs to be registered/sent
-	config.BindEnvAndSetDefault("logs_config.integrations_logs_timeout", 10)
+	config.BindEnvAndSetDefault("logs_config.integrations_logs_timeout", "10s")
 
 	// SDS logs blocking mechanism
 	config.BindEnvAndSetDefault("logs_config.sds.wait_for_configuration", "")

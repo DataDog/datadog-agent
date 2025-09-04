@@ -94,7 +94,7 @@ type provides struct {
 	Comp           option.Option[agent.Component]
 	FlareProvider  flaretypes.Provider
 	StatusProvider statusComponent.InformationProvider
-	LogsReciever   option.Option[integrations.Component]
+	LogsReceiver   option.Option[integrations.Component]
 	APIStreamLogs  api.AgentEndpointProvider
 }
 
@@ -102,6 +102,7 @@ type provides struct {
 // processes and sends logs to the backend.  See the package README for
 // a description of its operation.
 type logAgent struct {
+	sync.Mutex
 	log            log.Component
 	config         model.Reader
 	inventoryAgent inventoryagent.Component
@@ -143,7 +144,7 @@ func newLogsAgent(deps dependencies) provides {
 		return provides{
 			Comp:           option.None[agent.Component](),
 			StatusProvider: statusComponent.NewInformationProvider(NewStatusProvider()),
-			LogsReciever:   option.None[integrations.Component](),
+			LogsReceiver:   option.None[integrations.Component](),
 		}
 	}
 
@@ -199,7 +200,7 @@ func newLogsAgent(deps dependencies) provides {
 
 	return provides{
 		Comp:           option.New[agent.Component](logsAgent),
-		LogsReciever:   option.New(integrationsLogs),
+		LogsReceiver:   option.New(integrationsLogs),
 		StatusProvider: statusComponent.NewInformationProvider(NewStatusProvider()),
 		FlareProvider:  flaretypes.NewProvider(logsAgent.flarecontroller.FillFlare),
 		APIStreamLogs: api.NewAgentEndpointProvider(streamLogsEvents(logsAgent),
@@ -210,11 +211,19 @@ func newLogsAgent(deps dependencies) provides {
 }
 
 func (a *logAgent) start(context.Context) error {
+	a.Lock()
+	defer a.Unlock()
+
+	if a.started.Load() != status.StatusNotStarted {
+		a.log.Info("logs-agent already started, skipping")
+		return nil
+	}
+
 	a.log.Info("Starting logs-agent...")
 
 	go func() {
 		time.Sleep(expectedStartTimeout)
-		if a.started.Load() != status.StatusRunning {
+		if a.started.Load() != status.StatusRunning || a.started.Load() != status.StatusStopped {
 			a.log.Warn("logs-agent did not start within the expected amount of time")
 			metrics.TlmLogsHungStart.Add(1)
 		}
@@ -319,10 +328,14 @@ func (a *logAgent) startSchedulers() {
 }
 
 func (a *logAgent) stop(context.Context) error {
+	a.Lock()
+	defer a.Unlock()
+
 	if a.started.Load() == status.StatusNotStarted {
 		a.log.Info("logs-agent never started, stopping schedulers")
 		a.schedulers.Stop()
 		a.log.Info("schedulers stopped")
+		a.started.Store(status.StatusStopped)
 		return nil
 	}
 
@@ -374,6 +387,7 @@ func (a *logAgent) stop(context.Context) error {
 		}
 	}
 	a.log.Info("logs-agent stopped")
+	a.started.Store(status.StatusStopped)
 	return nil
 }
 

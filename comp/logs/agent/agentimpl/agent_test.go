@@ -232,6 +232,7 @@ func (suite *AgentTestSuite) TestLazyStart() {
 		suite.T().Run(tt.name, func(_ *testing.T) {
 			// Minimal intake config for successful start
 
+			delete(suite.configOverrides, "logs_enabled")
 			deps := suite.createDeps()
 			provides := newLogsAgent(deps)
 
@@ -296,6 +297,22 @@ func (suite *AgentTestSuite) TestLazyStart() {
 			assert.True(suite.T(), ts.stopped.Load())
 		})
 	}
+}
+
+func (suite *AgentTestSuite) TestAgentLazyStop() {
+	deps := suite.createDeps()
+	provides := newLogsAgent(deps)
+	compOpt := provides.Comp
+	comp, ok := compOpt.Get()
+	assert.True(suite.T(), ok)
+
+	a := comp.(*logAgent)
+
+	a.initializeLazyStart(context.TODO())
+	a.stop(context.TODO())
+	assert.Equal(suite.T(), uint32(status.StatusStopped), a.started.Load(), "agent should be stopped")
+	a.start(context.TODO())
+	assert.Equal(suite.T(), uint32(status.StatusStopped), a.started.Load(), "agent should not be running")
 }
 
 func (suite *AgentTestSuite) TestAgentTcp() {

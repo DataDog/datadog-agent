@@ -69,7 +69,6 @@ type oldTailerInfo struct {
 
 // NewLauncher returns a new launcher.
 func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePodContainerID bool, scanPeriod time.Duration, wildcardMode string, flarecontroller *flareController.FlareController, tagger tagger.Component, fingerprintConfig types.FingerprintConfig) *Launcher {
-
 	var wildcardStrategy fileprovider.WildcardSelectionStrategy
 	switch wildcardMode {
 	case "by_modification_time":

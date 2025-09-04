@@ -22,26 +22,37 @@ import (
 
 // Logsintegration is the integrations component implementation
 type Logsintegration struct {
-	sync.Mutex
 	logChan            chan integrations.IntegrationLog
 	integrationChan    chan integrations.IntegrationConfig
 	log                log.Component
 	actionCallback     func() error
 	registrationList   map[string]bool
 	integrationTimeout time.Duration
+	registrationLock   sync.Mutex
+
+	errorBatchingInterval time.Duration
+	errorList             map[errorRecord]int
+	errorLock             sync.Mutex
+}
+
+type errorRecord struct {
+	integrationID string
+	errorType     string
 }
 
 // NewLogsIntegration creates a new integrations instance
 func NewLogsIntegration(log log.Component, config configComponent.Component) integrations.Component {
-	integrationTimeout := time.Duration(config.GetInt("logs_config.integrations_logs_timeout")) * time.Second
+	integrationTimeout := config.GetDuration("logs_config.integrations_logs_timeout")
 
 	return &Logsintegration{
-		logChan:            make(chan integrations.IntegrationLog),
-		integrationChan:    make(chan integrations.IntegrationConfig),
-		log:                log,
-		actionCallback:     func() error { return nil },
-		registrationList:   make(map[string]bool),
-		integrationTimeout: integrationTimeout,
+		logChan:               make(chan integrations.IntegrationLog),
+		integrationChan:       make(chan integrations.IntegrationConfig),
+		log:                   log,
+		actionCallback:        func() error { return nil },
+		registrationList:      make(map[string]bool),
+		integrationTimeout:    integrationTimeout,
+		errorBatchingInterval: time.Second * 60,
+		errorList:             make(map[errorRecord]int),
 	}
 }
 
@@ -74,9 +85,9 @@ func (li *Logsintegration) RegisterIntegration(id string, cfg integration.Config
 
 			select {
 			case li.integrationChan <- integrationConfig:
-				li.Lock()
+				li.registrationLock.Lock()
 				li.registrationList[id] = true
-				li.Unlock()
+				li.registrationLock.Unlock()
 			case <-time.After(li.integrationTimeout):
 				li.log.Errorf("Integration could not be registered due to timeout, dropping all further logs for integration %s", id)
 				return
@@ -90,16 +101,16 @@ func (li *Logsintegration) RegisterIntegration(id string, cfg integration.Config
 
 // SendLog sends a log to any subscribers
 func (li *Logsintegration) SendLog(log, integrationID string) {
-	li.Lock()
+	li.registrationLock.Lock()
 	if _, ok := li.registrationList[integrationID]; !ok {
-		li.Unlock()
-		li.log.Warnf("Integration %s is not registered, dropping log", integrationID)
+		li.registrationLock.Unlock()
+		li.recordNoisyError(integrationID, "registration")
 		return
 	}
-	li.Unlock()
+	li.registrationLock.Unlock()
 
 	if err := li.actionCallback(); err != nil {
-		li.log.Errorf("Unable to send log for integration %s: %v", integrationID, err)
+		li.recordNoisyError(integrationID, "logs agent startup")
 		return
 	}
 
@@ -111,8 +122,33 @@ func (li *Logsintegration) SendLog(log, integrationID string) {
 	select {
 	case li.logChan <- integrationLog:
 	case <-time.After(li.integrationTimeout):
-		li.log.Warnf("Integration %s timed out sending a log", integrationID)
+		li.recordNoisyError(integrationID, "timeout")
 	}
+}
+
+func (li *Logsintegration) recordNoisyError(integrationID string, errorType string) {
+	li.errorLock.Lock()
+	defer li.errorLock.Unlock()
+
+	errorRecord := errorRecord{
+		integrationID: integrationID,
+		errorType:     errorType,
+	}
+	if len(li.errorList) == 0 {
+		go li.transmitBatchedErrors()
+	}
+	li.errorList[errorRecord]++
+}
+
+func (li *Logsintegration) transmitBatchedErrors() {
+	time.Sleep(li.errorBatchingInterval)
+	li.errorLock.Lock()
+	defer li.errorLock.Unlock()
+
+	for errorRecord, count := range li.errorList {
+		li.log.Errorf("Integration %s has failed to send %d logs due to %s issues", errorRecord.integrationID, count, errorRecord.errorType)
+	}
+	li.errorList = make(map[errorRecord]int)
 }
 
 // SetActionCallback sets the callback to be called when integration actions are performed.
