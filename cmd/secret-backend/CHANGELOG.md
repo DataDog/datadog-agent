@@ -1,5 +1,14 @@
 # CHANGELOG - datadog-secret-backend
 
+## 1.2.0 / 2025-09-04
+
+* Bump aws-sdk-go-v2, multiple packages (secretsmanager, config, ssm, secretsmanager, rts)
+* Bump Azure/go-autorest and azcore
+* Either get clientID from stdin, or env var, otherwise try default identity
+* Update Hashicorp Vault to 1.20.3
+* Removing unused code and simplify init logic
+* Reduce the binary size for the release
+
 ## 1.1.1 / 2025-08-14
 
 * Use go 1.24.6 to build release.
