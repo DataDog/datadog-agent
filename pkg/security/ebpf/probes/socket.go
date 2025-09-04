@@ -35,6 +35,14 @@ func getSocketProbes(cgroup2MountPoint string) []*manager.Probe {
 	}
 }
 
+// GetAllSocketProgramFunctions returns the list of socket functions
+func GetAllSocketProgramFunctions() []string {
+	return []string{
+		"hook_sock_create",
+		"hook_sock_release",
+	}
+}
+
 // CheckCgroupSocketReturnCode checks if the return code is 1(accept)
 //
 //nolint:unused,deadcode

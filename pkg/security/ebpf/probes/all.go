@@ -204,6 +204,7 @@ type MapSpecEditorOpts struct {
 	NetworkSkStorageEnabled       bool
 	SpanTrackMaxCount             int
 	CapabilitiesMonitoringEnabled bool
+	CgroupSocketEnabled           bool
 }
 
 // AllMapSpecEditors returns the list of map editors
@@ -328,6 +329,13 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 			MaxEntries: opts.RingBufferSize,
 			Type:       ebpf.RingBuf,
 			EditorFlag: manager.EditMaxEntries | manager.EditType | manager.EditKeyValue,
+		}
+	}
+
+	if opts.CgroupSocketEnabled {
+		editors["sock_cookie_pid"] = manager.MapSpecEditor{
+			MaxEntries: 40960,
+			EditorFlag: manager.EditMaxEntries,
 		}
 	}
 

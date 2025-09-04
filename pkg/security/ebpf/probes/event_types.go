@@ -37,7 +37,7 @@ func NetworkVethSelectors() []manager.ProbesSelector {
 }
 
 // NetworkSelectors is the list of probes that should be activated when the network is enabled
-func NetworkSelectors(hasBpfGetSocketCookieForCgroupSocket bool) []manager.ProbesSelector {
+func NetworkSelectors(hasCgroupSocket bool) []manager.ProbesSelector {
 	ps := []manager.ProbesSelector{
 		// flow classification probes
 		&manager.AllOf{Selectors: []manager.ProbesSelector{
@@ -76,7 +76,7 @@ func NetworkSelectors(hasBpfGetSocketCookieForCgroupSocket bool) []manager.Probe
 		}},
 	}
 
-	if hasBpfGetSocketCookieForCgroupSocket {
+	if hasCgroupSocket {
 		ps = append(ps, &manager.BestEffort{Selectors: []manager.ProbesSelector{
 			hookFunc("hook_sock_create"),
 			hookFunc("hook_sock_release"),
@@ -132,7 +132,7 @@ func GetCapabilitiesMonitoringSelectors() []manager.ProbesSelector {
 }
 
 // GetSelectorsPerEventType returns the list of probes that should be activated for each event
-func GetSelectorsPerEventType(hasFentry bool, hasBpfGetSocketCookieForCgroupSocket bool) map[eval.EventType][]manager.ProbesSelector {
+func GetSelectorsPerEventType(hasFentry bool, hasCgroupSocket bool) map[eval.EventType][]manager.ProbesSelector {
 	selectorsPerEventTypeStore := map[eval.EventType][]manager.ProbesSelector{
 		// The following probes will always be activated, regardless of the loaded rules
 		"*": {
@@ -586,7 +586,7 @@ func GetSelectorsPerEventType(hasFentry bool, hasBpfGetSocketCookieForCgroupSock
 			}},
 		},
 		"prctl": {
-			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "prctl", fentry, EntryAndExit)},
+			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "prctl", hasFentry, EntryAndExit)},
 		},
 	}
 
@@ -599,7 +599,7 @@ func GetSelectorsPerEventType(hasFentry bool, hasBpfGetSocketCookieForCgroupSock
 	for _, networkEventType := range networkEventTypes {
 		selectorsPerEventTypeStore[networkEventType] = []manager.ProbesSelector{
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				&manager.AllOf{Selectors: NetworkSelectors(hasBpfGetSocketCookieForCgroupSocket)},
+				&manager.AllOf{Selectors: NetworkSelectors(hasCgroupSocket)},
 				&manager.AllOf{Selectors: NetworkVethSelectors()},
 			}},
 		}
