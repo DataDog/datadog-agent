@@ -529,19 +529,19 @@ func Test_metricSender_reportMetrics(t *testing.T) {
 					method: "Gauge",
 					name:   "snmp.ifHCInUcastPkts",
 					value:  float64(10),
-					tags:   []string{"interface:name0", "dd.internal.resource:ndm_interface_user_tags:device_id:0"},
+					tags:   []string{"interface:name0", "dd.internal.resource:ndm_interface:device_id:0"},
 				},
 				{
 					method: "Gauge",
 					name:   "snmp.ifHCInMulticastPkts",
 					value:  float64(20),
-					tags:   []string{"interface:name0", "dd.internal.resource:ndm_interface_user_tags:device_id:0"},
+					tags:   []string{"interface:name0", "dd.internal.resource:ndm_interface:device_id:0"},
 				},
 				{
 					method: "Gauge",
 					name:   "snmp.someOtherMetric1",
 					value:  float64(30),
-					tags:   []string{"interface:name0", "dd.internal.resource:ndm_interface_user_tags:device_id:0"},
+					tags:   []string{"interface:name0", "dd.internal.resource:ndm_interface:device_id:0"},
 				},
 				{
 					method: "Gauge",
