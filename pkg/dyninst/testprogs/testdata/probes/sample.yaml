@@ -805,3 +805,10 @@ probes:
   captureSnapshot: true
   sampling:
     snapshotsPerSecond: 10
+- id: testStructWithAny
+  type: LOG_PROBE
+  where:
+    methodName: main.testStructWithAny
+  captureSnapshot: true
+  capture:
+    maxReferenceDepth: 1

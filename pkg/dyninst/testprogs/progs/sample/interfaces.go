@@ -47,8 +47,7 @@ type itab struct {
 
 //nolint:all
 //go:noinline
-func testInterface(b behavior) {
-}
+func testInterface(b behavior) {}
 
 //nolint:all
 //go:noinline
@@ -65,6 +64,13 @@ func testError(e error) {}
 func testAnyPtr(a *any) string {
 	return fmt.Sprintf("%v", a)
 }
+
+type structWithAny struct {
+	a any
+}
+
+//go:noinline
+func testStructWithAny(s structWithAny) {}
 
 //nolint:all
 func executeInterfaceFuncs() {
@@ -99,4 +105,15 @@ func executeInterfaceFuncs() {
 	testAnyPtr(&boxedOne)
 	testAnyPtr(&boxedOnePtr)
 	testAnyPtr(&boxedPtrToBoxedOne)
+
+	{
+		var (
+			structWithAny0 structWithAny
+			structWithAny1 = structWithAny{a: structWithAny0}
+			structWithAny2 = structWithAny{a: structWithAny1}
+			structWithAny3 = structWithAny{a: structWithAny2}
+			structWithAny4 = structWithAny{a: structWithAny3}
+		)
+		testStructWithAny(structWithAny4)
+	}
 }
