@@ -293,7 +293,7 @@ def tag_devel(ctx, release_branch, commit="HEAD", push=True, force=False):
 
 
 @task
-def finish(ctx, release_branch, release_date=None, upstream="origin"):
+def finish(ctx, release_branch, upstream="origin", release_date=None):
     """Updates the release.json file for the new version.
 
     Args:
