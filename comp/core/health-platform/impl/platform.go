@@ -149,9 +149,12 @@ func (c *component) Run(ctx context.Context) (*healthplatform.HealthReport, erro
 
 	log.Infof("Health checks completed - found %d issues", len(allIssues))
 
-	// Format and return the report
-	report := formatHealthReport(allIssues, c.hostInfo)
-	return &report, nil
+	// Format and return the report in JSON:API format
+	jsonAPIResponse := formatJSONAPIResponse(allIssues, c.hostInfo)
+
+	// Extract the health report from the JSON:API response for backward compatibility
+	healthReport := *jsonAPIResponse.Data
+	return &healthReport, nil
 }
 
 // RegisterSubComponent registers a health checker sub-component
@@ -167,7 +170,7 @@ func (c *component) RegisterSubComponent(sub healthplatform.SubComponent) error 
 	return nil
 }
 
-// sendReport sends a health report to the backend
+// sendReport sends a health report to the backend in JSON:API format
 func (hc *healthClient) sendReport(ctx context.Context, report *healthplatform.HealthReport) error {
 	if report == nil {
 		return fmt.Errorf("health report cannot be nil")
@@ -177,10 +180,20 @@ func (hc *healthClient) sendReport(ctx context.Context, report *healthplatform.H
 		return fmt.Errorf("API key not configured")
 	}
 
-	// Marshal the report to JSON
-	jsonData, err := json.Marshal(report)
+	// Create JSON:API response
+	jsonAPIResponse := healthplatform.JSONAPIResponse{
+		Data: report,
+		Meta: &healthplatform.JSONAPIMeta{
+			SchemaVersion: report.SchemaVersion,
+			EventType:     report.EventType,
+			EmittedAt:     report.EmittedAt,
+		},
+	}
+
+	// Marshal the JSON:API response to JSON
+	jsonData, err := json.Marshal(jsonAPIResponse)
 	if err != nil {
-		return fmt.Errorf("failed to marshal health report: %w", err)
+		return fmt.Errorf("failed to marshal JSON:API response: %w", err)
 	}
 
 	// Create and send the HTTP request
@@ -189,9 +202,9 @@ func (hc *healthClient) sendReport(ctx context.Context, report *healthplatform.H
 		return fmt.Errorf("failed to create HTTP request: %w", err)
 	}
 
-	// Set minimal headers like the telemetry client
+	// Set headers for JSON:API format
 	req.Header.Set("dd-api-key", hc.apiKey)
-	req.Header.Set("content-type", "application/json")
+	req.Header.Set("content-type", "application/vnd.api+json")
 
 	resp, err := hc.client.Do(req)
 	if err != nil {

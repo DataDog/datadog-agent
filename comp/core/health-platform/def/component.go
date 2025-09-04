@@ -97,6 +97,19 @@ type HostInfo struct {
 	ParIDs       []string `json:"par_ids"`
 }
 
+// JSONAPIResponse represents the JSON:API wrapper for health reports
+type JSONAPIResponse struct {
+	Data *HealthReport `json:"data"`
+	Meta *JSONAPIMeta  `json:"meta,omitempty"`
+}
+
+// JSONAPIMeta represents metadata in JSON:API format
+type JSONAPIMeta struct {
+	SchemaVersion string `json:"schema_version,omitempty"`
+	EventType     string `json:"event_type,omitempty"`
+	EmittedAt     string `json:"emitted_at,omitempty"`
+}
+
 // Component is the health platform component interface
 type Component interface {
 	/* ================================

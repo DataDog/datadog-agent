@@ -7,6 +7,8 @@
 package healthplatformimpl
 
 import (
+	"time"
+
 	healthplatform "github.com/DataDog/datadog-agent/comp/core/health-platform/def"
 )
 
@@ -157,4 +159,23 @@ func getDefaultTags(issue healthplatform.Issue) []string {
 	}
 
 	return tags
+}
+
+// formatJSONAPIResponse formats the health report into JSON:API format
+func formatJSONAPIResponse(issues []healthplatform.Issue, hostInfo healthplatform.HostInfo) healthplatform.JSONAPIResponse {
+	// Create the base health report
+	healthReport := formatHealthReport(issues, hostInfo)
+
+	// Set the emitted timestamp
+	healthReport.EmittedAt = time.Now().Format(time.RFC3339)
+
+	// Create JSON:API response with metadata
+	return healthplatform.JSONAPIResponse{
+		Data: &healthReport,
+		Meta: &healthplatform.JSONAPIMeta{
+			SchemaVersion: healthReport.SchemaVersion,
+			EventType:     healthReport.EventType,
+			EmittedAt:     healthReport.EmittedAt,
+		},
+	}
 }
