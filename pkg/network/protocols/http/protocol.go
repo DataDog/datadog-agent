@@ -211,6 +211,12 @@ func (p *protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
 func (p *protocol) processHTTP(events []EbpfEvent) {
 	for i := range events {
 		tx := &events[i]
+
+		b := make([]byte, 100)
+		if p, ok := tx.Path(b); ok && string(p) == "/hello" {
+			fmt.Println("GUY Usermode got /hello event")
+		}
+
 		p.telemetry.Count(tx)
 		p.statkeeper.Process(tx)
 	}
