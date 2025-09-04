@@ -266,7 +266,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_http2_monitoring"), false)
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_kafka_monitoring"), false)
 	cfg.BindEnv(join(smNS, "enable_postgres_monitoring"))
-	cfg.BindEnv(join(smNS, "enable_redis_monitoring"))
+	cfg.BindEnvAndSetDefault(join(smNS, "redis", "enabled"), false)
 	cfg.BindEnvAndSetDefault(join(smNS, "redis", "track_resources"), false)
 	cfg.BindEnvAndSetDefault(join(smNS, "tls", "istio", "enabled"), true)
 	cfg.BindEnvAndSetDefault(join(smNS, "tls", "istio", "envoy_path"), defaultEnvoyPath)
