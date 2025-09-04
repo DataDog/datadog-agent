@@ -507,22 +507,24 @@ Package: main
 		Arg: t: main.deepStruct1 (declared at line 92, available: [92-92])
 	Function: testEmptyStruct (main.testEmptyStruct) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [96:96]
 		Arg: e: main.emptyStruct (declared at line 96, available: )
-	Function: testLotsOfFields (main.testLotsOfFields) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [100:100]
-		Arg: l: main.lotsOfFields (declared at line 100, available: [100-100])
-	Function: executeStructFuncs (main.executeStructFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [103:182]
-		Var: n: main.nStruct (declared at line 107, available: )
-		Var: ns: main.structWithNoStrings (declared at line 116, available: )
-		Var: cs: main.cStruct (declared at line 117, available: )
-		Var: rcvr: main.receiver (declared at line 164, available: )
-		Var: ts: main.threestrings (declared at line 104, available: [103-182])
-		Var: s: main.aStruct (declared at line 110, available: [103-182])
-		Var: b: main.bStruct (declared at line 113, available: [103-182])
-		Var: tenStr: main.tenStrings (declared at line 130, available: [103-182])
-		Var: deep: main.deepStruct1 (declared at line 144, available: [103-182])
-		Var: fields: main.lotsOfFields (declared at line 161, available: [103-182])
-		Var: sta: main.structWithTwoArrays (declared at line 170, available: [103-182])
-		Var: .autotmp_13: [0]uint8 (declared at line 125, available: [103-182])
-		Var: .autotmp_33: main.emptyStruct (declared at line 158, available: [103-182])
+	Function: testEmptyStructPointer (main.testEmptyStructPointer) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [100:100]
+		Arg: e: *main.emptyStruct (declared at line 100, available: [100-100])
+	Function: testLotsOfFields (main.testLotsOfFields) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [104:104]
+		Arg: l: main.lotsOfFields (declared at line 104, available: [104-104])
+	Function: executeStructFuncs (main.executeStructFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [107:187]
+		Var: n: main.nStruct (declared at line 111, available: )
+		Var: ns: main.structWithNoStrings (declared at line 120, available: )
+		Var: cs: main.cStruct (declared at line 121, available: )
+		Var: rcvr: main.receiver (declared at line 169, available: )
+		Var: ts: main.threestrings (declared at line 108, available: [107-187])
+		Var: s: main.aStruct (declared at line 114, available: [107-187])
+		Var: b: main.bStruct (declared at line 117, available: [107-187])
+		Var: tenStr: main.tenStrings (declared at line 134, available: [107-187])
+		Var: deep: main.deepStruct1 (declared at line 148, available: [107-187])
+		Var: fields: main.lotsOfFields (declared at line 166, available: [107-187])
+		Var: sta: main.structWithTwoArrays (declared at line 175, available: [107-187])
+		Var: .autotmp_13: [0]uint8 (declared at line 129, available: [107-187])
+		Var: .autotmp_33: main.emptyStruct (declared at line 162, available: [107-187])
 	Function: executeStack (main.executeStack) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/stacktraces.go [29:30]
 	Function: testInlinedBBB (main.testInlinedBBB) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/inlined.go [48:49]
 	Function: testInlinedBCA (main.testInlinedBCA) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/inlined.go [62:63]

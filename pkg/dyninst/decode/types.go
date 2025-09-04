@@ -801,7 +801,22 @@ func encodePointer(
 		return nil
 	}
 
-	pointedValue, dataItemExists := d.dataItems[pointeeKey]
+	pointeeDecoderType, ok := d.decoderTypes[pointee]
+	if !ok {
+		return fmt.Errorf("no decoder type found for pointee type (ID: %d)", pointee)
+	}
+
+	// If the pointee type has zero size, we don't expect there to be a data
+	// item for it.
+	var (
+		pointedValue   output.DataItem
+		dataItemExists bool
+	)
+	if pointeeDecoderType.irType().GetByteSize() > 0 {
+		pointedValue, dataItemExists = d.dataItems[pointeeKey]
+	} else {
+		dataItemExists = true
+	}
 	if !dataItemExists {
 		return writeTokens(enc,
 			tokenNotCapturedReason,
@@ -820,10 +835,6 @@ func encodePointer(
 	if _, alreadyEncoding := d.currentlyEncoding[pointeeKey]; !alreadyEncoding && dataItemExists {
 		d.currentlyEncoding[pointeeKey] = struct{}{}
 		defer delete(d.currentlyEncoding, pointeeKey)
-		pointeeDecoderType, ok := d.decoderTypes[pointee]
-		if !ok {
-			return fmt.Errorf("no decoder type found for pointee type (ID: %d)", pointee)
-		}
 		if err := pointeeDecoderType.encodeValueFields(
 			d,
 			enc,

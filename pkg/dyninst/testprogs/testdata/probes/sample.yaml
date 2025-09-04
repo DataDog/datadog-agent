@@ -793,3 +793,8 @@ probes:
   captureSnapshot: true
   capture:
     maxReferenceDepth: 1
+- id: testEmptyStructPointer
+  type: LOG_PROBE
+  where:
+    methodName: main.testEmptyStructPointer
+  captureSnapshot: true
