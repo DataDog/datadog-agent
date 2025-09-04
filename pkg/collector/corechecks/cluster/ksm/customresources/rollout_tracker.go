@@ -12,6 +12,8 @@ import (
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ReplicaSetInfo holds information about a ReplicaSet for rollout tracking
@@ -117,14 +119,6 @@ func StoreDeployment(dep *appsv1.Deployment) {
 	deploymentAccessTime[key] = time.Now() // Track when we stored it
 }
 
-// Helper function to safely get replicas value
-func getReplicasValue(replicas *int32) int32 {
-	if replicas == nil {
-		return 0
-	}
-	return *replicas
-}
-
 // CleanupCompletedDeployment removes completed deployment and its ReplicaSets from tracking
 func CleanupCompletedDeployment(dep *appsv1.Deployment) {
 
@@ -141,7 +135,6 @@ func CleanupCompletedDeployment(dep *appsv1.Deployment) {
 		}
 	}
 
-
 	// Remove deployment
 	_, deploymentExisted := deploymentMap[key]
 	delete(deploymentMap, key)
@@ -152,15 +145,19 @@ func CleanupCompletedDeployment(dep *appsv1.Deployment) {
 	var cleanedRS int
 	for rsKey, rsInfo := range replicaSetMap {
 		if rsInfo.Namespace == dep.Namespace && rsInfo.OwnerName == dep.Name {
+			log.Infof("ROLLOUT-TEST: Cleaning up ReplicaSet %s for deployment %s/%s", rsKey, dep.Namespace, dep.Name)
 			delete(replicaSetMap, rsKey)
 			cleanedRS++
 		}
 	}
 
+	log.Infof("ROLLOUT-TEST: Cleanup completed for deployment %s/%s - removed deployment: %v, cleaned %d ReplicaSets. Remaining: %d deployments, %d ReplicaSets",
+		dep.Namespace, dep.Name, deploymentExisted, cleanedRS, len(deploymentMap), len(replicaSetMap))
 }
 
 // CleanupDeletedDeployment removes a deleted deployment and its ReplicaSets from tracking
 func CleanupDeletedDeployment(namespace, name string) {
+	log.Infof("ROLLOUT-TEST: CleanupDeletedDeployment called for deployment %s/%s", namespace, name)
 
 	rolloutMutex.Lock()
 	defer rolloutMutex.Unlock()
@@ -175,6 +172,7 @@ func CleanupDeletedDeployment(namespace, name string) {
 		}
 	}
 
+	log.Infof("ROLLOUT-TEST: Found %d ReplicaSets to clean up for deleted deployment %s/%s", rsCount, namespace, name)
 
 	// Remove deployment
 	_, deploymentExisted := deploymentMap[key]
@@ -186,11 +184,14 @@ func CleanupDeletedDeployment(namespace, name string) {
 	var cleanedRS int
 	for rsKey, rsInfo := range replicaSetMap {
 		if rsInfo.Namespace == namespace && rsInfo.OwnerName == name {
+			log.Infof("ROLLOUT-TEST: Cleaning up ReplicaSet %s for deleted deployment %s/%s", rsKey, namespace, name)
 			delete(replicaSetMap, rsKey)
 			cleanedRS++
 		}
 	}
 
+	log.Infof("ROLLOUT-TEST: Cleanup completed for deleted deployment %s/%s - removed deployment: %v, cleaned %d ReplicaSets. Remaining: %d deployments, %d ReplicaSets",
+		namespace, name, deploymentExisted, cleanedRS, len(deploymentMap), len(replicaSetMap))
 }
 
 // Constants for cleanup thresholds - TESTING VALUES
@@ -228,7 +229,6 @@ func PeriodicCleanup() {
 	if now.Sub(lastCleanupTime) < cleanupInterval {
 		return // Too soon since last cleanup
 	}
-
 
 	rolloutMutex.Lock()
 	defer rolloutMutex.Unlock()
@@ -284,6 +284,10 @@ func PeriodicCleanup() {
 	cleanedDeployments := len(staleDeployments)
 	cleanedReplicaSets := len(staleReplicaSets) + len(orphanedReplicaSets)
 
+	log.Infof("ROLLOUT-TEST: Periodic cleanup completed - removed %d stale deployments, %d stale/orphaned ReplicaSets. Maps: %d->%d deployments, %d->%d ReplicaSets",
+		cleanedDeployments, cleanedReplicaSets,
+		initialDeployments, len(deploymentMap),
+		initialReplicaSets, len(replicaSetMap))
 }
 
 // GetMapStats returns current size of the tracking maps (for debugging)
@@ -291,4 +295,57 @@ func GetMapStats() (deployments int, replicaSets int) {
 	rolloutMutex.RLock()
 	defer rolloutMutex.RUnlock()
 	return len(deploymentMap), len(replicaSetMap)
+}
+
+// CleanupDeletedReplicaSet removes a deleted ReplicaSet from tracking
+func CleanupDeletedReplicaSet(namespace, name string) {
+	log.Infof("ROLLOUT-DELETE: CleanupDeletedReplicaSet called for ReplicaSet %s/%s", namespace, name)
+
+	rolloutMutex.Lock()
+	defer rolloutMutex.Unlock()
+
+	key := namespace + "/" + name
+
+	// Remove the ReplicaSet from tracking
+	_, rsExisted := replicaSetMap[key]
+	delete(replicaSetMap, key)
+
+	log.Infof("ROLLOUT-DELETE: Cleanup completed for deleted ReplicaSet %s/%s - removed: %v. Remaining: %d deployments, %d ReplicaSets",
+		namespace, name, rsExisted, len(deploymentMap), len(replicaSetMap))
+}
+
+// PrintMapContents logs the current contents of the tracking maps (for testing)
+func PrintMapContents() {
+	rolloutMutex.RLock()
+	defer rolloutMutex.RUnlock()
+
+	log.Infof("ROLLOUT-MAPS: Current map contents - %d deployments, %d ReplicaSets", len(deploymentMap), len(replicaSetMap))
+	
+	if len(deploymentMap) > 0 {
+		log.Infof("ROLLOUT-MAPS: Deployments:")
+		for key, dep := range deploymentMap {
+			accessTime, hasAccess := deploymentAccessTime[key]
+			startTime, hasStart := deploymentStartTime[key]
+			
+			accessStr := "none"
+			if hasAccess {
+				accessStr = accessTime.Format(time.RFC3339)
+			}
+			
+			startStr := "none"
+			if hasStart {
+				startStr = startTime.Format(time.RFC3339)
+			}
+			
+			log.Infof("ROLLOUT-MAPS:   - %s (Gen: %d, LastAccess: %s, StartTime: %s)", 
+				key, dep.Generation, accessStr, startStr)
+		}
+	}
+	
+	if len(replicaSetMap) > 0 {
+		log.Infof("ROLLOUT-MAPS: ReplicaSets:")
+		for key, rsInfo := range replicaSetMap {
+			log.Infof("ROLLOUT-MAPS:   - %s (Owner: %s, Created: %s)", key, rsInfo.OwnerName, rsInfo.CreationTime.Format(time.RFC3339))
+		}
+	}
 }
