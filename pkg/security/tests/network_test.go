@@ -171,8 +171,20 @@ func TestRawPacket(t *testing.T) {
 			return
 		}
 
+		waitSignal := test.WaitSignalWithoutProcessContext
+
+		kv, err := kernel.NewKernelVersion()
+		if err != nil {
+			t.Errorf("failed to get kernel version: %s", err)
+			return
+		}
+
+		if !kv.HasBpfGetSocketCookieForCgroupSocket() || kv.Code < kernel.Kernel5_15 {
+			waitSignal = test.WaitSignalWithoutProcessContext
+		}
+
 		wrapper.Run(t, "ping", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-			test.WaitSignalWithoutProcessContext(t, func() error {
+			waitSignal(t, func() error {
 				cmd := cmdFunc("/bin/ping", []string{"-c", "1", "8.8.8.8"}, nil)
 				if out, err := cmd.CombinedOutput(); err != nil {
 					return fmt.Errorf("%s: %w", out, err)
