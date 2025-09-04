@@ -32,7 +32,7 @@ import (
 //
 
 const (
-	defaultInterval   = 1 * time.Minute
+	defaultInterval   = 10 * time.Minute
 	firstPayloadDelay = 1 * time.Minute
 )
 
@@ -130,7 +130,7 @@ func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
 
 	stats := map[string]interface{}{}
 	jmxStatus.PopulateStatus(stats)
-	instanceConfByName := map[string]map[interface{}]interface{}{}
+	instanceConfByName := map[string]interface{}{}
 	for _, config := range jmxfetch.GetScheduledConfigs() {
 		for _, instance := range config.Instances {
 			instanceconfig := map[interface{}]interface{}{}
@@ -139,22 +139,22 @@ func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
 				log.Errorf("invalid instance section: %s", err)
 				continue
 			}
-			instanceConfByName[instanceconfig["name"].(string)] = instanceconfig
+			log.Debugf("JMXStatus InstanceConfig %v", instanceconfig)
+			if tagsNode, ok := instanceconfig["tags"]; ok {
+				instanceConfByName[instanceconfig["name"].(string)] = tagsNode
+			}
 		}
 	}
+
 	if _, ok := stats["JMXStatus"]; ok {
 		if status, ok := stats["JMXStatus"].(jmxStatus.Status); ok {
 			for checkName, checksRaw := range status.ChecksStatus.InitializedChecks {
-				if config, ok := instanceConfByName[checkName]; ok {
-					if tagsNode, ok := config["tags"]; ok {
-						log.Infof("JMX Tags: %v", tagsNode)
-					}
-				}
 				checks, ok := checksRaw.([]interface{})
 				if !ok {
 					continue
 				}
 				for _, checkRaw := range checks {
+					var tags interface{}
 					check, ok := checkRaw.(map[string]interface{})
 					// The default check status is OK, so if there is no status, it means the check is OK
 					if !ok {
@@ -168,14 +168,16 @@ func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
 					if !ok {
 						checkID = checkName
 					} else {
+						tags = instanceConfByName[checkID]
 						checkID = fmt.Sprintf("%s:%s", checkName, checkID)
 					}
 					checkError, ok := check["message"].(string)
 					if !ok {
 						checkError = ""
 					}
+
 					status := []interface{}{
-						checkName, checkName, checkID, checkStatus, checkError,
+						checkName, checkName, checkID, checkStatus, checkError, "", tags,
 					}
 					payload.AgentChecks = append(payload.AgentChecks, status)
 				}
