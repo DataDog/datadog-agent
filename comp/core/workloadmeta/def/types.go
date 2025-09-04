@@ -1545,6 +1545,7 @@ func (p Process) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "PID:", p.EntityID.ID)
 	_, _ = fmt.Fprintln(&sb, "Name:", p.Name)
 	_, _ = fmt.Fprintln(&sb, "Exe:", p.Exe)
+	_, _ = fmt.Fprintln(&sb, "Cmdline:", sliceToString(p.Cmdline))
 	_, _ = fmt.Fprintln(&sb, "Namespace PID:", p.NsPid)
 	_, _ = fmt.Fprintln(&sb, "Container ID:", p.ContainerID)
 	_, _ = fmt.Fprintln(&sb, "Creation time:", p.CreationTime)
@@ -1555,7 +1556,6 @@ func (p Process) String(verbose bool) string {
 	if verbose {
 		_, _ = fmt.Fprintln(&sb, "Comm:", p.Comm)
 		_, _ = fmt.Fprintln(&sb, "Cwd:", p.Cwd)
-		_, _ = fmt.Fprintln(&sb, "Cmdline:", sliceToString(p.Cmdline))
 		_, _ = fmt.Fprintln(&sb, "Uids:", p.Uids)
 		_, _ = fmt.Fprintln(&sb, "Gids:", p.Gids)
 	}

@@ -149,6 +149,7 @@ func TestProcessString(t *testing.T) {
 PID: 12345
 Name: test-process
 Exe: /usr/bin/test-process
+Cmdline: /usr/bin/test-process --flag
 Namespace PID: 12345
 Container ID: container-123
 Creation time: 2023-01-01 12:00:00 +0000 UTC
@@ -179,12 +180,12 @@ Creation time: 2023-01-01 12:00:00 +0000 UTC
 PID: 12345
 Name: test-process
 Exe: /usr/bin/test-process
+Cmdline: /usr/bin/test-process --flag
 Namespace PID: 12345
 Container ID: container-123
 Creation time: 2023-01-01 12:00:00 +0000 UTC
 Comm: test-process
 Cwd: /tmp
-Cmdline: /usr/bin/test-process --flag
 Uids: [1000 1001]
 Gids: [1002 1003]
 `,
@@ -233,6 +234,7 @@ Gids: [1002 1003]
 PID: 12345
 Name: java-app
 Exe: /usr/bin/java
+Cmdline: /usr/bin/java -jar app.jar
 Namespace PID: 12345
 Container ID: container-999
 Creation time: 2023-01-01 12:00:00 +0000 UTC
@@ -285,13 +287,13 @@ Service Generated Name: java-app
 PID: 12345
 Name: java-app
 Exe: /usr/bin/java
+Cmdline: /usr/bin/java -jar app.jar
 Namespace PID: 12345
 Container ID: container-999
 Creation time: 2023-01-01 12:00:00 +0000 UTC
 Language: java
 Comm: java
 Cwd: /app
-Cmdline: /usr/bin/java -jar app.jar
 Uids: [1000 2 3]
 Gids: [1001 4 5]
 ----------- Service Discovery -----------
