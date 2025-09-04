@@ -1678,15 +1678,6 @@ api_key:
 #
 # process_config:
 
-  {{- if (eq .OS "linux")}}
-  ## @param run_in_core_agent - custom object - optional
-  ## Controls whether the process Agent or core Agent collects process and/or container information (Linux only).
-  # run_in_core_agent:
-    ## @param enabled - boolean - optional - default: true
-    ## Enables process/container collection on the core Agent instead of the process Agent.
-    # enabled: true
-  {{ end }}
-
   ## @param process_collection - custom object - optional
   ## Specifies settings for collecting processes.
   # process_collection:
@@ -4194,7 +4185,7 @@ api_key:
       #   oid_batch_size: 5
 
       ## @param interface_configs - map - optional
-      ## This option is used to override interface inbound/outbound speed and add interface tags
+      ## This option is used to override interface inbound/outbound speed, add interface tags, or disable monitoring for specific interfaces
       ## Example:
       ## interface_configs:
       ##   "10.0.0.1":              # target device IP address
@@ -4205,6 +4196,7 @@ api_key:
       ##       tags:                # (optional) interface level tags
       ##         - "testTagKey:testTagValue"
       ##         - "tagKey2:tagValue2"
+      ##       disabled: true         # (optional) disables monitoring for matched interfaces, default value is false
       #
       #   interface_config:
       #     "10.0.0.1":
@@ -4227,6 +4219,10 @@ api_key:
       #         tags:
       #           - "monitored:true"
       #           - "customKey:customValue"
+      #     "10.0.0.4":
+      #       - match_field: index
+      #         match_value: '2'
+      #         disabled: true
 
       ## @param ping - custom object - optional
       ## Configure ICMP pings for all hosts in SNMP autodiscovery

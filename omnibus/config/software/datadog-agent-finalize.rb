@@ -165,6 +165,12 @@ build do
 
             # Deduplicate files using symlinks
             command "dda inv -- omnibus.deduplicate-files --directory #{install_dir}/embedded", cwd: Dir.pwd
+
+            # Edit rpath from a true path to relative path for each binary if install_dir contains /opt/datadog-packages
+            if install_dir.include?("/opt/datadog-packages")
+              # The healthcheck will fail as the rpath doesn't contain install_dir
+              command "inv omnibus.rpath-edit #{install_dir} #{install_dir}", cwd: Dir.pwd
+            end
         end
 
         if osx_target?

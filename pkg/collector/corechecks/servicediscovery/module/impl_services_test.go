@@ -48,7 +48,7 @@ import (
 func getServices(t require.TestingT, url string) *model.ServicesEndpointResponse {
 	location := url + "/" + string(config.DiscoveryModule) + pathServices
 	params := &core.Params{
-		Pids: getRunningPids(t),
+		NewPids: getRunningPids(t),
 	}
 
 	return makeRequest[model.ServicesEndpointResponse](t, location, params)

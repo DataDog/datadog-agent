@@ -27,6 +27,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -36,6 +37,7 @@ func TestNewController(t *testing.T) {
 	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
 	datadogConfig := config.NewMock(t)
 	factory := informers.NewSharedInformerFactory(client, time.Duration(0))
+	imageResolver := autoinstrumentation.NewImageResolver(nil)
 
 	// V1
 	controller := NewController(
@@ -50,6 +52,7 @@ func TestNewController(t *testing.T) {
 		nil,
 		datadogConfig,
 		nil,
+		imageResolver,
 	)
 
 	assert.IsType(t, &ControllerV1{}, controller)
@@ -67,6 +70,7 @@ func TestNewController(t *testing.T) {
 		nil,
 		datadogConfig,
 		nil,
+		imageResolver,
 	)
 
 	assert.IsType(t, &ControllerV1beta1{}, controller)
@@ -138,7 +142,8 @@ func TestAutoInstrumentation(t *testing.T) {
 			))
 
 			// Create APM webhook.
-			apm, err := generateAutoInstrumentationWebhook(wmeta, mockConfig)
+			imageResolver := autoinstrumentation.NewImageResolver(nil)
+			apm, err := generateAutoInstrumentationWebhook(wmeta, mockConfig, imageResolver)
 			assert.NoError(t, err)
 
 			// Create request.
