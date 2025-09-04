@@ -6,7 +6,7 @@
 // Package otel provides utilities for the otel.
 package otel
 
-import "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
+import "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 
 // GatewayUsage wraps the attributes.GatewayUsage type to provide gateway usage functionality.
 //

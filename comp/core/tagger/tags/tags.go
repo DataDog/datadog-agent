@@ -105,6 +105,9 @@ const (
 	KubeAppManagedBy = "kube_app_managed_by"
 	// KubeAutoscalerKind is the tag reflecting if a pod is managed by an Autoscaler
 	KubeAutoscalerKind = "kube_autoscaler_kind"
+	// KubeRequestedCPUManagement is the tag that describes a container's cpu management
+	// which is either static (dedicated) or none
+	KubeRequestedCPUManagement = "kube_requested_cpu_management"
 
 	// GPU related tags
 
@@ -116,12 +119,13 @@ const (
 	// comp/core/workloadmeta/def/types.go:GPU.Device for more detail on this
 	// field.
 	KubeGPUDevice = "gpu_device"
-
 	// KubeGPUUUID is the tag for the Kubernetes Resource GPU UUID
 	KubeGPUUUID = "gpu_uuid"
-
 	// GPUDriverVersion is the tag for the GPU driver version
 	GPUDriverVersion = "gpu_driver_version"
+
+	// KubeArgoRollout is the tag for the Argo Rollout name
+	KubeArgoRollout = "kube_argo_rollout"
 
 	// OpenshiftDeploymentConfig is the tag for the OpenShift deployment config name
 	OpenshiftDeploymentConfig = "oshift_deployment_config"

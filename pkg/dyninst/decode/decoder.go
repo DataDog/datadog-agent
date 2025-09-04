@@ -17,6 +17,7 @@ import (
 	"github.com/go-json-experiment/json"
 	"github.com/google/uuid"
 
+	"github.com/DataDog/datadog-agent/pkg/dyninst/gotype"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symbol"
@@ -25,6 +26,34 @@ import (
 type probeEvent struct {
 	event *ir.Event
 	probe *ir.Probe
+}
+
+// TypeNameResolver resolves type names from type IDs as communicated by the
+// probe regarding types in interfaces.
+type TypeNameResolver interface {
+	ResolveTypeName(typeID gotype.TypeID) (string, error)
+}
+
+// GoTypeNameResolver is a TypeNameResolver that uses a gotype.Table to resolve
+// type names.
+type GoTypeNameResolver gotype.Table
+
+// ResolveTypeName resolves the name of a type from a type ID.
+func (r *GoTypeNameResolver) ResolveTypeName(typeID gotype.TypeID) (string, error) {
+	t, err := (*gotype.Table)(r).ParseGoType(typeID)
+	if err != nil {
+		return "", err
+	}
+	// TODO: Note that this type name is not going to be fully qualified! In
+	// order to make it match the type names we get from dwarf, we'll need to do
+	// more work. This conversion is not trivial. It's likely better to instead
+	// build a lookup table from the go runtime types to the type names we get
+	// from dwarf -- but doing so will require using disk space or something
+	// like that.
+	//
+	// As we build better name parsing support, it becomes more plausible to
+	// do the conversion.
+	return t.Name().Name(), nil
 }
 
 // Decoder decodes the output of the BPF program into a JSON format.
@@ -36,6 +65,7 @@ type Decoder struct {
 	probeEvents          map[ir.TypeID]probeEvent
 	stackFrames          map[uint64][]symbol.StackFrame
 	typesByGoRuntimeType map[uint32]ir.TypeID
+	typeNameResolver     TypeNameResolver
 
 	// These fields are initialized and reset for each message.
 	snapshotMessage   snapshotMessage
@@ -46,6 +76,7 @@ type Decoder struct {
 // NewDecoder creates a new Decoder for the given program.
 func NewDecoder(
 	program *ir.Program,
+	typeNameResolver TypeNameResolver,
 ) (*Decoder, error) {
 	decoder := &Decoder{
 		program:              program,
@@ -53,6 +84,7 @@ func NewDecoder(
 		probeEvents:          make(map[ir.TypeID]probeEvent),
 		stackFrames:          make(map[uint64][]symbol.StackFrame),
 		typesByGoRuntimeType: make(map[uint32]ir.TypeID),
+		typeNameResolver:     typeNameResolver,
 
 		snapshotMessage:   snapshotMessage{},
 		dataItems:         make(map[typeAndAddr]output.DataItem),

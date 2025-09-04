@@ -127,25 +127,21 @@ func run(binaryPath string) error {
 }
 
 type symbolStats struct {
-	numPackages    int
-	numTypes       int
-	numFunctions   int
-	numSourceFiles int
+	numPackages  int
+	numTypes     int
+	numFunctions int
 }
 
 func statsFromSymbols(s symdb.Symbols) symbolStats {
 	stats := symbolStats{
-		numPackages:    len(s.Packages),
-		numTypes:       0,
-		numFunctions:   0,
-		numSourceFiles: 0,
+		numPackages:  len(s.Packages),
+		numTypes:     0,
+		numFunctions: 0,
 	}
-	sourceFiles := make(map[string]struct{})
 	for _, pkg := range s.Packages {
-		s := pkg.Stats(sourceFiles)
+		s := pkg.Stats()
 		stats.numTypes += s.NumTypes
 		stats.numFunctions += s.NumFunctions
 	}
-	stats.numSourceFiles = len(sourceFiles)
 	return stats
 }

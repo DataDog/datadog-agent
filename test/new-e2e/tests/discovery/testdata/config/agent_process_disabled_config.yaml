@@ -5,3 +5,11 @@ process_config:
     use_wlm: true
   run_in_core_agent:
     enabled: true
+
+logs_enabled: true
+
+extra_config_providers:
+  - process_log
+
+logs_config:
+  process_exclude_agent: true

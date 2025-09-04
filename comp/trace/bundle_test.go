@@ -64,7 +64,7 @@ func TestMockBundleDependencies(t *testing.T) {
 	cfg := fxutil.Test[config.Component](t, fx.Options(
 		fx.Provide(func() context.Context { return context.TODO() }), // fx.Supply(ctx) fails with a missing type error.
 		fx.Supply(core.BundleParams{}),
-		coreconfig.MockModule(),
+		fx.Provide(func() coreconfig.Component { return coreconfig.NewMock(t) }),
 		fxutil.ProvideNoneOptional[secrets.Component](),
 		telemetryimpl.MockModule(),
 		fx.Provide(func() log.Component { return logmock.New(t) }),

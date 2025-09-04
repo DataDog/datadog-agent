@@ -39,6 +39,9 @@ const (
 	recoveryInterval      = 2
 
 	maxMessageSize = 1024 * 1024 * 110 // 110MB, current backend limit
+
+	// number of update failed update attempts before reporting an error log
+	consecutiveFailuresThreshold = 5
 )
 
 // ConfigFetcher defines the interface that an agent client uses to get config updates
@@ -371,41 +374,18 @@ func (c *Client) startFn() {
 // structure in startFn.
 func (c *Client) pollLoop() {
 	successfulFirstRun := false
-	// First run
-	err := c.update()
-	if err != nil {
-		if status.Code(err) == codes.Unimplemented {
-			// Remote Configuration is disabled as the server isn't initialized
-			//
-			// As this is not a transient error (that would be codes.Unavailable),
-			// stop the client: it shouldn't keep contacting a server that doesn't
-			// exist.
-			log.Debugf("remote configuration isn't enabled, disabling client")
-			return
-		}
-
-		// As some clients may start before the core-agent server is up, we log the first error
-		// as an Info log as the race is expected. If the error persists, we log with error logs
-		log.Infof("retrying the first update of remote-config state (%v)", err)
-	} else {
-		successfulFirstRun = true
-	}
-
+	consecutiveFailures := 0
 	logLimit := log.NewLogLimit(5, time.Minute)
+	interval := 0 * time.Second
+
 	for {
-		interval := c.pollInterval + c.backoffPolicy.GetBackoffDuration(c.backoffErrorCount)
-		if !successfulFirstRun && interval > time.Second {
-			// If we never managed to contact the RC service, we want to retry faster (max every second)
-			// to get a first state as soon as possible.
-			// Some products may not start correctly without a first state.
-			interval = time.Second
-		}
 		select {
 		case <-c.ctx.Done():
 			return
 		case <-time.After(interval):
 			err := c.update()
 			if err != nil {
+				consecutiveFailures++
 				if status.Code(err) == codes.Unimplemented {
 					// Remote Configuration is disabled as the server isn't initialized
 					//
@@ -420,7 +400,12 @@ func (c *Client) pollLoop() {
 					// As some clients may start before the core-agent server is up, we log the first error
 					// as an Info log as the race is expected. If the error persists, we log with error logs
 					if logLimit.ShouldLog() {
-						log.Infof("retrying the first update of remote-config state (%v)", err)
+						message := "retrying the first update of remote-config state (%v), consecutive failures: %d"
+						if consecutiveFailures >= consecutiveFailuresThreshold {
+							log.Errorf(message, err, consecutiveFailures)
+						} else {
+							log.Infof(message, err, consecutiveFailures)
+						}
 					}
 				} else {
 					c.m.Lock()
@@ -433,9 +418,10 @@ func (c *Client) pollLoop() {
 
 					c.lastUpdateError = err
 					c.backoffErrorCount = c.backoffPolicy.IncError(c.backoffErrorCount)
-					log.Errorf("could not update remote-config state: %v", c.lastUpdateError)
+					log.Errorf("could not update remote-config state:%v; consecutive failures:%d", c.lastUpdateError, consecutiveFailures)
 				}
 			} else {
+				log.Debugf("update successful: successful_first_run:%t, consecutive failures:%d", successfulFirstRun, consecutiveFailures)
 				if c.lastUpdateError != nil {
 					c.m.Lock()
 					for _, productListeners := range c.listeners {
@@ -446,10 +432,25 @@ func (c *Client) pollLoop() {
 					c.m.Unlock()
 				}
 
-				c.lastUpdateError = nil
+				// record and report that the first update was successful
+				if !successfulFirstRun {
+					log.Infof("first update successful after %d attempts", consecutiveFailures)
+				}
 				successfulFirstRun = true
+				consecutiveFailures = 0
+
+				c.lastUpdateError = nil
 				c.backoffErrorCount = c.backoffPolicy.DecError(c.backoffErrorCount)
 			}
+		}
+
+		// adjust poll interval
+		interval = c.pollInterval + c.backoffPolicy.GetBackoffDuration(c.backoffErrorCount)
+		if !successfulFirstRun && interval > time.Second {
+			// If we never managed to contact the RC service, we want to retry faster (max every second)
+			// to get a first state as soon as possible.
+			// Some products may not start correctly without a first state.
+			interval = time.Second
 		}
 	}
 }
