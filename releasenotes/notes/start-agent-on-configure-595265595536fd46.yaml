@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Start the agent service on configure if it is not running
+    Start the Agent service when "Configure" is clicked from the systray, if it is not running
