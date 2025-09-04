@@ -1361,7 +1361,7 @@ func (tm *testModule) GetDumpFromDocker(dockerInstance *dockerCmdWrapper) (*acti
 	}
 	dump := findLearningContainerID(dumps, containerutils.ContainerID(dockerInstance.containerID))
 	if dump == nil {
-		return nil, errors.New("ContainerID not found on activity dump list")
+		return nil, fmt.Errorf("ContainerID=%q not found on activity dump list", dockerInstance.containerID)
 	}
 	return dump, nil
 }
