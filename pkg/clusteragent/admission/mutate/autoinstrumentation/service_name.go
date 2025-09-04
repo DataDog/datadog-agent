@@ -13,7 +13,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -64,23 +64,7 @@ func (s *serviceNameMutator) mutateContainer(c *corev1.Container) error {
 	return mutator.mutateContainer(c)
 }
 
-func serviceNameMutatorForMetaAsTags(pod *corev1.Pod, t podMetaAsTags) *serviceNameMutator {
-	for _, check := range []struct {
-		kind   podMetaKind
-		source serviceNameSource
-	}{
-		{podMetaKindLabels, serviceNameSourceLabelsAsTags},
-		{podMetaKindAnnotations, serviceNameSourceAnnotationsAsTags},
-	} {
-		if env, found := envVarForPodMetaMapping(pod, check.kind, t, tags.Service, kubernetes.ServiceTagEnvVar); found {
-			return &serviceNameMutator{EnvVar: env, Source: check.source}
-		}
-	}
-
-	return nil
-}
-
-func newServiceNameMutator(pod *corev1.Pod, t podMetaAsTags) *serviceNameMutator {
+func newServiceNameMutator(wmeta workloadmeta.Component, pod *corev1.Pod, t metaAsTags) *serviceNameMutator {
 	vars := findServiceNameEnvVarsInPod(pod)
 	if len(vars) > 1 {
 		log.Debug("more than one unique definition of service name found for the pod")
@@ -95,8 +79,12 @@ func newServiceNameMutator(pod *corev1.Pod, t podMetaAsTags) *serviceNameMutator
 
 	log.Debug("no DD_SERVICE env vars found in pod")
 	log.Debug("checking metaAsTags")
-	if mutator := serviceNameMutatorForMetaAsTags(pod, t); mutator != nil {
-		return mutator
+	mutator := serviceUST.ustEnvVarMutatorForPodMeta(wmeta, pod, t)
+	if mutator != nil {
+		return &serviceNameMutator{
+			EnvVar: mutator.EnvVar,
+			Source: serviceNameSource(mutator.SourceKind),
+		}
 	}
 
 	log.Debug("no service env vars found & tags found in pod, checking owner name")
