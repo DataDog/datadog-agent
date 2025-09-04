@@ -171,14 +171,15 @@ func TestRawPacket(t *testing.T) {
 			return
 		}
 
+		waitSignal := test.WaitSignalWithoutProcessContext
+
 		kv, err := kernel.NewKernelVersion()
 		if err != nil {
 			t.Errorf("failed to get kernel version: %s", err)
 			return
 		}
 
-		waitSignal := test.WaitSignal
-		if !kv.HasBpfGetSocketCookieForCgroupSocket() {
+		if !kv.HasBpfGetSocketCookieForCgroupSocket() || kv.Code < kernel.Kernel5_15 {
 			waitSignal = test.WaitSignalWithoutProcessContext
 		}
 
