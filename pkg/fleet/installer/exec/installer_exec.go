@@ -156,39 +156,27 @@ func (i *InstallerExec) PromoteExperiment(ctx context.Context, pkg string) (err 
 // InstallConfigExperiment installs an experiment.
 func (i *InstallerExec) InstallConfigExperiment(
 	ctx context.Context, pkg string, operations config.Operations,
-	useLegacyFleetDir bool,
 ) (err error) {
 	operationsBytes, err := json.Marshal(operations)
 	if err != nil {
 		return fmt.Errorf("error marshalling config operations: %w", err)
 	}
 	cmdLineArgs := []string{pkg, string(operationsBytes)}
-	if useLegacyFleetDir {
-		cmdLineArgs = append(cmdLineArgs, "--use-legacy-fleet-dir")
-	}
 	cmd := i.newInstallerCmd(ctx, "install-config-experiment", cmdLineArgs...)
 	defer func() { cmd.span.Finish(err) }()
 	return cmd.Run()
 }
 
 // RemoveConfigExperiment removes an experiment.
-func (i *InstallerExec) RemoveConfigExperiment(ctx context.Context, pkg string, useLegacyFleetDir bool) (err error) {
-	cmdLineArgs := []string{pkg}
-	if useLegacyFleetDir {
-		cmdLineArgs = append(cmdLineArgs, "--use-legacy-fleet-dir")
-	}
-	cmd := i.newInstallerCmd(ctx, "remove-config-experiment", cmdLineArgs...)
+func (i *InstallerExec) RemoveConfigExperiment(ctx context.Context, pkg string) (err error) {
+	cmd := i.newInstallerCmd(ctx, "remove-config-experiment", pkg)
 	defer func() { cmd.span.Finish(err) }()
 	return cmd.Run()
 }
 
 // PromoteConfigExperiment promotes an experiment to stable.
-func (i *InstallerExec) PromoteConfigExperiment(ctx context.Context, pkg string, useLegacyFleetDir bool) (err error) {
-	cmdLineArgs := []string{pkg}
-	if useLegacyFleetDir {
-		cmdLineArgs = append(cmdLineArgs, "--use-legacy-fleet-dir")
-	}
-	cmd := i.newInstallerCmd(ctx, "promote-config-experiment", cmdLineArgs...)
+func (i *InstallerExec) PromoteConfigExperiment(ctx context.Context, pkg string) (err error) {
+	cmd := i.newInstallerCmd(ctx, "promote-config-experiment", pkg)
 	defer func() { cmd.span.Finish(err) }()
 	return cmd.Run()
 }

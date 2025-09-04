@@ -269,8 +269,6 @@ type remoteAPIRequest struct {
 	ExpectedState expectedState   `json:"expected_state"`
 	Method        string          `json:"method"`
 	Params        json.RawMessage `json:"params"`
-
-	WriteLocalConfig bool `json:"write_local_config"`
 }
 
 type expectedState struct {

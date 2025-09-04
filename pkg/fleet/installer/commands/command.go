@@ -371,7 +371,6 @@ func promoteExperimentCommand() *cobra.Command {
 }
 
 func installConfigExperimentCommand() *cobra.Command {
-	var useLegacyFleetDir bool
 	cmd := &cobra.Command{
 		Use:     "install-config-experiment <package> <operations>",
 		Short:   "Install a config experiment",
@@ -392,15 +391,13 @@ func installConfigExperimentCommand() *cobra.Command {
 			}
 			i.span.SetTag("params.deployment_id", operations.DeploymentID)
 			i.span.SetTag("params.operations", operations.FileOperations)
-			return i.InstallConfigExperiment(i.ctx, args[0], operations, useLegacyFleetDir)
+			return i.InstallConfigExperiment(i.ctx, args[0], operations)
 		},
 	}
-	cmd.Flags().BoolVar(&useLegacyFleetDir, "use-legacy-fleet-dir", false, "Use the legacy fleet directory")
 	return cmd
 }
 
 func removeConfigExperimentCommand() *cobra.Command {
-	var useLegacyFleetDir bool
 	cmd := &cobra.Command{
 		Use:     "remove-config-experiment <package>",
 		Short:   "Remove a config experiment",
@@ -413,15 +410,13 @@ func removeConfigExperimentCommand() *cobra.Command {
 			}
 			defer func() { i.stop(err) }()
 			i.span.SetTag("params.package", args[0])
-			return i.RemoveConfigExperiment(i.ctx, args[0], useLegacyFleetDir)
+			return i.RemoveConfigExperiment(i.ctx, args[0])
 		},
 	}
-	cmd.Flags().BoolVar(&useLegacyFleetDir, "use-legacy-fleet-dir", false, "Use the legacy fleet directory")
 	return cmd
 }
 
 func promoteConfigExperimentCommand() *cobra.Command {
-	var useLegacyFleetDir bool
 	cmd := &cobra.Command{
 		Use:     "promote-config-experiment <package>",
 		Short:   "Promote a config experiment",
@@ -434,10 +429,9 @@ func promoteConfigExperimentCommand() *cobra.Command {
 			}
 			defer func() { i.stop(err) }()
 			i.span.SetTag("params.package", args[0])
-			return i.PromoteConfigExperiment(i.ctx, args[0], useLegacyFleetDir)
+			return i.PromoteConfigExperiment(i.ctx, args[0])
 		},
 	}
-	cmd.Flags().BoolVar(&useLegacyFleetDir, "use-legacy-fleet-dir", false, "Use the legacy fleet directory")
 	return cmd
 }
 
