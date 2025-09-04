@@ -32,3 +32,5 @@ jobs:
         goarch: ${{ matrix.goarch }}
         asset_name: datadog-secret-backend-${{ matrix.goos }}-${{ matrix.goarch }}
         ldflags: -s -w -X main.appVersion=${{ github.ref_name }}
+        # Reduce the binary size by (1) disabling inlining and (2) disabling the GC write-barrier
+        build_flags: -gcflags=all="-l -wb=false"
