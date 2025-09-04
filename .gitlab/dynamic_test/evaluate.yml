@@ -14,5 +14,5 @@ dynamic_test-evaluate-e2e:
     - dda inv -- -e dyntest.evaluate-index --bucket-uri $S3_PERMANENT_ARTIFACTS_URI --commit-sha $CI_COMMIT_SHA --pipeline-id $CI_PIPELINE_ID
   allow_failure: true # Here to evaluate the system, should not impact the CI
   variables:
-    GIT_DEPTH: 0 # Needs a full history to avoid issues with the merge-base command using an outdated version of base branch
+    GIT_STRATEGY: "clone" # needed because this job uses `git merge-base
 
