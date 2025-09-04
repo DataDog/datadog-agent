@@ -2,7 +2,7 @@
     "base_branch": "7.70.x",
     "current_milestone": "7.70.1",
     "dependencies": {
-        "INTEGRATIONS_CORE_VERSION": "7.70.0",
+        "INTEGRATIONS_CORE_VERSION": "8e1bf7416d5b06c1747b9563d9b29acbee18bba7",
         "OMNIBUS_RUBY_VERSION": "7.70.0",
         "JMXFETCH_VERSION": "0.50.0",
         "JMXFETCH_HASH": "4a426b206132114484d6af06297ad520f77bd143daa7d946092929bb0a776b2e",
@@ -12,8 +12,7 @@
         "WINDOWS_DDNPM_SHASUM": "5830a4618b8aaa6b07f337801a21c48e63dd0341d860f13007b702f759e6e097",
         "WINDOWS_DDPROCMON_DRIVER": "release-signed",
         "WINDOWS_DDPROCMON_VERSION": "1.3.0",
-        "WINDOWS_DDPROCMON_SHASUM": "649f1c83283a019a3f7bf822e6f025aacd7bd8de8d90485efe089f1dfb553813",
-        "INTEGRATIONS_CORE_VERSION": "80155b662e375978b26879fa468adb4aa88f2bbe"
+        "WINDOWS_DDPROCMON_SHASUM": "649f1c83283a019a3f7bf822e6f025aacd7bd8de8d90485efe089f1dfb553813"
     },
     "last_stable": {
         "6": "6.53.1",
