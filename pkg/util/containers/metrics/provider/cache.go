@@ -18,8 +18,10 @@ type cacheEntry struct {
 	timestamp time.Time
 }
 
+// Cache provides a caching mechanism based on staleness toleration provided by requestor
 type Cache = CacheWithKey[string]
 
+// NewCache returns a new cache dedicated to a collector
 func NewCache(gcInterval time.Duration) *Cache {
 	return NewCacheWithKey[string](gcInterval)
 }
