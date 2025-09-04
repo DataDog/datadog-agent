@@ -83,19 +83,19 @@ type EnrollmentRequest struct {
 
 // SelfEnrollmentRequestAttributes represents the attributes section of the self-enrollment request
 type SelfEnrollmentRequestAttributes struct {
-	PublicKey string       `json:"publicKey"`
+	PublicKey string       `json:"publicKey,omitempty"`
 	Ec2       *Ec2Identity `json:"ec2,omitempty"`
 }
 
 // SelfEnrollmentRequestData represents the data section of the self-enrollment request
 type SelfEnrollmentRequestData struct {
-	Type       string                           `json:"type"`
-	Attributes *SelfEnrollmentRequestAttributes `json:"attributes"`
+	Type       string                           `json:"type,omitempty"`
+	Attributes *SelfEnrollmentRequestAttributes `json:"attributes,omitempty"`
 }
 
 // SelfEnrollmentRequest represents the full JSON API self-enrollment request
 type SelfEnrollmentRequest struct {
-	Data *SelfEnrollmentRequestData `json:"data"`
+	Data *SelfEnrollmentRequestData `json:"data,omitempty"`
 }
 
 // Ec2Identity represents the EC2 identity structure for self-enrollment
