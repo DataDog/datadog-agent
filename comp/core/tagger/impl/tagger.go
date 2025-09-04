@@ -41,8 +41,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const (
