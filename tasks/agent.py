@@ -353,7 +353,13 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
             os.path.join(dist_folder, "conf.d/process_agent.yaml.default"),
         )
 
-    shutil.copytree("./comp/core/gui/guiimpl/views/private", os.path.join(dist_folder, "views"), dirs_exist_ok=True)
+    # We only copy the minified versions of the javascript files to avoid having original javascript files in the distribution
+    shutil.copytree(
+        "./comp/core/gui/guiimpl/views/private",
+        os.path.join(dist_folder, "views"),
+        dirs_exist_ok=True,
+        ignore=shutil.ignore_patterns('*javascript.js', '*codemirror.js', '*yaml.js'),
+    )
     if development:
         shutil.copytree("./dev/dist/", dist_folder, dirs_exist_ok=True)
 
