@@ -52,7 +52,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	}
 
 	if !i.haAgent.Enabled() {
-		i.log.Infof("HA Agent Metadata unavailable as HA Agent is disabled")
+		i.log.Debugf("HA Agent Metadata unavailable as HA Agent is disabled")
 	}
 
 	i.InventoryPayload = util.CreateInventoryPayload(reqs.Config, reqs.Log, reqs.Serializer, i.getPayload, "ha-agent.json")
