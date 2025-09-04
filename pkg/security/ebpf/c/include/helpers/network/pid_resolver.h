@@ -44,20 +44,20 @@ __attribute__((always_inline)) void resolve_pid_from_flow_pid(struct packet_t *p
 }
 
 __attribute__((always_inline)) void resolve_pid(struct __sk_buff *skb, struct packet_t *pkt) {
-    // direct pid from sched_cls
-    u64 sched_cls_has_current_pid_tgid_helper = 0;
-    LOAD_CONSTANT("sched_cls_has_current_pid_tgid_helper", sched_cls_has_current_pid_tgid_helper);
-    if (sched_cls_has_current_pid_tgid_helper) {
-        u64 pid_tgid = bpf_get_current_pid_tgid();
-        pkt->pid = pid_tgid >> 32;
+    // pid from socket cookie
+    u64 cookie = bpf_get_socket_cookie(skb);
+    u32 *pid = bpf_map_lookup_elem(&sock_cookie_pid, &cookie);
+    if (pid) {
+        pkt->pid = *pid;
     }
 
-    // pid from socket cookie
+    // pid from sched_cls
     if (pkt->pid == 0) {
-        u64 cookie = bpf_get_socket_cookie(skb);
-        u32 *pid = bpf_map_lookup_elem(&sock_cookie_pid, &cookie);
-        if (pid) {
-            pkt->pid = *pid;
+        u64 sched_cls_has_current_pid_tgid_helper = 0;
+        LOAD_CONSTANT("sched_cls_has_current_pid_tgid_helper", sched_cls_has_current_pid_tgid_helper);
+        if (sched_cls_has_current_pid_tgid_helper) {
+            u64 pid_tgid = bpf_get_current_pid_tgid();
+            pkt->pid = pid_tgid >> 32;
         }
     }
 

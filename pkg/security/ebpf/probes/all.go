@@ -334,7 +334,7 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 
 	if opts.CgroupSocketEnabled {
 		editors["sock_cookie_pid"] = manager.MapSpecEditor{
-			MaxEntries: 40960,
+			MaxEntries: 40000,
 			EditorFlag: manager.EditMaxEntries,
 		}
 	}
