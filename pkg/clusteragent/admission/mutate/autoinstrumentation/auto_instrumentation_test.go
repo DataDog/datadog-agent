@@ -56,10 +56,16 @@ var (
 		ruby:   "registry/dd-lib-ruby-init:" + defaultLibraries["ruby"],
 		php:    "registry/dd-lib-php-init:" + defaultLibraries["php"],
 	}
+
+	imageResolver = newNoOpImageResolver()
 )
 
 func defaultLibInfo(l language) libInfo {
-	return libInfo{lang: l, image: defaultLibImageVersions[l]}
+	return libInfo{
+		lang:    l,
+		image:   defaultLibImageVersions[l],
+		ctrName: "",
+	}
 }
 
 func defaultLibrariesFor(languages ...string) map[string]string {
@@ -211,7 +217,7 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 			libInfo: extractedPodLibInfo{
 				languageDetection: &libInfoLanguageDetection{
 					libs: []libInfo{
-						python.defaultLibInfo(commonRegistry, "java-pod-container"),
+						python.defaultLibInfo(commonRegistry, "java-pod-container", imageResolver),
 					},
 				},
 				libs: []libInfo{
@@ -231,7 +237,7 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 			libInfo: extractedPodLibInfo{
 				languageDetection: &libInfoLanguageDetection{
 					libs: []libInfo{
-						python.defaultLibInfo(commonRegistry, "not-java-pod-container"),
+						python.defaultLibInfo(commonRegistry, "not-java-pod-container", imageResolver),
 					},
 				},
 				libs: []libInfo{
@@ -262,7 +268,7 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 			libInfo: extractedPodLibInfo{
 				languageDetection: &libInfoLanguageDetection{
 					libs: []libInfo{
-						python.defaultLibInfo(commonRegistry, "java-pod-container"),
+						python.defaultLibInfo(commonRegistry, "java-pod-container", imageResolver),
 					},
 				},
 				libs: []libInfo{
@@ -285,7 +291,7 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 			libInfo: extractedPodLibInfo{
 				languageDetection: &libInfoLanguageDetection{
 					libs: []libInfo{
-						python.defaultLibInfo(commonRegistry, "python-pod-container"),
+						python.defaultLibInfo(commonRegistry, "python-pod-container", imageResolver),
 					},
 				},
 				libs: []libInfo{
@@ -413,7 +419,7 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 				tt.expectedInstallType = "k8s_single_step"
 			}
 
-			mutator, err := NewNamespaceMutator(config, wmeta)
+			mutator, err := NewNamespaceMutator(config, wmeta, imageResolver)
 			require.NoError(t, err)
 
 			err = mutator.core.injectTracers(tt.pod, tt.libInfo)
@@ -548,7 +554,7 @@ func TestMutatorCoreNewInjector(t *testing.T) {
 	)
 	config, err := NewConfig(mockConfig)
 	require.NoError(t, err)
-	m, err := NewNamespaceMutator(config, wmeta)
+	m, err := NewNamespaceMutator(config, wmeta, imageResolver)
 	require.NoError(t, err)
 	core := m.core
 
@@ -558,17 +564,19 @@ func TestMutatorCoreNewInjector(t *testing.T) {
 
 	i := core.newInjector(pod, startTime, libRequirementOptions{})
 	require.Equal(t, &injector{
-		injectTime: startTime,
-		registry:   core.config.containerRegistry,
-		image:      core.config.containerRegistry + "/apm-inject:0",
+		injectTime:    startTime,
+		registry:      core.config.containerRegistry,
+		image:         core.config.containerRegistry + "/apm-inject:0",
+		imageResolver: imageResolver,
 	}, i)
 
 	core.config.Instrumentation.InjectorImageTag = "banana"
 	i = core.newInjector(pod, startTime, libRequirementOptions{})
 	require.Equal(t, &injector{
-		injectTime: startTime,
-		registry:   core.config.containerRegistry,
-		image:      core.config.containerRegistry + "/apm-inject:banana",
+		injectTime:    startTime,
+		registry:      core.config.containerRegistry,
+		image:         core.config.containerRegistry + "/apm-inject:banana",
+		imageResolver: imageResolver,
 	}, i)
 }
 
@@ -947,13 +955,13 @@ func TestExtractLibInfo(t *testing.T) {
 				t.Helper()
 				require.Equal(t, &libInfoLanguageDetection{
 					libs: []libInfo{
-						python.defaultLibInfo("registry", "pod"),
+						python.defaultLibInfo("registry", "pod", imageResolver),
 					},
 					injectionEnabled: true,
 				}, i.languageDetection)
 			},
 			expectedLibsToInject: []libInfo{
-				python.defaultLibInfo("registry", "pod"),
+				python.defaultLibInfo("registry", "pod", imageResolver),
 			},
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
@@ -981,12 +989,12 @@ func TestExtractLibInfo(t *testing.T) {
 			assertExtractedLibInfo: func(t *testing.T, i extractedPodLibInfo) {
 				t.Helper()
 				require.Equal(t, &libInfoLanguageDetection{
-					libs:             []libInfo{python.defaultLibInfo("registry", "pod")},
+					libs:             []libInfo{python.defaultLibInfo("registry", "pod", imageResolver)},
 					injectionEnabled: true,
 				}, i.languageDetection)
 			},
 			expectedLibsToInject: []libInfo{
-				java.defaultLibInfo("registry", ""),
+				java.defaultLibInfo("registry", "", imageResolver),
 			},
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
@@ -1034,7 +1042,7 @@ func TestExtractLibInfo(t *testing.T) {
 
 			config, err := NewConfig(mockConfig)
 			require.NoError(t, err)
-			mutator, err := NewNamespaceMutator(config, wmeta)
+			mutator, err := NewNamespaceMutator(config, wmeta, imageResolver)
 			require.NoError(t, err)
 
 			if tt.expectedPodEligible != nil {
@@ -1757,7 +1765,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 			// N.B. this is a bit hacky but consistent.
 			config.initSecurityContext = tt.secCtx
 
-			mutator, err := NewNamespaceMutator(config, wmeta)
+			mutator, err := NewNamespaceMutator(config, wmeta, imageResolver)
 			require.NoError(t, err)
 
 			c := tt.lang.libInfo("", tt.image).initContainers(config.version)[0]
@@ -3684,7 +3692,7 @@ func TestShouldInject(t *testing.T) {
 
 			config, err := NewConfig(mockConfig)
 			require.NoError(t, err)
-			mutator, err := NewNamespaceMutator(config, wmeta)
+			mutator, err := NewNamespaceMutator(config, wmeta, imageResolver)
 			require.NoError(t, err)
 			require.Equal(t, tt.want, mutator.isPodEligible(tt.pod), "expected webhook.isPodEligible() to be %t", tt.want)
 		})
@@ -3697,7 +3705,7 @@ func maybeWebhook(wmeta workloadmeta.Component, ddConfig config.Component) (*Web
 		return nil, err
 	}
 
-	mutator, err := NewNamespaceMutator(config, wmeta)
+	mutator, err := NewNamespaceMutator(config, wmeta, imageResolver)
 	if err != nil {
 		return nil, err
 	}

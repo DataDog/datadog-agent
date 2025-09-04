@@ -57,7 +57,7 @@ type Resolver struct {
 	sync.Mutex
 	cgroupFS           *utils.CGroupFS
 	statsdClient       statsd.ClientInterface
-	cgroups            *simplelru.LRU[model.PathKey, *model.CGroupContext]
+	cgroups            *simplelru.LRU[uint64, *model.CGroupContext]
 	hostWorkloads      *simplelru.LRU[containerutils.CGroupID, *cgroupModel.CacheEntry]
 	containerWorkloads *simplelru.LRU[containerutils.ContainerID, *cgroupModel.CacheEntry]
 }
@@ -96,7 +96,7 @@ func NewResolver(statsdClient statsd.ClientInterface) (*Resolver, error) {
 		return nil, err
 	}
 
-	cr.cgroups, err = simplelru.NewLRU(maxCgroupEntries, func(_ model.PathKey, _ *model.CGroupContext) {})
+	cr.cgroups, err = simplelru.NewLRU(maxCgroupEntries, func(_ uint64, _ *model.CGroupContext) {})
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +109,7 @@ func (cr *Resolver) Start(_ context.Context) {
 }
 
 func (cr *Resolver) removeCgroup(cgroup *cgroupModel.CacheEntry) {
-	cr.cgroups.Remove(cgroup.CGroupFile)
+	cr.cgroups.Remove(cgroup.CGroupFile.Inode)
 	cr.hostWorkloads.Remove(cgroup.CGroupID)
 	if cgroup.ContainerID != "" {
 		cr.containerWorkloads.Remove(cgroup.ContainerID)
@@ -192,7 +192,7 @@ func (cr *Resolver) pushNewCacheEntry(process *model.ProcessCacheEntry) {
 	} else {
 		cr.hostWorkloads.Add(process.CGroup.CGroupID, newCGroup)
 	}
-	cr.cgroups.Add(process.CGroup.CGroupFile, &process.CGroup)
+	cr.cgroups.Add(process.CGroup.CGroupFile.Inode, &process.CGroup)
 
 	cr.NotifyListeners(CGroupCreated, newCGroup)
 }
@@ -242,7 +242,7 @@ func (cr *Resolver) GetCGroupContext(cgroupPath model.PathKey) (*model.CGroupCon
 	cr.Lock()
 	defer cr.Unlock()
 
-	return cr.cgroups.Get(cgroupPath)
+	return cr.cgroups.Get(cgroupPath.Inode)
 }
 
 // Iterate iterates on all cached cgroups
