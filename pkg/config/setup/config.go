@@ -120,6 +120,9 @@ const (
 	// DefaultLogsSenderBackoffRecoveryInterval is the default logs sender backoff recovery interval
 	DefaultLogsSenderBackoffRecoveryInterval = 2
 
+	// DefaultLogsStreamLifetime is the default gRPC stream lifetime in seconds (15 minutes)
+	DefaultLogsStreamLifetime = 900
+
 	// maxExternalMetricsProviderChunkSize ensures batch queries are limited in size.
 	maxExternalMetricsProviderChunkSize = 35
 
@@ -3175,6 +3178,8 @@ func bindEnvAndSetLogsConfigKeys(config pkgconfigmodel.Setup, prefix string) {
 	config.BindEnvAndSetDefault(prefix+"sender_recovery_interval", DefaultForwarderRecoveryInterval)
 	config.BindEnvAndSetDefault(prefix+"sender_recovery_reset", false)
 	config.BindEnvAndSetDefault(prefix+"use_v2_api", true)
+	config.BindEnvAndSetDefault(prefix+"use_grpc", false)
+	config.BindEnvAndSetDefault(prefix+"stream_lifetime", DefaultLogsStreamLifetime)
 	config.SetDefault(prefix+"dev_mode_no_ssl", false)
 }
 
