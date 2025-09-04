@@ -158,14 +158,6 @@ func (hr *horizontalController) computeScaleAction(
 		return nil, 0, errors.New("scaling disabled as current replicas is set to 0")
 	}
 
-	// Check if we are in fallback mode and scaling direction is disabled
-	if source == datadoghqcommon.DatadogPodAutoscalerLocalValueSource {
-		scaleDirection := common.GetScaleDirection(currentDesiredReplicas, targetDesiredReplicas)
-		if autoscalerInternal.Spec().Fallback != nil && isFallbackScalingDirectionDisabled(autoscalerInternal.Spec().Fallback.Horizontal.Direction, scaleDirection) {
-			return nil, 0, errors.New("scaling disabled as fallback in the scaling direction is disabled")
-		}
-	}
-
 	// Saving original targetDesiredReplicas
 	originalTargetDesiredReplicas := targetDesiredReplicas
 
@@ -229,6 +221,13 @@ func (hr *horizontalController) computeScaleAction(
 
 	// Now that we have applied all modifications to targetDesiredReplicas, we can compute the scale direction
 	scaleDirection := common.GetScaleDirection(currentDesiredReplicas, targetDesiredReplicas)
+
+	// Check if we are in fallback mode and scaling direction is disabled
+	if source == datadoghqcommon.DatadogPodAutoscalerLocalValueSource {
+		if autoscalerInternal.Spec().Fallback != nil && isFallbackScalingDirectionDisabled(autoscalerInternal.Spec().Fallback.Horizontal.Direction, scaleDirection) {
+			return nil, 0, errors.New("scaling disabled as fallback in the scaling direction is disabled")
+		}
+	}
 
 	// If we need to scale, we apply scaling rules if any
 	if scaleDirection != common.NoScale {
