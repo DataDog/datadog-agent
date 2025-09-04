@@ -226,13 +226,8 @@ func getFilterErrors[T ~int](
 }
 
 // GetContainerAutodiscoveryFilters returns the pre-computed container autodiscovery filters
-func (f *workloadfilterStore) GetContainerAutodiscoveryFilters(filterScope workloadfilter.Scope) [][]workloadfilter.ContainerFilter {
-	return f.selection.GetContainerAutodiscoveryFilters(filterScope)
-}
-
-// GetPodAutodiscoveryFilters returns the pre-computed pod autodiscovery filters
-func (f *workloadfilterStore) GetPodAutodiscoveryFilters(filterScope workloadfilter.Scope) [][]workloadfilter.PodFilter {
-	return f.selection.GetPodAutodiscoveryFilters(filterScope)
+func (f *workloadfilterStore) GetContainerAutodiscoveryFilters(filterScope workloadfilter.Scope) workloadfilter.FilterBundle {
+	return f.GetContainerFilters(f.selection.GetContainerAutodiscoveryFilters(filterScope))
 }
 
 // GetServiceAutodiscoveryFilters returns the pre-computed service autodiscovery filters
@@ -246,13 +241,13 @@ func (f *workloadfilterStore) GetEndpointAutodiscoveryFilters(filterScope worklo
 }
 
 // GetContainerSharedMetricFilters returns the pre-computed container shared metric filters
-func (f *workloadfilterStore) GetContainerSharedMetricFilters() [][]workloadfilter.ContainerFilter {
-	return f.selection.GetContainerSharedMetricFilters()
+func (f *workloadfilterStore) GetContainerSharedMetricFilters() workloadfilter.FilterBundle {
+	return f.GetContainerFilters(f.selection.GetContainerSharedMetricFilters())
 }
 
 // GetPodSharedMetricFilters returns the pre-computed pod shared metric filters
-func (f *workloadfilterStore) GetPodSharedMetricFilters() [][]workloadfilter.PodFilter {
-	return f.selection.GetPodSharedMetricFilters()
+func (f *workloadfilterStore) GetPodSharedMetricFilters() workloadfilter.FilterBundle {
+	return f.GetPodFilters(f.selection.GetPodSharedMetricFilters())
 }
 
 // GetContainerPausedFilters returns the pre-computed container paused filters

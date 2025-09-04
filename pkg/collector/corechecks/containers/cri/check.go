@@ -112,7 +112,7 @@ func getProcessorFilter(filterStore workloadfilter.Component, store workloadmeta
 			generic.FuncContainerFilter(func(container *workloadmeta.Container) bool {
 				return container.Labels[kubernetes.CriContainerNamespaceLabel] == ""
 			}),
-			generic.LegacyContainerFilter{FilterStore: filterStore, Store: store},
+			generic.LegacyContainerFilter{ContainerFilter: filterStore.GetContainerSharedMetricFilters(), Store: store},
 		},
 	}
 }

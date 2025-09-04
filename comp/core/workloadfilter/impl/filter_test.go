@@ -473,23 +473,18 @@ func TestContainerFilterInitializationError(t *testing.T) {
 	filterStore := newFilterStoreObject(t, mockConfig)
 
 	t.Run("Properly defined filter", func(t *testing.T) {
-		errs := filterStore.GetContainerFilterInitializationErrors([]workloadfilter.ContainerFilter{workloadfilter.LegacyContainerMetrics})
+		errs := filterStore.GetContainerFilters([][]workloadfilter.ContainerFilter{{workloadfilter.LegacyContainerMetrics}}).GetErrors()
 		assert.Empty(t, errs, "Expected no initialization errors for properly defined filter")
 	})
 
 	t.Run("Improperly defined filter", func(t *testing.T) {
-		errs := filterStore.GetContainerFilterInitializationErrors([]workloadfilter.ContainerFilter{workloadfilter.LegacyContainerGlobal})
+		errs := filterStore.GetContainerFilters([][]workloadfilter.ContainerFilter{{workloadfilter.LegacyContainerGlobal}}).GetErrors()
 		assert.NotEmpty(t, errs, "Expected initialization errors for improperly defined filter")
 		assert.True(t, containsErrorWithMessage(errs, "bad_name"), "Expected error message to contain the improper key 'bad_name'")
 	})
 
 	t.Run("Improperly defined filter with multiple filters", func(t *testing.T) {
-		errs := filterStore.GetContainerFilterInitializationErrors(
-			append(
-				workloadfilter.FlattenFilterSets(filterStore.GetContainerAutodiscoveryFilters(workloadfilter.GlobalFilter)),
-				workloadfilter.LegacyContainerACInclude,
-			),
-		)
+		errs := filterStore.GetContainerFilters([][]workloadfilter.ContainerFilter{{workloadfilter.ContainerADAnnotationsMetrics}, {workloadfilter.LegacyContainerMetrics}, {workloadfilter.LegacyContainerACInclude}}).GetErrors()
 		assert.NotEmpty(t, errs, "Expected initialization errors for improperly defined filter with multiple filters")
 		assert.True(t, containsErrorWithMessage(errs, "other_bad_name"), "Expected error message to contain the improper key 'other_bad_name'")
 		assert.True(t, containsErrorWithMessage(errs, "bad_name"), "Expected error message to contain the improper key 'bad_name'")
@@ -772,12 +767,12 @@ func TestImageFiltering(t *testing.T) {
 			mockConfig := configmock.New(t)
 			mockConfig.SetWithoutSource("container_include", tt.include)
 			mockConfig.SetWithoutSource("container_exclude", tt.exclude)
-
 			filterStore := newFilterStoreObject(t, mockConfig)
 
+			containerFilters := filterStore.GetContainerSharedMetricFilters()
 			containerImage := workloadfilter.CreateContainerImage(tt.imageName)
 
-			res := evaluateResource(filterStore, containerImage, filterStore.GetContainerSharedMetricFilters())
+			res := containerFilters.IsExcluded(containerImage)
 			assert.Equal(t, tt.expected, res)
 		})
 	}

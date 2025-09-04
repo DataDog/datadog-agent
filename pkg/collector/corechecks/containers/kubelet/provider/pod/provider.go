@@ -46,11 +46,11 @@ const kubeNamespaceTag = tags.KubeNamespace
 
 // Provider provides the metrics related to data collected from the `/pods` Kubelet endpoint
 type Provider struct {
-	filterStore workloadfilter.Component
-	store       workloadmeta.Component
-	config      *common.KubeletConfig
-	podUtils    *common.PodUtils
-	tagger      tagger.Component
+	store           workloadmeta.Component
+	containerFilter workloadfilter.FilterBundle
+	config          *common.KubeletConfig
+	podUtils        *common.PodUtils
+	tagger          tagger.Component
 	// now timer func is used to mock time in tests
 	now func() time.Time
 }
@@ -59,12 +59,12 @@ type Provider struct {
 func NewProvider(filterStore workloadfilter.Component, store workloadmeta.Component, config *common.KubeletConfig,
 	podUtils *common.PodUtils, tagger tagger.Component) *Provider {
 	return &Provider{
-		filterStore: filterStore,
-		store:       store,
-		config:      config,
-		podUtils:    podUtils,
-		tagger:      tagger,
-		now:         time.Now,
+		containerFilter: filterStore.GetContainerSharedMetricFilters(),
+		store:           store,
+		config:          config,
+		podUtils:        podUtils,
+		tagger:          tagger,
+		now:             time.Now,
 	}
 }
 
@@ -116,8 +116,7 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 
 			// don't exclude filtered containers from aggregation, but filter them out from other reported metrics
 			filterableContainer := kubeletfilter.CreateContainer(cStatus, kubeletfilter.CreatePod(pod))
-			selectedFilters := p.filterStore.GetContainerSharedMetricFilters()
-			if p.filterStore.IsContainerExcluded(filterableContainer, selectedFilters) {
+			if p.containerFilter.IsExcluded(filterableContainer) {
 				continue
 			}
 

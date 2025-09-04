@@ -28,13 +28,12 @@ type Component interface {
 	GetContainerFilterInitializationErrors(filters []ContainerFilter) []error
 
 	// Get Autodiscovery filters
-	GetContainerAutodiscoveryFilters(filterScope Scope) [][]ContainerFilter
-	GetPodAutodiscoveryFilters(filterScope Scope) [][]PodFilter
+	GetContainerAutodiscoveryFilters(filterScope Scope) FilterBundle
 	GetServiceAutodiscoveryFilters(filterScope Scope) FilterBundle
 	GetEndpointAutodiscoveryFilters(filterScope Scope) FilterBundle
 	// Get Shared Metric filters
-	GetContainerSharedMetricFilters() [][]ContainerFilter
-	GetPodSharedMetricFilters() [][]PodFilter
+	GetContainerSharedMetricFilters() FilterBundle
+	GetPodSharedMetricFilters() FilterBundle
 
 	// Get Container Specific filters
 	GetContainerPausedFilters() [][]ContainerFilter
