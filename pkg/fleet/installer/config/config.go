@@ -7,6 +7,7 @@
 package config
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -64,16 +65,12 @@ func (d *Directories) GetState() (State, error) {
 }
 
 // WriteExperiment writes the experiment to the directories.
-func (d *Directories) WriteExperiment(operations Operations) error {
+func (d *Directories) WriteExperiment(ctx context.Context, operations Operations) error {
 	err := os.RemoveAll(d.ExperimentPath)
 	if err != nil {
 		return err
 	}
-	err = os.MkdirAll(d.ExperimentPath, 0755)
-	if err != nil {
-		return err
-	}
-	err = copyDirectory(d.StablePath, d.ExperimentPath)
+	err = copyDirectory(ctx, d.StablePath, d.ExperimentPath)
 	if err != nil {
 		return err
 	}
@@ -85,7 +82,7 @@ func (d *Directories) WriteExperiment(operations Operations) error {
 }
 
 // PromoteExperiment promotes the experiment to the stable.
-func (d *Directories) PromoteExperiment() error {
+func (d *Directories) PromoteExperiment(_ context.Context) error {
 	// check if experiment path exists using os
 	_, err := os.Stat(d.ExperimentPath)
 	if err != nil {
@@ -99,7 +96,7 @@ func (d *Directories) PromoteExperiment() error {
 }
 
 // RemoveExperiment removes the experiment from the directories.
-func (d *Directories) RemoveExperiment() error {
+func (d *Directories) RemoveExperiment(_ context.Context) error {
 	err := os.RemoveAll(d.ExperimentPath)
 	if err != nil {
 		return err

@@ -151,9 +151,13 @@ func (i *installerImpl) ConfigStates(_ context.Context) (map[string]repository.S
 	if err != nil {
 		return nil, fmt.Errorf("could not get config state: %w", err)
 	}
+	stableDeploymentID := state.StableDeploymentID
+	if stableDeploymentID == "" {
+		stableDeploymentID = "empty"
+	}
 	return map[string]repository.State{
 		"datadog-agent": {
-			Stable:     state.StableDeploymentID,
+			Stable:     stableDeploymentID,
 			Experiment: state.ExperimentDeploymentID,
 		},
 	}, nil
@@ -511,7 +515,7 @@ func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string,
 	i.m.Lock()
 	defer i.m.Unlock()
 
-	err := i.config.WriteExperiment(operations)
+	err := i.config.WriteExperiment(ctx, operations)
 	if err != nil {
 		return fmt.Errorf("could not write experiment: %w", err)
 	}
@@ -533,7 +537,7 @@ func (i *installerImpl) RemoveConfigExperiment(ctx context.Context, pkg string) 
 	if err != nil {
 		return fmt.Errorf("could not stop experiment: %w", err)
 	}
-	err = i.config.RemoveExperiment()
+	err = i.config.RemoveExperiment(ctx)
 	if err != nil {
 		return fmt.Errorf("could not remove experiment: %w", err)
 	}
@@ -545,7 +549,7 @@ func (i *installerImpl) PromoteConfigExperiment(ctx context.Context, pkg string)
 	i.m.Lock()
 	defer i.m.Unlock()
 
-	err := i.config.PromoteExperiment()
+	err := i.config.PromoteExperiment(ctx)
 	if err != nil {
 		return fmt.Errorf("could not promote experiment: %w", err)
 	}

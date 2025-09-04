@@ -8,30 +8,14 @@
 package config
 
 import (
-	"io"
-	"os"
-	"path/filepath"
+	"context"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 )
 
-// copyFileWithPermissions copies a file from src to dst with the same permissions.
-func copyFileWithPermissions(src, dst string, _ os.FileInfo) error {
-	source, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer source.Close()
-
-	// Ensure the destination directory exists
-	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
-		return err
-	}
-
-	destination, err := os.Create(dst)
-	if err != nil {
-		return err
-	}
-	defer destination.Close()
-
-	_, err = io.Copy(destination, source)
-	return err
+// copyDirectory copies a directory from source to target.
+// It preserves the directory structure and file permissions.
+func copyDirectory(ctx context.Context, sourcePath, targetPath string) error {
+	cmd := telemetry.CommandContext(ctx, "robocopy", sourcePath, targetPath, "/E")
+	return cmd.Run()
 }

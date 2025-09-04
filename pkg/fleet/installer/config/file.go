@@ -6,37 +6,9 @@ package config
 
 import (
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
 )
-
-// copyDirectory copies a directory from source to target.
-// It preserves the directory structure and file permissions.
-func copyDirectory(sourcePath, targetPath string) error {
-	return filepath.Walk(sourcePath, func(path string, info fs.FileInfo, err error) error {
-		if err != nil {
-			return fmt.Errorf("failed to walk directory: %w", err)
-		}
-
-		if path == sourcePath {
-			// Skip root
-			return nil
-		}
-
-		relPath, err := filepath.Rel(sourcePath, path)
-		if err != nil {
-			return fmt.Errorf("failed to get relative path: %w", err)
-		}
-
-		targetFilePath := filepath.Join(targetPath, relPath)
-		if info.IsDir() {
-			return os.MkdirAll(targetFilePath, info.Mode())
-		}
-
-		return copyFileWithPermissions(path, targetFilePath, info)
-	})
-}
 
 // swapConfigDirectories swaps the contents of two directories.
 func swapConfigDirectories(oldDir, newDir string) (err error) {
