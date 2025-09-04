@@ -78,7 +78,7 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 	containerImg := container.Image
 	if l.filterStore.IsContainerExcluded(
 		workloadmetafilter.CreateContainer(container, workloadmetafilter.CreatePod(pod)),
-		workloadfilter.GetAutodiscoveryFilters(workloadfilter.GlobalFilter),
+		l.filterStore.GetContainerAutodiscoveryFilters(workloadfilter.GlobalFilter),
 	) {
 		log.Debugf("container %s filtered out: name %q image %q", container.ID, container.Name, containerImg.RawName)
 		return
@@ -133,11 +133,11 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 
 		svc.metricsExcluded = l.filterStore.IsContainerExcluded(
 			workloadmetafilter.CreateContainer(container, workloadmetafilter.CreatePod(pod)),
-			workloadfilter.GetAutodiscoveryFilters(workloadfilter.MetricsFilter),
+			l.filterStore.GetContainerAutodiscoveryFilters(workloadfilter.MetricsFilter),
 		)
 		svc.logsExcluded = l.filterStore.IsContainerExcluded(
 			workloadmetafilter.CreateContainer(container, workloadmetafilter.CreatePod(pod)),
-			workloadfilter.GetAutodiscoveryFilters(workloadfilter.LogsFilter),
+			l.filterStore.GetContainerAutodiscoveryFilters(workloadfilter.LogsFilter),
 		)
 
 		adIdentifier := container.Name
@@ -176,11 +176,11 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 		svc.checkNames = checkNames
 		svc.metricsExcluded = l.filterStore.IsContainerExcluded(
 			workloadmetafilter.CreateContainer(container, nil),
-			workloadfilter.GetAutodiscoveryFilters(workloadfilter.MetricsFilter),
+			l.filterStore.GetContainerAutodiscoveryFilters(workloadfilter.MetricsFilter),
 		)
 		svc.logsExcluded = l.filterStore.IsContainerExcluded(
 			workloadmetafilter.CreateContainer(container, nil),
-			workloadfilter.GetAutodiscoveryFilters(workloadfilter.LogsFilter),
+			l.filterStore.GetContainerAutodiscoveryFilters(workloadfilter.LogsFilter),
 		)
 	}
 
