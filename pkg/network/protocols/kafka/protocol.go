@@ -15,6 +15,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/davecgh/go-spew/spew"
+	"golang.org/x/sys/unix"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -267,11 +268,13 @@ func (p *protocol) Name() string {
 func (p *protocol) ConfigureOptions(opts *manager.Options) {
 	opts.MapSpecEditors[inFlightMap] = manager.MapSpecEditor{
 		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
-		EditorFlag: manager.EditMaxEntries,
+		Flags:      unix.BPF_F_NO_PREALLOC,
+		EditorFlag: manager.EditMaxEntries | manager.EditFlags,
 	}
 	opts.MapSpecEditors[responseMap] = manager.MapSpecEditor{
 		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
-		EditorFlag: manager.EditMaxEntries,
+		Flags:      unix.BPF_F_NO_PREALLOC,
+		EditorFlag: manager.EditMaxEntries | manager.EditFlags,
 	}
 	netifProbeID := manager.ProbeIdentificationPair{
 		EBPFFuncName: netifProbe,
