@@ -144,7 +144,7 @@ def run(
                 file=sys.stderr,
             )
         else:
-            raise RuntimeError(f'Agent CI API request {url} timed out after {timeout} seconds') from e
+            raise TimeoutError(f'Agent CI API request {url} timed out after {timeout} seconds') from e
 
 
 @task
