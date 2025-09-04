@@ -22,7 +22,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	clock "k8s.io/utils/clock/testing"
 
-	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/com   mon"
+	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
