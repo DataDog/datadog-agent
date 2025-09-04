@@ -28,8 +28,15 @@ func NewMessageBuffer(batchSizeLimit int, contentSizeLimit int) *MessageBuffer {
 // returns true if the message was added.
 func (p *MessageBuffer) AddMessage(message *message.Message) bool {
 	contentSize := len(message.GetContent())
+	return p.AddMessageWithSize(&message.MessageMetadata, contentSize)
+}
+
+// AddMessageWithSize adds a message to the buffer if there is still some free space,
+// returns true if the message was added.
+// As input it takes directly metadata and content size, instead of a message.
+func (p *MessageBuffer) AddMessageWithSize(metadata *message.MessageMetadata, contentSize int) bool {
 	if len(p.messageBuffer) < cap(p.messageBuffer) && p.contentSize+contentSize <= p.contentSizeLimit {
-		meta := message.MessageMetadata // Copy metadata instead of taking reference
+		meta := *metadata // Copy metadata instead of taking reference
 		p.messageBuffer = append(p.messageBuffer, &meta)
 		p.contentSize += contentSize
 		return true
