@@ -4,7 +4,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.testStruct",
+      "method": "main.testEmptyStructPointer",
       "version": 0,
       "thread_id": 0,
       "thread_name": ""
@@ -16,14 +16,14 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.testStruct",
+            "function": "main.testEmptyStructPointer",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go",
-            "lineNumber": 56
+            "lineNumber": 100
           },
           {
             "function": "main.executeStructFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go",
-            "lineNumber": 115
+            "lineNumber": 163
           },
           {
             "function": "main.main",
@@ -42,43 +42,18 @@
           }
         ],
         "probe": {
-          "id": "testStruct",
+          "id": "testEmptyStructPointer",
           "location": {
-            "method": "main.testStruct"
+            "method": "main.testEmptyStructPointer"
           }
         },
         "captures": {
           "entry": {
             "arguments": {
-              "x": {
-                "type": "main.aStruct",
-                "fields": {
-                  "aBool": {
-                    "type": "bool",
-                    "value": "true"
-                  },
-                  "aString": {
-                    "type": "string",
-                    "value": "one"
-                  },
-                  "aNumber": {
-                    "type": "int",
-                    "value": "2"
-                  },
-                  "nested": {
-                    "type": "main.nestedStruct",
-                    "fields": {
-                      "anotherInt": {
-                        "type": "int",
-                        "value": "3"
-                      },
-                      "anotherString": {
-                        "type": "string",
-                        "value": "four"
-                      }
-                    }
-                  }
-                }
+              "e": {
+                "type": "*main.emptyStruct",
+                "address": "[addr]",
+                "fields": {}
               }
             }
           }
