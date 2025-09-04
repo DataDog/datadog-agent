@@ -51,3 +51,16 @@ service:
 
 // defaultLogsConfig is the logs OTLP pipeline configuration.
 const defaultLogsConfig string = ``
+
+// Helper functions to get appropriate config based on agent flavor
+func getTracesConfig() string {
+	return defaultTracesConfig
+}
+
+func getMetricsConfig() string {
+	return defaultMetricsConfig
+}
+
+func getLogsConfig() string {
+	return defaultLogsConfig
+}
