@@ -309,6 +309,18 @@ int hook_mnt_change_mountpoint(ctx_t *ctx)
         return 0;
     }
 
+     struct mount *newmnt = (struct mount *)CTX_PARM3(ctx);
+     if (syscall->mount.newmnt == newmnt) {
+         return 0;
+     }
+
+     syscall->mount.newmnt = newmnt;
+     syscall->mount.parent = (struct mount *)CTX_PARM1(ctx);
+     struct mountpoint *mp = (struct mountpoint *)CTX_PARM2(ctx);
+     syscall->mount.mountpoint_dentry = get_mountpoint_dentry(mp);
+
+     handle_new_mount(ctx, syscall, KPROBE_OR_FENTRY_TYPE, false);
+
     return 0;
 }
 
@@ -419,7 +431,8 @@ int rethook_clone_mnt(ctx_t *ctx) {
 
 HOOK_ENTRY("attach_recursive_mnt")
 int hook_attach_recursive_mnt(ctx_t *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall(EVENT_MOUNT);
+    struct syscall_cache_t *syscall = peek_syscall_with(mount_or_move_mount);
+
     if (!syscall) {
         return 0;
     }
@@ -443,7 +456,7 @@ int hook_attach_recursive_mnt(ctx_t *ctx) {
 
 HOOK_ENTRY("propagate_mnt")
 int hook_propagate_mnt(ctx_t *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall(EVENT_MOUNT);
+    struct syscall_cache_t *syscall = peek_syscall_with(mount_or_move_mount);
     if (!syscall) {
         return 0;
     }
@@ -458,6 +471,10 @@ int hook_propagate_mnt(ctx_t *ctx) {
     syscall->mount.parent = (struct mount *)CTX_PARM1(ctx);
     struct mountpoint *mp = (struct mountpoint *)CTX_PARM2(ctx);
     syscall->mount.mountpoint_dentry = get_mountpoint_dentry(mp);
+
+    if (syscall->type != EVENT_MOUNT) {
+        handle_new_mount(ctx, syscall, KPROBE_OR_FENTRY_TYPE, false);
+    }
 
     return 0;
 }

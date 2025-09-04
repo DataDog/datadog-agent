@@ -44,6 +44,9 @@ int __attribute__((always_inline)) unshare_or_move_mount(u64 type) {
     return type == EVENT_UNSHARE_MNTNS || type == EVENT_MOVE_MOUNT;
 }
 
+int __attribute__((always_inline)) mount_or_move_mount(u64 type) {
+    return type == EVENT_MOUNT || type == EVENT_MOVE_MOUNT;
+}
 
 int __attribute__((always_inline)) unshare_or_open_tree_or_move_mount(u64 type) {
     return type == EVENT_UNSHARE_MNTNS || type == EVENT_OPEN_TREE || type == EVENT_MOVE_MOUNT;
