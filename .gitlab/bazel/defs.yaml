@@ -33,30 +33,17 @@
       $ErrorActionPreference = 'Stop'
       $PSNativeCommandUseErrorActionPreference = $true
       Set-StrictMode -Version 3.0
-      chcp.com 65001
-      $OutputEncoding = $Global:OutputEncoding = [Console]::InputEncoding = [Console]::OutputEncoding = [Text.Encoding]::UTF8
-      New-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Nls\CodePage' -Name ACP -Value 65001 -PropertyType String -Force
-      New-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Nls\CodePage' -Name MACCP -Value 65001 -PropertyType String -Force
-      New-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Nls\CodePage' -Name OEMCP -Value 65001 -PropertyType String -Force
       '@
+    - |-
+      if (-not (Get-Command bazelisk -ErrorAction SilentlyContinue)) {
+        Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe
+        winget install Bazel.Bazelisk
+      }
     - Invoke-Expression $Preamble
     - $Postamble = 'if (-not $?) { exit 1 } elseif ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }'
     - New-Item -Force -ItemType Directory -Path "$XDG_CACHE_HOME" | Out-Null
     - $ScriptPath = Join-Path "$XDG_CACHE_HOME" script.ps1
     - Set-Content -Encoding Unicode -Path $ScriptPath -Value (($Preamble, $SCRIPT, $Postamble) -join [Environment]::NewLine)
     - Get-Content $ScriptPath
-    - >-
-      docker run
-      --env=BAZELISK_HOME
-      --env=BAZEL_DISK_CACHE
-      --env=BAZEL_OUTPUT_USER_ROOT
-      --env=BAZEL_REPO_CONTENTS_CACHE
-      --env=CI_PROJECT_DIR
-      --env=RUNNER_TEMP_PROJECT_DIR
-      --rm
-      --volume="${CI_PROJECT_DIR}:$CI_PROJECT_DIR"
-      --volume="${RUNNER_TEMP_PROJECT_DIR}:$RUNNER_TEMP_PROJECT_DIR"
-      --workdir="$CI_PROJECT_DIR"
-      "$WINBUILDIMAGE"
-      powershell -NoLogo -NonInteractive -NoProfile -File "$ScriptPath"
+    - powershell -File "$ScriptPath"
     - Invoke-Expression $Postamble
