@@ -118,7 +118,7 @@ func (*PythonCheckLoader) Name() string {
 
 // Load tries to import a Python module with the same name found in config.Name, searches for
 // subclasses of the AgentCheck class and returns the corresponding Check
-func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data) (check.Check, error) {
+func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data, instanceIndex int) (check.Check, error) {
 	if pkgconfigsetup.Datadog().GetBool("python_lazy_loading") {
 		pythonOnce.Do(func() {
 			InitPython(common.GetPythonPaths()...)
@@ -235,8 +235,12 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 		return c, err
 	}
 
+	configSource := config.Source
+	if instanceIndex >= 0 {
+		configSource = fmt.Sprintf("%s[%d]", configSource, instanceIndex)
+	}
 	// The GIL should be unlocked at this point, `check.Configure` uses its own stickyLock and stickyLocks must not be nested
-	if err := c.Configure(senderManager, configDigest, instance, config.InitConfig, config.Source); err != nil {
+	if err := c.Configure(senderManager, configDigest, instance, config.InitConfig, configSource); err != nil {
 		C.rtloader_decref(rtloader, checkClass)
 		C.rtloader_decref(rtloader, checkModule)
 

@@ -77,7 +77,6 @@ func TestBuildURLPathPrefixV1(t *testing.T) {
 	assert.Equal(t, "https://foo:8080/prefix/url/v1/input", url)
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func TestDestinationSend200(t *testing.T) {
 	cfg := configmock.New(t)
 	server := NewTestServer(200, cfg)
@@ -105,7 +104,6 @@ func TestNoRetries(t *testing.T) {
 	testNoRetry(t, 413)
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func testNoRetry(t *testing.T, statusCode int) {
 	cfg := configmock.New(t)
 	server := NewTestServer(statusCode, cfg)

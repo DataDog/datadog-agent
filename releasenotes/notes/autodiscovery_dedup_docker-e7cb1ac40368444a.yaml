@@ -5,6 +5,8 @@
 # must be readable independently of the other.
 #
 # Each section note must be formatted as reStructuredText.
-features:
+---
+fixes:
   - |
-    Adds the logic required to compute checksum fingerprints to more accurately detect instances of log rotation and truncation.
+    De-duplicates service checks when auto-discovery is enabled with the docker listener. Ensuring
+    pod annotated services only have one check and ignores configuration from the default file source.
