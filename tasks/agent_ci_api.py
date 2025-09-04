@@ -64,7 +64,7 @@ def run(
         jq: One of 'no', 'auto' or 'yes'. Will pipe the json result to jq for pretty printing if jq present.
         query: jq query for the output.
         timeout: Once this timeout is reached, the task will stop with an error.
-        ignore_timeout: If True, won't throw an error if the request times out.
+        ignore_timeout_error: If True, won't throw an error if the request times out.
 
     Examples:
         $ dda inv -- api hello --env staging
