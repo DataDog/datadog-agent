@@ -70,6 +70,14 @@ type Message struct {
 	MessageMetadata
 }
 
+// StatefulMessage represents a log message for gRPC stateful streaming
+// It contains a Datum (from stateful_encoding.proto) and associated metadata
+// Datum is stored as `any` to avoid import cycle with sender/grpc package
+type StatefulMessage struct {
+	Datum    any // Will hold *grpc.Datum
+	Metadata *MessageMetadata
+}
+
 // MessageMetadata contains metadata information about a log message
 //
 //nolint:revive // exported: ignore package name struct conflict
