@@ -68,7 +68,7 @@ def _download_and_extract_tool(rctx, tool_name, binary):
             sha256 = binary["sha256"],
             output = target_executable,
             executable = True,
-            headers = binary.get("headers", {})
+            headers = binary.get("headers", {}),
         )
     elif binary["kind"] == "archive":
         archive_path = "tools/{tool_name}/{os}_{cpu}_archive".format(
@@ -82,7 +82,7 @@ def _download_and_extract_tool(rctx, tool_name, binary):
             sha256 = binary["sha256"],
             output = archive_path,
             type = binary.get("type", ""),
-            headers = binary.get("headers", {})
+            headers = binary.get("headers", {}),
         )
 
         # link to the executable
@@ -114,7 +114,7 @@ def _download_and_extract_tool(rctx, tool_name, binary):
             url = binary["url"],
             sha256 = binary["sha256"],
             output = archive_path + ".pkg",
-            headers = binary.get("headers", {})
+            headers = binary.get("headers", {}),
         )
 
         rctx.execute([pkgutil_cmd, "--expand-full", archive_path + ".pkg", archive_path])
@@ -223,7 +223,6 @@ def bzlmod_hub(name, lockfiles, module_ctx):
             )
 
     _multitool_hub(name = name, lockfiles = lockfiles)
-
 
 hub = tag_class(
     attrs = {
