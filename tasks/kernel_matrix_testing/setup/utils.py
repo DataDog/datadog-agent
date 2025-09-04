@@ -3,6 +3,7 @@ Utility functions for the setup requirements
 """
 
 import grp
+import io
 import pwd
 import re
 import sys
@@ -41,13 +42,14 @@ def ensure_options_in_config(
         list[str]: list of option names that were not correct in the file
     """
     if read_with_sudo:
-        res = ctx.run(f"sudo cat {config_file}", warn=True)
+        buffer = io.StringIO()
+        res = ctx.run(f"sudo cat {config_file}", warn=True, out_stream=buffer)
         if res is None:
             raise RuntimeError(f"Failed to read config file {config_file}, unknown error")
         elif not res.ok:
             raise RuntimeError(f"Failed to read config file {config_file}: {res.stderr}")
 
-        content = res.stdout.strip().splitlines()
+        content = buffer.getvalue().strip().splitlines()
     else:
         # If without sudo, we can just read the file. This makes it easier to test
         with open(config_file) as f:
