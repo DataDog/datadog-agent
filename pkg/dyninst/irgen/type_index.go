@@ -13,12 +13,20 @@ import (
 	"iter"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/gotype"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 )
 
 // goTypeIndexFactory is a factory for type index builders.
 type goTypeIndexFactory interface {
-	newGoTypeToOffsetIndexBuilder() (goTypeToOffsetIndexBuilder, error)
-	newMethodToGoTypeIndexBuilder() (methodToGoTypeIndexBuilder, error)
+	newGoTypeToOffsetIndexBuilder(
+		programID ir.ProgramID,
+		goTypeDataSize uint64,
+	) (goTypeToOffsetIndexBuilder, error)
+
+	newMethodToGoTypeIndexBuilder(
+		programID ir.ProgramID,
+		goTypeDataSize uint64,
+	) (methodToGoTypeIndexBuilder, error)
 }
 
 // goTypeToOffsetIndexBuilder is a builder for goTypeToOffsetIndex.

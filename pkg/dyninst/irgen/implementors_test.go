@@ -9,6 +9,7 @@ package irgen
 
 import (
 	"maps"
+	"math"
 	"slices"
 	"testing"
 
@@ -65,9 +66,25 @@ func makeSet[K comparable, V any](m map[K]V) map[K]struct{} {
 
 func TestImplementorIterator(t *testing.T) {
 	cfgs := testprogs.MustGetCommonConfigs(t)
-	factory := &inMemoryTypeIndexFactory{}
+	t.Run("in-memory", func(t *testing.T) {
+		factory := &inMemoryGoTypeIndexFactory{}
+		newFunction(t, cfgs[0], factory)
+	})
+	t.Run("on-disk", func(t *testing.T) {
+		diskCache, err := object.NewDiskCache(object.DiskCacheConfig{
+			DirPath:       t.TempDir(),
+			MaxTotalBytes: math.MaxUint64,
+		})
+		require.NoError(t, err)
+		factory := &onDiskGoTypeIndexFactory{diskCache: diskCache}
+		newFunction(t, cfgs[0], factory)
+	})
+
+}
+
+func newFunction(t *testing.T, cfg testprogs.Config, factory goTypeIndexFactory) {
 	typeTab, interestingInterfaces, methodIndex := buildMethodIndex(
-		t, cfgs[0], "sample", factory, interestingInterfaceNames,
+		t, cfg, "sample", factory, interestingInterfaceNames,
 	)
 
 	interfaceNames := slices.Sorted(maps.Keys(expectedImplementors))
@@ -107,7 +124,11 @@ func buildMethodIndex(
 	// need from the binary.
 	arch := obj.Architecture()
 	d := obj.DwarfData()
-	typeIndexBuilder, err := factory.newGoTypeToOffsetIndexBuilder()
+	typeTab, err := gotype.NewTable(obj)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, typeTab.Close()) })
+
+	typeIndexBuilder, err := factory.newGoTypeToOffsetIndexBuilder(0, typeTab.DataByteSize())
 	require.NoError(t, err)
 	interests, _ := makeInterests(nil)
 	{
@@ -116,12 +137,10 @@ func buildMethodIndex(
 	}
 	typeIndex, err := typeIndexBuilder.build()
 	require.NoError(t, err)
-	typeTab, err := gotype.NewTable(obj)
-	require.NoError(t, err)
 
 	interestingInterfaces := make(map[string]gotype.Type)
 
-	methodIndexBuilder, err := factory.newMethodToGoTypeIndexBuilder()
+	methodIndexBuilder, err := factory.newMethodToGoTypeIndexBuilder(0, typeTab.DataByteSize())
 	require.NoError(t, err)
 	var methodBuf []gotype.Method
 	for tid := range typeIndex.allGoTypes() {
@@ -144,7 +163,7 @@ func buildMethodIndex(
 
 func BenchmarkImplementorIterator(b *testing.B) {
 	cfgs := testprogs.MustGetCommonConfigs(b)
-	factory := &inMemoryTypeIndexFactory{}
+	factory := &inMemoryGoTypeIndexFactory{}
 	_, interestingInterfaces, methodIndex := buildMethodIndex(
 		b, cfgs[0], "sample", factory, interestingInterfaceNames,
 	)

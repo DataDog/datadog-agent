@@ -157,11 +157,22 @@ func generateIR(
 	arch := objFile.Architecture()
 	ptrSize := uint8(arch.PointerSize())
 	d := objFile.DwarfData()
-	typeIndexBuilder, err := cfg.typeIndexFactory.newGoTypeToOffsetIndexBuilder()
+
+	typeTab, err := gotype.NewTable(objFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create type table: %w", err)
+	}
+	defer cleanupCloser(typeTab, "gotype.Table")()
+	typeTabSize := typeTab.DataByteSize()
+
+	typeIndexBuilder, err := cfg.typeIndexFactory.newGoTypeToOffsetIndexBuilder(
+		programID, typeTabSize,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create type index builder: %w", err)
 	}
 	defer cleanupCloser(typeIndexBuilder, "type index builder")()
+
 	processed, err := processDwarf(interests, d, arch, typeIndexBuilder)
 	if err != nil {
 		return nil, err
@@ -213,13 +224,7 @@ func generateIR(
 	}
 	defer cleanupCloser(typeIndex, "type index")()
 
-	typeTab, err := gotype.NewTable(objFile)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create type table: %w", err)
-	}
-	defer cleanupCloser(typeTab, "gotype.Table")()
-
-	ib, err := cfg.typeIndexFactory.newMethodToGoTypeIndexBuilder()
+	ib, err := cfg.typeIndexFactory.newMethodToGoTypeIndexBuilder(programID, typeTabSize)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create method index builder: %w", err)
 	}

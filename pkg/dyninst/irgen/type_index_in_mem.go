@@ -14,20 +14,21 @@ import (
 	"slices"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/gotype"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 )
 
-type inMemoryTypeIndexFactory struct{}
+type inMemoryGoTypeIndexFactory struct{}
 
-var _ goTypeIndexFactory = (*inMemoryTypeIndexFactory)(nil)
+var _ goTypeIndexFactory = (*inMemoryGoTypeIndexFactory)(nil)
 
-func (i *inMemoryTypeIndexFactory) newGoTypeToOffsetIndexBuilder() (
-	goTypeToOffsetIndexBuilder, error,
-) {
+func (i *inMemoryGoTypeIndexFactory) newGoTypeToOffsetIndexBuilder(
+	ir.ProgramID, uint64,
+) (goTypeToOffsetIndexBuilder, error) {
 	return &inMemoryGoTypeToOffsetIndexBuilder{}, nil
 }
-func (i inMemoryTypeIndexFactory) newMethodToGoTypeIndexBuilder() (
-	methodToGoTypeIndexBuilder, error,
-) {
+func (i inMemoryGoTypeIndexFactory) newMethodToGoTypeIndexBuilder(
+	ir.ProgramID, uint64,
+) (methodToGoTypeIndexBuilder, error) {
 	return &inMemoryMethodToGoTypeIndexBuilder{}, nil
 }
 
@@ -109,31 +110,37 @@ func (b *inMemoryMethodToGoTypeIndexBuilder) addMethod(
 func (b inMemoryMethodToGoTypeIndexBuilder) build() (methodToGoTypeIndex, error) {
 	slices.SortFunc(b, cmpMethodEntry)
 	tids := make([]gotype.TypeID, 0, len(b))
-	m := make(map[gotype.Method][2]uint32)
+	var methods []methodIndexEntry
 	if len(b) == 0 {
-		return &inMemoryMethodToGoTypeIndex{m: m, tids: tids}, nil
+		return &inMemoryMethodToGoTypeIndex{}, nil
 	}
 
 	var prevIdx uint32
-	var curKey gotype.Method
+	curMethod := b[0].method
 	for _, entry := range b {
-		if curKey != entry.method {
-			m[curKey] = [2]uint32{prevIdx, uint32(len(tids))}
+		if curMethod != entry.method {
+			methods = append(methods, methodIndexEntry{
+				method:  curMethod,
+				offsets: [2]uint32{prevIdx, uint32(len(tids))},
+			})
 			prevIdx = uint32(len(tids))
-			curKey = entry.method
+			curMethod = entry.method
 		}
 		tids = append(tids, entry.receiver)
 	}
-	m[curKey] = [2]uint32{prevIdx, uint32(len(tids))}
-	return &inMemoryMethodToGoTypeIndex{m: m, tids: tids}, nil
+	methods = append(methods, methodIndexEntry{
+		method:  curMethod,
+		offsets: [2]uint32{prevIdx, uint32(len(tids))},
+	})
+	return &inMemoryMethodToGoTypeIndex{methods: methods, tids: tids}, nil
 }
 func (b *inMemoryMethodToGoTypeIndexBuilder) Close() error {
 	return nil
 }
 
 type inMemoryMethodToGoTypeIndex struct {
-	m    map[gotype.Method][2]uint32
-	tids []gotype.TypeID
+	methods []methodIndexEntry
+	tids    []gotype.TypeID
 }
 
 var _ methodToGoTypeIndex = (*inMemoryMethodToGoTypeIndex)(nil)
@@ -153,11 +160,14 @@ type inMemoryMethodToGoTypeIterator struct {
 var _ methodToGoTypeIterator = (*inMemoryMethodToGoTypeIterator)(nil)
 
 func (ii *inMemoryMethodToGoTypeIterator) seek(method gotype.Method) {
-	r, ok := ii.index.m[method]
-	if !ok {
+	idx := slices.IndexFunc(ii.index.methods, func(e methodIndexEntry) bool {
+		return e.method == method
+	})
+	if idx == -1 {
 		ii.types = nil
 		return
 	}
+	r := ii.index.methods[idx].offsets
 	ii.types = ii.index.tids[r[0]:r[1]]
 }
 func (ii *inMemoryMethodToGoTypeIterator) valid() bool {

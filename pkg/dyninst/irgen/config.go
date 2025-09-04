@@ -20,7 +20,7 @@ var defaultConfig = config{
 	maxDynamicTypeSize: defaultMaxDynamicTypeSize,
 	maxHashBucketsSize: defaultMaxHashBucketsSize,
 	objectLoader:       object.NewInMemoryLoader(),
-	typeIndexFactory:   &inMemoryTypeIndexFactory{},
+	typeIndexFactory:   &inMemoryGoTypeIndexFactory{},
 }
 
 // This is an arbitrary limit for how much data will be captured for
@@ -56,6 +56,13 @@ func WithMaxDynamicDataSize(size int) Option {
 // WithObjectLoader sets the object loader to use for loading object files.
 func WithObjectLoader(loader object.Loader) Option {
 	return optionFunc(func(c *config) { c.objectLoader = loader })
+}
+
+// WithOnDiskGoTypeIndexFactory make irgen store the go type indexes on disk.
+func WithOnDiskGoTypeIndexFactory(diskCache *object.DiskCache) Option {
+	return optionFunc(func(c *config) {
+		c.typeIndexFactory = &onDiskGoTypeIndexFactory{diskCache: diskCache}
+	})
 }
 
 type optionFunc func(c *config)
