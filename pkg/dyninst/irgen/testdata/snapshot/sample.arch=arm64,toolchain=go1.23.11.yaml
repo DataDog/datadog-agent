@@ -3383,20 +3383,20 @@ Types:
       ByteSize: 8
       Pointee: 64 PointerType *main.deepSlice2
     - __kind: PointerType
-      ID: 238
+      ID: 250
       Name: '**main.deepSlice3'
       ByteSize: 8
-      Pointee: 239 PointerType *main.deepSlice3
+      Pointee: 251 PointerType *main.deepSlice3
     - __kind: PointerType
-      ID: 257
+      ID: 271
       Name: '**main.deepSlice8'
       ByteSize: 8
-      Pointee: 258 PointerType *main.deepSlice8
+      Pointee: 272 PointerType *main.deepSlice8
     - __kind: PointerType
-      ID: 263
+      ID: 277
       Name: '**main.deepSlice9'
       ByteSize: 8
-      Pointee: 264 PointerType *main.deepSlice9
+      Pointee: 278 PointerType *main.deepSlice9
     - __kind: PointerType
       ID: 79
       Name: '**main.stringType2'
@@ -3404,7 +3404,7 @@ Types:
       GoKind: 22
       Pointee: 80 PointerType *main.stringType2
     - __kind: PointerType
-      ID: 305
+      ID: 246
       Name: '**main.t'
       ByteSize: 8
       Pointee: 159 PointerType *main.t
@@ -3421,20 +3421,20 @@ Types:
       ByteSize: 8
       Pointee: 183 GoSliceDataType []*main.deepSlice2.array
     - __kind: PointerType
-      ID: 242
+      ID: 254
       Name: '*[]*main.deepSlice3.array'
       ByteSize: 8
-      Pointee: 241 GoSliceDataType []*main.deepSlice3.array
+      Pointee: 253 GoSliceDataType []*main.deepSlice3.array
     - __kind: PointerType
-      ID: 261
+      ID: 275
       Name: '*[]*main.deepSlice8.array'
       ByteSize: 8
-      Pointee: 260 GoSliceDataType []*main.deepSlice8.array
+      Pointee: 274 GoSliceDataType []*main.deepSlice8.array
     - __kind: PointerType
-      ID: 267
+      ID: 281
       Name: '*[]*main.deepSlice9.array'
       ByteSize: 8
-      Pointee: 266 GoSliceDataType []*main.deepSlice9.array
+      Pointee: 280 GoSliceDataType []*main.deepSlice9.array
     - __kind: PointerType
       ID: 181
       Name: '*[]*string.array'
@@ -3451,15 +3451,15 @@ Types:
       ByteSize: 8
       Pointee: 228 GoSliceDataType []bool.array
     - __kind: PointerType
-      ID: 270
+      ID: 284
       Name: '*[]interface {}.array'
       ByteSize: 8
-      Pointee: 269 GoSliceDataType []interface {}.array
+      Pointee: 283 GoSliceDataType []interface {}.array
     - __kind: PointerType
-      ID: 309
+      ID: 265
       Name: '*[]main.structWithMap.array'
       ByteSize: 8
-      Pointee: 308 GoSliceDataType []main.structWithMap.array
+      Pointee: 264 GoSliceDataType []main.structWithMap.array
     - __kind: PointerType
       ID: 225
       Name: '*[]main.structWithNoStrings.array'
@@ -3518,30 +3518,30 @@ Types:
       ByteSize: 8
       Pointee: 72 GoHMapBucketType bucket<int,*main.deepMap2>
     - __kind: PointerType
-      ID: 246
+      ID: 258
       Name: '*bucket<int,*main.deepMap3>'
       ByteSize: 8
-      Pointee: 247 GoHMapBucketType bucket<int,*main.deepMap3>
+      Pointee: 259 GoHMapBucketType bucket<int,*main.deepMap3>
     - __kind: PointerType
-      ID: 274
+      ID: 288
       Name: '*bucket<int,*main.deepMap8>'
       ByteSize: 8
-      Pointee: 275 GoHMapBucketType bucket<int,*main.deepMap8>
+      Pointee: 289 GoHMapBucketType bucket<int,*main.deepMap8>
     - __kind: PointerType
-      ID: 283
+      ID: 297
       Name: '*bucket<int,*main.deepMap9>'
       ByteSize: 8
-      Pointee: 284 GoHMapBucketType bucket<int,*main.deepMap9>
+      Pointee: 298 GoHMapBucketType bucket<int,*main.deepMap9>
     - __kind: PointerType
       ID: 95
       Name: '*bucket<int,int>'
       ByteSize: 8
       Pointee: 96 GoHMapBucketType bucket<int,int>
     - __kind: PointerType
-      ID: 292
+      ID: 306
       Name: '*bucket<int,interface {}>'
       ByteSize: 8
-      Pointee: 293 GoHMapBucketType bucket<int,interface {}>
+      Pointee: 307 GoHMapBucketType bucket<int,interface {}>
     - __kind: PointerType
       ID: 132
       Name: '*bucket<int,uint8>'
@@ -3624,30 +3624,30 @@ Types:
       ByteSize: 8
       Pointee: 70 GoHMapHeaderType hash<int,*main.deepMap2>
     - __kind: PointerType
-      ID: 244
+      ID: 256
       Name: '*hash<int,*main.deepMap3>'
       ByteSize: 8
-      Pointee: 245 GoHMapHeaderType hash<int,*main.deepMap3>
+      Pointee: 257 GoHMapHeaderType hash<int,*main.deepMap3>
     - __kind: PointerType
-      ID: 272
+      ID: 286
       Name: '*hash<int,*main.deepMap8>'
       ByteSize: 8
-      Pointee: 273 GoHMapHeaderType hash<int,*main.deepMap8>
+      Pointee: 287 GoHMapHeaderType hash<int,*main.deepMap8>
     - __kind: PointerType
-      ID: 281
+      ID: 295
       Name: '*hash<int,*main.deepMap9>'
       ByteSize: 8
-      Pointee: 282 GoHMapHeaderType hash<int,*main.deepMap9>
+      Pointee: 296 GoHMapHeaderType hash<int,*main.deepMap9>
     - __kind: PointerType
       ID: 93
       Name: '*hash<int,int>'
       ByteSize: 8
       Pointee: 94 GoHMapHeaderType hash<int,int>
     - __kind: PointerType
-      ID: 290
+      ID: 304
       Name: '*hash<int,interface {}>'
       ByteSize: 8
-      Pointee: 291 GoHMapHeaderType hash<int,interface {}>
+      Pointee: 305 GoHMapHeaderType hash<int,interface {}>
     - __kind: PointerType
       ID: 130
       Name: '*hash<int,uint8>'
@@ -3733,12 +3733,12 @@ Types:
       GoKind: 22
       Pointee: 189 StructureType main.deepMap2
     - __kind: PointerType
-      ID: 249
+      ID: 261
       Name: '*main.deepMap3'
       ByteSize: 8
       GoRuntimeType: 356032
       GoKind: 22
-      Pointee: 250 UnresolvedPointeeType main.deepMap3
+      Pointee: 262 UnresolvedPointeeType main.deepMap3
     - __kind: PointerType
       ID: 75
       Name: '*main.deepMap7'
@@ -3747,19 +3747,19 @@ Types:
       GoKind: 22
       Pointee: 76 StructureType main.deepMap7
     - __kind: PointerType
-      ID: 277
+      ID: 291
       Name: '*main.deepMap8'
       ByteSize: 8
       GoRuntimeType: 355712
       GoKind: 22
-      Pointee: 278 StructureType main.deepMap8
+      Pointee: 292 StructureType main.deepMap8
     - __kind: PointerType
-      ID: 286
+      ID: 300
       Name: '*main.deepMap9'
       ByteSize: 8
       GoRuntimeType: 355648
       GoKind: 22
-      Pointee: 287 StructureType main.deepMap9
+      Pointee: 301 StructureType main.deepMap9
     - __kind: PointerType
       ID: 57
       Name: '*main.deepPtr2'
@@ -3782,19 +3782,19 @@ Types:
       GoKind: 22
       Pointee: 60 StructureType main.deepPtr7
     - __kind: PointerType
-      ID: 252
+      ID: 266
       Name: '*main.deepPtr8'
       ByteSize: 8
       GoRuntimeType: 356288
       GoKind: 22
-      Pointee: 253 StructureType main.deepPtr8
+      Pointee: 267 StructureType main.deepPtr8
     - __kind: PointerType
-      ID: 254
+      ID: 268
       Name: '*main.deepPtr9'
       ByteSize: 8
       GoRuntimeType: 356224
       GoKind: 22
-      Pointee: 255 StructureType main.deepPtr9
+      Pointee: 269 StructureType main.deepPtr9
     - __kind: PointerType
       ID: 64
       Name: '*main.deepSlice2'
@@ -3803,12 +3803,12 @@ Types:
       GoKind: 22
       Pointee: 182 StructureType main.deepSlice2
     - __kind: PointerType
-      ID: 239
+      ID: 251
       Name: '*main.deepSlice3'
       ByteSize: 8
       GoRuntimeType: 357184
       GoKind: 22
-      Pointee: 240 UnresolvedPointeeType main.deepSlice3
+      Pointee: 252 UnresolvedPointeeType main.deepSlice3
     - __kind: PointerType
       ID: 65
       Name: '*main.deepSlice7'
@@ -3817,19 +3817,19 @@ Types:
       GoKind: 22
       Pointee: 66 StructureType main.deepSlice7
     - __kind: PointerType
-      ID: 258
+      ID: 272
       Name: '*main.deepSlice8'
       ByteSize: 8
       GoRuntimeType: 356864
       GoKind: 22
-      Pointee: 259 StructureType main.deepSlice8
+      Pointee: 273 StructureType main.deepSlice8
     - __kind: PointerType
-      ID: 264
+      ID: 278
       Name: '*main.deepSlice9'
       ByteSize: 8
       GoRuntimeType: 356800
       GoKind: 22
-      Pointee: 265 StructureType main.deepSlice9
+      Pointee: 279 StructureType main.deepSlice9
     - __kind: PointerType
       ID: 177
       Name: '*main.emptyStruct'
@@ -3898,10 +3898,10 @@ Types:
       GoKind: 22
       Pointee: 160 GoSliceHeaderType main.t
     - __kind: PointerType
-      ID: 307
+      ID: 248
       Name: '*main.t.array'
       ByteSize: 8
-      Pointee: 306 GoSliceDataType main.t.array
+      Pointee: 247 GoSliceDataType main.t.array
     - __kind: PointerType
       ID: 171
       Name: '*main.threeStringStruct'
@@ -5951,7 +5951,7 @@ Types:
       ByteSize: 2048
       Element: 64 PointerType *main.deepSlice2
     - __kind: GoSliceHeaderType
-      ID: 237
+      ID: 249
       Name: '[]*main.deepSlice3'
       ByteSize: 24
       GoRuntimeType: 446720
@@ -5959,21 +5959,21 @@ Types:
       RawFields:
         - Name: array
           Offset: 0
-          Type: 238 PointerType **main.deepSlice3
+          Type: 250 PointerType **main.deepSlice3
         - Name: len
           Offset: 8
           Type: 9 BaseType int
         - Name: cap
           Offset: 16
           Type: 9 BaseType int
-      Data: 241 GoSliceDataType []*main.deepSlice3.array
+      Data: 253 GoSliceDataType []*main.deepSlice3.array
     - __kind: GoSliceDataType
-      ID: 241
+      ID: 253
       Name: '[]*main.deepSlice3.array'
       ByteSize: 2048
-      Element: 239 PointerType *main.deepSlice3
+      Element: 251 PointerType *main.deepSlice3
     - __kind: GoSliceHeaderType
-      ID: 256
+      ID: 270
       Name: '[]*main.deepSlice8'
       ByteSize: 24
       GoRuntimeType: 446400
@@ -5981,21 +5981,21 @@ Types:
       RawFields:
         - Name: array
           Offset: 0
-          Type: 257 PointerType **main.deepSlice8
+          Type: 271 PointerType **main.deepSlice8
         - Name: len
           Offset: 8
           Type: 9 BaseType int
         - Name: cap
           Offset: 16
           Type: 9 BaseType int
-      Data: 260 GoSliceDataType []*main.deepSlice8.array
+      Data: 274 GoSliceDataType []*main.deepSlice8.array
     - __kind: GoSliceDataType
-      ID: 260
+      ID: 274
       Name: '[]*main.deepSlice8.array'
       ByteSize: 2048
-      Element: 258 PointerType *main.deepSlice8
+      Element: 272 PointerType *main.deepSlice8
     - __kind: GoSliceHeaderType
-      ID: 262
+      ID: 276
       Name: '[]*main.deepSlice9'
       ByteSize: 24
       GoRuntimeType: 446336
@@ -6003,19 +6003,19 @@ Types:
       RawFields:
         - Name: array
           Offset: 0
-          Type: 263 PointerType **main.deepSlice9
+          Type: 277 PointerType **main.deepSlice9
         - Name: len
           Offset: 8
           Type: 9 BaseType int
         - Name: cap
           Offset: 16
           Type: 9 BaseType int
-      Data: 266 GoSliceDataType []*main.deepSlice9.array
+      Data: 280 GoSliceDataType []*main.deepSlice9.array
     - __kind: GoSliceDataType
-      ID: 266
+      ID: 280
       Name: '[]*main.deepSlice9.array'
       ByteSize: 2048
-      Element: 264 PointerType *main.deepSlice9
+      Element: 278 PointerType *main.deepSlice9
     - __kind: GoSliceHeaderType
       ID: 53
       Name: '[]*string'
@@ -6107,30 +6107,30 @@ Types:
       ByteSize: 2048
       Element: 72 GoHMapBucketType bucket<int,*main.deepMap2>
     - __kind: GoSliceDataType
-      ID: 251
+      ID: 263
       Name: '[]bucket<int,*main.deepMap3>.array'
       ByteSize: 2048
-      Element: 247 GoHMapBucketType bucket<int,*main.deepMap3>
+      Element: 259 GoHMapBucketType bucket<int,*main.deepMap3>
     - __kind: GoSliceDataType
-      ID: 279
+      ID: 293
       Name: '[]bucket<int,*main.deepMap8>.array'
       ByteSize: 2048
-      Element: 275 GoHMapBucketType bucket<int,*main.deepMap8>
+      Element: 289 GoHMapBucketType bucket<int,*main.deepMap8>
     - __kind: GoSliceDataType
-      ID: 288
+      ID: 302
       Name: '[]bucket<int,*main.deepMap9>.array'
       ByteSize: 2048
-      Element: 284 GoHMapBucketType bucket<int,*main.deepMap9>
+      Element: 298 GoHMapBucketType bucket<int,*main.deepMap9>
     - __kind: GoSliceDataType
       ID: 192
       Name: '[]bucket<int,int>.array'
       ByteSize: 2048
       Element: 96 GoHMapBucketType bucket<int,int>
     - __kind: GoSliceDataType
-      ID: 295
+      ID: 309
       Name: '[]bucket<int,interface {}>.array'
       ByteSize: 2048
-      Element: 293 GoHMapBucketType bucket<int,interface {}>
+      Element: 307 GoHMapBucketType bucket<int,interface {}>
     - __kind: GoSliceDataType
       ID: 211
       Name: '[]bucket<int,uint8>.array'
@@ -6167,7 +6167,7 @@ Types:
       ByteSize: 2048
       Element: 138 GoHMapBucketType bucket<uint8,uint8>
     - __kind: GoSliceHeaderType
-      ID: 268
+      ID: 282
       Name: '[]interface {}'
       ByteSize: 24
       GoRuntimeType: 454400
@@ -6182,9 +6182,9 @@ Types:
         - Name: cap
           Offset: 16
           Type: 9 BaseType int
-      Data: 269 GoSliceDataType []interface {}.array
+      Data: 283 GoSliceDataType []interface {}.array
     - __kind: GoSliceDataType
-      ID: 269
+      ID: 283
       Name: '[]interface {}.array'
       ByteSize: 2048
       Element: 83 GoEmptyInterfaceType interface {}
@@ -6246,9 +6246,9 @@ Types:
         - Name: cap
           Offset: 16
           Type: 9 BaseType int
-      Data: 308 GoSliceDataType []main.structWithMap.array
+      Data: 264 GoSliceDataType []main.structWithMap.array
     - __kind: GoSliceDataType
-      ID: 308
+      ID: 264
       Name: '[]main.structWithMap.array'
       ByteSize: 2048
       Element: 91 StructureType main.structWithMap
@@ -6347,26 +6347,26 @@ Types:
       HasCount: true
       Element: 188 PointerType *main.deepMap2
     - __kind: ArrayType
-      ID: 248
+      ID: 260
       Name: '[]val<*main.deepMap3>'
       ByteSize: 64
       Count: 8
       HasCount: true
-      Element: 249 PointerType *main.deepMap3
+      Element: 261 PointerType *main.deepMap3
     - __kind: ArrayType
-      ID: 276
+      ID: 290
       Name: '[]val<*main.deepMap8>'
       ByteSize: 64
       Count: 8
       HasCount: true
-      Element: 277 PointerType *main.deepMap8
+      Element: 291 PointerType *main.deepMap8
     - __kind: ArrayType
-      ID: 285
+      ID: 299
       Name: '[]val<*main.deepMap9>'
       ByteSize: 64
       Count: 8
       HasCount: true
-      Element: 286 PointerType *main.deepMap9
+      Element: 300 PointerType *main.deepMap9
     - __kind: ArrayType
       ID: 201
       Name: '[]val<[2]int>'
@@ -6403,7 +6403,7 @@ Types:
       HasCount: true
       Element: 9 BaseType int
     - __kind: ArrayType
-      ID: 294
+      ID: 308
       Name: '[]val<interface {}>'
       ByteSize: 128
       Count: 8
@@ -6532,7 +6532,7 @@ Types:
       KeyType: 9 BaseType int
       ValueType: 188 PointerType *main.deepMap2
     - __kind: GoHMapBucketType
-      ID: 247
+      ID: 259
       Name: bucket<int,*main.deepMap3>
       ByteSize: 144
       RawFields:
@@ -6544,14 +6544,14 @@ Types:
           Type: 186 ArrayType []key<int>
         - Name: values
           Offset: 72
-          Type: 248 ArrayType []val<*main.deepMap3>
+          Type: 260 ArrayType []val<*main.deepMap3>
         - Name: overflow
           Offset: 136
-          Type: 246 PointerType *bucket<int,*main.deepMap3>
+          Type: 258 PointerType *bucket<int,*main.deepMap3>
       KeyType: 9 BaseType int
-      ValueType: 249 PointerType *main.deepMap3
+      ValueType: 261 PointerType *main.deepMap3
     - __kind: GoHMapBucketType
-      ID: 275
+      ID: 289
       Name: bucket<int,*main.deepMap8>
       ByteSize: 144
       RawFields:
@@ -6563,14 +6563,14 @@ Types:
           Type: 186 ArrayType []key<int>
         - Name: values
           Offset: 72
-          Type: 276 ArrayType []val<*main.deepMap8>
+          Type: 290 ArrayType []val<*main.deepMap8>
         - Name: overflow
           Offset: 136
-          Type: 274 PointerType *bucket<int,*main.deepMap8>
+          Type: 288 PointerType *bucket<int,*main.deepMap8>
       KeyType: 9 BaseType int
-      ValueType: 277 PointerType *main.deepMap8
+      ValueType: 291 PointerType *main.deepMap8
     - __kind: GoHMapBucketType
-      ID: 284
+      ID: 298
       Name: bucket<int,*main.deepMap9>
       ByteSize: 144
       RawFields:
@@ -6582,12 +6582,12 @@ Types:
           Type: 186 ArrayType []key<int>
         - Name: values
           Offset: 72
-          Type: 285 ArrayType []val<*main.deepMap9>
+          Type: 299 ArrayType []val<*main.deepMap9>
         - Name: overflow
           Offset: 136
-          Type: 283 PointerType *bucket<int,*main.deepMap9>
+          Type: 297 PointerType *bucket<int,*main.deepMap9>
       KeyType: 9 BaseType int
-      ValueType: 286 PointerType *main.deepMap9
+      ValueType: 300 PointerType *main.deepMap9
     - __kind: GoHMapBucketType
       ID: 96
       Name: bucket<int,int>
@@ -6608,7 +6608,7 @@ Types:
       KeyType: 9 BaseType int
       ValueType: 9 BaseType int
     - __kind: GoHMapBucketType
-      ID: 293
+      ID: 307
       Name: bucket<int,interface {}>
       ByteSize: 208
       RawFields:
@@ -6620,10 +6620,10 @@ Types:
           Type: 186 ArrayType []key<int>
         - Name: values
           Offset: 72
-          Type: 294 ArrayType []val<interface {}>
+          Type: 308 ArrayType []val<interface {}>
         - Name: overflow
           Offset: 200
-          Type: 292 PointerType *bucket<int,interface {}>
+          Type: 306 PointerType *bucket<int,interface {}>
       KeyType: 9 BaseType int
       ValueType: 83 GoEmptyInterfaceType interface {}
     - __kind: GoHMapBucketType
@@ -6983,7 +6983,7 @@ Types:
       BucketType: 72 GoHMapBucketType bucket<int,*main.deepMap2>
       BucketsType: 190 GoSliceDataType []bucket<int,*main.deepMap2>.array
     - __kind: GoHMapHeaderType
-      ID: 245
+      ID: 257
       Name: hash<int,*main.deepMap3>
       ByteSize: 48
       RawFields:
@@ -7004,20 +7004,20 @@ Types:
           Type: 2 BaseType uint32
         - Name: buckets
           Offset: 16
-          Type: 246 PointerType *bucket<int,*main.deepMap3>
+          Type: 258 PointerType *bucket<int,*main.deepMap3>
         - Name: oldbuckets
           Offset: 24
-          Type: 246 PointerType *bucket<int,*main.deepMap3>
+          Type: 258 PointerType *bucket<int,*main.deepMap3>
         - Name: nevacuate
           Offset: 32
           Type: 1 BaseType uintptr
         - Name: extra
           Offset: 40
           Type: 73 PointerType *runtime.mapextra
-      BucketType: 247 GoHMapBucketType bucket<int,*main.deepMap3>
-      BucketsType: 251 GoSliceDataType []bucket<int,*main.deepMap3>.array
+      BucketType: 259 GoHMapBucketType bucket<int,*main.deepMap3>
+      BucketsType: 263 GoSliceDataType []bucket<int,*main.deepMap3>.array
     - __kind: GoHMapHeaderType
-      ID: 273
+      ID: 287
       Name: hash<int,*main.deepMap8>
       ByteSize: 48
       RawFields:
@@ -7038,20 +7038,20 @@ Types:
           Type: 2 BaseType uint32
         - Name: buckets
           Offset: 16
-          Type: 274 PointerType *bucket<int,*main.deepMap8>
+          Type: 288 PointerType *bucket<int,*main.deepMap8>
         - Name: oldbuckets
           Offset: 24
-          Type: 274 PointerType *bucket<int,*main.deepMap8>
+          Type: 288 PointerType *bucket<int,*main.deepMap8>
         - Name: nevacuate
           Offset: 32
           Type: 1 BaseType uintptr
         - Name: extra
           Offset: 40
           Type: 73 PointerType *runtime.mapextra
-      BucketType: 275 GoHMapBucketType bucket<int,*main.deepMap8>
-      BucketsType: 279 GoSliceDataType []bucket<int,*main.deepMap8>.array
+      BucketType: 289 GoHMapBucketType bucket<int,*main.deepMap8>
+      BucketsType: 293 GoSliceDataType []bucket<int,*main.deepMap8>.array
     - __kind: GoHMapHeaderType
-      ID: 282
+      ID: 296
       Name: hash<int,*main.deepMap9>
       ByteSize: 48
       RawFields:
@@ -7072,18 +7072,18 @@ Types:
           Type: 2 BaseType uint32
         - Name: buckets
           Offset: 16
-          Type: 283 PointerType *bucket<int,*main.deepMap9>
+          Type: 297 PointerType *bucket<int,*main.deepMap9>
         - Name: oldbuckets
           Offset: 24
-          Type: 283 PointerType *bucket<int,*main.deepMap9>
+          Type: 297 PointerType *bucket<int,*main.deepMap9>
         - Name: nevacuate
           Offset: 32
           Type: 1 BaseType uintptr
         - Name: extra
           Offset: 40
           Type: 73 PointerType *runtime.mapextra
-      BucketType: 284 GoHMapBucketType bucket<int,*main.deepMap9>
-      BucketsType: 288 GoSliceDataType []bucket<int,*main.deepMap9>.array
+      BucketType: 298 GoHMapBucketType bucket<int,*main.deepMap9>
+      BucketsType: 302 GoSliceDataType []bucket<int,*main.deepMap9>.array
     - __kind: GoHMapHeaderType
       ID: 94
       Name: hash<int,int>
@@ -7119,7 +7119,7 @@ Types:
       BucketType: 96 GoHMapBucketType bucket<int,int>
       BucketsType: 192 GoSliceDataType []bucket<int,int>.array
     - __kind: GoHMapHeaderType
-      ID: 291
+      ID: 305
       Name: hash<int,interface {}>
       ByteSize: 48
       RawFields:
@@ -7140,18 +7140,18 @@ Types:
           Type: 2 BaseType uint32
         - Name: buckets
           Offset: 16
-          Type: 292 PointerType *bucket<int,interface {}>
+          Type: 306 PointerType *bucket<int,interface {}>
         - Name: oldbuckets
           Offset: 24
-          Type: 292 PointerType *bucket<int,interface {}>
+          Type: 306 PointerType *bucket<int,interface {}>
         - Name: nevacuate
           Offset: 32
           Type: 1 BaseType uintptr
         - Name: extra
           Offset: 40
           Type: 73 PointerType *runtime.mapextra
-      BucketType: 293 GoHMapBucketType bucket<int,interface {}>
-      BucketsType: 295 GoSliceDataType []bucket<int,interface {}>.array
+      BucketType: 307 GoHMapBucketType bucket<int,interface {}>
+      BucketsType: 309 GoSliceDataType []bucket<int,interface {}>.array
     - __kind: GoHMapHeaderType
       ID: 131
       Name: hash<int,uint8>
@@ -7511,9 +7511,9 @@ Types:
       RawFields:
         - Name: a
           Offset: 0
-          Type: 243 GoMapType map[int]*main.deepMap3
+          Type: 255 GoMapType map[int]*main.deepMap3
     - __kind: UnresolvedPointeeType
-      ID: 250
+      ID: 262
       Name: main.deepMap3
       ByteSize: 8
     - __kind: StructureType
@@ -7525,9 +7525,9 @@ Types:
       RawFields:
         - Name: a
           Offset: 0
-          Type: 271 GoMapType map[int]*main.deepMap8
+          Type: 285 GoMapType map[int]*main.deepMap8
     - __kind: StructureType
-      ID: 278
+      ID: 292
       Name: main.deepMap8
       ByteSize: 8
       GoRuntimeType: 1.09872e+06
@@ -7535,9 +7535,9 @@ Types:
       RawFields:
         - Name: a
           Offset: 0
-          Type: 280 GoMapType map[int]*main.deepMap9
+          Type: 294 GoMapType map[int]*main.deepMap9
     - __kind: StructureType
-      ID: 287
+      ID: 301
       Name: main.deepMap9
       ByteSize: 8
       GoRuntimeType: 1.098592e+06
@@ -7545,7 +7545,7 @@ Types:
       RawFields:
         - Name: a
           Offset: 0
-          Type: 289 GoMapType map[int]interface {}
+          Type: 303 GoMapType map[int]interface {}
     - __kind: StructureType
       ID: 56
       Name: main.deepPtr1
@@ -7579,9 +7579,9 @@ Types:
       RawFields:
         - Name: a
           Offset: 0
-          Type: 252 PointerType *main.deepPtr8
+          Type: 266 PointerType *main.deepPtr8
     - __kind: StructureType
-      ID: 253
+      ID: 267
       Name: main.deepPtr8
       ByteSize: 8
       GoRuntimeType: 1.099872e+06
@@ -7589,9 +7589,9 @@ Types:
       RawFields:
         - Name: a
           Offset: 0
-          Type: 254 PointerType *main.deepPtr9
+          Type: 268 PointerType *main.deepPtr9
     - __kind: StructureType
-      ID: 255
+      ID: 269
       Name: main.deepPtr9
       ByteSize: 16
       GoRuntimeType: 1.099744e+06
@@ -7619,9 +7619,9 @@ Types:
       RawFields:
         - Name: a
           Offset: 0
-          Type: 237 GoSliceHeaderType []*main.deepSlice3
+          Type: 249 GoSliceHeaderType []*main.deepSlice3
     - __kind: UnresolvedPointeeType
-      ID: 240
+      ID: 252
       Name: main.deepSlice3
       ByteSize: 8
     - __kind: StructureType
@@ -7633,9 +7633,9 @@ Types:
       RawFields:
         - Name: a
           Offset: 0
-          Type: 256 GoSliceHeaderType []*main.deepSlice8
+          Type: 270 GoSliceHeaderType []*main.deepSlice8
     - __kind: StructureType
-      ID: 259
+      ID: 273
       Name: main.deepSlice8
       ByteSize: 24
       GoRuntimeType: 1.101024e+06
@@ -7643,9 +7643,9 @@ Types:
       RawFields:
         - Name: a
           Offset: 0
-          Type: 262 GoSliceHeaderType []*main.deepSlice9
+          Type: 276 GoSliceHeaderType []*main.deepSlice9
     - __kind: StructureType
-      ID: 265
+      ID: 279
       Name: main.deepSlice9
       ByteSize: 24
       GoRuntimeType: 1.100896e+06
@@ -7653,7 +7653,7 @@ Types:
       RawFields:
         - Name: a
           Offset: 0
-          Type: 268 GoSliceHeaderType []interface {}
+          Type: 282 GoSliceHeaderType []interface {}
     - __kind: StructureType
       ID: 176
       Name: main.emptyStruct
@@ -7671,16 +7671,16 @@ Types:
           Type: 81 StructureType main.esotericStack
         - Name: mu
           Offset: 64
-          Type: 296 StructureType sync.Mutex
+          Type: 237 StructureType sync.Mutex
         - Name: once
           Offset: 72
-          Type: 297 StructureType sync.Once
+          Type: 238 StructureType sync.Once
         - Name: wg
           Offset: 88
-          Type: 300 StructureType sync.WaitGroup
+          Type: 241 StructureType sync.WaitGroup
         - Name: a
           Offset: 104
-          Type: 304 StructureType sync/atomic.Int32
+          Type: 245 StructureType sync/atomic.Int32
     - __kind: StructureType
       ID: 81
       Name: main.esotericStack
@@ -7820,16 +7820,16 @@ Types:
       RawFields:
         - Name: array
           Offset: 0
-          Type: 305 PointerType **main.t
+          Type: 246 PointerType **main.t
         - Name: len
           Offset: 8
           Type: 9 BaseType int
         - Name: cap
           Offset: 16
           Type: 9 BaseType int
-      Data: 306 GoSliceDataType main.t.array
+      Data: 247 GoSliceDataType main.t.array
     - __kind: GoSliceDataType
-      ID: 306
+      ID: 247
       Name: main.t.array
       ByteSize: 2048
       Element: 159 PointerType *main.t
@@ -7889,26 +7889,26 @@ Types:
       GoKind: 21
       HeaderType: 70 GoHMapHeaderType hash<int,*main.deepMap2>
     - __kind: GoMapType
-      ID: 243
+      ID: 255
       Name: map[int]*main.deepMap3
       ByteSize: 8
       GoRuntimeType: 879584
       GoKind: 21
-      HeaderType: 245 GoHMapHeaderType hash<int,*main.deepMap3>
+      HeaderType: 257 GoHMapHeaderType hash<int,*main.deepMap3>
     - __kind: GoMapType
-      ID: 271
+      ID: 285
       Name: map[int]*main.deepMap8
       ByteSize: 8
       GoRuntimeType: 879104
       GoKind: 21
-      HeaderType: 273 GoHMapHeaderType hash<int,*main.deepMap8>
+      HeaderType: 287 GoHMapHeaderType hash<int,*main.deepMap8>
     - __kind: GoMapType
-      ID: 280
+      ID: 294
       Name: map[int]*main.deepMap9
       ByteSize: 8
       GoRuntimeType: 879008
       GoKind: 21
-      HeaderType: 282 GoHMapHeaderType hash<int,*main.deepMap9>
+      HeaderType: 296 GoHMapHeaderType hash<int,*main.deepMap9>
     - __kind: GoMapType
       ID: 92
       Name: map[int]int
@@ -7917,12 +7917,12 @@ Types:
       GoKind: 21
       HeaderType: 94 GoHMapHeaderType hash<int,int>
     - __kind: GoMapType
-      ID: 289
+      ID: 303
       Name: map[int]interface {}
       ByteSize: 8
       GoRuntimeType: 878912
       GoKind: 21
-      HeaderType: 291 GoHMapHeaderType hash<int,interface {}>
+      HeaderType: 305 GoHMapHeaderType hash<int,interface {}>
     - __kind: GoMapType
       ID: 129
       Name: map[int]uint8
@@ -7995,7 +7995,7 @@ Types:
       Name: string.str
       ByteSize: 2048
     - __kind: StructureType
-      ID: 296
+      ID: 237
       Name: sync.Mutex
       ByteSize: 8
       GoRuntimeType: 1.280768e+06
@@ -8008,7 +8008,7 @@ Types:
           Offset: 4
           Type: 2 BaseType uint32
     - __kind: StructureType
-      ID: 297
+      ID: 238
       Name: sync.Once
       ByteSize: 12
       GoRuntimeType: 1.281888e+06
@@ -8016,12 +8016,12 @@ Types:
       RawFields:
         - Name: done
           Offset: 0
-          Type: 298 StructureType sync/atomic.Uint32
+          Type: 239 StructureType sync/atomic.Uint32
         - Name: m
           Offset: 4
-          Type: 296 StructureType sync.Mutex
+          Type: 237 StructureType sync.Mutex
     - __kind: StructureType
-      ID: 300
+      ID: 241
       Name: sync.WaitGroup
       ByteSize: 16
       GoRuntimeType: 1.420736e+06
@@ -8029,21 +8029,21 @@ Types:
       RawFields:
         - Name: noCopy
           Offset: 0
-          Type: 301 StructureType sync.noCopy
+          Type: 242 StructureType sync.noCopy
         - Name: state
           Offset: 0
-          Type: 302 StructureType sync/atomic.Uint64
+          Type: 243 StructureType sync/atomic.Uint64
         - Name: sema
           Offset: 8
           Type: 2 BaseType uint32
     - __kind: StructureType
-      ID: 301
+      ID: 242
       Name: sync.noCopy
       GoRuntimeType: 946528
       GoKind: 25
       RawFields: []
     - __kind: StructureType
-      ID: 304
+      ID: 245
       Name: sync/atomic.Int32
       ByteSize: 4
       GoRuntimeType: 1.282208e+06
@@ -8051,12 +8051,12 @@ Types:
       RawFields:
         - Name: _
           Offset: 0
-          Type: 299 StructureType sync/atomic.noCopy
+          Type: 240 StructureType sync/atomic.noCopy
         - Name: v
           Offset: 0
           Type: 13 BaseType int32
     - __kind: StructureType
-      ID: 298
+      ID: 239
       Name: sync/atomic.Uint32
       ByteSize: 4
       GoRuntimeType: 1.282368e+06
@@ -8064,12 +8064,12 @@ Types:
       RawFields:
         - Name: _
           Offset: 0
-          Type: 299 StructureType sync/atomic.noCopy
+          Type: 240 StructureType sync/atomic.noCopy
         - Name: v
           Offset: 0
           Type: 2 BaseType uint32
     - __kind: StructureType
-      ID: 302
+      ID: 243
       Name: sync/atomic.Uint64
       ByteSize: 8
       GoRuntimeType: 1.42112e+06
@@ -8077,21 +8077,21 @@ Types:
       RawFields:
         - Name: _
           Offset: 0
-          Type: 299 StructureType sync/atomic.noCopy
+          Type: 240 StructureType sync/atomic.noCopy
         - Name: _
           Offset: 0
-          Type: 303 StructureType sync/atomic.align64
+          Type: 244 StructureType sync/atomic.align64
         - Name: v
           Offset: 0
           Type: 10 BaseType uint64
     - __kind: StructureType
-      ID: 303
+      ID: 244
       Name: sync/atomic.align64
       GoRuntimeType: 946720
       GoKind: 25
       RawFields: []
     - __kind: StructureType
-      ID: 299
+      ID: 240
       Name: sync/atomic.noCopy
       GoRuntimeType: 946624
       GoKind: 25

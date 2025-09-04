@@ -79,25 +79,33 @@ func runTest(t *testing.T, cfg testprogs.Config, prog string) {
 	obj, err := object.OpenElfFileWithDwarf(binPath)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, obj.Close()) }()
-	irp, err := irgen.GenerateIR(1, obj, probesCfgs)
-	require.NoError(t, err)
-	require.Empty(t, irp.Issues)
 
-	marshaled, err := irprinter.PrintYAML(irp)
+	// Make sure things work with the default limits, but don't actually
+	// use the results because they might be huge.
+	irWithDefaultLimits, err := irgen.GenerateIR(1, obj, probesCfgs)
 	require.NoError(t, err)
+	require.Empty(t, irWithDefaultLimits.Issues)
+	{
+		_, err := irprinter.PrintYAML(irWithDefaultLimits)
+		require.NoError(t, err)
+	}
 
 	// Make sure that the IR eventually gets to the same set of types as
 	// when we don't have a limit.
+	var irWithLimit1 *ir.Program
 	for i := 1; ; i++ {
 		probesCfgs := testprogs.MustGetProbeDefinitions(t, prog)
 		probesCfgs = probeConfigsWithMaxReferenceDepth(probesCfgs, i)
 		irWithLimit, err := irgen.GenerateIR(1, obj, probesCfgs)
 		require.NoError(t, err)
 		require.Empty(t, irWithLimit.Issues)
-		if len(irWithLimit.Types) < len(irp.Types) {
+		if i == 1 {
+			irWithLimit1 = irWithLimit
+		}
+		if len(irWithLimit.Types) < len(irWithDefaultLimits.Types) {
 			t.Logf(
 				"IR with limit %d has %d types < %d types",
-				i, len(irWithLimit.Types), len(irp.Types),
+				i, len(irWithLimit.Types), len(irWithDefaultLimits.Types),
 			)
 			continue
 		}
@@ -109,9 +117,16 @@ func runTest(t *testing.T, cfg testprogs.Config, prog string) {
 			slices.Sort(names)
 			return names
 		}
-		require.Equal(t, typeNames(irp), typeNames(irWithLimit))
+		require.Equal(t, typeNames(irWithDefaultLimits), typeNames(irWithLimit))
 		break
 	}
+
+	// Use the default probe definitions so it's less noisy.
+	for i := range irWithLimit1.Probes {
+		irWithLimit1.Probes[i].ProbeDefinition = irWithDefaultLimits.Probes[i].ProbeDefinition
+	}
+	marshaled, err := irprinter.PrintYAML(irWithLimit1)
+	require.NoError(t, err)
 
 	outputFile := path.Join(snapshotDir, prog+"."+cfg.String()+".yaml")
 	if *rewrite {
