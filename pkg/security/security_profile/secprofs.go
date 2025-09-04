@@ -111,7 +111,6 @@ func (m *Manager) LookupEventInProfiles(event *model.Event) {
 	if found {
 		ctx.LastSeenNano = uint64(m.resolvers.TimeResolver.ComputeMonotonicTimestamp(time.Now()))
 	} else {
-		fmt.Printf(" %s %v %v\n", imageTag, tags, m.config.RuntimeSecurity.SecurityProfileMaxImageTags)
 		evictedVersions := profile.PrepareNewVersion(imageTag, tags, m.config.RuntimeSecurity.SecurityProfileMaxImageTags, uint64(m.resolvers.TimeResolver.ComputeMonotonicTimestamp(time.Now())))
 		for _, evictedVersion := range evictedVersions {
 			m.countEvictedVersion(imageTag, evictedVersion)
