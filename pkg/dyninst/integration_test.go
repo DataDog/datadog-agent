@@ -44,7 +44,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symbol"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 )
@@ -373,26 +372,6 @@ func runIntegrationTestSuite(
 			}
 		})
 	}
-}
-
-func probeConfigsWithMaxReferenceDepth(
-	probesCfgs []ir.ProbeDefinition, limit int,
-) []ir.ProbeDefinition {
-	for _, cfg := range probesCfgs {
-		switch cfg := cfg.(type) {
-		case *rcjson.LogProbe:
-			if cfg.Capture == nil {
-				cfg.Capture = new(rcjson.Capture)
-			}
-			cfg.Capture.MaxReferenceDepth = limit
-		case *rcjson.SnapshotProbe:
-			if cfg.Capture == nil {
-				cfg.Capture = new(rcjson.Capture)
-			}
-			cfg.Capture.MaxReferenceDepth = limit
-		}
-	}
-	return probesCfgs
 }
 
 // validateAndSaveOutputs ensures that the outputs for the same probe are consistent
