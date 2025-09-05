@@ -6,9 +6,14 @@
 package config
 
 import (
+	"errors"
+	"fmt"
+	"regexp"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -18,7 +23,7 @@ type USMConfig struct {
 	// ========================================
 	// Global USM Configuration
 	// ========================================
-	
+
 	// ServiceMonitoringEnabled is whether the service monitoring feature is enabled or not
 	ServiceMonitoringEnabled bool
 
@@ -159,8 +164,8 @@ type USMConfig struct {
 func NewUSMConfig(cfg model.Config) *USMConfig {
 	usmConfig := &USMConfig{
 		// Global USM Configuration
-		ServiceMonitoringEnabled: cfg.GetBool(sysconfig.FullKeyPath(smNS, "enabled")),
-		MaxUSMConcurrentRequests: uint32(cfg.GetInt(sysconfig.FullKeyPath(smNS, "max_concurrent_requests"))),
+		ServiceMonitoringEnabled:  cfg.GetBool(sysconfig.FullKeyPath(smNS, "enabled")),
+		MaxUSMConcurrentRequests:  uint32(cfg.GetInt(sysconfig.FullKeyPath(smNS, "max_concurrent_requests"))),
 		EnableUSMQuantization:     cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_quantization")),
 		EnableUSMConnectionRollup: cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_connection_rollup")),
 		EnableUSMRingBuffers:      cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_ring_buffers")),
@@ -177,7 +182,7 @@ func NewUSMConfig(cfg model.Config) *USMConfig {
 		HTTPNotificationThreshold: cfg.GetInt64(sysconfig.FullKeyPath(smNS, "http_notification_threshold")),
 		HTTPMaxRequestFragment:    cfg.GetInt64(sysconfig.FullKeyPath(smNS, "http_max_request_fragment")),
 
-		// HTTP2 Protocol Configuration  
+		// HTTP2 Protocol Configuration
 		EnableHTTP2Monitoring:               cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_http2_monitoring")),
 		HTTP2DynamicTableMapCleanerInterval: time.Duration(cfg.GetInt(sysconfig.FullKeyPath(smNS, "http2_dynamic_table_map_cleaner_interval_seconds"))) * time.Second,
 
@@ -214,4 +219,40 @@ func NewUSMConfig(cfg model.Config) *USMConfig {
 	}
 
 	return usmConfig
+}
+
+// ReplaceRule specifies a replace rule.
+type ReplaceRule struct {
+	// Pattern specifies the regexp pattern to be used when replacing. It must compile.
+	Pattern string `mapstructure:"pattern"`
+
+	// Re holds the compiled Pattern and is only used internally.
+	Re *regexp.Regexp `mapstructure:"-" json:"-"`
+
+	// Repl specifies the replacement string to be used when Pattern matches.
+	Repl string `mapstructure:"repl"`
+}
+
+func parseReplaceRules(cfg model.Config, key string) ([]*ReplaceRule, error) {
+	if !pkgconfigsetup.SystemProbe().IsSet(key) {
+		return nil, nil
+	}
+
+	rules := make([]*ReplaceRule, 0)
+	if err := structure.UnmarshalKey(cfg, key, &rules); err != nil {
+		return nil, fmt.Errorf("rules format should be of the form '[{\"pattern\":\"pattern\",\"repl\":\"replace_str\"}]', error: %w", err)
+	}
+
+	for _, r := range rules {
+		if r.Pattern == "" {
+			return nil, errors.New(`all rules must have a "pattern"`)
+		}
+		re, err := regexp.Compile(r.Pattern)
+		if err != nil {
+			return nil, fmt.Errorf("failed to compile %q: %s", r.Pattern, err)
+		}
+		r.Re = re
+	}
+
+	return rules, nil
 }
