@@ -11,8 +11,6 @@ package clcrunnerapi
 
 import (
 	"crypto/tls"
-	"crypto/x509"
-	"encoding/pem"
 	"fmt"
 	stdLog "log"
 	"net"
@@ -23,7 +21,7 @@ import (
 
 	v1 "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/clcrunnerapi/v1"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
-	"github.com/DataDog/datadog-agent/pkg/api/security"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -33,7 +31,7 @@ import (
 var clcListener net.Listener
 
 // StartCLCRunnerServer creates the router and starts the HTTP server
-func StartCLCRunnerServer(extraHandlers map[string]http.Handler, ac autodiscovery.Component) error {
+func StartCLCRunnerServer(extraHandlers map[string]http.Handler, ac autodiscovery.Component, ipc ipc.Component) error {
 	// create the root HTTP router
 	r := mux.NewRouter()
 
@@ -62,27 +60,7 @@ func StartCLCRunnerServer(extraHandlers map[string]http.Handler, ac autodiscover
 		return err
 	}
 
-	hosts := []string{"127.0.0.1", "localhost", pkgconfigsetup.Datadog().GetString("clc_runner_host")}
-	_, rootCertPEM, rootKey, err := security.GenerateRootCert(hosts, 2048)
-	if err != nil {
-		return fmt.Errorf("unable to start TLS server: %v", err)
-	}
-
-	// PEM encode the private key
-	rootKeyPEM := pem.EncodeToMemory(&pem.Block{
-		Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(rootKey),
-	})
-
-	// Create a TLS cert using the private key and certificate
-	rootTLSCert, err := tls.X509KeyPair(rootCertPEM, rootKeyPEM)
-	if err != nil {
-		return fmt.Errorf("invalid key pair: %v", err)
-	}
-
-	tlsConfig := tls.Config{
-		Certificates: []tls.Certificate{rootTLSCert},
-		MinVersion:   tls.VersionTLS13,
-	}
+	tlsConfig := ipc.GetTLSServerConfig()
 
 	// Use a stack depth of 4 on top of the default one to get a relevant filename in the stdlib
 	logWriter, _ := pkglogsetup.NewLogWriter(4, log.WarnLvl)
@@ -90,11 +68,11 @@ func StartCLCRunnerServer(extraHandlers map[string]http.Handler, ac autodiscover
 	srv := &http.Server{
 		Handler:           r,
 		ErrorLog:          stdLog.New(logWriter, "Error from the clc runner http API server: ", 0), // log errors to seelog,
-		TLSConfig:         &tlsConfig,
+		TLSConfig:         tlsConfig,
 		WriteTimeout:      pkgconfigsetup.Datadog().GetDuration("clc_runner_server_write_timeout") * time.Second,
 		ReadHeaderTimeout: pkgconfigsetup.Datadog().GetDuration("clc_runner_server_readheader_timeout") * time.Second,
 	}
-	tlsListener := tls.NewListener(clcListener, &tlsConfig)
+	tlsListener := tls.NewListener(clcListener, tlsConfig)
 
 	go srv.Serve(tlsListener) //nolint:errcheck
 	return nil

@@ -39,7 +39,7 @@ func getOwnerNameAndKind(pod *corev1.Pod) (string, string, bool) {
 	return ownerName, ownerKind, true
 }
 
-func getLibListFromDeploymentAnnotations(store workloadmeta.Component, deploymentName, ns, registry string) []libInfo {
+func getLibListFromDeploymentAnnotations(store workloadmeta.Component, deploymentName, ns, registry string, imageResolver ImageResolver) []libInfo {
 	// populate libInfoList using the languages found in workloadmeta
 	id := fmt.Sprintf("%s/%s", ns, deploymentName)
 	deployment, err := store.GetKubernetesDeployment(id)
@@ -57,7 +57,7 @@ func getLibListFromDeploymentAnnotations(store workloadmeta.Component, deploymen
 			}
 
 			l := language(lang)
-			libList = append(libList, l.defaultLibInfo(registry, container.Name))
+			libList = append(libList, l.defaultLibInfo(registry, container.Name, imageResolver))
 		}
 	}
 
