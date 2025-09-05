@@ -78,7 +78,7 @@ single-machine-performance-regression_detector:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
   tags: ["arch:amd64", "specific:true"]
   needs:
-    - job: single_machine_performance-full-amd64-a7
+    - job: single_machine_performance-full-amd64-a7-us-west-2
       artifacts: false
     - job: single_machine_performance-regression_detector-merge_base_check
       artifacts: true
