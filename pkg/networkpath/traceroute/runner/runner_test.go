@@ -106,7 +106,6 @@ func TestProcessResults(t *testing.T) {
 				},
 			},
 			expected: payload.NetworkPath{
-				TestConfigID: "test-config-test-hostname-test-destination-hostname-33434-UDP",
 				AgentVersion: version.AgentVersion,
 				Protocol:     payload.ProtocolUDP,
 				Source: payload.NetworkPathSource{
@@ -115,16 +114,15 @@ func TestProcessResults(t *testing.T) {
 					DisplayName: "test-hostname",
 				},
 				Destination: payload.NetworkPathDestination{
-					Hostname:  "test-destination-hostname",
-					IPAddress: "8.8.8.8",
-					Port:      33434,
+					Hostname: "test-destination-hostname",
+					Port:     33434,
 				},
 				Traceroute: payload.Traceroute{
 					Runs: []payload.TracerouteRun{
 						{
 							RunID: "aa-bb-cc",
 							Source: payload.TracerouteSource{
-								IpAddress: net.ParseIP("10.0.0.5"),
+								IPAddress: net.ParseIP("10.0.0.5"),
 								Port:      12345,
 							},
 							Destination: payload.TracerouteDestination{
@@ -133,14 +131,14 @@ func TestProcessResults(t *testing.T) {
 							},
 							Hops: []payload.TracerouteHop{
 								{
-									IpAddress: net.ParseIP("10.0.0.1"),
+									IPAddress: net.ParseIP("10.0.0.1"),
 									RTT:       0.001, // seconds
 								},
 								{
-									IpAddress: net.IP{},
+									IPAddress: net.IP{},
 								},
 								{
-									IpAddress: net.ParseIP("172.0.0.255"),
+									IPAddress: net.ParseIP("172.0.0.255"),
 									RTT:       0.003512345, // seconds
 								},
 							},
@@ -157,29 +155,6 @@ func TestProcessResults(t *testing.T) {
 						Avg: 15,
 						Min: 10,
 						Max: 20,
-					},
-				},
-				Hops: []payload.NetworkPathHop{
-					{
-						TTL:       1,
-						IPAddress: "10.0.0.1",
-						Hostname:  "10.0.0.1",
-						RTT:       0.001,
-						Reachable: true,
-					},
-					{
-						TTL:       2,
-						IPAddress: "unknown_hop_2",
-						Hostname:  "unknown_hop_2",
-						RTT:       0,
-						Reachable: false,
-					},
-					{
-						TTL:       3,
-						IPAddress: "172.0.0.255",
-						Hostname:  "172.0.0.255",
-						RTT:       0.003512345,
-						Reachable: true,
 					},
 				},
 			},
@@ -227,7 +202,6 @@ func TestProcessResults(t *testing.T) {
 				},
 			},
 			expected: payload.NetworkPath{
-				TestConfigID: "test-config-test-hostname-test-destination-hostname-33434-UDP",
 				AgentVersion: version.AgentVersion,
 				Protocol:     payload.ProtocolUDP,
 				Source: payload.NetworkPathSource{
@@ -236,15 +210,14 @@ func TestProcessResults(t *testing.T) {
 					DisplayName: "test-hostname",
 				},
 				Destination: payload.NetworkPathDestination{
-					Hostname:  "test-destination-hostname",
-					IPAddress: "8.8.8.8",
-					Port:      33434,
+					Hostname: "test-destination-hostname",
+					Port:     33434,
 				},
 				Traceroute: payload.Traceroute{
 					Runs: []payload.TracerouteRun{
 						{
 							Source: payload.TracerouteSource{
-								IpAddress: net.ParseIP("10.0.0.5"),
+								IPAddress: net.ParseIP("10.0.0.5"),
 								Port:      12345,
 							},
 							Destination: payload.TracerouteDestination{
@@ -253,41 +226,18 @@ func TestProcessResults(t *testing.T) {
 							},
 							Hops: []payload.TracerouteHop{
 								{
-									IpAddress: net.ParseIP("10.0.0.1"),
+									IPAddress: net.ParseIP("10.0.0.1"),
 									RTT:       0.001, // seconds
 								},
 								{
-									IpAddress: net.IP{},
+									IPAddress: net.IP{},
 								},
 								{
-									IpAddress: net.ParseIP("172.0.0.255"),
+									IPAddress: net.ParseIP("172.0.0.255"),
 									RTT:       0.003512345, // seconds
 								},
 							},
 						},
-					},
-				},
-				Hops: []payload.NetworkPathHop{
-					{
-						TTL:       1,
-						IPAddress: "10.0.0.1",
-						Hostname:  "10.0.0.1",
-						RTT:       0.001,
-						Reachable: true,
-					},
-					{
-						TTL:       2,
-						IPAddress: "unknown_hop_2",
-						Hostname:  "unknown_hop_2",
-						RTT:       0,
-						Reachable: false,
-					},
-					{
-						TTL:       3,
-						IPAddress: "172.0.0.255",
-						Hostname:  "172.0.0.255",
-						RTT:       0.003512345,
-						Reachable: true,
 					},
 				},
 			},
@@ -335,7 +285,6 @@ func TestProcessResults(t *testing.T) {
 				},
 			},
 			expected: payload.NetworkPath{
-				TestConfigID: "test-config-test-hostname-test-destination-hostname-443-TCP",
 				AgentVersion: version.AgentVersion,
 				Protocol:     payload.ProtocolTCP,
 				Source: payload.NetworkPathSource{
@@ -349,15 +298,14 @@ func TestProcessResults(t *testing.T) {
 					},
 				},
 				Destination: payload.NetworkPathDestination{
-					Hostname:  "test-destination-hostname",
-					IPAddress: "8.8.8.8",
-					Port:      443,
+					Hostname: "test-destination-hostname",
+					Port:     443,
 				},
 				Traceroute: payload.Traceroute{
 					Runs: []payload.TracerouteRun{
 						{
 							Source: payload.TracerouteSource{
-								IpAddress: net.ParseIP("10.0.0.5"),
+								IPAddress: net.ParseIP("10.0.0.5"),
 								Port:      12345,
 							},
 							Destination: payload.TracerouteDestination{
@@ -366,41 +314,18 @@ func TestProcessResults(t *testing.T) {
 							},
 							Hops: []payload.TracerouteHop{
 								{
-									IpAddress: net.ParseIP("10.0.0.1"),
+									IPAddress: net.ParseIP("10.0.0.1"),
 									RTT:       0.001, // 1ms
 								},
 								{
-									IpAddress: net.IP{},
+									IPAddress: net.IP{},
 								},
 								{
-									IpAddress: net.ParseIP("172.0.0.255"),
+									IPAddress: net.ParseIP("172.0.0.255"),
 									RTT:       0.04, // 40ms
 								},
 							},
 						},
-					},
-				},
-				Hops: []payload.NetworkPathHop{
-					{
-						TTL:       1,
-						IPAddress: "10.0.0.1",
-						Hostname:  "10.0.0.1",
-						RTT:       0.001,
-						Reachable: true,
-					},
-					{
-						TTL:       2,
-						IPAddress: "unknown_hop_2",
-						Hostname:  "unknown_hop_2",
-						RTT:       0,
-						Reachable: false,
-					},
-					{
-						TTL:       3,
-						IPAddress: "172.0.0.255",
-						Hostname:  "172.0.0.255",
-						RTT:       0.040,
-						Reachable: true,
 					},
 				},
 			},
@@ -453,7 +378,6 @@ func TestProcessResults(t *testing.T) {
 				},
 			},
 			expected: payload.NetworkPath{
-				TestConfigID: "test-config-test-hostname-test-destination-hostname-33434-UDP",
 				AgentVersion: version.AgentVersion,
 				Protocol:     payload.ProtocolUDP,
 				Source: payload.NetworkPathSource{
@@ -467,15 +391,14 @@ func TestProcessResults(t *testing.T) {
 					},
 				},
 				Destination: payload.NetworkPathDestination{
-					Hostname:  "test-destination-hostname",
-					IPAddress: "8.8.8.8",
-					Port:      33434,
+					Hostname: "test-destination-hostname",
+					Port:     33434,
 				},
 				Traceroute: payload.Traceroute{
 					Runs: []payload.TracerouteRun{
 						{
 							Source: payload.TracerouteSource{
-								IpAddress: net.ParseIP("10.0.0.5"),
+								IPAddress: net.ParseIP("10.0.0.5"),
 								Port:      12345,
 							},
 							Destination: payload.TracerouteDestination{
@@ -484,52 +407,22 @@ func TestProcessResults(t *testing.T) {
 							},
 							Hops: []payload.TracerouteHop{
 								{
-									IpAddress: net.ParseIP("10.0.0.1"),
+									IPAddress: net.ParseIP("10.0.0.1"),
 									RTT:       0.001, // 1ms
 								},
 								{
-									IpAddress: net.IP{},
+									IPAddress: net.IP{},
 								},
 								{
-									IpAddress: net.ParseIP("172.0.0.255"),
+									IPAddress: net.ParseIP("172.0.0.255"),
 									RTT:       0.08, // 80ms
 								},
 								{
-									IpAddress: net.ParseIP("8.8.8.8"),
+									IPAddress: net.ParseIP("8.8.8.8"),
 									RTT:       0.120,
 								},
 							},
 						},
-					},
-				},
-				Hops: []payload.NetworkPathHop{
-					{
-						TTL:       1,
-						IPAddress: "10.0.0.1",
-						Hostname:  "10.0.0.1",
-						RTT:       0.001,
-						Reachable: true,
-					},
-					{
-						TTL:       2,
-						IPAddress: "unknown_hop_2",
-						Hostname:  "unknown_hop_2",
-						RTT:       0,
-						Reachable: false,
-					},
-					{
-						TTL:       3,
-						IPAddress: "172.0.0.255",
-						Hostname:  "172.0.0.255",
-						RTT:       0.08,
-						Reachable: true,
-					},
-					{
-						TTL:       4,
-						IPAddress: "8.8.8.8",
-						Hostname:  "8.8.8.8",
-						RTT:       0.12,
-						Reachable: true,
 					},
 				},
 			},
