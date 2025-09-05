@@ -37,6 +37,10 @@ var rootCmd = &cobra.Command{
 		if err != nil {
 			fmt.Printf("parse failure %v, unable to generate output\n", err)
 		}
+		strict, err := cmd.Flags().GetBool("strict")
+		if err != nil {
+			fmt.Printf("parse failure %v, unable to generate output\n", err)
+		}
 		for _, filePath := range args {
 			filename := filepath.Base(filePath)
 			name := filename[:len(filename)-len(filepath.Ext(filename))] // remove extension
@@ -57,13 +61,15 @@ var rootCmd = &cobra.Command{
 }
 
 // GetProfile parses a profile from a file path and validates it.
-func GetProfile(filePath string) (*profiledefinition.ProfileDefinition, []string) {
-	buf, err := os.ReadFile(filePath)
+func GetProfile(filePath string, strict bool) (*profiledefinition.ProfileDefinition, []string) {
+	file, err := os.Open(filePath)
 	if err != nil {
 		return nil, []string{fmt.Sprintf("unable to read file: %v", err)}
 	}
 	def := profiledefinition.NewProfileDefinition()
-	err = yaml.Unmarshal(buf, def)
+	dec := yaml.NewDecoder(file)
+	dec.SetStrict(strict)
+	err = dec.Decode(&def)
 	if err != nil {
 		return nil, []string{fmt.Sprintf("unable to parse profile: %v", err)}
 	}
@@ -122,4 +128,5 @@ func Execute() {
 func init() {
 	rootCmd.Flags().StringP("outdir", "o", "", "Output path for normalized files. If blank, inputs will be validated but not output.")
 	rootCmd.Flags().BoolP("json", "j", false, "Output as JSON")
+	rootCmd.Flags().BoolP("strict", "s", false, "Parse profile with strict parsing, so that e.g. unexpected fields will report an error instead of silently being ignored.")
 }
