@@ -80,7 +80,7 @@ func NewModule(
 	if err != nil {
 		return nil, fmt.Errorf("error creating loader: %w", err)
 	}
-	var objectLoader irgen.ObjectLoader
+	var objectLoader object.Loader
 	if config.DiskCacheEnabled {
 		objectLoader, err = object.NewDiskCache(config.DiskCacheConfig)
 		if err != nil {
@@ -94,7 +94,7 @@ func NewModule(
 	rcScraper := rcscrape.NewScraper(actuator)
 	irGenerator := irgen.NewGenerator(irgen.WithObjectLoader(objectLoader))
 	controller := NewController(
-		actuator, logUploader, diagsUploader, symdbUploaderURL, rcScraper, DefaultDecoderFactory{}, irGenerator,
+		actuator, logUploader, diagsUploader, symdbUploaderURL, objectLoader, rcScraper, DefaultDecoderFactory{}, irGenerator,
 	)
 	procMon := procmon.NewProcessMonitor(&processHandler{
 		scraperHandler: rcScraper.AsProcMonHandler(),
