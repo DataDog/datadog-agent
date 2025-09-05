@@ -75,6 +75,32 @@
     paths:
       - ${OMNIBUS_PACKAGE_DIR}
 
+agent_win_oci:
+  stage: packaging
+  extends: .package_oci
+  needs:
+    - job: "windows_msi_and_bosh_zip_x64-a7"
+      artifacts: true
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  script:
+    - set -euo pipefail
+    - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/" || true
+    - go env -w GOPRIVATE="github.com/DataDog/*" || true
+    - ${CI_PROJECT_DIR}/tools/ci/retry.sh go install github.com/DataDog/datadog-packages/cmd/datadog-package@latest
+    - PIPE_DIR="${CI_PROJECT_DIR}/omnibus/pkg/pipeline-${CI_PIPELINE_ID}"
+    - MSI="$(ls -1 "${PIPE_DIR}"/datadog-agent-*x86_64.msi | head -n1)"
+    - '[ -n "${MSI}" ]'
+    - STAGING="$(mktemp -d)"; cp "${MSI}" "${STAGING}/"
+    - BASE="$(basename "${MSI}")"
+    - VERSION="$(echo "${BASE}" | sed -E 's/^datadog-agent-(.+)-x86_64\.msi$/\1/')"
+    - datadog-package create --version "${VERSION}" --package datadog-agent --os windows --arch amd64 --archive --archive-path "${PIPE_DIR}/datadog-agent-${VERSION}-windows-amd64.oci.tar" "${STAGING}/"
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - omnibus/pkg/pipeline-$CI_PIPELINE_ID
+
 agent_oci:
   extends: .package_oci
   needs:
@@ -85,6 +111,7 @@ agent_oci:
       "go_tools_deps",
       "installer-arm64-oci",
       "installer-amd64-oci",
+      "agent_win_oci"
     ]
   variables:
     OCI_PRODUCT: "datadog-agent"
