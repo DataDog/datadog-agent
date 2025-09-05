@@ -25,6 +25,9 @@ const (
 	// EventTypeNetworkPath is the event type for network devices Network Path data
 	EventTypeNetworkPath = "network-path"
 
+	// EventTypeSynthetics is the event type for Synthetics test results
+	EventTypeSynthetics = "synthetics"
+
 	// EventTypeContainerLifecycle represents a container lifecycle event
 	EventTypeContainerLifecycle = "container-lifecycle"
 	// EventTypeContainerImages represents a container images event
