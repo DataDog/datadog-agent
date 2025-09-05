@@ -102,8 +102,8 @@ installer_oci:
     OCI_PRODUCT: "datadog-installer"
 
 ddot_win_oci:
+  extends: .package_oci
   stage: packaging
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   needs:
     - job: "windows_zip_ddot_x64"
       artifacts: true
