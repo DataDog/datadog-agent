@@ -132,7 +132,7 @@ func (rc *runtimeSettingsClient) doGet(url string, formatError bool) (string, er
 			return "", errors.New(e)
 		}
 		if formatError {
-			return "", fmt.Errorf("Could not reach %s: %v \nMake sure the %s is running before requesting the runtime configuration and contact support if you continue having issues", rc.targetProcessName, err, rc.targetProcessName)
+			return "", fmt.Errorf("Could not reach %s: %w \nMake sure the %s is running before requesting the runtime configuration and contact support if you continue having issues", rc.targetProcessName, err, rc.targetProcessName)
 		}
 		return "", err
 	}
