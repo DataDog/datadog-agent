@@ -107,7 +107,6 @@ ddot_win_oci:
   needs:
     - job: "windows_zip_ddot_x64"
       artifacts: true
-    - "go_tools_deps"
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
