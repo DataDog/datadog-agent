@@ -26,6 +26,11 @@ var ScriptDDContainerInstall []byte
 //go:embed scripts/dd-host-install
 var ScriptDDHostInstall []byte
 
+// ScriptDDInject is the embedded dd-inject script.
+//
+//go:embed scripts/dd-inject
+var ScriptDDInject []byte
+
 //go:embed templates/gen/oci/*.service
 //go:embed templates/gen/debrpm/*.service
 var systemdUnits embed.FS
