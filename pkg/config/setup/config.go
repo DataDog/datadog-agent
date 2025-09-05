@@ -133,7 +133,7 @@ const (
 
 	// DefaultMaxMessageSizeBytes is the default value for max_message_size_bytes
 	// If a log message is larger than this byte limit, the overflow bytes will be truncated.
-	DefaultMaxMessageSizeBytes = 256 * 1000
+	DefaultMaxMessageSizeBytes = 900 * 1000
 
 	// DefaultNetworkPathTimeout defines the default timeout for a network path test
 	DefaultNetworkPathTimeout = 1000
@@ -962,6 +962,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("sbom.container_image.exclude_pause_container", true)
 	config.BindEnvAndSetDefault("sbom.container_image.allow_missing_repodigest", false)
 	config.BindEnvAndSetDefault("sbom.container_image.additional_directories", []string{})
+	config.BindEnvAndSetDefault("sbom.container_image.use_spread_refresher", false)
 
 	// Container file system SBOM configuration
 	config.BindEnvAndSetDefault("sbom.container.enabled", false)

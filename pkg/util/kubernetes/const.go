@@ -96,6 +96,10 @@ const (
 	StorageClassKind = "StorageClass"
 	// VerticalPodAutoscalerKind represents the VerticalPodAutoscaler object kind
 	VerticalPodAutoscalerKind = "VerticalPodAutoscaler"
+	// RolloutAPIVersion represents the Argo Rollout API version
+	RolloutAPIVersion = "argoproj.io/v1alpha1"
+	// RolloutKind represents the Argo Rollout object kind
+	RolloutKind = "Rollout"
 
 	// CriContainerNamespaceLabel is the label set on containers by runtimes with Pod Namespace
 	CriContainerNamespaceLabel = "io.kubernetes.pod.namespace"

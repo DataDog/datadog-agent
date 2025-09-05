@@ -1115,13 +1115,13 @@ api_key:
   #
   # file_wildcard_selection_mode: by_name
 
-  ## @param max_message_size_bytes - integer - optional - default: 256000
-  ## @env DD_LOGS_CONFIG_MAX_MESSAGE_SIZE_BYTES - integer - optional - default : 256000
+  ## @param max_message_size_bytes - integer - optional - default: 900000
+  ## @env DD_LOGS_CONFIG_MAX_MESSAGE_SIZE_BYTES - integer - optional - default : 900000
   ## The maximum size of single log message in bytes. If maxMessageSizeBytes exceeds
   ## the documented API limit of 1MB - any payloads larger than 1MB will be dropped by the intake.
   # https://docs.datadoghq.com/api/latest/logs/
   #
-  # max_message_size_bytes: 256000
+  # max_message_size_bytes: 900000
 
   ## @param integrations_logs_files_max_size - integer - optional - default: 10
   ## @env DD_LOGS_CONFIG_INTEGRATIONS_LOGS_FILES_MAX_SIZE - integer - optional - default: 10
@@ -4185,7 +4185,7 @@ api_key:
       #   oid_batch_size: 5
 
       ## @param interface_configs - map - optional
-      ## This option is used to override interface inbound/outbound speed and add interface tags
+      ## This option is used to override interface inbound/outbound speed, add interface tags, or disable monitoring for specific interfaces
       ## Example:
       ## interface_configs:
       ##   "10.0.0.1":              # target device IP address
@@ -4196,6 +4196,7 @@ api_key:
       ##       tags:                # (optional) interface level tags
       ##         - "testTagKey:testTagValue"
       ##         - "tagKey2:tagValue2"
+      ##       disabled: true         # (optional) disables monitoring for matched interfaces, default value is false
       #
       #   interface_config:
       #     "10.0.0.1":
@@ -4218,6 +4219,10 @@ api_key:
       #         tags:
       #           - "monitored:true"
       #           - "customKey:customValue"
+      #     "10.0.0.4":
+      #       - match_field: index
+      #         match_value: '2'
+      #         disabled: true
 
       ## @param ping - custom object - optional
       ## Configure ICMP pings for all hosts in SNMP autodiscovery
