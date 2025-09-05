@@ -36,6 +36,7 @@ import (
 	ssistatusfx "github.com/DataDog/datadog-agent/comp/updater/ssistatus/fx"
 
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
+	privateactionrunnerfx "github.com/DataDog/datadog-agent/comp/privateactionrunner/fx"
 	snmpscanfx "github.com/DataDog/datadog-agent/comp/snmpscan/fx"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
@@ -543,6 +544,7 @@ func getSharedFxOption() fx.Option {
 		connectivitycheckerfx.Module(),
 		// Health Platform - monitors and reports agent health issues
 		healthplatformfx.Module(),
+		privateactionrunnerfx.Module(),
 		configstreamfx.Module(),
 	)
 }
