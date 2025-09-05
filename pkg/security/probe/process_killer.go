@@ -443,17 +443,36 @@ func (p *ProcessKiller) KillProcesses(killDirectly bool, ruleID string, sig int,
 	if !p.cfg.RuntimeSecurity.EnforcementEnabled {
 		return false
 	}
-
+	var failedToKillPids []uint32
 	var processesKilled int64
 	for _, pc := range kcs {
 		log.Debugf("requesting signal %d to be sent to %d", sig, pc.pid)
 
 		if err := p.os.Kill(uint32(sig), &pc); err != nil {
-			seclog.Debugf("failed to kill process %d: %s", pc.pid, err)
+			seclog.Debugf("failed to kill process %d: %s. Deleting this process from the killQueue...", pc.pid, err)
+			failedToKillPids = append(failedToKillPids, uint32(pc.pid))
+
 		} else {
 			processesKilled++
 		}
 	}
+
+	// Now we need to update the status of the processes that failed to be killed
+	for _, pid := range failedToKillPids {
+		// First we remove them from the killQueue
+		kcs = slices.DeleteFunc(kcs, func(kc killContext) bool {
+			return kc.pid == int(pid)
+		})
+	}
+	// Then we update the status to KillActionStatusError
+	p.Lock()
+	for _, report := range p.pendingReports {
+		// if pid in failedToKillPids, update the status to KillActionStatusError
+		if slices.Contains(failedToKillPids, report.Pid) {
+			report.Status = KillActionStatusError
+		}
+	}
+	p.Unlock()
 
 	p.perRuleStatsLock.Lock()
 	stats := p.getRuleStats(ruleID)
