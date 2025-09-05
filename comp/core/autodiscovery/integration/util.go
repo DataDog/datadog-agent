@@ -29,8 +29,8 @@ func ConfigSourceToMetadataMap(source string, instance map[string]interface{}) {
 	}
 }
 
-// ScrubClusterCheckConfig scrubs all secrets in the config.
-func ScrubClusterCheckConfig(config Config, logs logComp.Component) Config {
+// ScrubCheckConfig scrubs all secrets in the config.
+func ScrubCheckConfig(config Config, logs logComp.Component) Config {
 	scrubbedConfig := config
 	scrubbedInstances := make([]Data, len(config.Instances))
 	for instanceIndex, inst := range config.Instances {

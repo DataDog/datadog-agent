@@ -277,7 +277,7 @@ func (ac *AutoConfig) buildConfigCheckResponse(scrub bool) integration.ConfigChe
 		}
 
 		if scrub {
-			config = integration.ScrubClusterCheckConfig(config, ac.logs)
+			config = integration.ScrubCheckConfig(config, ac.logs)
 		}
 
 		configResponses[i] = integration.ConfigResponse{
@@ -294,7 +294,7 @@ func (ac *AutoConfig) buildConfigCheckResponse(scrub bool) integration.ConfigChe
 		unresolved := ac.getUnresolvedConfigs()
 		scrubbedUnresolved := make(map[string]integration.Config, len(unresolved))
 		for id, config := range unresolved {
-			scrubbedUnresolved[id] = integration.ScrubClusterCheckConfig(config, ac.logs)
+			scrubbedUnresolved[id] = integration.ScrubCheckConfig(config, ac.logs)
 		}
 		response.Unresolved = scrubbedUnresolved
 	} else {
