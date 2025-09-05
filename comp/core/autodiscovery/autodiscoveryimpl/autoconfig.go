@@ -278,7 +278,7 @@ func (ac *AutoConfig) buildConfigCheckResponse(scrub bool) integration.ConfigChe
 		}
 
 		if scrub {
-			config = ac.scrubConfig(config)
+			config = integration.ScrubClusterCheckConfig(config, ac.logs)
 		}
 
 		configResponses[i] = integration.ConfigResponse{
@@ -295,7 +295,7 @@ func (ac *AutoConfig) buildConfigCheckResponse(scrub bool) integration.ConfigChe
 		unresolved := ac.getUnresolvedConfigs()
 		scrubbedUnresolved := make(map[string]integration.Config, len(unresolved))
 		for id, config := range unresolved {
-			scrubbedUnresolved[id] = ac.scrubConfig(config)
+			scrubbedUnresolved[id] = integration.ScrubClusterCheckConfig(config, ac.logs)
 		}
 		response.Unresolved = scrubbedUnresolved
 	} else {
@@ -303,56 +303,6 @@ func (ac *AutoConfig) buildConfigCheckResponse(scrub bool) integration.ConfigChe
 	}
 
 	return response
-}
-
-func (ac *AutoConfig) scrubConfig(config integration.Config) integration.Config {
-	scrubbedConfig := config
-	scrubbedInstances := make([]integration.Data, len(config.Instances))
-	for instanceIndex, inst := range config.Instances {
-		scrubbedData, err := scrubData(inst)
-		if err != nil {
-			ac.logs.Warnf("error scrubbing secrets from config: %s", err)
-			continue
-		}
-		scrubbedInstances[instanceIndex] = scrubbedData
-	}
-	scrubbedConfig.Instances = scrubbedInstances
-
-	if len(config.InitConfig) > 0 {
-		scrubbedData, err := scrubData(config.InitConfig)
-		if err != nil {
-			ac.logs.Warnf("error scrubbing secrets from init config: %s", err)
-			scrubbedConfig.InitConfig = []byte{}
-		} else {
-			scrubbedConfig.InitConfig = scrubbedData
-		}
-	}
-
-	if len(config.MetricConfig) > 0 {
-		scrubbedData, err := scrubData(config.MetricConfig)
-		if err != nil {
-			ac.logs.Warnf("error scrubbing secrets from metric config: %s", err)
-			scrubbedConfig.MetricConfig = []byte{}
-		} else {
-			scrubbedConfig.MetricConfig = scrubbedData
-		}
-	}
-
-	if len(config.LogsConfig) > 0 {
-		scrubbedData, err := scrubData(config.LogsConfig)
-		if err != nil {
-			ac.logs.Warnf("error scrubbing secrets from logs config: %s", err)
-			scrubbedConfig.LogsConfig = []byte{}
-		} else {
-			scrubbedConfig.LogsConfig = scrubbedData
-		}
-	}
-
-	return scrubbedConfig
-}
-
-func scrubData(data []byte) ([]byte, error) {
-	return scrubber.ScrubYaml(data)
 }
 
 // fillFlare add the config-checks log to flares.
