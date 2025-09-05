@@ -182,7 +182,7 @@ type TracerouteRun struct {
 // hop in a traceroute
 type TracerouteHop struct {
 	TTL        int     `json:"ttl"`
-	IPAddress  net.IP  `json:"ip_address"`
+	IpAddress  net.IP  `json:"ip_address"`
 	ReverseDns string  `json:"reverse_dns,omitempty"`
 	RTT        float64 `json:"rtt,omitempty"`
 	Reachable  bool    `json:"reachable"`
@@ -190,7 +190,7 @@ type TracerouteHop struct {
 
 // TracerouteSource contains result source info
 type TracerouteSource struct {
-	IPAddress net.IP `json:"ip_address"`
+	IpAddress net.IP `json:"ip_address"`
 	Port      uint16 `json:"port"`
 }
 

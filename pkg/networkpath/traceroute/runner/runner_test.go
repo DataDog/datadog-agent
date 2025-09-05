@@ -124,7 +124,7 @@ func TestProcessResults(t *testing.T) {
 						{
 							RunID: "aa-bb-cc",
 							Source: payload.TracerouteSource{
-								IPAddress: net.ParseIP("10.0.0.5"),
+								IpAddress: net.ParseIP("10.0.0.5"),
 								Port:      12345,
 							},
 							Destination: payload.TracerouteDestination{
@@ -133,14 +133,14 @@ func TestProcessResults(t *testing.T) {
 							},
 							Hops: []payload.TracerouteHop{
 								{
-									IPAddress: net.ParseIP("10.0.0.1"),
+									IpAddress: net.ParseIP("10.0.0.1"),
 									RTT:       0.001, // seconds
 								},
 								{
-									IPAddress: net.IP{},
+									IpAddress: net.IP{},
 								},
 								{
-									IPAddress: net.ParseIP("172.0.0.255"),
+									IpAddress: net.ParseIP("172.0.0.255"),
 									RTT:       0.003512345, // seconds
 								},
 							},
@@ -244,7 +244,7 @@ func TestProcessResults(t *testing.T) {
 					Runs: []payload.TracerouteRun{
 						{
 							Source: payload.TracerouteSource{
-								IPAddress: net.ParseIP("10.0.0.5"),
+								IpAddress: net.ParseIP("10.0.0.5"),
 								Port:      12345,
 							},
 							Destination: payload.TracerouteDestination{
@@ -253,14 +253,14 @@ func TestProcessResults(t *testing.T) {
 							},
 							Hops: []payload.TracerouteHop{
 								{
-									IPAddress: net.ParseIP("10.0.0.1"),
+									IpAddress: net.ParseIP("10.0.0.1"),
 									RTT:       0.001, // seconds
 								},
 								{
-									IPAddress: net.IP{},
+									IpAddress: net.IP{},
 								},
 								{
-									IPAddress: net.ParseIP("172.0.0.255"),
+									IpAddress: net.ParseIP("172.0.0.255"),
 									RTT:       0.003512345, // seconds
 								},
 							},
@@ -357,7 +357,7 @@ func TestProcessResults(t *testing.T) {
 					Runs: []payload.TracerouteRun{
 						{
 							Source: payload.TracerouteSource{
-								IPAddress: net.ParseIP("10.0.0.5"),
+								IpAddress: net.ParseIP("10.0.0.5"),
 								Port:      12345,
 							},
 							Destination: payload.TracerouteDestination{
@@ -366,14 +366,14 @@ func TestProcessResults(t *testing.T) {
 							},
 							Hops: []payload.TracerouteHop{
 								{
-									IPAddress: net.ParseIP("10.0.0.1"),
+									IpAddress: net.ParseIP("10.0.0.1"),
 									RTT:       0.001, // 1ms
 								},
 								{
-									IPAddress: net.IP{},
+									IpAddress: net.IP{},
 								},
 								{
-									IPAddress: net.ParseIP("172.0.0.255"),
+									IpAddress: net.ParseIP("172.0.0.255"),
 									RTT:       0.04, // 40ms
 								},
 							},
@@ -475,7 +475,7 @@ func TestProcessResults(t *testing.T) {
 					Runs: []payload.TracerouteRun{
 						{
 							Source: payload.TracerouteSource{
-								IPAddress: net.ParseIP("10.0.0.5"),
+								IpAddress: net.ParseIP("10.0.0.5"),
 								Port:      12345,
 							},
 							Destination: payload.TracerouteDestination{
@@ -484,18 +484,18 @@ func TestProcessResults(t *testing.T) {
 							},
 							Hops: []payload.TracerouteHop{
 								{
-									IPAddress: net.ParseIP("10.0.0.1"),
+									IpAddress: net.ParseIP("10.0.0.1"),
 									RTT:       0.001, // 1ms
 								},
 								{
-									IPAddress: net.IP{},
+									IpAddress: net.IP{},
 								},
 								{
-									IPAddress: net.ParseIP("172.0.0.255"),
+									IpAddress: net.ParseIP("172.0.0.255"),
 									RTT:       0.08, // 80ms
 								},
 								{
-									IPAddress: net.ParseIP("8.8.8.8"),
+									IpAddress: net.ParseIP("8.8.8.8"),
 									RTT:       0.120,
 								},
 							},
