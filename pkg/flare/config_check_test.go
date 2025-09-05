@@ -212,6 +212,78 @@ func TestContainerExclusionRulesInfo(t *testing.T) {
 	}
 }
 
+func TestPrintClusterCheckConfig_SecretScrubbing(t *testing.T) {
+	testCases := []struct {
+		name             string
+		config           integration.Config
+		checkName        string
+		shouldNotContain []string // strings that should NOT be present in output
+	}{
+		{
+			name: "JSON format with various secret field names",
+			config: integration.Config{
+				Name: "complex",
+				Instances: []integration.Data{
+					integration.Data(`{"password": "instancepass", "username": "user1"}`),
+					integration.Data(`{"token": "instancetoken", "host": "host2"}`),
+				},
+				InitConfig:   integration.Data(`{"secret": "initsecret", "timeout": 30}`),
+				MetricConfig: integration.Data(`{"authKey": "metricauth", "interval": 60}`),
+				LogsConfig:   integration.Data(`{"privKey": "logpriv", "source": "app"}`),
+				ClusterCheck: true,
+			},
+			shouldNotContain: []string{
+				"instancepass", "instancetoken", "initsecret", "metricauth", "logpriv",
+			},
+		},
+		{
+			name: "YAML with various secret field names",
+			config: integration.Config{
+				Name: "multi-secret",
+				Instances: []integration.Data{
+					integration.Data(`
+database:
+  host: db.example.com
+  username: dbuser
+  password: dbpass123
+  auth_token: token789
+api:
+  endpoint: https://api.example.com
+  api_key: abcdef1234567890abcdef1234567890
+  secret: apisecret
+snmp:
+  community_string: snmpcommunity
+  authKey: snmpauth
+  privKey: snmppriv
+`),
+				},
+				ClusterCheck: true,
+			},
+			shouldNotContain: []string{
+				"dbpass123",
+				"token789",
+				"apisecret",
+				"snmpcommunity",
+				"snmpauth",
+				"snmppriv",
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var buf bytes.Buffer
+
+			PrintClusterCheckConfig(&buf, tc.config, tc.checkName)
+			output := buf.String()
+
+			for _, secret := range tc.shouldNotContain {
+				assert.NotContains(t, output, secret, "Expected output to NOT contain secret: %s", secret)
+			}
+		})
+	}
+}
+
 func newConfig(configType configType, excluded bool) (integration.Config, []string) {
 	var config integration.Config
 	var instancesIDs []string
