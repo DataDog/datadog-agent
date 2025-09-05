@@ -213,7 +213,13 @@ func TestFilterOpenLeafDiscarderActivityDump(t *testing.T) {
 		Expression: `open.filename =~ "/tmp/no-approver-*"`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(testOpts{enableActivityDump: true}))
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(testOpts{
+		enableActivityDump:             true,
+		activityDumpRateLimiter:        testActivityDumpRateLimiter,
+		activityDumpTracedCgroupsCount: testActivityDumpTracedCgroupsCount,
+		activityDumpDuration:           testActivityDumpDuration,
+		activityDumpCleanupPeriod:      testActivityDumpCleanupPeriod,
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -229,6 +235,7 @@ func TestFilterOpenLeafDiscarderActivityDump(t *testing.T) {
 	}
 	defer dockerInstance.stop()
 
+	time.Sleep(time.Second * 1) // to ensure we did not get ratelimited
 	cmd := dockerInstance.Command("mkdir", []string{"/tmp/test"}, []string{})
 	if _, err := cmd.CombinedOutput(); err != nil {
 		t.Fatal(err)
