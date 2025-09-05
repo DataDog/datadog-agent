@@ -15,7 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgapiutil "github.com/DataDog/datadog-agent/pkg/api/util"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
+	clusterchecks "github.com/DataDog/datadog-agent/comp/core/clusterchecks/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -36,8 +36,8 @@ var globalCLCRunnerClient *CLCRunnerClient
 // CLCRunnerClientInterface is required to query the API of Datadog Cluster Level Check Runner
 type CLCRunnerClientInterface interface {
 	GetVersion(IP string) (version.Version, error)
-	GetRunnerStats(IP string) (types.CLCRunnersStats, error)
-	GetRunnerWorkers(IP string) (types.Workers, error)
+	GetRunnerStats(IP string) (clusterchecks.CLCRunnersStats, error)
+	GetRunnerWorkers(IP string) (clusterchecks.Workers, error)
 }
 
 // CLCRunnerClient is required to query the API of Datadog Cluster Level Check Runner
@@ -121,8 +121,8 @@ func (c *CLCRunnerClient) GetVersion(IP string) (version.Version, error) {
 }
 
 // GetRunnerStats fetches the runner stats exposed by the Cluster Level Check Runner
-func (c *CLCRunnerClient) GetRunnerStats(IP string) (types.CLCRunnersStats, error) {
-	var stats types.CLCRunnersStats
+func (c *CLCRunnerClient) GetRunnerStats(IP string) (clusterchecks.CLCRunnersStats, error) {
+	var stats clusterchecks.CLCRunnersStats
 	var err error
 
 	rawURL := fmt.Sprintf("https://%s:%d/%s/%s", IP, c.clcRunnerPort, clcRunnerPath, clcRunnerStatsPath)
@@ -157,8 +157,8 @@ func (c *CLCRunnerClient) GetRunnerStats(IP string) (types.CLCRunnersStats, erro
 }
 
 // GetRunnerWorkers fetches the runner workers information exposed by the Cluster Level Check Runner
-func (c *CLCRunnerClient) GetRunnerWorkers(IP string) (types.Workers, error) {
-	var workers types.Workers
+func (c *CLCRunnerClient) GetRunnerWorkers(IP string) (clusterchecks.Workers, error) {
+	var workers clusterchecks.Workers
 
 	rawURL := fmt.Sprintf("https://%s:%d/%s/%s", IP, c.clcRunnerPort, clcRunnerPath, clcRunnerWorkersPath)
 

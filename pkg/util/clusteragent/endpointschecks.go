@@ -8,7 +8,7 @@ package clusteragent
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
+	clusterchecks "github.com/DataDog/datadog-agent/comp/core/clusterchecks/def"
 )
 
 const (
@@ -17,8 +17,8 @@ const (
 )
 
 // GetEndpointsCheckConfigs is called by the endpointscheck config provider
-func (c *DCAClient) GetEndpointsCheckConfigs(ctx context.Context, nodeName string) (types.ConfigResponse, error) {
-	var configs types.ConfigResponse
+func (c *DCAClient) GetEndpointsCheckConfigs(ctx context.Context, nodeName string) (clusterchecks.ConfigResponse, error) {
+	var configs clusterchecks.ConfigResponse
 
 	// https://host:port/api/v1/endpointschecks/configs/{nodeName}
 	err := c.doJSONQueryToLeader(ctx, dcaEndpointsChecksConfigsPath+"/"+nodeName, "GET", nil, &configs)
