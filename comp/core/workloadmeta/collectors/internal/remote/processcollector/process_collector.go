@@ -151,7 +151,7 @@ func (s *streamHandler) IsEnabled() bool {
 		return false
 	}
 
-	return s.Reader.GetBool("language_detection.enabled") && !util.ProcessLanguageCollectorIsEnabled() && !pkgconfigsetup.Datadog().GetBool("process_config.process_collection.use_wlm")
+	return s.Reader.GetBool("language_detection.enabled") && !util.ProcessLanguageCollectorIsEnabled()
 }
 
 func (s *streamHandler) NewClient(cc grpc.ClientConnInterface) remote.GrpcClient {
