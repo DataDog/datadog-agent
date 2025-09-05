@@ -40,12 +40,12 @@ var loclistErrorLogLimiter = rate.NewLimiter(rate.Every(1*time.Minute), 1)
 // ExtractOptions.IncludeInlinedFunctions=false (i.e. if we're ignoring inlined
 // functions), since inlined functions can appear in different compile units
 // than their package.
-func PackagesIterator(binaryPath string, opt ExtractOptions) (iter.Seq2[Package, error], error) {
+func PackagesIterator(binaryPath string, loader object.Loader, opt ExtractOptions) (iter.Seq2[Package, error], error) {
 	if opt.IncludeInlinedFunctions {
 		return nil, fmt.Errorf("cannot overate over packages when IncludeInlinedFunctions is set")
 	}
 
-	bin, err := openBinary(binaryPath, opt)
+	bin, err := openBinary(binaryPath, loader, opt)
 	if err != nil {
 		return nil, err
 	}
@@ -56,8 +56,8 @@ func PackagesIterator(binaryPath string, opt ExtractOptions) (iter.Seq2[Package,
 
 // ExtractSymbols walks the DWARF data and accumulates the symbols to send to
 // SymDB.
-func ExtractSymbols(binaryPath string, opt ExtractOptions) (Symbols, error) {
-	bin, err := openBinary(binaryPath, opt)
+func ExtractSymbols(binaryPath string, loader object.Loader, opt ExtractOptions) (Symbols, error) {
+	bin, err := openBinary(binaryPath, loader, opt)
 	if err != nil {
 		return Symbols{}, err
 	}
@@ -680,7 +680,7 @@ func newPackagesIterator(bin binaryInfo, opt ExtractOptions) *packagesIterator {
 		dwarfData:           bin.obj.DwarfData(),
 		sym:                 bin.symTable,
 		loclistReader:       bin.obj.LoclistReader(),
-		pointerSize:         int(bin.obj.PointerSize()),
+		pointerSize:         int(bin.obj.Architecture().PointerSize()),
 		options:             opt,
 		mainModule:          bin.mainModule,
 		firstPartyPkgPrefix: bin.firstPartyPkgPrefix,
@@ -700,7 +700,7 @@ func newPackagesIterator(bin binaryInfo, opt ExtractOptions) *packagesIterator {
 }
 
 type binaryInfo struct {
-	obj                 *object.ElfFileWithDwarf
+	obj                 object.FileWithDwarf
 	mainModule          string
 	goDebugSections     *object.GoDebugSections
 	symTable            *gosym.GoSymbolTable
@@ -708,8 +708,8 @@ type binaryInfo struct {
 	filesFilter         []string
 }
 
-func openBinary(binaryPath string, opt ExtractOptions) (binaryInfo, error) {
-	obj, err := object.OpenElfFileWithDwarf(binaryPath)
+func openBinary(binaryPath string, loader object.Loader, opt ExtractOptions) (binaryInfo, error) {
+	obj, err := loader.Load(binaryPath)
 	if err != nil {
 		return binaryInfo{}, fmt.Errorf("failed to open file: %w", err)
 	}
@@ -721,32 +721,7 @@ func openBinary(binaryPath string, opt ExtractOptions) (binaryInfo, error) {
 	}
 	mainModule := binfo.Main.Path
 
-	moduledata, err := object.ParseModuleData(obj)
-	if err != nil {
-		return binaryInfo{}, err
-	}
-	goVersion, err := object.ReadGoVersion(obj)
-	if err != nil {
-		return binaryInfo{}, err
-	}
-
-	goDebugSections, err := moduledata.GoDebugSections(obj)
-	if err != nil {
-		return binaryInfo{}, err
-	}
-
-	// goDebugSections cannot be Close()'ed while symTable is in use. Ownership of
-	// goDebugSections is transferred to the SymDBBuilder.
-
-	symTable, err := gosym.ParseGoSymbolTable(
-		goDebugSections.PcLnTab.Data(),
-		goDebugSections.GoFunc.Data(),
-		moduledata.Text,
-		moduledata.EText,
-		moduledata.MinPC,
-		moduledata.MaxPC,
-		goVersion,
-	)
+	symTable, err := object.ParseGoSymbolTable(obj)
 	if err != nil {
 		return binaryInfo{}, err
 	}
@@ -776,8 +751,8 @@ func openBinary(binaryPath string, opt ExtractOptions) (binaryInfo, error) {
 	return binaryInfo{
 		obj:                 obj,
 		mainModule:          mainModule,
-		goDebugSections:     goDebugSections,
-		symTable:            symTable,
+		goDebugSections:     &symTable.GoDebugSections,
+		symTable:            &symTable.GoSymbolTable,
 		firstPartyPkgPrefix: firstPartyPkgPrefix,
 		filesFilter:         filesFilter,
 	}, nil

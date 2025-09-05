@@ -21,7 +21,7 @@ from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.datadog_api import create_gauge, send_event, send_metrics
 from tasks.libs.owners.linter import codeowner_has_orphans, directory_has_packages_without_owner
 from tasks.libs.owners.parsing import read_owners
-from tasks.libs.pipeline.notifications import GITHUB_SLACK_MAP
+from tasks.libs.pipeline.notifications import DEFAULT_SLACK_CHANNEL, GITHUB_SLACK_MAP
 from tasks.libs.releasing.version import current_version
 from tasks.libs.types.types import PermissionCheck
 
@@ -601,7 +601,9 @@ query {
 
 
 @task
-def check_permissions(_, name: str, check: PermissionCheck = PermissionCheck.REPO, channel: str = "agent-devx-ops"):
+def check_permissions(
+    _, name: str, check: PermissionCheck = PermissionCheck.REPO, channel: str = DEFAULT_SLACK_CHANNEL
+):
     """
     Check the permissions on a given repository or team.
       - list contributing teams on the repository or subteams
