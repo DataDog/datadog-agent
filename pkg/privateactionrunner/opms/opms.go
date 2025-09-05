@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package opms
 
 import (
@@ -76,9 +81,27 @@ type EnrollmentRequest struct {
 	PublicKey      string `json:"publicKey"`
 }
 
-// SelfEnrollmentRequest represents the self-enrollment request payload
+// SelfEnrollmentRequestAttributes represents the attributes section of the self-enrollment request
+type SelfEnrollmentRequestAttributes struct {
+	PublicKey string       `json:"publicKey,omitempty"`
+	Ec2       *Ec2Identity `json:"ec2,omitempty"`
+}
+
+// SelfEnrollmentRequestData represents the data section of the self-enrollment request
+type SelfEnrollmentRequestData struct {
+	Type       string                           `json:"type,omitempty"`
+	Attributes *SelfEnrollmentRequestAttributes `json:"attributes,omitempty"`
+}
+
+// SelfEnrollmentRequest represents the full JSON API self-enrollment request
 type SelfEnrollmentRequest struct {
-	PublicKey string `json:"publicKey"`
+	Data *SelfEnrollmentRequestData `json:"data,omitempty"`
+}
+
+// Ec2Identity represents the EC2 identity structure for self-enrollment
+type Ec2Identity struct {
+	Region         string `json:"region"`
+	Authentication string `json:"authentication"`
 }
 
 // EnrollmentResponseData represents the data section of the JSONAPI response
@@ -469,16 +492,22 @@ func (c *EnrollmentClient) SendEnrollmentJWT(ctx context.Context, jwtBody string
 }
 
 // SendSelfEnrollmentRequest sends a self-enrollment request using API key authentication
-func (c *EnrollmentClient) SendSelfEnrollmentRequest(ctx context.Context, apiKey, appKey, publicKeyJSON string) (*EnrollmentResponse, error) {
+func (c *EnrollmentClient) SendSelfEnrollmentRequest(ctx context.Context, apiKey, appKey, publicKeyJSON string, ec2Identity *Ec2Identity) (*EnrollmentResponse, error) {
 	u := &url.URL{
 		Scheme: "https",
 		Host:   c.host,
 		Path:   selfEnrollmentPath,
 	}
 
-	// Create self-enrollment request payload
+	// Create self-enrollment request payload in JSON API format
 	requestPayload := SelfEnrollmentRequest{
-		PublicKey: publicKeyJSON,
+		Data: &SelfEnrollmentRequestData{
+			Type: "SelfEnrollRequest",
+			Attributes: &SelfEnrollmentRequestAttributes{
+				PublicKey: publicKeyJSON,
+				Ec2:       ec2Identity,
+			},
+		},
 	}
 
 	// Marshal request to JSON

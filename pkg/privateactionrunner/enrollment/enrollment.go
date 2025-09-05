@@ -14,11 +14,14 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
+	"net/url"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/go-jose/go-jose/v4"
 	"github.com/go-jose/go-jose/v4/jwt"
 	"gopkg.in/yaml.v3"
@@ -58,9 +61,9 @@ func ProvisionRunnerIdentityWithToken(enrollmentToken, datadogSite, _ string) er
 }
 
 // ProvisionRunnerIdentityWithAPIKey performs self-enrollment using API key authentication
-func ProvisionRunnerIdentityWithAPIKey(apiKey, appKey, datadogSite string) error {
+func ProvisionRunnerIdentityWithAPIKey(apiKey, appKey, datadogSite string, selfAuth bool) error {
 	fmt.Println("Starting runner self-enrollment...")
-	return runSelfEnrollmentToConfig(apiKey, appKey, datadogSite)
+	return runSelfEnrollmentToConfig(apiKey, appKey, datadogSite, selfAuth)
 }
 
 // generateKeys creates a new ECDSA P-256 key pair
@@ -168,8 +171,49 @@ func runEnrollmentToConfig(enrollmentToken, datadogSite string) error {
 	return nil
 }
 
+func getEc2Identity() (*opms.Ec2Identity, error) {
+	ctx := context.Background()
+	awsConfig, err := config.LoadDefaultConfig(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("unable to load AWS SDK config: %w", err)
+	}
+
+	if awsConfig.Region == "" {
+		log.Warn("AWS region not found in config, defaulting to us-east-1")
+		awsConfig.Region = "us-east-1"
+	}
+
+	stsClient := sts.NewFromConfig(awsConfig)
+	presigner := sts.NewPresignClient(stsClient)
+	identity, err := presigner.PresignGetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to presign GetCallerIdentity: %w", err)
+	}
+
+	parsedURL, err := url.Parse(identity.URL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse caller identity URL: %w", err)
+	}
+
+	return &opms.Ec2Identity{
+		Region:         awsConfig.Region,
+		Authentication: parsedURL.RawQuery,
+	}, nil
+}
+
 // runSelfEnrollmentToConfig performs self-enrollment with API key and outputs configuration to stdout
-func runSelfEnrollmentToConfig(apiKey, appKey, datadogSite string) error {
+func runSelfEnrollmentToConfig(apiKey, appKey, datadogSite string, selfAuth bool) error {
+	// Get EC2 identity with region and PKCS7
+	var ec2Identity *opms.Ec2Identity
+
+	if selfAuth {
+		var err error
+		ec2Identity, err = getEc2Identity()
+		if err != nil {
+			return fmt.Errorf("failed to get EC2 identity: %w", err)
+		}
+	}
+
 	// Generate ECDSA key pair
 	privateKey, err := generateKeys()
 	if err != nil {
@@ -197,7 +241,7 @@ func runSelfEnrollmentToConfig(apiKey, appKey, datadogSite string) error {
 	// Send self-enrollment request using OPMS client with API key
 	ddHost := strings.Join([]string{"api", datadogSite}, ".")
 	enrollmentClient := opms.NewEnrollmentClient(ddHost)
-	response, err := enrollmentClient.SendSelfEnrollmentRequest(context.Background(), apiKey, appKey, string(publicKeyJSON))
+	response, err := enrollmentClient.SendSelfEnrollmentRequest(context.Background(), apiKey, appKey, string(publicKeyJSON), ec2Identity)
 	if err != nil {
 		return fmt.Errorf("self-enrollment request failed: %w", err)
 	}
