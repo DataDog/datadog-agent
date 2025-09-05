@@ -23,7 +23,7 @@
           {
             "function": "main.executeInterfaceFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
-            "lineNumber": 102
+            "lineNumber": 107
           },
           {
             "function": "main.main",
@@ -85,7 +85,7 @@
           {
             "function": "main.executeInterfaceFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
-            "lineNumber": 103
+            "lineNumber": 108
           },
           {
             "function": "main.main",
@@ -152,7 +152,7 @@
           {
             "function": "main.executeInterfaceFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
-            "lineNumber": 104
+            "lineNumber": 109
           },
           {
             "function": "main.main",
@@ -220,7 +220,7 @@
           {
             "function": "main.executeInterfaceFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
-            "lineNumber": 105
+            "lineNumber": 110
           },
           {
             "function": "main.main",
@@ -288,7 +288,7 @@
           {
             "function": "main.executeInterfaceFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
-            "lineNumber": 106
+            "lineNumber": 111
           },
           {
             "function": "main.main",
@@ -362,7 +362,7 @@
           {
             "function": "main.executeInterfaceFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
-            "lineNumber": 107
+            "lineNumber": 112
           },
           {
             "function": "main.main",

@@ -3441,7 +3441,7 @@ Types:
       ID: 54
       Name: '**string'
       ByteSize: 8
-      GoRuntimeType: 530464
+      GoRuntimeType: 530656
       GoKind: 22
       Pointee: 22 PointerType *string
     - __kind: PointerType
@@ -3603,175 +3603,175 @@ Types:
       ID: 11
       Name: '*bool'
       ByteSize: 8
-      GoRuntimeType: 392992
+      GoRuntimeType: 393184
       GoKind: 22
       Pointee: 4 BaseType bool
     - __kind: PointerType
       ID: 33
       Name: '*error'
       ByteSize: 8
-      GoRuntimeType: 391904
+      GoRuntimeType: 392096
       GoKind: 22
       Pointee: 14 GoInterfaceType error
     - __kind: PointerType
       ID: 35
       Name: '*float32'
       ByteSize: 8
-      GoRuntimeType: 392864
+      GoRuntimeType: 393056
       GoKind: 22
       Pointee: 18 BaseType float32
     - __kind: PointerType
       ID: 26
       Name: '*float64'
       ByteSize: 8
-      GoRuntimeType: 392928
+      GoRuntimeType: 393120
       GoKind: 22
       Pointee: 16 BaseType float64
     - __kind: PointerType
       ID: 27
       Name: '*int'
       ByteSize: 8
-      GoRuntimeType: 392544
+      GoRuntimeType: 392736
       GoKind: 22
       Pointee: 7 BaseType int
     - __kind: PointerType
       ID: 31
       Name: '*int16'
       ByteSize: 8
-      GoRuntimeType: 392160
+      GoRuntimeType: 392352
       GoKind: 22
       Pointee: 23 BaseType int16
     - __kind: PointerType
       ID: 20
       Name: '*int32'
       ByteSize: 8
-      GoRuntimeType: 392288
+      GoRuntimeType: 392480
       GoKind: 22
       Pointee: 12 BaseType int32
     - __kind: PointerType
       ID: 29
       Name: '*int64'
       ByteSize: 8
-      GoRuntimeType: 392416
+      GoRuntimeType: 392608
       GoKind: 22
       Pointee: 13 BaseType int64
     - __kind: PointerType
       ID: 32
       Name: '*int8'
       ByteSize: 8
-      GoRuntimeType: 392032
+      GoRuntimeType: 392224
       GoKind: 22
       Pointee: 17 BaseType int8
     - __kind: PointerType
       ID: 88
       Name: '*interface {}'
       ByteSize: 8
-      GoRuntimeType: 393120
+      GoRuntimeType: 393312
       GoKind: 22
       Pointee: 81 GoEmptyInterfaceType interface {}
     - __kind: PointerType
       ID: 190
       Name: '*main.deepMap2'
       ByteSize: 8
-      GoRuntimeType: 385760
+      GoRuntimeType: 385952
       GoKind: 22
       Pointee: 191 StructureType main.deepMap2
     - __kind: PointerType
       ID: 341
       Name: '*main.deepMap3'
       ByteSize: 8
-      GoRuntimeType: 385696
+      GoRuntimeType: 385888
       GoKind: 22
       Pointee: 342 UnresolvedPointeeType main.deepMap3
     - __kind: PointerType
       ID: 73
       Name: '*main.deepMap7'
       ByteSize: 8
-      GoRuntimeType: 385440
+      GoRuntimeType: 385632
       GoKind: 22
       Pointee: 74 StructureType main.deepMap7
     - __kind: PointerType
       ID: 377
       Name: '*main.deepMap8'
       ByteSize: 8
-      GoRuntimeType: 385376
+      GoRuntimeType: 385568
       GoKind: 22
       Pointee: 378 StructureType main.deepMap8
     - __kind: PointerType
       ID: 392
       Name: '*main.deepMap9'
       ByteSize: 8
-      GoRuntimeType: 385312
+      GoRuntimeType: 385504
       GoKind: 22
       Pointee: 393 StructureType main.deepMap9
     - __kind: PointerType
       ID: 57
       Name: '*main.deepPtr2'
       ByteSize: 8
-      GoRuntimeType: 386336
+      GoRuntimeType: 386528
       GoKind: 22
       Pointee: 58 StructureType main.deepPtr2
     - __kind: PointerType
       ID: 306
       Name: '*main.deepPtr3'
       ByteSize: 8
-      GoRuntimeType: 386272
+      GoRuntimeType: 386464
       GoKind: 22
       Pointee: 307 UnresolvedPointeeType main.deepPtr3
     - __kind: PointerType
       ID: 59
       Name: '*main.deepPtr7'
       ByteSize: 8
-      GoRuntimeType: 386016
+      GoRuntimeType: 386208
       GoKind: 22
       Pointee: 60 StructureType main.deepPtr7
     - __kind: PointerType
       ID: 347
       Name: '*main.deepPtr8'
       ByteSize: 8
-      GoRuntimeType: 385952
+      GoRuntimeType: 386144
       GoKind: 22
       Pointee: 348 StructureType main.deepPtr8
     - __kind: PointerType
       ID: 349
       Name: '*main.deepPtr9'
       ByteSize: 8
-      GoRuntimeType: 385888
+      GoRuntimeType: 386080
       GoKind: 22
       Pointee: 350 StructureType main.deepPtr9
     - __kind: PointerType
       ID: 64
       Name: '*main.deepSlice2'
       ByteSize: 8
-      GoRuntimeType: 386912
+      GoRuntimeType: 387104
       GoKind: 22
       Pointee: 181 StructureType main.deepSlice2
     - __kind: PointerType
       ID: 326
       Name: '*main.deepSlice3'
       ByteSize: 8
-      GoRuntimeType: 386848
+      GoRuntimeType: 387040
       GoKind: 22
       Pointee: 327 UnresolvedPointeeType main.deepSlice3
     - __kind: PointerType
       ID: 65
       Name: '*main.deepSlice7'
       ByteSize: 8
-      GoRuntimeType: 386592
+      GoRuntimeType: 386784
       GoKind: 22
       Pointee: 66 StructureType main.deepSlice7
     - __kind: PointerType
       ID: 353
       Name: '*main.deepSlice8'
       ByteSize: 8
-      GoRuntimeType: 386528
+      GoRuntimeType: 386720
       GoKind: 22
       Pointee: 354 StructureType main.deepSlice8
     - __kind: PointerType
       ID: 359
       Name: '*main.deepSlice9'
       ByteSize: 8
-      GoRuntimeType: 386464
+      GoRuntimeType: 386656
       GoKind: 22
       Pointee: 360 StructureType main.deepSlice9
     - __kind: PointerType
@@ -3784,14 +3784,14 @@ Types:
       ID: 84
       Name: '*main.esotericHeap'
       ByteSize: 8
-      GoRuntimeType: 387040
+      GoRuntimeType: 387232
       GoKind: 22
       Pointee: 85 StructureType main.esotericHeap
     - __kind: PointerType
       ID: 157
       Name: '*main.node'
       ByteSize: 8
-      GoRuntimeType: 387104
+      GoRuntimeType: 387296
       GoKind: 22
       Pointee: 156 StructureType main.node
     - __kind: PointerType
@@ -3821,7 +3821,7 @@ Types:
       ID: 242
       Name: '*main.structWithMap'
       ByteSize: 8
-      GoRuntimeType: 385248
+      GoRuntimeType: 385440
       GoKind: 22
       Pointee: 90 StructureType main.structWithMap
     - __kind: PointerType
@@ -4032,7 +4032,7 @@ Types:
       ID: 22
       Name: '*string'
       ByteSize: 8
-      GoRuntimeType: 391968
+      GoRuntimeType: 392160
       GoKind: 22
       Pointee: 9 GoStringHeaderType string
     - __kind: PointerType
@@ -4129,42 +4129,42 @@ Types:
       ID: 34
       Name: '*uint'
       ByteSize: 8
-      GoRuntimeType: 392608
+      GoRuntimeType: 392800
       GoKind: 22
       Pointee: 10 BaseType uint
     - __kind: PointerType
       ID: 30
       Name: '*uint16'
       ByteSize: 8
-      GoRuntimeType: 392224
+      GoRuntimeType: 392416
       GoKind: 22
       Pointee: 6 BaseType uint16
     - __kind: PointerType
       ID: 21
       Name: '*uint32'
       ByteSize: 8
-      GoRuntimeType: 392352
+      GoRuntimeType: 392544
       GoKind: 22
       Pointee: 2 BaseType uint32
     - __kind: PointerType
       ID: 28
       Name: '*uint64'
       ByteSize: 8
-      GoRuntimeType: 392480
+      GoRuntimeType: 392672
       GoKind: 22
       Pointee: 8 BaseType uint64
     - __kind: PointerType
       ID: 5
       Name: '*uint8'
       ByteSize: 8
-      GoRuntimeType: 392096
+      GoRuntimeType: 392288
       GoKind: 22
       Pointee: 3 BaseType uint8
     - __kind: PointerType
       ID: 19
       Name: '*uintptr'
       ByteSize: 8
-      GoRuntimeType: 392672
+      GoRuntimeType: 392864
       GoKind: 22
       Pointee: 1 BaseType uintptr
     - __kind: EventRootType
@@ -6003,7 +6003,7 @@ Types:
       ID: 40
       Name: '[2]int'
       ByteSize: 16
-      GoRuntimeType: 682848
+      GoRuntimeType: 683040
       GoKind: 17
       Count: 2
       HasCount: true
@@ -6020,7 +6020,7 @@ Types:
       ID: 37
       Name: '[2]int32'
       ByteSize: 8
-      GoRuntimeType: 684192
+      GoRuntimeType: 684384
       GoKind: 17
       Count: 2
       HasCount: true
@@ -6053,7 +6053,7 @@ Types:
       ID: 38
       Name: '[2]string'
       ByteSize: 32
-      GoRuntimeType: 684288
+      GoRuntimeType: 684480
       GoKind: 17
       Count: 2
       HasCount: true
@@ -6086,7 +6086,7 @@ Types:
       ID: 47
       Name: '[2]uint64'
       ByteSize: 16
-      GoRuntimeType: 684384
+      GoRuntimeType: 684576
       GoKind: 17
       Count: 2
       HasCount: true
@@ -6095,7 +6095,7 @@ Types:
       ID: 36
       Name: '[2]uint8'
       ByteSize: 2
-      GoRuntimeType: 684096
+      GoRuntimeType: 684288
       GoKind: 17
       Count: 2
       HasCount: true
@@ -6104,7 +6104,7 @@ Types:
       ID: 275
       Name: '[4]int'
       ByteSize: 32
-      GoRuntimeType: 682464
+      GoRuntimeType: 682656
       GoKind: 17
       Count: 4
       HasCount: true
@@ -6113,7 +6113,7 @@ Types:
       ID: 232
       Name: '[4]string'
       ByteSize: 64
-      GoRuntimeType: 682752
+      GoRuntimeType: 682944
       GoKind: 17
       Count: 4
       HasCount: true
@@ -6130,7 +6130,7 @@ Types:
       ID: 62
       Name: '[]*main.deepSlice2'
       ByteSize: 24
-      GoRuntimeType: 477536
+      GoRuntimeType: 477728
       GoKind: 23
       RawFields:
         - Name: array
@@ -6152,7 +6152,7 @@ Types:
       ID: 324
       Name: '[]*main.deepSlice3'
       ByteSize: 24
-      GoRuntimeType: 477472
+      GoRuntimeType: 477664
       GoKind: 23
       RawFields:
         - Name: array
@@ -6174,7 +6174,7 @@ Types:
       ID: 351
       Name: '[]*main.deepSlice8'
       ByteSize: 24
-      GoRuntimeType: 477152
+      GoRuntimeType: 477344
       GoKind: 23
       RawFields:
         - Name: array
@@ -6196,7 +6196,7 @@ Types:
       ID: 357
       Name: '[]*main.deepSlice9'
       ByteSize: 24
-      GoRuntimeType: 477088
+      GoRuntimeType: 477280
       GoKind: 23
       RawFields:
         - Name: array
@@ -6218,7 +6218,7 @@ Types:
       ID: 53
       Name: '[]*string'
       ByteSize: 24
-      GoRuntimeType: 478560
+      GoRuntimeType: 478752
       GoKind: 23
       RawFields:
         - Name: array
@@ -6346,7 +6346,7 @@ Types:
       ID: 167
       Name: '[]bool'
       ByteSize: 24
-      GoRuntimeType: 486880
+      GoRuntimeType: 487072
       GoKind: 23
       RawFields:
         - Name: array
@@ -6368,7 +6368,7 @@ Types:
       ID: 363
       Name: '[]interface {}'
       ByteSize: 24
-      GoRuntimeType: 487200
+      GoRuntimeType: 487392
       GoKind: 23
       RawFields:
         - Name: array
@@ -6390,7 +6390,7 @@ Types:
       ID: 241
       Name: '[]main.structWithMap'
       ByteSize: 24
-      GoRuntimeType: 477792
+      GoRuntimeType: 477984
       GoKind: 23
       RawFields:
         - Name: array
@@ -6518,7 +6518,7 @@ Types:
       ID: 166
       Name: '[]string'
       ByteSize: 24
-      GoRuntimeType: 487008
+      GoRuntimeType: 487200
       GoKind: 23
       RawFields:
         - Name: array
@@ -6540,7 +6540,7 @@ Types:
       ID: 160
       Name: '[]uint'
       ByteSize: 24
-      GoRuntimeType: 486496
+      GoRuntimeType: 486688
       GoKind: 23
       RawFields:
         - Name: array
@@ -6562,7 +6562,7 @@ Types:
       ID: 168
       Name: '[]uint16'
       ByteSize: 24
-      GoRuntimeType: 485856
+      GoRuntimeType: 486048
       GoKind: 23
       RawFields:
         - Name: array
@@ -6584,35 +6584,35 @@ Types:
       ID: 4
       Name: bool
       ByteSize: 1
-      GoRuntimeType: 584768
+      GoRuntimeType: 584960
       GoKind: 1
     - __kind: GoChannelType
       ID: 153
       Name: chan bool
-      GoRuntimeType: 596096
+      GoRuntimeType: 596288
       GoKind: 18
     - __kind: GoChannelType
       ID: 80
       Name: chan struct {}
-      GoRuntimeType: 595008
+      GoRuntimeType: 595200
       GoKind: 18
     - __kind: BaseType
       ID: 25
       Name: complex128
       ByteSize: 16
-      GoRuntimeType: 584576
+      GoRuntimeType: 584768
       GoKind: 16
     - __kind: BaseType
       ID: 24
       Name: complex64
       ByteSize: 8
-      GoRuntimeType: 584512
+      GoRuntimeType: 584704
       GoKind: 15
     - __kind: GoInterfaceType
       ID: 14
       Name: error
       ByteSize: 16
-      GoRuntimeType: 1.026048e+06
+      GoRuntimeType: 1.02624e+06
       GoKind: 20
       RawFields:
         - Name: tab
@@ -6625,19 +6625,19 @@ Types:
       ID: 18
       Name: float32
       ByteSize: 4
-      GoRuntimeType: 584640
+      GoRuntimeType: 584832
       GoKind: 13
     - __kind: BaseType
       ID: 16
       Name: float64
       ByteSize: 8
-      GoRuntimeType: 584704
+      GoRuntimeType: 584896
       GoKind: 14
     - __kind: GoSubroutineType
       ID: 83
       Name: func()
       ByteSize: 8
-      GoRuntimeType: 475680
+      GoRuntimeType: 475872
       GoKind: 19
     - __kind: GoSwissMapGroupsType
       ID: 287
@@ -6881,37 +6881,37 @@ Types:
       ID: 7
       Name: int
       ByteSize: 8
-      GoRuntimeType: 584320
+      GoRuntimeType: 584512
       GoKind: 2
     - __kind: BaseType
       ID: 23
       Name: int16
       ByteSize: 2
-      GoRuntimeType: 583936
+      GoRuntimeType: 584128
       GoKind: 4
     - __kind: BaseType
       ID: 12
       Name: int32
       ByteSize: 4
-      GoRuntimeType: 584064
+      GoRuntimeType: 584256
       GoKind: 5
     - __kind: BaseType
       ID: 13
       Name: int64
       ByteSize: 8
-      GoRuntimeType: 584192
+      GoRuntimeType: 584384
       GoKind: 6
     - __kind: BaseType
       ID: 17
       Name: int8
       ByteSize: 1
-      GoRuntimeType: 583808
+      GoRuntimeType: 584000
       GoKind: 3
     - __kind: GoEmptyInterfaceType
       ID: 81
       Name: interface {}
       ByteSize: 16
-      GoRuntimeType: 847296
+      GoRuntimeType: 847488
       GoKind: 20
       RawFields:
         - Name: _type
@@ -6924,7 +6924,7 @@ Types:
       ID: 313
       Name: internal/sync.Mutex
       ByteSize: 8
-      GoRuntimeType: 1.472384e+06
+      GoRuntimeType: 1.472832e+06
       GoKind: 25
       RawFields:
         - Name: state
@@ -6937,7 +6937,7 @@ Types:
       ID: 55
       Name: io.Writer
       ByteSize: 16
-      GoRuntimeType: 1.02208e+06
+      GoRuntimeType: 1.022272e+06
       GoKind: 20
       RawFields:
         - Name: tab
@@ -6968,7 +6968,7 @@ Types:
       ID: 87
       Name: main.behavior
       ByteSize: 16
-      GoRuntimeType: 1.021696e+06
+      GoRuntimeType: 1.021888e+06
       GoKind: 20
       RawFields:
         - Name: tab
@@ -6996,7 +6996,7 @@ Types:
       ID: 67
       Name: main.deepMap1
       ByteSize: 8
-      GoRuntimeType: 1.18528e+06
+      GoRuntimeType: 1.185728e+06
       GoKind: 25
       RawFields:
         - Name: a
@@ -7006,7 +7006,7 @@ Types:
       ID: 191
       Name: main.deepMap2
       ByteSize: 8
-      GoRuntimeType: 1.185152e+06
+      GoRuntimeType: 1.1856e+06
       GoKind: 25
       RawFields:
         - Name: a
@@ -7020,7 +7020,7 @@ Types:
       ID: 74
       Name: main.deepMap7
       ByteSize: 8
-      GoRuntimeType: 1.184512e+06
+      GoRuntimeType: 1.18496e+06
       GoKind: 25
       RawFields:
         - Name: a
@@ -7030,7 +7030,7 @@ Types:
       ID: 378
       Name: main.deepMap8
       ByteSize: 8
-      GoRuntimeType: 1.184384e+06
+      GoRuntimeType: 1.184832e+06
       GoKind: 25
       RawFields:
         - Name: a
@@ -7040,7 +7040,7 @@ Types:
       ID: 393
       Name: main.deepMap9
       ByteSize: 8
-      GoRuntimeType: 1.184256e+06
+      GoRuntimeType: 1.184704e+06
       GoKind: 25
       RawFields:
         - Name: a
@@ -7050,7 +7050,7 @@ Types:
       ID: 56
       Name: main.deepPtr1
       ByteSize: 8
-      GoRuntimeType: 1.186432e+06
+      GoRuntimeType: 1.18688e+06
       GoKind: 25
       RawFields:
         - Name: a
@@ -7060,7 +7060,7 @@ Types:
       ID: 58
       Name: main.deepPtr2
       ByteSize: 8
-      GoRuntimeType: 1.186304e+06
+      GoRuntimeType: 1.186752e+06
       GoKind: 25
       RawFields:
         - Name: a
@@ -7074,7 +7074,7 @@ Types:
       ID: 60
       Name: main.deepPtr7
       ByteSize: 8
-      GoRuntimeType: 1.185664e+06
+      GoRuntimeType: 1.186112e+06
       GoKind: 25
       RawFields:
         - Name: a
@@ -7084,7 +7084,7 @@ Types:
       ID: 348
       Name: main.deepPtr8
       ByteSize: 8
-      GoRuntimeType: 1.185536e+06
+      GoRuntimeType: 1.185984e+06
       GoKind: 25
       RawFields:
         - Name: a
@@ -7094,7 +7094,7 @@ Types:
       ID: 350
       Name: main.deepPtr9
       ByteSize: 16
-      GoRuntimeType: 1.185408e+06
+      GoRuntimeType: 1.185856e+06
       GoKind: 25
       RawFields:
         - Name: a
@@ -7104,7 +7104,7 @@ Types:
       ID: 61
       Name: main.deepSlice1
       ByteSize: 24
-      GoRuntimeType: 1.187584e+06
+      GoRuntimeType: 1.188032e+06
       GoKind: 25
       RawFields:
         - Name: a
@@ -7114,7 +7114,7 @@ Types:
       ID: 181
       Name: main.deepSlice2
       ByteSize: 24
-      GoRuntimeType: 1.187456e+06
+      GoRuntimeType: 1.187904e+06
       GoKind: 25
       RawFields:
         - Name: a
@@ -7128,7 +7128,7 @@ Types:
       ID: 66
       Name: main.deepSlice7
       ByteSize: 24
-      GoRuntimeType: 1.186816e+06
+      GoRuntimeType: 1.187264e+06
       GoKind: 25
       RawFields:
         - Name: a
@@ -7138,7 +7138,7 @@ Types:
       ID: 354
       Name: main.deepSlice8
       ByteSize: 24
-      GoRuntimeType: 1.186688e+06
+      GoRuntimeType: 1.187136e+06
       GoKind: 25
       RawFields:
         - Name: a
@@ -7148,7 +7148,7 @@ Types:
       ID: 360
       Name: main.deepSlice9
       ByteSize: 24
-      GoRuntimeType: 1.18656e+06
+      GoRuntimeType: 1.187008e+06
       GoKind: 25
       RawFields:
         - Name: a
@@ -7163,7 +7163,7 @@ Types:
       ID: 85
       Name: main.esotericHeap
       ByteSize: 112
-      GoRuntimeType: 1.833504e+06
+      GoRuntimeType: 1.833952e+06
       GoKind: 25
       RawFields:
         - Name: esotericStack
@@ -7185,7 +7185,7 @@ Types:
       ID: 79
       Name: main.esotericStack
       ByteSize: 64
-      GoRuntimeType: 1.966592e+06
+      GoRuntimeType: 1.96704e+06
       GoKind: 25
       RawFields:
         - Name: _
@@ -7213,7 +7213,7 @@ Types:
       ID: 174
       Name: main.nestedStruct
       ByteSize: 24
-      GoRuntimeType: 1.461024e+06
+      GoRuntimeType: 1.461472e+06
       GoKind: 25
       RawFields:
         - Name: anotherInt
@@ -7226,7 +7226,7 @@ Types:
       ID: 156
       Name: main.node
       ByteSize: 16
-      GoRuntimeType: 1.460864e+06
+      GoRuntimeType: 1.461312e+06
       GoKind: 25
       RawFields:
         - Name: val
@@ -7248,7 +7248,7 @@ Types:
       ID: 82
       Name: main.something
       ByteSize: 16
-      GoRuntimeType: 1.021824e+06
+      GoRuntimeType: 1.022016e+06
       GoKind: 20
       RawFields:
         - Name: tab
@@ -7282,7 +7282,7 @@ Types:
       ID: 89
       Name: main.structWithAny
       ByteSize: 16
-      GoRuntimeType: 1.184e+06
+      GoRuntimeType: 1.184448e+06
       GoKind: 25
       RawFields:
         - Name: a
@@ -7292,7 +7292,7 @@ Types:
       ID: 90
       Name: main.structWithMap
       ByteSize: 8
-      GoRuntimeType: 1.184128e+06
+      GoRuntimeType: 1.184576e+06
       GoKind: 25
       RawFields:
         - Name: m
@@ -7962,126 +7962,126 @@ Types:
       ID: 148
       Name: map[[4]int][4]int
       ByteSize: 8
-      GoRuntimeType: 1.128896e+06
+      GoRuntimeType: 1.129088e+06
       GoKind: 21
       HeaderType: 150 GoSwissMapHeaderType map<[4]int,[4]int>
     - __kind: GoMapType
       ID: 143
       Name: map[[4]int]uint8
       ByteSize: 8
-      GoRuntimeType: 1.129024e+06
+      GoRuntimeType: 1.129216e+06
       GoKind: 21
       HeaderType: 145 GoSwissMapHeaderType map<[4]int,uint8>
     - __kind: GoMapType
       ID: 111
       Name: map[[4]string][2]int
       ByteSize: 8
-      GoRuntimeType: 1.129152e+06
+      GoRuntimeType: 1.129344e+06
       GoKind: 21
       HeaderType: 113 GoSwissMapHeaderType map<[4]string,[2]int>
     - __kind: GoMapType
       ID: 123
       Name: map[bool]main.node
       ByteSize: 8
-      GoRuntimeType: 1.12928e+06
+      GoRuntimeType: 1.129472e+06
       GoKind: 21
       HeaderType: 125 GoSwissMapHeaderType map<bool,main.node>
     - __kind: GoMapType
       ID: 68
       Name: map[int]*main.deepMap2
       ByteSize: 8
-      GoRuntimeType: 1.128768e+06
+      GoRuntimeType: 1.12896e+06
       GoKind: 21
       HeaderType: 70 GoSwissMapHeaderType map<int,*main.deepMap2>
     - __kind: GoMapType
       ID: 330
       Name: map[int]*main.deepMap3
       ByteSize: 8
-      GoRuntimeType: 1.12864e+06
+      GoRuntimeType: 1.128832e+06
       GoKind: 21
       HeaderType: 332 GoSwissMapHeaderType map<int,*main.deepMap3>
     - __kind: GoMapType
       ID: 366
       Name: map[int]*main.deepMap8
       ByteSize: 8
-      GoRuntimeType: 1.128e+06
+      GoRuntimeType: 1.128192e+06
       GoKind: 21
       HeaderType: 368 GoSwissMapHeaderType map<int,*main.deepMap8>
     - __kind: GoMapType
       ID: 381
       Name: map[int]*main.deepMap9
       ByteSize: 8
-      GoRuntimeType: 1.127872e+06
+      GoRuntimeType: 1.128064e+06
       GoKind: 21
       HeaderType: 383 GoSwissMapHeaderType map<int,*main.deepMap9>
     - __kind: GoMapType
       ID: 91
       Name: map[int]int
       ByteSize: 8
-      GoRuntimeType: 1.12736e+06
+      GoRuntimeType: 1.127552e+06
       GoKind: 21
       HeaderType: 93 GoSwissMapHeaderType map<int,int>
     - __kind: GoMapType
       ID: 396
       Name: map[int]interface {}
       ByteSize: 8
-      GoRuntimeType: 1.127744e+06
+      GoRuntimeType: 1.127936e+06
       GoKind: 21
       HeaderType: 398 GoSwissMapHeaderType map<int,interface {}>
     - __kind: GoMapType
       ID: 128
       Name: map[int]uint8
       ByteSize: 8
-      GoRuntimeType: 1.129408e+06
+      GoRuntimeType: 1.1296e+06
       GoKind: 21
       HeaderType: 130 GoSwissMapHeaderType map<int,uint8>
     - __kind: GoMapType
       ID: 118
       Name: map[string][]main.structWithMap
       ByteSize: 8
-      GoRuntimeType: 1.129536e+06
+      GoRuntimeType: 1.129728e+06
       GoKind: 21
       HeaderType: 120 GoSwissMapHeaderType map<string,[]main.structWithMap>
     - __kind: GoMapType
       ID: 106
       Name: map[string][]string
       ByteSize: 8
-      GoRuntimeType: 1.129664e+06
+      GoRuntimeType: 1.129856e+06
       GoKind: 21
       HeaderType: 108 GoSwissMapHeaderType map<string,[]string>
     - __kind: GoMapType
       ID: 101
       Name: map[string]int
       ByteSize: 8
-      GoRuntimeType: 1.129792e+06
+      GoRuntimeType: 1.129984e+06
       GoKind: 21
       HeaderType: 103 GoSwissMapHeaderType map<string,int>
     - __kind: GoMapType
       ID: 96
       Name: map[string]main.nestedStruct
       ByteSize: 8
-      GoRuntimeType: 1.12992e+06
+      GoRuntimeType: 1.130112e+06
       GoKind: 21
       HeaderType: 98 GoSwissMapHeaderType map<string,main.nestedStruct>
     - __kind: GoMapType
       ID: 138
       Name: map[uint8][4]int
       ByteSize: 8
-      GoRuntimeType: 1.130048e+06
+      GoRuntimeType: 1.13024e+06
       GoKind: 21
       HeaderType: 140 GoSwissMapHeaderType map<uint8,[4]int>
     - __kind: GoMapType
       ID: 133
       Name: map[uint8]uint8
       ByteSize: 8
-      GoRuntimeType: 1.130176e+06
+      GoRuntimeType: 1.130368e+06
       GoKind: 21
       HeaderType: 135 GoSwissMapHeaderType map<uint8,uint8>
     - __kind: ArrayType
       ID: 290
       Name: noalg.[8]struct { key [4]int; elem [4]int }
       ByteSize: 512
-      GoRuntimeType: 682560
+      GoRuntimeType: 682752
       GoKind: 17
       Count: 8
       HasCount: true
@@ -8090,7 +8090,7 @@ Types:
       ID: 282
       Name: noalg.[8]struct { key [4]int; elem uint8 }
       ByteSize: 320
-      GoRuntimeType: 682656
+      GoRuntimeType: 682848
       GoKind: 17
       Count: 8
       HasCount: true
@@ -8099,7 +8099,7 @@ Types:
       ID: 230
       Name: noalg.[8]struct { key [4]string; elem [2]int }
       ByteSize: 640
-      GoRuntimeType: 682944
+      GoRuntimeType: 683136
       GoKind: 17
       Count: 8
       HasCount: true
@@ -8108,7 +8108,7 @@ Types:
       ID: 249
       Name: noalg.[8]struct { key bool; elem main.node }
       ByteSize: 192
-      GoRuntimeType: 683040
+      GoRuntimeType: 683232
       GoKind: 17
       Count: 8
       HasCount: true
@@ -8117,7 +8117,7 @@ Types:
       ID: 188
       Name: noalg.[8]struct { key int; elem *main.deepMap2 }
       ByteSize: 128
-      GoRuntimeType: 681888
+      GoRuntimeType: 682080
       GoKind: 17
       Count: 8
       HasCount: true
@@ -8126,7 +8126,7 @@ Types:
       ID: 339
       Name: noalg.[8]struct { key int; elem *main.deepMap3 }
       ByteSize: 128
-      GoRuntimeType: 681792
+      GoRuntimeType: 681984
       GoKind: 17
       Count: 8
       HasCount: true
@@ -8135,7 +8135,7 @@ Types:
       ID: 375
       Name: noalg.[8]struct { key int; elem *main.deepMap8 }
       ByteSize: 128
-      GoRuntimeType: 681312
+      GoRuntimeType: 681504
       GoKind: 17
       Count: 8
       HasCount: true
@@ -8144,7 +8144,7 @@ Types:
       ID: 390
       Name: noalg.[8]struct { key int; elem *main.deepMap9 }
       ByteSize: 128
-      GoRuntimeType: 681216
+      GoRuntimeType: 681408
       GoKind: 17
       Count: 8
       HasCount: true
@@ -8153,7 +8153,7 @@ Types:
       ID: 198
       Name: noalg.[8]struct { key int; elem int }
       ByteSize: 128
-      GoRuntimeType: 679968
+      GoRuntimeType: 680160
       GoKind: 17
       Count: 8
       HasCount: true
@@ -8162,7 +8162,7 @@ Types:
       ID: 405
       Name: noalg.[8]struct { key int; elem interface {} }
       ByteSize: 192
-      GoRuntimeType: 681120
+      GoRuntimeType: 681312
       GoKind: 17
       Count: 8
       HasCount: true
@@ -8171,7 +8171,7 @@ Types:
       ID: 257
       Name: noalg.[8]struct { key int; elem uint8 }
       ByteSize: 128
-      GoRuntimeType: 683136
+      GoRuntimeType: 683328
       GoKind: 17
       Count: 8
       HasCount: true
@@ -8180,7 +8180,7 @@ Types:
       ID: 239
       Name: noalg.[8]struct { key string; elem []main.structWithMap }
       ByteSize: 320
-      GoRuntimeType: 683232
+      GoRuntimeType: 683424
       GoKind: 17
       Count: 8
       HasCount: true
@@ -8189,7 +8189,7 @@ Types:
       ID: 222
       Name: noalg.[8]struct { key string; elem []string }
       ByteSize: 320
-      GoRuntimeType: 683328
+      GoRuntimeType: 683520
       GoKind: 17
       Count: 8
       HasCount: true
@@ -8198,7 +8198,7 @@ Types:
       ID: 214
       Name: noalg.[8]struct { key string; elem int }
       ByteSize: 192
-      GoRuntimeType: 683424
+      GoRuntimeType: 683616
       GoKind: 17
       Count: 8
       HasCount: true
@@ -8207,7 +8207,7 @@ Types:
       ID: 206
       Name: noalg.[8]struct { key string; elem main.nestedStruct }
       ByteSize: 320
-      GoRuntimeType: 683520
+      GoRuntimeType: 683712
       GoKind: 17
       Count: 8
       HasCount: true
@@ -8216,7 +8216,7 @@ Types:
       ID: 273
       Name: noalg.[8]struct { key uint8; elem [4]int }
       ByteSize: 320
-      GoRuntimeType: 683616
+      GoRuntimeType: 683808
       GoKind: 17
       Count: 8
       HasCount: true
@@ -8225,7 +8225,7 @@ Types:
       ID: 265
       Name: noalg.[8]struct { key uint8; elem uint8 }
       ByteSize: 16
-      GoRuntimeType: 683712
+      GoRuntimeType: 683904
       GoKind: 17
       Count: 8
       HasCount: true
@@ -8234,7 +8234,7 @@ Types:
       ID: 289
       Name: noalg.map.group[[4]int][4]int
       ByteSize: 520
-      GoRuntimeType: 1.294144e+06
+      GoRuntimeType: 1.294592e+06
       GoKind: 25
       RawFields:
         - Name: ctrl
@@ -8247,7 +8247,7 @@ Types:
       ID: 281
       Name: noalg.map.group[[4]int]uint8
       ByteSize: 328
-      GoRuntimeType: 1.2944e+06
+      GoRuntimeType: 1.294848e+06
       GoKind: 25
       RawFields:
         - Name: ctrl
@@ -8260,7 +8260,7 @@ Types:
       ID: 229
       Name: noalg.map.group[[4]string][2]int
       ByteSize: 648
-      GoRuntimeType: 1.294656e+06
+      GoRuntimeType: 1.295104e+06
       GoKind: 25
       RawFields:
         - Name: ctrl
@@ -8273,7 +8273,7 @@ Types:
       ID: 248
       Name: noalg.map.group[bool]main.node
       ByteSize: 200
-      GoRuntimeType: 1.294912e+06
+      GoRuntimeType: 1.29536e+06
       GoKind: 25
       RawFields:
         - Name: ctrl
@@ -8286,7 +8286,7 @@ Types:
       ID: 187
       Name: noalg.map.group[int]*main.deepMap2
       ByteSize: 136
-      GoRuntimeType: 1.293888e+06
+      GoRuntimeType: 1.294336e+06
       GoKind: 25
       RawFields:
         - Name: ctrl
@@ -8299,7 +8299,7 @@ Types:
       ID: 338
       Name: noalg.map.group[int]*main.deepMap3
       ByteSize: 136
-      GoRuntimeType: 1.293632e+06
+      GoRuntimeType: 1.29408e+06
       GoKind: 25
       RawFields:
         - Name: ctrl
@@ -8312,7 +8312,7 @@ Types:
       ID: 374
       Name: noalg.map.group[int]*main.deepMap8
       ByteSize: 136
-      GoRuntimeType: 1.292352e+06
+      GoRuntimeType: 1.2928e+06
       GoKind: 25
       RawFields:
         - Name: ctrl
@@ -8325,7 +8325,7 @@ Types:
       ID: 389
       Name: noalg.map.group[int]*main.deepMap9
       ByteSize: 136
-      GoRuntimeType: 1.292096e+06
+      GoRuntimeType: 1.292544e+06
       GoKind: 25
       RawFields:
         - Name: ctrl
@@ -8338,7 +8338,7 @@ Types:
       ID: 197
       Name: noalg.map.group[int]int
       ByteSize: 136
-      GoRuntimeType: 1.291072e+06
+      GoRuntimeType: 1.29152e+06
       GoKind: 25
       RawFields:
         - Name: ctrl
@@ -8351,7 +8351,7 @@ Types:
       ID: 404
       Name: noalg.map.group[int]interface {}
       ByteSize: 200
-      GoRuntimeType: 1.29184e+06
+      GoRuntimeType: 1.292288e+06
       GoKind: 25
       RawFields:
         - Name: ctrl
@@ -8364,7 +8364,7 @@ Types:
       ID: 256
       Name: noalg.map.group[int]uint8
       ByteSize: 136
-      GoRuntimeType: 1.295168e+06
+      GoRuntimeType: 1.295616e+06
       GoKind: 25
       RawFields:
         - Name: ctrl
@@ -8377,7 +8377,7 @@ Types:
       ID: 238
       Name: noalg.map.group[string][]main.structWithMap
       ByteSize: 328
-      GoRuntimeType: 1.295424e+06
+      GoRuntimeType: 1.295872e+06
       GoKind: 25
       RawFields:
         - Name: ctrl
@@ -8390,7 +8390,7 @@ Types:
       ID: 221
       Name: noalg.map.group[string][]string
       ByteSize: 328
-      GoRuntimeType: 1.29568e+06
+      GoRuntimeType: 1.296128e+06
       GoKind: 25
       RawFields:
         - Name: ctrl
@@ -8403,7 +8403,7 @@ Types:
       ID: 213
       Name: noalg.map.group[string]int
       ByteSize: 200
-      GoRuntimeType: 1.295936e+06
+      GoRuntimeType: 1.296384e+06
       GoKind: 25
       RawFields:
         - Name: ctrl
@@ -8416,7 +8416,7 @@ Types:
       ID: 205
       Name: noalg.map.group[string]main.nestedStruct
       ByteSize: 328
-      GoRuntimeType: 1.296192e+06
+      GoRuntimeType: 1.29664e+06
       GoKind: 25
       RawFields:
         - Name: ctrl
@@ -8429,7 +8429,7 @@ Types:
       ID: 272
       Name: noalg.map.group[uint8][4]int
       ByteSize: 328
-      GoRuntimeType: 1.296448e+06
+      GoRuntimeType: 1.296896e+06
       GoKind: 25
       RawFields:
         - Name: ctrl
@@ -8442,7 +8442,7 @@ Types:
       ID: 264
       Name: noalg.map.group[uint8]uint8
       ByteSize: 24
-      GoRuntimeType: 1.296704e+06
+      GoRuntimeType: 1.297152e+06
       GoKind: 25
       RawFields:
         - Name: ctrl
@@ -8455,7 +8455,7 @@ Types:
       ID: 291
       Name: noalg.struct { key [4]int; elem [4]int }
       ByteSize: 64
-      GoRuntimeType: 1.294016e+06
+      GoRuntimeType: 1.294464e+06
       GoKind: 25
       RawFields:
         - Name: key
@@ -8468,7 +8468,7 @@ Types:
       ID: 283
       Name: noalg.struct { key [4]int; elem uint8 }
       ByteSize: 40
-      GoRuntimeType: 1.294272e+06
+      GoRuntimeType: 1.29472e+06
       GoKind: 25
       RawFields:
         - Name: key
@@ -8481,7 +8481,7 @@ Types:
       ID: 231
       Name: noalg.struct { key [4]string; elem [2]int }
       ByteSize: 80
-      GoRuntimeType: 1.294528e+06
+      GoRuntimeType: 1.294976e+06
       GoKind: 25
       RawFields:
         - Name: key
@@ -8494,7 +8494,7 @@ Types:
       ID: 250
       Name: noalg.struct { key bool; elem main.node }
       ByteSize: 24
-      GoRuntimeType: 1.294784e+06
+      GoRuntimeType: 1.295232e+06
       GoKind: 25
       RawFields:
         - Name: key
@@ -8507,7 +8507,7 @@ Types:
       ID: 189
       Name: noalg.struct { key int; elem *main.deepMap2 }
       ByteSize: 16
-      GoRuntimeType: 1.29376e+06
+      GoRuntimeType: 1.294208e+06
       GoKind: 25
       RawFields:
         - Name: key
@@ -8520,7 +8520,7 @@ Types:
       ID: 340
       Name: noalg.struct { key int; elem *main.deepMap3 }
       ByteSize: 16
-      GoRuntimeType: 1.293504e+06
+      GoRuntimeType: 1.293952e+06
       GoKind: 25
       RawFields:
         - Name: key
@@ -8533,7 +8533,7 @@ Types:
       ID: 376
       Name: noalg.struct { key int; elem *main.deepMap8 }
       ByteSize: 16
-      GoRuntimeType: 1.292224e+06
+      GoRuntimeType: 1.292672e+06
       GoKind: 25
       RawFields:
         - Name: key
@@ -8546,7 +8546,7 @@ Types:
       ID: 391
       Name: noalg.struct { key int; elem *main.deepMap9 }
       ByteSize: 16
-      GoRuntimeType: 1.291968e+06
+      GoRuntimeType: 1.292416e+06
       GoKind: 25
       RawFields:
         - Name: key
@@ -8559,7 +8559,7 @@ Types:
       ID: 199
       Name: noalg.struct { key int; elem int }
       ByteSize: 16
-      GoRuntimeType: 1.290944e+06
+      GoRuntimeType: 1.291392e+06
       GoKind: 25
       RawFields:
         - Name: key
@@ -8572,7 +8572,7 @@ Types:
       ID: 406
       Name: noalg.struct { key int; elem interface {} }
       ByteSize: 24
-      GoRuntimeType: 1.291712e+06
+      GoRuntimeType: 1.29216e+06
       GoKind: 25
       RawFields:
         - Name: key
@@ -8585,7 +8585,7 @@ Types:
       ID: 258
       Name: noalg.struct { key int; elem uint8 }
       ByteSize: 16
-      GoRuntimeType: 1.29504e+06
+      GoRuntimeType: 1.295488e+06
       GoKind: 25
       RawFields:
         - Name: key
@@ -8598,7 +8598,7 @@ Types:
       ID: 240
       Name: noalg.struct { key string; elem []main.structWithMap }
       ByteSize: 40
-      GoRuntimeType: 1.295296e+06
+      GoRuntimeType: 1.295744e+06
       GoKind: 25
       RawFields:
         - Name: key
@@ -8611,7 +8611,7 @@ Types:
       ID: 223
       Name: noalg.struct { key string; elem []string }
       ByteSize: 40
-      GoRuntimeType: 1.295552e+06
+      GoRuntimeType: 1.296e+06
       GoKind: 25
       RawFields:
         - Name: key
@@ -8624,7 +8624,7 @@ Types:
       ID: 215
       Name: noalg.struct { key string; elem int }
       ByteSize: 24
-      GoRuntimeType: 1.295808e+06
+      GoRuntimeType: 1.296256e+06
       GoKind: 25
       RawFields:
         - Name: key
@@ -8637,7 +8637,7 @@ Types:
       ID: 207
       Name: noalg.struct { key string; elem main.nestedStruct }
       ByteSize: 40
-      GoRuntimeType: 1.296064e+06
+      GoRuntimeType: 1.296512e+06
       GoKind: 25
       RawFields:
         - Name: key
@@ -8650,7 +8650,7 @@ Types:
       ID: 274
       Name: noalg.struct { key uint8; elem [4]int }
       ByteSize: 40
-      GoRuntimeType: 1.29632e+06
+      GoRuntimeType: 1.296768e+06
       GoKind: 25
       RawFields:
         - Name: key
@@ -8663,7 +8663,7 @@ Types:
       ID: 266
       Name: noalg.struct { key uint8; elem uint8 }
       ByteSize: 2
-      GoRuntimeType: 1.296576e+06
+      GoRuntimeType: 1.297024e+06
       GoKind: 25
       RawFields:
         - Name: key
@@ -8676,7 +8676,7 @@ Types:
       ID: 9
       Name: string
       ByteSize: 16
-      GoRuntimeType: 583744
+      GoRuntimeType: 583936
       GoKind: 24
       RawFields:
         - Name: str
@@ -8694,7 +8694,7 @@ Types:
       ID: 311
       Name: sync.Mutex
       ByteSize: 8
-      GoRuntimeType: 1.462304e+06
+      GoRuntimeType: 1.462752e+06
       GoKind: 25
       RawFields:
         - Name: _
@@ -8707,7 +8707,7 @@ Types:
       ID: 314
       Name: sync.Once
       ByteSize: 12
-      GoRuntimeType: 1.61136e+06
+      GoRuntimeType: 1.611808e+06
       GoKind: 25
       RawFields:
         - Name: _
@@ -8723,7 +8723,7 @@ Types:
       ID: 317
       Name: sync.WaitGroup
       ByteSize: 16
-      GoRuntimeType: 1.611168e+06
+      GoRuntimeType: 1.611616e+06
       GoKind: 25
       RawFields:
         - Name: noCopy
@@ -8738,14 +8738,14 @@ Types:
     - __kind: StructureType
       ID: 312
       Name: sync.noCopy
-      GoRuntimeType: 987488
+      GoRuntimeType: 987680
       GoKind: 25
       RawFields: []
     - __kind: StructureType
       ID: 315
       Name: sync/atomic.Bool
       ByteSize: 4
-      GoRuntimeType: 1.463424e+06
+      GoRuntimeType: 1.463872e+06
       GoKind: 25
       RawFields:
         - Name: _
@@ -8758,7 +8758,7 @@ Types:
       ID: 320
       Name: sync/atomic.Int32
       ByteSize: 4
-      GoRuntimeType: 1.463584e+06
+      GoRuntimeType: 1.464032e+06
       GoKind: 25
       RawFields:
         - Name: _
@@ -8771,7 +8771,7 @@ Types:
       ID: 318
       Name: sync/atomic.Uint64
       ByteSize: 8
-      GoRuntimeType: 1.611744e+06
+      GoRuntimeType: 1.612192e+06
       GoKind: 25
       RawFields:
         - Name: _
@@ -8786,13 +8786,13 @@ Types:
     - __kind: StructureType
       ID: 319
       Name: sync/atomic.align64
-      GoRuntimeType: 987680
+      GoRuntimeType: 987872
       GoKind: 25
       RawFields: []
     - __kind: StructureType
       ID: 316
       Name: sync/atomic.noCopy
-      GoRuntimeType: 987584
+      GoRuntimeType: 987776
       GoKind: 25
       RawFields: []
     - __kind: StructureType
@@ -9207,43 +9207,43 @@ Types:
       ID: 10
       Name: uint
       ByteSize: 8
-      GoRuntimeType: 584384
+      GoRuntimeType: 584576
       GoKind: 7
     - __kind: BaseType
       ID: 6
       Name: uint16
       ByteSize: 2
-      GoRuntimeType: 584000
+      GoRuntimeType: 584192
       GoKind: 9
     - __kind: BaseType
       ID: 2
       Name: uint32
       ByteSize: 4
-      GoRuntimeType: 584128
+      GoRuntimeType: 584320
       GoKind: 10
     - __kind: BaseType
       ID: 8
       Name: uint64
       ByteSize: 8
-      GoRuntimeType: 584256
+      GoRuntimeType: 584448
       GoKind: 11
     - __kind: BaseType
       ID: 3
       Name: uint8
       ByteSize: 1
-      GoRuntimeType: 583872
+      GoRuntimeType: 584064
       GoKind: 8
     - __kind: BaseType
       ID: 1
       Name: uintptr
       ByteSize: 8
-      GoRuntimeType: 584448
+      GoRuntimeType: 584640
       GoKind: 12
     - __kind: VoidPointerType
       ID: 15
       Name: unsafe.Pointer
       ByteSize: 8
-      GoRuntimeType: 584832
+      GoRuntimeType: 585024
       GoKind: 26
 MaxTypeID: 523
 Issues: []

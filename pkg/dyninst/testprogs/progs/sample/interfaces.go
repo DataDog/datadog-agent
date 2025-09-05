@@ -80,10 +80,15 @@ func executeInterfaceFuncs() {
 	testInterface(&secondBehavior{42})
 	testInterface((*secondBehavior)(nil))
 	testInterface(nil)
-	testAny(firstBehavior{"foo"})
-	testAny(&firstBehavior{"foo"})
-	testAny(secondBehavior{42})
-	testAny(&secondBehavior{42})
+	// Use types that don't implement the interface so that we won't sometimes
+	// have the type information if the testInterface probe happens to be
+	// present.
+	type otherFirstBehavior firstBehavior
+	type otherSecondBehavior secondBehavior
+	testAny(otherFirstBehavior{"foo"})
+	testAny(&otherFirstBehavior{"foo"})
+	testAny(otherSecondBehavior{42})
+	testAny(&otherSecondBehavior{42})
 	testAny(lib_v2.V2Type{})
 	testAny(&lib_v2.V2Type{})
 	testAny(nil)

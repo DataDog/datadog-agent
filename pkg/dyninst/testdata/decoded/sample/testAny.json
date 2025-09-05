@@ -23,341 +23,6 @@
           {
             "function": "main.executeInterfaceFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
-            "lineNumber": 83
-          },
-          {
-            "function": "main.main",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 46
-          },
-          {
-            "function": "runtime.main",
-            "fileName": "runtime/proc.go",
-            "lineNumber": "[lineNumber]"
-          },
-          {
-            "function": "runtime.goexit",
-            "fileName": "runtime/asm_[arch].s",
-            "lineNumber": "[lineNumber]"
-          }
-        ],
-        "probe": {
-          "id": "testAny",
-          "location": {
-            "method": "main.testAny"
-          }
-        },
-        "captures": {
-          "entry": {
-            "arguments": {
-              "a": {
-                "type": "interface {}",
-                "fields": {
-                  "data": {
-                    "type": "main.firstBehavior",
-                    "notCapturedReason": "missing type information"
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "timestamp": "[ts]"
-  },
-  {
-    "service": "sample",
-    "ddsource": "dd_debugger",
-    "logger": {
-      "name": "",
-      "method": "main.testAny",
-      "version": 0,
-      "thread_id": 0,
-      "thread_name": ""
-    },
-    "debugger": {
-      "snapshot": {
-        "id": "[id]",
-        "timestamp": "[ts]",
-        "language": "go",
-        "stack": [
-          {
-            "function": "main.testAny",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
-            "lineNumber": 54
-          },
-          {
-            "function": "main.executeInterfaceFuncs",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
-            "lineNumber": 84
-          },
-          {
-            "function": "main.main",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 46
-          },
-          {
-            "function": "runtime.main",
-            "fileName": "runtime/proc.go",
-            "lineNumber": "[lineNumber]"
-          },
-          {
-            "function": "runtime.goexit",
-            "fileName": "runtime/asm_[arch].s",
-            "lineNumber": "[lineNumber]"
-          }
-        ],
-        "probe": {
-          "id": "testAny",
-          "location": {
-            "method": "main.testAny"
-          }
-        },
-        "captures": {
-          "entry": {
-            "arguments": {
-              "a": {
-                "type": "interface {}",
-                "fields": {
-                  "data": {
-                    "type": "*main.firstBehavior",
-                    "notCapturedReason": "missing type information"
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "timestamp": "[ts]"
-  },
-  {
-    "service": "sample",
-    "ddsource": "dd_debugger",
-    "logger": {
-      "name": "",
-      "method": "main.testAny",
-      "version": 0,
-      "thread_id": 0,
-      "thread_name": ""
-    },
-    "debugger": {
-      "snapshot": {
-        "id": "[id]",
-        "timestamp": "[ts]",
-        "language": "go",
-        "stack": [
-          {
-            "function": "main.testAny",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
-            "lineNumber": 54
-          },
-          {
-            "function": "main.executeInterfaceFuncs",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
-            "lineNumber": 85
-          },
-          {
-            "function": "main.main",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 46
-          },
-          {
-            "function": "runtime.main",
-            "fileName": "runtime/proc.go",
-            "lineNumber": "[lineNumber]"
-          },
-          {
-            "function": "runtime.goexit",
-            "fileName": "runtime/asm_[arch].s",
-            "lineNumber": "[lineNumber]"
-          }
-        ],
-        "probe": {
-          "id": "testAny",
-          "location": {
-            "method": "main.testAny"
-          }
-        },
-        "captures": {
-          "entry": {
-            "arguments": {
-              "a": {
-                "type": "interface {}",
-                "fields": {
-                  "data": {
-                    "type": "main.secondBehavior",
-                    "notCapturedReason": "missing type information"
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "timestamp": "[ts]"
-  },
-  {
-    "service": "sample",
-    "ddsource": "dd_debugger",
-    "logger": {
-      "name": "",
-      "method": "main.testAny",
-      "version": 0,
-      "thread_id": 0,
-      "thread_name": ""
-    },
-    "debugger": {
-      "snapshot": {
-        "id": "[id]",
-        "timestamp": "[ts]",
-        "language": "go",
-        "stack": [
-          {
-            "function": "main.testAny",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
-            "lineNumber": 54
-          },
-          {
-            "function": "main.executeInterfaceFuncs",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
-            "lineNumber": 86
-          },
-          {
-            "function": "main.main",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 46
-          },
-          {
-            "function": "runtime.main",
-            "fileName": "runtime/proc.go",
-            "lineNumber": "[lineNumber]"
-          },
-          {
-            "function": "runtime.goexit",
-            "fileName": "runtime/asm_[arch].s",
-            "lineNumber": "[lineNumber]"
-          }
-        ],
-        "probe": {
-          "id": "testAny",
-          "location": {
-            "method": "main.testAny"
-          }
-        },
-        "captures": {
-          "entry": {
-            "arguments": {
-              "a": {
-                "type": "interface {}",
-                "fields": {
-                  "data": {
-                    "type": "*main.secondBehavior",
-                    "notCapturedReason": "missing type information"
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "timestamp": "[ts]"
-  },
-  {
-    "service": "sample",
-    "ddsource": "dd_debugger",
-    "logger": {
-      "name": "",
-      "method": "main.testAny",
-      "version": 0,
-      "thread_id": 0,
-      "thread_name": ""
-    },
-    "debugger": {
-      "snapshot": {
-        "id": "[id]",
-        "timestamp": "[ts]",
-        "language": "go",
-        "stack": [
-          {
-            "function": "main.testAny",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
-            "lineNumber": 54
-          },
-          {
-            "function": "main.executeInterfaceFuncs",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
-            "lineNumber": 87
-          },
-          {
-            "function": "main.main",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 46
-          },
-          {
-            "function": "runtime.main",
-            "fileName": "runtime/proc.go",
-            "lineNumber": "[lineNumber]"
-          },
-          {
-            "function": "runtime.goexit",
-            "fileName": "runtime/asm_[arch].s",
-            "lineNumber": "[lineNumber]"
-          }
-        ],
-        "probe": {
-          "id": "testAny",
-          "location": {
-            "method": "main.testAny"
-          }
-        },
-        "captures": {
-          "entry": {
-            "arguments": {
-              "a": {
-                "type": "interface {}",
-                "fields": {
-                  "data": {
-                    "type": "lib_v2.V2Type",
-                    "notCapturedReason": "missing type information"
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "timestamp": "[ts]"
-  },
-  {
-    "service": "sample",
-    "ddsource": "dd_debugger",
-    "logger": {
-      "name": "",
-      "method": "main.testAny",
-      "version": 0,
-      "thread_id": 0,
-      "thread_name": ""
-    },
-    "debugger": {
-      "snapshot": {
-        "id": "[id]",
-        "timestamp": "[ts]",
-        "language": "go",
-        "stack": [
-          {
-            "function": "main.testAny",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
-            "lineNumber": 54
-          },
-          {
-            "function": "main.executeInterfaceFuncs",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
             "lineNumber": 88
           },
           {
@@ -389,7 +54,7 @@
                 "type": "interface {}",
                 "fields": {
                   "data": {
-                    "type": "*lib_v2.V2Type",
+                    "type": "main.otherFirstBehavior",
                     "notCapturedReason": "missing type information"
                   }
                 }
@@ -456,7 +121,75 @@
                 "type": "interface {}",
                 "fields": {
                   "data": {
-                    "isNull": true
+                    "type": "*main.otherFirstBehavior",
+                    "notCapturedReason": "missing type information"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]"
+  },
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testAny",
+      "version": 0,
+      "thread_id": 0,
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.testAny",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
+            "lineNumber": 54
+          },
+          {
+            "function": "main.executeInterfaceFuncs",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
+            "lineNumber": 90
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 46
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "testAny",
+          "location": {
+            "method": "main.testAny"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "a": {
+                "type": "interface {}",
+                "fields": {
+                  "data": {
+                    "type": "main.otherSecondBehavior",
+                    "notCapturedReason": "missing type information"
                   }
                 }
               }
@@ -492,6 +225,273 @@
             "function": "main.executeInterfaceFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
             "lineNumber": 91
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 46
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "testAny",
+          "location": {
+            "method": "main.testAny"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "a": {
+                "type": "interface {}",
+                "fields": {
+                  "data": {
+                    "type": "*main.otherSecondBehavior",
+                    "notCapturedReason": "missing type information"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]"
+  },
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testAny",
+      "version": 0,
+      "thread_id": 0,
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.testAny",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
+            "lineNumber": 54
+          },
+          {
+            "function": "main.executeInterfaceFuncs",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
+            "lineNumber": 92
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 46
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "testAny",
+          "location": {
+            "method": "main.testAny"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "a": {
+                "type": "interface {}",
+                "fields": {
+                  "data": {
+                    "type": "lib_v2.V2Type",
+                    "notCapturedReason": "missing type information"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]"
+  },
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testAny",
+      "version": 0,
+      "thread_id": 0,
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.testAny",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
+            "lineNumber": 54
+          },
+          {
+            "function": "main.executeInterfaceFuncs",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
+            "lineNumber": 93
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 46
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "testAny",
+          "location": {
+            "method": "main.testAny"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "a": {
+                "type": "interface {}",
+                "fields": {
+                  "data": {
+                    "type": "*lib_v2.V2Type",
+                    "notCapturedReason": "missing type information"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]"
+  },
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testAny",
+      "version": 0,
+      "thread_id": 0,
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.testAny",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
+            "lineNumber": 54
+          },
+          {
+            "function": "main.executeInterfaceFuncs",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
+            "lineNumber": 94
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 46
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "testAny",
+          "location": {
+            "method": "main.testAny"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "a": {
+                "type": "interface {}",
+                "fields": {
+                  "data": {
+                    "isNull": true
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]"
+  },
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testAny",
+      "version": 0,
+      "thread_id": 0,
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.testAny",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
+            "lineNumber": 54
+          },
+          {
+            "function": "main.executeInterfaceFuncs",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
+            "lineNumber": 96
           },
           {
             "function": "main.main",
@@ -558,7 +558,7 @@
           {
             "function": "main.executeInterfaceFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
-            "lineNumber": 92
+            "lineNumber": 97
           },
           {
             "function": "main.main",
@@ -626,7 +626,7 @@
           {
             "function": "main.executeInterfaceFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
-            "lineNumber": 94
+            "lineNumber": 99
           },
           {
             "function": "main.main",

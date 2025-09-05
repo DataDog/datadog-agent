@@ -23,7 +23,7 @@
           {
             "function": "main.executeInterfaceFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
-            "lineNumber": 117
+            "lineNumber": 122
           },
           {
             "function": "main.main",
