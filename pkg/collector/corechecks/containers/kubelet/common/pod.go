@@ -246,9 +246,9 @@ func CreateFilterablePodFromKubelet(pod *kubelet.Pod) *workloadfilter.Pod {
 	}
 }
 
-// AppendKubeRequestedCPUManagementTag accepts a list of tags and returns
+// AppendKubeStaticCPUsTag accepts a list of tags and returns
 // a list of tags with the proper kube_requested_cpu_management tag appended
-func AppendKubeRequestedCPUManagementTag(w workloadmeta.Component, qos string, containerID types.EntityID, tagList []string) []string {
+func AppendKubeStaticCPUsTag(w workloadmeta.Component, qos string, containerID types.EntityID, tagList []string) []string {
 	wmetaKubelet, _ := w.GetKubelet()
 	if wmetaKubelet != nil {
 		cpuManagerPolicy := wmetaKubelet.ConfigDocument.KubeletConfig.CPUManagerPolicy
@@ -267,9 +267,9 @@ func AppendKubeRequestedCPUManagementTag(w workloadmeta.Component, qos string, c
 		if qos == "Guaranteed" &&
 			requestedWholeCores &&
 			cpuManagerPolicy == "static" {
-			tagList = utils.ConcatenateStringTags(tagList, tags.KubeRequestedCPUManagement+":static")
+			tagList = utils.ConcatenateStringTags(tagList, tags.KubeStaticCPUsTag+":true")
 		} else {
-			tagList = utils.ConcatenateStringTags(tagList, tags.KubeRequestedCPUManagement+":none")
+			tagList = utils.ConcatenateStringTags(tagList, tags.KubeStaticCPUsTag+":false")
 		}
 	}
 

@@ -354,9 +354,9 @@ Types:
       ByteSize: 8
       GoRuntimeType: 32416
       GoKind: 22
-      Pointee: 67 PointerType ***int
+      Pointee: 68 PointerType ***int
     - __kind: PointerType
-      ID: 67
+      ID: 68
       Name: '***int'
       ByteSize: 8
       GoRuntimeType: 32352
@@ -697,7 +697,7 @@ Types:
                   Offset: 0
                   ByteSize: 24
     - __kind: ArrayType
-      ID: 68
+      ID: 67
       Name: '[128]uint8'
       ByteSize: 128
       GoRuntimeType: 41856
@@ -1016,7 +1016,7 @@ Types:
           Type: 9 BaseType int
         - Name: data
           Offset: 56
-          Type: 68 ArrayType [128]uint8
+          Type: 67 ArrayType [128]uint8
     - __kind: GoMapType
       ID: 38
       Name: map[string]int
