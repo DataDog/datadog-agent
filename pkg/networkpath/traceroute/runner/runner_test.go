@@ -106,6 +106,7 @@ func TestProcessResults(t *testing.T) {
 				},
 			},
 			expected: payload.NetworkPath{
+				TestConfigID: "test-config-test-hostname-test-destination-hostname-33434-UDP",
 				AgentVersion: version.AgentVersion,
 				Protocol:     payload.ProtocolUDP,
 				Source: payload.NetworkPathSource{
@@ -226,6 +227,7 @@ func TestProcessResults(t *testing.T) {
 				},
 			},
 			expected: payload.NetworkPath{
+				TestConfigID: "test-config-test-hostname-test-destination-hostname-33434-UDP",
 				AgentVersion: version.AgentVersion,
 				Protocol:     payload.ProtocolUDP,
 				Source: payload.NetworkPathSource{
@@ -333,6 +335,7 @@ func TestProcessResults(t *testing.T) {
 				},
 			},
 			expected: payload.NetworkPath{
+				TestConfigID: "test-config-test-hostname-test-destination-hostname-443-TCP",
 				AgentVersion: version.AgentVersion,
 				Protocol:     payload.ProtocolTCP,
 				Source: payload.NetworkPathSource{
@@ -450,6 +453,7 @@ func TestProcessResults(t *testing.T) {
 				},
 			},
 			expected: payload.NetworkPath{
+				TestConfigID: "test-config-test-hostname-test-destination-hostname-33434-UDP",
 				AgentVersion: version.AgentVersion,
 				Protocol:     payload.ProtocolUDP,
 				Source: payload.NetworkPathSource{
@@ -562,9 +566,12 @@ func TestProcessResults(t *testing.T) {
 			}
 			require.Nil(t, err)
 			require.NotNil(t, actual)
+			assert.NotNil(t, actual.TestResultID)
+			assert.NotNil(t, actual.Timestamp)
 			diff := cmp.Diff(test.expected, actual,
 				cmpopts.IgnoreFields(payload.NetworkPath{}, "Timestamp"),
 				cmpopts.IgnoreFields(payload.NetworkPath{}, "PathtraceID"),
+				cmpopts.IgnoreFields(payload.NetworkPath{}, "TestResultID"),
 			)
 			assert.Empty(t, diff)
 		})

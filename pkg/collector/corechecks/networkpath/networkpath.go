@@ -11,7 +11,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -77,17 +76,12 @@ func (c *Check) Run() error {
 	path.Destination.Service = c.config.DestinationService
 	path.Tags = append(path.Tags, c.config.Tags...)
 
-	for i := range path.Hops {
-		path.Hops[i].Hostname = traceroute.GetHostname(path.Hops[i].IPAddress)
-	}
-
 	// TODO: TEST ME
-	for i, run := range path.Traceroute.Runs {
-		path.Traceroute.Runs[i].Destination.ReverseDns = traceroute.GetHostname(path.Destination.IPAddress)
+	for i := range path.Traceroute.Runs {
+		run := &path.Traceroute.Runs[i]
+		run.Destination.ReverseDns = traceroute.GetReverseDNSForIP(run.Destination.IPAddress)
 		for j, hop := range run.Hops {
-			if !hop.IPAddress.Equal(net.IP{}) {
-				path.Traceroute.Runs[i].Hops[j].ReverseDns = traceroute.GetHostname(hop.IPAddress.String())
-			}
+			run.Hops[j].ReverseDns = traceroute.GetReverseDNSForIP(hop.IPAddress)
 		}
 	}
 
@@ -98,6 +92,8 @@ func (c *Check) Run() error {
 	}
 
 	metricTags := append(utils.GetCommonAgentTags(), c.config.Tags...)
+
+	// TODO: Remove static path telemetry code
 	c.submitTelemetry(metricSender, path, metricTags, startTime)
 
 	senderInstance.Commit()
