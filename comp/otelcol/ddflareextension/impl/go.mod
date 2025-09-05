@@ -192,7 +192,7 @@ require (
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/containerd/errdefs v1.0.0 // indirect
 	github.com/containerd/errdefs/pkg v0.3.0 // indirect
-	github.com/coreos/go-systemd/v22 v22.5.0 // indirect
+	github.com/coreos/go-systemd/v22 v22.6.0 // indirect
 	github.com/gofrs/flock v0.12.1 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0 // indirect
 	github.com/knadh/koanf/maps v0.1.2 // indirect
