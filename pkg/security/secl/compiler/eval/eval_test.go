@@ -18,6 +18,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 )
 
@@ -1409,6 +1411,36 @@ func TestOpOverridePartials(t *testing.T) {
 		if !result != test.IsDiscarder {
 			t.Fatalf("expected result `%t` for `%s`, got `%t`\n%s", test.IsDiscarder, test.Field, result, test.Expr)
 		}
+	}
+}
+
+func TestMultipleOpOverrides(t *testing.T) {
+	event := &testEvent{
+		title: "hello world",
+	}
+
+	testCases := []struct {
+		expression     string
+		expectedResult bool
+	}{
+		{expression: `event.title == "hello world"`, expectedResult: true},
+		{expression: `event.title == "Hello World"`, expectedResult: true},
+		{expression: `event.title == "HELLO WORLD"`, expectedResult: true},
+		{expression: `event.title == "hellO worlD"`, expectedResult: false},
+		{expression: `"hello world" == event.title`, expectedResult: true},
+		{expression: `"Hello World" == event.title`, expectedResult: true},
+		{expression: `"HELLO WORLD" == event.title`, expectedResult: true},
+		{expression: `"hellO worlD" == event.title`, expectedResult: false},
+	}
+
+	for _, tc := range testCases {
+		ctx := NewContext(event)
+		result, _, err := eval(ctx, tc.expression)
+		if err != nil {
+			t.Errorf("error while evaluating `%s`: %s", tc.expression, err)
+			continue
+		}
+		assert.Equal(t, tc.expectedResult, result, "expression: `%s`", tc.expression)
 	}
 }
 

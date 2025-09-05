@@ -1063,8 +1063,8 @@ func (e *NetworkContext) UnmarshalBinary(data []byte) (int, error) {
 	SliceToArray(data[read+16:read+32], dstIP[:])
 	e.Source.Port = binary.BigEndian.Uint16(data[read+32 : read+34])
 	e.Destination.Port = binary.BigEndian.Uint16(data[read+34 : read+36])
-	e.L4Protocol = binary.NativeEndian.Uint16(data[read+36 : read+38])
-	e.L3Protocol = binary.NativeEndian.Uint16(data[read+38 : read+40])
+	e.L3Protocol = binary.NativeEndian.Uint16(data[read+36 : read+38])
+	e.L4Protocol = binary.NativeEndian.Uint16(data[read+38 : read+40])
 
 	e.Size = binary.NativeEndian.Uint32(data[read+40 : read+44])
 	e.NetworkDirection = binary.NativeEndian.Uint32(data[read+44 : read+48])
@@ -1377,17 +1377,20 @@ func (e *NetworkStats) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *Flow) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 40 {
+	if len(data) < 72 {
 		return 0, ErrNotEnoughData
 	}
 
 	var srcIP, dstIP [16]byte
 	SliceToArray(data[0:16], srcIP[:])
 	SliceToArray(data[16:32], dstIP[:])
+
+	// NOTE: currently only TCP & UDP are supported
 	e.Source.Port = binary.BigEndian.Uint16(data[32:34])
 	e.Destination.Port = binary.BigEndian.Uint16(data[34:36])
-	e.L4Protocol = binary.NativeEndian.Uint16(data[36:38])
-	e.L3Protocol = binary.NativeEndian.Uint16(data[38:40])
+
+	e.L3Protocol = binary.NativeEndian.Uint16(data[36:38])
+	e.L4Protocol = binary.NativeEndian.Uint16(data[38:40])
 
 	// readjust IP sizes depending on the protocol
 	switch e.L3Protocol {
@@ -1562,4 +1565,21 @@ func (e *CapabilitiesEvent) UnmarshalBinary(data []byte) (int, error) {
 	e.Used = binary.NativeEndian.Uint64(data[8:16])
 
 	return 16, nil
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *PrCtlEvent) UnmarshalBinary(data []byte) (int, error) {
+	read, err := UnmarshalBinary(data, &e.SyscallEvent)
+	if err != nil {
+		return 0, err
+	}
+	data = data[read:]
+	if len(data) < 12 {
+		return 0, ErrNotEnoughData
+	}
+	e.Option = int(binary.NativeEndian.Uint32(data[0:4]))
+	sizeToRead := int(binary.NativeEndian.Uint32(data[4:8]))
+	e.IsNameTruncated = binary.NativeEndian.Uint32(data[8:12]) > 0
+	e.NewName = string(data[12 : sizeToRead+12])
+	return sizeToRead + 12, nil
 }

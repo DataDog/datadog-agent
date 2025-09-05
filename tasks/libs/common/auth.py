@@ -15,4 +15,10 @@ def datadog_infra_token(ctx, audience, datacenter="us1.ddbuild.io"):
         .removeprefix('Authorization: ')
     )
 
+    assert token.startswith('Bearer ') and token.count(' ') == 1, (
+        "`authanywhere` returned an invalid token."
+        if running_in_ci()
+        else "`ddtool auth token` returned an invalid token, it might be due to ddtool outdated. Please run `brew update && brew upgrade ddtool`."
+    )
+
     return token
