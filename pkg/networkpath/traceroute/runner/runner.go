@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-traceroute/result"
 	"github.com/DataDog/datadog-traceroute/runner"
 	"github.com/DataDog/datadog-traceroute/traceroute"
+	"github.com/google/uuid"
 )
 
 const (
@@ -159,6 +160,8 @@ func (r *Runner) processResults(res *result.Results, protocol payload.Protocol, 
 	traceroutePath := payload.NetworkPath{
 		AgentVersion: version.AgentVersion,
 		PathtraceID:  payload.NewPathtraceID(),
+		TestConfigID: fmt.Sprintf("test-config-%s-%s-%d-%s", hname, destinationHost, destinationPort, protocol),
+		TestResultID: uuid.New().String(),
 		Protocol:     protocol,
 		Timestamp:    time.Now().UnixMilli(),
 		Source: payload.NetworkPathSource{
