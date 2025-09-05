@@ -61,7 +61,7 @@ type StreamInfo struct {
 }
 
 // StreamWorker manages a single gRPC bidirectional stream with Master-Slave threading model
-// Architecture: One supervisor/sender goroutine + one persistent receiver goroutine per worker
+// Architecture: One supervisor/sender goroutine + one receiver goroutine per worker
 type StreamWorker struct {
 	// Configuration
 	workerID            string
@@ -491,6 +491,7 @@ func (s *StreamWorker) handleBatchStatus(response *BatchStatus) {
 }
 
 // payloadToBatch converts a message payload to a StatefulBatch
+// The payload.GRPCDatums contains array of *grpc.Datum objects
 func (s *StreamWorker) payloadToBatch(payload *message.Payload) *StatefulBatch {
 	s.batchIDCounter++
 	batchID := s.batchIDCounter
@@ -500,18 +501,15 @@ func (s *StreamWorker) payloadToBatch(payload *message.Payload) *StatefulBatch {
 		Data:    make([]*Datum, 0, payload.Count()),
 	}
 
-	// Convert payload to a single Datum with raw content
-	// Note: payload.Encoded contains the serialized log data
-	datum := &Datum{
-		Data: &Datum_Logs{
-			Logs: &Log{
-				Content: &Log_Raw{
-					Raw: string(payload.Encoded), // Convert bytes to string
-				},
-			},
-		},
+	// Use the GRPCDatums array from the payload (much cleaner!)
+	if payload.GRPCDatums != nil {
+		for _, datumInterface := range payload.GRPCDatums {
+			// Type assert to *Datum (should always work since we set it in grpcStreamStrategy)
+			if datum, ok := datumInterface.(*Datum); ok {
+				batch.Data = append(batch.Data, datum)
+			}
+		}
 	}
-	batch.Data = append(batch.Data, datum)
 
 	return batch
 }

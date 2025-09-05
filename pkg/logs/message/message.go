@@ -40,6 +40,8 @@ type Payload struct {
 	UnencodedSize int
 	// Indicates if this payload is a snapshot for stream rotation
 	IsSnapshot bool
+	// For gRPC sender: array of Datum protobuf objects
+	GRPCDatums []any // Will hold []*grpc.Datum, using any to avoid import cycle
 }
 
 // NewPayload creates a new payload with the given message metadata, encoded content, encoding type and unencoded size
@@ -87,6 +89,9 @@ type MessageMetadata struct {
 	RawDataLen int
 	// Tags added on processing
 	ProcessingTags []string
+	// IsSnapshot indicates this message should trigger immediate flush in gRPC stream strategy
+	// This is set by the processor when it receives a stream rotation signal
+	IsSnapshot bool
 	// Extra information from the parsers
 	ParsingExtra
 	// Extra information for Serverless Logs messages
@@ -127,7 +132,9 @@ type MessageContent struct { //nolint:revive
 	content []byte
 	// structured content
 	structuredContent StructuredContent
-	State             MessageContentState
+	// gRPC protobuf datum (for gRPC sender)
+	grpcDatum any // Will hold *grpc.Datum, using any to avoid import cycle
+	State     MessageContentState
 }
 
 // MessageContentState is used to represent the MessageContent state.
@@ -196,6 +203,17 @@ func (m *MessageContent) SetRendered(content []byte) {
 func (m *MessageContent) SetEncoded(content []byte) {
 	m.content = content
 	m.State = StateEncoded
+}
+
+// SetGRPCDatum sets the gRPC Datum for the MessageContent (for gRPC sender)
+func (m *MessageContent) SetGRPCDatum(datum any) {
+	m.grpcDatum = datum
+	m.State = StateEncoded // gRPC datum is considered encoded
+}
+
+// GetGRPCDatum returns the gRPC Datum if set
+func (m *MessageContent) GetGRPCDatum() any {
+	return m.grpcDatum
 }
 
 // ParsingExtra ships extra information parsers want to make available
