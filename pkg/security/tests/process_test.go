@@ -2008,12 +2008,11 @@ func TestProcessBusyboxHardlink(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_busybox_hardlink_1",
-			Expression: `exec.file.name == "free" && exec.argv in ["-m"]`,
+			Expression: `exec.file.path == "/bin/free" && exec.argv in ["-m"]`,
 		},
 		{
 			ID: "test_busybox_hardlink_2",
-			//Expression: `exec.file.path == "/bin/date" && exec.argv in ["-R"]`,
-			Expression: `exec.file.name == "date" && exec.argv in ["-R"]`,
+			Expression: `exec.file.path == "/bin/date" && exec.argv in ["-R"]`,
 		},
 	}
 
@@ -2029,8 +2028,7 @@ func TestProcessBusyboxHardlink(t *testing.T) {
 		t.Fatalf("failed to create docker wrapper: %v", err)
 	}
 
-	wrapper.Run(t, "busybox-1", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		fmt.Println("Running test busybox-1")
+	wrapper.Run(t, "busybox-1", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {)
 		test.WaitSignal(t, func() error {
 			cmd := cmdFunc("/bin/free", []string{"-m"}, nil)
 			if out, err := cmd.CombinedOutput(); err != nil {
@@ -2038,10 +2036,6 @@ func TestProcessBusyboxHardlink(t *testing.T) {
 			}
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
-			fmt.Println("BB Event: ", event.Exec)
-			if event.Exec.FileEvent.BasenameStr != "free" {
-				return
-			}
 			assert.Equal(t, "test_busybox_hardlink_1", rule.ID, "wrong rule triggered")
 			assert.Greater(t, event.Exec.FileEvent.NLink, uint32(1), event.Exec.FileEvent.PathnameStr)
 		})
@@ -2054,7 +2048,6 @@ func TestProcessBusyboxHardlink(t *testing.T) {
 			}
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
-			fmt.Println("BB Event: ", event.Exec)
 			assert.Equal(t, "test_busybox_hardlink_2", rule.ID, "wrong rule triggered")
 			assert.Greater(t, event.Exec.FileEvent.NLink, uint32(1), event.Exec.FileEvent.PathnameStr)
 		})
