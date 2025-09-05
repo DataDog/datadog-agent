@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/symlink"
 	patch "gopkg.in/evanphx/json-patch.v4"
 	"gopkg.in/yaml.v3"
 )
@@ -50,13 +51,21 @@ type State struct {
 
 // GetState returns the state of the directories.
 func (d *Directories) GetState() (State, error) {
-	stableDeploymentID, err := os.ReadFile(filepath.Join(d.StablePath, deploymentIDFile))
+	stablePath := filepath.Join(d.StablePath, deploymentIDFile)
+	experimentPath := filepath.Join(d.ExperimentPath, deploymentIDFile)
+	stableDeploymentID, err := os.ReadFile(stablePath)
 	if err != nil && !os.IsNotExist(err) {
 		return State{}, err
 	}
-	experimentDeploymentID, err := os.ReadFile(filepath.Join(d.ExperimentPath, deploymentIDFile))
+	experimentDeploymentID, err := os.ReadFile(experimentPath)
 	if err != nil && !os.IsNotExist(err) {
 		return State{}, err
+	}
+	stableExists := len(stableDeploymentID) > 0
+	experimentExists := len(experimentDeploymentID) > 0
+	// If experiment is symlinked to stable, it means the experiment is not installed.
+	if stableExists && experimentExists && isSameFile(stablePath, experimentPath) {
+		experimentDeploymentID = nil
 	}
 	return State{
 		StableDeploymentID:     string(stableDeploymentID),
@@ -92,12 +101,20 @@ func (d *Directories) PromoteExperiment(_ context.Context) error {
 	if err != nil {
 		return err
 	}
+	err = symlink.Set(d.StablePath, d.ExperimentPath)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
 // RemoveExperiment removes the experiment from the directories.
 func (d *Directories) RemoveExperiment(_ context.Context) error {
 	err := os.RemoveAll(d.ExperimentPath)
+	if err != nil {
+		return err
+	}
+	err = symlink.Set(d.ExperimentPath, d.StablePath)
 	if err != nil {
 		return err
 	}
