@@ -328,7 +328,7 @@ index 00ef405..0a91af6 100644
 -            "url": "https://github.com/f0rmiga/gcc-builds/releases/download/18082025/gcc-toolchain-13.4.0-x86_64.tar.xz",
 -            "sha256": "d96071c1b98499afd7b7b56ebd69ad414020edf66e982004acffe7df8aaf7e02",
 +            "url": "https://dd-agent-omnibus.s3.amazonaws.com/bazel/datadog_agent_cc_toolchain_x86_64.tar.gz",
-+            "sha256": "839bb0a4c584df6f1f1de289f4518af85e6fb2fcb324bbf1b84f8d863ea51cd7",
++            "sha256": "7beab0385b58d85ea204941b4a0318987b6b9056774da6d3f61d5d7b09b62c42",
          },
      },
 -    "14.3.0": {
@@ -359,7 +359,7 @@ index 00ef405..0a91af6 100644
 -            "url": "https://github.com/f0rmiga/gcc-builds/releases/download/18082025/gcc-toolchain-15.2.0-x86_64.tar.xz",
 -            "sha256": "50dd28021365e7443853d5e77bc94ab1d1c947ad48fd91cbec44dbdfa61412c9",
 +            "url": "https://dd-agent-omnibus.s3.amazonaws.com/bazel/datadog_agent_cc_toolchain_aarch64.tar.gz",
-+            "sha256": "94a9d4504bccee68f2b3b1c7b92959fd760ff24626fe7a7b854da6b60936a07b",
++            "sha256": "cc84eee2a9e1f2ef25895cae5b34667e3d1c0d5aa16199ed45d3d21c7b1e2690",
          },
      },
  }
