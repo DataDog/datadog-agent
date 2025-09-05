@@ -141,7 +141,7 @@ func BuildEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *Logs
 		"To benefit from increased reliability and better network performances, "+
 		"we strongly encourage switching over to compressed HTTPS which is now the default protocol.",
 		logsConfig.getConfigKey("force_use_tcp"), logsConfig.getConfigKey("socks5_proxy_address"))
-	return buildTCPEndpoints(coreConfig, logsConfig, intakeTrackType, intakeProtocol, intakeOrigin)
+	return buildTCPEndpoints(coreConfig, logsConfig)
 }
 
 // BuildServerlessEndpoints returns the endpoints to send logs for the Serverless agent.
