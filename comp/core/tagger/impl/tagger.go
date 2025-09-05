@@ -16,6 +16,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/http"
 	"slices"
 	"sync"
@@ -451,12 +452,12 @@ func (t *localTagger) EnrichTags(tb tagset.TagsAccumulator, originInfo taggertyp
 			return
 		}
 
-		var containerIDs []string
+		var containerIDsFrom = make(map[string]string)
 
 		// Tag using Local Data
 		if originInfo.ContainerIDFromSocket != packets.NoOrigin && len(originInfo.ContainerIDFromSocket) > containerIDFromSocketCutIndex {
 			containerID := originInfo.ContainerIDFromSocket[containerIDFromSocketCutIndex:]
-			containerIDs = append(containerIDs, containerID)
+			containerIDsFrom["ContainerIDFromSocket"] = containerID
 			originFromClient := types.NewEntityID(types.ContainerID, containerID)
 			if err := t.AccumulateTagsFor(originFromClient, cardinality, tb); err != nil {
 				t.log.Errorf("%s", err.Error())
@@ -464,7 +465,7 @@ func (t *localTagger) EnrichTags(tb tagset.TagsAccumulator, originInfo taggertyp
 		}
 
 		if originInfo.LocalData.ContainerID != "" {
-			containerIDs = append(containerIDs, originInfo.LocalData.ContainerID)
+			containerIDsFrom["ContainerIDFromLocalData"] = originInfo.LocalData.ContainerID
 		}
 		if err := t.AccumulateTagsFor(types.NewEntityID(types.ContainerID, originInfo.LocalData.ContainerID), cardinality, tb); err != nil && pkglog.ShouldLog(pkglog.TraceLvl) {
 			t.log.Tracef("Cannot get tags for entity %s: %s", originInfo.LocalData.ContainerID, err)
@@ -489,17 +490,18 @@ func (t *localTagger) EnrichTags(tb tagset.TagsAccumulator, originInfo taggertyp
 
 		// Accumulate tags for generated container ID
 		if generatedContainerID != "" {
-			containerIDs = append(containerIDs, generatedContainerID)
+			containerIDsFrom["ContainerIDFromExternalData"] = generatedContainerID
 			if err := t.AccumulateTagsFor(types.NewEntityID(types.ContainerID, generatedContainerID), cardinality, tb); err != nil && pkglog.ShouldLog(pkglog.TraceLvl) {
 				t.log.Tracef("Cannot get tags for entity %s: %s", generatedContainerID, err)
 			}
 		}
 
+		containerIDs := slices.Collect(maps.Values(containerIDsFrom))
 		// Check for container ID mismatch
 		if len(containerIDs) > 1 &&
 			slices.ContainsFunc(containerIDs[1:], func(id string) bool { return id != containerIDs[0] }) {
 			t.telemetryStore.OriginInfoContainerIDMismatch.Inc()
-			t.log.Warnf("Container ID mismatch detected: %v", containerIDs)
+			t.log.Warnf("Container ID mismatch detected: %v", containerIDsFrom)
 		}
 	}
 
