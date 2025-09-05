@@ -77,7 +77,7 @@ instances:
     #
     # lookback_time_window_minutes: 30
 
-    ## @param min_collection_interval - number - optional - default: 60
+    ## @param min_collection_interval - integer - optional - default: 60
     ## This changes the collection interval of the check. For more information, see:
     ## https://docs.datadoghq.com/developers/write_agent_check/#collection-interval
     #
