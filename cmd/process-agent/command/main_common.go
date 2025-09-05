@@ -54,6 +54,7 @@ import (
 	rdnsquerierfx "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx"
 	remoteconfig "github.com/DataDog/datadog-agent/comp/remote-config"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
+	syntheticsTestsfx "github.com/DataDog/datadog-agent/comp/syntheticstestscheduler/fx"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -141,6 +142,9 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 
 		// Provide network path bundle
 		networkpath.Bundle(),
+
+		// Provide synthetics test scheduler module
+		syntheticsTestsfx.Module(),
 
 		// Provide remote config client bundle
 		remoteconfig.Bundle(),
