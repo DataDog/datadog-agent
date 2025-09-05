@@ -285,3 +285,4 @@ func (r *Runner) StopCheck(id checkid.ID) error {
 		return fmt.Errorf("timeout during stop operation on check id %s", id)
 	}
 }
+
