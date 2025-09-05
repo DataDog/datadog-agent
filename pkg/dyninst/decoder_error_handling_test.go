@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/module"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcscrape"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symbol"
@@ -74,10 +75,14 @@ func TestDecoderErrorHandling(t *testing.T) {
 	diagURL, err := url.Parse(backendServer.URL + "/diags")
 	require.NoError(t, err)
 
+	symdbURL, err := url.Parse("http://dummy-symdb-url")
+	require.NoError(t, err)
 	c := module.NewController(
 		actuator,
 		uploader.NewLogsUploaderFactory(uploader.WithURL(logsURL)),
 		uploader.NewDiagnosticsUploader(uploader.WithURL(diagURL)),
+		symdbURL,
+		object.NewInMemoryLoader(),
 		scraper,
 		&failOnceDecoderFactory{
 			underlying: module.DefaultDecoderFactory{},

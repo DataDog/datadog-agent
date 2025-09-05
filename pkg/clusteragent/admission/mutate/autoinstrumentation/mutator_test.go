@@ -20,7 +20,7 @@ func TestNewMutatorWithFilter(t *testing.T) {
 	mockWmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Supply(coreconfig.Params{}),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		coreconfig.MockModule(),
+		fx.Provide(func() coreconfig.Component { return coreconfig.NewMock(t) }),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 	//Test configuration option that toggles autoinstrumentation off.
@@ -37,13 +37,13 @@ func TestNewMutatorWithFilter(t *testing.T) {
 	}
 
 	t.Run("return namespace mutator when instrumentation disabled", func(t *testing.T) {
-		mutator, err := NewMutatorWithFilter(configDisabled, mockWmeta)
+		mutator, err := NewMutatorWithFilter(configDisabled, mockWmeta, newNoOpImageResolver())
 		require.NoError(t, err)
 		require.IsType(t, &NamespaceMutator{}, mutator)
 	})
 
 	t.Run("return target mutator when instrumentation enabled", func(t *testing.T) {
-		mutator, err := NewMutatorWithFilter(configEnabled, mockWmeta)
+		mutator, err := NewMutatorWithFilter(configEnabled, mockWmeta, newNoOpImageResolver())
 		require.NoError(t, err)
 		require.IsType(t, &TargetMutator{}, mutator)
 	})

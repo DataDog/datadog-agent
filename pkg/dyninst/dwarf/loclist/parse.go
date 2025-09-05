@@ -69,6 +69,13 @@ func ParseInstructions(data []byte, ptrSize uint8, totalByteSize uint32) ([]ir.P
 	pieces := []ir.Piece{}
 	instCnt := 0
 
+	// We expect the ops list to be either:
+	// - a single op
+	// - multiple ops each followed by at least one piece: op, piece, op, piece, piece, op, piece, ...
+	// Consecutive pieces always indicating that parts of the variable data are not available.
+	// This assumption holds true up to go1.24. It no longer holds in go1.25, due to introduction of
+	// dw_op_deref.
+	// TODO(piob): support dw_op_deref
 	for reader.Len() > 0 {
 		instCnt++
 		opcode, err := reader.ReadByte()
@@ -89,7 +96,7 @@ func ParseInstructions(data []byte, ptrSize uint8, totalByteSize uint32) ([]ir.P
 		}
 
 		if op != nil {
-			return nil, fmt.Errorf("unconsumed op: %v", op)
+			return nil, fmt.Errorf("unconsumed op: %v, next opcode: 0x%x", op, opcode)
 		}
 
 		switch {

@@ -15,11 +15,11 @@ import (
 
 // NewMutatorWithFilter returns a NamespaceMutator when autoinstrumentation is disabled to ensure annotation-based injection still works.
 // Otherwise returns a TargetMutator for target-based workload selection.
-func NewMutatorWithFilter(c *Config, wmeta workloadmeta.Component) (mutatecommon.MutatorWithFilter, error) {
+func NewMutatorWithFilter(c *Config, wmeta workloadmeta.Component, imageResolver ImageResolver) (mutatecommon.MutatorWithFilter, error) {
 	if !c.Instrumentation.Enabled {
 		log.Debug("Using namespace mutator")
-		return NewNamespaceMutator(c, wmeta)
+		return NewNamespaceMutator(c, wmeta, imageResolver)
 	}
 	log.Debug("Using target mutator")
-	return NewTargetMutator(c, wmeta)
+	return NewTargetMutator(c, wmeta, imageResolver)
 }

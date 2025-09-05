@@ -9,7 +9,6 @@ package integrations
 
 import (
 	"errors"
-	"fmt"
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
@@ -19,12 +18,12 @@ const (
 	pythonBin = "python.exe"
 )
 
-func getRelPyPath(pythonMajorVersion string) string {
-	return filepath.Join(fmt.Sprintf("embedded%s", pythonMajorVersion), pythonBin)
+func getRelPyPath() string {
+	return filepath.Join("embedded3", pythonBin)
 }
 
-func getRelChecksPath(cliParams *cliParams) (string, error) {
-	return filepath.Join(fmt.Sprintf("embedded%s", cliParams.pythonMajorVersion), "Lib", "site-packages", "datadog_checks"), nil
+func getRelChecksPath(_ *cliParams) (string, error) {
+	return filepath.Join("embedded3", "Lib", "site-packages", "datadog_checks"), nil
 }
 
 func validateUser(_ bool) error {
