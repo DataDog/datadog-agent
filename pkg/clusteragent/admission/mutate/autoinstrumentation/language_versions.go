@@ -52,6 +52,7 @@ func (l language) libInfo(ctrName, image string) libInfo {
 
 // DEV: Will attempt to resolve, defaults to legacy if unable
 func (l language) libInfoWithResolver(ctrName, registry string, version string, imageResolver ImageResolver) libInfo {
+	// log.Debugf("ERIKA libInfoWithResolver %s %s %s %v", ctrName, registry, version, imageResolver)
 	resolvedImage, ok := imageResolver.Resolve(registry, fmt.Sprintf("dd-lib-%s-init", l), version)
 	var image string
 	if !ok {

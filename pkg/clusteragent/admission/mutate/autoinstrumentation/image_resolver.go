@@ -124,7 +124,7 @@ func (r *remoteConfigImageResolver) Resolve(registry string, repository string, 
 	defer r.mu.RUnlock()
 
 	if len(r.imageMappings) == 0 {
-		// log.Debugf("Cache empty, no resolution available")
+		log.Debugf("ERIKA Cache empty, no resolution available")
 		return nil, false
 	}
 
@@ -132,7 +132,7 @@ func (r *remoteConfigImageResolver) Resolve(registry string, repository string, 
 
 	repoCache, exists := r.imageMappings[requestedURL]
 	if !exists {
-		log.Debugf("No mapping found for repository URL %s", requestedURL)
+		log.Debugf("ERIKA No mapping found for repository URL %s", requestedURL)
 		return nil, false
 	}
 
@@ -140,11 +140,11 @@ func (r *remoteConfigImageResolver) Resolve(registry string, repository string, 
 
 	resolved, exists := repoCache[normalizedTag]
 	if !exists {
-		log.Debugf("No mapping found for %s:%s", requestedURL, normalizedTag)
+		log.Debugf("ERIKA No mapping found for %s:%s", requestedURL, normalizedTag)
 		return nil, false
 	}
 
-	log.Debugf("Resolved %s:%s -> %s", requestedURL, tag, resolved.FullImageRef)
+	log.Debugf("ERIKA Resolved %s:%s -> %s", requestedURL, tag, resolved.FullImageRef)
 	return &resolved, true
 }
 

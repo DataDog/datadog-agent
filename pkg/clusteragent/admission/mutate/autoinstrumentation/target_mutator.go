@@ -39,6 +39,9 @@ type TargetMutator struct {
 	securityClientLibraryMutator  containerMutator
 	profilingClientLibraryMutator containerMutator
 	containerRegistry             string
+	// ERIKA
+	config        *Config
+	imageResolver ImageResolver
 }
 
 // NewTargetMutator creates a new mutator for target based workload selection. We convert the targets to a more
@@ -91,12 +94,12 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolve
 		}
 
 		// Get the library versions to inject. If no versions are specified, we inject all libraries.
-		var libVersions []libInfo
-		if len(t.TracerVersions) == 0 {
-			libVersions = getAllLatestDefaultLibraries(config.containerRegistry, imageResolver)
-		} else {
-			libVersions = getPinnedLibraries(t.TracerVersions, config.containerRegistry, false, imageResolver).libs
-		}
+		// var libVersions []libInfo
+		// if len(t.TracerVersions) == 0 {
+		// 	libVersions = getAllLatestDefaultLibraries(config.containerRegistry, imageResolver)
+		// } else {
+		// 	libVersions = getPinnedLibraries(t.TracerVersions, config.containerRegistry, false, imageResolver).libs
+		// }
 
 		// Convert the tracer configs to env vars. We check that the env var names start with the DD_ prefix to avoid
 		// this from being used as a generic env var injector. If there is a product requirement to allow arbitrary env
@@ -117,9 +120,9 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolve
 			nameSpaceSelector:    namespaceSelector,
 			wmeta:                wmeta,
 			enabledNamespaces:    enabledNamespaces,
-			libVersions:          libVersions,
 			envVars:              envVars,
 			json:                 createJSON(t),
+			TracerVersions:       t.TracerVersions,
 		}
 	}
 
@@ -130,6 +133,8 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolve
 		securityClientLibraryMutator:  config.securityClientLibraryMutator,
 		profilingClientLibraryMutator: config.profilingClientLibraryMutator,
 		containerRegistry:             config.containerRegistry,
+		config:                        config,
+		imageResolver:                 imageResolver,
 	}
 
 	// Create the core mutator. This is a bit gross.
@@ -176,7 +181,15 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 	if target == nil {
 		return false, nil
 	}
-	extracted := m.core.initExtractedLibInfo(pod).withLibs(target.libVersions)
+	// ERIKA TODO
+	var libVersions []libInfo
+	if len(target.TracerVersions) == 0 {
+		libVersions = getAllLatestDefaultLibraries(m.config.containerRegistry, m.imageResolver)
+	} else {
+		libVersions = getPinnedLibraries(target.TracerVersions, m.config.containerRegistry, false, m.imageResolver).libs
+	}
+
+	extracted := m.core.initExtractedLibInfo(pod).withLibs(libVersions)
 
 	// Add the configuration for the security client library.
 	if err := m.core.mutatePodContainers(pod, m.securityClientLibraryMutator); err != nil {
@@ -263,6 +276,7 @@ type targetInternal struct {
 	envVars              []corev1.EnvVar
 	wmeta                workloadmeta.Component
 	json                 string
+	TracerVersions       map[string]string
 }
 
 // getTarget determines which target to use for a given a pod, which includes the set of tracing libraries to inject.
