@@ -10,8 +10,11 @@ package transformers
 
 import (
 	"fmt"
+
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -46,6 +49,35 @@ func RetrieveUnifiedServiceTags(labels map[string]string) []string {
 			tags = append(tags, fmt.Sprintf("%s:%s", labelToTagKeys[labelKey], tagValue))
 		}
 	}
+	return tags
+}
+
+func EvaluateTagExpressions(
+	namespace string,
+	labels map[string]string,
+	annotations map[string]string,
+	tagExpressions configutils.ResourceTagExpressions,
+) []string {
+	tags := []string{}
+	if len(tagExpressions) == 0 {
+		return tags
+	}
+
+	meta := configutils.KubernetesMetadata{
+		Namespace:   namespace,
+		Labels:      labels,
+		Annotations: annotations,
+	}
+
+	for kv, err := range tagExpressions.Eval(meta) {
+		if err != nil {
+			log.Warnf("error evaluating expression: %v", err)
+			continue
+		}
+
+		tags = append(tags, fmt.Sprintf("%s:%s", kv.Key, kv.Value))
+	}
+
 	return tags
 }
 

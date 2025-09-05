@@ -52,11 +52,14 @@ type MetadataAsTags interface {
 	GetResourcesLabelsAsTags() map[string]map[string]string
 	// GetResourcesAnnotationsAsTags returns resources annotations as tags
 	GetResourcesAnnotationsAsTags() map[string]map[string]string
+	// GetTagExpressions returns tag expressions
+	GetTagExpressions() map[string][]TagExpressions
 }
 
 type metadataAsTags struct {
 	labelsAsTags      map[string]map[string]string
 	annotationsAsTags map[string]map[string]string
+	tagExpressions    map[string]ResourceTagExpressions
 }
 
 var _ MetadataAsTags = &metadataAsTags{}
@@ -101,6 +104,10 @@ func (m *metadataAsTags) GetResourcesAnnotationsAsTags() map[string]map[string]s
 	return m.annotationsAsTags
 }
 
+func (m *metadataAsTags) GetTagExpressions() map[string][]TagExpressions {
+	return m.tagExpressions
+}
+
 func (m *metadataAsTags) mergeGenericResourcesLabelsAsTags(cfg pkgconfigmodel.Reader) {
 	resourcesToLabelsAsTags := retrieveDoubleMappingFromConfig(cfg, "kubernetes_resources_labels_as_tags")
 
@@ -135,10 +142,10 @@ func (m *metadataAsTags) mergeGenericResourcesAnnotationsAsTags(cfg pkgconfigmod
 
 // GetMetadataAsTags returns a merged configuration of all labels and annotations as tags set by the user
 func GetMetadataAsTags(c pkgconfigmodel.Reader) MetadataAsTags {
-
 	metadataAsTags := metadataAsTags{
 		labelsAsTags:      map[string]map[string]string{},
 		annotationsAsTags: map[string]map[string]string{},
+		tagExpressions:    map[string][]TagExpressions{},
 	}
 
 	// node labels/annotations as tags
@@ -168,6 +175,7 @@ func GetMetadataAsTags(c pkgconfigmodel.Reader) MetadataAsTags {
 	// generic resources labels/annotations as tags
 	metadataAsTags.mergeGenericResourcesLabelsAsTags(c)
 	metadataAsTags.mergeGenericResourcesAnnotationsAsTags(c)
+	metadataAsTags.tagExpressions = GetMetadataAsTagExpressions(c)
 
 	return &metadataAsTags
 }
@@ -177,7 +185,6 @@ func retrieveDoubleMappingFromConfig(cfg pkgconfigmodel.Reader, configKey string
 
 	var doubleMap map[string]map[string]string
 	err := json.Unmarshal([]byte(valueFromConfig), &doubleMap)
-
 	if err != nil {
 		log.Errorf("failed to parse %s with value %s into json: %v", configKey, valueFromConfig, err)
 		return map[string]map[string]string{}

@@ -47,11 +47,9 @@ type TerminatedPodCollector struct {
 // resource that is not assigned to any node.
 func NewTerminatedPodCollector(cfg config.Component, store workloadmeta.Component, tagger tagger.Component, metadataAsTags utils.MetadataAsTags) *TerminatedPodCollector {
 	resourceType := utilTypes.GetResourceType(utilTypes.PodName, utilTypes.PodVersion)
-	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
-	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
 
 	return &TerminatedPodCollector{
-		metadata: &collectors.CollectorMetadata{
+		metadata: (&collectors.CollectorMetadata{
 			IsDefaultVersion:                     true,
 			IsStable:                             pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.terminated_pods.enabled"),
 			IsMetadataProducer:                   true,
@@ -61,10 +59,8 @@ func NewTerminatedPodCollector(cfg config.Component, store workloadmeta.Componen
 			Kind:                                 kubernetes.PodKind,
 			NodeType:                             orchestrator.K8sPod,
 			Version:                              utilTypes.PodVersion,
-			LabelsAsTags:                         labelsAsTags,
-			AnnotationsAsTags:                    annotationsAsTags,
 			SupportsTerminatedResourceCollection: true,
-		},
+		}).WithMetadataAsTags(metadataAsTags, resourceType),
 		processor: processors.NewProcessor(k8sProcessors.NewPodHandlers(cfg, store, tagger)),
 	}
 }

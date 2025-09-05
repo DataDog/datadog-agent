@@ -41,11 +41,9 @@ type ClusterRoleBindingCollector struct {
 // ClusterRoleBinding resource.
 func NewClusterRoleBindingCollector(metadataAsTags utils.MetadataAsTags) *ClusterRoleBindingCollector {
 	resourceType := utilTypes.GetResourceType(utilTypes.ClusterRoleBindingName, utilTypes.ClusterRoleBindingVersion)
-	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
-	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
 
 	return &ClusterRoleBindingCollector{
-		metadata: &collectors.CollectorMetadata{
+		metadata: (&collectors.CollectorMetadata{
 			IsDefaultVersion:                     true,
 			IsStable:                             true,
 			IsMetadataProducer:                   true,
@@ -55,10 +53,8 @@ func NewClusterRoleBindingCollector(metadataAsTags utils.MetadataAsTags) *Cluste
 			Kind:                                 kubernetes.ClusterRoleBindingKind,
 			NodeType:                             orchestrator.K8sClusterRoleBinding,
 			Version:                              utilTypes.ClusterRoleBindingVersion,
-			LabelsAsTags:                         labelsAsTags,
-			AnnotationsAsTags:                    annotationsAsTags,
 			SupportsTerminatedResourceCollection: true,
-		},
+		}).WithMetadataAsTags(metadataAsTags, resourceType),
 		processor: processors.NewProcessor(new(k8sProcessors.ClusterRoleBindingHandlers)),
 	}
 }

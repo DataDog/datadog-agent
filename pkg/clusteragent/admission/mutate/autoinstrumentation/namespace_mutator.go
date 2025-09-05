@@ -243,8 +243,8 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 //
 // We want to get rid of the behavior when we are triggering the fallback _and_
 // it applies: https://datadoghq.atlassian.net/browse/INPLAT-458
-func (m *mutatorCore) serviceNameMutator(pod *corev1.Pod) containerMutator {
-	return newServiceNameMutator(pod, m.config.podMetaAsTags)
+func (m *mutatorCore) serviceNameMutator(pod *corev1.Pod, ustMutators map[string]*ustEnvVarMutator) containerMutator {
+	return newServiceNameMutator(pod, m.config.podMetaAsTags, ustMutators)
 }
 
 // ustEnvVarMutator will attempt to find a ust env var to inject into the pods containers if SSI is enabled.
@@ -258,16 +258,23 @@ func (m *mutatorCore) ustEnvVarMutator(pod *corev1.Pod) containerMutator {
 		return mutators
 	}
 
+	exprMutators := ustTagExpressionsMutators(pod, m.config.podMetaAsTags.TagExpressions)
+
 	for tag, envVarName := range map[string]string{
 		tags.Version: kubernetes.VersionTagEnvVar,
 		tags.Env:     kubernetes.EnvTagEnvVar,
 	} {
+		if m, alreadyFound := exprMutators[tag]; alreadyFound {
+			mutators = append(mutators, m)
+			continue
+		}
+
 		if mutator := ustEnvVarMutatorForPodMeta(pod, m.config.podMetaAsTags, tag, envVarName); mutator != nil {
 			mutators = append(mutators, mutator)
 		}
 	}
 
-	if mutator := m.serviceNameMutator(pod); mutator != nil {
+	if mutator := m.serviceNameMutator(pod, exprMutators); mutator != nil {
 		mutators = append(mutators, mutator)
 	}
 

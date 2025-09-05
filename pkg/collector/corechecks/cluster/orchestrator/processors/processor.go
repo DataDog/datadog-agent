@@ -19,6 +19,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	pkgorchestratormodel "github.com/DataDog/datadog-agent/pkg/orchestrator/model"
@@ -124,6 +125,7 @@ type K8sProcessorContext struct {
 	ResourceType      string
 	LabelsAsTags      map[string]string
 	AnnotationsAsTags map[string]string
+	TagExpressions    configutils.ResourceTagExpressions
 	NodeName          string
 }
 

@@ -13,7 +13,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -22,18 +24,21 @@ type podMetaKind string
 const (
 	podMetaKindLabels      podMetaKind = "labels"
 	podMetaKindAnnotations podMetaKind = "annotations"
+	podMetaKindExpressions podMetaKind = "expressions"
 )
 
 type podMetaAsTags struct {
-	Labels      map[string]string
-	Annotations map[string]string
+	Labels         map[string]string
+	Annotations    map[string]string
+	TagExpressions []configUtils.TagExpressions
 }
 
 func getPodMetaAsTags(datadogConfig config.Component) podMetaAsTags {
 	tags := configUtils.GetMetadataAsTags(datadogConfig)
 	return podMetaAsTags{
-		Labels:      tags.GetPodLabelsAsTags(),
-		Annotations: tags.GetPodAnnotationsAsTags(),
+		Labels:         tags.GetPodLabelsAsTags(),
+		Annotations:    tags.GetPodAnnotationsAsTags(),
+		TagExpressions: tags.GetTagExpressions()["pods"],
 	}
 }
 
@@ -79,6 +84,48 @@ func envVarSourceFromFieldRef(kind podMetaKind, path string) *corev1.EnvVarSourc
 			FieldPath: fmt.Sprintf("metadata.%s['%s']", kind, path),
 		},
 	}
+}
+
+var envVarNames = map[string]string{
+	tags.Version: kubernetes.VersionTagEnvVar,
+	tags.Env:     kubernetes.EnvTagEnvVar,
+	tags.Service: kubernetes.ServiceTagEnvVar,
+}
+
+func ustTagExpressionsMutators(pod *corev1.Pod, exprs configUtils.ResourceTagExpressions) map[string]*ustEnvVarMutator {
+	var (
+		found = map[string]*ustEnvVarMutator{}
+		meta  = configUtils.KubernetesMetadata{
+			Namespace:   pod.Namespace,
+			Labels:      pod.Labels,
+			Annotations: pod.Annotations,
+		}
+	)
+
+	for kv, err := range exprs.Eval(meta) {
+		if err != nil {
+			log.Warnf("error evaluating expression: %v", err)
+			continue
+		}
+
+		if _, alreadyFound := found[kv.Key]; alreadyFound {
+			continue
+		}
+
+		envVarName, ok := envVarNames[kv.Key]
+		if !ok {
+			continue
+		}
+
+		found[kv.Key] = &ustEnvVarMutator{
+			EnvVar: corev1.EnvVar{
+				Name:  envVarName,
+				Value: kv.Value,
+			},
+		}
+	}
+
+	return found
 }
 
 func ustEnvVarMutatorForPodMeta(pod *corev1.Pod, mappingSource podMetaAsTags, tag, envVarName string) *ustEnvVarMutator {

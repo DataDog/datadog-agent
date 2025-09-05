@@ -42,11 +42,9 @@ type HorizontalPodAutoscalerCollector struct {
 // HorizontalPodAutoscaler resource.
 func NewHorizontalPodAutoscalerCollector(metadataAsTags utils.MetadataAsTags) *HorizontalPodAutoscalerCollector {
 	resourceType := utilTypes.GetResourceType(utilTypes.HpaName, utilTypes.HpaVersion)
-	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
-	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
 
 	return &HorizontalPodAutoscalerCollector{
-		metadata: &collectors.CollectorMetadata{
+		metadata: (&collectors.CollectorMetadata{
 			IsDefaultVersion:                     true,
 			IsStable:                             true,
 			IsMetadataProducer:                   true,
@@ -56,10 +54,8 @@ func NewHorizontalPodAutoscalerCollector(metadataAsTags utils.MetadataAsTags) *H
 			Kind:                                 kubernetes.HorizontalPodAutoscalerKind,
 			NodeType:                             orchestrator.K8sHorizontalPodAutoscaler,
 			Version:                              utilTypes.HpaVersion,
-			LabelsAsTags:                         labelsAsTags,
-			AnnotationsAsTags:                    annotationsAsTags,
 			SupportsTerminatedResourceCollection: true,
-		},
+		}).WithMetadataAsTags(metadataAsTags, resourceType),
 		processor: processors.NewProcessor(new(k8sProcessors.HorizontalPodAutoscalerHandlers)),
 	}
 }

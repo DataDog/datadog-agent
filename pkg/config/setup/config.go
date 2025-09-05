@@ -429,6 +429,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// 	- `pods`
 	// 	- `nodes`
 	config.BindEnvAndSetDefault("kubernetes_resources_labels_as_tags", "{}")
+	config.BindEnvAndSetDefault("kubernetes_resources_metadata_as_tags_expressions", "{}")
 	config.BindEnvAndSetDefault("kubernetes_persistent_volume_claims_as_tags", true)
 	config.BindEnvAndSetDefault("container_cgroup_prefix", "")
 

@@ -16,6 +16,7 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	pkgorchestratormodel "github.com/DataDog/datadog-agent/pkg/orchestrator/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -54,8 +55,17 @@ type CollectorMetadata struct {
 	SkippedReason                        string
 	LabelsAsTags                         map[string]string
 	AnnotationsAsTags                    map[string]string
+	TagExpressions                       configutils.TagExpressions
 	SupportsTerminatedResourceCollection bool
 	IsGenericCollector                   bool
+}
+
+// WithMetadataAsTags adds tag metadata extraction to CollectorMetadata.
+func (cm *CollectorMetadata) WithMetadataAsTags(metadataAsTags configutils.MetadataAsTags, resourceType string) *CollectorMetadata {
+	cm.LabelsAsTags = metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
+	cm.AnnotationsAsTags = metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
+	cm.TagExpressions = metadataAsTags.GetTagExpressions()[resourceType]
+	return cm
 }
 
 // CollectorTags returns static tags to be added to all resources collected by the collector.
