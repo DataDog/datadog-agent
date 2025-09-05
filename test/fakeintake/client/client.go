@@ -722,6 +722,9 @@ func (c *Client) GetLastProcessPayloadAPIKey() (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if len(payloads) == 0 {
+		return "", errors.New("no process payloads found")
+	}
 	return payloads[len(payloads)-1].APIKey, nil
 }
 
@@ -731,6 +734,10 @@ func (c *Client) GetAllProcessPayloadAPIKeys() ([]string, error) {
 	payloads, err := c.getFakePayloads(processesEndpoint)
 	if err != nil {
 		return nil, err
+	}
+
+	if len(payloads) == 0 {
+		return nil, errors.New("no process payloads found")
 	}
 
 	keysFound := make(map[string]struct{})
