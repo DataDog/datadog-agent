@@ -124,13 +124,7 @@ ddot_win_oci:
     - VERSION="$(echo "${ZIP_BASE}" | sed -E 's/^datadog-agent-ddot-(.+)-x86_64\.zip$/\1/')"
     - EXTRA_FLAGS=""
     - '[ -d "${WIN_INPUT}/etc/datadog-agent" ] && EXTRA_FLAGS="--configs ${WIN_INPUT}/etc/datadog-agent" || true'
-    - datadog-package create \
-        --version "${VERSION}" \
-        --package datadog-agent-ddot \
-        --os windows --arch amd64 \
-        --archive --archive-path "${PIPE_DIR}/datadog-agent-ddot-${VERSION}-windows-amd64.oci.tar" \
-        ${EXTRA_FLAGS} \
-        "${WIN_INPUT}/"
+    - datadog-package create --version "${VERSION}" --package datadog-agent-ddot --os windows --arch amd64 --archive --archive-path "${PIPE_DIR}/datadog-agent-ddot-${VERSION}-windows-amd64.oci.tar" ${EXTRA_FLAGS} "${WIN_INPUT}/"
     - ls -l "${PIPE_DIR}"
   artifacts:
     expire_in: 2 weeks
