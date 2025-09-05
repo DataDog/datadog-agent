@@ -15,6 +15,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/url"
+	"os"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
@@ -55,15 +56,15 @@ type RunnerConfig struct {
 }
 
 // ProvisionRunnerIdentityWithToken performs enrollment with a provided token and outputs to stdout
-func ProvisionRunnerIdentityWithToken(enrollmentToken, datadogSite, _ string) error {
+func ProvisionRunnerIdentityWithToken(enrollmentToken, datadogSite, appendToFile string) error {
 	fmt.Println("Starting runner enrollment...")
-	return runEnrollmentToConfig(enrollmentToken, datadogSite)
+	return runEnrollmentToConfig(enrollmentToken, datadogSite, appendToFile)
 }
 
 // ProvisionRunnerIdentityWithAPIKey performs self-enrollment using API key authentication
-func ProvisionRunnerIdentityWithAPIKey(apiKey, appKey, datadogSite string, selfAuth bool) error {
+func ProvisionRunnerIdentityWithAPIKey(apiKey, appKey, datadogSite string, selfAuth bool, appendToFile string) error {
 	fmt.Println("Starting runner self-enrollment...")
-	return runSelfEnrollmentToConfig(apiKey, appKey, datadogSite, selfAuth)
+	return runSelfEnrollmentToConfig(apiKey, appKey, datadogSite, selfAuth, appendToFile)
 }
 
 // generateKeys creates a new ECDSA P-256 key pair
@@ -79,7 +80,7 @@ func buildHmacKey(key, payload string) []byte {
 }
 
 // runEnrollmentToConfig performs enrollment and outputs configuration to stdout
-func runEnrollmentToConfig(enrollmentToken, datadogSite string) error {
+func runEnrollmentToConfig(enrollmentToken, datadogSite, appendToFile string) error {
 	// Generate ECDSA key pair
 	privateKey, err := generateKeys()
 	if err != nil {
@@ -163,7 +164,7 @@ func runEnrollmentToConfig(enrollmentToken, datadogSite string) error {
 		log.Infof("Unrecognized site '%s', defaulting to region 'us1'", datadogSite)
 	}
 
-	err = outputConfig(response, privateKeyJWK, region)
+	err = outputConfig(response, privateKeyJWK, region, appendToFile)
 	if err != nil {
 		return fmt.Errorf("failed to generate configuration: %w", err)
 	}
@@ -202,7 +203,7 @@ func getEc2Identity() (*opms.Ec2Identity, error) {
 }
 
 // runSelfEnrollmentToConfig performs self-enrollment with API key and outputs configuration to stdout
-func runSelfEnrollmentToConfig(apiKey, appKey, datadogSite string, selfAuth bool) error {
+func runSelfEnrollmentToConfig(apiKey, appKey, datadogSite string, selfAuth bool, appendToFile string) error {
 	// Get EC2 identity with region and PKCS7
 	var ec2Identity *opms.Ec2Identity
 
@@ -253,7 +254,7 @@ func runSelfEnrollmentToConfig(apiKey, appKey, datadogSite string, selfAuth bool
 		log.Infof("Unrecognized site '%s', defaulting to region 'us1'", datadogSite)
 	}
 
-	err = outputConfig(response, privateKeyJWK, region)
+	err = outputConfig(response, privateKeyJWK, region, appendToFile)
 	if err != nil {
 		return fmt.Errorf("failed to generate configuration: %w", err)
 	}
@@ -261,7 +262,7 @@ func runSelfEnrollmentToConfig(apiKey, appKey, datadogSite string, selfAuth bool
 	return nil
 }
 
-func outputConfig(response *opms.EnrollmentResponse, jwk *jose.JSONWebKey, region string) error {
+func outputConfig(response *opms.EnrollmentResponse, jwk *jose.JSONWebKey, region string, appendToFile string) error {
 	marshalledPrivateJwk, err := jwk.MarshalJSON()
 	if err != nil {
 		return fmt.Errorf("failed to marshal private key: %w", err)
@@ -289,6 +290,21 @@ func outputConfig(response *opms.EnrollmentResponse, jwk *jose.JSONWebKey, regio
 	fmt.Printf("URN: %s\n", urn)
 	fmt.Printf("Modes: %s\n", strings.Join(response.Modes, ", "))
 	fmt.Printf("\nAdd the following to your datadog.yaml:\n\n%s", string(yamlData))
+
+	if appendToFile != "" {
+		f, err := os.OpenFile(appendToFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			return fmt.Errorf("failed to open file: %w", err)
+		}
+		defer f.Close()
+
+		_, err = f.WriteString("\n" + string(yamlData))
+		if err != nil {
+			return fmt.Errorf("failed to append config to file: %w", err)
+		}
+
+		fmt.Printf("\nConfiguration appended to %s\n", appendToFile)
+	}
 
 	return nil
 }

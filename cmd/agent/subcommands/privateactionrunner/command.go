@@ -34,6 +34,7 @@ and configuration.`,
 func enrollCommand(globalParams *command.GlobalParams) *cobra.Command {
 	var enrollmentToken string
 	var site string
+	var appendToFile string
 
 	cmd := &cobra.Command{
 		Use:   "enroll --token <enrollment-token>",
@@ -55,12 +56,13 @@ Example:
 				site = "datadoghq.com" // Default site
 			}
 			// Perform enrollment
-			return enrollment.ProvisionRunnerIdentityWithToken(enrollmentToken, site, "")
+			return enrollment.ProvisionRunnerIdentityWithToken(enrollmentToken, site, appendToFile)
 		},
 	}
 
 	cmd.Flags().StringVarP(&enrollmentToken, "token", "t", "", "Enrollment token from Datadog UI (required)")
 	cmd.Flags().StringVarP(&site, "site", "s", "", "Datadog site (e.g., datadoghq.com, datadoghq.eu, us3.datadoghq.com). Defaults to datadoghq.com")
+	cmd.Flags().StringVarP(&appendToFile, "append-to-file", "", "", "File to which the enrollment configuration will be appended")
 	cmd.MarkFlagRequired("token")
 
 	return cmd
@@ -71,6 +73,7 @@ func selfEnrollCommand(globalParams *command.GlobalParams) *cobra.Command {
 	var appKey string
 	var site string
 	var selfAuth bool
+	var appendToFile string
 
 	cmd := &cobra.Command{
 		Use:   "self-enroll --api-key <api-key>",
@@ -102,7 +105,7 @@ Example:
 				site = "datadoghq.com" // Default site
 			}
 			// Perform self-enrollment
-			return enrollment.ProvisionRunnerIdentityWithAPIKey(apiKey, appKey, site, selfAuth)
+			return enrollment.ProvisionRunnerIdentityWithAPIKey(apiKey, appKey, site, selfAuth, appendToFile)
 		},
 	}
 
@@ -110,6 +113,7 @@ Example:
 	cmd.Flags().StringVarP(&appKey, "app-key", "", "", "Datadog APP key for authentication (required)")
 	cmd.Flags().StringVarP(&site, "site", "s", "", "Datadog site (e.g., datadoghq.com, datadoghq.eu, us3.datadoghq.com). Defaults to datadoghq.com")
 	cmd.Flags().BoolVarP(&selfAuth, "self-auth", "", false, "Enable self-authentication mode")
+	cmd.Flags().StringVarP(&appendToFile, "append-to-file", "", "", "File to which the enrollment configuration will be appended")
 	//cmd.MarkFlagRequired("api-key")
 	//cmd.MarkFlagRequired("app-key")
 
