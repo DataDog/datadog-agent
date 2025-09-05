@@ -28,12 +28,12 @@ require (
 	github.com/google/gofuzz v1.2.0
 	github.com/google/uuid v1.6.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/probabilisticsamplerprocessor v0.133.0
-	github.com/stretchr/testify v1.10.0
+	github.com/stretchr/testify v1.11.1
 	github.com/tinylib/msgp v1.3.0
 	github.com/vmihailenco/msgpack/v4 v4.3.13
-	go.opentelemetry.io/collector/component v1.39.0 // indirect
-	go.opentelemetry.io/collector/consumer v1.39.0
-	go.opentelemetry.io/collector/pdata v1.39.0
+	go.opentelemetry.io/collector/component v1.40.0 // indirect
+	go.opentelemetry.io/collector/consumer v1.40.0
+	go.opentelemetry.io/collector/pdata v1.40.0
 	go.opentelemetry.io/collector/processor/processortest v0.133.0
 	go.opentelemetry.io/otel v1.37.0
 	go.opentelemetry.io/otel/metric v1.37.0
@@ -51,8 +51,8 @@ require (
 	github.com/DataDog/datadog-agent/pkg/api v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.71.0-devel.0.20250820180704-be0d2d237646
 	github.com/DataDog/datadog-agent/pkg/template v0.65.1
-	github.com/shirou/gopsutil/v4 v4.25.8-0.20250809033336-ffcdc2b7662f
-	go.opentelemetry.io/collector/component/componenttest v0.133.0
+	github.com/shirou/gopsutil/v4 v4.25.8
+	go.opentelemetry.io/collector/component/componenttest v0.134.0
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250707201910-8d1bb00bc6a7
 )
 
@@ -65,9 +65,9 @@ require (
 
 require (
 	github.com/hashicorp/go-version v1.7.0 // indirect
-	go.opentelemetry.io/collector/consumer/xconsumer v0.133.0 // indirect
-	go.opentelemetry.io/collector/featuregate v1.39.0 // indirect
-	go.opentelemetry.io/collector/internal/telemetry v0.133.0 // indirect
+	go.opentelemetry.io/collector/consumer/xconsumer v0.134.0 // indirect
+	go.opentelemetry.io/collector/featuregate v1.40.0 // indirect
+	go.opentelemetry.io/collector/internal/telemetry v0.134.0 // indirect
 	go.opentelemetry.io/collector/processor/processorhelper v0.133.0 // indirect
 	go.opentelemetry.io/collector/processor/xprocessor v0.133.0 // indirect
 	go.opentelemetry.io/contrib/bridges/otelzap v0.12.0 // indirect
@@ -105,10 +105,15 @@ require (
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	go.opentelemetry.io/collector/component/componentstatus v0.133.0 // indirect
-	go.opentelemetry.io/collector/consumer/consumertest v0.133.0 // indirect
-	go.opentelemetry.io/collector/pdata/pprofile v0.133.0 // indirect
-	go.opentelemetry.io/collector/pdata/testdata v0.133.0 // indirect
-	go.opentelemetry.io/collector/pipeline v1.39.0 // indirect
+	go.opentelemetry.io/collector/confmap v1.40.0 // indirect
+	go.opentelemetry.io/collector/confmap/xconfmap v0.134.0 // indirect
+	go.opentelemetry.io/collector/consumer/consumertest v0.134.0 // indirect
+	go.opentelemetry.io/collector/exporter/exportertest v0.134.0 // indirect
+	go.opentelemetry.io/collector/extension/extensiontest v0.134.0 // indirect
+	go.opentelemetry.io/collector/pdata/pprofile v0.134.0 // indirect
+	go.opentelemetry.io/collector/pdata/testdata v0.134.0 // indirect
+	go.opentelemetry.io/collector/pipeline v1.40.0 // indirect
+	go.opentelemetry.io/collector/receiver/receivertest v0.134.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.37.0 // indirect
 	go.opentelemetry.io/otel/sdk/metric v1.37.0 // indirect
 	go.opentelemetry.io/otel/trace v1.37.0 // indirect

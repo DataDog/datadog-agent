@@ -9,18 +9,18 @@ require (
 	github.com/DataDog/datadog-agent/pkg/proto v0.64.0-devel
 	github.com/DataDog/datadog-agent/pkg/trace v0.64.0-devel.0.20250129182827-bab631c10d61
 	github.com/DataDog/datadog-go/v5 v5.6.0
-	github.com/stretchr/testify v1.10.0
-	go.opentelemetry.io/collector/component/componenttest v0.133.0
-	go.opentelemetry.io/collector/pdata v1.39.0
+	github.com/stretchr/testify v1.11.1
+	go.opentelemetry.io/collector/component/componenttest v0.134.0
+	go.opentelemetry.io/collector/pdata v1.40.0
 	go.opentelemetry.io/otel/sdk/metric v1.37.0
 )
 
-require go.opentelemetry.io/collector/component v1.39.0 // indirect
+require go.opentelemetry.io/collector/component v1.40.0 // indirect
 
 require (
 	github.com/hashicorp/go-version v1.7.0 // indirect
-	go.opentelemetry.io/collector/featuregate v1.39.0 // indirect
-	go.opentelemetry.io/collector/internal/telemetry v0.133.0 // indirect
+	go.opentelemetry.io/collector/featuregate v1.40.0 // indirect
+	go.opentelemetry.io/collector/internal/telemetry v0.134.0 // indirect
 	go.opentelemetry.io/contrib/bridges/otelzap v0.12.0 // indirect
 	go.opentelemetry.io/otel/log v0.13.0 // indirect
 )
@@ -65,7 +65,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
 	github.com/secure-systems-lab/go-securesystemslib v0.9.0 // indirect
-	github.com/shirou/gopsutil/v4 v4.25.8-0.20250809033336-ffcdc2b7662f // indirect
+	github.com/shirou/gopsutil/v4 v4.25.8 // indirect
 	github.com/tinylib/msgp v1.3.0 // indirect
 	github.com/tklauser/go-sysconf v0.3.15 // indirect
 	github.com/tklauser/numcpus v0.10.0 // indirect
