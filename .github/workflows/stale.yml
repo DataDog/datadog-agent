@@ -29,22 +29,23 @@ jobs:
           repo-token: ${{ steps.octo-sts.outputs.token }}
 
           # Stale configuration
-          days-before-stale: 60
-          days-before-close: 7
+          days-before-stale: 15
+          days-before-close: 15
 
           # Issue configuration
           stale-issue-message: |
             This issue has been automatically marked as stale because it has not had recent activity.
 
-            It will be closed in 7 days if no further activity occurs. If this issue is still relevant, please:
+
+            It will be closed in 15 days if no further activity occurs. If this issue is still relevant, please:
             - Add a comment to keep it open
-            - Add the `pinned` label to prevent it from being marked as stale
             - Contact the maintainers if you believe this was marked in error
 
             Thank you for your contributions!
 
           close-issue-message: |
-            This issue was closed because it has been stale for 7 days with no activity.
+            This issue was closed because it has been stale for 15 days with no activity.
+
 
             If you believe this issue is still relevant, please reopen it or create a new issue with updated information.
 
@@ -54,24 +55,24 @@ jobs:
           stale-pr-message: |
             This pull request has been automatically marked as stale because it has not had recent activity.
 
-            It will be closed in 7 days if no further activity occurs. If this pull request is still relevant, please:
+
+            It will be closed in 15 days if no further activity occurs. If this pull request is still relevant, please:
             - Add a comment or push new commits to keep it open
-            - Add the `pinned` label to prevent it from being marked as stale
             - Contact the maintainers if you believe this was marked in error
 
             Thank you for your contributions!
 
           close-pr-message: |
-            This pull request was closed because it has been stale for 7 days with no activity.
+            This pull request was closed because it has been stale for 15 days with no activity.
+
 
             If you believe this pull request is still relevant, please reopen it or create a new pull request with updated information.
 
           stale-pr-label: 'stale'
 
           # Exemptions
-          exempt-issue-labels: 'pinned,bug,feature-request,security,needs-investigation'
-          exempt-pr-labels: 'pinned,work-in-progress,blocked,needs-review'
-          exempt-draft-pr: true
+          exempt-issue-labels: 'kind/bug,kind/feature,kind/security,category/bugfix,category/feature,category/security'
+          exempt-pr-labels: 'do-not-merge/WIP,do-not-merge/hold'
 
           # Additional configuration
           operations-per-run: 100
