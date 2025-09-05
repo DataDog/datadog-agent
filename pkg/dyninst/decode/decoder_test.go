@@ -16,6 +16,7 @@ import (
 	"testing"
 	"unsafe"
 
+	"github.com/go-json-experiment/json/jsontext"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/gotype"
@@ -735,4 +736,43 @@ func (r *noopTypeNameResolver) ResolveTypeName(
 	typeID gotype.TypeID,
 ) (string, error) {
 	return fmt.Sprintf("type%#x", typeID), nil
+}
+
+type panicDecoderType struct {
+	decoderType
+}
+
+var _ decoderType = (*panicDecoderType)(nil)
+
+func (t *panicDecoderType) encodeValueFields(*Decoder, *jsontext.Encoder, []byte) error {
+	panic("boom")
+}
+
+func TestDecoderPanics(t *testing.T) {
+	irProg := generateIrForProbes(t, "simple", "stringArg")
+	decoder, err := NewDecoder(irProg, &noopTypeNameResolver{})
+	require.NoError(t, err)
+	caseIdx := slices.IndexFunc(cases, func(c testCase) bool {
+		return c.probeName == "stringArg"
+	})
+	testCase := &cases[caseIdx]
+	input := testCase.eventConstructor(t, irProg)
+	var stringType ir.Type
+	for _, t := range irProg.Types {
+		if t.GetName() == "string" {
+			stringType = t
+			break
+		}
+	}
+	require.NotNil(t, stringType)
+	stringID := stringType.GetID()
+	decoder.decoderTypes[stringID] = &panicDecoderType{decoder.decoderTypes[stringID]}
+	_, err = decoder.Decode(Event{
+		Event:       output.Event(input),
+		ServiceName: "foo"},
+		&noopSymbolicator{},
+		bytes.NewBuffer(nil),
+	)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "boom")
 }

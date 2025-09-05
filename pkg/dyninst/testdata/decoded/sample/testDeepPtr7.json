@@ -63,8 +63,13 @@
                         "address": "[addr]",
                         "fields": {
                           "a": {
-                            "type": "*main.deepPtr1",
-                            "notCapturedReason": "missing type information"
+                            "type": "interface {}",
+                            "fields": {
+                              "data": {
+                                "type": "*main.deepPtr1",
+                                "notCapturedReason": "missing type information"
+                              }
+                            }
                           }
                         }
                       }
