@@ -3,18 +3,21 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package repository
+// Package symlink contains the logic to manage symlinks.
+package symlink
 
 import (
 	"errors"
 	"os"
 )
 
-func linkRead(linkPath string) (string, error) {
+// Read reads the target of a link.
+func Read(linkPath string) (string, error) {
 	return os.Readlink(linkPath)
 }
 
-func linkExists(linkPath string) (bool, error) {
+// Exists checks if a link exists.
+func Exist(linkPath string) (bool, error) {
 	_, err := os.Stat(linkPath)
 	if errors.Is(err, os.ErrNotExist) {
 		return false, nil
@@ -24,10 +27,12 @@ func linkExists(linkPath string) (bool, error) {
 	return true, nil
 }
 
-func linkSet(linkPath string, targetPath string) error {
+// Set creates a link.
+func Set(linkPath string, targetPath string) error {
 	return atomicSymlink(targetPath, linkPath)
 }
 
-func linkDelete(linkPath string) error {
+// Delete removes a link.
+func Delete(linkPath string) error {
 	return os.Remove(linkPath)
 }
