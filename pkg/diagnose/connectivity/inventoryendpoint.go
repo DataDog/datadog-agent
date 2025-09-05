@@ -78,9 +78,13 @@ func (e *endpointDescription) buildEndpoints(cfg model.Reader, domains []domain)
 	if e.route != "" {
 		mainDomain := domains[0]
 		route := e.route
-		urlOverrideKey := getURLOverrideKey(e.altURLOverrideKey, false)
-		if overrideRoute := cfg.GetString(urlOverrideKey); overrideRoute != "" {
-			route = overrideRoute
+		if e.altURLOverrideKey != "" {
+			urlOverrideKey := getURLOverrideKey(e.altURLOverrideKey, false)
+			if cfg.IsKnown(urlOverrideKey) {
+				if overrideRoute := cfg.GetString(urlOverrideKey); overrideRoute != "" {
+					route = overrideRoute
+				}
+			}
 		}
 
 		return []resolvedEndpoint{
@@ -117,7 +121,12 @@ func getAPIKey(cfg model.Reader, configPrefix string, defaultAPIKey string, altA
 	if !altAPIKey {
 		return defaultAPIKey
 	}
-	if apiKey := cfg.GetString(joinSuffix(configPrefix, ".") + "api_key"); apiKey != "" {
+
+	configAPIKey := joinSuffix(configPrefix, ".") + "api_key"
+	if !cfg.IsKnown(configAPIKey) {
+		return defaultAPIKey
+	}
+	if apiKey := cfg.GetString(configAPIKey); apiKey != "" {
 		return apiKey
 	}
 	return defaultAPIKey
