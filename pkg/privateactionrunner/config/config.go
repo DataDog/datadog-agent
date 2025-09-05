@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2024-present Datadog, Inc.
+
+// Package config provides configuration structures for the private action runner.
 package config
 
 import (
@@ -7,15 +13,16 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
+// Config represents the configuration for the private action runner.
 type Config struct {
 	ActionsAllowlist  map[string][]string // map of allowed bundle IDs to a set of allowed action names
 	Allowlist         []string
 	AllowIMDSEndpoint bool
 	DDHost            string
 	Modes             []string
-	OrgId             int64
+	OrgID             int64
 	PrivateKey        *ecdsa.PrivateKey
-	RunnerId          string
+	RunnerID          string
 	Urn               string
 
 	// RemoteConfig related fields
@@ -30,10 +37,10 @@ type Config struct {
 	OpmsRequestTimeout        int32
 	RunnerPoolSize            int32
 	HealthCheckInterval       int32
-	HttpServerReadTimeout     int32
-	HttpServerWriteTimeout    int32
+	HTTPServerReadTimeout     int32
+	HTTPServerWriteTimeout    int32
 	RunnerAccessTokenHeader   string
-	RunnerAccessTokenIdHeader string
+	RunnerAccessTokenIDHeader string
 	Port                      int32
 	JWTRefreshInterval        time.Duration
 	HealthCheckEndpoint       string

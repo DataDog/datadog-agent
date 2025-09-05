@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2024-present Datadog, Inc.
+
+// Package kubernetes provides Kubernetes client functionality for private action bundles.
 package kubernetes
 
 import (
@@ -10,6 +16,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
+// KubeClient creates a Kubernetes client from credentials.
 func KubeClient(c interface{}) (*kubernetes.Clientset, error) {
 	configs, overrides, err := credentialsToConfigs(c)
 	if err != nil {
@@ -27,6 +34,7 @@ func KubeClient(c interface{}) (*kubernetes.Clientset, error) {
 	return client, nil
 }
 
+// DynamicKubeClient creates a dynamic Kubernetes client from credentials.
 func DynamicKubeClient(c interface{}) (*dynamic.DynamicClient, error) {
 	configs, overrides, err := credentialsToConfigs(c)
 	if err != nil {

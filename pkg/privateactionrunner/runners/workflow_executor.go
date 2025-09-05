@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2024-present Datadog, Inc.
+
+// Package runners provides workflow execution functionality for private action runners.
 package runners
 
 import (
@@ -10,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// Loop manages the execution loop for workflow tasks.
 type Loop struct {
 	runner          *WorkflowRunner
 	sem             chan struct{}
@@ -17,6 +24,7 @@ type Loop struct {
 	wg              sync.WaitGroup
 }
 
+// NewLoop creates a new Loop instance.
 func NewLoop(runner *WorkflowRunner) *Loop {
 	return &Loop{
 		runner:          runner,
@@ -25,6 +33,7 @@ func NewLoop(runner *WorkflowRunner) *Loop {
 	}
 }
 
+// Run starts the execution loop.
 func (l *Loop) Run(ctx context.Context) {
 	l.wg.Add(1) // Increment the WaitGroup counter
 
@@ -80,8 +89,8 @@ func (l *Loop) Run(ctx context.Context) {
 		}
 		log.Infof("task verified successfully %s", unwrappedTask.Data.ID)
 
-		// JobId is generated on dequeue so its not part of the signature, it will be checked by the backend when publishing the result
-		unwrappedTask.Data.Attributes.JobId = task.Data.Attributes.JobId
+		// JobID is generated on dequeue so its not part of the signature, it will be checked by the backend when publishing the result
+		unwrappedTask.Data.Attributes.JobID = task.Data.Attributes.JobID
 		task = unwrappedTask
 
 		credential, err := l.runner.resolver.ResolveConnectionInfoToCredential(ctx, task.Data.Attributes.ConnectionInfo, nil)
@@ -114,6 +123,7 @@ func (l *Loop) handleTask(
 	}
 }
 
+// Close stops the execution loop and waits for all tasks to complete.
 func (l *Loop) Close(ctx context.Context) {
 	close(l.shutdownChannel)
 
@@ -131,7 +141,7 @@ func (l *Loop) Close(ctx context.Context) {
 }
 
 func (l *Loop) publishFailure(ctx context.Context, task *types.Task, e error) {
-	if task.Data.Attributes.JobId == "" {
+	if task.Data.Attributes.JobID == "" {
 		log.Error("publish failure error: no job id was provided")
 		return
 	}
@@ -139,7 +149,7 @@ func (l *Loop) publishFailure(ctx context.Context, task *types.Task, e error) {
 	err := l.runner.opmsClient.PublishFailure(
 		ctx,
 		task.Data.ID,
-		task.Data.Attributes.JobId,
+		task.Data.Attributes.JobID,
 		task.GetFQN(),
 		inputError.ErrorCode,
 		inputError.Message,
@@ -151,14 +161,14 @@ func (l *Loop) publishFailure(ctx context.Context, task *types.Task, e error) {
 }
 
 func (l *Loop) publishSuccess(ctx context.Context, task *types.Task, output interface{}) {
-	if task.Data.Attributes.JobId == "" {
+	if task.Data.Attributes.JobID == "" {
 		log.Error("publish success error: no job id was provided")
 		return
 	}
 	err := l.runner.opmsClient.PublishSuccess(
 		ctx,
 		task.Data.ID,
-		task.Data.Attributes.JobId,
+		task.Data.Attributes.JobID,
 		task.GetFQN(),
 		output,
 		"",

@@ -1,4 +1,10 @@
-package com_datadoghq_script
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2024-present Datadog, Inc.
+
+// Package com_datadoghq_script provides script functionality for private action bundles.
+package com_datadoghq_script //nolint:revive
 
 import (
 	"fmt"
@@ -7,14 +13,16 @@ import (
 )
 
 const (
-	schemaIdV1 = "script-credentials-v1"
+	schemaIDV1 = "script-credentials-v1" //nolint:revive
 )
 
+// ScriptBundleConfig represents the configuration for a script bundle.
 type ScriptBundleConfig struct {
-	SchemaId            string                               `yaml:"schemaId"`
+	SchemaID            string                               `yaml:"schemaId"` //nolint:revive
 	RunPredefinedScript map[string]RunPredefinedScriptConfig `yaml:"runPredefinedScript,omitempty"`
 }
 
+// RunPredefinedScriptConfig represents the configuration for running a predefined script.
 type RunPredefinedScriptConfig struct {
 	Command         []string               `yaml:"command"`
 	ParameterSchema map[string]interface{} `yaml:"parameterSchema,omitempty"`
@@ -35,8 +43,8 @@ func parseCredentials(credentials interface{}) (*ScriptBundleConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	if scriptConfig.SchemaId != schemaIdV1 {
-		return nil, fmt.Errorf("unexpected schemaId: %s, supported schemaId: %s", scriptConfig.SchemaId, schemaIdV1)
+	if scriptConfig.SchemaID != schemaIDV1 {
+		return nil, fmt.Errorf("unexpected schemaId: %s, supported schemaId: %s", scriptConfig.SchemaID, schemaIDV1)
 	}
 
 	return scriptConfig, nil

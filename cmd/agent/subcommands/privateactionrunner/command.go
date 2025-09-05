@@ -10,9 +10,10 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/spf13/cobra"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
-	"github.com/spf13/cobra"
 )
 
 // Commands returns the private action runner subcommands
@@ -31,7 +32,7 @@ and configuration.`,
 	return []*cobra.Command{cmd}
 }
 
-func enrollCommand(globalParams *command.GlobalParams) *cobra.Command {
+func enrollCommand(_ *command.GlobalParams) *cobra.Command {
 	var enrollmentToken string
 	var site string
 
@@ -47,7 +48,7 @@ Example:
   datadog-agent private-action-runner enroll --token "your-enrollment-token"
   datadog-agent private-action-runner enroll --token "token" --site datadoghq.eu
 `,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			if enrollmentToken == "" {
 				return fmt.Errorf("enrollment token is required. Use --token flag")
 			}
@@ -61,12 +62,12 @@ Example:
 
 	cmd.Flags().StringVarP(&enrollmentToken, "token", "t", "", "Enrollment token from Datadog UI (required)")
 	cmd.Flags().StringVarP(&site, "site", "s", "", "Datadog site (e.g., datadoghq.com, datadoghq.eu, us3.datadoghq.com). Defaults to datadoghq.com")
-	cmd.MarkFlagRequired("token")
+	_ = cmd.MarkFlagRequired("token")
 
 	return cmd
 }
 
-func selfEnrollCommand(globalParams *command.GlobalParams) *cobra.Command {
+func selfEnrollCommand(_ *command.GlobalParams) *cobra.Command {
 	var apiKey string
 	var appKey string
 	var site string
@@ -83,7 +84,7 @@ Example:
   datadog-agent private-action-runner self-enroll --api-key "your-api-key"
   datadog-agent private-action-runner self-enroll --api-key "key" --site datadoghq.eu
 `,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			if appKey == "" {
 				appKey = os.Getenv("DD_APP_KEY")
 			}

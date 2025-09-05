@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
+// Package enrollment provides functionality for enrolling private action runners with Datadog.
 package enrollment
 
 import (
@@ -16,21 +17,26 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/go-jose/go-jose/v4"
 	"github.com/go-jose/go-jose/v4/jwt"
 	"gopkg.in/yaml.v3"
+
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
+	// TokenHashHmacKey is the HMAC key for token hashing.
 	// Constants from reference implementation
-	TokenHashHmacKey      = "enrollment-token-fingerprint-v1"
-	BindingKeyHmacKey     = "enrollment-token-binding-key-v1"
+	TokenHashHmacKey = "enrollment-token-fingerprint-v1"
+	// BindingKeyHmacKey is the HMAC key for binding.
+	BindingKeyHmacKey = "enrollment-token-binding-key-v1"
+	// AccountBindingJwtType is the JWT type for account binding.
 	AccountBindingJwtType = "account_registration_request+jwt"
 )
 
+// AllowedSitesToRegion maps allowed Datadog sites to their regions.
 var AllowedSitesToRegion = map[string]string{
 	"datadoghq.com":     "us1",
 	"us3.datadoghq.com": "us3",
@@ -42,8 +48,8 @@ var AllowedSitesToRegion = map[string]string{
 
 // RunnerConfig represents the YAML configuration structure
 type RunnerConfig struct {
-	RunnerId         string              `yaml:"runnerId"`
-	OrgId            int64               `yaml:"orgId"`
+	RunnerID         string              `yaml:"runnerId"`
+	OrgID            int64               `yaml:"orgId"`
 	PrivateKey       string              `yaml:"privateKey"`
 	Modes            []string            `yaml:"modes"`
 	ActionsAllowlist map[string][]string `yaml:"actionsAllowlist"`
@@ -96,7 +102,7 @@ func runEnrollmentToConfig(enrollmentToken, datadogSite string) error {
 	}
 
 	// Build enrollment URL
-	enrollmentUrl := fmt.Sprintf("https://api.%s/api/v2/on-prem-management-service/enrollments/complete", datadogSite)
+	enrollmentURL := fmt.Sprintf("https://api.%s/api/v2/on-prem-management-service/enrollments/complete", datadogSite)
 
 	// Create token hash and binding key following reference implementation
 	tokenHash := base64.RawURLEncoding.EncodeToString(buildHmacKey(TokenHashHmacKey, enrollmentToken))
@@ -130,7 +136,7 @@ func runEnrollmentToConfig(enrollmentToken, datadogSite string) error {
 		EmbedJWK: true,
 		ExtraHeaders: map[jose.HeaderKey]interface{}{
 			jose.HeaderType: AccountBindingJwtType,
-			"url":           enrollmentUrl,
+			"url":           enrollmentURL,
 		},
 	})
 	if err != nil {
@@ -222,7 +228,7 @@ func outputConfig(response *opms.EnrollmentResponse, jwk *jose.JSONWebKey, regio
 	if err != nil {
 		return fmt.Errorf("failed to marshal private key: %w", err)
 	}
-	urn := fmt.Sprintf("urn:dd:apps:on-prem-runner:%s:%d:%s", region, response.OrgId, response.RunnerId)
+	urn := fmt.Sprintf("urn:dd:apps:on-prem-runner:%s:%d:%s", region, response.OrgID, response.RunnerID)
 
 	config := map[string]interface{}{
 		"privateactionrunner": map[string]interface{}{
@@ -240,8 +246,8 @@ func outputConfig(response *opms.EnrollmentResponse, jwk *jose.JSONWebKey, regio
 	}
 
 	// Output to stdout
-	fmt.Printf("Enrollment successful! Runner ID: %s\n", response.RunnerId)
-	fmt.Printf("Org ID: %d\n", response.OrgId)
+	fmt.Printf("Enrollment successful! Runner ID: %s\n", response.RunnerID)
+	fmt.Printf("Org ID: %d\n", response.OrgID)
 	fmt.Printf("URN: %s\n", urn)
 	fmt.Printf("Modes: %s\n", strings.Join(response.Modes, ", "))
 	fmt.Printf("\nAdd the following to your datadog.yaml:\n\n%s", string(yamlData))

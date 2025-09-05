@@ -1,13 +1,20 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2024-present Datadog, Inc.
+
 package kubernetes
 
 import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+// CreateFields represents fields for create operations.
 type CreateFields struct {
 	DryRun          string `json:"dryRun,omitempty"`
 	FieldManager    string `json:"fieldManager,omitempty"`
 	FieldValidation string `json:"fieldValidation,omitempty"`
 }
 
+// MetaCreate creates metadata for create operations.
 func MetaCreate(inputs *CreateFields) metav1.CreateOptions {
 	if inputs == nil {
 		return metav1.CreateOptions{}
@@ -19,6 +26,7 @@ func MetaCreate(inputs *CreateFields) metav1.CreateOptions {
 	}
 }
 
+// DeleteFields represents fields for delete operations.
 type DeleteFields struct {
 	Name               string                      `json:"name,omitempty"`
 	GracePeriodSeconds *int64                      `json:"gracePeriodSeconds,omitempty"`
@@ -26,6 +34,7 @@ type DeleteFields struct {
 	DryRun             string                      `json:"dryRun,omitempty"`
 }
 
+// MetaDelete creates metadata for delete operations.
 func MetaDelete(inputs *DeleteFields) metav1.DeleteOptions {
 	if inputs == nil {
 		return metav1.DeleteOptions{}
@@ -37,20 +46,24 @@ func MetaDelete(inputs *DeleteFields) metav1.DeleteOptions {
 	}
 }
 
+// GetFields represents fields for get operations.
 type GetFields struct {
 	Name string `json:"name,omitempty"`
 }
 
+// MetaGet creates metadata for get operations.
 func MetaGet(_ *GetFields) metav1.GetOptions {
 	return metav1.GetOptions{}
 }
 
+// ListFields represents fields for list operations.
 type ListFields struct {
 	FieldSelector string `json:"fieldSelector,omitempty"`
 	LabelSelector string `json:"labelSelector,omitempty"`
 	Limit         int64  `json:"limit,omitempty"`
 }
 
+// MetaList creates metadata for list operations.
 func MetaList(inputs *ListFields) metav1.ListOptions {
 	if inputs == nil {
 		return metav1.ListOptions{}
@@ -62,6 +75,7 @@ func MetaList(inputs *ListFields) metav1.ListOptions {
 	}
 }
 
+// PatchFields represents fields for patch operations.
 type PatchFields struct {
 	Name            string                   `json:"name,omitempty"`
 	DryRun          string                   `json:"dryRun,omitempty"`
@@ -71,6 +85,7 @@ type PatchFields struct {
 	Force           *bool                    `json:"force,omitempty"`
 }
 
+// MetaPatch creates metadata for patch operations.
 func MetaPatch(inputs *PatchFields) metav1.PatchOptions {
 	if inputs == nil {
 		return metav1.PatchOptions{}
@@ -83,12 +98,14 @@ func MetaPatch(inputs *PatchFields) metav1.PatchOptions {
 	}
 }
 
+// UpdateFields represents fields for update operations.
 type UpdateFields struct {
 	DryRun          string `json:"dryRun,omitempty"`
 	FieldManager    string `json:"fieldManager,omitempty"`
 	FieldValidation string `json:"fieldValidation,omitempty"`
 }
 
+// MetaUpdate creates metadata for update operations.
 func MetaUpdate(inputs *UpdateFields) metav1.UpdateOptions {
 	if inputs == nil {
 		return metav1.UpdateOptions{}

@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2024-present Datadog, Inc.
+
+// Package credentials provides functionality for resolving private credentials.
 package credentials
 
 import (
@@ -6,15 +12,17 @@ import (
 	"io"
 	"os"
 
+	"github.com/google/uuid"
+
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/google/uuid"
 )
 
 const (
 	maxCredentialsFileSize = 1 * 1024 * 1024 // 1 MB
 )
 
+// PrivateCredentialResolver resolves private credentials from connection information.
 type PrivateCredentialResolver interface {
 	ResolveConnectionInfoToCredential(ctx context.Context, conn *privateactions.ConnectionInfo, userUUID *uuid.UUID) (interface{}, error)
 }
@@ -22,11 +30,12 @@ type PrivateCredentialResolver interface {
 type privateCredentialResolver struct {
 }
 
+// NewPrivateCredentialResolver creates a new PrivateCredentialResolver instance.
 func NewPrivateCredentialResolver() PrivateCredentialResolver {
 	return &privateCredentialResolver{}
 }
 
-func (p privateCredentialResolver) ResolveConnectionInfoToCredential(ctx context.Context, conn *privateactions.ConnectionInfo, userUUID *uuid.UUID) (interface{}, error) {
+func (p privateCredentialResolver) ResolveConnectionInfoToCredential(ctx context.Context, conn *privateactions.ConnectionInfo, _ *uuid.UUID) (interface{}, error) {
 	switch conn.CredentialsType {
 	case privateactions.CredentialsType_TOKEN_AUTH:
 		return resolveTokenAuthTokens(ctx, conn.Tokens)
@@ -92,7 +101,7 @@ func validateAndReadFile(ctx context.Context, path string) ([]byte, error) {
 	return data, nil
 }
 
-func closeSafely(ctx context.Context, closer io.Closer) {
+func closeSafely(_ context.Context, closer io.Closer) {
 	err := closer.Close()
 	if err != nil {
 		log.Warn("failed to close credentials file safely")

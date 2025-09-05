@@ -14,6 +14,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -25,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/runners"
 	taskverifier "github.com/DataDog/datadog-agent/pkg/privateactionrunner/task-verifier"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/utils"
-	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // Requires defines the dependencies for the privateactionrunner component
@@ -53,6 +54,18 @@ type runnerImpl struct {
 
 // NewComponent creates a new privateactionrunner component
 func NewComponent(reqs Requires) (Provides, error) {
+	// Check if privateactionrunner is enabled
+	enabled := reqs.Config.GetBool("privateactionrunner.enabled")
+	if !enabled {
+		// Return a no-op component when disabled
+		runner := &runnerImpl{
+			log:    reqs.Logger,
+			config: reqs.Config,
+		}
+		return Provides{
+			Comp: runner,
+		}, nil
+	}
 
 	//ctx := context.Background()
 	cfg, err := getParConfig(reqs.Config)
@@ -90,11 +103,11 @@ const (
 	runnerPoolSize               = 1
 	defaultHealthCheckEndpoint   = "/healthz"
 	healthCheckInterval          = 30_000
-	defaultHttpServerReadTimeout = 10_000
-	// defaultHttpServerWriteTimeout defines how long a request is allowed to run for after the HTTP connection is established. If actions are timing out often, `httpServerWriteTimeout` can be adjusted in config.yaml to override this value. See the Golang docs under `WriteTimeout` for more information about how the server uses this value - https://pkg.go.dev/net/http#Server
-	defaultHttpServerWriteTimeout = 60_000
+	defaultHTTPServerReadTimeout = 10_000
+	// defaultHTTPServerWriteTimeout defines how long a request is allowed to run for after the HTTP connection is established. If actions are timing out often, `httpServerWriteTimeout` can be adjusted in config.yaml to override this value. See the Golang docs under `WriteTimeout` for more information about how the server uses this value - https://pkg.go.dev/net/http#Server
+	defaultHTTPServerWriteTimeout = 60_000
 	runnerAccessTokenHeader       = "X-Datadog-Apps-On-Prem-Runner-Access-Token"
-	runnerAccessTokenIdHeader     = "X-Datadog-Apps-On-Prem-Runner-Access-Token-ID"
+	runnerAccessTokenIDHeader     = "X-Datadog-Apps-On-Prem-Runner-Access-Token-ID"
 	defaultPort                   = 9016
 	defaultJwtRefreshInterval     = 15 * time.Second
 	heartbeatInterval             = 20 * time.Second
@@ -117,7 +130,7 @@ func getParConfig(component config.Component) (*parconfig.Config, error) {
 		return nil, fmt.Errorf("private action runner not configured: URN is required")
 	}
 
-	orgId, runnerId, err := parseURN(urn)
+	orgID, runnerID, err := parseURN(urn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse URN: %w", err)
 	}
@@ -131,10 +144,10 @@ func getParConfig(component config.Component) (*parconfig.Config, error) {
 		OpmsRequestTimeout:        opmsRequestTimeout,
 		RunnerPoolSize:            runnerPoolSize,
 		HealthCheckInterval:       healthCheckInterval,
-		HttpServerReadTimeout:     defaultHttpServerReadTimeout,
-		HttpServerWriteTimeout:    defaultHttpServerWriteTimeout,
+		HTTPServerReadTimeout:     defaultHTTPServerReadTimeout,
+		HTTPServerWriteTimeout:    defaultHTTPServerWriteTimeout,
 		RunnerAccessTokenHeader:   runnerAccessTokenHeader,
-		RunnerAccessTokenIdHeader: runnerAccessTokenIdHeader,
+		RunnerAccessTokenIDHeader: runnerAccessTokenIDHeader,
 		Port:                      defaultPort,
 		JWTRefreshInterval:        defaultJwtRefreshInterval,
 		HealthCheckEndpoint:       defaultHealthCheckEndpoint,
@@ -146,9 +159,9 @@ func getParConfig(component config.Component) (*parconfig.Config, error) {
 		AllowIMDSEndpoint:         component.GetBool("privateactionrunner.allow_imds_endpoint"),
 		DDHost:                    strings.Join([]string{"api", ddSite}, "."),
 		Modes:                     strings.Split(component.GetString("privateactionrunner.modes"), ","),
-		OrgId:                     orgId,
+		OrgID:                     orgID,
 		PrivateKey:                privateKey.Key.(*ecdsa.PrivateKey),
-		RunnerId:                  runnerId,
+		RunnerID:                  runnerID,
 		Urn:                       urn,
 		DatadogSite:               ddSite,
 	}, nil
@@ -160,6 +173,10 @@ func (r *runnerImpl) Start(ctx context.Context) error {
 		r.log.Debug("privateactionrunner disabled")
 		return nil
 	}
+	if r.keysManager == nil || r.WorkflowRunner == nil {
+		r.log.Debug("privateactionrunner not properly configured")
+		return nil
+	}
 	r.log.Info("Starting private action runner")
 	r.started = true
 	r.keysManager.Start(ctx)
@@ -169,6 +186,9 @@ func (r *runnerImpl) Start(ctx context.Context) error {
 
 func (r *runnerImpl) Stop(ctx context.Context) error {
 	if !r.started {
+		return nil
+	}
+	if r.WorkflowRunner == nil {
 		return nil
 	}
 	r.log.Info("Stopping private action runner")
@@ -188,15 +208,15 @@ func parseURN(urn string) (int64, string, error) {
 		return 0, "", fmt.Errorf("invalid URN format: expected 'urn:dd:apps:on-prem-runner', got '%s:%s:%s:%s'", parts[0], parts[1], parts[2], parts[3])
 	}
 
-	orgId, err := strconv.ParseInt(parts[5], 10, 64)
+	orgID, err := strconv.ParseInt(parts[5], 10, 64)
 	if err != nil {
 		return 0, "", fmt.Errorf("invalid org_id in URN: %w", err)
 	}
 
-	runnerId := parts[6]
-	if runnerId == "" {
+	runnerID := parts[6]
+	if runnerID == "" {
 		return 0, "", fmt.Errorf("runner_id cannot be empty in URN")
 	}
 
-	return orgId, runnerId, nil
+	return orgID, runnerID, nil
 }

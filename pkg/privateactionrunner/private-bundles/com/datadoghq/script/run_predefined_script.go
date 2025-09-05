@@ -1,4 +1,15 @@
-package com_datadoghq_script
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2024-present Datadog, Inc.
+
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2024-present Datadog, Inc.
+
+// Package com_datadoghq_script provides script functionality for private action bundles.
+package com_datadoghq_script //nolint:revive
 
 import (
 	"bytes"
@@ -11,13 +22,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
+// RunPredefinedScriptHandler handles the execution of predefined scripts.
 type RunPredefinedScriptHandler struct {
 }
 
+// NewRunPredefinedScriptHandler creates a new RunPredefinedScriptHandler instance.
 func NewRunPredefinedScriptHandler() *RunPredefinedScriptHandler {
 	return &RunPredefinedScriptHandler{}
 }
 
+// RunPredefinedScriptInputs represents the input parameters for running a predefined script.
 type RunPredefinedScriptInputs struct {
 	ScriptName             string `json:"scriptName"`
 	Timeout                int    `json:"timeout"`
@@ -25,6 +39,7 @@ type RunPredefinedScriptInputs struct {
 	NoStripTrailingNewline bool   `json:"noStripTrailingNewline"`
 }
 
+// RunPredefinedScriptOutputs represents the output from running a predefined script.
 type RunPredefinedScriptOutputs struct {
 	ExecutedCommand string `json:"executedCommand"`
 	ExitCode        int    `json:"exitCode"`
@@ -33,6 +48,7 @@ type RunPredefinedScriptOutputs struct {
 	DurationMillis  int    `json:"durationMillis"`
 }
 
+// Run executes a predefined script with the given inputs.
 func (h *RunPredefinedScriptHandler) Run(
 	ctx context.Context,
 	task *types.Task,
@@ -49,7 +65,7 @@ func (h *RunPredefinedScriptHandler) Run(
 	}
 
 	if !strings.HasPrefix(inputs.ScriptName, "dangerously-run-script-for-poc") {
-		return nil, fmt.Errorf("This script implementation is only meant for POC purposes. Please use the 'dangerously-run-script-for-poc' prefix for your script name to indicate that you understand the risks of running arbitrary scripts. This is not intended for production use.")
+		return nil, fmt.Errorf("this script implementation is only meant for POC purposes. Please use the 'dangerously-run-script-for-poc' prefix for your script name to indicate that you understand the risks of running arbitrary scripts. This is not intended for production use") //nolint:revive
 	}
 
 	script, ok := scriptConfig.RunPredefinedScript[inputs.ScriptName]

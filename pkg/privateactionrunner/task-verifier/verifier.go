@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2024-present Datadog, Inc.
+
+// Package taskverifier provides functionality for verifying and unwrapping tasks from signed envelopes.
 package taskverifier
 
 import (
@@ -5,27 +11,31 @@ import (
 	"fmt"
 	"time"
 
+	"google.golang.org/protobuf/proto"
+
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/remoteconfig"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/utils"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/errorcode"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions"
-	"google.golang.org/protobuf/proto"
 )
 
+// TaskVerifier verifies and unwraps tasks from signed envelopes.
 type TaskVerifier struct {
 	keysManager remoteconfig.KeysManager
 	config      *config.Config
 }
 
+// NewTaskVerifier creates a new TaskVerifier instance.
 func NewTaskVerifier(keysManager remoteconfig.KeysManager, config *config.Config) *TaskVerifier {
 	return &TaskVerifier{keysManager: keysManager, config: config}
 }
 
+// UnwrapTaskFromSignedEnvelope verifies and unwraps a task from a signed envelope.
 func (t *TaskVerifier) UnwrapTaskFromSignedEnvelope(envelope *privateactions.RemoteConfigSignatureEnvelope) (*types.Task, error) {
 	if envelope == nil {
-		return nil, utils.NewPARError(errorcode.ActionPlatformErrorCode_INTERNAL_ERROR, fmt.Errorf("task is missing signed enveloppe"))
+		return nil, utils.NewPARError(errorcode.ActionPlatformErrorCode_INTERNAL_ERROR, fmt.Errorf("task is missing signed envelope"))
 	}
 
 	if len(envelope.Data) == 0 {
@@ -70,11 +80,11 @@ func (t *TaskVerifier) UnwrapTaskFromSignedEnvelope(envelope *privateactions.Rem
 		return nil, utils.NewPARError(errorcode.ActionPlatformErrorCode_SIGNATURE_ERROR, fmt.Errorf("signature verification failed: %w", err))
 	}
 
-	if task.OrgId != t.config.OrgId {
+	if task.OrgId != t.config.OrgID {
 		return nil, utils.NewPARError(errorcode.ActionPlatformErrorCode_MISMATCHED_ORG_ID, fmt.Errorf("task orgId doesn't match the orgId of the runner"))
 	}
 
-	if task.GetConnectionInfo().RunnerId != t.config.RunnerId {
+	if task.GetConnectionInfo().RunnerId != t.config.RunnerID {
 		return nil, utils.NewPARError(errorcode.ActionPlatformErrorCode_MISMATCHED_RUNNER_ID, fmt.Errorf("connection runnerId doesn't match the id of the runner"))
 	}
 
@@ -109,7 +119,7 @@ func mapPbTaskToStruct(task *privateactions.PrivateActionTask) *types.Task {
 				BundleID:              task.BundleId,
 				SecDatadogHeaderValue: task.SecDatadogHeaderValue,
 				Inputs:                task.Inputs.AsMap(),
-				OrgId:                 task.OrgId,
+				OrgID:                 task.OrgId,
 				ConnectionInfo:        task.ConnectionInfo,
 			},
 		},
