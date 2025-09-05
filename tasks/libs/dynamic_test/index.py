@@ -31,6 +31,7 @@ class IndexKind(Enum):
     """
 
     PACKAGE = "package"
+    FILE = "file"
 
 
 class DynamicTestIndex:

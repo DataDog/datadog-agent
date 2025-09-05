@@ -12,7 +12,7 @@ int classifier_ingress(struct __sk_buff *skb) {
     if (!pkt) {
         return TC_ACT_UNSPEC;
     }
-    resolve_pid(pkt);
+    resolve_pid(skb, pkt);
 
     return route_pkt(skb, pkt, INGRESS);
 };
@@ -23,7 +23,7 @@ int classifier_egress(struct __sk_buff *skb) {
     if (!pkt) {
         return TC_ACT_UNSPEC;
     }
-    resolve_pid(pkt);
+    resolve_pid(skb, pkt);
 
     return route_pkt(skb, pkt, EGRESS);
 };
@@ -73,7 +73,7 @@ int classifier_raw_packet_ingress(struct __sk_buff *skb) {
     if (!pkt) {
         return TC_ACT_UNSPEC;
     }
-    resolve_pid(pkt);
+    resolve_pid(skb, pkt);
 
     if (!is_raw_packet_allowed(pkt)) {
         return TC_ACT_UNSPEC;
@@ -98,7 +98,7 @@ int classifier_raw_packet_egress(struct __sk_buff *skb) {
     if (!pkt) {
         return TC_ACT_UNSPEC;
     }
-    resolve_pid(pkt);
+    resolve_pid(skb, pkt);
 
     u64 sched_cls_has_current_cgroup_id_helper = 0;
     LOAD_CONSTANT("sched_cls_has_current_cgroup_id_helper", sched_cls_has_current_cgroup_id_helper);

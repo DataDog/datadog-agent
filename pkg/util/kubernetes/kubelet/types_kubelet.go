@@ -281,3 +281,15 @@ type ContainerStateTerminated struct {
 	FinishedAt time.Time `json:"finishedAt"`
 	Reason     string    `json:"reason"`
 }
+
+// ConfigSpec is the kubelet configuration, only the
+// necessary fields are stored
+type ConfigSpec struct {
+	CPUManagerPolicy string `json:"cpuManagerPolicy"`
+}
+
+// ConfigDocument is the wrapper struct that holds
+// the kubelet config
+type ConfigDocument struct {
+	KubeletConfig ConfigSpec `json:"kubeletconfig"`
+}

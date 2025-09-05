@@ -203,12 +203,10 @@ func (d *Decoder) encodeValue(
 	if err := writeTokens(enc, jsontext.BeginObject); err != nil {
 		return err
 	}
-	if !decoderType.hasDynamicType() {
-		if err := writeTokens(
-			enc, jsontext.String("type"), jsontext.String(valueType),
-		); err != nil {
-			return err
-		}
+	if err := writeTokens(
+		enc, jsontext.String("type"), jsontext.String(valueType),
+	); err != nil {
+		return err
 	}
 	if err := decoderType.encodeValueFields(d, enc, data); err != nil {
 		return err

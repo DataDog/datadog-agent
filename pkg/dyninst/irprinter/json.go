@@ -9,6 +9,7 @@ package irprinter
 
 import (
 	"bytes"
+	"cmp"
 	"fmt"
 	"reflect"
 	"slices"
@@ -73,7 +74,7 @@ func PrintJSON(p *ir.Program) ([]byte, error) {
 			return enc.WriteToken(jsontext.String(v.String()))
 		}),
 		json.MarshalToFunc(func(enc *jsontext.Encoder, v uint64) error {
-			if v < 1_000_000 {
+			if v < 10_000 {
 				return json.SkipFunc
 			}
 			return enc.WriteToken(jsontext.String(fmt.Sprintf("0x%x", v)))
@@ -157,7 +158,9 @@ func marshalTypeMap(enc *jsontext.Encoder, tm map[ir.TypeID]ir.Type) error {
 	for id := range tm {
 		ids = append(ids, id)
 	}
-	slices.Sort(ids)
+	slices.SortFunc(ids, func(a, b ir.TypeID) int {
+		return cmp.Compare(tm[a].GetName(), tm[b].GetName())
+	})
 	if err := enc.WriteToken(jsontext.BeginArray); err != nil {
 		return err
 	}
@@ -259,6 +262,7 @@ var allTypes = []reflect.Type{
 	reflect.TypeOf((*ir.PointerType)(nil)),
 	reflect.TypeOf((*ir.StructureType)(nil)),
 	reflect.TypeOf((*ir.VoidPointerType)(nil)),
+	reflect.TypeOf((*ir.UnresolvedPointeeType)(nil)),
 }
 
 var typeMarshalers map[reflect.Type]*typeMarshaler

@@ -7,6 +7,7 @@
 package structure
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"reflect"
@@ -25,6 +26,7 @@ import (
 // features allowed for handling edge-cases
 type featureSet struct {
 	allowSquash        bool
+	stringUnmarshal    bool
 	convertEmptyStrNil bool
 	convertArrayToMap  bool
 	errorUnused        bool
@@ -42,6 +44,11 @@ var EnableSquash UnmarshalKeyOption = func(fs *featureSet) {
 // ErrorUnused allows UnmarshalKey to return an error if there are unused keys in the config.
 var ErrorUnused UnmarshalKeyOption = func(fs *featureSet) {
 	fs.errorUnused = true
+}
+
+// EnableStringUnmarshal allows UnmarshalKey to handle stringified json and Unmarshal it
+var EnableStringUnmarshal UnmarshalKeyOption = func(fs *featureSet) {
+	fs.stringUnmarshal = true
 }
 
 // ConvertEmptyStringToNil allows UnmarshalKey to implicitly convert empty strings into nil slices
@@ -94,6 +101,18 @@ func UnmarshalKey(cfg model.Reader, key string, target interface{}, opts ...Unma
 		o(fs)
 	}
 
+	if fs.stringUnmarshal {
+		rawval := cfg.Get(key)
+		if rawval == nil {
+			return nil
+		}
+		if str, ok := rawval.(string); ok {
+			if str == "" {
+				return nil
+			}
+			return json.Unmarshal([]byte(str), &target)
+		}
+	}
 	decodeHooks := []func(c *mapstructure.DecoderConfig){}
 	if fs.convertArrayToMap {
 		decodeHooks = append(decodeHooks, legacyConvertArrayToMap)
@@ -111,11 +130,20 @@ func unmarshalKeyReflection(cfg model.Reader, key string, target interface{}, op
 		o(fs)
 	}
 	rawval := cfg.Get(key)
-
 	// Don't create a reflect.Value out of nil, just return immediately
 	if rawval == nil {
 		return nil
 	}
+
+	if fs.stringUnmarshal {
+		if str, ok := rawval.(string); ok {
+			if str == "" {
+				return nil
+			}
+			return json.Unmarshal([]byte(str), &target)
+		}
+	}
+
 	input, err := nodetreemodel.NewNodeTree(rawval, cfg.GetSource(key))
 	if err != nil {
 		return err

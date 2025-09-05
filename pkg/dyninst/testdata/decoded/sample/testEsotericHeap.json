@@ -66,12 +66,23 @@
                         "notCapturedReason": "unimplemented"
                       },
                       "val": {
-                        "type": "int",
-                        "value": "42"
+                        "type": "interface {}",
+                        "fields": {
+                          "data": {
+                            "type": "int",
+                            "value": "42"
+                          }
+                        }
                       },
                       "work": {
-                        "type": "*main.somethingImpl",
-                        "notCapturedReason": "missing type information"
+                        "type": "main.something",
+                        "fields": {
+                          "data": {
+                            "type": "*main.somethingImpl",
+                            "address": "[addr]",
+                            "fields": {}
+                          }
+                        }
                       },
                       "foo": {
                         "type": "func()",

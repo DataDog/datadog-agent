@@ -1,0 +1,13 @@
+---
+issuer: https://token.actions.githubusercontent.com
+
+subject: repo:DataDog/datadog-agent:pull_request
+
+claim_pattern:
+  event_name: pull_request
+  ref: refs/heads/main
+  job_workflow_ref: DataDog/datadog-agent/\.github/workflows/backport-pr\.yml@refs/heads/main
+
+permissions:
+  contents: write
+  pull_requests: write

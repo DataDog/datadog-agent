@@ -10,8 +10,9 @@ package processeventscheckimpl
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/process/processeventscheck"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -50,8 +51,8 @@ func TestProcessEventsCheckIsEnabled(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			c := fxutil.Test[processeventscheck.Component](t, fx.Options(
-				core.MockBundle(),
-				fx.Replace(config.MockParams{Overrides: tc.configs}),
+				fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
+				fx.Provide(func(t testing.TB) config.Component { return config.NewMockWithOverrides(t, tc.configs) }),
 				fx.Provide(func() statsd.ClientInterface {
 					return &statsd.NoOpClient{}
 				}),

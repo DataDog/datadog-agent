@@ -27,7 +27,7 @@ func TestJMXLog(t *testing.T) {
 	defer f.Close()
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		config.MockModule(),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
 		fx.Supply(NewCliParams(filePath)),
 	))
 

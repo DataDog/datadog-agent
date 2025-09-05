@@ -104,7 +104,7 @@ build_clang_x64:
 build_clang_arm64:
   extends: .build_clang_common
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:arm64"]
+  tags: ["arch:arm64", "specific:true"]
   variables:
     ARCH: arm64
     CMAKE_ARCH: aarch64

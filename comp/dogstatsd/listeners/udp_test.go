@@ -39,9 +39,8 @@ type listenerDeps struct {
 func fulfillDepsWithConfig(t testing.TB, overrides map[string]interface{}) listenerDeps {
 	return fxutil.Test[listenerDeps](t, fx.Options(
 		telemetryimpl.MockModule(),
-		config.MockModule(),
+		fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, overrides) }),
 		pidmapimpl.Module(),
-		fx.Replace(config.MockParams{Overrides: overrides}),
 	))
 }
 

@@ -243,7 +243,7 @@ func (d *DockerCheck) runDockerCustom(sender sender.Sender, du docker.Client, ra
 		} else {
 			filterableContainer = workloadmetafilter.CreateContainer(wmetaContainer, filterablePod)
 		}
-		selectedFilters := workloadfilter.GetContainerSharedMetricFilters()
+		selectedFilters := d.filterStore.GetContainerSharedMetricFilters()
 
 		isContainerExcluded := d.filterStore.IsContainerExcluded(filterableContainer, selectedFilters)
 		isContainerRunning := rawContainer.State == string(workloadmeta.ContainerStatusRunning)

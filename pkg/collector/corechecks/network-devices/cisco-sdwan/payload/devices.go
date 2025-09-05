@@ -19,7 +19,7 @@ import (
 var TimeNow = time.Now
 
 // DeviceUserTagResourcePrefix contains the REDAPL table to store device user tags
-const DeviceUserTagResourcePrefix = "dd.internal.resource:ndm_device_user_tags"
+const DeviceUserTagResourcePrefix = "dd.internal.resource:ndm_device"
 
 // GetDevicesMetadata process devices API payloads to build metadata
 func GetDevicesMetadata(namespace string, devices []client.Device) []devicemetadata.DeviceMetadata {

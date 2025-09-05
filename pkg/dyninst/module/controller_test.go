@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/module"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcscrape"
@@ -203,7 +204,8 @@ func TestController_HappyPathEndToEnd(t *testing.T) {
 	scraper.updates = []rcscrape.ProcessUpdate{processUpdate}
 
 	controller := module.NewController(
-		a, logUploaderFactory, diagUploader, symdbURL, scraper, decoderFactory,
+		a, logUploaderFactory, diagUploader, symdbURL,
+		object.NewInMemoryLoader(), scraper, decoderFactory,
 		irgen.NewGenerator(),
 	)
 	require.NotNil(t, controller)
@@ -250,7 +252,8 @@ func TestController_ProgramLifecycleFlow(t *testing.T) {
 	scraper.updates = []rcscrape.ProcessUpdate{processUpdate}
 
 	controller := module.NewController(
-		a, logUploaderFactory, diagUploader, symdbURL, scraper, decoderFactory,
+		a, logUploaderFactory, diagUploader, symdbURL,
+		object.NewInMemoryLoader(), scraper, decoderFactory,
 		irgen.NewGenerator(),
 	)
 	require.NotNil(t, controller)
@@ -300,7 +303,8 @@ func TestController_IRGenerationFailure(t *testing.T) {
 
 	irGenerator := irgen.NewGenerator()
 	controller := module.NewController(
-		a, logUploaderFactory, diagUploader, symdbURL, scraper, decoderFactory, irGenerator,
+		a, logUploaderFactory, diagUploader, symdbURL,
+		object.NewInMemoryLoader(), scraper, decoderFactory, irGenerator,
 	)
 	require.NotNil(t, controller)
 	require.NotNil(t, a.tenant)
@@ -341,7 +345,8 @@ func TestController_AttachmentFailure(t *testing.T) {
 
 	irGenerator := irgen.NewGenerator()
 	controller := module.NewController(
-		a, logUploaderFactory, diagUploader, symdbURL, scraper, decoderFactory, irGenerator,
+		a, logUploaderFactory, diagUploader, symdbURL,
+		object.NewInMemoryLoader(), scraper, decoderFactory, irGenerator,
 	)
 
 	controller.CheckForUpdates()
@@ -385,7 +390,8 @@ func TestController_LoadingFailure(t *testing.T) {
 
 	irGenerator := irgen.NewGenerator()
 	controller := module.NewController(
-		a, logUploaderFactory, diagUploader, symdbURL, scraper, decoderFactory, irGenerator,
+		a, logUploaderFactory, diagUploader, symdbURL,
+		object.NewInMemoryLoader(), scraper, decoderFactory, irGenerator,
 	)
 
 	controller.CheckForUpdates()
@@ -428,7 +434,8 @@ func TestController_DecoderCreationFailure(t *testing.T) {
 
 	irGenerator := irgen.NewGenerator()
 	controller := module.NewController(
-		a, logUploaderFactory, diagUploader, symdbURL, scraper, decoderFactory, irGenerator,
+		a, logUploaderFactory, diagUploader, symdbURL,
+		object.NewInMemoryLoader(), scraper, decoderFactory, irGenerator,
 	)
 	controller.CheckForUpdates()
 
@@ -457,7 +464,8 @@ func TestController_EventDecodingSuccess(t *testing.T) {
 
 	irGenerator := irgen.NewGenerator()
 	controller := module.NewController(
-		a, logUploaderFactory, diagUploader, symdbURL, scraper, decoderFactory, irGenerator,
+		a, logUploaderFactory, diagUploader, symdbURL,
+		object.NewInMemoryLoader(), scraper, decoderFactory, irGenerator,
 	)
 
 	controller.CheckForUpdates()
@@ -511,7 +519,8 @@ func TestController_EventDecodingFailure(t *testing.T) {
 
 	irGenerator := irgen.NewGenerator()
 	controller := module.NewController(
-		a, logUploaderFactory, diagUploader, symdbURL, scraper, decoderFactory, irGenerator,
+		a, logUploaderFactory, diagUploader, symdbURL,
+		object.NewInMemoryLoader(), scraper, decoderFactory, irGenerator,
 	)
 
 	controller.CheckForUpdates()
@@ -551,7 +560,8 @@ func TestController_ProcessRemoval(t *testing.T) {
 
 	irGenerator := irgen.NewGenerator()
 	controller := module.NewController(
-		a, logUploaderFactory, diagUploader, symdbURL, scraper, decoderFactory, irGenerator,
+		a, logUploaderFactory, diagUploader, symdbURL,
+		object.NewInMemoryLoader(), scraper, decoderFactory, irGenerator,
 	)
 	at := a.tenant
 
@@ -607,7 +617,8 @@ func TestController_MultipleProcesses(t *testing.T) {
 
 	irGenerator := irgen.NewGenerator()
 	controller := module.NewController(
-		actuator, logUploaderFactory, diagUploader, symdbURL, scraper, decoderFactory, irGenerator,
+		actuator, logUploaderFactory, diagUploader, symdbURL,
+		object.NewInMemoryLoader(), scraper, decoderFactory, irGenerator,
 	)
 
 	controller.CheckForUpdates()
@@ -656,7 +667,8 @@ func TestController_ProbeIssueReporting(t *testing.T) {
 
 	irGenerator := irgen.NewGenerator()
 	controller := module.NewController(
-		a, logUploaderFactory, diagUploader, symdbURL, scraper, decoderFactory, irGenerator,
+		a, logUploaderFactory, diagUploader, symdbURL,
+		object.NewInMemoryLoader(), scraper, decoderFactory, irGenerator,
 	)
 
 	controller.CheckForUpdates()
@@ -702,7 +714,8 @@ func TestController_NoSuccessfulProbesError(t *testing.T) {
 
 	irGenerator := irgen.NewGenerator()
 	controller := module.NewController(
-		a, logUploaderFactory, diagUploader, symdbURL, scraper, decoderFactory, irGenerator,
+		a, logUploaderFactory, diagUploader, symdbURL,
+		object.NewInMemoryLoader(), scraper, decoderFactory, irGenerator,
 	)
 
 	controller.CheckForUpdates()

@@ -6,7 +6,6 @@
 package config
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -78,16 +77,7 @@ var (
 // GlobalProcessingRules returns the global processing rules to apply to all logs.
 func GlobalProcessingRules(coreConfig pkgconfigmodel.Reader) ([]*ProcessingRule, error) {
 	var rules []*ProcessingRule
-	var err error
-	raw := coreConfig.Get("logs_config.processing_rules")
-	if raw == nil {
-		return rules, nil
-	}
-	if s, ok := raw.(string); ok && s != "" {
-		err = json.Unmarshal([]byte(s), &rules)
-	} else {
-		err = structure.UnmarshalKey(coreConfig, "logs_config.processing_rules", &rules, structure.ConvertEmptyStringToNil)
-	}
+	err := structure.UnmarshalKey(coreConfig, "logs_config.processing_rules", &rules, structure.EnableStringUnmarshal)
 	if err != nil {
 		return nil, err
 	}

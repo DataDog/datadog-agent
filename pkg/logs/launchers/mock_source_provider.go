@@ -31,15 +31,11 @@ func (sp *MockSourceProvider) SubscribeAll() (chan *sources.LogSource, chan *sou
 }
 
 // SubscribeForType implements SourceProvider#SubscribeForType.
-//
-//nolint:revive // TODO(AML) Fix revive linter
 func (sp *MockSourceProvider) SubscribeForType(_ string) (chan *sources.LogSource, chan *sources.LogSource) {
 	return sp.SourceChan, sp.SourceChan
 }
 
 // GetAddedForType implements SourceProvider#GetAddedForType.
-//
-//nolint:revive // TODO(AML) Fix revive linter
 func (sp *MockSourceProvider) GetAddedForType(_ string) chan *sources.LogSource {
 	return sp.SourceChan
 }

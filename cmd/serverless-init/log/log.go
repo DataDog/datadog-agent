@@ -9,6 +9,7 @@
 package log
 
 import (
+	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -24,12 +25,15 @@ import (
 )
 
 const (
-	defaultFlushTimeout = 5 * time.Second
-	logEnabledEnvVar    = "DD_LOGS_ENABLED"
-	envVarTailFilePath  = "DD_SERVERLESS_LOG_PATH"
-	aasInstanceTailing  = "DD_AAS_INSTANCE_LOGGING_ENABLED"
-	sourceEnvVar        = "DD_SOURCE"
-	sourceName          = "Datadog Agent"
+	defaultFlushTimeout   = 5 * time.Second
+	defaultTailingPath    = "/home/LogFiles/*$COMPUTERNAME*.log"
+	modifiableTailingPath = "/home/LogFiles/*$COMPUTERNAME*%s.log"
+	logEnabledEnvVar      = "DD_LOGS_ENABLED"
+	envVarTailFilePath    = "DD_SERVERLESS_LOG_PATH"
+	aasInstanceTailing    = "DD_AAS_INSTANCE_LOGGING_ENABLED"
+	aasLoggingDescriptor  = "DD_AAS_INSTANCE_LOG_FILE_DESCRIPTOR"
+	sourceEnvVar          = "DD_SOURCE"
+	sourceName            = "Datadog Agent"
 )
 
 // Config holds the log configuration
@@ -76,7 +80,7 @@ func addFileTailing(logsAgent logsAgent.ServerlessLogsAgent, source string, tags
 	if appServiceDefaultLoggingEnabled {
 		src := sources.NewLogSource("aas-instance-file-tail", &logConfig.LogsConfig{
 			Type:    logConfig.FileType,
-			Path:    os.ExpandEnv("/home/LogFiles/*$COMPUTERNAME*.log"),
+			Path:    setAasInstanceTailingPath(),
 			Service: os.Getenv("DD_SERVICE"),
 			Tags:    tags,
 			Source:  source,
@@ -102,4 +106,12 @@ func isEnabled(envValue string) bool {
 func isInstanceTailingEnabled() bool {
 	val := strings.ToLower(os.Getenv(aasInstanceTailing))
 	return val == "true" || val == "1"
+}
+
+func setAasInstanceTailingPath() string {
+	customPath, set := os.LookupEnv(aasLoggingDescriptor)
+	if set && customPath != "" {
+		return os.ExpandEnv(fmt.Sprintf(modifiableTailingPath, customPath))
+	}
+	return os.ExpandEnv(defaultTailingPath)
 }

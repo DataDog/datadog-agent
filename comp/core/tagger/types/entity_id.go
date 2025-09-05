@@ -81,6 +81,8 @@ const (
 	InternalID EntityIDPrefix = "internal"
 	// GPU is the prefix `gpu`
 	GPU EntityIDPrefix = "gpu"
+	// Kubelet is the prefix `kubelet`
+	Kubelet EntityIDPrefix = "kubelet"
 )
 
 // AllPrefixesSet returns a set of all possible entity id prefixes that can be used in the tagger
@@ -96,6 +98,7 @@ func AllPrefixesSet() map[EntityIDPrefix]struct{} {
 		Process:                {},
 		InternalID:             {},
 		GPU:                    {},
+		Kubelet:                {},
 	}
 }
 

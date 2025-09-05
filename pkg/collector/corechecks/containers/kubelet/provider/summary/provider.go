@@ -115,7 +115,8 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 			continue
 		}
 
-		if p.filterStore.IsPodExcluded(workloadmetafilter.CreatePod(podData), workloadfilter.GetPodSharedMetricFilters()) {
+		selectedFilters := p.filterStore.GetPodSharedMetricFilters()
+		if p.filterStore.IsPodExcluded(workloadmetafilter.CreatePod(podData), selectedFilters) {
 			continue
 		}
 
@@ -228,7 +229,7 @@ func (p *Provider) processContainerStats(sender sender.Sender,
 		ctr.Name = containerName
 
 		filterableContainer := workloadmetafilter.CreateContainerFromOrch(ctr, workloadmetafilter.CreatePod(podData))
-		selectedFilters := workloadfilter.GetContainerSharedMetricFilters()
+		selectedFilters := p.filterStore.GetContainerSharedMetricFilters()
 		if p.filterStore.IsContainerExcluded(filterableContainer, selectedFilters) {
 			continue
 		}

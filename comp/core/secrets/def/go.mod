@@ -1,4 +1,4 @@
-module github.com/DataDog/datadog-agent/comp/core/secrets/comp
+module github.com/DataDog/datadog-agent/comp/core/secrets/def
 
 go 1.24.0
 

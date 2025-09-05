@@ -1037,11 +1037,14 @@ def read_content(ctx, file_path, git_ref: str | None = None):
             response = requests.get(file_path)
             response.raise_for_status()
             content = response.text
-        elif git_ref:
-            content = ctx.run(f"git show '{git_ref}:{file_path}'", hide=True).stdout
-        else:
+        elif not git_ref:
             with open(file_path) as f:
                 content = f.read()
+        elif ctx.run(f"git cat-file -e '{git_ref}:{file_path}'", hide=True, warn=True).ok:
+            content = ctx.run(f"git show '{git_ref}:{file_path}'", hide=True).stdout
+        else:
+            print(f"{file_path!r} didn't exist in {git_ref!r} - assuming empty")
+            content = "{}"
 
         return yaml.safe_load(content)
 

@@ -9,8 +9,10 @@ package workload
 
 import (
 	"errors"
-	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
@@ -131,6 +133,19 @@ func patcherTestStoreWithData() *store {
 				Kind:       "ReplicaSet",
 				APIVersion: "apps/v1",
 				Name:       "duplicate-target",
+			},
+		},
+	}.Build(), "")
+
+	// In ns3, autoscaler1 targets the rollout "my-rollout"
+	store.Set("ns3/autoscaler1", model.FakePodAutoscalerInternal{
+		Namespace: "ns3",
+		Name:      "autoscaler1",
+		Spec: &datadoghq.DatadogPodAutoscalerSpec{
+			TargetRef: autoscalingv2.CrossVersionObjectReference{
+				Kind:       "Rollout",
+				APIVersion: "argoproj.io/v1alpha1",
+				Name:       "my-rollout",
 			},
 		},
 	}.Build(), "")
@@ -784,6 +799,27 @@ func TestFindAutoscaler(t *testing.T) {
 				},
 			},
 			expectedAutoscalerID: "",
+			expectedError:        nil,
+		},
+		{
+			name: "Pod owned by replicaset managed by rollout",
+			pod: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "ns3",
+					Name:      "pod3",
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							Kind:       "ReplicaSet",
+							Name:       "my-rollout-9b8dc4bd6",
+							APIVersion: "apps/v1",
+						},
+					},
+					Labels: map[string]string{
+						kubernetes.ArgoRolloutLabelKey: "9b8dc4bd6",
+					},
+				},
+			},
+			expectedAutoscalerID: "ns3/autoscaler1",
 			expectedError:        nil,
 		},
 	}

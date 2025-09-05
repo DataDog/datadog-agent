@@ -446,6 +446,16 @@ func (w *workloadmeta) GetGPU(id string) (*wmdef.GPU, error) {
 	return entity.(*wmdef.GPU), nil
 }
 
+// GetKubelet implements Store#GetKubelet.
+func (w *workloadmeta) GetKubelet() (*wmdef.Kubelet, error) {
+	entity, err := w.getEntityByKind(wmdef.KindKubelet, wmdef.KubeletID)
+	if err != nil {
+		return nil, err
+	}
+
+	return entity.(*wmdef.Kubelet), nil
+}
+
 // ListGPUs implements Store#ListGPUs.
 func (w *workloadmeta) ListGPUs() []*wmdef.GPU {
 	entities := w.listEntitiesByKind(wmdef.KindGPU)

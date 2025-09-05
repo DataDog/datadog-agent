@@ -304,7 +304,7 @@ Package orchestratorinterface defines the interface for the orchestrator forward
 
 *Datadog Team*: agent-log-pipelines
 
-
+Package logs provides the logs component bundle
 
 ### [comp/logs/adscheduler](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs/adscheduler)
 

@@ -105,6 +105,10 @@ type Component interface {
 	// with kind KindGPU and the given ID.
 	GetGPU(id string) (*GPU, error)
 
+	// GetKubelet returns the kubelet. It fetches the entity with kind KindKubelet.
+	// There can only be one kubelet entity so further specification is unnecessary.
+	GetKubelet() (*Kubelet, error)
+
 	// ListGPUs returns metadata about all known GPU devices, equivalent
 	// to all entities with kind KindGPU.
 	ListGPUs() []*GPU

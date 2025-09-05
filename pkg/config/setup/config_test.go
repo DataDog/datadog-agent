@@ -617,22 +617,11 @@ func TestSanitizeAPIKeyConfig(t *testing.T) {
 func TestNumWorkers(t *testing.T) {
 	config := newTestConf(t)
 
-	config.SetWithoutSource("python_version", "2")
-	config.SetWithoutSource("tracemalloc_debug", true)
 	config.SetWithoutSource("check_runners", 4)
+	config.SetWithoutSource("tracemalloc_debug", false)
 
 	setNumWorkers(config)
 	workers := config.GetInt("check_runners")
-	assert.Equal(t, workers, config.GetInt("check_runners"))
-
-	config.SetWithoutSource("tracemalloc_debug", false)
-	setNumWorkers(config)
-	workers = config.GetInt("check_runners")
-	assert.Equal(t, workers, config.GetInt("check_runners"))
-
-	config.SetWithoutSource("python_version", "3")
-	setNumWorkers(config)
-	workers = config.GetInt("check_runners")
 	assert.Equal(t, workers, config.GetInt("check_runners"))
 
 	config.SetWithoutSource("tracemalloc_debug", true)

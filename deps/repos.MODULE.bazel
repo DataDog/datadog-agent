@@ -25,10 +25,10 @@ http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "ht
 
 http_archive(
     name = "openssl",
-    patches = ["//omnibus/config/patches/openssl3:0001-fix-preprocessor-concatenation.patch"],
+    build_file = "//deps:openssl.BUILD.bazel",
     patch_args = ["-p1"],
-    url = "https://www.openssl.org/source/openssl-3.4.1.tar.gz",
+    patches = ["//omnibus/config/patches/openssl3:0001-fix-preprocessor-concatenation.patch"],
     sha256 = "002a2d6b30b58bf4bea46c43bdd96365aaf8daa6c428782aa4feee06da197df3",
     strip_prefix = "openssl-3.4.1",
-    build_file = "//deps:openssl.BUILD.bazel",
+    url = "https://www.openssl.org/source/openssl-3.4.1.tar.gz",
 )

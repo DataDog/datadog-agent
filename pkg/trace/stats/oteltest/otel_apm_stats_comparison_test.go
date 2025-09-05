@@ -11,8 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
-
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
@@ -25,6 +23,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
