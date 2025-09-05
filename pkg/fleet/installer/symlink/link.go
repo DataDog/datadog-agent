@@ -16,7 +16,7 @@ func Read(linkPath string) (string, error) {
 	return os.Readlink(linkPath)
 }
 
-// Exists checks if a link exists.
+// Exist checks if a link exists.
 func Exist(linkPath string) (bool, error) {
 	_, err := os.Stat(linkPath)
 	if errors.Is(err, os.ErrNotExist) {
