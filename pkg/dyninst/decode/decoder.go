@@ -257,6 +257,7 @@ func (s *snapshotMessage) init(
 	}
 
 	s.Logger.Version = probe.GetVersion()
+	s.Logger.ThreadID = int(header.Goid)
 	s.Debugger.Snapshot.Probe.ID = probe.GetID()
 	s.Debugger.Snapshot.Stack.frames = stackFrames
 	s.Debugger.Snapshot.Captures.Entry.Arguments = argumentsData{
