@@ -15,6 +15,7 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"runtime"
 	"slices"
 	"syscall"
 	"unsafe"
@@ -129,7 +130,14 @@ func (o *onDiskGoTypeToOffsetIndex) resolveDwarfOffset(typeID gotype.TypeID) (dw
 	return o.entries.resolveDwarfOffset(gotype.TypeID(typeID))
 }
 func (o *onDiskGoTypeToOffsetIndex) allGoTypes() iter.Seq[gotype.TypeID] {
-	return o.entries.allGoTypes()
+	return func(yield func(gotype.TypeID) bool) {
+		for _, entry := range o.entries {
+			if !yield(entry.typeID) {
+				return
+			}
+		}
+		runtime.KeepAlive(o)
+	}
 }
 func (o *onDiskGoTypeToOffsetIndex) Close() error {
 	if o.mm == nil {

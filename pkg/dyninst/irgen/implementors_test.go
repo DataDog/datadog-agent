@@ -86,6 +86,8 @@ func newFunction(t *testing.T, cfg testprogs.Config, factory goTypeIndexFactory)
 	typeTab, interestingInterfaces, methodIndex := buildMethodIndex(
 		t, cfg, "sample", factory, interestingInterfaceNames,
 	)
+	defer func() { require.NoError(t, typeTab.Close()) }()
+	defer func() { require.NoError(t, methodIndex.Close()) }()
 
 	interfaceNames := slices.Sorted(maps.Keys(expectedImplementors))
 	require.Equal(t, interfaceNames, slices.Sorted(maps.Keys(interestingInterfaces)))
@@ -137,6 +139,7 @@ func buildMethodIndex(
 	}
 	typeIndex, err := typeIndexBuilder.build()
 	require.NoError(t, err)
+	defer func() { require.NoError(t, typeIndex.Close()) }()
 
 	interestingInterfaces := make(map[string]gotype.Type)
 
