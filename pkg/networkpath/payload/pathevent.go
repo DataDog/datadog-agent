@@ -136,7 +136,7 @@ type NetworkPathDestination struct {
 	Service  string `json:"service,omitempty"`
 
 	// TODO: DEPRECATED: should be part of traceroute.run
-	IPAddress          string `json:"ip_address"`                     // DEPRECATED: should be part of traceroute.run
+	IPAddress          string `json:"ip_address,omitempty"`           // DEPRECATED: should be part of traceroute.run
 	ReverseDNSHostname string `json:"reverse_dns_hostname,omitempty"` // DEPRECATED: should be part of traceroute.run
 }
 
@@ -218,7 +218,7 @@ type NetworkPath struct {
 	// TODO: Remove legacy hops
 	// TODO: Remove legacy hops
 	// TODO: Remove legacy hops
-	Hops []NetworkPathHop `json:"hops"`
+	Hops []NetworkPathHop `json:"hops,omitempty"`
 
 	Traceroute Traceroute `json:"traceroute"`
 	E2eProbe   E2eProbe   `json:"e2e_probe"`
