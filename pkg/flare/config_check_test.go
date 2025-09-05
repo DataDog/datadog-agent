@@ -249,7 +249,7 @@ database:
   auth_token: token789
 api:
   endpoint: https://api.example.com
-  api_key: abcdef1234567890abcdef1234567890
+  api_key: abcdef12345
   secret: apisecret
 snmp:
   community_string: snmpcommunity
@@ -266,6 +266,7 @@ snmp:
 				"snmpcommunity",
 				"snmpauth",
 				"snmppriv",
+				"abcdef12345",
 			},
 		},
 	}

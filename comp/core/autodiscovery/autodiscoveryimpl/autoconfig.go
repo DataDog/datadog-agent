@@ -48,7 +48,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
-	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 var listenerCandidateIntl = 30 * time.Second
