@@ -12,11 +12,12 @@ import (
 )
 
 const (
-	// Top-level key for this expvar
-	workersExpvarKey = "Workers"
+	// WorkersExpvarKey - Top-level key for this expvar
+	WorkersExpvarKey = "Workers"
+	// InstancesExpvarKey - Nested key for the instances expvar
+	InstancesExpvarKey = "Instances"
 
-	countExpvarKey     = "Count"
-	instancesExpvarKey = "Instances"
+	countExpvarKey = "Count"
 )
 
 var (
@@ -44,9 +45,9 @@ func newWorkersExpvar(parent *expvar.Map) {
 
 	workersStats = &expvar.Map{}
 	workersStats.Add(countExpvarKey, 0)
-	workersStats.Set(instancesExpvarKey, workerInstancesStats)
+	workersStats.Set(InstancesExpvarKey, workerInstancesStats)
 
-	parent.Set(workersExpvarKey, workersStats)
+	parent.Set(WorkersExpvarKey, workersStats)
 }
 
 func resetWorkersExpvar(parent *expvar.Map) {
