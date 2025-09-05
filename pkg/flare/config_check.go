@@ -115,7 +115,7 @@ func PrintClusterCheckConfig(w io.Writer, c integration.Config, checkName string
 		return
 	}
 
-	c = integration.ScrubClusterCheckConfig(c, log.Default())
+	c = integration.ScrubCheckConfig(c, log.Default())
 	configDigest := c.FastDigest()
 	if !c.ClusterCheck {
 		fmt.Fprintf(w, "\n=== %s check ===\n", color.GreenString(c.Name))
