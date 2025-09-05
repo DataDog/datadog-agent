@@ -22,6 +22,40 @@ struct {
   __type(value, uint64_t);
 } throttled_events SEC(".maps");
 
+static uint64_t read_goid(uint64_t g_ptr) {
+  uint64_t goid;
+  if (bpf_probe_read_user(
+          &goid, sizeof(goid),
+          (void*)(g_ptr + OFFSET_runtime_dot_g__goid))) {
+    LOG(2, "failed to read goid %llx", g_ptr);
+    return 0;
+  }
+  if (goid != 0) {
+    return goid;
+  }
+  // This is pseudo-g. Extract g_ptr->m->curg->goid.
+  uint64_t m_ptr;
+  if (bpf_probe_read_user(
+          &m_ptr, sizeof(m_ptr),
+          (void*)(g_ptr + OFFSET_runtime_dot_g__m))) {
+    LOG(2, "failed to read m %llx", g_ptr);
+    return 0;
+  }
+  if (bpf_probe_read_user(
+          &g_ptr, sizeof(g_ptr),
+          (void*)(m_ptr + OFFSET_runtime_dot_m__curg))) {
+    LOG(2, "failed to read curg %llx", m_ptr);
+    return 0;
+  }
+  if (bpf_probe_read_user(
+          &goid, sizeof(goid),
+          (void*)(g_ptr + OFFSET_runtime_dot_g__goid))) {
+    LOG(2, "failed to read goid %llx", g_ptr);
+    return 0;
+  }
+  return goid;
+}
+
 SEC("uprobe") int probe_run_with_cookie(struct pt_regs* regs) {
   uint64_t start_ns = bpf_ktime_get_ns();
 
@@ -72,6 +106,13 @@ SEC("uprobe") int probe_run_with_cookie(struct pt_regs* regs) {
       .ktime_ns = start_ns,
       .prog_id = prog_id,
   };
+#if defined(bpf_target_x86)
+  header->goid = read_goid(regs->DWARF_REGISTER_14);  
+#elif defined(bpf_target_arm64)
+  header->goid = read_goid(regs->DWARF_REGISTER(28));
+#else
+  #error "Unsupported architecture"
+#endif
 
   __maybe_unused int process_steps = 0;
   __maybe_unused int chase_steps = 0;
