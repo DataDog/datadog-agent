@@ -242,6 +242,7 @@ func runSelfEnrollmentToConfig(apiKey, appKey, datadogSite string, selfAuth bool
 	// Send self-enrollment request using OPMS client with API key
 	ddHost := strings.Join([]string{"api", datadogSite}, ".")
 	enrollmentClient := opms.NewEnrollmentClient(ddHost)
+	fmt.Println("ec2Identity.Authentication: " + ec2Identity.Authentication)
 	response, err := enrollmentClient.SendSelfEnrollmentRequest(context.Background(), apiKey, appKey, string(publicKeyJSON), ec2Identity)
 	if err != nil {
 		return fmt.Errorf("self-enrollment request failed: %w", err)
