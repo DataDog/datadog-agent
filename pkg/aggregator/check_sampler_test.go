@@ -28,7 +28,7 @@ func generateContextKey(sample metrics.MetricSampleContext) ckey.ContextKey {
 	k := ckey.NewKeyGenerator()
 	tb := tagset.NewHashingTagsAccumulator()
 	taggerComponent := nooptagger.NewComponent()
-	sample.GetTags(tb, tb, taggerComponent.EnrichTags)
+	sample.GetTags(tb, tb, taggerComponent)
 	return k.Generate(sample.GetName(), sample.GetHost(), tb)
 }
 
