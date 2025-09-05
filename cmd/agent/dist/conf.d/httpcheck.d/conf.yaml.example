@@ -1,0 +1,4 @@
+instances:
+  - loader: sharedlibrary
+    min_collection_interval: 1
+    url: "datadog.com"
