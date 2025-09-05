@@ -101,10 +101,21 @@ func (ms *MetricSender) sendBandwidthUsageMetric(symbol profiledefinition.Symbol
 	}
 	usageValue := ((octetsFloatValue * 8) / (float64(ifSpeed))) * 100.0
 
+	fmt.Println("INDEX:", fullIndex)
+	fmt.Println("OCTETSFLOATVALUE:", octetsFloatValue)
+	fmt.Println("IFSPEED:", ifSpeed)
+
+	fmt.Println("USAGE VALUE:", usageValue)
+
 	rate, err := ms.interfaceBandwidthState.calculateBandwidthUsageRate(fullIndex, usageName, ifSpeed, usageValue)
 	if err != nil {
 		return err
 	}
+
+	if rate > 100 {
+		ms.diagnoses.Add("warn", "SNMP_IF_BANDWIDTH_EXCEEDED", "")
+	}
+
 	sample := MetricSample{
 		value:      valuestore.ResultValue{SubmissionType: profiledefinition.ProfileMetricTypeGauge, Value: rate},
 		tags:       tags,

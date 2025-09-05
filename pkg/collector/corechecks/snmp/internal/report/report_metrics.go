@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/diagnoses"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/utils"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
@@ -27,6 +28,7 @@ type MetricSender struct {
 	submittedMetrics        int
 	interfaceConfigs        []snmpintegration.InterfaceConfig
 	interfaceBandwidthState InterfaceBandwidthState
+	diagnoses               *diagnoses.Diagnoses
 }
 
 // MetricSample is a collected metric sample with its metadata, ready to be submitted through the metric sender
@@ -39,12 +41,13 @@ type MetricSample struct {
 }
 
 // NewMetricSender create a new MetricSender
-func NewMetricSender(sender sender.Sender, hostname string, interfaceConfigs []snmpintegration.InterfaceConfig, interfaceBandwidthState InterfaceBandwidthState) *MetricSender {
+func NewMetricSender(sender sender.Sender, hostname string, interfaceConfigs []snmpintegration.InterfaceConfig, interfaceBandwidthState InterfaceBandwidthState, diagnoses *diagnoses.Diagnoses) *MetricSender {
 	return &MetricSender{
 		sender:                  sender,
 		hostname:                hostname,
 		interfaceConfigs:        interfaceConfigs,
 		interfaceBandwidthState: interfaceBandwidthState,
+		diagnoses:               diagnoses,
 	}
 }
 

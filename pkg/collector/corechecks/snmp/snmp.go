@@ -190,13 +190,13 @@ func (c *Check) GetDiagnoses() ([]diagnose.Diagnosis, error) {
 		var diagnosis []diagnose.Diagnosis
 
 		for _, deviceCheck := range devices {
-			diagnosis = append(diagnosis, deviceCheck.GetDiagnoses()...)
+			diagnosis = append(diagnosis, deviceCheck.GetCLIDiagnoses()...)
 		}
 
 		return diagnosis, nil
 	}
 
-	return c.singleDeviceCk.GetDiagnoses(), nil
+	return c.singleDeviceCk.GetCLIDiagnoses(), nil
 }
 
 // IsHASupported returns true if the check supports HA
