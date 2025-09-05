@@ -15,13 +15,16 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
+	"net/url"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/go-jose/go-jose/v4"
 	"github.com/go-jose/go-jose/v4/jwt"
 	"gopkg.in/yaml.v3"
@@ -171,39 +174,33 @@ func runEnrollmentToConfig(enrollmentToken, datadogSite string) error {
 	return nil
 }
 
-func getEC2Identity() (*opms.Ec2Identity, error) {
+func getEc2Identity() (*opms.Ec2Identity, error) {
 	ctx := context.Background()
-
-	cfg, err := config.LoadDefaultConfig(ctx)
+	awsConfig, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("unable to load AWS SDK config: %w", err)
 	}
-	client := imds.NewFromConfig(cfg)
 
-	output, err := client.GetDynamicData(ctx, &imds.GetDynamicDataInput{
-		Path: "instance-identity/pkcs7",
-	})
-	if err != nil {
-		return nil, err
+	if awsConfig.Region == "" {
+		log.Warn("AWS region not found in config, defaulting to us-east-1")
+		awsConfig.Region = "us-east-1"
 	}
 
-	pkcs7Raw, err := io.ReadAll(output.Content)
+	stsClient := sts.NewFromConfig(awsConfig)
+	presigner := sts.NewPresignClient(stsClient)
+	identity, err := presigner.PresignGetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
 	if err != nil {
-		return nil, fmt.Errorf("failed to read PKCS7 content: %w", err)
+		return nil, fmt.Errorf("failed to presign GetCallerIdentity: %w", err)
 	}
-	pkcs7 := "-----BEGIN PKCS7-----\n" + strings.TrimSpace(string(pkcs7Raw)) + "\n-----END PKCS7-----\n"
 
-	// TODO: remove this print
-	fmt.Println("PKCS7 PEM:\n", pkcs7[0:20]+"...")
-
-	doc, err := client.GetInstanceIdentityDocument(ctx, &imds.GetInstanceIdentityDocumentInput{})
+	parsedURL, err := url.Parse(identity.URL)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get instance identity document: %w", err)
+		return nil, fmt.Errorf("failed to parse caller identity URL: %w", err)
 	}
 
 	return &opms.Ec2Identity{
-		Region: doc.Region,
-		Pkcs7:  pkcs7,
+		Region:         awsConfig.Region,
+		Authentication: parsedURL.RawQuery,
 	}, nil
 }
 
@@ -214,7 +211,7 @@ func runSelfEnrollmentToConfig(apiKey, appKey, datadogSite string, selfAuth bool
 
 	if selfAuth {
 		var err error
-		ec2Identity, err = getEC2Identity()
+		ec2Identity, err = getEc2Identity()
 		if err != nil {
 			return fmt.Errorf("failed to get EC2 identity: %w", err)
 		}

@@ -100,8 +100,8 @@ type SelfEnrollmentRequest struct {
 
 // Ec2Identity represents the EC2 identity structure for self-enrollment
 type Ec2Identity struct {
-	Region string `json:"region"`
-	Pkcs7  string `json:"pkcs7"`
+	Region         string `json:"region"`
+	Authentication string `json:"authentication"`
 }
 
 // EnrollmentResponseData represents the data section of the JSONAPI response
