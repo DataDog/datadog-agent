@@ -73,16 +73,12 @@ Invoke-BuildScript `
     if (Test-Path '.\omnibus\pkg\') { Get-ChildItem -Path '.\omnibus\pkg\' }
 
     if ($BuildOutOfSource) {
-        # Copy the resulting package to the mnt directory when relevant (non-ddot targets)
+        # Copy the resulting package to the mnt directory when relevant
         mkdir C:\mnt\omnibus\pkg\pipeline-$env:CI_PIPELINE_ID -Force -ErrorAction Stop | Out-Null
-        if ($TargetProject -and $TargetProject.ToLower() -ne 'ddot') {
-            if (Test-Path '.\omnibus\pkg\') {
-                Copy-Item -Path ".\omnibus\pkg\*" -Destination "C:\mnt\omnibus\pkg\pipeline-$env:CI_PIPELINE_ID" -Force -ErrorAction Stop
-            } else {
-                Write-Host "No local .\\omnibus\\pkg\\ directory to copy; proceeding"
-            }
+        if (Test-Path '.\omnibus\pkg\') {
+            Copy-Item -Path ".\omnibus\pkg\*" -Destination "C:\mnt\omnibus\pkg\pipeline-$env:CI_PIPELINE_ID" -Force -ErrorAction Stop
         } else {
-            Write-Host "Skipping local package copy for target '$TargetProject'"
+            Write-Host "No local .\\omnibus\\pkg\\ directory to copy; proceeding"
         }
     }
 }

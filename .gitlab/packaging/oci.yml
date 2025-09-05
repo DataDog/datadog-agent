@@ -101,6 +101,43 @@ installer_oci:
   variables:
     OCI_PRODUCT: "datadog-installer"
 
+ddot_win_oci:
+  stage: packaging
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  needs:
+    - job: "windows_zip_ddot_x64"
+      artifacts: true
+    - "go_tools_deps"
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  script:
+    - set -euo pipefail
+    - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
+    - go env -w GOPRIVATE="github.com/DataDog/*"
+    - ${CI_PROJECT_DIR}/tools/ci/retry.sh go install github.com/DataDog/datadog-packages/cmd/datadog-package@latest
+    - PIPE_DIR="${CI_PROJECT_DIR}/omnibus/pkg/pipeline-${CI_PIPELINE_ID}"
+    - WIN_ZIP="$(ls -1 "${PIPE_DIR}"/datadog-agent-ddot-*x86_64.zip | head -n1)"
+    - '[ -n "${WIN_ZIP}" ]'
+    - WIN_INPUT="/tmp/win_ddot_input"; mkdir -p "${WIN_INPUT}"
+    - unzip -q "${WIN_ZIP}" -d "${WIN_INPUT}"
+    - ZIP_BASE="$(basename "${WIN_ZIP}")"
+    - VERSION="$(echo "${ZIP_BASE}" | sed -E 's/^datadog-agent-ddot-(.+)-x86_64\.zip$/\1/')"
+    - EXTRA_FLAGS=""
+    - '[ -d "${WIN_INPUT}/etc/datadog-agent" ] && EXTRA_FLAGS="--configs ${WIN_INPUT}/etc/datadog-agent" || true'
+    - datadog-package create \
+        --version "${VERSION}" \
+        --package datadog-agent-ddot \
+        --os windows --arch amd64 \
+        --archive --archive-path "${PIPE_DIR}/datadog-agent-ddot-${VERSION}-windows-amd64.oci.tar" \
+        ${EXTRA_FLAGS} \
+        "${WIN_INPUT}/"
+    - ls -l "${PIPE_DIR}"
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - omnibus/pkg/pipeline-$CI_PIPELINE_ID
+
 ddot_oci:
   extends: .package_oci
   needs: ["datadog-otel-agent-x64", "datadog-otel-agent-arm64", "go_tools_deps", "ddot_win_oci"]
