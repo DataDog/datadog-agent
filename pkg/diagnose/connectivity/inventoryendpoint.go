@@ -44,9 +44,6 @@ func getEndpointsDescriptions() []endpointDescription {
 		{name: "Agent keys", route: "https://keys.datadoghq.com", method: http.MethodHead},
 		{name: "APM traces", prefix: "trace.agent", routePath: "_health", method: http.MethodGet, altURLOverrideKey: "apm_config.apm_dd_url"},
 		{name: "LLM obs", prefix: "llmobs-intake", routePath: "api/v2/llmobs", method: http.MethodPost},
-		//{name: "Live container/process/USM", prefix: "process", configPrefix: "process_config", altURLOverrideKey: "process_config.process_dd_url", routePath: "probe", method: http.MethodGet},
-		//{name: "Orchestrator ", prefix: "orchestrator", routePath: "probe", method: http.MethodGet, altURLOverrideKey: "orchestrator_explorer.orchestrator_dd_url"},
-		//{name: "Profiling", prefix: "intake.profile", routePath: "probe", method: http.MethodGet, altURLOverrideKey: "apm_config.profiling_dd_url"},
 		{name: "Remote configuration", prefix: "config", configPrefix: "remote_configuration", altURLOverrideKey: "remote_configuration.rc_dd_url", handlesFailover: true, routePath: "_health", method: http.MethodGet},
 	}
 }
@@ -106,6 +103,10 @@ func getAPIKey(cfg model.Reader, configPrefix string, defaultAPIKey string, altA
 		return defaultAPIKey
 	}
 
+	if configPrefix == "" {
+		return defaultAPIKey
+	}
+
 	configAPIKey := joinSuffix(configPrefix, ".") + "api_key"
 	if !cfg.IsKnown(configAPIKey) {
 		return defaultAPIKey
@@ -158,11 +159,13 @@ func getDomains(cfg model.Reader) []domain {
 func (e *endpointDescription) buildRoute(cfg model.Reader, domain domain) string {
 	baseURL := ""
 	urlOverrideKey := getURLOverrideKey(e.altURLOverrideKey, domain.isFailover)
-	schemedPrefix := fmt.Sprintf("https://%s", joinSuffix(e.prefix, "."))
 	if domain.isFailover {
-		baseURL, _ = utils.GetMRFEndpoint(cfg, schemedPrefix, urlOverrideKey)
+		baseURL, _ = utils.GetMRFEndpoint(cfg, joinSuffix(e.prefix, "."), urlOverrideKey)
 	} else {
-		baseURL = utils.GetMainEndpoint(cfg, schemedPrefix, urlOverrideKey)
+		baseURL = utils.GetMainEndpoint(cfg, joinSuffix(e.prefix, "."), urlOverrideKey)
+	}
+	if !strings.HasPrefix(baseURL, "https://") && !strings.HasPrefix(baseURL, "http://") {
+		baseURL = fmt.Sprintf("https://%s", baseURL)
 	}
 
 	path := e.routePath

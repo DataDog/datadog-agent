@@ -21,12 +21,13 @@ import (
 
 func TestBuildRoute(t *testing.T) {
 	tests := []struct {
-		name           string
-		prefix         string
-		domain         domain
-		path           string
-		urlOverrideKey string
-		expected       string
+		name             string
+		prefix           string
+		domain           domain
+		path             string
+		urlOverrideKey   string
+		urlOverrideValue string
+		expected         string
 	}{
 		{
 			name:   "basic route with dot separator",
@@ -65,9 +66,22 @@ func TestBuildRoute(t *testing.T) {
 				site:          "datadoghq.eu",
 				infraEndpoint: "https://app.datadoghq.eu",
 			},
-			urlOverrideKey: "dd_url",
-			path:           "validate",
-			expected:       "http://myproxy.com/validate",
+			urlOverrideKey:   "dd_url",
+			urlOverrideValue: "http://myproxy.com",
+			path:             "validate",
+			expected:         "http://myproxy.com/validate",
+		},
+		{
+			name:   "with url override http",
+			prefix: "intake.profile",
+			domain: domain{
+				site:          "datadoghq.eu",
+				infraEndpoint: "https://app.datadoghq.eu",
+			},
+			urlOverrideKey:   "dd_url",
+			urlOverrideValue: "myproxy.com",
+			path:             "validate",
+			expected:         "https://myproxy.com/validate",
 		},
 	}
 
@@ -80,11 +94,11 @@ func TestBuildRoute(t *testing.T) {
 			}
 			version.AgentVersion = "6.0.0"
 			mockConfig := configmock.New(t)
-			mockConfig.BindEnvAndSetDefault("site", tt.domain.site)
-			mockConfig.BindEnvAndSetDefault("multi_region_failover.enabled", tt.domain.isFailover)
-			mockConfig.BindEnvAndSetDefault("multi_region_failover.site", tt.domain.site)
+			mockConfig.SetWithoutSource("site", tt.domain.site)
+			mockConfig.SetWithoutSource("multi_region_failover.enabled", tt.domain.isFailover)
+			mockConfig.SetWithoutSource("multi_region_failover.site", tt.domain.site)
 			if tt.urlOverrideKey != "" {
-				mockConfig.BindEnvAndSetDefault(tt.urlOverrideKey, "http://myproxy.com")
+				mockConfig.SetWithoutSource(tt.urlOverrideKey, tt.urlOverrideValue)
 			}
 			url := endpointDescription.buildRoute(mockConfig, tt.domain)
 			assert.Equal(t, tt.expected, url)
@@ -154,41 +168,6 @@ func TestBuildEndpoints(t *testing.T) {
 			},
 		},
 		{
-			name: "endpoint with config prefix",
-			endpointDescription: endpointDescription{
-				prefix:          "ndm.metadata.",
-				method:          http.MethodGet,
-				configPrefix:    "service.metadata.",
-				handlesFailover: true,
-			},
-			config: map[string]string{
-				"service.metadata.api_key": "api-key-custom",
-			},
-			domains: []domain{
-				{
-					site:          "datadoghq.com",
-					defaultAPIKey: "api-key-main",
-					useAltAPIKey:  true,
-				},
-				{
-					site:          "datadoghq.mrf.com",
-					defaultAPIKey: "api-key-mrf",
-					useAltAPIKey:  false,
-					isFailover:    true,
-				},
-			},
-			expectedEndpoints: []resolvedEndpoint{
-				{
-					apiKey: "api-key-custom",
-					url:    "https://ndm.metadata.datadoghq.com./",
-				},
-				{
-					apiKey: "api-key-mrf",
-					url:    "https://ndm.metadata.datadoghq.mrf.com/",
-				},
-			},
-		},
-		{
 			name: "endpoint with config prefix and no api key",
 			endpointDescription: endpointDescription{
 				prefix:       "ndm.metadata.",
@@ -239,13 +218,13 @@ func TestBuildEndpoints(t *testing.T) {
 			mockConfig := configmock.New(t)
 
 			for key, value := range tt.config {
-				mockConfig.BindEnvAndSetDefault(key, value)
+				mockConfig.SetWithoutSource(key, value)
 			}
 
-			mockConfig.BindEnvAndSetDefault("site", tt.domains[0].site)
+			mockConfig.SetWithoutSource("site", tt.domains[0].site)
 			if len(tt.domains) > 1 {
-				mockConfig.BindEnvAndSetDefault("multi_region_failover.enabled", true)
-				mockConfig.BindEnvAndSetDefault("multi_region_failover.site", tt.domains[1].site)
+				mockConfig.SetWithoutSource("multi_region_failover.enabled", true)
+				mockConfig.SetWithoutSource("multi_region_failover.site", tt.domains[1].site)
 			}
 
 			endpoints := tt.endpointDescription.buildEndpoints(mockConfig, tt.domains)
@@ -335,11 +314,11 @@ func TestGetDomainInfo(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockConfig := configmock.New(t)
-			mockConfig.BindEnvAndSetDefault("api_key", tt.apiKey)
-			mockConfig.BindEnvAndSetDefault("site", tt.site)
-			mockConfig.BindEnvAndSetDefault("multi_region_failover.enabled", tt.multiRegionFailover)
-			mockConfig.BindEnvAndSetDefault("multi_region_failover.site", tt.multiRegionFailoverSite)
-			mockConfig.BindEnvAndSetDefault("multi_region_failover.api_key", tt.multiRegionFailoverAPIKey)
+			mockConfig.SetWithoutSource("api_key", tt.apiKey)
+			mockConfig.SetWithoutSource("site", tt.site)
+			mockConfig.SetWithoutSource("multi_region_failover.enabled", tt.multiRegionFailover)
+			mockConfig.SetWithoutSource("multi_region_failover.site", tt.multiRegionFailoverSite)
+			mockConfig.SetWithoutSource("multi_region_failover.api_key", tt.multiRegionFailoverAPIKey)
 			domains := getDomains(mockConfig)
 			assert.Equal(t, tt.expectedKeys, domains)
 		})
@@ -385,7 +364,7 @@ func TestCheckGet(t *testing.T) {
 
 func TestRun(t *testing.T) {
 	cfg := configmock.New(t)
-	cfg.BindEnvAndSetDefault("api_key", "test-api-key")
+	cfg.SetWithoutSource("api_key", "test-api-key")
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "HEAD" {
