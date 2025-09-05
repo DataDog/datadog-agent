@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/gotype"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symbol"
 )
 
@@ -166,8 +167,8 @@ type snapshotMessage struct {
 	Logger    logger           `json:"logger"`
 	Debugger  debuggerData     `json:"debugger"`
 	Timestamp int              `json:"timestamp"`
-
-	rootData []byte
+	Message   message          `json:"message"`
+	rootData  []byte
 }
 
 func (s *snapshotMessage) init(
@@ -255,15 +256,35 @@ func (s *snapshotMessage) init(
 			probe.GetID(), where,
 		)
 	}
-
+	s.Message.probe = probe
 	s.Logger.Version = probe.GetVersion()
 	s.Debugger.Snapshot.Probe.ID = probe.GetID()
 	s.Debugger.Snapshot.Stack.frames = stackFrames
 	s.Debugger.Snapshot.Captures.Entry.Arguments = argumentsData{
-		event:    event,
-		rootType: rootType,
-		rootData: s.rootData,
-		decoder:  decoder,
+		event:        event,
+		rootType:     rootType,
+		rootData:     s.rootData,
+		decoder:      decoder,
+		neededValues: populateNeededValues(probe),
 	}
+	s.Message.argumentsData = &s.Debugger.Snapshot.Captures.Entry.Arguments
 	return probe, nil
+}
+
+func populateNeededValues(probe ir.ProbeDefinition) map[string]string {
+	segments := probe.GetSegments()
+	neededValues := make(map[string]string, 0)
+	for i := range segments {
+		switch seg := segments[i].(type) {
+		case rcjson.JSONSegment:
+			var parameterName string
+			// XXX: For now we only support parameters in templates
+			if json.Unmarshal(seg.JSON, &parameterName) != nil {
+				// TODO: surface error to evaluationErrors
+				continue
+			}
+			neededValues[parameterName] = parameterName
+		}
+	}
+	return neededValues
 }

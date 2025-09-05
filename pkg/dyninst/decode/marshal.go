@@ -8,6 +8,7 @@
 package decode
 
 import (
+	"bytes"
 	"fmt"
 
 	"github.com/go-json-experiment/json"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/gosym"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symbol"
 )
 
@@ -29,6 +31,32 @@ type logger struct {
 
 type debuggerData struct {
 	Snapshot snapshotData `json:"snapshot"`
+}
+
+type message struct {
+	probe         ir.ProbeDefinition
+	argumentsData *argumentsData
+}
+
+func (m *message) MarshalJSONTo(enc *jsontext.Encoder) error {
+	segments := m.probe.GetSegments()
+	message := ""
+	for i := range segments {
+		switch seg := segments[i].(type) {
+		case rcjson.StringSegment:
+			message += string(seg)
+		case rcjson.JSONSegment:
+			// TODO: seg.DSL right now only supports parameter names
+			// so we don't need to handle the case where the DSL is a JSON object
+			val, ok := m.argumentsData.neededValues[seg.DSL]
+			if !ok {
+				// TODO: handle error to evaluationErrors
+				continue
+			}
+			message += val
+		}
+	}
+	return json.MarshalEncode(enc, message)
 }
 
 type snapshotData struct {
@@ -66,10 +94,11 @@ type capturePointData struct {
 }
 
 type argumentsData struct {
-	rootData []byte
-	rootType *ir.EventRootType
-	event    Event
-	decoder  *Decoder
+	rootData     []byte
+	rootType     *ir.EventRootType
+	event        Event
+	decoder      *Decoder
+	neededValues map[string]string
 }
 
 var ddDebuggerString = jsontext.String("dd_debugger")
@@ -115,6 +144,19 @@ func (ad *argumentsData) MarshalJSONTo(enc *jsontext.Encoder) error {
 		if err = writeTokens(enc, jsontext.String(expr.Name)); err != nil {
 			return err
 		}
+		if _, ok := ad.neededValues[expr.Name]; ok {
+			b := bytes.NewBuffer([]byte{})
+			e := jsontext.NewEncoder((b))
+			if err = ad.decoder.encodeValue(e,
+				parameterType.GetID(),
+				parameterData,
+				parameterType.GetName(),
+			); err != nil {
+				return err
+			}
+			ad.neededValues[expr.Name] = b.String()
+		}
+
 		if !expressionIsPresent(presenceBitSet, i) && parameterSize != 0 {
 			// Set not capture reason
 			if err = writeTokens(enc,

@@ -5,9 +5,15 @@ probes:
     where:
       methodName: main.LookAtTheRequest
     captureSnapshot: true
+    template: "test log message"
+    segments:
+      - str: "test log message"
   - id: http_handler
     type: LOG_PROBE
     where:
       methodName: main.HandleHTTP
     captureSnapshot: true
+    template: "test log message"
+    segments:
+      - str: "test log message"
 
