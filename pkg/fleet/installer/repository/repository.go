@@ -472,7 +472,7 @@ type link struct {
 func newLink(linkPath string) (*link, error) {
 	linkExists, err := linkExists(linkPath)
 	if err != nil {
-		return nil, fmt.Errorf("could check if link exists: %w", err)
+		return nil, fmt.Errorf("couldn't check if link exists: %w", err)
 	}
 	if !linkExists {
 		return &link{
