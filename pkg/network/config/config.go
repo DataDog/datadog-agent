@@ -361,7 +361,7 @@ func New() *Config {
 		EnableHTTP2Monitoring:      cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_http2_monitoring")),
 		EnableKafkaMonitoring:      cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_kafka_monitoring")),
 		EnablePostgresMonitoring:   cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_postgres_monitoring")),
-		EnableRedisMonitoring:      cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_redis_monitoring")),
+		EnableRedisMonitoring:      cfg.GetBool(sysconfig.FullKeyPath(smNS, "redis", "enabled")),
 		RedisTrackResources:        cfg.GetBool(sysconfig.FullKeyPath(smNS, "redis", "track_resources")),
 		EnableNativeTLSMonitoring:  cfg.GetBool(sysconfig.FullKeyPath(smNS, "tls", "native", "enabled")),
 		EnableIstioMonitoring:      cfg.GetBool(sysconfig.FullKeyPath(smNS, "tls", "istio", "enabled")),

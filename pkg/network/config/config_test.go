@@ -229,7 +229,7 @@ func TestEnablePostgresMonitoring(t *testing.T) {
 func TestEnableRedisMonitoring(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.enable_redis_monitoring", true)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.redis.enabled", true)
 		cfg := New()
 
 		assert.True(t, cfg.EnableRedisMonitoring)
@@ -237,7 +237,7 @@ func TestEnableRedisMonitoring(t *testing.T) {
 
 	t.Run("via ENV variable", func(t *testing.T) {
 		mock.NewSystemProbe(t)
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_REDIS_MONITORING", "true")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_REDIS_ENABLED", "true")
 		cfg := New()
 
 		_, err := sysconfig.New("", "")
