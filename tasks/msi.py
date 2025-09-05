@@ -420,7 +420,7 @@ def test(ctx, vstudio_root=None, arch="x64", major_version='7', debug=False):
 
     # Generate the config file
     if not ctx.run(
-        f'dda inv -- -e agent.generate-config --build-type="agent-py2py3" --output-file="{build_outdir}\\datadog.yaml"',
+        f'dda inv -- -e agent.generate-config --build-type="agent-py3" --output-file="{build_outdir}\\datadog.yaml"',
         warn=True,
         env=env,
     ):

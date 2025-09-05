@@ -165,7 +165,7 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 	}
 	selectedLoader := initConfig.LoaderName
 
-	for _, instance := range config.Instances {
+	for instanceIndex, instance := range config.Instances {
 		if check.IsJMXInstance(config.Name, instance, config.InitConfig) {
 			log.Debugf("skip loading jmx check '%s', it is handled elsewhere", config.Name)
 			continue
@@ -196,7 +196,7 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 				log.Debugf("Loader name %v does not match, skip loader %v for check %v", selectedInstanceLoader, loader.Name(), config.Name)
 				continue
 			}
-			c, err := loader.Load(s.senderManager, config, instance)
+			c, err := loader.Load(s.senderManager, config, instance, instanceIndex)
 			if err == nil {
 				log.Debugf("%v: successfully loaded check '%s'", loader, config.Name)
 				errorStats.removeLoaderErrors(config.Name)

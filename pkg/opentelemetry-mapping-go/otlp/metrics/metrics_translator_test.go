@@ -2346,3 +2346,55 @@ var statsPayloads = []*pb.ClientStatsPayload{
 		},
 	},
 }
+
+func TestInferInterval(t *testing.T) {
+	tests := []struct {
+		name        string
+		startTs, ts uint64
+		expected    int64
+	}{
+		{
+			name:     "exact difference",
+			startTs:  1e9,
+			ts:       11e9,
+			expected: 10,
+		},
+		{
+			name:     "under within tolerance",
+			startTs:  1e9,
+			ts:       11e9 - 30e6,
+			expected: 10,
+		},
+		{
+			name:     "over within tolerance",
+			startTs:  1e9,
+			ts:       11e9 + 30e6,
+			expected: 10,
+		},
+		{
+			name:     "outside tolerance",
+			startTs:  1e9,
+			ts:       11e9 + 50e7,
+			expected: 0,
+		},
+		{
+			name:     "no starttimestamp",
+			startTs:  0,
+			ts:       11e9,
+			expected: 0,
+		},
+		{
+			name:     "malformed data",
+			startTs:  710000000,
+			ts:       0,
+			expected: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := inferDeltaInterval(tt.startTs, tt.ts)
+			assert.Equal(t, tt.expected, got)
+		})
+	}
+}

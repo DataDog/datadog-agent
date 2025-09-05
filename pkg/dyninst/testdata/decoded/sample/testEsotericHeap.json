@@ -67,11 +67,22 @@
                       },
                       "val": {
                         "type": "interface {}",
-                        "notCapturedReason": "unimplemented"
+                        "fields": {
+                          "data": {
+                            "type": "int",
+                            "value": "42"
+                          }
+                        }
                       },
                       "work": {
                         "type": "main.something",
-                        "notCapturedReason": "unimplemented"
+                        "fields": {
+                          "data": {
+                            "type": "*main.somethingImpl",
+                            "address": "[addr]",
+                            "fields": {}
+                          }
+                        }
                       },
                       "foo": {
                         "type": "func()",
@@ -80,21 +91,7 @@
                     }
                   },
                   "mu": "[sync.Mutex (different in different versions)]",
-                  "once": {
-                    "type": "sync.Once",
-                    "fields": {
-                      "done": {
-                        "type": "sync/atomic.Uint32",
-                        "fields": {
-                          "v": {
-                            "type": "uint32",
-                            "value": "0"
-                          }
-                        }
-                      },
-                      "m": "[sync.Mutex (different in different versions)]"
-                    }
-                  },
+                  "once": "[sync.Once (different in different versions)]",
                   "wg": {
                     "type": "sync.WaitGroup",
                     "fields": {

@@ -56,6 +56,7 @@ func (t *GoTypeAttributes) GetGoKind() (reflect.Kind, bool) {
 var (
 	_ Type = (*BaseType)(nil)
 	_ Type = (*PointerType)(nil)
+	_ Type = (*UnresolvedPointeeType)(nil)
 	_ Type = (*StructureType)(nil)
 	_ Type = (*ArrayType)(nil)
 
@@ -190,7 +191,7 @@ type GoEmptyInterfaceType struct {
 
 	// UnderlyingStructure is the structure that is the underlying type of the
 	// runtime.eface.
-	UnderlyingStructure *StructureType
+	RawFields []Field
 }
 
 func (t *GoEmptyInterfaceType) irType() {}
@@ -202,7 +203,7 @@ type GoInterfaceType struct {
 
 	// UnderlyingStructure is the structure that is the underlying type of the
 	// runtime.iface.
-	UnderlyingStructure *StructureType
+	RawFields []Field
 }
 
 func (t *GoInterfaceType) irType() {}
@@ -360,3 +361,12 @@ type RootExpression struct {
 	// value of the event.
 	Expression Expression
 }
+
+// UnresolvedPointeeType is a placeholder type that represents an unresolved
+// pointee type.
+type UnresolvedPointeeType struct {
+	TypeCommon
+	syntheticType
+}
+
+func (UnresolvedPointeeType) irType() {}

@@ -79,3 +79,15 @@ func (k *Version) HasTracingHelpersInCgroupSysctlPrograms() bool {
 func (k *Version) HasBpfGetCurrentPidTgidForSchedCLS() bool {
 	return false
 }
+
+// HasBpfGetCurrentCgroupIDForSchedCLS returns if the kernel supports bpf_get_current_cgroup_id for Sched CLS program type
+// https://github.com/torvalds/linux/commit/c501bf55c88b834adefda870c7c092ec9052a437
+func (k *Version) HasBpfGetCurrentCgroupIDForSchedCLS() bool {
+	return false
+}
+
+// HasBpfGetSocketCookieForCgroupSocket returns if the kernel supports bpf_get_socket_cookie for Cgroup Socket program type
+// https://github.com/torvalds/linux/commit/c5dbb89fc2ac013afe67b9e4fcb3743c02b567cd
+func (k *Version) HasBpfGetSocketCookieForCgroupSocket() bool {
+	return false
+}

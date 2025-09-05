@@ -464,6 +464,17 @@ func (ac *AutoConfig) GetAllConfigs() []integration.Config {
 	return configs
 }
 
+// GetUnresolvedConfigs returns all resolved and non-template configs known to
+// AutoConfig.
+func (ac *AutoConfig) GetUnresolvedConfigs() []integration.Config {
+	configMap := ac.getUnresolvedConfigs()
+	configs := make([]integration.Config, 0, len(configMap))
+	for _, config := range configMap {
+		configs = append(configs, config)
+	}
+	return configs
+}
+
 // GetTelemetryStore returns autodiscovery telemetry store.
 func (ac *AutoConfig) GetTelemetryStore() *acTelemetry.Store {
 	return ac.telemetryStore

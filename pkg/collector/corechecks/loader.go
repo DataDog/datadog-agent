@@ -60,7 +60,7 @@ func (*GoCheckLoader) Name() string {
 }
 
 // Load returns a Go check
-func (gl *GoCheckLoader) Load(senderManger sender.SenderManager, config integration.Config, instance integration.Data) (check.Check, error) {
+func (gl *GoCheckLoader) Load(senderManger sender.SenderManager, config integration.Config, instance integration.Data, instanceIndex int) (check.Check, error) {
 	var c check.Check
 
 	factory, found := catalog[config.Name]
@@ -70,7 +70,12 @@ func (gl *GoCheckLoader) Load(senderManger sender.SenderManager, config integrat
 	}
 
 	c = factory()
-	if err := c.Configure(senderManger, config.FastDigest(), instance, config.InitConfig, config.Source); err != nil {
+
+	configSource := config.Source
+	if instanceIndex >= 0 {
+		configSource = fmt.Sprintf("%s[%d]", configSource, instanceIndex)
+	}
+	if err := c.Configure(senderManger, config.FastDigest(), instance, config.InitConfig, configSource); err != nil {
 		if errors.Is(err, check.ErrSkipCheckInstance) {
 			return c, err
 		}

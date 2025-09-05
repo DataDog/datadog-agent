@@ -26,7 +26,7 @@ Package: main
 		Arg: ~r0: []uint8 (declared at line 397, available: )
 		Var: format: string (declared at line 398, available: [398-398])
 		Var: v: []interface {} (declared at line 398, available: [398-398])
-	Function: main.WithAgentAddr.func3 (main.main.WithAgentAddr.func3) in github.com/DataDog/dd-trace-go/v2@v2.3.0-dev/ddtrace/tracer/option.go [1003:1008]
+	Function: main.WithAgentAddr.func3 (main.main.WithAgentAddr.func3) in github.com/DataDog/dd-trace-go/v2@v2.2.3-rc.1/ddtrace/tracer/option.go [1003:1008]
 		Arg: c: *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.config (declared at line 1003, available: [1003-1008])
 		Var: addr: string (declared at line 1006, available: [1003-1008])
 	Function: main.Println.func2 (main.main.Println.func2) in log/log.go [405:406]

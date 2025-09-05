@@ -78,11 +78,10 @@ type testdeps struct {
 	IPC       ipc.Component
 }
 
-func getAPIServer(t *testing.T, params config.MockParams, fxOptions ...fx.Option) testdeps {
+func getAPIServer(t *testing.T, confOverrides map[string]interface{}, fxOptions ...fx.Option) testdeps {
 	return fxutil.Test[testdeps](
 		t,
 		Module(),
-		fx.Replace(params),
 		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 		// Ensure we pass a nil endpoint to test that we always filter out nil endpoints
 		fx.Provide(func() api.AgentEndpointProvider {
@@ -91,20 +90,18 @@ func getAPIServer(t *testing.T, params config.MockParams, fxOptions ...fx.Option
 			}
 		}),
 		telemetryimpl.MockModule(),
-		config.MockModule(),
+		fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, confOverrides) }),
 		grpcNonefx.Module(),
 		fx.Options(fxOptions...),
 	)
 }
 
 func TestStartServer(t *testing.T) {
-	cfgOverride := config.MockParams{Overrides: map[string]interface{}{
+	getAPIServer(t, map[string]interface{}{
 		"cmd_port": 0,
 		// doesn't test agent_ipc because it would try to register an already registered expvar in TestStartBothServersWithObservability
 		"agent_ipc.port": 0,
-	}}
-
-	getAPIServer(t, cfgOverride)
+	})
 }
 
 func hasLabelValue(labels []*dto.LabelPair, name string, value string) bool {
@@ -117,12 +114,10 @@ func hasLabelValue(labels []*dto.LabelPair, name string, value string) bool {
 }
 
 func TestStartBothServersWithObservability(t *testing.T) {
-	cfgOverride := config.MockParams{Overrides: map[string]interface{}{
+	deps := getAPIServer(t, map[string]interface{}{
 		"cmd_port":       0,
 		"agent_ipc.port": 56789,
-	}}
-
-	deps := getAPIServer(t, cfgOverride)
+	})
 
 	registry := deps.Telemetry.GetRegistry()
 
@@ -224,11 +219,11 @@ func (grpc *grpcServer) BuildServer() http.Handler {
 }
 
 func TestStartServerWithGrpcServer(t *testing.T) {
-	cfgOverride := config.MockParams{Overrides: map[string]interface{}{
+	cfgOverride := map[string]interface{}{
 		"cmd_port": 0,
 		// doesn't test agent_ipc because it would try to register an already registered expvar in TestStartBothServersWithObservability
 		"agent_ipc.port": 0,
-	}}
+	}
 
 	deps := getAPIServer(t, cfgOverride, fx.Options(
 		fx.Replace(
@@ -267,11 +262,11 @@ func TestStartServerWithGrpcServer(t *testing.T) {
 }
 
 func TestStartServerWithoutGrpcServer(t *testing.T) {
-	cfgOverride := config.MockParams{Overrides: map[string]interface{}{
+	cfgOverride := map[string]interface{}{
 		"cmd_port": 0,
 		// doesn't test agent_ipc because it would try to register an already registered expvar in TestStartBothServersWithObservability
 		"agent_ipc.port": 0,
-	}}
+	}
 
 	deps := getAPIServer(t, cfgOverride, fx.Options(
 		fx.Replace(

@@ -29,10 +29,10 @@ type GoVersion struct {
 	PatchOrRC PatchOrReleaseCandidate
 }
 
-// ReadGoVersion extracts the Go version from an object file
-func ReadGoVersion(mef *MMappingElfFile) (*GoVersion, error) {
+// ReadGoVersion extracts the Go version from an object file.
+func ReadGoVersion(mef File) (*GoVersion, error) {
 	// Find the runtime.buildVersion symbol
-	symbols, err := mef.Elf.Symbols()
+	symbols, err := mef.Symbols()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get symbols: %w", err)
 	}
@@ -50,8 +50,8 @@ func ReadGoVersion(mef *MMappingElfFile) (*GoVersion, error) {
 	}
 
 	// Find the section containing the symbol
-	var section *safeelf.Section
-	for _, s := range mef.Elf.Sections {
+	var section *safeelf.SectionHeader
+	for _, s := range mef.SectionHeaders() {
 		if s.Addr <= buildVersionSym.Value && buildVersionSym.Value < s.Addr+s.Size {
 			section = s
 			break
@@ -72,11 +72,11 @@ func ReadGoVersion(mef *MMappingElfFile) (*GoVersion, error) {
 	if !ok {
 		return nil, fmt.Errorf("failed to parse version: %s", versionStr)
 	}
-	return &version, nil
+	return version, nil
 }
 
-func readString(mef *MMappingElfFile, section *safeelf.Section, address, size uint64) (string, error) {
-	ms, err := mef.MMap(section, 0, section.Size)
+func readString(mef SectionLoader, section *safeelf.SectionHeader, address, size uint64) (string, error) {
+	ms, err := mef.SectionDataRange(section, 0, section.Size)
 	if err != nil {
 		return "", fmt.Errorf("failed to load section data: %w", err)
 	}
@@ -109,8 +109,8 @@ func readString(mef *MMappingElfFile, section *safeelf.Section, address, size ui
 	}
 
 	// Find the section containing the actual string data
-	var dataSection *safeelf.Section
-	for _, s := range mef.Elf.Sections {
+	var dataSection *safeelf.SectionHeader
+	for _, s := range mef.SectionHeaders() {
 		if s.Addr <= dataAddr && dataAddr < s.Addr+s.Size {
 			dataSection = s
 			break
@@ -121,7 +121,7 @@ func readString(mef *MMappingElfFile, section *safeelf.Section, address, size ui
 		return "", fmt.Errorf("failed to find data section")
 	}
 
-	mds, err := mef.MMap(dataSection, 0, dataSection.Size)
+	mds, err := mef.SectionData(dataSection)
 	if err != nil {
 		return "", fmt.Errorf("failed to load data section: %w", err)
 	}
@@ -139,38 +139,38 @@ func readString(mef *MMappingElfFile, section *safeelf.Section, address, size ui
 var goVersionRegex = regexp.MustCompile(`^go(\d+)\.(\d+)(\.(\d+)|rc(\d+))`)
 
 // ParseGoVersion parses a Go version string into a GoVersion struct.
-func ParseGoVersion(version string) (GoVersion, bool) {
+func ParseGoVersion(version string) (*GoVersion, bool) {
 	matches := goVersionRegex.FindStringSubmatch(version)
 	if matches == nil {
-		return GoVersion{}, false
+		return nil, false
 	}
 
 	major, err := strconv.ParseUint(matches[1], 10, 16)
 	if err != nil {
-		return GoVersion{}, false
+		return nil, false
 	}
 
 	minor, err := strconv.ParseUint(matches[2], 10, 16)
 	if err != nil {
-		return GoVersion{}, false
+		return nil, false
 	}
 
 	var patchOrRC PatchOrReleaseCandidate
 	if matches[4] != "" { // patch version
 		patch, err := strconv.ParseUint(matches[4], 10, 16)
 		if err != nil {
-			return GoVersion{}, false
+			return nil, false
 		}
 		patchOrRC = PatchOrReleaseCandidate{IsPatch: true, Version: uint16(patch)}
 	} else if matches[5] != "" { // release candidate
 		rc, err := strconv.ParseUint(matches[5], 10, 16)
 		if err != nil {
-			return GoVersion{}, false
+			return nil, false
 		}
 		patchOrRC = PatchOrReleaseCandidate{IsPatch: false, Version: uint16(rc)}
 	}
 
-	return GoVersion{
+	return &GoVersion{
 		Major:     uint16(major),
 		Minor:     uint16(minor),
 		PatchOrRC: patchOrRC,
