@@ -86,6 +86,7 @@ func ExtractPod(ctx processors.ProcessorContext, p *corev1.Pod) *model.Pod {
 
 	pctx := ctx.(*processors.K8sProcessorContext)
 	podModel.Tags = append(podModel.Tags, transformers.RetrieveMetadataTags(p.ObjectMeta.Labels, p.ObjectMeta.Annotations, pctx.LabelsAsTags, pctx.AnnotationsAsTags)...)
+	podModel.Tags = append(podModel.Tags, transformers.EvaluateTagExpressions(p.ObjectMeta.Namespace, p.ObjectMeta.Labels, p.ObjectMeta.Annotations, pctx.TagExpressions)...)
 
 	return &podModel
 }
@@ -150,6 +151,7 @@ func convertNodeSelectorRequirements(requirements []corev1.NodeSelectorRequireme
 func ExtractPodTemplateResourceRequirements(template corev1.PodTemplateSpec) []*model.ResourceRequirements {
 	return extractPodResourceRequirements(template.Spec.Containers, template.Spec.InitContainers)
 }
+
 func extractPodResourceRequirements(containers []corev1.Container, initContainers []corev1.Container) []*model.ResourceRequirements {
 	var resReq []*model.ResourceRequirements
 	for _, c := range containers {
