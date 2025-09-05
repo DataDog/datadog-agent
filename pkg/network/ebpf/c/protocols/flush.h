@@ -27,13 +27,13 @@ http2 is supported only from kernel 5.2, therefore it does not have the kprobe v
 
 SEC("tracepoint/net/netif_receive_skb")
 int tracepoint__net__netif_receive_skb_http(void *ctx) {
-    http_batch_flush_with_telemetry(ctx);
+//    http_batch_flush_with_telemetry(ctx);
     return 0;
 }
 
 SEC("kprobe/__netif_receive_skb_core")
 int netif_receive_skb_core_http_4_14(void *ctx) {
-    http_batch_flush_with_telemetry(ctx);
+//    http_batch_flush_with_telemetry(ctx);
     return 0;
 }
 
