@@ -4547,6 +4547,35 @@
       ]
     },
     {
+      "name": "prctl",
+      "definition": "A prctl command was executed",
+      "type": "Process",
+      "from_agent_version": "7.71",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "prctl.is_name_truncated",
+          "definition": "Indicates that the name field is truncated",
+          "property_doc_link": "prctl-is_name_truncated-doc"
+        },
+        {
+          "name": "prctl.new_name",
+          "definition": "New name of the process",
+          "property_doc_link": "prctl-new_name-doc"
+        },
+        {
+          "name": "prctl.option",
+          "definition": "prctl option",
+          "property_doc_link": "prctl-option-doc"
+        },
+        {
+          "name": "prctl.retval",
+          "definition": "Return value of the syscall",
+          "property_doc_link": "common-syscallevent-retval-doc"
+        }
+      ]
+    },
+    {
       "name": "ptrace",
       "definition": "A ptrace command was executed",
       "type": "Kernel",
@@ -12256,6 +12285,7 @@
         "mount",
         "mprotect",
         "open",
+        "prctl",
         "ptrace",
         "removexattr",
         "rename",
@@ -13820,6 +13850,42 @@
       "definition": "TLS version",
       "prefixes": [
         "packet.tls"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "prctl.is_name_truncated",
+      "link": "prctl-is_name_truncated-doc",
+      "type": "bool",
+      "definition": "Indicates that the name field is truncated",
+      "prefixes": [
+        "prctl"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "prctl.new_name",
+      "link": "prctl-new_name-doc",
+      "type": "string",
+      "definition": "New name of the process",
+      "prefixes": [
+        "prctl"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "prctl.option",
+      "link": "prctl-option-doc",
+      "type": "int",
+      "definition": "prctl option",
+      "prefixes": [
+        "prctl"
       ],
       "constants": "",
       "constants_link": "",
@@ -18189,6 +18255,257 @@
         },
         {
           "name": "PIPE_BUF_FLAG_LOSS",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "PrCtl Options",
+      "link": "prctl-options",
+      "description": "PrCtl Options are the supported options for the prctl event",
+      "all": [
+        {
+          "name": "PR_CAP_AMBIENT",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_CAPBSET_READ",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_CAPBSET_DROP",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_CHILD_SUBREAPER",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_CHILD_SUBREAPER",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_DUMPABLE",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_DUMPABLE",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_ENDIAN",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_ENDIAN",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_FP_MODE",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_FP_MODE",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_FPEMU",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_FPEMU",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_FPEXC",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_FPEXC",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_IO_FLUSHER",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_IO_FLUSHER",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_KEEPCAPS",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_KEEPCAPS",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_MCE_KILL",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_MCE_KILL_GET",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_MM",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_VMA",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_MPX_ENABLE_MANAGEMENT",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_MPX_DISABLE_MANAGEMENT",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_NAME",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_NAME",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_NO_NEW_PRIVS",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_NO_NEW_PRIVS",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_PAC_RESET_KEYS",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_PDEATHSIG",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_PDEATHSIG",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_PTRACER",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_SECCOMP",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_SECCOMP",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_SECUREBITS",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_SECUREBITS",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_SPECULATION_CTRL",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_SPECULATION_CTRL",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SVE_SET_VL",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SVE_GET_VL",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_SYSCALL_USER_DISPATCH",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_TAGGED_ADDR_CTRL",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_TAGGED_ADDR_CTRL",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_TASK_PERF_EVENTS_DISABLE",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_TASK_PERF_EVENTS_ENABLE",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_THP_DISABLE",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_THP_DISABLE",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_TID_ADDRESS",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_TIMERSLACK",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_TIMERSLACK",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_TIMING",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_TIMING",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_TSC",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_TSC",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_UNALIGN",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_UNALIGN",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_AUXV",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_MDWE",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_MDWE",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_RISCV_SET_ICACHE_FLUSH_CTX",
           "architecture": "all"
         }
       ]

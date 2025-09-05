@@ -23,7 +23,7 @@
           {
             "function": "main.executeStructFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go",
-            "lineNumber": 158
+            "lineNumber": 162
           },
           {
             "function": "main.main",

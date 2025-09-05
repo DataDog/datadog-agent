@@ -17,8 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
-// TODO: MMap accessed sections. Requires threading through original file along the elf.File object
-
 // Module data offsets
 const (
 	ModuledataMinPCOffset       = 160
