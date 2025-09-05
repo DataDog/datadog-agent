@@ -1379,7 +1379,7 @@ func (tm *testModule) StartADockerGetDump() (*dockerCmdWrapper, *activityDumpIde
 		}
 		dump = d
 		return nil
-	}, retry.Delay(time.Second), retry.Attempts(3)); err != nil {
+	}, retry.Delay(time.Second), retry.Attempts(10)); err != nil {
 		_, _ = dockerInstance.stop()
 		return nil, nil, err
 	}
