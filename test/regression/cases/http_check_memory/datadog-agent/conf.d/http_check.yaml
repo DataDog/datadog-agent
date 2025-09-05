@@ -1,0 +1,5 @@
+init_config:
+instances:
+  - name: "http check"
+    url: http://datadoghq.com
+    min_collection_interval: 15
