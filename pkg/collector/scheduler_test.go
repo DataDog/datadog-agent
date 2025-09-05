@@ -69,8 +69,7 @@ func TestAddLoader(t *testing.T) {
 	assert.Len(t, s.loaders, 1)
 }
 
-// skipping TestGetChecksFromConfigs because we only allow `httpcheck` in this experiment
-/* func TestGetChecksFromConfigs(t *testing.T) {
+func TestGetChecksFromConfigs(t *testing.T) {
 	s := CheckScheduler{}
 	assert.Len(t, s.loaders, 0)
 	s.addLoader(&MockCoreLoader{})
@@ -124,4 +123,3 @@ func TestAddLoader(t *testing.T) {
 		"Loader: core, Check: check_c",
 	}, actualChecks)
 }
-*/
