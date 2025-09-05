@@ -80,6 +80,15 @@ var subservices = []Servicedef{
 		serviceInit:    installerInit,
 		shouldShutdown: true,
 	},
+	{
+		name: "otel",
+		configKeys: map[string]model.Config{
+			"otelcollector.enabled": pkgconfigsetup.Datadog(),
+		},
+		serviceName:    "datadog-otel-agent",
+		serviceInit:    otelInit,
+		shouldShutdown: false,
+	},
 }
 
 func apmInit() error {
@@ -99,6 +108,10 @@ func securityInit() error {
 }
 
 func installerInit() error {
+	return nil
+}
+
+func otelInit() error {
 	return nil
 }
 
