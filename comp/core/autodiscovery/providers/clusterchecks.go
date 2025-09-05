@@ -17,6 +17,7 @@ import (
 	providerTypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
+	pkgconfighelpers "github.com/DataDog/datadog-agent/pkg/config/helpers"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	ddErrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
@@ -71,7 +72,7 @@ func NewClusterChecksConfigProvider(providerConfig *pkgconfigsetup.Configuration
 	}
 
 	// Set nodeType based on config
-	if pkgconfigsetup.IsCLCRunner(pkgconfigsetup.Datadog()) {
+	if pkgconfighelpers.IsCLCRunner(pkgconfigsetup.Datadog()) {
 		c.nodeType = types.NodeTypeCLCRunner
 	} else {
 		c.nodeType = types.NodeTypeNodeAgent

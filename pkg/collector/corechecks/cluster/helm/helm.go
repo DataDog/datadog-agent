@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
+	pkgconfighelpers "github.com/DataDog/datadog-agent/pkg/config/helpers"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -95,7 +96,7 @@ func newCheck() check.Check {
 		CheckBase:         core.NewCheckBase(CheckName),
 		instance:          &checkConfig{},
 		store:             newReleasesStore(),
-		runLeaderElection: !pkgconfigsetup.IsCLCRunner(pkgconfigsetup.Datadog()),
+		runLeaderElection: !pkgconfighelpers.IsCLCRunner(pkgconfigsetup.Datadog()),
 		eventsManager:     &eventsManager{},
 	}
 }

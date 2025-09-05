@@ -39,9 +39,10 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm/customresources"
+	pkgconfighelpers "github.com/DataDog/datadog-agent/pkg/config/helpers"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	pkgconfigutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	kubestatemetrics "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/builder"
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -315,7 +316,7 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 	k.mergeLabelJoins(defaultLabelJoins())
 
 	setupLabelsAndAnnotationsAsTagsFunc := func() {
-		metadataAsTags := configUtils.GetMetadataAsTags(pkgconfigsetup.Datadog())
+		metadataAsTags := pkgconfigutils.GetMetadataAsTags(pkgconfigsetup.Datadog())
 
 		k.processLabelJoins()
 		k.instance.LabelsAsTags = mergeLabelsOrAnnotationAsTags(metadataAsTags.GetResourcesLabelsAsTags(), k.instance.LabelsAsTags, true, k.isRunningOnNodeAgent)
@@ -982,7 +983,7 @@ func (k *KSMCheck) initTags() {
 	}
 
 	if !k.instance.DisableGlobalTags {
-		k.instance.Tags = append(k.instance.Tags, configUtils.GetConfiguredTags(k.agentConfig, false)...)
+		k.instance.Tags = append(k.instance.Tags, pkgconfigutils.GetConfiguredTags(k.agentConfig, false)...)
 	}
 }
 
@@ -1108,8 +1109,8 @@ func newKSMCheck(base core.CheckBase, instance *KSMConfig, tagger tagger.Compone
 		instance:             instance,
 		telemetry:            newTelemetryCache(),
 		tagger:               tagger,
-		isCLCRunner:          pkgconfigsetup.IsCLCRunner(pkgconfigsetup.Datadog()),
-		isRunningOnNodeAgent: flavor.GetFlavor() != flavor.ClusterAgent && !pkgconfigsetup.IsCLCRunner(pkgconfigsetup.Datadog()),
+		isCLCRunner:          pkgconfighelpers.IsCLCRunner(pkgconfigsetup.Datadog()),
+		isRunningOnNodeAgent: flavor.GetFlavor() != flavor.ClusterAgent && !pkgconfighelpers.IsCLCRunner(pkgconfigsetup.Datadog()),
 		metricNamesMapper:    defaultMetricNamesMapper(),
 		metricAggregators:    defaultMetricAggregators(),
 		metricTransformers:   defaultMetricTransformers(),
