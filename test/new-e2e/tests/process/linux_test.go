@@ -351,15 +351,18 @@ func (s *linuxTestSuite) TestProcessChecksWithNPM() {
 
 func (s *linuxTestSuite) TestManualProcessCheck() {
 	s.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr))))
-	check := s.Env().RemoteHost.MustExecute("sudo /opt/datadog-agent/embedded/bin/process-agent check process --json")
 
-	assertManualProcessCheck(s.T(), check, false, "stress")
+	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		check := s.Env().RemoteHost.MustExecute("sudo /opt/datadog-agent/embedded/bin/process-agent check process --json")
+		assertManualProcessCheck(c, check, false, "stress")
+	}, 2*time.Minute, 10*time.Second)
 }
 
 func (s *linuxTestSuite) TestManualProcessDiscoveryCheck() {
-	check := s.Env().RemoteHost.MustExecute("sudo /opt/datadog-agent/embedded/bin/process-agent check process_discovery --json")
-
-	assertManualProcessDiscoveryCheck(s.T(), check, "stress")
+	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		check := s.Env().RemoteHost.MustExecute("sudo /opt/datadog-agent/embedded/bin/process-agent check process_discovery --json")
+		assertManualProcessDiscoveryCheck(c, check, "stress")
+	}, 2*time.Minute, 10*time.Second)
 }
 
 func (s *linuxTestSuite) TestManualProcessCheckWithIO() {
@@ -367,7 +370,8 @@ func (s *linuxTestSuite) TestManualProcessCheckWithIO() {
 		agentparams.WithAgentConfig(processCheckConfigStr),
 		agentparams.WithSystemProbeConfig(systemProbeConfigStr))))
 
-	check := s.Env().RemoteHost.MustExecute("sudo /opt/datadog-agent/embedded/bin/process-agent check process --json")
-
-	assertManualProcessCheck(s.T(), check, true, "stress")
+	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		check := s.Env().RemoteHost.MustExecute("sudo /opt/datadog-agent/embedded/bin/process-agent check process --json")
+		assertManualProcessCheck(c, check, true, "stress")
+	}, 2*time.Minute, 10*time.Second)
 }
