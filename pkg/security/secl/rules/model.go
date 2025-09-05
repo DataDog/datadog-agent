@@ -227,7 +227,7 @@ type SetDefinition struct {
 	Value        interface{}            `yaml:"value" json:"value,omitempty" jsonschema:"oneof_required=SetWithValue,oneof_type=string;integer;boolean;array"`
 	DefaultValue interface{}            `yaml:"default_value" json:"default_value,omitempty" jsonschema:"oneof_type=string;integer;boolean;array"`
 	Field        string                 `yaml:"field" json:"field,omitempty" jsonschema:"oneof_required=SetWithField"`
-	Expression   string                 `yaml:"expression" json:"expression,omitempty"`
+	Expression   string                 `yaml:"expression" json:"expression,omitempty" jsonschema:"oneof_required=SetWithExpression"`
 	Append       bool                   `yaml:"append" json:"append,omitempty"`
 	Scope        Scope                  `yaml:"scope" json:"scope,omitempty" jsonschema:"enum=process,enum=container,enum=cgroup"`
 	ScopeField   string                 `yaml:"scope_field" json:"scope_field,omitempty"`

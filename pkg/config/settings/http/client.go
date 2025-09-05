@@ -101,19 +101,21 @@ type runtimeSettingsClient struct {
 
 // NewHTTPClient returns a client setup to interact with the standard runtime settings HTTP API
 func NewHTTPClient(c *http.Client, baseURL string, targetProcessName string, clientOptions ClientOptions) settings.Client {
-
-	innerClient := &httpClient{c, clientOptions}
-
-	return &runtimeSettingsClient{innerClient, baseURL, targetProcessName}
+	return &runtimeSettingsClient{
+		c:                 &httpClient{c, clientOptions},
+		baseURL:           baseURL,
+		targetProcessName: targetProcessName,
+	}
 }
 
 // NewSecureClient returns a client setup to interact with the standard runtime settings HTTPS API, taking advantage of the ipc component
 // The authentication with the server will be handle automatically and transparently
 func NewSecureClient(c ipc.HTTPClient, baseURL string, targetProcessName string, clientOptions ...ipc.RequestOption) settings.Client {
-
-	innerClient := &httpsClient{c, clientOptions}
-
-	return &runtimeSettingsClient{innerClient, baseURL, targetProcessName}
+	return &runtimeSettingsClient{
+		c:                 &httpsClient{c, clientOptions},
+		baseURL:           baseURL,
+		targetProcessName: targetProcessName,
+	}
 }
 
 func (rc *runtimeSettingsClient) doGet(url string, formatError bool) (string, error) {
