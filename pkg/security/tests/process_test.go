@@ -2011,7 +2011,7 @@ func TestProcessBusyboxHardlink(t *testing.T) {
 			Expression: `exec.file.path == "/bin/free" && exec.argv in ["-m"]`,
 		},
 		{
-			ID: "test_busybox_hardlink_2",
+			ID:         "test_busybox_hardlink_2",
 			Expression: `exec.file.path == "/bin/date" && exec.argv in ["-R"]`,
 		},
 	}
@@ -2028,7 +2028,7 @@ func TestProcessBusyboxHardlink(t *testing.T) {
 		t.Fatalf("failed to create docker wrapper: %v", err)
 	}
 
-	wrapper.Run(t, "busybox-1", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {)
+	wrapper.Run(t, "busybox-1", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		test.WaitSignal(t, func() error {
 			cmd := cmdFunc("/bin/free", []string{"-m"}, nil)
 			if out, err := cmd.CombinedOutput(); err != nil {
