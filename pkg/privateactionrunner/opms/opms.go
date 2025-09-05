@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2024-present Datadog, Inc.
+
+// Package opms provides functionality for communicating with the On-Premise Management Service.
 package opms
 
 import (
@@ -29,6 +35,7 @@ const (
 	selfEnrollmentPath = "/api/v2/on-prem-management-service/self-enroll"
 )
 
+// PublishTaskUpdateJSONRequestPayload represents the payload for task update requests.
 type PublishTaskUpdateJSONRequestPayload struct {
 	Branch       string                            `json:"branch,omitempty"`
 	Outputs      interface{}                       `json:"outputs,omitempty"`
@@ -37,35 +44,41 @@ type PublishTaskUpdateJSONRequestPayload struct {
 	APIError     string                            `json:"api_error,omitempty"`
 }
 
+// PublishTaskUpdateJSONRequestAttributes represents attributes for task update requests.
 type PublishTaskUpdateJSONRequestAttributes struct {
 	TaskID    string                               `json:"task_id,omitempty"`
 	ActionFQN string                               `json:"action_fqn,omitempty"`
-	JobId     string                               `json:"job_id,omitempty"`
+	JobID     string                               `json:"job_id,omitempty"`
 	Payload   *PublishTaskUpdateJSONRequestPayload `json:"payload,omitempty"`
 }
 
+// PublishTaskUpdateJSONData represents data for task update requests.
 type PublishTaskUpdateJSONData struct {
 	Type       string                                  `json:"type,omitempty"`
 	ID         string                                  `json:"id,omitempty"`
 	Attributes *PublishTaskUpdateJSONRequestAttributes `json:"attributes,omitempty"`
 }
 
+// PublishTaskUpdateJSONRequest represents a task update request.
 type PublishTaskUpdateJSONRequest struct {
 	Data *PublishTaskUpdateJSONData `json:"data,omitempty"`
 }
 
+// HeartbeatJSONRequestAttributes represents attributes for heartbeat requests.
 type HeartbeatJSONRequestAttributes struct {
 	TaskID    string `json:"task_id,omitempty"`
 	ActionFQN string `json:"action_fqn,omitempty"`
-	JobId     string `json:"job_id,omitempty"`
+	JobID     string `json:"job_id,omitempty"`
 }
 
+// HeartbeatJSONData represents data for heartbeat requests.
 type HeartbeatJSONData struct {
 	Type       string                          `json:"type,omitempty"`
 	ID         string                          `json:"id,omitempty"`
 	Attributes *HeartbeatJSONRequestAttributes `json:"attributes,omitempty"`
 }
 
+// HeartbeatJSONRequest represents a heartbeat request.
 type HeartbeatJSONRequest struct {
 	Data *HeartbeatJSONData `json:"data,omitempty"`
 }
@@ -90,8 +103,8 @@ type EnrollmentResponseData struct {
 
 // EnrollmentResponseAttribs represents the attributes section of the JSONAPI response
 type EnrollmentResponseAttribs struct {
-	RunnerId         string   `json:"runner_id"`
-	OrgId            int64    `json:"org_id"`
+	RunnerID         string   `json:"runner_id"`
+	OrgID            int64    `json:"org_id"`
 	RunnerModes      []string `json:"runner_modes"`
 	ActionsAllowlist []string `json:"actions_allowlist"`
 }
@@ -104,8 +117,8 @@ type EnrollmentJSONAPIResponse struct {
 // EnrollmentResponse represents the simplified enrollment response
 type EnrollmentResponse struct {
 	ID               string
-	RunnerId         string
-	OrgId            int64
+	RunnerID         string
+	OrgID            int64
 	Modes            []string
 	ActionsAllowlist []string
 }
@@ -142,6 +155,7 @@ type client struct {
 	httpClient *http.Client
 }
 
+// NewClient creates a new OPMS client.
 func NewClient(cfg *config.Config) Client {
 	return &client{
 		httpClient: &http.Client{
@@ -185,13 +199,13 @@ func (c *client) PublishSuccess(
 	output interface{},
 	branch string,
 ) error {
-	outputJson, err := json.Marshal(output)
+	outputJSON, err := json.Marshal(output)
 	if err != nil {
 		return fmt.Errorf("error marshaling output: %w", err)
 	}
 
 	var asMap interface{}
-	if err = json.Unmarshal(outputJson, &asMap); err != nil {
+	if err = json.Unmarshal(outputJSON, &asMap); err != nil {
 		return fmt.Errorf("error converting output to map: %w", err)
 	}
 
@@ -215,7 +229,7 @@ func (c *client) PublishSuccess(
 				Branch:  branch,
 				Outputs: asMap,
 			},
-			JobId: jobID,
+			JobID: jobID,
 		},
 	}
 
@@ -233,7 +247,7 @@ func (c *client) PublishFailure(
 	actionFQN string,
 	errorCode errorcode.ActionPlatformErrorCode,
 	errorDetails string,
-	apiError string,
+	_ string,
 ) error {
 	u := &url.URL{
 		Scheme: "https",
@@ -251,7 +265,7 @@ func (c *client) PublishFailure(
 				ErrorCode:    errorCode,
 				ErrorDetails: errorDetails,
 			},
-			JobId: jobID,
+			JobID: jobID,
 		},
 	}
 
@@ -318,7 +332,7 @@ func (c *client) Heartbeat(ctx context.Context, taskID, actionFQN, jobID string)
 		Attributes: &HeartbeatJSONRequestAttributes{
 			TaskID:    taskID,
 			ActionFQN: actionFQN,
-			JobId:     jobID,
+			JobID:     jobID,
 		},
 	}
 
@@ -369,7 +383,7 @@ func (c *client) makeRequest(
 
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/json")
-	signedJWT, err := utils.GeneratePARJWT(c.config.OrgId, c.config.RunnerId, c.config.PrivateKey, extraJwtClaims)
+	signedJWT, err := utils.GeneratePARJWT(c.config.OrgID, c.config.RunnerID, c.config.PrivateKey, extraJwtClaims)
 	if err != nil {
 		return nil, fmt.Errorf("error signing JWT for request: %w", err)
 	}
@@ -459,8 +473,8 @@ func (c *EnrollmentClient) SendEnrollmentJWT(ctx context.Context, jwtBody string
 	// Convert to simplified response structure
 	enrollmentResp := &EnrollmentResponse{
 		ID:               jsonapiResp.Data.ID,
-		RunnerId:         jsonapiResp.Data.Attributes.RunnerId,
-		OrgId:            jsonapiResp.Data.Attributes.OrgId,
+		RunnerID:         jsonapiResp.Data.Attributes.RunnerID,
+		OrgID:            jsonapiResp.Data.Attributes.OrgID,
 		Modes:            jsonapiResp.Data.Attributes.RunnerModes,
 		ActionsAllowlist: jsonapiResp.Data.Attributes.ActionsAllowlist,
 	}
@@ -527,8 +541,8 @@ func (c *EnrollmentClient) SendSelfEnrollmentRequest(ctx context.Context, apiKey
 	// Convert to simplified response structure
 	enrollmentResp := &EnrollmentResponse{
 		ID:               jsonapiResp.Data.ID,
-		RunnerId:         jsonapiResp.Data.Attributes.RunnerId,
-		OrgId:            jsonapiResp.Data.Attributes.OrgId,
+		RunnerID:         jsonapiResp.Data.Attributes.RunnerID,
+		OrgID:            jsonapiResp.Data.Attributes.OrgID,
 		Modes:            jsonapiResp.Data.Attributes.RunnerModes,
 		ActionsAllowlist: jsonapiResp.Data.Attributes.ActionsAllowlist,
 	}

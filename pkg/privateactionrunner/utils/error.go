@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2024-present Datadog, Inc.
+
+// Package utils provides utility functions for the private action runner.
 package utils
 
 import (
@@ -7,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/errorcode"
 )
 
+// PARError represents a private action runner error.
 type PARError struct {
 	*errorcode.ActionPlatformError
 }
@@ -38,9 +45,8 @@ func DefaultPARError(e error) PARError {
 	var pe PARError
 	if errors.As(e, &pe) {
 		return pe
-	} else {
-		return NewPARError(errorcode.ActionPlatformErrorCode_INTERNAL_ERROR, e)
 	}
+	return NewPARError(errorcode.ActionPlatformErrorCode_INTERNAL_ERROR, e)
 }
 
 // DefaultActionError generates the default PAR action error with a default action error code.
@@ -54,7 +60,6 @@ func DefaultActionErrorWithDisplayError(e error, displayError string) PARError {
 	var pe PARError
 	if errors.As(e, &pe) {
 		return pe
-	} else {
-		return NewPARErrorWithDisplayError(errorcode.ActionPlatformErrorCode_ACTION_ERROR, e, displayError)
 	}
+	return NewPARErrorWithDisplayError(errorcode.ActionPlatformErrorCode_ACTION_ERROR, e, displayError)
 }

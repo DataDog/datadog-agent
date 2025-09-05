@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2024-present Datadog, Inc.
+
 package runners
 
 import (
@@ -17,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// WorkflowRunner executes workflows and manages task execution.
 type WorkflowRunner struct {
 	registry     *privatebundles.Registry
 	opmsClient   opms.Client
@@ -27,6 +33,7 @@ type WorkflowRunner struct {
 	taskLoop     *Loop
 }
 
+// NewWorkflowRunner creates a new WorkflowRunner instance.
 func NewWorkflowRunner(configuration *config.Config, keysManager remoteconfig.KeysManager, verifier *taskverifier.TaskVerifier, opmsClient opms.Client) *WorkflowRunner {
 
 	return &WorkflowRunner{
@@ -39,6 +46,7 @@ func NewWorkflowRunner(configuration *config.Config, keysManager remoteconfig.Ke
 	}
 }
 
+// Start begins the workflow runner execution.
 func (n *WorkflowRunner) Start(ctx context.Context) {
 	if n.taskLoop != nil {
 		log.Warn("WorkflowRunner already started")
@@ -52,12 +60,14 @@ func (n *WorkflowRunner) Start(ctx context.Context) {
 	}()
 }
 
+// Close stops the workflow runner and cleans up resources.
 func (n *WorkflowRunner) Close(ctx context.Context) {
 	if n.taskLoop != nil {
 		n.taskLoop.Close(ctx)
 	}
 }
 
+// RunTask executes a specific task.
 func (n *WorkflowRunner) RunTask(
 	ctx context.Context,
 	task *types.Task,
@@ -104,7 +114,7 @@ func (n *WorkflowRunner) startHeartbeat(ctx context.Context, task *types.Task) {
 			log.Infof("Heartbeat stopped for task %s", task.Data.ID)
 			return
 		case <-ticker.C:
-			err := n.opmsClient.Heartbeat(ctx, task.Data.ID, task.GetFQN(), task.Data.Attributes.JobId)
+			err := n.opmsClient.Heartbeat(ctx, task.Data.ID, task.GetFQN(), task.Data.Attributes.JobID)
 
 			if err != nil {
 				log.Errorf("Failed to send heartbeat %v", err)

@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2024-present Datadog, Inc.
+
+// Package utils provides utility functions for the private action runner.
 package utils
 
 import (
@@ -17,6 +23,7 @@ type CircuitBreaker struct {
 	maxAttempts     int32
 }
 
+// NewCircuitBreaker creates a new circuit breaker.
 func NewCircuitBreaker(name string, minBackoff, maxBackoff, waitBeforeRetry time.Duration, maxAttempts int32) *CircuitBreaker {
 	return &CircuitBreaker{
 		name:            name,
@@ -27,6 +34,7 @@ func NewCircuitBreaker(name string, minBackoff, maxBackoff, waitBeforeRetry time
 	}
 }
 
+// Do executes a function with circuit breaker protection.
 func (breaker *CircuitBreaker) Do(ctx context.Context, fn func() error) {
 	var attempt int32 = 1
 

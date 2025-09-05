@@ -9,6 +9,7 @@
 package mock
 
 import (
+	"context"
 	"testing"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -17,6 +18,16 @@ import (
 
 type mock struct {
 	Logger log.Component
+}
+
+// Start implements the privateactionrunner.Component interface
+func (m mock) Start(_ context.Context) error {
+	return nil
+}
+
+// Stop implements the privateactionrunner.Component interface
+func (m mock) Stop(_ context.Context) error {
+	return nil
 }
 
 // Provides that defines the output of mocked privateactionrunner component

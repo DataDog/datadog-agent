@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2024-present Datadog, Inc.
+
+// Package remoteconfig provides functionality for managing remote configuration keys.
 package remoteconfig
 
 import (
@@ -16,12 +22,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// KeysManager manages remote configuration keys.
 type KeysManager interface {
 	Start(ctx context.Context)
-	GetKey(keyId string) types.DecodedKey
+	GetKey(keyId string) types.DecodedKey //nolint:revive
 	WaitForReady()
 }
 
+// RcClient represents a remote configuration client.
 // TODO Copied from comp/remote-config/rcclient/component.go. Import it ? but I don't think we want to depend on `comp` things from `pkg`
 type RcClient interface {
 	Subscribe(product data.Product, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)))
@@ -36,6 +44,7 @@ type keysManager struct {
 	rcClient               RcClient
 }
 
+// New creates a new KeysManager.
 func New(rcClient RcClient) KeysManager {
 	return &keysManager{
 		stopChan: make(chan bool),
@@ -45,12 +54,12 @@ func New(rcClient RcClient) KeysManager {
 	}
 }
 
-func (k *keysManager) Start(ctx context.Context) {
+func (k *keysManager) Start(_ context.Context) {
 	log.Info("Subscribing to remote config updates")
 	k.rcClient.Subscribe(state.ProductActionPlatformRunnerKeys, k.AgentConfigUpdateCallback)
 }
 
-func (k *keysManager) GetKey(keyId string) types.DecodedKey {
+func (k *keysManager) GetKey(keyId string) types.DecodedKey { //nolint:revive
 	k.mu.RLock()
 	defer k.mu.RUnlock()
 	return k.keys[keyId]
@@ -58,7 +67,7 @@ func (k *keysManager) GetKey(keyId string) types.DecodedKey {
 
 func (k *keysManager) WaitForReady() {
 	//<-k.ready // TODO fix this
-	return
+	return //nolint:gosimple
 }
 
 func (k *keysManager) AgentConfigUpdateCallback(update map[string]state.RawConfig, callback func(string, state.ApplyStatus)) {
@@ -66,10 +75,10 @@ func (k *keysManager) AgentConfigUpdateCallback(update map[string]state.RawConfi
 	defer k.mu.Unlock()
 
 	k.keys = make(map[string]types.DecodedKey) // clear the current keys
-	for configId, rawConfig := range update {
+	for configId, rawConfig := range update {  //nolint:revive
 		decodedKey, err := k.decode(rawConfig)
 		if err != nil {
-			log.Errorf("Failed to decode remote config %v")
+			log.Errorf("Failed to decode remote config %v", err)
 			callback(configId, state.ApplyStatus{
 				State: state.ApplyStateError,
 				Error: err.Error(),

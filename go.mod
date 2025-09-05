@@ -667,7 +667,7 @@ require (
 	github.com/elastic/go-seccomp-bpf v1.6.0
 	github.com/fatih/structtag v1.2.0
 	github.com/glaslos/ssdeep v0.4.0
-	github.com/go-jose/go-jose/v4 v4.0.5
+	github.com/go-jose/go-jose/v4 v4.1.1
 	github.com/gocomply/scap v0.1.3
 	github.com/godror/godror v0.37.0
 	github.com/google/cel-go v0.25.0
