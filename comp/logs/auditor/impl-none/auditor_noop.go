@@ -8,6 +8,7 @@ package noneimpl
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 )
 
 // NullAuditor is an auditor that does nothing but empties the channel it
@@ -37,7 +38,17 @@ func (a *NullAuditor) GetTailingMode(_ string) string {
 	return ""
 }
 
-// KeepAlive does nothing in the null auditor
+// GetFingerprint returns nil (no fingerprint)
+func (a *NullAuditor) GetFingerprint(_ string) *types.Fingerprint {
+	return nil
+}
+
+// GetFingerprintConfig returns nil (no fingerprint config)
+func (a *NullAuditor) GetFingerprintConfig(_ string) *types.FingerprintConfig {
+	return nil
+}
+
+// KeepAlive is a no-op
 func (a *NullAuditor) KeepAlive(_ string) {
 	// No-op
 }

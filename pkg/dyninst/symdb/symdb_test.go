@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb/symdbutil"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
@@ -33,7 +34,9 @@ func TestSymDB(t *testing.T) {
 			binaryPath, err := testprogs.GetBinary("simple", cfg)
 			require.NoError(t, err)
 			t.Logf("exploring binary: %s", binaryPath)
-			symbols, err := symdb.ExtractSymbols(binaryPath,
+			symbols, err := symdb.ExtractSymbols(
+				binaryPath,
+				object.NewInMemoryLoader(),
 				symdb.ExtractOptions{
 					Scope:                   symdb.ExtractScopeAllSymbols,
 					IncludeInlinedFunctions: true,
@@ -81,10 +84,13 @@ func TestSymDBSnapshot(t *testing.T) {
 							defer sem.Acquire()()
 							binaryPath := testprogs.MustGetBinary(t, prog, cfg)
 							t.Logf("exploring binary: %s", binaryPath)
-							symbols, err := symdb.ExtractSymbols(binaryPath, symdb.ExtractOptions{
-								Scope:                   symdb.ExtractScopeMainModuleOnly,
-								IncludeInlinedFunctions: !streaming,
-							})
+							symbols, err := symdb.ExtractSymbols(
+								binaryPath,
+								object.NewInMemoryLoader(),
+								symdb.ExtractOptions{
+									Scope:                   symdb.ExtractScopeMainModuleOnly,
+									IncludeInlinedFunctions: !streaming,
+								})
 							require.NoError(t, err, "failed to extract symbols from %s", binaryPath)
 							require.NotEmpty(t, symbols.Packages)
 

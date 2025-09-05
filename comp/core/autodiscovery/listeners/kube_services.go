@@ -253,12 +253,12 @@ func processService(ksvc *v1.Service, filterStore workloadfilter.Component) *Kub
 
 	svc.metricsExcluded = filterStore.IsServiceExcluded(
 		workloadfilter.CreateService(ksvc.Name, ksvc.Namespace, ksvc.GetAnnotations()),
-		[][]workloadfilter.ServiceFilter{{workloadfilter.ServiceADAnnotations, workloadfilter.ServiceADAnnotationsMetrics}, {workloadfilter.LegacyServiceMetrics}},
+		filterStore.GetServiceAutodiscoveryFilters(workloadfilter.MetricsFilter),
 	)
 
 	svc.globalExcluded = filterStore.IsServiceExcluded(
 		workloadfilter.CreateService(ksvc.Name, ksvc.Namespace, ksvc.GetAnnotations()),
-		[][]workloadfilter.ServiceFilter{{workloadfilter.ServiceADAnnotations}, {workloadfilter.LegacyServiceGlobal}},
+		filterStore.GetServiceAutodiscoveryFilters(workloadfilter.GlobalFilter),
 	)
 
 	// Service tags

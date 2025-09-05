@@ -33,7 +33,7 @@
 '@datadog/container-platform': '#container-platform'
 '@datadog/data-jobs-monitoring': '#data-jobs-monitoring'
 '@datadog/database-monitoring': '#database-monitoring'
-'@datadog/debugger': '#debugger'
+'@datadog/debugger-go': '#debugger-go'
 '@datadog/documentation': '#documentation'
 '@datadog/ebpf-platform': '#ebpf-platform'
 '@datadog/fleet': '#fleet-automation-monitoring'
@@ -53,3 +53,4 @@
 '@datadog/telemetry-and-analytics': '#instrumentation-telemetry'
 '@datadog/universal-service-monitoring': '#universal-service-monitoring'
 '@datadog/windows-products': '#windows-products-reviews'
+'@datadog/data-streams-monitoring': '#data-streams-monitoring'

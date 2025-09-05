@@ -148,12 +148,12 @@ func testCollectWithSingleActiveProcess(t *testing.T) {
 	assert.Len(t, metrics, 4)
 
 	// Verify usage metrics
-	coreUsage := findMetric(metrics, "core.usage")
+	coreUsage := findMetric(metrics, "process.core.usage")
 	require.NotNil(t, coreUsage)
 	assert.Equal(t, float64(50), coreUsage.Value)
 	assert.Equal(t, []string{"pid:123"}, coreUsage.Tags)
 
-	memoryUsage := findMetric(metrics, "memory.usage")
+	memoryUsage := findMetric(metrics, "process.memory.usage")
 	require.NotNil(t, memoryUsage)
 	assert.Equal(t, float64(1024), memoryUsage.Value)
 	assert.Equal(t, []string{"pid:123"}, memoryUsage.Tags)
@@ -257,12 +257,12 @@ func testCollectWithInactiveProcesses(t *testing.T) {
 	assert.Len(t, metrics, 4)
 
 	// Verify zero usage metrics for inactive process
-	coreUsage := findMetric(metrics, "core.usage")
+	coreUsage := findMetric(metrics, "process.core.usage")
 	require.NotNil(t, coreUsage)
 	assert.Equal(t, float64(0), coreUsage.Value)
 	assert.Equal(t, []string{"pid:123"}, coreUsage.Tags)
 
-	memoryUsage := findMetric(metrics, "memory.usage")
+	memoryUsage := findMetric(metrics, "process.memory.usage")
 	require.NotNil(t, memoryUsage)
 	assert.Equal(t, float64(0), memoryUsage.Value)
 	assert.Equal(t, []string{"pid:123"}, memoryUsage.Tags)
@@ -384,7 +384,7 @@ func testCollectAggregatesPidTagsForLimits(t *testing.T) {
 	assert.Equal(t, expectedPidTags, memoryLimit.Tags)
 
 	// Verify usage metrics have individual PID tags
-	usageMetrics := findAllMetricsWithName(metrics, "core.usage")
+	usageMetrics := findAllMetricsWithName(metrics, "process.core.usage")
 	assert.Len(t, usageMetrics, 3)
 	for _, metric := range usageMetrics {
 		assert.Len(t, metric.Tags, 1)

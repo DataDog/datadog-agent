@@ -13,8 +13,9 @@ import "github.com/DataDog/datadog-agent/pkg/logs/sources"
 func consumeSources(sources *sources.LogSources) {
 	go func() {
 		sources := sources.GetAddedForType("foo")
-		//nolint:revive // TODO(AML) Fix revive linter
-		for range sources {
+		for source := range sources {
+			// Consume from channel to prevent blocking
+			_ = source
 		}
 	}()
 }

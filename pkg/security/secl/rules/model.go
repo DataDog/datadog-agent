@@ -110,6 +110,8 @@ const (
 	HashAction ActionName = "hash"
 	// LogAction name of the log action
 	LogAction ActionName = "log"
+	// NetworkFilterAction name of the network filter action
+	NetworkFilterAction ActionName = "network_filter"
 )
 
 // ActionDefinitionInterface is an interface that describes a rule action section
@@ -120,12 +122,13 @@ type ActionDefinitionInterface interface {
 
 // ActionDefinition describes a rule action section
 type ActionDefinition struct {
-	Filter   *string             `yaml:"filter" json:"filter,omitempty"`
-	Set      *SetDefinition      `yaml:"set" json:"set,omitempty" jsonschema:"oneof_required=SetAction"`
-	Kill     *KillDefinition     `yaml:"kill" json:"kill,omitempty" jsonschema:"oneof_required=KillAction"`
-	CoreDump *CoreDumpDefinition `yaml:"coredump" json:"coredump,omitempty" jsonschema:"oneof_required=CoreDumpAction"`
-	Hash     *HashDefinition     `yaml:"hash" json:"hash,omitempty" jsonschema:"oneof_required=HashAction"`
-	Log      *LogDefinition      `yaml:"log" json:"log,omitempty" jsonschema:"oneof_required=LogAction"`
+	Filter        *string                  `yaml:"filter" json:"filter,omitempty"`
+	Set           *SetDefinition           `yaml:"set" json:"set,omitempty" jsonschema:"oneof_required=SetAction"`
+	Kill          *KillDefinition          `yaml:"kill" json:"kill,omitempty" jsonschema:"oneof_required=KillAction"`
+	CoreDump      *CoreDumpDefinition      `yaml:"coredump" json:"coredump,omitempty" jsonschema:"oneof_required=CoreDumpAction"`
+	Hash          *HashDefinition          `yaml:"hash" json:"hash,omitempty" jsonschema:"oneof_required=HashAction"`
+	Log           *LogDefinition           `yaml:"log" json:"log,omitempty" jsonschema:"oneof_required=LogAction"`
+	NetworkFilter *NetworkFilterDefinition `yaml:"network_filter" json:"network_filter,omitempty"`
 }
 
 // Name returns the name of the action
@@ -141,6 +144,8 @@ func (a *ActionDefinition) Name() ActionName {
 		return HashAction
 	case a.Log != nil:
 		return LogAction
+	case a.NetworkFilter != nil:
+		return NetworkFilterAction
 	default:
 		return ""
 	}
@@ -148,11 +153,12 @@ func (a *ActionDefinition) Name() ActionName {
 
 func (a *ActionDefinition) getCandidateActions() map[string]ActionDefinitionInterface {
 	return map[string]ActionDefinitionInterface{
-		SetAction:      a.Set,
-		KillAction:     a.Kill,
-		HashAction:     a.Hash,
-		CoreDumpAction: a.CoreDump,
-		LogAction:      a.Log,
+		SetAction:           a.Set,
+		KillAction:          a.Kill,
+		HashAction:          a.Hash,
+		CoreDumpAction:      a.CoreDump,
+		LogAction:           a.Log,
+		NetworkFilterAction: a.NetworkFilter,
 	}
 }
 
@@ -221,7 +227,7 @@ type SetDefinition struct {
 	Value        interface{}            `yaml:"value" json:"value,omitempty" jsonschema:"oneof_required=SetWithValue,oneof_type=string;integer;boolean;array"`
 	DefaultValue interface{}            `yaml:"default_value" json:"default_value,omitempty" jsonschema:"oneof_type=string;integer;boolean;array"`
 	Field        string                 `yaml:"field" json:"field,omitempty" jsonschema:"oneof_required=SetWithField"`
-	Expression   string                 `yaml:"expression" json:"expression,omitempty"`
+	Expression   string                 `yaml:"expression" json:"expression,omitempty" jsonschema:"oneof_required=SetWithExpression"`
 	Append       bool                   `yaml:"append" json:"append,omitempty"`
 	Scope        Scope                  `yaml:"scope" json:"scope,omitempty" jsonschema:"enum=process,enum=container,enum=cgroup"`
 	ScopeField   string                 `yaml:"scope_field" json:"scope_field,omitempty"`
@@ -355,6 +361,28 @@ func (l *LogDefinition) PreCheck(_ PolicyLoaderOpts) error {
 	return nil
 }
 
+// NetworkFilterDefinition describes the 'network_filter' section of a rule action
+type NetworkFilterDefinition struct {
+	DefaultActionDefinition
+	BPFFilter string `yaml:"filter" json:"filter,omitempty"`
+	Policy    string `yaml:"policy" json:"policy,omitempty"`
+	Scope     string `yaml:"scope" json:"scope,omitempty" jsonschema:"enum=process,enum=cgroup"`
+}
+
+// PreCheck returns an error if the network filter action is invalid
+func (n *NetworkFilterDefinition) PreCheck(_ PolicyLoaderOpts) error {
+	if n.BPFFilter == "" {
+		return errors.New("a valid BPF filter must be specified to the 'network_filter' action")
+	}
+
+	// default scope to process
+	if n.Scope != "" && n.Scope != "process" && n.Scope != "cgroup" {
+		return fmt.Errorf("invalid scope '%s'", n.Scope)
+	}
+
+	return nil
+}
+
 // OnDemandHookPoint represents a hook point definition
 type OnDemandHookPoint struct {
 	Name      string
@@ -370,9 +398,10 @@ type HookPointArg struct {
 
 // PolicyDef represents a policy file definition
 type PolicyDef struct {
-	Version string             `yaml:"version,omitempty" json:"version"`
-	Macros  []*MacroDefinition `yaml:"macros,omitempty" json:"macros,omitempty"`
-	Rules   []*RuleDefinition  `yaml:"rules" json:"rules"`
+	Version         string             `yaml:"version,omitempty" json:"version"`
+	ReplacePolicyID string             `yaml:"replace_policy_id,omitempty" json:"replace_policy_id,omitempty"`
+	Macros          []*MacroDefinition `yaml:"macros,omitempty" json:"macros,omitempty"`
+	Rules           []*RuleDefinition  `yaml:"rules" json:"rules"`
 }
 
 // HumanReadableDuration represents a duration that can unmarshalled from YAML from a human readable format (like `10m`)

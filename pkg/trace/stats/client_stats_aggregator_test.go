@@ -83,6 +83,8 @@ func payloadWithCounts(ts time.Time, k BucketsAggregationKey, containerID, versi
 						Errors:         errors,
 						Duration:       duration,
 						GRPCStatusCode: k.GRPCStatusCode,
+						HTTPMethod:     k.HTTPMethod,
+						HTTPEndpoint:   k.HTTPEndpoint,
 					},
 				},
 			},
@@ -395,6 +397,16 @@ func TestCountAggregation(t *testing.T) {
 			BucketsAggregationKey{GRPCStatusCode: "2"},
 			&pb.ClientGroupedStats{GRPCStatusCode: "2"},
 			"status",
+		},
+		{
+			BucketsAggregationKey{HTTPMethod: "GET"},
+			&pb.ClientGroupedStats{HTTPMethod: "GET"},
+			"name",
+		},
+		{
+			BucketsAggregationKey{HTTPEndpoint: "/"},
+			&pb.ClientGroupedStats{HTTPEndpoint: "/"},
+			"name",
 		},
 	}
 	for _, tc := range tts {
@@ -831,6 +843,26 @@ func TestNewBucketAggregationKeyPeerTags(t *testing.T) {
 	})
 }
 
+func TestGoroutineShutdown(t *testing.T) {
+	a := NewClientStatsAggregator(&config.AgentConfig{}, &mockStatsWriter{}, &statsd.NoOpClient{})
+
+	a.Start()
+
+	// Test graceful shutdown
+	done := make(chan bool)
+	go func() {
+		a.Stop() // Should signal both goroutines to exit and wait for them
+		done <- true
+	}()
+
+	select {
+	case <-done:
+		// Success - both goroutines stopped properly
+	case <-time.After(time.Second):
+		t.Fatal("Goroutines did not stop within timeout")
+	}
+}
+
 func deepCopy(p *pb.ClientStatsPayload) *pb.ClientStatsPayload {
 	payload := &pb.ClientStatsPayload{
 		Hostname:         p.GetHostname(),
@@ -896,6 +928,8 @@ func deepCopyGroupedStats(s []*pb.ClientGroupedStats) []*pb.ClientGroupedStats {
 			PeerTags:       b.GetPeerTags(),
 			IsTraceRoot:    b.GetIsTraceRoot(),
 			GRPCStatusCode: b.GetGRPCStatusCode(),
+			HTTPMethod:     b.GetHTTPMethod(),
+			HTTPEndpoint:   b.GetHTTPEndpoint(),
 		}
 		if b.OkSummary != nil {
 			stats[i].OkSummary = make([]byte, len(b.OkSummary))
