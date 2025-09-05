@@ -9,6 +9,7 @@ target:
   environment:
     DD_API_KEY: a0000001
     DD_HOSTNAME: smp-regression
+    DD_USE_V3_API_SERIES: true
 
   profiling_environment:
     DD_INTERNAL_PROFILING_BLOCK_PROFILE_RATE: 10000
@@ -19,9 +20,8 @@ target:
     DD_INTERNAL_PROFILING_MUTEX_PROFILE_FRACTION: 10
     DD_INTERNAL_PROFILING_PERIOD: 1m
     DD_INTERNAL_PROFILING_UNIX_SOCKET: /smp-host/apm.socket
-    DD_USE_V3_API_SERIES: true
     DD_PROFILING_EXECUTION_TRACE_ENABLED: true
     DD_PROFILING_EXECUTION_TRACE_PERIOD: 1m
     DD_PROFILING_WAIT_PROFILE: true
 
-    DD_INTERNAL_PROFILING_EXTRA_TAGS: experiment:uds_dogstatsd_to_api
+    DD_INTERNAL_PROFILING_EXTRA_TAGS: experiment:uds_dogstatsd_to_api_v3
