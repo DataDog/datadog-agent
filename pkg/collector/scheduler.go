@@ -196,13 +196,13 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 				log.Debugf("Loader name %v does not match, skip loader %v for check %v", selectedInstanceLoader, loader.Name(), config.Name)
 				continue
 			}
-			_, err := loader.Load(s.senderManager, config, instance)
+			c, err := loader.Load(s.senderManager, config, instance)
 			if err == nil {
-				if loader.Name() == "python" && config.Name == "http_check" {
+				if loader.Name() == "core" || (loader.Name() == "python" && config.Name == "http_check") {
 					log.Debugf("%v: successfully loaded check '%s'", loader, config.Name)
-					//checks = append(checks, c)
+					checks = append(checks, c)
 				} else {
-					log.Debugf("%v: skipped check '%s', it's not python 'http_check'", loader, config.Name)
+					log.Debugf("%v: skipped check '%s', it's either not a core check or a python check that isn't 'http_check'", loader, config.Name)
 				}
 				errorStats.removeLoaderErrors(config.Name)
 				break
