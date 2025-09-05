@@ -181,7 +181,7 @@ func (p *Provider) appendPodTagsToVolumeMetrics(metricFam *prom.MetricFamily, se
 		pvcName := metric.Metric["persistentvolumeclaim"]
 		namespace := metric.Metric["namespace"]
 		filterablePod := workloadmetafilter.CreatePod(&workloadmeta.KubernetesPod{EntityMeta: workloadmeta.EntityMeta{Namespace: string(namespace)}})
-		selectedFilters := workloadfilter.GetPodSharedMetricFilters()
+		selectedFilters := p.filterStore.GetPodSharedMetricFilters()
 		if pvcName == "" || namespace == "" || p.filterStore.IsPodExcluded(filterablePod, selectedFilters) {
 			continue
 		}

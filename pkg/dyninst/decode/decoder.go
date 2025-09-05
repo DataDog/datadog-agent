@@ -8,14 +8,15 @@
 package decode
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"io"
+	"runtime/debug"
 	"time"
 
 	"github.com/go-json-experiment/json"
 	"github.com/google/uuid"
+	pkgerrors "github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/gotype"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
@@ -126,16 +127,23 @@ func (d *Decoder) Decode(
 	out io.Writer,
 ) (probe ir.ProbeDefinition, err error) {
 	defer d.resetForNextMessage()
+	defer func() {
+		r := recover()
+		switch r := r.(type) {
+		case nil:
+		case error:
+			err = pkgerrors.Wrap(r, "Decode: panic")
+		default:
+			err = pkgerrors.Errorf("Decode: panic: %v\n%s", r, debug.Stack())
+		}
+	}()
 	probe, err = d.snapshotMessage.init(d, event, symbolicator)
 	if err != nil {
 		return nil, err
 	}
 	err = json.MarshalWrite(out, &d.snapshotMessage)
 	if err != nil {
-		t, ok := out.(*bytes.Buffer)
-		if ok {
-			err = fmt.Errorf("error marshaling snapshot message: %w %q", err, t.String())
-		}
+		err = fmt.Errorf("error marshaling snapshot message: %w", err)
 	}
 	return probe, err
 }

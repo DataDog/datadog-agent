@@ -362,7 +362,7 @@ func (s *packageBaseSuite) writeAnsiblePlaybook(env map[string]string, params ..
       become: true
       retries: 3
       import_role:
-        name: ansible-datadog
+        name: datadog.dd.agent
 `
 	playbookStringSuffix := `
   vars:
