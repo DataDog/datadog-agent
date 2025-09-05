@@ -196,13 +196,14 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 				log.Debugf("Loader name %v does not match, skip loader %v for check %v", selectedInstanceLoader, loader.Name(), config.Name)
 				continue
 			}
+			// Python checks are loaded before before being skipped to instantiate the Python runtime
+			c, err := loader.Load(s.senderManager, config, instance, instanceIndex)
 
 			if loader.Name() != "core" {
 				log.Debugf("%v: skipped '%s', it's not a core check", loader, config.Name)
 				continue
 			}
 
-			c, err := loader.Load(s.senderManager, config, instance, instanceIndex)
 			if err == nil {
 				log.Debugf("%v: successfully loaded check '%s'", loader, config.Name)
 				errorStats.removeLoaderErrors(config.Name)
