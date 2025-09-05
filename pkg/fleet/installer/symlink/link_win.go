@@ -11,15 +11,16 @@
 
 //go:build windows
 
-package repository
+package symlink
 
 import (
 	"fmt"
-	"golang.org/x/sys/windows"
 	"os"
 	"runtime"
 	"syscall"
 	"unsafe"
+
+	"golang.org/x/sys/windows"
 )
 
 const (
