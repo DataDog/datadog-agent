@@ -19,9 +19,9 @@ import (
 
 func getWorkersStatsExpvarMap(t *testing.T) *expvar.Map {
 	runnerMap := getRunnerExpvarMap(t)
-	mapExpvar := runnerMap.Get(workersExpvarKey)
+	mapExpvar := runnerMap.Get(WorkersExpvarKey)
 	if !assert.NotNil(t, mapExpvar) {
-		assert.FailNow(t, fmt.Sprintf("Variable '%s' not found in expvars!", workersExpvarKey))
+		assert.FailNow(t, fmt.Sprintf("Variable '%s' not found in expvars!", WorkersExpvarKey))
 	}
 
 	return mapExpvar.(*expvar.Map)
@@ -39,9 +39,9 @@ func getWorkersCountExpvar(t *testing.T) int {
 
 func getWorkerInstancesStats(t *testing.T) string {
 	workersStats := getWorkersStatsExpvarMap(t)
-	instancesExpvar := workersStats.Get(instancesExpvarKey)
+	instancesExpvar := workersStats.Get(InstancesExpvarKey)
 	if !assert.NotNil(t, instancesExpvar) {
-		assert.FailNow(t, fmt.Sprintf("Variable '%s' not found in worker expvars!", countExpvarKey))
+		assert.FailNow(t, fmt.Sprintf("Variable '%s' not found in worker expvars!", InstancesExpvarKey))
 	}
 
 	return instancesExpvar.String()
