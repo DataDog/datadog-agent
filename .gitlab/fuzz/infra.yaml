@@ -2,7 +2,7 @@ test_fuzz:
   rules:
     - !reference [.on_scheduled_main]
     - !reference [.manual]
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$CI_IMAGE_DEB_X64_SUFFIX:$CI_IMAGE_DEB_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64"]
   stage: source_test
   needs: []
