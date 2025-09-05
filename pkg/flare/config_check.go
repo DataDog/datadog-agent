@@ -10,7 +10,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/fatih/color"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -115,8 +115,7 @@ func PrintClusterCheckConfig(w io.Writer, c integration.Config, checkName string
 		return
 	}
 
-	c = scrubClusterCheckConfig(c)
-
+	c = integration.ScrubClusterCheckConfig(c, log.Default())
 	configDigest := c.FastDigest()
 	if !c.ClusterCheck {
 		fmt.Fprintf(w, "\n=== %s check ===\n", color.GreenString(c.Name))
@@ -177,46 +176,4 @@ func printContainerExclusionRulesInfo(w io.Writer, c *integration.Config) {
 	if msg != "" {
 		fmt.Fprintln(w, color.BlueString(msg))
 	}
-}
-
-func scrubClusterCheckConfig(c integration.Config) integration.Config {
-	scrubbedConfig := c
-	scrubbedInstances := make([]integration.Data, len(c.Instances))
-	for instanceIndex, inst := range c.Instances {
-		scrubbedData, err := scrubber.ScrubYaml(inst)
-		if err != nil {
-			continue
-		}
-		scrubbedInstances[instanceIndex] = scrubbedData
-	}
-	scrubbedConfig.Instances = scrubbedInstances
-
-	if len(c.InitConfig) > 0 {
-		scrubbedData, err := scrubber.ScrubYaml(c.InitConfig)
-		if err != nil {
-			scrubbedConfig.InitConfig = []byte{}
-		} else {
-			scrubbedConfig.InitConfig = scrubbedData
-		}
-	}
-
-	if len(c.MetricConfig) > 0 {
-		scrubbedData, err := scrubber.ScrubYaml(c.MetricConfig)
-		if err != nil {
-			scrubbedConfig.MetricConfig = []byte{}
-		} else {
-			scrubbedConfig.MetricConfig = scrubbedData
-		}
-	}
-
-	if len(c.LogsConfig) > 0 {
-		scrubbedData, err := scrubber.ScrubYaml(c.LogsConfig)
-		if err != nil {
-			scrubbedConfig.LogsConfig = []byte{}
-		} else {
-			scrubbedConfig.LogsConfig = scrubbedData
-		}
-	}
-
-	return scrubbedConfig
 }
