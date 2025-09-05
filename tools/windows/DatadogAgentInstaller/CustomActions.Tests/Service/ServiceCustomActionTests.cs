@@ -5,6 +5,7 @@ using Microsoft.Deployment.WindowsInstaller;
 using Moq;
 using System;
 using System.ComponentModel;
+using System.ServiceProcess;
 using Xunit;
 
 namespace CustomActions.Tests.Service
@@ -17,7 +18,7 @@ namespace CustomActions.Tests.Service
         public void ReturnsTrue_ForWin32Exception1060()
         {
             var ex = new Win32Exception(1060); // ERROR_SERVICE_DOES_NOT_EXIST
-            Assert.True(Datadog.CustomActions.ServiceCustomAction.IsServiceDoesNotExistError(ex));
+            Assert.True(ServiceCustomAction.IsServiceDoesNotExistError(ex));
         }
 
         [Fact]
@@ -25,28 +26,28 @@ namespace CustomActions.Tests.Service
         {
             var inner = new Win32Exception(1060);
             var ex = new Exception("wrapper", inner);
-            Assert.True(Datadog.CustomActions.ServiceCustomAction.IsServiceDoesNotExistError(ex));
+            Assert.True(ServiceCustomAction.IsServiceDoesNotExistError(ex));
         }
 
         [Fact]
         public void ReturnsTrue_ForInvalidOperationMessage()
         {
             var ex = new InvalidOperationException("The specified service does not exist as an installed service");
-            Assert.True(Datadog.CustomActions.ServiceCustomAction.IsServiceDoesNotExistError(ex));
+            Assert.True(ServiceCustomAction.IsServiceDoesNotExistError(ex));
         }
 
         [Fact]
         public void ReturnsFalse_ForOtherWin32Exception()
         {
             var ex = new Win32Exception(5); // Access denied
-            Assert.False(Datadog.CustomActions.ServiceCustomAction.IsServiceDoesNotExistError(ex));
+            Assert.False(ServiceCustomAction.IsServiceDoesNotExistError(ex));
         }
 
         [Fact]
         public void ReturnsFalse_ForUnrelatedException()
         {
             var ex = new InvalidOperationException("Some other message");
-            Assert.False(Datadog.CustomActions.ServiceCustomAction.IsServiceDoesNotExistError(ex));
+            Assert.False(ServiceCustomAction.IsServiceDoesNotExistError(ex));
         }
 
         [Fact]
@@ -59,7 +60,7 @@ namespace CustomActions.Tests.Service
             {
                 throw new InvalidOperationException("error message", new Win32Exception(1060));
             }
-            catch (Exception ex) when (Datadog.CustomActions.ServiceCustomAction.IsServiceDoesNotExistError(ex))
+            catch (Exception ex) when (ServiceCustomAction.IsServiceDoesNotExistError(ex))
             {
                 handledByFilter = true;
             }
@@ -82,7 +83,7 @@ namespace CustomActions.Tests.Service
             {
                 throw new Win32Exception(5);
             }
-            catch (Exception ex) when (Datadog.CustomActions.ServiceCustomAction.IsServiceDoesNotExistError(ex))
+            catch (Exception ex) when (ServiceCustomAction.IsServiceDoesNotExistError(ex))
             {
                 handledByFilter = true;
             }
@@ -108,7 +109,7 @@ namespace CustomActions.Tests.Service
             var serviceMock = new Mock<IWindowsService>();
             serviceMock.SetupGet(s => s.ServiceName).Returns(Constants.AgentServiceName);
             serviceMock.SetupGet(s => s.DisplayName).Returns("Datadog Agent");
-            serviceMock.SetupGet(s => s.Status).Returns(System.ServiceProcess.ServiceControllerStatus.Running);
+            serviceMock.SetupGet(s => s.Status).Returns(ServiceControllerStatus.Running);
             serviceMock.Setup(s => s.Refresh());
 
             Test.ServiceController.SetupGet(c => c.Services).Returns(new[] { serviceMock.Object });
@@ -130,7 +131,7 @@ namespace CustomActions.Tests.Service
             var serviceMock = new Mock<IWindowsService>();
             serviceMock.SetupGet(s => s.ServiceName).Returns(Constants.AgentServiceName);
             serviceMock.SetupGet(s => s.DisplayName).Returns("Datadog Agent");
-            serviceMock.SetupGet(s => s.Status).Returns(System.ServiceProcess.ServiceControllerStatus.Running);
+            serviceMock.SetupGet(s => s.Status).Returns(ServiceControllerStatus.Running);
             serviceMock.Setup(s => s.Refresh());
 
             Test.ServiceController.SetupGet(c => c.Services).Returns(new[] { serviceMock.Object });
@@ -152,7 +153,7 @@ namespace CustomActions.Tests.Service
             var serviceMock = new Mock<IWindowsService>();
             serviceMock.SetupGet(s => s.ServiceName).Returns(Constants.AgentServiceName);
             serviceMock.SetupGet(s => s.DisplayName).Returns("Datadog Agent");
-            serviceMock.SetupGet(s => s.Status).Returns(System.ServiceProcess.ServiceControllerStatus.Running);
+            serviceMock.SetupGet(s => s.Status).Returns(ServiceControllerStatus.Running);
             serviceMock.Setup(s => s.Refresh());
 
             Test.ServiceController.SetupGet(c => c.Services).Returns(new[] { serviceMock.Object });

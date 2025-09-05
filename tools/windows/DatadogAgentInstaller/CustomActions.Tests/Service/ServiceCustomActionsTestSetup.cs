@@ -1,3 +1,4 @@
+using Datadog.CustomActions;
 using Datadog.CustomActions.Interfaces;
 using Moq;
 using System;
@@ -19,9 +20,9 @@ namespace CustomActions.Tests.Service
             ServiceController.SetupGet(s => s.Services).Returns(Array.Empty<IWindowsService>());
         }
 
-        public Datadog.CustomActions.ServiceCustomAction Create()
+        public ServiceCustomAction Create()
         {
-            return new Datadog.CustomActions.ServiceCustomAction(
+            return new ServiceCustomAction(
                 Session.Object,
                 rollbackDataName: null,
                 nativeMethods: NativeMethods.Object,
