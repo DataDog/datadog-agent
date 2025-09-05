@@ -157,7 +157,7 @@ func (p *PodUtils) IsHostNetworkedPod(podUID string) bool {
 // GetContainerID returns the container ID from the workloadmeta.Component for a given set of metric labels.
 // It should only be called on a container-scoped metric. It returns an empty string if the container could not be
 // found, or if the container should be filtered out.
-func GetContainerID(store workloadmeta.Component, metric model.Metric, filterStore workloadfilter.Component) (string, error) {
+func GetContainerID(store workloadmeta.Component, metric model.Metric, containerFilter workloadfilter.FilterBundle) (string, error) {
 	namespace := string(metric["namespace"])
 	podUID := string(metric["pod_uid"])
 	// k8s >= 1.16
@@ -194,8 +194,7 @@ func GetContainerID(store workloadmeta.Component, metric model.Metric, filterSto
 	}
 
 	filterableContainer := workloadmetafilter.CreateContainerFromOrch(container, workloadmetafilter.CreatePod(pod))
-	selectedFilters := filterStore.GetContainerSharedMetricFilters()
-	if filterStore.IsContainerExcluded(filterableContainer, selectedFilters) {
+	if containerFilter.IsExcluded(filterableContainer) {
 		return "", ErrContainerExcluded
 	}
 
