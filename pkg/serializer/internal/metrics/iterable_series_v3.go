@@ -6,7 +6,6 @@
 package metrics
 
 import (
-	"bytes"
 	"encoding/binary"
 	"fmt"
 	"math/bits"
@@ -146,6 +145,8 @@ func (pb *payloadsBuilderV3) startPayload() error {
 	return nil
 }
 
+const columnHeaderMaxSize = 20
+
 func (pb *payloadsBuilderV3) finishPayload() error {
 	if pb.pointsThisPayload > 0 {
 		err := pb.compressor.Close()
@@ -153,8 +154,14 @@ func (pb *payloadsBuilderV3) finishPayload() error {
 			return err
 		}
 
-		buf := &bytes.Buffer{}
-		tmp := [20]byte{}
+		headerSizeBound := pb.compression.CompressBound(columnHeaderMaxSize)
+		totalSize := 0
+		for i := 0; i < numberOfColumns; i++ {
+			totalSize += len(pb.compressor.Bytes(i)) + headerSizeBound
+		}
+
+		buf := make([]byte, 0, totalSize)
+		tmp := [columnHeaderMaxSize]byte{}
 		for i := 0; i < numberOfColumns; i++ {
 			col := pb.compressor.Bytes(i)
 			if len(col) == 0 {
@@ -166,12 +173,12 @@ func (pb *payloadsBuilderV3) finishPayload() error {
 			if err != nil {
 				return err
 			}
-			_, _ = buf.Write(header)
-			_, _ = buf.Write(col)
+			buf = append(buf, header...)
+			buf = append(buf, col...)
 		}
 
 		pb.payloads = append(pb.payloads,
-			transaction.NewBytesPayload(buf.Bytes(), pb.pointsThisPayload))
+			transaction.NewBytesPayload(buf, pb.pointsThisPayload))
 	}
 
 	pb.reset()
