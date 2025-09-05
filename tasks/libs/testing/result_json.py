@@ -15,6 +15,7 @@ class ActionType(Enum):
     SKIP = "skip"  # noqa: F841
     PAUSE = "pause"  # noqa: F841
     CONT = "cont"  # noqa: F841
+    BUILD_OUTPUT = "build-output"  # noqa: F841
 
 
 @dataclass
