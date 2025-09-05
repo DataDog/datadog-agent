@@ -922,6 +922,10 @@ func TestFilterOpenFlagsApprover(t *testing.T) {
 func TestFilterInUpperLayerApprover(t *testing.T) {
 	SkipIfNotAvailable(t)
 
+	checkDockerCompatibility(t, "this test requires docker to use overlayfs", func(docker *dockerInfo) bool {
+		return docker.Info["Storage Driver"] != "overlay2"
+	})
+
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `open.file.in_upper_layer`,
