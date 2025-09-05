@@ -81,7 +81,7 @@ func (c *Check) Run() error {
 		run := &path.Traceroute.Runs[i]
 		run.Destination.ReverseDns = traceroute.GetReverseDNSForIP(run.Destination.IPAddress)
 		for j, hop := range run.Hops {
-			run.Hops[j].ReverseDns = traceroute.GetReverseDNSForIP(hop.IPAddress)
+			run.Hops[j].ReverseDns = traceroute.GetReverseDNSForIP(hop.IpAddress)
 		}
 	}
 
