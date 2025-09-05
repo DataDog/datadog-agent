@@ -1241,10 +1241,7 @@ func (tm *testModule) StopActivityDump(name string) error {
 		Name: name,
 	}
 	_, err := managers.StopActivityDump(params)
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }
 
 type activityDumpIdentifier struct {
