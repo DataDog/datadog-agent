@@ -14,8 +14,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
-
 	"gopkg.in/yaml.v3"
 )
 
@@ -29,13 +27,7 @@ const (
 
 // WriteConfigs writes the configuration files to the given directory.
 func WriteConfigs(config Config, configDir string) error {
-	// ensure config root is created with correct permissions
-	err := paths.EnsureInstallerDataDir()
-	if err != nil {
-		return fmt.Errorf("could not create config directory: %w", err)
-	}
-
-	err = writeConfig(filepath.Join(configDir, datadogConfFile), config.DatadogYAML, 0640, true)
+	err := writeConfig(filepath.Join(configDir, datadogConfFile), config.DatadogYAML, 0640, true)
 	if err != nil {
 		return fmt.Errorf("could not write datadog.yaml: %w", err)
 	}
