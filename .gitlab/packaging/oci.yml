@@ -163,6 +163,9 @@ ddot_oci:
   needs: ["datadog-otel-agent-x64", "datadog-otel-agent-arm64", "go_tools_deps", "ddot_win_oci"]
   variables:
     OCI_PRODUCT: "datadog-agent-ddot"
+    artifacts:
+    paths:
+      - ${OMNIBUS_PACKAGE_DIR}/*.oci.tar
   before_script:
     - PACKAGE_VERSION="$(dda inv agent.version --url-safe)-1" || exit $?
     - export INSTALL_DIR=/opt/datadog-agent
