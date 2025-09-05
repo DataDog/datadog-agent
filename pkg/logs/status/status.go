@@ -31,6 +31,8 @@ const (
 	StatusNotStarted = 0
 	// StatusRunning means that the logs agent is running and fully operational
 	StatusRunning = 1
+	// StatusStopped means that the logs agent is stopped
+	StatusStopped = 2
 )
 
 var (
