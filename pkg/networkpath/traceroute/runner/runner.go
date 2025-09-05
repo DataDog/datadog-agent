@@ -214,7 +214,7 @@ func (r *Runner) processResults(res *result.Results, protocol payload.Protocol, 
 		for _, hop := range run.Hops {
 			hops = append(hops, payload.TracerouteHop{
 				TTL:       hop.TTL,
-				IpAddress: hop.IPAddress,
+				IPAddress: hop.IPAddress,
 				RTT:       hop.RTT,
 				Reachable: hop.Reachable,
 			})
@@ -223,7 +223,7 @@ func (r *Runner) processResults(res *result.Results, protocol payload.Protocol, 
 			RunID: run.RunID,
 			Hops:  hops,
 			Source: payload.TracerouteSource{
-				IpAddress: run.Source.IPAddress,
+				IPAddress: run.Source.IPAddress,
 				Port:      run.Source.Port,
 			},
 			Destination: payload.TracerouteDestination{
