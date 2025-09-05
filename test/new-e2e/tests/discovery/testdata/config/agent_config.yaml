@@ -1,4 +1,1 @@
 log_level: DEBUG
-process_config:
-  process_collection:
-    use_wlm: false
