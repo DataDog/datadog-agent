@@ -8,6 +8,7 @@ package config
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"os"
 	"testing"
 
@@ -293,8 +294,7 @@ func (suite *ConfigTestSuite) TestBadDDConfigFile() {
 	ddFileName := "testdata/doesnotexists.yaml"
 	_, err := NewConfigComponent(context.Background(), ddFileName, []string{fileName})
 
-	expectedError := "no such file or directory"
-	assert.ErrorContains(t, err, expectedError)
+	assert.ErrorIs(t, err, fs.ErrNotExist)
 }
 
 func (suite *ConfigTestSuite) TestBadLogLevel() {
