@@ -77,32 +77,17 @@ func (c *Check) Run() error {
 	path.Destination.Service = c.config.DestinationService
 	path.Tags = append(path.Tags, c.config.Tags...)
 
-	// TODO: FIX ME IN THIS PR, Remove legacy reverse dns code
-	// Perform reverse DNS lookup
-	path.Destination.ReverseDNSHostname = traceroute.GetHostname(path.Destination.IPAddress)
 	for i := range path.Hops {
 		path.Hops[i].Hostname = traceroute.GetHostname(path.Hops[i].IPAddress)
 	}
 
-	// TODO: REMOVE ME
-	if len(path.Hops) > 0 {
-		path.Hops[0].Hostname = "legacy-data-model"
-	}
-
+	// TODO: TEST ME
 	for i, run := range path.Traceroute.Runs {
 		path.Traceroute.Runs[i].Destination.ReverseDns = traceroute.GetHostname(path.Destination.IPAddress)
 		for j, hop := range run.Hops {
 			if !hop.IPAddress.Equal(net.IP{}) {
 				path.Traceroute.Runs[i].Hops[j].ReverseDns = traceroute.GetHostname(hop.IPAddress.String())
 			}
-		}
-
-		// TODO: REMOVE ME
-		// TODO: REMOVE ME
-		// TODO: REMOVE ME
-		if len(run.Hops) > 0 {
-			path.Traceroute.Runs[i].Hops[0].IPAddress = net.ParseIP("2.2.2.2")
-			path.Traceroute.Runs[i].Hops[0].ReverseDns = "new-data-model"
 		}
 	}
 

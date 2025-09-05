@@ -135,11 +135,9 @@ type NetworkPathDestination struct {
 	Port     uint16 `json:"port"`
 	Service  string `json:"service,omitempty"`
 
-	// TODO: IPAddress and ReverseDNSHostname should be part of traceroute.run
-	// TODO: IPAddress and ReverseDNSHostname should be part of traceroute.run
-	// TODO: IPAddress and ReverseDNSHostname should be part of traceroute.run
-	IPAddress          string `json:"ip_address"`
-	ReverseDNSHostname string `json:"reverse_dns_hostname,omitempty"`
+	// TODO: DEPRECATED: should be part of traceroute.run
+	IPAddress          string `json:"ip_address"`                     // DEPRECATED: should be part of traceroute.run
+	ReverseDNSHostname string `json:"reverse_dns_hostname,omitempty"` // DEPRECATED: should be part of traceroute.run
 }
 
 // E2eProbe contains e2e probe results
