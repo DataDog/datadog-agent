@@ -7,7 +7,6 @@ package metrics
 
 import (
 	"encoding/binary"
-	"fmt"
 	"math/bits"
 	"reflect"
 	"slices"
@@ -120,8 +119,6 @@ func newPayloadsBuilderV3(
 	if maxUncompressedSize < 0 {
 		panic("maxUncompressedSize is too small")
 	}
-
-	fmt.Printf("%d %d\n", maxCompressedSize, maxUncompressedSize)
 
 	compressor := stream.NewColumnCompressor(
 		compression,
