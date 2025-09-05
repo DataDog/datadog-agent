@@ -116,7 +116,7 @@ SEC("uprobe") int probe_run_with_cookie(struct pt_regs* regs) {
         .buf = global_ctx.buf,
     };
     bpf_loop(global_ctx.stack_walk->stack.pcs.len, copy_stack_loop,
-              &copy_stack_ctx, 0);
+             &copy_stack_ctx, 0);
     scratch_buf_increment_len(global_ctx.buf, header->stack_byte_len);
   } else {
     stack_hash = 0;
