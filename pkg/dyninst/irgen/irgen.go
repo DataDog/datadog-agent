@@ -477,10 +477,8 @@ func expandTypesWithBudgets(
 			if err != nil {
 				return fmt.Errorf("failed to get methods for interface %q: %w", tt.GetName(), err)
 			}
-			var i, added int
 			for ii.seek(methods); ii.valid(); ii.next() {
 				impl := ii.cur()
-				i++
 				var t ir.Type
 				if tid, ok := tc.typesByGoRuntimeType[impl]; ok {
 					t = tc.typesByID[tid]
@@ -494,7 +492,6 @@ func expandTypesWithBudgets(
 					if tid, ok := tc.typesByDwarfType[implOffset]; ok {
 						t = tc.typesByID[tid]
 					} else {
-						added++
 						var err error
 						t, err = tc.addType(implOffset)
 						if err != nil {
@@ -517,7 +514,6 @@ func expandTypesWithBudgets(
 				}
 				push(t, wi.remaining-1)
 			}
-			log.Tracef("added %d (%d new) types for interface %q (depth %d)", i, added, tt.GetName(), wi.remaining)
 
 		// Zero-cost neighbors (do not dereference pointers here).
 		case *ir.StructureType:
