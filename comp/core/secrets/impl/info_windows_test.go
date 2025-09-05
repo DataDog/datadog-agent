@@ -27,9 +27,9 @@ func TestGetExecutablePermissionsError(t *testing.T) {
 
 	res, err := resolver.getExecutablePermissions()
 	require.NoError(t, err)
-	assert.Equal(t, "Error calling 'get-acl': exit status 1", res["Error"])
-	assert.Equal(t, "", res["StdOut"])
-	assert.NotEqual(t, "", res["StdErr"])
+	assert.Equal(t, "Error calling 'get-acl': exit status 1", res.Error)
+	assert.Equal(t, "", res.StdOut)
+	assert.NotEqual(t, "", res.StdErr)
 }
 
 func setupSecretCommmand(t *testing.T, resolver *secretResolver) {
@@ -56,7 +56,7 @@ func TestGetExecutablePermissionsSuccess(t *testing.T) {
 	res, err := resolver.getExecutablePermissions()
 	require.NoError(t, err)
 
-	assert.Equal(t, "", res["Error"])
-	assert.NotEqual(t, "", res["StdOut"])
-	assert.Equal(t, "", res["StdErr"])
+	assert.Equal(t, "", res.Error)
+	assert.NotEqual(t, "", res.StdOut)
+	assert.Equal(t, "", res.StdErr)
 }

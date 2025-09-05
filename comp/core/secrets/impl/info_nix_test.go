@@ -63,15 +63,14 @@ func TestGetExecutablePermissionsSuccess(t *testing.T) {
 
 	res, err := resolver.getExecutablePermissions()
 	require.NoError(t, err)
-	assert.Equal(t, "100700", res["FileMode"])
-	assert.Equal(t, currentUser, res["Owner"])
-	assert.Equal(t, currentGroup, res["Group"])
+	assert.Equal(t, "100700", res.FileMode)
+	assert.Equal(t, currentUser, res.Owner)
+	assert.Equal(t, currentGroup, res.Group)
 }
 
 func TestDebugInfo(t *testing.T) {
 	tel := nooptelemetry.GetCompatComponent()
 	resolver := newEnabledSecretResolver(tel)
-	secretStatus := secretsStatus{resolver: resolver}
 	currentUser, currentGroup := setupSecretCommand(t, resolver)
 
 	resolver.commandHookFunc = func(string) ([]byte, error) {
@@ -116,6 +115,7 @@ func TestDebugInfo(t *testing.T) {
 	assert.Equal(t, []string{"test2", "instances/0/password"}, handles["pass3"][0])
 
 	var buffer bytes.Buffer
+	secretStatus := secretsStatus{resolver: resolver}
 	err = secretStatus.Text(false, &buffer)
 	require.NoError(t, err)
 
@@ -131,7 +131,6 @@ func TestDebugInfo(t *testing.T) {
 func TestDebugInfoError(t *testing.T) {
 	tel := nooptelemetry.GetCompatComponent()
 	resolver := newEnabledSecretResolver(tel)
-	secretStatus := secretsStatus{resolver: resolver}
 	resolver.backendCommand = "some_command"
 
 	resolver.commandHookFunc = func(string) ([]byte, error) {
@@ -160,6 +159,7 @@ func TestDebugInfoError(t *testing.T) {
 	assert.Len(t, handles, 3)
 
 	var buffer bytes.Buffer
+	secretStatus := secretsStatus{resolver: resolver}
 	err = secretStatus.Text(false, &buffer)
 	require.NoError(t, err)
 

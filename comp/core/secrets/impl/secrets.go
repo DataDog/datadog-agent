@@ -155,7 +155,12 @@ func (r *secretResolver) fillFlare(fb flaretypes.FlareBuilder) error {
 
 func (r *secretResolver) writeDebugInfo(w http.ResponseWriter, _ *http.Request) {
 	status := secretsStatus{resolver: r}
-	_ = status.Text(true, w)
+	err := status.Text(false, w)
+	if err != nil {
+		// bad request
+		setJSONError(w, err, 400)
+		return
+	}
 }
 
 func (r *secretResolver) handleRefresh(w http.ResponseWriter, _ *http.Request) {
@@ -691,12 +696,10 @@ func (r *secretResolver) getDebugInfo() map[string]interface{} {
 	if err != nil {
 		stats["executablePermissionsDetailsError"] = err.Error()
 	} else {
-		stats["executablePermissionsDetails"] = details
-	}
-
-	stats["isWindows"] = false
-	if runtime.GOOS == "windows" {
-		stats["isWindows"] = true
+		jsonDetails, _ := json.Marshal(details)
+		var mapDetails map[string]interface{}
+		_ = json.Unmarshal(jsonDetails, &mapDetails)
+		stats["executablePermissionsDetails"] = mapDetails
 	}
 
 	// Handle secrets handles

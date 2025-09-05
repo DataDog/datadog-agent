@@ -14,27 +14,26 @@ import (
 	"syscall"
 )
 
-func (r *secretResolver) getExecutablePermissions() (map[string]string, error) {
+func (r *secretResolver) getExecutablePermissions() (*permissionsDetails, error) {
 	var stat syscall.Stat_t
 	if err := syscall.Stat(r.backendCommand, &stat); err != nil {
 		return nil, fmt.Errorf("could not stat %s: %s", r.backendCommand, err)
 	}
 
-	details := map[string]string{
-		"FileMode": fmt.Sprintf("%o", stat.Mode),
-	}
+	details := &permissionsDetails{FileMode: fmt.Sprintf("%o", stat.Mode)}
 
 	if owner, err := user.LookupId(strconv.Itoa(int(stat.Uid))); err != nil {
-		details["Owner"] = fmt.Sprintf("could not fetch name for UID %d: %s", stat.Uid, err)
+		details.Owner = fmt.Sprintf("could not fetch name for UID %d: %s", stat.Uid, err)
 	} else {
-		details["Owner"] = owner.Username
+		details.Owner = owner.Username
 	}
 
 	if group, err := user.LookupGroupId(strconv.Itoa(int(stat.Gid))); err != nil {
-		details["Group"] = fmt.Sprintf("could not fetch name for GID %d: %s", stat.Gid, err)
+		details.Group = fmt.Sprintf("could not fetch name for GID %d: %s", stat.Gid, err)
 	} else {
-		details["Group"] = group.Name
+		details.Group = group.Name
 	}
+	details.IsWindows = false
 
 	return details, nil
 }

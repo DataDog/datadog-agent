@@ -14,7 +14,7 @@ import (
 	"strings"
 )
 
-func (r *secretResolver) getExecutablePermissions() (map[string]string, error) {
+func (r *secretResolver) getExecutablePermissions() (*permissionsDetails, error) {
 	execPath := fmt.Sprintf("\"%s\"", strings.TrimSpace(r.backendCommand))
 	ps, err := exec.LookPath("powershell.exe")
 	if err != nil {
@@ -28,19 +28,20 @@ func (r *secretResolver) getExecutablePermissions() (map[string]string, error) {
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
-	details := map[string]string{}
+	details := &permissionsDetails{}
 	err = cmd.Run()
 	if err != nil {
-		details["Error"] = fmt.Sprintf("Error calling 'get-acl': %s", err)
+		details.Error = fmt.Sprintf("Error calling 'get-acl': %s", err)
 	}
 
 	if out := strings.TrimSpace(stdout.String()); out != "" {
-		details["StdOut"] = out
+		details.StdOut = out
 	}
 
 	if errOut := strings.TrimSpace(stderr.String()); errOut != "" {
-		details["StdErr"] = errOut
+		details.StdErr = errOut
 	}
+	details.IsWindows = true
 
 	return details, nil
 }
