@@ -14,21 +14,27 @@ package workloadfilter
 // If a set of filters produces an Include or Exclude result, then subsequent sets will not be evaluated.
 // Therefore, filters in lower-indexed groups will take precedence over those in higher-indexed groups.
 type Component interface {
-	// Manually checkout a FilterBundle
+	// GetContainerFilters retrieves the selected container FilterBundle
 	GetContainerFilters(containerFilters [][]ContainerFilter) FilterBundle
+	// GetPodFilters retrieves the selected container FilterBundle
 	GetPodFilters(podFilters [][]PodFilter) FilterBundle
+	// GetServiceFilters retrieves the selected container FilterBundle
 	GetServiceFilters(serviceFilters [][]ServiceFilter) FilterBundle
+	// GetEndpointFilters retrieves the selected container FilterBundle
 	GetEndpointFilters(endpointFilters [][]EndpointFilter) FilterBundle
 
-	// Get Autodiscovery FilterBundle
+	// GetContainerAutodiscoveryFilters retrieves the container AD FilterBundle
 	GetContainerAutodiscoveryFilters(filterScope Scope) FilterBundle
+	// GetServiceAutodiscoveryFilters retrieves the service AD FilterBundle
 	GetServiceAutodiscoveryFilters(filterScope Scope) FilterBundle
+	// GetEndpointAutodiscoveryFilters retrieves the endpoint AD FilterBundle
 	GetEndpointAutodiscoveryFilters(filterScope Scope) FilterBundle
 
-	// Get Shared Metric FilterBundle
+	// GetContainerSharedMetricFilters retrieves the container shared metric FilterBundle
 	GetContainerSharedMetricFilters() FilterBundle
+	// GetPodSharedMetricFilters retrieves the pod shared metric FilterBundle
 	GetPodSharedMetricFilters() FilterBundle
 
-	// Get Container specific FilterBundle
+	// GetContainerSBOMFilters retrieves the container SBOM FilterBundle
 	GetContainerSBOMFilters() FilterBundle
 }

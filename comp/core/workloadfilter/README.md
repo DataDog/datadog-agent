@@ -19,23 +19,19 @@ The main component interface provides methods to check if workloads should be ex
 
 ```go
 type Component interface {
-	// IsContainerExcluded returns true if the container is excluded by the selected container filter keys.
-	IsContainerExcluded(container *Container, containerFilters [][]ContainerFilter) bool
-	// IsPodExcluded returns true if the pod is excluded by the selected pod filter keys.
-	IsPodExcluded(pod *Pod, podFilters [][]PodFilter) bool
-	// IsServiceExcluded returns true if the service is excluded by the selected service filter keys.
-	IsServiceExcluded(service *Service, serviceFilters [][]ServiceFilter) bool
-	// IsEndpointExcluded returns true if the endpoint is excluded by the selected endpoint filter keys.
-	IsEndpointExcluded(endpoint *Endpoint, endpointFilters [][]EndpointFilter) bool
-    ...
-
-	// GetContainerFilterInitializationErrors returns a list of errors
-	// encountered during the initialization of the selected container filters.
-	GetContainerFilterInitializationErrors(filters []ContainerFilter) []error
+	// GetContainerFilters retrieves the selected container FilterBundle
+	GetContainerFilters(containerFilters [][]ContainerFilter) FilterBundle
+    // GetPodFilters retrieves the selected container FilterBundle
+	GetPodFilters(podFilters [][]PodFilter) FilterBundle
+    // GetServiceFilters retrieves the selected container FilterBundle
+	GetServiceFilters(serviceFilters [][]ServiceFilter) FilterBundle
+    // GetEndpointFilters retrieves the selected container FilterBundle
+	GetEndpointFilters(endpointFilters [][]EndpointFilter) FilterBundle
+    ... 
 }
 ```
 
-When using the component, you must first convert your workload entity (container, pod, endpoint, etc.) into the `workloadfilter` version of the object which implements the `Filterable` interface. Second, you must select which filters should be used in the evaluation. Note that you are selecting the *keys for the filters* that will be pulled internally from the filter store in the evaluation of the exclusion result.
+When using the component, you must first convert your workload entity (container, pod, endpoint, etc.) into the `workloadfilter` version of the object which implements the `Filterable` interface. Second, you must select which filters should be used in your evaluation to make a filter bundle. With the `FilterBundle` you've generated, you will then be able to get the result of the filter by providing your `Filterable` object into the `IsExcluded` method.
 
 ## Usage Examples
 
@@ -61,9 +57,10 @@ selectedFilterGroups := [][]workloadfilter.ContainerFilter{
     // Low precedence: Check global filters
     {workloadfilter.LegacyContainerGlobal},
 }
+filterBundle := filterStore.GetContainerFilters(selectedFilterGroups)
 
 // Check if container should be excluded
-if filter.IsContainerExcluded(filterableContainer, selectedFilterGroups) {
+if filterBundle.IsExcluded(filterableContainer) {
     // Container is excluded, skip processing
     return
 }
@@ -83,11 +80,11 @@ For each filter group:
 2. If any filter in the group returns `Exclude` → record group result as `Exclude`, proceed evaluating other filters in group
 3. If group result is `Exclude` → return `Exclude`
 4. If group result is `Unknown` → continue to next group
-5. If all groups return `Unknown` → return `Unknown` (typically treated as included)
+5. If all groups return `Unknown` → return `Unknown` (typically treated as not excluded)
 
 ### Example In Practice
 
-Datadog Agent configuration `DD_CONTAINER_INCLUDE: "name:nginx"` maps to the `ContainerLegacyGlobal` filter. Meanwhile the value from the pod  annotation `ad.datadoghq.com/<container_name>.exclude` is used for `ContainerADAnnotations`.
+Datadog Agent configuration `DD_CONTAINER_INCLUDE: "name:nginx"` maps to the `ContainerLegacyGlobal` filter. Meanwhile the value from the pod annotation `ad.datadoghq.com/<container_name>.exclude` is used for `ContainerADAnnotations`.
 
 Pod and Container Definition:
 ```
@@ -108,23 +105,29 @@ With the configuration and workload defined above, the queries below would have 
 
 ```
 // 1. The container's pod annotations excludes the container.
-filterStore.IsContainerExcluded(filterableContainer, {{ContainerADAnnotations}}) == true
+filterBundle := filterStore.GetContainerFilters({{ContainerADAnnotations}})
+filterBundle.IsExcluded(filterableContainer) == true
 
 // 2.The legacy global container filter includes containers named like `nginx`.
-filterStore.IsContainerExcluded(filterableContainer, {{ContainerLegacyGlobal}}) == false
+filterBundle := filterStore.GetContainerFilters({{ContainerLegacyGlobal}})
+filterStore.IsExcluded(filterableContainer) == false
 
 // 3. The container's pod annotations excludes the container. ADAnnotations filter is higher precedence so excluded.
-filterStore.IsContainerExcluded(filterableContainer, {{ContainerADAnnotations}, {ContainerLegacyGlobal}}) == true
+filterBundle := filterStore.GetContainerFilters({{ContainerADAnnotations}, {ContainerLegacyGlobal}})
+filterBundle.IsExcluded(filterableContainer) == true
 
 // 4. The legacy global container filter includes containers named like `nginx`. LegacyGlobal is higher precedence so included.
-filterStore.IsContainerExcluded(filterableContainer, {{ContainerLegacyGlobal}, {ContainerADAnnotations}}) == false
+filterBundle := filterStore.GetContainerFilters({{ContainerLegacyGlobal}, {ContainerADAnnotations}})
+filterBundle.IsExcluded(filterableContainer) == false
 
 // 5. The ContainerADAnnotations filter evaluates to exclude, however, ContainerLegacyGlobal evalutes to include.
 //    Within the same group, inclusion takes higher precedence over exclusion, and thus the container is not excluded.
-filterStore.IsContainerExcluded(filterableContainer, {{ContainerADAnnotations, ContainerLegacyGlobal}}) == false
+filterBundle := filterStore.GetContainerFilters({{ContainerADAnnotations, ContainerLegacyGlobal}})
+filterBundle.IsExcluded(filterableContainer) == false
 
 // 6. There are no filters defined. Requires explicit exclusion to be excluded. Thus container is included.
-filterStore.IsContainerExcluded(filterableContainer, nil) == false
+filterBundle := filterStore.GetContainerFilters({{}})
+filterBundle.IsExcluded(filterableContainer, nil) == false
 ```
 
 ## Error Handling
@@ -133,12 +136,13 @@ The component provides methods to check for filter initialization errors:
 
 ```go
 // Check for filter initialization errors
-filters := []workloadfilter.ContainerFilter{
+filterSelection := []workloadfilter.ContainerFilter{
     workloadfilter.LegacyContainerMetrics,
     workloadfilter.LegacyContainerLogs,
 }
+filterBundle := filterStore.GetContainerFilters(filterSelection)
 
-errors := filter.GetContainerFilterInitializationErrors(filters)
+errors := filterBundle.GetErrors()
 for _, err := range errors {
     log.Warnf("Filter initialization error: %v", err)
 }
@@ -171,7 +175,12 @@ const (
 
 ...
 // Example usage:
-filterStore.IsContainerExcluded(container, {{MyCustomContainerFilter}})
+selectedFilterGroups := [][]workloadfilter.ContainerFilter{
+    {workloadfilter.ContainerADAnnotations},
+    {workloadfilter.LegacyContainerGlobal, workloadfilter.MyCustomContainerFilter},
+}
+filterBundle := filterStore.GetContainerFilters(selectedFilterGroups)
+filterBundle.IsExcluded(container)
 ```
 
 ### Step 2: Define the Filter Program in the Catalog
