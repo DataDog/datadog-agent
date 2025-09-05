@@ -23,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-
 	"github.com/fatih/color"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
@@ -381,6 +380,8 @@ func (suite *k8sSuite) testAgentCLI() {
 func (suite *k8sSuite) testClusterAgentCLI() {
 	leaderDcaPodName := suite.testDCALeaderElection(false) //check cluster agent leaderelection without restart
 	suite.Require().NotEmpty(leaderDcaPodName, "Leader DCA pod name should not be empty")
+
+	// Note: Cluster agent tests are now available in k8s_cluster_agent_test.go (TestK8SClusterAgentSuite) with dedicated cluster
 
 	suite.Run("cluster-agent status", func() {
 		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", leaderDcaPodName, "cluster-agent", []string{"datadog-cluster-agent", "status"})

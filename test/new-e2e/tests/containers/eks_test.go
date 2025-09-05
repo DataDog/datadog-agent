@@ -3,6 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
+// EKS-specific e2e tests focusing on Fargate and AWS-specific Kubernetes features.
+// These tests should only depend on:
+// - Node agents (for container/pod metrics and logs)
+// - Application workloads (nginx, dogstatsd, etc.)
+// - EKS-specific features (Fargate, etc.)
+
 package containers
 
 import (
