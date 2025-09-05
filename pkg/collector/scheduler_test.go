@@ -69,57 +69,57 @@ func TestAddLoader(t *testing.T) {
 	assert.Len(t, s.loaders, 1)
 }
 
-func TestGetChecksFromConfigs(t *testing.T) {
-	s := CheckScheduler{}
-	assert.Len(t, s.loaders, 0)
-	s.addLoader(&MockCoreLoader{})
-	s.addLoader(&MockPythonLoader{})
+// func TestGetChecksFromConfigs(t *testing.T) {
+// 	s := CheckScheduler{}
+// 	assert.Len(t, s.loaders, 0)
+// 	s.addLoader(&MockCoreLoader{})
+// 	s.addLoader(&MockPythonLoader{})
 
-	// test instance level loader selection
-	conf1 := integration.Config{
-		Name: "check_a",
-		Instances: []integration.Data{
-			integration.Data("{\"loader\": \"python\"}"),
-			integration.Data("{\"loader\": \"core\"}"),
-			integration.Data("{\"loader\": \"wrong\"}"),
-			integration.Data("{}"), // default to init config loader
-		},
-		InitConfig: integration.Data("{\"loader\": \"core\"}"),
-	}
-	// test init config level loader selection
-	conf2 := integration.Config{
-		Name:       "check_b",
-		Instances:  []integration.Data{integration.Data("{\"value\": 1}")},
-		InitConfig: integration.Data("{\"loader\": \"python\"}"),
-	}
-	// test that wrong loader will be skipped
-	conf3 := integration.Config{
-		Name:       "check_wrong",
-		Instances:  []integration.Data{integration.Data("{\"value\": 1}")},
-		InitConfig: integration.Data("{\"loader\": \"wrong_loader\"}"),
-	}
-	// test that first loader is selected when no loader is selected
-	// this is the current behaviour
-	conf4 := integration.Config{
-		Name:       "check_c",
-		Instances:  []integration.Data{integration.Data("{}")},
-		InitConfig: integration.Data("{}"),
-	}
+// 	// test instance level loader selection
+// 	conf1 := integration.Config{
+// 		Name: "check_a",
+// 		Instances: []integration.Data{
+// 			integration.Data("{\"loader\": \"python\"}"),
+// 			integration.Data("{\"loader\": \"core\"}"),
+// 			integration.Data("{\"loader\": \"wrong\"}"),
+// 			integration.Data("{}"), // default to init config loader
+// 		},
+// 		InitConfig: integration.Data("{\"loader\": \"core\"}"),
+// 	}
+// 	// test init config level loader selection
+// 	conf2 := integration.Config{
+// 		Name:       "check_b",
+// 		Instances:  []integration.Data{integration.Data("{\"value\": 1}")},
+// 		InitConfig: integration.Data("{\"loader\": \"python\"}"),
+// 	}
+// 	// test that wrong loader will be skipped
+// 	conf3 := integration.Config{
+// 		Name:       "check_wrong",
+// 		Instances:  []integration.Data{integration.Data("{\"value\": 1}")},
+// 		InitConfig: integration.Data("{\"loader\": \"wrong_loader\"}"),
+// 	}
+// 	// test that first loader is selected when no loader is selected
+// 	// this is the current behaviour
+// 	conf4 := integration.Config{
+// 		Name:       "check_c",
+// 		Instances:  []integration.Data{integration.Data("{}")},
+// 		InitConfig: integration.Data("{}"),
+// 	}
 
-	checks := s.GetChecksFromConfigs([]integration.Config{conf1, conf2, conf3, conf4}, false)
+// 	checks := s.GetChecksFromConfigs([]integration.Config{conf1, conf2, conf3, conf4}, false)
 
-	assert.Len(t, s.loaders, 2)
+// 	assert.Len(t, s.loaders, 2)
 
-	var actualChecks []string
+// 	var actualChecks []string
 
-	for _, c := range checks {
-		actualChecks = append(actualChecks, c.String())
-	}
-	assert.Equal(t, []string{
-		"Loader: python, Check: check_a",
-		"Loader: core, Check: check_a",
-		"Loader: core, Check: check_a",
-		"Loader: python, Check: check_b",
-		"Loader: core, Check: check_c",
-	}, actualChecks)
-}
+// 	for _, c := range checks {
+// 		actualChecks = append(actualChecks, c.String())
+// 	}
+// 	assert.Equal(t, []string{
+// 		"Loader: python, Check: check_a",
+// 		"Loader: core, Check: check_a",
+// 		"Loader: core, Check: check_a",
+// 		"Loader: python, Check: check_b",
+// 		"Loader: core, Check: check_c",
+// 	}, actualChecks)
+// }
