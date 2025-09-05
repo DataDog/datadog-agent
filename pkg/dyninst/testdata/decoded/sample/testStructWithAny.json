@@ -4,7 +4,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.testDeepPtr7",
+      "method": "main.testStructWithAny",
       "version": 0,
       "thread_id": 0,
       "thread_name": ""
@@ -16,19 +16,19 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.testDeepPtr7",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
-            "lineNumber": 119
+            "function": "main.testStructWithAny",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
+            "lineNumber": 73
           },
           {
-            "function": "main.executeComplexFuncs",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
-            "lineNumber": 254
+            "function": "main.executeInterfaceFuncs",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
+            "lineNumber": 122
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 36
+            "lineNumber": 46
           },
           {
             "function": "runtime.main",
@@ -42,32 +42,29 @@
           }
         ],
         "probe": {
-          "id": "testDeepPtr7",
+          "id": "testStructWithAny",
           "location": {
-            "method": "main.testDeepPtr7"
+            "method": "main.testStructWithAny"
           }
         },
         "captures": {
           "entry": {
             "arguments": {
-              "a": {
-                "type": "*main.deepPtr7",
-                "address": "[addr]",
+              "s": {
+                "type": "main.structWithAny",
                 "fields": {
                   "a": {
-                    "type": "*main.deepPtr8",
-                    "address": "[addr]",
+                    "type": "interface {}",
                     "fields": {
-                      "a": {
-                        "type": "*main.deepPtr9",
-                        "address": "[addr]",
+                      "data": {
+                        "type": "main.structWithAny",
                         "fields": {
                           "a": {
                             "type": "interface {}",
                             "fields": {
                               "data": {
-                                "type": "*main.deepPtr1",
-                                "notCapturedReason": "missing type information"
+                                "type": "main.structWithAny",
+                                "notCapturedReason": "depth"
                               }
                             }
                           }

@@ -28,13 +28,13 @@
                 "type": "net/http.ResponseWriter",
                 "fields": {
                   "data": {
-                    "type": "struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.CloseNotifier; net/http.Hijacker }",
+                    "type": "struct { gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter = gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.CloseNotifier; net/http.Hijacker }",
                     "fields": {
                       "monitoredResponseWriter": {
-                        "type": "github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1",
+                        "type": "gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1",
                         "fields": {
                           "data": {
-                            "type": "*github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.responseWriter",
+                            "type": "*gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.responseWriter",
                             "notCapturedReason": "depth"
                           }
                         }
@@ -262,13 +262,13 @@
                 "type": "net/http.ResponseWriter",
                 "fields": {
                   "data": {
-                    "type": "struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.CloseNotifier; net/http.Hijacker }",
+                    "type": "struct { gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter = gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.CloseNotifier; net/http.Hijacker }",
                     "fields": {
                       "monitoredResponseWriter": {
-                        "type": "github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1",
+                        "type": "gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1",
                         "fields": {
                           "data": {
-                            "type": "*github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.responseWriter",
+                            "type": "*gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.responseWriter",
                             "notCapturedReason": "depth"
                           }
                         }
@@ -496,13 +496,13 @@
                 "type": "net/http.ResponseWriter",
                 "fields": {
                   "data": {
-                    "type": "struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.CloseNotifier; net/http.Hijacker }",
+                    "type": "struct { gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter = gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.CloseNotifier; net/http.Hijacker }",
                     "fields": {
                       "monitoredResponseWriter": {
-                        "type": "github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1",
+                        "type": "gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1",
                         "fields": {
                           "data": {
-                            "type": "*github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.responseWriter",
+                            "type": "*gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.responseWriter",
                             "notCapturedReason": "depth"
                           }
                         }
