@@ -5,7 +5,43 @@
 
 package profiledefinition
 
-import "errors"
+import (
+	"errors"
+
+	"gopkg.in/yaml.v2"
+)
+
+// unmarshalWithFirstError calls unmarshal(arg), but if the result is a
+// yaml.TypeError it replaces the errors in it with the errors from the original
+// error.
+//
+// This is needed because if you call `unmarshal` twice in the same method, and
+// it generates an error both times, the returned errors are actually the same
+// object, so the second call will modify the previously-returned error value,
+// overwriting whatever the original errors were. Usually this is not what we
+// want when we have the pattern "try to parse the input as the expected type,
+// and if that fails try parsing it as a legacy format" - if both fail, we want
+// the error for the expected type.
+//
+// For example, if the main type is a struct but you also support a legacy type
+// where it was just a string, using this method ensures that a malformed struct
+// will get you an error message like "field X not found in type Y" instead of
+// "cannot unmarshal !!map into string".
+func unmarshalWithFirstError(err error, unmarshal func(any) error, arg any) error {
+	var typeErrors []string
+	if typeErr, ok := err.(*yaml.TypeError); ok {
+		typeErrors = append(typeErrors, typeErr.Errors...)
+	}
+	newErr := unmarshal(arg)
+	if newErr != nil {
+		if typeErr, ok := newErr.(*yaml.TypeError); len(typeErrors) > 0 && ok {
+			typeErr.Errors = typeErrors
+			return typeErr
+		}
+		return newErr
+	}
+	return nil
+}
 
 // StringArray is list of string with a yaml un-marshaller that support both array and string.
 // See test file for example usage.
@@ -18,8 +54,7 @@ func (a *StringArray) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	err := unmarshal(&multi)
 	if err != nil {
 		var single string
-		err := unmarshal(&single)
-		if err != nil {
+		if err := unmarshalWithFirstError(err, unmarshal, &single); err != nil {
 			return err
 		}
 		*a = []string{single}
@@ -35,8 +70,7 @@ func (a *SymbolConfigCompat) UnmarshalYAML(unmarshal func(interface{}) error) er
 	err := unmarshal(&symbol)
 	if err != nil {
 		var str string
-		err := unmarshal(&str)
-		if err != nil {
+		if err := unmarshalWithFirstError(err, unmarshal, &str); err != nil {
 			return err
 		}
 		*a = SymbolConfigCompat(SymbolConfig{Name: str})
@@ -52,8 +86,7 @@ func (mtcl *MetricTagConfigList) UnmarshalYAML(unmarshal func(interface{}) error
 	err := unmarshal(&multi)
 	if err != nil {
 		var tags []string
-		err := unmarshal(&tags)
-		if err != nil {
+		if err := unmarshalWithFirstError(err, unmarshal, &tags); err != nil {
 			return err
 		}
 		multi = []MetricTagConfig{}
@@ -71,8 +104,7 @@ func (mc *MetricsConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 	err := unmarshal((*metricsConfig)(mc))
 
 	var rawData map[string]interface{}
-	rawErr := unmarshal(&rawData)
-	if rawErr != nil {
+	if err := unmarshalWithFirstError(err, unmarshal, &rawData); err != nil {
 		return err
 	}
 
