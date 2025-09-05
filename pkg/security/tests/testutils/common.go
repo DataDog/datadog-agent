@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !windows && functionaltests
+
 package testutils
 
 import "golang.org/x/sys/unix"
