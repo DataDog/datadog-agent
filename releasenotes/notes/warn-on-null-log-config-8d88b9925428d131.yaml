@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Warn when Logs Agent log configuration is nil and handle gracefully.
+    Warns when Logs Agent log configuration is null and handles gracefully, instead of panicking.
