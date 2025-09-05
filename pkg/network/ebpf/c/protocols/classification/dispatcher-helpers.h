@@ -84,7 +84,7 @@ static __always_inline bool is_protocol_supported_for_dispatcher(protocol_t prot
     case PROTOCOL_POSTGRES:
         return is_postgres_monitoring_enabled();
     case PROTOCOL_REDIS:
-        return is_redis_monitoring_enabled();
+        return is_redis_enabled();
     case PROTOCOL_KAFKA:
         return is_kafka_monitoring_enabled();
     default:
@@ -105,7 +105,7 @@ static __always_inline void classify_protocol_for_dispatcher(protocol_t *protoco
         *protocol = PROTOCOL_HTTP2;
     } else if (is_postgres_monitoring_enabled() && is_postgres(buf, size)) {
         *protocol = PROTOCOL_POSTGRES;
-    } else if (is_redis_monitoring_enabled() && is_redis(buf, size)) {
+    } else if (is_redis_enabled() && is_redis(buf, size)) {
         *protocol = PROTOCOL_REDIS;
     } else {
         *protocol = PROTOCOL_UNKNOWN;

@@ -26,6 +26,7 @@ fi
 # Pass CI-specific options through `.user.bazelrc` so any nested `bazel run` and next `bazel shutdown` also honor them
 cat >"$CI_PROJECT_DIR/user.bazelrc" <<EOF
 startup --output_user_root=$BAZEL_OUTPUT_USER_ROOT
+common --config=cache
 common --repo_contents_cache=$ext_repo_contents_cache
 build --disk_cache=$BAZEL_DISK_CACHE
 EOF

@@ -85,11 +85,11 @@ func dockerIsEnabled(t *testing.T) bool {
 	return true
 }
 
-const expectationsPath = "testdata/e2e/rc_tester.json"
+const expectationsDir = "testdata/e2e"
 
 const e2eTmpDirEnv = "E2E_TMP_DIR"
 
-//go:embed testdata/e2e/rc_tester.json
+//go:embed testdata/e2e/rc_tester.json testdata/e2e/rc_tester_v1.json
 var expectations embed.FS
 
 func TestEndToEnd(t *testing.T) {
@@ -218,7 +218,7 @@ func runE2ETest(t *testing.T, cfg e2eTestConfig) {
 	sendTestRequests(t, serverPort, numRequests)
 	waitForLogMessages(
 		t, ts.backend, numRequests*len(expectedProbeIDs),
-		expectationsPath, cfg.rewrite,
+		path.Join(expectationsDir, cfg.binary+".json"), cfg.rewrite,
 	)
 	waitForProbeStatus(
 		t, ts.backend.diagPayloadCh,
