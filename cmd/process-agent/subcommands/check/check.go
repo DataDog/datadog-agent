@@ -30,7 +30,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	remoteTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
 	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	wmcatalogremote "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-remote"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
@@ -45,6 +45,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -144,8 +145,6 @@ func MakeCommand(globalParamsGetter func() *command.GlobalParams, name string, a
 			return fxutil.OneShot(RunCheckCmd,
 				fx.Supply(cliParams, bundleParams),
 				core.Bundle(),
-				// Provide workloadmeta module
-
 				// Provide eventplatformimpl module
 				eventplatformreceiverimpl.Module(),
 				eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
@@ -156,9 +155,20 @@ func MakeCommand(globalParamsGetter func() *command.GlobalParams, name string, a
 				// Provide npcollector module
 				npcollectorimpl.Module(),
 				// Provide the corresponding workloadmeta Params to configure the catalog
-				wmcatalogremote.GetCatalog(),
-				workloadmetafx.Module(workloadmeta.Params{
-					AgentType: workloadmeta.Remote,
+				wmcatalog.GetCatalog(),
+
+				// Provide workloadmeta module
+				workloadmetafx.ModuleWithProvider(func(c config.Component) workloadmeta.Params {
+					var catalog workloadmeta.AgentType
+
+					// This command can be run from both process-agent and core-agent
+					if flavor.GetFlavor() == flavor.ProcessAgent {
+						catalog = workloadmeta.Remote
+					} else {
+						catalog = workloadmeta.NodeAgent
+					}
+
+					return workloadmeta.Params{AgentType: catalog}
 				}),
 
 				// Tagger must be initialized after agent config has been setup
