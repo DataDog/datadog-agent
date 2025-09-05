@@ -79,10 +79,12 @@ func (m *mockRCClient) Subscribe(product string, _ func(map[string]state.RawConf
 
 func (m *mockRCClient) GetConfigs(_ string) map[string]state.RawConfig {
 	m.mu.Lock()
-	defer m.mu.Unlock()
+	shouldBlock := m.blockGetConfigs
+	channel := m.configsReady
+	m.mu.Unlock()
 
-	if m.blockGetConfigs {
-		<-m.configsReady // Block until unblocked
+	if shouldBlock {
+		<-channel
 	}
 
 	return m.configs
@@ -91,10 +93,13 @@ func (m *mockRCClient) GetConfigs(_ string) map[string]state.RawConfig {
 func (m *mockRCClient) setBlocking(block bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.blockGetConfigs = block
-	if !block {
+
+	// Only close when switching from blocking to non-blocking
+	if !block && m.blockGetConfigs {
 		close(m.configsReady)
 	}
+
+	m.blockGetConfigs = block
 }
 
 func TestNewImageResolver(t *testing.T) {
