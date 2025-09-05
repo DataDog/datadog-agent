@@ -180,13 +180,16 @@ func (hc *healthClient) sendReport(ctx context.Context, report *healthplatform.H
 		return fmt.Errorf("API key not configured")
 	}
 
-	// Create JSON:API response
-	jsonAPIResponse := healthplatform.JSONAPIResponse{
-		Data: report,
-		Meta: &healthplatform.JSONAPIMeta{
-			SchemaVersion: report.SchemaVersion,
-			EventType:     report.EventType,
-			EmittedAt:     report.EmittedAt,
+	// Create JSON:API response with proper structure
+	jsonAPIResponse := map[string]interface{}{
+		"data": map[string]interface{}{
+			"type":       "agent_health_payload",
+			"attributes": report, // This wraps your HealthReport in the attributes
+		},
+		"meta": map[string]interface{}{
+			"schema_version": report.SchemaVersion,
+			"event_type":     report.EventType,
+			"emitted_at":     report.EmittedAt,
 		},
 	}
 
