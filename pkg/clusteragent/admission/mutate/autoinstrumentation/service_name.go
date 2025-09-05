@@ -29,6 +29,9 @@ const (
 	// serviceNameSourceOwnerName will tell us if we pulled the DD_SERVICE
 	// from the pod owner name.
 	serviceNameSourceOwnerName = "owner"
+	// serviceNameSourceTagExpressions will tell us if we pulled the DD_SERVICE
+	// from the service tag resolved from metadata as tags expressions.
+	serviceNameSourceTagExpressions = "tag_expressions"
 
 	// the next two sources are used to denote whether the service name
 	// came from labels or annotations (when mapping pod meta as tags).
@@ -80,7 +83,7 @@ func serviceNameMutatorForMetaAsTags(pod *corev1.Pod, t podMetaAsTags) *serviceN
 	return nil
 }
 
-func newServiceNameMutator(pod *corev1.Pod, t podMetaAsTags) *serviceNameMutator {
+func newServiceNameMutator(pod *corev1.Pod, t podMetaAsTags, ustMutators map[string]*ustEnvVarMutator) *serviceNameMutator {
 	vars := findServiceNameEnvVarsInPod(pod)
 	if len(vars) > 1 {
 		log.Debug("more than one unique definition of service name found for the pod")
@@ -94,6 +97,14 @@ func newServiceNameMutator(pod *corev1.Pod, t podMetaAsTags) *serviceNameMutator
 	}
 
 	log.Debug("no DD_SERVICE env vars found in pod")
+
+	if m, alreadyFound := ustMutators[tags.Service]; alreadyFound {
+		return &serviceNameMutator{
+			EnvVar: m.EnvVar,
+			Source: serviceNameSourceTagExpressions,
+		}
+	}
+
 	log.Debug("checking metaAsTags")
 	if mutator := serviceNameMutatorForMetaAsTags(pod, t); mutator != nil {
 		return mutator
