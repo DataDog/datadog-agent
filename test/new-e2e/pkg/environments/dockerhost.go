@@ -6,8 +6,14 @@
 package environments
 
 import (
+	"fmt"
+	"path/filepath"
+	"regexp"
+	"strings"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 )
 
 // DockerHost is an environment that contains a Docker VM, FakeIntake and Agent configured to talk to each other.
@@ -24,4 +30,65 @@ var _ common.Initializable = &DockerHost{}
 // Init initializes the environment
 func (e *DockerHost) Init(_ common.Context) error {
 	return nil
+}
+
+var _ common.Diagnosable = (*DockerHost)(nil)
+
+// Diagnose returns a string containing the diagnosis of the environment
+func (e *DockerHost) Diagnose(outputDir string) (string, error) {
+	diagnoses := []string{}
+	if e.Docker == nil {
+		return "", fmt.Errorf("Docker component is not initialized")
+	}
+	// add Agent diagnose
+	if e.Agent == nil {
+		return "", fmt.Errorf("Agent component is not initialized")
+	}
+
+	diagnoses = append(diagnoses, "==== Agent ====")
+	dstPath, err := e.generateAndDownloadAgentFlare(outputDir)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate and download agent flare: %w", err)
+	}
+	diagnoses = append(diagnoses, fmt.Sprintf("Flare archive downloaded to %s", dstPath))
+	diagnoses = append(diagnoses, "\n")
+
+	return strings.Join(diagnoses, "\n"), nil
+}
+
+func (e *DockerHost) generateAndDownloadAgentFlare(outputDir string) (string, error) {
+	if e.Agent == nil || e.Docker == nil {
+		return "", fmt.Errorf("Agent or Docker component is not initialized, cannot generate flare")
+	}
+	// generate a local flare
+	// discard error, flare command might return error if there is no intake, but the archive is still generated
+	flareCommandOutput, err := e.Agent.Client.FlareWithError(agentclient.WithArgs([]string{"--email", "e2e-tests@datadog-agent", "--send", "--local"}))
+
+	lines := []string{flareCommandOutput}
+	if err != nil {
+		lines = append(lines, err.Error())
+	}
+	// on error, the flare output is in the error message
+	flareCommandOutput = strings.Join(lines, "\n")
+
+	// find <path to flare>.zip in flare command output
+	// (?m) is a flag that allows ^ and $ to match the beginning and end of each line
+	re := regexp.MustCompile(`(?m)^(.+\.zip) is going to be uploaded to Datadog$`)
+	matches := re.FindStringSubmatch(flareCommandOutput)
+	if len(matches) < 2 {
+		return "", fmt.Errorf("output does not contain the path to the flare archive, output: %s", flareCommandOutput)
+	}
+	flarePath := matches[1]
+
+	// Get the filename from the flare path for the local destination
+	flareFilename := filepath.Base(flarePath)
+	dstPath := filepath.Join(outputDir, flareFilename)
+
+	// Download the flare file from the Docker container to the local filesystem
+	err = e.Docker.Client.DownloadFile(e.Agent.ContainerName, flarePath, dstPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to download flare archive from container: %w", err)
+	}
+
+	return dstPath, nil
 }
