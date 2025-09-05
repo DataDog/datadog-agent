@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/statefulpb"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -55,13 +56,13 @@ type ReceiverSignal struct {
 
 // StreamInfo holds all stream-related information
 type StreamInfo struct {
-	Stream StatefulLogsService_LogsStreamClient
+	Stream statefulpb.StatefulLogsService_LogsStreamClient
 	Ctx    context.Context
 	Cancel context.CancelFunc
 }
 
 // StreamWorker manages a single gRPC bidirectional stream with Master-Slave threading model
-// Architecture: One supervisor/sender goroutine + one persistent receiver goroutine per worker
+// Architecture: One supervisor/sender goroutine + one receiver goroutine per worker
 type StreamWorker struct {
 	// Configuration
 	workerID            string
@@ -73,7 +74,7 @@ type StreamWorker struct {
 	sink       sender.Sink           // For getting auditor channel
 
 	// gRPC connection management (shared with other streams)
-	client StatefulLogsServiceClient
+	client statefulpb.StatefulLogsServiceClient
 
 	// Stream management
 	currentStream  *StreamInfo
@@ -103,7 +104,7 @@ type StreamWorker struct {
 func NewStreamWorker(
 	workerID string,
 	destinationsCtx *client.DestinationsContext,
-	client StatefulLogsServiceClient,
+	client statefulpb.StatefulLogsServiceClient,
 	sink sender.Sink,
 	streamLifetime time.Duration,
 ) *StreamWorker {
@@ -460,7 +461,7 @@ func (s *StreamWorker) handleIrrecoverableError(reason string) {
 }
 
 // handleBatchStatus processes a normal BatchStatus response
-func (s *StreamWorker) handleBatchStatus(response *BatchStatus) {
+func (s *StreamWorker) handleBatchStatus(response *statefulpb.BatchStatus) {
 	batchID := uint32(response.BatchId)
 
 	// Find the specific payload for this batch ID
@@ -472,7 +473,7 @@ func (s *StreamWorker) handleBatchStatus(response *BatchStatus) {
 	s.pendingPayloadsMu.Unlock()
 
 	if exists {
-		if response.Status == BatchStatus_OK {
+		if response.Status == statefulpb.BatchStatus_OK {
 			// Handle acknowledgments - send successful payloads to auditor
 			if s.outputChan != nil {
 				select {
@@ -491,27 +492,25 @@ func (s *StreamWorker) handleBatchStatus(response *BatchStatus) {
 }
 
 // payloadToBatch converts a message payload to a StatefulBatch
-func (s *StreamWorker) payloadToBatch(payload *message.Payload) *StatefulBatch {
+// The payload.GRPCDatums contains array of *grpc.Datum objects
+func (s *StreamWorker) payloadToBatch(payload *message.Payload) *statefulpb.StatefulBatch {
 	s.batchIDCounter++
 	batchID := s.batchIDCounter
 
-	batch := &StatefulBatch{
+	batch := &statefulpb.StatefulBatch{
 		BatchId: batchID,
-		Data:    make([]*Datum, 0, payload.Count()),
+		Data:    make([]*statefulpb.Datum, 0, payload.Count()),
 	}
 
-	// Convert payload to a single Datum with raw content
-	// Note: payload.Encoded contains the serialized log data
-	datum := &Datum{
-		Data: &Datum_Logs{
-			Logs: &Log{
-				Content: &Log_Raw{
-					Raw: string(payload.Encoded), // Convert bytes to string
-				},
-			},
-		},
+	// Use the GRPCDatums array from the payload (much cleaner!)
+	if payload.GRPCDatums != nil {
+		for _, datumInterface := range payload.GRPCDatums {
+			// Type assert to *Datum (should always work since we set it in grpcStreamStrategy)
+			if datum, ok := datumInterface.(*statefulpb.Datum); ok {
+				batch.Data = append(batch.Data, datum)
+			}
+		}
 	}
-	batch.Data = append(batch.Data, datum)
 
 	return batch
 }
