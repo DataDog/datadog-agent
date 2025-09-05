@@ -17,7 +17,7 @@ const (
 	SchemaVersion = "1.0"
 
 	// EventType is the type of health event
-	EventType = "agent_health"
+	EventType = "health_check"
 )
 
 // Severity indicates the impact level of an issue

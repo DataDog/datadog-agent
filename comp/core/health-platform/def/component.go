@@ -18,61 +18,61 @@ import (
 // Issue represents an individual issue to be reported
 type Issue struct {
 	// ID is the unique identifier for the issue
-	ID string
+	ID string `json:"ID"`
 	// IssueName is the human-readable name for the issue
-	IssueName string
+	IssueName string `json:"IssueName"`
 	// Title is the short title/headline of the issue
-	Title string
+	Title string `json:"Title"`
 	// Description is the detailed description of the issue
-	Description string
+	Description string `json:"Description"`
 	// Category indicates the type/category of the issue (e.g., permissions, connectivity, etc.)
-	Category string
+	Category string `json:"Category"`
 	// Location indicates where the issue occurred (e.g., core agent, log agent, etc.)
-	Location string
+	Location string `json:"Location"`
 	// Severity indicates the impact level of the issue
-	Severity string
+	Severity string `json:"Severity"`
 	// DetectedAt is the timestamp when the issue was detected
-	DetectedAt string
+	DetectedAt string `json:"DetectedAt"`
 	// Integration indicates which integration or feature is affected
-	Integration *string
+	Integration *string `json:"Integration,omitempty"`
 	// Extra is optional complementary information
-	Extra string
+	Extra string `json:"Extra"`
 	// IntegrationFeature indicates which integration or feature is affected (legacy field)
-	IntegrationFeature string
+	IntegrationFeature string `json:"IntegrationFeature"`
 	// Remediation provides steps to fix the issue
-	Remediation *Remediation
+	Remediation *Remediation `json:"Remediation,omitempty"`
 	// Tags are additional labels for the issue
-	Tags []string
+	Tags []string `json:"Tags"`
 }
 
 // Remediation represents remediation steps for an issue
 type Remediation struct {
 	// Summary is a brief description of the remediation
-	Summary string
+	Summary string `json:"Summary"`
 	// Steps are the ordered steps to fix the issue
-	Steps []RemediationStep
+	Steps []RemediationStep `json:"Steps"`
 	// Script is an automated script to fix the issue
-	Script *Script
+	Script *Script `json:"Script,omitempty"`
 }
 
 // RemediationStep represents a single remediation step
 type RemediationStep struct {
 	// Order is the sequence number of the step
-	Order int
+	Order int `json:"Order"`
 	// Text is the description of what to do
-	Text string
+	Text string `json:"Text"`
 }
 
 // Script represents a remediation script
 type Script struct {
 	// Language is the scripting language (e.g., bash, powershell)
-	Language string
+	Language string `json:"Language"`
 	// Filename is the suggested filename for the script
-	Filename string
+	Filename string `json:"Filename"`
 	// RequiresRoot indicates if the script needs root privileges
-	RequiresRoot bool
+	RequiresRoot bool `json:"RequiresRoot"`
 	// Content is the actual script content
-	Content string
+	Content string `json:"Content"`
 }
 
 // SubComponent represents a health checker sub-component

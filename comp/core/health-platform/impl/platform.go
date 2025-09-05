@@ -205,6 +205,7 @@ func (hc *healthClient) sendReport(ctx context.Context, report *healthplatform.H
 	// Set headers for JSON:API format
 	req.Header.Set("dd-api-key", hc.apiKey)
 	req.Header.Set("content-type", "application/vnd.api+json")
+	req.Header.Set("Accept", "application/vnd.api+json")
 
 	resp, err := hc.client.Do(req)
 	if err != nil {
