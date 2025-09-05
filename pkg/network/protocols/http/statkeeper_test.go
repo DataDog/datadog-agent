@@ -87,9 +87,9 @@ func BenchmarkProcessHTTPTransactions(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		for p := 0; p < numPaths; p++ {
 			b.StopTimer()
-			//we use subset of unique endpoints, but those will occur over and over again like in regular target application
+			// we use subset of unique endpoints, but those will occur over and over again like in regular target application
 			path := "/testpath/blablabla/dsadas/isdaasd/asdasadsadasd" + strconv.Itoa(p%uniqPaths)
-			//we simulate different conn tuples by increasing the port number
+			// we simulate different conn tuples by increasing the port number
 			newSourcePort := sourcePort + (p % 30)
 			statusCode := (i%5 + 1) * 100
 			latency := time.Duration(i%5+1) * time.Millisecond
@@ -102,7 +102,8 @@ func BenchmarkProcessHTTPTransactions(b *testing.B) {
 }
 
 func BenchmarkProcessSameConn(b *testing.B) {
-	cfg := &config.Config{MaxHTTPStatsBuffered: 1000}
+	cfg := config.New()
+	cfg.MaxHTTPStatsBuffered = 1000
 	tel := NewTelemetry("http")
 	sk := NewStatkeeper(cfg, tel, NewIncompleteBuffer(cfg, tel))
 	tx := generateIPv4HTTPTransaction(
