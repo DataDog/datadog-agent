@@ -14,21 +14,21 @@ package workloadfilter
 // If a set of filters produces an Include or Exclude result, then subsequent sets will not be evaluated.
 // Therefore, filters in lower-indexed groups will take precedence over those in higher-indexed groups.
 type Component interface {
-	// Get Autodiscovery filters
-	GetContainerAutodiscoveryFilters(filterScope Scope) FilterBundle
-	GetServiceAutodiscoveryFilters(filterScope Scope) FilterBundle
-	GetEndpointAutodiscoveryFilters(filterScope Scope) FilterBundle
-
-	// Get Shared Metric filters
-	GetContainerSharedMetricFilters() FilterBundle
-	GetPodSharedMetricFilters() FilterBundle
-
-	// Get Container specific filters
-	GetContainerSBOMFilters() FilterBundle
-
-	// Manually gets the selected filter bundle
+	// Manually checkout a FilterBundle
 	GetContainerFilters(containerFilters [][]ContainerFilter) FilterBundle
 	GetPodFilters(podFilters [][]PodFilter) FilterBundle
 	GetServiceFilters(serviceFilters [][]ServiceFilter) FilterBundle
 	GetEndpointFilters(endpointFilters [][]EndpointFilter) FilterBundle
+
+	// Get Autodiscovery FilterBundle
+	GetContainerAutodiscoveryFilters(filterScope Scope) FilterBundle
+	GetServiceAutodiscoveryFilters(filterScope Scope) FilterBundle
+	GetEndpointAutodiscoveryFilters(filterScope Scope) FilterBundle
+
+	// Get Shared Metric FilterBundle
+	GetContainerSharedMetricFilters() FilterBundle
+	GetPodSharedMetricFilters() FilterBundle
+
+	// Get Container specific FilterBundle
+	GetContainerSBOMFilters() FilterBundle
 }

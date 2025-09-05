@@ -19,10 +19,10 @@ type filterBundle struct {
 }
 
 func (fb *filterBundle) IsExcluded(obj workloadfilter.Filterable) bool {
-	return fb.isExcluded(obj) == workloadfilter.Excluded
+	return fb.GetResult(obj) == workloadfilter.Excluded
 }
 
-func (fb *filterBundle) isExcluded(obj workloadfilter.Filterable) workloadfilter.Result {
+func (fb *filterBundle) GetResult(obj workloadfilter.Filterable) workloadfilter.Result {
 	for _, filterSet := range fb.filterSets {
 		var setResult = workloadfilter.Unknown
 		for _, prg := range filterSet {

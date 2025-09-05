@@ -18,8 +18,8 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 )
 
-// filterFactory holds a factory function and ensures it's called only once
-type filterFactory struct {
+// filterProgramFactory holds a factory function and ensures it's called only once
+type filterProgramFactory struct {
 	once    sync.Once
 	program program.FilterProgram
 	factory func(cfg config.Component, logger log.Component) program.FilterProgram
@@ -30,7 +30,7 @@ type workloadfilterStore struct {
 	config              config.Component
 	log                 log.Component
 	telemetry           coretelemetry.Component
-	programFactoryStore map[workloadfilter.ResourceType]map[int]*filterFactory
+	programFactoryStore map[workloadfilter.ResourceType]map[int]*filterProgramFactory
 	selection           *filterSelection
 }
 
@@ -66,9 +66,9 @@ var _ workloadfilter.Component = (*workloadfilterStore)(nil)
 
 func (f *workloadfilterStore) registerFactory(resourceType workloadfilter.ResourceType, programType int, factory func(cfg config.Component, logger log.Component) program.FilterProgram) {
 	if f.programFactoryStore[resourceType] == nil {
-		f.programFactoryStore[resourceType] = make(map[int]*filterFactory)
+		f.programFactoryStore[resourceType] = make(map[int]*filterProgramFactory)
 	}
-	f.programFactoryStore[resourceType][programType] = &filterFactory{
+	f.programFactoryStore[resourceType][programType] = &filterProgramFactory{
 		factory: factory,
 	}
 }
@@ -100,7 +100,7 @@ func newFilter(cfg config.Component, logger log.Component, telemetry coretelemet
 		config:              cfg,
 		log:                 logger,
 		telemetry:           telemetry,
-		programFactoryStore: make(map[workloadfilter.ResourceType]map[int]*filterFactory),
+		programFactoryStore: make(map[workloadfilter.ResourceType]map[int]*filterProgramFactory),
 		selection:           newFilterSelection(cfg),
 	}
 
@@ -142,65 +142,6 @@ func newFilter(cfg config.Component, logger log.Component, telemetry coretelemet
 	filter.registerFactory(workloadfilter.PodType, int(workloadfilter.PodADAnnotationsMetrics), genericADMetricsProgramFactory)
 
 	return filter, nil
-}
-
-// IsContainerExcluded checks if a container is excluded based on the provided filters.
-func (f *workloadfilterStore) IsContainerExcluded(container *workloadfilter.Container, containerFilters [][]workloadfilter.ContainerFilter) bool {
-	return evaluateResource(f, container, containerFilters) == workloadfilter.Excluded
-}
-
-// IsPodExcluded checks if a pod is excluded based on the provided filters.
-func (f *workloadfilterStore) IsPodExcluded(pod *workloadfilter.Pod, podFilters [][]workloadfilter.PodFilter) bool {
-	return evaluateResource(f, pod, podFilters) == workloadfilter.Excluded
-}
-
-func (f *workloadfilterStore) IsServiceExcluded(service *workloadfilter.Service, serviceFilters [][]workloadfilter.ServiceFilter) bool {
-	return evaluateResource(f, service, serviceFilters) == workloadfilter.Excluded
-}
-
-func (f *workloadfilterStore) IsEndpointExcluded(endpoint *workloadfilter.Endpoint, endpointFilters [][]workloadfilter.EndpointFilter) bool {
-	return evaluateResource(f, endpoint, endpointFilters) == workloadfilter.Excluded
-}
-
-// evaluateResource checks if a resource is excluded based on the provided filters.
-func evaluateResource[T ~int](
-	f *workloadfilterStore,
-	resource workloadfilter.Filterable, // Filterable resource (e.g., Container, Pod)
-	filterSets [][]T, // Generic filter types
-) workloadfilter.Result {
-	for _, filterSet := range filterSets {
-		var setResult = workloadfilter.Unknown
-		for _, filter := range filterSet {
-
-			// 1. Retrieve the filtering program
-			prg := f.getProgram(resource.Type(), int(filter))
-			if prg == nil {
-				f.log.Warnf("No program found for filter %d on resource %s", filter, resource.Type())
-				continue
-			}
-
-			// 2. Evaluate the filtering program
-			res, prgErrs := prg.Evaluate(resource)
-			if prgErrs != nil {
-				f.log.Debug(prgErrs)
-			}
-
-			// 3. Process the results
-			if res == workloadfilter.Included {
-				f.log.Debugf("Resource %s is included by filter %d", resource.Type(), filter)
-				return res
-			}
-			if res == workloadfilter.Excluded {
-				setResult = workloadfilter.Excluded
-			}
-		}
-		// If the set of filters produces a Include/Exclude result,
-		// then return the set's results and don't execute subsequent sets.
-		if setResult != workloadfilter.Unknown {
-			return setResult
-		}
-	}
-	return workloadfilter.Unknown
 }
 
 // GetContainerAutodiscoveryFilters returns the pre-computed container autodiscovery filters

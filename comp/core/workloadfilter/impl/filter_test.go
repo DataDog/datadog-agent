@@ -41,7 +41,8 @@ func TestBasicFilter(t *testing.T) {
 
 	t.Run("empty filters, empty container", func(t *testing.T) {
 		container := &workloadfilter.Container{}
-		res := evaluateResource(filterStore, container, [][]workloadfilter.ContainerFilter{})
+		filterBundle := filterStore.GetContainerFilters([][]workloadfilter.ContainerFilter{})
+		res := filterBundle.GetResult(container)
 		assert.Equal(t, workloadfilter.Unknown, res)
 	})
 
@@ -55,7 +56,8 @@ func TestBasicFilter(t *testing.T) {
 			nil,
 		)
 
-		res := evaluateResource(filterStore, container, [][]workloadfilter.ContainerFilter{{workloadfilter.LegacyContainerGlobal}})
+		filterBundle := filterStore.GetContainerFilters([][]workloadfilter.ContainerFilter{{workloadfilter.LegacyContainerGlobal}})
+		res := filterBundle.GetResult(container)
 		assert.Equal(t, workloadfilter.Included, res)
 	})
 
@@ -69,7 +71,8 @@ func TestBasicFilter(t *testing.T) {
 			nil,
 		)
 
-		res := evaluateResource(filterStore, container, [][]workloadfilter.ContainerFilter{{workloadfilter.LegacyContainerGlobal}})
+		filterBundle := filterStore.GetContainerFilters([][]workloadfilter.ContainerFilter{{workloadfilter.LegacyContainerGlobal}})
+		res := filterBundle.GetResult(container)
 		assert.Equal(t, workloadfilter.Excluded, res)
 	})
 
@@ -85,7 +88,9 @@ func TestBasicFilter(t *testing.T) {
 			},
 			nil,
 		)
-		res := evaluateResource(filterStore, container, [][]workloadfilter.ContainerFilter{{workloadfilter.LegacyContainerGlobal}})
+
+		filterBundle := filterStore.GetContainerFilters([][]workloadfilter.ContainerFilter{{workloadfilter.LegacyContainerGlobal}})
+		res := filterBundle.GetResult(container)
 		assert.Equal(t, workloadfilter.Included, res)
 	})
 
@@ -114,7 +119,8 @@ func TestADAnnotationFilter(t *testing.T) {
 			pod,
 		)
 
-		res := evaluateResource(filterStore, container, [][]workloadfilter.ContainerFilter{{workloadfilter.ContainerADAnnotations}})
+		filterBundle := filterStore.GetContainerFilters([][]workloadfilter.ContainerFilter{{workloadfilter.ContainerADAnnotations}})
+		res := filterBundle.GetResult(container)
 		assert.Equal(t, workloadfilter.Unknown, res)
 	})
 
@@ -137,7 +143,8 @@ func TestADAnnotationFilter(t *testing.T) {
 			pod,
 		)
 
-		res := evaluateResource(filterStore, container, [][]workloadfilter.ContainerFilter{{workloadfilter.ContainerADAnnotations}})
+		filterBundle := filterStore.GetContainerFilters([][]workloadfilter.ContainerFilter{{workloadfilter.ContainerADAnnotations}})
+		res := filterBundle.GetResult(container)
 		assert.Equal(t, workloadfilter.Excluded, res)
 	})
 
@@ -162,7 +169,8 @@ func TestADAnnotationFilter(t *testing.T) {
 			},
 			pod,
 		)
-		res := evaluateResource(filterStore, container, [][]workloadfilter.ContainerFilter{{workloadfilter.ContainerADAnnotations}})
+		filterBundle := filterStore.GetContainerFilters([][]workloadfilter.ContainerFilter{{workloadfilter.ContainerADAnnotations}})
+		res := filterBundle.GetResult(container)
 		assert.Equal(t, workloadfilter.Unknown, res)
 	})
 
@@ -400,8 +408,9 @@ func TestFilterPrecedence(t *testing.T) {
 			{workloadfilter.LegacyContainerGlobal},  // Excludes (higher priority)
 			{workloadfilter.LegacyContainerMetrics}, // Includes (but lower priority)
 		}
+		filterBundle := filterStore.GetContainerFilters(precedenceFilters)
 
-		res := evaluateResource(filterStore, container, precedenceFilters)
+		res := filterBundle.GetResult(container)
 		assert.Equal(t, workloadfilter.Excluded, res)
 	})
 
@@ -410,8 +419,9 @@ func TestFilterPrecedence(t *testing.T) {
 			{workloadfilter.LegacyContainerMetrics}, // Includes (higher priority)
 			{workloadfilter.LegacyContainerGlobal},  // Excludes (but lower priority)
 		}
+		filterBundle := filterStore.GetContainerFilters(precedenceFilters)
 
-		res := evaluateResource(filterStore, container, precedenceFilters)
+		res := filterBundle.GetResult(container)
 		assert.Equal(t, workloadfilter.Included, res)
 	})
 
@@ -420,8 +430,9 @@ func TestFilterPrecedence(t *testing.T) {
 			{workloadfilter.LegacyContainerLogs},   // Unknown, no results
 			{workloadfilter.LegacyContainerGlobal}, // Excludes
 		}
+		filterBundle := filterStore.GetContainerFilters(precedenceFilters)
 
-		res := evaluateResource(filterStore, container, precedenceFilters)
+		res := filterBundle.GetResult(container)
 		assert.Equal(t, workloadfilter.Excluded, res)
 	})
 
@@ -430,8 +441,9 @@ func TestFilterPrecedence(t *testing.T) {
 			{workloadfilter.LegacyContainerLogs},    // Unknown, no results
 			{workloadfilter.LegacyContainerMetrics}, // Includes
 		}
+		filterBundle := filterStore.GetContainerFilters(precedenceFilters)
 
-		res := evaluateResource(filterStore, container, precedenceFilters)
+		res := filterBundle.GetResult(container)
 		assert.Equal(t, workloadfilter.Included, res)
 	})
 }
@@ -451,7 +463,8 @@ func TestEvaluateResourceNoFilters(t *testing.T) {
 
 	t.Run("No filter sets", func(t *testing.T) {
 		precedenceFilters := [][]workloadfilter.ContainerFilter{}
-		res := evaluateResource(filterStore, container, precedenceFilters)
+		filterBundle := filterStore.GetContainerFilters(precedenceFilters)
+		res := filterBundle.GetResult(container)
 		assert.Equal(t, workloadfilter.Unknown, res)
 	})
 
@@ -459,7 +472,8 @@ func TestEvaluateResourceNoFilters(t *testing.T) {
 		precedenceFilters := [][]workloadfilter.ContainerFilter{
 			{}, {}, {}, {}, {}, {}, {}, {}, {},
 		}
-		res := evaluateResource(filterStore, container, precedenceFilters)
+		filterBundle := filterStore.GetContainerFilters(precedenceFilters)
+		res := filterBundle.GetResult(container)
 		assert.Equal(t, workloadfilter.Unknown, res)
 	})
 }
@@ -533,7 +547,7 @@ func TestProgramErrorHandling(t *testing.T) {
 			config:              filterStore.config,
 			log:                 filterStore.log,
 			telemetry:           filterStore.telemetry,
-			programFactoryStore: make(map[workloadfilter.ResourceType]map[int]*filterFactory),
+			programFactoryStore: make(map[workloadfilter.ResourceType]map[int]*filterProgramFactory),
 		}
 
 		// Register the error program factory
@@ -542,7 +556,8 @@ func TestProgramErrorHandling(t *testing.T) {
 				return &errorInclProgram{}
 			})
 
-		res := evaluateResource(errorFilter, container, precedenceFilters)
+		filterBundle := errorFilter.GetContainerFilters(precedenceFilters)
+		res := filterBundle.GetResult(container)
 		assert.Equal(t, workloadfilter.Included, res)
 	})
 
@@ -552,7 +567,7 @@ func TestProgramErrorHandling(t *testing.T) {
 			config:              filterStore.config,
 			log:                 filterStore.log,
 			telemetry:           filterStore.telemetry,
-			programFactoryStore: make(map[workloadfilter.ResourceType]map[int]*filterFactory),
+			programFactoryStore: make(map[workloadfilter.ResourceType]map[int]*filterProgramFactory),
 		}
 
 		// Register the error program factory
@@ -561,7 +576,8 @@ func TestProgramErrorHandling(t *testing.T) {
 				return &errorExclProgram{}
 			})
 
-		res := evaluateResource(errorFilter, container, precedenceFilters)
+		filterBundle := errorFilter.GetContainerFilters(precedenceFilters)
+		res := filterBundle.GetResult(container)
 		assert.Equal(t, workloadfilter.Excluded, res)
 	})
 }
@@ -580,7 +596,9 @@ func TestSpecialCharacters(t *testing.T) {
 		nil,
 	)
 
-	res := evaluateResource(filterStore, container, [][]workloadfilter.ContainerFilter{{workloadfilter.LegacyContainerGlobal}})
+	precedenceFilters := [][]workloadfilter.ContainerFilter{{workloadfilter.LegacyContainerGlobal}}
+	filterBundle := filterStore.GetContainerFilters(precedenceFilters)
+	res := filterBundle.GetResult(container)
 	assert.Equal(t, workloadfilter.Included, res)
 }
 
@@ -652,10 +670,11 @@ func TestServiceFiltering(t *testing.T) {
 				mockConfig.SetWithoutSource("container_exclude", tt.exclude)
 			}
 			filterStore := newFilterStoreObject(t, mockConfig)
+			filterBundle := filterStore.GetServiceFilters(tt.filters)
 
 			service := workloadfilter.CreateService(tt.serviceName, tt.namespace, tt.annotations)
 
-			res := evaluateResource(filterStore, service, tt.filters)
+			res := filterBundle.GetResult(service)
 			assert.Equal(t, tt.expected, res)
 		})
 	}
@@ -729,10 +748,11 @@ func TestEndpointFiltering(t *testing.T) {
 				mockConfig.SetWithoutSource("container_exclude", tt.exclude)
 			}
 			filterStore := newFilterStoreObject(t, mockConfig)
+			filterBundle := filterStore.GetEndpointFilters(tt.filters)
 
 			endpoint := workloadfilter.CreateEndpoint(tt.endpointName, tt.namespace, tt.annotations)
 
-			res := evaluateResource(filterStore, endpoint, tt.filters)
+			res := filterBundle.GetResult(endpoint)
 			assert.Equal(t, tt.expected, res)
 		})
 	}
@@ -772,7 +792,7 @@ func TestImageFiltering(t *testing.T) {
 			containerFilters := filterStore.GetContainerSharedMetricFilters()
 			containerImage := workloadfilter.CreateContainerImage(tt.imageName)
 
-			res := containerFilters.IsExcluded(containerImage)
+			res := containerFilters.GetResult(containerImage)
 			assert.Equal(t, tt.expected, res)
 		})
 	}
@@ -857,10 +877,11 @@ func TestPodFiltering(t *testing.T) {
 			mockConfig.SetWithoutSource("container_include", tt.include)
 			mockConfig.SetWithoutSource("container_exclude", tt.exclude)
 			filterStore := newFilterStoreObject(t, mockConfig)
+			filterBundle := filterStore.GetPodFilters(tt.filters)
 
 			pod := workloadmetafilter.CreatePod(tt.wmetaPod)
 
-			res := evaluateResource(filterStore, pod, tt.filters)
+			res := filterBundle.GetResult(pod)
 			assert.Equal(t, tt.expected, res)
 		})
 	}
