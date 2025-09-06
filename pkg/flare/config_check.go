@@ -10,6 +10,7 @@ import (
 	"io"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/fatih/color"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -113,6 +114,8 @@ func PrintClusterCheckConfig(w io.Writer, c integration.Config, checkName string
 	if checkName != "" && c.Name != checkName {
 		return
 	}
+
+	c = integration.ScrubCheckConfig(c, log.Default())
 	configDigest := c.FastDigest()
 	if !c.ClusterCheck {
 		fmt.Fprintf(w, "\n=== %s check ===\n", color.GreenString(c.Name))
