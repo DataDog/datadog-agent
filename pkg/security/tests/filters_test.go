@@ -213,7 +213,20 @@ func TestFilterOpenLeafDiscarderActivityDump(t *testing.T) {
 		Expression: `open.filename =~ "/tmp/no-approver-*"`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(testOpts{enableActivityDump: true}))
+	outputDir := t.TempDir()
+	expectedFormats := []string{"json", "protobuf"}
+	var testActivityDumpTracedEventTypes = []string{"exec", "open"}
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(testOpts{
+		enableActivityDump:                  true,
+		activityDumpRateLimiter:             testActivityDumpRateLimiter,
+		activityDumpTracedCgroupsCount:      testActivityDumpTracedCgroupsCount,
+		activityDumpDuration:                testActivityDumpDuration,
+		activityDumpCleanupPeriod:           testActivityDumpCleanupPeriod,
+		activityDumpTracedEventTypes:        testActivityDumpTracedEventTypes,
+		activityDumpLocalStorageDirectory:   outputDir,
+		activityDumpLocalStorageCompression: false,
+		activityDumpLocalStorageFormats:     expectedFormats,
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -222,13 +235,13 @@ func TestFilterOpenLeafDiscarderActivityDump(t *testing.T) {
 	if err := test.StopAllActivityDumps(); err != nil {
 		t.Fatal("Can't stop all running activity dumps")
 	}
-	// dockerInstance, err := test.StartACustomDocker("ubuntu")
 	dockerInstance, _, err := test.StartADockerGetDump()
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer dockerInstance.stop()
 
+	time.Sleep(time.Second * 1) // to ensure we did not get ratelimited
 	cmd := dockerInstance.Command("mkdir", []string{"/tmp/test"}, []string{})
 	if _, err := cmd.CombinedOutput(); err != nil {
 		t.Fatal(err)
