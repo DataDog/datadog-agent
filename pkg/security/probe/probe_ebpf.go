@@ -3336,4 +3336,5 @@ func (p *EBPFProbe) addToDNSResolver(dnsLayer *layers.DNS) {
 			}
 		}
 	}
+	p.Resolvers.DNSResolver.CommitInFlights()
 }
