@@ -166,7 +166,7 @@ func run(cliParams *cliParams, _ config.Component, diagnoseComponent diagnose.Co
 	}
 
 	if cliParams.profiling >= 30 {
-		settingsClient := settingshttp.NewHTTPSClient(ipc.GetClient(), urlstr, "datadog-cluster-agent", ipchttp.WithLeaveConnectionOpen)
+		settingsClient := settingshttp.NewSecureClient(ipc.GetClient(), urlstr, "datadog-cluster-agent", ipchttp.WithLeaveConnectionOpen)
 
 		profilingOpts := settings.ProfilingOpts{
 			ProfileMutex:         cliParams.profileMutex,
