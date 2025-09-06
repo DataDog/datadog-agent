@@ -204,10 +204,28 @@ func generateIR(
 	typeCatalog := newTypeCatalog(
 		d, ptrSize, cfg.maxDynamicTypeSize, cfg.maxHashBucketsSize,
 	)
+	var commonTypes ir.CommonTypes
 	for _, offset := range processed.interestingTypes {
-		if _, err := typeCatalog.addType(offset); err != nil {
+		t, err := typeCatalog.addType(offset)
+		if err != nil {
 			return nil, fmt.Errorf("failed to add type at offset %#x: %w", offset, err)
 		}
+		ok := true
+		switch t.GetName() {
+		case "runtime.g":
+			commonTypes.G, ok = t.(*ir.StructureType)
+		case "runtime.m":
+			commonTypes.M, ok = t.(*ir.StructureType)
+		}
+		if !ok {
+			return nil, fmt.Errorf("expected structure type for %q, got %T", t.GetName(), t)
+		}
+	}
+	if commonTypes.G == nil {
+		return nil, fmt.Errorf("runtime.g not found")
+	}
+	if commonTypes.M == nil {
+		return nil, fmt.Errorf("runtime.m not found")
 	}
 
 	// Materialize before creating probes so IR subprograms and vars exist.
@@ -310,6 +328,7 @@ func generateIR(
 		MaxTypeID:        typeCatalog.idAlloc.alloc,
 		Issues:           issues,
 		GoModuledataInfo: processed.goModuledataInfo,
+		CommonTypes:      commonTypes,
 	}, nil
 }
 
@@ -1519,11 +1538,18 @@ func (v *unitChildVisitor) push(
 			}
 		}
 
-		nameWithoutStar := name
-		if entry.Tag == dwarf.TagPointerType {
-			nameWithoutStar = name[1:]
+		interesting := false
+		if entry.Tag != dwarf.TagTypedef && (name == "runtime.g" || name == "runtime.m") {
+			interesting = true
 		}
-		if primitiveTypeNameRegexp.MatchString(nameWithoutStar) {
+		if !interesting {
+			nameWithoutStar := name
+			if entry.Tag == dwarf.TagPointerType {
+				nameWithoutStar = name[1:]
+			}
+			interesting = primitiveTypeNameRegexp.MatchString(nameWithoutStar)
+		}
+		if interesting {
 			v.root.interestingTypes = append(v.root.interestingTypes, entry.Offset)
 		}
 		return nil, nil

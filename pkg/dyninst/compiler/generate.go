@@ -38,6 +38,7 @@ type Program struct {
 	Types            []ir.Type
 	Throttlers       []Throttler
 	GoModuledataInfo ir.GoModuledataInfo
+	CommonTypes      ir.CommonTypes
 }
 
 type generator struct {
@@ -142,6 +143,7 @@ func GenerateProgram(program *ir.Program) (Program, error) {
 		Types:            types,
 		Throttlers:       throttlers,
 		GoModuledataInfo: program.GoModuledataInfo,
+		CommonTypes:      program.CommonTypes,
 	}, nil
 }
 
