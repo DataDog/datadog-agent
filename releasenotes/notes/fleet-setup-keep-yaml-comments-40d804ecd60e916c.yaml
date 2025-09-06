@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    The Datadog Installer introduced in 7.65.0 now keeps YAML comments
+    when updating the Agent configuration during installation.
+    Some formatting changes can be expected.
