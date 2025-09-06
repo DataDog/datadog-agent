@@ -1,16 +1,16 @@
 from __future__ import annotations
 
+import io
 import os
+import shutil
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING
+
+from invoke.context import Context
+from invoke.runners import Local, Result
 
 from tasks.libs.common.retry import run_command_with_retry
 from tasks.libs.common.utils import timed
-
-if TYPE_CHECKING:
-    from invoke import Context
-    from invoke.runners import Result
 
 
 def download_go_dependencies(ctx: Context, paths: list[str], verbose: bool = False, max_retry: int = 3):
@@ -37,12 +37,16 @@ def go_build(
     bin_path: str | Path | None = None,
     verbose: bool = False,
     echo: bool = False,
+    check_deadcode_on_deploy: bool = False,
     coverage: bool = False,
     trimpath: bool = True,
 ) -> Result:
+    check_deadcode = check_deadcode_on_deploy and os.getenv("DEPLOY_AGENT") == "true"
+
     cmd = "go build"
     if coverage:
         cmd += " -cover -covermode=atomic"
+        build_tags = build_tags or []
         build_tags.append("e2ecoverage")
     if mod:
         cmd += f" -mod={mod}"
@@ -60,6 +64,8 @@ def go_build(
         cmd += f" -o {bin_path}"
     if gcflags:
         cmd += f" -gcflags=\"{gcflags}\""
+    if check_deadcode:
+        ldflags = (ldflags or "") + " -dumpdep"
     if ldflags:
         cmd += f" -ldflags=\"{ldflags}\""
     if trimpath and 'DELVE' not in os.environ:
@@ -67,7 +73,36 @@ def go_build(
 
     cmd += f" {entrypoint}"
 
-    result = ctx.run(cmd, env=env)
+    runner = ctx
+    if check_deadcode:
+        # use a custom runner to read stderr in bigger chunks as dumpdep output is huge
+        # and invoke is super slow by default when writing to stdout/stderr
+        # https://github.com/pyinvoke/invoke/issues/774
+        runner = Local(ctx)
+        runner.read_chunk_size = 1024 * 1024 * 10
+        _ = runner.read_chunk_size  # please linters
+        runner.input_sleep = 0
+        _ = runner.input_sleep  # please linters
+
+    # -dumpdep is very verbose so we hide that
+    # any unrecognized log line is shown by whydeadcode anyway
+    result = runner.run(cmd, env=env, hide="stderr" if check_deadcode else None)
+    assert result is not None
+    if check_deadcode:
+        if not shutil.which("whydeadcode"):
+            with ctx.cd("internal/tools"):
+                run_command_with_retry(ctx, "go install github.com/aarzilli/whydeadcode", max_retry=3)
+        # whydeadcode prints unexpected input on stderr (eg. build warnings), and
+        # dead code call stack on stdout
+        # it returns non-zero if non-expected input is passed, and 0 otherwise, even if dead code elimination is disabled
+        # so we check whether stdout is empty to know if dead code elimination is disabled
+        whydeadcoderes = runner.run("whydeadcode", in_stream=CustomReader(result.stderr), warn=True, hide="out")
+        assert whydeadcoderes is not None
+        if whydeadcoderes.stdout:
+            print(
+                f"dead code elimination is disabled by the following call stack (only the first one is guaranteed to be a true positive):\n{whydeadcoderes.stdout}"
+            )
+
     if sys.platform == "win32" or result.exited != 0 or bin_path is None:
         return result
 
@@ -78,3 +113,13 @@ def go_build(
             os.chown(bin_path, int(uid), int(gid))
 
     return result
+
+
+# reading from stdin in invoke is super slow, see https://github.com/pyinvoke/invoke/issues/819
+# so we use a custom reader that always reads 10MiB at a time
+class CustomReader(io.StringIO):
+    def __init__(self, data: str):
+        super().__init__(data)
+
+    def read(self, n: int | None = None) -> str:
+        return super().read(1024 * 1024 * 10)

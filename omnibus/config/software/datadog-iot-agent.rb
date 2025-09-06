@@ -23,6 +23,10 @@ build do
     'PATH' => "#{gopath.to_path}/bin:#{ENV['PATH']}",
   }
 
+  if ENV.has_key?("DEPLOY_AGENT") && ENV["DEPLOY_AGENT"] == "true"
+    env["DEPLOY_AGENT"] = "true"
+  end
+
   unless ENV["OMNIBUS_GOMODCACHE"].nil? || ENV["OMNIBUS_GOMODCACHE"].empty?
     gomodcache = Pathname.new(ENV["OMNIBUS_GOMODCACHE"])
     env["GOMODCACHE"] = gomodcache.to_path
