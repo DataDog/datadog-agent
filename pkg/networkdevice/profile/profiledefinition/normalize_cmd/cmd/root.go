@@ -58,12 +58,14 @@ var rootCmd = &cobra.Command{
 
 // GetProfile parses a profile from a file path and validates it.
 func GetProfile(filePath string) (*profiledefinition.ProfileDefinition, []string) {
-	buf, err := os.ReadFile(filePath)
+	file, err := os.Open(filePath)
 	if err != nil {
 		return nil, []string{fmt.Sprintf("unable to read file: %v", err)}
 	}
 	def := profiledefinition.NewProfileDefinition()
-	err = yaml.Unmarshal(buf, def)
+	dec := yaml.NewDecoder(file)
+	dec.SetStrict(true)
+	err = dec.Decode(&def)
 	if err != nil {
 		return nil, []string{fmt.Sprintf("unable to parse profile: %v", err)}
 	}
