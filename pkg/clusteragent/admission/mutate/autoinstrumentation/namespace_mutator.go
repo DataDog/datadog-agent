@@ -37,19 +37,19 @@ type NamespaceMutator struct {
 }
 
 // NewNamespaceMutator creates a new injector interface for the auto-instrumentation injector.
-func NewNamespaceMutator(config *Config, wmeta workloadmeta.Component) (*NamespaceMutator, error) {
+func NewNamespaceMutator(config *Config, wmeta workloadmeta.Component, imageResolver ImageResolver) (*NamespaceMutator, error) {
 	filter, err := NewFilter(config)
 	if err != nil {
 		return nil, err
 	}
 
-	pinnedLibraries := getPinnedLibraries(config.Instrumentation.LibVersions, config.containerRegistry, true)
+	pinnedLibraries := getPinnedLibraries(config.Instrumentation.LibVersions, config.containerRegistry, true, imageResolver)
 	return &NamespaceMutator{
 		config:          config,
 		filter:          filter,
 		wmeta:           wmeta,
 		pinnedLibraries: pinnedLibraries,
-		core:            newMutatorCore(config, wmeta, filter),
+		core:            newMutatorCore(config, wmeta, filter, imageResolver),
 	}, nil
 }
 
@@ -116,16 +116,18 @@ func (m *NamespaceMutator) IsNamespaceEligible(ns string) bool {
 }
 
 type mutatorCore struct {
-	config *Config
-	wmeta  workloadmeta.Component
-	filter mutatecommon.MutationFilter
+	config        *Config
+	wmeta         workloadmeta.Component
+	filter        mutatecommon.MutationFilter
+	imageResolver ImageResolver
 }
 
-func newMutatorCore(config *Config, wmeta workloadmeta.Component, filter mutatecommon.MutationFilter) *mutatorCore {
+func newMutatorCore(config *Config, wmeta workloadmeta.Component, filter mutatecommon.MutationFilter, imageResolver ImageResolver) *mutatorCore {
 	return &mutatorCore{
-		config: config,
-		wmeta:  wmeta,
-		filter: filter,
+		config:        config,
+		wmeta:         wmeta,
+		filter:        filter,
+		imageResolver: imageResolver,
 	}
 }
 
@@ -306,6 +308,7 @@ func (m *mutatorCore) newInitContainerMutators(
 func (m *mutatorCore) newInjector(pod *corev1.Pod, startTime time.Time, lopts libRequirementOptions) *injector {
 	opts := []injectorOption{
 		injectorWithLibRequirementOptions(lopts),
+		injectorWithImageResolver(m.imageResolver), // FIX: Ordering is non-trivial
 		injectorWithImageTag(m.config.Instrumentation.InjectorImageTag),
 	}
 
@@ -337,7 +340,7 @@ func (m *NamespaceMutator) isPodEligible(pod *corev1.Pod) bool {
 func (m *NamespaceMutator) extractLibInfo(pod *corev1.Pod) extractedPodLibInfo {
 	extracted := m.core.initExtractedLibInfo(pod)
 
-	libs := extractLibrariesFromAnnotations(pod, m.config.containerRegistry)
+	libs := extractLibrariesFromAnnotations(pod, m.config.containerRegistry, m.core.imageResolver)
 	if len(libs) > 0 {
 		return extracted.withLibs(libs)
 	}
@@ -361,7 +364,7 @@ func (m *NamespaceMutator) extractLibInfo(pod *corev1.Pod) extractedPodLibInfo {
 	}
 
 	if extracted.source.isSingleStep() {
-		return extracted.withLibs(getAllLatestDefaultLibraries(m.config.containerRegistry))
+		return extracted.withLibs(getAllLatestDefaultLibraries(m.config.containerRegistry, m.core.imageResolver))
 	}
 
 	// Get libraries to inject for Remote Instrumentation
@@ -375,13 +378,13 @@ func (m *NamespaceMutator) extractLibInfo(pod *corev1.Pod) extractedPodLibInfo {
 			log.Warnf("Ignoring version %q. To inject all libs, the only supported version is latest for now", version)
 		}
 
-		return extracted.withLibs(getAllLatestDefaultLibraries(m.config.containerRegistry))
+		return extracted.withLibs(getAllLatestDefaultLibraries(m.config.containerRegistry, m.core.imageResolver))
 	}
 
 	return extractedPodLibInfo{}
 }
 
-func extractLibrariesFromAnnotations(pod *corev1.Pod, containerRegistry string) []libInfo {
+func extractLibrariesFromAnnotations(pod *corev1.Pod, containerRegistry string, imageResolver ImageResolver) []libInfo {
 	var (
 		libList        []libInfo
 		extractLibInfo = func(e annotationExtractor[libInfo]) {
@@ -395,13 +398,12 @@ func extractLibrariesFromAnnotations(pod *corev1.Pod, containerRegistry string) 
 			}
 		}
 	)
-
 	for _, l := range supportedLanguages {
 		extractLibInfo(l.customLibAnnotationExtractor())
-		extractLibInfo(l.libVersionAnnotationExtractor(containerRegistry))
+		extractLibInfo(l.libVersionAnnotationExtractor(containerRegistry, imageResolver))
 		for _, ctr := range pod.Spec.Containers {
 			extractLibInfo(l.ctrCustomLibAnnotationExtractor(ctr.Name))
-			extractLibInfo(l.ctrLibVersionAnnotationExtractor(ctr.Name, containerRegistry))
+			extractLibInfo(l.ctrLibVersionAnnotationExtractor(ctr.Name, containerRegistry, imageResolver))
 		}
 	}
 
@@ -460,7 +462,7 @@ func (m *mutatorCore) getAutoDetectedLibraries(pod *corev1.Pod) []libInfo {
 	// Currently we only support deployments
 	switch ownerKind {
 	case "Deployment":
-		return getLibListFromDeploymentAnnotations(store, ownerName, pod.Namespace, m.config.containerRegistry)
+		return getLibListFromDeploymentAnnotations(store, ownerName, pod.Namespace, m.config.containerRegistry, m.imageResolver)
 	default:
 		log.Debugf("This ownerKind:%s is not yet supported by the process language auto-detection feature", ownerKind)
 		return nil

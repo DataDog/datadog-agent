@@ -339,7 +339,7 @@ sm_record_go_interface_impl(global_ctx_t* global_ctx, uint64_t go_runtime_type,
     LOG(4, "chase: interface type not found %llx", go_runtime_type);
     return true;
   }
-  const bool decrease_ttl = false;
+  const bool decrease_ttl = true;
   return sm_record_pointer(global_ctx, t, addr, decrease_ttl, ENQUEUE_LEN_SENTINEL);
 }
 

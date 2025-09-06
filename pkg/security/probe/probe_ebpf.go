@@ -186,6 +186,9 @@ type EBPFProbe struct {
 
 	// raw packet filter for actions
 	rawPacketActionFilters []rawpacket.Filter
+
+	// PrCtl and name truncation
+	MetricNameTruncated *atomic.Uint64
 }
 
 // GetUseRingBuffers returns p.useRingBuffers
@@ -898,6 +901,11 @@ func (p *EBPFProbe) SendStats() error {
 
 	value := p.BPFFilterTruncated.Swap(0)
 	if err := p.statsdClient.Count(metrics.MetricBPFFilterTruncated, int64(value), []string{}, 1.0); err != nil {
+		return err
+	}
+
+	valueNameTruncated := p.MetricNameTruncated.Swap(0)
+	if err := p.statsdClient.Count(metrics.MetricNameTruncated, int64(valueNameTruncated), []string{}, 1.0); err != nil {
 		return err
 	}
 
@@ -1659,6 +1667,14 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		// is this thread-safe?
 		event.ProcessCacheEntry.CapsAttempted |= event.CapabilitiesUsage.Attempted
 		event.ProcessCacheEntry.CapsUsed |= event.CapabilitiesUsage.Used
+	case model.PrCtlEventType:
+		if _, err = event.PrCtl.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode prctl event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+		if event.PrCtl.IsNameTruncated {
+			p.MetricNameTruncated.Add(1)
+		}
 	}
 
 	// send related events
@@ -1865,7 +1881,7 @@ func (p *EBPFProbe) updateProbes(ruleSetEventTypes []eval.EventType, needRawSysc
 	}
 
 	// extract probe to activate per the event types
-	for eventType, selectors := range probes.GetSelectorsPerEventType(p.useFentry) {
+	for eventType, selectors := range probes.GetSelectorsPerEventType(p.useFentry, p.kernelVersion.HasBpfGetSocketCookieForCgroupSocket()) {
 		if (eventType == "*" || slices.Contains(requestedEventTypes, eventType) || p.isNeededForActivityDump(eventType) || p.isNeededForSecurityProfile(eventType) || p.config.Probe.EnableAllProbes) && p.validEventTypeForConfig(eventType) {
 			activatedProbes = append(activatedProbes, selectors...)
 
@@ -2622,6 +2638,7 @@ func (p *EBPFProbe) initManagerOptionsMapSpecEditors() {
 		NetworkSkStorageEnabled:       p.isSKStorageSupported(),
 		SpanTrackMaxCount:             1,
 		CapabilitiesMonitoringEnabled: p.config.Probe.CapabilitiesMonitoringEnabled,
+		CgroupSocketEnabled:           p.kernelVersion.HasBpfGetSocketCookieForCgroupSocket(),
 	}
 
 	if p.config.Probe.SpanTrackingEnabled {
@@ -2651,8 +2668,13 @@ func (p *EBPFProbe) initManagerOptionsExcludedFunctions() error {
 	// prevent some TC classifiers from loading
 	if !p.config.Probe.NetworkEnabled {
 		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetAllTCProgramFunctions()...)
+		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetAllSocketProgramFunctions()...)
 	} else if !p.config.Probe.NetworkRawPacketEnabled {
 		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetRawPacketTCProgramFunctions()...)
+	}
+
+	if !p.kernelVersion.HasBpfGetSocketCookieForCgroupSocket() {
+		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetAllSocketProgramFunctions()...)
 	}
 
 	// prevent some tal calls from loading
@@ -2758,6 +2780,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, ipc ipc.Component, opts O
 		dnsLayer:             new(layers.DNS),
 		ipc:                  ipc,
 		BPFFilterTruncated:   atomic.NewUint64(0),
+		MetricNameTruncated:  atomic.NewUint64(0),
 	}
 
 	if err := p.detectKernelVersion(); err != nil {

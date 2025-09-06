@@ -15,12 +15,12 @@ import (
 
 // NewMutatorWithFilter handles the dependency injection for the mutator. If a targets list is defined, it will return
 // a target mutator, otherwise it will return a namespace mutator.
-func NewMutatorWithFilter(c *Config, wmeta workloadmeta.Component) (mutatecommon.MutatorWithFilter, error) {
+func NewMutatorWithFilter(c *Config, wmeta workloadmeta.Component, imageResolver ImageResolver) (mutatecommon.MutatorWithFilter, error) {
 	if len(c.Instrumentation.Targets) > 0 {
 		log.Debug("Using target mutator")
-		return NewTargetMutator(c, wmeta)
+		return NewTargetMutator(c, wmeta, imageResolver)
 	}
 
 	log.Debug("Using namespace mutator")
-	return NewNamespaceMutator(c, wmeta)
+	return NewNamespaceMutator(c, wmeta, imageResolver)
 }

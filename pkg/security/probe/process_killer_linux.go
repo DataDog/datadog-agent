@@ -9,13 +9,11 @@ package probe
 import (
 	"errors"
 	"math"
-	"os"
 	"syscall"
 
 	psutil "github.com/shirou/gopsutil/v4/process"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 var (
@@ -66,30 +64,16 @@ func NewProcessKillerOS(f func(pid, sig uint32) error) ProcessKillerOS {
 
 // Kill tries to kill from userspace
 func (p *ProcessKillerLinux) Kill(sig uint32, pc *killContext) error {
-
-	// check path
-	exePathLink := utils.ProcExePath(uint32(pc.pid))
-	exePath, err := os.Readlink(exePathLink)
+	proc, err := psutil.NewProcess(int32(pc.pid))
 	if err != nil {
 		return errors.New("process not found in procfs")
 	}
-	if exePath != pc.path {
-		return errors.New("paths don't match")
+	createdAt, err := proc.CreateTime()
+	if err != err {
+		return errors.New("process not found in procfs")
 	}
-
-	// check timestamp
-	if pc.createdAt != 0 {
-		proc, err := psutil.NewProcess(int32(pc.pid))
-		if err != nil {
-			return errors.New("process not found in procfs")
-		}
-		createdAt, err := proc.CreateTime()
-		if err != err {
-			return errors.New("process not found in procfs")
-		}
-		if math.Abs(float64(pc.createdAt-uint64(createdAt))) > killWithinMillis {
-			return errors.New("create at timestamps don't match")
-		}
+	if math.Abs(float64(pc.createdAt-uint64(createdAt))) > killWithinMillis {
+		return errors.New("create at timestamps don't match")
 	}
 
 	return syscall.Kill(pc.pid, syscall.Signal(sig))
@@ -112,7 +96,7 @@ func (p *ProcessKillerLinux) getProcesses(scope string, ev *model.Event, entry *
 				continue
 			}
 			createdAt, err := proc.CreateTime()
-			if err != nil {
+			if err != nil || createdAt == 0 {
 				continue
 			}
 			pcs = append(pcs, killContext{
