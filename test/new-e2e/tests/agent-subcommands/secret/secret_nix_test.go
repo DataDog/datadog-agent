@@ -74,7 +74,7 @@ host_aliases:
 	assert.Contains(v.T(), output, "Owner: dd-agent")
 	assert.Contains(v.T(), output, "Group: dd-agent")
 	assert.Regexp(v.T(), "Number of secrets .+: 1", output)
-	assert.Contains(v.T(), output, "- 'alias_secret':\n\tused in 'datadog.yaml' configuration in entry 'host_aliases/0'")
+	assert.Regexp(v.T(), `- 'alias_secret':\n\s+used in 'datadog\.yaml' configuration in entry 'host_aliases/0'`, output)
 	// assert we don't output the resolved secret
 	assert.NotContains(v.T(), output, "a_super_secret_string")
 }
