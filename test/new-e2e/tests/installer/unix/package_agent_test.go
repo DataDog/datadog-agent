@@ -60,11 +60,13 @@ func (s *packageAgentSuite) TestInstall() {
 	agentVersion := s.host.AgentStableVersion()
 	agentDir := fmt.Sprintf("/opt/datadog-packages/datadog-agent/%s", agentVersion)
 	installerSymlink := "/opt/datadog-packages/datadog-agent/stable/embedded/bin/installer"
+	agentSymlink := "/opt/datadog-packages/datadog-agent/stable/bin/agent/agent"
 	agentRunSymlink := agentDir
 	if s.installMethod == InstallMethodAnsible {
 		agentDir = "/opt/datadog-agent"
 		agentRunSymlink = fmt.Sprintf("/opt/datadog-packages/run/datadog-agent/%s", agentVersion)
 		installerSymlink = path.Join(agentDir, "embedded/bin/installer")
+		agentSymlink = path.Join(agentDir, "bin/agent/agent")
 	}
 
 	state.AssertDirExists(agentDir, 0755, "dd-agent", "dd-agent")
@@ -75,7 +77,7 @@ func (s *packageAgentSuite) TestInstall() {
 	state.AssertFileExists(path.Join(agentDir, "embedded/share/system-probe/ebpf/dns.o"), 0644, "root", "root")
 
 	state.AssertSymlinkExists("/opt/datadog-packages/datadog-agent/stable", agentRunSymlink, "root", "root")
-	state.AssertSymlinkExists("/usr/bin/datadog-agent", path.Join(agentDir, "bin/agent/agent"), "root", "root")
+	state.AssertSymlinkExists("/usr/bin/datadog-agent", agentSymlink, "root", "root")
 	state.AssertSymlinkExists("/usr/bin/datadog-installer", installerSymlink, "root", "root")
 	state.AssertFileExistsAnyUser("/etc/datadog-agent/install.json", 0644)
 }
