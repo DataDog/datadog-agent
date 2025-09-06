@@ -8,9 +8,14 @@
 
 int __attribute__((always_inline)) tail_call_dr_progs(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type, int key) {
     switch (prog_type) {
-    case KPROBE_OR_FENTRY_TYPE:
-        bpf_tail_call_compat(ctx, &dentry_resolver_kprobe_or_fentry_progs, key);
+
+#define X(lower_name, upper_name) \
+    case KOF_##upper_name##_TYPE: \
+        bpf_tail_call_compat(ctx, &dentry_resolver_##lower_name##progs, key); \
         break;
+#include "../constants/kof.x"
+#undef X
+
     case TRACEPOINT_TYPE:
         bpf_tail_call_compat(ctx, &dentry_resolver_tracepoint_progs, key);
         break;
