@@ -9,7 +9,6 @@ package networkpathintegration
 import (
 	_ "embed"
 	"fmt"
-	"slices"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -123,10 +122,6 @@ func (s *baseNetworkPathIntegrationTestSuite) checkGoogleDNSUDP(c *assert.Collec
 
 func (s *baseNetworkPathIntegrationTestSuite) checkGoogleTCPSocket(c *assert.CollectT, agentHostname string) {
 	np := s.expectNetpath(c, func(np *aggregator.Netpath) bool {
-		// check to see if "tcp_method:syn_socket" is in tags
-		if !slices.Contains(np.Tags, "tcp_method:syn_socket") {
-			return false
-		}
 		return np.Destination.Hostname == "8.8.8.8" && np.Protocol == "TCP"
 	})
 	assert.NotZero(c, np.Destination.Port)

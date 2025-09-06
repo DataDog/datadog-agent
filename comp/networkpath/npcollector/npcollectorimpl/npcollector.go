@@ -364,6 +364,10 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 	path.Namespace = s.networkDevicesNamespace
 	path.Origin = payload.PathOriginNetworkTraffic
 
+	// TODO: Migrate NPCollector to the new format
+	// TODO: Migrate NPCollector to the new format
+	// TODO: Migrate NPCollector to the new format
+
 	// Perform reverse DNS lookup on destination and hop IPs
 	s.enrichPathWithRDNS(&path, ptest.Pathtest.Metadata.ReverseDNSHostname)
 

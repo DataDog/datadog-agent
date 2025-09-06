@@ -42,8 +42,6 @@ func GetHostname(ipAddr string) string {
 	if len(currHostList) > 0 {
 		// TODO: Reverse DNS: Do we need to handle cases with multiple DNS being returned?
 		currHost = currHostList[0]
-	} else {
-		currHost = ipAddr
 	}
 	// Trim trailing `.` in hostname since users are more familiar with this form.
 	currHost = strings.TrimRight(currHost, ".")
