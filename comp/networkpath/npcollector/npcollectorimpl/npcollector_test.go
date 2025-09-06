@@ -102,25 +102,127 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 		var p payload.NetworkPath
 		if cfg.DestHostname == "10.0.0.2" {
 			p = payload.NetworkPath{
-				PathtraceID: "pathtrace-id-111",
-				Protocol:    payload.ProtocolUDP,
-				Source:      payload.NetworkPathSource{Hostname: "abc"},
-				Destination: payload.NetworkPathDestination{Hostname: "abc", IPAddress: "10.0.0.2", Port: 80},
-				Hops: []payload.NetworkPathHop{
-					{Hostname: "hop_1", IPAddress: "1.1.1.1"},
-					{Hostname: "hop_2", IPAddress: "1.1.1.2"},
+				AgentVersion: "1.0.42",
+				Protocol:     payload.ProtocolUDP,
+				Source: payload.NetworkPathSource{
+					Hostname:    "test-hostname",
+					Name:        "test-hostname",
+					DisplayName: "test-hostname",
+				},
+				Destination: payload.NetworkPathDestination{
+					Hostname: "10.0.0.2",
+					Port:     33434,
+				},
+				Traceroute: payload.Traceroute{
+					Runs: []payload.TracerouteRun{
+						{
+							RunID: "aa-bb-cc",
+							Source: payload.TracerouteSource{
+								IPAddress: net.ParseIP("10.0.0.5"),
+								Port:      12345,
+							},
+							Destination: payload.TracerouteDestination{
+								IPAddress: net.ParseIP("8.8.8.8"),
+								Port:      33434, // computer port or Boca Raton, FL?
+							},
+							Hops: []payload.TracerouteHop{
+								{
+									TTL:       1,
+									IPAddress: net.ParseIP("10.0.0.1"),
+									RTT:       0.001, // seconds
+								},
+								{
+									TTL:       2,
+									IPAddress: net.IP{},
+								},
+								{
+									TTL:       3,
+									IPAddress: net.ParseIP("172.0.0.255"),
+									RTT:       0.003512345, // seconds
+								},
+							},
+						},
+					},
+					HopCount: payload.HopCountStats{
+						Avg: 10,
+						Min: 5,
+						Max: 15,
+					},
+				},
+				E2eProbe: payload.E2eProbe{
+					RTTs:                 []float64{0.100, 0.200},
+					PacketsSent:          10,
+					PacketsReceived:      5,
+					PacketLossPercentage: 0.5,
+					Jitter:               10,
+					RTT: payload.E2eProbeRttLatency{
+						Avg: 15,
+						Min: 10,
+						Max: 20,
+					},
 				},
 			}
 		}
 		if cfg.DestHostname == "10.0.0.4" {
 			p = payload.NetworkPath{
-				PathtraceID: "pathtrace-id-222",
-				Protocol:    payload.ProtocolUDP,
-				Source:      payload.NetworkPathSource{Hostname: "abc"},
-				Destination: payload.NetworkPathDestination{Hostname: "abc", IPAddress: "10.0.0.4", Port: 80},
-				Hops: []payload.NetworkPathHop{
-					{Hostname: "hop_1", IPAddress: "1.1.1.3"},
-					{Hostname: "hop_2", IPAddress: "1.1.1.4"},
+				AgentVersion: "1.0.42",
+				Protocol:     payload.ProtocolUDP,
+				Source: payload.NetworkPathSource{
+					Hostname:    "test-hostname",
+					Name:        "test-hostname",
+					DisplayName: "test-hostname",
+				},
+				Destination: payload.NetworkPathDestination{
+					Hostname: "10.0.0.4",
+					Port:     33434,
+				},
+				Traceroute: payload.Traceroute{
+					Runs: []payload.TracerouteRun{
+						{
+							RunID: "aa-bb-cc",
+							Source: payload.TracerouteSource{
+								IPAddress: net.ParseIP("10.0.0.5"),
+								Port:      12345,
+							},
+							Destination: payload.TracerouteDestination{
+								IPAddress: net.ParseIP("8.8.8.8"),
+								Port:      33434, // computer port or Boca Raton, FL?
+							},
+							Hops: []payload.TracerouteHop{
+								{
+									TTL:       1,
+									IPAddress: net.ParseIP("10.0.0.1"),
+									RTT:       0.001, // seconds
+								},
+								{
+									TTL:       2,
+									IPAddress: net.IP{},
+								},
+								{
+									TTL:       3,
+									IPAddress: net.ParseIP("172.0.0.255"),
+									RTT:       0.003512345, // seconds
+								},
+							},
+						},
+					},
+					HopCount: payload.HopCountStats{
+						Avg: 10,
+						Min: 5,
+						Max: 15,
+					},
+				},
+				E2eProbe: payload.E2eProbe{
+					RTTs:                 []float64{0.100, 0.200},
+					PacketsSent:          10,
+					PacketsReceived:      5,
+					PacketLossPercentage: 0.5,
+					Jitter:               10,
+					RTT: payload.E2eProbeRttLatency{
+						Avg: 15,
+						Min: 10,
+						Max: 20,
+					},
 				},
 			}
 		}
@@ -132,57 +234,76 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 	event1 := []byte(`
 {
     "timestamp": 0,
-    "agent_version": "",
+    "agent_version": "1.0.42",
     "namespace": "my-ns1",
     "test_config_id": "",
     "test_result_id": "",
-    "pathtrace_id": "pathtrace-id-222",
+    "pathtrace_id": "",
     "origin": "network_traffic",
     "protocol": "UDP",
     "source": {
-        "name": "",
-        "display_name": "",
-        "hostname": "abc",
+        "name": "test-hostname",
+        "display_name": "test-hostname",
+        "hostname": "test-hostname",
         "container_id": "testId2"
     },
     "destination": {
-        "hostname": "abc",
-        "port": 80,
-        "ip_address": "10.0.0.4",
-        "reverse_dns_hostname": "hostname-10.0.0.4"
+        "hostname": "10.0.0.4",
+        "port": 33434
     },
-    "hops": [
-        {
-            "ttl": 0,
-            "ip_address": "1.1.1.3",
-            "hostname": "hop_1",
-            "reachable": false
-        },
-        {
-            "ttl": 0,
-            "ip_address": "1.1.1.4",
-            "hostname": "hop_2",
-            "reachable": false
-        }
-    ],
     "traceroute": {
-        "runs": null,
+        "runs": [
+            {
+                "run_id": "aa-bb-cc",
+                "source": {
+                    "ip_address": "10.0.0.5",
+                    "port": 12345
+                },
+                "destination": {
+                    "ip_address": "8.8.8.8",
+                    "port": 33434,
+                    "reverse_dns": ""
+                },
+                "hops": [
+                    {
+                        "ttl": 1,
+                        "ip_address": "10.0.0.1",
+                        "rtt": 0.001,
+                        "reachable": false
+                    },
+                    {
+                        "ttl": 2,
+                        "ip_address": "",
+                        "reachable": false
+                    },
+                    {
+                        "ttl": 3,
+                        "ip_address": "172.0.0.255",
+                        "rtt": 0.003512345,
+                        "reachable": false
+                    }
+                ]
+            }
+        ],
         "hop_count": {
-            "avg": 0,
-            "min": 0,
-            "max": 0
+            "avg": 10,
+            "min": 5,
+            "max": 15
         }
     },
     "e2e_probe": {
-        "rtts": null,
-        "packets_sent": 0,
-        "packets_received": 0,
-        "packet_loss_percentage": 0,
-        "jitter": 0,
+        "rtts": [
+            0.1,
+            0.2
+        ],
+        "packets_sent": 10,
+        "packets_received": 5,
+        "packet_loss_percentage": 0.5,
+        "jitter": 10,
         "rtt": {
-            "avg": 0,
-            "min": 0,
-            "max": 0
+            "avg": 15,
+            "min": 10,
+            "max": 20
         }
     }
 }
@@ -191,57 +312,76 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 	event2 := []byte(`
 {
     "timestamp": 0,
-    "agent_version": "",
+    "agent_version": "1.0.42",
     "namespace": "my-ns1",
     "test_config_id": "",
     "test_result_id": "",
-    "pathtrace_id": "pathtrace-id-111",
+    "pathtrace_id": "",
     "origin": "network_traffic",
     "protocol": "UDP",
     "source": {
-        "name": "",
-        "display_name": "",
-        "hostname": "abc",
+        "name": "test-hostname",
+        "display_name": "test-hostname",
+        "hostname": "test-hostname",
         "container_id": "testId1"
     },
     "destination": {
-        "hostname": "abc",
-        "port": 80,
-        "ip_address": "10.0.0.2",
-        "reverse_dns_hostname": "hostname-10.0.0.2"
+        "hostname": "10.0.0.2",
+        "port": 33434
     },
-    "hops": [
-        {
-            "ttl": 0,
-            "ip_address": "1.1.1.1",
-            "hostname": "hop_1",
-            "reachable": false
-        },
-        {
-            "ttl": 0,
-            "ip_address": "1.1.1.2",
-            "hostname": "hop_2",
-            "reachable": false
-        }
-    ],
     "traceroute": {
-        "runs": null,
+        "runs": [
+            {
+                "run_id": "aa-bb-cc",
+                "source": {
+                    "ip_address": "10.0.0.5",
+                    "port": 12345
+                },
+                "destination": {
+                    "ip_address": "8.8.8.8",
+                    "port": 33434,
+                    "reverse_dns": ""
+                },
+                "hops": [
+                    {
+                        "ttl": 1,
+                        "ip_address": "10.0.0.1",
+                        "rtt": 0.001,
+                        "reachable": false
+                    },
+                    {
+                        "ttl": 2,
+                        "ip_address": "",
+                        "reachable": false
+                    },
+                    {
+                        "ttl": 3,
+                        "ip_address": "172.0.0.255",
+                        "rtt": 0.003512345,
+                        "reachable": false
+                    }
+                ]
+            }
+        ],
         "hop_count": {
-            "avg": 0,
-            "min": 0,
-            "max": 0
+            "avg": 10,
+            "min": 5,
+            "max": 15
         }
     },
     "e2e_probe": {
-        "rtts": null,
-        "packets_sent": 0,
-        "packets_received": 0,
-        "packet_loss_percentage": 0,
-        "jitter": 0,
+        "rtts": [
+            0.1,
+            0.2
+        ],
+        "packets_sent": 10,
+        "packets_received": 5,
+        "packet_loss_percentage": 0.5,
+        "jitter": 10,
         "rtt": {
-            "avg": 0,
-            "min": 0,
-            "max": 0
+            "avg": 15,
+            "min": 10,
+            "max": 20
         }
     }
 }

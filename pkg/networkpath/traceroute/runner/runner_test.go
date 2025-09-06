@@ -74,15 +74,18 @@ func TestProcessResults(t *testing.T) {
 							},
 							Hops: []*result.TracerouteHop{
 								{
+									TTL:       1,
 									IPAddress: net.ParseIP("10.0.0.1"),
 									ICMPType:  11,
 									ICMPCode:  0,
 									RTT:       0.001, // seconds
 								},
 								{
+									TTL:       2,
 									IPAddress: net.IP{},
 								},
 								{
+									TTL:       3,
 									IPAddress: net.ParseIP("172.0.0.255"),
 									ICMPType:  11,
 									ICMPCode:  0,
@@ -90,6 +93,11 @@ func TestProcessResults(t *testing.T) {
 								},
 							},
 						},
+					},
+					HopCount: result.HopCountStats{
+						Avg: 10,
+						Min: 5,
+						Max: 15,
 					},
 				},
 				E2eProbe: result.E2eProbe{
@@ -131,18 +139,26 @@ func TestProcessResults(t *testing.T) {
 							},
 							Hops: []payload.TracerouteHop{
 								{
+									TTL:       1,
 									IPAddress: net.ParseIP("10.0.0.1"),
 									RTT:       0.001, // seconds
 								},
 								{
+									TTL:       2,
 									IPAddress: net.IP{},
 								},
 								{
+									TTL:       3,
 									IPAddress: net.ParseIP("172.0.0.255"),
 									RTT:       0.003512345, // seconds
 								},
 							},
 						},
+					},
+					HopCount: payload.HopCountStats{
+						Avg: 10,
+						Min: 5,
+						Max: 15,
 					},
 				},
 				E2eProbe: payload.E2eProbe{
