@@ -2,7 +2,7 @@
 #define _CONSTANTS_SYSCALL_MACRO_H_
 
 #if defined(__x86_64__)
-#if USE_SYSCALL_WRAPPER == 1
+#ifdef USE_SYSCALL_WRAPPER
 #define SYSCALL64_PREFIX "__x64_"
 #define SYSCALL32_PREFIX "__ia32_"
 #else
@@ -13,7 +13,7 @@
 #define SYSCALL64_PT_REGS_PARM1(x) ((x)->di)
 #define SYSCALL64_PT_REGS_PARM2(x) ((x)->si)
 #define SYSCALL64_PT_REGS_PARM3(x) ((x)->dx)
-#if USE_SYSCALL_WRAPPER == 1
+#ifdef USE_SYSCALL_WRAPPER
 #define SYSCALL64_PT_REGS_PARM4(x) ((x)->r10)
 #else
 #define SYSCALL64_PT_REGS_PARM4(x) ((x)->cx)
@@ -29,7 +29,7 @@
 #define SYSCALL32_PT_REGS_PARM6(x) ((x)->bp)
 
 #elif defined(__aarch64__)
-#if USE_SYSCALL_WRAPPER == 1
+#ifdef USE_SYSCALL_WRAPPER
 #define SYSCALL64_PREFIX "__arm64_"
 #define SYSCALL32_PREFIX "__arm32_"
 #else
@@ -107,7 +107,7 @@
     if (!rctx) return 0;                               \
     __MAP(x, m, __VA_ARGS__)
 
-#if USE_SYSCALL_WRAPPER == 1
+#ifdef USE_SYSCALL_WRAPPER
 #define __SC_64_PARAM(n, t, a) \
     t a;                       \
     bpf_probe_read(&a, sizeof(t), (void *)&SYSCALL64_PT_REGS_PARM##n(rctx));
