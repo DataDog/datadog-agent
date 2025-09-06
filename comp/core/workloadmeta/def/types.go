@@ -15,6 +15,7 @@ import (
 
 	"github.com/mohae/deepcopy"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
@@ -45,6 +46,7 @@ const (
 	KindContainer              Kind = "container"
 	KindKubernetesPod          Kind = "kubernetes_pod"
 	KindKubernetesMetadata     Kind = "kubernetes_metadata"
+	KindKubeletMetrics         Kind = "kubelet_metrics"
 	KindKubernetesDeployment   Kind = "kubernetes_deployment"
 	KindECSTask                Kind = "ecs_task"
 	KindContainerImageMetadata Kind = "container_image_metadata"
@@ -452,6 +454,14 @@ type ContainerResources struct {
 	// The container is requesting to use entire core(s)
 	// e.g. 1000m or 1 -- NOT 1500m or 1.5
 	RequestedWholeCores *bool
+
+	// Raw resources. Needed by kubelet check. It needs to emit metrics for all
+	// resources. That includes the typical ones defined above (cpu, memory,
+	// gpu) but also custom resources.
+	// Later, with more use cases, we can decide if we want to keep all the ones
+	// above.
+	RawRequests map[string]resource.Quantity
+	RawLimits   map[string]resource.Quantity
 }
 
 // String returns a string representation of ContainerPort.
@@ -752,20 +762,22 @@ type KubernetesPod struct {
 	FinishedAt                 time.Time
 	SecurityContext            *PodSecurityContext
 
-	// The following fields are only needed for the KSM check when configured to
-	// emit pod metrics from the node agent. That means only the node agent
-	// needs them, so for now they're not added to the protobufs.
-	CreationTimestamp     time.Time
-	StartTime             *time.Time
-	NodeName              string
-	HostIP                string
-	HostNetwork           bool
-	InitContainerStatuses []KubernetesContainerStatus
-	ContainerStatuses     []KubernetesContainerStatus
-	Conditions            []KubernetesPodCondition
-	Volumes               []KubernetesPodVolume
-	Tolerations           []KubernetesPodToleration
-	Reason                string
+	// The following fields are only needed for the kubelet check or KSM check
+	// when configured to emit pod metrics from the node agent. That means only
+	// the node agent needs them, so for now they're not added to the protobufs.
+	CreationTimestamp          time.Time
+	DeletionTimestamp          *time.Time
+	StartTime                  *time.Time
+	NodeName                   string
+	HostIP                     string
+	HostNetwork                bool
+	InitContainerStatuses      []KubernetesContainerStatus
+	ContainerStatuses          []KubernetesContainerStatus
+	EphemeralContainerStatuses []KubernetesContainerStatus
+	Conditions                 []KubernetesPodCondition
+	Volumes                    []KubernetesPodVolume
+	Tolerations                []KubernetesPodToleration
+	Reason                     string
 }
 
 // GetID implements Entity#GetID.
@@ -1111,6 +1123,42 @@ func (m *KubernetesMetadata) Merge(e Entity) error {
 	}
 
 	return merge(m, mm)
+}
+
+// KubeletMetrics contains collection-level metrics from the kubelet
+type KubeletMetrics struct {
+	EntityID
+	ExpiredPodCount int
+}
+
+// GetID implements Entity#GetID.
+func (km *KubeletMetrics) GetID() EntityID {
+	return km.EntityID
+}
+
+// Merge implements Entity#Merge.
+func (km *KubeletMetrics) Merge(e Entity) error {
+	other, ok := e.(*KubeletMetrics)
+	if !ok {
+		return fmt.Errorf("cannot merge KubeletMetrics with different kind %T", e)
+	}
+
+	return merge(km, other)
+}
+
+// DeepCopy implements Entity#DeepCopy.
+func (km KubeletMetrics) DeepCopy() Entity {
+	ckm := deepcopy.Copy(km).(KubeletMetrics)
+	return &ckm
+}
+
+// String implements Entity#String
+func (km *KubeletMetrics) String(verbose bool) string {
+	var sb strings.Builder
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprint(&sb, km.EntityID.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "Expired pods count:", km.ExpiredPodCount)
+	return sb.String()
 }
 
 // DeepCopy implements Entity#DeepCopy.

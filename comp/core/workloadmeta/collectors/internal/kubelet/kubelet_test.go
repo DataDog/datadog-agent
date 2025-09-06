@@ -87,6 +87,15 @@ func TestPodParser(t *testing.T) {
 									Format: "1",
 								},
 								"cpu": resource.MustParse("100m"),
+								"example.com/custom-resource": {
+									Format: "1",
+								},
+							},
+							Limits: kubelet.ResourceList{
+								"cpu": resource.MustParse("200m"),
+								"example.com/custom-resource": {
+									Format: "2",
+								},
 							},
 						},
 						Env: []kubelet.EnvVar{
@@ -186,6 +195,22 @@ func TestPodParser(t *testing.T) {
 		Resources: workloadmeta.ContainerResources{
 			GPUVendorList: []string{"nvidia"},
 			CPURequest:    pointer.Ptr(10.0),
+			CPULimit:      pointer.Ptr(20.0),
+			RawRequests: map[string]resource.Quantity{
+				"nvidia.com/gpu": {
+					Format: "1",
+				},
+				"cpu": resource.MustParse("100m"),
+				"example.com/custom-resource": {
+					Format: "1",
+				},
+			},
+			RawLimits: map[string]resource.Quantity{
+				"cpu": resource.MustParse("200m"),
+				"example.com/custom-resource": {
+					Format: "2",
+				},
+			},
 		},
 		Owner: &workloadmeta.EntityID{
 			Kind: "kubernetes_pod",
@@ -351,6 +376,15 @@ func TestPodParser(t *testing.T) {
 				ImageID:      "5dbe7e1b6b9c",
 				Ready:        true,
 				RestartCount: 1,
+			},
+		},
+		EphemeralContainerStatuses: []workloadmeta.KubernetesContainerStatus{
+			{
+				ContainerID: "docker://ephemeral-container-id",
+				Name:        "ephemeral-container",
+				Image:       "busybox:latest",
+				ImageID:     "12345",
+				Ready:       false,
 			},
 		},
 		Conditions: []workloadmeta.KubernetesPodCondition{
