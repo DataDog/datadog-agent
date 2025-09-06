@@ -426,7 +426,7 @@ TAIL_CALL_FNC(get_envs_offset, void *ctx) {
     u64 offset = syscall->exec.args_envs_ctx.envs_offset;
     u32 args_count = syscall->exec.args_envs_ctx.args_count;
 
-#ifndef USE_FENTRY
+#if !defined(USE_FENTRY) && !(defined(USE_SYSCALL_WRAPPER) && USE_SYSCALL_WRAPPER == 1)
 #pragma unroll
 #endif
     for (i = 0; i < MAX_ARGS_READ_PER_TAIL && args_count < syscall->exec.args.count; i++) {
@@ -482,7 +482,7 @@ void __attribute__((always_inline)) parse_args_envs(void *ctx, struct args_envs_
 
     void *buff_ptr = &buff->value[0];
 
-#ifndef USE_FENTRY
+#if !defined(USE_FENTRY) && !(defined(USE_SYSCALL_WRAPPER) && USE_SYSCALL_WRAPPER == 1)
 #pragma unroll
 #endif
     for (i = 0; i < MAX_ARRAY_ELEMENT_PER_TAIL; i++) {
@@ -829,6 +829,6 @@ int hook_security_inode_follow_link(ctx_t *ctx) {
     if (!syscall) {
         return 0;
     }
-    syscall->exec.is_through_symlink = 1;    
+    syscall->exec.is_through_symlink = 1;
     return 0;
 }

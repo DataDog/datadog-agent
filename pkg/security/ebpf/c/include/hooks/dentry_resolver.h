@@ -28,7 +28,7 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
         return DENTRY_INVALID;
     }
 
-#ifndef USE_FENTRY
+#if !defined(USE_FENTRY) && !(defined(USE_SYSCALL_WRAPPER) && USE_SYSCALL_WRAPPER == 1)
 #pragma unroll
 #endif
     for (int i = 0; i < DR_MAX_ITERATION_DEPTH; i++) {
@@ -183,7 +183,7 @@ int __attribute__((always_inline)) dentry_resolver_erpc_write_user(void *ctx, en
 
     state->iteration++;
 
-#ifndef USE_FENTRY
+#if !defined(USE_FENTRY) && !(defined(USE_SYSCALL_WRAPPER) && USE_SYSCALL_WRAPPER == 1)
 #pragma unroll
 #endif
     for (int i = 0; i < DR_MAX_ITERATION_DEPTH; i++) {
@@ -267,7 +267,7 @@ int __attribute__((always_inline)) dentry_resolver_erpc_mmap(void *ctx, enum TAI
 
     state->iteration++;
 
-#ifndef USE_FENTRY
+#if !defined(USE_FENTRY) && !(defined(USE_SYSCALL_WRAPPER) && USE_SYSCALL_WRAPPER == 1)
 #pragma unroll
 #endif
     for (int i = 0; i < DR_MAX_ITERATION_DEPTH; i++) {
