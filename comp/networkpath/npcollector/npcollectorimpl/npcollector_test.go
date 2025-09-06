@@ -134,53 +134,22 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
     "timestamp": 0,
     "agent_version": "",
     "namespace": "my-ns1",
-    "pathtrace_id": "pathtrace-id-111",
-    "origin":"network_traffic",
-    "protocol": "UDP",
-    "source": {
-        "hostname": "abc",
-        "container_id": "testId1"
-    },
-    "destination": {
-        "hostname": "abc",
-        "ip_address": "10.0.0.2",
-        "port": 80,
-		"reverse_dns_hostname": "hostname-10.0.0.2"
-    },
-    "hops": [
-        {
-            "ttl": 0,
-            "ip_address": "1.1.1.1",
-            "hostname": "hop_1",
-            "reachable": false
-        },
-        {
-            "ttl": 0,
-            "ip_address": "1.1.1.2",
-            "hostname": "hop_2",
-            "reachable": false
-        }
-    ]
-}
-`)
-	// language=json
-	event2 := []byte(`
-{
-    "timestamp": 0,
-    "agent_version": "",
-    "namespace": "my-ns1",
+    "test_config_id": "",
+    "test_result_id": "",
     "pathtrace_id": "pathtrace-id-222",
-    "origin":"network_traffic",
+    "origin": "network_traffic",
     "protocol": "UDP",
     "source": {
+        "name": "",
+        "display_name": "",
         "hostname": "abc",
         "container_id": "testId2"
     },
     "destination": {
         "hostname": "abc",
-        "ip_address": "10.0.0.4",
         "port": 80,
-		"reverse_dns_hostname": "hostname-10.0.0.4"
+        "ip_address": "10.0.0.4",
+        "reverse_dns_hostname": "hostname-10.0.0.4"
     },
     "hops": [
         {
@@ -195,7 +164,86 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
             "hostname": "hop_2",
             "reachable": false
         }
-    ]
+    ],
+    "traceroute": {
+        "runs": null,
+        "hop_count": {
+            "avg": 0,
+            "min": 0,
+            "max": 0
+        }
+    },
+    "e2e_probe": {
+        "rtts": null,
+        "packets_sent": 0,
+        "packets_received": 0,
+        "packet_loss_percentage": 0,
+        "jitter": 0,
+        "rtt": {
+            "avg": 0,
+            "min": 0,
+            "max": 0
+        }
+    }
+}
+`)
+	// language=json
+	event2 := []byte(`
+{
+    "timestamp": 0,
+    "agent_version": "",
+    "namespace": "my-ns1",
+    "test_config_id": "",
+    "test_result_id": "",
+    "pathtrace_id": "pathtrace-id-111",
+    "origin": "network_traffic",
+    "protocol": "UDP",
+    "source": {
+        "name": "",
+        "display_name": "",
+        "hostname": "abc",
+        "container_id": "testId1"
+    },
+    "destination": {
+        "hostname": "abc",
+        "port": 80,
+        "ip_address": "10.0.0.2",
+        "reverse_dns_hostname": "hostname-10.0.0.2"
+    },
+    "hops": [
+        {
+            "ttl": 0,
+            "ip_address": "1.1.1.1",
+            "hostname": "hop_1",
+            "reachable": false
+        },
+        {
+            "ttl": 0,
+            "ip_address": "1.1.1.2",
+            "hostname": "hop_2",
+            "reachable": false
+        }
+    ],
+    "traceroute": {
+        "runs": null,
+        "hop_count": {
+            "avg": 0,
+            "min": 0,
+            "max": 0
+        }
+    },
+    "e2e_probe": {
+        "rtts": null,
+        "packets_sent": 0,
+        "packets_received": 0,
+        "packet_loss_percentage": 0,
+        "jitter": 0,
+        "rtt": {
+            "avg": 0,
+            "min": 0,
+            "max": 0
+        }
+    }
 }
 `)
 	mockEpForwarder.EXPECT().SendEventPlatformEventBlocking(
