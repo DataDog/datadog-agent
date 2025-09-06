@@ -21,16 +21,16 @@ var (
 
 var lookupAddrFn = net.DefaultResolver.LookupAddr
 
-// GetReverseDNSForIP returns the reverse DNS for the given IP address as a net.IP.
-func GetReverseDNSForIP(destIP net.IP) string {
+// GetReverseDnsForIP returns the reverse DNS for the given IP address as a net.IP.
+func GetReverseDnsForIP(destIP net.IP) string {
 	if destIP == nil {
 		return ""
 	}
-	return GetReverseDNS(destIP.String())
+	return GetReverseDns(destIP.String())
 }
 
-// GetReverseDNS returns the hostname for the given IP address as a string.
-func GetReverseDNS(ipAddr string) string {
+// GetReverseDns returns the hostname for the given IP address as a string.
+func GetReverseDns(ipAddr string) string {
 	currHost := ""
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
