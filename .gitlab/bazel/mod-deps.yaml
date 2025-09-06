@@ -1,9 +1,9 @@
-bazel:run-buildifier-test:
+bazel:mod-deps:
   extends: [ .bazel:defs, .lint ]
   script:
-    - bazel run //bazel/buildifier:test
+    - bazel mod deps --lockfile_mode=error
   after_script:
     - |-
       if [ $CI_JOB_STATUS = failed ]; then
-        echo >&2 "💡 bazel run //bazel/buildifier"
+        echo >&2 "💡 bazel mod deps"
       fi
