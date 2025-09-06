@@ -450,6 +450,7 @@ linters:
     - gocheckcompilerdirectives # Checks Go compiler directives syntax
     - pkgconfigusage            # Linter for checking usage of pkgconfig inside components folder
     - forbidigo                 # prevent usage of unwanted/deprecated symbol in the code base
+    - perfsprint                # Checks when fmt.Sprintf can be replaced with a faster alternative
 
 linters-settings:
   depguard:
