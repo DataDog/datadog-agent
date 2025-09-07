@@ -35,6 +35,10 @@ const (
 	otelServiceName  = "datadog-otel-agent"
 )
 
+// TEMPORARY: skip starting the DDOT service during post-install while E2E focuses on install-only validation.
+// Remove this flag (or set to false) once otel service is fully implemented and integrated.
+const skipDDOTServiceStart = true
+
 // preInstallDatadogAgentDDOT performs pre-installation steps for DDOT on Windows
 func preInstallDatadogAgentDDOT(_ HookContext) error {
 	// Best effort stop and delete existing service
@@ -62,8 +66,8 @@ func postInstallDatadogAgentDdot(ctx HookContext) (err error) {
 		return fmt.Errorf("failed to install ddot service: %w", err)
 	}
 	// Optional: allow E2E packaging tests to skip starting the service for installation test
-	if v := strings.ToLower(os.Getenv("DD_DDOT_SKIP_START")); v == "true" || v == "yes" {
-		log.Infof("DDOT: skipping service start due to DD_DDOT_SKIP_START=%s", v)
+	if skipDDOTServiceStart {
+		log.Infof("DDOT: skipping service start due to DD_DDOT_SKIP_START=%t", skipDDOTServiceStart)
 		return nil
 	}
 	if err = startServiceIfExists(otelServiceName); err != nil {
