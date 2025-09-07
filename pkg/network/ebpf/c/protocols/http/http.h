@@ -50,7 +50,7 @@ static __always_inline void http_batch_enqueue_wrapper(void *ctx, conn_tuple_t *
     LOAD_CONSTANT("use_direct_consumer", use_direct_consumer);
 
     if (use_direct_consumer) {
-        // Direct consumer path - use perf/ring buffer output (kernel >= 5.4)
+        // Direct consumer path - use perf/ring buffer output (kernel >= 5.8)
         __u64 ringbuffers_enabled = 0;
         LOAD_CONSTANT("ringbuffers_enabled", ringbuffers_enabled);
         
@@ -67,7 +67,7 @@ static __always_inline void http_batch_enqueue_wrapper(void *ctx, conn_tuple_t *
             return;
         }
     } else {
-        // Batch consumer path - use map-based batching (kernel < 5.4)
+        // Batch consumer path - use map-based batching (kernel < 5.8)
         http_batch_enqueue(event);
     }
 }
