@@ -76,15 +76,6 @@ func (c *Check) Run() error {
 	path.Destination.Service = c.config.DestinationService
 	path.Tags = append(path.Tags, c.config.Tags...)
 
-	// TODO: TEST ME
-	for i := range path.Traceroute.Runs {
-		run := &path.Traceroute.Runs[i]
-		run.Destination.ReverseDns = traceroute.GetReverseDnsForIP(run.Destination.IPAddress)
-		for j, hop := range run.Hops {
-			run.Hops[j].ReverseDns = traceroute.GetReverseDnsForIP(hop.IPAddress)
-		}
-	}
-
 	// send to EP
 	err = c.SendNetPathMDToEP(senderInstance, path)
 	if err != nil {

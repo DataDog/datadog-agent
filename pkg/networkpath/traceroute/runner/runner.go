@@ -213,10 +213,11 @@ func (r *Runner) processResults(res *result.Results, protocol payload.Protocol, 
 		var hops []payload.TracerouteHop
 		for _, hop := range run.Hops {
 			hops = append(hops, payload.TracerouteHop{
-				TTL:       hop.TTL,
-				IPAddress: hop.IPAddress,
-				RTT:       hop.RTT,
-				Reachable: hop.Reachable,
+				TTL:        hop.TTL,
+				IPAddress:  hop.IPAddress,
+				RTT:        hop.RTT,
+				Reachable:  hop.Reachable,
+				ReverseDns: hop.ReverseDns,
 			})
 		}
 		traceroutePath.Traceroute.Runs = append(traceroutePath.Traceroute.Runs, payload.TracerouteRun{
@@ -227,8 +228,9 @@ func (r *Runner) processResults(res *result.Results, protocol payload.Protocol, 
 				Port:      run.Source.Port,
 			},
 			Destination: payload.TracerouteDestination{
-				IPAddress: run.Destination.IPAddress,
-				Port:      run.Destination.Port,
+				IPAddress:  run.Destination.IPAddress,
+				Port:       run.Destination.Port,
+				ReverseDns: run.Destination.ReverseDns,
 			},
 		})
 	}
