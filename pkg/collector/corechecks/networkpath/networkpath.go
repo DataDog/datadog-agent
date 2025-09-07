@@ -85,7 +85,7 @@ func (c *Check) Run() error {
 
 	metricTags := append(utils.GetCommonAgentTags(), c.config.Tags...)
 
-	// TODO: Remove static path telemetry code
+	// TODO: Remove static path telemetry code (separate PR)
 	c.submitTelemetry(metricSender, path, metricTags, startTime)
 
 	senderInstance.Commit()
