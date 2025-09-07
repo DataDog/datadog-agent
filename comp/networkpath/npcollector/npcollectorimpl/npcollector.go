@@ -464,17 +464,22 @@ func (s *npCollectorImpl) enrichPathWithRDNS(path *payload.NetworkPath, knownDes
 	}
 
 	// collect unique IP addresses from destination and hops
-	ipSet := make(map[string]struct{}, len(path.Hops)+1) // +1 for destination
+	ipSet := make(map[string]struct{}) // +1 for destination
 
 	// only look up the destination hostname if we need to
 	if knownDestHostname == "" {
 		ipSet[path.Destination.IPAddress] = struct{}{}
 	}
-	for _, hop := range path.Hops {
-		if !hop.Reachable {
-			continue
+	// TODO: TEST ME
+	// TODO: TEST ME
+	// TODO: TEST ME
+	for _, run := range path.Traceroute.Runs {
+		for _, hop := range run.Hops {
+			if !hop.Reachable {
+				continue
+			}
+			ipSet[hop.IPAddress.String()] = struct{}{}
 		}
-		ipSet[hop.IPAddress] = struct{}{}
 	}
 	ipAddrs := make([]string, 0, len(ipSet))
 	for ip := range ipSet {
@@ -491,27 +496,36 @@ func (s *npCollectorImpl) enrichPathWithRDNS(path *payload.NetworkPath, knownDes
 		s.logger.Debugf("Reverse lookup failed for all hops in path from %s to %s", path.Source.Hostname, path.Destination.Hostname)
 	}
 
-	// assign resolved hostnames to destination and hops
-	if knownDestHostname != "" {
-		path.Destination.ReverseDNSHostname = knownDestHostname
-	} else {
-		hostname := s.getReverseDNSResult(path.Destination.IPAddress, results)
-		// if hostname is blank, use what's given by traceroute
-		// TODO: would it be better to move the logic up from the traceroute command?
-		// benefit to the current approach is having consistent behavior for all paths
-		// both static and dynamic
-		if hostname != "" {
-			path.Destination.ReverseDNSHostname = hostname
+	// TODO: TEST ME
+	// TODO: TEST ME
+	// TODO: TEST ME
+	for i := range path.Traceroute.Runs {
+		run := &path.Traceroute.Runs[i]
+		// assign resolved hostnames to destination and hops
+		if knownDestHostname != "" {
+			run.Destination.ReverseDns = knownDestHostname
+		} else {
+			hostname := s.getReverseDNSResult(run.Destination.IPAddress.String(), results)
+			// if hostname is blank, use what's given by traceroute
+			// TODO: would it be better to move the logic up from the traceroute command?
+			// benefit to the current approach is having consistent behavior for all paths
+			// both static and dynamic
+			if hostname != "" {
+				// TODO: FIX ME
+				run.Destination.ReverseDns = hostname
+			}
 		}
-	}
 
-	for i, hop := range path.Hops {
-		if !hop.Reachable {
-			continue
-		}
-		hostname := s.getReverseDNSResult(hop.IPAddress, results)
-		if hostname != "" {
-			path.Hops[i].Hostname = hostname
+		for j := range run.Hops {
+			hop := &run.Hops[j]
+			if !hop.Reachable {
+				continue
+			}
+			ipAddr := hop.IPAddress.String()
+			rDns := s.getReverseDNSResult(ipAddr, results)
+			if rDns != "" {
+				hop.ReverseDns = rDns
+			}
 		}
 	}
 }
