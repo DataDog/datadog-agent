@@ -158,6 +158,7 @@ new-e2e-windows-ddot-package-a7-x86_64:
   variables:
     TARGETS: ./tests/installer/windows/suites/ddot-package
     TEAM: windows-products
+    DD_DDOT_SKIP_START: "true"
   needs:
     - !reference [.needs_new_e2e_template]
     - deploy_windows_testing-a7

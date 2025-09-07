@@ -61,6 +61,11 @@ func postInstallDatadogAgentDdot(ctx HookContext) (err error) {
 	if err = ensureDDOTService(); err != nil {
 		return fmt.Errorf("failed to install ddot service: %w", err)
 	}
+	// Optional: allow E2E packaging tests to skip starting the service for installation test
+	if v := strings.ToLower(os.Getenv("DD_DDOT_SKIP_START")); v == "true" || v == "yes" {
+		log.Infof("DDOT: skipping service start due to DD_DDOT_SKIP_START=%s", v)
+		return nil
+	}
 	if err = startServiceIfExists(otelServiceName); err != nil {
 		return fmt.Errorf("failed to start ddot service: %w", err)
 	}
