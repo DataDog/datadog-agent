@@ -1133,7 +1133,7 @@ func TestRedisTrackResources(t *testing.T) {
 func TestMaxRedisStatsBuffered(t *testing.T) {
 	t.Run("value set through env var", func(t *testing.T) {
 		mock.NewSystemProbe(t)
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_MAX_REDIS_STATS_BUFFERED", "50000")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_REDIS_MAX_STATS_BUFFERED", "50000")
 		cfg := New()
 
 		assert.Equal(t, 50000, cfg.MaxRedisStatsBuffered)
@@ -1141,7 +1141,7 @@ func TestMaxRedisStatsBuffered(t *testing.T) {
 
 	t.Run("value set through yaml", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.max_redis_stats_buffered", 30000)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.redis.max_stats_buffered", 30000)
 		cfg := New()
 
 		assert.Equal(t, 30000, cfg.MaxRedisStatsBuffered)
