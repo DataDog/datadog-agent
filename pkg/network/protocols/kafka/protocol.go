@@ -266,15 +266,22 @@ func (p *protocol) Name() string {
 // Configuring the kafka event stream with the manager and its options, and enabling the kafka_monitoring_enabled eBPF
 // option.
 func (p *protocol) ConfigureOptions(opts *manager.Options) {
+	var mapFlags uint32
+	editorFlag := manager.EditMaxEntries
+	if p.cfg.DisableMapPreallocation {
+		mapFlags = unix.BPF_F_NO_PREALLOC
+		editorFlag |= manager.EditFlags
+	}
+
 	opts.MapSpecEditors[inFlightMap] = manager.MapSpecEditor{
 		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
-		Flags:      unix.BPF_F_NO_PREALLOC,
-		EditorFlag: manager.EditMaxEntries | manager.EditFlags,
+		Flags:      mapFlags,
+		EditorFlag: editorFlag,
 	}
 	opts.MapSpecEditors[responseMap] = manager.MapSpecEditor{
 		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
-		Flags:      unix.BPF_F_NO_PREALLOC,
-		EditorFlag: manager.EditMaxEntries | manager.EditFlags,
+		Flags:      mapFlags,
+		EditorFlag: editorFlag,
 	}
 	netifProbeID := manager.ProbeIdentificationPair{
 		EBPFFuncName: netifProbe,
