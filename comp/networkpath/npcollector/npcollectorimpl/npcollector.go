@@ -353,6 +353,10 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 		Protocol:                  ptest.Pathtest.Protocol,
 		TCPMethod:                 s.collectorConfigs.tcpMethod,
 		TCPSynParisTracerouteMode: s.collectorConfigs.tcpSynParisTracerouteMode,
+
+		// TODO: TEST reverse DNS is not used for Dynamic Paths
+		// TODO: TEST reverse DNS is not used for Dynamic Paths
+		// TODO: TEST reverse DNS is not used for Dynamic Paths
 	}
 
 	path, err := s.runTraceroute(cfg, s.telemetrycomp)
