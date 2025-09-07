@@ -442,10 +442,25 @@ func Test_NpCollector_stopWithoutPanic(t *testing.T) {
 			PathtraceID: "pathtrace-id-111-" + cfg.DestHostname,
 			Protocol:    cfg.Protocol,
 			Source:      payload.NetworkPathSource{Hostname: "abc"},
-			Destination: payload.NetworkPathDestination{Hostname: cfg.DestHostname, IPAddress: cfg.DestHostname, Port: cfg.DestPort},
-			Hops: []payload.NetworkPathHop{
-				{Hostname: "hop_1", IPAddress: "1.1.1.1"},
-				{Hostname: "hop_2", IPAddress: "1.1.1.2"},
+			Destination: payload.NetworkPathDestination{Hostname: cfg.DestHostname, Port: cfg.DestPort},
+			Traceroute: payload.Traceroute{
+				Runs: []payload.TracerouteRun{
+					{
+						RunID: "aa-bb-cc",
+						Source: payload.TracerouteSource{
+							IPAddress: net.ParseIP("10.0.0.5"),
+							Port:      12345,
+						},
+						Destination: payload.TracerouteDestination{
+							IPAddress: net.ParseIP(cfg.DestHostname),
+							Port:      33434, // computer port or Boca Raton, FL?
+						},
+						Hops: []payload.TracerouteHop{
+							{ReverseDns: "hop_1", IPAddress: net.ParseIP("1.1.1.1")},
+							{ReverseDns: "hop_2", IPAddress: net.ParseIP("1.1.1.2")},
+						},
+					},
+				},
 			},
 		}, nil
 	}
@@ -1139,12 +1154,6 @@ func Test_npCollectorImpl_enrichPathWithRDNSKnownHostName(t *testing.T) {
 						IPAddress: net.ParseIP("10.0.0.41"),
 						Port:      33434, // computer port or Boca Raton, FL?
 					},
-					Hops: []payload.TracerouteHop{
-						{IPAddress: net.ParseIP("10.0.0.1"), Reachable: true, ReverseDns: "hop1"},
-						{IPAddress: net.ParseIP("1.1.1.1"), Reachable: true, ReverseDns: "hop2"},
-						{IPAddress: net.ParseIP("10.0.0.100"), Reachable: true, ReverseDns: "hop3"},
-						{IPAddress: net.ParseIP("10.0.0.41"), Reachable: true, ReverseDns: "dest-hostname"},
-					},
 				},
 			},
 		},
@@ -1154,7 +1163,7 @@ func Test_npCollectorImpl_enrichPathWithRDNSKnownHostName(t *testing.T) {
 
 	// THEN - destination hostname should resolve to known hostname
 	assert.Equal(t, "known-dest-hostname", path.Traceroute.Runs[0].Destination.ReverseDns)
-	assert.Empty(t, path.Hops)
+	assert.Empty(t, path.Traceroute.Runs[0].Hops)
 }
 
 func Test_npCollectorImpl_getReverseDNSResult(t *testing.T) {
