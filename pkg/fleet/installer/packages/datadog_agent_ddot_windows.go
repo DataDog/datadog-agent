@@ -33,6 +33,7 @@ var datadogAgentDDOTPackage = hooks{
 const (
 	agentDDOTPackage = "datadog-agent-ddot"
 	otelServiceName  = "datadog-otel-agent"
+	coreAgentService = "datadogagent"
 )
 
 // TEMPORARY: skip starting the DDOT service during post-install while E2E focuses on install-only validation.
@@ -67,7 +68,7 @@ func postInstallDatadogAgentDdot(ctx HookContext) (err error) {
 	}
 	// Optional: allow E2E packaging tests to skip starting the service for installation test
 	if skipDDOTServiceStart {
-		log.Infof("DDOT: skipping service start due to DD_DDOT_SKIP_START=%t", skipDDOTServiceStart)
+		log.Warnf("DDOT: skipping service start due to skipDDOTServiceStart=%t", skipDDOTServiceStart)
 		return nil
 	}
 	if err = startServiceIfExists(otelServiceName); err != nil {
@@ -192,14 +193,32 @@ func ensureDDOTService() error {
 	s, err := m.OpenService(otelServiceName)
 	if err == nil {
 		defer s.Close()
-		// No-op: service exists; could update config here if needed
+		// Ensure dependency is present even if service already exists
+		cfg, errC := s.Config()
+		if errC != nil {
+			return errC
+		}
+		hasDep := false
+		for _, dep := range cfg.Dependencies {
+			if strings.EqualFold(dep, coreAgentService) {
+				hasDep = true
+				break
+			}
+		}
+		if !hasDep {
+			cfg.Dependencies = append(cfg.Dependencies, coreAgentService)
+			if errU := s.UpdateConfig(cfg); errU != nil {
+				return errU
+			}
+		}
 		return nil
 	}
 	s, err = m.CreateService(otelServiceName, bin, mgr.Config{
 		DisplayName:      "Datadog Distribution of OpenTelemetry Collector",
 		Description:      "Datadog OpenTelemetry Collector",
 		StartType:        mgr.StartAutomatic,
-		ServiceStartName: "", // LocalSystem
+		Dependencies:     []string{coreAgentService}, // start after core Agent
+		ServiceStartName: "",                         // LocalSystem
 	})
 	if err != nil {
 		return err
