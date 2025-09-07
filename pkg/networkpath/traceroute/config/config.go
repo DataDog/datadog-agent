@@ -37,4 +37,6 @@ type Config struct {
 	TCPMethod payload.TCPMethod
 	// TCPSynParisTracerouteMode makes TCP SYN act like paris traceroute (fixed packet ID, randomized seq)
 	TCPSynParisTracerouteMode bool
+	// ReverseDns enrich IPs with reverse DNS
+	ReverseDns bool
 }
