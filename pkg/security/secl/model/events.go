@@ -105,7 +105,7 @@ const (
 	UnshareMountNsEventType
 	// SyscallsEventType Syscalls event
 	SyscallsEventType
-	// IMDSEventType is sent when an IMDS request or qnswer is captured
+	// IMDSEventType is sent when an IMDS request or answer is captured
 	IMDSEventType
 	// OnDemandEventType is sent for on-demand events
 	OnDemandEventType
@@ -247,6 +247,8 @@ func (t EventType) String() string {
 		return "cgroup_tracing"
 	case DNSEventType:
 		return "dns"
+	case ShortDNSResponseEventType:
+		return "dns_response_short"
 	case NetDeviceEventType:
 		return "net_device"
 	case VethPairEventType:
@@ -309,6 +311,10 @@ func (t EventType) String() string {
 		return "capabilities"
 	case PrCtlEventType:
 		return "prctl"
+	case FileFsmountEventType:
+		return "fsmount"
+	case FileOpenTreeEventType:
+		return "open_tree"
 	default:
 		return "unknown"
 	}

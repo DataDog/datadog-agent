@@ -42,6 +42,8 @@ const (
 	KernelCategoryUserFacing EventCategoryUserFacing = "Kernel Activity"
 	// NetworkCategoryUserFacing network events
 	NetworkCategoryUserFacing EventCategoryUserFacing = "Network Activity"
+	// UnknownCategoryUserFacing used for events without a clear category
+	UnknownCategoryUserFacing EventCategoryUserFacing = "Unknown Activity"
 )
 
 // GetAllCategories returns all categories
@@ -70,7 +72,8 @@ func GetEventTypeCategory(eventType eval.EventType) EventCategory {
 		CapabilitiesEventType.String(),
 		SyscallsEventType.String(),
 		LoginUIDWriteEventType.String(),
-		PrCtlEventType.String():
+		PrCtlEventType.String(),
+		ArgsEnvsEventType.String():
 		return ProcessCategory
 
 	// Kernel
@@ -83,7 +86,10 @@ func GetEventTypeCategory(eventType eval.EventType) EventCategory {
 		LoadModuleEventType.String(),
 		UnloadModuleEventType.String(),
 		SysCtlEventType.String(),
-		CgroupWriteEventType.String():
+		CgroupWriteEventType.String(),
+		CgroupTracingEventType.String(),
+		UnshareMountNsEventType.String(),
+		OnDemandEventType.String():
 		return KernelCategory
 
 	// Network
@@ -94,10 +100,14 @@ func GetEventTypeCategory(eventType eval.EventType) EventCategory {
 		SetSockOptEventType.String(),
 		DNSEventType.String(),
 		FullDNSResponseEventType.String(),
+		ShortDNSResponseEventType.String(),
 		IMDSEventType.String(),
 		RawPacketFilterEventType.String(),
 		RawPacketActionEventType.String(),
-		NetworkFlowMonitorEventType.String():
+		NetworkFlowMonitorEventType.String(),
+		NetDeviceEventType.String(),
+		VethPairEventType.String(),
+		VethPairNsEventType.String():
 		return NetworkCategory
 
 	// FIM
@@ -115,7 +125,13 @@ func GetEventTypeCategory(eventType eval.EventType) EventCategory {
 		FileRemoveXAttrEventType.String(),
 		SpliceEventType.String(),
 		FileMountEventType.String(),
-		FileChdirEventType.String():
+		FileChdirEventType.String(),
+		FileUmountEventType.String(),
+		InvalidateDentryEventType.String(),
+		MountReleasedEventType.String(),
+		StatEventType.String(),
+		FileFsmountEventType.String(),
+		FileOpenTreeEventType.String():
 		return FIMCategory
 	}
 
