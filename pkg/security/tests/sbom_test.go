@@ -24,6 +24,10 @@ import (
 func TestSBOM(t *testing.T) {
 	SkipIfNotAvailable(t)
 
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+
 	if testEnvironment == DockerEnvironment {
 		t.Skip("Skip test spawning docker containers on docker")
 	}
@@ -53,10 +57,8 @@ func TestSBOM(t *testing.T) {
 
 	dockerWrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "ubuntu", "")
 	if err != nil {
-		t.Skip("Skipping sbom tests: Docker not available")
-		return
+		t.Fatalf("failed to create docker wrapper: %v", err)
 	}
-	defer dockerWrapper.stop()
 
 	dockerWrapper.Run(t, "package-rule", func(t *testing.T, _ wrapperType, cmdFunc func(bin string, args, env []string) *exec.Cmd) {
 		test.WaitSignal(t, func() error {

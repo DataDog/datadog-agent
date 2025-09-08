@@ -14,36 +14,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func TestWriteConfigSymlinks(t *testing.T) {
-	fleetDir := t.TempDir()
-	userDir := t.TempDir()
-	err := os.WriteFile(filepath.Join(userDir, "datadog.yaml"), []byte("user config"), 0644)
-	assert.NoError(t, err)
-	err = os.WriteFile(filepath.Join(fleetDir, "datadog.yaml"), []byte("fleet config"), 0644)
-	assert.NoError(t, err)
-	err = os.MkdirAll(filepath.Join(fleetDir, "conf.d"), 0755)
-	assert.NoError(t, err)
-
-	err = writeConfigSymlinks(userDir, fleetDir)
-	assert.NoError(t, err)
-	assert.FileExists(t, filepath.Join(userDir, "datadog.yaml"))
-	assert.FileExists(t, filepath.Join(userDir, "datadog.yaml.override"))
-	assert.FileExists(t, filepath.Join(userDir, "conf.d.override"))
-	configContent, err := os.ReadFile(filepath.Join(userDir, "datadog.yaml"))
-	assert.NoError(t, err)
-	overrideConfigConent, err := os.ReadFile(filepath.Join(userDir, "datadog.yaml.override"))
-	assert.NoError(t, err)
-	assert.Equal(t, "user config", string(configContent))
-	assert.Equal(t, "fleet config", string(overrideConfigConent))
-
-	fleetDir = t.TempDir()
-	err = writeConfigSymlinks(userDir, fleetDir)
-	assert.NoError(t, err)
-	assert.FileExists(t, filepath.Join(userDir, "datadog.yaml"))
-	assert.NoFileExists(t, filepath.Join(userDir, "datadog.yaml.override"))
-	assert.NoFileExists(t, filepath.Join(userDir, "conf.d.override"))
-}
-
 func TestOperationApply_Patch(t *testing.T) {
 	tmpDir := t.TempDir()
 	filePath := filepath.Join(tmpDir, "datadog.yaml")
@@ -65,7 +35,7 @@ func TestOperationApply_Patch(t *testing.T) {
 		Patch:             []byte(patchJSON),
 	}
 
-	err = op.Apply(root)
+	err = op.apply(root)
 	assert.NoError(t, err)
 
 	// Check file content
@@ -98,7 +68,7 @@ func TestOperationApply_MergePatch(t *testing.T) {
 		Patch:             []byte(mergePatch),
 	}
 
-	err = op.Apply(root)
+	err = op.apply(root)
 	assert.NoError(t, err)
 
 	updated, err := os.ReadFile(filePath)
@@ -126,7 +96,7 @@ func TestOperationApply_Delete(t *testing.T) {
 		FilePath:          "/datadog.yaml",
 	}
 
-	err = op.Apply(root)
+	err = op.apply(root)
 	assert.NoError(t, err)
 	_, err = os.Stat(filePath)
 	assert.Error(t, err)
@@ -150,7 +120,7 @@ func TestOperationApply_EmptyYAMLFile(t *testing.T) {
 		Patch:             []byte(patchJSON),
 	}
 
-	err = op.Apply(root)
+	err = op.apply(root)
 	assert.NoError(t, err)
 
 	// Check that the file now contains the patched value
@@ -177,7 +147,7 @@ func TestOperationApply_NoFile(t *testing.T) {
 		Patch:             []byte(patchJSON),
 	}
 
-	err = op.Apply(root)
+	err = op.apply(root)
 	assert.NoError(t, err)
 
 	filePath := filepath.Join(tmpDir, "datadog.yaml")
@@ -206,7 +176,7 @@ func TestOperationApply_DisallowedFile(t *testing.T) {
 		Patch:             []byte(patchJSON),
 	}
 
-	err = op.Apply(root)
+	err = op.apply(root)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "not allowed")
 }
@@ -234,7 +204,7 @@ func TestOperationApply_NestedConfigFile(t *testing.T) {
 		Patch:             []byte(patchJSON),
 	}
 
-	err = op.Apply(root)
+	err = op.apply(root)
 	assert.NoError(t, err)
 
 	updated, err := os.ReadFile(filePath)
