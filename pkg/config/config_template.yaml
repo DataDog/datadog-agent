@@ -71,7 +71,6 @@ api_key:
 ## used for debugging.
 # sslkeylogfile: ""
 
-
 ## @param min_tls_version - string - optional - default: "tlsv1.2"
 ## @env DD_MIN_TLS_VERSION - string - optional - default: "tlsv1.2"
 ## This option defines the minimum TLS version that will be used when
@@ -594,7 +593,6 @@ api_key:
 #   # The value is verified every 30s. By default, three consecutive checks need to return true to trigger an automatic exit.
 #
 #   validation_period: 60
-
 
 ## @param fips - custom object - optional
 ## Uncomment this parameter and the one below to enable them.
@@ -1646,7 +1644,6 @@ api_key:
 #     # Enables or disables Error Tracking Standalone
 #     enabled: false
 
-
 #   # @param profiling_receiver_timeout - integer - optional - default: 5
 #   # @env DD_APM_PROFILING_RECEIVER_TIMEOUT - integer - optional - default: 5
 #   # The timeout in seconds for receiving profile upload requests from client applications.
@@ -1758,7 +1755,6 @@ api_key:
 #     # @param interval - duration - optional - default: 4h - minimum: 10m
 #     # An interval in hours that specifies how often the process discovery check should run.
 #     interval: 4h
-
 
 #   # @param blacklist_patterns - list of strings - optional
 #   # @env DD_PROCESS_CONFIG_BLACKLIST_PATTERNS - space separated list of strings - optional
@@ -2469,7 +2465,6 @@ api_key:
 ## Disable enriching Dogstatsd metrics with tags from "origin detection" when Entity-ID is set.
 #
 # dogstatsd_entity_id_precedence: false
-
 
 ## @param dogstatsd_no_aggregation_pipeline - boolean - optional - default: true
 ## @env DD_DOGSTATSD_NO_AGGREGATION_PIPELINE - boolean - optional - default: true
@@ -4263,7 +4258,6 @@ api_key:
 #                                     # If `use_raw_socket` is set to true, you MUST also enable
 #                                     # system-probe which has elevated privileges. To enable it, see system-probe.yaml.example.
 
-
 #   # @param snmp_traps - custom object - optional
 #   # This section configures SNMP traps collection.
 #   # Traps are forwarded as logs and can be found in the logs explorer with a source:snmp-traps query
@@ -4465,7 +4459,6 @@ api_key:
 #   # Set to true to enable High Availability Agent feature.
 #
 #   enabled: false
-
 
 ## @param config_id - string - optional
 ## The config_id configuration is used by High Availability Agent to assign a specific config ID to an Agent.
@@ -4871,3 +4864,5 @@ api_key:
 #   # Docs: https://docs.datadoghq.com/tracing/troubleshooting/tracer_debug_logs
 #   DD_TRACE_DEBUG: false
 {{- end -}}
+
+{{/* this comment ensures the rendered file ends with a newline */}}
