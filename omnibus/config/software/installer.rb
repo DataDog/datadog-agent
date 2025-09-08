@@ -42,9 +42,4 @@ build do
     command "dda inv -- -e installer.build --install-path=#{install_dir}", env: env
     copy 'bin/installer/installer.exe', "#{install_dir}/datadog-installer.exe"
   end
-
-  # Remove empty/unneeded folders
-  delete "#{install_dir}/embedded/bin"
-  delete "#{install_dir}/embedded/lib"
-  delete "#{install_dir}/embedded/"
 end

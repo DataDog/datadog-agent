@@ -30,7 +30,6 @@ import (
 // value types.
 type decoderType interface {
 	irType() ir.Type
-	hasDynamicType() bool
 	encodeValueFields(
 		d *Decoder,
 		enc *jsontext.Encoder,
@@ -121,6 +120,7 @@ type goEmptyInterfaceType ir.GoEmptyInterfaceType
 type goInterfaceType ir.GoInterfaceType
 type goSubroutineType ir.GoSubroutineType
 type eventRootType ir.EventRootType
+type unresolvedPointeeType ir.UnresolvedPointeeType
 
 // Compile-time type assertions
 var (
@@ -142,6 +142,7 @@ var (
 	_ decoderType = (*goInterfaceType)(nil)
 	_ decoderType = (*goSubroutineType)(nil)
 	_ decoderType = (*eventRootType)(nil)
+	_ decoderType = (*unresolvedPointeeType)(nil)
 )
 
 func newDecoderType(
@@ -356,8 +357,10 @@ func newDecoderType(
 		return (*goSubroutineType)(s), nil
 	case *ir.EventRootType:
 		return (*eventRootType)(s), nil
+	case *ir.UnresolvedPointeeType:
+		return (*unresolvedPointeeType)(s), nil
 	default:
-		return nil, fmt.Errorf("unknown type %s", irType.GetName())
+		return nil, fmt.Errorf("unknown type %s (%T)", irType.GetName(), irType)
 	}
 }
 
@@ -465,7 +468,6 @@ func (b *baseType) encodeValueFields(
 		return fmt.Errorf("%s is not a base type", kind)
 	}
 }
-func (*baseType) hasDynamicType() bool { return false }
 
 func (e *eventRootType) irType() ir.Type { return (*ir.EventRootType)(e) }
 func (e *eventRootType) encodeValueFields(
@@ -478,7 +480,6 @@ func (e *eventRootType) encodeValueFields(
 		tokenNotCapturedReasonUnimplemented,
 	)
 }
-func (*eventRootType) hasDynamicType() bool { return false }
 
 func (m *goMapType) irType() ir.Type { return (*ir.GoMapType)(m) }
 func (m *goMapType) encodeValueFields(
@@ -489,7 +490,6 @@ func (m *goMapType) encodeValueFields(
 	const encodeAddress = false
 	return encodePointer(data, encodeAddress, m.HeaderType.GetID(), enc, d)
 }
-func (*goMapType) hasDynamicType() bool { return false }
 
 func (h *goHMapHeaderType) irType() ir.Type { return h.GoHMapHeaderType }
 func (h *goHMapHeaderType) encodeValueFields(
@@ -559,7 +559,6 @@ func (h *goHMapHeaderType) encodeValueFields(
 	}
 	return nil
 }
-func (*goHMapHeaderType) hasDynamicType() bool { return false }
 
 func encodeHMapBucket(
 	d *Decoder,
@@ -636,7 +635,6 @@ func (*goHMapBucketType) encodeValueFields(
 ) error {
 	return fmt.Errorf("hmap bucket type is never directly encoded")
 }
-func (*goHMapBucketType) hasDynamicType() bool { return false }
 
 func (s *goSwissMapHeaderType) irType() ir.Type { return s.GoSwissMapHeaderType }
 func (s *goSwissMapHeaderType) encodeValueFields(
@@ -723,7 +721,6 @@ func (s *goSwissMapHeaderType) encodeValueFields(
 	}
 	return writeTokens(enc, jsontext.EndArray)
 }
-func (*goSwissMapHeaderType) hasDynamicType() bool { return false }
 
 func (s *goSwissMapGroupsType) irType() ir.Type { return (*ir.GoSwissMapGroupsType)(s) }
 func (s *goSwissMapGroupsType) encodeValueFields(
@@ -736,7 +733,6 @@ func (s *goSwissMapGroupsType) encodeValueFields(
 		tokenNotCapturedReasonUnimplemented,
 	)
 }
-func (*goSwissMapGroupsType) hasDynamicType() bool { return false }
 
 func (v *voidPointerType) irType() ir.Type { return (*ir.VoidPointerType)(v) }
 func (v *voidPointerType) encodeValueFields(
@@ -752,7 +748,6 @@ func (v *voidPointerType) encodeValueFields(
 		jsontext.String("0x"+strconv.FormatUint(binary.NativeEndian.Uint64(data), 16)),
 	)
 }
-func (*voidPointerType) hasDynamicType() bool { return false }
 
 func (p *pointerType) irType() ir.Type { return (*ir.PointerType)(p) }
 func (p *pointerType) encodeValueFields(
@@ -770,7 +765,6 @@ func (p *pointerType) encodeValueFields(
 	writeAddress := ok && goKind != reflect.Pointer
 	return encodePointer(data, writeAddress, p.Pointee.GetID(), enc, d)
 }
-func (*pointerType) hasDynamicType() bool { return false }
 
 func encodePointer(
 	data []byte,
@@ -797,7 +791,22 @@ func encodePointer(
 		return nil
 	}
 
-	pointedValue, dataItemExists := d.dataItems[pointeeKey]
+	pointeeDecoderType, ok := d.decoderTypes[pointee]
+	if !ok {
+		return fmt.Errorf("no decoder type found for pointee type (ID: %d)", pointee)
+	}
+
+	// If the pointee type has zero size, we don't expect there to be a data
+	// item for it.
+	var (
+		pointedValue   output.DataItem
+		dataItemExists bool
+	)
+	if pointeeDecoderType.irType().GetByteSize() > 0 {
+		pointedValue, dataItemExists = d.dataItems[pointeeKey]
+	} else {
+		dataItemExists = true
+	}
 	if !dataItemExists {
 		return writeTokens(enc,
 			tokenNotCapturedReason,
@@ -816,10 +825,6 @@ func encodePointer(
 	if _, alreadyEncoding := d.currentlyEncoding[pointeeKey]; !alreadyEncoding && dataItemExists {
 		d.currentlyEncoding[pointeeKey] = struct{}{}
 		defer delete(d.currentlyEncoding, pointeeKey)
-		pointeeDecoderType, ok := d.decoderTypes[pointee]
-		if !ok {
-			return fmt.Errorf("no decoder type found for pointee type (ID: %d)", pointee)
-		}
 		if err := pointeeDecoderType.encodeValueFields(
 			d,
 			enc,
@@ -843,14 +848,13 @@ func (s *structureType) encodeValueFields(
 	enc *jsontext.Encoder,
 	data []byte,
 ) error {
-	var err error
-	if err = writeTokens(enc,
+	if err := writeTokens(enc,
 		jsontext.String("fields"),
 		jsontext.BeginObject); err != nil {
 		return err
 	}
 	for field := range s.irType().(*ir.StructureType).Fields() {
-		if err = writeTokens(enc, jsontext.String(field.Name)); err != nil {
+		if err := writeTokens(enc, jsontext.String(field.Name)); err != nil {
 			return err
 		}
 		fieldEnd := field.Offset + field.Type.GetByteSize()
@@ -858,7 +862,7 @@ func (s *structureType) encodeValueFields(
 			return fmt.Errorf("field %s extends beyond data bounds: need %d bytes, have %d", field.Name, fieldEnd, len(data))
 		}
 
-		if err = d.encodeValue(enc,
+		if err := d.encodeValue(enc,
 			field.Type.GetID(),
 			data[field.Offset:field.Offset+field.Type.GetByteSize()],
 			field.Type.GetName(),
@@ -868,7 +872,6 @@ func (s *structureType) encodeValueFields(
 	}
 	return writeTokens(enc, jsontext.EndObject)
 }
-func (*structureType) hasDynamicType() bool { return false }
 
 func (a *arrayType) irType() ir.Type { return (*ir.ArrayType)(a) }
 func (a *arrayType) encodeValueFields(
@@ -915,7 +918,6 @@ func (a *arrayType) encodeValueFields(
 	}
 	return nil
 }
-func (*arrayType) hasDynamicType() bool { return false }
 
 func (s *goSliceHeaderType) irType() ir.Type { return (*ir.GoSliceHeaderType)(s) }
 func (s *goSliceHeaderType) encodeValueFields(
@@ -1003,7 +1005,6 @@ func (s *goSliceHeaderType) encodeValueFields(
 	}
 	return nil
 }
-func (*goSliceHeaderType) hasDynamicType() bool { return false }
 
 func (s *goSliceDataType) irType() ir.Type { return (*ir.GoSliceDataType)(s) }
 func (s *goSliceDataType) encodeValueFields(
@@ -1016,7 +1017,6 @@ func (s *goSliceDataType) encodeValueFields(
 		tokenNotCapturedReasonUnimplemented,
 	)
 }
-func (*goSliceDataType) hasDynamicType() bool { return false }
 
 func (s *goStringHeaderType) irType() ir.Type { return s.GoStringHeaderType }
 func (s *goStringHeaderType) encodeValueFields(
@@ -1070,7 +1070,6 @@ func (s *goStringHeaderType) encodeValueFields(
 	str := unsafe.String(unsafe.SliceData(stringData), int(length))
 	return writeTokens(enc, jsontext.String(str))
 }
-func (*goStringHeaderType) hasDynamicType() bool { return false }
 
 func (s *goStringDataType) irType() ir.Type { return (*ir.GoStringDataType)(s) }
 func (s *goStringDataType) encodeValueFields(
@@ -1083,7 +1082,6 @@ func (s *goStringDataType) encodeValueFields(
 		tokenNotCapturedReasonUnimplemented,
 	)
 }
-func (*goStringDataType) hasDynamicType() bool { return false }
 
 func (c *goChannelType) irType() ir.Type { return (*ir.GoChannelType)(c) }
 func (c *goChannelType) encodeValueFields(
@@ -1096,7 +1094,6 @@ func (c *goChannelType) encodeValueFields(
 		tokenNotCapturedReasonUnimplemented,
 	)
 }
-func (*goChannelType) hasDynamicType() bool { return false }
 
 const goRuntimeTypeOffset = 0x00
 const goInterfaceDataOffset = 0x08
@@ -1109,7 +1106,6 @@ func (e *goEmptyInterfaceType) encodeValueFields(
 ) error {
 	return encodeInterface(d, enc, data)
 }
-func (*goEmptyInterfaceType) hasDynamicType() bool { return true }
 
 func (i *goInterfaceType) irType() ir.Type { return (*ir.GoInterfaceType)(i) }
 func (i *goInterfaceType) encodeValueFields(
@@ -1119,7 +1115,6 @@ func (i *goInterfaceType) encodeValueFields(
 ) error {
 	return encodeInterface(d, enc, data)
 }
-func (*goInterfaceType) hasDynamicType() bool { return true }
 
 func encodeInterface(
 	d *Decoder,
@@ -1129,7 +1124,26 @@ func encodeInterface(
 	if len(data) != 16 {
 		return fmt.Errorf("go interface data must be 16 bytes, got %d", len(data))
 	}
+
+	if err := writeTokens(enc,
+		jsontext.String("fields"),
+		jsontext.BeginObject,
+		jsontext.String("data"),
+		jsontext.BeginObject,
+	); err != nil {
+		return err
+	}
+
 	runtimeType := binary.NativeEndian.Uint64(data[goRuntimeTypeOffset : goRuntimeTypeOffset+8])
+	if runtimeType == 0 {
+		return writeTokens(enc,
+			jsontext.String("isNull"),
+			jsontext.Bool(true),
+			jsontext.EndObject,
+			jsontext.EndObject,
+		)
+	}
+
 	typeID, ok := d.typesByGoRuntimeType[uint32(runtimeType)]
 	if !ok {
 		name, err := d.typeNameResolver.ResolveTypeName(gotype.TypeID(runtimeType))
@@ -1141,6 +1155,8 @@ func encodeInterface(
 			jsontext.String(name),
 			tokenNotCapturedReason,
 			tokenNotCapturedReasonMissingTypeInfo,
+			jsontext.EndObject,
+			jsontext.EndObject,
 		); err != nil {
 			return err
 		}
@@ -1151,23 +1167,27 @@ func encodeInterface(
 	if !ok {
 		return fmt.Errorf("no type found for type ID: %d", typeID)
 	}
-	if err := writeTokens(enc,
-		jsontext.String("type"),
-		jsontext.String(t.GetName()),
+	if err := writeTokens(
+		enc, jsontext.String("type"), jsontext.String(t.GetName()),
 	); err != nil {
 		return err
 	}
 	ptrData := data[goInterfaceDataOffset : goInterfaceDataOffset+8]
-	switch t := t.(type) {
-	case *ir.PointerType:
-		// Delegate to the pointer type for its handling of the decision
-		// when to write out the address.
-		return (*pointerType)(t).encodeValueFields(d, enc, ptrData)
-	case *ir.GoMapType /* *ir.GoChannelType, *ir.GoSubroutineType */ :
-		typeID = t.HeaderType.GetID()
-	default:
+	var err error
+	if pt, ok := t.(*ir.PointerType); ok {
+		err = (*pointerType)(pt).encodeValueFields(d, enc, ptrData)
+	} else {
+		switch t := t.(type) {
+		// Reference types need to be indirected appropriately
+		case *ir.GoMapType /* *ir.GoChannelType, *ir.GoSubroutineType */ :
+			typeID = t.HeaderType.GetID()
+		}
+		err = encodePointer(ptrData, false, typeID, enc, d)
 	}
-	return encodePointer(ptrData, false, typeID, enc, d)
+	if err != nil {
+		return err
+	}
+	return writeTokens(enc, jsontext.EndObject, jsontext.EndObject)
 }
 
 func (s *goSubroutineType) irType() ir.Type { return (*ir.GoSubroutineType)(s) }
@@ -1181,7 +1201,15 @@ func (s *goSubroutineType) encodeValueFields(
 		tokenNotCapturedReasonUnimplemented,
 	)
 }
-func (*goSubroutineType) hasDynamicType() bool { return false }
+
+func (u *unresolvedPointeeType) irType() ir.Type { return (*ir.UnresolvedPointeeType)(u) }
+func (u *unresolvedPointeeType) encodeValueFields(
+	_ *Decoder,
+	enc *jsontext.Encoder,
+	_ []byte,
+) error {
+	return writeTokens(enc, tokenNotCapturedReason, tokenNotCapturedReasonDepth)
+}
 
 func getFieldByName(fields []ir.Field, name string) (*ir.Field, error) {
 	for _, f := range fields {

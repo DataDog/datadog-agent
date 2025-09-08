@@ -59,7 +59,6 @@ func (i *haagentimpl) refreshMetadata() {
 	isEnabled := i.haAgent.Enabled()
 
 	if !isEnabled {
-		i.log.Infof("HA Agent Metadata unavailable as HA Agent is disabled")
 		i.data = nil
 		return
 	}

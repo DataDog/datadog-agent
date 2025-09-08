@@ -53,7 +53,9 @@ func (f LegacyContainerFilter) IsExcluded(container *workloadmeta.Container) boo
 	}
 	pod, _ := f.Store.GetKubernetesPodForContainer(container.ID)
 
-	return f.FilterStore.IsContainerExcluded(workloadmetafilter.CreateContainer(container, workloadmetafilter.CreatePod(pod)), workloadfilter.GetContainerSharedMetricFilters())
+	filterableContainer := workloadmetafilter.CreateContainer(container, workloadmetafilter.CreatePod(pod))
+	selectedFilters := f.FilterStore.GetContainerSharedMetricFilters()
+	return f.FilterStore.IsContainerExcluded(filterableContainer, selectedFilters)
 }
 
 // RuntimeContainerFilter filters containers by runtime

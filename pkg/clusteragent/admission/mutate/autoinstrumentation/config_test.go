@@ -533,7 +533,8 @@ func TestGetPinnedLibraries(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			pinned := getPinnedLibraries(tt.libVersions, "registry", tt.checkDefaults)
+			imageResolver := newNoOpImageResolver()
+			pinned := getPinnedLibraries(tt.libVersions, "registry", tt.checkDefaults, imageResolver)
 			require.ElementsMatch(t, tt.expected.libs, pinned.libs, "libs match")
 			require.Equal(t, tt.expected.areSetToDefaults, pinned.areSetToDefaults, "areSetToDefaults match")
 		})

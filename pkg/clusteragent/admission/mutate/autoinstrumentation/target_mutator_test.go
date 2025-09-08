@@ -59,7 +59,7 @@ func TestNewTargetMutator(t *testing.T) {
 			))
 
 			// Create the mutator.
-			_, err = NewTargetMutator(config, wmeta)
+			_, err = NewTargetMutator(config, wmeta, newNoOpImageResolver())
 
 			// Validate the output.
 			if test.shouldErr {
@@ -187,7 +187,7 @@ func TestMutatePod(t *testing.T) {
 			}
 
 			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta)
+			f, err := NewTargetMutator(config, wmeta, newNoOpImageResolver())
 			require.NoError(t, err)
 
 			input := test.in.DeepCopy()
@@ -292,7 +292,7 @@ func TestShouldMutatePod(t *testing.T) {
 			}
 
 			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta)
+			f, err := NewTargetMutator(config, wmeta, newNoOpImageResolver())
 			require.NoError(t, err)
 
 			// Determine if the pod should be mutated.
@@ -378,7 +378,7 @@ func TestIsNamespaceEligible(t *testing.T) {
 			}
 
 			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta)
+			f, err := NewTargetMutator(config, wmeta, newNoOpImageResolver())
 			require.NoError(t, err)
 
 			// Determine if the namespace is eligible.
@@ -444,7 +444,7 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 			))
 
 			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta)
+			f, err := NewTargetMutator(config, wmeta, newNoOpImageResolver())
 			require.NoError(t, err)
 
 			// Get the target from the annotation.
@@ -704,7 +704,7 @@ func TestGetTargetLibraries(t *testing.T) {
 			}
 
 			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta)
+			f, err := NewTargetMutator(config, wmeta, newNoOpImageResolver())
 			require.NoError(t, err)
 
 			// Filter the pod.

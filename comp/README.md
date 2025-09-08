@@ -304,7 +304,7 @@ Package orchestratorinterface defines the interface for the orchestrator forward
 
 *Datadog Team*: agent-log-pipelines
 
-
+Package logs provides the logs component bundle
 
 ### [comp/logs/adscheduler](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs/adscheduler)
 
@@ -500,7 +500,7 @@ Package apiserver initializes the api server that powers many subcommands.
 
 ### [comp/process/connectionscheck](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process/connectionscheck)
 
-*Datadog Team*: networks universal-service-monitoring
+*Datadog Team*: cloud-network-monitoring universal-service-monitoring
 
 Package connectionscheck implements a component to handle Connections data collection in the Process Agent.
 
