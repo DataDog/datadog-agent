@@ -784,6 +784,10 @@ func postPromoteConfigExperimentDatadogAgentBackground(ctx context.Context) erro
 }
 
 // updateRegistryInstallSource updates the install source and package name to the current stable MSI.
+//
+// Called from the MSI to ensure the install source is our copy of the MSI and not the path run by the user.
+// This helps ensure the MSI is available even when the original path is a temp dir, which is common
+// with remote deployment scripts, or the Windows installer cache was removed for some reason.
 func updateRegistryInstallSource() error {
 	msiName := fmt.Sprintf("datadog-agent-%s-x86_64.msi", version.AgentPackageVersion)
 

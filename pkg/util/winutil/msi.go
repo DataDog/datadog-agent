@@ -25,14 +25,14 @@ var (
 // It can also create a source list for a patch that does not exist in the specified context.
 //
 // https://learn.microsoft.com/en-us/windows/win32/api/msi/nf-msi-msisourcelistaddsourceexw
-func MsiSourceListAddSourceEx(productCode string, context uint32, sourceType uint32, src string, index uint32) windows.Errno {
+func MsiSourceListAddSourceEx(productCode *uint16, context uint32, sourceType uint32, src *uint16, index uint32) windows.Errno {
 	r1, _, _ := procMsiSourceListAddSourceExW.Call(
-		uintptr(unsafe.Pointer(windows.StringToUTF16Ptr(productCode))), // szProductCodeOrPatchCode
-		0,                   // szUserSid (NULL for machine/current user)
-		uintptr(context),    // MSIINSTALLCONTEXT
-		uintptr(sourceType), // dwOptions
-		uintptr(unsafe.Pointer(windows.StringToUTF16Ptr(src))), // szSource (path only; no filename)
-		uintptr(index), // dwIndex (1..N; 0 = append)
+		uintptr(unsafe.Pointer(productCode)), // szProductCodeOrPatchCode
+		0,                                    // szUserSid (NULL for machine/current user)
+		uintptr(context),                     // MSIINSTALLCONTEXT
+		uintptr(sourceType),                  // dwOptions
+		uintptr(unsafe.Pointer(src)),         // szSource (path only; no filename)
+		uintptr(index),                       // dwIndex (1..N; 0 = append)
 	)
 	return windows.Errno(r1)
 }
@@ -40,14 +40,14 @@ func MsiSourceListAddSourceEx(productCode string, context uint32, sourceType uin
 // MsiSourceListSetInfo sets information about the source list for a product or patch in a specific context.
 //
 // https://learn.microsoft.com/en-us/windows/win32/api/msi/nf-msi-msisourcelistsetinfow
-func MsiSourceListSetInfo(productCode string, context uint32, options uint32, propName string, value string) windows.Errno {
+func MsiSourceListSetInfo(productCode *uint16, context uint32, options uint32, propName *uint16, value *uint16) windows.Errno {
 	r1, _, _ := procMsiSourceListSetInfoW.Call(
-		uintptr(unsafe.Pointer(windows.StringToUTF16Ptr(productCode))), // szProductCodeOrPatchCode
-		0, // szUserSid
+		uintptr(unsafe.Pointer(productCode)), // szProductCodeOrPatchCode
+		0,                                    // szUserSid
 		uintptr(context),
-		uintptr(options), // dwOptions (MSICODE_*)
-		uintptr(unsafe.Pointer(windows.StringToUTF16Ptr(propName))), // szProperty (e.g., "PackageName")
-		uintptr(unsafe.Pointer(windows.StringToUTF16Ptr(value))),    // szValue
+		uintptr(options),                  // dwOptions (MSICODE_*)
+		uintptr(unsafe.Pointer(propName)), // szProperty (e.g., "PackageName")
+		uintptr(unsafe.Pointer(value)),    // szValue
 	)
 	return windows.Errno(r1)
 }
@@ -55,10 +55,10 @@ func MsiSourceListSetInfo(productCode string, context uint32, options uint32, pr
 // MsiSourceListForceResolutionEx removes the registration of the property called "LastUsedSource".
 //
 // https://learn.microsoft.com/en-us/windows/win32/api/msi/nf-msi-msisourcelistforceresolutionexw
-func MsiSourceListForceResolutionEx(productCode string, context uint32, options uint32) windows.Errno {
+func MsiSourceListForceResolutionEx(productCode *uint16, context uint32, options uint32) windows.Errno {
 	r1, _, _ := procMsiSourceListForceResExW.Call(
-		uintptr(unsafe.Pointer(windows.StringToUTF16Ptr(productCode))), // szProductCodeOrPatchCode
-		0, // szUserSid
+		uintptr(unsafe.Pointer(productCode)), // szProductCodeOrPatchCode
+		0,                                    // szUserSid
 		uintptr(context),
 		uintptr(options), // dwOptions
 	)

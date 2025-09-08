@@ -24,7 +24,7 @@ namespace CustomActions.Tests.InstallSource
 
             // Act - Call the actual custom action
             var result = UpdateInstallSourceCustomAction.UpdateInstallSource(Session.Object);
-            
+
             // Assert
             result.Should().Be(ActionResult.Success);
             // Verify that the fleet install property was checked
@@ -43,7 +43,7 @@ namespace CustomActions.Tests.InstallSource
 
             // Act - Call the actual custom action
             var result = UpdateInstallSourceCustomAction.UpdateInstallSource(Session.Object);
-            
+
             // Assert
             result.Should().Be(ActionResult.Success);
             // Verify that both properties were checked

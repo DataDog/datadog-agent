@@ -28,6 +28,7 @@ namespace Datadog.CustomActions
             installerPath = Path.Combine(installerPath, "bin", "datadog-installer.exe");
 
             // check if this is a fleet install
+            // fleet install runs the MSI from the package dir so the install source is already set
             var fleetInstall = session.Property("FLEET_INSTALL");
             if (!string.IsNullOrEmpty(fleetInstall) && fleetInstall == "1")
             {

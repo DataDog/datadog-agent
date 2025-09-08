@@ -29,17 +29,37 @@ func SetSourceList(productName string, sourcePath string, packageName string) er
 		return err
 	}
 
-	ret := winutil.MsiSourceListAddSourceEx(product.Code, msiInstallContextMachine, msiSourceTypeNetwork|msiCodeProduct, sourcePath, 1)
+	sourcePathPtr, err := windows.UTF16PtrFromString(sourcePath)
+	if err != nil {
+		return fmt.Errorf("failed to convert source path to UTF16: %w", err)
+	}
+
+	productCodePtr, err := windows.UTF16PtrFromString(product.Code)
+	if err != nil {
+		return fmt.Errorf("failed to convert product code to UTF16: %w", err)
+	}
+
+	packageNamePtr, err := windows.UTF16PtrFromString(packageName)
+	if err != nil {
+		return fmt.Errorf("failed to convert package name to UTF16: %w", err)
+	}
+
+	propNamePtr, err := windows.UTF16PtrFromString("PackageName")
+	if err != nil {
+		return fmt.Errorf("failed to convert property name to UTF16: %w", err)
+	}
+
+	ret := winutil.MsiSourceListAddSourceEx(productCodePtr, msiInstallContextMachine, msiSourceTypeNetwork|msiCodeProduct, sourcePathPtr, 1)
 	if !errors.Is(ret, windows.ERROR_SUCCESS) {
 		return fmt.Errorf("failed to add source to source list: %w", ret)
 	}
 
-	ret = winutil.MsiSourceListSetInfo(product.Code, msiInstallContextMachine, msiCodeProduct, "PackageName", packageName)
+	ret = winutil.MsiSourceListSetInfo(productCodePtr, msiInstallContextMachine, msiCodeProduct, propNamePtr, packageNamePtr)
 	if !errors.Is(ret, windows.ERROR_SUCCESS) {
 		return fmt.Errorf("failed to set info for source list: %w", ret)
 	}
 
-	ret = winutil.MsiSourceListForceResolutionEx(product.Code, msiInstallContextMachine, msiCodeProduct)
+	ret = winutil.MsiSourceListForceResolutionEx(productCodePtr, msiInstallContextMachine, msiCodeProduct)
 	if !errors.Is(ret, windows.ERROR_SUCCESS) {
 		return fmt.Errorf("failed to force resolution for source list: %w", ret)
 	}

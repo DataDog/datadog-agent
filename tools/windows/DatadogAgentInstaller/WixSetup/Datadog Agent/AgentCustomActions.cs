@@ -326,6 +326,8 @@ namespace WixSetup.Datadog_Agent
                     new Id(nameof(UpdateInstallSource)),
                     CustomActions.UpdateInstallSource,
                     Return.check,
+                    // The built-in RegisterProduct action normally sets the install source,
+                    // so our action must come after it to take effect.
                     When.Before,
                     Step.InstallFinalize,
                     Conditions.FirstInstall | Conditions.Upgrading
