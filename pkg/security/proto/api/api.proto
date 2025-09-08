@@ -128,6 +128,7 @@ message Status {
     SelfTestsStatus SelfTests = 2;
     repeated PolicyStatus PoliciesStatus = 3;
     repeated SECLVariableState SECLVariables = 4;
+    DirectSenderStatus DirectSenderStatus = 5;
 }
 
 message ConstantFetcherStatus {
@@ -142,6 +143,10 @@ message EnvironmentStatus {
     bool UseMmapableMaps = 4;
     bool UseRingBuffer = 5;
     bool UseFentry = 6;
+}
+
+message DirectSenderStatus {
+    repeated string Endpoints = 1;
 }
 
 /*Discarders*/
