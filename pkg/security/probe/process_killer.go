@@ -116,25 +116,32 @@ func (p *ProcessKiller) getRuleStats(ruleID string) *processKillerStats {
 	return stats
 }
 
-func (p *ProcessKiller) updatePendingReportKillPerformed(now time.Time, killQueue *[]killContext, failedToBeKilled []uint32) {
+func (p *ProcessKiller) updatePendingReportKillPerformed(now time.Time, killQueue *[]killContext, failedToBeKilled []uint32, nbOfKilled int64) {
 	p.Lock()
 	defer p.Unlock()
 
-	// First we need to update the status of the processes that failed to be killed
 	for _, pid := range failedToBeKilled {
 		// First we remove them from the killQueue
 		*killQueue = slices.DeleteFunc(*killQueue, func(kc killContext) bool {
 			return kc.pid == int(pid)
 		})
 	}
-	// Then we update the status to KillActionStatusError
+	// Then we update the status
 	for _, report := range p.pendingReports {
 		report.Lock()
-		// if pid in failedToKillPids, update the status to KillActionStatusError
-		if slices.Contains(failedToBeKilled, report.Pid) {
-			report.Status = KillActionStatusError
-		} else if report.Status == KillActionStatusQueued {
-			if slices.ContainsFunc(*killQueue, func(kc killContext) bool {
+		if report.Status == KillActionStatusQueued {
+			if slices.Contains(failedToBeKilled, report.Pid) {
+				if nbOfKilled > 0 {
+					report.Status = KillActionStatusPartiallyPerformed
+					fmt.Printf("Partially failed to kill process %d\n", report.Pid)
+					report.KilledAt = now
+					continue
+				} else {
+					report.Status = KillActionStatusError
+					fmt.Printf("Failed to kill process %d\n", report.Pid)
+					continue
+				}
+			} else if slices.ContainsFunc(*killQueue, func(kc killContext) bool {
 				return kc.pid == int(report.Pid)
 			}) {
 				report.Status = KillActionStatusPerformed
@@ -176,8 +183,8 @@ func (p *ProcessKiller) killQueuedPidsAndGetNextAlarm(disarmer *ruleDisarmer, no
 	}
 
 	if now.After(disarmer.killQueueAlarm) {
-		failedToBeKilled := p.KillProcesses(false, disarmer.ruleID, disarmer.killSignal, disarmer.killQueue)
-		p.updatePendingReportKillPerformed(now, &disarmer.killQueue, failedToBeKilled)
+		failedToBeKilled, nbOfKilled := p.KillProcesses(false, disarmer.ruleID, disarmer.killSignal, disarmer.killQueue)
+		p.updatePendingReportKillPerformed(now, &disarmer.killQueue, failedToBeKilled, nbOfKilled)
 	} else {
 		if nextAlarm == nil || disarmer.killQueueAlarm.Before(*nextAlarm) {
 			return &disarmer.killQueueAlarm
@@ -437,11 +444,16 @@ func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Ru
 	}
 
 	now := time.Now() // get the current time now to make sure it precedes the any process exit time
-	failedPids := p.KillProcesses(true, rule.ID, sig, pcs)
+	failedPids, nbOfKilled := p.KillProcesses(true, rule.ID, sig, pcs)
 	if len(failedPids) == 0 {
 		report.KilledAt = now
 		report.Status = KillActionStatusPerformed
 	} else {
+		if nbOfKilled > 0 {
+			report.KilledAt = now
+			report.Status = KillActionStatusPartiallyPerformed
+			log.Warn("some processes failed to be killed in the container with PIDs : ", failedPids)
+		}
 		report.Status = KillActionStatusError
 	}
 
@@ -453,10 +465,10 @@ func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Ru
 }
 
 // KillProcesses kills the given list of processes, returns the list of pids that failed to be killed (nil if everything went well)
-func (p *ProcessKiller) KillProcesses(killDirectly bool, ruleID string, sig int, kcs []killContext) []uint32 {
+func (p *ProcessKiller) KillProcesses(killDirectly bool, ruleID string, sig int, kcs []killContext) ([]uint32, int64) {
 	var failedToKillPids []uint32
 	if !p.cfg.RuntimeSecurity.EnforcementEnabled {
-		return failedToKillPids
+		return failedToKillPids, 0
 	}
 	var processesKilled int64
 	for _, pc := range kcs {
@@ -480,7 +492,7 @@ func (p *ProcessKiller) KillProcesses(killDirectly bool, ruleID string, sig int,
 	}
 	p.perRuleStatsLock.Unlock()
 
-	return failedToKillPids
+	return failedToKillPids, processesKilled
 }
 
 // Reset the state and statistics of the process killer
