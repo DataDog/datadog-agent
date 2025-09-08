@@ -188,7 +188,7 @@ func (ad *argumentsData) MarshalJSONTo(enc *jsontext.Encoder) error {
 			// This expression resulted in an evaluation error, we mark it to be skipped
 			// and will try again
 			setSkipped(ad.skipIndicies, i)
-			return errEvaluation
+			return err
 		} else if err != nil {
 			return err
 		}

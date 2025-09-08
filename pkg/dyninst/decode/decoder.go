@@ -153,16 +153,14 @@ func (d *Decoder) Decode(
 	}
 	b := bytes.NewBuffer(buf)
 	enc := jsontext.NewEncoder(b)
-	numAttempts := 0
 	numExpressions := len(d.snapshotMessage.Debugger.Snapshot.Captures.Entry.Arguments.rootType.Expressions)
-	for numAttempts <= numExpressions {
-		// We loop here because when evaluation errors occur, we reduce the amount of data we attempt
-		// to encode and then try again after resetting the buffer.
+	// We loop here because when evaluation errors occur, we reduce the amount of data we attempt
+	// to encode and then try again after resetting the buffer.
+	for range numExpressions + 1 { // +1 for the initial attempt
 		err = json.MarshalEncode(enc, &d.snapshotMessage)
 		if errors.Is(err, errEvaluation) {
 			b = bytes.NewBuffer(buf)
 			enc.Reset(b)
-			numAttempts++
 			continue
 		} else if err != nil {
 			return buf, probe, pkgerrors.Wrap(err, "error marshaling snapshot message")

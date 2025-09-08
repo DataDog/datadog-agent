@@ -1084,8 +1084,7 @@
             }
           }
         }
-      },
-      "evaluationErrors": []
+      }
     },
     "timestamp": "[ts]"
   }

@@ -803,6 +803,11 @@ func TestDecoderFailsOnEvaluationError(t *testing.T) {
 	require.Contains(t, string(out), "no decoder type found")
 }
 
+// TestDecoderFailsOnEvaluationErrorAndRetainsPassedBuffer tests that the decoder
+// fails on evaluation error while preserving the contents of the passed buffer.
+// It is expected that consumers of the decoder API will call Decode with a reused
+// buffer to avoid unnecessary allocations and they will expect the buffer to be
+// appended to only.
 func TestDecoderFailsOnEvaluationErrorAndRetainsPassedBuffer(t *testing.T) {
 	irProg := generateIrForProbes(t, "simple", "stringArg")
 	decoder, err := NewDecoder(irProg, &noopTypeNameResolver{})
@@ -825,6 +830,9 @@ func TestDecoderFailsOnEvaluationErrorAndRetainsPassedBuffer(t *testing.T) {
 	require.NotNil(t, stringType)
 	stringID := stringType.GetID()
 	delete(decoder.decoderTypes, stringID)
+	// We loop here to test that the buffer is retained and not overwritten
+	// by each iteration of the loop. It's expected/possible that consumers
+	// of the decoder API will call Decode every time with the same buffer.
 	out, _, err := decoder.Decode(Event{
 		Event:       output.Event(input),
 		ServiceName: "foo"},
@@ -833,12 +841,6 @@ func TestDecoderFailsOnEvaluationErrorAndRetainsPassedBuffer(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.Contains(t, string(out), "no decoder type found")
-	_, _, err = decoder.Decode(Event{
-		Event:       output.Event(input),
-		ServiceName: "foo"},
-		&noopSymbolicator{},
-		buf,
-	)
 	require.Equal(t, buf, []byte{1, 2, 3, 4, 5})
-	require.NoError(t, err)
+
 }

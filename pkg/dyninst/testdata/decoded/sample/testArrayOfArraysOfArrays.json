@@ -127,8 +127,7 @@
             }
           }
         }
-      },
-      "evaluationErrors": []
+      }
     },
     "timestamp": "[ts]"
   }

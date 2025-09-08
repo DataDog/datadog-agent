@@ -159,8 +159,7 @@
             }
           }
         }
-      },
-      "evaluationErrors": []
+      }
     },
     "timestamp": "[ts]"
   }

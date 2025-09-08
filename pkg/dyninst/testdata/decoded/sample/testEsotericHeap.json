@@ -128,8 +128,7 @@
             }
           }
         }
-      },
-      "evaluationErrors": []
+      }
     },
     "timestamp": "[ts]"
   }
