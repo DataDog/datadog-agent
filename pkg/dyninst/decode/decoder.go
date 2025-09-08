@@ -76,9 +76,10 @@ type Decoder struct {
 	typeNameResolver     TypeNameResolver
 
 	// These fields are initialized and reset for each message.
-	snapshotMessage   snapshotMessage
-	dataItems         map[typeAndAddr]output.DataItem
-	currentlyEncoding map[typeAndAddr]struct{}
+	snapshotMessage    snapshotMessage
+	dataItems          map[typeAndAddr]output.DataItem
+	currentlyEncoding  map[typeAndAddr]struct{}
+	skipIndiciesBuffer []byte
 }
 
 // NewDecoder creates a new Decoder for the given program.
@@ -93,10 +94,10 @@ func NewDecoder(
 		stackFrames:          make(map[uint64][]symbol.StackFrame),
 		typesByGoRuntimeType: make(map[uint32]ir.TypeID),
 		typeNameResolver:     typeNameResolver,
-
-		snapshotMessage:   snapshotMessage{},
-		dataItems:         make(map[typeAndAddr]output.DataItem),
-		currentlyEncoding: make(map[typeAndAddr]struct{}),
+		snapshotMessage:      snapshotMessage{},
+		dataItems:            make(map[typeAndAddr]output.DataItem),
+		currentlyEncoding:    make(map[typeAndAddr]struct{}),
+		skipIndiciesBuffer:   make([]byte, 1),
 	}
 	for _, probe := range program.Probes {
 		for _, event := range probe.Events {
@@ -289,7 +290,7 @@ func (s *snapshotMessage) init(
 		rootData:         s.rootData,
 		decoder:          decoder,
 		evaluationErrors: &s.Debugger.EvaluationErrors,
-		skipIndicies:     make([]byte, len(rootType.Expressions)),
+		skipIndicies:     decoder.getSkipIndiciesBuffer(len(rootType.Expressions)),
 	}
 	return probe, nil
 }
@@ -307,4 +308,20 @@ func symbolicate(event Event, stackHash uint64, symbolicator symbol.Symbolicator
 		return nil, fmt.Errorf("error symbolicating stack: %w", err)
 	}
 	return stackFrames, nil
+}
+
+// getSkipIndiciesBuffer returns a zeroed byte slice of the required size,
+// reusing the internal buffer when possible to avoid allocations.
+func (d *Decoder) getSkipIndiciesBuffer(numExpressions int) []byte {
+	requiredBytes := (numExpressions + 7) / 8
+	if cap(d.skipIndiciesBuffer) < requiredBytes {
+		d.skipIndiciesBuffer = make([]byte, requiredBytes)
+	} else {
+		// Reuse existing buffer, just resize and clear
+		d.skipIndiciesBuffer = d.skipIndiciesBuffer[:requiredBytes]
+		for i := range d.skipIndiciesBuffer {
+			d.skipIndiciesBuffer[i] = 0
+		}
+	}
+	return d.skipIndiciesBuffer
 }

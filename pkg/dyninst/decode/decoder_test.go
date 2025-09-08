@@ -833,7 +833,7 @@ func TestDecoderFailsOnEvaluationErrorAndRetainsPassedBuffer(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.Contains(t, string(out), "no decoder type found")
-	out, _, err = decoder.Decode(Event{
+	_, _, err = decoder.Decode(Event{
 		Event:       output.Event(input),
 		ServiceName: "foo"},
 		&noopSymbolicator{},
