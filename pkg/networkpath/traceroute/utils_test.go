@@ -50,6 +50,6 @@ func Test_getHostname(t *testing.T) {
 		}
 		defer func() { lookupAddrFn = net.DefaultResolver.LookupAddr }()
 
-		assert.Equal(t, "1.2.3.4", GetReverseDns("1.2.3.4"))
+		assert.Equal(t, "", GetReverseDns("1.2.3.4"))
 	})
 }

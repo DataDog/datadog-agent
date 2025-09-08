@@ -150,12 +150,6 @@ github.com/DataDog/datadog-go/v5 v5.6.0 h1:2oCLxjF/4htd55piM75baflj/KoE6VYS7alEU
 github.com/DataDog/datadog-go/v5 v5.6.0/go.mod h1:K9kcYBlxkcPP8tvvjZZKs/m1edNAUFzBbdpTUKfCsuw=
 github.com/DataDog/datadog-operator/api v0.0.0-20250417130148-1aa8dc0fc964 h1:3EH1aRTHY22KbCYYhPZCaXTo1swWsi2DEyZNFAuTrt0=
 github.com/DataDog/datadog-operator/api v0.0.0-20250417130148-1aa8dc0fc964/go.mod h1:J6wMbBik2dRZfv+XYIrOwHyWi9+T6lRZSxTmEQ8bWNU=
-github.com/DataDog/datadog-traceroute v0.1.6-0.20250906193047-d95385769ded h1:F6IbW097FQaYH13qZhBpJBx9BYXSxoFD7LIKQGq/K/M=
-github.com/DataDog/datadog-traceroute v0.1.6-0.20250906193047-d95385769ded/go.mod h1:kC66Bn1pZ69QTzMBoPwm1zCAxQ511uEUTosmXUUNW7w=
-github.com/DataDog/datadog-traceroute v0.1.6-0.20250907183248-10751a3c7841 h1:BywdVu3ozSyjxEEgAjkKJHecKdxfznwiSoT7Nx9jZiE=
-github.com/DataDog/datadog-traceroute v0.1.6-0.20250907183248-10751a3c7841/go.mod h1:kC66Bn1pZ69QTzMBoPwm1zCAxQ511uEUTosmXUUNW7w=
-github.com/DataDog/datadog-traceroute v0.1.6-0.20250907203952-eeaa0f64a78c h1:6gJijUzrf7SSmaQdrryRmWRBg9cY0mYIqBVvPFNKZXk=
-github.com/DataDog/datadog-traceroute v0.1.6-0.20250907203952-eeaa0f64a78c/go.mod h1:kC66Bn1pZ69QTzMBoPwm1zCAxQ511uEUTosmXUUNW7w=
 github.com/DataDog/datadog-traceroute v0.1.6-0.20250908072027-a9988ed84690 h1:MU6eArLAQNcbP+FcoGql+Gt5QGlZ7qmgf0f6Z5KrrtM=
 github.com/DataDog/datadog-traceroute v0.1.6-0.20250908072027-a9988ed84690/go.mod h1:kC66Bn1pZ69QTzMBoPwm1zCAxQ511uEUTosmXUUNW7w=
 github.com/DataDog/dd-trace-go/v2 v2.0.0 h1:cHMEzD0Wcgtu+Rec9d1GuVgpIN5f+4vCaNzuFHJ0v+Y=
