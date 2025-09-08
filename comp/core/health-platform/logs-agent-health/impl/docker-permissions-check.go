@@ -8,11 +8,15 @@ package logsagenthealthimpl
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	healthplatform "github.com/DataDog/datadog-agent/comp/core/health-platform/def"
@@ -39,6 +43,42 @@ func NewDockerPermissionsCheck() *DockerPermissionsCheck {
 	return &DockerPermissionsCheck{}
 }
 
+// isPermissionError checks if an error is permission-related using proper error type checking
+func isPermissionError(err error) bool {
+	return errors.Is(err, fs.ErrPermission) ||
+		errors.Is(err, syscall.EACCES) ||
+		errors.Is(err, syscall.EPERM)
+}
+
+// pingDocker performs an actual HTTP GET /_ping via the unix socket to test Docker API access
+func pingDocker(sockPath string, timeout time.Duration) bool {
+	dial := func(_ context.Context, _, _ string) (net.Conn, error) {
+		return net.DialTimeout("unix", sockPath, timeout/2)
+	}
+	tr := &http.Transport{DialContext: dial}
+	defer tr.CloseIdleConnections()
+
+	client := &http.Client{Transport: tr, Timeout: timeout}
+
+	req, err := http.NewRequest("GET", "http://unix/_ping", nil)
+	if err != nil {
+		return false
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	req = req.WithContext(ctx)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		// Only treat permission errors as failures, other errors might be temporary
+		return !isPermissionError(err)
+	}
+	defer resp.Body.Close()
+
+	return resp.StatusCode == 200
+}
+
 // Name returns the name of this sub-check
 func (d *DockerPermissionsCheck) Name() string {
 	return "docker-permissions"
@@ -61,25 +101,42 @@ func (d *DockerPermissionsCheck) Check(_ context.Context) ([]healthplatform.Issu
 	return issues, nil
 }
 
-// checkDockerSocketAccess checks if the Docker socket is accessible
-func (d *DockerPermissionsCheck) checkDockerSocketAccess() *healthplatform.Issue {
-	// Check if Docker socket exists
-	if _, err := os.Stat(DockerSocketPath); os.IsNotExist(err) {
-		return nil
+// resolveDockerSocketPath resolves the Docker socket path from configuration or environment
+func (d *DockerPermissionsCheck) resolveDockerSocketPath() string {
+	// Check environment variable first
+	if dockerHost := os.Getenv("DOCKER_HOST"); dockerHost != "" {
+		if strings.HasPrefix(dockerHost, "unix://") {
+			return strings.TrimPrefix(dockerHost, "unix://")
+		}
 	}
 
-	// Check if we can connect to the Docker socket
-	conn, err := net.DialTimeout("unix", DockerSocketPath, 500*time.Millisecond)
-	if err != nil {
-		// Check if this is a permission denied error
-		if strings.Contains(err.Error(), "permission denied") {
+	// TODO: Add support for reading from Agent config when available
+	// For now, use the default path
+	return DockerSocketPath
+}
+
+// checkDockerSocketAccess checks if the Docker socket is accessible
+func (d *DockerPermissionsCheck) checkDockerSocketAccess() *healthplatform.Issue {
+	sockPath := d.resolveDockerSocketPath()
+
+	// Check if Docker socket exists
+	if _, err := os.Stat(sockPath); err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			// Socket doesn't exist, not a permission issue
+			return nil
+		}
+		// If it's a permission error on the path itself, report it
+		if isPermissionError(err) {
 			return d.createDockerIssue("socket")
 		}
 		return nil
 	}
 
-	if conn != nil {
-		conn.Close()
+	// Try a proper Docker API ping instead of just socket connection
+	if !pingDocker(sockPath, 700*time.Millisecond) {
+		// Only flag if the failure is permission-related
+		// pingDocker already handles permission error detection
+		return d.createDockerIssue("socket")
 	}
 
 	return nil
@@ -167,17 +224,25 @@ func (d *DockerPermissionsCheck) createDockerIssue(issueType string) *healthplat
 // checkDockerFileTailing checks if Docker file tailing is disabled due to permission issues
 func (d *DockerPermissionsCheck) checkDockerFileTailing() *healthplatform.Issue {
 	// Check if Docker logs directory exists
-	if _, err := os.Stat(DockerLogsDir); os.IsNotExist(err) {
-		// Docker logs directory doesn't exist, no issue to report
+	if _, err := os.Stat(DockerLogsDir); err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			// Docker logs directory doesn't exist, no issue to report
+			return nil
+		}
+		// If it's a permission error, report it
+		if isPermissionError(err) {
+			return d.createDockerIssue("file-tailing")
+		}
 		return nil
 	}
 
 	// Check if the current process has read access to the directory
 	if _, err := os.Open(DockerLogsDir); err != nil {
-		// Check if this is a permission denied error
-		if strings.Contains(err.Error(), "permission denied") {
+		// Check if this is a permission denied error using proper error checking
+		if isPermissionError(err) {
 			return d.createDockerIssue("file-tailing")
 		}
+		return nil
 	}
 
 	// Check if we can actually read Docker log files
