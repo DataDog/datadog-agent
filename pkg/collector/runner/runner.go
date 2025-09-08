@@ -51,6 +51,7 @@ type Runner struct {
 	checksTracker       *tracker.RunningChecksTracker // Tracker in charge of maintaining the running check list
 	scheduler           *scheduler.Scheduler          // Scheduler runner operates on
 	schedulerLock       sync.RWMutex                  // Lock around operations on the scheduler
+	utilizationMonitor  *worker.UtilizationMonitor    // Monitor in charge of checking the worker utilization
 }
 
 // NewRunner takes the number of desired goroutines processing incoming checks.
@@ -66,6 +67,7 @@ func NewRunner(senderManager sender.SenderManager, haAgent haagent.Component) *R
 		isStaticWorkerCount: numWorkers != 0,
 		pendingChecksChan:   make(chan check.Check),
 		checksTracker:       tracker.NewRunningChecksTracker(),
+		utilizationMonitor:  worker.NewUtilizationMonitor(0.95), // TODO make this configurable
 	}
 
 	if !r.isStaticWorkerCount {
@@ -73,6 +75,9 @@ func NewRunner(senderManager sender.SenderManager, haAgent haagent.Component) *R
 	}
 
 	r.ensureMinWorkers(numWorkers)
+
+	// Start monitoring worker utilization
+	go r.monitorWorkerUtilization()
 
 	return r
 }
@@ -286,3 +291,29 @@ func (r *Runner) StopCheck(id checkid.ID) error {
 	}
 }
 
+func (r *Runner) logWorkerUtilization() {
+	overview, err := r.utilizationMonitor.GetWorkerOverview()
+	if err != nil {
+		log.Warnf("Error getting worker utilization data: %v", err)
+		return
+	}
+
+	averageUtilization := fmt.Sprintf("%.3f", overview.AverageUtilization)
+	log.Debugf("Average worker utilization: %v", averageUtilization)
+
+	if len(overview.WorkersOverThreshold) > 0 {
+		log.Warnf("Workers over utilization threshold: %v", overview.WorkersOverThreshold)
+	}
+}
+
+func (r *Runner) monitorWorkerUtilization() {
+	// TODO make this configurable
+	interval := 60 * time.Second
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for r.isRunning.Load() {
+		<-ticker.C
+		r.logWorkerUtilization()
+	}
+}
