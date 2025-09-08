@@ -81,6 +81,7 @@ AGENT_CORECHECKS = [
     "orchestrator_ecs",
     "cisco_sdwan",
     "network_path",
+    "service_discovery",
     "gpu",
     "wlan",
     "discovery",
@@ -352,12 +353,7 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
             os.path.join(dist_folder, "conf.d/process_agent.yaml.default"),
         )
 
-    # We only copy the minified versions of the javascript files to avoid having original javascript files in the distribution
-    shutil.copytree(
-        "./comp/core/gui/guiimpl/views/private",
-        os.path.join(dist_folder, "views"),
-        dirs_exist_ok=True,
-    )
+    shutil.copytree("./comp/core/gui/guiimpl/views/private", os.path.join(dist_folder, "views"), dirs_exist_ok=True)
     if development:
         shutil.copytree("./dev/dist/", dist_folder, dirs_exist_ok=True)
 
