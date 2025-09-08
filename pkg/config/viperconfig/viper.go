@@ -608,12 +608,8 @@ func (c *safeConfig) ReadInConfig() error {
 	defer c.Unlock()
 	// ReadInConfig reset configuration with the main config file
 	err := errors.Join(c.Viper.ReadInConfig(), c.configSources[model.SourceFile].ReadInConfig())
-	var e viper.ConfigFileNotFoundError
 	if err != nil {
-		if errors.As(err, &e) {
-			return model.ConfigFileNotFoundError{Err: err}
-		}
-		return err
+		return model.NewConfigFileNotFoundError(err) // nolint: forbidigo // constructing proper error
 	}
 
 	type extraConf struct {
