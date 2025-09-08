@@ -29,13 +29,7 @@ require (
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
 	code.cloudfoundry.org/lager v2.0.0+incompatible
 	github.com/CycloneDX/cyclonedx-go v0.9.2
-<<<<<<< HEAD
 	github.com/DataDog/appsec-internal-go v1.14.0
-	github.com/DataDog/datadog-agent/pkg/gohai v0.56.0-rc.3
-=======
-	github.com/DataDog/appsec-internal-go v1.13.0
-	github.com/DataDog/datadog-agent/pkg/gohai v0.69.4
->>>>>>> 55de961ab45 ([mod] go mod tidy)
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.64.0-rc.12
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.64.0-rc.12
 	github.com/DataDog/datadog-agent/pkg/security/secl v0.56.0
@@ -558,25 +552,15 @@ require (
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
-<<<<<<< HEAD
 	github.com/DataDog/agent-payload/v5 v5.0.164
-	github.com/DataDog/datadog-agent/comp/api/api/def v0.68.3
-	github.com/DataDog/datadog-agent/comp/core/config v0.69.2
-	github.com/DataDog/datadog-agent/comp/core/flare/types v0.69.2
-	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.64.0-rc.3
-	github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers v0.69.4
-	github.com/DataDog/datadog-agent/comp/core/log/def v0.69.2
-=======
-	github.com/DataDog/agent-payload/v5 v5.0.163
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.69.4
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def v0.0.0
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/config v0.69.4
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.69.4
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.64.0-rc.3
-	github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers v0.69.4
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.69.4
->>>>>>> 55de961ab45 ([mod] go mod tidy)
 	github.com/DataDog/datadog-agent/comp/core/log/impl v0.61.0
 	github.com/DataDog/datadog-agent/comp/core/log/impl-trace v0.59.0
 	github.com/DataDog/datadog-agent/comp/core/log/mock v0.69.4
@@ -626,6 +610,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.69.4
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.69.4
 	github.com/DataDog/datadog-agent/pkg/errors v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/gohai v0.69.4
 	github.com/DataDog/datadog-agent/pkg/logs/client v0.64.0-rc.12
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic v0.64.0-rc.12
 	github.com/DataDog/datadog-agent/pkg/logs/message v0.64.0-rc.12
@@ -663,15 +648,10 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.69.4
 	github.com/DataDog/datadog-agent/pkg/util/http v0.69.4
 	github.com/DataDog/datadog-agent/pkg/util/json v0.69.2
-<<<<<<< HEAD
-	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.62.2
-	github.com/DataDog/datadog-agent/pkg/util/option v0.69.2
-	github.com/DataDog/datadog-agent/pkg/util/quantile v0.71.0-devel.0.20250820180704-be0d2d237646
-=======
 	github.com/DataDog/datadog-agent/pkg/util/jsonquery v0.0.0
 	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.69.4
 	github.com/DataDog/datadog-agent/pkg/util/option v0.69.4
->>>>>>> 55de961ab45 ([mod] go mod tidy)
+	github.com/DataDog/datadog-agent/pkg/util/quantile v0.71.0-devel.0.20250820180704-be0d2d237646
 	github.com/DataDog/datadog-agent/pkg/util/sort v0.69.2
 	github.com/DataDog/datadog-agent/pkg/util/startstop v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/system v0.69.4
@@ -746,20 +726,13 @@ require (
 )
 
 require (
-<<<<<<< HEAD
+	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/impl v0.0.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/impl v0.70.0-rc.7 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/utils v0.70.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata v0.71.0-devel.0.20250820180704-be0d2d237646 // indirect
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/logs v0.71.0-devel.0.20250820180704-be0d2d237646 // indirect
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics v0.71.0-devel.0.20250820180704-be0d2d237646 // indirect
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/rum v0.0.0-20250821192546-ef3e102d9554 // indirect
-=======
-	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/impl v0.0.0 // indirect
-	github.com/DataDog/datadog-agent/comp/core/secrets/impl v0.0.0-00010101000000-000000000000 // indirect
-	github.com/DataDog/datadog-agent/comp/core/secrets/utils v0.0.0-00010101000000-000000000000 // indirect
-	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata v0.67.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.0.0-00010101000000-000000000000 // indirect
->>>>>>> 55de961ab45 ([mod] go mod tidy)
 	github.com/DataDog/go-libddwaf/v3 v3.5.4 // indirect
 	github.com/moby/sys/atomicwriter v0.1.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector v0.133.0 // indirect

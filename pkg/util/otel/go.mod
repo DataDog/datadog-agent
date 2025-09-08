@@ -25,11 +25,6 @@ require (
 
 require (
 	github.com/gogo/protobuf v1.3.2 // indirect
-<<<<<<< HEAD
-=======
-	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
-	github.com/stretchr/testify v1.11.1 // indirect
->>>>>>> 55de961ab45 ([mod] go mod tidy)
 	go.opentelemetry.io/collector/component v1.39.0 // indirect
 	go.opentelemetry.io/collector/pdata v1.39.0 // indirect
 	go.opentelemetry.io/otel v1.37.0 // indirect
