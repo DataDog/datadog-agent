@@ -502,9 +502,7 @@ func (sm *StackManager) getStack(ctx context.Context, name string, deployFunc pu
 		upCount++
 		upCtx, cancel := context.WithTimeout(ctx, params.UpTimeout)
 		now := time.Now()
-		fmt.Println("DDDDDDDDDDDDDD upCount", upCount, stackName)
 		upResult, upError = stack.Up(upCtx, progressStreamsUpOption, optup.DebugLogging(loggingOptions))
-		fmt.Println("DDDDDDDDDDDDDDDDDDDDD upResult", upResult, upError, stackName)
 		fmt.Fprintf(logger, "Stack up took %v at attempt %v\n", time.Since(now), upCount)
 		cancel()
 

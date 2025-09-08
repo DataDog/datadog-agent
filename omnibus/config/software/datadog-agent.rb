@@ -24,6 +24,8 @@ unless do_repackage?
   dependency "libjemalloc" if linux_target?
 
   dependency 'datadog-agent-dependencies'
+
+  dependency "installer" if linux_target? and !heroku_target?
 end
 
 source path: '..',
@@ -139,6 +141,10 @@ build do
 
   platform = windows_arch_i386? ? "x86" : "x64"
   command "dda inv -- -e trace-agent.build --install-path=#{install_dir} --major-version #{major_version_arg} --flavor #{flavor_arg}", :env => env
+
+  if linux_target? and !heroku_target?
+      move "#{install_dir}/bin/installer/installer", "#{install_dir}/embedded/bin"
+  end
 
   if windows_target?
     copy 'bin/trace-agent/trace-agent.exe', "#{install_dir}/bin/agent"
@@ -268,6 +274,11 @@ build do
   if linux_target?
     command "dda inv -- agent.generate-config --build-type application-monitoring --output-file ./bin/agent/dist/application_monitoring.yaml", :env => env
     move 'bin/agent/dist/application_monitoring.yaml', "#{conf_dir}/application_monitoring.yaml.example"
+  end
+
+  # Allows the agent to be installed in a custom location
+  if linux_target?
+    command "touch #{install_dir}/.install_root"
   end
 
   # TODO: move this to omnibus-ruby::health-check.rb

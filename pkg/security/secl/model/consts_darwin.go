@@ -65,3 +65,4 @@ func initRlimitConstants()                     {}
 func initSocketTypeConstants()                 {}
 func initSocketFamilyConstants()               {}
 func initSocketProtocolConstants()             {}
+func initPrCtlOptionConstants()                {}

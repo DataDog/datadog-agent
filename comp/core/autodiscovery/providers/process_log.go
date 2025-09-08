@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"sync"
 	"unicode/utf8"
 
@@ -38,6 +39,7 @@ type processLogConfigProvider struct {
 	pidToServiceIDs      map[int32][]string
 	unreadableFilesCache *simplelru.LRU[string, struct{}]
 	mu                   sync.RWMutex
+	excludeAgent         bool
 }
 
 var _ types.ConfigProvider = &processLogConfigProvider{}
@@ -54,6 +56,7 @@ func NewProcessLogConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, wmeta
 		serviceLogRefs:       make(map[string]*serviceLogRef),
 		pidToServiceIDs:      make(map[int32][]string),
 		unreadableFilesCache: cache,
+		excludeAgent:         pkgconfigsetup.Datadog().GetBool("logs_config.process_exclude_agent"),
 	}, nil
 }
 
@@ -166,6 +169,26 @@ func (p *processLogConfigProvider) isFileReadable(logPath string) bool {
 	return true
 }
 
+var agentProcessNames = []string{
+	"agent",
+	"process-agent",
+	"trace-agent",
+	"security-agent",
+	"system-probe",
+}
+
+func isAgentProcess(process *workloadmeta.Process) bool {
+	// Check if the process name matches any of the known agent process names;
+	// we may not be able to make assumptions about the executable paths.
+	for _, agentName := range agentProcessNames {
+		if process.Name == agentName {
+			return true
+		}
+	}
+
+	return false
+}
+
 func (p *processLogConfigProvider) processEventsInner(evBundle workloadmeta.EventBundle, verifyReadable bool) integration.ConfigChanges {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -180,6 +203,11 @@ func (p *processLogConfigProvider) processEventsInner(evBundle workloadmeta.Even
 
 		switch event.Type {
 		case workloadmeta.EventTypeSet:
+			if p.excludeAgent && isAgentProcess(process) {
+				log.Debugf("Excluding agent process %d (comm=%s) from process log collection", process.Pid, process.Comm)
+				continue
+			}
+
 			// The set of logs monitored by this service may change, so we need
 			// to handle deleting existing logs too. First, decrement refcounts
 			// for existing service IDs associated with this PID. Any logs still
@@ -268,30 +296,42 @@ func getServiceName(service *workloadmeta.Service) string {
 	return service.GeneratedName
 }
 
+var generatedNameToSource = map[string]string{
+	"apache2":           "apache",
+	"catalina":          "tomcat",
+	"clickhouse-server": "clickhouse",
+	"cockroach":         "cockroachdb",
+	"kafka.Kafka":       "kafka",
+	"postgres":          "postgresql",
+	"mongod":            "mongodb",
+	"mysqld":            "mysql",
+	"redis-server":      "redis",
+	"slapd":             "openldap",
+	"tailscaled":        "tailscale",
+}
+
 // getSource returns the source to be used in the log config. This needs to
 // match the integration pipelines, see
 // https://app.datadoghq.com/logs/pipelines/pipeline/library. For now, this has
 // some handling for some common cases, until a better solution is available.
 func getSource(service *workloadmeta.Service) string {
-	source := service.GeneratedName
+	generatedName := service.GeneratedName
 
-	// Binary name differs from the integration name
-	if source == "apache2" {
-		return "apache"
+	if replacement, ok := generatedNameToSource[generatedName]; ok {
+		return replacement
 	}
-	if source == "postgres" {
-		return "postgresql"
+	if strings.HasPrefix(generatedName, "org.elasticsearch.") {
+		return "elasticsearch"
 	}
-	if source == "catalina" {
-		return "tomcat"
+	if strings.HasPrefix(generatedName, "org.sonar.") {
+		return "sonarqube"
 	}
-
 	// The generated name may be the WSGI application name
 	if service.GeneratedNameSource == "gunicorn" {
 		return "gunicorn"
 	}
 
-	return source
+	return generatedName
 }
 
 func getIntegrationName(logFile string) string {

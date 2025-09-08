@@ -9,21 +9,18 @@ package irgen
 
 import "github.com/DataDog/datadog-agent/pkg/dyninst/object"
 
-// ElfFileLoader is an interface that abstracts the loading of elf files.
-type ElfFileLoader interface {
-	Load(path string) (*object.ElfFile, error)
-}
-
 type config struct {
 	maxDynamicTypeSize uint32
 	maxHashBucketsSize uint32
-	elfFileLoader      ElfFileLoader
+	objectLoader       object.Loader
+	typeIndexFactory   goTypeIndexFactory
 }
 
 var defaultConfig = config{
 	maxDynamicTypeSize: defaultMaxDynamicTypeSize,
 	maxHashBucketsSize: defaultMaxHashBucketsSize,
-	elfFileLoader:      object.NewInMemoryElfFileLoader(),
+	objectLoader:       object.NewInMemoryLoader(),
+	typeIndexFactory:   &inMemoryGoTypeIndexFactory{},
 }
 
 // This is an arbitrary limit for how much data will be captured for
@@ -56,9 +53,16 @@ func WithMaxDynamicDataSize(size int) Option {
 	return maxDynamicDataSizeOption(size)
 }
 
-// WithElfFileLoader sets the elf file loader to use for loading elf files.
-func WithElfFileLoader(elfFileLoader ElfFileLoader) Option {
-	return optionFunc(func(c *config) { c.elfFileLoader = elfFileLoader })
+// WithObjectLoader sets the object loader to use for loading object files.
+func WithObjectLoader(loader object.Loader) Option {
+	return optionFunc(func(c *config) { c.objectLoader = loader })
+}
+
+// WithOnDiskGoTypeIndexFactory make irgen store the go type indexes on disk.
+func WithOnDiskGoTypeIndexFactory(diskCache *object.DiskCache) Option {
+	return optionFunc(func(c *config) {
+		c.typeIndexFactory = &onDiskGoTypeIndexFactory{diskCache: diskCache}
+	})
 }
 
 type optionFunc func(c *config)

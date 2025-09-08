@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(AML) Fix revive linter
+// Package mock provides mock pipeline components for testing
 package mock
 
 import (
@@ -38,7 +38,7 @@ func (p *mockProvider) GetOutputChan() chan *message.Message {
 
 // Flush does nothing
 //
-//nolint:revive // TODO(AML) Fix revive linter
+
 func (p *mockProvider) Flush(_ context.Context) {}
 
 // NextPipelineChan returns the next pipeline

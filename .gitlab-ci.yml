@@ -1,6 +1,7 @@
 ---
 include:
   - .gitlab/.pre/include.yml
+  - .gitlab/bazel/*.yaml
   - .gitlab/benchmarks/include.yml
   - .gitlab/binary_build/include.yml
   - .gitlab/check_deploy/check_deploy.yml
@@ -34,6 +35,7 @@ include:
   - .gitlab/post_rc_build/post_rc_tasks.yml
   - .gitlab/trigger_distribution/trigger_distribution.yml
   - .gitlab/trigger_distribution/conditions.yml
+  - .gitlab/dynamic_test/include.yml
   - .gitlab/setup/setup.yml
   - .gitlab/source_test/include.yml
   - .gitlab/scan/windows.yml
@@ -84,6 +86,7 @@ stages:
   - e2e_install_packages
   - functional_test
   - trigger_distribution
+  - dynamic_test
   - junit_upload
   - internal_kubernetes_deploy
   - post_rc_build
@@ -127,7 +130,7 @@ variables:
   # note the name is TEST_KEYS_URL, not TESTING_KEYS_URL;
   # this is because TESTING_KEYS_URL is a variable used by the install script,
   # and we don't want to modify its behavior inadvertently
-  TEST_KEYS_URL: apttesting.datad0g.com/test-keys-vault
+  TEST_KEYS_URL: apttesting.datad0g.com/test-keys
   INSTALLER_TESTING_S3_BUCKET: installtesting.datad0g.com
   WINDOWS_TESTING_S3_BUCKET: pipelines/A7/$CI_PIPELINE_ID
   WINDOWS_BUILDS_S3_BUCKET: $WIN_S3_BUCKET/builds
@@ -161,25 +164,23 @@ variables:
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to
-  CI_IMAGE_BTF_GEN: v72987997-23c57b1f
+  CI_IMAGE_BTF_GEN: v75408132-f104634c
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v72987997-23c57b1f
+  CI_IMAGE_DOCKER_X64: v75408132-f104634c
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v72987997-23c57b1f
+  CI_IMAGE_DOCKER_ARM64: v75408132-f104634c
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_DEB_ARMHF: v72987997-23c57b1f
-  CI_IMAGE_DEB_ARMHF_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v72987997-23c57b1f
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v75408132-f104634c
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX: v72987997-23c57b1f
+  CI_IMAGE_LINUX: v75408132-f104634c
   CI_IMAGE_LINUX_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v72987997-23c57b1f
+  CI_IMAGE_RPM_X64: v75408132-f104634c
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v72987997-23c57b1f
+  CI_IMAGE_RPM_ARM64: v75408132-f104634c
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v72987997-23c57b1f
+  CI_IMAGE_RPM_ARMHF: v75408132-f104634c
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v72987997-23c57b1f
+  CI_IMAGE_WIN_LTSC2022_X64: v75408132-f104634c
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -190,7 +191,7 @@ variables:
   # note the unusual ID for a GPG key:
   # it's the path of a Vault key to be used with gpg-vault
   # (https://github.com/DataDog/dd-source/tree/main/domains/seceng/sit/apps/artifact-security/vault-gpg-client/gpg-vault)
-  GPG_TEST_KEY_ID: crypto/k8s/keys/k8s_gitlab-runner_datadog-agent_testing-signing-key
+  GPG_TEST_KEY_ID: crypto/k8s/keys/k8s_gitlab-runner-datadog-agent_datadog-agent_testing_signing-key
   DOCKER_REGISTRY_URL: docker.io
   KITCHEN_INFRASTRUCTURE_FLAKES_RETRY: 2
   CLANG_LLVM_VER: 12.0.1
@@ -209,12 +210,8 @@ variables:
   CHANGELOG_COMMIT_SHA: ci.datadog-agent.gitlab_changelog_commit_sha # agent-devx
   CHOCOLATEY_API_KEY: ci.datadog-agent.chocolatey_api_key # windows-products
   CODECOV_TOKEN: ci.datadog-agent.codecov_token # agent-devx
-  DEB_GPG_KEY: ci.datadog-agent.deb_signing_private_key_${DEB_GPG_KEY_ID} # agent-delivery
-  DEB_SIGNING_PASSPHRASE: ci.datadog-agent.deb_signing_key_passphrase_${DEB_GPG_KEY_ID} # agent-delivery
   DOCKER_REGISTRY_LOGIN: ci.datadog-agent.docker_hub_login # container-integrations
   DOCKER_REGISTRY_PWD: ci.datadog-agent.docker_hub_pwd # container-integrations
-  RPM_GPG_KEY: ci.datadog-agent.rpm_signing_private_key_${RPM_GPG_KEY_ID} # agent-delivery
-  RPM_SIGNING_PASSPHRASE: ci.datadog-agent.rpm_signing_key_passphrase_${RPM_GPG_KEY_ID} # agent-delivery
   VCPKG_BLOB_SAS_URL: ci.datadog-agent-buildimages.vcpkg_blob_sas_url # windows-products
   WINGET_PAT: ci.datadog-agent.winget_pat # windows-products
   # End aws ssm variables
@@ -259,6 +256,8 @@ variables:
   FF_TIMESTAMPS: true
   FF_USE_FASTZIP: true
   CACHE_COMPRESSION_LEVEL: slowest
+  # Force python to print to stdout immediately, otherwise gitlab sections might not be displayed properly and we can miss some logs
+  PYTHONUNBUFFERED: 1
 
 #
 # Condition mixins for simplification of rules
@@ -630,6 +629,28 @@ workflow:
         - release.json
       compare_to: $COMPARE_TO_BRANCH
 
+.except_e2e_main_release_or_rc: # This rule is to not trigger dynamic test evaluation when we force all e2e tests to run
+  - <<: *if_disable_e2e_tests
+    when: never
+  - !reference [.except_mergequeue]
+  - <<: *if_run_all_e2e_tests
+    when: never
+  - <<: *if_main_branch
+    when: never
+  - <<: *if_release_branch
+    when: never
+  - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
+    when: never
+  - changes:
+      paths:
+        - .gitlab/e2e/e2e.yml
+        - test/new-e2e/pkg/**/*
+        - test/new-e2e/go.mod
+        - flakes.yaml
+        - release.json
+      compare_to: $COMPARE_TO_BRANCH
+    when: never
+
 .on_e2e_or_windows_installer_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - <<: *if_windows_installer_changes
@@ -745,8 +766,10 @@ workflow:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
-        - cmd/agent/dist/conf.d/service_discovery.d/*
+        - cmd/agent/dist/conf.d/discovery.d/*
+        - comp/core/autodiscovery/providers/process_log.go
         - test/new-e2e/tests/discovery/**/*
+        - pkg/collector/corechecks/discovery/**/*
         - pkg/collector/corechecks/servicediscovery/**/*
         - pkg/discovery/**/*
       compare_to: $COMPARE_TO_BRANCH
@@ -966,6 +989,10 @@ workflow:
   - <<: *if_scheduled_main
     when: always
 
+.on_scheduled_main_on_success:
+  - <<: *if_scheduled_main
+    when: on_success
+
 .on_main_or_rc_and_no_skip_e2e:
   - <<: *if_disable_e2e_tests
     when: never
@@ -1100,6 +1127,10 @@ workflow:
 .except_coverage_pipeline:
   - <<: *if_coverage_pipeline
     when: never
+
+.always_on_coverage_pipeline:
+  - <<: *if_coverage_pipeline
+    when: always
 
 # This is used to setup utils to report custom datadog-ci spans
 .setup-datadog-ci-sections:
