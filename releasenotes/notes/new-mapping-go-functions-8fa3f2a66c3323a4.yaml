@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Add new methods to pkg/opentelemetry-mapping-go/attributes that translate attributes from OpenTelemetry to Datadog semantics.
+    Add new methods to pkg/opentelemetry-mapping-go/otlp/attributes that translate attributes from OpenTelemetry to Datadog semantics.
