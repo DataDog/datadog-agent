@@ -148,7 +148,7 @@ def get_default_branch(major: int | None = None):
     return '6.53.x' if major is None and is_agent6(ctx) or major == 6 else 'main'
 
 
-def get_common_ancestor(ctx, branch, base=None, try_fetch=True) -> str:
+def get_common_ancestor(ctx, branch, base=None, try_fetch=True, hide=True) -> str:
     """
     Get the common ancestor between two branches.
 
@@ -165,15 +165,15 @@ def get_common_ancestor(ctx, branch, base=None, try_fetch=True) -> str:
     base = (base or get_default_branch()).removeprefix("origin/")
 
     try:
-        return ctx.run(f"git merge-base {branch} origin/{base}", hide=True).stdout.strip()
+        return ctx.run(f"git merge-base {branch} origin/{base}", hide=hide).stdout.strip()
     except Exception:
         if not try_fetch:
             raise
 
         # With S3 caching, it's possible that the base branch is not fetched
-        ctx.run(f"git fetch origin {base}")
+        ctx.run(f"git fetch origin {base}", hide=hide)
 
-        return ctx.run(f"git merge-base {branch} origin/{base}", hide=True).stdout.strip()
+        return ctx.run(f"git merge-base {branch} origin/{base}", hide=hide).stdout.strip()
 
 
 def check_uncommitted_changes(ctx):
@@ -202,7 +202,7 @@ def get_commit_sha(ctx, commit="HEAD", short=False) -> str:
 
 def get_main_parent_commit(ctx) -> str:
     """
-    Get the commit sha your current branch originated from
+    Get the commit sha from the LCA between main and the current branch
     """
     return get_common_ancestor(ctx, "HEAD", f'origin/{get_default_branch()}')
 
