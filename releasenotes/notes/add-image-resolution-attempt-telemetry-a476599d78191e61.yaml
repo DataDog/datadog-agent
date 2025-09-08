@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    Added image_resolution_attempt telemetry for tracking successful
+    and failed image resolution attempts for K8s SSI gradual rollouts.
