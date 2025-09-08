@@ -4,8 +4,8 @@ go 1.24.0
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.64.0-devel
-	github.com/DataDog/datadog-agent/comp/core/ipc/def v0.69.3
-	github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers v0.69.4
+	github.com/DataDog/datadog-agent/comp/core/ipc/def v0.70.0
+	github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers v0.70.0
 	github.com/DataDog/datadog-agent/comp/core/ipc/mock v0.70.0
 	github.com/DataDog/datadog-agent/comp/core/status v0.63.0
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types v0.65.0-devel
@@ -24,7 +24,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.63.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/create v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.63.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/mock v0.69.4 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/mock v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/model v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.63.0 // indirect

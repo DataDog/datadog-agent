@@ -17,7 +17,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.68.3 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.68.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/template v0.68.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.69.4 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log v0.68.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/option v0.68.3 // indirect

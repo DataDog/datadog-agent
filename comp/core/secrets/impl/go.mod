@@ -10,7 +10,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/status v0.68.3
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.68.3
 	github.com/DataDog/datadog-agent/pkg/template v0.68.3
-	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.69.4
+	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.70.0
 	github.com/DataDog/datadog-agent/pkg/util/log v0.68.3
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.68.3
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.68.3
