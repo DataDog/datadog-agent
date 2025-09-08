@@ -357,7 +357,6 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
         "./comp/core/gui/guiimpl/views/private",
         os.path.join(dist_folder, "views"),
         dirs_exist_ok=True,
-        ignore=shutil.ignore_patterns('*javascript.js', '*codemirror.js', '*yaml.js'),
     )
     if development:
         shutil.copytree("./dev/dist/", dist_folder, dirs_exist_ok=True)
