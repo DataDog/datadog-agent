@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -45,6 +46,7 @@ func newNoOpImageResolver() ImageResolver {
 // ResolveImage returns the original image reference.
 func (r *noOpImageResolver) Resolve(registry string, repository string, tag string) (*ResolvedImage, bool) {
 	log.Debugf("Cannot resolve %s/%s:%s without remote config", registry, repository, tag)
+	metrics.ImageResolutionAttempts.Inc(registry, repository, metrics.DigestResolutionDisabled, metrics.ImageResolutionMutable)
 	return nil, false
 }
 
@@ -124,7 +126,8 @@ func (r *remoteConfigImageResolver) Resolve(registry string, repository string, 
 	defer r.mu.RUnlock()
 
 	if len(r.imageMappings) == 0 {
-		// log.Debugf("Cache empty, no resolution available")
+		log.Debugf("Cache empty, no resolution available")
+		metrics.ImageResolutionAttempts.Inc(registry, repository, metrics.DigestResolutionEnabled, metrics.ImageResolutionMutable)
 		return nil, false
 	}
 
@@ -133,6 +136,7 @@ func (r *remoteConfigImageResolver) Resolve(registry string, repository string, 
 	repoCache, exists := r.imageMappings[requestedURL]
 	if !exists {
 		log.Debugf("No mapping found for repository URL %s", requestedURL)
+		metrics.ImageResolutionAttempts.Inc(registry, repository, metrics.DigestResolutionEnabled, metrics.ImageResolutionMutable)
 		return nil, false
 	}
 
@@ -141,10 +145,12 @@ func (r *remoteConfigImageResolver) Resolve(registry string, repository string, 
 	resolved, exists := repoCache[normalizedTag]
 	if !exists {
 		log.Debugf("No mapping found for %s:%s", requestedURL, normalizedTag)
+		metrics.ImageResolutionAttempts.Inc(registry, repository, metrics.DigestResolutionEnabled, metrics.ImageResolutionMutable)
 		return nil, false
 	}
 
 	log.Debugf("Resolved %s:%s -> %s", requestedURL, tag, resolved.FullImageRef)
+	metrics.ImageResolutionAttempts.Inc(registry, repository, metrics.DigestResolutionEnabled, metrics.ImageResolutionDigest)
 	return &resolved, true
 }
 
