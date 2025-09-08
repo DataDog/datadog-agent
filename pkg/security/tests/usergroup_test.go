@@ -18,6 +18,10 @@ import (
 func TestUserGroup(t *testing.T) {
 	SkipIfNotAvailable(t)
 
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+
 	if testEnvironment == DockerEnvironment {
 		t.Skip("Skip test spawning docker containers on docker")
 	}
@@ -135,7 +139,12 @@ func TestUserGroup(t *testing.T) {
 			if _, err := dockerWrapper.start(); err != nil {
 				t.Fatal(err)
 			}
-			defer dockerWrapper.stop()
+			t.Cleanup(func() {
+				output, err := dockerWrapper.stop()
+				if err != nil {
+					t.Errorf("failed to stop docker wrapper: %v\n%s", err, string(output))
+				}
+			})
 
 			for _, testCommand := range distroTest.testCommands {
 				i := 0

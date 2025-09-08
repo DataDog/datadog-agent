@@ -13,14 +13,19 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestContainerCreatedAt(t *testing.T) {
 	SkipIfNotAvailable(t)
+
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
 
 	checkKernelCompatibility(t, "OpenSUSE 15.3 kernel", func(kv *kernel.Version) bool {
 		// because of some strange btrfs subvolume error
@@ -55,10 +60,8 @@ func TestContainerCreatedAt(t *testing.T) {
 
 	dockerWrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "ubuntu", "")
 	if err != nil {
-		t.Skip("Skipping created time in containers tests: Docker not available")
-		return
+		t.Fatalf("failed to start docker wrapper: %v", err)
 	}
-	defer dockerWrapper.stop()
 
 	dockerWrapper.Run(t, "container-created-at", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		test.WaitSignal(t, func() error {
@@ -98,6 +101,10 @@ func TestContainerCreatedAt(t *testing.T) {
 func TestContainerVariables(t *testing.T) {
 	SkipIfNotAvailable(t)
 
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_container_set_variable",
@@ -135,10 +142,8 @@ func TestContainerVariables(t *testing.T) {
 
 	dockerWrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "ubuntu", "")
 	if err != nil {
-		t.Skip("Skipping created time in containers tests: Docker not available")
-		return
+		t.Fatalf("failed to start docker wrapper: %v", err)
 	}
-	defer dockerWrapper.stop()
 
 	dockerWrapper.Run(t, "container-variables", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		test.WaitSignal(t, func() error {

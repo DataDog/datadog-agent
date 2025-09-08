@@ -54,12 +54,15 @@ func runTracegenDocker(h *components.RemoteHost, service string, cfg tracegenCfg
 
 func tracegenUDSCommands(service string, peerTags string, enableClientSideStats bool) (string, string) {
 	// TODO: use a proper docker-compose definition for tracegen
+	// TRACEGEN_WAITTIME set to 5s, allowing the agent to resolve container tags before
+	// payloads are produced. This fixes flakiness around container tags resolution.
 	run := "docker run -d --rm --name " + service +
 		" -v /var/run/datadog/:/var/run/datadog/ " +
 		" -e DD_TRACE_AGENT_URL=unix:///var/run/datadog/apm.socket " +
 		" -e DD_SERVICE=" + service +
 		" -e DD_GIT_COMMIT_SHA=abcd1234 " +
 		" -e TRACEGEN_ADDSPANTAGS=" + peerTags +
+		" -e TRACEGEN_WAITTIME=5s " +
 		" -e DD_TRACE_STATS_COMPUTATION_ENABLED=" + strconv.FormatBool(enableClientSideStats) +
 		" ghcr.io/datadog/apps-tracegen:" + apps.Version
 	rm := "docker rm -f " + service
@@ -68,10 +71,13 @@ func tracegenUDSCommands(service string, peerTags string, enableClientSideStats 
 
 func tracegenTCPCommands(service string, peerTags string, enableClientSideStats bool) (string, string) {
 	// TODO: use a proper docker-compose definition for tracegen
+	// TRACEGEN_WAITTIME set to 5s, allowing the agent to resolve container tags before
+	// payloads are produced. This fixes flakiness around container tags resolution.
 	run := "docker run -d --network host --rm --name " + service +
 		" -e DD_SERVICE=" + service +
 		" -e DD_GIT_COMMIT_SHA=abcd1234 " +
 		" -e TRACEGEN_ADDSPANTAGS=" + peerTags +
+		" -e TRACEGEN_WAITTIME=5s " +
 		" -e DD_TRACE_STATS_COMPUTATION_ENABLED=" + strconv.FormatBool(enableClientSideStats) +
 		" ghcr.io/datadog/apps-tracegen:" + apps.Version
 	rm := "docker rm -f " + service
