@@ -55,7 +55,7 @@ type CollectorMetadata struct {
 	SkippedReason                        string
 	LabelsAsTags                         map[string]string
 	AnnotationsAsTags                    map[string]string
-	TagExpressions                       configutils.TagExpressions
+	TagExpressions                       configutils.ResourceTagExpressions
 	SupportsTerminatedResourceCollection bool
 	IsGenericCollector                   bool
 }
