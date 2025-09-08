@@ -9,7 +9,10 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"testing"
 
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
@@ -23,6 +26,12 @@ const (
 	ifTablePrefix  = "1.3.6.1.2.1.2.2."
 	ifXTablePrefix = "1.3.6.1.2.1.31.1.1."
 )
+
+func setupHostname(t *testing.T) {
+	mockConfig := configmock.New(t)
+	cache.Cache.Delete(cache.BuildAgentKey("hostname"))
+	mockConfig.SetWithoutSource("hostname", "my-hostname")
+}
 
 func getScalarValueFromSymbol(values *valuestore.ResultValueStore, symbol profiledefinition.SymbolConfig) (valuestore.ResultValue, error) {
 	value, err := values.GetScalarValue(symbol.OID)

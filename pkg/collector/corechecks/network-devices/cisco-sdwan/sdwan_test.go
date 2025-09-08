@@ -29,6 +29,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/cisco-sdwan/client"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/cisco-sdwan/payload"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/cisco-sdwan/report"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -41,6 +43,12 @@ func createDeps(t *testing.T) deps {
 	return fxutil.Test[deps](t, demultiplexerimpl.MockModule(), defaultforwarder.MockModule(), core.MockBundle())
 }
 
+func setupHostname(t *testing.T) {
+	mockConfig := configmock.New(t)
+	cache.Cache.Delete(cache.BuildAgentKey("hostname"))
+	mockConfig.SetWithoutSource("hostname", "my-hostname")
+}
+
 // mockTimeNow mocks time.Now
 var mockTimeNow = func() time.Time {
 	layout := "2006-01-02 15:04:05"
@@ -50,6 +58,7 @@ var mockTimeNow = func() time.Time {
 }
 
 func TestCiscoSDWANCheck(t *testing.T) {
+	setupHostname(t)
 	payload.TimeNow = mockTimeNow
 	report.TimeNow = mockTimeNow
 
@@ -203,6 +212,10 @@ collect_bgp_neighbor_states: true
 {
   "namespace": "test",
   "integration": "cisco-sdwan",
+  "collector_metadata": {
+    "agent_version": "6.0.0",
+    "agent_hostname": "my-hostname"
+  },
   "devices": [
     {
       "id": "test:10.10.1.1",

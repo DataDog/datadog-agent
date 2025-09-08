@@ -6,10 +6,13 @@
 package metadata
 
 import (
+	"context"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/integrations"
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/gosnmp/gosnmp"
 )
 
@@ -75,11 +78,19 @@ func BatchDeviceScan(namespace string, collectTime time.Time, batchSize int, dev
 }
 
 func newNetworkDevicesMetadata(integration integrations.Integration, namespace string, subnet string, collectTime time.Time) NetworkDevicesMetadata {
+	agentHostname, err := hostname.Get(context.TODO())
+	if err != nil {
+		agentHostname = ""
+	}
 	return NetworkDevicesMetadata{
 		Subnet:           subnet,
 		Namespace:        namespace,
 		Integration:      integration,
 		CollectTimestamp: collectTime.Unix(),
+		CollectorMetadata: &CollectorMetadata{
+			AgentVersion:  version.AgentVersion,
+			AgentHostname: agentHostname,
+		},
 	}
 }
 
