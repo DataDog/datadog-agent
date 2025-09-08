@@ -7,6 +7,7 @@ package auth
 
 import (
 	_ "embed"
+	"fmt"
 	"path"
 	"testing"
 
@@ -47,4 +48,16 @@ func TestIPCSecurityLinuxSuite(t *testing.T) {
 			),
 			awshost.WithAgentClientOptions(agentclientparams.WithSkipWaitForAgentReady()),
 		)))
+}
+
+func (a *authArtifactLinux) checkAuthStack() {
+	// AGENTRUN-609: Permission of log files are restricted to the `dd-agent` user and group,
+	// add the user of the ssh connection to the group to access the logs
+	cmd := fmt.Sprintf("sudo usermod -aG dd-agent %s", a.authArtifactBase.Env().RemoteHost.Username)
+	_, err := a.authArtifactBase.Env().RemoteHost.Execute(cmd)
+	if err != nil {
+		a.T().Fatalf("Unable to add ssh user to `dd-agent` group: %v", err)
+	}
+
+	a.authArtifactBase.checkAuthStack()
 }
