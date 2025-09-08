@@ -71,6 +71,7 @@ def get_untracked_files(ctx, re_filter=None) -> Iterable[str]:
             yield file
 
 
+
 def get_file_modifications(
     ctx, base_branch=None, added=False, modified=False, removed=False, only_names=False, no_renames=False
 ) -> list[tuple[str, str]]:
@@ -93,8 +94,7 @@ def get_file_modifications(
 
     base_branch = base_branch or _get_release_json_value('base_branch')
 
-    ctx.run(f"git fetch origin {base_branch}")
-    last_main_commit = ctx.run(f"git merge-base HEAD origin/{base_branch}", hide=True).stdout.strip()
+    last_main_commit = get_common_ancestor(ctx, "HEAD", base_branch)
 
     flags = '--no-renames' if no_renames else ''
 
@@ -149,10 +149,32 @@ def get_default_branch(major: int | None = None):
     return '6.53.x' if major is None and is_agent6(ctx) or major == 6 else 'main'
 
 
-def get_common_ancestor(ctx, branch, base=None) -> str:
+def get_common_ancestor(ctx, branch, base=None, try_fetch=True) -> str:
+    """
+    Get the common ancestor between two branches.
+
+    Args:
+        ctx: The invoke context.
+        branch: The branch to get the common ancestor with.
+        base: The base branch to get the common ancestor with.
+        try_fetch: Try to fetch the base branch if it's not found (to avoid S3 caching issues).
+
+    Returns:
+        The common ancestor between two branches.
+    """
+
     base = base or f"origin/{get_default_branch()}"
 
-    return ctx.run(f"git merge-base {branch} {base}", hide=True).stdout.strip()
+    try:
+        return ctx.run(f"git merge-base {branch} {base}", hide=True).stdout.strip()
+    except Exception:
+        if not try_fetch:
+            raise
+
+        # With S3 caching, it's possible that the base branch is not fetched
+        ctx.run(f"git fetch origin {base}")
+
+        return ctx.run(f"git merge-base {branch} {base}", hide=True).stdout.strip()
 
 
 def check_uncommitted_changes(ctx):
@@ -183,7 +205,7 @@ def get_main_parent_commit(ctx) -> str:
     """
     Get the commit sha your current branch originated from
     """
-    return ctx.run(f"git merge-base HEAD origin/{get_default_branch()}", hide=True).stdout.strip()
+    return get_common_ancestor(ctx, "HEAD", get_default_branch())
 
 
 def check_base_branch(branch, release_version):
