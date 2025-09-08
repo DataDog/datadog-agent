@@ -7,16 +7,10 @@
 package platforms
 
 import (
-	_ "embed"
 	"strings"
 
 	"github.com/DataDog/test-infra-definitions/components/os"
 )
-
-// Content of the platforms.json file
-//
-//go:embed platforms.json
-var Content []byte
 
 // BuildOSDescriptor builds an os.Descriptor from a platform, architecture and osVersion
 func BuildOSDescriptor(platform, architecture, osVersion string) os.Descriptor {
