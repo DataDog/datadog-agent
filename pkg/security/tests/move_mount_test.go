@@ -294,6 +294,12 @@ func TestMoveMountRecursivePropagation(t *testing.T) {
 		t.Skip("move_mount syscall is not supported on this platform")
 	}
 
+	test, err := newTestModule(t, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
 	te, err := newTestEnvironment(false, t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -305,12 +311,6 @@ func TestMoveMountRecursivePropagation(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer unix.Close(fd)
-
-	test, err := newTestModule(t, nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer test.Close()
 
 	t.Run("moved-recursive-with-propagation", func(_ *testing.T) {
 		allMounts := map[uint32]uint32{}
