@@ -290,18 +290,13 @@ static __attribute__((always_inline)) int is_overlayfs(struct dentry *dentry) {
     return get_sb_magic(sb) == OVERLAYFS_SUPER_MAGIC;
 }
 
-struct inode * __attribute__((always_inline)) get_ovl_lower_inode_direct(struct dentry *dentry) {
+int __attribute__((always_inline)) get_ovl_lower_ino_direct(struct dentry *dentry) {
     struct inode *d_inode = get_dentry_inode(dentry);
 
     // escape from the embedded vfs_inode to reach ovl_inode
     struct inode *lower;
     bpf_probe_read(&lower, sizeof(lower), (char *)d_inode + get_sizeof_inode() + 8);
 
-    return lower;
-}
-
-int __attribute__((always_inline)) get_ovl_lower_ino_direct(struct dentry *dentry) {
-    struct inode *lower = get_ovl_lower_inode_direct(dentry);
     return get_inode_ino(lower);
 }
 
@@ -385,9 +380,14 @@ int __attribute__((always_inline)) get_ovl_lower_nlink_from_ovl_path(struct dent
 }
 
 int __attribute__((always_inline)) get_ovl_lower_nlink_direct(struct dentry *dentry) {
-    struct inode *lower = get_ovl_lower_inode_direct(dentry);
+    struct inode *d_inode = get_dentry_inode(dentry);
+
+    // escape from the embedded vfs_inode to reach ovl_inode
+    struct inode *lower;
+    bpf_probe_read(&lower, sizeof(lower), (char *)d_inode + get_sizeof_inode() + 8);
+
     return get_inode_nlink(lower);
-};
+}
 
 int __attribute__((always_inline)) get_ovl_lower_nlink(struct dentry *dentry) {
     switch (get_ovl_path_in_inode()) {
