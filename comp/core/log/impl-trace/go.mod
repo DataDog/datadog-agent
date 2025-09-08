@@ -10,7 +10,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log v0.64.1
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect; v2.6
-	github.com/stretchr/testify v1.10.0
+	github.com/stretchr/testify v1.11.1
 	go.uber.org/fx v1.24.0 // indirect
 )
 
