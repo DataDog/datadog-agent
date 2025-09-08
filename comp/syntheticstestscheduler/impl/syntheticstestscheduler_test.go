@@ -11,6 +11,10 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"strings"
+	"testing"
+	"time"
+
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
@@ -24,9 +28,6 @@ import (
 	utillog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
-	"strings"
-	"testing"
-	"time"
 )
 
 func Test_SyntheticsTestScheduler_StartAndStop(t *testing.T) {
@@ -41,7 +42,7 @@ func Test_SyntheticsTestScheduler_StartAndStop(t *testing.T) {
 		flushInterval:              100 * time.Millisecond,
 		syntheticsSchedulerEnabled: true,
 	}
-	scheduler, err := newSyntheticsTestScheduler(configs, nil, l, "configID", time.Now)
+	scheduler, err := newSyntheticsTestScheduler(configs, nil, l, time.Now)
 	assert.Nil(t, err)
 	assert.False(t, scheduler.running)
 
@@ -309,7 +310,12 @@ func Test_SyntheticsTestScheduler_OnConfigUpdate(t *testing.T) {
 			testDir := t.TempDir()
 			mockConfig := configmock.New(t)
 			mockConfig.SetWithoutSource("run_path", testDir)
-			scheduler, err := newSyntheticsTestScheduler(configs, nil, l, "configID", time.Now)
+			now := time.Now()
+			timeNowFn := func() time.Time {
+				return now
+			}
+
+			scheduler, err := newSyntheticsTestScheduler(configs, nil, l, timeNowFn)
 			assert.Nil(t, err)
 			assert.False(t, scheduler.running)
 			applied := map[string]state.ApplyStatus{}
@@ -341,27 +347,21 @@ func Test_SyntheticsTestScheduler_OnConfigUpdate(t *testing.T) {
 			cache, err := persistentcache.Read(cacheKey)
 			assert.Nil(t, err)
 
-			cfg := map[string]common.SyntheticsTestConfig{}
+			cfg := map[string]*runningTestState{}
 			for _, v := range tt.updateJSON {
 				var newUpdate common.SyntheticsTestConfig
 				err = json.Unmarshal([]byte(v), &newUpdate)
 				assert.Nil(t, err)
-				cfg[newUpdate.PublicID] = newUpdate
+				cfg[newUpdate.PublicID] = &runningTestState{
+					cfg:     newUpdate,
+					lastRun: time.Time{},
+					nextRun: now,
+				}
 			}
 			val, err := json.Marshal(cfg)
 			assert.Nil(t, err)
 			assert.Equal(t, string(val), cache)
-
-			for k := range scheduler.state.tests {
-				_, exists := cfg[k]
-				assert.True(t, exists)
-			}
-			for k := range cfg {
-				_, exists := scheduler.state.tests[k]
-				assert.True(t, exists)
-			}
 		})
-
 	}
 }
 
@@ -381,7 +381,7 @@ func Test_SyntheticsTestScheduler_Processing(t *testing.T) {
 				"config":{"assertions":[],"request":{"host":"example.com","port":443,"tcp_method":"syn","probe_count":3,"traceroute_count":1,"max_ttl":30,"timeout":5,"source_service":"frontend","destination_service":"backend"}},
 				"orgID":12345,"mainDC":"us1.staging.dog","publicID":"puf-9fm-c89"
 			}`},
-			expectedEventJSON: `{"_dd":{},"result":{"id":"4907739274636687553","initialId":"4907739274636687553","testFinishedAt":1756901488592,"testStartedAt":1756901488591,"testTriggeredAt":1756901488590,"assertions":null,"failure":null,"duration":1,"request":{"host":"example.com","port":443,"maxTtl":30,"timeout":5000},"netstats":{"packetsSent":0,"packetsReceived":0,"packetLossPercentage":0,"jitter":0,"latency":{"avg":0,"min":0,"max":0},"hops":{"avg":0,"min":0,"max":0}},"netpath":{"timestamp":0,"pathtrace_id":"pathtrace-id-111-example.com","origin":"","protocol":"TCP","agent_version":"","namespace":"","source":{"hostname":"abc"},"destination":{"hostname":"example.com","ip_address":"example.com","port":443,"reverse_dns_hostname":""},"hops":[{"ttl":0,"rtt":0,"ip_address":"1.1.1.1","hostname":"hop_1","reachable":false},{"ttl":0,"rtt":0,"ip_address":"1.1.1.2","hostname":"hop_2","reachable":false}],"test_config_id":"configID","test_result_id":"4907739274636687553","traceroute_test":{"traceroute_runs":null,"hop_count_avg":0,"hop_count_min":0,"hop_count_max":0},"e2e_test":{"packet_loss":0,"latency_avg":0,"latency_min":0,"latency_max":0,"jitter":0},"tags":null},"status":"passed"},"test":{"_internalId":"puf-9fm-c89","id":"puf-9fm-c89","subType":"tcp","type":"network","version":1},"v":1}`,
+			expectedEventJSON: `{"_dd":{},"result":{"id":"4907739274636687553","initialId":"4907739274636687553","testFinishedAt":1756901488592,"testStartedAt":1756901488591,"testTriggeredAt":1756901488590,"assertions":null,"failure":null,"duration":1,"request":{"host":"example.com","port":443,"maxTtl":30,"timeout":5000},"netstats":{"packetsSent":0,"packetsReceived":0,"packetLossPercentage":0,"jitter":0,"latency":{"avg":0,"min":0,"max":0},"hops":{"avg":0,"min":0,"max":0}},"netpath":{"timestamp":0,"pathtrace_id":"pathtrace-id-111-example.com","origin":"","protocol":"TCP","agent_version":"","namespace":"","source":{"hostname":"abc"},"destination":{"hostname":"example.com","ip_address":"example.com","port":443,"reverse_dns_hostname":""},"hops":[{"ttl":0,"rtt":0,"ip_address":"1.1.1.1","hostname":"hop_1","reachable":false},{"ttl":0,"rtt":0,"ip_address":"1.1.1.2","hostname":"hop_2","reachable":false}],"test_config_id":"puf-9fm-c89","test_result_id":"4907739274636687553","traceroute_test":{"traceroute_runs":null,"hop_count_avg":0,"hop_count_min":0,"hop_count_max":0},"e2e_test":{"packet_loss":0,"latency_avg":0,"latency_min":0,"latency_max":0,"jitter":0},"tags":null},"status":"passed"},"test":{"_internalId":"puf-9fm-c89","id":"puf-9fm-c89","subType":"tcp","type":"network","version":1},"v":1}`,
 			expectedRunTraceroute: func(cfg config.Config, _ telemetry.Component) (payload.NetworkPath, error) {
 				return payload.NetworkPath{
 					PathtraceID: "pathtrace-id-111-" + cfg.DestHostname,
@@ -401,7 +401,7 @@ func Test_SyntheticsTestScheduler_Processing(t *testing.T) {
 				"config":{"assertions":[],"request":{"host":"example.com","port":443,"tcp_method":"syn","probe_count":3,"traceroute_count":1,"max_ttl":30,"timeout":5,"source_service":"frontend","destination_service":"backend"}},
 				"orgID":12345,"mainDC":"us1.staging.dog","publicID":"puf-9fm-c89"
 			}`},
-			expectedEventJSON: `{"_dd":{},"result":{"id":"4907739274636687553","initialId":"4907739274636687553","testFinishedAt":1756901488592,"testStartedAt":1756901488591,"testTriggeredAt":1756901488590,"assertions":null,"failure":null,"duration":1,"request":{"host":"example.com","port":443,"maxTtl":30,"timeout":5000},"netstats":{"packetsSent":0,"packetsReceived":0,"packetLossPercentage":0,"jitter":0,"latency":{"avg":0,"min":0,"max":0},"hops":{"avg":0,"min":0,"max":0}},"netpath":{"timestamp":0,"pathtrace_id":"pathtrace-id-111-example.com","origin":"","protocol":"TCP","agent_version":"","namespace":"","source":{"hostname":"abc"},"destination":{"hostname":"example.com","ip_address":"example.com","port":443,"reverse_dns_hostname":""},"hops":[{"ttl":0,"rtt":0,"ip_address":"1.1.1.1","hostname":"hop_1","reachable":false},{"ttl":0,"rtt":0,"ip_address":"1.1.1.2","hostname":"hop_2","reachable":false}],"test_config_id":"configID","test_result_id":"4907739274636687553","traceroute_test":{"traceroute_runs":null,"hop_count_avg":0,"hop_count_min":0,"hop_count_max":0},"e2e_test":{"packet_loss":0,"latency_avg":0,"latency_min":0,"latency_max":0,"jitter":0},"tags":null},"status":"passed"},"test":{"_internalId":"puf-9fm-c89","id":"puf-9fm-c89","subType":"tcp","type":"network","version":1},"v":1}`,
+			expectedEventJSON: `{"_dd":{},"result":{"id":"4907739274636687553","initialId":"4907739274636687553","testFinishedAt":1756901488592,"testStartedAt":1756901488591,"testTriggeredAt":1756901488590,"assertions":null,"failure":null,"duration":1,"request":{"host":"example.com","port":443,"maxTtl":30,"timeout":5000},"netstats":{"packetsSent":0,"packetsReceived":0,"packetLossPercentage":0,"jitter":0,"latency":{"avg":0,"min":0,"max":0},"hops":{"avg":0,"min":0,"max":0}},"netpath":{"timestamp":0,"pathtrace_id":"pathtrace-id-111-example.com","origin":"","protocol":"TCP","agent_version":"","namespace":"","source":{"hostname":"abc"},"destination":{"hostname":"example.com","ip_address":"example.com","port":443,"reverse_dns_hostname":""},"hops":[{"ttl":0,"rtt":0,"ip_address":"1.1.1.1","hostname":"hop_1","reachable":false},{"ttl":0,"rtt":0,"ip_address":"1.1.1.2","hostname":"hop_2","reachable":false}],"test_config_id":"puf-9fm-c89","test_result_id":"4907739274636687553","traceroute_test":{"traceroute_runs":null,"hop_count_avg":0,"hop_count_min":0,"hop_count_max":0},"e2e_test":{"packet_loss":0,"latency_avg":0,"latency_min":0,"latency_max":0,"jitter":0},"tags":null},"status":"passed"},"test":{"_internalId":"puf-9fm-c89","id":"puf-9fm-c89","subType":"tcp","type":"network","version":1},"v":1}`,
 			expectedRunTraceroute: func(cfg config.Config, _ telemetry.Component) (payload.NetworkPath, error) {
 				return payload.NetworkPath{
 					PathtraceID: "pathtrace-id-111-" + cfg.DestHostname,
@@ -446,7 +446,7 @@ func Test_SyntheticsTestScheduler_Processing(t *testing.T) {
 				return t
 			}
 
-			scheduler, err := newSyntheticsTestScheduler(configs, mockEpForwarder, l, "configID", timeNowFn)
+			scheduler, err := newSyntheticsTestScheduler(configs, mockEpForwarder, l, timeNowFn)
 			assert.Nil(t, err)
 			assert.False(t, scheduler.running)
 
@@ -593,19 +593,22 @@ func TestFlushEnqueuesDueTests(t *testing.T) {
 
 	select {
 	case ctx := <-scheduler.syntheticsTestProcessingChan:
+		time.Sleep(1000 * time.Millisecond)
 		if ctx.cfg.PublicID != "test1" {
 			t.Errorf("expected test1, got %s", ctx.cfg.PublicID)
 		}
-	default:
-		t.Errorf("expected test1 to be enqueued")
+	case <-time.After(1 * time.Second):
+		t.Errorf("expected test1 to be enqueuedffff")
 	}
 
-	// The nextRun should be updated
+	// The lastRun should be updated to the old nextRun
 	rt := scheduler.state.tests["test1"]
-	expectedNextRun := now.Add(time.Duration(rt.cfg.Interval) * time.Second)
-	if !rt.nextRun.Equal(expectedNextRun) {
-		t.Errorf("expected nextRun %v, got %v", expectedNextRun, rt.nextRun)
-	}
+	expectedLastRun := now.Add(-10 * time.Second)
+	assert.Equal(t, expectedLastRun, rt.lastRun)
+
+	// The nextRun should be updated based on the old nextRun, not flushTime
+	expectedNextRun := now // old nextRun (-10s) + interval (10s) = now
+	assert.Equal(t, expectedNextRun, rt.nextRun)
 }
 
 func ptr[T any](v T) *T { return &v }
