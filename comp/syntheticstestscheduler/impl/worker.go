@@ -130,8 +130,8 @@ type WorkerResult struct {
 func toNetpathConfig(c common.SyntheticsTestConfig) (config.Config, error) {
 	var cfg config.Config
 
-	switch common.Subtype(c.Subtype) {
-	case common.SubtypeUDP:
+	switch common.SubType(c.Subtype) {
+	case common.SubTypeUDP:
 		req, ok := c.Config.Request.(common.UDPConfigRequest)
 		if !ok {
 			return config.Config{}, fmt.Errorf("invalid UDP request type")
@@ -154,7 +154,7 @@ func toNetpathConfig(c common.SyntheticsTestConfig) (config.Config, error) {
 			cfg.DestinationService = *req.DestinationService
 		}
 
-	case common.SubtypeTCP:
+	case common.SubTypeTCP:
 		req, ok := c.Config.Request.(common.TCPConfigRequest)
 		if !ok {
 			return config.Config{}, fmt.Errorf("invalid TCP request type")
@@ -178,7 +178,7 @@ func toNetpathConfig(c common.SyntheticsTestConfig) (config.Config, error) {
 			cfg.DestinationService = *req.DestinationService
 		}
 
-	case common.SubtypeICMP:
+	case common.SubTypeICMP:
 		req, ok := c.Config.Request.(common.ICMPConfigRequest)
 		if !ok {
 			return config.Config{}, fmt.Errorf("invalid ICMP request type")
