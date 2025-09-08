@@ -36,7 +36,6 @@ import (
 	semconv1_6_1 "go.opentelemetry.io/otel/semconv/v1.6.1"
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
-	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	normalizeutil "github.com/DataDog/datadog-agent/pkg/util/normalize"
 )
 
@@ -591,13 +590,8 @@ func GetOTelService(signalattrs pcommon.Map, resattrs pcommon.Map, normalize boo
 		svc = DefaultOTLPServiceName
 	}
 	if normalize {
-		newsvc, err := normalizeutil.NormalizeService(svc, "")
-		switch err {
-		case normalizeutil.ErrTooLong:
-			log.Debugf("Fixing malformed trace. Service is too long (reason:service_truncate), truncating span.service to length=%d: %s", normalizeutil.MaxServiceLen, svc) // XXX use a different logger
-		case normalizeutil.ErrInvalid:
-			log.Debugf("Fixing malformed trace. Service is invalid (reason:service_invalid), replacing invalid span.service=%s with fallback span.service=%s", svc, newsvc) // XXX use a different logger
-		}
+		newsvc, _ := normalizeutil.NormalizeService(svc, "")
+		// TODO: Log errors
 		svc = newsvc
 	}
 	return svc
@@ -867,26 +861,55 @@ func GetOTelContainerID(signalattrs pcommon.Map, resourceattrs pcommon.Map, igno
 	return GetOTelAttrFromEitherMap(signalattrs, resourceattrs, true, string(semconv1_27.ContainerIDKey), string(semconv1_27.K8SPodUIDKey))
 }
 
-// XXX make this take signalattrs as well
 // GetOTelContainerTags returns a list of DD container tags in an OTel map's attributes.
 // Tags are always normalized.
 func GetOTelContainerTags(signalattrs pcommon.Map, rattrs pcommon.Map, tagKeys []string) []string {
+	ddtags := make(map[string]string)
+	semConvsCB := func(key string, value pcommon.Value) bool {
+		// Semantic Conventions
+		if datadogKey, found := ContainerMappings[key]; found && value.Str() != "" {
+			ddtags[datadogKey] = value.Str()
+		}
+		return true
+	}
+	rattrs.Range(semConvsCB)
+	signalattrs.Range(semConvsCB)
+
+	ddNamespaceCB := func(key string, value pcommon.Value) bool {
+		// Custom (datadog.container.tag namespace)
+		if strings.HasPrefix(key, customContainerTagPrefix) {
+			customKey := strings.TrimPrefix(key, customContainerTagPrefix)
+			if customKey != "" && value.Str() != "" {
+				// Do not replace if set via semantic conventions mappings.
+				if _, found := ddtags[customKey]; !found {
+					ddtags[customKey] = value.Str()
+				}
+			}
+		}
+		return true
+	}
+	rattrs.Range(ddNamespaceCB)
+	signalattrs.Range(ddNamespaceCB)
+
 	var containerTags []string
-	containerTagsMap := ContainerTagsFromResourceAttributes(rattrs)
 	for _, key := range tagKeys {
+		outputKey := ""
+		outputValue := ""
 		if mappedKey, ok := ContainerMappings[key]; ok {
 			// If the key has a mapping in ContainerMappings, use the mapped key
-			if val, ok := containerTagsMap[mappedKey]; ok {
-				t := normalizeutil.NormalizeTag(mappedKey + ":" + val)
-				containerTags = append(containerTags, t)
+			if val, ok := ddtags[mappedKey]; ok {
+				outputKey = mappedKey
+				outputValue = val
 			}
 		} else {
 			// Otherwise populate as additional container tags
 			if val := GetOTelAttrVal(rattrs, false, key); val != "" {
-				t := normalizeutil.NormalizeTag(key + ":" + val)
-				containerTags = append(containerTags, t)
+				outputKey = key
+				outputValue = val
 			}
 		}
+		t := normalizeutil.NormalizeTag(outputKey + ":" + outputValue)
+		containerTags = append(containerTags, t)
 	}
 	return containerTags
 }

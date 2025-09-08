@@ -1024,12 +1024,118 @@ func TestGetOTelContainerID(t *testing.T) {
 }
 
 func TestGetOTelContainerTags(t *testing.T) {
-	res := pcommon.NewResource()
-	res.Attributes().PutStr(string(semconv1_27.ContainerIDKey), "cid")
-	res.Attributes().PutStr(string(semconv1_27.ContainerNameKey), "cname")
-	res.Attributes().PutStr(string(semconv1_27.ContainerImageNameKey), "ciname")
-	res.Attributes().PutStr(string(conventions.ContainerImageTagKey), "citag")
-	res.Attributes().PutStr("az", "my-az")
-	assert.Contains(t, GetOTelContainerTags(pcommon.NewMap(), res.Attributes(), []string{"az", string(semconv1_27.ContainerIDKey), string(semconv1_27.ContainerNameKey), string(semconv1_27.ContainerImageNameKey), string(conventions.ContainerImageTagKey)}), "container_id:cid", "container_name:cname", "image_name:ciname", "image_tag:citag", "az:my-az")
-	assert.Contains(t, GetOTelContainerTags(pcommon.NewMap(), res.Attributes(), []string{"az"}), "az:my-az")
+	for _, tt := range []struct {
+		name        string
+		signalAttrs map[string]string
+		resAttrs    map[string]string
+		tagKeys     []string
+		expected    []string
+	}{
+		{
+			name:        "container tags from resource attrs",
+			signalAttrs: map[string]string{},
+			resAttrs: map[string]string{
+				string(semconv1_27.ContainerIDKey):        "cid",
+				string(semconv1_27.ContainerNameKey):      "cname",
+				string(semconv1_27.ContainerImageNameKey): "ciname",
+				string(conventions.ContainerImageTagKey):  "citag",
+				"az":                                      "my-az",
+			},
+			tagKeys: []string{
+				"az",
+				string(semconv1_27.ContainerIDKey),
+				string(semconv1_27.ContainerNameKey),
+				string(semconv1_27.ContainerImageNameKey),
+				string(conventions.ContainerImageTagKey),
+			},
+			expected: []string{
+				"az:my-az",
+				"container_id:cid",
+				"container_name:cname",
+				"image_name:ciname",
+				"image_tag:citag",
+			},
+		},
+		{
+			name: "container tags from signal attrs (signal overwrites resource)",
+			signalAttrs: map[string]string{
+				string(semconv1_27.ContainerIDKey): "signal-cid",
+			},
+			resAttrs: map[string]string{
+				string(semconv1_27.ContainerIDKey):   "resource-cid",
+				string(semconv1_27.ContainerNameKey): "cname",
+			},
+			tagKeys: []string{
+				string(semconv1_27.ContainerIDKey),
+				string(semconv1_27.ContainerNameKey),
+			},
+			expected: []string{
+				"container_id:signal-cid",
+				"container_name:cname",
+			},
+		},
+		{
+			name:        "custom datadog container tags",
+			signalAttrs: map[string]string{},
+			resAttrs: map[string]string{
+				"datadog.container.tag.custom.team": "otel-team",
+				"datadog.container.tag.env":         "custom-env",
+			},
+			tagKeys: []string{
+				"datadog.container.tag.custom.team",
+				"datadog.container.tag.env",
+			},
+			expected: []string{
+				"datadog.container.tag.custom.team:otel-team",
+				"datadog.container.tag.env:custom-env",
+			},
+		},
+		{
+			name:        "semantic conventions take precedence over custom tags",
+			signalAttrs: map[string]string{},
+			resAttrs: map[string]string{
+				string(semconv1_27.ContainerIDKey):   "semconv-cid",
+				"datadog.container.tag.container_id": "custom-cid",
+			},
+			tagKeys: []string{
+				string(semconv1_27.ContainerIDKey),
+			},
+			expected: []string{
+				"container_id:semconv-cid",
+			},
+		},
+		{
+			name:        "additional tags not in ContainerMappings",
+			signalAttrs: map[string]string{},
+			resAttrs: map[string]string{
+				"custom_key": "custom_value",
+			},
+			tagKeys: []string{"custom_key"},
+			expected: []string{
+				"custom_key:custom_value",
+			},
+		},
+		{
+			name:        "empty tag keys",
+			signalAttrs: map[string]string{},
+			resAttrs: map[string]string{
+				string(semconv1_27.ContainerIDKey): "cid",
+			},
+			tagKeys:  []string{},
+			expected: []string{},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			signalAttrs := pcommon.NewMap()
+			for k, v := range tt.signalAttrs {
+				signalAttrs.PutStr(k, v)
+			}
+			resAttrs := pcommon.NewMap()
+			for k, v := range tt.resAttrs {
+				resAttrs.PutStr(k, v)
+			}
+			actual := GetOTelContainerTags(signalAttrs, resAttrs, tt.tagKeys)
+			assert.ElementsMatch(t, tt.expected, actual)
+		})
+	}
 }
