@@ -23,4 +23,5 @@ jobs:
       - name: Ask for code reviews
         env:
           SLACK_DATADOG_AGENT_BOT_TOKEN : ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
+          GITHUB_TOKEN : ${{ secrets.GITHUB_TOKEN }}
         run: dda inv -- -e issue.ask-reviews -p ${{ github.event.pull_request.number }}
