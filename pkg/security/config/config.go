@@ -12,7 +12,6 @@ import (
 	"math"
 	"net"
 	"slices"
-	"strings"
 	"time"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -785,12 +784,4 @@ func parseHashAlgorithmStringSlice(algorithms []string) []model.HashAlgorithm {
 		}
 	}
 	return output
-}
-
-// GetFamilyAddress returns the address famility to use for system-probe <-> security-agent communication
-func GetFamilyAddress(path string) string {
-	if strings.HasPrefix(path, "/") {
-		return "unix"
-	}
-	return "tcp"
 }
