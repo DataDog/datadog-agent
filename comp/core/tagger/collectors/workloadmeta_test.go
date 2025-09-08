@@ -2825,7 +2825,7 @@ func TestHandleProcess(t *testing.T) {
 				},
 			},
 			expectedTagInfo: &types.TagInfo{
-				Source:   string(workloadmeta.SourceServiceDiscovery),
+				Source:   processSource,
 				EntityID: types.NewEntityID(types.Process, pid),
 				LowCardTags: []string{
 					fmt.Sprintf("env:%s", envFromDD),
@@ -2858,7 +2858,7 @@ func TestHandleProcess(t *testing.T) {
 				},
 			},
 			expectedTagInfo: &types.TagInfo{
-				Source:   string(workloadmeta.SourceServiceDiscovery),
+				Source:   processSource,
 				EntityID: types.NewEntityID(types.Process, pid),
 				LowCardTags: []string{
 					fmt.Sprintf("service:%s", serviceNameFromDD),

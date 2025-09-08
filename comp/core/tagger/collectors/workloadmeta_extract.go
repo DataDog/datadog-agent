@@ -283,7 +283,6 @@ func (c *WorkloadMetaCollector) handleProcess(ev workloadmeta.Event) []*types.Ta
 		return nil
 	}
 
-	processSource := string(workloadmeta.SourceServiceDiscovery)
 	return []*types.TagInfo{
 		{
 			Source:               processSource,
