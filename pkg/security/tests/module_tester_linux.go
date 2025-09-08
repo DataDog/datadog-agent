@@ -642,11 +642,13 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	}
 
 	if opts.dynamicOpts.disableBundledRules {
-		ruleDefs = append(ruleDefs, &rules.RuleDefinition{
-			ID:       bundled.NeedRefreshSBOMRuleID,
-			Disabled: true,
-			Combine:  rules.OverridePolicy,
-		})
+		for _, ruleID := range bundled.GetBundledRuleIDs() {
+			ruleDefs = append(ruleDefs, &rules.RuleDefinition{
+				ID:       ruleID,
+				Disabled: true,
+				Combine:  rules.OverridePolicy,
+			})
+		}
 	}
 
 	st, err := newSimpleTest(t, macroDefs, ruleDefs, opts.dynamicOpts.testDir)
