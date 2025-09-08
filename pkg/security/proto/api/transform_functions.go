@@ -29,7 +29,7 @@ func (p *FilterReport) FromProtoToFilterReport() *kfilters.FilterReport {
 	}
 
 	for _, report := range p.GetApprovers() {
-		approversToPrint := *report.GetApprovers().FromProtoToApprovers()
+		approversToPrint := *report.GetApprovers().fromProtoToApprovers()
 		if len(approversToPrint) == 0 {
 			approversToPrint = nil // This is here to ensure that the printed result is `"Approvers": null` and not `"Approvers": {}`
 		}
@@ -45,8 +45,8 @@ func (p *FilterReport) FromProtoToFilterReport() *kfilters.FilterReport {
 	return wholeReport
 }
 
-// FromProtoToApprovers transforms a proto to a kfilter approvers
-func (p *Approvers) FromProtoToApprovers() *rules.Approvers {
+// fromProtoToApprovers transforms a proto to a kfilter approvers
+func (p *Approvers) fromProtoToApprovers() *rules.Approvers {
 	approvers := make(rules.Approvers)
 
 	for _, approver := range p.GetApproverDetails() {
@@ -79,8 +79,8 @@ func FromFilterReportToProtoRuleSetReportMessage(filterReport *kfilters.FilterRe
 		protoReport := &ApproverReport{
 			EventType:       key,
 			Mode:            uint32(report.Mode),
-			Approvers:       FromApproversToProto(report.Approvers),
-			AcceptModeRules: FromAcceptModeRulesToProto(report.AcceptModeRules),
+			Approvers:       fromApproversToProto(report.Approvers),
+			AcceptModeRules: fromAcceptModeRulesToProto(report.AcceptModeRules),
 		}
 
 		reports = append(reports, protoReport)
@@ -93,8 +93,8 @@ func FromFilterReportToProtoRuleSetReportMessage(filterReport *kfilters.FilterRe
 	}
 }
 
-// FromAcceptModeRulesToProto transforms a kfilter to a proto accept mode rules
-func FromAcceptModeRulesToProto(acceptModeRules []kfilters.AcceptModeRule) []*AcceptModeRule {
+// fromAcceptModeRulesToProto transforms a kfilter to a proto accept mode rules
+func fromAcceptModeRulesToProto(acceptModeRules []kfilters.AcceptModeRule) []*AcceptModeRule {
 	protoAcceptModeRules := make([]*AcceptModeRule, len(acceptModeRules))
 	for i, rule := range acceptModeRules {
 		protoAcceptModeRules[i] = &AcceptModeRule{
@@ -104,8 +104,8 @@ func FromAcceptModeRulesToProto(acceptModeRules []kfilters.AcceptModeRule) []*Ac
 	return protoAcceptModeRules
 }
 
-// FromApproversToProto transforms a kfilter to a proto approvers
-func FromApproversToProto(approvers rules.Approvers) *Approvers {
+// fromApproversToProto transforms a kfilter to a proto approvers
+func fromApproversToProto(approvers rules.Approvers) *Approvers {
 	protoApprovers := new(Approvers)
 
 	for field, filterValues := range approvers {
