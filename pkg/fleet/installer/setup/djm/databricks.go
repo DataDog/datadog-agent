@@ -137,9 +137,6 @@ func setupCommonHostTags(s *common.Setup) {
 	setClearIfExists(s, "DB_IS_JOB_CLUSTER", "databricks_is_job_cluster", nil)
 	setClearIfExists(s, "DATABRICKS_RUNTIME_VERSION", "databricks_runtime", nil)
 	setClearIfExists(s, "SPARK_SCALA_VERSION", "scala_version", nil)
-	setIfExists(s, "DD_JOB_NAME", "job_name", func(v string) string {
-		return jobNameRegex.ReplaceAllString(v, "_")
-	})
 
 	// duplicated for backward compatibility
 	setIfExists(s, "DB_CLUSTER_NAME", "databricks_cluster_name", func(v string) string {
@@ -159,11 +156,21 @@ func setupCommonHostTags(s *common.Setup) {
 		return clusterNameRegex.ReplaceAllString(v, "_")
 	})
 
+	jobName, jobNameSet := os.LookupEnv("DD_JOB_NAME")
+	normalizedJobName := jobNameRegex.ReplaceAllString(jobName, "_")
+	// DD_JOB_NAME takes precedence over job_id for redapl resource tag
+	if jobNameSet {
+		setHostTag(s, "job_name", normalizedJobName)
+		setHostTag(s, "dd.internal.resource:databricks_job", normalizedJobName)
+	}
+
 	jobID, runID, ok := getJobAndRunIDs()
 	if ok {
 		setHostTag(s, "jobid", jobID)
 		setHostTag(s, "runid", runID)
-		setHostTag(s, "dd.internal.resource:databricks_job", jobID)
+		if !jobNameSet {
+			setHostTag(s, "dd.internal.resource:databricks_job", jobID)
+		}
 	}
 	setHostTag(s, "data_workload_monitoring_trial", "true")
 
