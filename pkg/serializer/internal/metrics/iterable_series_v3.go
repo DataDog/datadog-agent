@@ -21,6 +21,12 @@ import (
 )
 
 const (
+	payloadFieldMetadata   = 1
+	payloadFieldPayload    = 2
+	payloadFieldMetricData = 3
+)
+
+const (
 	columnDictNameStr = 1 + iota
 	columnDictTagsStr
 	columnDictTagsets
@@ -81,9 +87,14 @@ type payloadsBuilderV3 struct {
 	maxPointsPerPayload int
 	splitTagsets        bool
 
+	payloadHeaderSizeBound int
+	columnHeaderSizeBound  int
+
 	resourcesBuf []metrics.Resource
 
 	payloads []*transaction.BytesPayload
+
+	scratchBuf []byte
 
 	stats struct {
 		valuesZero, valuesSint64, valuesFloat32, valuesFloat64 uint64
@@ -115,9 +126,13 @@ func newPayloadsBuilderV3(
 	splitTagsets bool,
 	compression compression.Component,
 ) *payloadsBuilderV3 {
-	columnHeaderSize := varintLen(numberOfColumns-1) + varintLen(maxUncompressedSize)
-	maxCompressedSize -= compression.CompressBound(columnHeaderSize) * numberOfColumns
-	maxUncompressedSize -= columnHeaderSize * numberOfColumns
+	fieldLenSize := varintLen(maxUncompressedSize)
+	payloadHeaderSize := varintLen(payloadFieldMetricData) + fieldLenSize
+	payloadHeaderSizeBound := compression.CompressBound(payloadHeaderSize)
+	columnHeaderSize := varintLen(numberOfColumns-1) + fieldLenSize
+	columnHeaderSizeBound := compression.CompressBound(columnHeaderSize)
+	maxCompressedSize -= payloadHeaderSizeBound + columnHeaderSizeBound*numberOfColumns
+	maxUncompressedSize -= payloadHeaderSize + columnHeaderSize*numberOfColumns
 	if maxCompressedSize < 0 {
 		panic("maxCompressedSize is too small")
 	}
@@ -141,14 +156,17 @@ func newPayloadsBuilderV3(
 
 		splitTagsets:        splitTagsets,
 		maxPointsPerPayload: maxPointsPerPayload,
+
+		payloadHeaderSizeBound: payloadHeaderSizeBound,
+		columnHeaderSizeBound:  columnHeaderSizeBound,
+
+		scratchBuf: make([]byte, max(payloadHeaderSize, columnHeaderSize)),
 	}
 }
 
 func (pb *payloadsBuilderV3) startPayload() error {
 	return nil
 }
-
-const columnHeaderMaxSize = 20
 
 func (pb *payloadsBuilderV3) finishPayload() error {
 	if pb.pointsThisPayload > 0 {
@@ -157,37 +175,51 @@ func (pb *payloadsBuilderV3) finishPayload() error {
 			return err
 		}
 
-		headerSizeBound := pb.compression.CompressBound(columnHeaderMaxSize)
-		totalSize := 0
+		compressedSize := pb.payloadHeaderSizeBound
+		metricDataSize := 0
 		for i := 0; i < numberOfColumns; i++ {
-			totalSize += len(pb.compressor.Bytes(i)) + headerSizeBound
+			compressedSize += pb.columnHeaderSizeBound + len(pb.compressor.Bytes(i))
+
+			colSize := pb.compressor.Len(i)
+			metricDataSize += varintLen(i) + varintLen(colSize) + colSize
 		}
 
-		buf := make([]byte, 0, totalSize)
-		tmp := [columnHeaderMaxSize]byte{}
+		payload := make([]byte, 0, compressedSize)
+		payload, err = pb.appendProtobufField(payload, payloadFieldMetricData, metricDataSize)
+		if err != nil {
+			return err
+		}
 
 		for i := 0; i < numberOfColumns; i++ {
 			col := pb.compressor.Bytes(i)
 			if len(col) == 0 {
 				continue
 			}
-			n := binary.PutUvarint(tmp[:], uint64(i)<<3|2)
-			n += binary.PutUvarint(tmp[n:], uint64(pb.compressor.Len(i)))
-			header, err := pb.compression.Compress(tmp[:n])
+
+			payload, err = pb.appendProtobufField(payload, uint64(i), pb.compressor.Len(i))
 			if err != nil {
 				return err
 			}
-			buf = append(buf, header...)
-			buf = append(buf, col...)
+			payload = append(payload, col...)
 		}
 
 		pb.payloads = append(pb.payloads,
-			transaction.NewBytesPayload(buf, pb.pointsThisPayload))
+			transaction.NewBytesPayload(payload, pb.pointsThisPayload))
 	}
 
 	pb.reset()
 
 	return nil
+}
+
+func (pb *payloadsBuilderV3) appendProtobufField(dst []byte, id uint64, len int) ([]byte, error) {
+	n := binary.PutUvarint(pb.scratchBuf[0:], protobufFieldID(id, pbTypeBytes))
+	n += binary.PutUvarint(pb.scratchBuf[n:], uint64(len))
+	header, err := pb.compression.Compress(pb.scratchBuf[:n])
+	if err != nil {
+		return nil, err
+	}
+	return append(dst, header...), nil
 }
 
 func (pb *payloadsBuilderV3) reset() {
@@ -616,4 +648,14 @@ func varintLen(v int) int {
 		n++
 	}
 	return int(n)
+}
+
+type protobufType uint64
+
+const (
+	pbTypeBytes protobufType = 2
+)
+
+func protobufFieldID(field uint64, ty protobufType) uint64 {
+	return field<<3 | uint64(ty)
 }

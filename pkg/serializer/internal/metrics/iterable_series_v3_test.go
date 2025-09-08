@@ -64,6 +64,9 @@ func TestPayloadBuilderV3(t *testing.T) {
 	r.Len(ps, 1)
 
 	r.Equal([]byte{
+		// metricData
+		3<<3 | 2, 0xc9, 0x1,
+
 		// names
 		1<<3 | 2, 28,
 		/* 1 */ 6, 0x73, 0x65, 0x72, 0x69, 0x65, 0x31, // "serie1"
