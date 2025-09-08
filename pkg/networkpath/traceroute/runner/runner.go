@@ -134,7 +134,7 @@ func (r *Runner) RunTraceroute(ctx context.Context, cfg config.Config) (payload.
 		Timeout:    timeout,
 		TCPMethod:  traceroute.TCPMethod(cfg.TCPMethod),
 		WantV6:     false,
-		ReverseDns: cfg.ReverseDns,
+		ReverseDns: cfg.ReverseDNS,
 	}
 
 	results, err := runner.RunTraceroute(ctx, params)

@@ -526,9 +526,9 @@ func (s *npCollectorImpl) enrichPathWithRDNS(path *payload.NetworkPath, knownDes
 				continue
 			}
 			ipAddr := hop.IPAddress.String()
-			rDns := s.getReverseDNSResult(ipAddr, results)
-			if rDns != "" {
-				hop.ReverseDns = []string{rDns}
+			rDNS := s.getReverseDNSResult(ipAddr, results)
+			if rDNS != "" {
+				hop.ReverseDns = []string{rDNS}
 			}
 		}
 	}

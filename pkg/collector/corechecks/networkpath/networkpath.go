@@ -58,7 +58,7 @@ func (c *Check) Run() error {
 		Protocol:                  c.config.Protocol,
 		TCPMethod:                 c.config.TCPMethod,
 		TCPSynParisTracerouteMode: c.config.TCPSynParisTracerouteMode,
-		ReverseDns:                true,
+		ReverseDNS:                true,
 	}
 
 	tr, err := traceroute.New(cfg, c.telemetryComp)
