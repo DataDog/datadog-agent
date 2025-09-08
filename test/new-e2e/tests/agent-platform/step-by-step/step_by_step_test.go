@@ -5,7 +5,6 @@
 package stepbystep
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -55,22 +54,12 @@ func ExecuteWithoutError(_ *testing.T, client *common.TestClient, cmd string, ar
 }
 
 func TestStepByStepScript(t *testing.T) {
-	platformJSON := map[string]map[string]map[string]string{}
-
-	err := json.Unmarshal(platforms.Content, &platformJSON)
-	require.NoErrorf(t, err, "failed to umarshall platform file: %v", err)
-
 	osVersions := strings.Split(*osVersion, ",")
 	cwsSupportedOsVersionList := strings.Split(*cwsSupportedOsVersion, ",")
 
-	t.Log("Parsed platform json file: ", platformJSON)
-
+	var err error
 	for _, osVers := range osVersions {
 		osVers := osVers
-		if platformJSON[*platform][*architecture][osVers] == "" {
-			// Fail if the image is not defined instead of silently running with default Ubuntu AMI
-			t.Fatalf("No image found for %s %s %s", *platform, *architecture, osVers)
-		}
 
 		cwsSupported := false
 		for _, cwsSupportedOs := range cwsSupportedOsVersionList {
@@ -103,7 +92,7 @@ func TestStepByStepScript(t *testing.T) {
 			}
 
 			osDesc := platforms.BuildOSDescriptor(*platform, *architecture, osVers)
-			vmOpts = append(vmOpts, ec2.WithAMI(platformJSON[*platform][*architecture][osVers], osDesc, osDesc.Architecture))
+			vmOpts = append(vmOpts, ec2.WithOS(osDesc))
 
 			e2e.Run(tt,
 				&stepByStepSuite{cwsSupported: cwsSupported, osVersion: version},

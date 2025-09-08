@@ -5,7 +5,6 @@
 package upgrade
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -46,13 +45,7 @@ type upgradeSuite struct {
 }
 
 func TestUpgradeScript(t *testing.T) {
-	platformJSON := map[string]map[string]map[string]string{}
-
-	err := json.Unmarshal(platforms.Content, &platformJSON)
-	require.NoErrorf(t, err, "failed to umarshall platform file: %v", err)
-
 	osVersions := strings.Split(*osVersion, ",")
-	t.Log("Parsed platform json file: ", platformJSON)
 
 	vmOpts := []ec2.VMOption{}
 	if instanceType, ok := os.LookupEnv("E2E_OVERRIDE_INSTANCE_TYPE"); ok {
@@ -61,10 +54,6 @@ func TestUpgradeScript(t *testing.T) {
 
 	for _, osVers := range osVersions {
 		osVers := osVers
-		if platformJSON[*platform][*architecture][osVers] == "" {
-			// Fail if the image is not defined instead of silently running with default Ubuntu AMI
-			t.Fatalf("No image found for %s %s %s", *platform, *architecture, osVers)
-		}
 
 		t.Run(fmt.Sprintf("test upgrade on %s %s", osVers, *architecture), func(tt *testing.T) {
 			flake.Mark(tt)
@@ -72,7 +61,7 @@ func TestUpgradeScript(t *testing.T) {
 			tt.Logf("Testing %s", osVers)
 
 			osDesc := platforms.BuildOSDescriptor(*platform, *architecture, osVers)
-			vmOpts = append(vmOpts, ec2.WithAMI(platformJSON[*platform][*architecture][osVers], osDesc, osDesc.Architecture))
+			vmOpts = append(vmOpts, ec2.WithOS(osDesc))
 
 			e2e.Run(tt,
 				&upgradeSuite{srcVersion: *srcAgentVersion, destVersion: *destAgentVersion},

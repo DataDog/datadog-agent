@@ -5,7 +5,6 @@
 package installscript
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -51,11 +50,6 @@ func TestInstallScript(t *testing.T) {
 		return
 	}
 
-	platformJSON := map[string]map[string]map[string]string{}
-
-	err := json.Unmarshal(platforms.Content, &platformJSON)
-	require.NoErrorf(t, err, "failed to umarshall platform file: %v", err)
-
 	// Splitting an empty string results in a slice with a single empty string which wouldn't be useful
 	// and result in no tests being run; let's fail the test to make it obvious
 	if strings.TrimFunc(*osVersion, unicode.IsSpace) == "" {
@@ -64,14 +58,8 @@ func TestInstallScript(t *testing.T) {
 	osVersions := strings.Split(*osVersion, ",")
 	cwsSupportedOsVersionList := strings.Split(*cwsSupportedOsVersion, ",")
 
-	t.Log("Parsed platform json file: ", platformJSON)
-
 	for _, osVers := range osVersions {
 		osVers := osVers
-		if platformJSON[*platform][*architecture][osVers] == "" {
-			// Fail if the image is not defined instead of silently running with default Ubuntu AMI
-			t.Fatalf("No image found for %s %s %s", *platform, *architecture, osVers)
-		}
 
 		cwsSupported := false
 		for _, cwsSupportedOs := range cwsSupportedOsVersionList {
@@ -89,7 +77,7 @@ func TestInstallScript(t *testing.T) {
 			tt.Parallel()
 			tt.Logf("Testing %s", osVers)
 			osDesc := platforms.BuildOSDescriptor(*platform, *architecture, osVers)
-			vmOpts = append(vmOpts, ec2.WithAMI(platformJSON[*platform][*architecture][osVers], osDesc, osDesc.Architecture))
+			vmOpts = append(vmOpts, ec2.WithOS(osDesc))
 
 			suite := &installScriptSuite{cwsSupported: cwsSupported}
 			// will be set as TESTING_KEYS_URL in the install script
