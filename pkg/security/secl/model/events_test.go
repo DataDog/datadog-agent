@@ -30,7 +30,7 @@ func TestEventTypesHaveValidCategories(t *testing.T) {
 	if len(eventTypesWithoutCategory) > 0 {
 		t.Errorf("The following event types do not have a valid category defined:\n")
 		for _, eventType := range eventTypesWithoutCategory {
-			t.Errorf("  - %s (%d)\n", eventType.String(), eventType)
+			t.Errorf("  - %s, aka EventType(%d)\n", eventType.String(), eventType)
 		}
 		t.Errorf("Total: %d event types without valid categories", len(eventTypesWithoutCategory))
 	}
