@@ -162,10 +162,10 @@ def get_common_ancestor(ctx, branch, base=None, try_fetch=True) -> str:
         The common ancestor between two branches.
     """
 
-    base = 'origin/' + (base or get_default_branch()).removeprefix("origin/")
+    base = (base or get_default_branch()).removeprefix("origin/")
 
     try:
-        return ctx.run(f"git merge-base {branch} {base}", hide=True).stdout.strip()
+        return ctx.run(f"git merge-base {branch} origin/{base}", hide=True).stdout.strip()
     except Exception:
         if not try_fetch:
             raise
@@ -173,7 +173,7 @@ def get_common_ancestor(ctx, branch, base=None, try_fetch=True) -> str:
         # With S3 caching, it's possible that the base branch is not fetched
         ctx.run(f"git fetch origin {base}")
 
-        return ctx.run(f"git merge-base {branch} {base}", hide=True).stdout.strip()
+        return ctx.run(f"git merge-base {branch} origin/{base}", hide=True).stdout.strip()
 
 
 def check_uncommitted_changes(ctx):
