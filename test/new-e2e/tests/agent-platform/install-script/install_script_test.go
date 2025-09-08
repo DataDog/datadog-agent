@@ -94,7 +94,7 @@ func TestInstallScript(t *testing.T) {
 			suite := &installScriptSuite{cwsSupported: cwsSupported}
 			// will be set as TESTING_KEYS_URL in the install script
 			// the used in places like https://github.com/DataDog/agent-linux-install-script/blob/8f5c0b4f5b60847ee7989aa2c35052382f282d5d/install_script.sh.template#L1229
-			suite.testingKeysURL = "apttesting.datad0g.com/test-keys-vault"
+			suite.testingKeysURL = "apttesting.datad0g.com/test-keys"
 
 			e2e.Run(tt,
 				suite,

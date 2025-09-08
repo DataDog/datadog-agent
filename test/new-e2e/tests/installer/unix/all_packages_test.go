@@ -57,6 +57,7 @@ var (
 )
 
 const latestPython2AnsibleVersion = "5.10.0"
+const latestAnsibleVersionWithInstallerPackage = "6.1.1"
 
 func shouldSkipFlavor(flavors []e2eos.Descriptor, flavor e2eos.Descriptor) bool {
 	for _, f := range flavors {
@@ -249,7 +250,7 @@ func (s *packageBaseSuite) RunInstallScript(params ...string) {
 				(s.os.Flavor == e2eos.CentOS && s.os.Version == e2eos.CentOS7.Version) {
 				_, err = s.Env().RemoteHost.Execute(fmt.Sprintf("%sansible-galaxy collection install -vvv datadog.dd:==%s", ansiblePrefix, latestPython2AnsibleVersion))
 			} else {
-				_, err = s.Env().RemoteHost.Execute(fmt.Sprintf("%sansible-galaxy collection install -vvv datadog.dd", ansiblePrefix))
+				_, err = s.Env().RemoteHost.Execute(fmt.Sprintf("%sansible-galaxy collection install -vvv datadog.dd:==%s", ansiblePrefix, latestAnsibleVersionWithInstallerPackage))
 			}
 			if err == nil {
 				break

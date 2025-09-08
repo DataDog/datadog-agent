@@ -4,7 +4,7 @@
 name: kafka
 services:
   zookeeper:
-    image: bitnami/zookeeper:3.9
+    image: bitnamilegacy/zookeeper:3.9
     ports:
       - "2181:2181"
     environment:
@@ -12,7 +12,7 @@ services:
     tmpfs:
       - /bitnami/zookeeper/data
   kafka-old:
-    image: bitnami/kafka:3.9
+    image: bitnamilegacy/kafka:3.9
     ports:
       - "9082:9082"
       - "9083:9083"
@@ -38,7 +38,7 @@ services:
     tmpfs:
       - /bitnami/kafka/data
   kafka:
-    image: bitnami/kafka:4.0
+    image: bitnamilegacy/kafka:4.0
     ports:
       - "${KAFKA_PORT:-9092}:9092"
       - "${KAFKA_TLS_PORT:-9093}:9093"

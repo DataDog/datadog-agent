@@ -27,7 +27,7 @@ type probeYaml struct {
 }
 
 // MustGetProbeDefinitions calls GetProbeDefinitions and checks for an error.
-func MustGetProbeDefinitions(t *testing.T, name string) []ir.ProbeDefinition {
+func MustGetProbeDefinitions(t testing.TB, name string) []ir.ProbeDefinition {
 	probes, err := GetProbeDefinitions(name)
 	require.NoError(t, err)
 	return probes
