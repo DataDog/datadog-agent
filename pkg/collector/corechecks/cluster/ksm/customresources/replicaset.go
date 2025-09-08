@@ -26,14 +26,16 @@ import (
 )
 
 // NewReplicaSetRolloutFactory returns a new ReplicaSet rollout factory that tracks ReplicaSet events for deployment rollouts
-func NewReplicaSetRolloutFactory(client *apiserver.APIClient) customresource.RegistryFactory {
+func NewReplicaSetRolloutFactory(client *apiserver.APIClient, rolloutTracker RolloutOperations) customresource.RegistryFactory {
 	return &replicaSetRolloutFactory{
-		client: client.Cl,
+		client:         client.Cl,
+		rolloutTracker: rolloutTracker,
 	}
 }
 
 type replicaSetRolloutFactory struct {
-	client kubernetes.Interface
+	client         kubernetes.Interface
+	rolloutTracker RolloutOperations
 }
 
 func (f *replicaSetRolloutFactory) Name() string {
@@ -56,7 +58,7 @@ func (f *replicaSetRolloutFactory) MetricFamilyGenerators() []generator.FamilyGe
 				// Store ReplicaSet info if it's owned by a Deployment
 				ownerName, ownerUID := f.getDeploymentOwner(rs)
 				if ownerName != "" && ownerUID != "" {
-					StoreReplicaSet(rs, ownerName, ownerUID)
+					f.rolloutTracker.StoreReplicaSet(rs, ownerName, ownerUID)
 				}
 
 				// Return empty metric family - we don't emit actual metrics for ReplicaSets

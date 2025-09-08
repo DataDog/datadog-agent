@@ -127,7 +127,8 @@ func defaultMetricTransformers() map[string]metricTransformerFunc {
 		"kube_persistentvolume_status_phase":              pvPhaseTransformer,
 		"kube_service_spec_type":                          serviceTypeTransformer,
 		"kube_ingress_tls":                                removeSecretTransformer,
-		"kube_deployment_ongoing_rollout_duration":        deploymentRolloutDurationTransformer,
+		// Note: kube_deployment_ongoing_rollout_duration and kube_statefulset_ongoing_rollout_duration
+		// are registered dynamically in setupInstanceSpecificTransformers() with rollout tracker instances
 	}
 }
 
@@ -606,8 +607,8 @@ func removeSecretTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric
 	s.Gauge(ksmMetricPrefix+"ingress.tls", metric.Val, hostname, tags)
 }
 
-// deploymentRolloutDurationTransformer calculates deployment rollout duration using stored ReplicaSet data
-func deploymentRolloutDurationTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
+// transformKubeDeploymentRolloutDurationWithTracker transforms rollout duration metrics using instance rollout tracker
+func transformKubeDeploymentRolloutDurationWithTracker(s sender.Sender, _ string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time, rolloutTracker crs.RolloutOperations) {
 	// Only process ongoing rollouts (value 1), not completed ones (value 0)
 	if metric.Val != 1.0 {
 		return
@@ -620,8 +621,26 @@ func deploymentRolloutDurationTransformer(s sender.Sender, _ string, metric ksms
 		return
 	}
 
-	// Calculate actual rollout duration using stored ReplicaSet data
-	duration := crs.GetDeploymentRolloutDurationFromMaps(namespace, deploymentName)
-
+	// Calculate actual rollout duration using instance rollout tracker
+	duration := rolloutTracker.GetRolloutDuration(namespace, deploymentName)
 	s.Gauge(ksmMetricPrefix+"deployment.rollout_duration", duration, hostname, tags)
+}
+
+// transformKubeStatefulSetRolloutDurationWithTracker transforms StatefulSet rollout duration metrics using instance rollout tracker
+func transformKubeStatefulSetRolloutDurationWithTracker(s sender.Sender, _ string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time, rolloutTracker crs.RolloutOperations) {
+	// Only process ongoing rollouts (value 1), not completed ones (value 0)
+	if metric.Val != 1.0 {
+		return
+	}
+
+	namespace, hasNamespace := metric.Labels["namespace"]
+	statefulSetName, hasStatefulSet := metric.Labels["statefulset"]
+
+	if !hasNamespace || !hasStatefulSet {
+		return
+	}
+
+	// Calculate actual rollout duration using instance rollout tracker
+	duration := rolloutTracker.GetStatefulSetRolloutDuration(namespace, statefulSetName)
+	s.Gauge(ksmMetricPrefix+"statefulset.rollout_duration", duration, hostname, tags)
 }
