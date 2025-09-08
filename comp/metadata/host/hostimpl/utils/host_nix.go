@@ -14,8 +14,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	hostinfoutils "github.com/DataDog/datadog-agent/pkg/util/hostinfo"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const osName = runtime.GOOS

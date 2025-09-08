@@ -34,8 +34,8 @@ import (
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	hostinfoutils "github.com/DataDog/datadog-agent/pkg/util/hostinfo"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
