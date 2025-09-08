@@ -901,11 +901,8 @@ static __always_inline void headers_parser(pktbuf_t pkt, void *map_key, conn_tup
     bpf_memset(headers_to_process, 0, HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING * sizeof(http2_header_t));
 
     __u8 interesting_headers = 0;
-
-    __u64 *global_dynamic_counter = get_dynamic_counter(tup);
-    if (global_dynamic_counter == NULL) {
-        goto delete_iteration;
-    }
+    __u64 *global_dynamic_counter = NULL;
+    bool processed_any_frame = false;
 
     #pragma unroll(HTTP2_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL)
     for (__u16 index = 0; index < HTTP2_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL; index++) {
@@ -943,9 +940,23 @@ static __always_inline void headers_parser(pktbuf_t pkt, void *map_key, conn_tup
                 continue;
             }
         }
+
+        // Only create dynamic counter when we have a frame that will actually be processed
+        if (global_dynamic_counter == NULL) {
+            global_dynamic_counter = get_dynamic_counter(tup);
+            if (global_dynamic_counter == NULL) {
+                goto delete_iteration;
+            }
+        }
         
+        processed_any_frame = true;
         interesting_headers = pktbuf_filter_relevant_headers(pkt, global_dynamic_counter, &http2_ctx->dynamic_index, headers_to_process, current_frame.frame.length, http2_tel);
         pktbuf_process_headers(pkt, &http2_ctx->dynamic_index, current_stream, headers_to_process, interesting_headers, http2_tel);
+    }
+
+    // If we created a dynamic counter but didn't process any frames, clean it up to prevent leaks
+    if (global_dynamic_counter != NULL && !processed_any_frame) {
+        bpf_map_delete_elem(&http2_dynamic_counter_table, tup);
     }
 
     if (tail_call_state->iteration < HTTP2_MAX_FRAMES_ITERATIONS &&
