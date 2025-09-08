@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+// Package syntheticstestschedulerimpl implements synthetics test scheduler.
 package syntheticstestschedulerimpl
 
 import (
@@ -30,9 +31,8 @@ type Requires struct {
 
 // Provides defines the output of the syntheticstestscheduler component
 type Provides struct {
-	Comp                    syntheticstestscheduler.Component
-	RCListener              rctypes.ListenerProvider
-	SyntheticsTestScheduler *SyntheticsTestScheduler
+	Comp       syntheticstestscheduler.Component
+	RCListener rctypes.ListenerProvider
 }
 
 // NewComponent creates a new syntheticstestscheduler component
@@ -40,7 +40,11 @@ func NewComponent(reqs Requires) (Provides, error) {
 	configs := newSchedulerConfigs(reqs.AgentConfig)
 	if !configs.syntheticsSchedulerEnabled {
 		reqs.Logger.Debugf("Synthetics scheduler disabled")
-		return Provides{}, nil
+		var empty interface{}
+		return Provides{
+			RCListener: rctypes.ListenerProvider{ListenerProvider: rctypes.RCListener{}},
+			Comp:       empty,
+		}, nil
 	}
 
 	epForwarder, ok := reqs.EpForwarder.Get()
@@ -64,7 +68,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	}
 
 	reqs.Lifecycle.Append(compdef.Hook{
-		OnStart: func(ctx context.Context) error {
+		OnStart: func(context.Context) error {
 			return scheduler.start()
 		},
 		OnStop: func(context.Context) error {
@@ -74,7 +78,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	})
 
 	return Provides{
-		RCListener:              rcListener,
-		SyntheticsTestScheduler: scheduler,
+		RCListener: rcListener,
+		Comp:       scheduler,
 	}, nil
 }
