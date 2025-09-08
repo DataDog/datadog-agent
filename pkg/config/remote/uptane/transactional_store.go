@@ -6,6 +6,7 @@
 package uptane
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -21,7 +22,7 @@ type dbBucket map[string][]byte
 // All writes go to the in-memory structure until the `commit` method is called.
 // All reads first read the in-memory data and fallback to the on disk one.
 // A call to `commit` will flush all changes to the DB in a single transaction.
-type transactionalStore struct {
+type TransactionalStore struct {
 	// underlying database where we apply many changes atomically
 	db *bbolt.DB
 
@@ -35,19 +36,50 @@ type transactionalStore struct {
 // Represents a transaction around the store.
 // It doesn't provide any locking, as it's all managed by View/Update calls
 type transaction struct {
-	store *transactionalStore
+	store *TransactionalStore
 }
 
-func newTransactionalStore(db *bbolt.DB) *transactionalStore {
-	s := &transactionalStore{
+func NewTransactionalStore(dbPath string, agentVersion string, apiKey string, url string) (*TransactionalStore, error) {
+	// transactional store should be in charge of opening/closing boltDB
+	db, err := openCacheDB(dbPath, agentVersion, apiKey, url)
+	if err != nil {
+		db.Close()
+		return nil, err
+	}
+	s := &TransactionalStore{
 		db:         db,
 		cachedData: make(map[string]dbBucket),
 	}
-	return s
+	return s, nil
+}
+
+// Recreate will use the metadata & path from the existing TS boltDB to open a new one & clear cachedData
+func (ts *TransactionalStore) Recreate() error {
+	metadata, err := getMetadata(ts.db)
+	if err != nil {
+		return fmt.Errorf("could not read metadata from the database: %w", err)
+	}
+
+	path := ts.db.Path()
+
+	err = ts.db.Close()
+	if err != nil {
+		return err
+	}
+
+	db, err := recreate(path, metadata.Version, metadata.APIKeyHash, metadata.URL)
+	if err != nil {
+		return err
+	}
+
+	ts.db = db
+	ts.cachedData = make(map[string]dbBucket)
+
+	return nil
 }
 
 // getMemBucket returns a refence to the in-memory bucket
-func (ts *transactionalStore) getMemBucket(bucketName string) dbBucket {
+func (ts *TransactionalStore) getMemBucket(bucketName string) dbBucket {
 	cachedBucket, ok := ts.cachedData[bucketName]
 	if !ok {
 		cachedBucket = make(dbBucket)
@@ -61,7 +93,7 @@ type pathData struct {
 	data []byte
 }
 
-func (ts *transactionalStore) getAll(bucketName string) ([]pathData, error) {
+func (ts *TransactionalStore) getAll(bucketName string) ([]pathData, error) {
 	seenBlobs := map[string]struct{}{}
 	blobs := []pathData{}
 
@@ -96,17 +128,18 @@ func (ts *transactionalStore) getAll(bucketName string) ([]pathData, error) {
 		}
 		return nil
 	})
+
 	return blobs, err
 }
 
 // transaction types
-func (ts *transactionalStore) view(fn func(*transaction) error) error {
+func (ts *TransactionalStore) view(fn func(*transaction) error) error {
 	ts.lock.RLock()
 	defer ts.lock.RUnlock()
 	return fn(&transaction{ts})
 }
 
-func (ts *transactionalStore) update(fn func(*transaction) error) error {
+func (ts *TransactionalStore) update(fn func(*transaction) error) error {
 	ts.lock.Lock()
 	defer ts.lock.Unlock()
 	err := fn(&transaction{ts})
@@ -149,7 +182,7 @@ func (t *transaction) pruneTargetFiles(bucketName string, keptPaths []string) er
 }
 
 // commit all data from each bucket to the underlying database
-func (ts *transactionalStore) commit() error {
+func (ts *TransactionalStore) commit() error {
 	ts.lock.Lock()
 	defer ts.lock.Unlock()
 	err := ts.db.Update(func(tx *bbolt.Tx) error {
@@ -185,13 +218,26 @@ func (ts *transactionalStore) commit() error {
 }
 
 // removes all cached changes
-func (ts *transactionalStore) rollback() {
+func (ts *TransactionalStore) rollback() {
 	ts.lock.Lock()
 	defer ts.lock.Unlock()
 	if len(ts.cachedData) > 0 {
 		log.Debugf("Rollback of %d keys", len(ts.cachedData))
 		ts.cachedData = make(map[string]dbBucket)
 	}
+}
+
+func (ts *TransactionalStore) Close() error {
+	ts.lock.Lock()
+	defer ts.lock.Unlock()
+	return ts.db.Close()
+}
+
+// for test in service pkg
+func (ts *TransactionalStore) GetPath() string {
+	ts.lock.Lock()
+	defer ts.lock.Unlock()
+	return ts.db.Path()
 }
 
 func (t *transaction) put(bucketName string, path string, data []byte) {

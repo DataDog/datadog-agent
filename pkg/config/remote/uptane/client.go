@@ -20,7 +20,6 @@ import (
 
 	"github.com/DataDog/go-tuf/client"
 	"github.com/DataDog/go-tuf/data"
-	"go.etcd.io/bbolt"
 
 	rdata "github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -49,7 +48,7 @@ type Client struct {
 	cachedVerifyTime time.Time
 
 	// TUF transaction tracker
-	transactionalStore *transactionalStore
+	transactionalStore *TransactionalStore
 
 	orgVerificationEnabled bool
 }
@@ -98,8 +97,7 @@ func WithConfigRootOverride(site string, configRootOverride string) ClientOption
 type OrgUUIDProvider func() (string, error)
 
 // NewCoreAgentClient creates a new uptane client
-func NewCoreAgentClient(cacheDB *bbolt.DB, orgUUIDProvider OrgUUIDProvider, options ...ClientOption) (c *CoreAgentClient, err error) {
-	transactionalStore := newTransactionalStore(cacheDB)
+func NewCoreAgentClient(transactionalStore *TransactionalStore, orgUUIDProvider OrgUUIDProvider, options ...ClientOption) (c *CoreAgentClient, err error) {
 	targetStore := newTargetStore(transactionalStore)
 	orgStore := newOrgStore(transactionalStore)
 
@@ -186,8 +184,7 @@ func (c *CoreAgentClient) updateRepos(response *pbgo.LatestConfigsResponse) erro
 }
 
 // NewCDNClient creates a new uptane client that will fetch the latest configs from the server over HTTP(s)
-func NewCDNClient(cacheDB *bbolt.DB, site, apiKey string, options ...ClientOption) (c *CDNClient, err error) {
-	transactionalStore := newTransactionalStore(cacheDB)
+func NewCDNClient(transactionalStore *TransactionalStore, apiKey, site string, options ...ClientOption) (c *CDNClient, err error) {
 	targetStore := newTargetStore(transactionalStore)
 	orgStore := newOrgStore(transactionalStore)
 
@@ -593,4 +590,8 @@ func configMetasUpdateSummary(metas *pbgo.ConfigMetas) string {
 	}
 
 	return b.String()
+}
+
+func (c *Client) TransactionalStore() *TransactionalStore {
+	return c.transactionalStore
 }

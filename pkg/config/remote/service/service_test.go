@@ -156,6 +156,12 @@ func (m *mockUptane) TimestampExpires() (time.Time, error) {
 	return args.Get(0).(time.Time), args.Error(1)
 }
 
+func (m *mockUptane) TransactionalStore() *uptane.TransactionalStore {
+	// args := m.Called()
+	// return args.Get(0).(time.Time), args.Error(1)
+	return nil
+}
+
 type mockRcTelemetryReporter struct {
 	mock.Mock
 }
@@ -1240,8 +1246,9 @@ func TestWithDatabaseFileName(t *testing.T) {
 		WithAPIKey("abc"),
 	}
 	service, err := NewService(cfg, "Remote Config", baseRawURL, "localhost", getHostTags, mockTelemetryReporter, agentVersion, options...)
+	ts := service.uptane.TransactionalStore()
 	assert.NoError(t, err)
-	assert.Equal(t, "/tmp/test.db", service.db.Path())
+	assert.Equal(t, "/tmp/test.db", ts.GetPath())
 	assert.NotNil(t, service)
 	t.Cleanup(func() { service.Stop() })
 }
