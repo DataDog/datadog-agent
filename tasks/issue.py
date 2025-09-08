@@ -4,7 +4,7 @@ import re
 
 from invoke import task
 
-from tasks.libs.ciproviders.github_api import GithubAPI, ask_review_actor
+from tasks.libs.ciproviders.github_api import GithubAPI, get_events_info
 from tasks.libs.issue.assign import assign_with_model, assign_with_rules
 from tasks.libs.issue.model.actions import fetch_data_and_train_model
 from tasks.libs.owners.parsing import search_owners
@@ -57,8 +57,11 @@ def ask_reviews(_, pr_id):
     if 'backport' in pr.title.casefold():
         print("This is a backport PR, we don't need to ask for reviews.")
         return
-    actor = ask_review_actor(pr)
-    reviewers = [f"@datadog/{team.slug}" for team in pr.requested_teams]
+    actor, team = get_events_info(pr)
+    if team:  # This is a review request event, only a single team is concerned
+        reviewers = [f"@datadog/{team}"]
+    else:
+        reviewers = [f"@datadog/{team.slug}" for team in pr.requested_teams]
 
     from slack_sdk import WebClient
 

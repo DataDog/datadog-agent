@@ -9,7 +9,7 @@ permissions: {}
 
 jobs:
   ask-reviews:
-    if: github.triggering_actor != 'dd-devflow[bot]' && (github.event.action == 'labeled' && github.event.label.name == 'ask-review' || github.event.action != 'labeled')
+    if: github.triggering_actor != 'dd-devflow[bot]' && (github.event.action != 'labeled' || github.event.label.name == 'ask-review')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
