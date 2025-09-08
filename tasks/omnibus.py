@@ -31,7 +31,7 @@ from tasks.libs.common.utils import gitlab_section, timed
 from tasks.libs.releasing.version import get_version, load_dependencies
 
 
-def omnibus_run_task(ctx, task, target_project, base_dir, env, log_level="info", host_distribution=None):
+def omnibus_run_task(ctx, task, target_project, base_dir, env, log_level="debug", host_distribution=None):
     with ctx.cd("omnibus"):
         overrides = []
         if base_dir:
@@ -215,7 +215,7 @@ def _passthrough_env_for_os(starting_env: dict[str, str], platform: str) -> dict
 def build(
     ctx,
     flavor=AgentFlavor.base.name,
-    log_level="info",
+    log_level="debug",
     base_dir=None,
     gem_path=None,
     skip_deps=False,
