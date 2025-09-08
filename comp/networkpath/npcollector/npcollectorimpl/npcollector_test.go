@@ -454,8 +454,8 @@ func Test_NpCollector_stopWithoutPanic(t *testing.T) {
 							Port:      33434, // computer port or Boca Raton, FL?
 						},
 						Hops: []payload.TracerouteHop{
-							{ReverseDns: []string{"hop_1"}, IPAddress: net.ParseIP("1.1.1.1")},
-							{ReverseDns: []string{"hop_2"}, IPAddress: net.ParseIP("1.1.1.2")},
+							{ReverseDNS: []string{"hop_1"}, IPAddress: net.ParseIP("1.1.1.1")},
+							{ReverseDNS: []string{"hop_2"}, IPAddress: net.ParseIP("1.1.1.2")},
 						},
 					},
 				},
@@ -1027,10 +1027,10 @@ func Test_npCollectorImpl_enrichPathWithRDNS(t *testing.T) {
 						Port:      33434, // computer port or Boca Raton, FL?
 					},
 					Hops: []payload.TracerouteHop{
-						{IPAddress: net.ParseIP("10.0.0.1"), Reachable: true, ReverseDns: []string{"hop1"}},
-						{IPAddress: net.ParseIP("1.1.1.1"), Reachable: true, ReverseDns: []string{"hop2"}},
-						{IPAddress: net.ParseIP("10.0.0.100"), Reachable: true, ReverseDns: []string{"hop3"}},
-						{IPAddress: net.ParseIP("10.0.0.41"), Reachable: true, ReverseDns: []string{"dest-hostname"}},
+						{IPAddress: net.ParseIP("10.0.0.1"), Reachable: true, ReverseDNS: []string{"hop1"}},
+						{IPAddress: net.ParseIP("1.1.1.1"), Reachable: true, ReverseDNS: []string{"hop2"}},
+						{IPAddress: net.ParseIP("10.0.0.100"), Reachable: true, ReverseDNS: []string{"hop3"}},
+						{IPAddress: net.ParseIP("10.0.0.41"), Reachable: true, ReverseDNS: []string{"dest-hostname"}},
 					},
 				},
 			},
@@ -1041,11 +1041,11 @@ func Test_npCollectorImpl_enrichPathWithRDNS(t *testing.T) {
 	npCollector.logger.Errorf("path2 %p", &path)
 	// THEN
 	trRun := path.Traceroute.Runs[0]
-	assert.Equal(t, []string{"hostname-10.0.0.41"}, trRun.Destination.ReverseDns) // private IP should be resolved
-	assert.Equal(t, []string{"hostname-10.0.0.1"}, trRun.Hops[0].ReverseDns)
-	assert.Equal(t, []string{"hop2"}, trRun.Hops[1].ReverseDns) // public IP should fall back to hostname from traceroute
-	assert.Equal(t, []string{"hostname-10.0.0.100"}, trRun.Hops[2].ReverseDns)
-	assert.Equal(t, []string{"hostname-10.0.0.41"}, trRun.Hops[3].ReverseDns)
+	assert.Equal(t, []string{"hostname-10.0.0.41"}, trRun.Destination.ReverseDNS) // private IP should be resolved
+	assert.Equal(t, []string{"hostname-10.0.0.1"}, trRun.Hops[0].ReverseDNS)
+	assert.Equal(t, []string{"hop2"}, trRun.Hops[1].ReverseDNS) // public IP should fall back to hostname from traceroute
+	assert.Equal(t, []string{"hostname-10.0.0.100"}, trRun.Hops[2].ReverseDNS)
+	assert.Equal(t, []string{"hostname-10.0.0.41"}, trRun.Hops[3].ReverseDNS)
 
 	// WHEN
 	// hop 3 is a private IP, others are public IPs or unknown hops which should not be resolved
@@ -1064,10 +1064,10 @@ func Test_npCollectorImpl_enrichPathWithRDNS(t *testing.T) {
 						Port:      33434, // computer port or Boca Raton, FL?
 					},
 					Hops: []payload.TracerouteHop{
-						{IPAddress: net.ParseIP("unknown-hop-1"), Reachable: false, ReverseDns: []string{"hop1"}},
-						{IPAddress: net.ParseIP("1.1.1.1"), Reachable: true, ReverseDns: []string{"hop2"}},
-						{IPAddress: net.ParseIP("10.0.0.100"), Reachable: true, ReverseDns: []string{"hop3"}},
-						{IPAddress: net.ParseIP("unknown-hop-4"), Reachable: false, ReverseDns: []string{"hop4"}},
+						{IPAddress: net.ParseIP("unknown-hop-1"), Reachable: false, ReverseDNS: []string{"hop1"}},
+						{IPAddress: net.ParseIP("1.1.1.1"), Reachable: true, ReverseDNS: []string{"hop2"}},
+						{IPAddress: net.ParseIP("10.0.0.100"), Reachable: true, ReverseDNS: []string{"hop3"}},
+						{IPAddress: net.ParseIP("unknown-hop-4"), Reachable: false, ReverseDNS: []string{"hop4"}},
 					},
 				},
 			},
@@ -1078,11 +1078,11 @@ func Test_npCollectorImpl_enrichPathWithRDNS(t *testing.T) {
 
 	// THEN
 	trRun = path.Traceroute.Runs[0]
-	assert.Empty(t, trRun.Destination.ReverseDns)
-	assert.Equal(t, []string{"hop1"}, trRun.Hops[0].ReverseDns)
-	assert.Equal(t, []string{"hop2"}, trRun.Hops[1].ReverseDns) // public IP should fall back to hostname from traceroute
-	assert.Equal(t, []string{"hostname-10.0.0.100"}, trRun.Hops[2].ReverseDns)
-	assert.Equal(t, []string{"hop4"}, trRun.Hops[3].ReverseDns)
+	assert.Empty(t, trRun.Destination.ReverseDNS)
+	assert.Equal(t, []string{"hop1"}, trRun.Hops[0].ReverseDNS)
+	assert.Equal(t, []string{"hop2"}, trRun.Hops[1].ReverseDNS) // public IP should fall back to hostname from traceroute
+	assert.Equal(t, []string{"hostname-10.0.0.100"}, trRun.Hops[2].ReverseDNS)
+	assert.Equal(t, []string{"hop4"}, trRun.Hops[3].ReverseDNS)
 
 	// GIVEN - no reverse DNS resolution
 	agentConfigs = map[string]any{
@@ -1108,10 +1108,10 @@ func Test_npCollectorImpl_enrichPathWithRDNS(t *testing.T) {
 						Port:      33434, // computer port or Boca Raton, FL?
 					},
 					Hops: []payload.TracerouteHop{
-						{IPAddress: net.ParseIP("10.0.0.1"), Reachable: true, ReverseDns: []string{"hop1"}},
-						{IPAddress: net.ParseIP("1.1.1.1"), Reachable: true, ReverseDns: []string{"hop2"}},
-						{IPAddress: net.ParseIP("10.0.0.100"), Reachable: true, ReverseDns: []string{"hop3"}},
-						{IPAddress: net.ParseIP("10.0.0.41"), Reachable: true, ReverseDns: []string{"dest-hostname"}},
+						{IPAddress: net.ParseIP("10.0.0.1"), Reachable: true, ReverseDNS: []string{"hop1"}},
+						{IPAddress: net.ParseIP("1.1.1.1"), Reachable: true, ReverseDNS: []string{"hop2"}},
+						{IPAddress: net.ParseIP("10.0.0.100"), Reachable: true, ReverseDNS: []string{"hop3"}},
+						{IPAddress: net.ParseIP("10.0.0.41"), Reachable: true, ReverseDNS: []string{"dest-hostname"}},
 					},
 				},
 			},
@@ -1122,11 +1122,11 @@ func Test_npCollectorImpl_enrichPathWithRDNS(t *testing.T) {
 
 	// THEN - no resolution should happen
 	trRun = path.Traceroute.Runs[0]
-	assert.Empty(t, trRun.Destination.ReverseDns)
-	assert.Equal(t, []string{"hop1"}, trRun.Hops[0].ReverseDns)
-	assert.Equal(t, []string{"hop2"}, trRun.Hops[1].ReverseDns)
-	assert.Equal(t, []string{"hop3"}, trRun.Hops[2].ReverseDns)
-	assert.Equal(t, []string{"dest-hostname"}, trRun.Hops[3].ReverseDns)
+	assert.Empty(t, trRun.Destination.ReverseDNS)
+	assert.Equal(t, []string{"hop1"}, trRun.Hops[0].ReverseDNS)
+	assert.Equal(t, []string{"hop2"}, trRun.Hops[1].ReverseDNS)
+	assert.Equal(t, []string{"hop3"}, trRun.Hops[2].ReverseDNS)
+	assert.Equal(t, []string{"dest-hostname"}, trRun.Hops[3].ReverseDNS)
 }
 
 func Test_npCollectorImpl_enrichPathWithRDNSKnownHostName(t *testing.T) {
@@ -1160,7 +1160,7 @@ func Test_npCollectorImpl_enrichPathWithRDNSKnownHostName(t *testing.T) {
 	npCollector.enrichPathWithRDNS(&path, "known-dest-hostname")
 
 	// THEN - destination hostname should resolve to known hostname
-	assert.Equal(t, []string{"known-dest-hostname"}, path.Traceroute.Runs[0].Destination.ReverseDns)
+	assert.Equal(t, []string{"known-dest-hostname"}, path.Traceroute.Runs[0].Destination.ReverseDNS)
 	assert.Empty(t, path.Traceroute.Runs[0].Hops)
 }
 

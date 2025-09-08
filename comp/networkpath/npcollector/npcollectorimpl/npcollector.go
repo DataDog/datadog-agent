@@ -507,7 +507,7 @@ func (s *npCollectorImpl) enrichPathWithRDNS(path *payload.NetworkPath, knownDes
 		run := &path.Traceroute.Runs[i]
 		// assign resolved hostnames to destination and hops
 		if knownDestHostname != "" {
-			run.Destination.ReverseDns = []string{knownDestHostname}
+			run.Destination.ReverseDNS = []string{knownDestHostname}
 		} else {
 			hostname := s.getReverseDNSResult(run.Destination.IPAddress.String(), results)
 			// if hostname is blank, use what's given by traceroute
@@ -516,7 +516,7 @@ func (s *npCollectorImpl) enrichPathWithRDNS(path *payload.NetworkPath, knownDes
 			// both static and dynamic
 			if hostname != "" {
 				// TODO: FIX ME
-				run.Destination.ReverseDns = []string{hostname}
+				run.Destination.ReverseDNS = []string{hostname}
 			}
 		}
 
@@ -528,7 +528,7 @@ func (s *npCollectorImpl) enrichPathWithRDNS(path *payload.NetworkPath, knownDes
 			ipAddr := hop.IPAddress.String()
 			rDNS := s.getReverseDNSResult(ipAddr, results)
 			if rDNS != "" {
-				hop.ReverseDns = []string{rDNS}
+				hop.ReverseDNS = []string{rDNS}
 			}
 		}
 	}

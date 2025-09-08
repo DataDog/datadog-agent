@@ -218,7 +218,7 @@ func (r *Runner) processResults(res *result.Results, protocol payload.Protocol, 
 				IPAddress:  hop.IPAddress,
 				RTT:        hop.RTT,
 				Reachable:  hop.Reachable,
-				ReverseDns: hop.ReverseDns,
+				ReverseDNS: hop.ReverseDns,
 			})
 		}
 		traceroutePath.Traceroute.Runs = append(traceroutePath.Traceroute.Runs, payload.TracerouteRun{
@@ -231,7 +231,7 @@ func (r *Runner) processResults(res *result.Results, protocol payload.Protocol, 
 			Destination: payload.TracerouteDestination{
 				IPAddress:  run.Destination.IPAddress,
 				Port:       run.Destination.Port,
-				ReverseDns: run.Destination.ReverseDns,
+				ReverseDNS: run.Destination.ReverseDns,
 			},
 		})
 	}

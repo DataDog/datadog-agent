@@ -183,7 +183,7 @@ type TracerouteRun struct {
 type TracerouteHop struct {
 	TTL        int      `json:"ttl"`
 	IPAddress  net.IP   `json:"ip_address"`
-	ReverseDns []string `json:"reverse_dns,omitempty"`
+	ReverseDNS []string `json:"reverse_dns,omitempty"`
 	RTT        float64  `json:"rtt,omitempty"`
 	Reachable  bool     `json:"reachable"`
 }
@@ -198,7 +198,7 @@ type TracerouteSource struct {
 type TracerouteDestination struct {
 	IPAddress  net.IP   `json:"ip_address"`
 	Port       uint16   `json:"port"`
-	ReverseDns []string `json:"reverse_dns,omitempty"`
+	ReverseDNS []string `json:"reverse_dns,omitempty"`
 }
 
 // NetworkPath encapsulates data that defines a
