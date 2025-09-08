@@ -50,16 +50,44 @@ func runHealthRecommendation(logComponent log.Component, healthPlatform healthpl
 		logComponent.Errorf("Failed to run health checks: %v", err)
 		return fmt.Errorf("failed to run health checks: %w", err)
 	}
+
+	// Handle case where no issues are found (report is nil)
+	if report == nil {
+		logComponent.Info("Health checks completed successfully. No issues found")
+		logComponent.Info("All health checks passed - no issues to report")
+		return nil
+	}
+
 	logComponent.Infof("Health checks completed successfully. Found %d issues", len(report.Issues))
 
 	// Send to backend service if health platform is enabled
 	logComponent.Info("Emitting health report to backend service")
-	if err := healthPlatform.EmitToBackend(ctx, report); err != nil {
-		logComponent.Errorf("Failed to emit health report to backend: %v", err)
-		// Don't fail the entire process if backend emission fails
-		logComponent.Warn("Continuing with local output despite backend failure")
+
+	// Check if private action runner flag is set and validate ParIDs
+	if cliParams.privateActionRunner {
+		if len(report.Host.ParIDs) == 0 {
+			logComponent.Warn("Private action runner flag is set but no PAR IDs found in health report")
+			logComponent.Warn("Skipping backend emission - private action runner ID is required")
+			logComponent.Info("To enable backend emission, ensure a private action runner is configured and running")
+		} else {
+			logComponent.Infof("Private action runner validation passed - found %d PAR ID(s): %v", len(report.Host.ParIDs), report.Host.ParIDs)
+			if err := healthPlatform.EmitToBackend(ctx, report); err != nil {
+				logComponent.Errorf("Failed to emit health report to backend: %v", err)
+				// Don't fail the entire process if backend emission fails
+				logComponent.Warn("Continuing with local output despite backend failure")
+			} else {
+				logComponent.Info("Health report successfully emitted to backend service")
+			}
+		}
 	} else {
-		logComponent.Info("Health report successfully emitted to backend service")
+		// Normal behavior when flag is not set
+		if err := healthPlatform.EmitToBackend(ctx, report); err != nil {
+			logComponent.Errorf("Failed to emit health report to backend: %v", err)
+			// Don't fail the entire process if backend emission fails
+			logComponent.Warn("Continuing with local output despite backend failure")
+		} else {
+			logComponent.Info("Health report successfully emitted to backend service")
+		}
 	}
 
 	// Display the health report
@@ -90,6 +118,14 @@ func runHealthRecommendation(logComponent log.Component, healthPlatform healthpl
 func displayHealthReport(report *healthplatform.HealthReport) {
 	fmt.Fprintf(color.Output, "%s Health Check Results\n", color.GreenString("✅"))
 	fmt.Fprintf(color.Output, "Host: %s (Agent Version: %s)\n", report.Host.Hostname, report.Host.AgentVersion)
+
+	// Display ParIDs information
+	if len(report.Host.ParIDs) > 0 {
+		fmt.Fprintf(color.Output, "Private Action Runner IDs: %v\n", report.Host.ParIDs)
+	} else {
+		fmt.Fprintf(color.Output, "Private Action Runner IDs: %s\n", color.YellowString("None configured"))
+	}
+
 	fmt.Fprintf(color.Output, "Issues Found: %d\n\n", len(report.Issues))
 
 	if len(report.Issues) == 0 {
