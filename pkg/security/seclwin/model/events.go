@@ -135,6 +135,9 @@ const (
 	RawPacketActionEventType
 	// CapabilitiesEventType is used to track capabilities usage
 	CapabilitiesEventType
+	// PamEventType is sent when a pam event is captured
+	PamEventType
+
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
 	MaxKernelEventType
 
@@ -309,6 +312,8 @@ func (t EventType) String() string {
 		return "capabilities"
 	case PrCtlEventType:
 		return "prctl"
+	case PamEventType:
+		return "pam"
 	default:
 		return "unknown"
 	}

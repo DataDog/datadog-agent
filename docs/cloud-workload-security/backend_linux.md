@@ -1233,6 +1233,35 @@ Workload Protection events for Linux systems have the following JSON schema:
             ],
             "description": "PTraceEventSerializer serializes a mmap event to JSON"
         },
+        "PamEvent": {
+            "properties": {
+                "service": {
+                    "type": "string",
+                    "description": "Service name"
+                },
+                "user": {
+                    "type": "string",
+                    "description": "User name"
+                },
+                "host_ip": {
+                    "type": "string",
+                    "description": "HostIP"
+                },
+                "hostname": {
+                    "type": "string",
+                    "description": "HostName"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "service",
+                "user",
+                "host_ip",
+                "hostname"
+            ],
+            "description": "PamEventSerializer serializes a pam event"
+        },
         "PrCtlEvent": {
             "properties": {
                 "option": {
@@ -2264,6 +2293,9 @@ Workload Protection events for Linux systems have the following JSON schema:
         },
         "prctl": {
             "$ref": "#/$defs/PrCtlEvent"
+        },
+        "pam": {
+            "$ref": "#/$defs/PamEvent"
         }
     },
     "additionalProperties": false,
@@ -2314,6 +2346,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `cgroup_write` | $ref | Please see [CGroupWriteEvent](#cgroupwriteevent) |
 | `capabilities` | $ref | Please see [CapabilitiesEvent](#capabilitiesevent) |
 | `prctl` | $ref | Please see [PrCtlEvent](#prctlevent) |
+| `pam` | $ref | Please see [PamEvent](#pamevent) |
 
 ## `AWSIMDSEvent`
 
@@ -4168,6 +4201,50 @@ Workload Protection events for Linux systems have the following JSON schema:
 | References |
 | ---------- |
 | [ProcessContext](#processcontext) |
+
+## `PamEvent`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "service": {
+            "type": "string",
+            "description": "Service name"
+        },
+        "user": {
+            "type": "string",
+            "description": "User name"
+        },
+        "host_ip": {
+            "type": "string",
+            "description": "HostIP"
+        },
+        "hostname": {
+            "type": "string",
+            "description": "HostName"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+        "service",
+        "user",
+        "host_ip",
+        "hostname"
+    ],
+    "description": "PamEventSerializer serializes a pam event"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `service` | Service name |
+| `user` | User name |
+| `host_ip` | HostIP |
+| `hostname` | HostName |
+
 
 ## `PrCtlEvent`
 
