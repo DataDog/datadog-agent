@@ -137,6 +137,9 @@ const (
 	CapabilitiesEventType
 	// FileMoveMountEventType Move Mount even
 	FileMoveMountEventType
+	// PamEventType is sent when a pam event is captured
+	PamEventType
+
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
 	MaxKernelEventType
 
@@ -319,6 +322,8 @@ func (t EventType) String() string {
 		return "open_tree"
 	case FileMoveMountEventType:
 		return "move_mount"
+	case PamEventType:
+		return "pam"
 	default:
 		return "unknown"
 	}

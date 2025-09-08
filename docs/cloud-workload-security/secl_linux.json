@@ -4947,6 +4947,40 @@
       ]
     },
     {
+      "name": "pam",
+      "definition": "A pam event was captured",
+      "type": "Process",
+      "from_agent_version": "7.71",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "pam.host_ip",
+          "definition": "IP address of the host",
+          "property_doc_link": "pam-host_ip-doc"
+        },
+        {
+          "name": "pam.hostname",
+          "definition": "Hostname",
+          "property_doc_link": "pam-hostname-doc"
+        },
+        {
+          "name": "pam.retval",
+          "definition": "Return value of the syscall",
+          "property_doc_link": "common-syscallevent-retval-doc"
+        },
+        {
+          "name": "pam.service",
+          "definition": "Authentication service name",
+          "property_doc_link": "pam-service-doc"
+        },
+        {
+          "name": "pam.user",
+          "definition": "User name",
+          "property_doc_link": "pam-user-doc"
+        }
+      ]
+    },
+    {
       "name": "prctl",
       "definition": "A prctl command was executed",
       "type": "Process",
@@ -13433,6 +13467,7 @@
         "mount",
         "mprotect",
         "open",
+        "pam",
         "prctl",
         "ptrace",
         "removexattr",
@@ -14998,6 +15033,54 @@
       "definition": "TLS version",
       "prefixes": [
         "packet.tls"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "pam.host_ip",
+      "link": "pam-host_ip-doc",
+      "type": "string",
+      "definition": "IP address of the host",
+      "prefixes": [
+        "pam"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "pam.hostname",
+      "link": "pam-hostname-doc",
+      "type": "string",
+      "definition": "Hostname",
+      "prefixes": [
+        "pam"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "pam.service",
+      "link": "pam-service-doc",
+      "type": "string",
+      "definition": "Authentication service name",
+      "prefixes": [
+        "pam"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "pam.user",
+      "link": "pam-user-doc",
+      "type": "string",
+      "definition": "User name",
+      "prefixes": [
+        "pam"
       ],
       "constants": "",
       "constants_link": "",

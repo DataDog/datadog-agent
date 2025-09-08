@@ -1583,3 +1583,19 @@ func (e *PrCtlEvent) UnmarshalBinary(data []byte) (int, error) {
 	e.NewName = string(data[12 : sizeToRead+12])
 	return sizeToRead + 12, nil
 }
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *PamEvent) UnmarshalBinary(data []byte) (int, error) {
+	read, err := UnmarshalBinary(data, &e.SyscallEvent)
+	if err != nil {
+		return 0, err
+	}
+	data = data[read:]
+	if len(data) < 80 {
+		return 0, ErrNotEnoughData
+	}
+	e.Service = strings.TrimRight(string(data[0:32]), "\x00")
+	e.User = strings.TrimRight(string(data[32:64]), "\x00")
+	e.HostIP = strings.TrimRight(string(data[64:80]), "\x00")
+	return 80 + read, nil
+}

@@ -617,6 +617,19 @@ type CGroupWriteEventSerializer struct {
 	Pid uint32 `json:"pid,omitempty"`
 }
 
+// PamEventSerializer serializes a pam event
+// easyjson:json
+type PamEventSerializer struct {
+	// Service name
+	Service string `json:"service"`
+	// User name
+	User string `json:"user"`
+	// HostIP
+	HostIP string `json:"host_ip"`
+	// HostName
+	Hostname string `json:"hostname"`
+}
+
 func newSyscallArgsSerializer(sc *model.SyscallContext, e *model.Event) *SyscallArgsSerializer {
 
 	switch e.GetEventType() {
@@ -762,6 +775,7 @@ type EventSerializer struct {
 	*CGroupWriteEventSerializer   `json:"cgroup_write,omitempty"`
 	*CapabilitiesEventSerializer  `json:"capabilities,omitempty"`
 	*PrCtlEventSerializer         `json:"prctl,omitempty"`
+	*PamEventSerializer           `json:"pam,omitempty"`
 }
 
 func newSyscallsEventSerializer(e *model.SyscallsEvent) *SyscallsEventSerializer {
@@ -1438,6 +1452,13 @@ func newCGroupWriteEventSerializer(e *model.Event) *CGroupWriteEventSerializer {
 		Pid:  e.CgroupWrite.Pid,
 	}
 }
+func newPamEventSerializer(e *model.Event) *PamEventSerializer {
+	return &PamEventSerializer{
+		Service: e.Pam.Service,
+		User:    e.Pam.User,
+		HostIP:  e.Pam.HostIP,
+	}
+}
 
 // ToJSON returns json
 func (e *EventSerializer) ToJSON() ([]byte, error) {
@@ -1748,7 +1769,9 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule) *EventSerializer {
 		s.CapabilitiesEventSerializer = newCapabilitiesEventSerializer(event, &event.CapabilitiesUsage)
 	case model.PrCtlEventType:
 		s.PrCtlEventSerializer = newPrCtlEventSerializer(event)
-	}
+	case model.PamEventType:
+		s.PamEventSerializer = newPamEventSerializer(event)
 
+	}
 	return s
 }

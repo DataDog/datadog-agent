@@ -819,6 +819,7 @@ func (ev *Event) resolveFields(forADs bool) {
 		if !forADs {
 			_ = ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.RawPacket.NetworkContext.Destination)
 		}
+	case "pam":
 	case "prctl":
 	case "ptrace":
 		if ev.PTrace.Tracee.Process.IsNotKworker() {

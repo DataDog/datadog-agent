@@ -119,7 +119,6 @@ void __attribute__((always_inline)) cache_syscall(struct syscall_cache_t *syscal
 
     // handle kill action
     send_signal(pid);
-
     bpf_map_update_elem(&syscalls, &pid_tgid, syscall, BPF_ANY);
 
     monitor_syscalls(syscall->type, 1);

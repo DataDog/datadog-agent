@@ -74,6 +74,7 @@ var bpfMapNames = []string{
 	"on_demand_event",
 	"open_flags_appr",
 	"packets",
+	"pam_event",
 	"path_id",
 	"pathnames",
 	"pid_cache",

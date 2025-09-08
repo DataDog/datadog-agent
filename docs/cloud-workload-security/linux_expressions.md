@@ -52,6 +52,7 @@ Triggers are events that correspond to types of activity seen by the system. The
 | `network_flow_monitor` | Network | A network monitor event was sent | 7.63 |
 | `open` | File | A file was opened | 7.27 |
 | `packet` | Network | A raw network packet was captured | 7.60 |
+| `pam` | Process | A pam event was captured | 7.71 |
 | `prctl` | Process | A prctl command was executed | 7.71 |
 | `ptrace` | Kernel | A ptrace command was executed | 7.35 |
 | `removexattr` | File | Remove extended attributes | 7.27 |
@@ -1293,6 +1294,18 @@ A raw network packet was captured
 | [`packet.source.port`](#common-ipportcontext-port-doc) | Port number |
 | [`packet.tls.version`](#packet-tls-version-doc) | TLS version |
 | [`packet.type`](#common-networkcontext-type-doc) | Type of the network packet |
+
+### Event `pam`
+
+A pam event was captured
+
+| Property | Definition |
+| -------- | ------------- |
+| [`pam.host_ip`](#pam-host_ip-doc) | IP address of the host |
+| [`pam.hostname`](#pam-hostname-doc) | Hostname |
+| [`pam.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+| [`pam.service`](#pam-service-doc) | Authentication service name |
+| [`pam.user`](#pam-user-doc) | User name |
 
 ### Event `prctl`
 
@@ -3309,8 +3322,8 @@ Type: int
 
 Definition: Return value of the syscall
 
-`*.retval` has 27 possible prefixes:
-`accept` `bind` `bpf` `chdir` `chmod` `chown` `connect` `link` `load_module` `mkdir` `mmap` `mount` `mprotect` `open` `prctl` `ptrace` `removexattr` `rename` `rmdir` `setrlimit` `setsockopt` `setxattr` `signal` `splice` `unlink` `unload_module` `utimes`
+`*.retval` has 28 possible prefixes:
+`accept` `bind` `bpf` `chdir` `chmod` `chown` `connect` `link` `load_module` `mkdir` `mmap` `mount` `mprotect` `open` `pam` `prctl` `ptrace` `removexattr` `rename` `rmdir` `setrlimit` `setsockopt` `setxattr` `signal` `splice` `unlink` `unload_module` `utimes`
 
 Constants: [Error constants](#error-constants)
 
@@ -4216,6 +4229,34 @@ Definition: pcap filter expression
 Type: int
 
 Definition: TLS version
+
+
+
+### `pam.host_ip` {#pam-host_ip-doc}
+Type: string
+
+Definition: IP address of the host
+
+
+
+### `pam.hostname` {#pam-hostname-doc}
+Type: string
+
+Definition: Hostname
+
+
+
+### `pam.service` {#pam-service-doc}
+Type: string
+
+Definition: Authentication service name
+
+
+
+### `pam.user` {#pam-user-doc}
+Type: string
+
+Definition: User name
 
 
 
