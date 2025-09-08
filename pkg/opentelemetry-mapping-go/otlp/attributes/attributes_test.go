@@ -306,39 +306,52 @@ func TestGetOTelAttrFromEitherMap(t *testing.T) {
 
 func TestGetOTelHostname(t *testing.T) {
 	for _, tt := range []struct {
-		name                       string
-		rattrs                     map[string]string
-		sattrs                     map[string]string
-		fallbackHost               string
-		expected                   string
-		ignoreMissingDatadogFields bool
+		name                         string
+		rattrs                       map[string]string
+		sattrs                       map[string]string
+		fallbackHost                 string
+		expected                     string
+		ignoreMissingDatadogFields   bool
+		useDatadogNamespaceIfPresent bool
 	}{
 		{
-			name:     "datadog.host.name",
-			rattrs:   map[string]string{"datadog.host.name": "test-host"},
-			expected: "test-host",
+			name:                         "datadog.host.name",
+			rattrs:                       map[string]string{"datadog.host.name": "test-host"},
+			expected:                     "test-host",
+			useDatadogNamespaceIfPresent: true,
 		},
 		{
-			name:     "_dd.hostname",
-			rattrs:   map[string]string{"_dd.hostname": "test-host"},
-			expected: "test-host",
+			name:                         "_dd.hostname",
+			rattrs:                       map[string]string{"_dd.hostname": "test-host"},
+			expected:                     "test-host",
+			useDatadogNamespaceIfPresent: true,
 		},
 		{
-			name:         "fallback hostname",
-			fallbackHost: "test-host",
-			expected:     "test-host",
+			name:                         "fallback hostname",
+			fallbackHost:                 "test-host",
+			expected:                     "test-host",
+			useDatadogNamespaceIfPresent: true,
 		},
 		{
-			name:                       "ignore missing datadog fields",
-			rattrs:                     map[string]string{string(semconv1_17.HostNameKey): "test-host"},
-			expected:                   "",
-			ignoreMissingDatadogFields: true,
+			name:                         "ignore missing datadog fields",
+			rattrs:                       map[string]string{string(semconv1_17.HostNameKey): "test-host"},
+			expected:                     "",
+			ignoreMissingDatadogFields:   true,
+			useDatadogNamespaceIfPresent: true,
 		},
 		{
-			name:     "read from datadog fields",
-			sattrs:   map[string]string{KeyDatadogHost: "test-host", string(semconv1_17.HostNameKey): "test-host-semconv117"},
-			rattrs:   map[string]string{KeyDatadogHost: "test-host", string(semconv1_17.HostNameKey): "test-host-semconv117"},
-			expected: "test-host",
+			name:                         "read from datadog fields",
+			sattrs:                       map[string]string{KeyDatadogHost: "test-host", string(semconv1_17.HostNameKey): "test-host-semconv117"},
+			rattrs:                       map[string]string{KeyDatadogHost: "test-host", string(semconv1_17.HostNameKey): "test-host-semconv117"},
+			expected:                     "test-host",
+			useDatadogNamespaceIfPresent: true,
+		},
+		{
+			name:                         "use datadog namespace if present - false",
+			sattrs:                       map[string]string{KeyDatadogHost: "datadog-host"},
+			rattrs:                       map[string]string{string(semconv1_17.HostNameKey): "semconv-host"},
+			useDatadogNamespaceIfPresent: false,
+			expected:                     "semconv-host",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -350,7 +363,7 @@ func TestGetOTelHostname(t *testing.T) {
 			for k, v := range tt.rattrs {
 				res.PutStr(k, v)
 			}
-			actual := GetOTelHostname(span, res, tt.fallbackHost, tt.ignoreMissingDatadogFields, true, nil)
+			actual := GetOTelHostname(span, res, tt.fallbackHost, nil, tt.ignoreMissingDatadogFields, tt.useDatadogNamespaceIfPresent)
 			assert.Equal(t, tt.expected, actual)
 		})
 	}
@@ -358,59 +371,76 @@ func TestGetOTelHostname(t *testing.T) {
 
 func TestGetOTelEnv(t *testing.T) {
 	tests := []struct {
-		name                       string
-		sattrs                     map[string]string
-		rattrs                     map[string]string
-		expected                   string
-		ignoreMissingDatadogFields bool
+		name                         string
+		sattrs                       map[string]string
+		rattrs                       map[string]string
+		expected                     string
+		ignoreMissingDatadogFields   bool
+		useDatadogNamespaceIfPresent bool
 	}{
 		{
-			name:     "neither set",
-			expected: "default",
+			name:                         "neither set",
+			expected:                     "default",
+			useDatadogNamespaceIfPresent: true,
 		},
 		{
-			name:     "only in resource (semconv127)",
-			rattrs:   map[string]string{string(semconv1_27.DeploymentEnvironmentNameKey): "env-res-127"},
-			expected: "env-res-127",
+			name:                         "only in resource (semconv127)",
+			rattrs:                       map[string]string{string(semconv1_27.DeploymentEnvironmentNameKey): "env-res-127"},
+			expected:                     "env-res-127",
+			useDatadogNamespaceIfPresent: true,
 		},
 		{
-			name:     "only in resource (semconv117)",
-			rattrs:   map[string]string{string(semconv1_17.DeploymentEnvironmentKey): "env-res"},
-			expected: "env-res",
+			name:                         "only in resource (semconv117)",
+			rattrs:                       map[string]string{string(semconv1_17.DeploymentEnvironmentKey): "env-res"},
+			expected:                     "env-res",
+			useDatadogNamespaceIfPresent: true,
 		},
 		{
-			name:     "only in span (semconv127)",
-			sattrs:   map[string]string{string(semconv1_27.DeploymentEnvironmentNameKey): "env-span-127"},
-			expected: "env-span-127",
+			name:                         "only in span (semconv127)",
+			sattrs:                       map[string]string{string(semconv1_27.DeploymentEnvironmentNameKey): "env-span-127"},
+			expected:                     "env-span-127",
+			useDatadogNamespaceIfPresent: true,
 		},
 		{
-			name:     "only in span (semconv117)",
-			sattrs:   map[string]string{string(semconv1_17.DeploymentEnvironmentKey): "env-span"},
-			expected: "env-span",
+			name:                         "only in span (semconv117)",
+			sattrs:                       map[string]string{string(semconv1_17.DeploymentEnvironmentKey): "env-span"},
+			expected:                     "env-span",
+			useDatadogNamespaceIfPresent: true,
 		},
 		{
-			name:     "both set (span wins)",
-			sattrs:   map[string]string{string(semconv1_17.DeploymentEnvironmentKey): "env-span"},
-			rattrs:   map[string]string{string(semconv1_17.DeploymentEnvironmentKey): "env-res"},
-			expected: "env-span",
+			name:                         "both set (span wins)",
+			sattrs:                       map[string]string{string(semconv1_17.DeploymentEnvironmentKey): "env-span"},
+			rattrs:                       map[string]string{string(semconv1_17.DeploymentEnvironmentKey): "env-res"},
+			expected:                     "env-span",
+			useDatadogNamespaceIfPresent: true,
 		},
 		{
-			name:     "normalization",
-			sattrs:   map[string]string{string(semconv1_17.DeploymentEnvironmentKey): "  ENV "},
-			expected: "_env",
+			name:                         "normalization",
+			sattrs:                       map[string]string{string(semconv1_17.DeploymentEnvironmentKey): "  ENV "},
+			expected:                     "_env",
+			useDatadogNamespaceIfPresent: true,
 		},
 		{
-			name:                       "ignore missing datadog fields",
-			sattrs:                     map[string]string{string(semconv1_17.DeploymentEnvironmentKey): "env-span"},
-			rattrs:                     map[string]string{string(semconv1_17.DeploymentEnvironmentKey): "env-span"},
-			expected:                   "default",
-			ignoreMissingDatadogFields: true,
+			name:                         "ignore missing datadog fields",
+			sattrs:                       map[string]string{string(semconv1_17.DeploymentEnvironmentKey): "env-span"},
+			rattrs:                       map[string]string{string(semconv1_17.DeploymentEnvironmentKey): "env-span"},
+			expected:                     "default",
+			ignoreMissingDatadogFields:   true,
+			useDatadogNamespaceIfPresent: true,
 		},
 		{
-			name:     "read from datadog fields",
-			sattrs:   map[string]string{KeyDatadogEnvironment: "env-span", string(semconv1_17.DeploymentEnvironmentKey): "env-span-semconv117"},
-			rattrs:   map[string]string{KeyDatadogEnvironment: "env-res", string(semconv1_17.DeploymentEnvironmentKey): "env-res-semconv117"},
-			expected: "env-span",
+			name:                         "read from datadog fields",
+			sattrs:                       map[string]string{KeyDatadogEnvironment: "env-span", string(semconv1_17.DeploymentEnvironmentKey): "env-span-semconv117"},
+			rattrs:                       map[string]string{KeyDatadogEnvironment: "env-res", string(semconv1_17.DeploymentEnvironmentKey): "env-res-semconv117"},
+			expected:                     "env-span",
+			useDatadogNamespaceIfPresent: true,
+		},
+		{
+			name:                         "use datadog namespace if present - false",
+			sattrs:                       map[string]string{KeyDatadogEnvironment: "datadog-env"},
+			rattrs:                       map[string]string{string(semconv1_17.DeploymentEnvironmentKey): "semconv-env"},
+			useDatadogNamespaceIfPresent: false,
+			expected:                     "semconv-env",
 		},
 	}
 	for _, tt := range tests {
@@ -423,50 +453,64 @@ func TestGetOTelEnv(t *testing.T) {
 			for k, v := range tt.rattrs {
 				res.PutStr(k, v)
 			}
-			assert.Equal(t, tt.expected, GetOTelEnv(span, res, tt.ignoreMissingDatadogFields, true))
+			assert.Equal(t, tt.expected, GetOTelEnv(span, res, tt.ignoreMissingDatadogFields, tt.useDatadogNamespaceIfPresent))
 		})
 	}
 }
 
 func TestGetOTelService(t *testing.T) {
 	for _, tt := range []struct {
-		name      string
-		rattrs    map[string]string
-		sattrs    map[string]string
-		normalize bool
-		expected  string
+		name                         string
+		rattrs                       map[string]string
+		sattrs                       map[string]string
+		normalize                    bool
+		expected                     string
+		useDatadogNamespaceIfPresent bool
 	}{
 		{
-			name:     "service not set",
-			expected: "otlpresourcenoservicename",
+			name:                         "service not set",
+			expected:                     "otlpresourcenoservicename",
+			useDatadogNamespaceIfPresent: true,
 		},
 		{
-			name:     "normal service in resource",
-			rattrs:   map[string]string{string(conventions.ServiceNameKey): "svc"},
-			expected: "svc",
+			name:                         "normal service in resource",
+			rattrs:                       map[string]string{string(conventions.ServiceNameKey): "svc"},
+			expected:                     "svc",
+			useDatadogNamespaceIfPresent: true,
 		},
 		{
-			name:     "normal service in span",
-			sattrs:   map[string]string{string(conventions.ServiceNameKey): "svc"},
-			expected: "svc",
+			name:                         "normal service in span",
+			sattrs:                       map[string]string{string(conventions.ServiceNameKey): "svc"},
+			expected:                     "svc",
+			useDatadogNamespaceIfPresent: true,
 		},
 		{
-			name:     "service in both, span takes precedence",
-			rattrs:   map[string]string{string(conventions.ServiceNameKey): "resource_svc"},
-			sattrs:   map[string]string{string(conventions.ServiceNameKey): "span_svc"},
-			expected: "span_svc",
+			name:                         "service in both, span takes precedence",
+			rattrs:                       map[string]string{string(conventions.ServiceNameKey): "resource_svc"},
+			sattrs:                       map[string]string{string(conventions.ServiceNameKey): "span_svc"},
+			expected:                     "span_svc",
+			useDatadogNamespaceIfPresent: true,
 		},
 		{
-			name:      "truncate long service",
-			rattrs:    map[string]string{string(conventions.ServiceNameKey): strings.Repeat("a", normalizeutil.MaxServiceLen+1)},
-			normalize: true,
-			expected:  strings.Repeat("a", normalizeutil.MaxServiceLen),
+			name:                         "truncate long service",
+			rattrs:                       map[string]string{string(conventions.ServiceNameKey): strings.Repeat("a", normalizeutil.MaxServiceLen+1)},
+			normalize:                    true,
+			expected:                     strings.Repeat("a", normalizeutil.MaxServiceLen),
+			useDatadogNamespaceIfPresent: true,
 		},
 		{
-			name:      "invalid service",
-			rattrs:    map[string]string{string(conventions.ServiceNameKey): "%$^"},
-			normalize: true,
-			expected:  normalizeutil.DefaultServiceName,
+			name:                         "invalid service",
+			rattrs:                       map[string]string{string(conventions.ServiceNameKey): "%$^"},
+			normalize:                    true,
+			expected:                     normalizeutil.DefaultServiceName,
+			useDatadogNamespaceIfPresent: true,
+		},
+		{
+			name:                         "use datadog namespace if present - false",
+			sattrs:                       map[string]string{KeyDatadogService: "datadog-svc"},
+			rattrs:                       map[string]string{string(conventions.ServiceNameKey): "semconv-svc"},
+			useDatadogNamespaceIfPresent: false,
+			expected:                     "semconv-svc",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -478,7 +522,7 @@ func TestGetOTelService(t *testing.T) {
 			for k, v := range tt.sattrs {
 				span.PutStr(k, v)
 			}
-			actual := GetOTelService(span, res, tt.normalize, true)
+			actual := GetOTelService(span, res, tt.normalize, false, tt.useDatadogNamespaceIfPresent)
 			assert.Equal(t, tt.expected, actual)
 		})
 	}
@@ -486,45 +530,53 @@ func TestGetOTelService(t *testing.T) {
 
 func TestGetOTelResource(t *testing.T) {
 	for _, tt := range []struct {
-		name      string
-		rattrs    map[string]string
-		sattrs    map[string]string
-		normalize bool
-		expected  string
+		name                         string
+		rattrs                       map[string]string
+		sattrs                       map[string]string
+		normalize                    bool
+		expected                     string
+		useDatadogNamespaceIfPresent bool
 	}{
 		{
-			name:     "resource not set",
-			expected: "span_name",
+			name:                         "resource not set",
+			expected:                     "span_name",
+			useDatadogNamespaceIfPresent: true,
 		},
 		{
-			name:     "normal resource",
-			sattrs:   map[string]string{"resource.name": "res"},
-			expected: "res",
+			name:                         "normal resource",
+			sattrs:                       map[string]string{"resource.name": "res"},
+			expected:                     "res",
+			useDatadogNamespaceIfPresent: true,
 		},
 		{
-			name:     "HTTP request method resource",
-			sattrs:   map[string]string{"http.request.method": "GET"},
-			expected: "GET",
+			name:                         "HTTP request method resource",
+			sattrs:                       map[string]string{"http.request.method": "GET"},
+			expected:                     "GET",
+			useDatadogNamespaceIfPresent: true,
 		},
 		{
-			name:     "HTTP method and route resource",
-			sattrs:   map[string]string{string(semconv1_27.HTTPRequestMethodKey): "GET", string(semconv1_27.HTTPRouteKey): "/"},
-			expected: "GET /",
+			name:                         "HTTP method and route resource",
+			sattrs:                       map[string]string{string(semconv1_27.HTTPRequestMethodKey): "GET", string(semconv1_27.HTTPRouteKey): "/"},
+			expected:                     "GET /",
+			useDatadogNamespaceIfPresent: true,
 		},
 		{
-			name:     "GraphQL with no type",
-			sattrs:   map[string]string{"graphql.operation.name": "myQuery"},
-			expected: "span_name",
+			name:                         "GraphQL with no type",
+			sattrs:                       map[string]string{"graphql.operation.name": "myQuery"},
+			expected:                     "span_name",
+			useDatadogNamespaceIfPresent: true,
 		},
 		{
-			name:     "GraphQL with only type",
-			sattrs:   map[string]string{"graphql.operation.type": "query"},
-			expected: "query",
+			name:                         "GraphQL with only type",
+			sattrs:                       map[string]string{"graphql.operation.type": "query"},
+			expected:                     "query",
+			useDatadogNamespaceIfPresent: true,
 		},
 		{
-			name:     "GraphQL with type and name",
-			sattrs:   map[string]string{"graphql.operation.type": "query", "graphql.operation.name": "myQuery"},
-			expected: "query myQuery",
+			name:                         "GraphQL with type and name",
+			sattrs:                       map[string]string{"graphql.operation.type": "query", "graphql.operation.name": "myQuery"},
+			expected:                     "query myQuery",
+			useDatadogNamespaceIfPresent: true,
 		},
 		{
 			name: "SQL statement resource",
@@ -581,10 +633,18 @@ func TestGetOTelResource(t *testing.T) {
 			expected: "SELECT * FROM span",
 		},
 		{
-			name:     "fallback to span name if nothing set",
-			sattrs:   map[string]string{},
-			rattrs:   map[string]string{},
-			expected: "span_name",
+			name:                         "fallback to span name if nothing set",
+			sattrs:                       map[string]string{},
+			rattrs:                       map[string]string{},
+			expected:                     "span_name",
+			useDatadogNamespaceIfPresent: true,
+		},
+		{
+			name:                         "use datadog namespace if present - false",
+			sattrs:                       map[string]string{KeyDatadogResource: "datadog-resource"},
+			rattrs:                       map[string]string{"resource.name": "semconv-resource"},
+			useDatadogNamespaceIfPresent: false,
+			expected:                     "semconv-resource",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -596,7 +656,7 @@ func TestGetOTelResource(t *testing.T) {
 			for k, v := range tt.rattrs {
 				res.PutStr(k, v)
 			}
-			actual := GetOTelResource(ptrace.SpanKindServer, span, res, "span_name", true)
+			actual := GetOTelResource(ptrace.SpanKindServer, span, res, "span_name", false, tt.useDatadogNamespaceIfPresent)
 			assert.Equal(t, tt.expected, actual)
 		})
 	}
@@ -604,11 +664,12 @@ func TestGetOTelResource(t *testing.T) {
 
 func TestGetOTelSpanType(t *testing.T) {
 	for _, tt := range []struct {
-		name     string
-		spanKind ptrace.SpanKind
-		rattrs   map[string]string
-		sattrs   map[string]string
-		expected string
+		name                         string
+		spanKind                     ptrace.SpanKind
+		rattrs                       map[string]string
+		sattrs                       map[string]string
+		expected                     string
+		useDatadogNamespaceIfPresent bool
 	}{
 		{
 			name:     "override with span.type attr",
@@ -708,6 +769,14 @@ func TestGetOTelSpanType(t *testing.T) {
 			rattrs:   map[string]string{"db.system": "redis"},
 			expected: spanTypeRedis,
 		},
+		{
+			name:                         "use datadog namespace if present - false",
+			spanKind:                     ptrace.SpanKindInternal,
+			sattrs:                       map[string]string{KeyDatadogType: "datadog-type"},
+			rattrs:                       map[string]string{"span.type": "semconv-type"},
+			useDatadogNamespaceIfPresent: false,
+			expected:                     "semconv-type",
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			span := pcommon.NewMap()
@@ -718,7 +787,7 @@ func TestGetOTelSpanType(t *testing.T) {
 			for k, v := range tt.rattrs {
 				res.PutStr(k, v)
 			}
-			actual := GetOTelSpanType(tt.spanKind, span, res, true)
+			actual := GetOTelSpanType(tt.spanKind, span, res, false, tt.useDatadogNamespaceIfPresent)
 			assert.Equal(t, tt.expected, actual)
 		})
 	}
@@ -726,11 +795,12 @@ func TestGetOTelSpanType(t *testing.T) {
 
 func TestGetOTelVersion(t *testing.T) {
 	tests := []struct {
-		name                       string
-		sattrs                     map[string]string
-		rattrs                     map[string]string
-		expected                   string
-		ignoreMissingDatadogFields bool
+		name                         string
+		sattrs                       map[string]string
+		rattrs                       map[string]string
+		expected                     string
+		ignoreMissingDatadogFields   bool
+		useDatadogNamespaceIfPresent bool
 	}{
 		{
 			name:     "neither set",
@@ -765,10 +835,18 @@ func TestGetOTelVersion(t *testing.T) {
 			ignoreMissingDatadogFields: true,
 		},
 		{
-			name:     "read from datadog fields",
-			sattrs:   map[string]string{KeyDatadogVersion: "v3", string(semconv1_27.ServiceVersionKey): "v3-semconv127"},
-			rattrs:   map[string]string{KeyDatadogVersion: "v4", string(semconv1_27.ServiceVersionKey): "v4-semconv127"},
-			expected: "v3",
+			name:                         "read from datadog fields",
+			sattrs:                       map[string]string{KeyDatadogVersion: "v3", string(semconv1_27.ServiceVersionKey): "v3-semconv127"},
+			rattrs:                       map[string]string{KeyDatadogVersion: "v4", string(semconv1_27.ServiceVersionKey): "v4-semconv127"},
+			expected:                     "v3",
+			useDatadogNamespaceIfPresent: true,
+		},
+		{
+			name:                         "use datadog namespace if present - false",
+			sattrs:                       map[string]string{KeyDatadogVersion: "datadog-version"},
+			rattrs:                       map[string]string{string(semconv1_27.ServiceVersionKey): "semconv-version"},
+			useDatadogNamespaceIfPresent: false,
+			expected:                     "semconv-version",
 		},
 	}
 	for _, tt := range tests {
@@ -781,18 +859,19 @@ func TestGetOTelVersion(t *testing.T) {
 			for k, v := range tt.rattrs {
 				res.PutStr(k, v)
 			}
-			assert.Equal(t, tt.expected, GetOTelVersion(span, res, tt.ignoreMissingDatadogFields, true))
+			assert.Equal(t, tt.expected, GetOTelVersion(span, res, tt.ignoreMissingDatadogFields, tt.useDatadogNamespaceIfPresent))
 		})
 	}
 }
 
 func TestGetOTelStatusCode(t *testing.T) {
 	tests := []struct {
-		name                       string
-		sattrs                     map[string]uint32
-		rattrs                     map[string]uint32
-		expected                   uint32
-		ignoreMissingDatadogFields bool
+		name                         string
+		sattrs                       map[string]uint32
+		rattrs                       map[string]uint32
+		expected                     uint32
+		ignoreMissingDatadogFields   bool
+		useDatadogNamespaceIfPresent bool
 	}{
 		{
 			name:     "neither set",
@@ -841,10 +920,18 @@ func TestGetOTelStatusCode(t *testing.T) {
 			ignoreMissingDatadogFields: true,
 		},
 		{
-			name:     "read from datadog fields",
-			sattrs:   map[string]uint32{KeyDatadogHTTPStatusCode: 206, string(semconv1_17.HTTPStatusCodeKey): 210},
-			rattrs:   map[string]uint32{KeyDatadogHTTPStatusCode: 207, string(semconv1_17.HTTPStatusCodeKey): 211},
-			expected: 206,
+			name:                         "read from datadog fields",
+			sattrs:                       map[string]uint32{KeyDatadogHTTPStatusCode: 206, string(semconv1_17.HTTPStatusCodeKey): 210},
+			rattrs:                       map[string]uint32{KeyDatadogHTTPStatusCode: 207, string(semconv1_17.HTTPStatusCodeKey): 211},
+			expected:                     206,
+			useDatadogNamespaceIfPresent: true,
+		},
+		{
+			name:                         "use datadog namespace if present - false",
+			sattrs:                       map[string]uint32{KeyDatadogHTTPStatusCode: 300},
+			rattrs:                       map[string]uint32{string(semconv1_27.HTTPResponseStatusCodeKey): 400},
+			useDatadogNamespaceIfPresent: false,
+			expected:                     400,
 		},
 	}
 	for _, tt := range tests {
@@ -857,7 +944,7 @@ func TestGetOTelStatusCode(t *testing.T) {
 			for k, v := range tt.rattrs {
 				res.PutInt(k, int64(v))
 			}
-			actual, err := GetOTelStatusCode(span, res, tt.ignoreMissingDatadogFields, true)
+			actual, err := GetOTelStatusCode(span, res, tt.ignoreMissingDatadogFields, tt.useDatadogNamespaceIfPresent)
 			assert.NoError(t, err)
 			assert.Equal(t, tt.expected, actual)
 		})
@@ -866,11 +953,12 @@ func TestGetOTelStatusCode(t *testing.T) {
 
 func TestGetOTelContainerID(t *testing.T) {
 	tests := []struct {
-		name                       string
-		sattrs                     map[string]string
-		rattrs                     map[string]string
-		expected                   string
-		ignoreMissingDatadogFields bool
+		name                         string
+		sattrs                       map[string]string
+		rattrs                       map[string]string
+		expected                     string
+		ignoreMissingDatadogFields   bool
+		useDatadogNamespaceIfPresent bool
 	}{
 		{
 			name:     "neither set",
@@ -905,10 +993,18 @@ func TestGetOTelContainerID(t *testing.T) {
 			ignoreMissingDatadogFields: true,
 		},
 		{
-			name:     "read from datadog fields",
-			sattrs:   map[string]string{KeyDatadogContainerID: "cid-span", string(semconv1_17.ContainerIDKey): "cid-span-semconv117"},
-			rattrs:   map[string]string{KeyDatadogContainerID: "cid-res", string(semconv1_17.ContainerIDKey): "cid-res-semconv117"},
-			expected: "cid-span",
+			name:                         "read from datadog fields",
+			sattrs:                       map[string]string{KeyDatadogContainerID: "cid-span", string(semconv1_17.ContainerIDKey): "cid-span-semconv117"},
+			rattrs:                       map[string]string{KeyDatadogContainerID: "cid-res", string(semconv1_17.ContainerIDKey): "cid-res-semconv117"},
+			expected:                     "cid-span",
+			useDatadogNamespaceIfPresent: true,
+		},
+		{
+			name:                         "use datadog namespace if present - false",
+			sattrs:                       map[string]string{KeyDatadogContainerID: "datadog-container"},
+			rattrs:                       map[string]string{string(semconv1_17.ContainerIDKey): "semconv-container"},
+			useDatadogNamespaceIfPresent: false,
+			expected:                     "semconv-container",
 		},
 	}
 
@@ -922,7 +1018,7 @@ func TestGetOTelContainerID(t *testing.T) {
 			for k, v := range tt.rattrs {
 				res.PutStr(k, v)
 			}
-			assert.Equal(t, tt.expected, GetOTelContainerID(span, res, tt.ignoreMissingDatadogFields, true))
+			assert.Equal(t, tt.expected, GetOTelContainerID(span, res, tt.ignoreMissingDatadogFields, tt.useDatadogNamespaceIfPresent))
 		})
 	}
 }

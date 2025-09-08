@@ -202,6 +202,27 @@ var (
 		string(semconv1_27.URLFullKey):                "http.url",
 		string(semconv1_27.UserAgentOriginalKey):      "http.useragent",
 	}
+
+	// KeyDatadogService is the key for the service name in the Datadog namespace
+	KeyDatadogService = "datadog.service"
+	// KeyDatadogResource is the key for the resource name in the Datadog namespace
+	KeyDatadogResource = "datadog.resource"
+	// KeyDatadogType is the key for the span type in the Datadog namespace
+	KeyDatadogType = "datadog.type"
+	// KeyDatadogVersion is the key for the version in the Datadog namespace
+	KeyDatadogVersion = "datadog.version"
+	// KeyDatadogHTTPStatusCode is the key for the HTTP status code in the Datadog namespace
+	KeyDatadogHTTPStatusCode = "datadog.http_status_code"
+	// KeyDatadogHost is the key for the host in the Datadog namespace
+	KeyDatadogHost = "datadog.host"
+	// KeyDatadogEnvironment is the key for the environment in the Datadog namespace
+	KeyDatadogEnvironment = "datadog.env"
+	// KeyDatadogContainerID is the key for the container ID in the Datadog namespace
+	KeyDatadogContainerID = "datadog.container_id"
+	// DefaultOTLPServiceName is the default service name for OTel spans when no service name is found in the resource attributes.
+	DefaultOTLPServiceName = "otlpresourcenoservicename"
+	// DefaultOTLPEnvironmentName is the default environment name for OTel spans when no environment name is found in the resource attributes.
+	DefaultOTLPEnvironmentName = "default"
 )
 
 // TagsFromAttributes converts a selected list of attributes
@@ -319,36 +340,6 @@ func ContainerTagFromAttributes(attr map[string]string) map[string]string {
 	}
 	return ddtags
 }
-
-// TODO: Import these from datadog-agent/pkg/opentelemetry-mapping-go
-
-// Agent-style attribute extraction constants
-const (
-	// KeyDatadogService is the key for the service name in the Datadog namespace
-	KeyDatadogService = "datadog.service"
-	// KeyDatadogResource is the key for the resource name in the Datadog namespace
-	KeyDatadogResource = "datadog.resource"
-	// KeyDatadogType is the key for the span type in the Datadog namespace
-	KeyDatadogType = "datadog.type"
-	// KeyDatadogVersion is the key for the version in the Datadog namespace
-	KeyDatadogVersion = "datadog.version"
-	// KeyDatadogHTTPStatusCode is the key for the HTTP status code in the Datadog namespace
-	KeyDatadogHTTPStatusCode = "datadog.http_status_code"
-	// KeyDatadogHost is the key for the host in the Datadog namespace
-	KeyDatadogHost = "datadog.host"
-	// KeyDatadogEnvironment is the key for the environment in the Datadog namespace
-	KeyDatadogEnvironment = "datadog.env"
-	// KeyDatadogContainerID is the key for the container ID in the Datadog namespace
-	KeyDatadogContainerID = "datadog.container_id"
-	// DefaultOTLPServiceName is the default service name for OTel spans when no service name is found in the resource attributes.
-	DefaultOTLPServiceName = "otlpresourcenoservicename"
-	// DefaultOTLPEnvironmentName is the default environment name for OTel spans when no environment name is found in the resource attributes.
-	DefaultOTLPEnvironmentName = "default"
-
-	// Source kinds
-	SourceKindHostname      = "host"
-	SourceKindAWSECSFargate = "task_arn"
-)
 
 // getTimeUnitScaleToNanos returns the scaling factor to convert the given unit to nanoseconds
 func getTimeUnitScaleToNanos(unit string) float64 {
@@ -535,64 +526,65 @@ func GetOTelAttrFromEitherMap(map1 pcommon.Map, map2 pcommon.Map, normalize bool
 }
 
 // GetOTelHostname returns the DD hostname based on OTel span and resource attributes, with span taking precedence.
-func GetOTelHostname(signalattrs pcommon.Map, resattrs pcommon.Map, fallbackHost string, ignoreMissingDatadogFields bool, useDatadogNamespaceIfPresent bool, hostFromAttributesHandler HostFromAttributesHandler) string {
+func GetOTelHostname(signalattrs pcommon.Map, resattrs pcommon.Map, fallbackHost string, hostFromAttributesHandler HostFromAttributesHandler, ignoreMissingDatadogFields bool, useDatadogNamespaceIfPresent bool) string {
 	if useDatadogNamespaceIfPresent {
 		host := GetOTelAttrFromEitherMap(signalattrs, resattrs, true, KeyDatadogHost)
 		if host != "" {
 			return host
 		}
 	}
-	hostname := GetOTelAttrFromEitherMap(signalattrs, resattrs, true, KeyDatadogHost)
-	if hostname == "" && !ignoreMissingDatadogFields {
-		// Try to get source from resource attributes using translator logic
-		src, srcok := SourceFromAttrs(resattrs, hostFromAttributesHandler)
-		if !srcok {
-			if v := GetOTelAttrFromEitherMap(signalattrs, resattrs, false, "_dd.hostname"); v != "" {
-				src = source.Source{Kind: source.HostnameKind, Identifier: v}
-				srcok = true
-			}
-		}
-		if srcok {
-			switch src.Kind {
-			case source.HostnameKind:
-				return src.Identifier
-			default:
-				// We are not on a hostname (serverless), hence the hostname is empty
-				return ""
-			}
-		} else {
-			// fallback hostname from Agent conf.Hostname
-			return fallbackHost
+	if ignoreMissingDatadogFields {
+		return ""
+	}
+	// Try to get source from resource attributes using translator logic
+	src, srcok := SourceFromAttrs(resattrs, hostFromAttributesHandler)
+	if !srcok {
+		if v := GetOTelAttrFromEitherMap(signalattrs, resattrs, false, "_dd.hostname"); v != "" {
+			src = source.Source{Kind: source.HostnameKind, Identifier: v}
+			srcok = true
 		}
 	}
-	return hostname
+	if srcok {
+		switch src.Kind {
+		case source.HostnameKind:
+			return src.Identifier
+		default:
+			// We are not on a hostname (serverless), hence the hostname is empty
+			return ""
+		}
+	} else {
+		// fallback hostname from Agent conf.Hostname
+		return fallbackHost
+	}
 }
 
 // GetOTelEnv returns the environment based on OTel span and resource attributes, with span taking precedence.
-func GetOTelEnv(signalattr pcommon.Map, resattrs pcommon.Map, ignoreMissingDatadogFields bool, useDatadogNamespaceIfPresent bool) string {
+func GetOTelEnv(signalattr pcommon.Map, resattrs pcommon.Map, ignoreMissingDatadogFields bool, useDatadogNamespaceIfPresent bool) (env string) {
 	if useDatadogNamespaceIfPresent {
-		env := GetOTelAttrFromEitherMap(signalattr, resattrs, true, KeyDatadogEnvironment)
+		env = GetOTelAttrFromEitherMap(signalattr, resattrs, true, KeyDatadogEnvironment)
 		if env != "" && !ignoreMissingDatadogFields {
 			return env
 		}
 	}
-	env := GetOTelAttrFromEitherMap(signalattr, resattrs, true, KeyDatadogEnvironment)
-	if env == "" && !ignoreMissingDatadogFields {
+	if !ignoreMissingDatadogFields {
 		env = GetOTelAttrFromEitherMap(signalattr, resattrs, true, string(semconv1_27.DeploymentEnvironmentNameKey), string(semconv1_12.DeploymentEnvironmentKey))
 	}
 	if env == "" {
-		env = DefaultOTLPEnvironmentName
+		return DefaultOTLPEnvironmentName
 	}
 	return env
 }
 
 // GetOTelService returns the DD service name based on OTel span and resource attributes.
-func GetOTelService(signalattrs pcommon.Map, resattrs pcommon.Map, normalize bool, useDatadogNamespaceIfPresent bool) string {
+func GetOTelService(signalattrs pcommon.Map, resattrs pcommon.Map, normalize bool, ignoreMissingDatadogFields bool, useDatadogNamespaceIfPresent bool) string {
 	if useDatadogNamespaceIfPresent {
 		svc := GetOTelAttrFromEitherMap(signalattrs, resattrs, false, KeyDatadogService)
 		if svc != "" {
 			return svc
 		}
+	}
+	if ignoreMissingDatadogFields {
+		return ""
 	}
 	svc := GetOTelAttrFromEitherMap(signalattrs, resattrs, false, string(semconv1_6_1.ServiceNameKey))
 	if svc == "" {
@@ -612,12 +604,15 @@ func GetOTelService(signalattrs pcommon.Map, resattrs pcommon.Map, normalize boo
 }
 
 // GetOTelResource returns the DD resource name based on OTel span and resource attributes.
-func GetOTelResource(spanKind ptrace.SpanKind, signalattrs pcommon.Map, resattrs pcommon.Map, fallbackResource string, useDatadogNamespaceIfPresent bool) (resource string) {
+func GetOTelResource(spanKind ptrace.SpanKind, signalattrs pcommon.Map, resattrs pcommon.Map, fallbackResource string, ignoreMissingDatadogFields bool, useDatadogNamespaceIfPresent bool) (resource string) {
 	if useDatadogNamespaceIfPresent {
 		resource = GetOTelAttrFromEitherMap(signalattrs, resattrs, false, KeyDatadogResource)
 		if resource != "" {
 			return resource
 		}
+	}
+	if ignoreMissingDatadogFields {
+		return fallbackResource
 	}
 	if m := GetOTelAttrFromEitherMap(signalattrs, resattrs, false, "resource.name"); m != "" {
 		return m
@@ -678,12 +673,15 @@ func GetOTelResource(spanKind ptrace.SpanKind, signalattrs pcommon.Map, resattrs
 }
 
 // GetOTelSpanType returns the DD span type based on OTel span kind and attributes.
-func GetOTelSpanType(spanKind ptrace.SpanKind, signalattrs pcommon.Map, resattrs pcommon.Map, useDatadogNamespaceIfPresent bool) string {
+func GetOTelSpanType(spanKind ptrace.SpanKind, signalattrs pcommon.Map, resattrs pcommon.Map, ignoreMissingDatadogFields bool, useDatadogNamespaceIfPresent bool) string {
 	if useDatadogNamespaceIfPresent {
 		typ := GetOTelAttrFromEitherMap(signalattrs, resattrs, false, KeyDatadogType)
 		if typ != "" {
 			return typ
 		}
+	}
+	if ignoreMissingDatadogFields {
+		return "custom"
 	}
 	typ := GetOTelAttrFromEitherMap(signalattrs, resattrs, false, "span.type")
 	if typ != "" {
@@ -804,11 +802,10 @@ func GetOTelVersion(signalattrs pcommon.Map, resattrs pcommon.Map, ignoreMissing
 			return version
 		}
 	}
-	version := GetOTelAttrFromEitherMap(signalattrs, resattrs, true, KeyDatadogVersion)
-	if version == "" && !ignoreMissingDatadogFields {
-		version = GetOTelAttrFromEitherMap(signalattrs, resattrs, true, string(semconv1_27.ServiceVersionKey))
+	if ignoreMissingDatadogFields {
+		return ""
 	}
-	return version
+	return GetOTelAttrFromEitherMap(signalattrs, resattrs, true, string(semconv1_27.ServiceVersionKey))
 }
 
 // GetOTelStatusCode returns the HTTP status code based on OTel span and resource attributes, with span taking precedence.
@@ -839,12 +836,6 @@ func _getOTelStatusCode(signalattrs pcommon.Map, resattrs pcommon.Map, ignoreMis
 			return code
 		}
 	}
-	if code, ok := signalattrs.Get(KeyDatadogHTTPStatusCode); ok {
-		return code
-	}
-	if code, ok := resattrs.Get(KeyDatadogHTTPStatusCode); ok {
-		return code
-	}
 	if !ignoreMissingDatadogFields {
 		if code, ok := signalattrs.Get(string(semconv1_17.HTTPStatusCodeKey)); ok {
 			return code
@@ -870,11 +861,10 @@ func GetOTelContainerID(signalattrs pcommon.Map, resourceattrs pcommon.Map, igno
 			return cid
 		}
 	}
-	cid := GetOTelAttrFromEitherMap(signalattrs, resourceattrs, true, KeyDatadogContainerID)
-	if cid == "" && !ignoreMissingDatadogFields {
-		cid = GetOTelAttrFromEitherMap(signalattrs, resourceattrs, true, string(semconv1_27.ContainerIDKey), string(semconv1_27.K8SPodUIDKey))
+	if ignoreMissingDatadogFields {
+		return ""
 	}
-	return cid
+	return GetOTelAttrFromEitherMap(signalattrs, resourceattrs, true, string(semconv1_27.ContainerIDKey), string(semconv1_27.K8SPodUIDKey))
 }
 
 // XXX make this take signalattrs as well
