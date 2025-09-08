@@ -196,9 +196,9 @@ func NewUSMConfig(cfg model.Config) *USMConfig {
 		MaxPostgresTelemetryBuffer: cfg.GetInt(sysconfig.FullKeyPath(smNS, "max_postgres_telemetry_buffer")),
 
 		// Redis Protocol Configuration
-		EnableRedisMonitoring: cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_redis_monitoring")),
+		EnableRedisMonitoring: cfg.GetBool(sysconfig.FullKeyPath(smNS, "redis", "enabled")),
 		RedisTrackResources:   cfg.GetBool(sysconfig.FullKeyPath(smNS, "redis", "track_resources")),
-		MaxRedisStatsBuffered: cfg.GetInt(sysconfig.FullKeyPath(smNS, "max_redis_stats_buffered")),
+		MaxRedisStatsBuffered: cfg.GetInt(sysconfig.FullKeyPath(smNS, "redis", "max_stats_buffered")),
 
 		// TLS Configuration
 		EnableNativeTLSMonitoring: cfg.GetBool(sysconfig.FullKeyPath(smNS, "tls", "native", "enabled")),
