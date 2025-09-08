@@ -241,6 +241,7 @@ func (s *Launcher) scan() {
 
 	tailersLen := s.tailers.Count()
 	log.Debugf("After stopping tailers, there are %d tailers running.\n", tailersLen)
+	log.Debugf("Yiming test log.\n")
 
 	lastIterationOldInfo := s.oldInfoMap
 	s.oldInfoMap = make(map[string]*oldTailerInfo)
