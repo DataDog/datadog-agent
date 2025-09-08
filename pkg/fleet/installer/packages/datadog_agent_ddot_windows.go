@@ -193,20 +193,22 @@ func ensureDDOTService() error {
 	s, err := m.OpenService(otelServiceName)
 	if err == nil {
 		defer s.Close()
-		// Ensure dependency is present even if service already exists
+		// update existing, remove SCM dependency if any
 		cfg, errC := s.Config()
 		if errC != nil {
 			return errC
 		}
-		hasDep := false
-		for _, dep := range cfg.Dependencies {
-			if strings.EqualFold(dep, coreAgentService) {
-				hasDep = true
-				break
-			}
+		changed := false
+		if cfg.StartType != mgr.StartManual {
+			cfg.StartType = mgr.StartManual
+			changed = true
 		}
-		if !hasDep {
-			cfg.Dependencies = append(cfg.Dependencies, coreAgentService)
+		if len(cfg.Dependencies) > 0 {
+			// drop SCM dependency
+			cfg.Dependencies = nil
+			changed = true
+		}
+		if changed {
 			if errU := s.UpdateConfig(cfg); errU != nil {
 				return errU
 			}
@@ -216,9 +218,8 @@ func ensureDDOTService() error {
 	s, err = m.CreateService(otelServiceName, bin, mgr.Config{
 		DisplayName:      "Datadog Distribution of OpenTelemetry Collector",
 		Description:      "Datadog OpenTelemetry Collector",
-		StartType:        mgr.StartAutomatic,
-		Dependencies:     []string{coreAgentService}, // start after core Agent
-		ServiceStartName: "",                         // LocalSystem
+		StartType:        mgr.StartManual,
+		ServiceStartName: "", // LocalSystem
 	})
 	if err != nil {
 		return err
