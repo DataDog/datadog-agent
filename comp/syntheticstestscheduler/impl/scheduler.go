@@ -26,7 +26,6 @@ const cacheKey = "synthetics-tests-scheduler"
 // SyntheticsTestScheduler is responsible for scheduling and executing synthetics tests.
 type SyntheticsTestScheduler struct {
 	log                          log.Component
-	runningConfig                map[string]common.SyntheticsTestConfig
 	state                        runningState
 	running                      bool
 	stopChan                     chan struct{}
@@ -38,7 +37,6 @@ type SyntheticsTestScheduler struct {
 	flushLoopDone                chan struct{}
 	epForwarder                  eventplatform.Forwarder
 	telemetry                    telemetry.Component
-	configID                     string
 	generateTestResultID         func() (string, error)
 	ticker                       *time.Ticker
 	tickerC                      <-chan time.Time
@@ -47,12 +45,10 @@ type SyntheticsTestScheduler struct {
 }
 
 // newSyntheticsTestScheduler creates a scheduler and initializes its state.
-func newSyntheticsTestScheduler(configs *schedulerConfigs, epForwarder eventplatform.Forwarder, logger log.Component, configID string, timeFunc func() time.Time) (*SyntheticsTestScheduler, error) {
+func newSyntheticsTestScheduler(configs *schedulerConfigs, epForwarder eventplatform.Forwarder, logger log.Component, timeFunc func() time.Time) (*SyntheticsTestScheduler, error) {
 	scheduler := &SyntheticsTestScheduler{
 		epForwarder:                  epForwarder,
 		log:                          logger,
-		configID:                     configID,
-		runningConfig:                map[string]common.SyntheticsTestConfig{},
 		state:                        runningState{tests: map[string]*runningTestState{}},
 		stopChan:                     make(chan struct{}),
 		workersDone:                  make(chan struct{}),
@@ -71,7 +67,7 @@ func newSyntheticsTestScheduler(configs *schedulerConfigs, epForwarder eventplat
 	scheduler.ticker = time.NewTicker(scheduler.flushInterval)
 	scheduler.tickerC = scheduler.ticker.C
 
-	if err := scheduler.retrieveConfig(); err != nil {
+	if err := scheduler.loadConfigsFromCache(); err != nil {
 		return nil, err
 	}
 	return scheduler, nil
@@ -112,10 +108,7 @@ func (s *SyntheticsTestScheduler) onConfigUpdate(updates map[string]state.RawCon
 		applyStateCallback(configPath, state.ApplyStatus{State: state.ApplyStateAcknowledged})
 	}
 
-	s.updateRunningState(newConfig)
-	s.runningConfig = newConfig
-
-	if err := s.persistConfig(); err != nil {
+	if err := s.updateRunningState(newConfig); err != nil {
 		s.log.Warnf("unable to persist synthetics test config: %v", err)
 		// TODO: what path should I provide if it is global to the config
 		applyStateCallback("TODO", state.ApplyStatus{
@@ -126,7 +119,7 @@ func (s *SyntheticsTestScheduler) onConfigUpdate(updates map[string]state.RawCon
 }
 
 // updateRunningState synchronizes in-memory runtime state with a new configuration.
-func (s *SyntheticsTestScheduler) updateRunningState(newConfig map[string]common.SyntheticsTestConfig) {
+func (s *SyntheticsTestScheduler) updateRunningState(newConfig map[string]common.SyntheticsTestConfig) error {
 	s.state.mu.Lock()
 	defer s.state.mu.Unlock()
 
@@ -151,11 +144,13 @@ func (s *SyntheticsTestScheduler) updateRunningState(newConfig map[string]common
 			delete(s.state.tests, pubID)
 		}
 	}
+
+	return s.persistState()
 }
 
-// persistConfig writes the runningConfig to persistent cache.
-func (s *SyntheticsTestScheduler) persistConfig() error {
-	cacheValue, err := json.Marshal(s.runningConfig)
+// persistState writes the state to persistent cache.
+func (s *SyntheticsTestScheduler) persistState() error {
+	cacheValue, err := json.Marshal(s.state.tests)
 	if err != nil {
 		return err
 	}
@@ -165,34 +160,23 @@ func (s *SyntheticsTestScheduler) persistConfig() error {
 	return nil
 }
 
-// retrieveConfig reads scheduler config from persistent cache and initializes state.
-func (s *SyntheticsTestScheduler) retrieveConfig() error {
+// loadConfigsFromCache reads scheduler config from persistent cache and initializes state.
+func (s *SyntheticsTestScheduler) loadConfigsFromCache() error {
+	s.state.mu.Lock()
+	defer s.state.mu.Unlock()
 	cacheValue, err := persistentcache.Read(cacheKey)
 	if err != nil {
 		return s.log.Errorf("couldn't read from cache: %s", err)
 	}
-	if len(cacheValue) == 0 || cacheValue == "{}" {
+	if len(cacheValue) == 0 {
 		return nil
 	}
 
-	var cfg map[string]common.SyntheticsTestConfig
+	var cfg map[string]*runningTestState
 	if err := json.Unmarshal([]byte(cacheValue), &cfg); err != nil {
 		return err
 	}
-	s.runningConfig = cfg
-
-	s.state.mu.Lock()
-	defer s.state.mu.Unlock()
-
-	s.state.tests = make(map[string]*runningTestState, len(cfg))
-	now := s.TimeNowFn()
-	for id, testCfg := range cfg {
-		s.state.tests[id] = &runningTestState{
-			cfg:     testCfg,
-			lastRun: time.Time{},
-			nextRun: now.Add(time.Duration(testCfg.Interval) * time.Second),
-		}
-	}
+	s.state.tests = cfg
 	return nil
 }
 

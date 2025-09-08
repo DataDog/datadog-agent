@@ -58,9 +58,6 @@ func (s *SyntheticsTestScheduler) flushLoop() {
 
 // flush enqueues tests whose nextRun is due.
 func (s *SyntheticsTestScheduler) flush(flushTime time.Time) {
-	s.state.mu.Lock()
-	defer s.state.mu.Unlock()
-
 	for id, rt := range s.state.tests {
 		if flushTime.After(rt.nextRun) || flushTime.Equal(rt.nextRun) {
 			s.log.Debugf("enqueuing test %s", id)
@@ -68,7 +65,9 @@ func (s *SyntheticsTestScheduler) flush(flushTime time.Time) {
 				nextRun: flushTime,
 				cfg:     rt.cfg,
 			}
-			s.updateTestState(flushTime, rt)
+			if err := s.updateTestState(rt); err != nil {
+				s.log.Errorf("unable to save test state %s", err)
+			}
 		}
 	}
 }
@@ -212,14 +211,17 @@ type SyntheticsTestCtx struct {
 }
 
 // updateTestState updates lastRun and nextRun for a running test.
-func (s *SyntheticsTestScheduler) updateTestState(flushTime time.Time, rt *runningTestState) {
-	rt.lastRun = flushTime
-	rt.nextRun = flushTime.Add(time.Duration(rt.cfg.Interval) * time.Second)
+func (s *SyntheticsTestScheduler) updateTestState(rt *runningTestState) error {
+	s.state.mu.Lock()
+	defer s.state.mu.Unlock()
+	rt.lastRun = rt.nextRun
+	rt.nextRun = rt.nextRun.Add(time.Duration(rt.cfg.Interval) * time.Second)
+	return s.persistState()
 }
 
 // sendSyntheticsTestResult marshals the WorkerResult and forwards it via the epForwarder.
 func (s *SyntheticsTestScheduler) sendSyntheticsTestResult(w *WorkerResult) error {
-	res, err := s.networkPathToTestResult(w, s.configID)
+	res, err := s.networkPathToTestResult(w)
 	if err != nil {
 		return err
 	}
@@ -246,7 +248,7 @@ func runTraceroute(cfg config.Config, telemetry telemetry.Component) (payload.Ne
 }
 
 // networkPathToTestResult converts a WorkerResult into the public TestResult structure.
-func (s *SyntheticsTestScheduler) networkPathToTestResult(w *WorkerResult, testConfigID string) (*common.TestResult, error) {
+func (s *SyntheticsTestScheduler) networkPathToTestResult(w *WorkerResult) (*common.TestResult, error) {
 	t := common.Test{
 		InternalID: w.testCfg.cfg.PublicID,
 		ID:         w.testCfg.cfg.PublicID,
@@ -289,7 +291,7 @@ func (s *SyntheticsTestScheduler) networkPathToTestResult(w *WorkerResult, testC
 			ReverseDNSHostname: np.Destination.ReverseDNSHostname,
 		},
 		Hops:         hops,
-		TestConfigID: testConfigID,
+		TestConfigID: w.testCfg.cfg.PublicID,
 		TestResultID: testResultID,
 		Traceroute:   common.TracerouteTest{},
 		E2E:          common.E2ETest{},

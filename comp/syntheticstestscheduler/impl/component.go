@@ -56,7 +56,6 @@ func NewComponent(reqs Requires) (Provides, error) {
 		configs,
 		epForwarder,
 		reqs.Logger,
-		reqs.AgentConfig.GetString("config_id"),
 		time.Now)
 	if err != nil {
 		return Provides{}, err
