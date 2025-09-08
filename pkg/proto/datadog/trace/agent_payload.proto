@@ -27,5 +27,6 @@ message AgentPayload {
         // rareSamplerEnabled holds `RareSamplerEnabled` value in AgentConfig
         bool rareSamplerEnabled = 10;
         // idxTracerPayloads specifies list of the payloads received from tracers.
+        // @gotags: msg:"-"
         repeated idx.TracerPayload idxTracerPayloads = 11;
 }

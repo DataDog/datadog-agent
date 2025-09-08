@@ -44,7 +44,8 @@ type AgentPayload struct {
 	// rareSamplerEnabled holds `RareSamplerEnabled` value in AgentConfig
 	RareSamplerEnabled bool `protobuf:"varint,10,opt,name=rareSamplerEnabled,proto3" json:"rareSamplerEnabled,omitempty"`
 	// idxTracerPayloads specifies list of the payloads received from tracers.
-	IdxTracerPayloads []*idx.TracerPayload `protobuf:"bytes,11,rep,name=idxTracerPayloads,proto3" json:"idxTracerPayloads,omitempty"`
+	// @gotags: msg:"-"
+	IdxTracerPayloads []*idx.TracerPayload `protobuf:"bytes,11,rep,name=idxTracerPayloads,proto3" json:"idxTracerPayloads,omitempty" msg:"-"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
