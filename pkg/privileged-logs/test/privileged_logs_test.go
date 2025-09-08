@@ -242,6 +242,10 @@ func TestOpen_WithModuleEnabled(t *testing.T) {
 }
 
 func TestOpen_PermissionErrorWithModuleDisabled(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("Cannot test permission error when running as root")
+	}
+
 	tempDir := t.TempDir()
 	testFile := createTestFile(t, tempDir, "restricted.log", "Restricted content", 0000)
 
@@ -251,6 +255,10 @@ func TestOpen_PermissionErrorWithModuleDisabled(t *testing.T) {
 }
 
 func TestOpen_PermissionErrorWithModuleFailure(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("Cannot test permission error when running as root")
+	}
+
 	tempDir := t.TempDir()
 	testFile := createTestFile(t, tempDir, "restricted.log", "Restricted content", 0000)
 
