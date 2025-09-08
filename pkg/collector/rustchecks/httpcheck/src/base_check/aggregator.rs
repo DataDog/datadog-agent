@@ -1,7 +1,7 @@
 use serde_json::Value;
 use serde::de::DeserializeOwned;
 
-use super::helpers::*;
+use super::cstring::*;
 
 use std::collections::HashMap;
 use std::ffi::{c_char, c_double, c_float, c_int, c_long, c_longlong};

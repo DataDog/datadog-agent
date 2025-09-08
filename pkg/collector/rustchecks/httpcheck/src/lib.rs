@@ -1,7 +1,7 @@
-mod agent_check;
-use agent_check::base::{AgentCheck, ServiceCheckStatus};
-use agent_check::aggregator::Aggregator;
-use agent_check::helpers::free_cstring;
+mod base_check;
+use base_check::check::{AgentCheck, ServiceCheckStatus};
+use base_check::aggregator::Aggregator;
+use base_check::cstring::free_cstring;
 
 use std::error::Error;
 use std::ffi::{c_char, CString, CStr};
