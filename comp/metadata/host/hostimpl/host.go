@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/cenkalti/backoff"
 	"go.uber.org/fx"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
@@ -48,9 +49,9 @@ type host struct {
 	resources    resources.Component
 	hostnameComp hostnameinterface.Component
 
-	hostname        string
-	collectInterval time.Duration
-	serializer      serializer.MetricSerializer
+	hostname      string
+	serializer    serializer.MetricSerializer
+	backoffPolicy *backoff.ExponentialBackOff
 }
 
 // Module defines the fx options for this component.
@@ -102,14 +103,26 @@ func newHostProvider(deps dependencies) provides {
 	}
 
 	hname, _ := deps.Hostname.Get(context.Background())
+
+	// exponential backoff for collection intervals which arrives at user's configured interval
+	bo := &backoff.ExponentialBackOff{
+		InitialInterval:     5 * time.Minute,
+		RandomizationFactor: 0,
+		Multiplier:          3.0,
+		MaxInterval:         collectInterval, // max interval is the user configured interval
+		MaxElapsedTime:      0,
+		Clock:               backoff.SystemClock,
+	}
+	bo.Reset()
+
 	h := host{
-		log:             deps.Log,
-		config:          deps.Config,
-		resources:       deps.Resources,
-		hostnameComp:    deps.Hostname,
-		hostname:        hname,
-		collectInterval: collectInterval,
-		serializer:      deps.Serializer,
+		log:           deps.Log,
+		config:        deps.Config,
+		resources:     deps.Resources,
+		hostnameComp:  deps.Hostname,
+		hostname:      hname,
+		serializer:    deps.Serializer,
+		backoffPolicy: bo,
 	}
 	return provides{
 		Comp:             &h,
@@ -126,10 +139,17 @@ func newHostProvider(deps dependencies) provides {
 
 func (h *host) collect(ctx context.Context) time.Duration {
 	payload := h.getPayload(ctx)
+
+	nextInterval := h.backoffPolicy.NextBackOff()
+	if nextInterval <= 0 || nextInterval > h.backoffPolicy.MaxInterval {
+		nextInterval = h.backoffPolicy.MaxInterval
+	}
+
 	if err := h.serializer.SendHostMetadata(payload); err != nil {
 		h.log.Errorf("unable to submit host metadata payload, %s", err)
 	}
-	return h.collectInterval
+
+	return nextInterval
 }
 
 func (h *host) GetPayloadAsJSON(ctx context.Context) ([]byte, error) {
