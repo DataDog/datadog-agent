@@ -417,6 +417,7 @@ func (d *Daemon) ComputeGlobalTags(configTags []string) {
 	if len(d.ExtraTags.Tags) == 0 {
 		ecs := d.ExecutionContext.GetCurrentState()
 		tagMap := tags.BuildTagMap(ecs.ARN, configTags)
+		log.Debugf("Yiming: tagMap: %+v", tagMap)
 		d.ExecutionContext.UpdateRuntime(tagMap[tags.RuntimeKey])
 		tagArray := tags.BuildTagsFromMap(tagMap)
 		if d.MetricAgent != nil {
