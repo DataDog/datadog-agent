@@ -3,12 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-// Package syntheticstestscheduler ... /* TODO: detailed doc comment for the component */
+// Package syntheticstestscheduler defines a synthetics scheduler component to run
+// network tests based on remote config.
 package syntheticstestscheduler
 
-// team: /* TODO: add team name */
+// team: synthetics-executing
 
 // Component is the component type.
 type Component interface {
-    /* TODO: define Component interface */
 }

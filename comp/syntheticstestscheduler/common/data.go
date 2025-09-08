@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+// Package common contains common structures and constants used for synthetics test scheduler.
 package common
 
 import (
@@ -10,26 +11,36 @@ import (
 	"fmt"
 )
 
-type Subtype string
+// SubType represents the network type of network test.
+type SubType string
 
 const (
-	SubtypeUDP  Subtype = "udp"
-	SubtypeTCP  Subtype = "tcp"
-	SubtypeICMP Subtype = "icmp"
+	// SubTypeUDP represents a udp network test.
+	SubTypeUDP SubType = "udp"
+	// SubTypeTCP represents a tcp network test.
+	SubTypeTCP SubType = "tcp"
+	// SubTypeICMP represents a icmp network test.
+	SubTypeICMP SubType = "icmp"
 )
 
+// TCPMethod represents the type of tcp network to establish.
 type TCPMethod string
 
 const (
+	// TCPMethodPreferSACK represents a preference to sack tcp method if available for network test.
 	TCPMethodPreferSACK TCPMethod = "prefer_sack"
-	TCPMethodSYN        TCPMethod = "syn"
-	TCPMethodSACK       TCPMethod = "sack"
+	// TCPMethodSYN represents a syn tcp method for network test.
+	TCPMethodSYN TCPMethod = "syn"
+	// TCPMethodSACK represents a sack tcp method for network test.
+	TCPMethodSACK TCPMethod = "sack"
 )
 
+// ConfigRequest represents the type configuration for a network test.
 type ConfigRequest interface {
-	GetSubType() Subtype
+	GetSubType() SubType
 }
 
+// NetworkConfigRequest represents the generic part of the network test configuration.
 type NetworkConfigRequest struct {
 	SourceService      *string `json:"source_service,omitempty"`
 	DestinationService *string `json:"destination_service,omitempty"`
@@ -39,16 +50,19 @@ type NetworkConfigRequest struct {
 	Timeout            *int    `json:"timeout,omitempty"` // in seconds
 }
 
+// UDPConfigRequest represents a udp network test configuration.
 type UDPConfigRequest struct {
 	Host string `json:"host"`
 	Port *int   `json:"port,omitempty"`
 	NetworkConfigRequest
 }
 
-func (u UDPConfigRequest) GetSubType() Subtype {
-	return SubtypeUDP
+// GetSubType returns the udp subtype.
+func (u UDPConfigRequest) GetSubType() SubType {
+	return SubTypeUDP
 }
 
+// TCPConfigRequest represents a tcp network test configuration.
 type TCPConfigRequest struct {
 	Host      string    `json:"host"`
 	Port      *int      `json:"port,omitempty"`
@@ -56,19 +70,23 @@ type TCPConfigRequest struct {
 	NetworkConfigRequest
 }
 
-func (t TCPConfigRequest) GetSubType() Subtype {
-	return SubtypeTCP
+// GetSubType returns the tcp subtype.
+func (t TCPConfigRequest) GetSubType() SubType {
+	return SubTypeTCP
 }
 
+// ICMPConfigRequest represents a icmp network test configuration.
 type ICMPConfigRequest struct {
 	Host string `json:"host"`
 	NetworkConfigRequest
 }
 
-func (i ICMPConfigRequest) GetSubType() Subtype {
-	return SubtypeICMP
+// GetSubType returns the icmp subtype.
+func (i ICMPConfigRequest) GetSubType() SubType {
+	return SubTypeICMP
 }
 
+// SyntheticsTestConfig represents the whole config of a network test.
 type SyntheticsTestConfig struct {
 	Version int    `json:"version"`
 	Type    string `json:"type"`
@@ -115,20 +133,20 @@ func (c *SyntheticsTestConfig) UnmarshalJSON(data []byte) error {
 	c.PublicID = tmp.PublicID
 	c.Config.Assertions = tmp.Config.Assertions
 
-	switch Subtype(tmp.Subtype) {
-	case SubtypeUDP:
+	switch SubType(tmp.Subtype) {
+	case SubTypeUDP:
 		var req UDPConfigRequest
 		if err := json.Unmarshal(tmp.Config.Request, &req); err != nil {
 			return err
 		}
 		c.Config.Request = req
-	case SubtypeTCP:
+	case SubTypeTCP:
 		var req TCPConfigRequest
 		if err := json.Unmarshal(tmp.Config.Request, &req); err != nil {
 			return err
 		}
 		c.Config.Request = req
-	case SubtypeICMP:
+	case SubTypeICMP:
 		var req ICMPConfigRequest
 		if err := json.Unmarshal(tmp.Config.Request, &req); err != nil {
 			return err
