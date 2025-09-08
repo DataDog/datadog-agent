@@ -71,9 +71,7 @@ func (h *testPrivilegedHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 }
 
 type PrivilegedLogsTestSetupStrategy struct {
-	socketPath    string
-	serverCleanup func()
-	tempDirs      [2]string
+	tempDirs [2]string
 }
 
 func (s *PrivilegedLogsTestSetupStrategy) Setup(t *testing.T) TestSetupResult {
@@ -84,22 +82,22 @@ func (s *PrivilegedLogsTestSetupStrategy) Setup(t *testing.T) TestSetupResult {
 	// unprivileged user here but changing it back to root in the privileged
 	// logs test server, and by creating all log files with 000 permissions
 	// which only EUID root can override.
-	unprivilegedUid := 0
-	sudoUid := os.Getenv("SUDO_UID")
-	if sudoUid != "" {
+	unprivilegedUID := 0
+	sudoUID := os.Getenv("SUDO_UID")
+	if sudoUID != "" {
 		var err error
-		unprivilegedUid, err = strconv.Atoi(sudoUid)
+		unprivilegedUID, err = strconv.Atoi(sudoUID)
 		require.NoError(t, err)
 	}
 
-	if unprivilegedUid == 0 {
+	if unprivilegedUID == 0 {
 		user, err := user.Lookup("nobody")
 		require.NoError(t, err)
-		unprivilegedUid, err = strconv.Atoi(user.Uid)
+		unprivilegedUID, err = strconv.Atoi(user.Uid)
 		require.NoError(t, err)
 	}
 
-	err := syscall.Seteuid(unprivilegedUid)
+	err := syscall.Seteuid(unprivilegedUID)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		err := syscall.Seteuid(0)
