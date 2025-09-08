@@ -428,7 +428,7 @@ func (suite *k8sSuite) TestNginx() {
 				`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source docker image label
 				`^image_id:ghcr\.io/datadog/apps-nginx-server@sha256:`,
 				`^image_name:ghcr\.io/datadog/apps-nginx-server$`,
-				`^image_tag:main$`,
+				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
 				`^kube_container_name:nginx$`,
 				`^kube_deployment:nginx$`,
 				`^kube_namespace:workload-nginx$`,
@@ -502,7 +502,7 @@ func (suite *k8sSuite) TestNginx() {
 				`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source docker image label
 				`^image_id:ghcr.io/datadog/apps-nginx-server@sha256:`,
 				`^image_name:ghcr.io/datadog/apps-nginx-server$`,
-				`^image_tag:main$`,
+				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
 				`^kube_container_name:nginx$`,
 				`^kube_deployment:nginx$`,
 				`^kube_namespace:workload-nginx$`,
@@ -539,7 +539,7 @@ func (suite *k8sSuite) TestRedis() {
 				`^display_container_name:redis`,
 				`^image_id:public.ecr.aws/docker/library/redis@sha256:`,
 				`^image_name:public.ecr.aws/docker/library/redis$`,
-				`^image_tag:latest$`,
+				`^image_tag:` + regexp.QuoteMeta(redis.RedisVersion) + `$`,
 				`^kube_container_name:redis$`,
 				`^kube_deployment:redis$`,
 				`^kube_namespace:workload-redis$`,
@@ -592,7 +592,7 @@ func (suite *k8sSuite) TestRedis() {
 				`^filename:[[:digit:]]+.log$`,
 				`^image_id:public.ecr.aws/docker/library/redis@sha256:`,
 				`^image_name:public.ecr.aws/docker/library/redis$`,
-				`^image_tag:latest$`,
+				`^image_tag:` + regexp.QuoteMeta(redis.RedisVersion) + `$`,
 				`^kube_container_name:redis$`,
 				`^kube_deployment:redis$`,
 				`^kube_namespace:workload-redis$`,
@@ -817,7 +817,7 @@ func (suite *k8sSuite) testDogstatsdContainerID(kubeNamespace, kubeDeployment st
 				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
 				`^image_id:ghcr.io/datadog/apps-dogstatsd@sha256:`,
 				`^image_name:ghcr.io/datadog/apps-dogstatsd$`,
-				`^image_tag:main$`,
+				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
 				`^kube_container_name:dogstatsd$`,
 				`^kube_deployment:` + regexp.QuoteMeta(kubeDeployment) + `$`,
 				"^kube_namespace:" + regexp.QuoteMeta(kubeNamespace) + "$",
@@ -966,7 +966,7 @@ func (suite *k8sSuite) TestContainerImage() {
 			regexp.MustCompile(`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`),
 			regexp.MustCompile(`^image_id:ghcr\.io/datadog/apps-nginx-server@sha256:`),
 			regexp.MustCompile(`^image_name:ghcr\.io/datadog/apps-nginx-server$`),
-			regexp.MustCompile(`^image_tag:main$`),
+			regexp.MustCompile(`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`),
 			regexp.MustCompile(`^os_name:linux$`),
 			regexp.MustCompile(`^short_image:apps-nginx-server$`),
 		}
@@ -1078,7 +1078,7 @@ func (suite *k8sSuite) TestSBOM() {
 				regexp.MustCompile(`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`),
 				regexp.MustCompile(`^image_id:ghcr\.io/datadog/apps-nginx-server@sha256:`),
 				regexp.MustCompile(`^image_name:ghcr\.io/datadog/apps-nginx-server$`),
-				regexp.MustCompile(`^image_tag:main$`),
+				regexp.MustCompile(`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`),
 				regexp.MustCompile(`^os_name:linux$`),
 				regexp.MustCompile(`^short_image:apps-nginx-server$`),
 			}
@@ -1090,7 +1090,7 @@ func (suite *k8sSuite) TestSBOM() {
 			})
 
 			if assert.Contains(c, properties, "aquasecurity:trivy:RepoTag") {
-				assert.Equal(c, "ghcr.io/datadog/apps-nginx-server:main", properties["aquasecurity:trivy:RepoTag"])
+				assert.Equal(c, "ghcr.io/datadog/apps-nginx-server:"+apps.Version, properties["aquasecurity:trivy:RepoTag"])
 			}
 
 			if assert.Contains(c, properties, "aquasecurity:trivy:RepoDigest") {
@@ -1351,7 +1351,7 @@ func (suite *k8sSuite) testTrace(kubeDeployment string) {
 				regexp.MustCompile(`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`),
 				regexp.MustCompile(`^image_id:`), // field is inconsistent. it can be a hash or an image + hash
 				regexp.MustCompile(`^image_name:ghcr.io/datadog/apps-tracegen$`),
-				regexp.MustCompile(`^image_tag:main$`),
+				regexp.MustCompile(`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`),
 				regexp.MustCompile(`^kube_container_name:` + kubeDeployment + `$`),
 				regexp.MustCompile(`^kube_deployment:` + kubeDeployment + `$`),
 				regexp.MustCompile(`^kube_namespace:` + kubeNamespaceTracegenWorkload + `$`),
