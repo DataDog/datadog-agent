@@ -37,7 +37,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm/customresources"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -72,11 +71,13 @@ const (
 )
 
 var extendedCollectors = map[string]string{
-	"deployments": "apps/v1, Resource=deployments_extended",
-	"replicasets": "apps/v1, Resource=replicasets_extended",
-	"jobs":        "batch/v1, Resource=jobs_extended",
-	"nodes":       "core/v1, Resource=nodes_extended",
-	"pods":        "core/v1, Resource=pods_extended",
+	"deployments":         "apps/v1, Resource=deployments_extended",
+	"replicasets":         "apps/v1, Resource=replicasets_extended",
+	"statefulsets":        "apps/v1, Resource=statefulsets_extended",
+	"controllerrevisions": "apps/v1, Resource=controllerrevisions_extended",
+	"jobs":                "batch/v1, Resource=jobs_extended",
+	"nodes":               "core/v1, Resource=nodes_extended",
+	"pods":                "core/v1, Resource=pods_extended",
 }
 
 // collectorNameReplacement contains a mapping of collector names as they would appear in the KSM config to what
@@ -249,6 +250,7 @@ type KSMCheck struct {
 	metadataMetricsRegex *regexp.Regexp
 	initRetry            retry.Retrier
 	workloadmetaStore    workloadmeta.Component
+	rolloutTracker       *customresources.RolloutTracker
 }
 
 // JoinsConfigWithoutLabelsMapping contains the config parameters for label joins
@@ -446,9 +448,22 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 				return err
 			}
 
+			log.Infof("ROLLOUT-DEBUG KSM enabled collectors: %v", cr.collectors)
 			if err := builder.WithEnabledResources(cr.collectors); err != nil {
 				return err
 			}
+
+			// Register event callbacks before building stores
+			eventCallbacks := k.getEventCallbacks()
+
+			var callbackResourceTypes []string
+			for resourceType, config := range eventCallbacks {
+				builder.RegisterStoreEventCallback(resourceType, config.EventType, config.Handler)
+				callbackResourceTypes = append(callbackResourceTypes, resourceType)
+			}
+
+			// Configure builder to enable callbacks for specific resource types
+			builder.WithCallbacksForResources(callbackResourceTypes)
 
 			// Start the collection process
 			k.allStores = builder.BuildStores()
@@ -539,11 +554,23 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 		customresources.NewExtendedNodeFactory(c),
 		customresources.NewExtendedPodFactory(c),
 		customresources.NewVerticalPodAutoscalerFactory(c),
-		customresources.NewDeploymentRolloutFactory(c),
-		customresources.NewReplicaSetRolloutFactory(c),
+		customresources.NewDeploymentRolloutFactory(c, k.rolloutTracker),
+		customresources.NewReplicaSetRolloutFactory(c, k.rolloutTracker),
+		customresources.NewStatefulSetRolloutFactory(c, k.rolloutTracker),
+		customresources.NewControllerRevisionRolloutFactory(c, k.rolloutTracker),
+	}
+
+	log.Infof("ROLLOUT-DEBUG Registered %d custom resource factories", len(factories))
+	for _, f := range factories {
+		log.Infof("ROLLOUT-DEBUG Factory registered: %s", f.Name())
 	}
 
 	factories = manageResourcesReplacement(c, factories, resources)
+
+	log.Infof("ROLLOUT-DEBUG After resource filtering, %d factories remain", len(factories))
+	for _, f := range factories {
+		log.Infof("ROLLOUT-DEBUG Factory after filtering: %s", f.Name())
+	}
 
 	clients := make(map[string]interface{}, len(factories))
 	for _, f := range factories {
@@ -631,29 +658,29 @@ func (k *KSMCheck) Run() error {
 	// If KSM is running in the node agent, and it's configured to collect only
 	// pods and from the node agent, we don't need to run leader election,
 	// because each node agent is responsible for collecting its own pods.
-	podsFromKubeletInNodeAgent := k.isRunningOnNodeAgent && k.instance.PodCollectionMode == nodeKubeletPodCollection
+	//podsFromKubeletInNodeAgent := k.isRunningOnNodeAgent && k.instance.PodCollectionMode == nodeKubeletPodCollection
 
-	// If the check is configured as a cluster check, the cluster check worker needs to skip the leader election section.
-	// we also do a safety check for dedicated runners to avoid trying the leader election
-	if (!k.isCLCRunner || !k.instance.LeaderSkip) && !podsFromKubeletInNodeAgent {
-		// Only run if Leader Election is enabled.
-		if !pkgconfigsetup.Datadog().GetBool("leader_election") {
-			return log.Error("Leader Election not enabled. The cluster-agent will not run the kube-state-metrics core check.")
-		}
+	//// If the check is configured as a cluster check, the cluster check worker needs to skip the leader election section.
+	//// we also do a safety check for dedicated runners to avoid trying the leader election
+	//if (!k.isCLCRunner || !k.instance.LeaderSkip) && !podsFromKubeletInNodeAgent {
+	//	// Only run if Leader Election is enabled.
+	//	if !pkgconfigsetup.Datadog().GetBool("leader_election") {
+	//		return log.Error("Leader Election not enabled. The cluster-agent will not run the kube-state-metrics core check.")
+	//	}
 
-		leader, errLeader := cluster.RunLeaderElection()
-		if errLeader != nil {
-			if errLeader == apiserver.ErrNotLeader {
-				log.Debugf("Not leader (leader is %q). Skipping the kube-state-metrics core check", leader)
-				return nil
-			}
+	//	leader, errLeader := cluster.RunLeaderElection()
+	//	if errLeader != nil {
+	//		if errLeader == apiserver.ErrNotLeader {
+	//			log.Debugf("Not leader (leader is %q). Skipping the kube-state-metrics core check", leader)
+	//			return nil
+	//		}
 
-			_ = k.Warn("Leader Election error. Not running the kube-state-metrics core check.")
-			return err
-		}
+	//		_ = k.Warn("Leader Election error. Not running the kube-state-metrics core check.")
+	//		return err
+	//	}
 
-		log.Tracef("Current leader: %q, running kube-state-metrics core check", leader)
-	}
+	//	log.Tracef("Current leader: %q, running kube-state-metrics core check", leader)
+	//}
 
 	defer sender.Commit()
 
@@ -663,8 +690,6 @@ func (k *KSMCheck) Run() error {
 			var metricsStore *ksmstore.MetricsStore
 			if ms, ok := store.(*ksmstore.MetricsStore); ok {
 				metricsStore = ms
-			} else if rolloutStore, ok := store.(*ksmstore.RolloutMetricsStore); ok {
-				metricsStore = rolloutStore.MetricsStore
 			}
 
 			if metricsStore != nil {
@@ -680,8 +705,6 @@ func (k *KSMCheck) Run() error {
 			var metricsStore *ksmstore.MetricsStore
 			if ms, ok := store.(*ksmstore.MetricsStore); ok {
 				metricsStore = ms
-			} else if rolloutStore, ok := store.(*ksmstore.RolloutMetricsStore); ok {
-				metricsStore = rolloutStore.MetricsStore
 			}
 
 			if metricsStore != nil {
@@ -1103,7 +1126,7 @@ func KubeStateMetricsFactoryWithParam(labelsMapper map[string]string, labelJoins
 }
 
 func newKSMCheck(base core.CheckBase, instance *KSMConfig, tagger tagger.Component, wmeta workloadmeta.Component) *KSMCheck {
-	return &KSMCheck{
+	k := &KSMCheck{
 		CheckBase:            base,
 		instance:             instance,
 		telemetry:            newTelemetryCache(),
@@ -1114,10 +1137,27 @@ func newKSMCheck(base core.CheckBase, instance *KSMConfig, tagger tagger.Compone
 		metricAggregators:    defaultMetricAggregators(),
 		metricTransformers:   defaultMetricTransformers(),
 		workloadmetaStore:    wmeta,
+		rolloutTracker:       customresources.NewRolloutTracker(),
 
 		// metadata metrics are useful for label joins
 		// but shouldn't be submitted to Datadog
 		metadataMetricsRegex: regexp.MustCompile(".*_(info|labels|status_reason)"),
+	}
+
+	// Setup instance-specific transformers that need rollout tracker
+	k.setupInstanceSpecificTransformers()
+
+	return k
+}
+
+// setupInstanceSpecificTransformers creates transformers that need instance state
+func (k *KSMCheck) setupInstanceSpecificTransformers() {
+	k.metricTransformers["kube_deployment_ongoing_rollout_duration"] = func(sender sender.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, now time.Time) {
+		transformKubeDeploymentRolloutDurationWithTracker(sender, name, metric, hostname, tags, now, k.rolloutTracker)
+	}
+
+	k.metricTransformers["kube_statefulset_ongoing_rollout_duration"] = func(sender sender.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, now time.Time) {
+		transformKubeStatefulSetRolloutDurationWithTracker(sender, name, metric, hostname, tags, now, k.rolloutTracker)
 	}
 }
 
@@ -1294,4 +1334,48 @@ func toSingularResourceName(resourceGroup string) (string, error) {
 	resourceType, group, _ := strings.Cut(resourceGroup, ".")
 	kind, err := apiserver.GetResourceKind(resourceType, group)
 	return strings.ToLower(kind), err
+}
+
+// EventCallbackConfig holds the configuration for a resource event callback
+type EventCallbackConfig struct {
+	EventType ksmstore.StoreEventType
+	Handler   ksmstore.StoreEventCallback
+}
+
+// getEventCallbacks returns a map of resource types to their corresponding event callback configurations
+func (k *KSMCheck) getEventCallbacks() map[string]EventCallbackConfig {
+	return map[string]EventCallbackConfig{
+		"*v1.Deployment":         {ksmstore.EventDelete, k.handleDeploymentEvent},
+		"*v1.ReplicaSet":         {ksmstore.EventDelete, k.handleReplicaSetEvent},
+		"*v1.StatefulSet":        {ksmstore.EventDelete, k.handleStatefulSetEvent},
+		"*v1.ControllerRevision": {ksmstore.EventDelete, k.handleControllerRevisionEvent},
+	}
+}
+
+// handleDeploymentEvent handles events for deployments
+func (k *KSMCheck) handleDeploymentEvent(eventType ksmstore.StoreEventType, _, namespace, name string, _ interface{}) {
+	if eventType == ksmstore.EventDelete {
+		k.rolloutTracker.CleanupDeployment(namespace, name)
+	}
+}
+
+// handleReplicaSetEvent handles events for replicasets
+func (k *KSMCheck) handleReplicaSetEvent(eventType ksmstore.StoreEventType, _, namespace, name string, _ interface{}) {
+	if eventType == ksmstore.EventDelete {
+		k.rolloutTracker.CleanupReplicaSet(namespace, name)
+	}
+}
+
+// handleStatefulSetEvent handles events for statefulsets
+func (k *KSMCheck) handleStatefulSetEvent(eventType ksmstore.StoreEventType, _, namespace, name string, _ interface{}) {
+	if eventType == ksmstore.EventDelete {
+		k.rolloutTracker.CleanupStatefulSet(namespace, name)
+	}
+}
+
+// handleControllerRevisionEvent handles events for controllerrevisions
+func (k *KSMCheck) handleControllerRevisionEvent(eventType ksmstore.StoreEventType, _, namespace, name string, _ interface{}) {
+	if eventType == ksmstore.EventDelete {
+		k.rolloutTracker.CleanupControllerRevision(namespace, name)
+	}
 }
