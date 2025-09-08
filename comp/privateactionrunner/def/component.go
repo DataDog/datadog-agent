@@ -14,4 +14,6 @@ import "context"
 type Component interface {
 	Start(_ context.Context) error
 	Stop(_ context.Context) error
+	// GetRunnerID returns the runner ID if available, empty string if not configured
+	GetRunnerID() string
 }

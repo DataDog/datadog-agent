@@ -20,6 +20,7 @@ import (
 	healthplatform "github.com/DataDog/datadog-agent/comp/core/health-platform/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -57,16 +58,18 @@ func newHealthClient(cfg config.Component) *healthClient {
 
 // Dependencies defines the dependencies for the health platform component
 type Dependencies struct {
-	Config    config.Component
-	Hostname  hostname.Component
-	Forwarder defaultforwarder.Component `optional:"true"`
+	Config              config.Component
+	Hostname            hostname.Component
+	Forwarder           defaultforwarder.Component    `optional:"true"`
+	PrivateActionRunner privateactionrunner.Component `optional:"true"`
 }
 
 // component implements the health platform component
 type component struct {
-	cfg       config.Component
-	hostname  hostname.Component
-	forwarder defaultforwarder.Component
+	cfg                 config.Component
+	hostname            hostname.Component
+	forwarder           defaultforwarder.Component
+	privateActionRunner privateactionrunner.Component
 
 	// HTTP client for backend communication
 	healthClient *healthClient
@@ -87,10 +90,11 @@ type component struct {
 // NewComponent creates a new health platform component
 func NewComponent(deps Dependencies) healthplatform.Component {
 	return &component{
-		cfg:          deps.Config,
-		hostname:     deps.Hostname,
-		forwarder:    deps.Forwarder,
-		healthClient: newHealthClient(deps.Config),
+		cfg:                 deps.Config,
+		hostname:            deps.Hostname,
+		forwarder:           deps.Forwarder,
+		privateActionRunner: deps.PrivateActionRunner,
+		healthClient:        newHealthClient(deps.Config),
 		hostInfo: healthplatform.HostInfo{
 			AgentVersion: version.AgentVersion,
 			ParIDs:       []string{}, // Will be populated later
@@ -110,6 +114,18 @@ func (c *component) Start(ctx context.Context) error {
 		}
 	} else {
 		c.hostInfo.Hostname = "unknown"
+	}
+
+	// Populate ParIDs from private action runner if available
+	if c.privateActionRunner != nil {
+		if runnerID := c.privateActionRunner.GetRunnerID(); runnerID != "" {
+			c.hostInfo.ParIDs = []string{runnerID}
+			log.Infof("Health platform initialized with PAR ID: %s", runnerID)
+		} else {
+			log.Info("Private action runner is available but no runner ID configured")
+		}
+	} else {
+		log.Info("No private action runner available for health platform")
 	}
 
 	// Start the ticker for periodic health checks
