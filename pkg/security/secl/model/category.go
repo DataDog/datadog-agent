@@ -15,6 +15,21 @@ import (
 // EventCategory category type
 type EventCategory int
 
+func (t EventCategory) String() string {
+	switch t {
+	case FIMCategory:
+		return "File Activity"
+	case ProcessCategory:
+		return "Process Activity"
+	case KernelCategory:
+		return "Kernel Activity"
+	case NetworkCategory:
+		return "Network Activity"
+	default:
+		return "Unknown Category"
+	}
+}
+
 // Event categories
 const (
 	// FIMCategory FIM events
@@ -30,22 +45,6 @@ const (
 // UnknownCategory for everything without a clear category
 var UnknownCategory = EventCategory(-1)
 
-// EventCategoryUserFacing user facing category type
-type EventCategoryUserFacing string
-
-const (
-	// FIMCategoryUserFacing FIM events
-	FIMCategoryUserFacing EventCategoryUserFacing = "File Activity"
-	// ProcessCategoryUserFacing process events
-	ProcessCategoryUserFacing EventCategoryUserFacing = "Process Activity"
-	// KernelCategoryUserFacing Kernel events
-	KernelCategoryUserFacing EventCategoryUserFacing = "Kernel Activity"
-	// NetworkCategoryUserFacing network events
-	NetworkCategoryUserFacing EventCategoryUserFacing = "Network Activity"
-	// UnknownCategoryUserFacing used for events without a clear category
-	UnknownCategoryUserFacing EventCategoryUserFacing = "Unknown Activity"
-)
-
 // GetAllCategories returns all categories
 func GetAllCategories() []EventCategory {
 	return []EventCategory{
@@ -53,6 +52,23 @@ func GetAllCategories() []EventCategory {
 		ProcessCategory,
 		KernelCategory,
 		NetworkCategory,
+	}
+}
+
+// EventTypeDependsOnInterfaceTracking returns all event types that have a dependency on our internal interface tracking mechanism
+func EventTypeDependsOnInterfaceTracking(eventType eval.EventType) bool {
+	switch eventType {
+	case
+		DNSEventType.String(),
+		FullDNSResponseEventType.String(),
+		ShortDNSResponseEventType.String(),
+		IMDSEventType.String(),
+		RawPacketFilterEventType.String(),
+		RawPacketActionEventType.String(),
+		NetworkFlowMonitorEventType.String():
+		return true
+	default:
+		return false
 	}
 }
 
