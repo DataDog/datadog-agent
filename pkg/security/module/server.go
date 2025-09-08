@@ -630,6 +630,33 @@ func (a *APIServer) Stop() {
 	a.stopper.Stop()
 }
 
+// GetStatus returns the status of the module
+func (a *APIServer) GetStatus(_ context.Context, _ *api.GetStatusParams) (*api.Status, error) {
+	var apiStatus api.Status
+
+	if a.cfg.SendPayloadsFromSystemProbe {
+		apiStatus.DirectSenderStatus = &api.DirectSenderStatus{
+			Endpoints: nil,
+		}
+	}
+
+	if a.selfTester != nil {
+		apiStatus.SelfTests = a.selfTester.GetStatus()
+	}
+	apiStatus.PoliciesStatus = a.policiesStatus
+
+	seclVariables := a.GetSECLVariables()
+	for _, seclVariable := range seclVariables {
+		apiStatus.SECLVariables = append(apiStatus.SECLVariables, seclVariable)
+	}
+
+	if err := a.fillStatusPlatform(&apiStatus); err != nil {
+		return nil, err
+	}
+
+	return &apiStatus, nil
+}
+
 // SetCWSConsumer sets the CWS consumer
 func (a *APIServer) SetCWSConsumer(consumer *CWSConsumer) {
 	a.cwsConsumer = consumer
