@@ -902,6 +902,12 @@ static __always_inline void headers_parser(pktbuf_t pkt, void *map_key, conn_tup
 
     __u8 interesting_headers = 0;
 
+    // Initialize the per-tuple dynamic counter once before processing frames
+    __u64 *global_dynamic_counter = get_dynamic_counter(tup);
+    if (global_dynamic_counter == NULL) {
+        goto delete_iteration;
+    }
+
     #pragma unroll(HTTP2_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL)
     for (__u16 index = 0; index < HTTP2_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL; index++) {
         if (tail_call_state->iteration >= tail_call_state->frames_count) {
@@ -939,12 +945,6 @@ static __always_inline void headers_parser(pktbuf_t pkt, void *map_key, conn_tup
             }
         }
 
-        // Get dynamic counter for each frame that will actually be processed
-        __u64 *global_dynamic_counter = get_dynamic_counter(tup);
-        if (global_dynamic_counter == NULL) {
-            goto delete_iteration;
-        }
-        
         interesting_headers = pktbuf_filter_relevant_headers(pkt, global_dynamic_counter, &http2_ctx->dynamic_index, headers_to_process, current_frame.frame.length, http2_tel);
         pktbuf_process_headers(pkt, &http2_ctx->dynamic_index, current_stream, headers_to_process, interesting_headers, http2_tel);
     }
@@ -1022,6 +1022,12 @@ static __always_inline void dynamic_table_cleaner(pktbuf_t pkt, conn_tuple_t *tu
         goto next;
     }
 
+    // If there is nothing left to track for this tuple, retire the counter entry.
+    if (dynamic_counter->previous >= dynamic_counter->value) {
+        bpf_map_delete_elem(&http2_dynamic_counter_table, tup);
+        goto next;
+    }
+
     // We're checking if the difference between the current value of the dynamic global table, to the previous index we
     // cleaned, is bigger than our threshold. If so, we need to clean the table.
     if (dynamic_counter->value - dynamic_counter->previous <= HTTP2_DYNAMIC_TABLE_CLEANUP_THRESHOLD) {
@@ -1046,6 +1052,11 @@ static __always_inline void dynamic_table_cleaner(pktbuf_t pkt, conn_tuple_t *tu
         bpf_map_delete_elem(&http2_dynamic_table, &dynamic_index);
         // Incrementing the previous index.
         dynamic_counter->previous++;
+    }
+
+    // If we caught up during this run, drop the counter to avoid lingering entries.
+    if (dynamic_counter->previous >= dynamic_counter->value) {
+        bpf_map_delete_elem(&http2_dynamic_counter_table, tup);
     }
 
 next:
