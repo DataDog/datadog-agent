@@ -60,7 +60,7 @@ const (
 	// ComputeStatsKey is the tag key indicating whether trace stats should be computed
 	ComputeStatsKey = "_dd.compute_stats"
 	// ComputeStatsValue is the tag value indicating trace stats should be computed
-	ComputeStatsValue = "1"
+	ComputeStatsValue = "0"
 
 	extensionVersionKey = "dd_extension_version"
 
