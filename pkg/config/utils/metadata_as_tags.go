@@ -53,7 +53,7 @@ type MetadataAsTags interface {
 	// GetResourcesAnnotationsAsTags returns resources annotations as tags
 	GetResourcesAnnotationsAsTags() map[string]map[string]string
 	// GetTagExpressions returns tag expressions
-	GetTagExpressions() map[string][]TagExpressions
+	GetTagExpressions() map[string]ResourceTagExpressions
 }
 
 type metadataAsTags struct {
@@ -104,7 +104,7 @@ func (m *metadataAsTags) GetResourcesAnnotationsAsTags() map[string]map[string]s
 	return m.annotationsAsTags
 }
 
-func (m *metadataAsTags) GetTagExpressions() map[string][]TagExpressions {
+func (m *metadataAsTags) GetTagExpressions() map[string]ResourceTagExpressions {
 	return m.tagExpressions
 }
 
@@ -145,7 +145,7 @@ func GetMetadataAsTags(c pkgconfigmodel.Reader) MetadataAsTags {
 	metadataAsTags := metadataAsTags{
 		labelsAsTags:      map[string]map[string]string{},
 		annotationsAsTags: map[string]map[string]string{},
-		tagExpressions:    map[string][]TagExpressions{},
+		tagExpressions:    map[string]ResourceTagExpressions{},
 	}
 
 	// node labels/annotations as tags
