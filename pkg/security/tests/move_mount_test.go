@@ -300,20 +300,27 @@ func TestMoveMountRecursivePropagation(t *testing.T) {
 	}
 	defer test.Close()
 
-	te, err := newTestEnvironment(false, t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer te.UnmountAll()
-
-	fd, err := unix.OpenTree(0, te.submountDirSrc, unix.OPEN_TREE_CLONE|unix.AT_RECURSIVE)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer unix.Close(fd)
-
 	t.Run("moved-recursive-with-propagation", func(_ *testing.T) {
 		allMounts := map[uint32]uint32{}
+
+		te, err := newTestEnvironment(false, t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer te.UnmountAll()
+
+		fd, err := unix.OpenTree(0, te.submountDirSrc, unix.OPEN_TREE_CLONE|unix.AT_RECURSIVE)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer unix.Close(fd)
+
+		// Drain any pending probe events (across all types)
+		if err := test.GetProbeEvent(nil, func(_ *model.Event) bool { return false }, 1000*time.Millisecond); err != nil {
+			if _, ok := err.(ErrTimeout); !ok {
+				t.Fatal(err)
+			}
+		}
 
 		err = test.GetProbeEvent(func() error {
 			err = unix.MoveMount(fd, "", unix.AT_FDCWD, te.submountDirDst, unix.MOVE_MOUNT_F_EMPTY_PATH)
