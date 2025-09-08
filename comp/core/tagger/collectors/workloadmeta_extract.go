@@ -769,6 +769,10 @@ func (c *WorkloadMetaCollector) extractTagsFromPodOwner(pod *workloadmeta.Kubern
 		deployment := kubernetes.ParseDeploymentForReplicaSet(owner.Name)
 		if len(deployment) > 0 {
 			tagList.AddLow(tags.KubeDeployment, deployment)
+			// Add Argo Rollout tag key if the deployment is controlled by Argo Rollout
+			if pod.Labels[kubernetes.ArgoRolloutLabelKey] != "" {
+				tagList.AddLow(tags.KubeArgoRollout, deployment)
+			}
 		}
 		tagList.AddLow(tags.KubeReplicaSet, owner.Name)
 	}
