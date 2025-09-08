@@ -228,6 +228,17 @@ func lint(destFile string) error {
 	if err := yaml.Unmarshal(normalized, &root); err != nil {
 		return fmt.Errorf("lint: YAML unmarshal failed: %w", err)
 	}
+	if len(root.Content) == 0 {
+		// Add a single lint_testing node to the original bytes.
+		//
+		// if there are no nodes then all comments are removed, so this
+		// allows us to make a comparison even for files which only have comments,
+		// such as system-probe.yaml.
+		normalized = append(normalized, []byte("lint_testing: true # ignore me\n")...)
+		if err := yaml.Unmarshal(normalized, &root); err != nil {
+			return fmt.Errorf("lint: YAML unmarshal failed: %w", err)
+		}
+	}
 
 	var buf bytes.Buffer
 	enc := yaml.NewEncoder(&buf)
