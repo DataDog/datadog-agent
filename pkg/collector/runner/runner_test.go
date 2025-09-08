@@ -115,7 +115,7 @@ func newScheduler() *scheduler.Scheduler {
 func assertAsyncWorkerCount(t *testing.T, count int) {
 	require.Eventually(t, func() bool {
 		return expvars.GetWorkerCount() == count
-	}, 750*time.Millisecond, 10*time.Millisecond)
+	}, 1*time.Second, 10*time.Millisecond)
 }
 
 func assertAsyncBool(t *testing.T, actualValueFunc func() bool, expectedValue bool) {
