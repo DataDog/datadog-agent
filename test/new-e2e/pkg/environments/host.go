@@ -46,7 +46,7 @@ func (e *Host) Diagnose(outputDir string) (string, error) {
 	// add Agent diagnose
 	if e.Agent != nil {
 		diagnoses = append(diagnoses, "==== Agent ====")
-		dstPath, err := e.generateAndDownloadAgentFlare(outputDir)
+		dstPath, err := generateAndDownloadAgentFlare(e.Agent, e.RemoteHost, outputDir)
 		if err != nil {
 			return "", fmt.Errorf("failed to generate and download agent flare: %w", err)
 		}
@@ -57,8 +57,8 @@ func (e *Host) Diagnose(outputDir string) (string, error) {
 	return strings.Join(diagnoses, "\n"), nil
 }
 
-func (e *Host) generateAndDownloadAgentFlare(outputDir string) (string, error) {
-	if e.Agent == nil || e.RemoteHost == nil {
+func generateAndDownloadAgentFlare(agent *components.RemoteHostAgent, host *components.RemoteHost, outputDir string) (string, error) {
+	if agent == nil || host == nil {
 		return "", fmt.Errorf("Agent or RemoteHost component is not initialized, cannot generate flare")
 	}
 	// generate a local flare
@@ -66,7 +66,7 @@ func (e *Host) generateAndDownloadAgentFlare(outputDir string) (string, error) {
 	// to redirect stdin to null, on linux adding `</dev/null`
 	// on windows prepending command with `@() |`, pre-piping with an empty array
 	// discard error, flare command might return error if there is no intake, but it the archive is still generated
-	flareCommandOutput, err := e.Agent.Client.FlareWithError(agentclient.WithArgs([]string{"--email", "e2e-tests@datadog-agent", "--send", "--local"}))
+	flareCommandOutput, err := agent.Client.FlareWithError(agentclient.WithArgs([]string{"--email", "e2e-tests@datadog-agent", "--send", "--local"}))
 
 	lines := []string{flareCommandOutput}
 	if err != nil {
@@ -83,17 +83,17 @@ func (e *Host) generateAndDownloadAgentFlare(outputDir string) (string, error) {
 		return "", fmt.Errorf("output does not contain the path to the flare archive, output: %s", flareCommandOutput)
 	}
 	flarePath := matches[1]
-	flareFileInfo, err := e.RemoteHost.Lstat(flarePath)
+	flareFileInfo, err := host.Lstat(flarePath)
 	if err != nil {
 		return "", fmt.Errorf("failed to stat flare archive: %w", err)
 	}
 	dstPath := filepath.Join(outputDir, flareFileInfo.Name())
 
-	err = e.RemoteHost.EnsureFileIsReadable(flarePath)
+	err = host.EnsureFileIsReadable(flarePath)
 	if err != nil {
 		return "", fmt.Errorf("failed to ensure flare archive is readable: %w", err)
 	}
-	err = e.RemoteHost.GetFile(flarePath, dstPath)
+	err = host.GetFile(flarePath, dstPath)
 	if err != nil {
 		return "", fmt.Errorf("failed to download flare archive: %w", err)
 	}

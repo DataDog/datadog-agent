@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	spconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	"github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/rules/bundled"
@@ -899,6 +900,8 @@ func (fs *fakeMsgSender) Send(msg *api.SecurityEventMessage, _ func(*api.Securit
 
 	fs.msgs[msgStruct.AgentContext.RuleID] = msg
 }
+
+func (fs *fakeMsgSender) SendTelemetry(statsd.ClientInterface) {}
 
 func (fs *fakeMsgSender) getMsg(ruleID eval.RuleID) *api.SecurityEventMessage {
 	fs.Lock()
