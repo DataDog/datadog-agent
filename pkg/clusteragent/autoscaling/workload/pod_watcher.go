@@ -147,7 +147,7 @@ func (pw *PodWatcherImpl) HandleEvent(event workloadmeta.Event) {
 }
 
 func (pw *PodWatcherImpl) handleSetEvent(pod *workloadmeta.KubernetesPod) {
-	podOwner, err := getNamespacedPodOwner(pod.Namespace, &pod.Owners[0])
+	podOwner, err := resolveNamespacedPodOwner(pod)
 	if err != nil {
 		log.Debugf("Ignoring pod %s with invalid owner %s", pod.ID, err)
 		return
@@ -182,7 +182,7 @@ func (pw *PodWatcherImpl) handleSetEvent(pod *workloadmeta.KubernetesPod) {
 }
 
 func (pw *PodWatcherImpl) handleUnsetEvent(pod *workloadmeta.KubernetesPod) {
-	podOwner, err := getNamespacedPodOwner(pod.Namespace, &pod.Owners[0])
+	podOwner, err := resolveNamespacedPodOwner(pod)
 	if err != nil {
 		log.Debugf("Ignoring pod %s with invalid owner %s", pod.ID, err)
 		return
@@ -220,22 +220,35 @@ func (pw *PodWatcherImpl) runPatcher(ctx context.Context) {
 	}
 }
 
-func getNamespacedPodOwner(ns string, owner *workloadmeta.KubernetesPodOwner) (NamespacedPodOwner, error) {
-	if owner.Kind == kubernetes.DeploymentKind {
+func resolveNamespacedPodOwner(pod *workloadmeta.KubernetesPod) (NamespacedPodOwner, error) {
+	if len(pod.Owners) == 0 || pod.Owners[0].Kind == kubernetes.DeploymentKind {
 		return NamespacedPodOwner{}, errDeploymentNotValidOwner
 	}
 
 	res := NamespacedPodOwner{
-		Name:      owner.Name,
-		Kind:      owner.Kind,
-		Namespace: ns,
+		Name:      pod.Owners[0].Name,
+		Kind:      pod.Owners[0].Kind,
+		Namespace: pod.Namespace,
 	}
+
 	if res.Kind == kubernetes.ReplicaSetKind {
-		deploymentName := kubernetes.ParseDeploymentForReplicaSet(res.Name)
-		if deploymentName != "" {
-			res.Kind = kubernetes.DeploymentKind
-			res.Name = deploymentName
+		// Check if Argo Rollout based on Label
+		if pod.Labels != nil && pod.Labels[kubernetes.ArgoRolloutLabelKey] != "" {
+			// Note: Argo Rollouts use the same naming convention as Deployments
+			rolloutName := kubernetes.ParseDeploymentForReplicaSet(res.Name)
+			if rolloutName != "" {
+				res.Kind = kubernetes.RolloutKind
+				res.Name = rolloutName
+			}
+		} else {
+			// Try to parse as Deployment
+			deploymentName := kubernetes.ParseDeploymentForReplicaSet(res.Name)
+			if deploymentName != "" {
+				res.Kind = kubernetes.DeploymentKind
+				res.Name = deploymentName
+			}
 		}
 	}
+
 	return res, nil
 }

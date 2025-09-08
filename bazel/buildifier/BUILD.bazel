@@ -1,8 +1,8 @@
 load("@buildifier_prebuilt//:rules.bzl", "buildifier", "buildifier_test")
 
 exclude_patterns = [
-    "**/.bazelbsp/**",
-    "**/.cache/**",
+    "./.bazelbsp/**",
+    "./.cache/**",
 ]
 
 buildifier(
