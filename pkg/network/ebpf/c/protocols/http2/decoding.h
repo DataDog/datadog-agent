@@ -663,18 +663,6 @@ static __always_inline void handle_first_frame(pktbuf_t pkt, __u32 *external_dat
     pktbuf_advance(pkt, current_frame.length);
     // We're exceeding the packet boundaries, so we have a remainder.
     if (pktbuf_data_offset(pkt) > pktbuf_data_end(pkt)) {
-        // Special case: For HEADERS+PRIORITY frames, check if there's meaningful content to reconstruct
-        if (current_frame.type == kHeadersFrame && (current_frame.flags & HTTP2_PRIORITY_FLAG)) {
-            // Calculate how many bytes are available in current packet
-            __u32 bytes_available = pktbuf_data_end(pkt) - (pktbuf_data_offset(pkt) - current_frame.length);
-            
-            // If available bytes <= PRIORITY bytes, there's no meaningful header content to reconstruct
-            if (bytes_available <= HTTP2_PRIORITY_BUFFER_LEN) {
-                // This split contains only PRIORITY data, no header content - skip incomplete tracking
-                return;
-            }
-        }
-        
         incomplete_frame_t new_incomplete_frame = { 0 };
 
         // Saving the remainder.
