@@ -79,13 +79,19 @@ func (m *mockRCClient) Subscribe(product string, _ func(map[string]state.RawConf
 }
 
 func (m *mockRCClient) GetConfigs(_ string) map[string]state.RawConfig {
+	// Check if we should block, but don't hold the lock while blocking
 	m.mu.Lock()
-	defer m.mu.Unlock()
+	shouldBlock := m.blockGetConfigs
+	readyChan := m.configsReady
+	m.mu.Unlock()
 
-	if m.blockGetConfigs {
-		<-m.configsReady // Block until unblocked
+	if shouldBlock {
+		<-readyChan // Block until unblocked (without holding the mutex)
 	}
 
+	// Now get the configs with the lock
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	return m.configs
 }
 
