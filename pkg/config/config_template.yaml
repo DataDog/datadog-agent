@@ -1,4 +1,4 @@
-{{ if .Common }}
+{{- if .Common -}}
 #########################
 ## Basic Configuration ##
 #########################
@@ -696,8 +696,8 @@ api_key:
 #
 #     url: "http://127.0.0.1:8080"
 
-{{ end }}
-{{- if .Agent }}
+{{- end -}}
+{{- if .Agent -}}
 
 ############################
 ## Advanced Configuration ##
@@ -803,7 +803,7 @@ api_key:
 ## integrations and affect their behavior if they rely on the psutil python package.
 #
 # procfs_path: <PROCFS_PATH>
-{{ if .Python }}
+{{- if .Python -}}
 ## @param disable_py3_validation - boolean - optional - default: false
 ## @env DD_DISABLE_PY3_VALIDATION - boolean - optional - default: false
 ## Disable Python3 validation of python checks.
@@ -849,7 +849,7 @@ api_key:
 ## Disabled by default, so we only load Python libraries bundled with the Agent.
 #
 # windows_use_pythonpath: false
-{{ end }}
+{{- end -}}
 ## @param secret_backend_type - string - optional
 ## @env DD_SECRET_BACKEND_TYPE - string - optional
 ## This feature is in preview.
@@ -962,12 +962,12 @@ api_key:
 #
 #   enabled: false
 
-{{ end }}
+{{- end -}}
 
 
-{{ end -}}
+{{- end -}}
 
-{{- if .LogsAgent }}
+{{- if .LogsAgent -}}
 
 ##################################
 ## Log collection Configuration ##
@@ -1159,8 +1159,8 @@ api_key:
 #     #   * Linux: /var/log/datadog/streamlogs_info/streamlogs.log
 #     streamlogs_log_file: <path_to_streamlogs_log_file>
 
-{{ end -}}
-{{- if .TraceAgent }}
+{{- end -}}
+{{- if .TraceAgent -}}
 
 ####################################
 ## Trace Collection Configuration ##
@@ -1195,7 +1195,7 @@ api_key:
 #
 #   receiver_port: 8126
 
-{{- if (eq .OS "windows")}}
+{{- if (eq .OS "windows") -}}
 #   # Please note that UDS receiver is not available in Windows.
 #   # @ Enabling this setting may result in unexpected behavior.
 #   # @param receiver_socket - string - optional - default: ""
@@ -1204,14 +1204,14 @@ api_key:
 #   # Set to "" to disable the UDS receiver.
 #
 #   receiver_socket: ""
-{{else}}
+{{- else -}}
 #   # @param receiver_socket - string - optional - default: unix:///var/run/datadog/apm.socket
 #   # @env DD_APM_RECEIVER_SOCKET - string - optional - default: unix:///var/run/datadog/apm.socket
 #   # Accept traces through Unix Domain Sockets.
 #   # Set to "" to disable the UDS receiver.
 #
 #   receiver_socket: /var/run/datadog/apm.socket
-{{ end }}
+{{- end -}}
 
 #   # @param apm_non_local_traffic - boolean - optional - default: false
 #   # @env DD_APM_NON_LOCAL_TRAFFIC - boolean - optional - default: false
@@ -1663,9 +1663,9 @@ api_key:
 #
 #     enabled: false
 
-  {{ end -}}
-{{ end -}}
-{{- if .ProcessAgent }}
+  {{- end -}}
+{{- end -}}
+{{- if .ProcessAgent -}}
 
 ######################################
 ## Process Collection Configuration ##
@@ -1837,10 +1837,10 @@ api_key:
 #
 #   enabled: false
 
-{{ end }}
+{{- end -}}
 
-{{- if .NetworkPath }}
-{{- if (ne .OS "darwin")}}
+{{- if .NetworkPath -}}
+{{- if (ne .OS "darwin") -}}
 
 ########################################
 ## Network Path Configuration         ##
@@ -1869,10 +1869,10 @@ api_key:
 #
 #     workers: 4
 
-{{ end -}}
-{{ end -}}
-{{ end -}}
-{{- if .Compliance }}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- if .Compliance -}}
 #############################################
 ## Security Agent Compliance Configuration ##
 #############################################
@@ -1902,9 +1902,9 @@ api_key:
 #   # @env DD_COMPLIANCE_CONFIG_CHECK_MAX_EVENTS_PER_RUN - integer - optional - default: 100
 #   #
 #   check_max_events_per_run: 100
-{{ end -}}
+{{- end -}}
 
-{{- if .SBOM }}
+{{- if .SBOM -}}
 ## @param sbom - custom object - optional
 ## Enter specific configuration for the Cloud Security Management Vulnerability Management feature
 # sbom:
@@ -1918,14 +1918,14 @@ api_key:
 #   # set to true to enable Infrastructure Vulnerabiltilies
 #   host:
 #     enabled: false
-{{- if (eq .OS "linux")}}
+{{- if (eq .OS "linux") -}}
 
 
 #   container_image:
 #     enabled: false
-{{ end -}}
-{{ end -}}
-{{- if .SystemProbe }}
+{{- end -}}
+{{- end -}}
+{{- if .SystemProbe -}}
 
 ##################################
 ## System Probe Configuration ##
@@ -1936,19 +1936,19 @@ api_key:
 ## Uncomment this parameter and the one below to enable them.
 #
 # system_probe_config:
-{{- if (eq .OS "windows")}}
+{{- if (eq .OS "windows") -}}
 #   # @param sysprobe_socket - string - optional - default: localhost:3333
 #   # @env DD_SYSTEM_PROBE_CONFIG_SYSPROBE_SOCKET - string - optional - default: localhost:3333
 #   # The TCP address where system probes are accessed.
 #
 #   sysprobe_socket: localhost:3333
-{{else}}
+{{- else -}}
 #   # @param sysprobe_socket - string - optional - default: /opt/datadog-agent/run/sysprobe.sock
 #   # @env DD_SYSTEM_PROBE_CONFIG_SYSPROBE_SOCKET - string - optional - default: /opt/datadog-agent/run/sysprobe.sock
 #   # The full path to the location of the unix socket where system probes are accessed.
 #
 #   sysprobe_socket: /opt/datadog-agent/run/sysprobe.sock
-{{ end }}
+{{- end -}}
 #   # @param log_file - string - optional - default: /var/log/datadog/system-probe.log
 #   # @env DD_SYSTEM_PROBE_CONFIG_LOG_FILE - string - optional - default: /var/log/datadog/system-probe.log
 #   # The full path to the file where system-probe logs are written.
@@ -2030,46 +2030,46 @@ api_key:
 #
 #     pressure_levels:
 #       medium: gc
-{{ end }}
+{{- end -}}
 
-{{- if .NetworkModule }}
+{{- if .NetworkModule -}}
 
 ########################################
 ## System Probe Network Configuration ##
 ########################################
 
 # network_config:
-{{- if (eq .OS "windows")}}
+{{- if (eq .OS "windows") -}}
 #   # Please note that enabling the Network Module of the System
 #   # Probe will result in a kernel driver being loaded.
-{{ end }}
+{{- end -}}
 #   # @param enabled - boolean - optional - default: false
 #   # Set to true to enable the Network Module of the System Probe
 #
 #   enabled: false
 
-{{ end -}}
+{{- end -}}
 
-{{- if .UniversalServiceMonitoringModule }}
+{{- if .UniversalServiceMonitoringModule -}}
 
 #############################################################
 ## System Probe Universal Service monitoring Configuration ##
 #############################################################
 
 # service_monitoring_config:
-{{- if (eq .OS "windows")}}
+{{- if (eq .OS "windows") -}}
 #   # Please note that enabling the Universal Service Monitoring
 #   # Module of the System Probe will result in a kernel driver
 #   # being loaded.
-{{ end }}
+{{- end -}}
 #   # @param enabled - boolean - optional - default: false
 #   # Set to true to enable the Universal Service Monitoring Module of the System Probe
 #
 #   enabled: false
 
-{{ end -}}
+{{- end -}}
 
-{{- if .PingModule }}
+{{- if .PingModule -}}
 
 #####################################
 ## System Probe Ping Configuration ##
@@ -2081,10 +2081,10 @@ api_key:
 #
 #   enabled: false
 
-{{ end -}}
+{{- end -}}
 
 
-{{- if .TracerouteModule }}
+{{- if .TracerouteModule -}}
 
 ###########################################
 ## System Probe Traceroute Configuration ##
@@ -2096,10 +2096,10 @@ api_key:
 #
 #   enabled: false
 
-{{ end -}}
+{{- end -}}
 
 
-{{- if .SecurityModule }}
+{{- if .SecurityModule -}}
 
 ##########################################
 ## Security Agent Runtime Configuration ##
@@ -2120,35 +2120,35 @@ api_key:
 #
 #   fim_enabled: false
 
-{{- if (eq .OS "windows")}}
+{{- if (eq .OS "windows") -}}
 #   # @param sysprobe_socket - string - optional - default: localhost:3334
 #   # @env DD_SYSTEM_PROBE_CONFIG_SYSPROBE_SOCKET - string - optional - default: localhost:3334
 #   # The TCP address where the security runtime module is accessed.
 #
 #   socket: localhost:3334
-{{else}}
+{{- else -}}
 #   # @param socket - string - optional - default: /opt/datadog-agent/run/runtime-security.sock
 #   # @env DD_RUNTIME_SECURITY_CONFIG_SOCKET - string - optional - default: /opt/datadog-agent/run/runtime-security.sock
 #   # The full path to the location of the unix socket where security runtime module is accessed.
 #
 #   socket: /opt/datadog-agent/run/runtime-security.sock
-{{ end }}
+{{- end -}}
 #   # @param policies - custom object - optional
 #   # Policy files
 #   policies:
-{{- if (eq .OS "windows")}}
+{{- if (eq .OS "windows") -}}
 #     # @param dir - string - default: %ProgramData%\Datadog\runtime-security.d
 #     # @env DD_RUNTIME_SECURITY_CONFIG_POLICIES_DIR - string - default: /etc/datadog-agent/runtime-security.d
 #     # Path from where the policy files are loaded
 #
 #     dir: c:\ProgramData\Datadog\runtime-security.d
-{{else}}
+{{- else -}}
 #     # @param dir - string - default: /etc/datadog-agent/runtime-security.d
 #     # @env DD_RUNTIME_SECURITY_CONFIG_POLICIES_DIR - string - default: /etc/datadog-agent/runtime-security.d
 #     # Path from where the policy files will be loaded
 #
 #     dir: /etc/datadog-agent/runtime-security.d
-{{ end }}
+{{- end -}}
 #   # @param syscall_monitor - custom object - optional
 #   # Syscall monitoring
 #
@@ -2219,7 +2219,7 @@ api_key:
 #
 #     enabled: true
 
-{{- if (eq .OS "windows")}}
+{{- if (eq .OS "windows") -}}
 
 #####################################################
 ## Datadog Agent Windows Crash Detection module
@@ -2230,10 +2230,10 @@ api_key:
 #   # Enables the system probe module which supports the Windows crash detection check.
 #
 #   enabled: false
-{{ end }}
+{{- end -}}
 
-{{ end -}}
-{{ end -}}
+{{- end -}}
+{{- end -}}
 
 {{- if .SecurityAgent -}}
 ####################################
@@ -2246,17 +2246,17 @@ api_key:
 #
 #   enabled: false
 
-{{- if (eq .OS "windows")}}
+{{- if (eq .OS "windows") -}}
 #   # @param socket - string - optional - default: localhost:3334
 #   # The local address and port where the security runtime module is accessed
 #
 #   socket: localhost:3334
-{{else}}
+{{- else -}}
 #   # @param socket - string - optional - default: /opt/datadog-agent/run/runtime-security.sock
 #   # The full path to the location of the unix socket where security runtime module is accessed.
 #
 #   socket: /opt/datadog-agent/run/runtime-security.sock
-{{ end }}
+{{- end -}}
 
 ##########################################
 ## Compliance monitoring configuration  ##
@@ -2267,8 +2267,8 @@ api_key:
 #   # Set to true to enable Cloud Security Posture Management (CSPM).
 #
 #   enabled: false
-{{ end -}}
-{{- if .Dogstatsd }}
+{{- end -}}
+{{- if .Dogstatsd -}}
 
 #############################
 ## DogStatsD Configuration ##
@@ -2297,7 +2297,7 @@ api_key:
 #
 # bind_host: localhost
 
-{{- if (eq .OS "windows")}}
+{{- if (eq .OS "windows") -}}
 ## Please note that UDS receiver is not available in Windows.
 ## @ Enabling this setting may result in unexpected behavior.
 ## @param dogstatsd_socket - string - optional - default: ""
@@ -2306,14 +2306,14 @@ api_key:
 ## Set to "" to disable this feature.
 #
 # dogstatsd_socket: ""
-{{else}}
+{{- else -}}
 ## @param dogstatsd_socket - string - optional - default: "/var/run/datadog/dsd.socket"
 ## @env DD_DOGSTATSD_SOCKET - string - optional - default: "/var/run/datadog/dsd.socket"
 ## Listen for Dogstatsd metrics on a Unix Socket (*nix only).
 ## Set to "" to disable this feature.
 #
 # dogstatsd_socket: "/var/run/datadog/dsd.socket"
-{{ end }}
+{{- end -}}
 
 ## @param dogstatsd_origin_detection - boolean - optional - default: false
 ## @env DD_DOGSTATSD_ORIGIN_DETECTION - boolean - optional - default: false
@@ -2491,8 +2491,8 @@ api_key:
 #
 # statsd_metric_namespace: ""
 
-{{ end -}}
-{{- if .Metadata }}
+{{- end -}}
+{{- if .Metadata -}}
 
 ## @param metadata_providers - list of custom object - optional
 ## @env DD_METADATA_PROVIDERS - list of custom object - optional
@@ -2504,8 +2504,8 @@ api_key:
 #   - name: k8s
 #     interval: 60
 
-{{ end -}}
-{{- if .JMX }}
+{{- end -}}
+{{- if .JMX -}}
 
 #######################
 ## JMX Configuration ##
@@ -2623,8 +2623,8 @@ api_key:
 #
 # jmx_java_tool_options: -javaagent:/path/to/agent.jar -XX:+UseG1GC
 
-{{ end -}}
-{{- if .Logging }}
+{{- end -}}
+{{- if .Logging -}}
 
 ###########################
 ## Logging Configuration ##
@@ -2730,8 +2730,8 @@ api_key:
 #
 # log_all_goroutines_when_unhealthy: false
 
-{{ end -}}
-{{- if .Autoconfig }}
+{{- end -}}
+{{- if .Autoconfig -}}
 
 ##############################
 ## Autoconfig Configuration ##
@@ -2775,10 +2775,10 @@ api_key:
 #     polling: true
 #   - name: clusterchecks
 #     grace_time_seconds: 60
-{{ if .ClusterChecks }}
+{{- if .ClusterChecks -}}
 #   - name: kube_services
 #     polling: true
-{{ end -}}
+{{- end -}}
 #   - name: etcd
 #     polling: true
 #     template_dir: /datadog/check_configs
@@ -2845,8 +2845,8 @@ api_key:
 #   - orchestratorexplorer
 #   - podman
 
-{{ end -}}
-{{- if .Autodiscovery }}
+{{- end -}}
+{{- if .Autodiscovery -}}
 
 ###########################################
 ## Container Autodiscovery Configuration ##
@@ -2963,8 +2963,8 @@ api_key:
 #
 # podman_db_path: ""
 
-{{ end -}}
-{{- if .ClusterAgent }}
+{{- end -}}
+{{- if .ClusterAgent -}}
 
 #################################
 ## Cluster Agent Configuration ##
@@ -3032,8 +3032,8 @@ api_key:
 #
 #     idle_timeout_seconds: 60
 
-{{ end -}}
-{{- if .ClusterChecks }}
+{{- end -}}
+{{- if .ClusterChecks -}}
 
 #################################
 ## Cluster check Configuration ##
@@ -3103,8 +3103,8 @@ api_key:
 #
 #   clc_runners_port: 5005
 
-{{ end -}}
-{{- if .AdmissionController }}
+{{- end -}}
+{{- if .AdmissionController -}}
 
 ########################################
 ## Admission controller Configuration ##
@@ -3336,8 +3336,8 @@ api_key:
 #     init_security_context: '{"privileged": false}'
 #
 #     DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_INIT_SECURITY_CONTEXT='{"privileged": false}'
-{{ end -}}
-{{- if .DockerTagging }}
+{{- end -}}
+{{- if .DockerTagging -}}
 
 #########################
 ## Container detection ##
@@ -3376,8 +3376,8 @@ api_key:
 #
 ## DD_DOCKER_ENV_AS_TAGS='{"ENVVAR_NAME": "tag_key"}'
 
-{{ end -}}
-{{- if .KubernetesTagging }}
+{{- end -}}
+{{- if .KubernetesTagging -}}
 
 ###############################
 ## Kubernetes tag extraction ##
@@ -3434,8 +3434,8 @@ api_key:
 #   <LABEL_NAME>: <TAG_KEY>
 #   <HIGH_CARDINALITY_LABEL_NAME>: +<TAG_KEY>
 
-{{ end -}}
-{{- if .ECS }}
+{{- end -}}
+{{- if .ECS -}}
 
 ###################################
 ## ECS integration Configuration ##
@@ -3482,8 +3482,8 @@ api_key:
 #
 # ecs_task_collection_enabled: true
 
-{{ end -}}
-{{- if .CRI }}
+{{- end -}}
+{{- if .CRI -}}
 
 ###################################
 ## CRI integration Configuration ##
@@ -3510,8 +3510,8 @@ api_key:
 #
 # cri_query_timeout: 5
 
-{{ end -}}
-{{- if .Containerd}}
+{{- end -}}
+{{- if .Containerd -}}
 
 ##########################################
 ## Containerd integration Configuration ##
@@ -3562,8 +3562,8 @@ api_key:
 # containerd_exclude_namespaces:
 #   - moby
 
-{{ end -}}
-{{- if .Kubelet }}
+{{- end -}}
+{{- if .Kubelet -}}
 
 ###################################################
 ## Kubernetes kubelet connectivity Configuration ##
@@ -3642,8 +3642,8 @@ api_key:
 #
 # kubelet_listener_polling_interval: 5
 
-{{ end -}}
-{{- if .KubeApiServer }}
+{{- end -}}
+{{- if .KubeApiServer -}}
 
 ####################################################
 ## Kubernetes apiserver integration Configuration ##
@@ -3789,8 +3789,8 @@ api_key:
 # kubernetes_ad_tags_disabled:
 #   - kube_service
 
-{{ end -}}
-{{- if .PrometheusScrape }}
+{{- end -}}
+{{- if .PrometheusScrape -}}
 ## @param prometheus_scrape - custom object - optional
 ## This section configures the Autodiscovery based on the Prometheus annotations
 #
@@ -3816,8 +3816,8 @@ api_key:
 #
 #   version: 1
 
-{{ end -}}
-{{- if .CloudFoundryBBS }}
+{{- end -}}
+{{- if .CloudFoundryBBS -}}
 #######################################################
 ## Cloud Foundry BBS Configuration for Autodiscovery ##
 #######################################################
@@ -3870,8 +3870,8 @@ api_key:
 #
 #   env_exclude: []
 
-{{ end -}}
-{{- if .CloudFoundryCC }}
+{{- end -}}
+{{- if .CloudFoundryCC -}}
 ####################################################################
 ## Cloud Foundry Cloud Controller Configuration for Autodiscovery ##
 ####################################################################
@@ -3919,8 +3919,8 @@ api_key:
 #
 #   apps_batch_size: 5000
 
-{{ end -}}
-{{- if .SNMP }}
+{{- end -}}
+{{- if .SNMP -}}
 
 ###################################
 ## Network Devices Configuration ##
@@ -4459,9 +4459,8 @@ api_key:
 #
 # config_id:
 
-
-{{end -}}
-{{- if .OTLP }}
+{{- end -}}
+{{- if .OTLP -}}
 ###################################
 ## OpenTelemetry Configuration   ##
 ###################################
@@ -4715,7 +4714,7 @@ api_key:
 #
 #     verbosity: normal
 
-{{- if (eq .OS "windows")}}
+{{- if (eq .OS "windows") -}}
 #####################################################
 ## Datadog Agent Manager System Tray Configuration ##
 #####################################################
@@ -4729,8 +4728,8 @@ api_key:
 #   # The full path to the file where Datadog Agent Manager System Tray logs are written.
 #
 #   log_file: <TRAY_LOG_FILE_PATH>
-{{end -}}
-{{end -}}
+{{- end -}}
+{{- end -}}
 
 
 {{- if .APMInjection -}}
@@ -4800,7 +4799,7 @@ api_key:
 #   # To learn about all the available service matching conditions & configuration options, visit
 #   # https://docs.datadoghq.com/tracing/trace_collection/library_injection_local
 
-{{end}}
+{{- end -}}
 
 {{- if .ApplicationMonitoring -}}
 ###############################
@@ -4873,4 +4872,4 @@ api_key:
 #   # Enable debug logging for the tracer.
 #   # Docs: https://docs.datadoghq.com/tracing/troubleshooting/tracer_debug_logs
 #   DD_TRACE_DEBUG: false
-{{end}}
+{{- end -}}
