@@ -661,12 +661,14 @@ func (bs *BaseSuite[Env]) AfterTest(suiteName, testName string) {
 			// run environment diagnose if the test failed
 			if diagnosableEnv, ok := any(bs.env).(common.Diagnosable); ok && diagnosableEnv != nil {
 				// at least one test failed, diagnose the environment
+				bs.T().Logf("========= Some tests failed, diagnosing environment ==========")
 				diagnose, diagnoseErr := diagnosableEnv.Diagnose(testOutputDir)
 				if diagnoseErr != nil {
 					bs.T().Logf("unable to diagnose environment: %v", diagnoseErr)
 				} else {
 					bs.T().Logf("Diagnose result:\n\n%s", diagnose)
 				}
+				bs.T().Logf("========= Environment diagnosed ==========")
 			}
 		}
 	}
