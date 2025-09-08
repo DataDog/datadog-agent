@@ -136,7 +136,10 @@ func (series *IterableSeries) MarshalSplitCompressPipelines(config config.Compon
 			}
 			pbs[i] = &pb
 		} else {
-			pb := newPayloadsBuilderV3WithConfig(config, strategy)
+			pb, err := newPayloadsBuilderV3WithConfig(config, strategy)
+			if err != nil {
+				return nil, err
+			}
 			pbs[i] = pb
 		}
 

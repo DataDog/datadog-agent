@@ -7,6 +7,7 @@ package metrics
 
 import (
 	"encoding/binary"
+	"fmt"
 	"math/bits"
 	"reflect"
 	"slices"
@@ -104,7 +105,7 @@ type payloadsBuilderV3 struct {
 func newPayloadsBuilderV3WithConfig(
 	config config.Component,
 	compression compression.Component,
-) *payloadsBuilderV3 {
+) (*payloadsBuilderV3, error) {
 	maxCompressedSize := config.GetInt("serializer_max_series_payload_size")
 	maxUncompressedSize := config.GetInt("serializer_max_series_uncompressed_payload_size")
 	maxPointsPerPayload := config.GetInt("serializer_max_series_points_per_payload")
@@ -125,19 +126,21 @@ func newPayloadsBuilderV3(
 	maxPointsPerPayload int,
 	splitTagsets bool,
 	compression compression.Component,
-) *payloadsBuilderV3 {
+) (*payloadsBuilderV3, error) {
 	fieldLenSize := varintLen(maxUncompressedSize)
 	payloadHeaderSize := varintLen(payloadFieldMetricData) + fieldLenSize
 	payloadHeaderSizeBound := compression.CompressBound(payloadHeaderSize)
 	columnHeaderSize := varintLen(numberOfColumns-1) + fieldLenSize
 	columnHeaderSizeBound := compression.CompressBound(columnHeaderSize)
-	maxCompressedSize -= payloadHeaderSizeBound + columnHeaderSizeBound*numberOfColumns
-	maxUncompressedSize -= payloadHeaderSize + columnHeaderSize*numberOfColumns
+	reservedCompressedSize := payloadHeaderSizeBound + columnHeaderSizeBound*numberOfColumns
+	reservedUncompressedSize := payloadHeaderSize + columnHeaderSize*numberOfColumns
+	maxCompressedSize -= reservedCompressedSize
+	maxUncompressedSize -= reservedUncompressedSize
 	if maxCompressedSize < 0 {
-		panic("maxCompressedSize is too small")
+		return nil, fmt.Errorf("maxCompressedSize is too small, must be larger than %d bytes", reservedCompressedSize)
 	}
 	if maxUncompressedSize < 0 {
-		panic("maxUncompressedSize is too small")
+		return nil, fmt.Errorf("maxUncompressedSize is too small, must be larger than %d bytes", reservedUncompressedSize)
 	}
 
 	compressor := stream.NewColumnCompressor(
@@ -161,7 +164,7 @@ func newPayloadsBuilderV3(
 		columnHeaderSizeBound:  columnHeaderSizeBound,
 
 		scratchBuf: make([]byte, max(payloadHeaderSize, columnHeaderSize)),
-	}
+	}, nil
 }
 
 func (pb *payloadsBuilderV3) startPayload() error {

@@ -21,7 +21,7 @@ import (
 )
 
 func TestPayloadBuilderV3(t *testing.T) {
-	r := require.New(t)
+	r := assert.New(t)
 	const ts = 1756737057.1
 	tags := tagset.NewCompositeTags([]string{"foo", "bar"}, []string{"ook", "eek"})
 	series := metrics.Series{
@@ -54,7 +54,9 @@ func TestPayloadBuilderV3(t *testing.T) {
 			Points:         []metrics.Point{{Ts: ts, Value: 3.14}}},
 	}
 
-	pb := newPayloadsBuilderV3(1000, 10000, 1000_0000, true, noopimpl.New())
+	pb, err := newPayloadsBuilderV3(1000, 10000, 1000_0000, true, noopimpl.New())
+	require.NoError(t, err)
+
 	for _, s := range series {
 		err := pb.writeSerie(s)
 		r.NoError(err)
@@ -123,7 +125,7 @@ func TestPayloadBuilderV3(t *testing.T) {
 }
 
 func TestPayloadBuilderV3_Split(t *testing.T) {
-	r := require.New(t)
+	r := assert.New(t)
 	const ts = 1756737057.1
 	tags := tagset.NewCompositeTags([]string{"foo", "bar"}, []string{"ook", "eek"})
 	series := metrics.Series{
@@ -158,7 +160,9 @@ func TestPayloadBuilderV3_Split(t *testing.T) {
 
 	series[2].Points = slices.Repeat(series[2].Points, 10000)
 
-	pb := newPayloadsBuilderV3(180, 10000, 1000_0000, true, noopimpl.New())
+	pb, err := newPayloadsBuilderV3(180, 10000, 1000_0000, true, noopimpl.New())
+	require.NoError(t, err)
+
 	r.NoError(pb.writeSerie(series[0]))
 	r.NoError(pb.writeSerie(series[1]))
 	r.NoError(pb.writeSerie(series[2]))
@@ -193,7 +197,9 @@ func TestPayloadBuilderV3_pointsLimit(t *testing.T) {
 		},
 	}
 
-	pb := newPayloadsBuilderV3(1000_0000, 1000_000, 10, true, noopimpl.New())
+	pb, err := newPayloadsBuilderV3(1000_0000, 1000_000, 10, true, noopimpl.New())
+	require.NoError(t, err)
+
 	r.NoError(pb.writeSerie(series[0]))
 	fmt.Printf("%+#v\n", pb.pointsThisPayload)
 	r.NoError(pb.writeSerie(series[1]))
