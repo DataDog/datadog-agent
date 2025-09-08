@@ -155,7 +155,7 @@ def get_common_ancestor(ctx, branch, base=None, try_fetch=True) -> str:
     Args:
         ctx: The invoke context.
         branch: The branch to get the common ancestor with.
-        base: The base branch to get the common ancestor with.
+        base: The base branch to get the common ancestor with. Defaults to the default branch.
         try_fetch: Try to fetch the base branch if it's not found (to avoid S3 caching issues).
 
     Returns:
