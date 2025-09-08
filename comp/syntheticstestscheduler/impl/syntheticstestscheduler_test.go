@@ -1,4 +1,4 @@
-/// Unless explicitly stated otherwise all files in this repository are licensed
+// Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
@@ -322,7 +322,7 @@ func Test_SyntheticsTestScheduler_OnConfigUpdate(t *testing.T) {
 			for pathID, pConfig := range tt.previousJSON {
 				previousConfigs[pathID] = state.RawConfig{Config: []byte(pConfig)}
 			}
-			scheduler.onConfigUpdate(previousConfigs, func(id string, status state.ApplyStatus) {})
+			scheduler.onConfigUpdate(previousConfigs, func(_ string, _ state.ApplyStatus) {})
 
 			// Execute update
 			configs := map[string]state.RawConfig{}
@@ -459,7 +459,7 @@ func Test_SyntheticsTestScheduler_Processing(t *testing.T) {
 				configs[pathID] = state.RawConfig{Config: []byte(c)}
 			}
 
-			scheduler.onConfigUpdate(configs, func(id string, status state.ApplyStatus) {})
+			scheduler.onConfigUpdate(configs, func(_ string, _ state.ApplyStatus) {})
 
 			tickCh := make(chan time.Time, 1)
 			scheduler.tickerC = tickCh
@@ -504,7 +504,7 @@ func Test_SyntheticsTestScheduler_RunWorker_ProcessesTestCtxAndSendsResult(t *te
 		workers:                      4,
 	}
 
-	scheduler.runTraceroute = func(cfg config.Config, _ telemetry.Component) (payload.NetworkPath, error) {
+	scheduler.runTraceroute = func(config.Config, telemetry.Component) (payload.NetworkPath, error) {
 		return payload.NetworkPath{
 			PathtraceID: "path-123",
 			Protocol:    payload.ProtocolTCP,
@@ -522,7 +522,7 @@ func Test_SyntheticsTestScheduler_RunWorker_ProcessesTestCtxAndSendsResult(t *te
 	testCfg := common.SyntheticsTestConfig{
 		Version:  1,
 		Type:     "network",
-		Subtype:  string(common.SubtypeTCP),
+		Subtype:  string(common.SubTypeTCP),
 		PublicID: "abc123",
 		Interval: 60,
 		Config: struct {

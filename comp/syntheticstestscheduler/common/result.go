@@ -5,10 +5,12 @@
 
 package common
 
+// NetpathSource represents the source host of a network path.
 type NetpathSource struct {
 	Hostname string `json:"hostname"`
 }
 
+// NetpathDestination represents the destination host of a network path.
 type NetpathDestination struct {
 	Hostname           string `json:"hostname"`
 	IPAddress          string `json:"ip_address"`
@@ -16,6 +18,7 @@ type NetpathDestination struct {
 	ReverseDNSHostname string `json:"reverse_dns_hostname"`
 }
 
+// NetpathHop represents a single hop in a traceroute path.
 type NetpathHop struct {
 	TTL       int     `json:"ttl"`
 	RTT       float64 `json:"rtt"`
@@ -24,10 +27,12 @@ type NetpathHop struct {
 	Reachable bool    `json:"reachable"`
 }
 
+// TracerouteRun represents the result of one traceroute attempt.
 type TracerouteRun struct {
 	Hops []NetpathHop `json:"hops"`
 }
 
+// TracerouteTest aggregates multiple traceroute runs and hop statistics.
 type TracerouteTest struct {
 	TracerouteRuns []TracerouteRun `json:"traceroute_runs"`
 	HopCountAvg    float64         `json:"hop_count_avg"`
@@ -35,6 +40,7 @@ type TracerouteTest struct {
 	HopCountMax    int             `json:"hop_count_max"`
 }
 
+// E2ETest represents end-to-end test results such as latency and jitter.
 type E2ETest struct {
 	PacketLoss float64 `json:"packet_loss"`
 	LatencyAvg float64 `json:"latency_avg"`
@@ -43,6 +49,7 @@ type E2ETest struct {
 	Jitter     float64 `json:"jitter"`
 }
 
+// NetpathResult represents the full result of a network path test.
 type NetpathResult struct {
 	Timestamp    int64              `json:"timestamp"`
 	PathtraceID  string             `json:"pathtrace_id"`
@@ -60,6 +67,7 @@ type NetpathResult struct {
 	Tags         []string           `json:"tags"`
 }
 
+// Assertion represents a validation check comparing expected and actual values.
 type Assertion struct {
 	Operator string      `json:"operator"`
 	Type     string      `json:"type"`
@@ -68,6 +76,7 @@ type Assertion struct {
 	Valid    bool        `json:"valid"`
 }
 
+// Request represents the network request.
 type Request struct {
 	Host    string `json:"host"`
 	Port    int    `json:"port"`
@@ -75,6 +84,7 @@ type Request struct {
 	Timeout int    `json:"timeout"`
 }
 
+// NetStats contains aggregated network statistics such as latency and jitter.
 type NetStats struct {
 	PacketsSent          int     `json:"packetsSent"`
 	PacketsReceived      int     `json:"packetsReceived"`
@@ -92,6 +102,7 @@ type NetStats struct {
 	} `json:"hops"`
 }
 
+// Result represents the outcome of a test run including assertions and stats.
 type Result struct {
 	ID              string         `json:"id"`
 	InitialID       string         `json:"initialId"`
@@ -107,6 +118,7 @@ type Result struct {
 	Status          string         `json:"status"`
 }
 
+// Test represents the definition of a test including metadata and version.
 type Test struct {
 	InternalID string `json:"_internalId"`
 	ID         string `json:"id"`
@@ -115,6 +127,7 @@ type Test struct {
 	Version    int    `json:"version"`
 }
 
+// TestResult represents the full test execution result including metadata.
 type TestResult struct {
 	DD     map[string]interface{} `json:"_dd"`
 	Result Result                 `json:"result"`
@@ -122,33 +135,38 @@ type TestResult struct {
 	V      int                    `json:"v"`
 }
 
+// APIErrorCode represents a specific error code returned by the API.
 type APIErrorCode string
+
+// APIFailureCode represents a specific failure code returned by the API.
 type APIFailureCode string
 
+// APIError represents an API error with a code and message.
 type APIError struct {
 	Code    APIErrorCode `json:"code"`
 	Message string       `json:"message"`
 }
 
+// APIFailure represents an API failure with a code and message.
 type APIFailure struct {
 	Code    APIFailureCode `json:"code"`
 	Message string         `json:"message"`
 }
 
+// ErrorOrFailure represents an interface for distinguishing errors and failures.
 type ErrorOrFailure interface {
 	IsError() bool
 	IsFailure() bool
 }
 
-func (_ APIError) IsError() bool {
-	return true
-}
-func (_ APIError) IsFailure() bool {
-	return false
-}
-func (_ APIFailure) IsFailure() bool {
-	return true
-}
-func (_ APIFailure) IsError() bool {
-	return false
-}
+// IsError returns true.
+func (APIError) IsError() bool { return true }
+
+// IsFailure returns false.
+func (APIError) IsFailure() bool { return false }
+
+// IsError returns false.
+func (APIFailure) IsError() bool { return false }
+
+// IsFailure returns true.
+func (APIFailure) IsFailure() bool { return true }
