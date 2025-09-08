@@ -448,6 +448,15 @@ api_key:
 #
 # ec2_prefer_imdsv2: false
 
+## @param ec2_prioritize_instance_id_as_hostname - boolean - optional - default: false
+## @env DD_EC2_PRIORITIZE_INSTANCE_ID_AS_HOSTNAME - boolean - optional - default: false
+## Force the use of EC2 instance ID as hostname even when the hostname is not one of the
+## default EC2 hostnames. When set to true, this bypasses the standard hostname detection
+## logic and forces the EC2 instance ID to be used as the canonical hostname.
+## Only takes effect on EC2 instances.
+#
+# ec2_prioritize_instance_id_as_hostname: false
+
 ## @param collect_gce_tags - boolean - optional - default: true
 ## @env DD_COLLECT_GCE_TAGS - boolean - optional - default: true
 ## Collect Google Cloud Engine metadata as host tags
