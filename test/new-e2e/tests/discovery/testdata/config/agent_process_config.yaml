@@ -4,6 +4,7 @@ language_detection:
 process_config:
   process_collection:
     enabled: true
+    use_wlm: true
   run_in_core_agent:
     enabled: true
 
