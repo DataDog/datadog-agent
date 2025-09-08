@@ -922,6 +922,14 @@ func TestFilterOpenFlagsApprover(t *testing.T) {
 func TestFilterInUpperLayerApprover(t *testing.T) {
 	SkipIfNotAvailable(t)
 
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+
+	checkDockerCompatibility(t, "this test requires docker to use overlayfs", func(docker *dockerInfo) bool {
+		return docker.Info["Storage Driver"] != "overlay2"
+	})
+
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `open.file.in_upper_layer`,
@@ -935,8 +943,7 @@ func TestFilterInUpperLayerApprover(t *testing.T) {
 
 	wrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "busybox", "")
 	if err != nil {
-		t.Skip("docker not available")
-		return
+		t.Fatalf("failed to start docker wrapper: %v", err)
 	}
 
 	wrapper.Run(t, "cat", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
