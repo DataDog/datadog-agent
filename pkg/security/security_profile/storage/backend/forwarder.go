@@ -20,7 +20,6 @@ import (
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
-	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -28,6 +27,10 @@ import (
 	ddhttputil "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
+
+// protobufFormat is `config.Protobuf.String()`, this is temporary duplication to not have
+// to import the whole pkg/security/config package
+const protobufFormat = "protobuf"
 
 // ActivityDumpRemoteBackend is a remote backend that forwards dumps to the backend
 type ActivityDumpRemoteBackend struct {
@@ -84,7 +87,7 @@ func writeEventMetadata(writer *multipart.Writer, header []byte) error {
 
 func writeDump(writer *multipart.Writer, raw []byte) error {
 	h := make(textproto.MIMEHeader)
-	h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="dump"; filename="dump.%s"`, config.Protobuf))
+	h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="dump"; filename="dump.%s"`, protobufFormat))
 	h.Set("Content-Type", "application/json")
 
 	dataWriter, err := writer.CreatePart(h)
@@ -159,7 +162,7 @@ func (backend *ActivityDumpRemoteBackend) HandleActivityDump(imageName string, i
 		if err := backend.sendToEndpoint(endpoint.url, endpoint.logsEndpoint.GetAPIKey(), writer, body); err != nil {
 			seclog.Warnf("couldn't sent activity dump to [%s, body size: %d, dump size: %d]: %v", endpoint.url, body.Len(), len(data), err)
 		} else {
-			seclog.Infof("[%s] file for activity dump [%s] successfully sent to [%s]", config.Protobuf, selector, endpoint.url)
+			seclog.Infof("[%s] file for activity dump [%s] successfully sent to [%s]", protobufFormat, selector, endpoint.url)
 		}
 	}
 
@@ -169,7 +172,7 @@ func (backend *ActivityDumpRemoteBackend) HandleActivityDump(imageName string, i
 // SendTelemetry sends telemetry for the current storage
 func (backend *ActivityDumpRemoteBackend) SendTelemetry(sender statsd.ClientInterface) {
 	// send too large entity metric
-	tags := []string{fmt.Sprintf("format:%s", config.Protobuf), fmt.Sprintf("compression:%v", true)}
+	tags := []string{fmt.Sprintf("format:%s", protobufFormat), fmt.Sprintf("compression:%v", true)}
 	_ = sender.Count(metrics.MetricActivityDumpEntityTooLarge, int64(backend.tooLargeEntities.Load()), tags, 1.0)
 }
 
