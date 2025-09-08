@@ -195,7 +195,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 		return errors.NewDisabled(componentName, "wlm process collection disabled")
 	}
 
-	if !c.isProcessCollectionEnabled() && !c.isServiceDiscoveryEnabled() && !c.isLanguageCollectionEnabled() {
+	if !c.isProcessCollectionEnabled() && !c.isServiceDiscoveryEnabled() {
 		return errors.NewDisabled(componentName, "wlm process collection and service discovery are disabled")
 	}
 
@@ -208,7 +208,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 	}
 	c.store = store
 
-	if c.isProcessCollectionEnabled() || c.isLanguageCollectionEnabled() {
+	if c.isProcessCollectionEnabled() {
 		go c.collectProcesses(ctx, c.clock.Ticker(c.processCollectionIntervalConfig()))
 	}
 
@@ -222,7 +222,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 			telemetry.DefaultOptions,
 		)
 
-		if c.isProcessCollectionEnabled() || c.isLanguageCollectionEnabled() {
+		if c.isProcessCollectionEnabled() {
 			log.Debug("Starting cached service collection (process collection enabled)")
 			go c.collectServicesCached(ctx, c.clock.Ticker(serviceCollectionInterval))
 		} else {
