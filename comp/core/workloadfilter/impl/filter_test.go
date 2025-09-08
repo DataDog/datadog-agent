@@ -377,7 +377,7 @@ func TestContainerSBOMFilter(t *testing.T) {
 			mockConfig.SetWithoutSource("sbom.container_image.exclude_pause_container", tt.pauseCtn)
 
 			filterStore := newFilterStoreObject(t, mockConfig)
-			filterBundle := filterStore.GetContainerFilters([][]workloadfilter.ContainerFilter{{workloadfilter.LegacyContainerSBOM}})
+			filterBundle := filterStore.GetContainerSBOMFilters()
 			res := filterBundle.IsExcluded(tt.container)
 			assert.Equal(t, tt.expected, res, "Container exclusion result mismatch")
 		})
