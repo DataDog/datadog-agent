@@ -162,7 +162,7 @@ def get_common_ancestor(ctx, branch, base=None, try_fetch=True) -> str:
         The common ancestor between two branches.
     """
 
-    base = base or f'origin/{get_default_branch()}'
+    base = 'origin/' + (base or get_default_branch()).removeprefix("origin/")
 
     try:
         return ctx.run(f"git merge-base {branch} {base}", hide=True).stdout.strip()
