@@ -119,7 +119,7 @@ def diff(
         commit_sha = get_commit_sha(ctx)
 
     if not baseline_ref:
-        base_branch = _get_release_json_value("base_branch")
+        base_branch = f'origin/{_get_release_json_value("base_branch")}'
         baseline_ref = get_common_ancestor(ctx, commit_sha, base_branch)
 
     diffs = {}

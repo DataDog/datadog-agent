@@ -71,7 +71,6 @@ def get_untracked_files(ctx, re_filter=None) -> Iterable[str]:
             yield file
 
 
-
 def get_file_modifications(
     ctx, base_branch=None, added=False, modified=False, removed=False, only_names=False, no_renames=False
 ) -> list[tuple[str, str]]:
@@ -163,7 +162,7 @@ def get_common_ancestor(ctx, branch, base=None, try_fetch=True) -> str:
         The common ancestor between two branches.
     """
 
-    base = base or f"origin/{get_default_branch()}"
+    base = base or f'origin/{get_default_branch()}'
 
     try:
         return ctx.run(f"git merge-base {branch} {base}", hide=True).stdout.strip()
@@ -205,7 +204,7 @@ def get_main_parent_commit(ctx) -> str:
     """
     Get the commit sha your current branch originated from
     """
-    return get_common_ancestor(ctx, "HEAD", get_default_branch())
+    return get_common_ancestor(ctx, "HEAD", f'origin/{get_default_branch()}')
 
 
 def check_base_branch(branch, release_version):
@@ -364,7 +363,7 @@ def create_tree(ctx, base_branch):
     """
     Create a tree on all the local staged files
     """
-    base = get_common_ancestor(ctx, "HEAD", base_branch)
+    base = get_common_ancestor(ctx, "HEAD", f'origin/{base_branch}')
     tree = {"base_tree": base, "tree": []}
     template = {"path": None, "mode": "100644", "type": "blob", "content": None}
     for file in get_staged_files(ctx, include_deleted_files=True, relative_path=True):
