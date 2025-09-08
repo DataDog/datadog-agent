@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"path"
 	"path/filepath"
 	"slices"
@@ -213,7 +214,7 @@ func (mr *Resolver) insertMoved(mount *model.Mount) {
 
 	allChildren, err := mr.getAllChildren(mount)
 	if err != nil {
-		fmt.Println("Error getting the list of children")
+		seclog.Warnf("Error getting the list of children for mount id %d", mount.MountID)
 	}
 
 	for _, child := range allChildren {
