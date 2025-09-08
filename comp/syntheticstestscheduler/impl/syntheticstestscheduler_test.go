@@ -11,6 +11,10 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"strings"
+	"testing"
+	"time"
+
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
@@ -24,9 +28,6 @@ import (
 	utillog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
-	"strings"
-	"testing"
-	"time"
 )
 
 func Test_SyntheticsTestScheduler_StartAndStop(t *testing.T) {
@@ -309,7 +310,12 @@ func Test_SyntheticsTestScheduler_OnConfigUpdate(t *testing.T) {
 			testDir := t.TempDir()
 			mockConfig := configmock.New(t)
 			mockConfig.SetWithoutSource("run_path", testDir)
-			scheduler, err := newSyntheticsTestScheduler(configs, nil, l, "configID", time.Now)
+			now := time.Now()
+			timeNowFn := func() time.Time {
+				return now
+			}
+
+			scheduler, err := newSyntheticsTestScheduler(configs, nil, l, "configID", timeNowFn)
 			assert.Nil(t, err)
 			assert.False(t, scheduler.running)
 			applied := map[string]state.ApplyStatus{}
@@ -341,27 +347,21 @@ func Test_SyntheticsTestScheduler_OnConfigUpdate(t *testing.T) {
 			cache, err := persistentcache.Read(cacheKey)
 			assert.Nil(t, err)
 
-			cfg := map[string]common.SyntheticsTestConfig{}
+			cfg := map[string]*runningTestState{}
 			for _, v := range tt.updateJSON {
 				var newUpdate common.SyntheticsTestConfig
 				err = json.Unmarshal([]byte(v), &newUpdate)
 				assert.Nil(t, err)
-				cfg[newUpdate.PublicID] = newUpdate
+				cfg[newUpdate.PublicID] = &runningTestState{
+					cfg:     newUpdate,
+					lastRun: time.Time{},
+					nextRun: now,
+				}
 			}
 			val, err := json.Marshal(cfg)
 			assert.Nil(t, err)
 			assert.Equal(t, string(val), cache)
-
-			for k := range scheduler.state.tests {
-				_, exists := cfg[k]
-				assert.True(t, exists)
-			}
-			for k := range cfg {
-				_, exists := scheduler.state.tests[k]
-				assert.True(t, exists)
-			}
 		})
-
 	}
 }
 
@@ -600,12 +600,14 @@ func TestFlushEnqueuesDueTests(t *testing.T) {
 		t.Errorf("expected test1 to be enqueued")
 	}
 
-	// The nextRun should be updated
+	// The lastRun should be updated to the old nextRun
 	rt := scheduler.state.tests["test1"]
-	expectedNextRun := now.Add(time.Duration(rt.cfg.Interval) * time.Second)
-	if !rt.nextRun.Equal(expectedNextRun) {
-		t.Errorf("expected nextRun %v, got %v", expectedNextRun, rt.nextRun)
-	}
+	expectedLastRun := now.Add(-10 * time.Second)
+	assert.Equal(t, expectedLastRun, rt.lastRun)
+
+	// The nextRun should be updated based on the old nextRun, not flushTime
+	expectedNextRun := now // old nextRun (-10s) + interval (10s) = now
+	assert.Equal(t, expectedNextRun, rt.nextRun)
 }
 
 func ptr[T any](v T) *T { return &v }

@@ -68,7 +68,9 @@ func (s *SyntheticsTestScheduler) flush(flushTime time.Time) {
 				nextRun: flushTime,
 				cfg:     rt.cfg,
 			}
-			s.updateTestState(flushTime, rt)
+			if err := s.updateTestState(rt); err != nil {
+				s.log.Errorf("unable to save test state %s", err)
+			}
 		}
 	}
 }
@@ -212,9 +214,12 @@ type SyntheticsTestCtx struct {
 }
 
 // updateTestState updates lastRun and nextRun for a running test.
-func (s *SyntheticsTestScheduler) updateTestState(flushTime time.Time, rt *runningTestState) {
-	rt.lastRun = flushTime
-	rt.nextRun = flushTime.Add(time.Duration(rt.cfg.Interval) * time.Second)
+func (s *SyntheticsTestScheduler) updateTestState(rt *runningTestState) error {
+	s.state.mu.Lock()
+	defer s.state.mu.Unlock()
+	rt.lastRun = rt.nextRun
+	rt.nextRun = rt.nextRun.Add(time.Duration(rt.cfg.Interval) * time.Second)
+	return s.persistState()
 }
 
 // sendSyntheticsTestResult marshals the WorkerResult and forwards it via the epForwarder.
