@@ -15,7 +15,7 @@ import (
 )
 
 // FromProtoToFilterReport transforms a proto to a kfilter filter report
-func (p *FilterReport) FromProtoToFilterReport() *kfilters.FilterReport {
+func FromProtoToFilterReport(p *FilterReport) *kfilters.FilterReport {
 	approverReports := make(map[eval.EventType]*kfilters.ApproverReport)
 
 	toAcceptModeRules := func(r []*AcceptModeRule) []kfilters.AcceptModeRule {
