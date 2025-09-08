@@ -190,9 +190,6 @@ type CoreAgentService struct {
 	configRoot   string
 	directorRoot string
 
-	// WaitGroup tracks client requests to ensure they complete before shutdown
-	activeRequests sync.WaitGroup
-
 	// A background task used to perform connectivity tests using a WebSocket -
 	// data gathering for future development.
 	websocketTest startstop.StartStoppable
@@ -530,7 +527,6 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 		site:                     options.site,
 		configRoot:               configRoot,
 		directorRoot:             directorRoot,
-		activeRequests:           sync.WaitGroup{},
 		websocketTest:            websocketTest,
 	}
 
@@ -873,10 +869,6 @@ func (s *CoreAgentService) flushCacheResponse() (*pbgo.ClientGetConfigsResponse,
 func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
 	s.Lock()
 	defer s.Unlock()
-
-	// Track active requests to ensure they complete before service shutdown
-	s.activeRequests.Add(1)
-	defer s.activeRequests.Done()
 
 	err := validateRequest(request)
 	if err != nil {
