@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package repository
+package symlink
 
 import (
 	"os"
@@ -14,7 +14,7 @@ import (
 )
 
 func createLink(t *testing.T, linkPath string, targetPath string) {
-	err := linkSet(linkPath, targetPath)
+	err := Set(linkPath, targetPath)
 	assert.NoError(t, err)
 }
 
@@ -37,7 +37,7 @@ func TestLinkRead(t *testing.T) {
 	createTarget(t, targetPath)
 	createLink(t, linkPath, targetPath)
 
-	actualTargetPath, err := linkRead(linkPath)
+	actualTargetPath, err := Read(linkPath)
 	assert.NoError(t, err)
 
 	// the following cleanup is required on darwin because t.TempDir returns a symlinked path.
@@ -55,14 +55,14 @@ func TestLinkExists(t *testing.T) {
 	linkPath := filepath.Join(tmpDir, "link")
 	targetPath := filepath.Join(tmpDir, "target")
 
-	exists, err := linkExists(linkPath)
+	exists, err := Exist(linkPath)
 	assert.NoError(t, err)
 	assert.False(t, exists)
 
 	createTarget(t, targetPath)
 	createLink(t, linkPath, targetPath)
 
-	exists, err = linkExists(linkPath)
+	exists, err = Exist(linkPath)
 	assert.NoError(t, err)
 	assert.True(t, exists)
 }
@@ -73,10 +73,10 @@ func TestLinkSet(t *testing.T) {
 	targetPath := filepath.Join(tmpDir, "target")
 	createTarget(t, targetPath)
 
-	err := linkSet(linkPath, targetPath)
+	err := Set(linkPath, targetPath)
 	assert.NoError(t, err)
 
-	exists, err := linkExists(linkPath)
+	exists, err := Exist(linkPath)
 	assert.NoError(t, err)
 	assert.True(t, exists)
 }
@@ -88,15 +88,15 @@ func TestLinkSetWhenExists(t *testing.T) {
 	linkPath := filepath.Join(tmpDir, "stable")
 
 	createTarget(t, stablePath)
-	err := linkSet(linkPath, stablePath)
+	err := Set(linkPath, stablePath)
 	assert.NoError(t, err)
 
-	exists, err := linkExists(linkPath)
+	exists, err := Exist(linkPath)
 	assert.NoError(t, err)
 	assert.True(t, exists)
 
 	createTarget(t, experimentPath)
-	err = linkSet(linkPath, experimentPath)
+	err = Set(linkPath, experimentPath)
 	assert.NoError(t, err)
 }
 
@@ -107,10 +107,10 @@ func TestLinkDelete(t *testing.T) {
 	createTarget(t, targetPath)
 	createLink(t, linkPath, targetPath)
 
-	err := linkDelete(linkPath)
+	err := Delete(linkPath)
 	assert.NoError(t, err)
 
-	exists, err := linkExists(linkPath)
+	exists, err := Exist(linkPath)
 	assert.NoError(t, err)
 	assert.False(t, exists)
 }

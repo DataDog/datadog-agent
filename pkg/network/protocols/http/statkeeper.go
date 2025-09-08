@@ -8,6 +8,7 @@
 package http
 
 import (
+	"regexp"
 	"slices"
 	"strconv"
 	"sync"
@@ -41,7 +42,7 @@ type StatKeeper struct {
 func NewStatkeeper(c *config.Config, telemetry *Telemetry, incompleteBuffer IncompleteBuffer) *StatKeeper {
 	var quantizer *URLQuantizer
 	// For now we're only enabling path quantization for HTTP/1 traffic
-	if c.EnableUSMQuantization && telemetry.protocol == "http" {
+	if c.EnableUSMQuantization {
 		quantizer = NewURLQuantizer()
 	}
 
@@ -125,6 +126,12 @@ func (h *StatKeeper) GetAndResetAllStats() (stats map[Key]*RequestStats) {
 func (h *StatKeeper) Close() {
 }
 
+var (
+	// grpcPattern is a regex pattern to match gRPC paths by the pattern of `/<package>.<service>/<url>`
+	// Note - <service> can contain dots by itself. For instance `/google.pubsub.v2.PublisherService/CreateTopic`
+	grpcPattern = regexp.MustCompile(`^/([^./]+(\.[^./]+)*?)\.([^./]+(\.[^./]+)*?)/([^./]+?)$`)
+)
+
 func (h *StatKeeper) add(tx Transaction) {
 	rawPath, fullPath := tx.Path(h.buffer)
 	if rawPath == nil {
@@ -135,7 +142,10 @@ func (h *StatKeeper) add(tx Transaction) {
 	// Quantize HTTP path
 	// (eg. this turns /orders/123/view` into `/orders/*/view`)
 	if h.quantizer != nil {
-		rawPath = h.quantizer.Quantize(rawPath)
+		// Quantize the endpoint if and only if, it is not a gRPC captured by HTTP2 monitoring
+		if tx.Method() != MethodPost || !grpcPattern.Match(rawPath) {
+			rawPath = h.quantizer.Quantize(rawPath)
+		}
 	}
 
 	path, rejected := h.processHTTPPath(tx, rawPath)
