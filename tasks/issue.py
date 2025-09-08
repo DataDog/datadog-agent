@@ -6,7 +6,7 @@ from collections import defaultdict
 
 from invoke.tasks import task
 
-from tasks.libs.ciproviders.github_api import GithubAPI, ask_review_actor
+from tasks.libs.ciproviders.github_api import GithubAPI, get_events_info
 from tasks.libs.owners.parsing import search_owners
 from tasks.libs.pipeline.notifications import (
     DEFAULT_SLACK_CHANNEL,
@@ -21,8 +21,11 @@ def ask_reviews(_, pr_id):
     if 'backport' in pr.title.casefold():
         print("This is a backport PR, we don't need to ask for reviews.")
         return
-    actor = ask_review_actor(pr)
-    reviewers = [f"@datadog/{team['slug']}" for team in json.loads(os.environ['PR_REQUESTED_TEAMS'])]
+    actor, team = get_events_info(pr)
+    if team:  # This is a review request event, only a single team is concerned
+        reviewers = [f"@datadog/{team}"]
+    else:
+        reviewers = [f"@datadog/{team['slug']}" for team in json.loads(os.environ['PR_REQUESTED_TEAMS'])]
     print(f"Reviewers: {reviewers}")
 
     from slack_sdk import WebClient
