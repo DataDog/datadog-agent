@@ -251,6 +251,7 @@ func copyAttrToMapIfExists(attributes pcommon.Map, key string, m map[string]stri
 }
 
 // GetOTelEnv returns the environment based on OTel span and resource attributes, with span taking precedence.
+// Deprecated: Use GetOTelEnv from pkg/opentelemetry-mapping-go/otlp/attributes instead.
 func GetOTelEnv(span ptrace.Span, res pcommon.Resource, ignoreMissingDatadogFields bool) string {
 	env := traceutil.GetOTelAttrFromEitherMap(span.Attributes(), res.Attributes(), true, KeyDatadogEnvironment)
 	if env == "" && !ignoreMissingDatadogFields {
@@ -260,6 +261,7 @@ func GetOTelEnv(span ptrace.Span, res pcommon.Resource, ignoreMissingDatadogFiel
 }
 
 // GetOTelHostname returns the DD hostname based on OTel span and resource attributes, with span taking precedence.
+// Deprecated: Use GetOTelHostname from pkg/opentelemetry-mapping-go/otlp/attributes instead.
 func GetOTelHostname(span ptrace.Span, res pcommon.Resource, tr *attributes.Translator, fallbackHost string, ignoreMissingDatadogFields bool) string {
 	hostname := traceutil.GetOTelAttrFromEitherMap(span.Attributes(), res.Attributes(), true, KeyDatadogHost)
 	if hostname == "" && !ignoreMissingDatadogFields {
@@ -288,6 +290,7 @@ func GetOTelHostname(span ptrace.Span, res pcommon.Resource, tr *attributes.Tran
 }
 
 // GetOTelVersion returns the version based on OTel span and resource attributes, with span taking precedence.
+// Deprecated: Use GetOTelVersion from pkg/opentelemetry-mapping-go/otlp/attributes instead.
 func GetOTelVersion(span ptrace.Span, res pcommon.Resource, ignoreMissingDatadogFields bool) string {
 	version := traceutil.GetOTelAttrFromEitherMap(span.Attributes(), res.Attributes(), true, KeyDatadogVersion)
 	if version == "" && !ignoreMissingDatadogFields {
@@ -297,6 +300,7 @@ func GetOTelVersion(span ptrace.Span, res pcommon.Resource, ignoreMissingDatadog
 }
 
 // GetOTelContainerID returns the container ID based on OTel span and resource attributes, with span taking precedence.
+// Deprecated: Use GetOTelContainerID from pkg/opentelemetry-mapping-go/otlp/attributes instead.
 func GetOTelContainerID(span ptrace.Span, res pcommon.Resource, ignoreMissingDatadogFields bool) string {
 	cid := traceutil.GetOTelAttrFromEitherMap(span.Attributes(), res.Attributes(), true, KeyDatadogContainerID)
 	if cid == "" && !ignoreMissingDatadogFields {
@@ -306,6 +310,7 @@ func GetOTelContainerID(span ptrace.Span, res pcommon.Resource, ignoreMissingDat
 }
 
 // GetOTelStatusCode returns the HTTP status code based on OTel span and resource attributes, with span taking precedence.
+// Deprecated: Use GetOTelStatusCode from pkg/opentelemetry-mapping-go/otlp/attributes instead.
 func GetOTelStatusCode(span ptrace.Span, res pcommon.Resource, ignoreMissingDatadogFields bool) uint32 {
 	sattr := span.Attributes()
 	rattr := res.Attributes()
@@ -333,6 +338,7 @@ func GetOTelStatusCode(span ptrace.Span, res pcommon.Resource, ignoreMissingData
 
 // GetOTelContainerTags returns a list of DD container tags in the OTel resource attributes.
 // Tags are always normalized.
+// Deprecated: Use GetOTelContainerTags from pkg/opentelemetry-mapping-go/otlp/attributes instead.
 func GetOTelContainerTags(rattrs pcommon.Map, tagKeys []string) []string {
 	var containerTags []string
 	containerTagsMap := attributes.ContainerTagsFromResourceAttributes(rattrs)
