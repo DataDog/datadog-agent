@@ -79,6 +79,7 @@ type payloadsBuilderV3 struct {
 
 	pointsThisPayload   int
 	maxPointsPerPayload int
+	splitTagsets        bool
 
 	resourcesBuf []metrics.Resource
 
@@ -96,10 +97,13 @@ func newPayloadsBuilderV3WithConfig(
 	maxCompressedSize := config.GetInt("serializer_max_series_payload_size")
 	maxUncompressedSize := config.GetInt("serializer_max_series_uncompressed_payload_size")
 	maxPointsPerPayload := config.GetInt("serializer_max_series_points_per_payload")
+	splitTagsets := config.GetBool("serializer_split_tagsets")
+
 	return newPayloadsBuilderV3(
 		maxCompressedSize,
 		maxUncompressedSize,
 		maxPointsPerPayload,
+		splitTagsets,
 		compression,
 	)
 }
@@ -108,6 +112,7 @@ func newPayloadsBuilderV3(
 	maxCompressedSize int,
 	maxUncompressedSize int,
 	maxPointsPerPayload int,
+	splitTagsets bool,
 	compression compression.Component,
 ) *payloadsBuilderV3 {
 	columnHeaderSize := varintLen(numberOfColumns-1) + varintLen(maxUncompressedSize)
@@ -132,8 +137,9 @@ func newPayloadsBuilderV3(
 		compression: compression,
 		compressor:  compressor,
 		txn:         txn,
-		dict:        newDictionaryBuilder(txn),
+		dict:        newDictionaryBuilder(txn, splitTagsets),
 
+		splitTagsets:        splitTagsets,
 		maxPointsPerPayload: maxPointsPerPayload,
 	}
 }
@@ -159,6 +165,7 @@ func (pb *payloadsBuilderV3) finishPayload() error {
 
 		buf := make([]byte, 0, totalSize)
 		tmp := [columnHeaderMaxSize]byte{}
+
 		for i := 0; i < numberOfColumns; i++ {
 			col := pb.compressor.Bytes(i)
 			if len(col) == 0 {
@@ -185,7 +192,7 @@ func (pb *payloadsBuilderV3) finishPayload() error {
 
 func (pb *payloadsBuilderV3) reset() {
 	pb.pointsThisPayload = 0
-	pb.dict = newDictionaryBuilder(pb.txn)
+	pb.dict.reset()
 	pb.deltaName.reset()
 	pb.deltaTags.reset()
 	pb.deltaResources.reset()
@@ -193,6 +200,7 @@ func (pb *payloadsBuilderV3) reset() {
 	pb.deltaTimestamp.reset()
 	pb.deltaSourceTypeName.reset()
 	pb.deltaOriginInfo.reset()
+	pb.compressor.Reset()
 }
 
 func (pb *payloadsBuilderV3) transactionPayloads() []*transaction.BytesPayload {
@@ -369,6 +377,11 @@ func newInterner[T internable](txn *stream.ColumnTransaction, dataColumnID int) 
 	}
 }
 
+func (i *interner[T]) reset() {
+	i.lastID = 0
+	i.index = map[T]int64{}
+}
+
 func (i *interner[T]) intern(v T) int64 {
 	if id, ok := i.index[v]; ok {
 		return id
@@ -408,15 +421,21 @@ type dictionaryBuilder struct {
 
 	originInfoInterner interner[originInfo]
 
-	tagsLastID int64
-	tagsIndex  map[any]int64
-	tagsBuffer []int64
+	tagsLastID   int64
+	tagsIndex    map[any]int64
+	tagsBuffer   []int64
+	splitTagsets bool
 
 	resourcesLastID int64
 	resourcesIndex  map[any]int64
+
+	stats struct {
+		tagsSplit   uint64
+		tagsUnsplit uint64
+	}
 }
 
-func newDictionaryBuilder(txn *stream.ColumnTransaction) *dictionaryBuilder {
+func newDictionaryBuilder(txn *stream.ColumnTransaction, splitTagsets bool) *dictionaryBuilder {
 	return &dictionaryBuilder{
 		txn: txn,
 
@@ -430,7 +449,21 @@ func newDictionaryBuilder(txn *stream.ColumnTransaction) *dictionaryBuilder {
 
 		tagsIndex:      make(map[any]int64),
 		resourcesIndex: make(map[any]int64),
+
+		splitTagsets: splitTagsets,
 	}
+}
+
+func (db *dictionaryBuilder) reset() {
+	db.namesInterner.reset()
+	db.tagsInterner.reset()
+	db.resourceInterner.reset()
+	db.sourceTypeNameInterner.reset()
+	db.originInfoInterner.reset()
+	db.tagsLastID = 0
+	db.tagsIndex = map[any]int64{}
+	db.resourcesLastID = 0
+	db.resourcesIndex = map[any]int64{}
 }
 
 func (db *dictionaryBuilder) internName(name string) int64 {
@@ -440,16 +473,13 @@ func (db *dictionaryBuilder) internName(name string) int64 {
 	return db.namesInterner.intern(istr(name))
 }
 
-func (db *dictionaryBuilder) internTags(tags tagset.CompositeTags) int64 {
-	if tags.Len() == 0 {
-		return 0
-	}
-
-	db.tagsBuffer = db.tagsBuffer[0:0]
-	tags.ForEach(func(s string) {
+func (db *dictionaryBuilder) appendTagsSlice(tags []string) {
+	for _, s := range tags {
 		db.tagsBuffer = append(db.tagsBuffer, db.tagsInterner.intern(istr(s)))
-	})
+	}
+}
 
+func (db *dictionaryBuilder) internTagsBuffer() int64 {
 	slices.Sort(db.tagsBuffer)
 	deltaEncode(db.tagsBuffer)
 
@@ -460,13 +490,40 @@ func (db *dictionaryBuilder) internTags(tags tagset.CompositeTags) int64 {
 
 	db.tagsLastID++
 	db.tagsIndex[key] = db.tagsLastID
+	db.txn.Sint64(columnDictTagsets, int64(len(db.tagsBuffer)))
 
-	db.txn.Int64(columnDictTagsets, int64(len(db.tagsBuffer)))
 	for _, idx := range db.tagsBuffer {
-		db.txn.Int64(columnDictTagsets, idx)
+		db.txn.Sint64(columnDictTagsets, idx)
 	}
 
 	return db.tagsLastID
+}
+
+func (db *dictionaryBuilder) internTags(tags tagset.CompositeTags) int64 {
+	if tags.Len() == 0 {
+		return 0
+	}
+
+	db.tagsBuffer = db.tagsBuffer[0:0]
+
+	t1, t2 := tags.UnsafeGet()
+	if db.splitTagsets && len(t1) > 1 && len(t2) > 0 {
+		db.stats.tagsSplit++
+
+		db.appendTagsSlice(t1)
+		prefixID := -db.internTagsBuffer()
+
+		db.tagsBuffer = db.tagsBuffer[0:0]
+		db.tagsBuffer = append(db.tagsBuffer, prefixID)
+		db.appendTagsSlice(t2)
+	} else {
+		db.stats.tagsUnsplit++
+		tags.ForEach(func(s string) {
+			db.tagsBuffer = append(db.tagsBuffer, db.tagsInterner.intern(istr(s)))
+		})
+	}
+
+	return db.internTagsBuffer()
 }
 
 func (db *dictionaryBuilder) internResources(res []metrics.Resource) int64 {

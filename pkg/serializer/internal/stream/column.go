@@ -97,6 +97,10 @@ func (c *column) pack(compression metricscompression.Component) (int, error) {
 	return c.output.Len() - prevLen, nil
 }
 
+func (c *column) reset() {
+	c.length = 0
+}
+
 func (c *column) finish() error {
 	if c.compressor != nil {
 		err := c.compressor.Close()
@@ -181,6 +185,13 @@ func (cc *ColumnCompressor) pack() error {
 	}
 
 	return nil
+}
+
+// Reset clears compressor state and prepares it to build a new payload.
+func (cc *ColumnCompressor) Reset() {
+	for i := range cc.columns {
+		cc.columns[i].reset()
+	}
 }
 
 // Close finishes compression of all pending data.

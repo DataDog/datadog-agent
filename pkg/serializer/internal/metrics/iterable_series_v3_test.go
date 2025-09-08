@@ -54,7 +54,7 @@ func TestPayloadBuilderV3(t *testing.T) {
 			Points:         []metrics.Point{{Ts: ts, Value: 3.14}}},
 	}
 
-	pb := newPayloadsBuilderV3(1000, 10000, 1000_0000, noopimpl.New())
+	pb := newPayloadsBuilderV3(1000, 10000, 1000_0000, true, noopimpl.New())
 	for _, s := range series {
 		err := pb.writeSerie(s)
 		r.NoError(err)
@@ -78,8 +78,9 @@ func TestPayloadBuilderV3(t *testing.T) {
 		/* 3 */ 3, 0x6f, 0x6f, 0x6b, // "ook"
 		/* 4 */ 3, 0x65, 0x65, 0x6b, // "eek"
 
-		3<<3 | 2, 5,
-		/* 1 */ 4, 0x1, 0x1, 0x1, 0x1,
+		3<<3 | 2, 7,
+		/* 1 */ 4, 0x2, 0x2,
+		/* 2 */ 6, 0x1, 0x8, 0x02,
 
 		4<<3 | 2, 33,
 		/* 1 */ 4, 0x68, 0x6f, 0x73, 0x74,
@@ -106,7 +107,7 @@ func TestPayloadBuilderV3(t *testing.T) {
 		/* 4 */ 0xb3, 0x02,
 
 		11<<3 | 2, 4, 2, 2, 2, 2,
-		12<<3 | 2, 4, 0, 2, 0, 1,
+		12<<3 | 2, 4, 0, 4, 0, 3,
 		13<<3 | 2, 4, 0, 0, 2, 2,
 		14<<3 | 2, 4, 0, 0, 0, 0,
 		15<<3 | 2, 4, 1, 1, 1, 1,
@@ -154,7 +155,7 @@ func TestPayloadBuilderV3_Split(t *testing.T) {
 
 	series[2].Points = slices.Repeat(series[2].Points, 10000)
 
-	pb := newPayloadsBuilderV3(180, 10000, 1000_0000, noopimpl.New())
+	pb := newPayloadsBuilderV3(180, 10000, 1000_0000, true, noopimpl.New())
 	r.NoError(pb.writeSerie(series[0]))
 	r.NoError(pb.writeSerie(series[1]))
 	r.NoError(pb.writeSerie(series[2]))
@@ -189,7 +190,7 @@ func TestPayloadBuilderV3_pointsLimit(t *testing.T) {
 		},
 	}
 
-	pb := newPayloadsBuilderV3(1000_0000, 1000_000, 10, noopimpl.New())
+	pb := newPayloadsBuilderV3(1000_0000, 1000_000, 10, true, noopimpl.New())
 	r.NoError(pb.writeSerie(series[0]))
 	fmt.Printf("%+#v\n", pb.pointsThisPayload)
 	r.NoError(pb.writeSerie(series[1]))
