@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/trace/api/loader"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -69,16 +70,14 @@ func main() {
 		execOrExit(os.Environ())
 	}
 
-	// log.Debug("Loading trace-agent configuration")
-	// tracecfg, err := traceconfig.LoadConfigFile(cfg.ConfigFileUsed(), cfg, nil)
-	// if err != nil {
-	// 	log.Warnf("Failed to initialize trace-agent configuration: %v", err)
-	// 	execOrExit(os.Environ())
-	// }
+	if !cfg.GetBool("apm_config.socket_activation.enabled") {
+		log.Infof("Socket-activation for the trace-agent is disabled, running the trace-agent directly...")
+		execOrExit(os.Environ())
+	}
 
 	listeners, err := getListeners(cfg)
 	if err != nil {
-		log.Warnf("Failed to pre-load the trace-agent: %v", err)
+		log.Warnf("Failed to perform socket-activation for the trace-agent: %v", err)
 		execOrExit(os.Environ())
 	}
 
@@ -178,7 +177,7 @@ func getListeners(cfg model.Reader) (map[string]uintptr, error) {
 	if traceCfgReceiverPort > 0 {
 		log.Infof("Listening to TCP receiver at port %d...", traceCfgReceiverPort)
 		addr := net.JoinHostPort(traceCfgReceiverHost, strconv.Itoa(traceCfgReceiverPort))
-		ln, err := net.Listen("tcp", addr)
+		ln, err := loader.GetTCPListener(addr)
 		if err != nil {
 			return listeners, fmt.Errorf("error listening to tcp receiver: %v", err)
 		}
@@ -197,29 +196,12 @@ func getListeners(cfg model.Reader) (map[string]uintptr, error) {
 	if path := traceCfgReceiverSocket; path != "" {
 		if _, err := os.Stat(filepath.Dir(path)); !os.IsNotExist(err) {
 			log.Infof("Listening to unix receiver at path %s", path)
-			fi, err := os.Stat(path)
-			if err == nil {
-				// already exists
-				if fi.Mode()&os.ModeSocket == 0 {
-					return listeners, fmt.Errorf("cannot reuse %q; not a unix socket", path)
-				}
-				if err := os.Remove(path); err != nil {
-					return listeners, fmt.Errorf("unable to remove stale socket: %v", err)
-				}
-			}
-			ln, err := net.Listen("unix", path)
+
+			ln, err := loader.GetUnixListener(path)
 			if err != nil {
 				return listeners, fmt.Errorf("error listening to unix receiver: %v", err)
 			}
 			defer ln.Close()
-			if unixLn, ok := ln.(*net.UnixListener); ok {
-				// We do not want to unlink the socket here as we can't be sure if another trace-agent has already
-				// put a new file at the same path.
-				unixLn.SetUnlinkOnClose(false)
-			}
-			if err := os.Chmod(path, 0o722); err != nil {
-				return listeners, fmt.Errorf("error setting socket permissions: %v", err)
-			}
 
 			fd, err := fdFromListener(ln)
 			if err != nil {
@@ -237,7 +219,7 @@ func getListeners(cfg model.Reader) (map[string]uintptr, error) {
 	if configcheck.IsEnabled(cfg) {
 		grpcPort := cfg.GetInt(pkgconfigsetup.OTLPTracePort)
 		log.Infof("Listening to otlp port %d", grpcPort)
-		ln, err := net.Listen("tcp", fmt.Sprintf("%s:%d", traceCfgReceiverHost, grpcPort))
+		ln, err := loader.GetTCPListener(fmt.Sprintf("%s:%d", traceCfgReceiverHost, grpcPort))
 		if err != nil {
 			return listeners, fmt.Errorf("error listening to otlp receiver: %v", err)
 		}
@@ -285,7 +267,7 @@ func fdFromListener(ln net.Listener) (uintptr, error) {
 	}
 
 	if flag&unix.FD_CLOEXEC != 0 {
-		log.Debugf("Removing CLOEXEC on fd %v...\n", fd)
+		log.Debugf("Removing CLOEXEC on fd %v\n", fd)
 		_, err := unix.FcntlInt(fd, unix.F_SETFD, flag & ^unix.FD_CLOEXEC)
 		if err != nil {
 			return 0, fmt.Errorf("fcntl SETFD: %v", err)

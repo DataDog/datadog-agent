@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
+	"github.com/DataDog/datadog-agent/pkg/trace/api/loader"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -115,7 +116,7 @@ func (o *OTLPReceiver) Start() {
 			//TODO: handle f.Close()
 			ln, err = net.FileListener(f)
 		} else {
-			ln, err = net.Listen("tcp", fmt.Sprintf("%s:%d", cfg.BindHost, cfg.GRPCPort))
+			ln, err = loader.GetTCPListener(fmt.Sprintf("%s:%d", cfg.BindHost, cfg.GRPCPort))
 		}
 
 		if err != nil {

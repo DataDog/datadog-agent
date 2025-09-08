@@ -32,6 +32,7 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
+	"github.com/DataDog/datadog-agent/pkg/trace/api/loader"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -371,29 +372,10 @@ func (r *HTTPReceiver) Start() {
 
 // listenUnix returns a net.Listener listening on the given "unix" socket path.
 func (r *HTTPReceiver) listenUnix(path string) (net.Listener, error) {
-	fi, err := os.Stat(path)
-	if err == nil {
-		// already exists
-		if fi.Mode()&os.ModeSocket == 0 {
-			return nil, fmt.Errorf("cannot reuse %q; not a unix socket", path)
-		}
-		if err := os.Remove(path); err != nil {
-			return nil, fmt.Errorf("unable to remove stale socket: %v", err)
-		}
-	}
-	ln, err := net.Listen("unix", path)
+	ln, err := loader.GetUnixListener(path)
 	if err != nil {
 		return nil, err
 	}
-	if unixLn, ok := ln.(*net.UnixListener); ok {
-		// We do not want to unlink the socket here as we can't be sure if another trace-agent has already
-		// put a new file at the same path.
-		unixLn.SetUnlinkOnClose(false)
-	}
-	if err := os.Chmod(path, 0o722); err != nil {
-		return nil, fmt.Errorf("error setting socket permissions: %v", err)
-	}
-
 	return r.listenUnixListener(path, ln)
 }
 
@@ -402,7 +384,7 @@ func (r *HTTPReceiver) listenUnixListener(_path string, ln net.Listener) (net.Li
 }
 
 func (r *HTTPReceiver) listenTCP(addr string) (net.Listener, error) {
-	tcpln, err := net.Listen("tcp", addr)
+	tcpln, err := loader.GetTCPListener(addr)
 	if err != nil {
 		return nil, err
 	}
