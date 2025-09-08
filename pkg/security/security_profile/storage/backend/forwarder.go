@@ -19,6 +19,7 @@ import (
 
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
@@ -50,7 +51,7 @@ func NewActivityDumpRemoteBackend() (*ActivityDumpRemoteBackend, error) {
 		},
 	}
 
-	endpoints, err := config.ActivityDumpRemoteStorageEndpoints("cws-intake.", "secdump", logsconfig.DefaultIntakeProtocol, "cloud-workload-security")
+	endpoints, err := activityDumpRemoteStorageEndpoints("cws-intake.", "secdump", logsconfig.DefaultIntakeProtocol, "cloud-workload-security")
 	if err != nil {
 		return nil, fmt.Errorf("couldn't generate storage endpoints: %w", err)
 	}
@@ -170,4 +171,26 @@ func (backend *ActivityDumpRemoteBackend) SendTelemetry(sender statsd.ClientInte
 	// send too large entity metric
 	tags := []string{fmt.Sprintf("format:%s", config.Protobuf), fmt.Sprintf("compression:%v", true)}
 	_ = sender.Count(metrics.MetricActivityDumpEntityTooLarge, int64(backend.tooLargeEntities.Load()), tags, 1.0)
+}
+
+// activityDumpRemoteStorageEndpoints returns the list of activity dump remote storage endpoints parsed from the agent config
+func activityDumpRemoteStorageEndpoints(endpointPrefix string, intakeTrackType logsconfig.IntakeTrackType, intakeProtocol logsconfig.IntakeProtocol, intakeOrigin logsconfig.IntakeOrigin) (*logsconfig.Endpoints, error) {
+	logsConfig := logsconfig.NewLogsConfigKeys("runtime_security_config.activity_dump.remote_storage.endpoints.", pkgconfigsetup.Datadog())
+	endpoints, err := logsconfig.BuildHTTPEndpointsWithConfig(pkgconfigsetup.Datadog(), logsConfig, endpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin)
+	if err != nil {
+		endpoints, err = logsconfig.BuildHTTPEndpoints(pkgconfigsetup.Datadog(), intakeTrackType, intakeProtocol, intakeOrigin)
+		if err == nil {
+			httpConnectivity := logshttp.CheckConnectivity(endpoints.Main, pkgconfigsetup.Datadog())
+			endpoints, err = logsconfig.BuildEndpoints(pkgconfigsetup.Datadog(), httpConnectivity, intakeTrackType, intakeProtocol, intakeOrigin)
+		}
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("invalid endpoints: %w", err)
+	}
+
+	for _, status := range endpoints.GetStatus() {
+		seclog.Infof("activity dump remote storage endpoint: %v\n", status)
+	}
+	return endpoints, nil
 }
