@@ -85,7 +85,7 @@ docker_build_fips_agent7_windows2022_core:
     - .windows_docker_v2_2022
   variables:
     VARIANT: ltsc2022
-    SERVER_BASE_IMAGE: mcr.microsoft.com/powershell:nanoserver-ltsc2022
+    SERVER_BASE_IMAGE: mcr.microsoft.com/powershell:windowsservercore-ltsc2022
     TAG_SUFFIX: "-7-fips"
     WITH_JMX: "false"
 
