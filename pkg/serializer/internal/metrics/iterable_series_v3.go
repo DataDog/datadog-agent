@@ -19,6 +19,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
+)
+
+var (
+	tlmColumnSize = telemetry.NewCounter("serializer", "v3_column_size",
+		[]string{"column", "compressed"},
+		"Number of bytes occupied by each column",
+	)
+	tlmSplitReason = telemetry.NewCounter("serializer", "v3_payload_split_reason",
+		[]string{"reason"},
+		"Why payload was split",
+	)
 )
 
 const (
@@ -54,6 +66,34 @@ const (
 	columnOriginInfo
 	numberOfColumns
 )
+
+var columnNames []string = []string{
+	"reserved",
+	"DictNameStr",
+	"DictTagsStr",
+	"DictTagsets",
+	"DictResourceStr",
+	"DictResourcesLen",
+	"DictResourceType",
+	"DictResourceName",
+	"DictSourceTypeName",
+	"DictOriginInfo",
+	"Type",
+	"Name",
+	"Tags",
+	"Resources",
+	"Interval",
+	"NumPoints",
+	"Timestamp",
+	"ValueSint64",
+	"ValueFloat32",
+	"ValueFloat64",
+	"SketchNBins",
+	"SketchBinKeys",
+	"SketchBinCounts",
+	"SourceTypeName",
+	"OriginInfo",
+}
 
 // Constants for type column
 const (
@@ -185,6 +225,9 @@ func (pb *payloadsBuilderV3) finishPayload() error {
 
 			colSize := pb.compressor.Len(i)
 			metricDataSize += varintLen(i) + varintLen(colSize) + colSize
+
+			tlmColumnSize.Add(float64(len(pb.compressor.Bytes(i))), columnNames[i], "compressed")
+			tlmColumnSize.Add(float64(pb.compressor.Len(i)), columnNames[i], "uncompressed")
 		}
 
 		payload := make([]byte, 0, compressedSize)
@@ -272,6 +315,7 @@ func (pb *payloadsBuilderV3) writeSerie(serie *metrics.Serie) error {
 	}
 
 	if len(serie.Points)+pb.pointsThisPayload > pb.maxPointsPerPayload {
+		tlmSplitReason.Inc("max_points")
 		err := pb.finishPayload()
 		if err != nil {
 			return err
@@ -345,6 +389,7 @@ func (pb *payloadsBuilderV3) commit(serie *metrics.Serie) error {
 
 	switch err {
 	case stream.ErrPayloadFull:
+		tlmSplitReason.Inc("payload_full")
 		err = pb.finishPayload()
 		if err != nil {
 			return err
@@ -352,13 +397,14 @@ func (pb *payloadsBuilderV3) commit(serie *metrics.Serie) error {
 
 		err = pb.compressor.AddItem(pb.txn)
 		if err == stream.ErrItemTooBig {
+			tlmItemTooBig.Inc()
 			return nil
 		}
 		if err != nil {
 			return err
 		}
 	case stream.ErrItemTooBig:
-		// FIXME: tlm
+		tlmItemTooBig.Inc()
 		return nil
 	case nil:
 		pb.pointsThisPayload += len(serie.Points)
