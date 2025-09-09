@@ -198,8 +198,8 @@ modules:
   pkg/fips:
     used_by_otel: true
   pkg/fleet/installer:
-    used_by_otel: true
     should_replace_internal_modules: false
+    used_by_otel: true
   pkg/gohai:
     used_by_otel: true
   pkg/linters/components/pkgconfigusage:

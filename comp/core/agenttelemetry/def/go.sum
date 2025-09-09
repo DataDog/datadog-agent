@@ -1,11 +1,3 @@
-github.com/DataDog/datadog-agent/pkg/fleet/installer v0.70.0 h1:IZMuG5sdR9MI4kwQnEv8RE4fmSz9Rui+8nrWcRa0Gtw=
-github.com/DataDog/datadog-agent/pkg/fleet/installer v0.70.0/go.mod h1:wsYbHl3Lz3hYThv/+ZOCPqbHA9Mp5o+5Lca4cAY/Khs=
-github.com/DataDog/datadog-agent/pkg/util/log v0.70.0 h1:20E3/8J/FIuC27x0qYtHtgTL9DSsKtnUeezsFgybYwk=
-github.com/DataDog/datadog-agent/pkg/util/log v0.70.0/go.mod h1:qbzB2Ysfseyo8Doz/NgV1RUdyoMnb9WFUy0UDYKfz74=
-github.com/DataDog/datadog-agent/pkg/util/scrubber v0.70.0 h1:GGOLUz2oYrYdv+zK1ew5WVf+Dhunh2DIKR7kNRQKbyE=
-github.com/DataDog/datadog-agent/pkg/util/scrubber v0.70.0/go.mod h1:8mJTzKctB//qu7V4E9qZh/5BBbY8dzuesUkds8y9j9k=
-github.com/DataDog/datadog-agent/pkg/version v0.70.0 h1:/EwXGhvsgSbR8nwCujj/vAvybuVYhPNZqweBxyQFDFo=
-github.com/DataDog/datadog-agent/pkg/version v0.70.0/go.mod h1:XPERomJsscI4LZk5xVZ8O3fjmIg9gmEq08ixSi5wI3I=
 github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 h1:kHaBemcxl8o/pQ5VM1c8PVE1PubbNx3mjUr09OqWGCs=
 github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575/go.mod h1:9d6lWj8KzO/fd/NrVaLscBKmPigpZpn5YawRPw+e3Yo=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1VwoXQT9A3Wy9MM3WgvqSxFWenqJduM=

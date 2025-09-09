@@ -32,6 +32,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/fips v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/fleet/installer v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/gohai v0.69.4 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/types v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/cache v0.69.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.70.0 // indirect
@@ -108,90 +109,41 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/jsonquery => ../../../../pkg/util/jsonquery
 )
 
-replace github.com/DataDog/datadog-agent/comp/api/api/def => ../../../api/api/def
-
-replace github.com/DataDog/datadog-agent/comp/core/config => ../../config
-
-replace github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../flare/builder
-
-replace github.com/DataDog/datadog-agent/comp/core/flare/types => ../../flare/types
-
-replace github.com/DataDog/datadog-agent/comp/core/log/def => ../../log/def
-
-replace github.com/DataDog/datadog-agent/comp/core/log/mock => ../../log/mock
-
-replace github.com/DataDog/datadog-agent/comp/core/secrets/def => ../../secrets/def
-
-replace github.com/DataDog/datadog-agent/comp/core/secrets/mock => ../../secrets/mock
-
-replace github.com/DataDog/datadog-agent/comp/core/secrets/utils => ../../secrets/utils
-
-replace github.com/DataDog/datadog-agent/comp/core/telemetry => ../../telemetry
-
-replace github.com/DataDog/datadog-agent/comp/def => ../../../def
-
-replace github.com/DataDog/datadog-agent/comp/logs/agent/config => ../../../logs/agent/config
-
-replace github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../../pkg/collector/check/defaults
-
-replace github.com/DataDog/datadog-agent/pkg/config/create => ../../../../pkg/config/create
-
-replace github.com/DataDog/datadog-agent/pkg/config/env => ../../../../pkg/config/env
-
-replace github.com/DataDog/datadog-agent/pkg/config/mock => ../../../../pkg/config/mock
-
-replace github.com/DataDog/datadog-agent/pkg/config/model => ../../../../pkg/config/model
-
-replace github.com/DataDog/datadog-agent/pkg/config/nodetreemodel => ../../../../pkg/config/nodetreemodel
-
-replace github.com/DataDog/datadog-agent/pkg/config/setup => ../../../../pkg/config/setup
-
-replace github.com/DataDog/datadog-agent/pkg/config/structure => ../../../../pkg/config/structure
-
-replace github.com/DataDog/datadog-agent/pkg/config/teeconfig => ../../../../pkg/config/teeconfig
-
-replace github.com/DataDog/datadog-agent/pkg/config/utils => ../../../../pkg/config/utils
-
-replace github.com/DataDog/datadog-agent/pkg/config/viperconfig => ../../../../pkg/config/viperconfig
-
-replace github.com/DataDog/datadog-agent/pkg/fips => ../../../../pkg/fips
-
-replace github.com/DataDog/datadog-agent/pkg/fleet/installer => ../../../../pkg/fleet/installer
-
-replace github.com/DataDog/datadog-agent/pkg/gohai => ../../../../pkg/gohai
-
-replace github.com/DataDog/datadog-agent/pkg/util/cache => ../../../../pkg/util/cache
-
-replace github.com/DataDog/datadog-agent/pkg/util/defaultpaths => ../../../../pkg/util/defaultpaths
-
-replace github.com/DataDog/datadog-agent/pkg/util/executable => ../../../../pkg/util/executable
-
-replace github.com/DataDog/datadog-agent/pkg/util/filesystem => ../../../../pkg/util/filesystem
-
-replace github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../../../pkg/util/fxutil
-
-replace github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../../../../pkg/util/hostname/validate
-
-replace github.com/DataDog/datadog-agent/pkg/util/http => ../../../../pkg/util/http
-
-replace github.com/DataDog/datadog-agent/pkg/util/log => ../../../../pkg/util/log
-
-replace github.com/DataDog/datadog-agent/pkg/util/log/setup => ../../../../pkg/util/log/setup
-
-replace github.com/DataDog/datadog-agent/pkg/util/option => ../../../../pkg/util/option
-
-replace github.com/DataDog/datadog-agent/pkg/util/pointer => ../../../../pkg/util/pointer
-
-replace github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../../../pkg/util/scrubber
-
-replace github.com/DataDog/datadog-agent/pkg/util/system => ../../../../pkg/util/system
-
-replace github.com/DataDog/datadog-agent/pkg/util/system/socket => ../../../../pkg/util/system/socket
-
-replace github.com/DataDog/datadog-agent/pkg/util/testutil => ../../../../pkg/util/testutil
-
-replace github.com/DataDog/datadog-agent/pkg/util/uuid => ../../../../pkg/util/uuid
-
-replace github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../../pkg/util/winutil
-
-replace github.com/DataDog/datadog-agent/pkg/version => ../../../../pkg/version
+replace (
+	github.com/DataDog/datadog-agent/comp/api/api/def => ../../../api/api/def
+	github.com/DataDog/datadog-agent/comp/core/config => ../../config
+	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../flare/builder
+	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../flare/types
+	github.com/DataDog/datadog-agent/comp/core/log/def => ../../log/def
+	github.com/DataDog/datadog-agent/comp/core/log/mock => ../../log/mock
+	github.com/DataDog/datadog-agent/comp/core/secrets/def => ../../secrets/def
+	github.com/DataDog/datadog-agent/comp/core/secrets/mock => ../../secrets/mock
+	github.com/DataDog/datadog-agent/comp/core/secrets/utils => ../../secrets/utils
+	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../telemetry
+	github.com/DataDog/datadog-agent/comp/def => ../../../def
+	github.com/DataDog/datadog-agent/comp/logs/agent/config => ../../../logs/agent/config
+	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../../pkg/collector/check/defaults
+	github.com/DataDog/datadog-agent/pkg/config/create => ../../../../pkg/config/create
+	github.com/DataDog/datadog-agent/pkg/config/env => ../../../../pkg/config/env
+	github.com/DataDog/datadog-agent/pkg/config/mock => ../../../../pkg/config/mock
+	github.com/DataDog/datadog-agent/pkg/config/model => ../../../../pkg/config/model
+	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel => ../../../../pkg/config/nodetreemodel
+	github.com/DataDog/datadog-agent/pkg/config/setup => ../../../../pkg/config/setup
+	github.com/DataDog/datadog-agent/pkg/config/structure => ../../../../pkg/config/structure
+	github.com/DataDog/datadog-agent/pkg/config/teeconfig => ../../../../pkg/config/teeconfig
+	github.com/DataDog/datadog-agent/pkg/config/utils => ../../../../pkg/config/utils
+	github.com/DataDog/datadog-agent/pkg/fips => ../../../../pkg/fips
+	github.com/DataDog/datadog-agent/pkg/fleet/installer => ../../../../pkg/fleet/installer
+	github.com/DataDog/datadog-agent/pkg/gohai => ../../../../pkg/gohai
+	github.com/DataDog/datadog-agent/pkg/logs/types => ../../../../pkg/logs/types
+	github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../../../../pkg/util/hostname/validate
+	github.com/DataDog/datadog-agent/pkg/util/log => ../../../../pkg/util/log
+	github.com/DataDog/datadog-agent/pkg/util/log/setup => ../../../../pkg/util/log/setup
+	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../../../pkg/util/scrubber
+	github.com/DataDog/datadog-agent/pkg/util/system => ../../../../pkg/util/system
+	github.com/DataDog/datadog-agent/pkg/util/system/socket => ../../../../pkg/util/system/socket
+	github.com/DataDog/datadog-agent/pkg/util/testutil => ../../../../pkg/util/testutil
+	github.com/DataDog/datadog-agent/pkg/util/uuid => ../../../../pkg/util/uuid
+	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../../pkg/util/winutil
+	github.com/DataDog/datadog-agent/pkg/version => ../../../../pkg/version
+)

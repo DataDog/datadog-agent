@@ -1,11 +1,3 @@
-github.com/DataDog/datadog-agent/pkg/util/cache v0.69.4 h1:BeBD8v4dHmcFWQzlDIf4i72jlD5nYaaTN5U6VsmCxxI=
-github.com/DataDog/datadog-agent/pkg/util/cache v0.69.4/go.mod h1:cGAKqqaJ4L/XpClMMqPh6xcdfTMM8it8dD7a2nH+/BA=
-github.com/DataDog/datadog-agent/pkg/util/log v0.69.4 h1:CaKJVHCsKNb/a1Ce3UCATmXEG86/t9OlCHigDJjLO4k=
-github.com/DataDog/datadog-agent/pkg/util/log v0.69.4/go.mod h1:dFaOfNHf2oXMKxYmNMzvWPfvNdhe6ApbbNpWFRLbB+k=
-github.com/DataDog/datadog-agent/pkg/util/scrubber v0.69.4 h1:/vXI9SPc5hpwhAW/58A/bNi25QPkxvNpAf7FrFYqACI=
-github.com/DataDog/datadog-agent/pkg/util/scrubber v0.69.4/go.mod h1:5hyHWhjqnXohOaa1fn1cVwX4Lj3z9FDubQu+t5snbBE=
-github.com/DataDog/datadog-agent/pkg/version v0.69.4 h1:AdJkdt7pKgLGM6B/rI4ByROp51LcYf0u4qdknHXeKyc=
-github.com/DataDog/datadog-agent/pkg/version v0.69.4/go.mod h1:zpRXbtsHTgxP3vMyL6hsKQt/c590KDDaFtDQqPPEezo=
 github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 h1:kHaBemcxl8o/pQ5VM1c8PVE1PubbNx3mjUr09OqWGCs=
 github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575/go.mod h1:9d6lWj8KzO/fd/NrVaLscBKmPigpZpn5YawRPw+e3Yo=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1VwoXQT9A3Wy9MM3WgvqSxFWenqJduM=
