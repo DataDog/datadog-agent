@@ -20,7 +20,11 @@
     # We need to remove locally present image as it is unflattened.
     # crane only works with remote registry and uploads flattened image
     # bypassing local registry.
-    docker rmi "$IMAGE_REF" || true # Ignore errors for now
+    FLATTEN_IMAGE=${FLATTEN_IMAGE:-true}
+
+    if [[ "$FLATTEN_IMAGE" == "true" ]]; then
+      docker rmi "$IMAGE_REF" || true # Ignore errors for now
+    fi
 
     echo "🔍 Measuring Docker image: $IMAGE_REF"
 
