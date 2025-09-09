@@ -33,3 +33,17 @@ require (
 	golang.org/x/time v0.12.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/DataDog/datadog-agent/pkg/gohai => ../../gohai
+
+replace github.com/DataDog/datadog-agent/pkg/util/cache => ../cache
+
+replace github.com/DataDog/datadog-agent/pkg/util/log => ../log
+
+replace github.com/DataDog/datadog-agent/pkg/util/scrubber => ../scrubber
+
+replace github.com/DataDog/datadog-agent/pkg/util/uuid => ../uuid
+
+replace github.com/DataDog/datadog-agent/pkg/util/winutil => ../winutil
+
+replace github.com/DataDog/datadog-agent/pkg/version => ../../version

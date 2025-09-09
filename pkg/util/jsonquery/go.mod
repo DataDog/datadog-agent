@@ -22,3 +22,11 @@ require (
 	go.uber.org/atomic v1.11.0 // indirect
 	golang.org/x/time v0.12.0 // indirect
 )
+
+replace github.com/DataDog/datadog-agent/pkg/util/cache => ../cache
+
+replace github.com/DataDog/datadog-agent/pkg/util/log => ../log
+
+replace github.com/DataDog/datadog-agent/pkg/util/scrubber => ../scrubber
+
+replace github.com/DataDog/datadog-agent/pkg/version => ../../version

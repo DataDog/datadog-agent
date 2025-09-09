@@ -22,3 +22,11 @@ require (
 	golang.org/x/time v0.12.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/DataDog/datadog-agent/pkg/fleet/installer => ../../../../pkg/fleet/installer
+
+replace github.com/DataDog/datadog-agent/pkg/util/log => ../../../../pkg/util/log
+
+replace github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../../../pkg/util/scrubber
+
+replace github.com/DataDog/datadog-agent/pkg/version => ../../../../pkg/version
