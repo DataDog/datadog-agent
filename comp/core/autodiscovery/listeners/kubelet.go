@@ -127,7 +127,7 @@ func (l *KubeletListener) createContainerService(
 
 	if l.filterStore.IsContainerExcluded(
 		workloadmetafilter.CreateContainerFromOrch(podContainer, workloadmetafilter.CreatePod(pod)),
-		workloadfilter.GetAutodiscoveryFilters(workloadfilter.GlobalFilter),
+		l.filterStore.GetContainerAutodiscoveryFilters(workloadfilter.GlobalFilter),
 	) {
 		log.Debugf("container %s filtered out: name %q image %q namespace %q", container.ID, containerName, containerImg.RawName, pod.Namespace)
 		return
@@ -175,11 +175,11 @@ func (l *KubeletListener) createContainerService(
 		// from metrics collection but keep them for collecting logs.
 		metricsExcluded: l.filterStore.IsContainerExcluded(
 			workloadmetafilter.CreateContainerFromOrch(podContainer, workloadmetafilter.CreatePod(pod)),
-			workloadfilter.GetAutodiscoveryFilters(workloadfilter.MetricsFilter),
+			l.filterStore.GetContainerAutodiscoveryFilters(workloadfilter.MetricsFilter),
 		) || !container.State.Running,
 		logsExcluded: l.filterStore.IsContainerExcluded(
 			workloadmetafilter.CreateContainerFromOrch(podContainer, workloadmetafilter.CreatePod(pod)),
-			workloadfilter.GetAutodiscoveryFilters(workloadfilter.LogsFilter),
+			l.filterStore.GetContainerAutodiscoveryFilters(workloadfilter.LogsFilter),
 		),
 		tagger: l.tagger,
 	}

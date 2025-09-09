@@ -143,7 +143,8 @@ type APIServer struct {
 	cwsConsumer        *CWSConsumer
 	policiesStatusLock sync.RWMutex
 	policiesStatus     []*api.PolicyStatus
-	msgSender          MsgSender
+	msgSender          EventMsgSender
+	activityDumpSender ActivityDumpMsgSender
 	connEstablished    *atomic.Bool
 	envAsTags          []string
 	containerFilter    *containers.Filter
@@ -173,26 +174,17 @@ func (a *APIServer) GetActivityDumpStream(_ *api.ActivityDumpStreamParams, strea
 }
 
 // SendActivityDump queues an activity dump to the chan of activity dumps
-func (a *APIServer) SendActivityDump(dump *api.ActivityDumpStreamMessage) {
-	// send the dump to the channel
-	select {
-	case a.activityDumps <- dump:
-		break
-	default:
-		// The channel is full, consume the oldest dump
-		oldestDump := <-a.activityDumps
-		// Try to send the event again
-		select {
-		case a.activityDumps <- dump:
-			break
-		default:
-			// Looks like the channel is full again, expire the current message too
-			a.expireDump(dump)
-			break
-		}
-		a.expireDump(oldestDump)
-		break
+func (a *APIServer) SendActivityDump(imageName string, imageTag string, header []byte, data []byte) {
+	dump := &api.ActivityDumpStreamMessage{
+		Selector: &api.WorkloadSelectorMessage{
+			Name: imageName,
+			Tag:  imageTag,
+		},
+		Header: header,
+		Data:   data,
 	}
+
+	a.activityDumpSender.Send(dump, a.expireDump)
 }
 
 // GetEvents waits for security events
@@ -520,9 +512,9 @@ func (a *APIServer) expireDump(dump *api.ActivityDumpStreamMessage) {
 	seclog.Tracef("the activity dump server channel is full, a dump of [%s] was dropped\n", selectorStr)
 }
 
-// GetStats returns a map indexed by ruleIDs that describes the amount of events
+// getStats returns a map indexed by ruleIDs that describes the amount of events
 // that were expired or rate limited before reaching
-func (a *APIServer) GetStats() map[string]int64 {
+func (a *APIServer) getStats() map[string]int64 {
 	a.expiredEventsLock.RLock()
 	defer a.expiredEventsLock.RUnlock()
 
@@ -533,9 +525,10 @@ func (a *APIServer) GetStats() map[string]int64 {
 	return stats
 }
 
-// SendStats sends statistics about the number of dropped events
+// SendStats sends statistics
 func (a *APIServer) SendStats() error {
-	for ruleID, val := range a.GetStats() {
+	// statistics about the number of dropped events
+	for ruleID, val := range a.getStats() {
 		tags := []string{fmt.Sprintf("rule_id:%s", ruleID)}
 		if val > 0 {
 			if err := a.statsdClient.Count(metrics.MetricEventServerExpired, val, tags, 1.0); err != nil {
@@ -543,6 +536,11 @@ func (a *APIServer) SendStats() error {
 			}
 		}
 	}
+
+	// telemetry for msg senders
+	a.msgSender.SendTelemetry(a.statsdClient)
+	a.activityDumpSender.SendTelemetry(a.statsdClient)
+
 	return nil
 }
 
@@ -665,7 +663,7 @@ func getEnvAsTags(cfg *config.RuntimeSecurityConfig) []string {
 }
 
 // NewAPIServer returns a new gRPC event server
-func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSender MsgSender, client statsd.ClientInterface, selfTester *selftests.SelfTester, compression compression.Component, ipc ipc.Component) (*APIServer, error) {
+func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSender MsgSender[api.SecurityEventMessage], client statsd.ClientInterface, selfTester *selftests.SelfTester, compression compression.Component, ipc ipc.Component) (*APIServer, error) {
 	stopper := startstop.NewSerialStopper()
 	containerFilter, err := utils.NewContainerFilter()
 	if err != nil {
@@ -693,10 +691,10 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSen
 	as.collectOSReleaseData()
 
 	if as.msgSender == nil {
-		if cfg.SendEventFromSystemProbe {
-			msgSender, err := NewDirectMsgSender(stopper, compression, ipc)
+		if cfg.SendPayloadsFromSystemProbe {
+			msgSender, err := NewDirectEventMsgSender(stopper, compression, ipc)
 			if err != nil {
-				log.Errorf("failed to setup direct reporter: %v", err)
+				log.Errorf("failed to setup direct event sender: %v", err)
 			} else {
 				as.msgSender = msgSender
 			}
@@ -704,6 +702,21 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSen
 
 		if as.msgSender == nil {
 			as.msgSender = NewChanMsgSender(as.msgs)
+		}
+	}
+
+	if as.activityDumpSender == nil {
+		if cfg.SendPayloadsFromSystemProbe {
+			adSender, err := NewDirectActivityDumpMsgSender()
+			if err != nil {
+				log.Errorf("failed to setup direct activity dump sender: %v", err)
+			} else {
+				as.activityDumpSender = adSender
+			}
+		}
+
+		if as.activityDumpSender == nil {
+			as.activityDumpSender = NewChanMsgSender(as.activityDumps)
 		}
 	}
 

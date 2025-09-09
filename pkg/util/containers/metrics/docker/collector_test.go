@@ -86,7 +86,7 @@ func TestConvertNetworkStats(t *testing.T) {
 func TestGetContainerIDForPID(t *testing.T) {
 	// TODO(components): this test needs to rely on a workloadmeta.Component mock
 	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-		config.MockModule(),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
