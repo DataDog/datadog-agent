@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/symlink"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -40,7 +41,7 @@ func createTestDownloadedPackage(t *testing.T, dir string, packageName string) s
 func assertLinkTarget(t *testing.T, repository *Repository, link string, target string) {
 	linkPath := path.Join(repository.rootPath, link)
 	assert.FileExists(t, linkPath)
-	linkTarget, err := linkRead(linkPath)
+	linkTarget, err := symlink.Read(linkPath)
 	assert.NoError(t, err)
 	assert.Equal(t, target, filepath.Base(linkTarget))
 }

@@ -410,7 +410,6 @@ def parse(commit_str):
 
 def is_system_probe(owners, files):
     target = {
-        ("TEAM", "@DataDog/Networks"),
         ("TEAM", "@DataDog/universal-service-monitoring"),
         ("TEAM", "@DataDog/ebpf-platform"),
         ("TEAM", "@DataDog/agent-security"),
