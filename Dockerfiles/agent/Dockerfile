@@ -249,6 +249,9 @@ VOLUME ["/var/run/s6", "/var/log/datadog"]
 COPY --from=nosys-seccomp /tmp/nosys.so /opt/lib/nosys.so
 ENV LD_PRELOAD=/opt/lib/nosys.so
 
+# shared libraries
+COPY /lib/ /opt/embedded/lib/
+
 # Single entrypoint
 COPY --chmod=755 entrypoint.sh /bin/entrypoint.sh
 COPY --chmod=755 entrypoint.d /opt/entrypoints
