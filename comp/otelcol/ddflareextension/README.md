@@ -14,7 +14,7 @@ The datadogextension will be added automatically by the [converter component](..
 ```
 extensions:
  ddflare:
-   endpoint: 7777
+   endpoint: localhost:7777
 ```
 
 *Agent Config:*
