@@ -627,7 +627,7 @@ linters-settings:
         pkg: ^github.com/DataDog/datadog-agent/pkg/config/setup$
         msg: use pkg/config/mock instead for tests or the config component
       - p: RevertFinishedBackToBuilder
-        msg: RevertFinishedBackToBuilder is deprecated and should not be used in any new code. Only existing OTel usage is allowed.
+        msg: RevertFinishedBackToBuilder is typically not needed, so using it is discouraged. Only existing OTel usage is allowed.
     analyze-types: true
   custom:
     pkgconfigusage:
