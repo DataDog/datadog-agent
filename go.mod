@@ -729,15 +729,86 @@ require (
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics v0.71.0-devel.0.20250820180704-be0d2d237646 // indirect
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/rum v0.0.0-20250821192546-ef3e102d9554 // indirect
 	github.com/DataDog/go-libddwaf/v3 v3.5.4 // indirect
+	github.com/DataDog/test-infra-definitions v0.0.5-0.20250909090603-38ba177e9f6a // indirect
+	github.com/aead/chacha20 v0.0.0-20180709150244-8b13a72661da // indirect
+	github.com/agext/levenshtein v1.2.3 // indirect
+	github.com/alessio/shellescape v1.4.2 // indirect
+	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
+	github.com/atotto/clipboard v0.1.4 // indirect
+	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.6.11 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/v4a v1.3.36 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.7.4 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.18.17 // indirect
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.83.0 // indirect
+	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
+	github.com/blang/semver v3.5.1+incompatible // indirect
+	github.com/charmbracelet/bubbles v0.18.0 // indirect
+	github.com/charmbracelet/bubbletea v0.25.0 // indirect
+	github.com/charmbracelet/lipgloss v0.10.0 // indirect
+	github.com/cheggaaa/pb v1.0.29 // indirect
+	github.com/containerd/console v1.0.4 // indirect
+	github.com/djherbis/times v1.6.0 // indirect
+	github.com/emirpasic/gods v1.18.1 // indirect
+	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
+	github.com/go-git/go-billy/v5 v5.6.2 // indirect
+	github.com/go-git/go-git/v5 v5.13.2 // indirect
+	github.com/golang/glog v1.2.5 // indirect
+	github.com/grpc-ecosystem/grpc-opentracing v0.0.0-20180507213350-8e809c8a8645 // indirect
+	github.com/hashicorp/hcl/v2 v2.22.0 // indirect
+	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
+	github.com/kevinburke/ssh_config v1.2.0 // indirect
+	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
+	github.com/mattn/go-localereader v0.0.1 // indirect
+	github.com/mitchellh/go-ps v1.0.0 // indirect
+	github.com/mitchellh/go-wordwrap v1.0.1 // indirect
 	github.com/moby/sys/atomicwriter v0.1.0 // indirect
+	github.com/muesli/ansi v0.0.0-20230316100256-276c6243b2f6 // indirect
+	github.com/muesli/cancelreader v0.2.2 // indirect
+	github.com/muesli/reflow v0.3.0 // indirect
+	github.com/muesli/termenv v0.15.2 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector v0.133.0 // indirect
+	github.com/opentracing/basictracer-go v1.1.0 // indirect
+	github.com/opentracing/opentracing-go v1.2.0 // indirect
+	github.com/pgavlin/fx v0.1.6 // indirect
+	github.com/pjbgf/sha1cd v0.3.2 // indirect
+	github.com/pkg/term v1.1.0 // indirect
+	github.com/pulumi/appdash v0.0.0-20231130102222-75f619a67231 // indirect
+	github.com/pulumi/esc v0.10.0 // indirect
+	github.com/pulumi/pulumi-aws/sdk/v6 v6.66.2 // indirect
+	github.com/pulumi/pulumi-awsx/sdk/v2 v2.19.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/authorization/v2 v2.81.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/compute/v2 v2.81.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/containerservice/v2 v2.81.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v2 v2.81.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/network/v2 v2.81.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/v2 v2.81.0 // indirect
+	github.com/pulumi/pulumi-command/sdk v1.0.1 // indirect
+	github.com/pulumi/pulumi-docker/sdk/v4 v4.5.8 // indirect
+	github.com/pulumi/pulumi-eks/sdk/v3 v3.7.0 // indirect
+	github.com/pulumi/pulumi-gcp/sdk/v7 v7.38.0 // indirect
+	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.19.0 // indirect
+	github.com/pulumi/pulumi-libvirt/sdk v0.5.4 // indirect
+	github.com/pulumi/pulumi-random/sdk/v4 v4.16.8 // indirect
+	github.com/pulumi/pulumi-tls/sdk/v4 v4.11.1 // indirect
+	github.com/pulumi/pulumi/sdk/v3 v3.145.0 // indirect
+	github.com/sabhiram/go-gitignore v0.0.0-20210923224102-525f6e181f06 // indirect
+	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1 // indirect
+	github.com/sergi/go-diff v1.4.0 // indirect
+	github.com/skeema/knownhosts v1.3.0 // indirect
+	github.com/texttheater/golang-levenshtein v1.0.1 // indirect
+	github.com/uber/jaeger-client-go v2.30.0+incompatible // indirect
+	github.com/uber/jaeger-lib v2.4.1+incompatible // indirect
 	github.com/vektah/gqlparser/v2 v2.5.30 // indirect
+	github.com/xanzy/ssh-agent v0.3.3 // indirect
+	github.com/zclconf/go-cty v1.14.4 // indirect
 	github.com/zorkian/go-datadog-api v2.30.0+incompatible // indirect
 	go.opentelemetry.io/collector/config/configmiddleware v0.133.0 // indirect
 	go.opentelemetry.io/collector/extension/extensionmiddleware v0.133.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/telemetry v0.0.0-20250807160809-1a19826ec488 // indirect
+	gopkg.in/warnings.v0 v0.1.2 // indirect
+	lukechampine.com/frand v1.4.2 // indirect
 )
 
 require (
@@ -791,7 +862,7 @@ require (
 	github.com/aquasecurity/go-version v0.0.1 // indirect
 	github.com/aquasecurity/jfather v0.0.8 // indirect
 	github.com/aquasecurity/trivy-java-db v0.0.0-20240109071736-184bd7481d48 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ecr v1.42.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ecr v1.45.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/servicediscovery v1.36.0 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
