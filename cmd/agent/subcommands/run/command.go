@@ -531,6 +531,7 @@ func getSharedFxOption() fx.Option {
 				Config: config,
 			}
 		}),
+		privateactionrunnerfx.Module(),
 		settingsimpl.Module(),
 		agenttelemetryfx.Module(),
 		networkpath.Bundle(),
@@ -544,7 +545,6 @@ func getSharedFxOption() fx.Option {
 		connectivitycheckerfx.Module(),
 		// Health Platform - monitors and reports agent health issues
 		healthplatformfx.Module(),
-		privateactionrunnerfx.Module(),
 		configstreamfx.Module(),
 	)
 }
