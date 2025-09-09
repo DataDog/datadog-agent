@@ -8,7 +8,9 @@ package sharedconsts
 
 const (
 	// MaxArgEnvSize maximum size of one argument or environment variable
-	MaxArgEnvSize = 256
+	// see kernel side definition in custom.h
+	MaxArgEnvSize = 356
 	// MaxArgsEnvsSize maximum number of args and/or envs
-	MaxArgsEnvsSize = 256
+	// see kernel side definition in custom.h
+	MaxArgsEnvsSize = 356
 )
