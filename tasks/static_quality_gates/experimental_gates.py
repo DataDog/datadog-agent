@@ -185,7 +185,6 @@ class ArtifactProcessor(Protocol):
         ctx: Context,
         artifact_ref: str,
         gate_config: QualityGateConfig,
-        max_files: int,
         generate_checksums: bool,
         debug: bool,
     ) -> tuple[int, int, list[FileInfo], Any]:
@@ -253,13 +252,12 @@ class FileUtilities:
             return None
 
     @staticmethod
-    def walk_files(directory: str, max_files: int, generate_checksums: bool, debug: bool) -> list[FileInfo]:
+    def walk_files(directory: str, generate_checksums: bool, debug: bool) -> list[FileInfo]:
         """
         Walk through files in a directory and create file inventory.
 
         Args:
             directory: Directory containing files to analyze
-            max_files: Maximum number of files to process
             generate_checksums: Whether to generate checksums
             debug: Enable debug logging
 
@@ -278,12 +276,6 @@ class FileUtilities:
 
         for file_path in directory_path.rglob('*'):
             if file_path.is_file():
-                # Respect max_files limit
-                if files_processed >= max_files:
-                    if debug:
-                        print(f"⚠️  Reached max files limit ({max_files}), stopping inventory")
-                    break
-
                 try:
                     relative_path = str(file_path.relative_to(directory_path))
                     size_bytes = file_path.stat().st_size
@@ -467,7 +459,6 @@ class UniversalArtifactMeasurer:
         artifact_ref: str,
         gate_name: str,
         build_job_name: str,
-        max_files: int = 20000,
         generate_checksums: bool = True,
         debug: bool = False,
     ) -> InPlaceArtifactReport:
@@ -479,7 +470,6 @@ class UniversalArtifactMeasurer:
             artifact_ref: Reference to the artifact (path, image name, etc.)
             gate_name: Quality gate name from configuration
             build_job_name: Name of the CI job that built this artifact
-            max_files: Maximum number of files to process in inventory
             generate_checksums: Whether to generate checksums for files
             debug: Enable debug logging
 
@@ -493,7 +483,7 @@ class UniversalArtifactMeasurer:
         gate_config = self.config_manager.get_gate_config(gate_name)
 
         wire_size, disk_size, file_inventory, artifact_metadata = self.processor.measure_artifact(
-            ctx, artifact_ref, gate_config, max_files, generate_checksums, debug
+            ctx, artifact_ref, gate_config, generate_checksums, debug
         )
 
         return self.report_builder.create_report(
@@ -520,7 +510,6 @@ class PackageProcessor:
         ctx: Context,
         artifact_ref: str,
         gate_config: QualityGateConfig,
-        max_files: int,
         generate_checksums: bool,
         debug: bool,
     ) -> tuple[int, int, list[FileInfo], Any]:
@@ -539,7 +528,7 @@ class PackageProcessor:
 
             extract_package(ctx, gate_config.os, artifact_ref, extract_dir)
             disk_size = FileUtilities.calculate_directory_size(extract_dir)
-            file_inventory = FileUtilities.walk_files(extract_dir, max_files, generate_checksums, debug)
+            file_inventory = FileUtilities.walk_files(extract_dir, generate_checksums, debug)
 
             if debug:
                 print("✅ Package analysis completed:")
@@ -563,7 +552,6 @@ class DockerProcessor:
         ctx: Context,
         artifact_ref: str,
         gate_config: QualityGateConfig,
-        max_files: int,
         generate_checksums: bool,
         debug: bool,
     ) -> tuple[int, int, list[FileInfo], DockerImageInfo]:
@@ -576,7 +564,7 @@ class DockerProcessor:
         wire_size = self._get_wire_size(ctx, artifact_ref, debug)
 
         disk_size, file_inventory, docker_info = self._measure_on_disk_size(
-            ctx, artifact_ref, max_files, generate_checksums, debug
+            ctx, artifact_ref, generate_checksums, debug
         )
 
         return wire_size, disk_size, file_inventory, docker_info
@@ -607,7 +595,6 @@ class DockerProcessor:
         self,
         ctx: Context,
         image_ref: str,
-        max_files: int,
         generate_checksums: bool,
         debug: bool = False,
     ) -> tuple[int, list[FileInfo], DockerImageInfo | None]:
@@ -632,7 +619,7 @@ class DockerProcessor:
                             print(f"📁 Extracted tarball to: {extract_dir}")
 
                         disk_size, file_inventory = self._analyze_extracted_docker_layers(
-                            extract_dir, max_files, generate_checksums, debug
+                            extract_dir, generate_checksums, debug
                         )
 
                         docker_info = self._extract_docker_metadata(extract_dir, image_ref, debug)
@@ -684,7 +671,6 @@ class DockerProcessor:
     def _analyze_extracted_docker_layers(
         self,
         extract_dir: str,
-        max_files: int,
         generate_checksums: bool,
         debug: bool = False,
     ) -> tuple[int, list[FileInfo]]:
@@ -725,9 +711,6 @@ class DockerProcessor:
                     layer_files_processed = 0
                     for root, _, files in os.walk(layer_extract_dir):
                         for file in files:
-                            if layer_files_processed >= max_files:
-                                break
-
                             file_path = os.path.join(root, file)
                             relative_path = os.path.relpath(file_path, layer_extract_dir)
                             # Skip whiteout files (Those are marking files from lower layers that are removed in this layer)
@@ -754,8 +737,6 @@ class DockerProcessor:
 
                             except (OSError, PermissionError):
                                 continue
-                        if layer_files_processed >= max_files:
-                            break
 
                     if debug and layer_files_processed > 0:
                         print(f"   • Processed {layer_files_processed} files from this layer")
@@ -874,7 +855,6 @@ class InPlacePackageMeasurer:
         package_path: str,
         gate_name: str,
         build_job_name: str,
-        max_files: int = 20000,
         generate_checksums: bool = True,
         debug: bool = False,
     ) -> InPlaceArtifactReport:
@@ -886,7 +866,6 @@ class InPlacePackageMeasurer:
             package_path: Path to the package file
             gate_name: Quality gate name from configuration
             build_job_name: Name of the CI job that built this package
-            max_files: Maximum number of files to process in inventory
             generate_checksums: Whether to generate checksums for files
             debug: Enable debug logging
 
@@ -902,7 +881,6 @@ class InPlacePackageMeasurer:
             artifact_ref=package_path,
             gate_name=gate_name,
             build_job_name=build_job_name,
-            max_files=max_files,
             generate_checksums=generate_checksums,
             debug=debug,
         )
@@ -938,7 +916,6 @@ class InPlaceDockerMeasurer:
         image_ref: str,
         gate_name: str,
         build_job_name: str,
-        max_files: int = 20000,
         generate_checksums: bool = True,
         include_layer_analysis: bool = True,
         debug: bool = False,
@@ -951,7 +928,6 @@ class InPlaceDockerMeasurer:
             image_ref: Docker image reference (tag, digest, or image ID)
             gate_name: Quality gate name from configuration
             build_job_name: Name of the CI job that built this image
-            max_files: Maximum number of files to process in inventory
             generate_checksums: Whether to generate checksums for files
             include_layer_analysis: Whether to analyze individual layers (ignored, always included)
             debug: Enable debug logging
@@ -968,7 +944,6 @@ class InPlaceDockerMeasurer:
             artifact_ref=image_ref,
             gate_name=gate_name,
             build_job_name=build_job_name,
-            max_files=max_files,
             generate_checksums=generate_checksums,
             debug=debug,
         )
@@ -985,7 +960,6 @@ def measure_package_local(
     config_path="test/static/static_quality_gates.yml",
     output_path=None,
     build_job_name="local_test",
-    max_files=20000,
     no_checksums=False,
     debug=False,
 ):
@@ -1001,7 +975,6 @@ def measure_package_local(
         config_path: Path to quality gates configuration (default: test/static/static_quality_gates.yml)
         output_path: Path to save the measurement report (default: {gate_name}_report.yml)
         build_job_name: Simulated build job name (default: local_test)
-        max_files: Maximum number of files to process in inventory (default: 20000)
         no_checksums: Skip checksum generation for faster processing (default: false)
         debug: Enable debug logging for troubleshooting (default: false)
 
@@ -1049,7 +1022,6 @@ def measure_package_local(
             package_path=package_path,
             gate_name=gate_name,
             build_job_name=build_job_name,
-            max_files=max_files,
             generate_checksums=not no_checksums,
             debug=debug,
         )
@@ -1098,7 +1070,6 @@ def measure_image_local(
     config_path="test/static/static_quality_gates.yml",
     output_path=None,
     build_job_name="local_test",
-    max_files=20000,
     no_checksums=False,
     include_layer_analysis=True,
     debug=False,
@@ -1115,7 +1086,6 @@ def measure_image_local(
         config_path: Path to quality gates configuration (default: test/static/static_quality_gates.yml)
         output_path: Path to save the measurement report (default: {gate_name}_report.yml)
         build_job_name: Simulated build job name (default: local_test)
-        max_files: Maximum number of files to process in inventory (default: 20000)
         no_checksums: Skip checksum generation for faster processing (default: false)
         include_layer_analysis: Whether to analyze individual layers (default: true)
         debug: Enable debug logging for troubleshooting (default: false)
@@ -1160,7 +1130,6 @@ def measure_image_local(
             image_ref=image_ref,
             gate_name=gate_name,
             build_job_name=build_job_name,
-            max_files=max_files,
             generate_checksums=not no_checksums,
             include_layer_analysis=include_layer_analysis,
             debug=debug,
