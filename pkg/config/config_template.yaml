@@ -450,10 +450,12 @@ api_key:
 
 ## @param ec2_prioritize_instance_id_as_hostname - boolean - optional - default: false
 ## @env DD_EC2_PRIORITIZE_INSTANCE_ID_AS_HOSTNAME - boolean - optional - default: false
-## Force the use of EC2 instance ID as hostname even when the hostname is not one of the
-## default EC2 hostnames. When set to true, this bypasses the standard hostname detection
-## logic and forces the EC2 instance ID to be used as the canonical hostname.
-## Only takes effect on EC2 instances.
+## On EC2, prefer the instance ID as the Agent hostname even when the OS hostname does not match
+## the known generic EC2 prefixes. Normal hostname detection still applies, and a hostname set in
+## datadog.yaml takes precedence. By default, the Agent uses the instance ID if the OS hostname
+## has a generic EC2 prefix to avoid merging multiple instances under one host. When this option
+## is true, the instance ID is used even if no prefix is detected. This is useful in cases such as
+## when custom images overwrite the system hostname, causing multiple instances to share the same hostname.
 #
 # ec2_prioritize_instance_id_as_hostname: false
 
