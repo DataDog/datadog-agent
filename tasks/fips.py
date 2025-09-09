@@ -21,6 +21,7 @@ def generate_fips_e2e_pipeline(ctx, generate_config=False):
     skipped_test_fips = {
         "new-e2e-otel": "TestOTelAgent.*",  # No FIPS + OTel image exists yet so these tests will never succeed
         "new-e2e-amp": ".*/TestJMXFIPSMode|TestJMXFetchNixMtls",  # These tests are explicitly testing the agent when FIPS is disabled
+        "new-e2e-container": "TestEKSSuite/TestCLI/cluster_agent_CLI/cluster-agent_autoscaler-list_--localstore",  # These tests are explicitly testing the autoscaler while it's currently incompatible with FIPS
     }
 
     if generate_config:
