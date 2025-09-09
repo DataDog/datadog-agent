@@ -17,6 +17,7 @@ import (
 	pkgagent "github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer"
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
@@ -35,9 +36,10 @@ func (n *noopTraceWriter) UpdateAPIKey(_, _ string) {}
 
 type noopConcentrator struct{}
 
-func (c *noopConcentrator) Start()            {}
-func (c *noopConcentrator) Stop()             {}
-func (c *noopConcentrator) Add(_ stats.Input) {}
+func (c *noopConcentrator) Start()                                                            {}
+func (c *noopConcentrator) Stop()                                                             {}
+func (c *noopConcentrator) Add(_ stats.Input)                                                 {}
+func (c *noopConcentrator) AddOne(_ traceutil.ProcessedTrace, _ string, _ []string, _ string) {}
 
 // NewMock creates a new mock agent component.
 func NewMock(deps dependencies, _ testing.TB) traceagent.Component {
