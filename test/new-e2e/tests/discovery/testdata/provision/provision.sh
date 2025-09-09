@@ -91,7 +91,7 @@ install_systemd_unit "node-json-server" "$NVM_DIR/nvm-exec npx json-server --por
 install_systemd_unit "node-instrumented" "$NVM_DIR/nvm-exec node /home/ubuntu/e2e-test/node/instrumented/server.js" "8085" ""
 
 ## Python
-install_systemd_unit "python-svc" "/usr/bin/python3 /home/ubuntu/e2e-test/python/server.py" "8082" "DD_SERVICE=python-svc-dd"
+install_systemd_unit "python-svc" "/usr/bin/python3 /home/ubuntu/e2e-test/python/server.py" "8082" "DD_SERVICE=python-svc-dd DD_VERSION=2.1 DD_ENV=prod"
 install_systemd_unit "python-instrumented" "/usr/bin/python3 /home/ubuntu/e2e-test/python/instrumented.py" "8083" "DD_SERVICE=python-instrumented-dd"
 install_systemd_unit "python-restricted" "/usr/bin/python3 /home/ubuntu/e2e-test/python/server.py" "8086" "DD_SERVICE=python-restricted-dd"
 
