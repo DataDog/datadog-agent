@@ -57,7 +57,7 @@ TEST_PACKAGES_LIST = [
     "./pkg/process/monitor/...",
     "./pkg/dyninst/...",
     "./pkg/gpu/...",
-    "./pkg/logs/launchers/file/...",
+    "./pkg/logs/launchers/file/",
     "./pkg/system-probe/config/...",
     "./comp/metadata/inventoryagent/...",
 ]
