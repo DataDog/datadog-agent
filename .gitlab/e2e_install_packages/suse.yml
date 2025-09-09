@@ -4,20 +4,20 @@
 
 .new-e2e_suse_a7_x86_64:
   variables:
-    E2E_ARCH: x86_64
-    E2E_OSVERS: "12,15-sp4"
-    E2E_CWS_SUPPORTED_OSVERS: "12,15-sp4"
-    E2E_BRANCH_OSVERS: "15-sp4"
+    E2E_DESCRIPTORS: "suse/x86_64/12,suse/x86_64/15-sp4"
+    E2E_CWS_SUPPORTED_OSVERS: "suse/x86_64/12,suse/x86_64/15-sp4"
+    # TODO: Update
+    E2E_BRANCH_OSVERS: "suse/x86_64/15-sp4"
   needs:
     - !reference [.needs_new_e2e_template]
     - deploy_suse_rpm_testing_x64-a7
 
 .new-e2e_suse_a7_arm64:
   variables:
-    E2E_ARCH: arm64
-    E2E_OSVERS: "15-sp4"
-    E2E_CWS_SUPPORTED_OSVERS: "15-sp4"
-    E2E_BRANCH_OSVERS: "15-sp4"
+    E2E_DESCRIPTORS: "suse/arm64/15-sp4"
+    E2E_CWS_SUPPORTED_OSVERS: "suse/arm64/15-sp4"
+    # TODO: Update
+    E2E_BRANCH_OSVERS: "suse/arm64/15-sp4"
   needs:
     - !reference [.needs_new_e2e_template]
     - deploy_suse_rpm_testing_arm64-a7

@@ -256,6 +256,7 @@ def run(
     stack_name_suffix="",
     use_prebuilt_binaries=False,
     max_retries=0,
+    osdescriptors="",
 ):
     """
     Run E2E Tests based on test-infra-definitions infrastructure provisioning.
@@ -353,7 +354,7 @@ def run(
             f"--raw-command {os.path.join(os.path.dirname(__file__), 'tools', 'gotest-scrubbed.sh')} {{packages}}"
         )
 
-    cmd += f'{{junit_file_flag}} {{json_flag}} --packages="{{packages}}" {raw_command} -- -ldflags="-X {{REPO_PATH}}/test/new-e2e/tests/containers.GitCommit={{commit}}" {{verbose}} -mod={{go_mod}} -vet=off -timeout {{timeout}} -tags "{{go_build_tags}}" {{nocache}} {{run}} {{skip}} {{test_run_arg}} -args {{osversion}} {{platform}} {{major_version}} {{arch}} {{flavor}} {{cws_supported_osversion}} {{src_agent_version}} {{dest_agent_version}} {{keep_stacks}} {{extra_flags}}'
+    cmd += f'{{junit_file_flag}} {{json_flag}} --packages="{{packages}}" {raw_command} -- -ldflags="-X {{REPO_PATH}}/test/new-e2e/tests/containers.GitCommit={{commit}}" {{verbose}} -mod={{go_mod}} -vet=off -timeout {{timeout}} -tags "{{go_build_tags}}" {{nocache}} {{run}} {{skip}} {{test_run_arg}} -args {{osversion}} {{osdescriptors}} {{platform}} {{major_version}} {{arch}} {{flavor}} {{cws_supported_osversion}} {{src_agent_version}} {{dest_agent_version}} {{keep_stacks}} {{extra_flags}}'
     # Strinbuilt_binaries:gs can come with extra double-quotes which can break the command, remove them
     clean_run = []
     clean_skip = []
@@ -372,7 +373,9 @@ def run(
         "run": '-test.run ' + '"{}"'.format('|'.join(clean_run)) if run else '',
         "skip": '-test.skip ' + '"{}"'.format('|'.join(clean_skip)) if skip else '',
         "test_run_arg": test_run_arg,
+        # TODO: Remove
         "osversion": f"-osversion {osversion}" if osversion else "",
+        "osdescriptors": f"-osdescriptors {osdescriptors}" if osdescriptors else "",
         "platform": f"-platform {platform}" if platform else "",
         "arch": f"-arch {arch}" if arch else "",
         "flavor": f"-flavor {flavor}" if flavor else "",
@@ -501,7 +504,7 @@ def run(
         # Do not print all the params, they could contain secrets needed only in the CI
         params = [f"--targets {t}" for t in targets]
 
-        param_keys = ("osversion", "platform", "arch")
+        param_keys = ("osversion", "osdescriptors", "platform", "arch")
         for param_key in param_keys:
             if args.get(param_key):
                 params.append(f"-{args[param_key]}")
