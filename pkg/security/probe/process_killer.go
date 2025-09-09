@@ -129,27 +129,27 @@ func (p *ProcessKiller) updatePendingReportKillPerformed(now time.Time, killQueu
 	// Then we update the status
 	for _, report := range p.pendingReports {
 		report.Lock()
-		if report.Status == KillActionStatusQueued {
-			if slices.Contains(failedToBeKilled, report.Pid) {
-				if nbOfKilled > 0 {
-					report.Status = KillActionStatusPartiallyPerformed
-					fmt.Printf("Partially failed to kill process %d\n", report.Pid)
-					report.KilledAt = now
-					continue
-				} else {
+		func() {
+			defer report.Unlock()
+			if report.Status == KillActionStatusQueued {
+				if slices.Contains(failedToBeKilled, report.Pid) {
+					if nbOfKilled > 0 {
+						report.Status = KillActionStatusPartiallyPerformed
+						report.KilledAt = now
+						return
+					}
 					report.Status = KillActionStatusError
-					fmt.Printf("Failed to kill process %d\n", report.Pid)
-					continue
+					return
+
+				} else if slices.ContainsFunc(*killQueue, func(kc killContext) bool {
+					return kc.pid == int(report.Pid)
+				}) {
+					report.Status = KillActionStatusPerformed
+					report.KilledAt = now
+					return
 				}
-			} else if slices.ContainsFunc(*killQueue, func(kc killContext) bool {
-				return kc.pid == int(report.Pid)
-			}) {
-				report.Status = KillActionStatusPerformed
-				report.KilledAt = now
-				continue
 			}
-		}
-		report.Unlock()
+		}()
 	}
 }
 
@@ -453,8 +453,9 @@ func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Ru
 			report.KilledAt = now
 			report.Status = KillActionStatusPartiallyPerformed
 			log.Warn("some processes failed to be killed in the container with PIDs : ", failedPids)
+		} else {
+			report.Status = KillActionStatusError
 		}
-		report.Status = KillActionStatusError
 	}
 
 	ev.ActionReports = append(ev.ActionReports, report)
