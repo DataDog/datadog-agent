@@ -29,7 +29,6 @@ import (
 )
 
 const (
-	// Constants from reference implementation
 	TokenHashHmacKey      = "enrollment-token-fingerprint-v1"
 	BindingKeyHmacKey     = "enrollment-token-binding-key-v1"
 	AccountBindingJwtType = "account_registration_request+jwt"
@@ -233,17 +232,16 @@ func runSelfEnrollmentToConfig(apiKey, appKey, datadogSite string, selfAuth bool
 		return fmt.Errorf("failed to convert public key to JWK: %w", err)
 	}
 
-	// Marshal public key to JSON for sending to the API
-	publicKeyJSON, err := publicKeyJWK.MarshalJSON()
+	publicKeyPEM, err := utils.JWKToPEM(publicKeyJWK)
 	if err != nil {
-		return fmt.Errorf("failed to marshal public key to JSON: %w", err)
+		return fmt.Errorf("failed to convert public key to PEM: %w", err)
 	}
 
 	// Send self-enrollment request using OPMS client with API key
 	ddHost := strings.Join([]string{"api", datadogSite}, ".")
 	enrollmentClient := opms.NewEnrollmentClient(ddHost)
 	fmt.Println("ec2Identity.Authentication: " + ec2Identity.Authentication)
-	response, err := enrollmentClient.SendSelfEnrollmentRequest(context.Background(), apiKey, appKey, string(publicKeyJSON), ec2Identity)
+	response, err := enrollmentClient.SendSelfEnrollmentRequest(context.Background(), apiKey, appKey, publicKeyPEM, ec2Identity)
 	if err != nil {
 		return fmt.Errorf("self-enrollment request failed: %w", err)
 	}
