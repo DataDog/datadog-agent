@@ -59,11 +59,32 @@ func (s *testInstallScriptSuite) TestInstallFromOldInstaller() {
 	})
 }
 
-// TestFailedUnsupportedVersion Test that version <65 fails to install
-func (s *testInstallScriptSuite) TestFailedUnsupportedVersion() {
-	s.Run("Install unsupported agent", func() {
-		s.installUnsupportedAgent()
-	})
+// TestInstallIgnoreMajorMinor tests that the installer install script properly ignores
+// the major / minor version when installing the agent
+//
+// This test replaces TestFailedUnsupportedVersion which used the major/minor parameters.
+// These options were only used during the preview, we haven't documented them publicly since.
+// Customers are now expected to use download a per-version .exe file.
+func (s *testInstallScriptSuite) TestInstallIgnoreMajorMinor() {
+	// Arrange
+	// Act
+	_, err := s.InstallScript().Run(
+		installerwindows.WithExtraEnvVars(map[string]string{
+			// install pre 7.65 version
+			"DD_AGENT_MAJOR_VERSION": "7",
+			"DD_AGENT_MINOR_VERSION": "64.0",
+		}),
+	)
+
+	// Assert
+	// should ignore params and install current agent version
+	s.Require().NoError(err)
+	s.Require().Host(s.Env().RemoteHost).
+		HasARunningDatadogInstallerService().
+		HasARunningDatadogAgentService().
+		WithVersionMatchPredicate(func(version string) {
+			s.Require().Contains(version, s.CurrentAgentVersion().Version())
+		})
 }
 
 func (s *testInstallScriptSuite) mustInstallVersion(versionPredicate string, opts ...installerwindows.PackageOption) {
@@ -146,19 +167,4 @@ func (s *testInstallScriptSuite) installOldInstallerAndAgent() {
 		WithVersionMatchPredicate(func(version string) {
 			s.Require().Contains(version, oldAgentVersion)
 		})
-}
-
-func (s *testInstallScriptSuite) installUnsupportedAgent() {
-	// Arrange
-	// Act
-	_, err := s.InstallScript().Run(
-		installerwindows.WithExtraEnvVars(map[string]string{
-			// install pre 7.65 version
-			"DD_AGENT_MAJOR_VERSION": "7",
-			"DD_AGENT_MINOR_VERSION": "64.0",
-		}),
-	)
-
-	// Assert that the installation failed
-	s.Require().ErrorContains(err, "does not support fleet automation")
 }
