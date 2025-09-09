@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/apps"
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps/redis"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	awsecs "github.com/aws/aws-sdk-go-v2/service/ecs"
 	awsecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
@@ -274,13 +273,13 @@ func (suite *ecsSuite) TestRedisECS() {
 				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^container_id:`,
 				`^container_name:ecs-.*-redis-ec2-`,
-				`^docker_image:public.ecr.aws/docker/library/redis:` + regexp.QuoteMeta(redis.RedisVersion) + `$`,
+				`^docker_image:public.ecr.aws/docker/library/redis:` + regexp.QuoteMeta(apps.Version) + `$`,
 				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^ecs_container_name:redis$`,
 				`^ecs_launch_type:ec2$`,
 				`^image_id:sha256:`,
 				`^image_name:public.ecr.aws/docker/library/redis$`,
-				`^image_tag:` + regexp.QuoteMeta(redis.RedisVersion) + `$`,
+				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
 				`^short_image:redis$`,
 				`^task_arn:`,
 				`^task_family:.*-redis-ec2$`,
@@ -301,13 +300,13 @@ func (suite *ecsSuite) TestRedisECS() {
 				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^container_id:`,
 				`^container_name:ecs-.*-redis-ec2-`,
-				`^docker_image:public.ecr.aws/docker/library/redis:` + regexp.QuoteMeta(redis.RedisVersion) + `$`,
+				`^docker_image:public.ecr.aws/docker/library/redis:` + regexp.QuoteMeta(apps.Version) + `$`,
 				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^ecs_container_name:redis$`,
 				`^ecs_launch_type:ec2$`,
 				`^image_id:sha256:`,
 				`^image_name:public.ecr.aws/docker/library/redis$`,
-				`^image_tag:` + regexp.QuoteMeta(redis.RedisVersion) + `$`,
+				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
 				`^short_image:redis$`,
 				`^task_arn:arn:`,
 				`^task_family:.*-redis-ec2$`,
@@ -373,7 +372,7 @@ func (suite *ecsSuite) TestRedisFargate() {
 				`^ecs_launch_type:fargate`,
 				`^image_id:sha256:`,
 				`^image_name:public.ecr.aws/docker/library/redis$`,
-				`^image_tag:` + regexp.QuoteMeta(redis.RedisVersion) + `$`,
+				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
 				`^region:us-east-1$`,
 				`^short_image:redis$`,
 				`^task_arn:`,

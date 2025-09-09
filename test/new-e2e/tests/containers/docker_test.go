@@ -17,6 +17,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/stretchr/testify/suite"
 	"os"
+	"regexp"
 	"testing"
 )
 
