@@ -416,6 +416,9 @@ func (p *PodAutoscalerInternal) UnmarshalJSON(data []byte) error {
 	if p.verticalLastAction != nil {
 		p.verticalLastAction.Time.Time = p.verticalLastAction.Time.Time.UTC()
 	}
+	for i := range p.horizontalLastRecommendations {
+		p.horizontalLastRecommendations[i].GeneratedAt.Time = p.horizontalLastRecommendations[i].GeneratedAt.Time.UTC()
+	}
 
 	return nil
 }
