@@ -7,7 +7,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.70.0
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.64.1
 	github.com/gogo/protobuf v1.3.2
-	github.com/stretchr/testify v1.10.0
+	github.com/stretchr/testify v1.11.1
 )
 
 require (
