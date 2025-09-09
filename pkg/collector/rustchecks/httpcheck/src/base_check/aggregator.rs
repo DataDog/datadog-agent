@@ -1,13 +1,13 @@
-use serde_json::Value;
-use serde::de::DeserializeOwned;
-
 use super::cstring::*;
 
 use std::collections::HashMap;
-use std::ffi::{c_char, c_double, c_float, c_int, c_long, c_longlong};
+use std::ffi::{c_char, c_double, c_float, c_int, c_long, c_longlong, CStr};
 use std::error::Error;
 
-// replica of the Agent metric type enum
+use serde_json::Value;
+use serde::de::DeserializeOwned;
+
+/// Replica of the Agent metric type enum
 #[repr(C)]
 pub enum MetricType {
     Gauge = 0,
@@ -19,7 +19,7 @@ pub enum MetricType {
     Historate = 6,
 }
 
-// replica of the Agent event struct
+/// Replica of the Agent event struct
 #[repr(C)]
 pub struct Event {
     title: *mut c_char,
@@ -34,7 +34,7 @@ pub struct Event {
     event_type: *mut c_char,
 }
 
-// signature of SubmitMetric
+/// Signature of the submit metric function
 type SubmitMetric = extern "C" fn(
     *mut c_char,        // check id
     MetricType,         // metric type
@@ -45,7 +45,7 @@ type SubmitMetric = extern "C" fn(
     bool,               // flush first value
 );
 
-// signature of SubmitServiceCheck
+/// Signature of the submit service check function
 type SubmitServiceCheck = extern "C" fn(
     *mut c_char,        // check id
     *mut c_char,        // name
@@ -55,12 +55,12 @@ type SubmitServiceCheck = extern "C" fn(
     *mut c_char,        // message
 );
 
-// signature of SubmitEvent
+/// Signature of the submit event function
 type SubmitEvent = extern "C" fn(
     *mut c_char, // check_id
     Event,       // event
 );
-// signature of SubmitHistogramBucket
+/// Signature of the submit histogram bucket function
 type SubmitHistogramBucket = extern "C" fn(
     *mut c_char,        // check_id
     *mut c_char,        // metric name
@@ -73,7 +73,7 @@ type SubmitHistogramBucket = extern "C" fn(
     bool,               // flush first value
 );
 
-// signature of SubmitEventPlatformEvent
+/// Signature of the submit event platform event function
 type SubmitEventPlatformEvent = extern "C" fn(
     *mut c_char, // check_id
     *mut c_char, // raw event pointer
@@ -81,17 +81,22 @@ type SubmitEventPlatformEvent = extern "C" fn(
     *mut c_char, // event type
 );
 
+/// Represents the parameters passed by the Agent to the check
+/// 
+/// It stores every parameter in a map using `Serde` and provide a method for retrieving the values
 #[repr(C)]
 pub struct Instance {
     map: HashMap<String, Value>,
 }
 
 impl Instance {
-    pub fn new(instance_str: &str) -> Result<Self, Box<dyn Error>> {
-        let map: HashMap<String, Value> = serde_json::from_str(instance_str)?;
-        let instance = Self { map };
-        Ok(instance)
-        
+    pub fn from_str(cstr: *const c_char) -> Result<Self, Box<dyn Error>> {
+        // read string
+        let str = unsafe { CStr::from_ptr(cstr) }.to_str()?;
+
+        // create map of parameters from the string
+        let map: HashMap<String, Value> = serde_json::from_str(str)?;
+        Ok(Self { map })
     }
 
     pub fn get<T>(&self, key: &str) -> Result<T, Box<dyn Error>>
@@ -108,8 +113,11 @@ impl Instance {
     }
 }
 
-// Aggregator stores callbacks for submitting metrics, service checks...
+/// Aggregator stores Go callbacks for submissions
+/// 
+/// The check stores a pointer to the Aggregator structure declared in Cgo
 #[repr(C)]
+#[derive(Clone, Copy)]
 pub struct Aggregator {
     cb_submit_metric: SubmitMetric,
     cb_submit_service_check: SubmitServiceCheck,
@@ -119,6 +127,10 @@ pub struct Aggregator {
 }
 
 impl Aggregator {
+    pub fn from_raw(aggregator_ptr: *const Aggregator) -> Self {
+        unsafe { *aggregator_ptr }.clone()
+    }
+
     // TODO: optional arguements should use Option
     pub fn submit_metric(&self, check_id: &str, metric_type: MetricType, name: &str, value: f64, tags: &[String], hostname: &str, flush_first_value: bool) {
         // convert to C strings
