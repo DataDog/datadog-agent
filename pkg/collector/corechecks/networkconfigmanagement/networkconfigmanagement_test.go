@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
 	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -78,6 +79,9 @@ func (m *MockRemoteClient) RetrieveStartupConfig() (string, error) {
 	return m.StartupConfig, nil
 }
 
+func (m *MockRemoteClient) SetProfile(_ *profile.NCMProfile) {
+}
+
 func (m *MockRemoteClient) Close() error {
 	m.Closed = true
 	return nil
@@ -115,6 +119,7 @@ func createTestCheck(t *testing.T) *Check {
 
 var validConfig = []byte(`
 ip_address: 10.0.0.1
+profile: p2
 auth:
   username: admin
   password: password
@@ -167,6 +172,7 @@ func TestCheck_Configure_ValidConfig(t *testing.T) {
 	check := createTestCheck(t)
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 
+	profile.SetConfdPathAndCleanProfiles()
 	err := check.Configure(senderManager, integration.FakeConfigHash, validConfig, []byte{}, "test")
 
 	require.NoError(t, err)
@@ -225,6 +231,7 @@ func TestCheck_Run_Success(t *testing.T) {
 	mockSender.On("Commit").Return()
 
 	// Configure the check
+	profile.SetConfdPathAndCleanProfiles()
 	err := check.Configure(senderManager, integration.FakeConfigHash, validConfig, []byte{}, "test")
 	require.NoError(t, err)
 
@@ -256,6 +263,7 @@ func TestCheck_Run_ConnectionFailure(t *testing.T) {
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 
 	// Configure the check
+	profile.SetConfdPathAndCleanProfiles()
 	err := check.Configure(senderManager, integration.FakeConfigHash, validConfig, []byte{}, "test")
 	require.NoError(t, err)
 
@@ -276,10 +284,11 @@ func TestCheck_Run_ConfigRetrievalFailure(t *testing.T) {
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 
 	// Configure the check
+	profile.SetConfdPathAndCleanProfiles()
 	err := check.Configure(senderManager, integration.FakeConfigHash, validConfig, []byte{}, "test")
 	require.NoError(t, err)
 
-	// Set up mock remote client that fails config retrieval
+	// Set up a mock remote client that fails config retrieval
 	mockClient := &MockRemoteClient{
 		ConfigError: fmt.Errorf("command execution failed"),
 	}
