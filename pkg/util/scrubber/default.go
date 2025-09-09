@@ -131,7 +131,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 		[]string{"pass", "pwd"},
 		[]byte(`$1 "********"`),
 	)
-	yamlPasswordReplacer.LastUpdated = defaultVersion
+	yamlPasswordReplacer.LastUpdated = parseVersion("7.70.2")
 	passwordReplacer := Replacer{
 		// this regex has three parts:
 		// * key: case-insensitive, optionally quoted (pass | password | pswd | pwd), not anchored to match on args like --mysql_password= etc.
@@ -149,7 +149,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 		[]string{"token"},
 		[]byte(`$1 "********"`),
 	)
-	tokenReplacer.LastUpdated = defaultVersion
+	tokenReplacer.LastUpdated = parseVersion("7.70.2")
 
 	secretReplacer := matchYAMLKey(
 		`(token_secret|consumer_secret)`,
