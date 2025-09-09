@@ -468,6 +468,35 @@ func (c *Controller) validateAutoscaler(podAutoscalerInternal model.PodAutoscale
 	if podAutoscalerInternal.Namespace() == clusterAgentNs && podAutoscalerInternal.Spec().TargetRef.Name == resourceName {
 		return fmt.Errorf("Autoscaling target cannot be set to the cluster agent")
 	}
+	if err := validateAutoscalerObjectives(podAutoscalerInternal.Spec()); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateAutoscalerObjectives(spec *datadoghq.DatadogPodAutoscalerSpec) error {
+	if spec.Fallback != nil && spec.Fallback.Horizontal.Objective != nil && spec.Fallback.Horizontal.Objective.Type == datadoghqcommon.DatadogPodAutoscalerCustomQueryObjectiveType {
+		return fmt.Errorf("Autoscaler fallback cannot be based on custom query objective")
+	}
+
+	for _, objective := range spec.Objectives {
+		switch objective.Type {
+		case datadoghqcommon.DatadogPodAutoscalerCustomQueryObjectiveType:
+			if objective.CustomQueryObjective == nil {
+				return fmt.Errorf("Autoscaler objective type is custom query but customQueryObjective is nil")
+			}
+			if objective.PodResource != nil || objective.ContainerResource != nil {
+				return fmt.Errorf("Autoscaler objective type is custom query but podResource or containerResource is set")
+			}
+		case datadoghqcommon.DatadogPodAutoscalerPodResourceObjectiveType, datadoghqcommon.DatadogPodAutoscalerContainerResourceObjectiveType:
+			if objective.PodResource == nil && objective.ContainerResource == nil {
+				return fmt.Errorf("Autoscaler objective type is %s but podResource and containerResource are nil", objective.Type)
+			}
+			if objective.CustomQueryObjective != nil {
+				return fmt.Errorf("Autoscaler objective type is %s but customQueryObjective is set", objective.Type)
+			}
+		}
+	}
 	return nil
 }
 
