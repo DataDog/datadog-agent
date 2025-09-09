@@ -33,12 +33,6 @@ const (
 	StatusError   = "error"
 )
 
-// Image resolution outcome tags for gradual rollout tracking
-const (
-	ImageResolutionDigest  = "digest"  // Successfully resolved to digest
-	ImageResolutionMutable = "mutable" // Fell back to mutable tag
-)
-
 // Image resolution capability tags for operational context
 const (
 	DigestResolutionEnabled  = "enabled"  // Digest resolution available (rollout active)
