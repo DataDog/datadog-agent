@@ -16,6 +16,11 @@
     ECR_RELEASE_SUFFIX=${ECR_RELEASE_SUFFIX:-}
     TAG_SUFFIX=${TAG_SUFFIX:-}
     IMAGE_REF="${IMAGE}${ECR_RELEASE_SUFFIX}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}${TAG_SUFFIX}-$ARCH"
+    
+    # We need to remove locally present image as it is unflattened.
+    # crane only works with remote registry and uploads flattened image
+    # bypassing local registry.
+    docker rmi "$IMAGE_REF" || true # Ignore errors for now
 
     echo "🔍 Measuring Docker image: $IMAGE_REF"
 
