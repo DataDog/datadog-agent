@@ -335,10 +335,9 @@ func processDataItems(
 		if i == 0 {
 			rootData = dataItem.Data()
 		} else {
-			header := dataItem.Header()
 			key := dataItemKey{
-				typeID:  header.Type,
-				address: header.Address,
+				typeID:  dataItem.Type(),
+				address: dataItem.Header().Address,
 			}
 			dataItems[key] = dataItem
 		}
@@ -368,7 +367,15 @@ func (d *stringDecoder) decodeStringExpression(
 		address: strAddr,
 	}]
 	if !ok {
-		return "", 0, fmt.Errorf("string data item not found")
+		return "", 0, fmt.Errorf(
+			"string data item not found at address %#x with len %d",
+			strAddr, strLen,
+		)
+	}
+	if dataItem.IsFailedRead() {
+		return "", 0, fmt.Errorf(
+			"string data read failed at address %#x with len %d", strAddr, strLen,
+		)
 	}
 	return string(dataItem.Data()), strLen, nil
 }
