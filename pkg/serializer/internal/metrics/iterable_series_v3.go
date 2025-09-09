@@ -221,13 +221,20 @@ func (pb *payloadsBuilderV3) finishPayload() error {
 		compressedSize := pb.payloadHeaderSizeBound
 		metricDataSize := 0
 		for i := 0; i < numberOfColumns; i++ {
-			compressedSize += pb.columnHeaderSizeBound + len(pb.compressor.Bytes(i))
+			columnLen := pb.compressor.Len(i)
+			columnData := pb.compressor.Bytes(i)
+
+			if columnLen == 0 {
+				continue
+			}
+
+			compressedSize += pb.columnHeaderSizeBound + len(columnData)
 
 			colSize := pb.compressor.Len(i)
 			metricDataSize += varintLen(i) + varintLen(colSize) + colSize
 
-			tlmColumnSize.Add(float64(len(pb.compressor.Bytes(i))), columnNames[i], "compressed")
-			tlmColumnSize.Add(float64(pb.compressor.Len(i)), columnNames[i], "uncompressed")
+			tlmColumnSize.Add(float64(len(columnData)), columnNames[i], "compressed")
+			tlmColumnSize.Add(float64(columnLen), columnNames[i], "uncompressed")
 		}
 
 		payload := make([]byte, 0, compressedSize)
@@ -237,16 +244,18 @@ func (pb *payloadsBuilderV3) finishPayload() error {
 		}
 
 		for i := 0; i < numberOfColumns; i++ {
-			col := pb.compressor.Bytes(i)
-			if len(col) == 0 {
+			columnLen := pb.compressor.Len(i)
+			columnData := pb.compressor.Bytes(i)
+
+			if columnLen == 0 {
 				continue
 			}
 
-			payload, err = pb.appendProtobufField(payload, uint64(i), pb.compressor.Len(i))
+			payload, err = pb.appendProtobufField(payload, uint64(i), columnLen)
 			if err != nil {
 				return err
 			}
-			payload = append(payload, col...)
+			payload = append(payload, columnData...)
 		}
 
 		pb.payloads = append(pb.payloads,

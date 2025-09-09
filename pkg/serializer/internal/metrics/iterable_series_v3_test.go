@@ -170,8 +170,11 @@ func TestPayloadBuilderV3_Split(t *testing.T) {
 	pb.finishPayload()
 	payloads := pb.transactionPayloads()
 	r.Len(payloads, 2)
-	r.Less(len(payloads[0].GetContent()), 180)
+
+	r.Equal(2, payloads[0].GetPointCount())
 	r.Less(len(payloads[1].GetContent()), 180)
+	r.Equal(1, payloads[1].GetPointCount())
+	r.NotContains("foo", payloads[1].GetContent())
 }
 
 func TestPayloadBuilderV3_pointsLimit(t *testing.T) {
