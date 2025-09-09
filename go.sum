@@ -150,8 +150,8 @@ github.com/DataDog/datadog-go/v5 v5.6.0 h1:2oCLxjF/4htd55piM75baflj/KoE6VYS7alEU
 github.com/DataDog/datadog-go/v5 v5.6.0/go.mod h1:K9kcYBlxkcPP8tvvjZZKs/m1edNAUFzBbdpTUKfCsuw=
 github.com/DataDog/datadog-operator/api v0.0.0-20250417130148-1aa8dc0fc964 h1:3EH1aRTHY22KbCYYhPZCaXTo1swWsi2DEyZNFAuTrt0=
 github.com/DataDog/datadog-operator/api v0.0.0-20250417130148-1aa8dc0fc964/go.mod h1:J6wMbBik2dRZfv+XYIrOwHyWi9+T6lRZSxTmEQ8bWNU=
-github.com/DataDog/datadog-traceroute v0.1.1 h1:ozzNqQGdBWmd/39B6uCPDudWCgzikRsJojQglNwUjts=
-github.com/DataDog/datadog-traceroute v0.1.1/go.mod h1:8utCsIXSUe08oSyAEDH+3Xgbzy83LI6Mr3eclLrNlgo=
+github.com/DataDog/datadog-traceroute v0.1.5 h1:ka2D5XicwDjnSyQh1mudEG2OilkMp2D8JJ8sD7ORxd8=
+github.com/DataDog/datadog-traceroute v0.1.5/go.mod h1:uBhYAQTsxnhOC/rbh5B3rs4A1Gk4YWa/dqdSN+lScfM=
 github.com/DataDog/dd-trace-go/v2 v2.0.0 h1:cHMEzD0Wcgtu+Rec9d1GuVgpIN5f+4vCaNzuFHJ0v+Y=
 github.com/DataDog/dd-trace-go/v2 v2.0.0/go.mod h1:WBtf7TA9bWr5uA8DjOyw1qlSKe3bw9gN5nc0Ta9dHFE=
 github.com/DataDog/ebpf-manager v0.7.14 h1:k08TW46xdUEHggumRmbs9y+ymcZIJ1LKrRcXEq7EgIM=
@@ -1768,8 +1768,8 @@ github.com/ugorji/go/codec v1.1.7/go.mod h1:Ax+UKWsSmolVDwsd+7N3ZtXu+yMGCf907BLY
 github.com/ugorji/go/codec v1.2.7/go.mod h1:WGN1fab3R1fzQlVQTkfxVtIBhWDRqOviHU95kRgeqEY=
 github.com/ugorji/go/codec v1.2.11 h1:BMaWp1Bb6fHwEtbplGBGJ498wD+LKlNSl25MjdZY4dU=
 github.com/ugorji/go/codec v1.2.11/go.mod h1:UNopzCgEMSXjBc6AOMqYvWC1ktqTAfzJZUZgYf6w6lg=
-github.com/ulikunitz/xz v0.5.12 h1:37Nm15o69RwBkXM0J6A5OlE67RZTfzUxTj8fB3dfcsc=
-github.com/ulikunitz/xz v0.5.12/go.mod h1:nbz6k7qbPmH4IRqmfOplQw/tblSgqTqBwxkY0oWt/14=
+github.com/ulikunitz/xz v0.5.15 h1:9DNdB5s+SgV3bQ2ApL10xRc35ck0DuIX/isZvIk+ubY=
+github.com/ulikunitz/xz v0.5.15/go.mod h1:nbz6k7qbPmH4IRqmfOplQw/tblSgqTqBwxkY0oWt/14=
 github.com/uptrace/bun v1.2.15 h1:Ut68XRBLDgp9qG9QBMa9ELWaZOmzHNdczHQdrOZbEFE=
 github.com/uptrace/bun v1.2.15/go.mod h1:Eghz7NonZMiTX/Z6oKYytJ0oaMEJ/eq3kEV4vSqG038=
 github.com/uptrace/bun/dialect/pgdialect v1.2.15 h1:er+/3giAIqpfrXJw+KP9B7ujyQIi5XkPnFmgjAVL6bA=
@@ -2613,8 +2613,8 @@ google.golang.org/protobuf v1.27.1/go.mod h1:9q0QmTI4eRPtz6boOQmLYwt+qCgq0jsYwAQ
 google.golang.org/protobuf v1.28.0/go.mod h1:HV8QOd/L58Z+nl8r43ehVNZIU/HEI6OcFqwMG9pJV4I=
 google.golang.org/protobuf v1.30.0/go.mod h1:HV8QOd/L58Z+nl8r43ehVNZIU/HEI6OcFqwMG9pJV4I=
 google.golang.org/protobuf v1.33.0/go.mod h1:c6P6GXX6sHbq/GpV6MGZEdwhWPcYBgnhAHhKbcUYpos=
-google.golang.org/protobuf v1.36.7 h1:IgrO7UwFQGJdRNXH/sQux4R1Dj1WAKcLElzeeRaXV2A=
-google.golang.org/protobuf v1.36.7/go.mod h1:jduwjTPXsFjZGTmRluh+L6NjiWu7pchiJ2/5YcXBHnY=
+google.golang.org/protobuf v1.36.8 h1:xHScyCOEuuwZEc6UtSOvPbAT4zRh0xcNRYekJwfqyMc=
+google.golang.org/protobuf v1.36.8/go.mod h1:fuxRtAxBytpl4zzqUh6/eyUujkJdNiuEkXntxiD/uRU=
 gopkg.in/DataDog/dd-trace-go.v1 v1.72.2 h1:SLcih9LB+I1l76Wd7aUSpzISemewzjq6djntMnBnzkA=
 gopkg.in/DataDog/dd-trace-go.v1 v1.72.2/go.mod h1:XqDhDqsLpThFnJc4z0FvAEItISIAUka+RHwmQ6EfN1U=
 gopkg.in/Knetic/govaluate.v3 v3.0.0 h1:18mUyIt4ZlRlFZAAfVetz4/rzlJs9yhN+U02F4u1AOc=

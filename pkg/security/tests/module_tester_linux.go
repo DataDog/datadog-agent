@@ -1156,6 +1156,71 @@ func checkKernelCompatibility(tb testing.TB, why string, skipCheck func(kv *kern
 	}
 }
 
+type dockerInfo struct {
+	once sync.Once
+	err  error
+	Path string
+	Info map[string]string
+}
+
+var docker dockerInfo
+
+func checkDockerCompatibility(tb testing.TB, why string, skipCheck func(docker *dockerInfo) bool) {
+	tb.Helper()
+
+	docker.once.Do(func() {
+		docker.Info = make(map[string]string)
+
+		path, err := whichNonFatal("docker")
+		if err != nil {
+			docker.err = err
+			return
+		}
+		docker.Path = path
+
+		cmd := exec.Command(path, "info")
+		stdout, err := cmd.StdoutPipe()
+		if err != nil {
+			docker.err = err
+			return
+		}
+
+		err = cmd.Start()
+		if err != nil {
+			docker.err = err
+			return
+		}
+
+		scanner := bufio.NewScanner(stdout)
+		scanner.Split(bufio.ScanLines)
+		for scanner.Scan() {
+			line := strings.TrimSpace(scanner.Text())
+			before, after, found := strings.Cut(line, ":")
+			if !found {
+				continue
+			}
+
+			before, after = strings.TrimSpace(before), strings.TrimSpace(after)
+			switch before {
+			case "Storage Driver":
+				docker.Info[before] = after
+				tb.Logf("%s: %s", before, after)
+			}
+		}
+
+		docker.err = cmd.Wait()
+	})
+
+	if docker.err != nil {
+		tb.Errorf("failed to get docker info: %s", docker.err)
+		return
+	}
+
+	if skipCheck(&docker) {
+		tb.Skipf("docker installation not supported: %s", why)
+	}
+}
+
 func checkNetworkCompatibility(tb testing.TB) {
 	checkKernelCompatibility(tb, "network feature", func(kv *kernel.Version) bool {
 		// OpenSUSE distributions are missing the dummy kernel module

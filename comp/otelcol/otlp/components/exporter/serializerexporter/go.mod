@@ -150,7 +150,7 @@ require (
 	golang.org/x/text v0.28.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250707201910-8d1bb00bc6a7 // indirect
 	google.golang.org/grpc v1.75.0 // indirect
-	google.golang.org/protobuf v1.36.7
+	google.golang.org/protobuf v1.36.8
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
@@ -211,7 +211,10 @@ require (
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/comp/core/tagger/def v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.69.2 // indirect
+	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.60.0 // indirect
+	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.60.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.69.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/fips v0.69.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/types v0.0.0-00010101000000-000000000000 // indirect

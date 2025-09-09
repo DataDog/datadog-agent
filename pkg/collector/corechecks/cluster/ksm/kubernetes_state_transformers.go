@@ -127,6 +127,7 @@ func defaultMetricTransformers() map[string]metricTransformerFunc {
 		"kube_persistentvolume_status_phase":              pvPhaseTransformer,
 		"kube_service_spec_type":                          serviceTypeTransformer,
 		"kube_ingress_tls":                                removeSecretTransformer,
+		"kube_deployment_ongoing_rollout_duration":        deploymentRolloutDurationTransformer,
 	}
 }
 
@@ -603,4 +604,24 @@ func removeSecretTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric
 		tags = lo.Filter(tags, func(x string, _ int) bool { return !strings.HasPrefix(x, "secret:") })
 	}
 	s.Gauge(ksmMetricPrefix+"ingress.tls", metric.Val, hostname, tags)
+}
+
+// deploymentRolloutDurationTransformer calculates deployment rollout duration using stored ReplicaSet data
+func deploymentRolloutDurationTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
+	// Only process ongoing rollouts (value 1), not completed ones (value 0)
+	if metric.Val != 1.0 {
+		return
+	}
+
+	namespace, hasNamespace := metric.Labels["namespace"]
+	deploymentName, hasDeployment := metric.Labels["deployment"]
+
+	if !hasNamespace || !hasDeployment {
+		return
+	}
+
+	// Calculate actual rollout duration using stored ReplicaSet data
+	duration := crs.GetDeploymentRolloutDurationFromMaps(namespace, deploymentName)
+
+	s.Gauge(ksmMetricPrefix+"deployment.rollout_duration", duration, hostname, tags)
 }

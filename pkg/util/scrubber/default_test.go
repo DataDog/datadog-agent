@@ -696,6 +696,116 @@ func TestScrubCommandsEnv(t *testing.T) {
 	}
 }
 
+func TestSecretConfigurationVariablesNotScrubbed(t *testing.T) {
+	// Test that secret-related configuration variables are NOT scrubbed
+	// These should remain unchanged in the output
+	secretConfigTests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			"secret_name",
+			`secret_name: "my-secret-name"`,
+			`secret_name: "my-secret-name"`,
+		},
+		{
+			"secret_audit_file_max_size",
+			`secret_audit_file_max_size: 1048576`,
+			`secret_audit_file_max_size: 1048576`,
+		},
+		{
+			"secret_backend_arguments",
+			`secret_backend_arguments: ["arg1", "arg2"]`,
+			`secret_backend_arguments: ["arg1", "arg2"]`,
+		},
+		{
+			"secret_backend_command",
+			`secret_backend_command: "/usr/local/bin/secret-helper"`,
+			`secret_backend_command: "/usr/local/bin/secret-helper"`,
+		},
+		{
+			"secret_backend_command_allow_group_exec_perm",
+			`secret_backend_command_allow_group_exec_perm: true`,
+			`secret_backend_command_allow_group_exec_perm: true`,
+		},
+		{
+			"secret_backend_config",
+			`secret_backend_config: {"key": "value"}`,
+			`secret_backend_config: {"key": "value"}`,
+		},
+		{
+			"secret_backend_output_max_size",
+			`secret_backend_output_max_size: 1024`,
+			`secret_backend_output_max_size: 1024`,
+		},
+		{
+			"secret_backend_remove_trailing_line_break",
+			`secret_backend_remove_trailing_line_break: false`,
+			`secret_backend_remove_trailing_line_break: false`,
+		},
+		{
+			"secret_backend_skip_checks",
+			`secret_backend_skip_checks: true`,
+			`secret_backend_skip_checks: true`,
+		},
+		{
+			"secret_backend_timeout",
+			`secret_backend_timeout: 30`,
+			`secret_backend_timeout: 30`,
+		},
+		{
+			"secret_backend_type",
+			`secret_backend_type: "vault"`,
+			`secret_backend_type: "vault"`,
+		},
+		{
+			"secret_refresh_interval",
+			`secret_refresh_interval: 3600`,
+			`secret_refresh_interval: 3600`,
+		},
+		{
+			"secret_refresh_scatter",
+			`secret_refresh_scatter: true`,
+			`secret_refresh_scatter: true`,
+		},
+		{
+			"admission_controller.certificate.secret_name",
+			`admission_controller:
+  certificate:
+    secret_name: "webhook-certificate"`,
+			`admission_controller:
+  certificate:
+    secret_name: "webhook-certificate"`,
+		},
+		{
+			"mixed secret configuration with sensitive data",
+			`secret_backend_type: "vault"
+secret_backend_command: "/usr/local/bin/vault-helper"
+secret_backend_arguments: ["--config", "/etc/vault.conf"]
+secret_backend_timeout: 30
+secret_refresh_interval: 3600
+api_key: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+password: "sensitive_password"
+other_config: "not_secret"`,
+			`secret_backend_type: "vault"
+secret_backend_command: "/usr/local/bin/vault-helper"
+secret_backend_arguments: ["--config", "/etc/vault.conf"]
+secret_backend_timeout: 30
+secret_refresh_interval: 3600
+api_key: "***************************aaaaa"
+password: "********"
+other_config: "not_secret"`,
+		},
+	}
+
+	for _, tc := range secretConfigTests {
+		t.Run(tc.name, func(t *testing.T) {
+			assertClean(t, tc.input, tc.expected)
+		})
+	}
+}
+
 func TestConfigFile(t *testing.T) {
 	cleanedConfigFile := `dd_url: https://app.datadoghq.com
 
