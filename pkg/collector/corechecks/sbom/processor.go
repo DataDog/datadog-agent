@@ -99,7 +99,7 @@ func newProcessor(workloadmetaStore workloadmeta.Component, filterStore workload
 		}),
 		workloadmetaStore:     workloadmetaStore,
 		filterStore:           filterStore,
-		selectedFilters:       workloadfilter.GetContainerSBOMFilters(),
+		selectedFilters:       filterStore.GetContainerSBOMFilters(),
 		tagger:                tagger,
 		imageRepoDigests:      make(map[string]string),
 		imageUsers:            make(map[string]map[string]struct{}),
@@ -225,13 +225,6 @@ func (p *processor) unregisterContainer(ctr *workloadmeta.Container) {
 	delete(p.imageUsers[imgID], ctrID)
 	if len(p.imageUsers[imgID]) == 0 {
 		delete(p.imageUsers, imgID)
-	}
-}
-
-func (p *processor) processContainerImagesRefresh(allImages []*workloadmeta.ContainerImageMetadata) {
-	// So far, the check is refreshing all the images every 5 minutes all together.
-	for _, img := range allImages {
-		p.processImageSBOM(img)
 	}
 }
 

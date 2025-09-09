@@ -92,6 +92,11 @@ func NewTable(obj object.File) (*Table, error) {
 	}, nil
 }
 
+// DataByteSize returns the size of the data in bytes.
+func (tb *Table) DataByteSize() uint64 {
+	return uint64(len(tb.data))
+}
+
 // Close closes the table.
 func (tb *Table) Close() error {
 	return tb.closer.Close()

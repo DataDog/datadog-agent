@@ -81,10 +81,10 @@ AGENT_CORECHECKS = [
     "orchestrator_ecs",
     "cisco_sdwan",
     "network_path",
-    "service_discovery",
     "gpu",
     "wlan",
     "discovery",
+    "versa",
 ]
 
 WINDOWS_CORECHECKS = [
