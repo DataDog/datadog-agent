@@ -14,6 +14,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -52,17 +53,18 @@ func (l language) libInfo(ctrName, image string) libInfo {
 
 // DEV: Will attempt to resolve, defaults to legacy if unable
 func (l language) libInfoWithResolver(ctrName, registry string, version string, imageResolver ImageResolver) libInfo {
-	resolvedImage, ok := imageResolver.Resolve(registry, fmt.Sprintf("dd-lib-%s-init", l), version)
-	var image string
-	if !ok {
-		image = l.libImageName(registry, version)
-	} else {
-		image = resolvedImage.FullImageRef
+	if version == defaultVersionMagicString {
+		version = l.defaultLibVersion()
 	}
+
 	return libInfo{
-		lang:    l,
-		ctrName: ctrName,
-		image:   image,
+		lang:          l,
+		ctrName:       ctrName,
+		image:         l.libImageName(registry, version),
+		imageResolver: imageResolver,
+		registry:      registry,
+		repository:    fmt.Sprintf("dd-lib-%s-init", l),
+		tag:           version,
 	}
 }
 
@@ -166,9 +168,13 @@ func (l language) defaultLibVersion() string {
 }
 
 type libInfo struct {
-	ctrName string // empty means all containers
-	lang    language
-	image   string
+	ctrName       string // empty means all containers
+	lang          language
+	image         string
+	imageResolver ImageResolver
+	registry      string
+	repository    string
+	tag           string
 }
 
 func (i libInfo) podMutator(v version, opts libRequirementOptions) podMutator {
@@ -222,6 +228,14 @@ func (i libInfo) initContainers(v version) []initContainer {
 	} else {
 		mounts = []corev1.VolumeMount{v1VolumeMount.VolumeMount}
 		command = []string{"sh", "copy-lib.sh", mounts[0].MountPath}
+	}
+
+	if i.imageResolver != nil {
+		log.Debugf("Resolving image %s/%s:%s", i.registry, i.repository, i.tag)
+		image, ok := i.imageResolver.Resolve(i.registry, i.repository, i.tag)
+		if ok {
+			i.image = image.FullImageRef
+		}
 	}
 
 	return []initContainer{

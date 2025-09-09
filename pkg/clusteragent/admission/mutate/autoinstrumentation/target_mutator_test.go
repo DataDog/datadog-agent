@@ -59,7 +59,7 @@ func TestNewTargetMutator(t *testing.T) {
 			))
 
 			// Create the mutator.
-			_, err = NewTargetMutator(config, wmeta, newNoOpImageResolver())
+			_, err = NewTargetMutator(config, wmeta, imageResolver)
 
 			// Validate the output.
 			if test.shouldErr {
@@ -157,7 +157,7 @@ func TestMutatePod(t *testing.T) {
 			},
 			expectedInitContainerImages: []string{
 				"registry/apm-inject:0",
-				defaultLibInfo(python).image,
+				defaultLibInfo(python, imageResolver).image,
 			},
 			expectedEnv: map[string]string{
 				"DD_SERVICE": "best-service",
@@ -391,6 +391,8 @@ func TestIsNamespaceEligible(t *testing.T) {
 }
 
 func TestGetTargetFromAnnotation(t *testing.T) {
+	imageResolver := newNoOpImageResolver()
+
 	tests := map[string]struct {
 		configPath string
 		in         *corev1.Pod
@@ -417,11 +419,7 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 			},
 			expected: &targetInternal{
 				libVersions: []libInfo{
-					{
-						ctrName: "",
-						lang:    python,
-						image:   "registry/dd-lib-python-init:v3",
-					},
+					defaultLibInfoWithVersion(python, "v3", imageResolver),
 				},
 			},
 		},
@@ -462,6 +460,8 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 }
 
 func TestGetTargetLibraries(t *testing.T) {
+	imageResolver := newNoOpImageResolver()
+
 	tests := map[string]struct {
 		configPath string
 		in         *corev1.Pod
@@ -483,11 +483,7 @@ func TestGetTargetLibraries(t *testing.T) {
 			},
 			expected: &targetInternal{
 				libVersions: []libInfo{
-					{
-						ctrName: "",
-						lang:    js,
-						image:   "registry/dd-lib-js-init:v5",
-					},
+					defaultLibInfoWithVersion(js, "v5", imageResolver),
 				},
 			},
 		},
@@ -521,11 +517,7 @@ func TestGetTargetLibraries(t *testing.T) {
 			},
 			expected: &targetInternal{
 				libVersions: []libInfo{
-					{
-						ctrName: "",
-						lang:    python,
-						image:   "registry/dd-lib-python-init:v3",
-					},
+					defaultLibInfoWithVersion(python, "v3", imageResolver),
 				},
 			},
 		},
@@ -544,11 +536,7 @@ func TestGetTargetLibraries(t *testing.T) {
 			},
 			expected: &targetInternal{
 				libVersions: []libInfo{
-					{
-						ctrName: "",
-						lang:    java,
-						image:   "registry/dd-lib-java-init:v1",
-					},
+					defaultLibInfoWithVersion(java, "v1", imageResolver),
 				},
 			},
 		},
@@ -583,11 +571,7 @@ func TestGetTargetLibraries(t *testing.T) {
 			},
 			expected: &targetInternal{
 				libVersions: []libInfo{
-					{
-						ctrName: "",
-						lang:    dotnet,
-						image:   "registry/dd-lib-dotnet-init:v1",
-					},
+					defaultLibInfoWithVersion(dotnet, "v1", imageResolver),
 				},
 			},
 		},
@@ -632,36 +616,12 @@ func TestGetTargetLibraries(t *testing.T) {
 			},
 			expected: &targetInternal{
 				libVersions: []libInfo{
-					{
-						ctrName: "",
-						lang:    java,
-						image:   "registry/dd-lib-java-init:v1",
-					},
-					{
-						ctrName: "",
-						lang:    js,
-						image:   "registry/dd-lib-js-init:v5",
-					},
-					{
-						ctrName: "",
-						lang:    python,
-						image:   "registry/dd-lib-python-init:v3",
-					},
-					{
-						ctrName: "",
-						lang:    dotnet,
-						image:   "registry/dd-lib-dotnet-init:v3",
-					},
-					{
-						ctrName: "",
-						lang:    ruby,
-						image:   "registry/dd-lib-ruby-init:v2",
-					},
-					{
-						ctrName: "",
-						lang:    php,
-						image:   "registry/dd-lib-php-init:v1",
-					},
+					defaultLibInfoWithVersion(java, "v1", imageResolver),
+					defaultLibInfoWithVersion(js, "v5", imageResolver),
+					defaultLibInfoWithVersion(python, "v3", imageResolver),
+					defaultLibInfoWithVersion(dotnet, "v3", imageResolver),
+					defaultLibInfoWithVersion(ruby, "v2", imageResolver),
+					defaultLibInfoWithVersion(php, "v1", imageResolver),
 				},
 			},
 		},
@@ -704,7 +664,7 @@ func TestGetTargetLibraries(t *testing.T) {
 			}
 
 			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta, newNoOpImageResolver())
+			f, err := NewTargetMutator(config, wmeta, imageResolver)
 			require.NoError(t, err)
 
 			// Filter the pod.
