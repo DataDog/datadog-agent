@@ -12,7 +12,7 @@ import sys
 import tempfile
 import time
 from collections import defaultdict
-from datetime import date
+from datetime import date, datetime
 from time import sleep
 
 from gitlab import GitlabError
@@ -293,13 +293,33 @@ def tag_devel(ctx, release_branch, commit="HEAD", push=True, force=False):
 
 
 @task
-def finish(ctx, release_branch, upstream="origin"):
+def finish(ctx, release_branch, upstream="origin", release_date=None):
     """Updates the release.json file for the new version.
+
+    Args:
+        release_branch: The Git branch from which the release is being finalized.
+            This branch should correspond to the release line you are finishing
+            (for example, "7.69.x"). It is used to determine the major version,
+            update module dependencies, and generate the release artifacts.
+        release_date: Date when the release was done. Expected format YYYY-MM-DD,
+            like '2025-09-03'. (default: today's date)
+        upstream: The name of the remote repository to push the finalized release
+            branch to. This is typically "origin", but can be changed if working
+            with a fork or a differently named remote. (default: "origin")
 
     Updates internal module dependencies with the new version.
     """
-
     # Step 1: Preparation
+
+    # Validate release_date (if provided)
+    if release_date:
+        try:
+            datetime.strptime(release_date, "%Y-%m-%d")
+        except ValueError as err:
+            raise Exit(
+                color_message(f"Invalid date `{release_date}`. Date should be valid and in format YYYY-MM-DD.", "red"),
+                code=1,
+            ) from err
 
     major_version = get_version_major(release_branch)
     print(f"Finishing release for major version {major_version}")
@@ -363,10 +383,10 @@ def finish(ctx, release_branch, upstream="origin"):
 
         # Step 4: Add release changelog preludes
         print(color_message("Adding Agent release changelog prelude", "bold"))
-        _add_prelude(ctx, str(new_version))
+        _add_prelude(ctx, str(new_version), release_date)
 
         print(color_message("Adding DCA release changelog prelude", "bold"))
-        _add_dca_prelude(ctx, str(new_version))
+        _add_dca_prelude(ctx, str(new_version), release_date)
 
         ok = try_git_command(ctx, f"git commit -m 'Add preludes for {new_version} release'")
         if not ok:
@@ -429,8 +449,6 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin"):
         Commits the above changes, and then creates a PR on the upstream repository with the change.
 
     Notes:
-        This requires a Github token (either in the GITHUB_TOKEN environment variable, or in the MacOS keychain),
-        with 'repo' permissions.
         This also requires that there are no local uncommitted changes, that the current branch is 'main' or the
         release branch, and that no branch named 'release/<new rc version>' already exists locally or upstream.
     """
@@ -782,8 +800,6 @@ def create_release_branches(
         use_worktree: If True, will go to datadog-agent-worktree instead of datadog-agent.
 
     Notes:
-        This requires a GitHub token (either in the GITHUB_TOKEN environment variable, or in the MacOS keychain),
-        with 'repo' permissions.
         This also requires that there are no local uncommitted changes, that the current branch is 'main' or the
         release branch, and that no branch named 'release/<new rc version>' already exists locally or upstream.
     """

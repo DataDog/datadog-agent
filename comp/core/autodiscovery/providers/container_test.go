@@ -29,7 +29,7 @@ import (
 
 func TestProcessEvents(t *testing.T) {
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-		config.MockModule(),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
@@ -455,15 +455,13 @@ func TestGenerateConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-
-			overrides := map[string]interface{}{
-				"logs_config.container_collect_all": tt.containerCollectAll,
-			}
-
 			store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-				config.MockModule(),
+				fx.Provide(func() config.Component {
+					return config.NewMockWithOverrides(t, map[string]interface{}{
+						"logs_config.container_collect_all": tt.containerCollectAll,
+					})
+				}),
 				fx.Provide(func() log.Component { return logmock.New(t) }),
-				fx.Replace(config.MockParams{Overrides: overrides}),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			))
 

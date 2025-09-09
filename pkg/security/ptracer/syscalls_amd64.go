@@ -81,6 +81,10 @@ const (
 	AcceptNr         = unix.SYS_ACCEPT            // AcceptNr defines the syscall ID for amd64
 	BindNr           = unix.SYS_BIND              // BindNr defines the syscall ID for amd64
 	SocketNr         = unix.SYS_SOCKET            // SocketNr defines the syscall ID for amd64
+	SetsockoptNr     = unix.SYS_SETSOCKOPT        // SetsockoptNr defines the syscall ID for amd64
+	SetrlimitNr      = unix.SYS_SETRLIMIT         // SetrlimitNr defines the syscall ID for arm64
+	Prlimit64Nr      = unix.SYS_PRLIMIT64         // Prlimit64Nr defines the syscall ID for arm64
+	PrctlNr          = unix.SYS_PRCTL             // PrctlNr defines the syscall ID for amd64
 )
 
 // https://github.com/torvalds/linux/blob/v5.0/arch/x86/entry/entry_64.S#L126

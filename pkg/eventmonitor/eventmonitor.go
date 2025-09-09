@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
+	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -234,11 +235,14 @@ func NewEventMonitor(config *config.Config, secconfig *secconfig.Config, ipc ipc
 
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
+	// Add gRPC metrics interceptors
+	grpcOpts := grpcutil.ServerOptionsWithMetrics()
+
 	return &EventMonitor{
 		Config:       config,
 		Probe:        probe,
 		StatsdClient: opts.StatsdClient,
-		GRPCServer:   grpc.NewServer(),
+		GRPCServer:   grpc.NewServer(grpcOpts...),
 
 		ctx:           ctx,
 		cancelFnc:     cancelFnc,

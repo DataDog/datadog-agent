@@ -17,11 +17,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 )
 
 // Host is a remote host environment.
@@ -525,6 +526,12 @@ func (h *Host) RemoveProxy() {
 	// Check proxy removed
 	_, err := h.remote.Execute("curl https://google.com")
 	require.NoError(h.t(), err)
+
+	// Remove Docker container
+	_, err = h.remote.Execute("sudo docker rm -f squid-proxy")
+	if err != nil {
+		h.t().Logf("warn: failed to remove Docker container: %v", err)
+	}
 }
 
 // LoadState is the load state of a systemd unit.
@@ -646,6 +653,9 @@ func evalSymlinkPath(path string, fs map[string]FileInfo) string {
 		if fileInfo, exists := fs[nextPath]; exists && fileInfo.IsSymlink {
 			// Resolve the symlink
 			symlinkTarget := fileInfo.Link
+			if !filepath.IsAbs(symlinkTarget) {
+				symlinkTarget = filepath.Join(filepath.Dir(nextPath), symlinkTarget)
+			}
 			// Handle recursive symlink resolution
 			symlinkTarget = evalSymlinkPath(symlinkTarget, fs)
 			// Update the resolvedPath to be the target of the symlink
@@ -660,7 +670,6 @@ func evalSymlinkPath(path string, fs map[string]FileInfo) string {
 			resolvedPath += "/"
 		}
 	}
-
 	return filepath.Clean(resolvedPath)
 }
 

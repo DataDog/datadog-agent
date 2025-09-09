@@ -5,6 +5,7 @@ exporters:
       fail_on_invalid_key: false
       key: '[REDACTED]'
       site: datadoghq.com
+    force_attempt_http2: true
     headers: {}
     host_metadata:
       enabled: true
@@ -71,7 +72,7 @@ processors: {}
 receivers:
   otlp:
     protocols:
-      grpc: 
+      grpc:
         endpoint: 0.0.0.0:4317
         keepalive:
           enforcement_policy: {}

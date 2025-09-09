@@ -15,8 +15,8 @@ func (s *Scraper) GetTrackedProcesses() []procmon.ProcessID {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var processes []procmon.ProcessID
-	for _, p := range s.mu.debouncer.processes {
-		processes = append(processes, p.ProcessID)
+	for pid := range s.mu.processes {
+		processes = append(processes, pid)
 	}
 	return processes
 }

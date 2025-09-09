@@ -1,0 +1,1409 @@
+ID: 1
+Probes:
+    - id: http_handler
+      version: 0
+      type: LOG_PROBE
+      where: {methodName: main.HandleHTTP}
+      capture:
+        maxReferenceDepth: 1
+        maxFieldCount: 0
+        maxCollectionSize: 0
+      template: ""
+      segments: []
+      captureSnapshot: true
+      subprogram: {subprogram: 1}
+      events:
+        - ID: 1
+          Type: 129 EventRootType Probe[main.HandleHTTP]
+          InjectionPoints: [{PC: "0xd04e73", Frameless: false}]
+          Condition: null
+    - id: look_at_the_request
+      version: 0
+      type: LOG_PROBE
+      where: {methodName: main.LookAtTheRequest}
+      capture:
+        maxReferenceDepth: 1
+        maxFieldCount: 0
+        maxCollectionSize: 0
+      template: ""
+      segments: []
+      captureSnapshot: true
+      subprogram: {subprogram: 2}
+      events:
+        - ID: 2
+          Type: 130 EventRootType Probe[main.LookAtTheRequest]
+          InjectionPoints: [{PC: "0xd051ee", Frameless: false}]
+          Condition: null
+Subprograms:
+    - ID: 1
+      Name: main.HandleHTTP
+      OutOfLinePCRanges: [0xd04e60..0xd05110]
+      InlinePCRanges: []
+      Variables:
+        - Name: w
+          Type: 36 GoInterfaceType net/http.ResponseWriter
+          Locations:
+            - Range: 0xd04e60..0xd04ecc
+              Pieces:
+                - Size: 8
+                  Op: {RegNo: 0, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 3, Shift: 0}
+            - Range: 0xd04ecc..0xd04ecf
+              Pieces:
+                - Size: 8
+                  Op: {CfaOffset: 0}
+                - Size: 8
+                  Op: {CfaOffset: 8}
+            - Range: 0xd04ecf..0xd05110
+              Pieces:
+                - Size: 8
+                  Op: {CfaOffset: 0}
+                - Size: 8
+                  Op: {CfaOffset: 8}
+          IsParameter: true
+          IsReturn: false
+        - Name: r
+          Type: 37 PointerType *net/http.Request
+          Locations:
+            - Range: 0xd04e60..0xd04ed6
+              Pieces: [{Size: 8, Op: {RegNo: 2, Shift: 0}}]
+            - Range: 0xd04ed6..0xd05110
+              Pieces: [{Size: 8, Op: {CfaOffset: 16}}]
+          IsParameter: true
+          IsReturn: false
+        - Name: '&buf'
+          Type: 39 PointerType *bytes.Buffer
+          Locations:
+            - Range: 0xd0500e..0xd05029
+              Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
+            - Range: 0xd05029..0xd05110
+              Pieces: [{Size: 8, Op: {CfaOffset: -136}}]
+          IsParameter: false
+          IsReturn: false
+        - Name: span
+          Type: 41 GoInterfaceType gopkg.in/DataDog/dd-trace-go.v1/ddtrace.Span
+          Locations:
+            - Range: 0xd04ee8..0xd04ee8
+              Pieces:
+                - Size: 8
+                  Op: {RegNo: 0, Shift: 0}
+                - Size: 8
+                  Op: null
+            - Range: 0xd04ee8..0xd04f28
+              Pieces:
+                - Size: 8
+                  Op: {RegNo: 0, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 3, Shift: 0}
+            - Range: 0xd04f28..0xd04f2c
+              Pieces:
+                - Size: 8
+                  Op: null
+                - Size: 8
+                  Op: {RegNo: 3, Shift: 0}
+          IsParameter: false
+          IsReturn: false
+    - ID: 2
+      Name: main.LookAtTheRequest
+      OutOfLinePCRanges: [0xd051e0..0xd052a5]
+      InlinePCRanges: []
+      Variables:
+        - Name: path
+          Type: 9 GoStringHeaderType string
+          Locations:
+            - Range: 0xd051e0..0xd05205
+              Pieces:
+                - Size: 8
+                  Op: {RegNo: 0, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 3, Shift: 0}
+          IsParameter: true
+          IsReturn: false
+Types:
+    - __kind: PointerType
+      ID: 90
+      Name: '**table<string,[]string>'
+      ByteSize: 8
+      Pointee: 91 PointerType *table<string,[]string>
+    - __kind: PointerType
+      ID: 109
+      Name: '**table<string,string>'
+      ByteSize: 8
+      Pointee: 110 PointerType *table<string,string>
+    - __kind: PointerType
+      ID: 120
+      Name: '*[]string.array'
+      ByteSize: 8
+      Pointee: 119 GoSliceDataType []string.array
+    - __kind: PointerType
+      ID: 11
+      Name: '*bool'
+      ByteSize: 8
+      GoRuntimeType: 400320
+      GoKind: 22
+      Pointee: 4 BaseType bool
+    - __kind: PointerType
+      ID: 39
+      Name: '*bytes.Buffer'
+      ByteSize: 8
+      GoRuntimeType: 2.260704e+06
+      GoKind: 22
+      Pointee: 40 UnresolvedPointeeType bytes.Buffer
+    - __kind: PointerType
+      ID: 98
+      Name: '*crypto/tls.ConnectionState'
+      ByteSize: 8
+      GoRuntimeType: 908352
+      GoKind: 22
+      Pointee: 99 UnresolvedPointeeType crypto/tls.ConnectionState
+    - __kind: PointerType
+      ID: 33
+      Name: '*error'
+      ByteSize: 8
+      GoRuntimeType: 399232
+      GoKind: 22
+      Pointee: 13 GoInterfaceType error
+    - __kind: PointerType
+      ID: 35
+      Name: '*float32'
+      ByteSize: 8
+      GoRuntimeType: 400192
+      GoKind: 22
+      Pointee: 18 BaseType float32
+    - __kind: PointerType
+      ID: 25
+      Name: '*float64'
+      ByteSize: 8
+      GoRuntimeType: 400256
+      GoKind: 22
+      Pointee: 15 BaseType float64
+    - __kind: PointerType
+      ID: 44
+      Name: '*gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.responseWriter'
+      ByteSize: 8
+      GoRuntimeType: 1.550528e+06
+      GoKind: 22
+      Pointee: 45 UnresolvedPointeeType gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.responseWriter
+    - __kind: PointerType
+      ID: 26
+      Name: '*int'
+      ByteSize: 8
+      GoRuntimeType: 399872
+      GoKind: 22
+      Pointee: 7 BaseType int
+    - __kind: PointerType
+      ID: 30
+      Name: '*int16'
+      ByteSize: 8
+      GoRuntimeType: 399488
+      GoKind: 22
+      Pointee: 31 BaseType int16
+    - __kind: PointerType
+      ID: 20
+      Name: '*int32'
+      ByteSize: 8
+      GoRuntimeType: 399616
+      GoKind: 22
+      Pointee: 10 BaseType int32
+    - __kind: PointerType
+      ID: 27
+      Name: '*int64'
+      ByteSize: 8
+      GoRuntimeType: 399744
+      GoKind: 22
+      Pointee: 12 BaseType int64
+    - __kind: PointerType
+      ID: 32
+      Name: '*int8'
+      ByteSize: 8
+      GoRuntimeType: 399360
+      GoKind: 22
+      Pointee: 16 BaseType int8
+    - __kind: PointerType
+      ID: 88
+      Name: '*map<string,[]string>'
+      ByteSize: 8
+      Pointee: 89 GoSwissMapHeaderType map<string,[]string>
+    - __kind: PointerType
+      ID: 107
+      Name: '*map<string,string>'
+      ByteSize: 8
+      Pointee: 108 GoSwissMapHeaderType map<string,string>
+    - __kind: PointerType
+      ID: 96
+      Name: '*mime/multipart.Form'
+      ByteSize: 8
+      GoRuntimeType: 909984
+      GoKind: 22
+      Pointee: 97 UnresolvedPointeeType mime/multipart.Form
+    - __kind: PointerType
+      ID: 37
+      Name: '*net/http.Request'
+      ByteSize: 8
+      GoRuntimeType: 2.30096e+06
+      GoKind: 22
+      Pointee: 38 StructureType net/http.Request
+    - __kind: PointerType
+      ID: 101
+      Name: '*net/http.Response'
+      ByteSize: 8
+      GoRuntimeType: 1.718816e+06
+      GoKind: 22
+      Pointee: 102 UnresolvedPointeeType net/http.Response
+    - __kind: PointerType
+      ID: 81
+      Name: '*net/http.http2responseWriter'
+      ByteSize: 8
+      GoRuntimeType: 2.010368e+06
+      GoKind: 22
+      Pointee: 82 UnresolvedPointeeType net/http.http2responseWriter
+    - __kind: PointerType
+      ID: 104
+      Name: '*net/http.pattern'
+      ByteSize: 8
+      GoRuntimeType: 1.608608e+06
+      GoKind: 22
+      Pointee: 105 UnresolvedPointeeType net/http.pattern
+    - __kind: PointerType
+      ID: 83
+      Name: '*net/http.response'
+      ByteSize: 8
+      GoRuntimeType: 2.218272e+06
+      GoKind: 22
+      Pointee: 84 UnresolvedPointeeType net/http.response
+    - __kind: PointerType
+      ID: 85
+      Name: '*net/url.URL'
+      ByteSize: 8
+      GoRuntimeType: 2.1136e+06
+      GoKind: 22
+      Pointee: 86 UnresolvedPointeeType net/url.URL
+    - __kind: PointerType
+      ID: 113
+      Name: '*noalg.map.group[string][]string'
+      ByteSize: 8
+      Pointee: 114 StructureType noalg.map.group[string][]string
+    - __kind: PointerType
+      ID: 123
+      Name: '*noalg.map.group[string]string'
+      ByteSize: 8
+      Pointee: 124 StructureType noalg.map.group[string]string
+    - __kind: PointerType
+      ID: 22
+      Name: '*string'
+      ByteSize: 8
+      GoRuntimeType: 399296
+      GoKind: 22
+      Pointee: 9 GoStringHeaderType string
+    - __kind: PointerType
+      ID: 43
+      Name: '*string.str'
+      ByteSize: 8
+      Pointee: 42 GoStringDataType string.str
+    - __kind: PointerType
+      ID: 50
+      Name: '*struct { gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter = gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1; net/http.CloseNotifier }'
+      ByteSize: 8
+      GoRuntimeType: 1.68848e+06
+      GoKind: 22
+      Pointee: 51 StructureType struct { gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter = gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1; net/http.CloseNotifier }
+    - __kind: PointerType
+      ID: 64
+      Name: '*struct { gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter = gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1; net/http.CloseNotifier; net/http.Hijacker }'
+      ByteSize: 8
+      GoRuntimeType: 1.74224e+06
+      GoKind: 22
+      Pointee: 65 StructureType struct { gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter = gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1; net/http.CloseNotifier; net/http.Hijacker }
+    - __kind: PointerType
+      ID: 46
+      Name: '*struct { gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter = gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1; net/http.Flusher }'
+      ByteSize: 8
+      GoRuntimeType: 1.688096e+06
+      GoKind: 22
+      Pointee: 47 StructureType struct { gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter = gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1; net/http.Flusher }
+    - __kind: PointerType
+      ID: 56
+      Name: '*struct { gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter = gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.CloseNotifier }'
+      ByteSize: 8
+      GoRuntimeType: 1.741472e+06
+      GoKind: 22
+      Pointee: 57 StructureType struct { gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter = gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.CloseNotifier }
+    - __kind: PointerType
+      ID: 70
+      Name: '*struct { gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter = gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.CloseNotifier; net/http.Hijacker }'
+      ByteSize: 8
+      GoRuntimeType: 1.814048e+06
+      GoKind: 22
+      Pointee: 71 StructureType struct { gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter = gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.CloseNotifier; net/http.Hijacker }
+    - __kind: PointerType
+      ID: 58
+      Name: '*struct { gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter = gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.Hijacker }'
+      ByteSize: 8
+      GoRuntimeType: 1.741664e+06
+      GoKind: 22
+      Pointee: 59 StructureType struct { gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter = gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.Hijacker }
+    - __kind: PointerType
+      ID: 54
+      Name: '*struct { gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter = gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.Pusher }'
+      ByteSize: 8
+      GoRuntimeType: 1.74128e+06
+      GoKind: 22
+      Pointee: 55 StructureType struct { gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter = gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.Pusher }
+    - __kind: PointerType
+      ID: 66
+      Name: '*struct { gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter = gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.Pusher; net/http.CloseNotifier }'
+      ByteSize: 8
+      GoRuntimeType: 1.8136e+06
+      GoKind: 22
+      Pointee: 67 StructureType struct { gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter = gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.Pusher; net/http.CloseNotifier }
+    - __kind: PointerType
+      ID: 74
+      Name: '*struct { gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter = gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.Pusher; net/http.CloseNotifier; net/http.Hijacker }'
+      ByteSize: 8
+      GoRuntimeType: 1.882912e+06
+      GoKind: 22
+      Pointee: 75 StructureType struct { gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter = gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.Pusher; net/http.CloseNotifier; net/http.Hijacker }
+    - __kind: PointerType
+      ID: 68
+      Name: '*struct { gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter = gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.Pusher; net/http.Hijacker }'
+      ByteSize: 8
+      GoRuntimeType: 1.813824e+06
+      GoKind: 22
+      Pointee: 69 StructureType struct { gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter = gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.Pusher; net/http.Hijacker }
+    - __kind: PointerType
+      ID: 52
+      Name: '*struct { gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter = gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1; net/http.Hijacker }'
+      ByteSize: 8
+      GoRuntimeType: 1.688672e+06
+      GoKind: 22
+      Pointee: 53 StructureType struct { gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter = gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1; net/http.Hijacker }
+    - __kind: PointerType
+      ID: 48
+      Name: '*struct { gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter = gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1; net/http.Pusher }'
+      ByteSize: 8
+      GoRuntimeType: 1.688288e+06
+      GoKind: 22
+      Pointee: 49 StructureType struct { gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter = gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1; net/http.Pusher }
+    - __kind: PointerType
+      ID: 60
+      Name: '*struct { gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter = gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1; net/http.Pusher; net/http.CloseNotifier }'
+      ByteSize: 8
+      GoRuntimeType: 1.741856e+06
+      GoKind: 22
+      Pointee: 61 StructureType struct { gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter = gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1; net/http.Pusher; net/http.CloseNotifier }
+    - __kind: PointerType
+      ID: 72
+      Name: '*struct { gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter = gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1; net/http.Pusher; net/http.CloseNotifier; net/http.Hijacker }'
+      ByteSize: 8
+      GoRuntimeType: 1.814272e+06
+      GoKind: 22
+      Pointee: 73 StructureType struct { gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter = gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1; net/http.Pusher; net/http.CloseNotifier; net/http.Hijacker }
+    - __kind: PointerType
+      ID: 62
+      Name: '*struct { gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter = gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1; net/http.Pusher; net/http.Hijacker }'
+      ByteSize: 8
+      GoRuntimeType: 1.742048e+06
+      GoKind: 22
+      Pointee: 63 StructureType struct { gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter = gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1; net/http.Pusher; net/http.Hijacker }
+    - __kind: PointerType
+      ID: 91
+      Name: '*table<string,[]string>'
+      ByteSize: 8
+      Pointee: 111 StructureType table<string,[]string>
+    - __kind: PointerType
+      ID: 110
+      Name: '*table<string,string>'
+      ByteSize: 8
+      Pointee: 121 StructureType table<string,string>
+    - __kind: PointerType
+      ID: 34
+      Name: '*uint'
+      ByteSize: 8
+      GoRuntimeType: 399936
+      GoKind: 22
+      Pointee: 17 BaseType uint
+    - __kind: PointerType
+      ID: 29
+      Name: '*uint16'
+      ByteSize: 8
+      GoRuntimeType: 399552
+      GoKind: 22
+      Pointee: 6 BaseType uint16
+    - __kind: PointerType
+      ID: 21
+      Name: '*uint32'
+      ByteSize: 8
+      GoRuntimeType: 399680
+      GoKind: 22
+      Pointee: 2 BaseType uint32
+    - __kind: PointerType
+      ID: 28
+      Name: '*uint64'
+      ByteSize: 8
+      GoRuntimeType: 399808
+      GoKind: 22
+      Pointee: 8 BaseType uint64
+    - __kind: PointerType
+      ID: 5
+      Name: '*uint8'
+      ByteSize: 8
+      GoRuntimeType: 399424
+      GoKind: 22
+      Pointee: 3 BaseType uint8
+    - __kind: PointerType
+      ID: 19
+      Name: '*uintptr'
+      ByteSize: 8
+      GoRuntimeType: 400000
+      GoKind: 22
+      Pointee: 1 BaseType uintptr
+    - __kind: GoChannelType
+      ID: 100
+      Name: <-chan struct {}
+      GoRuntimeType: 597696
+      GoKind: 18
+    - __kind: EventRootType
+      ID: 129
+      Name: Probe[main.HandleHTTP]
+      ByteSize: 25
+      PresenceBitsetSize: 1
+      Expressions:
+        - Name: w
+          Offset: 1
+          Expression:
+            Type: 36 GoInterfaceType net/http.ResponseWriter
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 1, index: 0, name: w}
+                  Offset: 0
+                  ByteSize: 16
+        - Name: r
+          Offset: 17
+          Expression:
+            Type: 37 PointerType *net/http.Request
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 1, index: 1, name: r}
+                  Offset: 0
+                  ByteSize: 8
+    - __kind: EventRootType
+      ID: 130
+      Name: Probe[main.LookAtTheRequest]
+      ByteSize: 17
+      PresenceBitsetSize: 1
+      Expressions:
+        - Name: path
+          Offset: 1
+          Expression:
+            Type: 9 GoStringHeaderType string
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 2, index: 0, name: path}
+                  Offset: 0
+                  ByteSize: 16
+    - __kind: GoSliceDataType
+      ID: 117
+      Name: '[]*table<string,[]string>.array'
+      ByteSize: 8192
+      Element: 91 PointerType *table<string,[]string>
+    - __kind: GoSliceDataType
+      ID: 127
+      Name: '[]*table<string,string>.array'
+      ByteSize: 8192
+      Element: 110 PointerType *table<string,string>
+    - __kind: GoSliceDataType
+      ID: 118
+      Name: '[]noalg.map.group[string][]string.array'
+      ByteSize: 2048
+      Element: 114 StructureType noalg.map.group[string][]string
+    - __kind: GoSliceDataType
+      ID: 128
+      Name: '[]noalg.map.group[string]string.array'
+      ByteSize: 2048
+      Element: 124 StructureType noalg.map.group[string]string
+    - __kind: GoSliceHeaderType
+      ID: 94
+      Name: '[]string'
+      ByteSize: 24
+      GoRuntimeType: 496448
+      GoKind: 23
+      RawFields:
+        - Name: array
+          Offset: 0
+          Type: 22 PointerType *string
+        - Name: len
+          Offset: 8
+          Type: 7 BaseType int
+        - Name: cap
+          Offset: 16
+          Type: 7 BaseType int
+      Data: 119 GoSliceDataType []string.array
+    - __kind: GoSliceDataType
+      ID: 119
+      Name: '[]string.array'
+      ByteSize: 2048
+      Element: 9 GoStringHeaderType string
+    - __kind: BaseType
+      ID: 4
+      Name: bool
+      ByteSize: 1
+      GoRuntimeType: 585472
+      GoKind: 1
+    - __kind: UnresolvedPointeeType
+      ID: 40
+      Name: bytes.Buffer
+      ByteSize: 8
+    - __kind: BaseType
+      ID: 24
+      Name: complex128
+      ByteSize: 16
+      GoRuntimeType: 585280
+      GoKind: 16
+    - __kind: BaseType
+      ID: 23
+      Name: complex64
+      ByteSize: 8
+      GoRuntimeType: 585216
+      GoKind: 15
+    - __kind: GoInterfaceType
+      ID: 103
+      Name: context.Context
+      ByteSize: 16
+      GoRuntimeType: 1.276992e+06
+      GoKind: 20
+      RawFields:
+        - Name: tab
+          Offset: 0
+          Type: 14 VoidPointerType unsafe.Pointer
+        - Name: data
+          Offset: 8
+          Type: 14 VoidPointerType unsafe.Pointer
+    - __kind: UnresolvedPointeeType
+      ID: 99
+      Name: crypto/tls.ConnectionState
+      ByteSize: 8
+    - __kind: GoInterfaceType
+      ID: 13
+      Name: error
+      ByteSize: 16
+      GoRuntimeType: 1.031776e+06
+      GoKind: 20
+      RawFields:
+        - Name: tab
+          Offset: 0
+          Type: 14 VoidPointerType unsafe.Pointer
+        - Name: data
+          Offset: 8
+          Type: 14 VoidPointerType unsafe.Pointer
+    - __kind: BaseType
+      ID: 18
+      Name: float32
+      ByteSize: 4
+      GoRuntimeType: 585344
+      GoKind: 13
+    - __kind: BaseType
+      ID: 15
+      Name: float64
+      ByteSize: 8
+      GoRuntimeType: 585408
+      GoKind: 14
+    - __kind: GoSubroutineType
+      ID: 93
+      Name: func() (io.ReadCloser, error)
+      ByteSize: 8
+      GoRuntimeType: 693344
+      GoKind: 19
+    - __kind: GoInterfaceType
+      ID: 76
+      Name: gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1
+      ByteSize: 16
+      GoRuntimeType: 1.417952e+06
+      GoKind: 20
+      RawFields:
+        - Name: tab
+          Offset: 0
+          Type: 14 VoidPointerType unsafe.Pointer
+        - Name: data
+          Offset: 8
+          Type: 14 VoidPointerType unsafe.Pointer
+    - __kind: UnresolvedPointeeType
+      ID: 45
+      Name: gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.responseWriter
+      ByteSize: 8
+    - __kind: GoInterfaceType
+      ID: 41
+      Name: gopkg.in/DataDog/dd-trace-go.v1/ddtrace.Span
+      ByteSize: 16
+      GoRuntimeType: 1.479712e+06
+      GoKind: 20
+      RawFields:
+        - Name: tab
+          Offset: 0
+          Type: 14 VoidPointerType unsafe.Pointer
+        - Name: data
+          Offset: 8
+          Type: 14 VoidPointerType unsafe.Pointer
+    - __kind: GoSwissMapGroupsType
+      ID: 112
+      Name: groupReference<string,[]string>
+      ByteSize: 16
+      GoKind: 25
+      RawFields:
+        - Name: data
+          Offset: 0
+          Type: 113 PointerType *noalg.map.group[string][]string
+        - Name: lengthMask
+          Offset: 8
+          Type: 8 BaseType uint64
+      GroupType: 114 StructureType noalg.map.group[string][]string
+      GroupSliceType: 118 GoSliceDataType []noalg.map.group[string][]string.array
+    - __kind: GoSwissMapGroupsType
+      ID: 122
+      Name: groupReference<string,string>
+      ByteSize: 16
+      GoKind: 25
+      RawFields:
+        - Name: data
+          Offset: 0
+          Type: 123 PointerType *noalg.map.group[string]string
+        - Name: lengthMask
+          Offset: 8
+          Type: 8 BaseType uint64
+      GroupType: 124 StructureType noalg.map.group[string]string
+      GroupSliceType: 128 GoSliceDataType []noalg.map.group[string]string.array
+    - __kind: BaseType
+      ID: 7
+      Name: int
+      ByteSize: 8
+      GoRuntimeType: 585024
+      GoKind: 2
+    - __kind: BaseType
+      ID: 31
+      Name: int16
+      ByteSize: 2
+      GoRuntimeType: 584640
+      GoKind: 4
+    - __kind: BaseType
+      ID: 10
+      Name: int32
+      ByteSize: 4
+      GoRuntimeType: 584768
+      GoKind: 5
+    - __kind: BaseType
+      ID: 12
+      Name: int64
+      ByteSize: 8
+      GoRuntimeType: 584896
+      GoKind: 6
+    - __kind: BaseType
+      ID: 16
+      Name: int8
+      ByteSize: 1
+      GoRuntimeType: 584512
+      GoKind: 3
+    - __kind: GoInterfaceType
+      ID: 92
+      Name: io.ReadCloser
+      ByteSize: 16
+      GoRuntimeType: 1.110464e+06
+      GoKind: 20
+      RawFields:
+        - Name: tab
+          Offset: 0
+          Type: 14 VoidPointerType unsafe.Pointer
+        - Name: data
+          Offset: 8
+          Type: 14 VoidPointerType unsafe.Pointer
+    - __kind: GoSwissMapHeaderType
+      ID: 89
+      Name: map<string,[]string>
+      ByteSize: 48
+      GoKind: 25
+      RawFields:
+        - Name: used
+          Offset: 0
+          Type: 8 BaseType uint64
+        - Name: seed
+          Offset: 8
+          Type: 1 BaseType uintptr
+        - Name: dirPtr
+          Offset: 16
+          Type: 90 PointerType **table<string,[]string>
+        - Name: dirLen
+          Offset: 24
+          Type: 7 BaseType int
+        - Name: globalDepth
+          Offset: 32
+          Type: 3 BaseType uint8
+        - Name: globalShift
+          Offset: 33
+          Type: 3 BaseType uint8
+        - Name: writing
+          Offset: 34
+          Type: 3 BaseType uint8
+        - Name: tombstonePossible
+          Offset: 35
+          Type: 4 BaseType bool
+        - Name: clearSeq
+          Offset: 40
+          Type: 8 BaseType uint64
+      TablePtrSliceType: 117 GoSliceDataType []*table<string,[]string>.array
+      GroupType: 114 StructureType noalg.map.group[string][]string
+    - __kind: GoSwissMapHeaderType
+      ID: 108
+      Name: map<string,string>
+      ByteSize: 48
+      GoKind: 25
+      RawFields:
+        - Name: used
+          Offset: 0
+          Type: 8 BaseType uint64
+        - Name: seed
+          Offset: 8
+          Type: 1 BaseType uintptr
+        - Name: dirPtr
+          Offset: 16
+          Type: 109 PointerType **table<string,string>
+        - Name: dirLen
+          Offset: 24
+          Type: 7 BaseType int
+        - Name: globalDepth
+          Offset: 32
+          Type: 3 BaseType uint8
+        - Name: globalShift
+          Offset: 33
+          Type: 3 BaseType uint8
+        - Name: writing
+          Offset: 34
+          Type: 3 BaseType uint8
+        - Name: tombstonePossible
+          Offset: 35
+          Type: 4 BaseType bool
+        - Name: clearSeq
+          Offset: 40
+          Type: 8 BaseType uint64
+      TablePtrSliceType: 127 GoSliceDataType []*table<string,string>.array
+      GroupType: 124 StructureType noalg.map.group[string]string
+    - __kind: GoMapType
+      ID: 106
+      Name: map[string]string
+      ByteSize: 8
+      GoRuntimeType: 1.129024e+06
+      GoKind: 21
+      HeaderType: 108 GoSwissMapHeaderType map<string,string>
+    - __kind: UnresolvedPointeeType
+      ID: 97
+      Name: mime/multipart.Form
+      ByteSize: 8
+    - __kind: GoInterfaceType
+      ID: 79
+      Name: net/http.CloseNotifier
+      ByteSize: 16
+      GoRuntimeType: 1.027552e+06
+      GoKind: 20
+      RawFields:
+        - Name: tab
+          Offset: 0
+          Type: 14 VoidPointerType unsafe.Pointer
+        - Name: data
+          Offset: 8
+          Type: 14 VoidPointerType unsafe.Pointer
+    - __kind: GoInterfaceType
+      ID: 77
+      Name: net/http.Flusher
+      ByteSize: 16
+      GoRuntimeType: 1.026016e+06
+      GoKind: 20
+      RawFields:
+        - Name: tab
+          Offset: 0
+          Type: 14 VoidPointerType unsafe.Pointer
+        - Name: data
+          Offset: 8
+          Type: 14 VoidPointerType unsafe.Pointer
+    - __kind: GoMapType
+      ID: 87
+      Name: net/http.Header
+      ByteSize: 8
+      GoRuntimeType: 2.101632e+06
+      GoKind: 21
+      HeaderType: 89 GoSwissMapHeaderType map<string,[]string>
+    - __kind: GoInterfaceType
+      ID: 80
+      Name: net/http.Hijacker
+      ByteSize: 16
+      GoRuntimeType: 1.026144e+06
+      GoKind: 20
+      RawFields:
+        - Name: tab
+          Offset: 0
+          Type: 14 VoidPointerType unsafe.Pointer
+        - Name: data
+          Offset: 8
+          Type: 14 VoidPointerType unsafe.Pointer
+    - __kind: GoInterfaceType
+      ID: 78
+      Name: net/http.Pusher
+      ByteSize: 16
+      GoRuntimeType: 1.0264e+06
+      GoKind: 20
+      RawFields:
+        - Name: tab
+          Offset: 0
+          Type: 14 VoidPointerType unsafe.Pointer
+        - Name: data
+          Offset: 8
+          Type: 14 VoidPointerType unsafe.Pointer
+    - __kind: StructureType
+      ID: 38
+      Name: net/http.Request
+      ByteSize: 304
+      GoRuntimeType: 2.336832e+06
+      GoKind: 25
+      RawFields:
+        - Name: Method
+          Offset: 0
+          Type: 9 GoStringHeaderType string
+        - Name: URL
+          Offset: 16
+          Type: 85 PointerType *net/url.URL
+        - Name: Proto
+          Offset: 24
+          Type: 9 GoStringHeaderType string
+        - Name: ProtoMajor
+          Offset: 40
+          Type: 7 BaseType int
+        - Name: ProtoMinor
+          Offset: 48
+          Type: 7 BaseType int
+        - Name: Header
+          Offset: 56
+          Type: 87 GoMapType net/http.Header
+        - Name: Body
+          Offset: 64
+          Type: 92 GoInterfaceType io.ReadCloser
+        - Name: GetBody
+          Offset: 80
+          Type: 93 GoSubroutineType func() (io.ReadCloser, error)
+        - Name: ContentLength
+          Offset: 88
+          Type: 12 BaseType int64
+        - Name: TransferEncoding
+          Offset: 96
+          Type: 94 GoSliceHeaderType []string
+        - Name: Close
+          Offset: 120
+          Type: 4 BaseType bool
+        - Name: Host
+          Offset: 128
+          Type: 9 GoStringHeaderType string
+        - Name: Form
+          Offset: 144
+          Type: 95 GoMapType net/url.Values
+        - Name: PostForm
+          Offset: 152
+          Type: 95 GoMapType net/url.Values
+        - Name: MultipartForm
+          Offset: 160
+          Type: 96 PointerType *mime/multipart.Form
+        - Name: Trailer
+          Offset: 168
+          Type: 87 GoMapType net/http.Header
+        - Name: RemoteAddr
+          Offset: 176
+          Type: 9 GoStringHeaderType string
+        - Name: RequestURI
+          Offset: 192
+          Type: 9 GoStringHeaderType string
+        - Name: TLS
+          Offset: 208
+          Type: 98 PointerType *crypto/tls.ConnectionState
+        - Name: Cancel
+          Offset: 216
+          Type: 100 GoChannelType <-chan struct {}
+        - Name: Response
+          Offset: 224
+          Type: 101 PointerType *net/http.Response
+        - Name: Pattern
+          Offset: 232
+          Type: 9 GoStringHeaderType string
+        - Name: ctx
+          Offset: 248
+          Type: 103 GoInterfaceType context.Context
+        - Name: pat
+          Offset: 264
+          Type: 104 PointerType *net/http.pattern
+        - Name: matches
+          Offset: 272
+          Type: 94 GoSliceHeaderType []string
+        - Name: otherValues
+          Offset: 296
+          Type: 106 GoMapType map[string]string
+    - __kind: UnresolvedPointeeType
+      ID: 102
+      Name: net/http.Response
+      ByteSize: 8
+    - __kind: GoInterfaceType
+      ID: 36
+      Name: net/http.ResponseWriter
+      ByteSize: 16
+      GoRuntimeType: 1.185792e+06
+      GoKind: 20
+      RawFields:
+        - Name: tab
+          Offset: 0
+          Type: 14 VoidPointerType unsafe.Pointer
+        - Name: data
+          Offset: 8
+          Type: 14 VoidPointerType unsafe.Pointer
+    - __kind: UnresolvedPointeeType
+      ID: 82
+      Name: net/http.http2responseWriter
+      ByteSize: 8
+    - __kind: UnresolvedPointeeType
+      ID: 105
+      Name: net/http.pattern
+      ByteSize: 8
+    - __kind: UnresolvedPointeeType
+      ID: 84
+      Name: net/http.response
+      ByteSize: 8
+    - __kind: UnresolvedPointeeType
+      ID: 86
+      Name: net/url.URL
+      ByteSize: 8
+    - __kind: GoMapType
+      ID: 95
+      Name: net/url.Values
+      ByteSize: 8
+      GoRuntimeType: 1.885152e+06
+      GoKind: 21
+      HeaderType: 89 GoSwissMapHeaderType map<string,[]string>
+    - __kind: ArrayType
+      ID: 115
+      Name: noalg.[8]struct { key string; elem []string }
+      ByteSize: 320
+      GoRuntimeType: 689376
+      GoKind: 17
+      Count: 8
+      HasCount: true
+      Element: 116 StructureType noalg.struct { key string; elem []string }
+    - __kind: ArrayType
+      ID: 125
+      Name: noalg.[8]struct { key string; elem string }
+      ByteSize: 256
+      GoRuntimeType: 693536
+      GoKind: 17
+      Count: 8
+      HasCount: true
+      Element: 126 StructureType noalg.struct { key string; elem string }
+    - __kind: StructureType
+      ID: 114
+      Name: noalg.map.group[string][]string
+      ByteSize: 328
+      GoRuntimeType: 1.290432e+06
+      GoKind: 25
+      RawFields:
+        - Name: ctrl
+          Offset: 0
+          Type: 8 BaseType uint64
+        - Name: slots
+          Offset: 8
+          Type: 115 ArrayType noalg.[8]struct { key string; elem []string }
+    - __kind: StructureType
+      ID: 124
+      Name: noalg.map.group[string]string
+      ByteSize: 264
+      GoRuntimeType: 1.292864e+06
+      GoKind: 25
+      RawFields:
+        - Name: ctrl
+          Offset: 0
+          Type: 8 BaseType uint64
+        - Name: slots
+          Offset: 8
+          Type: 125 ArrayType noalg.[8]struct { key string; elem string }
+    - __kind: StructureType
+      ID: 116
+      Name: noalg.struct { key string; elem []string }
+      ByteSize: 40
+      GoRuntimeType: 1.290304e+06
+      GoKind: 25
+      RawFields:
+        - Name: key
+          Offset: 0
+          Type: 9 GoStringHeaderType string
+        - Name: elem
+          Offset: 16
+          Type: 94 GoSliceHeaderType []string
+    - __kind: StructureType
+      ID: 126
+      Name: noalg.struct { key string; elem string }
+      ByteSize: 32
+      GoRuntimeType: 1.292736e+06
+      GoKind: 25
+      RawFields:
+        - Name: key
+          Offset: 0
+          Type: 9 GoStringHeaderType string
+        - Name: elem
+          Offset: 16
+          Type: 9 GoStringHeaderType string
+    - __kind: GoStringHeaderType
+      ID: 9
+      Name: string
+      ByteSize: 16
+      GoRuntimeType: 584448
+      GoKind: 24
+      RawFields:
+        - Name: str
+          Offset: 0
+          Type: 43 PointerType *string.str
+        - Name: len
+          Offset: 8
+          Type: 7 BaseType int
+      Data: 42 GoStringDataType string.str
+    - __kind: GoStringDataType
+      ID: 42
+      Name: string.str
+      ByteSize: 2048
+    - __kind: StructureType
+      ID: 51
+      Name: struct { gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter = gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1; net/http.CloseNotifier }
+      ByteSize: 32
+      GoRuntimeType: 1.947456e+06
+      GoKind: 25
+      RawFields:
+        - Name: monitoredResponseWriter
+          Offset: 0
+          Type: 76 GoInterfaceType gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1
+        - Name: CloseNotifier
+          Offset: 16
+          Type: 79 GoInterfaceType net/http.CloseNotifier
+    - __kind: StructureType
+      ID: 65
+      Name: struct { gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter = gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1; net/http.CloseNotifier; net/http.Hijacker }
+      ByteSize: 48
+      GoRuntimeType: 2.023616e+06
+      GoKind: 25
+      RawFields:
+        - Name: monitoredResponseWriter
+          Offset: 0
+          Type: 76 GoInterfaceType gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1
+        - Name: CloseNotifier
+          Offset: 16
+          Type: 79 GoInterfaceType net/http.CloseNotifier
+        - Name: Hijacker
+          Offset: 32
+          Type: 80 GoInterfaceType net/http.Hijacker
+    - __kind: StructureType
+      ID: 47
+      Name: struct { gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter = gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1; net/http.Flusher }
+      ByteSize: 32
+      GoRuntimeType: 1.946944e+06
+      GoKind: 25
+      RawFields:
+        - Name: monitoredResponseWriter
+          Offset: 0
+          Type: 76 GoInterfaceType gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1
+        - Name: Flusher
+          Offset: 16
+          Type: 77 GoInterfaceType net/http.Flusher
+    - __kind: StructureType
+      ID: 57
+      Name: struct { gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter = gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.CloseNotifier }
+      ByteSize: 48
+      GoRuntimeType: 2.022464e+06
+      GoKind: 25
+      RawFields:
+        - Name: monitoredResponseWriter
+          Offset: 0
+          Type: 76 GoInterfaceType gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1
+        - Name: Flusher
+          Offset: 16
+          Type: 77 GoInterfaceType net/http.Flusher
+        - Name: CloseNotifier
+          Offset: 32
+          Type: 79 GoInterfaceType net/http.CloseNotifier
+    - __kind: StructureType
+      ID: 71
+      Name: struct { gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter = gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.CloseNotifier; net/http.Hijacker }
+      ByteSize: 64
+      GoRuntimeType: 2.085568e+06
+      GoKind: 25
+      RawFields:
+        - Name: monitoredResponseWriter
+          Offset: 0
+          Type: 76 GoInterfaceType gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1
+        - Name: Flusher
+          Offset: 16
+          Type: 77 GoInterfaceType net/http.Flusher
+        - Name: CloseNotifier
+          Offset: 32
+          Type: 79 GoInterfaceType net/http.CloseNotifier
+        - Name: Hijacker
+          Offset: 48
+          Type: 80 GoInterfaceType net/http.Hijacker
+    - __kind: StructureType
+      ID: 59
+      Name: struct { gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter = gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.Hijacker }
+      ByteSize: 48
+      GoRuntimeType: 2.022752e+06
+      GoKind: 25
+      RawFields:
+        - Name: monitoredResponseWriter
+          Offset: 0
+          Type: 76 GoInterfaceType gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1
+        - Name: Flusher
+          Offset: 16
+          Type: 77 GoInterfaceType net/http.Flusher
+        - Name: Hijacker
+          Offset: 32
+          Type: 80 GoInterfaceType net/http.Hijacker
+    - __kind: StructureType
+      ID: 55
+      Name: struct { gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter = gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.Pusher }
+      ByteSize: 48
+      GoRuntimeType: 2.022176e+06
+      GoKind: 25
+      RawFields:
+        - Name: monitoredResponseWriter
+          Offset: 0
+          Type: 76 GoInterfaceType gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1
+        - Name: Flusher
+          Offset: 16
+          Type: 77 GoInterfaceType net/http.Flusher
+        - Name: Pusher
+          Offset: 32
+          Type: 78 GoInterfaceType net/http.Pusher
+    - __kind: StructureType
+      ID: 67
+      Name: struct { gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter = gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.Pusher; net/http.CloseNotifier }
+      ByteSize: 64
+      GoRuntimeType: 2.084928e+06
+      GoKind: 25
+      RawFields:
+        - Name: monitoredResponseWriter
+          Offset: 0
+          Type: 76 GoInterfaceType gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1
+        - Name: Flusher
+          Offset: 16
+          Type: 77 GoInterfaceType net/http.Flusher
+        - Name: Pusher
+          Offset: 32
+          Type: 78 GoInterfaceType net/http.Pusher
+        - Name: CloseNotifier
+          Offset: 48
+          Type: 79 GoInterfaceType net/http.CloseNotifier
+    - __kind: StructureType
+      ID: 75
+      Name: struct { gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter = gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.Pusher; net/http.CloseNotifier; net/http.Hijacker }
+      ByteSize: 80
+      GoRuntimeType: 2.1464e+06
+      GoKind: 25
+      RawFields:
+        - Name: monitoredResponseWriter
+          Offset: 0
+          Type: 76 GoInterfaceType gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1
+        - Name: Flusher
+          Offset: 16
+          Type: 77 GoInterfaceType net/http.Flusher
+        - Name: Pusher
+          Offset: 32
+          Type: 78 GoInterfaceType net/http.Pusher
+        - Name: CloseNotifier
+          Offset: 48
+          Type: 79 GoInterfaceType net/http.CloseNotifier
+        - Name: Hijacker
+          Offset: 64
+          Type: 80 GoInterfaceType net/http.Hijacker
+    - __kind: StructureType
+      ID: 69
+      Name: struct { gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter = gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.Pusher; net/http.Hijacker }
+      ByteSize: 64
+      GoRuntimeType: 2.085248e+06
+      GoKind: 25
+      RawFields:
+        - Name: monitoredResponseWriter
+          Offset: 0
+          Type: 76 GoInterfaceType gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1
+        - Name: Flusher
+          Offset: 16
+          Type: 77 GoInterfaceType net/http.Flusher
+        - Name: Pusher
+          Offset: 32
+          Type: 78 GoInterfaceType net/http.Pusher
+        - Name: Hijacker
+          Offset: 48
+          Type: 80 GoInterfaceType net/http.Hijacker
+    - __kind: StructureType
+      ID: 53
+      Name: struct { gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter = gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1; net/http.Hijacker }
+      ByteSize: 32
+      GoRuntimeType: 1.947712e+06
+      GoKind: 25
+      RawFields:
+        - Name: monitoredResponseWriter
+          Offset: 0
+          Type: 76 GoInterfaceType gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1
+        - Name: Hijacker
+          Offset: 16
+          Type: 80 GoInterfaceType net/http.Hijacker
+    - __kind: StructureType
+      ID: 49
+      Name: struct { gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter = gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1; net/http.Pusher }
+      ByteSize: 32
+      GoRuntimeType: 1.9472e+06
+      GoKind: 25
+      RawFields:
+        - Name: monitoredResponseWriter
+          Offset: 0
+          Type: 76 GoInterfaceType gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1
+        - Name: Pusher
+          Offset: 16
+          Type: 78 GoInterfaceType net/http.Pusher
+    - __kind: StructureType
+      ID: 61
+      Name: struct { gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter = gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1; net/http.Pusher; net/http.CloseNotifier }
+      ByteSize: 48
+      GoRuntimeType: 2.02304e+06
+      GoKind: 25
+      RawFields:
+        - Name: monitoredResponseWriter
+          Offset: 0
+          Type: 76 GoInterfaceType gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1
+        - Name: Pusher
+          Offset: 16
+          Type: 78 GoInterfaceType net/http.Pusher
+        - Name: CloseNotifier
+          Offset: 32
+          Type: 79 GoInterfaceType net/http.CloseNotifier
+    - __kind: StructureType
+      ID: 73
+      Name: struct { gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter = gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1; net/http.Pusher; net/http.CloseNotifier; net/http.Hijacker }
+      ByteSize: 64
+      GoRuntimeType: 2.085888e+06
+      GoKind: 25
+      RawFields:
+        - Name: monitoredResponseWriter
+          Offset: 0
+          Type: 76 GoInterfaceType gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1
+        - Name: Pusher
+          Offset: 16
+          Type: 78 GoInterfaceType net/http.Pusher
+        - Name: CloseNotifier
+          Offset: 32
+          Type: 79 GoInterfaceType net/http.CloseNotifier
+        - Name: Hijacker
+          Offset: 48
+          Type: 80 GoInterfaceType net/http.Hijacker
+    - __kind: StructureType
+      ID: 63
+      Name: struct { gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter = gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1; net/http.Pusher; net/http.Hijacker }
+      ByteSize: 48
+      GoRuntimeType: 2.023328e+06
+      GoKind: 25
+      RawFields:
+        - Name: monitoredResponseWriter
+          Offset: 0
+          Type: 76 GoInterfaceType gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1
+        - Name: Pusher
+          Offset: 16
+          Type: 78 GoInterfaceType net/http.Pusher
+        - Name: Hijacker
+          Offset: 32
+          Type: 80 GoInterfaceType net/http.Hijacker
+    - __kind: StructureType
+      ID: 111
+      Name: table<string,[]string>
+      ByteSize: 32
+      GoKind: 25
+      RawFields:
+        - Name: used
+          Offset: 0
+          Type: 6 BaseType uint16
+        - Name: capacity
+          Offset: 2
+          Type: 6 BaseType uint16
+        - Name: growthLeft
+          Offset: 4
+          Type: 6 BaseType uint16
+        - Name: localDepth
+          Offset: 6
+          Type: 3 BaseType uint8
+        - Name: index
+          Offset: 8
+          Type: 7 BaseType int
+        - Name: groups
+          Offset: 16
+          Type: 112 GoSwissMapGroupsType groupReference<string,[]string>
+    - __kind: StructureType
+      ID: 121
+      Name: table<string,string>
+      ByteSize: 32
+      GoKind: 25
+      RawFields:
+        - Name: used
+          Offset: 0
+          Type: 6 BaseType uint16
+        - Name: capacity
+          Offset: 2
+          Type: 6 BaseType uint16
+        - Name: growthLeft
+          Offset: 4
+          Type: 6 BaseType uint16
+        - Name: localDepth
+          Offset: 6
+          Type: 3 BaseType uint8
+        - Name: index
+          Offset: 8
+          Type: 7 BaseType int
+        - Name: groups
+          Offset: 16
+          Type: 122 GoSwissMapGroupsType groupReference<string,string>
+    - __kind: BaseType
+      ID: 17
+      Name: uint
+      ByteSize: 8
+      GoRuntimeType: 585088
+      GoKind: 7
+    - __kind: BaseType
+      ID: 6
+      Name: uint16
+      ByteSize: 2
+      GoRuntimeType: 584704
+      GoKind: 9
+    - __kind: BaseType
+      ID: 2
+      Name: uint32
+      ByteSize: 4
+      GoRuntimeType: 584832
+      GoKind: 10
+    - __kind: BaseType
+      ID: 8
+      Name: uint64
+      ByteSize: 8
+      GoRuntimeType: 584960
+      GoKind: 11
+    - __kind: BaseType
+      ID: 3
+      Name: uint8
+      ByteSize: 1
+      GoRuntimeType: 584576
+      GoKind: 8
+    - __kind: BaseType
+      ID: 1
+      Name: uintptr
+      ByteSize: 8
+      GoRuntimeType: 585152
+      GoKind: 12
+    - __kind: VoidPointerType
+      ID: 14
+      Name: unsafe.Pointer
+      ByteSize: 8
+      GoRuntimeType: 585536
+      GoKind: 26
+MaxTypeID: 130
+Issues: []
+GoModuledataInfo: {FirstModuledataAddr: "0x182c9a0", TypesOffset: 296}

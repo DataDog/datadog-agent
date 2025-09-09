@@ -13,7 +13,7 @@ The datadogextension will be added automatically by the [converter component](..
 *Collector config:*
 ```
 extensions:
- datadog:
+ ddflare:
    port: 7777
 ```
 

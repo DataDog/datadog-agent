@@ -19,8 +19,6 @@ import (
 
 	"go.opentelemetry.io/collector/component/componenttest"
 
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
-
 	corecompcfg "github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -32,6 +30,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
@@ -49,7 +48,7 @@ const (
 	mrfPrefix = "mrf."
 )
 
-func setupConfigCommon(deps Dependencies, _ string) (*config.AgentConfig, error) {
+func setupConfigCommon(deps Dependencies) (*config.AgentConfig, error) {
 	confFilePath := deps.Config.ConfigFileUsed()
 
 	return LoadConfigFile(confFilePath, deps.Config, deps.Tagger, deps.IPC)
@@ -600,13 +599,13 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		c.DebuggerProxy.AdditionalEndpoints = core.GetStringMapStringSlice(k)
 	}
 	if k := "apm_config.debugger_diagnostics_dd_url"; core.IsSet(k) {
-		c.DebuggerDiagnosticsProxy.DDURL = core.GetString(k)
+		c.DebuggerIntakeProxy.DDURL = core.GetString(k)
 	}
 	if k := "apm_config.debugger_diagnostics_api_key"; core.IsSet(k) {
-		c.DebuggerDiagnosticsProxy.APIKey = core.GetString(k)
+		c.DebuggerIntakeProxy.APIKey = core.GetString(k)
 	}
 	if k := "apm_config.debugger_diagnostics_additional_endpoints"; core.IsSet(k) {
-		c.DebuggerDiagnosticsProxy.AdditionalEndpoints = core.GetStringMapStringSlice(k)
+		c.DebuggerIntakeProxy.AdditionalEndpoints = core.GetStringMapStringSlice(k)
 	}
 	if k := "apm_config.symdb_dd_url"; core.IsSet(k) {
 		c.SymDBProxy.DDURL = core.GetString(k)

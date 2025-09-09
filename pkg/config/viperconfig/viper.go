@@ -130,8 +130,16 @@ func (c *safeConfig) Set(key string, newValue interface{}, source model.Source) 
 	}
 }
 
-// SetWithoutSource sets the given value using source Unknown
+// SetWithoutSource sets the given value using source Unknown, may only be called from tests
 func (c *safeConfig) SetWithoutSource(key string, value interface{}) {
+	c.assertIsTest("SetWithoutSource")
+	v := reflect.ValueOf(value)
+	if v.Kind() == reflect.Pointer {
+		v = v.Elem()
+	}
+	if v.Kind() == reflect.Struct {
+		panic("SetWithoutSource cannot assign struct to a setting")
+	}
 	c.Set(key, value, model.SourceUnknown)
 }
 
@@ -600,12 +608,8 @@ func (c *safeConfig) ReadInConfig() error {
 	defer c.Unlock()
 	// ReadInConfig reset configuration with the main config file
 	err := errors.Join(c.Viper.ReadInConfig(), c.configSources[model.SourceFile].ReadInConfig())
-	var e viper.ConfigFileNotFoundError
 	if err != nil {
-		if errors.As(err, &e) {
-			return model.ConfigFileNotFoundError{Err: err}
-		}
-		return err
+		return model.NewConfigFileNotFoundError(err) // nolint: forbidigo // constructing proper error
 	}
 
 	type extraConf struct {

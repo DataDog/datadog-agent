@@ -9,6 +9,16 @@ import (
 	typedef "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def/proto"
 )
 
+// Scope defines the scope of the filters.
+type Scope string
+
+// Predefined scopes for the filters.
+const (
+	GlobalFilter  Scope = "GlobalFilter"
+	MetricsFilter Scope = "MetricsFilter"
+	LogsFilter    Scope = "LogsFilter"
+)
+
 // Result is an enumeration that represents the possible results of a filter evaluation.
 type Result int
 

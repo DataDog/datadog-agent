@@ -1,5 +1,3 @@
 log_level: 'debug'
-system_probe_config:
-  enabled: true
 discovery:
   enabled: true

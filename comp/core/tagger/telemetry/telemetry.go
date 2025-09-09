@@ -61,6 +61,10 @@ type Store struct {
 	// to generate a container ID from Origin Info.
 	OriginInfoRequests telemetry.Counter
 
+	// OriginInfoContainerIDMismatch tracks the number of times container IDs from Origin Info
+	// were mismatched during enrichment.
+	OriginInfoContainerIDMismatch telemetry.Counter
+
 	LowCardinalityQueries          CardinalityTelemetry
 	OrchestratorCardinalityQueries CardinalityTelemetry
 	HighCardinalityQueries         CardinalityTelemetry
@@ -126,6 +130,12 @@ func NewStore(telemetryComp telemetry.Component) *Store {
 		// to generate a container ID from origin info.
 		OriginInfoRequests: telemetryComp.NewCounterWithOpts(subsystem, "origin_info_requests",
 			[]string{"status"}, "Number of requests to the tagger to generate a container ID from origin info.",
+			commonOpts),
+
+		// OriginInfoContainerIDMismatch tracks the number of times container IDs from Origin Info
+		// were mismatched during enrichment.
+		OriginInfoContainerIDMismatch: telemetryComp.NewCounterWithOpts(subsystem, "origin_info_container_id_mismatch",
+			[]string{}, "Number of times container IDs from Origin Info where mismatched during enrichment.",
 			commonOpts),
 
 		LowCardinalityQueries:          newCardinalityTelemetry(queries, types.LowCardinalityString),

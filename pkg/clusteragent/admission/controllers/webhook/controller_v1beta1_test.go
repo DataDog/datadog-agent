@@ -2,14 +2,15 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
-// Skip mac os test as cluster agent doesn't run on mac os
-//go:build kubeapiserver && !darwin
+
+//go:build kubeapiserver
 
 package webhook
 
 import (
 	"context"
 	"reflect"
+	"runtime"
 	"testing"
 	"time"
 
@@ -25,6 +26,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	configComp "github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
@@ -38,6 +41,9 @@ import (
 func getV1beta1Cfg(t *testing.T) Config { return NewConfig(false, false, false, configComp.NewMock(t)) }
 
 func TestSecretNotFoundV1beta1(t *testing.T) {
+	if runtime.GOOS == "darwin" || runtime.GOOS == "windows" {
+		t.Skip("Skipping on macOS and Windows as Datadog Cluster Agent is not supported on those platforms.")
+	}
 	f := newFixtureV1beta1(t)
 	v1beta1Cfg := getV1beta1Cfg(t)
 
@@ -57,6 +63,9 @@ func TestSecretNotFoundV1beta1(t *testing.T) {
 }
 
 func TestCreateWebhookV1beta1(t *testing.T) {
+	if runtime.GOOS == "darwin" || runtime.GOOS == "windows" {
+		t.Skip("Skipping on macOS and Windows as Datadog Cluster Agent is not supported on those platforms.")
+	}
 	f := newFixtureV1beta1(t)
 	v1beta1Cfg := getV1beta1Cfg(t)
 
@@ -92,6 +101,9 @@ func TestCreateWebhookV1beta1(t *testing.T) {
 }
 
 func TestUpdateOutdatedWebhookV1beta1(t *testing.T) {
+	if runtime.GOOS == "darwin" || runtime.GOOS == "windows" {
+		t.Skip("Skipping on macOS and Windows as Datadog Cluster Agent is not supported on those platforms.")
+	}
 	f := newFixtureV1beta1(t)
 	v1Cfg := getV1Cfg(t)
 	v1beta1Cfg := getV1beta1Cfg(t)
@@ -951,8 +963,10 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 	}
 
 	wmeta := fxutil.Test[workloadmeta.Component](t,
-		core.MockBundle(),
-		fx.Replace(configComp.MockParams{Overrides: map[string]interface{}{"kube_resources_namespace": "nsfoo"}}),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() configComp.Component {
+			return configComp.NewMockWithOverrides(t, map[string]interface{}{"kube_resources_namespace": "nsfoo"})
+		}),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	)
 	for _, tt := range tests {
@@ -963,7 +977,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 
 			c := &ControllerV1beta1{}
 			c.config = tt.configFunc(mockConfig)
-			c.webhooks = c.generateWebhooks(wmeta, nil, mockConfig, nil)
+			c.webhooks = c.generateWebhooks(wmeta, nil, mockConfig, nil, nil)
 			c.generateTemplates()
 
 			assert.EqualValues(t, tt.want(), c.mutatingWebhookTemplates)
@@ -1207,6 +1221,7 @@ func (f *fixtureV1beta1) createController() (*ControllerV1beta1, informers.Share
 		wmeta,
 		nil,
 		datadogConfig,
+		nil,
 		nil,
 	), factory
 }

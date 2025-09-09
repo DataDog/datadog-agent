@@ -479,8 +479,7 @@ type submitterDeps struct {
 
 func getSubmitterDeps(t *testing.T, configOverrides map[string]interface{}, sysprobeconfigOverrides map[string]interface{}) submitterDeps {
 	return fxutil.Test[submitterDeps](t, fx.Options(
-		config.MockModule(),
-		fx.Replace(config.MockParams{Overrides: configOverrides}),
+		fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, configOverrides) }),
 		sysprobeconfigimpl.MockModule(),
 		fx.Replace(sysprobeconfigimpl.MockParams{Overrides: sysprobeconfigOverrides}),
 		forwardersimpl.MockModule(),

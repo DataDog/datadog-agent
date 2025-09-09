@@ -462,8 +462,8 @@ func TestInfoConfig(t *testing.T) {
 	conf.EVPProxy.ApplicationKey = ""
 	assert.Equal("", confCopy.DebuggerProxy.APIKey, "Debugger Proxy API Key should *NEVER* be exported")
 	conf.DebuggerProxy.APIKey = ""
-	assert.Equal("", confCopy.DebuggerDiagnosticsProxy.APIKey, "Debugger Diagnostics Proxy API Key should *NEVER* be exported")
-	conf.DebuggerDiagnosticsProxy.APIKey = ""
+	assert.Equal("", confCopy.DebuggerIntakeProxy.APIKey, "Debugger Intake Proxy API Key should *NEVER* be exported")
+	conf.DebuggerIntakeProxy.APIKey = ""
 	// IPC Auth data should not be exposed
 	conf.AuthToken = ""
 	conf.IPCTLSClientConfig = nil

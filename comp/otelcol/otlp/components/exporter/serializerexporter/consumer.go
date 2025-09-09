@@ -18,17 +18,17 @@ import (
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
 
-	otlpmetrics "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/quantile"
 	"github.com/tinylib/msgp/msgp"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	otlpmetrics "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/otel"
+	"github.com/DataDog/datadog-agent/pkg/util/quantile"
 )
 
 var metricOriginsMappings = map[otlpmetrics.OriginProductDetail]metrics.MetricSource{
@@ -89,7 +89,6 @@ type SerializerConsumer interface {
 }
 
 type serializerConsumer struct {
-	enricher        tagenricher
 	extraTags       []string
 	series          metrics.Series
 	sketches        metrics.SketchSeriesList
@@ -120,14 +119,21 @@ func (c *serializerConsumer) ConsumeAPMStats(ss *pb.ClientStatsPayload) {
 	c.apmstats = append(c.apmstats, body)
 }
 
-func (c *serializerConsumer) ConsumeSketch(ctx context.Context, dimensions *otlpmetrics.Dimensions, ts uint64, interval int64, qsketch *quantile.Sketch) {
+func enrichTags(extraTags []string, dimensions *otlpmetrics.Dimensions) []string {
+	enrichedTags := make([]string, 0, len(extraTags)+len(dimensions.Tags()))
+	enrichedTags = append(enrichedTags, extraTags...)
+	enrichedTags = append(enrichedTags, dimensions.Tags()...)
+	return enrichedTags
+}
+
+func (c *serializerConsumer) ConsumeSketch(_ context.Context, dimensions *otlpmetrics.Dimensions, ts uint64, interval int64, qsketch *quantile.Sketch) {
 	msrc, ok := metricOriginsMappings[dimensions.OriginProductDetail()]
 	if !ok {
 		msrc = metrics.MetricSourceOpenTelemetryCollectorUnknown
 	}
 	c.sketches = append(c.sketches, &metrics.SketchSeries{
 		Name:     dimensions.Name(),
-		Tags:     tagset.CompositeTagsFromSlice(c.enricher.Enrich(ctx, c.extraTags, dimensions)),
+		Tags:     tagset.CompositeTagsFromSlice(enrichTags(c.extraTags, dimensions)),
 		Host:     dimensions.Host(),
 		Interval: interval,
 		Points: []metrics.SketchPoint{{
@@ -148,7 +154,7 @@ func apiTypeFromTranslatorType(typ otlpmetrics.DataType) metrics.APIMetricType {
 	panic(fmt.Sprintf("unreachable: received non-count non-gauge type: %d", typ))
 }
 
-func (c *serializerConsumer) ConsumeTimeSeries(ctx context.Context, dimensions *otlpmetrics.Dimensions, typ otlpmetrics.DataType, ts uint64, interval int64, value float64) {
+func (c *serializerConsumer) ConsumeTimeSeries(_ context.Context, dimensions *otlpmetrics.Dimensions, typ otlpmetrics.DataType, ts uint64, interval int64, value float64) {
 	msrc, ok := metricOriginsMappings[dimensions.OriginProductDetail()]
 	if !ok {
 		msrc = metrics.MetricSourceOpenTelemetryCollectorUnknown
@@ -157,7 +163,7 @@ func (c *serializerConsumer) ConsumeTimeSeries(ctx context.Context, dimensions *
 		&metrics.Serie{
 			Name:     dimensions.Name(),
 			Points:   []metrics.Point{{Ts: float64(ts / 1e9), Value: value}},
-			Tags:     tagset.CompositeTagsFromSlice(c.enricher.Enrich(ctx, c.extraTags, dimensions)),
+			Tags:     tagset.CompositeTagsFromSlice(enrichTags(c.extraTags, dimensions)),
 			Host:     dimensions.Host(),
 			MType:    apiTypeFromTranslatorType(typ),
 			Interval: interval,

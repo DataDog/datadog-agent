@@ -14,15 +14,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/fx"
-
-	corecomp "github.com/DataDog/datadog-agent/comp/core/config"
 )
 
 func TestFullYamlConfigWithOTLP(t *testing.T) {
-	config := buildConfigComponent(t, true, fx.Replace(corecomp.MockParams{
-		Params: corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
-	}))
+	config := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
 	cfg := config.Object()
 
 	require.NotNil(t, cfg)
@@ -34,9 +29,7 @@ func TestFullYamlConfigWithOTLP(t *testing.T) {
 
 func TestOTLPGrpcMaxRecvMsgSizeMibFromEnv(t *testing.T) {
 	t.Setenv("DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_MAX_RECV_MSG_SIZE_MIB", "100")
-	config := buildConfigComponent(t, true, fx.Replace(corecomp.MockParams{
-		Params: corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
-	}))
+	config := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
 	cfg := config.Object()
 
 	require.NotNil(t, cfg)

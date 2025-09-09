@@ -87,11 +87,15 @@ type httpsClient struct {
 }
 
 func (c *httpsClient) DoGet(url string) (body []byte, e error) {
-	return c.c.Get(url, ipchttp.WithLeaveConnectionOpen)
+	opt := []ipc.RequestOption{ipchttp.WithLeaveConnectionOpen}
+	opt = append(opt, c.clientOptions...)
+	return c.c.Get(url, opt...)
 }
 
 func (c *httpsClient) DoPost(url string, contentType string, body io.Reader) (resp []byte, e error) {
-	return c.c.Post(url, contentType, body, ipchttp.WithLeaveConnectionOpen)
+	opt := []ipc.RequestOption{ipchttp.WithLeaveConnectionOpen}
+	opt = append(opt, c.clientOptions...)
+	return c.c.Post(url, contentType, body, opt...)
 }
 
 type runtimeSettingsClient struct {
@@ -102,18 +106,20 @@ type runtimeSettingsClient struct {
 
 // NewHTTPClient returns a client setup to interact with the standard runtime settings HTTP API
 func NewHTTPClient(c *http.Client, baseURL string, targetProcessName string, clientOptions ClientOptions) settings.Client {
-
-	innerClient := &httpClient{c, clientOptions}
-
-	return &runtimeSettingsClient{innerClient, baseURL, targetProcessName}
+	return &runtimeSettingsClient{
+		c:                 &httpClient{c, clientOptions},
+		baseURL:           baseURL,
+		targetProcessName: targetProcessName,
+	}
 }
 
 // NewHTTPSClient returns a client setup to interact with the standard runtime settings HTTPS API, taking advantage of the auth component
 func NewHTTPSClient(c ipc.HTTPClient, baseURL string, targetProcessName string, clientOptions ...ipc.RequestOption) settings.Client {
-
-	innerClient := &httpsClient{c, clientOptions}
-
-	return &runtimeSettingsClient{innerClient, baseURL, targetProcessName}
+	return &runtimeSettingsClient{
+		c:                 &httpsClient{c, clientOptions},
+		baseURL:           baseURL,
+		targetProcessName: targetProcessName,
+	}
 }
 
 func (rc *runtimeSettingsClient) doGet(url string, formatError bool) (string, error) {

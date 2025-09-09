@@ -112,6 +112,9 @@ func (s *languageDetectionSuite) getLanguageForPid(pid string, source string) (s
 		if line == headerLine {
 			scanner.Scan() // entity line
 			scanner.Scan() // pid
+			scanner.Scan() // name
+			scanner.Scan() // exe
+			scanner.Scan() // cmdline
 			scanner.Scan() // nspid
 			scanner.Scan() // container id
 			scanner.Scan() // creation time

@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
@@ -156,6 +157,7 @@ func testLoadCustomCheck(t *testing.T) {
 		Name:       "fake_check",
 		Instances:  []integration.Data{integration.Data("{\"value\": 1}")},
 		InitConfig: integration.Data("{}"),
+		Source:     "fake_check:/etc/datadog-agent/conf.d/fake_check.yaml",
 	}
 
 	mockRtloader(t)
@@ -175,7 +177,7 @@ func testLoadCustomCheck(t *testing.T) {
 	C.get_check_deprecated_check = newMockPyObjectPtr()
 	C.get_check_deprecated_return = 1
 
-	check, err := loader.Load(senderManager, conf, conf.Instances[0])
+	check, err := loader.Load(senderManager, conf, conf.Instances[0], 1)
 	// Remove check finalizer that may trigger race condition while testing
 	runtime.SetFinalizer(check, nil)
 
@@ -183,6 +185,7 @@ func testLoadCustomCheck(t *testing.T) {
 	assert.Equal(t, "fake_check", check.(*PythonCheck).ModuleName)
 	assert.Equal(t, "unversioned", check.(*PythonCheck).version)
 	assert.Equal(t, C.get_class_py_class, check.(*PythonCheck).class)
+	assert.Equal(t, "fake_check:/etc/datadog-agent/conf.d/fake_check.yaml[1]", check.(*PythonCheck).source)
 	// test we call get_attr_string on the module
 	assert.Equal(t, C.get_attr_string_py_class, C.get_class_py_module)
 }
@@ -214,7 +217,7 @@ func testLoadWheelCheck(t *testing.T) {
 	C.get_check_deprecated_check = newMockPyObjectPtr()
 	C.get_check_deprecated_return = 1
 
-	check, err := loader.Load(senderManager, conf, conf.Instances[0])
+	check, err := loader.Load(senderManager, conf, conf.Instances[0], 0)
 	// Remove check finalizer that may trigger race condition while testing
 	runtime.SetFinalizer(check, nil)
 
@@ -298,7 +301,7 @@ func testLoadHACheck(t *testing.T) {
 			C.get_attr_bool_return = C.int(tc.getAttrBoolReturn)
 			C.get_attr_bool_attr_value = C.int(tc.getAttrBoolValue)
 
-			check, err := loader.Load(senderManager, conf, conf.Instances[0])
+			check, err := loader.Load(senderManager, conf, conf.Instances[0], 0)
 			// Remove check finalizer that may trigger race condition while testing
 			runtime.SetFinalizer(check, nil)
 
@@ -311,4 +314,32 @@ func testLoadHACheck(t *testing.T) {
 			assert.Equal(t, tc.expectedHaSupported, check.(*PythonCheck).haSupported)
 		})
 	}
+}
+
+func testLoadError(t *testing.T) {
+	C.reset_loader_mock()
+
+	conf := integration.Config{
+		Name:       "fake_check",
+		Instances:  []integration.Data{integration.Data("{\"value\": 1}")},
+		InitConfig: integration.Data("{}"),
+	}
+
+	mockRtloader(t)
+
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	logReceiver := option.None[integrations.Component]()
+	tagger := nooptagger.NewComponent()
+	loader, err := NewPythonCheckLoader(senderManager, logReceiver, tagger)
+	require.NoError(t, err)
+
+	// testing loading dd wheels
+	C.get_class_dd_wheel_return = 0
+	C.get_class_return = 0
+	C.get_class_dd_wheel_py_module = nil
+	C.get_class_dd_wheel_py_class = nil
+
+	check, err := loader.Load(senderManager, conf, conf.Instances[0], 0)
+	require.Error(t, err)
+	require.Nil(t, check)
 }

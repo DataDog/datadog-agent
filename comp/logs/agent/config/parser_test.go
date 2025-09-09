@@ -374,7 +374,7 @@ logs:
 				assert.Equal(t, "utf-8", config.Encoding)
 				require.Equal(t, len(config.ExcludePaths), 2)
 				assert.Equal(t, "beginning", config.TailingMode)
-				assert.Equal(t, "test_config_id", config.ConfigId)
+				assert.Equal(t, "test_config_id", config.ConfigID)
 				require.Equal(t, len(config.IncludeSystemUnits), 1)
 				require.Equal(t, len(config.ExcludeSystemUnits), 3)
 				require.Equal(t, len(config.IncludeUserUnits), 1)

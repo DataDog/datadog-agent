@@ -247,7 +247,7 @@ func TestGenerateContainerIDFromExternalData(t *testing.T) {
 		fx.Supply(config.Params{}),
 		fx.Supply(log.Params{}),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		config.MockModule(),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
@@ -328,7 +328,7 @@ func TestGenerateContainerIDFromInode(t *testing.T) {
 		fx.Supply(config.Params{}),
 		fx.Supply(log.Params{}),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		config.MockModule(),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 

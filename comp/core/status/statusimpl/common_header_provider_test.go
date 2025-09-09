@@ -15,13 +15,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -172,11 +170,7 @@ func TestCommonHeaderProviderTextWithFipsInformation(t *testing.T) {
 		"fips.enabled": true,
 	}
 
-	config := fxutil.Test[config.Component](t, fx.Options(
-		config.MockModule(),
-		fx.Replace(config.MockParams{Overrides: overrides}),
-	))
-
+	config := config.NewMockWithOverrides(t, overrides)
 	provider := newCommonHeaderProvider(agentParams, config)
 
 	buffer := new(bytes.Buffer)
@@ -285,11 +279,7 @@ func TestCommonHeaderProviderHTMLWithFipsInformation(t *testing.T) {
 		"fips.enabled": true,
 	}
 
-	config := fxutil.Test[config.Component](t, fx.Options(
-		config.MockModule(),
-		fx.Replace(config.MockParams{Overrides: overrides}),
-	))
-
+	config := config.NewMockWithOverrides(t, overrides)
 	provider := newCommonHeaderProvider(agentParams, config)
 
 	buffer := new(bytes.Buffer)

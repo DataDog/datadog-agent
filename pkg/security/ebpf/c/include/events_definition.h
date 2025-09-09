@@ -554,4 +554,25 @@ struct setsockopt_event_t {
     char bpf_filters_buffer[MAX_BPF_FILTER_SIZE];
 };
 
+struct capabilities_event_t {
+    struct kevent_t event;
+    struct process_context_t process;
+    struct span_context_t span;
+    struct cgroup_context_t cgroup;
+    struct capabilities_usage_t caps_usage;
+};
+
+struct prctl_event_t {
+    struct kevent_t event;
+    struct process_context_t process;
+    struct span_context_t span;
+    struct cgroup_context_t cgroup;
+    struct syscall_t syscall;
+
+    int option;
+    int sent_size;
+    u32 name_truncated;
+    char name[MAX_PRCTL_NAME_LEN];
+};
+
 #endif

@@ -878,9 +878,10 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 
 	for _, rule := range bucket.rules {
 		utils.PprofDoWithoutContext(rule.GetPprofLabels(), func() {
-			event.(*model.Event).RuleTags = rule.PolicyRule.Def.ProductTags
-			if rule.GetEvaluator().Eval(ctx) {
+			event := event.(*model.Event)
+			event.RuleTags = rule.PolicyRule.Def.ProductTags
 
+			if rule.GetEvaluator().Eval(ctx) {
 				if rs.logger.IsTracing() {
 					rs.logger.Tracef("Rule `%s` matches with event `%s`\n", rule.ID, event)
 				}

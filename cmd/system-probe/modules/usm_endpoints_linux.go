@@ -60,7 +60,7 @@ func registerUSMEndpoints(nt *networkTracer, httpMux *module.Router) {
 	})
 
 	httpMux.HandleFunc("/debug/redis_monitoring", func(w http.ResponseWriter, req *http.Request) {
-		if !coreconfig.SystemProbe().GetBool("service_monitoring_config.enable_redis_monitoring") {
+		if !coreconfig.SystemProbe().GetBool("service_monitoring_config.redis.enabled") {
 			writeDisabledProtocolMessage("redis", w)
 			return
 		}

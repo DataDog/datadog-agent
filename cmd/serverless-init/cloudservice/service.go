@@ -17,6 +17,10 @@ type CloudService interface {
 	// the logs, traces, and metrics.
 	GetTags() map[string]string
 
+	// GetDefaultLogsSource returns the value that will be used for the logs source
+	// if `DD_SOURCE` is not set by the user.
+	GetDefaultLogsSource() string
+
 	// GetOrigin returns the value that will be used for the `origin` attribute for
 	// all logs, traces, and metrics.
 	GetOrigin() string
@@ -53,6 +57,11 @@ const defaultPrefix = "datadog.serverless_agent"
 // GetTags is a default implementation that returns a local empty tag set
 func (l *LocalService) GetTags() map[string]string {
 	return map[string]string{}
+}
+
+// GetDefaultLogsSource is a default implementation that returns an empty logs source
+func (l *LocalService) GetDefaultLogsSource() string {
+	return "unknown"
 }
 
 // GetOrigin is a default implementation that returns a local empty origin

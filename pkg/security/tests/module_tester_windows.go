@@ -209,9 +209,9 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		opts.staticOpts.preStartCallback(testMod)
 	}
 
-	if opts.staticOpts.snapshotRuleMatchHandler != nil {
+	if opts.staticOpts.ruleMatchHandler != nil {
 		testMod.RegisterRuleEventHandler(func(e *model.Event, r *rules.Rule) {
-			opts.staticOpts.snapshotRuleMatchHandler(testMod, e, r)
+			opts.staticOpts.ruleMatchHandler(testMod, e, r)
 		})
 		t.Cleanup(func() {
 			testMod.RegisterRuleEventHandler(nil)

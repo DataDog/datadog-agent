@@ -11,10 +11,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestJSON(t *testing.T) {
@@ -43,13 +41,8 @@ func TestJSONWith_forwarder_storage_max_size_in_bytes(t *testing.T) {
 		"forwarder_storage_max_size_in_bytes": 67,
 	}
 
-	config := fxutil.Test[config.Component](t, fx.Options(
-		config.MockModule(),
-		fx.Replace(config.MockParams{Overrides: overrides}),
-	))
-
 	provider := statusProvider{
-		config: config,
+		config: config.NewMockWithOverrides(t, overrides),
 	}
 
 	status := make(map[string]interface{})

@@ -147,6 +147,10 @@ var endpoints = []Endpoint{
 		Handler: func(r *HTTPReceiver) http.Handler { return r.debuggerDiagnosticsProxyHandler() },
 	},
 	{
+		Pattern: "/debugger/v2/input",
+		Handler: func(r *HTTPReceiver) http.Handler { return r.debuggerV2IntakeProxyHandler() },
+	},
+	{
 		Pattern: "/symdb/v1/input",
 		Handler: func(r *HTTPReceiver) http.Handler { return r.symDBProxyHandler() },
 	},

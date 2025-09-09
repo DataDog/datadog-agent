@@ -1,5 +1,6 @@
 # Datadog Agent
 
+![GitHub Release](https://img.shields.io/github/v/release/DataDog/datadog-agent?style=flat&logo=datadog&logoColor=%23632CA6&labelColor=%23FFF&color=%23632CA6)
 [![Coverage status](https://codecov.io/github/DataDog/datadog-agent/coverage.svg?branch=main)](https://codecov.io/github/DataDog/datadog-agent?branch=main)
 [![GoDoc](https://godoc.org/github.com/DataDog/datadog-agent?status.svg)](https://godoc.org/github.com/DataDog/datadog-agent)
 

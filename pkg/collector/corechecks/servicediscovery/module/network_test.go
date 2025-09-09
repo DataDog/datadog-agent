@@ -9,7 +9,6 @@ package module
 
 import (
 	"bufio"
-	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -18,15 +17,12 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
-	"time"
 
 	cebpf "github.com/cilium/ebpf"
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/core"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 )
@@ -203,53 +199,6 @@ func TestNetworkCollector(t *testing.T) {
 	})
 }
 
-func TestNetwork(t *testing.T) {
-	discovery := setupDiscoveryModule(t)
-	discovery.mockTimeProvider.EXPECT().Now().DoAndReturn(func() time.Time {
-		return time.Now()
-	}).AnyTimes()
-
-	listener, err := net.Listen("tcp4", ":8087")
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = listener.Close() })
-
-	pid := os.Getpid()
-
-	params := core.DefaultParams()
-	params.HeartbeatTime = 0
-
-	// Get the service to be recognized as started
-	_ = getCheckWithParams(t, discovery.url, &params)
-	_ = getCheckWithParams(t, discovery.url, &params)
-
-	old := model.Service{}
-
-	// The low-level stats are verified separately by TestNetworkCollector() and
-	// the bps calculation is verified with mocks in TestNetworkStats(). This
-	// test does some basic assertions just to ensure that everything is
-	// hooked up together.
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		resp := getCheckWithParams(collect, discovery.url, &params)
-		service := findService(pid, resp.HeartbeatServices)
-		require.NotNil(collect, service)
-		assert.NotZero(collect, service.RxBytes)
-		assert.NotZero(collect, service.TxBytes)
-		assert.NotZero(collect, service.RxBps)
-		assert.NotZero(collect, service.TxBps)
-		old = *service
-	}, 5*time.Second, 100*time.Millisecond)
-
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		resp := getCheckWithParams(collect, discovery.url, &params)
-		service := findService(pid, resp.HeartbeatServices)
-		require.NotNil(collect, service)
-		assert.Greater(collect, service.RxBytes, old.RxBytes)
-		assert.Greater(collect, service.TxBytes, old.TxBytes)
-		assert.NotEqual(collect, old.RxBps, service.RxBps)
-		assert.NotEqual(collect, old.TxBps, service.TxBps)
-	}, 5*time.Second, 100*time.Millisecond)
-}
-
 func TestGetNetworkCollectorError(t *testing.T) {
 	_ = setupDiscoveryModuleWithNetwork(t, func(_ *core.DiscoveryConfig) (core.NetworkCollector, error) {
 		return nil, errors.New("fail")
@@ -263,114 +212,4 @@ func TestNetworkStatsDisabled(t *testing.T) {
 		t.FailNow()
 		return nil, nil
 	})
-}
-
-func TestNetworkStats(t *testing.T) {
-	startService := func() (*exec.Cmd, context.CancelFunc) {
-		listener, err := net.Listen("tcp", "")
-		require.NoError(t, err)
-		f, err := listener.(*net.TCPListener).File()
-		listener.Close()
-
-		// Disable close-on-exec so that the sleep gets it
-		require.NoError(t, err)
-		t.Cleanup(func() { f.Close() })
-		disableCloseOnExec(t, f)
-
-		ctx, cancel := context.WithCancel(context.Background())
-		t.Cleanup(func() { cancel() })
-
-		cmd := exec.CommandContext(ctx, "sleep", "1000")
-		cmd.Dir = "/tmp/"
-		cmd.Env = append(cmd.Env, "DD_SERVICE=foo_bar")
-		err = cmd.Start()
-		require.NoError(t, err)
-		f.Close()
-
-		return cmd, cancel
-	}
-
-	stopService := func(cmd *exec.Cmd, cancel context.CancelFunc) {
-		cancel()
-		_ = cmd.Wait()
-	}
-
-	mockCtrl := gomock.NewController(t)
-	mock := core.NewMockNetworkCollector(mockCtrl)
-	discovery := setupDiscoveryModuleWithNetwork(t, func(_ *core.DiscoveryConfig) (core.NetworkCollector, error) {
-		return mock, nil
-	})
-
-	// Number of calls made to timeProvider.Now() for one call of
-	// getCheckWithParams()
-	nowCalls := 2
-
-	// Start the service and check we found it.
-	cmd, cancel := startService()
-	pid := cmd.Process.Pid
-
-	mock.EXPECT().GetStats(gomock.Any()).DoAndReturn(func(pids core.PidSet) (map[uint32]core.NetworkStats, error) {
-		require.True(t, pids.Has(int32(pid)))
-		return map[uint32]core.NetworkStats{}, nil
-	})
-
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		now := mockedTime
-		discovery.mockTimeProvider.EXPECT().Now().Return(now).Times(nowCalls)
-
-		resp := getCheckServices(collect, discovery.url)
-		startEvent := findService(pid, resp.StartedServices)
-		require.NotNilf(collect, startEvent, "could not find start event for pid %v", pid)
-	}, 30*time.Second, 100*time.Millisecond)
-
-	params := core.DefaultParams()
-	params.HeartbeatTime = 0
-
-	now := mockedTime
-	discovery.mockTimeProvider.EXPECT().Now().Return(now).Times(nowCalls)
-
-	_ = getCheckWithParams(t, discovery.url, &params)
-
-	mock.EXPECT().GetStats(gomock.Any()).DoAndReturn(func(pids core.PidSet) (map[uint32]core.NetworkStats, error) {
-		require.True(t, pids.Has(int32(pid)))
-		return map[uint32]core.NetworkStats{
-			uint32(pid): {
-				Rx: 1000,
-				Tx: 2000,
-			},
-		}, nil
-	})
-
-	now = now.Add(1 * time.Second)
-	discovery.mockTimeProvider.EXPECT().Now().Return(now).Times(nowCalls)
-
-	_ = getCheckWithParams(t, discovery.url, &params)
-
-	now = now.Add(10 * time.Second)
-	discovery.mockTimeProvider.EXPECT().Now().Return(now).Times(nowCalls)
-
-	mock.EXPECT().GetStats(gomock.Any()).DoAndReturn(func(pids core.PidSet) (map[uint32]core.NetworkStats, error) {
-		require.True(t, pids.Has(int32(pid)))
-		return map[uint32]core.NetworkStats{
-			uint32(pid): {
-				Rx: 3000,
-				Tx: 8000,
-			},
-		}, nil
-	})
-	response := getCheckWithParams(t, discovery.url, &params)
-	service := findService(pid, response.HeartbeatServices)
-	require.NotNil(t, service)
-	require.Equal(t, 3000, int(service.RxBytes))
-	require.Equal(t, 8000, int(service.TxBytes))
-	require.Equal(t, 200, int(service.RxBps))
-	require.Equal(t, 600, int(service.TxBps))
-
-	stopService(cmd, cancel)
-
-	discovery.mockTimeProvider.EXPECT().Now().Return(now).AnyTimes()
-	r := getCheckWithParams(t, discovery.url, &params)
-	t.Log(r.StoppedServices)
-
-	mock.EXPECT().Close().Times(1)
 }

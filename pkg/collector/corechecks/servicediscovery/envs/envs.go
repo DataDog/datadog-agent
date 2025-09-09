@@ -11,6 +11,8 @@ var targets = map[string]struct{}{
 	"PWD":                      {},
 	"DD_INJECTION_ENABLED":     {},
 	"DD_SERVICE":               {},
+	"DD_ENV":                   {},
+	"DD_VERSION":               {},
 	"DD_TAGS":                  {},
 	"DD_DISCOVERY_ENABLED":     {},
 	"GUNICORN_CMD_ARGS":        {},

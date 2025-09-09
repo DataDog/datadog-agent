@@ -25,6 +25,7 @@ import (
 	"google.golang.org/grpc/examples/route_guide/routeguide"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
+	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 )
 
 // Server is used to implement helloworld.GreeterServer.
@@ -251,9 +252,17 @@ func NewServer(addr string, enableTLS bool) (*Server, error) {
 
 // NewServerWithoutBind returns a new instance of the gRPC server.
 func NewServerWithoutBind(opts ...grpc.ServerOption) *Server {
-	opts = append(opts, grpc.MaxRecvMsgSize(100*1024*1024), grpc.MaxSendMsgSize(100*1024*1024))
+	// Start with metrics interceptors first
+	metricsOpts := grpcutil.ServerOptionsWithMetrics(
+		grpc.MaxRecvMsgSize(100*1024*1024),
+		grpc.MaxSendMsgSize(100*1024*1024),
+	)
+
+	// Then add any additional options
+	metricsOpts = append(metricsOpts, opts...)
+
 	server := &Server{
-		grpcSrv:    grpc.NewServer(opts...),
+		grpcSrv:    grpc.NewServer(metricsOpts...),
 		routeNotes: make(map[string][]*routeguide.RouteNote),
 	}
 

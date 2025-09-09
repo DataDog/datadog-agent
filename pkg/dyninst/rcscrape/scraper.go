@@ -8,8 +8,10 @@
 package rcscrape
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -28,8 +30,15 @@ type Scraper struct {
 		sync.Mutex
 
 		sinks     map[ir.ProgramID]*scraperSink
+		processes map[actuator.ProcessID]*trackedProcess
 		debouncer debouncer
 	}
+}
+
+type trackedProcess struct {
+	pu procmon.ProcessUpdate
+	// The runtimeID reported by the tracer inside this process.
+	runtimeID string
 }
 
 // defaultIdlePeriod is the default idle period for the debouncer. This value
@@ -59,6 +68,7 @@ func NewScraper[A Actuator[T], T ActuatorTenant](
 	v := &Scraper{}
 	v.mu.sinks = make(map[ir.ProgramID]*scraperSink)
 	v.mu.debouncer = makeDebouncer(defaultIdlePeriod)
+	v.mu.processes = make(map[actuator.ProcessID]*trackedProcess)
 	v.tenant = a.NewTenant(
 		"rc-scrape",
 		(*scraperReporter)(v),
@@ -67,8 +77,10 @@ func NewScraper[A Actuator[T], T ActuatorTenant](
 	return v
 }
 
-// ProcessUpdate is a wrapper around an actuator.ProcessUpdate that includes
-// the runtime ID of the process.
+// ProcessUpdate represents the current state of a process, which may have
+// changed since the last time the Scraper returned information about that
+// process. An update doesn't tell you exactly what changed, and ProcessUpdates
+// can be produced even when nothing at all changed.
 type ProcessUpdate struct {
 	procmon.ProcessUpdate
 	RuntimeID         string
@@ -76,11 +88,31 @@ type ProcessUpdate struct {
 	ShouldUploadSymDB bool
 }
 
-// GetUpdates returns the current set of updates.
+// GetUpdates returns the current state of processes that have pending updates
+// (i.e. updates not previously returned by GetUpdates).
 func (s *Scraper) GetUpdates() []ProcessUpdate {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.mu.debouncer.coalesceInFlight(time.Now())
+	updates := s.mu.debouncer.getUpdates(time.Now())
+	res := make([]ProcessUpdate, 0, len(updates))
+	for _, u := range updates {
+		p, ok := s.mu.processes[u.procID]
+		if !ok {
+			log.Warnf("bug: debouncer update for untracked process: %v", u.procID)
+			continue
+		}
+		res = append(res, ProcessUpdate{
+			ProcessUpdate:     p.pu,
+			RuntimeID:         p.runtimeID,
+			Probes:            u.probes,
+			ShouldUploadSymDB: u.symdbEnabled,
+		})
+	}
+
+	slices.SortFunc(res, func(a, b ProcessUpdate) int {
+		return cmp.Compare(a.ProcessID.PID, b.ProcessID.PID)
+	})
+	return res
 }
 
 // AsProcMonHandler returns a procmon.Handler attached to the Scraper.
@@ -88,12 +120,77 @@ func (s *Scraper) AsProcMonHandler() procmon.Handler {
 	return (*procMonHandler)(s)
 }
 
+// AddUpdate accumulates a remote config update for a process, to be returned
+// later by GetUpdates.
+func (s *Scraper) AddUpdate(
+	now time.Time,
+	processID actuator.ProcessID,
+	file remoteConfigFile,
+) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	p, ok := s.mu.processes[processID]
+	if !ok {
+		// Update corresponds to an untracked process. This can happen because
+		// notifications about process removal can race with reading updates
+		// from the BPF ringbuf.
+		return
+	}
+	s.checkRuntimeIDLocked(p, file.RuntimeID)
+
+	s.mu.debouncer.addUpdate(now, processID, file)
+
+	if log.ShouldLog(log.TraceLvl) {
+		log.Tracef(
+			"rcscrape: process %v: got update for %s",
+			p.pu.ProcessID, file.ConfigPath,
+		)
+	}
+}
+
+// AddSymdbEnabled accumulates a SymDB enablement update for a process, to be
+// returned later by GetUpdates.
+func (s *Scraper) AddSymdbEnabled(
+	now time.Time,
+	processID actuator.ProcessID,
+	runtimeID string,
+	symdbEnabled bool,
+) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	p, ok := s.mu.processes[processID]
+	if !ok {
+		// Update corresponds to an untracked process.
+		return
+	}
+	s.checkRuntimeIDLocked(p, runtimeID)
+
+	s.mu.debouncer.addSymdbEnabled(now, processID, symdbEnabled)
+
+	if log.ShouldLog(log.TraceLvl) {
+		log.Tracef(
+			"rcscrape: process %v: SymDB enabled: %t",
+			p.pu.ProcessID, symdbEnabled,
+		)
+	}
+}
+
+func (s *Scraper) checkRuntimeIDLocked(p *trackedProcess, runtimeID string) {
+	if p.runtimeID != "" && p.runtimeID != runtimeID {
+		log.Warnf(
+			"rcscrape: process %v: runtime ID mismatch: %s != %s",
+			p.pu.ProcessID, p.runtimeID, runtimeID,
+		)
+		s.mu.debouncer.clear(p.pu.ProcessID)
+	}
+	p.runtimeID = runtimeID
+}
+
 type procMonHandler Scraper
 
-// HandleProcessesUpdate is called by the actuator to track the current set of
-// processes.
+// HandleUpdate is called by the actuator to track the current set of processes.
 func (h *procMonHandler) HandleUpdate(update procmon.ProcessesUpdate) {
-	(*Scraper)(h).trackUpdate(update)
+	(*Scraper)(h).handleProcmonUpdates(update)
 	updates := make([]actuator.ProcessUpdate, 0, len(update.Processes))
 	for i := range update.Processes {
 		process := &update.Processes[i]
@@ -135,20 +232,14 @@ func (s *scraperSink) HandleEvent(ev output.Event) error {
 		if err != nil {
 			return err
 		}
-		s.scraper.mu.Lock()
-		defer s.scraper.mu.Unlock()
-		s.scraper.mu.debouncer.addInFlight(now, s.processID, rcFile)
+		s.scraper.AddUpdate(now, s.processID, rcFile)
 		return nil
 	case *symdbEventDecoder:
 		runtimeID, symdbEnabled, err := d.decodeSymdbEnabled(ev)
 		if err != nil {
 			return err
 		}
-		s.scraper.mu.Lock()
-		defer s.scraper.mu.Unlock()
-		s.scraper.mu.debouncer.addSymdbEnabled(
-			now, s.processID, runtimeID, symdbEnabled,
-		)
+		s.scraper.AddSymdbEnabled(now, s.processID, runtimeID, symdbEnabled)
 		return nil
 	default:
 		return fmt.Errorf("unknown event decoder: %T", d)
@@ -161,15 +252,29 @@ func (s *scraperSink) Close() {
 	delete(s.scraper.mu.sinks, s.programID)
 }
 
-func (s *Scraper) trackUpdate(update procmon.ProcessesUpdate) {
+func (s *Scraper) handleProcmonUpdates(update procmon.ProcessesUpdate) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	for _, process := range update.Processes {
-		s.mu.debouncer.track(process)
+	for _, proc := range update.Processes {
+		s.mu.processes[proc.ProcessID] = &trackedProcess{
+			pu:        proc,
+			runtimeID: "",
+		}
 	}
-	for _, process := range update.Removals {
-		s.mu.debouncer.untrack(process)
+	for _, pid := range update.Removals {
+		s.untrackLocked(pid)
 	}
+}
+
+func (s *Scraper) untrack(pid actuator.ProcessID) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.untrackLocked(pid)
+}
+
+func (s *Scraper) untrackLocked(pid actuator.ProcessID) {
+	s.mu.debouncer.clear(pid)
+	delete(s.mu.processes, pid)
 }
 
 type scraperReporter Scraper
@@ -253,9 +358,7 @@ func (s *scraperReporter) ReportLoadingFailed(
 }
 
 func (s *scraperReporter) untrack(processID actuator.ProcessID) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.mu.debouncer.untrack(processID)
+	((*Scraper)(s)).untrack(processID)
 }
 
 var _ actuator.Reporter = (*scraperReporter)(nil)

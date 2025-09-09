@@ -11,8 +11,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
@@ -23,6 +21,9 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics"
+
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/util/otel"
 )
@@ -84,7 +85,7 @@ func TestAPMStats_OSS(t *testing.T) {
 
 func TestAPMStats_OTelAgent(t *testing.T) {
 	statsIn := make(chan []byte, 1000)
-	factory := NewFactoryForOTelAgent(&metricRecorder{}, &MockTagEnricher{}, func(context.Context) (string, error) {
+	factory := NewFactoryForOTelAgent(&metricRecorder{}, func(context.Context) (string, error) {
 		return "", nil
 	}, statsIn, otel.NewDisabledGatewayUsage(), TelemetryStore{}, nil)
 	testAPMStats(t, factory, statsIn)

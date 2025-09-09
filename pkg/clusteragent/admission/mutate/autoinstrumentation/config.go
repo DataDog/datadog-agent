@@ -394,7 +394,7 @@ type pinnedLibraries struct {
 
 // getPinnedLibraries returns tracing libraries to inject as configured by apm_config.instrumentation.lib_versions
 // given a registry.
-func getPinnedLibraries(libVersions map[string]string, registry string, checkDefaults bool) pinnedLibraries {
+func getPinnedLibraries(libVersions map[string]string, registry string, checkDefaults bool, imageResolver ImageResolver) pinnedLibraries {
 	libs := []libInfo{}
 	allDefaults := true
 
@@ -405,7 +405,7 @@ func getPinnedLibraries(libVersions map[string]string, registry string, checkDef
 			continue
 		}
 
-		info := l.libInfo("", l.libImageName(registry, version))
+		info := l.libInfoWithResolver("", registry, version, imageResolver)
 		log.Infof("Library version %s is specified for language %s, going to use %s", version, lang, info.image)
 		libs = append(libs, info)
 
