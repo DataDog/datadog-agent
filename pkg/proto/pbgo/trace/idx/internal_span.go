@@ -485,7 +485,7 @@ func (c *InternalTraceChunk) ToProto(usedStrings []bool) *TraceChunk {
 type InternalSpan struct {
 	// Strings is a pointer to the strings slice (Shared across a tracer payload)
 	Strings *StringTable
-	span    *Span
+	span    *Span // We reference the proto span directly to avoid the allocation overhead when converting this to a proto span
 }
 
 // NewInternalSpan creates a new internal span.
@@ -536,7 +536,6 @@ func markSpanEventUsedStrings(usedStrings []bool, strTable *StringTable, event *
 // ShallowCopy returns a shallow copy of the span
 func (s *Span) ShallowCopy() *Span {
 	return &Span{
-		// TODO: add a test to verify we have all fields
 		ServiceRef:   s.ServiceRef,
 		NameRef:      s.NameRef,
 		ResourceRef:  s.ResourceRef,
@@ -609,7 +608,6 @@ func (s *InternalSpan) LenLinks() int {
 }
 
 // Msgsize returns the size of the message when serialized.
-// TODO: how can we maintain this as we add more fields?
 func (s *InternalSpan) Msgsize() int {
 	size := 0
 	size += msgp.MapHeaderSize                   // Header (All fields are key-value pairs, uint32 for keys)
@@ -824,7 +822,7 @@ func (s *InternalSpan) GetAttributeAsFloat64(key string) (float64, bool) {
 	if keyIdx == 0 {
 		return 0, false
 	}
-	if attr, ok := s.span.Attributes[s.Strings.Lookup(key)]; ok {
+	if attr, ok := s.span.Attributes[keyIdx]; ok {
 		doubleVal, err := attr.AsDoubleValue(s.Strings)
 		if err != nil {
 			return 0, false
@@ -866,6 +864,7 @@ func (s *InternalSpan) setCompatibleTags(key, value string) bool {
 	}
 	if key == "version" {
 		s.SetVersion(value)
+		return true
 	}
 	if key == "component" {
 		s.SetComponent(value)
@@ -887,7 +886,7 @@ func (s *InternalSpan) setCompatibleTags(key, value string) bool {
 		}
 		if newKind == SpanKind_SPAN_KIND_UNSPECIFIED {
 			// On an unknown span kind, we just won't set it
-			return false
+			return true
 		}
 		s.SetSpanKind(newKind)
 		return true
@@ -990,8 +989,7 @@ func (sl *InternalSpanLink) Attributes() map[uint32]*AnyValue {
 	return sl.link.Attributes
 }
 
-// InternalSpanEvent is a span event structure that is optimized for trace-agent usage
-// Namely it stores Attributes as a map for fast key lookups
+// InternalSpanEvent is the canonical internal span event structure
 type InternalSpanEvent struct {
 	// Strings is a pointer to the strings slice (Shared across a tracer payload)
 	Strings *StringTable
@@ -1029,7 +1027,7 @@ func (se *InternalSpanEvent) GetAttributeAsString(key string) (string, bool) {
 // SetAttributeFromString sets the attribute on an InternalSpanEvent from a string, attempting to use the most backwards compatible type possible
 // for the attribute value. Meaning we will prefer DoubleValue > IntValue > StringValue to match the previous metrics vs meta behavior
 func (se *InternalSpanEvent) SetAttributeFromString(key, value string) {
-	se.event.Attributes[se.Strings.Add(key)] = FromString(se.Strings, value)
+	setAttribute(key, FromString(se.Strings, value), se.Strings, se.event.Attributes)
 }
 
 // AsString returns the attribute in string format, this format is backwards compatible with non-v1 behavior
