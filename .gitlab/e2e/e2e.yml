@@ -915,9 +915,9 @@ new-e2e-package-signing-suse-a7-x86_64:
     - .new-e2e_package_signing
   variables:
     E2E_ARCH: x86_64
-    E2E_OSVERS: "sles-12,sles-15"
-    E2E_CWS_SUPPORTED_OSVERS: "sles-12,sles-15"
-    E2E_BRANCH_OSVERS: "sles-15"
+    E2E_OSVERS: "12,15-sp4"
+    E2E_CWS_SUPPORTED_OSVERS: "12,15-sp4"
+    E2E_BRANCH_OSVERS: "15-sp4"
   needs:
     - !reference [.needs_new_e2e_template]
     - agent_suse-x64-a7
