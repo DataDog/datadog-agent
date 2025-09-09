@@ -193,9 +193,9 @@ def get_common_ancestor(ctx, branch, base=None, try_fetch=True, hide=True) -> st
 
         # With S3 caching, it's possible that the base branch is not fetched
         if base.startswith("origin/"):
-            ctx.run(f"git fetch origin {base}", hide=hide)
+            ctx.run(f"git fetch origin {base.removeprefix('origin/')}", hide=hide)
         if branch.startswith("origin/"):
-            ctx.run(f"git fetch origin {branch}", hide=hide)
+            ctx.run(f"git fetch origin {branch.removeprefix('origin/')}", hide=hide)
 
         return ctx.run(f"git merge-base {branch} {base}", hide=hide).stdout.strip()
 
