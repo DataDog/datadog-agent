@@ -18,7 +18,7 @@
     FLATTEN_IMAGE=${FLATTEN_IMAGE:-true}
 
     if [[ "$FLATTEN_IMAGE" == "true" ]]; then
-      remove_image()
+      remove_image
     fi
 
     echo "🔍 Measuring Docker image: $IMAGE_REF"
@@ -47,11 +47,9 @@
     echo "ℹ️  Skipping Docker image measurement (no STATIC_QUALITY_GATE_NAME defined)"
   fi
 
-  remove_image()
+  remove_image
 
   # Cleanup function
-  remove_image() {
-    docker rmi "$IMAGE_REF" || true # Ignore errors for now
-  }
+  remove_image() { docker rmi "$IMAGE_REF" || true; }
 
 .static_quality_gate_report_path: "**/*_size_report_*.yml"
