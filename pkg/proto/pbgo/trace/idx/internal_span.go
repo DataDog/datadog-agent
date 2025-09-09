@@ -107,9 +107,9 @@ func (s *StringTable) Lookup(str string) uint32 {
 	return 0
 }
 
-// DecrementReference decrements the ref count for the string at the given index
+// decrementReference decrements the ref count for the string at the given index
 // If the ref count reaches 0, the string is set to the empty string and the lookup is removed
-func (s *StringTable) DecrementReference(idx uint32) {
+func (s *StringTable) decrementReference(idx uint32) {
 	s.refs[idx]--
 	if s.refs[idx] == 0 {
 		// Remove string from lookup table as well, as it is no longer referenced
@@ -222,7 +222,7 @@ func (tp *InternalTracerPayload) Hostname() string {
 
 // SetHostname sets the hostname for the tracer payload.
 func (tp *InternalTracerPayload) SetHostname(hostname string) {
-	tp.Strings.DecrementReference(tp.hostnameRef)
+	tp.Strings.decrementReference(tp.hostnameRef)
 	tp.hostnameRef = tp.Strings.Add(hostname)
 }
 
@@ -233,7 +233,7 @@ func (tp *InternalTracerPayload) AppVersion() string {
 
 // SetAppVersion sets the application version for the tracer payload.
 func (tp *InternalTracerPayload) SetAppVersion(version string) {
-	tp.Strings.DecrementReference(tp.appVersionRef)
+	tp.Strings.decrementReference(tp.appVersionRef)
 	tp.appVersionRef = tp.Strings.Add(version)
 }
 
@@ -244,7 +244,7 @@ func (tp *InternalTracerPayload) LanguageName() string {
 
 // SetLanguageName sets the language name in the string table
 func (tp *InternalTracerPayload) SetLanguageName(name string) {
-	tp.Strings.DecrementReference(tp.languageNameRef)
+	tp.Strings.decrementReference(tp.languageNameRef)
 	tp.languageNameRef = tp.Strings.Add(name)
 }
 
@@ -255,7 +255,7 @@ func (tp *InternalTracerPayload) LanguageVersion() string {
 
 // SetLanguageVersion sets the language version in the string table
 func (tp *InternalTracerPayload) SetLanguageVersion(version string) {
-	tp.Strings.DecrementReference(tp.languageVersionRef)
+	tp.Strings.decrementReference(tp.languageVersionRef)
 	tp.languageVersionRef = tp.Strings.Add(version)
 }
 
@@ -266,7 +266,7 @@ func (tp *InternalTracerPayload) TracerVersion() string {
 
 // SetTracerVersion sets the tracer version in the string table
 func (tp *InternalTracerPayload) SetTracerVersion(version string) {
-	tp.Strings.DecrementReference(tp.tracerVersionRef)
+	tp.Strings.decrementReference(tp.tracerVersionRef)
 	tp.tracerVersionRef = tp.Strings.Add(version)
 }
 
@@ -277,7 +277,7 @@ func (tp *InternalTracerPayload) ContainerID() string {
 
 // SetContainerID sets the container ID for the tracer payload.
 func (tp *InternalTracerPayload) SetContainerID(containerID string) {
-	tp.Strings.DecrementReference(tp.containerIDRef)
+	tp.Strings.decrementReference(tp.containerIDRef)
 	tp.containerIDRef = tp.Strings.Add(containerID)
 }
 
@@ -288,7 +288,7 @@ func (tp *InternalTracerPayload) Env() string {
 
 // SetEnv sets the environment for the tracer payload.
 func (tp *InternalTracerPayload) SetEnv(env string) {
-	tp.Strings.DecrementReference(tp.envRef)
+	tp.Strings.decrementReference(tp.envRef)
 	tp.envRef = tp.Strings.Add(env)
 }
 
@@ -299,7 +299,7 @@ func (tp *InternalTracerPayload) RuntimeID() string {
 
 // SetRuntimeID sets the runtime ID for the tracer payload.
 func (tp *InternalTracerPayload) SetRuntimeID(runtimeID string) {
-	tp.Strings.DecrementReference(tp.runtimeIDRef)
+	tp.Strings.decrementReference(tp.runtimeIDRef)
 	tp.runtimeIDRef = tp.Strings.Add(runtimeID)
 }
 
@@ -436,7 +436,7 @@ func (c *InternalTraceChunk) Origin() string {
 
 // SetOrigin sets the origin for the trace chunk.
 func (c *InternalTraceChunk) SetOrigin(origin string) {
-	c.Strings.DecrementReference(c.originRef)
+	c.Strings.decrementReference(c.originRef)
 	c.originRef = c.Strings.Add(origin)
 }
 
@@ -664,7 +664,7 @@ func (s *InternalSpan) Service() string {
 
 // SetService sets the service name for the span.
 func (s *InternalSpan) SetService(svc string) {
-	s.Strings.DecrementReference(s.span.ServiceRef)
+	s.Strings.decrementReference(s.span.ServiceRef)
 	s.span.ServiceRef = s.Strings.Add(svc)
 }
 
@@ -675,7 +675,7 @@ func (s *InternalSpan) Name() string {
 
 // SetName sets the span name.
 func (s *InternalSpan) SetName(name string) {
-	s.Strings.DecrementReference(s.span.NameRef)
+	s.Strings.decrementReference(s.span.NameRef)
 	s.span.NameRef = s.Strings.Add(name)
 }
 
@@ -686,7 +686,7 @@ func (s *InternalSpan) Resource() string {
 
 // SetResource sets the resource for the span.
 func (s *InternalSpan) SetResource(resource string) {
-	s.Strings.DecrementReference(s.span.ResourceRef)
+	s.Strings.decrementReference(s.span.ResourceRef)
 	s.span.ResourceRef = s.Strings.Add(resource)
 }
 
@@ -697,7 +697,7 @@ func (s *InternalSpan) Type() string {
 
 // SetType sets the span type.
 func (s *InternalSpan) SetType(t string) {
-	s.Strings.DecrementReference(s.span.TypeRef)
+	s.Strings.decrementReference(s.span.TypeRef)
 	s.span.TypeRef = s.Strings.Add(t)
 }
 
@@ -708,7 +708,7 @@ func (s *InternalSpan) Env() string {
 
 // SetEnv sets the environment for the span.
 func (s *InternalSpan) SetEnv(e string) {
-	s.Strings.DecrementReference(s.span.EnvRef)
+	s.Strings.decrementReference(s.span.EnvRef)
 	s.span.EnvRef = s.Strings.Add(e)
 }
 
@@ -783,7 +783,7 @@ func (s *InternalSpan) Component() string {
 
 // SetComponent sets the component for the span.
 func (s *InternalSpan) SetComponent(component string) {
-	s.Strings.DecrementReference(s.span.ComponentRef)
+	s.Strings.decrementReference(s.span.ComponentRef)
 	s.span.ComponentRef = s.Strings.Add(component)
 }
 
@@ -794,7 +794,7 @@ func (s *InternalSpan) Version() string {
 
 // SetVersion sets the version for the span.
 func (s *InternalSpan) SetVersion(version string) {
-	s.Strings.DecrementReference(s.span.VersionRef)
+	s.Strings.decrementReference(s.span.VersionRef)
 	s.span.VersionRef = s.Strings.Add(version)
 }
 
@@ -1067,14 +1067,14 @@ func (attr *AnyValue) AsString(strTable *StringTable) string {
 func (attr *AnyValue) RemoveStringRefs(strTable *StringTable) {
 	switch v := attr.Value.(type) {
 	case *AnyValue_StringValueRef:
-		strTable.DecrementReference(v.StringValueRef)
+		strTable.decrementReference(v.StringValueRef)
 	case *AnyValue_ArrayValue:
 		for _, value := range v.ArrayValue.Values {
 			value.RemoveStringRefs(strTable)
 		}
 	case *AnyValue_KeyValueList:
 		for _, kv := range v.KeyValueList.KeyValues {
-			strTable.DecrementReference(kv.Key)
+			strTable.decrementReference(kv.Key)
 			kv.Value.RemoveStringRefs(strTable)
 		}
 	}
@@ -1173,7 +1173,7 @@ func deleteAttribute(key string, strTable *StringTable, attributes map[uint32]*A
 	keyIdx := strTable.Lookup(key)
 	if keyIdx != 0 {
 		// Remove key ref and any value ref
-		strTable.DecrementReference(keyIdx)
+		strTable.decrementReference(keyIdx)
 		attributes[keyIdx].RemoveStringRefs(strTable)
 		delete(attributes, keyIdx)
 	}
