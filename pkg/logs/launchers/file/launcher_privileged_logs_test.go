@@ -9,6 +9,7 @@
 package file
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"net/http"
@@ -17,6 +18,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -37,6 +39,7 @@ import (
 )
 
 type testPrivilegedHandler struct {
+	wg      sync.WaitGroup
 	handler http.Handler
 	called  bool
 }
@@ -57,17 +60,22 @@ func (h *testPrivilegedHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Ensure we restore EUID even if panic occurs
+	// Use a wait group to allow the test cleanup to wait for the handler to
+	// finish, since Shutdown on the http server does not wait for hijacked
+	// connections (which the privileged logs module uses).
+	h.wg.Add(1)
+
 	defer func() {
 		if _, _, err := syscall.Syscall(syscall.SYS_SETREUID, ^uintptr(0), uintptr(originalEUID), 0); err != 0 {
 			// Log error but can't do much else in test context
 			log.Errorf("Failed to restore EUID: %v", err)
 		}
+		h.wg.Done()
 	}()
 
 	// Call the wrapped handler
-	h.handler.ServeHTTP(w, r)
 	h.called = true
+	h.handler.ServeHTTP(w, r)
 }
 
 type PrivilegedLogsTestSetupStrategy struct {
@@ -169,14 +177,7 @@ func setupTestServerForLauncher(t *testing.T) {
 		Handler: testHandler,
 	}
 
-	t.Cleanup(func() {
-		require.True(t, testHandler.called, "fd-transfer was not used")
-	})
-
-	// Start the server in a goroutine
-	serverDone := make(chan struct{})
 	go func() {
-		defer close(serverDone)
 		if err := httpServer.Serve(listener); err != nil && err != http.ErrServerClosed {
 			t.Logf("Server error: %v", err)
 		}
@@ -190,19 +191,16 @@ func setupTestServerForLauncher(t *testing.T) {
 	}, 1*time.Second, 10*time.Millisecond)
 
 	t.Cleanup(func() {
-		if httpServer != nil {
-			httpServer.Close()
-		}
-		// Wait for server to finish
-		select {
-		case <-serverDone:
-		case <-time.After(1 * time.Second):
-			t.Log("Server shutdown timed out")
-		}
-		if listener != nil {
-			listener.Close()
-		}
+		httpServer.Shutdown(context.Background())
+		testHandler.wg.Wait()
+		listener.Close()
 		os.RemoveAll(tempDir)
+	})
+
+	t.Cleanup(func() {
+		// Safety check since if the umask change is mistakenly removed, the
+		// test will pass but the fd-transfer will not be used.
+		require.True(t, testHandler.called, "fd-transfer was not used")
 	})
 
 	systemProbeConfig := configmock.NewSystemProbe(t)
