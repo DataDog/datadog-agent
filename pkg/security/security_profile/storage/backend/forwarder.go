@@ -31,38 +31,27 @@ import (
 
 // ActivityDumpRemoteBackend is a remote backend that forwards dumps to the backend
 type ActivityDumpRemoteBackend struct {
-	endpoints        []remoteEndpoint
+	endpoints        *logsconfig.Endpoints
 	tooLargeEntities *atomic.Uint64
 
 	client *http.Client
 }
 
-type remoteEndpoint struct {
-	logsEndpoint logsconfig.Endpoint
-	url          string
-}
-
 // NewActivityDumpRemoteBackend returns a new ActivityDumpRemoteBackend
 func NewActivityDumpRemoteBackend() (*ActivityDumpRemoteBackend, error) {
-	backend := &ActivityDumpRemoteBackend{
-		tooLargeEntities: atomic.NewUint64(0),
-		client: &http.Client{
-			Transport: ddhttputil.CreateHTTPTransport(pkgconfigsetup.Datadog()),
-		},
-	}
 
 	endpoints, err := activityDumpRemoteStorageEndpoints("cws-intake.", "secdump", logsconfig.DefaultIntakeProtocol, "cloud-workload-security")
 	if err != nil {
 		return nil, fmt.Errorf("couldn't generate storage endpoints: %w", err)
 	}
-	for _, endpoint := range endpoints.GetReliableEndpoints() {
-		backend.endpoints = append(backend.endpoints, remoteEndpoint{
-			logsEndpoint: endpoint,
-			url:          utils.GetEndpointURL(endpoint, "api/v2/secdump"),
-		})
-	}
 
-	return backend, nil
+	return &ActivityDumpRemoteBackend{
+		tooLargeEntities: atomic.NewUint64(0),
+		client: &http.Client{
+			Transport: ddhttputil.CreateHTTPTransport(pkgconfigsetup.Datadog()),
+		},
+		endpoints: endpoints,
+	}, nil
 }
 
 func writeEventMetadata(writer *multipart.Writer, header []byte) error {
@@ -155,11 +144,13 @@ func (backend *ActivityDumpRemoteBackend) HandleActivityDump(imageName string, i
 		Tag:   imageTag,
 	}
 
-	for _, endpoint := range backend.endpoints {
-		if err := backend.sendToEndpoint(endpoint.url, endpoint.logsEndpoint.GetAPIKey(), writer, body); err != nil {
-			seclog.Warnf("couldn't sent activity dump to [%s, body size: %d, dump size: %d]: %v", endpoint.url, body.Len(), len(data), err)
+	for _, endpoint := range backend.endpoints.Endpoints {
+		url := utils.GetEndpointURL(endpoint, "api/v2/secdump")
+
+		if err := backend.sendToEndpoint(url, endpoint.GetAPIKey(), writer, body); err != nil {
+			seclog.Warnf("couldn't sent activity dump to [%s, body size: %d, dump size: %d]: %v", url, body.Len(), len(data), err)
 		} else {
-			seclog.Infof("[%s] file for activity dump [%s] successfully sent to [%s]", config.Protobuf, selector, endpoint.url)
+			seclog.Infof("[%s] file for activity dump [%s] successfully sent to [%s]", config.Protobuf, selector, url)
 		}
 	}
 
