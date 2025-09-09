@@ -77,9 +77,9 @@ func TestInstallScript(t *testing.T) {
 			vmOpts = append(vmOpts, ec2.WithInstanceType(instanceType))
 		}
 
-		t.Run(fmt.Sprintf("test install script on %s %s agent %s", osDesc.String(), *flavor, *majorVersion), func(tt *testing.T) {
+		t.Run(fmt.Sprintf("test install script on %s %s agent %s", platforms.PrettifyOsDescriptor(osDesc), *flavor, *majorVersion), func(tt *testing.T) {
 			tt.Parallel()
-			tt.Logf("Testing %s", osDesc.String())
+			tt.Logf("Testing %s", platforms.PrettifyOsDescriptor(osDesc))
 			vmOpts = append(vmOpts, ec2.WithOS(osDesc))
 
 			suite := &installScriptSuite{cwsSupported: cwsSupported, osDesc: osDesc}

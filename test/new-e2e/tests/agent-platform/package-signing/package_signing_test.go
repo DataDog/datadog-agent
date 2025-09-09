@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"regexp"
 
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/stretchr/testify/assert"
@@ -23,7 +22,7 @@ import (
 )
 
 var (
-	osVersion = flag.String("osversion", "", "platform/os version (debian-11)")
+	osDescriptors = flag.String("osdescriptors", "", "platform/arch/os version (debian-11)")
 )
 
 type packageSigningTestSuite struct {
@@ -59,22 +58,19 @@ type Repository struct {
 }
 
 func TestPackageSigningComponent(t *testing.T) {
-	nonAlpha := regexp.MustCompile("[^a-zA-Z]")
-	platform := nonAlpha.ReplaceAllString(*osVersion, "")
-	if platform == "sles" {
-		platform = "suse"
+	osDesc, err := platforms.BuildOSDescriptor(*osDescriptors)
+	if err != nil {
+		t.Fatalf("failed to build os descriptor: %v", err)
 	}
-	architecture := "x86_64"
 
-	t.Run(fmt.Sprintf("Test package signing on %s\n", platform), func(tt *testing.T) {
+	t.Run(fmt.Sprintf("Test package signing on %s\n", platforms.PrettifyOsDescriptor(osDesc)), func(tt *testing.T) {
 		tt.Parallel()
-		osDesc := platforms.BuildOSDescriptor(platform, architecture, *osVersion)
 		e2e.Run(tt,
-			&packageSigningTestSuite{osName: platform},
+			&packageSigningTestSuite{osName: osDesc.Flavor.String()},
 			e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(
 				awshost.WithEC2InstanceOptions(ec2.WithOS(osDesc)),
 			)),
-			e2e.WithStackName(fmt.Sprintf("pkgSigning-%s", platform)),
+			e2e.WithStackName(fmt.Sprintf("pkgSigning-%s", osDesc.Flavor.String())),
 		)
 	})
 }
