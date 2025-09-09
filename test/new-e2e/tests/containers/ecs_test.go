@@ -645,3 +645,14 @@ func (suite *ecsSuite) testTrace(taskName string) {
 		require.NoErrorf(c, err, "Failed finding trace with proper tags")
 	}, 2*time.Minute, 10*time.Second, "Failed finding trace with proper tags")
 }
+
+func (suite *ecsSuite) TestHostTags() {
+	// tag keys that are expected to be found on this docker env
+	args := &testHostTags{
+		ExpectedTags: &[]string{
+			"^stackid:" + strings.TrimSuffix(suite.clusterName, "-ecs") + "$",
+		},
+	}
+
+	suite.testHostTags(args)
+}
