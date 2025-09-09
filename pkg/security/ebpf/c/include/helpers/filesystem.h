@@ -184,15 +184,23 @@ void __attribute__((always_inline)) fill_file(struct dentry *dentry, struct file
     }
 
 static __attribute__((always_inline)) void set_file_inode(struct dentry *dentry, struct file_t *file, int invalidate) {
-    file->path_key.path_id = get_path_id(file->path_key.mount_id, invalidate);
     if (!file->path_key.ino) {
         file->path_key.ino = get_dentry_ino(dentry);
+    }
+
+    int nlink = get_dentry_nlink(dentry);
+    if (nlink > file->metadata.nlink) {
+        file->metadata.nlink = nlink;
     }
 
     if (is_overlayfs(dentry)) {
         set_overlayfs_inode(dentry, file);
         set_overlayfs_nlink(dentry, file);
     }
+
+    invalidate |= file->metadata.nlink > 1;
+
+    file->path_key.path_id = get_path_id(file->path_key.mount_id, invalidate);
 }
 
 #endif
