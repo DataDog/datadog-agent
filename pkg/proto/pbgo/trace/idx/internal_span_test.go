@@ -58,6 +58,23 @@ func TestInternalSpan_SetStringAttribute_RemovesOldStringFromTable(t *testing.T)
 	}
 }
 
+func TestInternalSpan_GetStringAttributeAs_UnknownKey(t *testing.T) {
+	strings := NewStringTable()
+	span := &InternalSpan{
+		Strings: strings,
+		span: &Span{
+			Attributes: make(map[uint32]*AnyValue),
+		},
+	}
+	span.SetStringAttribute("", "old-value")
+	_, found := span.GetAttributeAsString("unknown-key")
+	assert.False(t, found)
+
+	span.SetFloat64Attribute("", 1.0)
+	_, found = span.GetAttributeAsFloat64("unknown-key")
+	assert.False(t, found)
+}
+
 func TestInternalSpan_MultipleRefsKept(t *testing.T) {
 	strings := NewStringTable()
 	span := &InternalSpan{

@@ -804,6 +804,10 @@ func (s *InternalSpan) GetAttributeAsString(key string) (string, bool) {
 
 // GetAttributeAsFloat64 returns the attribute as a float64 and a boolean indicating if the attribute was found AND it was able to be converted to a float64
 func (s *InternalSpan) GetAttributeAsFloat64(key string) (float64, bool) {
+	keyIdx := s.Strings.Lookup(key)
+	if keyIdx == 0 {
+		return 0, false
+	}
 	if attr, ok := s.span.Attributes[s.Strings.Lookup(key)]; ok {
 		doubleVal, err := attr.AsDoubleValue(s.Strings)
 		if err != nil {
@@ -1116,7 +1120,11 @@ func FromString(strTable *StringTable, s string) *AnyValue {
 }
 
 func getAttributeAsString(key string, strTable *StringTable, attributes map[uint32]*AnyValue) (string, bool) {
-	if attr, ok := attributes[strTable.Lookup(key)]; ok {
+	keyIdx := strTable.Lookup(key)
+	if keyIdx == 0 {
+		return "", false
+	}
+	if attr, ok := attributes[keyIdx]; ok {
 		return attr.AsString(strTable), true
 	}
 	return "", false

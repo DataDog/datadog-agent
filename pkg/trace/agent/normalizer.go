@@ -413,8 +413,7 @@ func (a *Agent) normalizeTrace(ts *info.TagStats, t pb.Trace) error {
 }
 
 // normalizeTraceChunkV1 takes a trace and
-// * rejects the trace if there is a trace ID discrepancy between 2 spans
-// * rejects the trace if two spans have the same span_id
+// * logs a message and increments a metric if two spans have the same span_id
 // * rejects empty traces
 // * rejects traces where at least one span cannot be normalized
 // * return the normalized trace and an error:
