@@ -61,6 +61,8 @@ func (r *Resolver) ResolveMountAttributes(e *model.FileEvent, pidCtx *model.PIDC
 	e.MountVisibilityResolved = true
 	e.MountVisible = mnt.Visible
 	e.MountDetached = mnt.Detached
+	e.Filesystem = mnt.FSType
+
 	return nil
 }
 

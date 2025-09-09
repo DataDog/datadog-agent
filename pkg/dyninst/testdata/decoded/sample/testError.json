@@ -18,12 +18,12 @@
           {
             "function": "main.testError",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
-            "lineNumber": 62
+            "lineNumber": 60
           },
           {
             "function": "main.executeInterfaceFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
-            "lineNumber": 82
+            "lineNumber": 101
           },
           {
             "function": "main.main",
@@ -51,8 +51,19 @@
           "entry": {
             "arguments": {
               "e": {
-                "type": "UnknownType(0x[GoRuntimeType])",
-                "notCapturedReason": "missing type information"
+                "type": "error",
+                "fields": {
+                  "data": {
+                    "type": "*errors.errorString",
+                    "address": "[addr]",
+                    "fields": {
+                      "s": {
+                        "type": "string",
+                        "value": "blah"
+                      }
+                    }
+                  }
+                }
               }
             }
           }

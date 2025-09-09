@@ -24,10 +24,9 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
-	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	"github.com/DataDog/datadog-agent/comp/core/log/def"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
@@ -50,7 +49,7 @@ func TestKubernetesAdmissionEvents(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Mock Datadog Config
-	datadogConfigMock := fxutil.Test[config.Component](t, core.MockBundle())
+	datadogConfigMock := config.NewMock(t)
 	datadogConfigMock.SetWithoutSource("admission_controller.kubernetes_admission_events.enabled", true)
 
 	tests := []struct {

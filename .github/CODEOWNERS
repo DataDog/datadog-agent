@@ -54,6 +54,7 @@
 
 /.github/CODEOWNERS                                  # do not notify anyone
 /.github/*_TEMPLATE.md                               @DataDog/agent-devx
+/.github/chainguard/**                               @DataDog/agent-devx
 /.github/dependabot.yaml                             @DataDog/agent-devx
 /.github/workflows/serverless-benchmarks.yml         @DataDog/serverless @Datadog/serverless-aws
 /.github/workflows/serverless-binary-size.yml        @DataDog/serverless @Datadog/serverless-aws
@@ -82,6 +83,7 @@
 
 /.gitlab/.ci-linters.yml                             @DataDog/agent-devx
 /.gitlab/.pre/*                                      @DataDog/agent-devx
+/.gitlab/bazel/*                                     @DataDog/agent-build
 /.gitlab/check_deploy/*                              @DataDog/agent-delivery
 /.gitlab/check_merge/*                               @DataDog/agent-devx
 /.gitlab/deploy*/*                                   @DataDog/agent-delivery
@@ -225,7 +227,6 @@
 /cmd/agent/dist/conf.d/oracle-dbm.d/    @DataDog/database-monitoring
 /cmd/agent/dist/conf.d/network_path.d/ @DataDog/cloud-network-monitoring
 /cmd/agent/dist/conf.d/sbom.d/          @DataDog/agent-security @DataDog/container-integrations
-/cmd/agent/dist/conf.d/service_discovery.d/          @DataDog/agent-discovery
 /cmd/agent/dist/conf.d/snmp.d/          @DataDog/ndm-core
 /cmd/agent/dist/conf.d/win32_event_log.d/ @DataDog/windows-products
 /cmd/agent/dist/conf.d/windows_certificate.d/ @DataDog/windows-products
@@ -350,7 +351,7 @@
 /comp/metadata/hostgpu @DataDog/ebpf-platform
 /comp/metadata/packagesigning @DataDog/agent-delivery
 /comp/metadata/softwareinventory @DataDog/windows-products
-/comp/process/connectionscheck @DataDog/networks @DataDog/universal-service-monitoring
+/comp/process/connectionscheck @DataDog/cloud-network-monitoring @DataDog/universal-service-monitoring
 /comp/trace/etwtracer @DataDog/windows-products
 /comp/updater/daemonchecker @DataDog/fleet
 /comp/updater/ssistatus @DataDog/fleet
@@ -376,6 +377,7 @@
 # pkg
 /pkg/                                   @DataDog/agent-runtimes
 /pkg/api/                               @DataDog/agent-runtimes
+/pkg/api/security/cert/cert_getter_dca.go   @DataDog/agent-runtimes @DataDog/container-platform
 /pkg/aggregator/                        @DataDog/agent-metric-pipelines
 /pkg/collector/                         @DataDog/agent-runtimes
 /pkg/commonchecks/                      @DataDog/agent-runtimes
@@ -446,6 +448,7 @@
 /pkg/collector/corechecks/embed/apm/               @DataDog/agent-apm
 /pkg/collector/corechecks/embed/process/           @DataDog/container-experiences
 /pkg/collector/corechecks/gpu/                     @DataDog/ebpf-platform
+/pkg/collector/corechecks/networkconfigmanagement/ @DataDog/network-device-monitoring
 /pkg/collector/corechecks/network-devices/         @DataDog/ndm-integrations
 /pkg/collector/corechecks/orchestrator/   @DataDog/container-app
 /pkg/collector/corechecks/net/          @DataDog/agent-runtimes
@@ -586,6 +589,7 @@
 /pkg/network/*usm*                      @DataDog/universal-service-monitoring
 /pkg/network/*_windows*.go              @DataDog/windows-products
 /pkg/network/config/config_test.go      @DataDog/cloud-network-monitoring @DataDog/universal-service-monitoring @DataDog/windows-products
+/pkg/network/config/usm*.go             @DataDog/universal-service-monitoring
 /pkg/network/driver_*.go                @DataDog/windows-products
 /pkg/network/dns/*_windows*.go          @DataDog/windows-products
 /pkg/network/driver/                    @DataDog/windows-products
@@ -606,6 +610,7 @@
 /pkg/network/tracer/*_windows*.go               @DataDog/windows-products
 /pkg/network/usm/                       @DataDog/universal-service-monitoring
 /pkg/network/usm/tests/*_windows*.go    @DataDog/windows-products
+/pkg/networkconfigmanagement/           @DataDog/network-device-monitoring
 /pkg/ebpf/                              @DataDog/ebpf-platform
 /pkg/ebpf/map_cleaner*.go               @DataDog/universal-service-monitoring
 /pkg/compliance/                        @DataDog/agent-cspm
@@ -749,6 +754,7 @@
 /test/regression/cases/docker_containers*     @DataDog/single-machine-performance @DataDog/container-integrations
 
 /tools/                                 @DataDog/agent-devx
+/tools/bazel*                           @DataDog/agent-build
 /tools/ci                               @DataDog/agent-devx
 /tools/ebpf/                            @DataDog/ebpf-platform
 /tools/gdb/                             @DataDog/agent-runtimes

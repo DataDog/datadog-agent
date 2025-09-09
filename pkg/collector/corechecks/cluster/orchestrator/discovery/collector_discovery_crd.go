@@ -29,10 +29,10 @@ type DiscoveryCache struct {
 	CollectorForVersion map[CollectorVersion]struct{}
 }
 
-// CollectorVersion represents a version of a collector with its name.
+// CollectorVersion represents a group version of a collector with its kind.
 type CollectorVersion struct {
-	Version string
-	Name    string
+	GroupVersion string
+	Kind         string
 }
 
 // DiscoveryCollector stores all the discovered resources and their versions.
@@ -67,8 +67,8 @@ func (d *DiscoveryCollector) fillCache() error {
 		for _, list := range d.cache.Resources {
 			for _, resource := range list.APIResources {
 				cv := CollectorVersion{
-					Version: list.GroupVersion,
-					Name:    resource.Name,
+					GroupVersion: list.GroupVersion,
+					Kind:         resource.Name,
 				}
 				d.cache.CollectorForVersion[cv] = struct{}{}
 			}
@@ -136,8 +136,8 @@ func (d *DiscoveryCollector) DiscoverRegularResource(resource string, groupVersi
 
 func (d *DiscoveryCollector) isSupportCollector(collector collectors.K8sCollector) (collectors.K8sCollector, error) {
 	if _, ok := d.cache.CollectorForVersion[CollectorVersion{
-		Version: collector.Metadata().Version,
-		Name:    collector.Metadata().Name,
+		GroupVersion: collector.Metadata().Version,
+		Kind:         collector.Metadata().Name,
 	}]; ok {
 		return collector, nil
 	}
@@ -170,13 +170,37 @@ func (d *DiscoveryCollector) isSupportTerminatedPodCollector(collector collector
 
 }
 
-// List returns a list of CollectorVersion for the given group.
-func (d *DiscoveryCollector) List(group string) []CollectorVersion {
-	var versions []CollectorVersion
-	for cv := range d.cache.CollectorForVersion {
-		if strings.HasPrefix(cv.Version, fmt.Sprintf("%s/", group)) && !strings.HasSuffix(cv.Name, "/status") {
-			versions = append(versions, cv)
-		}
+// List returns a list of CollectorVersion for the given group, version, and kind.
+// An empty string for any argument means it can match any value.
+func (d *DiscoveryCollector) List(group, version, kind string) []CollectorVersion {
+	var result []CollectorVersion
+
+	// Construct groupVersion prefix for matching
+	var groupVersion string
+	if group == "" {
+		groupVersion = version
+	} else {
+		groupVersion = fmt.Sprintf("%s/%s", group, version)
 	}
-	return versions
+
+	for cv := range d.cache.CollectorForVersion {
+		// Skip "/status" entries
+		if strings.HasSuffix(cv.Kind, "/status") {
+			continue
+		}
+
+		// Match version prefix
+		if !strings.HasPrefix(cv.GroupVersion, groupVersion) {
+			continue
+		}
+
+		// If kind is specified, only include matching name
+		if kind != "" && cv.Kind != kind {
+			continue
+		}
+
+		result = append(result, cv)
+	}
+
+	return result
 }

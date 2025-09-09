@@ -1,10 +1,10 @@
-mod agent_check;
-use agent_check::base::{AgentCheck, ServiceCheckStatus};
-use agent_check::aggregator::Aggregator;
-use agent_check::helpers::free_cstring;
+mod base_check;
+use base_check::check::{AgentCheck, ServiceCheckStatus};
+use base_check::aggregator::{Instance, Aggregator};
+use base_check::cstring::free_cstring;
 
 use std::error::Error;
-use std::ffi::{c_char, CString, CStr};
+use std::ffi::{c_char, CString};
 
 use std::time::Instant;
 use std::sync::Arc;
@@ -16,40 +16,37 @@ use rustls::pki_types::CertificateDer;
 use webpki_roots::TLS_SERVER_ROOTS;
 use x509_parser::parse_x509_certificate;
 
-// entrypoint of the check
+/// Entrypoint of the check
 #[unsafe(no_mangle)]
-pub extern "C" fn Run(instance_cstr: *const c_char, aggregator_ptr: *const Aggregator) -> *mut c_char {
-    // return the error message if there's any
-    match run_check(instance_cstr, aggregator_ptr) {
+pub extern "C" fn Run(instance_str: *const c_char, aggregator_ptr: *const Aggregator) -> *mut c_char {
+    match run_check_impl(instance_str, aggregator_ptr) {
         Ok(()) => std::ptr::null_mut(),
         Err(e) => CString::new(e.to_string()).unwrap_or_default().into_raw(),        
     }
 }
 
-// free the error string
+/// Free the error string
 #[unsafe(no_mangle)]
 pub extern "C" fn Free(run_error: *mut c_char) {
-    println!("freed string");
     free_cstring(run_error);
 } 
 
-fn run_check(instance_cstr: *const c_char, aggregator_ptr: *const Aggregator) -> Result<(), Box<dyn Error>> {
-    // read ffi arguments
-    let instance_str = unsafe { CStr::from_ptr(instance_cstr) }.to_str()?;
-    let aggregator = unsafe { &*aggregator_ptr };
+/// Build the check structure and execute its custom implementation
+fn run_check_impl(instance_str: *const c_char, aggregator_ptr: *const Aggregator) -> Result<(), Box<dyn Error>> {
+    // from ffi arguments to Rust structure
+    let instance = Instance::from_str(instance_str)?;
+    let aggregator = Aggregator::from_raw(aggregator_ptr);
 
     // try to create the instance using the provided configuration
-    let check = AgentCheck::new(instance_str, aggregator)?;
+    let check = AgentCheck::new(instance, aggregator)?;
 
     // try to run its custom implementation
     check.check()
 }
 
-// custom check implementation
 impl AgentCheck {
+    /// Check implementation
     pub fn check(self) -> Result<(), Box<dyn Error>> {
-        /* check implementation goes here */
-
         // references for certificate expiration
         const DEFAULT_EXPIRE_DAYS_WARNING: i32 = 14;
         const DEFAULT_EXPIRE_DAYS_CRITICAL: i32 = 7;

@@ -12,6 +12,7 @@ import (
 	"cmp"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"regexp"
 	"slices"
@@ -221,7 +222,7 @@ var defaultRedactors = []jsonRedactor{
 	),
 	redactor(
 		matchRegexp(`^/debugger/snapshot/captures/entry/arguments/.*`),
-		replacerFunc(redactMutex),
+		replacerFunc(redactTypesThatDependOnVersion),
 	),
 	redactor(
 		matchRegexp(`^/debugger/snapshot/captures/entry/arguments/.*/type`),
@@ -255,17 +256,21 @@ func redactNonZeroAddress(v jsontext.Value) jsontext.Value {
 	return jsontext.Value(buf)
 }
 
-func redactMutex(v jsontext.Value) jsontext.Value {
+// The structure of some types from the stdlib changed over time. Redact them so
+// that golden files are valid across versions.
+func redactTypesThatDependOnVersion(v jsontext.Value) jsontext.Value {
 	var t = struct {
 		Type string `json:"type"`
 	}{}
 	if err := json.Unmarshal(v, &t); err != nil {
 		return v
 	}
-	if t.Type != "sync.Mutex" {
+	if t.Type != "sync.Mutex" && t.Type != "sync.Once" {
 		return v
 	}
-	return jsontext.Value(`"[sync.Mutex (different in different versions)]"`)
+	return jsontext.Value(fmt.Sprintf(
+		`"[%s (different in different versions)]"`,
+		t.Type))
 }
 
 func regexpStringReplacer(pat, replacement string) replacer {
