@@ -83,6 +83,66 @@ func TestAddHorizontalAction(t *testing.T) {
 	}, horizontalLastActions)
 }
 
+func TestAddRecommendationToHistory(t *testing.T) {
+	testTime := time.Now()
+
+	// Test no retention, should move back to keep a single recommendation
+	var horizontalRecommendationsRetention time.Duration
+	horizontalLastRecommendations := []datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation{
+		{
+			GeneratedAt: metav1.Time{Time: testTime.Add(-10 * time.Minute)},
+		},
+		{
+			GeneratedAt: metav1.Time{Time: testTime.Add(-8 * time.Minute)},
+		},
+	}
+	addedRecommendation1 := datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation{
+		GeneratedAt: metav1.Time{Time: testTime},
+	}
+	horizontalLastRecommendations = addRecommendationToHistory(testTime, horizontalRecommendationsRetention, horizontalLastRecommendations, addedRecommendation1)
+	assert.Equal(t, []datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation{addedRecommendation1}, horizontalLastRecommendations)
+
+	// Add another event, should still keep one
+	horizontalLastRecommendations = addRecommendationToHistory(testTime, horizontalRecommendationsRetention, horizontalLastRecommendations, addedRecommendation1)
+	assert.Equal(t, []datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation{addedRecommendation1}, horizontalLastRecommendations)
+
+	// 15 minutes retention, should keep everything
+	horizontalRecommendationsRetention = 15 * time.Minute
+	horizontalLastRecommendations = []datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation{
+		{
+			GeneratedAt: metav1.Time{Time: testTime.Add(-10 * time.Minute)},
+		},
+		{
+			GeneratedAt: metav1.Time{Time: testTime.Add(-8 * time.Minute)},
+		},
+	}
+	// Adding two fake events
+	horizontalLastRecommendations = addRecommendationToHistory(testTime, horizontalRecommendationsRetention, horizontalLastRecommendations, addedRecommendation1)
+	horizontalLastRecommendations = addRecommendationToHistory(testTime, horizontalRecommendationsRetention, horizontalLastRecommendations, addedRecommendation1)
+	assert.Equal(t, []datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation{
+		{
+			GeneratedAt: metav1.Time{Time: testTime.Add(-10 * time.Minute)},
+		},
+		{
+			GeneratedAt: metav1.Time{Time: testTime.Add(-8 * time.Minute)},
+		},
+		addedRecommendation1,
+		addedRecommendation1,
+	}, horizontalLastRecommendations)
+
+	// Moving time forward, should keep only the last two events
+	testTime = testTime.Add(10 * time.Minute)
+	addedRecommendation2 := datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation{
+		GeneratedAt: metav1.Time{Time: testTime},
+	}
+	horizontalLastRecommendations = addRecommendationToHistory(testTime, horizontalRecommendationsRetention, horizontalLastRecommendations, addedRecommendation2)
+	assert.Equal(t, []datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation{
+		addedRecommendation1,
+		addedRecommendation1,
+		addedRecommendation2,
+	}, horizontalLastRecommendations)
+}
+
 func TestGetHorizontalRetentionValues(t *testing.T) {
 	tests := []struct {
 		name                            string
@@ -417,10 +477,10 @@ func TestUpdateFromStatus(t *testing.T) {
 		},
 		HorizontalLastActions:              status.Horizontal.LastActions,
 		HorizontalRecommendationsRetention: 10 * time.Minute,
-		HorizontalLastRecommendations: []HorizontalScalingValues{
-			{Timestamp: earlierActionTime, Replicas: 2},
-			{Timestamp: midActionTime, Replicas: 3},
-			{Timestamp: lastRecommendedTime, Replicas: 5},
+		HorizontalLastRecommendations: []datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation{
+			{GeneratedAt: metav1.NewTime(earlierActionTime), Replicas: 2},
+			{GeneratedAt: metav1.NewTime(midActionTime), Replicas: 3},
+			{GeneratedAt: metav1.NewTime(lastRecommendedTime), Replicas: 5},
 		},
 		HorizontalLastLimitReason: limitReason,
 		HorizontalLastActionError: errors.New("hScaleErr"),

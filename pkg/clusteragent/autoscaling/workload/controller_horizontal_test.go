@@ -108,7 +108,10 @@ func (f *horizontalControllerFixture) testScalingDecision(args horizontalScaling
 		Timestamp: f.clock.Now().Add(-args.dataOffset),
 		Replicas:  args.recReplicas,
 	}
-	args.fakePai.HorizontalLastRecommendations = append(args.fakePai.HorizontalLastRecommendations, *args.fakePai.ScalingValues.Horizontal)
+	args.fakePai.HorizontalLastRecommendations = append(args.fakePai.HorizontalLastRecommendations, datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation{
+		GeneratedAt: metav1.NewTime(f.clock.Now().Add(-args.dataOffset)),
+		Replicas:    args.recReplicas,
+	})
 
 	autoscaler, result, err := f.runSync(args.fakePai)
 	f.scaler.AssertNumberOfCalls(f.t, "get", 1)
@@ -1052,7 +1055,7 @@ func TestStabilizeRecommendations(t *testing.T) {
 
 	tests := []struct {
 		name                string
-		lastRecommendations []model.HorizontalScalingValues
+		lastRecommendations []datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation
 		currentReplicas     int32
 		recReplicas         int32
 		expected            int32
@@ -1063,9 +1066,9 @@ func TestStabilizeRecommendations(t *testing.T) {
 	}{
 		{
 			name: "no scale down stabilization - constant scale up",
-			lastRecommendations: []model.HorizontalScalingValues{
-				{Timestamp: currentTime.Add(-60 * time.Second), Replicas: 6},
-				{Timestamp: currentTime.Add(-30 * time.Second), Replicas: 4},
+			lastRecommendations: []datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation{
+				{GeneratedAt: metav1.NewTime(currentTime.Add(-60 * time.Second)), Replicas: 6},
+				{GeneratedAt: metav1.NewTime(currentTime.Add(-30 * time.Second)), Replicas: 4},
 			},
 			currentReplicas: 4,
 			recReplicas:     8,
@@ -1077,9 +1080,9 @@ func TestStabilizeRecommendations(t *testing.T) {
 		},
 		{
 			name: "scale down stabilization",
-			lastRecommendations: []model.HorizontalScalingValues{
-				{Timestamp: currentTime.Add(-60 * time.Second), Replicas: 6},
-				{Timestamp: currentTime.Add(-30 * time.Second), Replicas: 5},
+			lastRecommendations: []datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation{
+				{GeneratedAt: metav1.NewTime(currentTime.Add(-60 * time.Second)), Replicas: 6},
+				{GeneratedAt: metav1.NewTime(currentTime.Add(-30 * time.Second)), Replicas: 5},
 			},
 			currentReplicas: 5,
 			recReplicas:     4,
@@ -1091,10 +1094,10 @@ func TestStabilizeRecommendations(t *testing.T) {
 		},
 		{
 			name: "scale down stabilization, recommendation flapping",
-			lastRecommendations: []model.HorizontalScalingValues{
-				{Timestamp: currentTime.Add(-90 * time.Second), Replicas: 6},
-				{Timestamp: currentTime.Add(-60 * time.Second), Replicas: 9},
-				{Timestamp: currentTime.Add(-30 * time.Second), Replicas: 7},
+			lastRecommendations: []datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation{
+				{GeneratedAt: metav1.NewTime(currentTime.Add(-90 * time.Second)), Replicas: 6},
+				{GeneratedAt: metav1.NewTime(currentTime.Add(-60 * time.Second)), Replicas: 9},
+				{GeneratedAt: metav1.NewTime(currentTime.Add(-30 * time.Second)), Replicas: 7},
 			},
 			currentReplicas: 7,
 			recReplicas:     5,
@@ -1106,9 +1109,9 @@ func TestStabilizeRecommendations(t *testing.T) {
 		},
 		{
 			name: "scale up stabilization",
-			lastRecommendations: []model.HorizontalScalingValues{
-				{Timestamp: currentTime.Add(-60 * time.Second), Replicas: 6},
-				{Timestamp: currentTime.Add(-30 * time.Second), Replicas: 8},
+			lastRecommendations: []datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation{
+				{GeneratedAt: metav1.NewTime(currentTime.Add(-60 * time.Second)), Replicas: 6},
+				{GeneratedAt: metav1.NewTime(currentTime.Add(-30 * time.Second)), Replicas: 8},
 			},
 			currentReplicas: 8,
 			recReplicas:     12,
@@ -1120,10 +1123,10 @@ func TestStabilizeRecommendations(t *testing.T) {
 		},
 		{
 			name: "scale up stabilization, recommendation flapping",
-			lastRecommendations: []model.HorizontalScalingValues{
-				{Timestamp: currentTime.Add(-90 * time.Second), Replicas: 8},
-				{Timestamp: currentTime.Add(-60 * time.Second), Replicas: 7},
-				{Timestamp: currentTime.Add(-30 * time.Second), Replicas: 9},
+			lastRecommendations: []datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation{
+				{GeneratedAt: metav1.NewTime(currentTime.Add(-90 * time.Second)), Replicas: 8},
+				{GeneratedAt: metav1.NewTime(currentTime.Add(-60 * time.Second)), Replicas: 7},
+				{GeneratedAt: metav1.NewTime(currentTime.Add(-30 * time.Second)), Replicas: 9},
 			},
 			currentReplicas: 9,
 			recReplicas:     12,
@@ -1181,9 +1184,9 @@ func TestHorizontalControllerSyncScaleDownWithStabilization(t *testing.T) {
 				},
 			},
 		},
-		HorizontalLastRecommendations: []model.HorizontalScalingValues{
-			{Timestamp: f.clock.Now().Add(-60 * time.Second), Replicas: 94},
-			{Timestamp: f.clock.Now().Add(-30 * time.Second), Replicas: 97},
+		HorizontalLastRecommendations: []datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation{
+			{GeneratedAt: metav1.NewTime(f.clock.Now().Add(-60 * time.Second)), Replicas: 94},
+			{GeneratedAt: metav1.NewTime(f.clock.Now().Add(-30 * time.Second)), Replicas: 97},
 		},
 		TargetGVK:                          expectedGVK,
 		HorizontalRecommendationsRetention: 5 * time.Minute,
@@ -1300,9 +1303,9 @@ func TestHorizontalControllerSyncScaleUpWithStabilization(t *testing.T) {
 				},
 			},
 		},
-		HorizontalLastRecommendations: []model.HorizontalScalingValues{
-			{Timestamp: f.clock.Now().Add(-60 * time.Second), Replicas: 110, Source: datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource},
-			{Timestamp: f.clock.Now().Add(-30 * time.Second), Replicas: 104, Source: datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource},
+		HorizontalLastRecommendations: []datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation{
+			{GeneratedAt: metav1.NewTime(f.clock.Now().Add(-60 * time.Second)), Replicas: 110, Source: datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource},
+			{GeneratedAt: metav1.NewTime(f.clock.Now().Add(-30 * time.Second)), Replicas: 104, Source: datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource},
 		},
 		ScalingValues: model.ScalingValues{
 			Horizontal: &model.HorizontalScalingValues{
@@ -1427,9 +1430,9 @@ func TestHorizontalControllerSyncScaleWithBothStabilizationWindows(t *testing.T)
 				},
 			},
 		},
-		HorizontalLastRecommendations: []model.HorizontalScalingValues{
-			{Timestamp: f.clock.Now().Add(-4 * time.Minute), Replicas: 95, Source: datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource},
-			{Timestamp: f.clock.Now().Add(-2 * time.Minute), Replicas: 105, Source: datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource},
+		HorizontalLastRecommendations: []datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation{
+			{GeneratedAt: metav1.NewTime(f.clock.Now().Add(-4 * time.Minute)), Replicas: 95, Source: datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource},
+			{GeneratedAt: metav1.NewTime(f.clock.Now().Add(-2 * time.Minute)), Replicas: 105, Source: datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource},
 		},
 		TargetGVK:                          expectedGVK,
 		HorizontalRecommendationsRetention: 5 * time.Minute,
