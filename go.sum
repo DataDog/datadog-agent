@@ -190,6 +190,8 @@ github.com/DataDog/sketches-go v1.4.7 h1:eHs5/0i2Sdf20Zkj0udVFWuCrXGRFig2Dcfm5rt
 github.com/DataDog/sketches-go v1.4.7/go.mod h1:eAmQ/EBmtSO+nQp7IZMZVRPT4BQTmIc5RZQ+deGlTPM=
 github.com/DataDog/test-infra-definitions v0.0.5-0.20250909090603-38ba177e9f6a h1:PbBtp8zbeNqBh+yb1yx+G9KY4S6gTrUYahJ7866i3cY=
 github.com/DataDog/test-infra-definitions v0.0.5-0.20250909090603-38ba177e9f6a/go.mod h1:OuceITbReRYk6VgKwO02OxxwQLA/86Ym3Ej7llLBMiM=
+github.com/DataDog/test-infra-definitions v0.0.5-0.20250909092801-6177ddafa360 h1:c2SMqPJXZI5Z+24pyvw9ieCYIbtI8wznrG3+ftd2kjg=
+github.com/DataDog/test-infra-definitions v0.0.5-0.20250909092801-6177ddafa360/go.mod h1:OuceITbReRYk6VgKwO02OxxwQLA/86Ym3Ej7llLBMiM=
 github.com/DataDog/trivy v0.0.0-20250722083937-c6ac58f23994 h1:kWy9qnN1+GGCzoJ/Q6V9UtOKNJKvryuGOc8Ib3dm/wc=
 github.com/DataDog/trivy v0.0.0-20250722083937-c6ac58f23994/go.mod h1:PTxRTPpO/cM2OqNLPPKVGtLhEBhORyrXT6mAjplzsRA=
 github.com/DataDog/viper v1.14.1-0.20250612143030-1b15c8822ed4 h1:PwqhnH1ln2EjGm9XZGUF4RTCwLt0Jt4cebbZBTe+BnA=
