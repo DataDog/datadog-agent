@@ -19,6 +19,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+var datadoghqRegistries = map[string]struct{}{
+	"gcr.io/datadoghq":       {},
+	"datadoghq.azurecr.io":   {},
+	"dockerhub.io/datadog":   {},
+	"public.ecr.aws/datadog": {},
+}
+
 // RemoteConfigClient defines the interface we need for remote config operations
 type RemoteConfigClient interface {
 	GetConfigs(product string) map[string]state.RawConfig
@@ -123,6 +130,11 @@ func (r *remoteConfigImageResolver) Resolve(registry string, repository string, 
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
+	if !isDatadoghqRegistry(registry) {
+		log.Debugf("Not a Datadoghq registry, not resolving")
+		return nil, false
+	}
+
 	if len(r.imageMappings) == 0 {
 		// log.Debugf("Cache empty, no resolution available")
 		return nil, false
@@ -144,6 +156,11 @@ func (r *remoteConfigImageResolver) Resolve(registry string, repository string, 
 
 	log.Debugf("Resolved %s/%s:%s -> %s", registry, repository, tag, resolved.FullImageRef)
 	return &resolved, true
+}
+
+func isDatadoghqRegistry(registry string) bool {
+	_, exists := datadoghqRegistries[registry]
+	return exists
 }
 
 // updateCache processes configuration data and updates the image mappings cache.
