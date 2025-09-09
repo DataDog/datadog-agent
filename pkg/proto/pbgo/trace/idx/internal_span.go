@@ -329,6 +329,7 @@ func (tp *InternalTracerPayload) GetAttributeAsString(key string) (string, bool)
 
 // Cut cuts off a new tracer payload from the `p` with [0, i-1] chunks
 // and keeps [i, n-1] chunks in the original payload `p`.
+// The new payload will have a new string table, so it can be used concurrently with the original payload.
 func (tp *InternalTracerPayload) Cut(i int) *InternalTracerPayload {
 	if i < 0 {
 		i = 0
