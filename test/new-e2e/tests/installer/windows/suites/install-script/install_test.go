@@ -168,3 +168,40 @@ func (s *testInstallScriptSuite) installOldInstallerAndAgent() {
 			s.Require().Contains(version, oldAgentVersion)
 		})
 }
+
+// TestInstallCurrentWithOldInstallerScript ensures the old installer script can install the current Agent version
+//
+// We're switching from .ps1 setup script that runs `bootstrap` subcommand to .exe itself. Some customers
+// may have a cached or modified copy of the .ps1 script. This test ensures they can still install the current Agent version.
+func (s *testInstallScriptSuite) TestInstallCurrentWithOldInstallerScript() {
+	// Arrange
+	packageConfig, err := installerwindows.NewPackageConfig(
+		installerwindows.WithPackage(s.CurrentAgentVersion().OCIPackage()),
+	)
+	s.Require().NoError(err)
+
+	// Act
+	opts := []installerwindows.Option{
+		installerwindows.WithExtraEnvVars(map[string]string{
+			"DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT": packageConfig.Version,
+			"DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE":        packageConfig.Registry,
+		}),
+		installerwindows.WithInstallerScript(oldInstallerScript),
+	}
+
+	output, err := s.InstallScript().Run(opts...)
+	if s.NoError(err) {
+		fmt.Printf("%s\n", output)
+	}
+
+	// Assert
+	s.Require().NoErrorf(err, "failed to install the Datadog Agent package: %s", output)
+	s.Require().NoError(s.WaitForInstallerService("Running"))
+	s.Require().Host(s.Env().RemoteHost).
+		HasARunningDatadogInstallerService().
+		HasARunningDatadogAgentService().
+		WithVersionMatchPredicate(func(version string) {
+			s.Require().Contains(version, s.CurrentAgentVersion().Version())
+		})
+	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
+}
