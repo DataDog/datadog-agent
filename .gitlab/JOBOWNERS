@@ -27,6 +27,7 @@ security_go_generate_check              @DataDog/agent-security
 prepare_sysprobe_ebpf_functional_tests* @DataDog/ebpf-platform
 prepare_secagent_ebpf_functional_tests* @DataDog/agent-security
 protobuf_test                           @DataDog/multiple
+test_kmt_local_setup*                   @DataDog/ebpf-platform
 
 # Send count metrics about Golang dependencies
 golang_deps_send_count_metrics       @DataDog/agent-runtimes
