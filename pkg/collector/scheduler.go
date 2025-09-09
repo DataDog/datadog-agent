@@ -198,7 +198,7 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 			}
 
 			if loader.Name() == "python" {
-				log.Debugf("%v: skipped '%s', because it's a Python check", loader, config.Name)
+				log.Debugf("%v: python loader skipped, no Python checks should run", loader, config.Name)
 				continue
 			}
 
