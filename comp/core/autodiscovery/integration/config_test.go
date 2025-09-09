@@ -84,6 +84,7 @@ func TestString(t *testing.T) {
 	config.Instances = []Data{Data("justFoo")}
 
 	expected := `check_name: foo
+discovery: null
 init_config:
   fooBarBaz: test
 instances:
