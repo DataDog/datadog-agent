@@ -513,8 +513,8 @@ func Test_SyntheticsTestScheduler_RunWorker_ProcessesTestCtxAndSendsResult(t *te
 		}, nil
 	}
 
-	gotCh := make(chan *WorkerResult, 1)
-	scheduler.sendResult = func(w *WorkerResult) error {
+	gotCh := make(chan *workerResult, 1)
+	scheduler.sendResult = func(w *workerResult) error {
 		gotCh <- w // signal test that we got a result
 		return nil
 	}
@@ -544,12 +544,12 @@ func Test_SyntheticsTestScheduler_RunWorker_ProcessesTestCtxAndSendsResult(t *te
 
 	go scheduler.runWorker(0)
 
-	var got *WorkerResult
+	var got *workerResult
 	select {
 	case got = <-gotCh:
 		// ok
 	case <-time.After(2 * time.Second):
-		t.Fatal("timeout waiting for WorkerResult")
+		t.Fatal("timeout waiting for workerResult")
 	}
 
 	close(scheduler.stopChan)

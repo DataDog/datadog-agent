@@ -93,7 +93,7 @@ type SyntheticsTestConfig struct {
 	Subtype string `json:"subtype"`
 
 	Config struct {
-		Assertions []interface{} `json:"assertions"`
+		Assertions []Assertion   `json:"assertions"`
 		Request    ConfigRequest `json:"request"`
 	} `json:"config"`
 
@@ -101,6 +101,12 @@ type SyntheticsTestConfig struct {
 	OrgID    int    `json:"orgID"`
 	MainDC   string `json:"mainDC"`
 	PublicID string `json:"publicID"`
+}
+
+type Assertion struct {
+	Operator string      `json:"operator"`
+	Field    string      `json:"field"`
+	Expected interface{} `json:"expected"`
 }
 
 // UnmarshalJSON is a Custom unmarshal for SyntheticsTestConfig

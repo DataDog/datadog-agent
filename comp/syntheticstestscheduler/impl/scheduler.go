@@ -42,7 +42,7 @@ type SyntheticsTestScheduler struct {
 	ticker                       *time.Ticker
 	tickerC                      <-chan time.Time
 	runTraceroute                func(cfg config.Config, telemetry telemetry.Component) (payload.NetworkPath, error)
-	sendResult                   func(w *WorkerResult) error
+	sendResult                   func(w *workerResult) error
 }
 
 // newSyntheticsTestScheduler creates a scheduler and initializes its state.

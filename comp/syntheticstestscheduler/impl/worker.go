@@ -91,17 +91,36 @@ func (s *SyntheticsTestScheduler) runWorker(workerID int) {
 				s.log.Debugf("[worker%d] error interpreting test config: %s", workerID, err)
 			}
 
-			result, err := s.runTraceroute(tracerouteCfg, s.telemetry)
-			if err != nil {
-				s.log.Debugf("[worker%d] Error running traceroute: %s", workerID, err)
-			}
-
+			result, tracerouteErr := s.runTraceroute(tracerouteCfg, s.telemetry)
 			finishedAt := s.TimeNowFn()
 			duration := finishedAt.Sub(startedAt)
+			if err != nil {
+				s.log.Debugf("[worker%d] Error running traceroute: %s", workerID, err)
+				if err = s.sendResult(&workerResult{
+					tracerouteResult: result,
+					tracerouteError:  tracerouteErr,
+					assertionResult:  nil,
+					testCfg:          syntheticsTestCtx,
+					triggeredAt:      triggeredAt,
+					startedAt:        startedAt,
+					finishedAt:       finishedAt,
+					duration:         duration,
+					tracerouteCfg:    tracerouteCfg,
+				}); err != nil {
+					s.log.Debugf("[worker%d] error sending result: %s", workerID, err)
+				}
+				continue
+			}
 
-			if err = s.sendResult(&WorkerResult{
+			assertionResult, err := s.runAssertions(syntheticsTestCtx.cfg, result)
+			if err != nil {
+				s.log.Debugf("[worker%d] Error running assertions: %s", workerID, err)
+			}
+			if err = s.sendResult(&workerResult{
 				tracerouteResult: result,
-				tracerouteError:  err,
+				tracerouteError:  tracerouteErr,
+				assertionResult:  assertionResult,
+				assertionError:   err,
 				testCfg:          syntheticsTestCtx,
 				triggeredAt:      triggeredAt,
 				startedAt:        startedAt,
@@ -115,17 +134,18 @@ func (s *SyntheticsTestScheduler) runWorker(workerID int) {
 	}
 }
 
-// WorkerResult represents the result produced by a worker.
-type WorkerResult struct {
+// workerResult represents the result produced by a worker.
+type workerResult struct {
 	tracerouteResult payload.NetworkPath
 	tracerouteError  error
+	assertionResult  []common.AssertionResult
+	assertionError   error
 	testCfg          SyntheticsTestCtx
-
-	triggeredAt   time.Time
-	startedAt     time.Time
-	finishedAt    time.Time
-	duration      time.Duration
-	tracerouteCfg config.Config
+	triggeredAt      time.Time
+	startedAt        time.Time
+	finishedAt       time.Time
+	duration         time.Duration
+	tracerouteCfg    config.Config
 }
 
 // toNetpathConfig converts a SyntheticsTestConfig into a system-probe Config.
@@ -222,8 +242,8 @@ func (s *SyntheticsTestScheduler) updateTestState(rt *runningTestState) error {
 	return s.persistState()
 }
 
-// sendSyntheticsTestResult marshals the WorkerResult and forwards it via the epForwarder.
-func (s *SyntheticsTestScheduler) sendSyntheticsTestResult(w *WorkerResult) error {
+// sendSyntheticsTestResult marshals the workerResult and forwards it via the epForwarder.
+func (s *SyntheticsTestScheduler) sendSyntheticsTestResult(w *workerResult) error {
 	res, err := s.networkPathToTestResult(w, s.configID)
 	if err != nil {
 		return err
@@ -250,8 +270,8 @@ func runTraceroute(cfg config.Config, telemetry telemetry.Component) (payload.Ne
 	return path, nil
 }
 
-// networkPathToTestResult converts a WorkerResult into the public TestResult structure.
-func (s *SyntheticsTestScheduler) networkPathToTestResult(w *WorkerResult, testConfigID string) (*common.TestResult, error) {
+// networkPathToTestResult converts a workerResult into the public TestResult structure.
+func (s *SyntheticsTestScheduler) networkPathToTestResult(w *workerResult, testConfigID string) (*common.TestResult, error) {
 	t := common.Test{
 		InternalID: w.testCfg.cfg.PublicID,
 		ID:         w.testCfg.cfg.PublicID,
@@ -325,6 +345,14 @@ func (s *SyntheticsTestScheduler) networkPathToTestResult(w *WorkerResult, testC
 		result.Failure = common.APIError{
 			Code:    "UNKNOWN",
 			Message: w.tracerouteError.Error(),
+		}
+	}
+
+	if w.assertionError != nil {
+		result.Status = "failed"
+		result.Failure = common.APIError{
+			Code:    "ASSERTION ERROR",
+			Message: w.assertionError.Error(),
 		}
 	}
 

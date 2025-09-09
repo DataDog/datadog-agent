@@ -5,6 +5,11 @@
 
 package common
 
+import (
+	"fmt"
+	"reflect"
+)
+
 // NetpathSource represents the source host of a network path.
 type NetpathSource struct {
 	Hostname string `json:"hostname"`
@@ -67,13 +72,56 @@ type NetpathResult struct {
 	Tags         []string           `json:"tags"`
 }
 
-// Assertion represents a validation check comparing expected and actual values.
-type Assertion struct {
+// AssertionResult represents a validation check comparing expected and actual values.
+type AssertionResult struct {
 	Operator string      `json:"operator"`
 	Type     string      `json:"type"`
 	Expected interface{} `json:"expected"`
 	Actual   interface{} `json:"actual"`
 	Valid    bool        `json:"valid"`
+}
+
+// compare runs the assertion logic
+func (a *AssertionResult) Compare() error {
+	expectedVal := reflect.ValueOf(a.Expected)
+	actualVal := reflect.ValueOf(a.Actual)
+
+	// Convert both to float64 if possible (so we can handle both int & float)
+	var exp, act float64
+	switch expectedVal.Kind() {
+	case reflect.Int, reflect.Int64:
+		exp = float64(expectedVal.Int())
+	case reflect.Float32, reflect.Float64:
+		exp = expectedVal.Float()
+	default:
+		return fmt.Errorf("expected must be int or float")
+	}
+
+	switch actualVal.Kind() {
+	case reflect.Int, reflect.Int64:
+		act = float64(actualVal.Int())
+	case reflect.Float32, reflect.Float64:
+		act = actualVal.Float()
+	default:
+		return fmt.Errorf("actual must be int or float")
+	}
+
+	switch a.Operator {
+	case "<":
+		a.Valid = act < exp
+	case "<=":
+		a.Valid = act <= exp
+	case ">":
+		a.Valid = act > exp
+	case ">=":
+		a.Valid = act >= exp
+	case "==":
+		a.Valid = act == exp
+	default:
+		return fmt.Errorf("unsupported operator")
+	}
+
+	return nil
 }
 
 // Request represents the network request.
@@ -104,18 +152,18 @@ type NetStats struct {
 
 // Result represents the outcome of a test run including assertions and stats.
 type Result struct {
-	ID              string         `json:"id"`
-	InitialID       string         `json:"initialId"`
-	TestFinishedAt  int64          `json:"testFinishedAt"`
-	TestStartedAt   int64          `json:"testStartedAt"`
-	TestTriggeredAt int64          `json:"testTriggeredAt"`
-	Assertions      []Assertion    `json:"assertions"`
-	Failure         ErrorOrFailure `json:"failure"`
-	Duration        int64          `json:"duration"`
-	Request         Request        `json:"request"`
-	Netstats        NetStats       `json:"netstats"`
-	Netpath         NetpathResult  `json:"netpath"`
-	Status          string         `json:"status"`
+	ID              string            `json:"id"`
+	InitialID       string            `json:"initialId"`
+	TestFinishedAt  int64             `json:"testFinishedAt"`
+	TestStartedAt   int64             `json:"testStartedAt"`
+	TestTriggeredAt int64             `json:"testTriggeredAt"`
+	Assertions      []AssertionResult `json:"assertions"`
+	Failure         ErrorOrFailure    `json:"failure"`
+	Duration        int64             `json:"duration"`
+	Request         Request           `json:"request"`
+	Netstats        NetStats          `json:"netstats"`
+	Netpath         NetpathResult     `json:"netpath"`
+	Status          string            `json:"status"`
 }
 
 // Test represents the definition of a test including metadata and version.
