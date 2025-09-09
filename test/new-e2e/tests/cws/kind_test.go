@@ -63,7 +63,10 @@ type kindSuite struct {
 }
 
 func TestKindSuite(t *testing.T) {
-	osDesc := platforms.BuildOSDescriptor(osPlatform, osArch, osVersion)
+	osDesc, err := platforms.BuildOSDescriptor(fmt.Sprintf("%s/%s/%s", osPlatform, osArch, osVersion))
+	if err != nil {
+		t.Fatalf("failed to build os descriptor: %v", err)
+	}
 
 	ddHostname := fmt.Sprintf("%s-%s", k8sHostnamePrefix, uuid.NewString()[:4])
 	values := fmt.Sprintf(valuesFmt, ddHostname)
