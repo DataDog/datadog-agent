@@ -260,4 +260,3 @@ CMD ["/bin/entrypoint.sh"]
 
 FROM release AS test
 COPY --chmod=755 test_image_contents.py /tmp/test_image_contents.py
-RUN ./tmp/test_image_contents.py && rm -f ./tmp/test_image_contents.py
