@@ -575,3 +575,94 @@ func (suite *baseSuite[Env]) testEvent(args *testEventArgs) {
 		}, 2*time.Minute, 10*time.Second, "Failed finding `%s` with proper tags and message", prettyEventQuery)
 	})
 }
+
+type testHostTags struct {
+	ExpectedTags *[]string
+	OptionalTags *[]string
+}
+
+func sendEvent[Env any](suite *baseSuite[Env], alertType, text string, args *testHostTags) {
+	formattedArgs, err := yaml.Marshal(args)
+	suite.Require().NoError(err)
+
+	_, err = suite.DatadogClient().PostEvent(&datadog.Event{
+		Title:     pointer.Ptr(fmt.Sprintf("test Host-Tags %s", suite.T().Name())),
+		AlertType: &alertType,
+		Tags: append([]string{
+			"app:agent-new-e2e-tests-containers",
+			"cluster_name:" + suite.clusterName,
+			"test:" + suite.T().Name(),
+		}, *args.ExpectedTags...),
+		Text: pointer.Ptr(fmt.Sprintf(
+			`%%%%%%
+### Result
+
+`+"```"+`
+%s
+`+"```"+`
+
+### Expected Tags
+
+`+"```"+`
+%s
+`+"```"+`
+%%%%%%
+`, text, formattedArgs)),
+	})
+
+	if err != nil {
+		suite.T().Logf("Failed to post event: %s", err)
+	}
+}
+
+func (suite *baseSuite[Env]) testHostTags(args *testHostTags) {
+	suite.EventuallyWithT(func(ct *assert.CollectT) {
+		suite.T().Logf("%s - validate host tags", time.Now().Format(time.TimeOnly))
+		c := &myCollectT{
+			CollectT: ct,
+			errors:   []error{},
+		}
+
+		defer func() {
+			if len(c.errors) == 0 {
+				sendEvent(suite, "success", "All good!", args)
+			} else {
+				sendEvent(suite, "warning", errors.Join(c.errors...).Error(), args)
+			}
+		}()
+
+		hostInfos, err := suite.Fakeintake.GetLatestHostInfos()
+		assert.NoError(c, err, "failed to get host-tags payload")
+
+		assert.GreaterOrEqual(c, len(hostInfos), 1, "missing host tags in payload, should be len >= 1")
+
+		regexTags := lo.Map(*args.ExpectedTags, func(tag string, _ int) *regexp.Regexp {
+			return regexp.MustCompile(tag)
+		})
+
+		var optionalRegexTags []*regexp.Regexp
+		if args.OptionalTags != nil {
+			optionalRegexTags = lo.Map(*args.OptionalTags, func(tag string, _ int) *regexp.Regexp {
+				return regexp.MustCompile(tag)
+			})
+		}
+
+		suite.T().Logf("search for host-tags, expected: %v - optional: %v", args.ExpectedTags, args.OptionalTags)
+
+		for _, hostInfo := range hostInfos {
+			suite.NotNil(c, hostInfo.HostTags, "wrong payload, could not find 'host-tags' object in payload")
+
+			// we don't know how to handle payloads with no host-name.
+			// these are fargate host that runs side containers for the test.
+			if hostInfo.InternalHostname == "" {
+				continue
+			}
+
+			hostTags := hostInfo.HostTags.System
+
+			err := assertTags(hostTags, regexTags, optionalRegexTags, false)
+			assert.NoError(c, err, "failed to match host-tags")
+		}
+
+	}, 33*time.Minute, 1*time.Minute, "Failed to validate all host-tags")
+}
