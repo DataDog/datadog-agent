@@ -11,10 +11,11 @@ import (
 	"encoding/hex"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
-
 	"github.com/DataDog/datadog-agent/pkg/network/types"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Path returns the URL from the request fragment captured in eBPF with
@@ -30,7 +31,15 @@ func (e *EbpfEvent) RequestLatency() float64 {
 	if uint64(e.Http.Request_started) == 0 || uint64(e.Http.Response_last_seen) == 0 {
 		return 0
 	}
-	return protocols.NSTimestampToFloat(e.Http.Response_last_seen - e.Http.Request_started)
+	if e.Http.Response_last_seen <= e.Http.Request_started {
+		log.Warnf("Response last seen is earlier than the request first seen; first seen: %v, last seen: %v", e.Http.Request_started, e.Http.Response_last_seen)
+		return 0
+	}
+	latency := e.Http.Response_last_seen - e.Http.Request_started
+	if latency > uint64(time.Hour.Nanoseconds()) {
+		log.Warnf("Request latency took longer than 1 hour; latency: %v; first seen: %v, last seen: %v", latency, e.Http.Request_started, e.Http.Response_last_seen)
+	}
+	return protocols.NSTimestampToFloat(latency)
 }
 
 // Incomplete returns true if the transaction contains only the request or response information
