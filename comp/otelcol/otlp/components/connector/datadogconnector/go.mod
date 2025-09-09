@@ -40,7 +40,7 @@ require (
 	go.opentelemetry.io/otel v1.37.0
 	go.opentelemetry.io/otel/metric v1.37.0
 	go.uber.org/zap v1.27.0
-	google.golang.org/protobuf v1.36.7
+	google.golang.org/protobuf v1.36.8
 )
 
 require go.opentelemetry.io/collector/pdata/xpdata v0.133.0 // indirect
@@ -68,6 +68,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.69.2 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/comp/core/status v0.69.2 // indirect
+	github.com/DataDog/datadog-agent/comp/core/tagger/def v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.69.2 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.69.2 // indirect
