@@ -54,7 +54,7 @@ type remoteConfigImageResolver struct {
 	rcClient RemoteConfigClient
 
 	mu            sync.RWMutex
-	imageMappings map[string]map[string]ResolvedImage // repository URL -> tag -> resolved image
+	imageMappings map[string]map[string]ResolvedImage // repository name -> tag -> resolved image
 
 	// Retry configuration for initial cache loading
 	maxRetries int
@@ -128,11 +128,9 @@ func (r *remoteConfigImageResolver) Resolve(registry string, repository string, 
 		return nil, false
 	}
 
-	requestedURL := registry + "/" + repository
-
-	repoCache, exists := r.imageMappings[requestedURL]
+	repoCache, exists := r.imageMappings[repository]
 	if !exists {
-		log.Debugf("No mapping found for repository URL %s", requestedURL)
+		log.Debugf("No mapping found for repository %s", repository)
 		return nil, false
 	}
 
@@ -140,11 +138,11 @@ func (r *remoteConfigImageResolver) Resolve(registry string, repository string, 
 
 	resolved, exists := repoCache[normalizedTag]
 	if !exists {
-		log.Debugf("No mapping found for %s:%s", requestedURL, normalizedTag)
+		log.Debugf("No mapping found for %s:%s", repository, normalizedTag)
 		return nil, false
 	}
 
-	log.Debugf("Resolved %s:%s -> %s", requestedURL, tag, resolved.FullImageRef)
+	log.Debugf("Resolved %s/%s:%s -> %s", registry, repository, tag, resolved.FullImageRef)
 	return &resolved, true
 }
 
@@ -186,7 +184,7 @@ func (r *remoteConfigImageResolver) updateCacheFromParsedConfigs(validConfigs ma
 		tagMap := make(map[string]ResolvedImage)
 		for _, imageInfo := range repo.Images {
 			if imageInfo.Tag == "" || imageInfo.Digest == "" {
-				log.Warnf("Skipping invalid image entry (missing tag or digest) in %s", repo.RepositoryURL)
+				log.Warnf("Skipping invalid image entry (missing tag or digest) in %s", repo.RepositoryName)
 				continue
 			}
 
@@ -198,8 +196,8 @@ func (r *remoteConfigImageResolver) updateCacheFromParsedConfigs(validConfigs ma
 			}
 		}
 
-		newCache[repo.RepositoryURL] = tagMap
-		log.Debugf("Processed config for repository %s with %d images", repo.RepositoryURL, len(tagMap))
+		newCache[repo.RepositoryName] = tagMap
+		log.Debugf("Processed config for repository %s with %d images", repo.RepositoryName, len(tagMap))
 	}
 
 	r.mu.Lock()

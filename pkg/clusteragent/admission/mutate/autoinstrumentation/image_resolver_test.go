@@ -177,10 +177,10 @@ func TestRemoteConfigImageResolver_processUpdate(t *testing.T) {
 		resolver.processUpdate(testConfigs, applyStateCallback)
 
 		assert.Len(t, resolver.imageMappings, 4) // python, java, js, apm-inject
-		assert.Contains(t, resolver.imageMappings, "gcr.io/datadoghq/dd-lib-python-init")
-		assert.Contains(t, resolver.imageMappings, "gcr.io/datadoghq/dd-lib-java-init")
-		assert.Contains(t, resolver.imageMappings, "gcr.io/datadoghq/dd-lib-js-init")
-		assert.Contains(t, resolver.imageMappings, "gcr.io/datadoghq/apm-inject")
+		assert.Contains(t, resolver.imageMappings, "dd-lib-python-init")
+		assert.Contains(t, resolver.imageMappings, "dd-lib-java-init")
+		assert.Contains(t, resolver.imageMappings, "dd-lib-js-init")
+		assert.Contains(t, resolver.imageMappings, "apm-inject")
 
 		// Verify apply statuses were called
 		assert.Len(t, appliedStatuses, 4)
