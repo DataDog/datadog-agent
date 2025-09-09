@@ -137,3 +137,21 @@ func (suite *kindSuite) TestControlPlane() {
 		},
 	})
 }
+
+func (suite *kindSuite) TestHostTags() {
+	// tag keys that are expected to be found on any k8s env
+	args := &testHostTags{
+		ExpectedTags: &[]string{
+			"^os:linux$",
+			"^arch:amd64$",
+			"^kube_node_role:control-plane$",
+			"^stackid:" + suite.clusterName + "$",
+			"^kube_node:" + suite.clusterName + "-control-plane$",
+			"^cluster_name:" + suite.clusterName + "$",
+			"^kube_cluster_name:" + suite.clusterName + "$",
+			"^orch_cluster_id:[0-9a-f-]{36}$",
+		},
+	}
+
+	suite.testHostTags(args)
+}
