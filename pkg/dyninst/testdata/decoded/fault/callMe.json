@@ -51,7 +51,8 @@
               },
               "s2": {
                 "type": "string",
-                "notCapturedReason": "depth"
+                "size": "4",
+                "notCapturedReason": "unavailable"
               },
               "i": {
                 "type": "*int",
