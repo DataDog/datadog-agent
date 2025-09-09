@@ -1280,6 +1280,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode open event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
+		//fmt.Printf("LISMNT fileOpen: %+v\n", event.Open)
 	case model.FileMkdirEventType:
 		if _, err = event.Mkdir.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode mkdir event: %s (offset %d, len %d)", err, offset, dataLen)

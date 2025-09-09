@@ -17,6 +17,8 @@ import (
 type ResolverInterface interface {
 	IsMountIDValid(mountID uint32) (bool, error)
 	SyncCache(pid uint32) error
+	HasListMount() bool
+	SyncCacheFromListMount() error
 	Delete(mountID uint32) error
 	ResolveFilesystem(mountID uint32, device uint32, pid uint32, containerID containerutils.ContainerID) (string, error)
 	Insert(m model.Mount, pid uint32) error

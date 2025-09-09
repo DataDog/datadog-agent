@@ -510,6 +510,7 @@ type ArgsEnvsEvent struct {
 // Mount represents a mountpoint (used by MountEvent, FsmountEvent and UnshareMountNSEvent)
 type Mount struct {
 	MountID        uint32   `field:"-"`
+	MountIDUnique  uint64  `field:"-"`
 	Device         uint32   `field:"-"`
 	ParentPathKey  PathKey  `field:"-"`
 	Children       []uint32 `field:"-"`
@@ -844,9 +845,10 @@ type SyscallsEvent struct {
 
 // PathKey identifies an entry in the dentry cache
 type PathKey struct {
-	Inode   uint64 `field:"inode"`    // SECLDoc[inode] Definition:`Inode of the file`
-	MountID uint32 `field:"mount_id"` // SECLDoc[mount_id] Definition:`Mount ID of the file`
-	PathID  uint32 `field:"-"`
+	Inode         uint64 `field:"inode"`    // SECLDoc[inode] Definition:`Inode of the file`
+	MountID       uint32 `field:"mount_id"` // SECLDoc[mount_id] Definition:`Mount ID of the file`
+	UniqueMountID uint64 `field:"-"`
+	PathID        uint32 `field:"-"`
 }
 
 // OnDemandPerArgSize is the size of each argument in Data in the on-demand event

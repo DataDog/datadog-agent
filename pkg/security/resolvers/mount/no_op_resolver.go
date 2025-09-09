@@ -29,6 +29,15 @@ func (mr *NoOpResolver) SyncCache(_ uint32) error {
 	return nil
 }
 
+func (mr *NoOpResolver) HasListMount() bool {
+	return false
+}
+
+// SyncCacheFromListMount Snapshots the current mount points of the system by calling `listmount`
+func (mr *NoOpResolver) SyncCacheFromListMount() error {
+	return nil
+}
+
 // Delete a mount from the cache
 func (mr *NoOpResolver) Delete(_ uint32) error {
 	return nil
