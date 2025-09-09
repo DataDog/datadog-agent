@@ -14,6 +14,7 @@ issues:
   exclude-dirs:
     - pkg/proto/patches
     - tasks/unit_tests/testdata/components_src
+    - test/new-e2e/
 
   exclude:
     - "Error return value of `io.WriteString` is not checked" # 'errcheck' errors in tools/dep_tree_resolver/go_deps.go
@@ -98,7 +99,6 @@ linters-settings:
             desc: "Not really forbidden to use, but it is usually imported by mistake instead of github.com/stretchr/testify/assert, and confusing since it actually has the behavior of github.com/stretchr/testify/require"
 
   errcheck:
-    ignore: "github.com/DataDog/datadog-agent/pkg/util/log:.*"
     exclude-functions:
       - (*github.com/DataDog/datadog-agent/pkg/collector/corechecks.CheckBase).Warn
       - (*github.com/DataDog/datadog-agent/pkg/collector/corechecks.CheckBase).Warnf
@@ -138,6 +138,7 @@ linters-settings:
       - github.com/DataDog/datadog-agent/pkg/util/log.Warnc
       - github.com/DataDog/datadog-agent/pkg/util/log.Warnf
       - github.com/DataDog/datadog-agent/pkg/util/log.WarnStackDepth
+      - github.com/DataDog/datadog-agent/pkg/util/log.WarnfStackDepth
       - golang.org/x/sys/windows.CloseHandle
       - golang.org/x/sys/windows.FreeLibrary
       - golang.org/x/sys/windows.FreeSid

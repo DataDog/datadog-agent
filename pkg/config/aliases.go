@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/logs"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // Aliases to conf package
@@ -197,12 +197,12 @@ func GetObsPipelineURL(datatype pkgconfigsetup.DataType) (string, error) {
 }
 
 // LoadCustom Alias
-func LoadCustom(config model.Config, origin string, secretResolver optional.Option[secrets.Component], additionalKnownEnvVars []string) (*model.Warnings, error) {
+func LoadCustom(config model.Config, origin string, secretResolver option.Option[secrets.Component], additionalKnownEnvVars []string) (*model.Warnings, error) {
 	return pkgconfigsetup.LoadCustom(config, origin, secretResolver, additionalKnownEnvVars)
 }
 
 // LoadDatadogCustom Alias
-func LoadDatadogCustom(config model.Config, origin string, secretResolver optional.Option[secrets.Component], additionalKnownEnvVars []string) (*model.Warnings, error) {
+func LoadDatadogCustom(config model.Config, origin string, secretResolver option.Option[secrets.Component], additionalKnownEnvVars []string) (*model.Warnings, error) {
 	return pkgconfigsetup.LoadDatadogCustom(config, origin, secretResolver, additionalKnownEnvVars)
 }
 
@@ -256,7 +256,7 @@ var (
 
 // LoadWithoutSecret Alias using Datadog config
 func LoadWithoutSecret() (*model.Warnings, error) {
-	return pkgconfigsetup.LoadDatadogCustom(Datadog, "datadog.yaml", optional.NewNoneOption[secrets.Component](), SystemProbe.GetEnvVars())
+	return pkgconfigsetup.LoadDatadogCustom(Datadog, "datadog.yaml", option.None[secrets.Component](), SystemProbe.GetEnvVars())
 }
 
 // GetProcessAPIAddressPort Alias using Datadog config
