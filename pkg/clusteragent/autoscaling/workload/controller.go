@@ -122,6 +122,8 @@ func NewController(
 	store.RegisterObserver(autoscaling.Observer{
 		DeleteFunc: unsetTelemetry,
 	})
+	store.SetIndexer(newMapIndexer())
+
 	c.store = store
 	c.podWatcher = podWatcher
 
