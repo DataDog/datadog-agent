@@ -55,6 +55,9 @@ func TestDDOTInstallScript(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to parse os descriptors: %v", err)
 	}
+	if len(osDescriptors) == 0 {
+		t.Fatal("expecting some value to be passed for --osdescriptors on test invocation, got none")
+	}
 
 	for _, osDesc := range osDescriptors {
 		osDesc := osDesc

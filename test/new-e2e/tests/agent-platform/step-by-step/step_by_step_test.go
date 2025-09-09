@@ -30,7 +30,7 @@ import (
 var (
 	osVersion             = flag.String("osversion", "", "os version to test")
 	platform              = flag.String("platform", "", "platform to test")
-	cwsSupportedOsVersion = flag.String("cws-supported-osversion", "", "list of os where CWS is supported")
+	cwsSupportedOsVersion = flag.String("cws-supported-descriptors", "", "list of os where CWS is supported")
 	architecture          = flag.String("arch", "", "architecture to test (x86_64, arm64))")
 	flavorName            = flag.String("flavor", "datadog-agent", "package flavor to install")
 	majorVersion          = flag.String("major-version", "7", "major version to test (6, 7)")

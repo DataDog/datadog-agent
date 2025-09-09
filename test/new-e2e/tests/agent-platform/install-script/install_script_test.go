@@ -11,7 +11,8 @@ import (
 	"strings"
 	"testing"
 	"time"
-	"unicode"
+
+	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -30,10 +31,8 @@ import (
 )
 
 var (
-	osVersion             = flag.String("osversion", "", "os version to test")
-	platform              = flag.String("platform", "", "platform to test")
-	cwsSupportedOsVersion = flag.String("cws-supported-osversion", "", "list of os where CWS is supported")
-	architecture          = flag.String("arch", "x86_64", "architecture to test (x86_64, arm64))")
+	osDescriptors         = flag.String("osdescriptors", "", "os versions to test")
+	cwsSupportedOsVersion = flag.String("cws-supported-descriptors", "", "list of os descriptors where CWS is supported")
 	flavor                = flag.String("flavor", "datadog-agent", "flavor to test (datadog-agent, datadog-iot-agent, datadog-dogstatsd, datadog-fips-agent, datadog-fips-proxy, datadog-heroku-agent)")
 	majorVersion          = flag.String("major-version", "7", "major version to test (6, 7)")
 )
@@ -42,28 +41,33 @@ type installScriptSuite struct {
 	e2e.BaseSuite[environments.Host]
 	cwsSupported   bool
 	testingKeysURL string
+	osDesc         e2eos.Descriptor
 }
 
 func TestInstallScript(t *testing.T) {
-	if *platform == "docker" {
+	if strings.Contains(*osDescriptors, "docker") {
 		DockerTest(t)
 		return
 	}
 
-	// Splitting an empty string results in a slice with a single empty string which wouldn't be useful
-	// and result in no tests being run; let's fail the test to make it obvious
-	if strings.TrimFunc(*osVersion, unicode.IsSpace) == "" {
-		t.Fatal("expecting some value to be passed for --osversion on test invocation, got none")
+	osDescriptors, err := platforms.ParseOSDescriptors(*osDescriptors)
+	if err != nil {
+		t.Fatalf("failed to parse os descriptors: %v", err)
 	}
-	osVersions := strings.Split(*osVersion, ",")
-	cwsSupportedOsVersionList := strings.Split(*cwsSupportedOsVersion, ",")
+	if len(osDescriptors) == 0 {
+		t.Fatal("expecting some value to be passed for --osdescriptors on test invocation, got none")
+	}
 
-	for _, osVers := range osVersions {
-		osVers := osVers
+	cwsSupportedOsVersionList, err := platforms.ParseOSDescriptors(*cwsSupportedOsVersion)
+	if err != nil {
+		t.Fatalf("failed to parse cws supported os version: %v", err)
+	}
+	for _, osDesc := range osDescriptors {
+		osDesc := osDesc
 
 		cwsSupported := false
 		for _, cwsSupportedOs := range cwsSupportedOsVersionList {
-			if cwsSupportedOs == osVers {
+			if cwsSupportedOs == osDesc {
 				cwsSupported = true
 			}
 		}
@@ -73,13 +77,12 @@ func TestInstallScript(t *testing.T) {
 			vmOpts = append(vmOpts, ec2.WithInstanceType(instanceType))
 		}
 
-		t.Run(fmt.Sprintf("test install script on %s %s %s agent %s", osVers, *architecture, *flavor, *majorVersion), func(tt *testing.T) {
+		t.Run(fmt.Sprintf("test install script on %s %s agent %s", osDesc.String(), *flavor, *majorVersion), func(tt *testing.T) {
 			tt.Parallel()
-			tt.Logf("Testing %s", osVers)
-			osDesc := platforms.BuildOSDescriptor(*platform, *architecture, osVers)
+			tt.Logf("Testing %s", osDesc.String())
 			vmOpts = append(vmOpts, ec2.WithOS(osDesc))
 
-			suite := &installScriptSuite{cwsSupported: cwsSupported}
+			suite := &installScriptSuite{cwsSupported: cwsSupported, osDesc: osDesc}
 			// will be set as TESTING_KEYS_URL in the install script
 			// the used in places like https://github.com/DataDog/agent-linux-install-script/blob/8f5c0b4f5b60847ee7989aa2c35052382f282d5d/install_script.sh.template#L1229
 			suite.testingKeysURL = "apttesting.datad0g.com/test-keys"
@@ -89,17 +92,24 @@ func TestInstallScript(t *testing.T) {
 				e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(
 					awshost.WithEC2InstanceOptions(vmOpts...),
 				)),
-				e2e.WithStackName(fmt.Sprintf("install-script-test-%v-%s-%s-%v", osVers, *architecture, *flavor, *majorVersion)),
+				e2e.WithStackName(fmt.Sprintf("install-script-test-%v-%s-%v", platforms.PrettifyOsDescriptor(osDesc), *flavor, *majorVersion)),
 			)
 		})
 	}
-
 }
 
 func DockerTest(t *testing.T) {
+	platform, architecture, _, err := platforms.ParseRawOsDescriptor(*osDescriptors)
+	if err != nil {
+		t.Fatalf("failed to parse os descriptors: %v", err)
+	}
+	if platform != "docker" {
+		t.Fatalf("expected platform to be docker, got %s", platform)
+	}
+
 	t.Run("test install script on a docker container (using SysVInit)", func(tt *testing.T) {
 		e2e.Run(tt,
-			&installScriptSuiteSysVInit{},
+			&installScriptSuiteSysVInit{arch: e2eos.ArchitectureFromString(architecture)},
 			e2e.WithProvisioner(
 				awshost.ProvisionerNoAgentNoFakeIntake(
 					awshost.WithDocker(),
@@ -143,7 +153,7 @@ func (is *installScriptSuite) AgentTest(flavor string) {
 	client := common.NewTestClient(is.Env().RemoteHost, agentClient, fileManager, unixHelper)
 
 	installOptions := []installparams.Option{
-		installparams.WithArch(*architecture),
+		installparams.WithArch(string(is.osDesc.Architecture)),
 		installparams.WithFlavor(flavor),
 		installparams.WithMajorVersion(*majorVersion),
 	}
@@ -190,7 +200,7 @@ func (is *installScriptSuite) IotAgentTest() {
 	client := common.NewTestClient(is.Env().RemoteHost, agentClient, fileManager, unixHelper)
 
 	installOptions := []installparams.Option{
-		installparams.WithArch(*architecture),
+		installparams.WithArch(string(is.osDesc.Architecture)),
 		installparams.WithFlavor(*flavor),
 	}
 
@@ -219,7 +229,7 @@ func (is *installScriptSuite) DogstatsdAgentTest() {
 	client := common.NewTestClient(is.Env().RemoteHost, agentClient, fileManager, unixHelper)
 
 	installOptions := []installparams.Option{
-		installparams.WithArch(*architecture),
+		installparams.WithArch(string(is.osDesc.Architecture)),
 		installparams.WithFlavor(*flavor),
 	}
 
@@ -239,6 +249,7 @@ func (is *installScriptSuite) DogstatsdAgentTest() {
 
 type installScriptSuiteSysVInit struct {
 	e2e.BaseSuite[environments.Host]
+	arch e2eos.Architecture
 }
 
 func (is *installScriptSuiteSysVInit) TestInstallAgent() {
@@ -255,7 +266,7 @@ func (is *installScriptSuiteSysVInit) TestInstallAgent() {
 	_, err = client.ExecuteWithRetry("apt-get update && apt-get install -y curl sudo")
 	require.NoError(is.T(), err)
 
-	install.Unix(is.T(), client, installparams.WithArch(*architecture), installparams.WithFlavor(*flavor))
+	install.Unix(is.T(), client, installparams.WithArch(string(is.arch)), installparams.WithFlavor(*flavor))
 
 	// We can't easily reuse the the helpers that assume everything runs directly on the host
 	// We run a few selected sanity checks here instead (sufficient for this platform anyway)
