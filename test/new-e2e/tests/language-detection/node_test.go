@@ -40,5 +40,5 @@ func (s *languageDetectionSuite) TestNodeDetection() {
 	s.Env().RemoteHost.MustExecute(fmt.Sprintf(`echo "%s" > prog.js`, nodeProg))
 	s.Env().RemoteHost.MustExecute("nohup node prog.js >myscript.log 2>&1 </dev/null &")
 
-	s.checkDetectedLanguage("node", "node", "remote_process_collector")
+	s.checkDetectedLanguage("node", "node", "process_collector")
 }
