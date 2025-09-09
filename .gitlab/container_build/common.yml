@@ -3,6 +3,10 @@
   # Measure Docker image size and generate in-place report
   # This runs after the main script and won't fail the job if there are issues.
   # This is common for all Docker image builds
+
+  # Cleanup function
+  remove_image() { docker rmi "$IMAGE_REF" || true; }
+
   if [[ -n "$STATIC_QUALITY_GATE_NAME" ]]; then
     echo "📊 Starting Docker image measurement..."
 
@@ -48,8 +52,5 @@
   fi
 
   remove_image
-
-  # Cleanup function
-  remove_image() { docker rmi "$IMAGE_REF" || true; }
 
 .static_quality_gate_report_path: "**/*_size_report_*.yml"
