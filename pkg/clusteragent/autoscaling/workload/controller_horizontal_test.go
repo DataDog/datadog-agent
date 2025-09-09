@@ -267,11 +267,11 @@ func TestHorizontalControllerSyncPrerequisites(t *testing.T) {
 	result, err = f.testScalingDecision(horizontalScalingTestArgs{
 		fakePai:         fakePai,
 		dataSource:      datadoghqcommon.DatadogPodAutoscalerLocalValueSource,
-		currentReplicas: 1,
-		statusReplicas:  1,
-		recReplicas:     10,
-		scaleReplicas:   1,
-		scaleError:      testutil.NewErrorString("scaling disabled as fallback in the scaling direction is disabled"),
+		currentReplicas: 6,
+		statusReplicas:  6,
+		recReplicas:     5,
+		scaleReplicas:   6,
+		scaleError:      testutil.NewErrorString("scaling disabled as fallback in the scaling direction (scaleDown) is disabled"),
 	})
 	assert.Equal(t, autoscaling.NoRequeue, result)
 	assert.NoError(t, err)

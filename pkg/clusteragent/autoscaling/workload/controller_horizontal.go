@@ -225,13 +225,9 @@ func (hr *horizontalController) computeScaleAction(
 	// Check if we are in fallback mode and scaling direction is disabled
 	if source == datadoghqcommon.DatadogPodAutoscalerLocalValueSource {
 		if autoscalerInternal.Spec().Fallback != nil && !isFallbackScalingDirectionEnabled(autoscalerInternal.Spec().Fallback.Horizontal.Direction, scaleDirection) {
-			return &datadoghqcommon.DatadogPodAutoscalerHorizontalAction{
-				FromReplicas:        currentDesiredReplicas,
-				ToReplicas:          currentDesiredReplicas,
-				RecommendedReplicas: &originalTargetDesiredReplicas,
-				Time:                metav1.NewTime(scalingTimestamp),
-				LimitedReason:       pointer.Ptr(fmt.Sprintf("scaling disabled as fallback in the scaling direction (%s) is disabled", scaleDirection)),
-			}, 0, nil
+			limitReason = fmt.Sprintf("scaling disabled as fallback in the scaling direction (%s) is disabled", scaleDirection)
+			log.Debugf("Scaling limited for autoscaler id: %s, scale direction: %s, limit reason: %s", autoscalerInternal.ID(), scaleDirection, limitReason)
+			return nil, 0, errors.New(limitReason)
 		}
 	}
 
