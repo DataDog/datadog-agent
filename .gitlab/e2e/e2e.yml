@@ -192,15 +192,16 @@ new-e2e-containers:
     matrix:
       # Temporarily disable old version of Kubernetes
       # On this version, the reported kubernetes CPU usage appears to be significantly off
-      - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=1.19"
-      - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=1.22"
-      - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=1.27"
-      - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=1.29"
-      - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:osDescriptor=ubuntu:20.04"
-      - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:osDescriptor=ubuntu:22.04"
+      - EXTRA_PARAMS: "--run TestKindHelmSuite -c ddinfra:kubernetesVersion=1.19"
+      - EXTRA_PARAMS: "--run TestKindHelmSuite -c ddinfra:kubernetesVersion=1.22"
+      - EXTRA_PARAMS: "--run TestKindHelmSuite -c ddinfra:kubernetesVersion=1.27"
+      - EXTRA_PARAMS: "--run TestKindHelmSuite -c ddinfra:kubernetesVersion=1.29"
+      - EXTRA_PARAMS: "--run TestKindHelmSuite -c ddinfra:osDescriptor=ubuntu:20.04"
+      - EXTRA_PARAMS: "--run TestKindHelmSuite -c ddinfra:osDescriptor=ubuntu:22.04"
+      - EXTRA_PARAMS: "--run TestKindOperatorSuite -c ddinfra:osDescriptor=ubuntu:22.04"
       - EXTRA_PARAMS: --run TestECSSuite
       - EXTRA_PARAMS: --run TestDockerSuite
-      - EXTRA_PARAMS: --skip "Test(Kind|EKS|ECS|Docker)Suite"
+      - EXTRA_PARAMS: --skip "Test(KindHelm|KindOperator|EKS|ECS|Docker)Suite"
 
 new-e2e-containers-eks-init:
   stage: e2e_init
