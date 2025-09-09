@@ -8,6 +8,7 @@ package idx
 import (
 	"encoding/binary"
 	"fmt"
+	"maps"
 	"strconv"
 	"strings"
 
@@ -32,6 +33,8 @@ func NewStringTable() *StringTable {
 }
 
 // StringTableFromArray creates a new string table from an array of already de-duplicated strings
+// This can't know the proper reference count for these strings, so it will set them to 1. This function
+// is only used for testing purposes.
 func StringTableFromArray(strings []string) *StringTable {
 	st := &StringTable{
 		strings: make([]string, len(strings)),
@@ -55,6 +58,16 @@ func (s *StringTable) Msgsize() int {
 		size += len(str)
 	}
 	return size
+}
+
+func (s *StringTable) Clone() *StringTable {
+	clone := &StringTable{
+		strings: append([]string{}, s.strings...),
+		refs:    append([]uint32{}, s.refs...),
+		lookup:  make(map[string]uint32, len(s.lookup)),
+	}
+	maps.Copy(clone.lookup, s.lookup)
+	return clone
 }
 
 // addUnchecked adds a string to the string table without checking for duplicates
@@ -304,11 +317,6 @@ func (tp *InternalTracerPayload) ReplaceChunk(i int, chunk *InternalTraceChunk) 
 	tp.Chunks[i] = chunk
 }
 
-// AddString deduplicates the provided string and returns the index to reference it in the string table
-func (tp *InternalTracerPayload) AddString(s string) uint32 {
-	return tp.Strings.Add(s)
-}
-
 // SetStringAttribute sets a string attribute for the tracer payload.
 func (tp *InternalTracerPayload) SetStringAttribute(key, value string) {
 	setStringAttribute(key, value, tp.Strings, tp.Attributes)
@@ -328,8 +336,9 @@ func (tp *InternalTracerPayload) Cut(i int) *InternalTracerPayload {
 	if i > len(tp.Chunks) {
 		i = len(tp.Chunks)
 	}
+	newStrings := tp.Strings.Clone()
 	newPayload := InternalTracerPayload{
-		Strings:            tp.Strings,
+		Strings:            newStrings, // Clone string table to protect against concurrent access
 		containerIDRef:     tp.containerIDRef,
 		languageNameRef:    tp.languageNameRef,
 		languageVersionRef: tp.languageVersionRef,
@@ -341,6 +350,12 @@ func (tp *InternalTracerPayload) Cut(i int) *InternalTracerPayload {
 		Attributes:         tp.Attributes,
 	}
 	newPayload.Chunks = tp.Chunks[:i]
+	for _, chunk := range newPayload.Chunks {
+		chunk.Strings = newStrings
+		for _, span := range chunk.Spans {
+			span.Strings = newStrings
+		}
+	}
 	tp.Chunks = tp.Chunks[i:]
 	return &newPayload
 }

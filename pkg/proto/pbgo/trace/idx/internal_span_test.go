@@ -6,6 +6,7 @@
 package idx
 
 import (
+	sync "sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -99,6 +100,34 @@ func TestInternalSpan_MultipleRefsKept(t *testing.T) {
 	assert.Equal(t, "old-value", value)
 }
 
+func TestInternalTracerPayload_CutConcurrentSafe(t *testing.T) {
+	payload := testPayload()
+
+	halfPayload := payload.Cut(1)
+
+	wg := &sync.WaitGroup{}
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		payload.Chunks[0].SetStringAttribute("key1", "value1")
+		str, found := payload.Chunks[0].GetAttributeAsString("key1")
+		assert.True(t, found)
+		assert.Equal(t, "value1", str)
+		_, found = payload.Chunks[0].GetAttributeAsString("key2")
+		assert.False(t, found)
+	}()
+	go func() {
+		defer wg.Done()
+		halfPayload.Chunks[0].SetStringAttribute("key2", "value2")
+		str, found := halfPayload.Chunks[0].GetAttributeAsString("key2")
+		assert.True(t, found)
+		assert.Equal(t, "value2", str)
+		_, found = halfPayload.Chunks[0].GetAttributeAsString("key1")
+		assert.False(t, found)
+	}()
+	wg.Wait()
+}
+
 func TestInternalSpanToProto_CountUsedStrings(t *testing.T) {
 	strings := NewStringTable()
 	secretIdx := strings.Add("SOME_SECRET")
@@ -120,7 +149,7 @@ func TestInternalSpanToProto_CountUsedStrings(t *testing.T) {
 	assert.False(t, usedStrings[secretIdx])
 }
 
-func TestInternalTracerPayload_ToProto_UnusedStringsRemoved(t *testing.T) {
+func testPayload() *InternalTracerPayload {
 	strings := NewStringTable()
 	strings.Add("unused-string")
 
@@ -174,6 +203,20 @@ func TestInternalTracerPayload_ToProto_UnusedStringsRemoved(t *testing.T) {
 		samplingMechanism: 4,
 	}
 
+	// Build a second chunk with all fields
+	chunk2 := &InternalTraceChunk{
+		Strings:   strings,
+		Priority:  1,
+		originRef: strings.Add("chunk-origin2"),
+		Attributes: map[uint32]*AnyValue{
+			strings.Add("attr-key2"): {Value: &AnyValue_StringValueRef{StringValueRef: strings.Add("attr-value2")}},
+		},
+		Spans:             []*InternalSpan{NewInternalSpan(strings, span)},
+		DroppedTrace:      false,
+		TraceID:           []byte{6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21},
+		samplingMechanism: 4,
+	}
+
 	// Build attributes for the tracer payload
 	payloadAttributes := map[uint32]*AnyValue{
 		strings.Add("attr-key"): {Value: &AnyValue_StringValueRef{StringValueRef: strings.Add("attr-value")}},
@@ -190,8 +233,14 @@ func TestInternalTracerPayload_ToProto_UnusedStringsRemoved(t *testing.T) {
 		hostnameRef:        strings.Add("host-abc"),
 		appVersionRef:      strings.Add("1.0.1"),
 		Attributes:         payloadAttributes,
-		Chunks:             []*InternalTraceChunk{chunk},
+		Chunks:             []*InternalTraceChunk{chunk, chunk2},
 	}
+
+	return payload
+}
+
+func TestInternalTracerPayload_ToProto_UnusedStringsRemoved(t *testing.T) {
+	payload := testPayload()
 
 	protoPayload := payload.ToProto()
 
@@ -206,7 +255,7 @@ func TestInternalTracerPayload_ToProto_UnusedStringsRemoved(t *testing.T) {
 	assert.Equal(t, "1.0.1", protoPayload.Strings[protoPayload.AppVersionRef])
 
 	// Check chunk strings
-	assert.Len(t, protoPayload.Chunks, 1)
+	assert.Len(t, protoPayload.Chunks, 2)
 	protoChunk := protoPayload.Chunks[0]
 	assert.Equal(t, "chunk-origin", protoPayload.Strings[protoChunk.OriginRef])
 	assert.Equal(t, uint32(4), protoChunk.SamplingMechanism)
