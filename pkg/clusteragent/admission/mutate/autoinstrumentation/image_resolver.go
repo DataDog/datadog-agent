@@ -20,10 +20,9 @@ import (
 )
 
 var datadoghqRegistries = map[string]struct{}{
-	"gcr.io/datadoghq":       {},
-	"datadoghq.azurecr.io":   {},
-	"dockerhub.io/datadog":   {},
-	"public.ecr.aws/datadog": {},
+	"gcr.io/datadoghq":         {},
+	"hub.docker.com/r/datadog": {},
+	"gallery.ecr.aws/datadog":  {},
 }
 
 // RemoteConfigClient defines the interface we need for remote config operations
@@ -123,7 +122,7 @@ func (r *remoteConfigImageResolver) waitForInitialConfig() error {
 
 // Resolve resolves a registry, repository, and tag to a digest-based reference.
 // Input: "gcr.io/datadoghq", "dd-lib-python-init", "v3"
-// Output: "gcr.io/datadoghq/dd-lib-python-init@sha256:abc123...", true
+// Output: "dd-lib-python-init@sha256:abc123...", true
 // If resolution fails or is not available, it returns nil.
 // Output: nil, false
 func (r *remoteConfigImageResolver) Resolve(registry string, repository string, tag string) (*ResolvedImage, bool) {
@@ -154,7 +153,7 @@ func (r *remoteConfigImageResolver) Resolve(registry string, repository string, 
 		return nil, false
 	}
 
-	log.Debugf("Resolved %s/%s:%s -> %s", registry, repository, tag, resolved.FullImageRef)
+	log.Debugf("Resolved %s/%s:%s -> %s", registry, repository, tag, resolved.ImageRef)
 	return &resolved, true
 }
 
@@ -205,9 +204,9 @@ func (r *remoteConfigImageResolver) updateCacheFromParsedConfigs(validConfigs ma
 				continue
 			}
 
-			fullImageRef := repo.RepositoryURL + "@" + imageInfo.Digest
+			imageRef := repo.RepositoryName + "@" + imageInfo.Digest
 			tagMap[imageInfo.Tag] = ResolvedImage{
-				FullImageRef:     fullImageRef,
+				ImageRef:         imageRef,
 				Digest:           imageInfo.Digest,
 				CanonicalVersion: imageInfo.CanonicalVersion,
 			}
@@ -264,7 +263,7 @@ type RepositoryConfig struct {
 
 // ResolvedImage represents a resolved image with digest and metadata.
 type ResolvedImage struct {
-	FullImageRef     string // e.g., "gcr.io/project/image@sha256:abc123..."
+	ImageRef         string // e.g., "dd-lib-python-init@sha256:abc123..."
 	Digest           string
 	CanonicalVersion string
 }

@@ -57,7 +57,7 @@ func (l language) libInfoWithResolver(ctrName, registry string, version string, 
 	if !ok {
 		image = l.libImageName(registry, version)
 	} else {
-		image = resolvedImage.FullImageRef
+		image = l.libImageName(registry, resolvedImage.Digest)
 	}
 	return libInfo{
 		lang:    l,

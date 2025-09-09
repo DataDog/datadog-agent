@@ -234,7 +234,7 @@ func TestRemoteConfigImageResolver_Resolve(t *testing.T) {
 			registry:       "gcr.io/datadoghq",
 			repository:     "dd-lib-python-init",
 			tag:            "latest",
-			expectedResult: "gcr.io/datadoghq/dd-lib-python-init@sha256:abc123",
+			expectedResult: "dd-lib-python-init@sha256:abc123",
 			expectedOK:     true,
 		},
 		{
@@ -242,7 +242,7 @@ func TestRemoteConfigImageResolver_Resolve(t *testing.T) {
 			registry:       "gcr.io/datadoghq",
 			repository:     "dd-lib-python-init",
 			tag:            "3",
-			expectedResult: "gcr.io/datadoghq/dd-lib-python-init@sha256:def456",
+			expectedResult: "dd-lib-python-init@sha256:def456",
 			expectedOK:     true,
 		},
 		{
@@ -264,8 +264,15 @@ func TestRemoteConfigImageResolver_Resolve(t *testing.T) {
 			registry:       "gcr.io/datadoghq",
 			repository:     "dd-lib-python-init",
 			tag:            "v3",
-			expectedResult: "gcr.io/datadoghq/dd-lib-python-init@sha256:def456",
+			expectedResult: "dd-lib-python-init@sha256:def456",
 			expectedOK:     true,
+		},
+		{
+			name:       "non_datadog_registry_rejected",
+			registry:   "docker.io",
+			repository: "dd-lib-python-init",
+			tag:        "latest",
+			expectedOK: false,
 		},
 	}
 
@@ -280,7 +287,7 @@ func TestRemoteConfigImageResolver_Resolve(t *testing.T) {
 				}, 100*time.Millisecond, 5*time.Millisecond, "Should resolve after async init")
 
 				require.NotNil(t, resolved, "Should have resolved image when expectedOK is true")
-				assert.Equal(t, tc.expectedResult, resolved.FullImageRef, "Resolved image should match expected")
+				assert.Equal(t, tc.expectedResult, resolved.ImageRef, "Resolved image should match expected")
 			} else {
 				assert.Nil(t, resolved, "Should not have resolved image when expectedOK is false")
 			}
@@ -400,6 +407,52 @@ func TestRemoteConfigImageResolver_ConcurrentAccess(t *testing.T) {
 
 		wg.Wait()
 	})
+}
+
+func TestIsDatadoghqRegistry(t *testing.T) {
+	testCases := []struct {
+		name     string
+		registry string
+		expected bool
+	}{
+		{
+			name:     "gcr_io_datadoghq",
+			registry: "gcr.io/datadoghq",
+			expected: true,
+		},
+		{
+			name:     "hub_docker_com_datadog",
+			registry: "hub.docker.com/r/datadog",
+			expected: true,
+		},
+		{
+			name:     "gallery_ecr_aws_datadog",
+			registry: "gallery.ecr.aws/datadog",
+			expected: true,
+		},
+		{
+			name:     "docker_io_not_datadog",
+			registry: "docker.io",
+			expected: false,
+		},
+		{
+			name:     "private_registry",
+			registry: "my-private-registry.com",
+			expected: false,
+		},
+		{
+			name:     "empty_registry",
+			registry: "",
+			expected: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := isDatadoghqRegistry(tc.registry)
+			assert.Equal(t, tc.expected, result, "isDatadoghqRegistry(%s) should return %v", tc.registry, tc.expected)
+		})
+	}
 }
 
 func TestAsyncInitialization(t *testing.T) {
