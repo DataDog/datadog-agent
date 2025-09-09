@@ -193,7 +193,11 @@ func redactStackFrame(v jsontext.Value) jsontext.Value {
 
 var defaultRedactors = []jsonRedactor{
 	redactor(
-		matchRegexp(`^/debugger/snapshot/stack/[[:digit:]]+$`),
+		exactMatcher(`/logger/thread_id`),
+		replacerFunc(redactGoID),
+	),
+	redactor(
+		matchRegexp(`/debugger/snapshot/stack/[[:digit:]]+$`),
 		replacerFunc(redactStackFrame),
 	),
 	redactor(
@@ -221,16 +225,34 @@ var defaultRedactors = []jsonRedactor{
 		entriesSorter{},
 	),
 	redactor(
-		matchRegexp(`^/debugger/snapshot/captures/entry/arguments/.*`),
+		matchRegexp(`/debugger/snapshot/captures/entry/arguments/.*`),
 		replacerFunc(redactTypesThatDependOnVersion),
 	),
 	redactor(
-		matchRegexp(`^/debugger/snapshot/captures/entry/arguments/.*/type`),
+		matchRegexp(`/debugger/snapshot/captures/entry/arguments/.*/type`),
 		regexpStringReplacer(
 			`UnknownType\(0x[[:xdigit:]]+\)`,
 			`UnknownType(0x[GoRuntimeType])`,
 		),
 	),
+}
+
+func redactGoID(v jsontext.Value) jsontext.Value {
+	if v.Kind() != '0' {
+		return v
+	}
+	var goid uint64
+	if err := json.Unmarshal(v, &goid); err != nil {
+		return v
+	}
+	if goid == 0 {
+		return v
+	}
+	buf, err := json.Marshal("[goid]")
+	if err != nil {
+		return v
+	}
+	return jsontext.Value(buf)
 }
 
 func redactNonZeroAddress(v jsontext.Value) jsontext.Value {

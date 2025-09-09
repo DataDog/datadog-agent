@@ -112,8 +112,6 @@ func (d *Monitor) SendStats() error {
 		}
 
 		if stats.EventApprovedByInUpperLayer != 0 {
-			fmt.Printf("stats.EventApprovedByInUpperLayer: %d\n", stats.EventApprovedByInUpperLayer)
-
 			tagsForInUpperLayerApprovedEvents := []string{
 				"approver_type:" + kfilters.InUpperLayerApproverType,
 				eventTypeTag,

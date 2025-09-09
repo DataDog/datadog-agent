@@ -260,8 +260,8 @@ func readCompressedFileRange(
 		case elf_COMPRESS_ZLIB:
 			r.format = compressionFormatZlib
 			r.offset = int64(s.Offset) + int64(unsafe.Sizeof(ch))
-			r.compressedLength = int64(s.Size) - int64(unsafe.Sizeof(ch))
-			r.uncompressedLength = int64(bo.Uint64(chdata[unsafe.Offsetof(ch.Size):]))
+			r.compressedLength = int64(s.FileSize) - int64(unsafe.Sizeof(ch))
+			r.uncompressedLength = int64(s.Size)
 			return r, nil
 		default:
 			return r, fmt.Errorf("unknown compression type: %#v %x", ct, ct)
@@ -277,8 +277,8 @@ func readCompressedFileRange(
 		case elf_COMPRESS_ZLIB:
 			r.format = compressionFormatZlib
 			r.offset = int64(s.Offset) + int64(unsafe.Sizeof(ch))
-			r.compressedLength = int64(s.Size) - int64(unsafe.Sizeof(ch))
-			r.uncompressedLength = int64(bo.Uint64(chdata[unsafe.Offsetof(ch.Size):]))
+			r.compressedLength = int64(s.FileSize) - int64(unsafe.Sizeof(ch))
+			r.uncompressedLength = int64(s.Size)
 			return r, nil
 		default:
 			return r, fmt.Errorf("unknown compression type: %#v %x", ct, chdata)
