@@ -27,11 +27,12 @@ import (
 
 // Stats is used to collect kernel space metrics about approvers. Stats about added approvers are sent from userspace.
 type Stats struct {
-	EventRejected           uint64
-	EventApprovedByPolicy   uint64
-	EventApprovedByBasename uint64
-	EventApprovedByFlag     uint64
-	EventApprovedByAUID     uint64
+	EventRejected               uint64
+	EventApprovedByPolicy       uint64
+	EventApprovedByBasename     uint64
+	EventApprovedByFlag         uint64
+	EventApprovedByAUID         uint64
+	EventApprovedByInUpperLayer uint64
 }
 
 // Monitor defines an approver monitor
@@ -65,6 +66,7 @@ func (d *Monitor) SendStats() error {
 			statsByEventType[eventType].EventApprovedByBasename += stat.EventApprovedByBasename
 			statsByEventType[eventType].EventApprovedByFlag += stat.EventApprovedByFlag
 			statsByEventType[eventType].EventApprovedByAUID += stat.EventApprovedByAUID
+			statsByEventType[eventType].EventApprovedByInUpperLayer += stat.EventApprovedByInUpperLayer
 		}
 	}
 
@@ -107,6 +109,14 @@ func (d *Monitor) SendStats() error {
 				eventTypeTag,
 			}
 			_ = d.statsdClient.Count(metrics.MetricEventApproved, int64(stats.EventApprovedByAUID), tagsForAUIDApprovedEvents, 1.0)
+		}
+
+		if stats.EventApprovedByInUpperLayer != 0 {
+			tagsForInUpperLayerApprovedEvents := []string{
+				"approver_type:" + kfilters.InUpperLayerApproverType,
+				eventTypeTag,
+			}
+			_ = d.statsdClient.Count(metrics.MetricEventApproved, int64(stats.EventApprovedByInUpperLayer), tagsForInUpperLayerApprovedEvents, 1.0)
 		}
 	}
 	for i := uint32(0); i != uint32(model.LastApproverEventType); i++ {

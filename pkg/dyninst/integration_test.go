@@ -36,7 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/decode"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/gosym"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/gotype"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irprinter"
@@ -85,13 +85,16 @@ func TestDyninst(t *testing.T) {
 		})
 	}
 	rewrite, _ := strconv.ParseBool(os.Getenv("REWRITE"))
+
 	for _, svc := range programs {
 		if _, ok := integrationTestPrograms[svc]; !ok {
 			t.Logf("%s is not used in integration tests", svc)
 			continue
 		}
 		t.Run(svc, func(t *testing.T) {
-			runIntegrationTestSuite(t, svc, rewrite, sem, cfgs...)
+			runIntegrationTestSuite(
+				t, svc, rewrite, sem, cfgs...,
+			)
 		})
 	}
 }
@@ -237,34 +240,24 @@ func testDyninst(
 	require.NoError(t, err)
 	defer func() { require.NoError(t, obj.Close()) }()
 
-	moduledata, err := object.ParseModuleData(obj)
+	symbolTable, err := object.ParseGoSymbolTable(obj)
 	require.NoError(t, err)
-
-	goVersion, err := object.ReadGoVersion(obj)
+	defer func() { require.NoError(t, symbolTable.Close()) }()
 	require.NoError(t, err)
-
-	goDebugSections, err := moduledata.GoDebugSections(obj)
-	require.NoError(t, err)
-	defer func() { require.NoError(t, goDebugSections.Close()) }()
-
-	symbolTable, err := gosym.ParseGoSymbolTable(
-		goDebugSections.PcLnTab.Data(),
-		goDebugSections.GoFunc.Data(),
-		moduledata.Text,
-		moduledata.EText,
-		moduledata.MinPC,
-		moduledata.MaxPC,
-		goVersion,
-	)
-	require.NoError(t, err)
-	symbolicator := symbol.NewGoSymbolicator(symbolTable)
+	symbolicator := symbol.NewGoSymbolicator(&symbolTable.GoSymbolTable)
 	require.NotNil(t, symbolicator)
 
 	cachingSymbolicator, err := symbol.NewCachingSymbolicator(symbolicator, 10000)
 	require.NotNil(t, symbolicator)
 	require.NoError(t, err)
 
-	decoder, err := decode.NewDecoder(sink.irp)
+	gotypeTable, err := gotype.NewTable(obj)
+	require.NoError(t, err)
+	defer func() { require.NoError(t, gotypeTable.Close()) }()
+
+	decoder, err := decode.NewDecoder(
+		sink.irp, (*decode.GoTypeNameResolver)(gotypeTable),
+	)
 	require.NoError(t, err)
 
 	retMap := make(map[string][]json.RawMessage)
@@ -350,7 +343,8 @@ func runIntegrationTestSuite(
 				runTest := func(t *testing.T, probeSlice []ir.ProbeDefinition) {
 					t.Parallel()
 					actual := testDyninst(
-						t, service, bin, probeSlice, rewrite, expectedOutput, debug, sem,
+						t, service, bin, probeSlice, rewrite, expectedOutput,
+						debug, sem,
 					)
 					if t.Failed() {
 						return

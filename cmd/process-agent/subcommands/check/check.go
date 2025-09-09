@@ -51,6 +51,26 @@ import (
 
 const defaultWaitInterval = time.Second
 
+func waitForWorkloadMeta(logger log.Component, wm workloadmeta.Component) {
+	logger.Info("Waiting for workloadmeta to be initialized...")
+	timeout := time.After(10 * time.Second)
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-timeout:
+			logger.Warn("Workloadmeta is not ready after 10 seconds, proceeding anyway")
+			return
+		case <-ticker.C:
+			if wm.IsInitialized() {
+				logger.Info("Workloadmeta is ready, proceeding with checks")
+				return
+			}
+		}
+	}
+}
+
 type CliParams struct {
 	*command.GlobalParams
 	checkName       string
@@ -185,6 +205,10 @@ func RunCheckCmd(deps Dependencies) error {
 			c()
 		}
 	}()
+
+	// Wait for Workloadmeta to be initialized otherwise results may be empty as this is a hard dependency
+	// for some checks
+	waitForWorkloadMeta(deps.Log, deps.WorkloadMeta)
 
 	names := make([]string, 0, len(deps.Checks))
 	for _, checkComponent := range deps.Checks {
