@@ -51,7 +51,7 @@ func TestIPCSecurityLinuxSuite(t *testing.T) {
 }
 
 func (a *authArtifactLinux) checkAuthStack() {
-	// AGENTRUN-609: Permission of log files are restricted to the `dd-agent` user and group,
+	// Permission of log files are restricted to the `dd-agent` user and group,
 	// add the user of the ssh connection to the group to access the logs
 	cmd := fmt.Sprintf("sudo usermod -aG dd-agent %s", a.authArtifactBase.Env().RemoteHost.Username)
 	_, err := a.authArtifactBase.Env().RemoteHost.Execute(cmd)
