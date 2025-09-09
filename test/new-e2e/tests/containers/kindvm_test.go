@@ -27,18 +27,28 @@ clusterAgent:
         DD_CSI_ENABLED: "true"
 `
 
-	e2e.Run(t, &kindSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(
-		awskubernetes.WithEC2VMOptions(
-			ec2.WithInstanceType("t3.xlarge"),
+	e2e.Run(
+		t,
+		&kindSuite{},
+		e2e.WithProvisioner(
+			awskubernetes.KindProvisioner(
+				awskubernetes.WithEC2VMOptions(
+					ec2.WithInstanceType("t3.xlarge"),
+				),
+				awskubernetes.WithFakeIntakeOptions(
+					fakeintake.WithMemory(2048),
+					fakeintake.WithRetentionPeriod("31m"),
+					fakeintake.WithStoreType("sql"),
+				),
+				awskubernetes.WithDeployDogstatsd(),
+				awskubernetes.WithDeployTestWorkload(),
+				awskubernetes.WithAgentOptions(
+					kubernetesagentparams.WithDualShipping(),
+					kubernetesagentparams.WithHelmValues(helmValues),
+				),
+			),
 		),
-		awskubernetes.WithFakeIntakeOptions(fakeintake.WithMemory(2048)),
-		awskubernetes.WithDeployDogstatsd(),
-		awskubernetes.WithDeployTestWorkload(),
-		awskubernetes.WithAgentOptions(
-			kubernetesagentparams.WithDualShipping(),
-			kubernetesagentparams.WithHelmValues(helmValues),
-		),
-	)))
+	)
 }
 
 func (suite *kindSuite) SetupSuite() {
@@ -136,4 +146,22 @@ func (suite *kindSuite) TestControlPlane() {
 			},
 		},
 	})
+}
+
+func (suite *kindSuite) TestHostTags() {
+	// tag keys that are expected to be found on any k8s env
+	args := &testHostTags{
+		ExpectedTags: &[]string{
+			"^os:linux$",
+			"^arch:amd64$",
+			"^kube_node_role:(master|control-plane)$", // control-plane < v1.27.x -- master >= v1.27.x
+			"^stackid:" + suite.clusterName + "$",
+			"^kube_node:" + suite.clusterName + "-control-plane$",
+			"^cluster_name:" + suite.clusterName + "$",
+			"^kube_cluster_name:" + suite.clusterName + "$",
+			"^orch_cluster_id:[0-9a-f-]{36}$",
+		},
+	}
+
+	suite.testHostTags(args)
 }
