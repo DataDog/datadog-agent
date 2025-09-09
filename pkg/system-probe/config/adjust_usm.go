@@ -70,7 +70,6 @@ func adjustUSM(cfg model.Config) {
 
 	applyDefault(cfg, spNS("process_service_inference", "use_windows_service_name"), true)
 	applyDefault(cfg, smNS("enable_ring_buffers"), true)
-	applyDefault(cfg, smNS("postgres", "max_stats_buffered"), 100000)
 	applyDefault(cfg, smNS("redis", "max_stats_buffered"), 100000)
 
 	// kernel_buffer_pages determines the number of pages allocated *per CPU*
