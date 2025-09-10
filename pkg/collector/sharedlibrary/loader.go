@@ -32,8 +32,8 @@ package sharedlibrary
 
 #ifdef _WIN32
 
-shared_library_handles_t load_shared_library(const char *lib_name, const char **error) {
-	shared_library_handles_t lib_handles = { NULL, NULL };
+handles_t load_shared_library(const char *lib_name, const char **error) {
+	handles_t lib_handles = { NULL, NULL };
 
 	// resolve the library full name
     char* lib_full_name = malloc(strlen(lib_name) + strlen(LIB_EXTENSION) + 1);
@@ -77,8 +77,8 @@ done:
 
 #else
 
-shared_library_handles_t load_shared_library(const char *lib_name, const char **error) {
-	shared_library_handles_t lib_handles = { NULL, NULL };
+handles_t load_shared_library(const char *lib_name, const char **error) {
+	handles_t lib_handles = { NULL, NULL };
 
     // resolve the library full name
     char* lib_full_name = malloc(strlen(lib_name) + strlen(LIB_EXTENSION) + 1);

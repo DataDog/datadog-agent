@@ -1,8 +1,21 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 #ifndef SHARED_LIBRARY_TYPES_H
 #define SHARED_LIBRARY_TYPES_H
 
+/*! \file shared_library_types.h
+    \brief Definition of types used by the shared library loader.
+
+    These definitions are kept in a separated file because they need
+    to be included in multiple files.
+*/
+
 #include <stdbool.h>
 
+// metric types
 typedef enum {
     GAUGE = 0,
     RATE,
@@ -37,28 +50,28 @@ typedef void (*cb_submit_histogram_bucket_t)(char *, char *, long long, float, f
 // (id, event, event_type)
 typedef void (*cb_submit_event_platform_event_t)(char *, char *, int, char *);
 
-// config passed to the check
-typedef struct submit_callbacks_s {
+// aggregator stores every callback used by shared libraries checks
+typedef struct aggregator_s {
     cb_submit_metric_t cb_submit_metric;
     cb_submit_service_check_t cb_submit_service_check;
     cb_submit_event_t cb_submit_event;
     cb_submit_histogram_bucket_t cb_submit_histogram_bucket;
     cb_submit_event_platform_event_t cb_submit_event_platform_event;
-} submit_callbacks_t;
+} aggregator_t;
 
-// run function callback
+// run function callback, entrypoint of checks
 // (instance string, callbacks)
-typedef char *(run_function_t)(char *, const submit_callbacks_t *);
+typedef char *(run_function_t)(char *, const aggregator_t *);
 
-// free function callback
+// free function callback, deallocate a string
 // (string to free)
 typedef void(free_function_t)(char *);
 
-// library file and symbols pointers
-typedef struct shared_library_handles_s {
+// pointers to library file and its symbols
+typedef struct handles_s {
     void *lib; // handle to the shared library
     run_function_t *run; // handle to the run function symbol
     free_function_t *free; // handle to the free function symbol
-} shared_library_handles_t;
+} handles_t;
 
 #endif

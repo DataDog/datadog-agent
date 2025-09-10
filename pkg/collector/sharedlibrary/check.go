@@ -19,7 +19,7 @@ void SubmitEventSo(char *, event_t *);
 void SubmitHistogramBucketSo(char *, char *, long long, float, float, int, char *, char **, bool);
 void SubmitEventPlatformEventSo(char *, char *, int, char *);
 
-static const submit_callbacks_t submit_callbacks = {
+static const aggregator_t aggregator = {
 	SubmitMetricSo,
 	SubmitServiceCheckSo,
 	SubmitEventSo,
@@ -27,23 +27,23 @@ static const submit_callbacks_t submit_callbacks = {
 	SubmitEventPlatformEventSo,
 };
 
-void run_shared_library(char *instance, shared_library_handles_t lib_handles, const char **error) {
+void run_shared_library(char *instance, handles_t *lib_handles, const char **error) {
 	// verify pointers
-    if (!lib_handles.run) {
+    if (!lib_handles->run) {
         *error = strdup("pointer to shared library run function is null");
 		return;
     }
 
-	if (!lib_handles.free) {
+	if (!lib_handles->free) {
         *error = strdup("pointer to shared library free function is null");
 		return;
     }
 
     // run the shared library check and verify if an error has occurred
-    char *run_error = (lib_handles.run)(instance, &submit_callbacks);
+    char *run_error = (lib_handles->run)(instance, &aggregator);
 	if (run_error) {
 		*error = strdup(run_error);
-		(lib_handles.free)(run_error);
+		(lib_handles->free)(run_error);
 	}
 }
 */
@@ -76,7 +76,7 @@ type SharedLibraryCheck struct {
 	instance       map[string]any
 	interval       time.Duration
 	libName        string
-	libHandles     C.shared_library_handles_t // store library file and symbols pointers
+	libHandles     C.handles_t // store library file and symbols pointers
 	source         string
 	telemetry      bool // whether or not the telemetry is enabled for this check
 	initConfig     string
@@ -84,7 +84,7 @@ type SharedLibraryCheck struct {
 }
 
 // NewSharedLibraryCheck conveniently creates a SharedLibraryCheck instance
-func NewSharedLibraryCheck(senderManager sender.SenderManager, name string, libHandles C.shared_library_handles_t) (*SharedLibraryCheck, error) {
+func NewSharedLibraryCheck(senderManager sender.SenderManager, name string, libHandles C.handles_t) (*SharedLibraryCheck, error) {
 	check := &SharedLibraryCheck{
 		senderManager: senderManager,
 		interval:      defaults.DefaultCheckInterval,
@@ -109,7 +109,7 @@ func (c *SharedLibraryCheck) Run() error {
 	defer C.free(unsafe.Pointer(cInstance))
 
 	// execute the check with the symbol retrieved earlier
-	C.run_shared_library(cInstance, c.libHandles, &cErr)
+	C.run_shared_library(cInstance, &c.libHandles, &cErr)
 	if cErr != nil {
 		defer C.free(unsafe.Pointer(cErr))
 		return fmt.Errorf("Failed to run shared library check %s: %s", c.libName, C.GoString(cErr))
