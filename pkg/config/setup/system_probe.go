@@ -279,7 +279,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault(join(smNS, "max_kafka_stats_buffered"), 100000)
 	cfg.BindEnvAndSetDefault(join(smNS, "postgres", "max_stats_buffered"), 100000)
 	cfg.BindEnvAndSetDefault(join(smNS, "postgres", "max_telemetry_buffer"), 160)
-	cfg.BindEnv(join(smNS, "redis", "max_stats_buffered"))
+	cfg.BindEnvAndSetDefault(join(smNS, "redis", "max_stats_buffered"), 100000)
 	cfg.BindEnv(join(smNS, "max_concurrent_requests"))
 	cfg.BindEnv(join(smNS, "enable_quantization"))
 	cfg.BindEnv(join(smNS, "enable_connection_rollup"))
