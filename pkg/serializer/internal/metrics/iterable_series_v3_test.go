@@ -8,7 +8,6 @@
 package metrics
 
 import (
-	"fmt"
 	"slices"
 	"testing"
 
@@ -204,7 +203,6 @@ func TestPayloadBuilderV3_pointsLimit(t *testing.T) {
 	require.NoError(t, err)
 
 	r.NoError(pb.writeSerie(series[0]))
-	fmt.Printf("%+#v\n", pb.pointsThisPayload)
 	r.NoError(pb.writeSerie(series[1]))
 	r.NoError(pb.writeSerie(series[2]))
 	r.NoError(pb.writeSerie(series[3]))
