@@ -10,7 +10,6 @@ package dyninst_test
 import (
 	"context"
 	"errors"
-	"io"
 	"net/http/httptest"
 	"net/url"
 	"runtime"
@@ -206,11 +205,11 @@ type failOnceDecoder struct {
 }
 
 func (d *failOnceDecoder) Decode(
-	event decode.Event, symbolicator symbol.Symbolicator, out io.Writer,
-) (ir.ProbeDefinition, error) {
-	probe, err := d.underlying.Decode(event, symbolicator, out)
+	event decode.Event, symbolicator symbol.Symbolicator, out []byte,
+) ([]byte, ir.ProbeDefinition, error) {
+	out, probe, err := d.underlying.Decode(event, symbolicator, out)
 	if err == nil && d.failed.CompareAndSwap(false, true) {
 		err = errors.New("boom")
 	}
-	return probe, err
+	return out, probe, err
 }
