@@ -26,7 +26,6 @@ from tasks.libs.civisibility import (
     get_test_link_to_job_on_main,
 )
 from tasks.libs.common.color import Color, color_message
-from tasks.libs.common.git import get_common_ancestor
 from tasks.libs.common.utils import experimental
 
 
