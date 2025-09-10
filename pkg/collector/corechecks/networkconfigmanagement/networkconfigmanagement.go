@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
 	"github.com/benbjohnson/clock"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -50,11 +51,25 @@ func (c *Check) Run() error {
 		log.Errorf("unable to connect to remote device %s: %s", c.checkContext.Device.IPAddress, checkErr)
 		return checkErr
 	}
+
+	// Must defer this way because sometimes we will have to redial the remote client
 	defer func() {
 		if c.remoteClient != nil {
 			_ = c.remoteClient.Close()
 		}
 	}()
+
+	// If the check did not have inline profile explicitly defined/from cache, find the profile that works
+	if c.checkContext.ProfileCache.ProfileName == "" {
+		prof, err := c.FindMatchingProfile()
+		if err != nil {
+			return err
+		}
+		c.checkContext.ProfileCache.Profile = prof
+		c.checkContext.ProfileCache.ProfileName = prof.Name
+	}
+	// Update the remote client's device profile to access the correct commands
+	c.remoteClient.SetProfile(c.checkContext.ProfileCache.Profile)
 
 	// TODO: validate the running config to make sure it's valid, extract other information from it, etc.
 	runningConfig, checkErr := c.remoteClient.RetrieveRunningConfig()
@@ -152,4 +167,31 @@ func newCheck(agentConfig config.Component) check.Check {
 		CheckBase:   core.NewCheckBase(CheckName),
 		agentConfig: agentConfig,
 	}
+}
+
+// FindMatchingProfile supports testing profiles until one is found with a successful command for the device
+func (c *Check) FindMatchingProfile() (*profile.NCMProfile, error) {
+	for profName, prof := range c.checkContext.ProfileMap {
+		session, err := c.remoteClient.NewSession()
+		if err != nil {
+			return nil, fmt.Errorf("unable to connect to remote device %s: %s", c.checkContext.Device.IPAddress, err)
+		}
+		commands, err := prof.GetCommandValues(profile.Version)
+		if err != nil {
+			return nil, err
+		}
+		for _, cmd := range commands {
+			output, err := session.CombinedOutput(cmd)
+			if err != nil {
+				return nil, err
+			}
+			// TODO: Validate the output
+			if len(output) > 0 {
+				return prof, nil
+			}
+		}
+		// if iterate through all commands failed, add to tried profiles
+		c.checkContext.ProfileCache.AppendToTriedProfiles(profName)
+	}
+	return nil, fmt.Errorf("unable to find matching profile for device %s", c.checkContext.Device.IPAddress)
 }
