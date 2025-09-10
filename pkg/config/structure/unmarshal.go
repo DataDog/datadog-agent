@@ -124,6 +124,44 @@ func UnmarshalKey(cfg model.Reader, key string, target interface{}, opts ...Unma
 	return cfg.UnmarshalKey(key, target, decodeHooks...)
 }
 
+// buildTreeFromConfigSettings creates a map of values by merging settings from each config source
+func buildTreeFromConfigSettings(cfg model.Reader, key string) (interface{}, error) {
+	rawval := cfg.Get(key)
+	if nodetreemodel.IsNilValue(rawval) {
+		// NOTE: This returns a nil-valued-interface, which is needed to handle edge
+		// cases in the same way viper does
+		var ret map[string]interface{}
+		return ret, nil
+	}
+
+	mapval, ok := rawval.(map[string]interface{})
+	if !ok {
+		return rawval, nil
+	}
+	tree := make(map[string]interface{})
+	for k, v := range mapval {
+		tree[k] = v
+	}
+
+	fields := cfg.GetSubfields(key)
+	for _, f := range fields {
+		setting := strings.Join([]string{key, f}, ".")
+		inner, _ := buildTreeFromConfigSettings(cfg, setting)
+		if inner == nil {
+			continue
+		}
+		if nodetreemodel.IsNilValue(inner) {
+			// NOTE: This returns a nil-valued-interface, which is needed to handle edge
+			// cases in the same way viper does
+			var ret map[string]interface{}
+			inner = ret
+		}
+		tree[f] = inner
+	}
+
+	return tree, nil
+}
+
 func unmarshalKeyReflection(cfg model.Reader, key string, target interface{}, opts ...UnmarshalKeyOption) error {
 	fs := &featureSet{}
 	for _, o := range opts {
@@ -144,7 +182,12 @@ func unmarshalKeyReflection(cfg model.Reader, key string, target interface{}, op
 		}
 	}
 
-	input, err := nodetreemodel.NewNodeTree(rawval, cfg.GetSource(key))
+	settingval, err := buildTreeFromConfigSettings(cfg, key)
+	if err != nil {
+		return err
+	}
+
+	input, err := nodetreemodel.NewNodeTree(settingval, cfg.GetSource(key))
 	if err != nil {
 		return err
 	}
