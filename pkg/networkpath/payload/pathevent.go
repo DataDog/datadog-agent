@@ -102,18 +102,6 @@ const (
 	PathOriginNetworkPathIntegration PathOrigin = "network_path_integration"
 )
 
-// NetworkPathHop encapsulates the data for a single
-// hop within a path
-// TODO: DELETE ME
-// TODO: DELETE ME
-// TODO: DELETE ME
-type NetworkPathHop struct {
-	TTL       int     `json:"ttl"`
-	IPAddress string  `json:"ip_address"`
-	RTT       float64 `json:"rtt,omitempty"` // ms
-	Reachable bool    `json:"reachable"`
-}
-
 // NetworkPathSource encapsulates information
 // about the source of a path
 type NetworkPathSource struct {
