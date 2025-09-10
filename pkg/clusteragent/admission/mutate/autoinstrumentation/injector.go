@@ -190,10 +190,9 @@ func injectorWithImageTag(tag string, imageResolver ImageResolver) injectorOptio
 			log.Error("injectorWithImageTag called without imageResolver")
 			return
 		}
-
 		if resolvedImage, ok := imageResolver.Resolve(i.registry, "apm-inject", tag); ok {
-			log.Debugf("Resolved image for %s/apm-inject:%s: %s", i.registry, tag, resolvedImage.ImageRef)
-			i.image = i.registry + "/" + resolvedImage.ImageRef
+			log.Debugf("Resolved image for %s/apm-inject:%s: %s", i.registry, tag, resolvedImage.FullImageRef)
+			i.image = resolvedImage.FullImageRef
 			return
 		}
 		log.Debugf("No resolved image found for %s/apm-inject:%s, falling back to tag-based image", i.registry, tag)

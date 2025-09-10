@@ -62,7 +62,7 @@ type remoteConfigImageResolver struct {
 	rcClient RemoteConfigClient
 
 	mu            sync.RWMutex
-	imageMappings map[string]map[string]ResolvedImage // repository name -> tag -> resolved image
+	imageMappings map[string]map[string]ImageInfo // repository name -> tag -> resolved image
 
 	// Retry configuration for initial cache loading
 	maxRetries int
@@ -80,7 +80,7 @@ func newRemoteConfigImageResolver(rcClient RemoteConfigClient) ImageResolver {
 func newRemoteConfigImageResolverWithRetryConfig(rcClient RemoteConfigClient, maxRetries int, retryDelay time.Duration) ImageResolver {
 	resolver := &remoteConfigImageResolver{
 		rcClient:      rcClient,
-		imageMappings: make(map[string]map[string]ResolvedImage),
+		imageMappings: make(map[string]map[string]ImageInfo),
 		maxRetries:    maxRetries,
 		retryDelay:    retryDelay,
 	}
@@ -128,13 +128,13 @@ func (r *remoteConfigImageResolver) waitForInitialConfig() error {
 // If resolution fails or is not available, it returns nil.
 // Output: nil, false
 func (r *remoteConfigImageResolver) Resolve(registry string, repository string, tag string) (*ResolvedImage, bool) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
 	if !isDatadoghqRegistry(registry) {
 		log.Debugf("Not a Datadoghq registry, not resolving")
 		return nil, false
 	}
+
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 
 	if len(r.imageMappings) == 0 {
 		log.Debugf("Cache empty, no resolution available")
@@ -155,12 +155,12 @@ func (r *remoteConfigImageResolver) Resolve(registry string, repository string, 
 	if !exists {
 		log.Debugf("No mapping found for %s:%s", repository, normalizedTag)
 		metrics.ImageResolutionAttempts.Inc(registry, repository, metrics.DigestResolutionEnabled, tag)
-    return nil, false
+		return nil, false
 	}
-
-	log.Debugf("Resolved %s/%s:%s -> %s", registry, repository, tag, resolved.ImageRef)
+	resolvedImage := newResolvedImage(registry, repository, resolved)
+	log.Debugf("Resolved %s/%s:%s -> %s", registry, repository, tag, resolvedImage.FullImageRef)
 	metrics.ImageResolutionAttempts.Inc(registry, repository, metrics.DigestResolutionEnabled, resolved.Digest)
-	return &resolved, true
+	return resolvedImage, true
 }
 
 func isDatadoghqRegistry(registry string) bool {
@@ -200,22 +200,17 @@ func parseAndValidateConfigs(configs map[string]state.RawConfig) (map[string]Rep
 }
 
 func (r *remoteConfigImageResolver) updateCacheFromParsedConfigs(validConfigs map[string]RepositoryConfig) {
-	newCache := make(map[string]map[string]ResolvedImage)
+	newCache := make(map[string]map[string]ImageInfo)
 
 	for _, repo := range validConfigs {
-		tagMap := make(map[string]ResolvedImage)
+		tagMap := make(map[string]ImageInfo)
 		for _, imageInfo := range repo.Images {
 			if imageInfo.Tag == "" || imageInfo.Digest == "" {
 				log.Warnf("Skipping invalid image entry (missing tag or digest) in %s", repo.RepositoryName)
 				continue
 			}
 
-			imageRef := repo.RepositoryName + "@" + imageInfo.Digest
-			tagMap[imageInfo.Tag] = ResolvedImage{
-				ImageRef:         imageRef,
-				Digest:           imageInfo.Digest,
-				CanonicalVersion: imageInfo.CanonicalVersion,
-			}
+			tagMap[imageInfo.Tag] = imageInfo
 		}
 
 		newCache[repo.RepositoryName] = tagMap
@@ -267,11 +262,15 @@ type RepositoryConfig struct {
 	Images         []ImageInfo `json:"images"`
 }
 
-// ResolvedImage represents a resolved image with digest and metadata.
+// ResolvedImage represents a fully resolved image with digest and metadata.
 type ResolvedImage struct {
-	ImageRef         string // e.g., "dd-lib-python-init@sha256:abc123..."
-	Digest           string
-	CanonicalVersion string
+	FullImageRef string // e.g., "gcr.io/datadoghq/dd-lib-python-init@sha256:abc123..."
+}
+
+func newResolvedImage(registry string, repositoryName string, imageInfo ImageInfo) *ResolvedImage {
+	return &ResolvedImage{
+		FullImageRef: registry + "/" + repositoryName + "@" + imageInfo.Digest,
+	}
 }
 
 // NewImageResolver creates the appropriate ImageResolver based on whether

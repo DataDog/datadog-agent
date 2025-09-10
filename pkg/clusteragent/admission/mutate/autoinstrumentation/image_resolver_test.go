@@ -167,7 +167,7 @@ func TestNoOpImageResolver(t *testing.T) {
 
 func TestRemoteConfigImageResolver_processUpdate(t *testing.T) {
 	resolver := &remoteConfigImageResolver{
-		imageMappings: make(map[string]map[string]ResolvedImage),
+		imageMappings: make(map[string]map[string]ImageInfo),
 	}
 
 	testConfigs, err := loadTestConfigFile("image_resolver_multi_repo.json")
@@ -212,7 +212,7 @@ func TestRemoteConfigImageResolver_processUpdate(t *testing.T) {
 // TestImageResolverEmptyConfig tests the behavior with no remote config data
 func TestImageResolverEmptyConfig(t *testing.T) {
 	resolver := &remoteConfigImageResolver{
-		imageMappings: make(map[string]map[string]ResolvedImage),
+		imageMappings: make(map[string]map[string]ImageInfo),
 	}
 
 	resolver.processUpdate(map[string]state.RawConfig{}, func(string, state.ApplyStatus) {})
@@ -239,7 +239,7 @@ func TestRemoteConfigImageResolver_Resolve(t *testing.T) {
 			registry:       "gcr.io/datadoghq",
 			repository:     "dd-lib-python-init",
 			tag:            "latest",
-			expectedResult: "dd-lib-python-init@sha256:abc123",
+			expectedResult: "gcr.io/datadoghq/dd-lib-python-init@sha256:abc123",
 			expectedOK:     true,
 		},
 		{
@@ -247,7 +247,7 @@ func TestRemoteConfigImageResolver_Resolve(t *testing.T) {
 			registry:       "gcr.io/datadoghq",
 			repository:     "dd-lib-python-init",
 			tag:            "3",
-			expectedResult: "dd-lib-python-init@sha256:def456",
+			expectedResult: "gcr.io/datadoghq/dd-lib-python-init@sha256:def456",
 			expectedOK:     true,
 		},
 		{
@@ -269,7 +269,7 @@ func TestRemoteConfigImageResolver_Resolve(t *testing.T) {
 			registry:       "gcr.io/datadoghq",
 			repository:     "dd-lib-python-init",
 			tag:            "v3",
-			expectedResult: "dd-lib-python-init@sha256:def456",
+			expectedResult: "gcr.io/datadoghq/dd-lib-python-init@sha256:def456",
 			expectedOK:     true,
 		},
 		{
@@ -292,7 +292,7 @@ func TestRemoteConfigImageResolver_Resolve(t *testing.T) {
 				}, 100*time.Millisecond, 5*time.Millisecond, "Should resolve after async init")
 
 				require.NotNil(t, resolved, "Should have resolved image when expectedOK is true")
-				assert.Equal(t, tc.expectedResult, resolved.ImageRef, "Resolved image should match expected")
+				assert.Equal(t, tc.expectedResult, resolved.FullImageRef, "Resolved image should match expected")
 			} else {
 				assert.Nil(t, resolved, "Should not have resolved image when expectedOK is false")
 			}
@@ -302,7 +302,7 @@ func TestRemoteConfigImageResolver_Resolve(t *testing.T) {
 	// Test empty cache
 	t.Run("empty_cache", func(t *testing.T) {
 		emptyResolver := &remoteConfigImageResolver{
-			imageMappings: make(map[string]map[string]ResolvedImage),
+			imageMappings: make(map[string]map[string]ImageInfo),
 		}
 		resolved, ok := emptyResolver.Resolve("gcr.io/datadoghq", "dd-lib-python-init", "latest")
 		assert.False(t, ok, "Resolution should fail with empty cache")
@@ -312,7 +312,7 @@ func TestRemoteConfigImageResolver_Resolve(t *testing.T) {
 
 func TestRemoteConfigImageResolver_ErrorHandling(t *testing.T) {
 	resolver := &remoteConfigImageResolver{
-		imageMappings: make(map[string]map[string]ResolvedImage),
+		imageMappings: make(map[string]map[string]ImageInfo),
 	}
 
 	testCases := []struct {
