@@ -8,6 +8,7 @@
 package ir
 
 import (
+	"fmt"
 	"iter"
 	"reflect"
 )
@@ -157,6 +158,16 @@ func (t *StructureType) Fields() iter.Seq[Field] {
 			}
 		}
 	}
+}
+
+// FieldOffsetByName returns the offset of the field with the given name.
+func (t *StructureType) FieldOffsetByName(name string) (uint32, error) {
+	for _, f := range t.RawFields {
+		if f.Name == name {
+			return f.Offset, nil
+		}
+	}
+	return 0, fmt.Errorf("no field %s in struct %s", name, t.Name)
 }
 
 // Field is a field in a structure.
