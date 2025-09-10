@@ -34,15 +34,13 @@ var defaultLinesConfig = &types.FingerprintConfig{
 
 // Fingerprinter is a struct that contains the fingerprinting configuration
 type Fingerprinter struct {
-	fingerprintingEnabled bool
 	FingerprintConfig     types.FingerprintConfig
 }
 
 // NewFingerprinter creates a new Fingerprinter with the given configuration
-func NewFingerprinter(fingerprintEnabled bool, fingerprintConfig types.FingerprintConfig) *Fingerprinter {
-	log.Debugf("Creating new fingerprinter: enabled=%t, defaultConfig=%+v", fingerprintEnabled, fingerprintConfig)
+func NewFingerprinter(fingerprintConfig types.FingerprintConfig) *Fingerprinter {
+	log.Debugf("Creating new fingerprinter: enabled=%t, defaultConfig=%+v", fingerprintConfig)
 	return &Fingerprinter{
-		fingerprintingEnabled: fingerprintEnabled,
 		FingerprintConfig:     fingerprintConfig,
 	}
 }
@@ -253,9 +251,9 @@ func computeFingerPrintByLines(fpFile *os.File, filePath string, fingerprintConf
 	return &types.Fingerprint{Value: checksum, Config: fingerprintConfig}, nil
 }
 
-// IsFingerprintingEnabled returns whether or not our configuration has checksum fingerprinting enabled
+// IsFingerprintingEnabled returns whether or not our configuration has fingerprinting disabled
 func (f *Fingerprinter) IsFingerprintingEnabled() bool {
-	return f.fingerprintingEnabled
+	return f.FingerprintConfig.FingerprintStrategy != types.FingerprintStrategyDisabled
 }
 
 // GetFingerprintConfig returns the fingerprint configuration

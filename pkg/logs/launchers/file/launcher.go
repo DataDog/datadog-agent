@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	fileprovider "github.com/DataDog/datadog-agent/pkg/logs/launchers/file/provider"
@@ -94,7 +93,7 @@ func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePo
 		flarecontroller:        flarecontroller,
 		tagger:                 tagger,
 		oldInfoMap:             make(map[string]*oldTailerInfo),
-		fingerprinter:          tailer.NewFingerprinter(pkgconfigsetup.Datadog().GetBool("logs_config.fingerprint_enabled_experimental"), fingerprintConfig),
+		fingerprinter:          tailer.NewFingerprinter(fingerprintConfig),
 	}
 }
 
