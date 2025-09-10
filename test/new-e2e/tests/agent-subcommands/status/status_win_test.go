@@ -28,13 +28,13 @@ func (v *windowsStatusSuite) TestStatusHostname() {
 	metadata := client.NewEC2Metadata(v.T(), v.Env().RemoteHost.Host, v.Env().RemoteHost.OSFamily)
 	resourceID := metadata.Get("instance-id")
 
-	status := v.Env().Agent.Client.Status()
-
-	expected := expectedSection{
-		name:            `Hostname`,
-		shouldBePresent: true,
-		shouldContain:   []string{fmt.Sprintf("instance-id: %v", resourceID), "hostname provider: os"},
+	expectedSections := []expectedSection{
+		{
+			name:            `Hostname`,
+			shouldBePresent: true,
+			shouldContain:   []string{fmt.Sprintf("instance-id: %v", resourceID), "hostname provider: os"},
+		},
 	}
 
-	verifySectionContent(v.T(), status.Content, expected)
+	fetchAndCheckStatus(&v.baseStatusSuite, expectedSections)
 }

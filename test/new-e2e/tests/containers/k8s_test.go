@@ -632,9 +632,9 @@ func (suite *k8sSuite) TestCPU() {
 				`^container_name:stress-ng$`,
 				`^display_container_name:stress-ng`,
 				`^git.commit.sha:`, // org.opencontainers.image.revision docker image label
-				`^git.repository_url:https://github.com/ColinIanKing/stress-ng$`, // org.opencontainers.image.source   docker image label
-				`^image_id:ghcr.io/colinianking/stress-ng@sha256:`,
-				`^image_name:ghcr.io/colinianking/stress-ng$`,
+				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`,
+				`^image_id:ghcr\.io/datadog/apps-stress-ng@sha256:`,
+				`^image_name:ghcr\.io/datadog/apps-stress-ng$`,
 				`^image_tag:`,
 				`^kube_container_name:stress-ng$`,
 				`^kube_deployment:stress-ng$`,
@@ -646,7 +646,7 @@ func (suite *k8sSuite) TestCPU() {
 				`^pod_name:stress-ng-[[:alnum:]]+-[[:alnum:]]+$`,
 				`^pod_phase:running$`,
 				`^runtime:containerd$`,
-				`^short_image:stress-ng$`,
+				`^short_image:apps-stress-ng$`,
 			},
 			Value: &testMetricExpectValueArgs{
 				Max: 155000000,
@@ -669,9 +669,9 @@ func (suite *k8sSuite) TestCPU() {
 				`^container_name:stress-ng$`,
 				`^display_container_name:stress-ng`,
 				`^git.commit.sha:`, // org.opencontainers.image.revision docker image label
-				`^git.repository_url:https://github.com/ColinIanKing/stress-ng$`, // org.opencontainers.image.source   docker image label
-				`^image_id:ghcr.io/colinianking/stress-ng@sha256:`,
-				`^image_name:ghcr.io/colinianking/stress-ng$`,
+				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
+				`^image_id:ghcr\.io/datadog/apps-stress-ng@sha256:`,
+				`^image_name:ghcr\.io/datadog/apps-stress-ng$`,
 				`^image_tag:`,
 				`^kube_container_name:stress-ng$`,
 				`^kube_deployment:stress-ng$`,
@@ -683,7 +683,7 @@ func (suite *k8sSuite) TestCPU() {
 				`^pod_name:stress-ng-[[:alnum:]]+-[[:alnum:]]+$`,
 				`^pod_phase:running$`,
 				`^runtime:containerd$`,
-				`^short_image:stress-ng$`,
+				`^short_image:apps-stress-ng$`,
 			},
 			Value: &testMetricExpectValueArgs{
 				Max: 200000000,
@@ -706,10 +706,10 @@ func (suite *k8sSuite) TestCPU() {
 				`^container_name:stress-ng$`,
 				`^display_container_name:stress-ng`,
 				`^git.commit.sha:`, // org.opencontainers.image.revision docker image label
-				`^git.repository_url:https://github.com/ColinIanKing/stress-ng$`, // org.opencontainers.image.source   docker image label
-				`^image_id:ghcr.io/colinianking/stress-ng@sha256:`,
-				`^image_name:ghcr.io/colinianking/stress-ng$`,
-				`^image_tag:409201de7458c639c68088d28ec8270ef599fe47$`,
+				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`,
+				`^image_id:ghcr\.io/datadog/apps-stress-ng@sha256:`,
+				`^image_name:ghcr\.io/datadog/apps-stress-ng$`,
+				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
 				`^kube_container_name:stress-ng$`,
 				`^kube_deployment:stress-ng$`,
 				`^kube_namespace:workload-cpustress$`,
@@ -719,7 +719,7 @@ func (suite *k8sSuite) TestCPU() {
 				`^kube_replica_set:stress-ng-[[:alnum:]]+$`,
 				`^pod_name:stress-ng-[[:alnum:]]+-[[:alnum:]]+$`,
 				`^pod_phase:running$`,
-				`^short_image:stress-ng$`,
+				`^short_image:apps-stress-ng$`,
 			},
 			Value: &testMetricExpectValueArgs{
 				Max: 250000000,
@@ -742,10 +742,10 @@ func (suite *k8sSuite) TestCPU() {
 				`^container_name:stress-ng$`,
 				`^display_container_name:stress-ng`,
 				`^git.commit.sha:`, // org.opencontainers.image.revision docker image label
-				`^git.repository_url:https://github.com/ColinIanKing/stress-ng$`, // org.opencontainers.image.source   docker image label
-				`^image_id:ghcr.io/colinianking/stress-ng@sha256:`,
-				`^image_name:ghcr.io/colinianking/stress-ng$`,
-				`^image_tag:409201de7458c639c68088d28ec8270ef599fe47$`,
+				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`,
+				`^image_id:ghcr\.io/datadog/apps-stress-ng@sha256:`,
+				`^image_name:ghcr\.io/datadog/apps-stress-ng$`,
+				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
 				`^kube_container_name:stress-ng$`,
 				`^kube_deployment:stress-ng$`,
 				`^kube_namespace:workload-cpustress$`,
@@ -755,7 +755,7 @@ func (suite *k8sSuite) TestCPU() {
 				`^kube_replica_set:stress-ng-[[:alnum:]]+$`,
 				`^pod_name:stress-ng-[[:alnum:]]+-[[:alnum:]]+$`,
 				`^pod_phase:running$`,
-				`^short_image:stress-ng$`,
+				`^short_image:apps-stress-ng$`,
 			},
 			Value: &testMetricExpectValueArgs{
 				Max: 0.2,
