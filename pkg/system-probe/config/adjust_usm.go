@@ -71,11 +71,6 @@ func adjustUSM(cfg model.Config) {
 	applyDefault(cfg, spNS("process_service_inference", "use_windows_service_name"), true)
 	applyDefault(cfg, smNS("enable_ring_buffers"), true)
 
-	// data_channel_size defines the size of the Go channel that buffers events.
-	// Each event has a fixed size of approximately 4KB (sizeof(batch_data_t)).
-	// By setting this value to 100, the channel will buffer up to ~400KB of data in the Go heap memory.
-	applyDefault(cfg, smNS("data_channel_size"), 100)
-
 	validateInt(cfg, smNS("http_notification_threshold"), cfg.GetInt(smNS("max_tracked_http_connections"))/2, func(v int) error {
 		limit := cfg.GetInt(smNS("max_tracked_http_connections"))
 		if v >= limit {

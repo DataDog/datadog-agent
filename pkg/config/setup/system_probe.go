@@ -288,7 +288,10 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// kernel_buffer_pages determines the number of pages allocated *per CPU*
 	// for buffering kernel data, whether using a perf buffer or a ring buffer.
 	cfg.BindEnvAndSetDefault(join(smNS, "kernel_buffer_pages"), 16)
-	cfg.BindEnv(join(smNS, "data_channel_size"))
+	// data_channel_size defines the size of the Go channel that buffers events.
+	// Each event has a fixed size of approximately 4KB (sizeof(batch_data_t)).
+	// By setting this value to 100, the channel will buffer up to ~400KB of data in the Go heap memory.
+	cfg.BindEnvAndSetDefault(join(smNS, "data_channel_size"), 100)
 
 	oldHTTPRules := join(netNS, "http_replace_rules")
 	newHTTPRules := join(smNS, "http_replace_rules")
