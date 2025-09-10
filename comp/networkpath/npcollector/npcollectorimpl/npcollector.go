@@ -353,6 +353,7 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 		Protocol:                  ptest.Pathtest.Protocol,
 		TCPMethod:                 s.collectorConfigs.tcpMethod,
 		TCPSynParisTracerouteMode: s.collectorConfigs.tcpSynParisTracerouteMode,
+		ReverseDNS:                false, // Do not run reverse DNS in datadog-traceroute, it's handled in npcollector
 	}
 
 	path, err := s.runTraceroute(cfg, s.telemetrycomp)

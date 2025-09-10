@@ -120,9 +120,9 @@ func (s *fakeTracerouteTestSuite01) TestFakeTraceroute() {
 
 		if isNetpathDebugMode() {
 			// Print payloads when debug mode, this helps debugging tests during development time
-			tcpPathJson, err := json.Marshal(tcpPath)
+			tcpPathJSON, err := json.Marshal(tcpPath)
 			assert.NoError(c, err)
-			fmt.Println("TCP PATH: ", string(tcpPathJson))
+			fmt.Println("TCP PATH: ", string(tcpPathJSON))
 			udpPathJson, err := json.Marshal(udpPath)
 			assert.NoError(c, err)
 			fmt.Println("UDP PATH: ", string(udpPathJson))

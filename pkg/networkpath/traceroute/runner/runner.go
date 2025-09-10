@@ -149,7 +149,7 @@ func (r *Runner) RunTraceroute(ctx context.Context, cfg config.Config) (payload.
 		tracerouteRunnerTelemetry.failedRuns.Inc()
 		return payload.NetworkPath{}, err
 	}
-	log.Tracef("[RunTraceroute] Results: %+v", pathResult)
+	log.Tracef("traceroute run results: %+v", pathResult)
 	return pathResult, nil
 }
 
