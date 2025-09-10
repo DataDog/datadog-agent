@@ -64,7 +64,7 @@ func (s *testInstallScriptSuite) TestInstallFromOldInstaller() {
 //
 // This test replaces TestFailedUnsupportedVersion which used the major/minor parameters.
 // These options were only used during the preview, we haven't documented them publicly since.
-// Customers are now expected to use download a per-version .exe file.
+// Customers are now expected to download a per-version .exe file.
 func (s *testInstallScriptSuite) TestInstallIgnoreMajorMinor() {
 	// Arrange
 	// Act
