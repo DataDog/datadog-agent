@@ -287,6 +287,10 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_event_stream"), true)
 	cfg.BindEnv(join(smNS, "kernel_buffer_pages"))
 	cfg.BindEnv(join(smNS, "data_channel_size"))
+	cfg.BindEnvAndSetDefault(join(smNS, "usm_direct_buffer_wakeup_count"), 16)
+	cfg.BindEnvAndSetDefault(join(smNS, "usm_direct_channel_size"), 1000)
+	cfg.BindEnvAndSetDefault(join(smNS, "usm_direct_perf_buffer_size"), 4194304) // 4MB
+	cfg.BindEnvAndSetDefault(join(smNS, "usm_direct_ring_buffer_size"), 4194304) // 4MB
 
 	oldHTTPRules := join(netNS, "http_replace_rules")
 	newHTTPRules := join(smNS, "http_replace_rules")

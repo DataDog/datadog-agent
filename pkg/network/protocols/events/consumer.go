@@ -29,13 +29,6 @@ const (
 	batchMapSuffix  = "_batches"
 	eventsMapSuffix = "_batch_events"
 	sizeOfBatch     = int(unsafe.Sizeof(Batch{}))
-
-	// TODO: These should be configurable via USM config in the future
-	// Similar to config.ClosedBufferWakeupCount and config.ClosedChannelSize
-	usmDirectBufferWakeupCount = 64          // TODO: Make this configurable
-	usmDirectChannelSize       = 1000        // TODO: Make this configurable
-	usmDirectRingBufferSize    = 1024 * 1024 // 1MB, TODO: Make this configurable
-	usmDirectPerfBufferSize    = 1024 * 1024 // 1MB, TODO: Make this configurable
 )
 
 var errInvalidPerfEvent = errors.New("invalid perf event")
@@ -81,18 +74,18 @@ func NewDirectConsumer[V any](proto string, callback func(V), config *config.Con
 	// Set up perf mode and channel size similar to initClosedConnEventHandler
 	// For DirectConsumer, we want kernel-level batching for performance
 	// but individual event processing in userspace (unlike BatchConsumer)
-	perfMode := perf.WakeupEvents(usmDirectBufferWakeupCount) // Wait for N events before wakeup
+	perfMode := perf.WakeupEvents(config.USMDirectBufferWakeupCount) // Wait for N events before wakeup
 	// For direct events, we still want sufficient channel buffering for batched events
-	chanSize := usmDirectChannelSize * usmDirectBufferWakeupCount
+	chanSize := config.USMDirectChannelSize * config.USMDirectBufferWakeupCount
 
 	// Note: Unlike NPM's CustomBatchingEnabled, DirectConsumer doesn't switch to Watermark(1)
 	// because we want kernel-level batching but individual event processing in userspace
 
 	// Set up mode selection similar to initClosedConnEventHandler
-	mode := perf.UsePerfBuffers(usmDirectPerfBufferSize, chanSize, perfMode)
+	mode := perf.UsePerfBuffers(config.USMDirectPerfBufferSize, chanSize, perfMode)
 	// Always try to upgrade to ring buffers for direct events if supported
 	if config.RingBufferSupportedUSM() {
-		mode = perf.UpgradePerfBuffers(usmDirectPerfBufferSize, chanSize, perfMode, usmDirectRingBufferSize)
+		mode = perf.UpgradePerfBuffers(config.USMDirectPerfBufferSize, chanSize, perfMode, config.USMDirectRingBufferSize)
 	}
 
 	// Calculate the size of the single event that will be written via bpf_ringbuf_output
@@ -107,7 +100,7 @@ func NewDirectConsumer[V any](proto string, callback func(V), config *config.Con
 		perf.SendTelemetry(true), // TODO: Make this configurable like config.InternalTelemetryEnabled
 		perf.RingBufferEnabledConstantName("ringbuffers_enabled"),
 		perf.RingBufferWakeupSize("ringbuffer_wakeup_size",
-			uint64(usmDirectBufferWakeupCount*(eventSize+unix.BPF_RINGBUF_HDR_SZ))),
+			uint64(config.USMDirectBufferWakeupCount*(eventSize+unix.BPF_RINGBUF_HDR_SZ))),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create event handler for protocol %s: %w", proto, err)

@@ -305,6 +305,18 @@ type Config struct {
 	// USMDataChannelSize specifies the size of the data channel for USM, used to temporarily store data from the kernel in user mode before processing.
 	USMDataChannelSize int
 
+	// USMDirectBufferWakeupCount specifies the number of events that will buffer in a perf buffer before userspace is woken up for USM direct consumer.
+	USMDirectBufferWakeupCount int
+
+	// USMDirectChannelSize specifies the channel buffer size multiplier for USM direct consumer.
+	USMDirectChannelSize int
+
+	// USMDirectPerfBufferSize specifies the perf buffer size for USM direct consumer.
+	USMDirectPerfBufferSize int
+
+	// USMDirectRingBufferSize specifies the ring buffer size for USM direct consumer.
+	USMDirectRingBufferSize int
+
 	// ExpectedTagsDuration is the duration for which we add host and container tags to our payloads, to handle the race
 	// in the backend for processing host/container tags and resolving them in our own pipelines.
 	ExpectedTagsDuration time.Duration
@@ -410,14 +422,18 @@ func New() *Config {
 		EnableFentry:   cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_fentry")),
 
 		// Service Monitoring
-		EnableGoTLSSupport:        cfg.GetBool(sysconfig.FullKeyPath(smNS, "tls", "go", "enabled")),
-		GoTLSExcludeSelf:          cfg.GetBool(sysconfig.FullKeyPath(smNS, "tls", "go", "exclude_self")),
-		EnableUSMQuantization:     cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_quantization")),
-		EnableUSMConnectionRollup: cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_connection_rollup")),
-		EnableUSMRingBuffers:      cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_ring_buffers")),
-		EnableUSMEventStream:      cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_event_stream")),
-		USMKernelBufferPages:      cfg.GetInt(sysconfig.FullKeyPath(smNS, "kernel_buffer_pages")),
-		USMDataChannelSize:        cfg.GetInt(sysconfig.FullKeyPath(smNS, "data_channel_size")),
+		EnableGoTLSSupport:         cfg.GetBool(sysconfig.FullKeyPath(smNS, "tls", "go", "enabled")),
+		GoTLSExcludeSelf:           cfg.GetBool(sysconfig.FullKeyPath(smNS, "tls", "go", "exclude_self")),
+		EnableUSMQuantization:      cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_quantization")),
+		EnableUSMConnectionRollup:  cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_connection_rollup")),
+		EnableUSMRingBuffers:       cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_ring_buffers")),
+		EnableUSMEventStream:       cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_event_stream")),
+		USMKernelBufferPages:       cfg.GetInt(sysconfig.FullKeyPath(smNS, "kernel_buffer_pages")),
+		USMDataChannelSize:         cfg.GetInt(sysconfig.FullKeyPath(smNS, "data_channel_size")),
+		USMDirectBufferWakeupCount: cfg.GetInt(sysconfig.FullKeyPath(smNS, "usm_direct_buffer_wakeup_count")),
+		USMDirectChannelSize:       cfg.GetInt(sysconfig.FullKeyPath(smNS, "usm_direct_channel_size")),
+		USMDirectPerfBufferSize:    cfg.GetInt(sysconfig.FullKeyPath(smNS, "usm_direct_perf_buffer_size")),
+		USMDirectRingBufferSize:    cfg.GetInt(sysconfig.FullKeyPath(smNS, "usm_direct_ring_buffer_size")),
 
 		ExpectedTagsDuration: cfg.GetDuration(sysconfig.FullKeyPath(spNS, "expected_tags_duration")),
 	}
