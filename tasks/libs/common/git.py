@@ -148,7 +148,25 @@ def get_default_branch(major: int | None = None):
     return '6.53.x' if major is None and is_agent6(ctx) or major == 6 else 'main'
 
 
-def get_common_ancestor(ctx, branch, base=None, try_fetch=True) -> str:
+def get_full_ref_name(ref: str, remote="origin") -> str:
+    """
+    If `ref` is a branch, will return `origin/<ref>`.
+    This handles HEAD / commits / branches.
+    We deduce that this is a commit if it contains at least one digit.
+    """
+
+    remote_slash = remote + '/'
+    if (
+        ref.startswith("HEAD")
+        or (re.match(r'^[0-9a-fA-F]{40}$', ref) and re.match('[0-9]', ref))
+        or ref.startswith("refs/")
+        or ref.startswith(remote_slash)
+    ):
+        return ref
+    return remote_slash + ref
+
+
+def get_common_ancestor(ctx, branch, base=None, try_fetch=True, hide=True) -> str:
     """
     Get the common ancestor between two branches.
 
@@ -157,23 +175,29 @@ def get_common_ancestor(ctx, branch, base=None, try_fetch=True) -> str:
         branch: The branch to get the common ancestor with.
         base: The base branch to get the common ancestor with.
         try_fetch: Try to fetch the base branch if it's not found (to avoid S3 caching issues).
+        hide: Hide the output of the command.
 
     Returns:
         The common ancestor between two branches.
     """
 
-    base = (base or get_default_branch()).removeprefix("origin/")
+    base = base or get_default_branch()
+    base = get_full_ref_name(base)
+    branch = get_full_ref_name(branch)
 
     try:
-        return ctx.run(f"git merge-base {branch} origin/{base}", hide=True).stdout.strip()
+        return ctx.run(f"git merge-base {branch} {base}", hide=hide).stdout.strip()
     except Exception:
         if not try_fetch:
             raise
 
         # With S3 caching, it's possible that the base branch is not fetched
-        ctx.run(f"git fetch origin {base}")
+        if base.startswith("origin/"):
+            ctx.run(f"git fetch origin {base.removeprefix('origin/')}", hide=hide)
+        if branch.startswith("origin/"):
+            ctx.run(f"git fetch origin {branch.removeprefix('origin/')}", hide=hide)
 
-        return ctx.run(f"git merge-base {branch} origin/{base}", hide=True).stdout.strip()
+        return ctx.run(f"git merge-base {branch} {base}", hide=hide).stdout.strip()
 
 
 def check_uncommitted_changes(ctx):
