@@ -62,49 +62,45 @@ var (
 
 func defaultLibInfo(l language, imageResolver ImageResolver) libInfo {
 	return libInfo{
-		lang:          l,
-		image:         defaultLibImageVersions[l],
-		imageResolver: imageResolver,
-		registry:      "registry",
-		repository:    fmt.Sprintf("dd-lib-%s-init", l),
-		tag:           defaultLibraries[string(l)],
-		ctrName:       "",
+		lang:       l,
+		image:      defaultLibImageVersions[l],
+		registry:   "registry",
+		repository: fmt.Sprintf("dd-lib-%s-init", l),
+		tag:        defaultLibraries[string(l)],
+		ctrName:    "",
 	}
 }
 
 func defaultLibInfoWithVersion(l language, version string, imageResolver ImageResolver) libInfo {
 	return libInfo{
-		lang:          l,
-		image:         fmt.Sprintf("registry/dd-lib-%s-init:%s", l, version),
-		imageResolver: imageResolver,
-		registry:      "registry",
-		repository:    fmt.Sprintf("dd-lib-%s-init", l),
-		tag:           version,
-		ctrName:       "",
+		lang:       l,
+		image:      fmt.Sprintf("registry/dd-lib-%s-init:%s", l, version),
+		registry:   "registry",
+		repository: fmt.Sprintf("dd-lib-%s-init", l),
+		tag:        version,
+		ctrName:    "",
 	}
 }
 
 func defaultLibInfoWithRegsitryVersion(l language, version string, registry string, imageResolver ImageResolver) libInfo {
 	return libInfo{
-		lang:          l,
-		image:         fmt.Sprintf("%s/dd-lib-%s-init:%s", registry, l, version),
-		imageResolver: imageResolver,
-		registry:      registry,
-		repository:    fmt.Sprintf("dd-lib-%s-init", l),
-		tag:           version,
-		ctrName:       "",
+		lang:       l,
+		image:      fmt.Sprintf("%s/dd-lib-%s-init:%s", registry, l, version),
+		registry:   registry,
+		repository: fmt.Sprintf("dd-lib-%s-init", l),
+		tag:        version,
+		ctrName:    "",
 	}
 }
 
 func defaultLibInfoWithContainerVersion(l language, version string, containerName string, imageResolver ImageResolver) libInfo {
 	return libInfo{
-		lang:          l,
-		image:         fmt.Sprintf("registry/dd-lib-%s-init:%s", l, version),
-		imageResolver: imageResolver,
-		registry:      "registry",
-		repository:    fmt.Sprintf("dd-lib-%s-init", l),
-		tag:           version,
-		ctrName:       containerName,
+		lang:       l,
+		image:      fmt.Sprintf("registry/dd-lib-%s-init:%s", l, version),
+		registry:   "registry",
+		repository: fmt.Sprintf("dd-lib-%s-init", l),
+		tag:        version,
+		ctrName:    containerName,
 	}
 }
 
@@ -604,19 +600,17 @@ func TestMutatorCoreNewInjector(t *testing.T) {
 
 	i := core.newInjector(pod, startTime, libRequirementOptions{})
 	require.Equal(t, &injector{
-		injectTime:    startTime,
-		registry:      core.config.containerRegistry,
-		image:         core.config.containerRegistry + "/apm-inject:0",
-		imageResolver: imageResolver,
+		injectTime: startTime,
+		registry:   core.config.containerRegistry,
+		image:      core.config.containerRegistry + "/apm-inject:0",
 	}, i)
 
 	core.config.Instrumentation.InjectorImageTag = "banana"
 	i = core.newInjector(pod, startTime, libRequirementOptions{})
 	require.Equal(t, &injector{
-		injectTime:    startTime,
-		registry:      core.config.containerRegistry,
-		image:         core.config.containerRegistry + "/apm-inject:banana",
-		imageResolver: imageResolver,
+		injectTime: startTime,
+		registry:   core.config.containerRegistry,
+		image:      core.config.containerRegistry + "/apm-inject:banana",
 	}, i)
 }
 
@@ -1761,7 +1755,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 			mutator, err := NewNamespaceMutator(config, wmeta, imageResolver)
 			require.NoError(t, err)
 
-			c := tt.lang.libInfo("", tt.image).initContainers(config.version)[0]
+			c := tt.lang.libInfo("", tt.image).initContainers(config.version, imageResolver)[0]
 			requirements, injectionDecision := initContainerResourceRequirements(tt.pod, config.defaultResourceRequirements)
 			require.Equal(t, tt.wantSkipInjection, injectionDecision.skipInjection)
 			require.Equal(t, tt.resourceRequireAnnotation, injectionDecision.message)

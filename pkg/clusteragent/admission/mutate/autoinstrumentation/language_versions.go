@@ -58,13 +58,12 @@ func (l language) libInfoWithResolver(ctrName, registry string, version string, 
 	}
 
 	return libInfo{
-		lang:          l,
-		ctrName:       ctrName,
-		image:         l.libImageName(registry, version),
-		imageResolver: imageResolver,
-		registry:      registry,
-		repository:    fmt.Sprintf("dd-lib-%s-init", l),
-		tag:           version,
+		lang:       l,
+		ctrName:    ctrName,
+		image:      l.libImageName(registry, version),
+		registry:   registry,
+		repository: fmt.Sprintf("dd-lib-%s-init", l),
+		tag:        version,
 	}
 }
 
@@ -168,18 +167,17 @@ func (l language) defaultLibVersion() string {
 }
 
 type libInfo struct {
-	ctrName       string // empty means all containers
-	lang          language
-	image         string
-	imageResolver ImageResolver
-	registry      string
-	repository    string
-	tag           string
+	ctrName    string // empty means all containers
+	lang       language
+	image      string
+	registry   string
+	repository string
+	tag        string
 }
 
-func (i libInfo) podMutator(v version, opts libRequirementOptions) podMutator {
+func (i libInfo) podMutator(v version, opts libRequirementOptions, imageResolver ImageResolver) podMutator {
 	return podMutatorFunc(func(pod *corev1.Pod) error {
-		reqs, ok := i.libRequirement(v)
+		reqs, ok := i.libRequirement(v, imageResolver)
 		if !ok {
 			return fmt.Errorf(
 				"language %q is not supported. Supported languages are %v",
@@ -199,7 +197,7 @@ func (i libInfo) podMutator(v version, opts libRequirementOptions) podMutator {
 
 // initContainers is which initContainers we are injecting
 // into the pod that runs for this language.
-func (i libInfo) initContainers(v version) []initContainer {
+func (i libInfo) initContainers(v version, resolver ImageResolver) []initContainer {
 	var (
 		args, command []string
 		mounts        []corev1.VolumeMount
@@ -230,9 +228,9 @@ func (i libInfo) initContainers(v version) []initContainer {
 		command = []string{"sh", "copy-lib.sh", mounts[0].MountPath}
 	}
 
-	if i.imageResolver != nil {
+	if resolver != nil {
 		log.Debugf("Resolving image %s/%s:%s", i.registry, i.repository, i.tag)
-		image, ok := i.imageResolver.Resolve(i.registry, i.repository, i.tag)
+		image, ok := resolver.Resolve(i.registry, i.repository, i.tag)
 		if ok {
 			i.image = image.FullImageRef
 		}
@@ -330,14 +328,14 @@ func (i libInfo) envVars(v version) []envVar {
 	}
 }
 
-func (i libInfo) libRequirement(v version) (libRequirement, bool) {
+func (i libInfo) libRequirement(v version, resolver ImageResolver) (libRequirement, bool) {
 	if !i.lang.isSupported() {
 		return libRequirement{}, false
 	}
 
 	return libRequirement{
 		envVars:        i.envVars(v),
-		initContainers: i.initContainers(v),
+		initContainers: i.initContainers(v, resolver),
 		volumeMounts:   []volumeMount{i.volumeMount(v)},
 		volumes:        []volume{sourceVolume},
 	}, true
