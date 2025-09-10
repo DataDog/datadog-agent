@@ -114,7 +114,7 @@
             "arguments": {
               "x": {
                 "type": "string",
-                "notCapturedReason": "depth"
+                "value": ""
               }
             }
           }

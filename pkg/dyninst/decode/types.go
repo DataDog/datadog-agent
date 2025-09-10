@@ -1031,8 +1031,9 @@ func (s *goStringHeaderType) encodeValueFields(
 			tokenNotCapturedReasonLength,
 		)
 	}
+	strLen := binary.NativeEndian.Uint64(data[s.lenFieldOffset : s.lenFieldOffset+uint32(s.lenFieldSize)])
 	address := binary.NativeEndian.Uint64(data[s.strFieldOffset : s.strFieldOffset+uint32(s.strFieldSize)])
-	if address == 0 {
+	if address == 0 || strLen == 0 {
 		return writeTokens(enc,
 			jsontext.String("value"),
 			jsontext.String(""),
@@ -1050,12 +1051,11 @@ func (s *goStringHeaderType) encodeValueFields(
 	}
 	stringData := stringValue.Data()
 	length := stringValue.Header().Length
-	realLength := binary.NativeEndian.Uint64(data[s.lenFieldOffset : s.lenFieldOffset+uint32(s.lenFieldSize)])
-	if realLength > uint64(length) {
+	if strLen > uint64(length) {
 		// We captured partial data for the string, report truncation
 		if err := writeTokens(enc,
 			jsontext.String("size"),
-			jsontext.String(strconv.FormatInt(int64(realLength), 10)),
+			jsontext.String(strconv.FormatInt(int64(strLen), 10)),
 			tokenTruncated,
 			jsontext.Bool(true),
 		); err != nil {
