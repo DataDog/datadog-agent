@@ -64,10 +64,10 @@ func TestPayloadBuilderV3(t *testing.T) {
 	pb.finishPayload()
 	ps := pb.transactionPayloads()
 	r.Len(ps, 1)
-
+	r.Equal(205, len(ps[0].GetContent()))
 	r.Equal([]byte{
 		// metricData
-		3<<3 | 2, 0xc9, 0x1,
+		3<<3 | 2, 0xca, 0x1,
 
 		// names
 		1<<3 | 2, 28,

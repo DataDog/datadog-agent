@@ -231,7 +231,8 @@ func (pb *payloadsBuilderV3) finishPayload() error {
 			compressedSize += pb.columnHeaderSizeBound + len(columnData)
 
 			colSize := pb.compressor.Len(i)
-			metricDataSize += varintLen(i) + varintLen(colSize) + colSize
+			fieldID := protobufFieldID(i, pbTypeBytes)
+			metricDataSize += varintLen(int(fieldID)) + varintLen(colSize) + colSize
 
 			tlmColumnSize.Add(float64(len(columnData)), columnNames[i], "compressed")
 			tlmColumnSize.Add(float64(columnLen), columnNames[i], "uncompressed")
@@ -251,7 +252,7 @@ func (pb *payloadsBuilderV3) finishPayload() error {
 				continue
 			}
 
-			payload, err = pb.appendProtobufField(payload, uint64(i), columnLen)
+			payload, err = pb.appendProtobufField(payload, i, columnLen)
 			if err != nil {
 				return err
 			}
@@ -267,7 +268,7 @@ func (pb *payloadsBuilderV3) finishPayload() error {
 	return nil
 }
 
-func (pb *payloadsBuilderV3) appendProtobufField(dst []byte, id uint64, len int) ([]byte, error) {
+func (pb *payloadsBuilderV3) appendProtobufField(dst []byte, id int, len int) ([]byte, error) {
 	n := binary.PutUvarint(pb.scratchBuf[0:], protobufFieldID(id, pbTypeBytes))
 	n += binary.PutUvarint(pb.scratchBuf[n:], uint64(len))
 	header, err := pb.compression.Compress(pb.scratchBuf[:n])
@@ -714,6 +715,6 @@ const (
 	pbTypeBytes protobufType = 2
 )
 
-func protobufFieldID(field uint64, ty protobufType) uint64 {
-	return field<<3 | uint64(ty)
+func protobufFieldID(field int, ty protobufType) uint64 {
+	return uint64(field)<<3 | uint64(ty)
 }
