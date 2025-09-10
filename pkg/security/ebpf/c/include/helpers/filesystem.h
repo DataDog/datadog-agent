@@ -20,7 +20,9 @@ static __attribute__((always_inline)) void bump_path_id(u32 mount_id) {
     }
 }
 
-static __attribute__((always_inline)) u32 get_path_id(u32 mount_id, int invalidate) {
+#define PATH_ID_MASK 0xFFFFFF
+
+static __attribute__((always_inline)) u64 get_path_id(u64 ino, u32 mount_id, int nlink, int invalidate) {
     u32 key = mount_id % PATH_ID_MAP_SIZE;
 
     u32 *id = bpf_map_lookup_elem(&path_id, &key);
@@ -36,11 +38,27 @@ static __attribute__((always_inline)) u32 get_path_id(u32 mount_id, int invalida
         __sync_fetch_and_add(id, 1);
     }
 
+    u8 link_id_value;
+
+    if (nlink > 1) {
+        u8 *link_id = bpf_map_lookup_elem(&hardlink_ids, &ino);
+        if (!link_id) {
+            link_id_value = 1; // start at 1 to avoid conflicts with the nlink <= 1 case
+        } else {
+            link_id_value = (*link_id) + 1;
+        }
+        bpf_map_update_elem(&hardlink_ids, &ino, &link_id_value, BPF_ANY);
+    } else {
+        link_id_value = 0;
+    }
+
+    id_value = (id_value & PATH_ID_MASK) | (link_id_value << 24);
+
     return id_value;
 }
 
-static __attribute__((always_inline)) void update_path_id(struct path_key_t *path_key, int invalidate) {
-    path_key->path_id = get_path_id(path_key->mount_id, invalidate);
+static __attribute__((always_inline)) void update_path_id(struct path_key_t *path_key, int nlink, int invalidate) {
+    path_key->path_id = get_path_id(path_key->ino, path_key->mount_id, nlink, invalidate);
 }
 
 static __attribute__((always_inline)) void inc_mount_ref(u32 mount_id) {
@@ -198,9 +216,7 @@ static __attribute__((always_inline)) void set_file_inode(struct dentry *dentry,
         set_overlayfs_nlink(dentry, file);
     }
 
-    invalidate |= file->metadata.nlink > 1;
-
-    file->path_key.path_id = get_path_id(file->path_key.mount_id, invalidate);
+    file->path_key.path_id = get_path_id(file->path_key.ino, file->path_key.mount_id, file->metadata.nlink, invalidate);
 }
 
 #endif
