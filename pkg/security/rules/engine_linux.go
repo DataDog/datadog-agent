@@ -47,12 +47,12 @@ func (e *RuleEngine) GetSECLVariables() map[string]*api.SECLVariableState {
 				event := e.probe.PlatformProbe.NewEvent()
 				event.ContainerContext = &cgce.ContainerContext
 				ctx := eval.NewContext(event)
-				scopedName := fmt.Sprintf("%s.%s", name, cgce.ContainerContext.ContainerID)
 				value, found := scopedVariable.GetValue(ctx)
 				if !found {
 					return
 				}
 
+				scopedName := fmt.Sprintf("%s.%s", name, cgce.ContainerContext.ContainerID)
 				scopedValue := fmt.Sprintf("%v", value)
 				seclVariables[scopedName] = &api.SECLVariableState{
 					Name:  scopedName,
@@ -70,12 +70,12 @@ func (e *RuleEngine) GetSECLVariables() map[string]*api.SECLVariableState {
 				event := e.probe.PlatformProbe.NewEvent()
 				event.CGroupContext = &cgce.CGroupContext
 				ctx := eval.NewContext(event)
-				scopedName := fmt.Sprintf("%s.%s", name, cgce.CGroupID)
 				value, found := scopedVariable.GetValue(ctx)
 				if !found {
 					return
 				}
 
+				scopedName := fmt.Sprintf("%s.%s", name, cgce.CGroupID)
 				scopedValue := fmt.Sprintf("%v", value)
 				seclVariables[scopedName] = &api.SECLVariableState{
 					Name:  scopedName,

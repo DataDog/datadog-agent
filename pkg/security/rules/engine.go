@@ -414,12 +414,12 @@ func (e *RuleEngine) fillCommonSECLVariables(rsVariables map[string]eval.SECLVar
 				event := e.probe.PlatformProbe.NewEvent()
 				event.ProcessCacheEntry = entry
 				ctx := eval.NewContext(event)
-				scopedName := fmt.Sprintf("%s.%d", name, entry.Pid)
 				value, found := scopedVariable.GetValue(ctx)
 				if !found {
 					return
 				}
 
+				scopedName := fmt.Sprintf("%s.%d", name, entry.Pid)
 				scopedValue := fmt.Sprintf("%+v", value)
 				seclVariables[scopedName] = &api.SECLVariableState{
 					Name:  scopedName,
