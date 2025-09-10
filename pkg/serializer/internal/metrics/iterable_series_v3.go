@@ -649,7 +649,7 @@ func (db *dictionaryBuilder) internOriginInfo(info originInfo) int64 {
 	return db.originInfoInterner.intern(info)
 }
 
-// sliceToArray creates a pointer to an array backed by the same memory as the target.
+// sliceToArray copies slice to an array of the same length.
 //
 // Permanently creates a new runtime type for each distinct length of target.
 func sliceToArray[T any](target []T) any {
