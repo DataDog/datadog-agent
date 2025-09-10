@@ -8,21 +8,28 @@
 package decode
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
-	"io"
 	"runtime/debug"
 	"time"
 
 	"github.com/go-json-experiment/json"
+	"github.com/go-json-experiment/json/jsontext"
 	"github.com/google/uuid"
 	pkgerrors "github.com/pkg/errors"
+	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/gotype"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symbol"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// We don't want to be too noisy about symbolication errors, but we do want to learn
+// about them and we don't want to bail out completely.
+var symbolicateErrorLogLimiter = rate.NewLimiter(rate.Every(1*time.Minute), 10)
 
 type probeEvent struct {
 	event *ir.Event
@@ -69,9 +76,10 @@ type Decoder struct {
 	typeNameResolver     TypeNameResolver
 
 	// These fields are initialized and reset for each message.
-	snapshotMessage   snapshotMessage
-	dataItems         map[typeAndAddr]output.DataItem
-	currentlyEncoding map[typeAndAddr]struct{}
+	snapshotMessage    snapshotMessage
+	dataItems          map[typeAndAddr]output.DataItem
+	currentlyEncoding  map[typeAndAddr]struct{}
+	skipIndiciesBuffer []byte
 }
 
 // NewDecoder creates a new Decoder for the given program.
@@ -86,10 +94,10 @@ func NewDecoder(
 		stackFrames:          make(map[uint64][]symbol.StackFrame),
 		typesByGoRuntimeType: make(map[uint32]ir.TypeID),
 		typeNameResolver:     typeNameResolver,
-
-		snapshotMessage:   snapshotMessage{},
-		dataItems:         make(map[typeAndAddr]output.DataItem),
-		currentlyEncoding: make(map[typeAndAddr]struct{}),
+		snapshotMessage:      snapshotMessage{},
+		dataItems:            make(map[typeAndAddr]output.DataItem),
+		currentlyEncoding:    make(map[typeAndAddr]struct{}),
+		skipIndiciesBuffer:   make([]byte, 1),
 	}
 	for _, probe := range program.Probes {
 		for _, event := range probe.Events {
@@ -120,12 +128,14 @@ type typeAndAddr struct {
 	addr   uint64
 }
 
-// Decode decodes the output Event from the BPF program into a JSON format to the specified output writer.
+// Decode decodes the output Event from the BPF program into a JSON format
+// the `output` parameter is appended to and returned as the final output.
+// It is not thread-safe.
 func (d *Decoder) Decode(
 	event Event,
 	symbolicator symbol.Symbolicator,
-	out io.Writer,
-) (probe ir.ProbeDefinition, err error) {
+	buf []byte,
+) (_ []byte, probe ir.ProbeDefinition, err error) {
 	defer d.resetForNextMessage()
 	defer func() {
 		r := recover()
@@ -139,13 +149,25 @@ func (d *Decoder) Decode(
 	}()
 	probe, err = d.snapshotMessage.init(d, event, symbolicator)
 	if err != nil {
-		return nil, err
+		return buf, nil, err
 	}
-	err = json.MarshalWrite(out, &d.snapshotMessage)
-	if err != nil {
-		err = fmt.Errorf("error marshaling snapshot message: %w", err)
+	b := bytes.NewBuffer(buf)
+	enc := jsontext.NewEncoder(b)
+	numExpressions := len(d.snapshotMessage.Debugger.Snapshot.Captures.Entry.Arguments.rootType.Expressions)
+	// We loop here because when evaluation errors occur, we reduce the amount of data we attempt
+	// to encode and then try again after resetting the buffer.
+	for range numExpressions + 1 { // +1 for the initial attempt
+		err = json.MarshalEncode(enc, &d.snapshotMessage)
+		if errors.Is(err, errEvaluation) {
+			b = bytes.NewBuffer(buf)
+			enc.Reset(b)
+			continue
+		} else if err != nil {
+			return buf, probe, pkgerrors.Wrap(err, "error marshaling snapshot message")
+		}
+		break
 	}
-	return probe, err
+	return b.Bytes(), probe, err
 }
 
 func (d *Decoder) resetForNextMessage() {
@@ -176,12 +198,14 @@ func (s *snapshotMessage) init(
 	symbolicator symbol.Symbolicator,
 ) (ir.ProbeDefinition, error) {
 	s.Service = event.ServiceName
-	s.Debugger.Snapshot = snapshotData{
-		decoder:  decoder,
-		ID:       uuid.New(),
-		Language: "go",
+	s.Debugger = debuggerData{
+		Snapshot: snapshotData{
+			decoder:  decoder,
+			ID:       uuid.New(),
+			Language: "go",
+		},
+		EvaluationErrors: []string{},
 	}
-
 	var rootType *ir.EventRootType
 	var probe ir.ProbeDefinition
 
@@ -216,14 +240,9 @@ func (s *snapshotMessage) init(
 			addr:   item.Header().Address,
 		}] = item
 	}
-
 	if rootType == nil {
 		return probe, errors.New("no root type found")
 	}
-	var (
-		pcs []uint64
-		err error
-	)
 	header, err := event.Event.Header()
 	if err != nil {
 		return probe, fmt.Errorf("error getting header %w", err)
@@ -234,17 +253,20 @@ func (s *snapshotMessage) init(
 
 	stackFrames, ok := decoder.stackFrames[header.Stack_hash]
 	if !ok {
-		pcs, err = event.StackPCs()
+		stackFrames, err = symbolicate(event, header.Stack_hash, symbolicator)
 		if err != nil {
-			return probe, fmt.Errorf("error getting stack pcs %w", err)
+			if symbolicateErrorLogLimiter.Allow() {
+				log.Errorf("error symbolicating stack: %v", err)
+			} else {
+				log.Tracef("error symbolicating stack: %v", err)
+			}
+			s.Debugger.EvaluationErrors = append(s.Debugger.EvaluationErrors,
+				fmt.Sprintf("error symbolicating stack: %v", err),
+			)
+		} else {
+			decoder.stackFrames[header.Stack_hash] = stackFrames
 		}
-		stackFrames, err = symbolicator.Symbolicate(pcs, header.Stack_hash)
-		if err != nil {
-			return probe, fmt.Errorf("error symbolicating stack %w", err)
-		}
-		decoder.stackFrames[header.Stack_hash] = stackFrames
 	}
-
 	switch where := probe.GetWhere().(type) {
 	case ir.FunctionWhere:
 		s.Debugger.Snapshot.Probe.Location.Method = where.Location()
@@ -257,13 +279,48 @@ func (s *snapshotMessage) init(
 	}
 
 	s.Logger.Version = probe.GetVersion()
+	s.Logger.ThreadID = int(header.Goid)
 	s.Debugger.Snapshot.Probe.ID = probe.GetID()
 	s.Debugger.Snapshot.Stack.frames = stackFrames
+
 	s.Debugger.Snapshot.Captures.Entry.Arguments = argumentsData{
-		event:    event,
-		rootType: rootType,
-		rootData: s.rootData,
-		decoder:  decoder,
+		event:            event,
+		rootType:         rootType,
+		rootData:         s.rootData,
+		decoder:          decoder,
+		evaluationErrors: &s.Debugger.EvaluationErrors,
+		skipIndicies:     decoder.getSkipIndiciesBuffer(len(rootType.Expressions)),
 	}
 	return probe, nil
+}
+
+func symbolicate(event Event, stackHash uint64, symbolicator symbol.Symbolicator) ([]symbol.StackFrame, error) {
+	pcs, err := event.StackPCs()
+	if err != nil {
+		return nil, fmt.Errorf("error getting stack pcs: %w", err)
+	}
+	if len(pcs) == 0 {
+		return nil, errors.New("no stack pcs found")
+	}
+	stackFrames, err := symbolicator.Symbolicate(pcs, stackHash)
+	if err != nil {
+		return nil, fmt.Errorf("error symbolicating stack: %w", err)
+	}
+	return stackFrames, nil
+}
+
+// getSkipIndiciesBuffer returns a zeroed byte slice of the required size,
+// reusing the internal buffer when possible to avoid allocations.
+func (d *Decoder) getSkipIndiciesBuffer(numExpressions int) []byte {
+	requiredBytes := (numExpressions + 7) / 8
+	if cap(d.skipIndiciesBuffer) < requiredBytes {
+		d.skipIndiciesBuffer = make([]byte, requiredBytes)
+	} else {
+		// Reuse existing buffer, just resize and clear
+		d.skipIndiciesBuffer = d.skipIndiciesBuffer[:requiredBytes]
+		for i := range d.skipIndiciesBuffer {
+			d.skipIndiciesBuffer[i] = 0
+		}
+	}
+	return d.skipIndiciesBuffer
 }
