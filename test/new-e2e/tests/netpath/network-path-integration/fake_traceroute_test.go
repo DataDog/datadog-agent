@@ -123,9 +123,9 @@ func (s *fakeTracerouteTestSuite) TestFakeTraceroute() {
 			tcpPathJSON, err := json.Marshal(tcpPath)
 			assert.NoError(c, err)
 			fmt.Println("TCP PATH: ", string(tcpPathJSON))
-			udpPathJson, err := json.Marshal(udpPath)
+			udpPathJSON, err := json.Marshal(udpPath)
 			assert.NoError(c, err)
-			fmt.Println("UDP PATH: ", string(udpPathJson))
+			fmt.Println("UDP PATH: ", string(udpPathJSON))
 		}
 
 		validatePath(c, udpPath)
