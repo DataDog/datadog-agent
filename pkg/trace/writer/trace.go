@@ -6,13 +6,18 @@
 package writer
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
 	compression "github.com/DataDog/datadog-agent/comp/trace/compression/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -83,6 +88,9 @@ type TraceWriter struct {
 	timing     timing.Reporter
 	mu         sync.Mutex
 	compressor compression.Component
+
+	minConvertPayloads int    // minimum number of payloads to convert to IDX format
+	testPayloadPath    string // path where to write test payload files (empty means current directory)
 }
 
 // NewTraceWriter returns a new TraceWriter. It is created for the given agent configuration and
@@ -114,6 +122,7 @@ func NewTraceWriter(
 		statsd:             statsd,
 		timing:             timing,
 		compressor:         compressor,
+		minConvertPayloads: cfg.MinConvertPayloads,
 	}
 	climit := cfg.TraceWriter.ConnectionLimit
 	if climit == 0 {
@@ -262,6 +271,19 @@ func (w *TraceWriter) flushPayloads(payloads []*pb.TracerPayload) {
 
 	defer w.timing.Since("datadog.trace_agent.trace_writer.encode_ms", time.Now())
 
+	// Convert some of the tracer payloads to IDX format to test intake implementation
+	numToConvert := min(w.minConvertPayloads, len(payloads))
+	idxPayloads := make([]*idx.TracerPayload, numToConvert)
+	for i := 0; i < numToConvert; i++ {
+		idxPayloads[i] = convertToIdx(payloads[i])
+	}
+	payloads = payloads[numToConvert:]
+
+	// Write converted payloads to local file for testing if we have conversions and minConvertPayloads > 0
+	if w.minConvertPayloads > 0 && numToConvert > 0 {
+		w.writePayloadsToFile(idxPayloads)
+	}
+
 	log.Debugf("Serializing %d tracer payloads.", len(payloads))
 	p := pb.AgentPayload{
 		AgentVersion:       w.agentVersion,
@@ -271,6 +293,7 @@ func (w *TraceWriter) flushPayloads(payloads []*pb.TracerPayload) {
 		ErrorTPS:           w.errorsSampler.GetTargetTPS(),
 		RareSamplerEnabled: w.rareSampler.IsEnabled(),
 		TracerPayloads:     payloads,
+		IdxTracerPayloads:  idxPayloads,
 	}
 	log.Debugf("Reported agent rates: target_tps=%v errors_tps=%v rare_sampling=%v", p.TargetTPS, p.ErrorTPS, p.RareSamplerEnabled)
 
@@ -322,6 +345,58 @@ func (w *TraceWriter) serialize(pl *pb.AgentPayload) {
 		log.Errorf("Error closing %s stream when writing trace payload: %v", w.compressor.Encoding(), err)
 	}
 	sendPayloads(w.senders, p, w.syncMode)
+}
+
+// writePayloadsToFile writes the converted IDX payloads to a local JSON file for testing
+func (w *TraceWriter) writePayloadsToFile(idxPayloads []*idx.TracerPayload) {
+	if len(idxPayloads) == 0 {
+		return
+	}
+
+	// Create a simple structure to hold the payloads in JSON format
+	type TestPayloadData struct {
+		Timestamp   time.Time            `json:"timestamp"`
+		NumPayloads int                  `json:"num_payloads"`
+		Payloads    []*idx.TracerPayload `json:"payloads"`
+	}
+
+	data := TestPayloadData{
+		Timestamp:   time.Now(),
+		NumPayloads: len(idxPayloads),
+		Payloads:    idxPayloads,
+	}
+
+	jsonData, err := json.MarshalIndent(data, "", "  ")
+	if err != nil {
+		log.Errorf("Error marshaling IDX payloads to JSON: %v", err)
+		return
+	}
+
+	// Generate filename with timestamp to avoid conflicts
+	filename := fmt.Sprintf("trace_payloads_%d.json", time.Now().Unix())
+
+	// Use configurable path if provided, otherwise use current directory
+	var fullPath string
+	if w.testPayloadPath != "" {
+		fullPath = filepath.Join(w.testPayloadPath, filename)
+	} else {
+		fullPath = filename
+	}
+
+	file, err := os.Create(fullPath)
+	if err != nil {
+		log.Errorf("Error creating payload test file %s: %v", fullPath, err)
+		return
+	}
+	defer file.Close()
+
+	_, err = file.Write(jsonData)
+	if err != nil {
+		log.Errorf("Error writing to payload test file %s: %v", fullPath, err)
+		return
+	}
+
+	log.Infof("Successfully wrote %d converted payloads to %s for testing", len(idxPayloads), fullPath)
 }
 
 func (w *TraceWriter) report() {
