@@ -136,6 +136,28 @@ func TestNewHostProviderIntervalValidation(t *testing.T) {
 	}
 }
 
+func TestBackoffWhenEarlyIntervalEqualsCollectionInterval(t *testing.T) {
+	overrides := map[string]any{
+		"metadata_providers": []configUtils.MetadataProviders{{
+			Name: "host", Interval: 300, EarlyInterval: 300,
+		}},
+	}
+	ret := newHostProvider(fxutil.Test[dependencies](t,
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, overrides) }),
+		resourcesimpl.MockModule(),
+		fx.Replace(resources.MockParams{Data: nil}),
+		fx.Provide(func() serializer.MetricSerializer { return nil }),
+		hostnameimpl.MockModule(),
+	))
+	h := ret.Comp.(*host)
+
+	h.backoffPolicy.Reset()
+	for i := 0; i < 5; i++ {
+		assert.Equal(t, 300*time.Second, h.backoffPolicy.NextBackOff())
+	}
+}
+
 func TestFlareProvider(t *testing.T) {
 	ret := newHostProvider(
 		fxutil.Test[dependencies](
