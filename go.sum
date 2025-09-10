@@ -150,16 +150,6 @@ github.com/DataDog/datadog-go/v5 v5.6.0 h1:2oCLxjF/4htd55piM75baflj/KoE6VYS7alEU
 github.com/DataDog/datadog-go/v5 v5.6.0/go.mod h1:K9kcYBlxkcPP8tvvjZZKs/m1edNAUFzBbdpTUKfCsuw=
 github.com/DataDog/datadog-operator/api v0.0.0-20250417130148-1aa8dc0fc964 h1:3EH1aRTHY22KbCYYhPZCaXTo1swWsi2DEyZNFAuTrt0=
 github.com/DataDog/datadog-operator/api v0.0.0-20250417130148-1aa8dc0fc964/go.mod h1:J6wMbBik2dRZfv+XYIrOwHyWi9+T6lRZSxTmEQ8bWNU=
-github.com/DataDog/datadog-traceroute v0.1.8-0.20250908185010-d3ead315422b h1:2xuHEMZx03IKrS3qr70LracTpd3seqgFixoHqo2ixmY=
-github.com/DataDog/datadog-traceroute v0.1.8-0.20250908185010-d3ead315422b/go.mod h1:axG/S4dflSNuxcDt9xbjzs5JBvAHHSYzRyuEm/yTiRk=
-github.com/DataDog/datadog-traceroute v0.1.8-0.20250908191333-17000eea3a74 h1:D37UOlkjvJLGPfN1GZ2Vjj9COVYb9WAcE2AROA0UjiQ=
-github.com/DataDog/datadog-traceroute v0.1.8-0.20250908191333-17000eea3a74/go.mod h1:axG/S4dflSNuxcDt9xbjzs5JBvAHHSYzRyuEm/yTiRk=
-github.com/DataDog/datadog-traceroute v0.1.8-0.20250908192325-68a7c33a5926 h1:UjwVFSC3VbjL0KCQemSlipmJO9d59r9t2+b5jrNqnac=
-github.com/DataDog/datadog-traceroute v0.1.8-0.20250908192325-68a7c33a5926/go.mod h1:axG/S4dflSNuxcDt9xbjzs5JBvAHHSYzRyuEm/yTiRk=
-github.com/DataDog/datadog-traceroute v0.1.8-0.20250909100852-fb6256a85331 h1:QtHT0OiD6beDY1tLyadLY4Div5/0W2Wllcfry9CnZgA=
-github.com/DataDog/datadog-traceroute v0.1.8-0.20250909100852-fb6256a85331/go.mod h1:aVqAVaf+ts/U43PlaXIYMitrwgWhgA2qPugWUJB4T90=
-github.com/DataDog/datadog-traceroute v0.1.9-0.20250909113444-7de13cf05f60 h1:IasNH7IOmV1NglO8x1ORTnTAEJK/LG6btxmBgMap4vs=
-github.com/DataDog/datadog-traceroute v0.1.9-0.20250909113444-7de13cf05f60/go.mod h1:aVqAVaf+ts/U43PlaXIYMitrwgWhgA2qPugWUJB4T90=
 github.com/DataDog/datadog-traceroute v0.1.10-0.20250909193254-eda4a556d264 h1:JPsSD3zENxgVr+qCaXe5ZCg5QB3CoXrkmYWo6F6IU0A=
 github.com/DataDog/datadog-traceroute v0.1.10-0.20250909193254-eda4a556d264/go.mod h1:axG/S4dflSNuxcDt9xbjzs5JBvAHHSYzRyuEm/yTiRk=
 github.com/DataDog/dd-trace-go/v2 v2.0.0 h1:cHMEzD0Wcgtu+Rec9d1GuVgpIN5f+4vCaNzuFHJ0v+Y=
