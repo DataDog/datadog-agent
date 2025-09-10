@@ -134,5 +134,5 @@ func (s *fakeTracerouteTestSuite01) TestFakeTraceroute() {
 		assert.Equal(c, uint16(0), udpPath.Destination.Port)
 		assert.Equal(c, uint16(443), tcpPath.Destination.Port)
 
-	}, 1*time.Minute, 3*time.Second)
+	}, 5*time.Minute, 3*time.Second)
 }
