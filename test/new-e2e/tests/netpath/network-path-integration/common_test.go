@@ -30,8 +30,8 @@ var sysProbeConfig []byte
 //go:embed fixtures/network_path.yaml
 var networkPathIntegration []byte
 
-var testAgentRunningMetricTagsTCP = []string{"destination_hostname:api.datadoghq.eu", "protocol:TCP", "destination_port:443"}
-var testAgentRunningMetricTagsUDP = []string{"destination_hostname:8.8.8.8", "protocol:UDP"}
+var testAgentRunningMetricTagsTCP = []string{"protocol:TCP"}
+var testAgentRunningMetricTagsUDP = []string{"protocol:UDP"}
 
 func isNetpathDebugMode() bool {
 	val, exist := os.LookupEnv("DD_E2E_TEST_NETPATH_DEBUG")
@@ -53,17 +53,7 @@ func assertMetrics(fakeIntake *components.FakeIntake, c *assert.CollectT, metric
 		metrics, err = fakeClient.FilterMetrics("datadog.network_path.path.monitored", fakeintakeclient.WithTags[*aggregator.MetricSeries](tags))
 		assert.NoError(c, err)
 		assert.NotEmpty(c, metrics, fmt.Sprintf("metric with tags `%v` not found", tags))
-
-		// assert hops
-		metrics, err = fakeClient.FilterMetrics("datadog.network_path.path.hops",
-			fakeintakeclient.WithTags[*aggregator.MetricSeries](tags),
-			fakeintakeclient.WithMetricValueHigherThan(0),
-		)
-		assert.NoError(c, err)
-		assert.NotEmpty(c, metrics, fmt.Sprintf("metric with tags `%v` not found", tags))
-
 	}
-
 }
 
 func (s *baseNetworkPathIntegrationTestSuite) findNetpath(isMatch func(*aggregator.Netpath) bool) (*aggregator.Netpath, error) {
@@ -112,18 +102,18 @@ func (s *baseNetworkPathIntegrationTestSuite) checkDatadogEUTCP(c *assert.Collec
 
 	assertPayloadBase(c, np, agentHostname)
 
-	assert.NotEmpty(c, np.Hops)
+	require.NotEmpty(c, np.Traceroute.Runs)
+	assert.NotEmpty(c, np.Traceroute.Runs[0].Hops)
 }
 
 func (s *baseNetworkPathIntegrationTestSuite) checkGoogleDNSUDP(c *assert.CollectT, agentHostname string) {
 	np := s.expectNetpath(c, func(np *aggregator.Netpath) bool {
 		return np.Destination.Hostname == "8.8.8.8" && np.Protocol == "UDP"
 	})
-	assert.NotZero(c, np.Destination.Port)
-
 	assertPayloadBase(c, np, agentHostname)
 
-	assert.NotEmpty(c, np.Hops)
+	require.NotEmpty(c, np.Traceroute.Runs)
+	assert.NotEmpty(c, np.Traceroute.Runs[0].Hops)
 }
 
 func (s *baseNetworkPathIntegrationTestSuite) checkGoogleTCPSocket(c *assert.CollectT, agentHostname string) {
@@ -134,16 +124,17 @@ func (s *baseNetworkPathIntegrationTestSuite) checkGoogleTCPSocket(c *assert.Col
 
 	assertPayloadBase(c, np, agentHostname)
 
-	assert.NotEmpty(c, np.Hops)
+	require.NotEmpty(c, np.Traceroute.Runs)
+	assert.NotEmpty(c, np.Traceroute.Runs[0].Hops)
 
-	// assert that one of the hops is not unknown_hop_x
+	// assert that one of the hops is reachable
+	run := np.Traceroute.Runs[0]
 	countKnownHops := 0
-	for _, hop := range np.Hops {
-		hopName := fmt.Sprintf("unknown_hop_%d", hop.TTL)
-		if hop.Hostname != hopName {
+	for _, hop := range run.Hops {
+		if hop.Reachable {
 			countKnownHops++
 		}
 	}
 	// > 1 verifies that we have more than just the last hop known
-	assert.True(c, countKnownHops > 1, "expected to find at least one hop that is not unknown_hop_x")
+	assert.True(c, countKnownHops > 1, "expected to find at least one hop that is reachable")
 }

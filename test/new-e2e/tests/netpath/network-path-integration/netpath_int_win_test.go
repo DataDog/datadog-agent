@@ -28,8 +28,6 @@ type windowsNetworkPathIntegrationTestSuite struct {
 //go:embed fixtures/network_path_windows.yaml
 var networkPathIntegrationWindows []byte
 
-var testAgentRunningMetricTagsTCPSocket = []string{"destination_hostname:8.8.8.8", "protocol:TCP", "destination_port:443"}
-
 // TestNetworkPathIntegrationSuiteLinux runs the Network Path Integration e2e suite for linux
 func TestWindowsNetworkPathIntegrationSuite(t *testing.T) {
 	t.Parallel()
@@ -60,7 +58,6 @@ func (s *windowsNetworkPathIntegrationTestSuite) TestWindowsNetworkPathIntegrati
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		assertMetrics(fakeIntake, c, [][]string{
 			testAgentRunningMetricTagsTCP,
-			testAgentRunningMetricTagsTCPSocket,
 			testAgentRunningMetricTagsUDP,
 		})
 

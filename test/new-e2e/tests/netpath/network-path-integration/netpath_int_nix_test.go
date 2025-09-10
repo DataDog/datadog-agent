@@ -49,5 +49,5 @@ func (s *linuxNetworkPathIntegrationTestSuite) TestLinuxNetworkPathIntegrationMe
 
 		s.checkDatadogEUTCP(c, hostname)
 		s.checkGoogleDNSUDP(c, hostname)
-	}, 5*time.Minute, 3*time.Second)
+	}, 1*time.Minute, 3*time.Second)
 }
