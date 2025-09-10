@@ -353,10 +353,6 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 		Protocol:                  ptest.Pathtest.Protocol,
 		TCPMethod:                 s.collectorConfigs.tcpMethod,
 		TCPSynParisTracerouteMode: s.collectorConfigs.tcpSynParisTracerouteMode,
-
-		// TODO: TEST reverse DNS is not used for Dynamic Paths
-		// TODO: TEST reverse DNS is not used for Dynamic Paths
-		// TODO: TEST reverse DNS is not used for Dynamic Paths
 	}
 
 	path, err := s.runTraceroute(cfg, s.telemetrycomp)
@@ -367,10 +363,6 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 	path.Source.ContainerID = ptest.Pathtest.SourceContainerID
 	path.Namespace = s.networkDevicesNamespace
 	path.Origin = payload.PathOriginNetworkTraffic
-
-	// TODO: Migrate NPCollector to the new format
-	// TODO: Migrate NPCollector to the new format
-	// TODO: Migrate NPCollector to the new format
 
 	// Perform reverse DNS lookup on destination and hop IPs
 	s.enrichPathWithRDNS(&path, ptest.Pathtest.Metadata.ReverseDNSHostname)
@@ -470,13 +462,8 @@ func (s *npCollectorImpl) enrichPathWithRDNS(path *payload.NetworkPath, knownDes
 	// collect unique IP addresses from destination and hops
 	ipSet := make(map[string]struct{}) // +1 for destination
 
-	// TODO: TEST ME
-	// TODO: TEST ME
-	// TODO: TEST ME
 	for _, run := range path.Traceroute.Runs {
 		// only look up the destination hostname if we need to
-
-		// TODO: TEST ME
 		if knownDestHostname == "" {
 			ipSet[run.Destination.IPAddress.String()] = struct{}{}
 		}
