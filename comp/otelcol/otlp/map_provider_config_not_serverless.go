@@ -8,6 +8,8 @@
 
 package otlp
 
+import "github.com/DataDog/datadog-agent/pkg/util/flavor"
+
 // defaultTracesConfig is the base traces OTLP pipeline configuration.
 // This pipeline is extended through the datadog.yaml configuration values.
 // It is written in YAML because it is easier to read and write than a map.
@@ -84,3 +86,92 @@ service:
       processors: [infraattributes, batch]
       exporters: [logsagent]
 `
+
+// IoT-optimized configurations with minimal components
+const defaultTracesConfigIoT string = `
+receivers:
+  otlp:
+
+exporters:
+  otlp:
+    tls:
+      insecure: true
+    compression: none
+    sending_queue:
+      enabled: false
+
+service:
+  telemetry:
+    metrics:
+      level: none
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [otlp]
+`
+
+const defaultMetricsConfigIoT string = `
+receivers:
+  otlp:
+
+processors:
+  batch:
+    timeout: 10s
+
+exporters:
+  serializer:
+
+service:
+  telemetry:
+    metrics:
+      level: none
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [serializer]
+`
+
+const defaultLogsConfigIoT string = `
+receivers:
+  otlp:
+
+processors:
+  batch:
+    timeout: 10s
+
+exporters:
+  logsagent:
+
+service:
+  telemetry:
+    metrics:
+      level: none
+  pipelines:
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [logsagent]
+`
+
+// Helper functions to get appropriate config based on agent flavor
+func getTracesConfig() string {
+	if flavor.GetFlavor() == flavor.IotAgent {
+		return defaultTracesConfigIoT
+	}
+	return defaultTracesConfig
+}
+
+func getMetricsConfig() string {
+	if flavor.GetFlavor() == flavor.IotAgent {
+		return defaultMetricsConfigIoT
+	}
+	return defaultMetricsConfig
+}
+
+func getLogsConfig() string {
+	if flavor.GetFlavor() == flavor.IotAgent {
+		return defaultLogsConfigIoT
+	}
+	return defaultLogsConfig
+}
