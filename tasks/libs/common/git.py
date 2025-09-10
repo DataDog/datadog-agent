@@ -158,7 +158,7 @@ def get_full_ref_name(ref: str, remote="origin") -> str:
     remote_slash = remote + '/'
     if (
         ref.startswith("HEAD")
-        or (re.match(r'^[0-9a-fA-F]{40}$', ref) and re.match('[0-9]', ref))
+        or (re.match(r'^[0-9a-fA-F]{40}$', ref) and re.search('[0-9]', ref))
         or ref.startswith("refs/")
         or ref.startswith(remote_slash)
     ):
