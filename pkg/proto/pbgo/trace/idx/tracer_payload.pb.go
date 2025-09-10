@@ -36,10 +36,10 @@ type TraceChunk struct {
 	DroppedTrace bool `protobuf:"varint,5,opt,name=droppedTrace,proto3" json:"droppedTrace,omitempty"`
 	// traceID specifies the ID of the trace to which all spans in this chunk belong.
 	TraceID []byte `protobuf:"bytes,6,opt,name=traceID,proto3" json:"traceID,omitempty"`
-	// decisionMakerRef specifies the string table ref of the optional string decision maker (previously span tag _dd.p.dm)
-	DecisionMakerRef uint32 `protobuf:"varint,7,opt,name=decisionMakerRef,proto3" json:"decisionMakerRef,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// samplingMechanism specifies the sampling mechanism as an integer (previously span tag _dd.p.dm)
+	SamplingMechanism uint32 `protobuf:"varint,7,opt,name=samplingMechanism,proto3" json:"samplingMechanism,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *TraceChunk) Reset() {
@@ -114,9 +114,9 @@ func (x *TraceChunk) GetTraceID() []byte {
 	return nil
 }
 
-func (x *TraceChunk) GetDecisionMakerRef() uint32 {
+func (x *TraceChunk) GetSamplingMechanism() uint32 {
 	if x != nil {
-		return x.DecisionMakerRef
+		return x.SamplingMechanism
 	}
 	return 0
 }
@@ -261,7 +261,7 @@ var File_datadog_trace_idx_tracer_payload_proto protoreflect.FileDescriptor
 
 const file_datadog_trace_idx_tracer_payload_proto_rawDesc = "" +
 	"\n" +
-	"&datadog/trace/idx/tracer_payload.proto\x12\x11datadog.trace.idx\x1a\x1cdatadog/trace/idx/span.proto\"\x8a\x03\n" +
+	"&datadog/trace/idx/tracer_payload.proto\x12\x11datadog.trace.idx\x1a\x1cdatadog/trace/idx/span.proto\"\x8c\x03\n" +
 	"\n" +
 	"TraceChunk\x12\x1a\n" +
 	"\bpriority\x18\x01 \x01(\x05R\bpriority\x12\x1c\n" +
@@ -271,8 +271,8 @@ const file_datadog_trace_idx_tracer_payload_proto_rawDesc = "" +
 	"attributes\x12-\n" +
 	"\x05spans\x18\x04 \x03(\v2\x17.datadog.trace.idx.SpanR\x05spans\x12\"\n" +
 	"\fdroppedTrace\x18\x05 \x01(\bR\fdroppedTrace\x12\x18\n" +
-	"\atraceID\x18\x06 \x01(\fR\atraceID\x12*\n" +
-	"\x10decisionMakerRef\x18\a \x01(\rR\x10decisionMakerRef\x1aZ\n" +
+	"\atraceID\x18\x06 \x01(\fR\atraceID\x12,\n" +
+	"\x11samplingMechanism\x18\a \x01(\rR\x11samplingMechanism\x1aZ\n" +
 	"\x0fAttributesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\rR\x03key\x121\n" +
 	"\x05value\x18\x02 \x01(\v2\x1b.datadog.trace.idx.AnyValueR\x05value:\x028\x01\"\xba\x04\n" +
