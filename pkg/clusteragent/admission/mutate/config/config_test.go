@@ -331,18 +331,20 @@ func TestInjectSocket(t *testing.T) {
 	tests := []struct {
 		name                 string
 		withCSIDriver        bool
+		hostSocketPath       string
 		expectedVolumeMounts []corev1.VolumeMount
 		expectedVolumes      []corev1.Volume
 	}{
 		{
-			name:          "no csi driver",
-			withCSIDriver: false,
+			name:           "no csi driver",
+			withCSIDriver:  false,
+			hostSocketPath: "/var/run/datadog-custom",
 			expectedVolumes: []corev1.Volume{
 				{
 					Name: "datadog",
 					VolumeSource: corev1.VolumeSource{
 						HostPath: &corev1.HostPathVolumeSource{
-							Path: "/var/run/datadog",
+							Path: "/var/run/datadog-custom",
 							Type: pointer.Ptr(corev1.HostPathDirectoryOrCreate),
 						},
 					},
@@ -397,6 +399,7 @@ func TestInjectSocket(t *testing.T) {
 			datadogConfig := fxutil.Test[config.Component](t, core.MockBundle(), fx.Replace(config.MockParams{
 				Overrides: map[string]any{
 					"csi.enabled": test.withCSIDriver,
+					"admission_controller.inject_config.host_socket_path": test.hostSocketPath,
 				},
 			}))
 			filter, err := NewFilter(datadogConfig)
@@ -423,6 +426,8 @@ func TestInjectSocket_VolumeTypeSocket(t *testing.T) {
 	tests := []struct {
 		name                      string
 		withCSIDriver             bool
+		hostSocketPathDsd         string
+		hostSocketPathApm         string
 		expectedVolumeMounts      []corev1.VolumeMount
 		expectedVolumes           []corev1.Volume
 		globalTypeSocketVolumes   bool
@@ -431,13 +436,15 @@ func TestInjectSocket_VolumeTypeSocket(t *testing.T) {
 		{
 			name:                    "no csi driver",
 			withCSIDriver:           false,
+			hostSocketPathDsd:       "/var/run/datadog-custom/dsd.socket",
+			hostSocketPathApm:       "/var/run/datadog-custom/apm.socket",
 			globalTypeSocketVolumes: true,
 			expectedVolumes: []corev1.Volume{
 				{
 					Name: "datadog-dogstatsd",
 					VolumeSource: corev1.VolumeSource{
 						HostPath: &corev1.HostPathVolumeSource{
-							Path: "/var/run/datadog/dsd.socket",
+							Path: "/var/run/datadog-custom/dsd.socket",
 							Type: pointer.Ptr(corev1.HostPathSocket),
 						},
 					},
@@ -446,7 +453,7 @@ func TestInjectSocket_VolumeTypeSocket(t *testing.T) {
 					Name: "datadog-trace-agent",
 					VolumeSource: corev1.VolumeSource{
 						HostPath: &corev1.HostPathVolumeSource{
-							Path: "/var/run/datadog/apm.socket",
+							Path: "/var/run/datadog-custom/apm.socket",
 							Type: pointer.Ptr(corev1.HostPathSocket),
 						},
 					},
@@ -468,6 +475,8 @@ func TestInjectSocket_VolumeTypeSocket(t *testing.T) {
 		{
 			name:                      "pod label overrides global setting",
 			withCSIDriver:             false,
+			hostSocketPathDsd:         "/var/run/datadog-custom/dsd.socket",
+			hostSocketPathApm:         "/var/run/datadog-custom/apm.socket",
 			globalTypeSocketVolumes:   false,
 			typeSocketVolumesPodLabel: true,
 			expectedVolumes: []corev1.Volume{
@@ -475,7 +484,7 @@ func TestInjectSocket_VolumeTypeSocket(t *testing.T) {
 					Name: "datadog-dogstatsd",
 					VolumeSource: corev1.VolumeSource{
 						HostPath: &corev1.HostPathVolumeSource{
-							Path: "/var/run/datadog/dsd.socket",
+							Path: "/var/run/datadog-custom/dsd.socket",
 							Type: pointer.Ptr(corev1.HostPathSocket),
 						},
 					},
@@ -484,7 +493,7 @@ func TestInjectSocket_VolumeTypeSocket(t *testing.T) {
 					Name: "datadog-trace-agent",
 					VolumeSource: corev1.VolumeSource{
 						HostPath: &corev1.HostPathVolumeSource{
-							Path: "/var/run/datadog/apm.socket",
+							Path: "/var/run/datadog-custom/apm.socket",
 							Type: pointer.Ptr(corev1.HostPathSocket),
 						},
 					},
@@ -573,9 +582,11 @@ func TestInjectSocket_VolumeTypeSocket(t *testing.T) {
 			)
 			datadogConfig := fxutil.Test[config.Component](t, core.MockBundle(), fx.Replace(config.MockParams{
 				Overrides: map[string]interface{}{
-					"csi.enabled":                                    test.withCSIDriver,
-					"admission_controller.csi.enabled":               test.withCSIDriver,
-					"admission_controller.inject_config.csi.enabled": test.withCSIDriver,
+					"csi.enabled":                                                         test.withCSIDriver,
+					"admission_controller.csi.enabled":                                    test.withCSIDriver,
+					"admission_controller.inject_config.csi.enabled":                      test.withCSIDriver,
+					"admission_controller.inject_config.host_dogstatsd_agent_socket_path": test.hostSocketPathDsd,
+					"admission_controller.inject_config.host_trace_agent_socket_path":     test.hostSocketPathApm,
 				},
 			}))
 			filter, err := NewFilter(datadogConfig)
