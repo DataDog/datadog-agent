@@ -157,8 +157,6 @@ func TestPayloadBuilderV3_Split(t *testing.T) {
 			Points:         []metrics.Point{{Ts: ts, Value: 3.14}}},
 	}
 
-	series[2].Points = slices.Repeat(series[2].Points, 10000)
-
 	pb, err := newPayloadsBuilderV3(180, 10000, 1000_0000, true, noopimpl.New())
 	require.NoError(t, err)
 
@@ -168,12 +166,14 @@ func TestPayloadBuilderV3_Split(t *testing.T) {
 	r.NoError(pb.writeSerie(series[3]))
 	pb.finishPayload()
 	payloads := pb.transactionPayloads()
-	r.Len(payloads, 2)
+	r.Len(payloads, 3)
 
 	r.Equal(2, payloads[0].GetPointCount())
 	r.Less(len(payloads[1].GetContent()), 180)
 	r.Equal(1, payloads[1].GetPointCount())
+	r.Equal(1, payloads[2].GetPointCount())
 	r.NotContains("foo", payloads[1].GetContent())
+	r.NotContains("foo", payloads[2].GetContent())
 }
 
 func TestPayloadBuilderV3_pointsLimit(t *testing.T) {

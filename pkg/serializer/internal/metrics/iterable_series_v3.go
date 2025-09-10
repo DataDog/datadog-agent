@@ -395,33 +395,26 @@ func (pb *payloadsBuilderV3) writeSerieToTxn(serie *metrics.Serie) {
 }
 
 func (pb *payloadsBuilderV3) commit(serie *metrics.Serie) error {
-	err := pb.compressor.AddItem(pb.txn)
-
-	switch err {
-	case stream.ErrPayloadFull:
-		tlmSplitReason.Inc("payload_full")
-		err = pb.finishPayload()
-		if err != nil {
-			return err
-		}
-
-		err = pb.compressor.AddItem(pb.txn)
-		if err == stream.ErrItemTooBig {
+	for {
+		err := pb.compressor.AddItem(pb.txn)
+		switch err {
+		case stream.ErrPayloadFull:
+			tlmSplitReason.Inc("payload_full")
+			err = pb.finishPayload()
+			if err != nil {
+				return err
+			}
+			continue
+		case stream.ErrItemTooBig:
 			tlmItemTooBig.Inc()
 			return nil
-		}
-		if err != nil {
+		case nil:
+			pb.pointsThisPayload += len(serie.Points)
+			return nil
+		default:
 			return err
 		}
-	case stream.ErrItemTooBig:
-		tlmItemTooBig.Inc()
-		return nil
-	case nil:
-		pb.pointsThisPayload += len(serie.Points)
-		return nil
 	}
-
-	return err
 }
 
 type deltaEncoder struct {
