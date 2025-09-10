@@ -257,6 +257,7 @@ func testDyninst(
 
 	decoder, err := decode.NewDecoder(
 		sink.irp, (*decode.GoTypeNameResolver)(gotypeTable),
+		time.Now(),
 	)
 	require.NoError(t, err)
 
