@@ -38,7 +38,7 @@ func (s *testDDOTInstallSuite) TestInstallDDOTPackage() {
 	s.installAgentWithMSI()
 
 	// Act: install DDOT from current pipeline via OCI
-	output, err := s.Installer().InstallPackage("datadog-agent-ddot")
+	output, err := s.Installer().InstallPackage("datadog-ddot")
 
 	// Assert: package install succeeded and files exist in repository
 	s.Require().NoErrorf(err, "failed to install the DDOT package: %s", output)
