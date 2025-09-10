@@ -496,13 +496,13 @@ func (s *npCollectorImpl) enrichPathWithRDNS(path *payload.NetworkPath, knownDes
 		if knownDestHostname != "" {
 			run.Destination.ReverseDNS = []string{knownDestHostname}
 		} else {
+			// TODO: We should make reverse DNS return all available DNS names, not just one.
 			hostname := s.getReverseDNSResult(run.Destination.IPAddress.String(), results)
 			// if hostname is blank, use what's given by traceroute
 			// TODO: would it be better to move the logic up from the traceroute command?
 			// benefit to the current approach is having consistent behavior for all paths
 			// both static and dynamic
 			if hostname != "" {
-				// TODO: FIX ME
 				run.Destination.ReverseDNS = []string{hostname}
 			}
 		}
