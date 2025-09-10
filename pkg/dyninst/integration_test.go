@@ -273,13 +273,13 @@ func testDyninst(
 			Event:       ev,
 			ServiceName: service,
 		}
-		var decodeOut bytes.Buffer
-		probe, err := decoder.Decode(event, cachingSymbolicator, &decodeOut)
+		decodeOut := []byte{}
+		decodeOut, probe, err := decoder.Decode(event, cachingSymbolicator, decodeOut)
 		require.NoError(t, err)
 		if os.Getenv("DEBUG") != "" {
-			t.Logf("Output: %s", decodeOut.String())
+			t.Logf("Output: %s", string(decodeOut))
 		}
-		redacted := redactJSON(t, "", decodeOut.Bytes(), defaultRedactors)
+		redacted := redactJSON(t, "", decodeOut, defaultRedactors)
 		if os.Getenv("DEBUG") != "" {
 			t.Logf("Sorted and redacted: %s", redacted)
 		}

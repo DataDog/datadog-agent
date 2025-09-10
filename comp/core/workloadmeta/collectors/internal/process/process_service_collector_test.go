@@ -587,6 +587,11 @@ func makeModelService(pid int32, name string) model.Service {
 		Type:               "database",
 		CommandLine:        []string{"python", "-m", "myservice"},
 		LogFiles:           []string{"/var/log/" + name + ".log"},
+		UST: model.UST{
+			Service: "dd-model-" + name,
+			Env:     "production",
+			Version: "1.2.3",
+		},
 	}
 }
 
@@ -613,6 +618,11 @@ func makeProcessEntityService(pid int32, name string) *workloadmeta.Process {
 			APMInstrumentation: "manual",
 			Type:               "database",
 			LogFiles:           []string{"/var/log/" + name + ".log"},
+			UST: workloadmeta.UST{
+				Service: "dd-model-" + name,
+				Env:     "production",
+				Version: "1.2.3",
+			},
 		},
 	}
 }
@@ -689,6 +699,7 @@ func assertStoredServices(t *testing.T, store workloadmetamock.Mock, expected []
 				assert.Equal(collectT, expectedProcess.Service.APMInstrumentation, entity.Service.APMInstrumentation)
 				assert.Equal(collectT, expectedProcess.Service.Type, entity.Service.Type)
 				assert.Equal(collectT, expectedProcess.Service.LogFiles, entity.Service.LogFiles)
+				assert.Equal(collectT, expectedProcess.Service.UST, entity.Service.UST)
 			}
 		}, 2*time.Second, 100*time.Millisecond)
 	}
