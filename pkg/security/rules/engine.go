@@ -399,9 +399,8 @@ func (e *RuleEngine) notifyAPIServer(ruleIDs []rules.RuleID, policies []*monitor
 	e.apiServer.ApplyPolicyStates(policies)
 }
 
-func (e *RuleEngine) getCommonSECLVariables(rs *rules.RuleSet) map[string]*api.SECLVariableState {
-	var seclVariables = make(map[string]*api.SECLVariableState)
-	for name, value := range rs.GetVariables() {
+func (e *RuleEngine) fillCommonSECLVariables(rsVariables map[string]eval.SECLVariable, seclVariables map[string]*api.SECLVariableState) {
+	for name, value := range rsVariables {
 		if strings.HasPrefix(name, "process.") {
 			scopedVariable := value.(eval.ScopedVariable)
 			if !scopedVariable.IsMutable() {
@@ -441,7 +440,6 @@ func (e *RuleEngine) getCommonSECLVariables(rs *rules.RuleSet) map[string]*api.S
 			}
 		}
 	}
-	return seclVariables
 }
 
 func (e *RuleEngine) gatherDefaultPolicyProviders() []rules.PolicyProvider {

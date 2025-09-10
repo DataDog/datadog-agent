@@ -23,8 +23,12 @@ func (e *RuleEngine) GetSECLVariables() map[string]*api.SECLVariableState {
 		return nil
 	}
 
-	seclVariables := e.getCommonSECLVariables(rs)
-	for name, value := range rs.GetVariables() {
+	rsVariables := rs.GetVariables()
+	seclVariables := make(map[string]*api.SECLVariableState, len(rsVariables))
+
+	e.fillCommonSECLVariables(rsVariables, seclVariables)
+
+	for name, value := range rsVariables {
 		if strings.HasPrefix(name, "container.") {
 			scopedVariable := value.(eval.ScopedVariable)
 			ebpfProbe, ok := e.probe.PlatformProbe.(*probe.EBPFProbe)

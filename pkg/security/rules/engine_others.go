@@ -19,5 +19,10 @@ func (e *RuleEngine) GetSECLVariables() map[string]*api.SECLVariableState {
 		return nil
 	}
 
-	return e.getCommonSECLVariables(rs)
+	rsVariables := rs.GetVariables()
+	seclVariables := make(map[string]*api.SECLVariableState, len(rsVariables))
+
+	e.fillCommonSECLVariables(rsVariables, seclVariables)
+
+	return seclVariables
 }
