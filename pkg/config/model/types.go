@@ -146,6 +146,7 @@ type Reader interface {
 
 	GetSource(key string) Source
 	GetAllSources(key string) []ValueWithSource
+	GetSubfields(key string) []string
 
 	ConfigFileUsed() string
 	ExtraConfigFilesUsed() []string
