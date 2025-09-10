@@ -1005,7 +1005,7 @@ func TestMaxKafkaStatsBuffered(t *testing.T) {
 func TestEnablePostgresMonitoring(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.enable_postgres_monitoring", true)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.postgres.enabled", true)
 		cfg := New()
 
 		assert.True(t, cfg.EnablePostgresMonitoring)
@@ -1013,7 +1013,7 @@ func TestEnablePostgresMonitoring(t *testing.T) {
 
 	t.Run("via ENV variable", func(t *testing.T) {
 		mock.NewSystemProbe(t)
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_POSTGRES_MONITORING", "true")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_POSTGRES_ENABLED", "true")
 		cfg := New()
 
 		_, err := sysconfig.New("", "")
@@ -1033,7 +1033,7 @@ func TestEnablePostgresMonitoring(t *testing.T) {
 func TestMaxPostgresTelemetryBuffered(t *testing.T) {
 	t.Run("value set through env var", func(t *testing.T) {
 		mock.NewSystemProbe(t)
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_MAX_POSTGRES_TELEMETRY_BUFFER", "50000")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_POSTGRES_MAX_TELEMETRY_BUFFER", "50000")
 
 		cfg := New()
 		assert.Equal(t, 50000, cfg.MaxPostgresTelemetryBuffer)
@@ -1041,7 +1041,7 @@ func TestMaxPostgresTelemetryBuffered(t *testing.T) {
 
 	t.Run("value set through yaml", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.max_postgres_telemetry_buffer", 30000)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.postgres.max_telemetry_buffer", 30000)
 
 		cfg := New()
 		assert.Equal(t, 30000, cfg.MaxPostgresTelemetryBuffer)
@@ -1051,7 +1051,7 @@ func TestMaxPostgresTelemetryBuffered(t *testing.T) {
 func TestMaxPostgresStatsBuffered(t *testing.T) {
 	t.Run("value set through env var", func(t *testing.T) {
 		mock.NewSystemProbe(t)
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_MAX_POSTGRES_STATS_BUFFERED", "50000")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_POSTGRES_MAX_STATS_BUFFERED", "50000")
 		cfg := New()
 
 		assert.Equal(t, 50000, cfg.MaxPostgresStatsBuffered)
@@ -1059,7 +1059,7 @@ func TestMaxPostgresStatsBuffered(t *testing.T) {
 
 	t.Run("value set through yaml", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.max_postgres_stats_buffered", 30000)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.postgres.max_stats_buffered", 30000)
 		cfg := New()
 
 		assert.Equal(t, 30000, cfg.MaxPostgresStatsBuffered)

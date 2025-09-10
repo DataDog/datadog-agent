@@ -19,10 +19,29 @@ const (
 	dataItemHeaderSize = int(unsafe.Sizeof(DataItemHeader{}))
 )
 
+const (
+	// DataItemFailedReadMask is a mask on the type field of a data item header that
+	// can be used to check if a data item was marked as a failed read.
+	DataItemFailedReadMask = uint32(1 << 31)
+	// DataItemTypeMask is a mask on the type field of a data item header that can be
+	// used to get the type of a data item without the failed read mask.
+	DataItemTypeMask = ^DataItemFailedReadMask
+)
+
 // DataItem represents a single data item in an event.
 type DataItem struct {
 	header *DataItemHeader
 	data   []byte
+}
+
+// IsFailedRead returns true if the data item was marked as a failed read.
+func (d *DataItem) IsFailedRead() bool {
+	return d.header.Type&DataItemFailedReadMask != 0
+}
+
+// Type returns the type of the data item without the failed read mask.
+func (d *DataItem) Type() uint32 {
+	return d.header.Type & DataItemTypeMask
 }
 
 // Header returns the header of the data item.
