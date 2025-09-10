@@ -26,27 +26,33 @@ import (
 
 // MutatorConfig contains the settings for the config injector.
 type MutatorConfig struct {
-	csiEnabled        bool
-	mode              string
-	localServiceName  string
-	traceAgentSocket  string
-	dogStatsDSocket   string
-	socketPath        string
-	typeSocketVolumes bool
-	csiDriver         string
+	csiEnabled           bool
+	mode                 string
+	localServiceName     string
+	hostSocketPath       string
+	hostTraceAgentSocket string
+	hostDogStatsDSocket  string
+	traceAgentSocket     string
+	dogStatsDSocket      string
+	socketPath           string
+	typeSocketVolumes    bool
+	csiDriver            string
 }
 
 // NewMutatorConfig instantiates the required settings for the mutator from the datadog config.
 func NewMutatorConfig(datadogConfig config.Component) *MutatorConfig {
 	return &MutatorConfig{
-		csiEnabled:        datadogConfig.GetBool("csi.enabled"),
-		mode:              datadogConfig.GetString("admission_controller.inject_config.mode"),
-		localServiceName:  datadogConfig.GetString("admission_controller.inject_config.local_service_name"),
-		traceAgentSocket:  datadogConfig.GetString("admission_controller.inject_config.trace_agent_socket"),
-		dogStatsDSocket:   datadogConfig.GetString("admission_controller.inject_config.dogstatsd_socket"),
-		socketPath:        datadogConfig.GetString("admission_controller.inject_config.socket_path"),
-		typeSocketVolumes: datadogConfig.GetBool("admission_controller.inject_config.type_socket_volumes"),
-		csiDriver:         datadogConfig.GetString("csi.driver"),
+		csiEnabled:           datadogConfig.GetBool("csi.enabled"),
+		mode:                 datadogConfig.GetString("admission_controller.inject_config.mode"),
+		localServiceName:     datadogConfig.GetString("admission_controller.inject_config.local_service_name"),
+		hostSocketPath:       datadogConfig.GetString("admission_controller.inject_config.host_socket_path"),
+		hostTraceAgentSocket: datadogConfig.GetString("admission_controller.inject_config.host_trace_agent_socket_path"),
+		hostDogStatsDSocket:  datadogConfig.GetString("admission_controller.inject_config.host_dogstatsd_agent_socket_path"),
+		traceAgentSocket:     datadogConfig.GetString("admission_controller.inject_config.trace_agent_socket"),
+		dogStatsDSocket:      datadogConfig.GetString("admission_controller.inject_config.dogstatsd_socket"),
+		socketPath:           datadogConfig.GetString("admission_controller.inject_config.socket_path"),
+		typeSocketVolumes:    datadogConfig.GetBool("admission_controller.inject_config.type_socket_volumes"),
+		csiDriver:            datadogConfig.GetString("csi.driver"),
 	}
 }
 
@@ -160,20 +166,23 @@ func (i *Mutator) injectSocketVolumes(pod *corev1.Pod, withCSI bool) bool {
 
 	if shouldUseSocketVolumeType(pod, i.config.typeSocketVolumes) {
 		volumes := map[string]struct {
-			socketpath    string
-			csiVolumeType csiInjectionType
+			socketpath     string
+			csiVolumeType  csiInjectionType
+			hostsocketpath string
 		}{
 			DogstatsdSocketVolumeName: {
 				socketpath: strings.TrimPrefix(
 					i.config.dogStatsDSocket, "unix://",
 				),
-				csiVolumeType: csiDSDSocket,
+				csiVolumeType:  csiDSDSocket,
+				hostsocketpath: i.config.hostDogStatsDSocket,
 			},
 			TraceAgentSocketVolumeName: {
 				socketpath: strings.TrimPrefix(
 					i.config.traceAgentSocket, "unix://",
 				),
-				csiVolumeType: csiAPMSocket,
+				csiVolumeType:  csiAPMSocket,
+				hostsocketpath: i.config.hostTraceAgentSocket,
 			},
 		}
 
@@ -184,7 +193,7 @@ func (i *Mutator) injectSocketVolumes(pod *corev1.Pod, withCSI bool) bool {
 			if withCSI {
 				volume, volumeMount = buildCSIVolume(volumeName, volumeProps.socketpath, volumeProps.csiVolumeType, true, i.config.csiDriver)
 			} else {
-				volume, volumeMount = buildHostPathVolume(volumeName, volumeProps.socketpath, corev1.HostPathSocket, true)
+				volume, volumeMount = buildHostPathVolume(volumeName, volumeProps.hostsocketpath, volumeProps.socketpath, corev1.HostPathSocket, true)
 			}
 			var injectedVol bool
 			injectedVol, injectedVolumeMount = mutatecommon.InjectVolume(pod, volume, volumeMount)
@@ -202,6 +211,7 @@ func (i *Mutator) injectSocketVolumes(pod *corev1.Pod, withCSI bool) bool {
 		} else {
 			volume, volumeMount = buildHostPathVolume(
 				DatadogVolumeName,
+				i.config.hostSocketPath,
 				i.config.socketPath,
 				corev1.HostPathDirectoryOrCreate,
 				true,
@@ -287,12 +297,12 @@ func injectExternalDataEnvVar(pod *corev1.Pod) (injected bool) {
 	return
 }
 
-func buildHostPathVolume(volumeName, path string, hostpathType corev1.HostPathType, readOnly bool) (corev1.Volume, corev1.VolumeMount) {
+func buildHostPathVolume(volumeName, hostpath string, path string, hostpathType corev1.HostPathType, readOnly bool) (corev1.Volume, corev1.VolumeMount) {
 	volume := corev1.Volume{
 		Name: volumeName,
 		VolumeSource: corev1.VolumeSource{
 			HostPath: &corev1.HostPathVolumeSource{
-				Path: path,
+				Path: hostpath,
 				Type: &hostpathType,
 			},
 		},
