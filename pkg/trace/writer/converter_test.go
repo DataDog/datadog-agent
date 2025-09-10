@@ -31,7 +31,7 @@ func TestConvertToIdx(t *testing.T) {
 				Origin: "origin",
 				Tags: map[string]string{
 					"chunk_key": "chunk_value",
-					"_dd.p.dm":  "decision_maker",
+					"_dd.p.dm":  "-2",
 				},
 				Spans: []*pb.Span{
 					{
@@ -89,7 +89,7 @@ func TestConvertToIdx(t *testing.T) {
 		},
 	}
 	idxPayload := convertToIdx(payload)
-	assert.Len(t, idxPayload.Strings, 35) // Should match the number of unique strings in the payload
+	assert.Len(t, idxPayload.Strings, 33) // Should match the number of unique strings in the payload (_dd.p.dm is not indexed)
 	assert.Equal(t, "container_id", idxPayload.Strings[idxPayload.ContainerIDRef])
 	assert.Equal(t, "language_name", idxPayload.Strings[idxPayload.LanguageNameRef])
 	assert.Equal(t, "language_version", idxPayload.Strings[idxPayload.LanguageVersionRef])
@@ -104,16 +104,14 @@ func TestConvertToIdx(t *testing.T) {
 		assert.Equal(t, "value", idxPayload.Strings[attrValue.Value.(*idx.AnyValue_StringValueRef).StringValueRef])
 	}
 	assert.Len(t, idxPayload.Chunks, 1)
-	assert.Equal(t, "decision_maker", idxPayload.Strings[idxPayload.Chunks[0].DecisionMakerRef])
+	assert.Equal(t, uint32(2), idxPayload.Chunks[0].SamplingMechanism)
 	assert.Equal(t, "origin", idxPayload.Strings[idxPayload.Chunks[0].OriginRef])
 	assert.Equal(t, []byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x1, 0x23, 0xfe, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1, 0xc8}, idxPayload.Chunks[0].TraceID)
-	assert.Len(t, idxPayload.Chunks[0].Attributes, 2)
+	assert.Len(t, idxPayload.Chunks[0].Attributes, 1) // _dd.p.dm is not indexed anymore
 	for kRef, attrValue := range idxPayload.Chunks[0].Attributes {
 		switch idxPayload.Strings[kRef] {
 		case "chunk_key":
 			assert.Equal(t, "chunk_value", idxPayload.Strings[attrValue.Value.(*idx.AnyValue_StringValueRef).StringValueRef])
-		case "_dd.p.dm":
-			assert.Equal(t, "decision_maker", idxPayload.Strings[attrValue.Value.(*idx.AnyValue_StringValueRef).StringValueRef])
 		default:
 			t.Fatalf("unexpected attribute key: %s", idxPayload.Strings[kRef])
 		}

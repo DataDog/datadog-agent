@@ -7,6 +7,8 @@ package writer
 
 import (
 	"encoding/binary"
+	"strconv"
+	"strings"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
@@ -113,15 +115,26 @@ func convertToIdx(payload *pb.TracerPayload) *idx.TracerPayload {
 				SpanEvents:   spanEvents,
 			}
 		}
-		decisionMaker := chunk.Tags["_dd.p.dm"]
+		decisionMakerStr := chunk.Tags["_dd.p.dm"]
+		var samplingMechanism uint32
+		if decisionMakerStr != "" {
+			// Handle negative values by splitting on "-" and taking the right side
+			valueStr := decisionMakerStr
+			if strings.HasPrefix(decisionMakerStr, "-") {
+				valueStr = strings.TrimPrefix(decisionMakerStr, "-")
+			}
+			if val, err := strconv.ParseUint(valueStr, 10, 32); err == nil {
+				samplingMechanism = uint32(val)
+			}
+		}
 		idxChunks[chunkIndex] = &idx.TraceChunk{
-			Priority:         int32(chunk.Priority),
-			OriginRef:        internedStrings.addString(chunk.Origin),
-			Attributes:       chunkAttrs,
-			TraceID:          traceID,
-			Spans:            idxSpans,
-			DroppedTrace:     chunk.DroppedTrace,
-			DecisionMakerRef: internedStrings.addString(decisionMaker),
+			Priority:          int32(chunk.Priority),
+			OriginRef:         internedStrings.addString(chunk.Origin),
+			Attributes:        chunkAttrs,
+			TraceID:           traceID,
+			Spans:             idxSpans,
+			DroppedTrace:      chunk.DroppedTrace,
+			SamplingMechanism: samplingMechanism,
 		}
 	}
 	idxPayload := &idx.TracerPayload{
@@ -226,6 +239,9 @@ func convertAttributeArrayValue(arrayValue *pb.AttributeArrayValue, internedStri
 func convertAttributesMap(attrs map[string]string, internedStrings *internedstrings) map[uint32]*idx.AnyValue {
 	linkAttrs := make(map[uint32]*idx.AnyValue, len(attrs))
 	for k, v := range attrs {
+		if k == "_dd.p.dm" {
+			continue
+		}
 		linkAttrs[internedStrings.addString(k)] = &idx.AnyValue{
 			Value: &idx.AnyValue_StringValueRef{
 				StringValueRef: internedStrings.addString(v),
