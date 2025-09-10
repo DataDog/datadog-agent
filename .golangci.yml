@@ -431,6 +431,9 @@ issues:
     - path: comp/systray/systray/systrayimpl/doflare.go
       linters:
         - pkgconfigusage
+  new: true
+  new-from-merge-base: main
+  whole-files: false
 
 linters:
   disable-all: true
@@ -626,6 +629,10 @@ linters-settings:
       - p: ^setup.SetSystemProbe.*$
         pkg: ^github.com/DataDog/datadog-agent/pkg/config/setup$
         msg: use pkg/config/mock instead for tests or the config component
+      - p: ^.*\.BindEnv$
+        msg: use BindEnvAndSetDefault instead of BindEnv to ensure proper defaults are set
+      - p: ^.*\.SetKnown$
+        msg: usage of SetKnown is discouraged
     analyze-types: true
   custom:
     pkgconfigusage:
