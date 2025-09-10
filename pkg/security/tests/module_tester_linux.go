@@ -1890,6 +1890,9 @@ func (tm *testModule) CheckZombieProcesses() error {
 
 				comm, err := os.ReadFile(filepath.Join("/proc", pidStr, "comm"))
 				if err != nil {
+					if errors.Is(err, syscall.ESRCH) {
+						continue
+					}
 					return fmt.Errorf("failed to read comm for PID %d: %w", pid, err)
 				}
 				commStr := strings.TrimSpace(string(comm))
@@ -1900,8 +1903,8 @@ func (tm *testModule) CheckZombieProcesses() error {
 				}
 			}
 		}
-		if err := scanner.Err(); err != nil {
-			return fmt.Errorf("error reading status file for PPID %d: %w", pid, err)
+		if err := scanner.Err(); err != nil && !errors.Is(err, syscall.ESRCH) {
+			return fmt.Errorf("error reading status file for PID %d: %w", pid, err)
 		}
 	}
 

@@ -191,9 +191,9 @@ func NewUSMConfig(cfg model.Config) *USMConfig {
 		MaxKafkaStatsBuffered: cfg.GetInt(sysconfig.FullKeyPath(smNS, "max_kafka_stats_buffered")),
 
 		// Postgres Protocol Configuration
-		EnablePostgresMonitoring:   cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_postgres_monitoring")),
-		MaxPostgresStatsBuffered:   cfg.GetInt(sysconfig.FullKeyPath(smNS, "max_postgres_stats_buffered")),
-		MaxPostgresTelemetryBuffer: cfg.GetInt(sysconfig.FullKeyPath(smNS, "max_postgres_telemetry_buffer")),
+		EnablePostgresMonitoring:   cfg.GetBool(sysconfig.FullKeyPath(smNS, "postgres", "enabled")),
+		MaxPostgresStatsBuffered:   cfg.GetInt(sysconfig.FullKeyPath(smNS, "postgres", "max_stats_buffered")),
+		MaxPostgresTelemetryBuffer: cfg.GetInt(sysconfig.FullKeyPath(smNS, "postgres", "max_telemetry_buffer")),
 
 		// Redis Protocol Configuration
 		EnableRedisMonitoring: cfg.GetBool(sysconfig.FullKeyPath(smNS, "redis", "enabled")),
