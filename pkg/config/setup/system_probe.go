@@ -283,7 +283,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnv(join(smNS, "max_concurrent_requests"))
 	cfg.BindEnv(join(smNS, "enable_quantization"))
 	cfg.BindEnv(join(smNS, "enable_connection_rollup"))
-	cfg.BindEnv(join(smNS, "enable_ring_buffers"))
+	cfg.BindEnvAndSetDefault(join(smNS, "enable_ring_buffers"), true)
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_event_stream"), true)
 	// kernel_buffer_pages determines the number of pages allocated *per CPU*
 	// for buffering kernel data, whether using a perf buffer or a ring buffer.

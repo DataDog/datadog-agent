@@ -69,7 +69,6 @@ func adjustUSM(cfg model.Config) {
 	}
 
 	applyDefault(cfg, spNS("process_service_inference", "use_windows_service_name"), true)
-	applyDefault(cfg, smNS("enable_ring_buffers"), true)
 
 	validateInt(cfg, smNS("http_notification_threshold"), cfg.GetInt(smNS("max_tracked_http_connections"))/2, func(v int) error {
 		limit := cfg.GetInt(smNS("max_tracked_http_connections"))
