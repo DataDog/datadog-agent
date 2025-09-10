@@ -22,8 +22,8 @@ features:
     * ``agent:7-rc-ltsc2025-jmx``
     * ``agent:7-rc-servercore-ltsc2025-jmx``
 
-    Version-specific release candidate tags (e.g., ``agent:7.X.Y-rc.Z-ltsc2025``,
-    ``agent:7.X.Y-rc.Z-servercore-ltsc2025``, etc.) are also supported.
+    Version-specific release candidate tags (such as ``agent:7.X.Y-rc.Z-ltsc2025``,
+    ``agent:7.X.Y-rc.Z-servercore-ltsc2025``) are also supported.
 
     Updated the base multi-arch images to include Windows 2025 images alongside existing
     Windows 2019 and Windows 2022 variants.
