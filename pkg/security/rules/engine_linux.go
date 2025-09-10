@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 // GetSECLVariables returns the set of SECL variables along with theirs values
@@ -23,10 +24,12 @@ func (e *RuleEngine) GetSECLVariables() map[string]*api.SECLVariableState {
 		return nil
 	}
 
+	preparator := e.newSECLVariableEventPreparator()
+
 	rsVariables := rs.GetVariables()
 	seclVariables := make(map[string]*api.SECLVariableState, len(rsVariables))
 
-	e.fillCommonSECLVariables(rsVariables, seclVariables)
+	e.fillCommonSECLVariables(rsVariables, seclVariables, preparator)
 
 	for name, value := range rsVariables {
 		if strings.HasPrefix(name, "container.") {
@@ -44,9 +47,11 @@ func (e *RuleEngine) GetSECLVariables() map[string]*api.SECLVariableState {
 					return
 				}
 
-				event := e.probe.PlatformProbe.NewEvent()
-				event.ContainerContext = &cgce.ContainerContext
-				ctx := eval.NewContext(event)
+				ctx := preparator.get(func(event *model.Event) {
+					event.ContainerContext = &cgce.ContainerContext
+				})
+				defer preparator.put(ctx)
+
 				value, found := scopedVariable.GetValue(ctx)
 				if !found {
 					return
@@ -67,9 +72,11 @@ func (e *RuleEngine) GetSECLVariables() map[string]*api.SECLVariableState {
 				cgce.RLock()
 				defer cgce.RUnlock()
 
-				event := e.probe.PlatformProbe.NewEvent()
-				event.CGroupContext = &cgce.CGroupContext
-				ctx := eval.NewContext(event)
+				ctx := preparator.get(func(event *model.Event) {
+					event.CGroupContext = &cgce.CGroupContext
+				})
+				defer preparator.put(ctx)
+
 				value, found := scopedVariable.GetValue(ctx)
 				if !found {
 					return

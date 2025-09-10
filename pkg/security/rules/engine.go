@@ -399,7 +399,29 @@ func (e *RuleEngine) notifyAPIServer(ruleIDs []rules.RuleID, policies []*monitor
 	e.apiServer.ApplyPolicyStates(policies)
 }
 
-func (e *RuleEngine) fillCommonSECLVariables(rsVariables map[string]eval.SECLVariable, seclVariables map[string]*api.SECLVariableState) {
+type seclVariableEventPreparator struct {
+	ctxPool *eval.ContextPool
+	event   *model.Event
+}
+
+func (e *RuleEngine) newSECLVariableEventPreparator() *seclVariableEventPreparator {
+	return &seclVariableEventPreparator{
+		ctxPool: eval.NewContextPool(),
+		event:   e.probe.PlatformProbe.NewEvent(),
+	}
+}
+
+func (p *seclVariableEventPreparator) get(f func(event *model.Event)) *eval.Context {
+	p.event.Zero()
+	f(p.event)
+	return p.ctxPool.Get(p.event)
+}
+
+func (p *seclVariableEventPreparator) put(ctx *eval.Context) {
+	p.ctxPool.Put(ctx)
+}
+
+func (e *RuleEngine) fillCommonSECLVariables(rsVariables map[string]eval.SECLVariable, seclVariables map[string]*api.SECLVariableState, preparator *seclVariableEventPreparator) {
 	for name, value := range rsVariables {
 		if strings.HasPrefix(name, "process.") {
 			scopedVariable := value.(eval.ScopedVariable)
@@ -411,9 +433,11 @@ func (e *RuleEngine) fillCommonSECLVariables(rsVariables map[string]eval.SECLVar
 				entry.Retain()
 				defer entry.Release()
 
-				event := e.probe.PlatformProbe.NewEvent()
-				event.ProcessCacheEntry = entry
-				ctx := eval.NewContext(event)
+				ctx := preparator.get(func(event *model.Event) {
+					event.ProcessCacheEntry = entry
+				})
+				defer preparator.put(ctx)
+
 				value, found := scopedVariable.GetValue(ctx)
 				if !found {
 					return
