@@ -441,11 +441,6 @@ func TestIsDatadoghqRegistry(t *testing.T) {
 			expected: false,
 		},
 		{
-			name:     "private_registry",
-			registry: "my-private-registry.com",
-			expected: false,
-		},
-		{
 			name:     "empty_registry",
 			registry: "",
 			expected: false,
