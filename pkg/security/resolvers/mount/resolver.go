@@ -166,12 +166,11 @@ func newMountFromStatmount(sm *Statmount) *model.Mount {
 		Device:        utils.Mkdev(sm.SbDevMajor, sm.SbDevMinor),
 		ParentPathKey: model.PathKey{
 			MountID: sm.MntParentIDOld,
-			//UniqueMountID: sm.MntParentID,
 		},
 		FSType:        sm.FsType,
 		MountPointStr: sm.MntPoint,
 		Path:          sm.MntPoint,
-		RootStr:       sm.MntRoot,
+		RootStr:       root,
 		Origin:        model.MountOriginListmount,
 		Visible:       true,
 		Detached:      false,

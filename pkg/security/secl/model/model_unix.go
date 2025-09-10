@@ -847,8 +847,7 @@ type SyscallsEvent struct {
 type PathKey struct {
 	Inode   uint64 `field:"inode"`    // SECLDoc[inode] Definition:`Inode of the file`
 	MountID uint32 `field:"mount_id"` // SECLDoc[mount_id] Definition:`Mount ID of the file`
-	//UniqueMountID uint64 `field:"-"`
-	PathID uint32 `field:"-"`
+	PathID  uint32 `field:"-"`
 }
 
 // OnDemandPerArgSize is the size of each argument in Data in the on-demand event
