@@ -490,9 +490,6 @@ func (s *npCollectorImpl) enrichPathWithRDNS(path *payload.NetworkPath, knownDes
 		s.logger.Debugf("Reverse lookup failed for all hops in path from %s to %s", path.Source.Hostname, path.Destination.Hostname)
 	}
 
-	// TODO: TEST ME
-	// TODO: TEST ME
-	// TODO: TEST ME
 	for i := range path.Traceroute.Runs {
 		run := &path.Traceroute.Runs[i]
 		// assign resolved hostnames to destination and hops
