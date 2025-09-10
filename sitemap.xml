@@ -113,6 +113,22 @@
          <lastmod>2020-02-02</lastmod>
     </url>
     <url>
+         <loc>https://datadoghq.dev/datadog-agent/how-to/memory-profiling/c%2B%2B/</loc>
+         <lastmod>2020-02-02</lastmod>
+    </url>
+    <url>
+         <loc>https://datadoghq.dev/datadog-agent/how-to/memory-profiling/go/</loc>
+         <lastmod>2020-02-02</lastmod>
+    </url>
+    <url>
+         <loc>https://datadoghq.dev/datadog-agent/how-to/memory-profiling/overview/</loc>
+         <lastmod>2020-02-02</lastmod>
+    </url>
+    <url>
+         <loc>https://datadoghq.dev/datadog-agent/how-to/memory-profiling/python/</loc>
+         <lastmod>2020-02-02</lastmod>
+    </url>
+    <url>
          <loc>https://datadoghq.dev/datadog-agent/how-to/test/static-analysis/</loc>
          <lastmod>2020-02-02</lastmod>
     </url>
