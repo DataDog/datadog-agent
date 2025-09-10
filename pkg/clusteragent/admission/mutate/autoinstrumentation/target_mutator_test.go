@@ -157,7 +157,7 @@ func TestMutatePod(t *testing.T) {
 			},
 			expectedInitContainerImages: []string{
 				"registry/apm-inject:0",
-				defaultLibInfo(python, imageResolver).image,
+				defaultLibInfo(python).image,
 			},
 			expectedEnv: map[string]string{
 				"DD_SERVICE": "best-service",
@@ -391,8 +391,6 @@ func TestIsNamespaceEligible(t *testing.T) {
 }
 
 func TestGetTargetFromAnnotation(t *testing.T) {
-	imageResolver := newNoOpImageResolver()
-
 	tests := map[string]struct {
 		configPath string
 		in         *corev1.Pod
@@ -419,7 +417,7 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 			},
 			expected: &targetInternal{
 				libVersions: []libInfo{
-					defaultLibInfoWithVersion(python, "v3", imageResolver),
+					defaultLibInfoWithVersion(python, "v3"),
 				},
 			},
 		},
@@ -483,7 +481,7 @@ func TestGetTargetLibraries(t *testing.T) {
 			},
 			expected: &targetInternal{
 				libVersions: []libInfo{
-					defaultLibInfoWithVersion(js, "v5", imageResolver),
+					defaultLibInfoWithVersion(js, "v5"),
 				},
 			},
 		},
@@ -517,7 +515,7 @@ func TestGetTargetLibraries(t *testing.T) {
 			},
 			expected: &targetInternal{
 				libVersions: []libInfo{
-					defaultLibInfoWithVersion(python, "v3", imageResolver),
+					defaultLibInfoWithVersion(python, "v3"),
 				},
 			},
 		},
@@ -536,7 +534,7 @@ func TestGetTargetLibraries(t *testing.T) {
 			},
 			expected: &targetInternal{
 				libVersions: []libInfo{
-					defaultLibInfoWithVersion(java, "v1", imageResolver),
+					defaultLibInfoWithVersion(java, "v1"),
 				},
 			},
 		},
@@ -571,7 +569,7 @@ func TestGetTargetLibraries(t *testing.T) {
 			},
 			expected: &targetInternal{
 				libVersions: []libInfo{
-					defaultLibInfoWithVersion(dotnet, "v1", imageResolver),
+					defaultLibInfoWithVersion(dotnet, "v1"),
 				},
 			},
 		},
@@ -616,12 +614,12 @@ func TestGetTargetLibraries(t *testing.T) {
 			},
 			expected: &targetInternal{
 				libVersions: []libInfo{
-					defaultLibInfoWithVersion(java, "v1", imageResolver),
-					defaultLibInfoWithVersion(js, "v5", imageResolver),
-					defaultLibInfoWithVersion(python, "v3", imageResolver),
-					defaultLibInfoWithVersion(dotnet, "v3", imageResolver),
-					defaultLibInfoWithVersion(ruby, "v2", imageResolver),
-					defaultLibInfoWithVersion(php, "v1", imageResolver),
+					defaultLibInfoWithVersion(java, "v1"),
+					defaultLibInfoWithVersion(js, "v5"),
+					defaultLibInfoWithVersion(python, "v3"),
+					defaultLibInfoWithVersion(dotnet, "v3"),
+					defaultLibInfoWithVersion(ruby, "v2"),
+					defaultLibInfoWithVersion(php, "v1"),
 				},
 			},
 		},

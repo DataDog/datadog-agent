@@ -404,7 +404,6 @@ func TestTargetEnvVar(t *testing.T) {
 }
 
 func TestGetPinnedLibraries(t *testing.T) {
-	imageResolver := newNoOpImageResolver()
 
 	tests := []struct {
 		name          string
@@ -426,12 +425,12 @@ func TestGetPinnedLibraries(t *testing.T) {
 			libVersions: defaultLibraries,
 			expected: pinnedLibraries{
 				libs: []libInfo{
-					defaultLibInfo(java, imageResolver),
-					defaultLibInfo(python, imageResolver),
-					defaultLibInfo(js, imageResolver),
-					defaultLibInfo(dotnet, imageResolver),
-					defaultLibInfo(ruby, imageResolver),
-					defaultLibInfo(php, imageResolver),
+					defaultLibInfo(java),
+					defaultLibInfo(python),
+					defaultLibInfo(js),
+					defaultLibInfo(dotnet),
+					defaultLibInfo(ruby),
+					defaultLibInfo(php),
 				},
 			},
 		},
@@ -441,12 +440,12 @@ func TestGetPinnedLibraries(t *testing.T) {
 			checkDefaults: true,
 			expected: pinnedLibraries{
 				libs: []libInfo{
-					defaultLibInfo(java, imageResolver),
-					defaultLibInfo(python, imageResolver),
-					defaultLibInfo(js, imageResolver),
-					defaultLibInfo(dotnet, imageResolver),
-					defaultLibInfo(ruby, imageResolver),
-					defaultLibInfo(php, imageResolver),
+					defaultLibInfo(java),
+					defaultLibInfo(python),
+					defaultLibInfo(js),
+					defaultLibInfo(dotnet),
+					defaultLibInfo(ruby),
+					defaultLibInfo(php),
 				},
 				areSetToDefaults: true,
 			},
@@ -457,10 +456,10 @@ func TestGetPinnedLibraries(t *testing.T) {
 			checkDefaults: true,
 			expected: pinnedLibraries{
 				libs: []libInfo{
-					defaultLibInfo(java, imageResolver),
-					defaultLibInfo(python, imageResolver),
-					defaultLibInfo(js, imageResolver),
-					defaultLibInfo(dotnet, imageResolver),
+					defaultLibInfo(java),
+					defaultLibInfo(python),
+					defaultLibInfo(js),
+					defaultLibInfo(dotnet),
 				},
 			},
 		},
@@ -477,12 +476,12 @@ func TestGetPinnedLibraries(t *testing.T) {
 			checkDefaults: true,
 			expected: pinnedLibraries{
 				libs: []libInfo{
-					defaultLibInfo(java, imageResolver),
-					defaultLibInfo(python, imageResolver),
-					defaultLibInfo(js, imageResolver),
-					defaultLibInfo(dotnet, imageResolver),
-					defaultLibInfo(ruby, imageResolver),
-					defaultLibInfo(php, imageResolver),
+					defaultLibInfo(java),
+					defaultLibInfo(python),
+					defaultLibInfo(js),
+					defaultLibInfo(dotnet),
+					defaultLibInfo(ruby),
+					defaultLibInfo(php),
 				},
 				areSetToDefaults: true,
 			},
@@ -500,12 +499,12 @@ func TestGetPinnedLibraries(t *testing.T) {
 			checkDefaults: true,
 			expected: pinnedLibraries{
 				libs: []libInfo{
-					defaultLibInfo(java, imageResolver),
-					defaultLibInfo(python, imageResolver),
-					defaultLibInfo(js, imageResolver),
-					defaultLibInfo(dotnet, imageResolver),
-					defaultLibInfo(ruby, imageResolver),
-					defaultLibInfo(php, imageResolver),
+					defaultLibInfo(java),
+					defaultLibInfo(python),
+					defaultLibInfo(js),
+					defaultLibInfo(dotnet),
+					defaultLibInfo(ruby),
+					defaultLibInfo(php),
 				},
 				areSetToDefaults: true,
 			},
@@ -522,11 +521,11 @@ func TestGetPinnedLibraries(t *testing.T) {
 			checkDefaults: true,
 			expected: pinnedLibraries{
 				libs: []libInfo{
-					defaultLibInfo(java, imageResolver),
-					defaultLibInfo(python, imageResolver),
-					defaultLibInfoWithVersion(js, "v3", imageResolver),
-					defaultLibInfo(dotnet, imageResolver),
-					defaultLibInfo(ruby, imageResolver),
+					defaultLibInfo(java),
+					defaultLibInfo(python),
+					defaultLibInfoWithVersion(js, "v3"),
+					defaultLibInfo(dotnet),
+					defaultLibInfo(ruby),
 				},
 				areSetToDefaults: false,
 			},
@@ -535,7 +534,7 @@ func TestGetPinnedLibraries(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			pinned := getPinnedLibraries(tt.libVersions, "registry", tt.checkDefaults, imageResolver)
+			pinned := getPinnedLibraries(tt.libVersions, "registry", tt.checkDefaults)
 			require.ElementsMatch(t, tt.expected.libs, pinned.libs, "libs match")
 			require.Equal(t, tt.expected.areSetToDefaults, pinned.areSetToDefaults, "areSetToDefaults match")
 		})

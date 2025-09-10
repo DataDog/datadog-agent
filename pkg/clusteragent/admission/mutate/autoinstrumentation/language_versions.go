@@ -29,8 +29,8 @@ const (
 // language is lang-library we might be injecting.
 type language string
 
-func (l language) defaultLibInfo(registry, ctrName string, imageResolver ImageResolver) libInfo {
-	return l.libInfoWithResolver(ctrName, registry, l.defaultLibVersion(), imageResolver)
+func (l language) defaultLibInfo(registry, ctrName string) libInfo {
+	return l.libInfoWithResolver(ctrName, registry, l.defaultLibVersion())
 }
 
 // DEV: This is just formatting, no resolution is done here
@@ -52,7 +52,7 @@ func (l language) libInfo(ctrName, image string) libInfo {
 }
 
 // DEV: Will attempt to resolve, defaults to legacy if unable
-func (l language) libInfoWithResolver(ctrName, registry string, version string, imageResolver ImageResolver) libInfo {
+func (l language) libInfoWithResolver(ctrName, registry string, version string) libInfo {
 	if version == defaultVersionMagicString {
 		version = l.defaultLibVersion()
 	}
@@ -83,11 +83,11 @@ func (l language) customLibAnnotationExtractor() annotationExtractor[libInfo] {
 	}
 }
 
-func (l language) libVersionAnnotationExtractor(registry string, imageResolver ImageResolver) annotationExtractor[libInfo] {
+func (l language) libVersionAnnotationExtractor(registry string) annotationExtractor[libInfo] {
 	return annotationExtractor[libInfo]{
 		key: fmt.Sprintf(libVersionAnnotationKeyFormat, l),
 		do: func(version string) (libInfo, error) {
-			return l.libInfoWithResolver("", registry, version, imageResolver), nil
+			return l.libInfoWithResolver("", registry, version), nil
 		},
 	}
 }
@@ -101,11 +101,11 @@ func (l language) ctrCustomLibAnnotationExtractor(ctr string) annotationExtracto
 	}
 }
 
-func (l language) ctrLibVersionAnnotationExtractor(ctr, registry string, imageResolver ImageResolver) annotationExtractor[libInfo] {
+func (l language) ctrLibVersionAnnotationExtractor(ctr, registry string) annotationExtractor[libInfo] {
 	return annotationExtractor[libInfo]{
 		key: fmt.Sprintf(libVersionAnnotationKeyCtrFormat, ctr, l),
 		do: func(version string) (libInfo, error) {
-			return l.libInfoWithResolver(ctr, registry, version, imageResolver), nil
+			return l.libInfoWithResolver(ctr, registry, version), nil
 		},
 	}
 }

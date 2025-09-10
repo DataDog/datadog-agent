@@ -60,7 +60,7 @@ var (
 	imageResolver = newNoOpImageResolver()
 )
 
-func defaultLibInfo(l language, imageResolver ImageResolver) libInfo {
+func defaultLibInfo(l language) libInfo {
 	return libInfo{
 		lang:       l,
 		image:      defaultLibImageVersions[l],
@@ -71,7 +71,7 @@ func defaultLibInfo(l language, imageResolver ImageResolver) libInfo {
 	}
 }
 
-func defaultLibInfoWithVersion(l language, version string, imageResolver ImageResolver) libInfo {
+func defaultLibInfoWithVersion(l language, version string) libInfo {
 	return libInfo{
 		lang:       l,
 		image:      fmt.Sprintf("registry/dd-lib-%s-init:%s", l, version),
@@ -82,7 +82,7 @@ func defaultLibInfoWithVersion(l language, version string, imageResolver ImageRe
 	}
 }
 
-func defaultLibInfoWithRegsitryVersion(l language, version string, registry string, imageResolver ImageResolver) libInfo {
+func defaultLibInfoWithRegsitryVersion(l language, version string, registry string) libInfo {
 	return libInfo{
 		lang:       l,
 		image:      fmt.Sprintf("%s/dd-lib-%s-init:%s", registry, l, version),
@@ -93,7 +93,7 @@ func defaultLibInfoWithRegsitryVersion(l language, version string, registry stri
 	}
 }
 
-func defaultLibInfoWithContainerVersion(l language, version string, containerName string, imageResolver ImageResolver) libInfo {
+func defaultLibInfoWithContainerVersion(l language, version string, containerName string) libInfo {
 	return libInfo{
 		lang:       l,
 		image:      fmt.Sprintf("registry/dd-lib-%s-init:%s", l, version),
@@ -253,7 +253,7 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 			libInfo: extractedPodLibInfo{
 				languageDetection: &libInfoLanguageDetection{
 					libs: []libInfo{
-						python.defaultLibInfo(commonRegistry, "java-pod-container", imageResolver),
+						python.defaultLibInfo(commonRegistry, "java-pod-container"),
 					},
 				},
 				libs: []libInfo{
@@ -273,7 +273,7 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 			libInfo: extractedPodLibInfo{
 				languageDetection: &libInfoLanguageDetection{
 					libs: []libInfo{
-						python.defaultLibInfo(commonRegistry, "not-java-pod-container", imageResolver),
+						python.defaultLibInfo(commonRegistry, "not-java-pod-container"),
 					},
 				},
 				libs: []libInfo{
@@ -304,7 +304,7 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 			libInfo: extractedPodLibInfo{
 				languageDetection: &libInfoLanguageDetection{
 					libs: []libInfo{
-						python.defaultLibInfo(commonRegistry, "java-pod-container", imageResolver),
+						python.defaultLibInfo(commonRegistry, "java-pod-container"),
 					},
 				},
 				libs: []libInfo{
@@ -327,7 +327,7 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 			libInfo: extractedPodLibInfo{
 				languageDetection: &libInfoLanguageDetection{
 					libs: []libInfo{
-						python.defaultLibInfo(commonRegistry, "python-pod-container", imageResolver),
+						python.defaultLibInfo(commonRegistry, "python-pod-container"),
 					},
 				},
 				libs: []libInfo{
@@ -617,12 +617,12 @@ func TestMutatorCoreNewInjector(t *testing.T) {
 func TestExtractLibInfo(t *testing.T) {
 	// TODO: Add new entry when a new language is supported
 	allLatestDefaultLibs := []libInfo{
-		defaultLibInfo(java, imageResolver),
-		defaultLibInfo(js, imageResolver),
-		defaultLibInfo(python, imageResolver),
-		defaultLibInfo(dotnet, imageResolver),
-		defaultLibInfo(ruby, imageResolver),
-		defaultLibInfo(php, imageResolver),
+		defaultLibInfo(java),
+		defaultLibInfo(js),
+		defaultLibInfo(python),
+		defaultLibInfo(dotnet),
+		defaultLibInfo(ruby),
+		defaultLibInfo(php),
 	}
 
 	var mockConfig model.Config
@@ -641,7 +641,7 @@ func TestExtractLibInfo(t *testing.T) {
 			pod:               common.FakePodWithAnnotation("admission.datadoghq.com/java-lib.version", "v1"),
 			containerRegistry: "registry",
 			expectedLibsToInject: []libInfo{
-				defaultLibInfoWithVersion(java, "v1", imageResolver),
+				defaultLibInfoWithVersion(java, "v1"),
 			},
 		},
 		{
@@ -649,7 +649,7 @@ func TestExtractLibInfo(t *testing.T) {
 			pod:               common.FakePodWithAnnotation("admission.datadoghq.com/java-lib.version", "default"),
 			containerRegistry: "registry",
 			expectedLibsToInject: []libInfo{
-				defaultLibInfoWithVersion(java, "v1", imageResolver),
+				defaultLibInfoWithVersion(java, "v1"),
 			},
 		},
 		{
@@ -657,7 +657,7 @@ func TestExtractLibInfo(t *testing.T) {
 			pod:               common.FakePodWithAnnotation("admission.datadoghq.com/java-lib.version", "v1"),
 			containerRegistry: "",
 			expectedLibsToInject: []libInfo{
-				defaultLibInfoWithRegsitryVersion(java, "v1", commonRegistry, imageResolver),
+				defaultLibInfoWithRegsitryVersion(java, "v1", commonRegistry),
 			},
 		},
 		{
@@ -665,7 +665,7 @@ func TestExtractLibInfo(t *testing.T) {
 			pod:               common.FakePodWithAnnotation("admission.datadoghq.com/js-lib.version", "v1"),
 			containerRegistry: "registry",
 			expectedLibsToInject: []libInfo{
-				defaultLibInfoWithVersion(js, "v1", imageResolver),
+				defaultLibInfoWithVersion(js, "v1"),
 			},
 		},
 		{
@@ -674,7 +674,7 @@ func TestExtractLibInfo(t *testing.T) {
 			containerRegistry:   "registry",
 			expectedPodEligible: pointer.Ptr(true),
 			expectedLibsToInject: []libInfo{
-				defaultLibInfoWithVersion(python, "v1", imageResolver),
+				defaultLibInfoWithVersion(python, "v1"),
 			},
 		},
 		{
@@ -683,7 +683,7 @@ func TestExtractLibInfo(t *testing.T) {
 			containerRegistry:   "registry",
 			expectedPodEligible: pointer.Ptr(false),
 			expectedLibsToInject: []libInfo{
-				defaultLibInfoWithVersion(python, "v1", imageResolver),
+				defaultLibInfoWithVersion(python, "v1"),
 			},
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false)
@@ -715,8 +715,8 @@ func TestExtractLibInfo(t *testing.T) {
 			},
 			containerRegistry: "registry",
 			expectedLibsToInject: []libInfo{
-				defaultLibInfoWithVersion(java, "v1", imageResolver),
-				defaultLibInfoWithVersion(js, "v1", imageResolver),
+				defaultLibInfoWithVersion(java, "v1"),
+				defaultLibInfoWithVersion(js, "v1"),
 			},
 		},
 		{
@@ -741,8 +741,8 @@ func TestExtractLibInfo(t *testing.T) {
 			},
 			containerRegistry: "registry",
 			expectedLibsToInject: []libInfo{
-				defaultLibInfoWithContainerVersion(java, "v1", "java-app", imageResolver),
-				defaultLibInfoWithContainerVersion(js, "v1", "node-app", imageResolver),
+				defaultLibInfoWithContainerVersion(java, "v1", "java-app"),
+				defaultLibInfoWithContainerVersion(js, "v1", "node-app"),
 			},
 		},
 		{
@@ -750,7 +750,7 @@ func TestExtractLibInfo(t *testing.T) {
 			pod:               common.FakePodWithAnnotation("admission.datadoghq.com/ruby-lib.version", "v1"),
 			containerRegistry: "registry",
 			expectedLibsToInject: []libInfo{
-				defaultLibInfoWithVersion(ruby, "v1", imageResolver),
+				defaultLibInfoWithVersion(ruby, "v1"),
 			},
 		},
 		{
@@ -859,7 +859,7 @@ func TestExtractLibInfo(t *testing.T) {
 			},
 			containerRegistry: "registry",
 			expectedLibsToInject: []libInfo{
-				defaultLibInfoWithVersion(java, "v1", imageResolver),
+				defaultLibInfoWithVersion(java, "v1"),
 			},
 		},
 		{
@@ -881,7 +881,7 @@ func TestExtractLibInfo(t *testing.T) {
 			pod:               common.FakePodWithNamespaceAndLabel("ns", "", ""),
 			containerRegistry: "registry",
 			expectedLibsToInject: []libInfo{
-				defaultLibInfoWithVersion(java, "v1.20.0", imageResolver),
+				defaultLibInfoWithVersion(java, "v1.20.0"),
 			},
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
@@ -893,7 +893,7 @@ func TestExtractLibInfo(t *testing.T) {
 			pod:               common.FakePodWithNamespaceAndLabel("ns", "", ""),
 			containerRegistry: "registry",
 			expectedLibsToInject: []libInfo{
-				defaultLibInfo(java, imageResolver),
+				defaultLibInfo(java),
 			},
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
@@ -905,8 +905,8 @@ func TestExtractLibInfo(t *testing.T) {
 			pod:               common.FakePodWithNamespaceAndLabel("ns", "", ""),
 			containerRegistry: "registry",
 			expectedLibsToInject: []libInfo{
-				defaultLibInfoWithVersion(java, "v1.20.0", imageResolver),
-				defaultLibInfoWithVersion(python, "v1.19.0", imageResolver),
+				defaultLibInfoWithVersion(java, "v1.20.0"),
+				defaultLibInfoWithVersion(python, "v1.19.0"),
 			},
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
@@ -918,7 +918,7 @@ func TestExtractLibInfo(t *testing.T) {
 			pod:               common.FakePodWithAnnotation("admission.datadoghq.com/java-lib.version", "v1"),
 			containerRegistry: "registry",
 			expectedLibsToInject: []libInfo{
-				defaultLibInfoWithVersion(java, "v1", imageResolver),
+				defaultLibInfoWithVersion(java, "v1"),
 			},
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
@@ -945,13 +945,13 @@ func TestExtractLibInfo(t *testing.T) {
 				t.Helper()
 				require.Equal(t, &libInfoLanguageDetection{
 					libs: []libInfo{
-						python.defaultLibInfo("registry", "pod", imageResolver),
+						python.defaultLibInfo("registry", "pod"),
 					},
 					injectionEnabled: true,
 				}, i.languageDetection)
 			},
 			expectedLibsToInject: []libInfo{
-				python.defaultLibInfo("registry", "pod", imageResolver),
+				python.defaultLibInfo("registry", "pod"),
 			},
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
@@ -979,12 +979,12 @@ func TestExtractLibInfo(t *testing.T) {
 			assertExtractedLibInfo: func(t *testing.T, i extractedPodLibInfo) {
 				t.Helper()
 				require.Equal(t, &libInfoLanguageDetection{
-					libs:             []libInfo{python.defaultLibInfo("registry", "pod", imageResolver)},
+					libs:             []libInfo{python.defaultLibInfo("registry", "pod")},
 					injectionEnabled: true,
 				}, i.languageDetection)
 			},
 			expectedLibsToInject: []libInfo{
-				java.defaultLibInfo("registry", "", imageResolver),
+				java.defaultLibInfo("registry", ""),
 			},
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
@@ -999,7 +999,7 @@ func TestExtractLibInfo(t *testing.T) {
 			pod:               common.FakePodWithAnnotation("admission.datadoghq.com/php-lib.version", "v1"),
 			containerRegistry: "registry",
 			expectedLibsToInject: []libInfo{
-				defaultLibInfoWithVersion(php, "v1", imageResolver),
+				defaultLibInfoWithVersion(php, "v1"),
 			},
 		},
 	}
