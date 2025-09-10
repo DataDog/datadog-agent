@@ -1,0 +1,6 @@
+schema-version: v1
+kind: mergegate
+name: root
+rules:
+  - require: pull-request-freshness
+    max_age: 1d
