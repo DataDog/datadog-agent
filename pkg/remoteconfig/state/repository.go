@@ -214,9 +214,10 @@ func (r *Repository) Update(update Update) ([]string, error) {
 		storedMetadata, exists := r.metadata.Load(path)
 		if exists {
 			m, ok := storedMetadata.(Metadata)
-			if ok && hashesEqual(targetFileMetadata.Hashes, m.Hashes) && m.Version == newConfigMetadata.Version {
+			changed := hashesEqual(targetFileMetadata.Hashes, m.Hashes)
+			if ok && changed && m.Version == newConfigMetadata.Version {
 				continue
-			} else if ok && hashesEqual(targetFileMetadata.Hashes, m.Hashes) {
+			} else if ok && changed {
 				// The version has changed, even though there are no changes to the file. Since business logic code
 				// only operates on config bodies, we don't want to trigger a callback, but we do want to report the new version
 				// as part of the RC update process so that it is visible in REDAPL.
