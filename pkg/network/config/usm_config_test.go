@@ -136,6 +136,66 @@ func TestMaxUSMConcurrentRequests(t *testing.T) {
 	})
 }
 
+func TestUSMDirectBufferWakeupCount(t *testing.T) {
+	t.Run("default value", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		cfg := New()
+		assert.Equal(t, 16, cfg.USMDirectBufferWakeupCount)
+	})
+
+	t.Run("env override", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_USM_DIRECT_BUFFER_WAKEUP_COUNT", "32")
+		cfg := New()
+		assert.Equal(t, 32, cfg.USMDirectBufferWakeupCount)
+	})
+}
+
+func TestUSMDirectChannelSize(t *testing.T) {
+	t.Run("default value", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		cfg := New()
+		assert.Equal(t, 1000, cfg.USMDirectChannelSize)
+	})
+
+	t.Run("env override", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_USM_DIRECT_CHANNEL_SIZE", "2000")
+		cfg := New()
+		assert.Equal(t, 2000, cfg.USMDirectChannelSize)
+	})
+}
+
+func TestUSMDirectPerfBufferSize(t *testing.T) {
+	t.Run("default value", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		cfg := New()
+		assert.Equal(t, 4194304, cfg.USMDirectPerfBufferSize)
+	})
+
+	t.Run("env override", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_USM_DIRECT_PERF_BUFFER_SIZE", "8388608")
+		cfg := New()
+		assert.Equal(t, 8388608, cfg.USMDirectPerfBufferSize)
+	})
+}
+
+func TestUSMDirectRingBufferSize(t *testing.T) {
+	t.Run("default value", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		cfg := New()
+		assert.Equal(t, 4194304, cfg.USMDirectRingBufferSize)
+	})
+
+	t.Run("env override", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_USM_DIRECT_RING_BUFFER_SIZE", "8388608")
+		cfg := New()
+		assert.Equal(t, 8388608, cfg.USMDirectRingBufferSize)
+	})
+}
+
 // ========================================
 // HTTP Protocol Configuration Tests
 // ========================================
