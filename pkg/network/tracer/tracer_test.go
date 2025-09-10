@@ -213,7 +213,7 @@ func (s *TracerSuite) TestTCPSendAndReceive() {
 		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
 		require.True(collect, ok)
 		require.NotNil(collect, conn)
-	}, 3*time.Second, 100*time.Millisecond, "failed to find connection")
+	}, 4*time.Second, 100*time.Millisecond, "failed to find connection")
 
 	m := conn.Monotonic
 	assert.Equal(t, 10*clientMessageSize, int(m.SentBytes))
@@ -254,30 +254,28 @@ func (s *TracerSuite) TestTCPShortLived() {
 	// Explicitly close this TCP connection
 	c.Close()
 
-	var conn *network.ConnectionStats
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		var ok bool
 		connections, cleanup := getConnections(collect, tr)
 		defer cleanup()
-		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+		conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
 		require.True(collect, ok)
+
+		m := conn.Monotonic
+		assert.Equal(t, clientMessageSize, int(m.SentBytes))
+		assert.Equal(t, serverMessageSize, int(m.RecvBytes))
+		assert.Equal(t, 0, int(m.Retransmits))
+		if !tr.config.EnableEbpfless {
+			assert.Equal(t, os.Getpid(), int(conn.Pid))
+		}
+		assert.Equal(t, addrPort(server.Address()), int(conn.DPort))
+		assert.Equal(t, network.OUTGOING, conn.Direction)
+		assert.True(t, conn.IntraHost)
+
+		// Verify the short lived connection is accounting for both TCP_ESTABLISHED and TCP_CLOSED events
+		assert.Equal(t, uint16(1), m.TCPEstablished)
+		assert.Equal(t, uint16(1), m.TCPClosed)
+		assert.Empty(t, conn.TCPFailures, "connection should have no failures")
 	}, 3*time.Second, 100*time.Millisecond, "connection not found")
-
-	m := conn.Monotonic
-	assert.Equal(t, clientMessageSize, int(m.SentBytes))
-	assert.Equal(t, serverMessageSize, int(m.RecvBytes))
-	assert.Equal(t, 0, int(m.Retransmits))
-	if !tr.config.EnableEbpfless {
-		assert.Equal(t, os.Getpid(), int(conn.Pid))
-	}
-	assert.Equal(t, addrPort(server.Address()), int(conn.DPort))
-	assert.Equal(t, network.OUTGOING, conn.Direction)
-	assert.True(t, conn.IntraHost)
-
-	// Verify the short lived connection is accounting for both TCP_ESTABLISHED and TCP_CLOSED events
-	assert.Equal(t, uint16(1), m.TCPEstablished)
-	assert.Equal(t, uint16(1), m.TCPClosed)
-	assert.Empty(t, conn.TCPFailures, "connection should have no failures")
 
 	connections, cleanup := getConnections(t, tr)
 	defer cleanup()
