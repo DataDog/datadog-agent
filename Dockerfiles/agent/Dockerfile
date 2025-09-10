@@ -147,6 +147,9 @@ COPY datadog*.yaml etc/datadog-agent/
 # Installation information
 COPY install_info etc/datadog-agent/
 
+# shared libraries
+COPY lib/ opt/embedded/lib/
+
 # Extract and cleanup:
 #   - unused systemd unit
 #   - unused installer binary
@@ -248,9 +251,6 @@ VOLUME ["/var/run/s6", "/var/log/datadog"]
 # Ensure the glibc doesn't try to call syscalls that may not be supported
 COPY --from=nosys-seccomp /tmp/nosys.so /opt/lib/nosys.so
 ENV LD_PRELOAD=/opt/lib/nosys.so
-
-# shared libraries
-COPY /lib/ /opt/embedded/lib/
 
 # Single entrypoint
 COPY --chmod=755 entrypoint.sh /bin/entrypoint.sh
