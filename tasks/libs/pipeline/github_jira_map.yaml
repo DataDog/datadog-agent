@@ -25,7 +25,6 @@
 '@datadog/fleet': FA
 '@datadog/agent-all': DEFAULT_JIRA_PROJECT
 '@datadog/ebpf-platform': EBPF
-'@datadog/networks': NPM
 '@datadog/cloud-network-monitoring': CNM
 '@datadog/universal-service-monitoring': USMON
 '@datadog/windows-products': WINA

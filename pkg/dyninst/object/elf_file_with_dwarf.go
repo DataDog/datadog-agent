@@ -115,12 +115,6 @@ func (e *ElfFileWithDwarf) Close() error {
 	return e.decompressingMMappingElfFile.Close()
 }
 
-// PointerSize returns the size of the pointer on the architecture of the object
-// file.
-func (e *ElfFileWithDwarf) PointerSize() uint8 {
-	return uint8(e.Architecture().PointerSize())
-}
-
 type dwarfData struct {
 	debugSections DebugSections
 	reader        loclist.Reader

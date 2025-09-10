@@ -135,7 +135,12 @@ def update_changelog(ctx, release_branch, target="all", upstream="origin"):
             )
 
         create_release_pr(
-            f"Changelog update for {new_version} release", base_branch, update_branch, new_version, changelog_pr=True
+            f"Changelog update for {new_version} release",
+            base_branch,
+            update_branch,
+            new_version,
+            changelog_pr=True,
+            milestone=str(new_version),
         )
 
 
