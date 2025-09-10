@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/intern"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -123,7 +124,7 @@ type RequestStat struct {
 	StaticTags uint64
 
 	// Dynamic tags (if attached)
-	DynamicTags []string
+	DynamicTags common.StringSet
 }
 
 func (r *RequestStat) initSketch() error {
@@ -199,7 +200,7 @@ func (r *RequestStats) CombineWith(newStats *RequestStats) {
 }
 
 // AddRequest takes information about a HTTP transaction and adds it to the request stats
-func (r *RequestStats) AddRequest(statusCode uint16, latency float64, staticTags uint64, dynamicTags []string) {
+func (r *RequestStats) AddRequest(statusCode uint16, latency float64, staticTags uint64, dynamicTags common.StringSet) {
 	if !isValidStatusCode(statusCode) {
 		return
 	}
@@ -212,7 +213,12 @@ func (r *RequestStats) AddRequest(statusCode uint16, latency float64, staticTags
 
 	stats.StaticTags |= staticTags
 	if len(dynamicTags) != 0 {
-		stats.DynamicTags = append(stats.DynamicTags, dynamicTags...)
+		if stats.DynamicTags == nil {
+			stats.DynamicTags = common.NewStringSet()
+		}
+		for tag := range dynamicTags {
+			stats.DynamicTags.Add(tag)
+		}
 	}
 
 	stats.Count++

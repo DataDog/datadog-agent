@@ -93,6 +93,7 @@ func TestProcessCollector(t *testing.T) {
 		"language_detection.enabled":                true,
 		"process_config.process_collection.enabled": true,
 		"process_config.run_in_core_agent.enabled":  true,
+		"process_config.process_collection.use_wlm": false,
 	}
 
 	c := setUpCollectorTest(t, configOverrides)
@@ -257,6 +258,7 @@ func TestProcessCollectorWithoutProcessCheck(t *testing.T) {
 		"language_detection.enabled":                true,
 		"process_config.process_collection.enabled": false,
 		"process_config.run_in_core_agent.enabled":  true,
+		"process_config.process_collection.use_wlm": false,
 	}
 
 	c := setUpCollectorTest(t, configOverrides)

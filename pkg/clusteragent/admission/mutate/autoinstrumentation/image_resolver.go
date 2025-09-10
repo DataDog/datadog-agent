@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -51,6 +52,7 @@ func newNoOpImageResolver() ImageResolver {
 // ResolveImage returns the original image reference.
 func (r *noOpImageResolver) Resolve(registry string, repository string, tag string) (*ResolvedImage, bool) {
 	log.Debugf("Cannot resolve %s/%s:%s without remote config", registry, repository, tag)
+	metrics.ImageResolutionAttempts.Inc(registry, repository, metrics.DigestResolutionDisabled, tag)
 	return nil, false
 }
 
@@ -135,13 +137,15 @@ func (r *remoteConfigImageResolver) Resolve(registry string, repository string, 
 	}
 
 	if len(r.imageMappings) == 0 {
-		// log.Debugf("Cache empty, no resolution available")
+		log.Debugf("Cache empty, no resolution available")
+		metrics.ImageResolutionAttempts.Inc(registry, repository, metrics.DigestResolutionEnabled, tag)
 		return nil, false
 	}
 
 	repoCache, exists := r.imageMappings[repository]
 	if !exists {
 		log.Debugf("No mapping found for repository %s", repository)
+		metrics.ImageResolutionAttempts.Inc(registry, repository, metrics.DigestResolutionEnabled, tag)
 		return nil, false
 	}
 
@@ -150,10 +154,12 @@ func (r *remoteConfigImageResolver) Resolve(registry string, repository string, 
 	resolved, exists := repoCache[normalizedTag]
 	if !exists {
 		log.Debugf("No mapping found for %s:%s", repository, normalizedTag)
-		return nil, false
+		metrics.ImageResolutionAttempts.Inc(registry, repository, metrics.DigestResolutionEnabled, tag)
+    return nil, false
 	}
 
 	log.Debugf("Resolved %s/%s:%s -> %s", registry, repository, tag, resolved.ImageRef)
+	metrics.ImageResolutionAttempts.Inc(registry, repository, metrics.DigestResolutionEnabled, resolved.Digest)
 	return &resolved, true
 }
 

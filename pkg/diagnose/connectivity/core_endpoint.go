@@ -208,7 +208,7 @@ func sendHTTPRequestToEndpoint(ctx context.Context, client *http.Client, domain 
 		"DD-API-KEY":   apiKey,
 	}
 
-	return sendPost(ctx, client, url, endpointInfo.Payload, headers)
+	return sendRequest(ctx, client, url, endpointInfo.Method, endpointInfo.Payload, headers)
 }
 
 // createEndpointUrl joins a domain with an endpoint
