@@ -1052,7 +1052,6 @@ func Test_npCollectorImpl_enrichPathWithRDNS(t *testing.T) {
 	}
 
 	npCollector.enrichPathWithRDNS(&path, "")
-	npCollector.logger.Errorf("path2 %p", &path)
 	// THEN
 	trRun := path.Traceroute.Runs[0]
 	trRun2 := path.Traceroute.Runs[1]
