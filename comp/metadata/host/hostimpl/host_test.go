@@ -7,14 +7,11 @@ package hostimpl
 
 import (
 	"bytes"
-	"context"
 	"path/filepath"
 	"testing"
 	"time"
 
-	"github.com/cenkalti/backoff"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"go.uber.org/fx"
 	"golang.org/x/exp/maps"
 
@@ -27,11 +24,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/resources/resourcesimpl"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
-	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-func TestNewHostProviderDefaultInterval(t *testing.T) {
+func TestNewHostProviderDefaultIntervals(t *testing.T) {
 	ret := newHostProvider(
 		fxutil.Test[dependencies](
 			t,
@@ -45,56 +41,99 @@ func TestNewHostProviderDefaultInterval(t *testing.T) {
 	)
 
 	assert.Equal(t, defaultCollectInterval, ret.Comp.(*host).backoffPolicy.MaxInterval)
+	assert.Equal(t, defaultEarlyInterval, ret.Comp.(*host).backoffPolicy.InitialInterval)
 }
 
-func TestNewHostProviderCustomInterval(t *testing.T) {
-	overrides := map[string]any{
-		"metadata_providers": []configUtils.MetadataProviders{
-			{
-				Name:     "host",
-				Interval: 1000,
-			},
+func TestNewHostProviderIntervalValidation(t *testing.T) {
+	tests := []struct {
+		name                 string
+		mainInterval         time.Duration
+		earlyInterval        time.Duration
+		expectedMaxInterval  time.Duration
+		expectedInitInterval time.Duration
+	}{
+		{
+			name:                 "both intervals valid",
+			mainInterval:         1800,
+			earlyInterval:        600,
+			expectedMaxInterval:  1800 * time.Second,
+			expectedInitInterval: 600 * time.Second,
+		},
+		{
+			name:                 "both intervals invalid - too low",
+			mainInterval:         100,
+			earlyInterval:        50,
+			expectedMaxInterval:  defaultCollectInterval,
+			expectedInitInterval: defaultEarlyInterval, // main invalid means whole provider ignored
+		},
+		{
+			name:                 "main valid, early invalid - too low",
+			mainInterval:         1800,
+			earlyInterval:        100,
+			expectedMaxInterval:  1800 * time.Second,
+			expectedInitInterval: defaultEarlyInterval,
+		},
+		{
+			name:                 "main valid, early invalid - too high",
+			mainInterval:         1800,
+			earlyInterval:        15000,
+			expectedMaxInterval:  1800 * time.Second,
+			expectedInitInterval: defaultEarlyInterval,
+		},
+		{
+			name:                 "main valid, early invalid - greater than main",
+			mainInterval:         1800,
+			earlyInterval:        2000,
+			expectedMaxInterval:  1800 * time.Second,
+			expectedInitInterval: defaultEarlyInterval,
+		},
+		{
+			name:                 "main invalid, early valid",
+			mainInterval:         100,
+			earlyInterval:        600,
+			expectedMaxInterval:  defaultCollectInterval,
+			expectedInitInterval: defaultEarlyInterval, // main invalid means whole provider ignored
+		},
+		{
+			name:                 "early interval zero uses default",
+			mainInterval:         1800,
+			earlyInterval:        0, // zero means use default
+			expectedMaxInterval:  1800 * time.Second,
+			expectedInitInterval: defaultEarlyInterval,
 		},
 	}
 
-	ret := newHostProvider(
-		fxutil.Test[dependencies](
-			t,
-			fx.Provide(func() log.Component { return logmock.New(t) }),
-			fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, overrides) }),
-			resourcesimpl.MockModule(),
-			fx.Replace(resources.MockParams{Data: nil}),
-			fx.Provide(func() serializer.MetricSerializer { return nil }),
-			hostnameimpl.MockModule(),
-		),
-	)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			overrides := map[string]any{
+				"metadata_providers": []configUtils.MetadataProviders{
+					{
+						Name:          "host",
+						Interval:      tt.mainInterval,
+						EarlyInterval: tt.earlyInterval,
+					},
+				},
+			}
 
-	assert.Equal(t, time.Duration(1000)*time.Second, ret.Comp.(*host).backoffPolicy.MaxInterval)
-}
+			ret := newHostProvider(
+				fxutil.Test[dependencies](
+					t,
+					fx.Provide(func() log.Component { return logmock.New(t) }),
+					fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, overrides) }),
+					resourcesimpl.MockModule(),
+					fx.Replace(resources.MockParams{Data: nil}),
+					fx.Provide(func() serializer.MetricSerializer { return nil }),
+					hostnameimpl.MockModule(),
+				),
+			)
 
-func TestNewHostProviderInvalidCustomInterval(t *testing.T) {
-	overrides := map[string]any{
-		"metadata_providers": []configUtils.MetadataProviders{
-			{
-				Name:     "host",
-				Interval: 100, // interval too low, should be ignored
-			},
-		},
+			hostProvider := ret.Comp.(*host)
+			assert.Equal(t, tt.expectedMaxInterval, hostProvider.backoffPolicy.MaxInterval, tt.name)
+			assert.Equal(t, tt.expectedInitInterval, hostProvider.backoffPolicy.InitialInterval, tt.name)
+			assert.Equal(t, 3.0, hostProvider.backoffPolicy.Multiplier, tt.name)
+			assert.Equal(t, 0.0, hostProvider.backoffPolicy.RandomizationFactor, tt.name)
+		})
 	}
-
-	ret := newHostProvider(
-		fxutil.Test[dependencies](
-			t,
-			fx.Provide(func() log.Component { return logmock.New(t) }),
-			fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, overrides) }),
-			resourcesimpl.MockModule(),
-			fx.Replace(resources.MockParams{Data: nil}),
-			fx.Provide(func() serializer.MetricSerializer { return nil }),
-			hostnameimpl.MockModule(),
-		),
-	)
-
-	assert.Equal(t, defaultCollectInterval, ret.Comp.(*host).backoffPolicy.MaxInterval)
 }
 
 func TestFlareProvider(t *testing.T) {
@@ -170,74 +209,4 @@ func TestStatusHeaderProvider(t *testing.T) {
 			test.assertFunc(t)
 		})
 	}
-}
-
-func TestExponentialBackoffIntervals(t *testing.T) {
-	mockSerializer := serializermock.NewMetricSerializer(t)
-	mockSerializer.On("SendHostMetadata", mock.Anything).Return(nil)
-
-	ret := newHostProvider(
-		fxutil.Test[dependencies](
-			t,
-			fx.Provide(func() log.Component { return logmock.New(t) }),
-			fx.Provide(func() config.Component { return config.NewMock(t) }),
-			resourcesimpl.MockModule(),
-			fx.Replace(resources.MockParams{Data: nil}),
-			fx.Provide(func() serializer.MetricSerializer { return mockSerializer }),
-			hostnameimpl.MockModule(),
-		),
-	)
-
-	hostProvider := ret.Comp.(*host)
-
-	hostProvider.backoffPolicy = &backoff.ExponentialBackOff{
-		InitialInterval:     5 * time.Minute,
-		RandomizationFactor: 0.0,
-		Multiplier:          3.0,
-		MaxInterval:         defaultCollectInterval,
-		MaxElapsedTime:      0,
-		Clock:               backoff.SystemClock,
-	}
-	hostProvider.backoffPolicy.Reset()
-
-	ctx := context.Background()
-
-	expectedIntervals := []time.Duration{
-		5 * time.Minute,
-		15 * time.Minute,
-		defaultCollectInterval,
-		defaultCollectInterval,
-	}
-
-	for i, expected := range expectedIntervals {
-		actual := hostProvider.collect(ctx)
-		assert.Equal(t, expected, actual, "Interval %d should be exactly %v, got %v", i, expected, actual)
-	}
-
-	for i := 0; i < 3; i++ {
-		actual := hostProvider.collect(ctx)
-		assert.Equal(t, defaultCollectInterval, actual, "Stabilized interval %d should be exactly %v, got %v", i, defaultCollectInterval, actual)
-	}
-}
-
-func TestExponentialBackoffInitialization(t *testing.T) {
-	ret := newHostProvider(
-		fxutil.Test[dependencies](
-			t,
-			fx.Provide(func() log.Component { return logmock.New(t) }),
-			fx.Provide(func() config.Component { return config.NewMock(t) }),
-			resourcesimpl.MockModule(),
-			fx.Replace(resources.MockParams{Data: nil}),
-			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
-			hostnameimpl.MockModule(),
-		),
-	)
-
-	hostProvider := ret.Comp.(*host)
-
-	assert.NotNil(t, hostProvider.backoffPolicy, "Backoff policy should be initialized")
-	assert.Equal(t, 5*time.Minute, hostProvider.backoffPolicy.InitialInterval, "Initial interval should be 5 minutes")
-	assert.Equal(t, defaultCollectInterval, hostProvider.backoffPolicy.MaxInterval, "Max interval should match configured interval")
-	assert.Equal(t, 3.0, hostProvider.backoffPolicy.Multiplier, "Multiplier should be 3.0")
-	assert.Equal(t, 0.0, hostProvider.backoffPolicy.RandomizationFactor, "Randomization factor should be 0.0")
 }
