@@ -279,14 +279,19 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault(join(smNS, "max_kafka_stats_buffered"), 100000)
 	cfg.BindEnvAndSetDefault(join(smNS, "postgres", "max_stats_buffered"), 100000)
 	cfg.BindEnvAndSetDefault(join(smNS, "postgres", "max_telemetry_buffer"), 160)
-	cfg.BindEnv(join(smNS, "redis", "max_stats_buffered"))
+	cfg.BindEnvAndSetDefault(join(smNS, "redis", "max_stats_buffered"), 100000)
 	cfg.BindEnv(join(smNS, "max_concurrent_requests"))
 	cfg.BindEnv(join(smNS, "enable_quantization"))
 	cfg.BindEnv(join(smNS, "enable_connection_rollup"))
-	cfg.BindEnv(join(smNS, "enable_ring_buffers"))
+	cfg.BindEnvAndSetDefault(join(smNS, "enable_ring_buffers"), true)
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_event_stream"), true)
-	cfg.BindEnv(join(smNS, "kernel_buffer_pages"))
-	cfg.BindEnv(join(smNS, "data_channel_size"))
+	// kernel_buffer_pages determines the number of pages allocated *per CPU*
+	// for buffering kernel data, whether using a perf buffer or a ring buffer.
+	cfg.BindEnvAndSetDefault(join(smNS, "kernel_buffer_pages"), 16)
+	// data_channel_size defines the size of the Go channel that buffers events.
+	// Each event has a fixed size of approximately 4KB (sizeof(batch_data_t)).
+	// By setting this value to 100, the channel will buffer up to ~400KB of data in the Go heap memory.
+	cfg.BindEnvAndSetDefault(join(smNS, "data_channel_size"), 100)
 
 	oldHTTPRules := join(netNS, "http_replace_rules")
 	newHTTPRules := join(smNS, "http_replace_rules")
