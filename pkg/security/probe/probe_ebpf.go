@@ -162,7 +162,7 @@ type EBPFProbe struct {
 	processKiller         *ProcessKiller
 
 	isRuntimeDiscarded bool
-	constantOffsets    map[string]uint64
+	constantOffsets    *constantfetch.ConstantFetcherStatus
 	runtimeCompiled    bool
 	useSyscallWrapper  bool
 	useFentry          bool
@@ -3038,17 +3038,15 @@ func getCGroupWriteConstants() manager.ConstantEditor {
 }
 
 // getOffsetConstants returns the offsets and struct sizes constants
-func (p *EBPFProbe) getOffsetConstants() (map[string]uint64, error) {
-	constantFetcher := constantfetch.ComposeConstantFetchers(constantfetch.GetAvailableConstantFetchers(p.config.Probe, p.kernelVersion))
-	AppendProbeRequestsToFetcher(constantFetcher, p.kernelVersion)
-	return constantFetcher.FinishAndGetResults()
-}
-
-// GetConstantFetcherStatus returns the status of the constant fetcher associated with this probe
-func (p *EBPFProbe) GetConstantFetcherStatus() (*constantfetch.ConstantFetcherStatus, error) {
+func (p *EBPFProbe) getOffsetConstants() (*constantfetch.ConstantFetcherStatus, error) {
 	constantFetcher := constantfetch.ComposeConstantFetchers(constantfetch.GetAvailableConstantFetchers(p.config.Probe, p.kernelVersion))
 	AppendProbeRequestsToFetcher(constantFetcher, p.kernelVersion)
 	return constantFetcher.FinishAndGetStatus()
+}
+
+// GetConstantFetcherStatus returns the status of the constant fetcher associated with this probe
+func (p *EBPFProbe) GetConstantFetcherStatus() *constantfetch.ConstantFetcherStatus {
+	return p.constantOffsets
 }
 
 // AppendProbeRequestsToFetcher returns the offsets and struct sizes constants, from a constant fetcher
