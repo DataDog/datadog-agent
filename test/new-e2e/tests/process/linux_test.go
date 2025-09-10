@@ -351,7 +351,6 @@ func (s *linuxTestSuite) TestProcessChecksWithNPM() {
 }
 
 func (s *linuxTestSuite) TestManualProcessCheck() {
-	flake.Mark(s.T())
 	s.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr))))
 
 	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
@@ -368,7 +367,6 @@ func (s *linuxTestSuite) TestManualProcessDiscoveryCheck() {
 }
 
 func (s *linuxTestSuite) TestManualProcessCheckWithIO() {
-	flake.Mark(s.T())
 	s.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(
 		agentparams.WithAgentConfig(processCheckConfigStr),
 		agentparams.WithSystemProbeConfig(systemProbeConfigStr))))
