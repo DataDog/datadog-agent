@@ -74,6 +74,7 @@ func selfEnrollCommand(globalParams *command.GlobalParams) *cobra.Command {
 	var site string
 	var selfAuth bool
 	var appendToFile string
+	var discoverConnections bool
 
 	cmd := &cobra.Command{
 		Use:   "self-enroll --api-key <api-key>",
@@ -105,7 +106,7 @@ Example:
 				site = "datadoghq.com" // Default site
 			}
 			// Perform self-enrollment
-			return enrollment.ProvisionRunnerIdentityWithAPIKey(apiKey, appKey, site, selfAuth, appendToFile)
+			return enrollment.ProvisionRunnerIdentityWithAPIKey(apiKey, appKey, site, selfAuth, discoverConnections, appendToFile)
 		},
 	}
 
@@ -114,6 +115,7 @@ Example:
 	cmd.Flags().StringVarP(&site, "site", "s", "", "Datadog site (e.g., datadoghq.com, datadoghq.eu, us3.datadoghq.com). Defaults to datadoghq.com")
 	cmd.Flags().BoolVarP(&selfAuth, "self-auth", "", false, "Enable self-authentication mode")
 	cmd.Flags().StringVarP(&appendToFile, "append-to-file", "", "", "File to which the enrollment configuration will be appended")
+	cmd.Flags().BoolVarP(&discoverConnections, "discover-connections", "", false, "Enable auto-discovery of connections")
 	//cmd.MarkFlagRequired("api-key")
 	//cmd.MarkFlagRequired("app-key")
 

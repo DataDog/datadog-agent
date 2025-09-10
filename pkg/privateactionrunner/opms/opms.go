@@ -83,8 +83,16 @@ type EnrollmentRequest struct {
 
 // SelfEnrollmentRequestAttributes represents the attributes section of the self-enrollment request
 type SelfEnrollmentRequestAttributes struct {
-	PublicKey string       `json:"publicKey,omitempty"`
-	Ec2       *Ec2Identity `json:"ec2,omitempty"`
+	PublicKey  string                 `json:"publicKey,omitempty"`
+	Ec2        *Ec2Identity           `json:"ec2,omitempty"`
+	Connection []SelfEnrollConnection `json:"connections,omitempty"`
+}
+
+type SelfEnrollConnection struct {
+	Integration     int      `json:"integration"`
+	CredentialsType int      `json:"credentials_type"`
+	Tags            []string `json:"tags"`
+	ConnectionInfo  []byte   `json:"connection_info"`
 }
 
 // SelfEnrollmentRequestData represents the data section of the self-enrollment request
@@ -492,7 +500,7 @@ func (c *EnrollmentClient) SendEnrollmentJWT(ctx context.Context, jwtBody string
 }
 
 // SendSelfEnrollmentRequest sends a self-enrollment request using API key authentication
-func (c *EnrollmentClient) SendSelfEnrollmentRequest(ctx context.Context, apiKey, appKey, publicKeyJSON string, ec2Identity *Ec2Identity) (*EnrollmentResponse, error) {
+func (c *EnrollmentClient) SendSelfEnrollmentRequest(ctx context.Context, apiKey, appKey, publicKeyJSON string, ec2Identity *Ec2Identity, selfEnrollConnections []SelfEnrollConnection) (*EnrollmentResponse, error) {
 	u := &url.URL{
 		Scheme: "https",
 		Host:   c.host,
@@ -504,8 +512,9 @@ func (c *EnrollmentClient) SendSelfEnrollmentRequest(ctx context.Context, apiKey
 		Data: &SelfEnrollmentRequestData{
 			Type: "SelfEnrollRequest",
 			Attributes: &SelfEnrollmentRequestAttributes{
-				PublicKey: publicKeyJSON,
-				Ec2:       ec2Identity,
+				PublicKey:  publicKeyJSON,
+				Ec2:        ec2Identity,
+				Connection: selfEnrollConnections,
 			},
 		},
 	}

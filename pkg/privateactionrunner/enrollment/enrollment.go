@@ -20,11 +20,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/utils"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/go-jose/go-jose/v4"
 	"github.com/go-jose/go-jose/v4/jwt"
+	"google.golang.org/protobuf/proto"
 	"gopkg.in/yaml.v3"
 )
 
@@ -61,9 +63,9 @@ func ProvisionRunnerIdentityWithToken(enrollmentToken, datadogSite, appendToFile
 }
 
 // ProvisionRunnerIdentityWithAPIKey performs self-enrollment using API key authentication
-func ProvisionRunnerIdentityWithAPIKey(apiKey, appKey, datadogSite string, selfAuth bool, appendToFile string) error {
+func ProvisionRunnerIdentityWithAPIKey(apiKey, appKey, datadogSite string, selfAuth bool, discoverConnections bool, appendToFile string) error {
 	fmt.Println("Starting runner self-enrollment...")
-	return runSelfEnrollmentToConfig(apiKey, appKey, datadogSite, selfAuth, appendToFile)
+	return runSelfEnrollmentToConfig(apiKey, appKey, datadogSite, selfAuth, discoverConnections, appendToFile)
 }
 
 // generateKeys creates a new ECDSA P-256 key pair
@@ -202,7 +204,7 @@ func getEc2Identity() (*opms.Ec2Identity, error) {
 }
 
 // runSelfEnrollmentToConfig performs self-enrollment with API key and outputs configuration to stdout
-func runSelfEnrollmentToConfig(apiKey, appKey, datadogSite string, selfAuth bool, appendToFile string) error {
+func runSelfEnrollmentToConfig(apiKey, appKey, datadogSite string, selfAuth bool, discoverConnections bool, appendToFile string) error {
 	// Get EC2 identity with region and PKCS7
 	var ec2Identity *opms.Ec2Identity
 
@@ -241,7 +243,16 @@ func runSelfEnrollmentToConfig(apiKey, appKey, datadogSite string, selfAuth bool
 	ddHost := strings.Join([]string{"api", datadogSite}, ".")
 	enrollmentClient := opms.NewEnrollmentClient(ddHost)
 	fmt.Println("ec2Identity.Authentication: " + ec2Identity.Authentication)
-	response, err := enrollmentClient.SendSelfEnrollmentRequest(context.Background(), apiKey, appKey, publicKeyPEM, ec2Identity)
+
+	var discoveredConnections []opms.SelfEnrollConnection
+	if discoverConnections {
+		discoveredConnections, err = findDiscoveredConnections()
+		if err != nil {
+			return fmt.Errorf("failed to find discovered connections: %w", err)
+		}
+	}
+
+	response, err := enrollmentClient.SendSelfEnrollmentRequest(context.Background(), apiKey, appKey, publicKeyPEM, ec2Identity, discoveredConnections)
 	if err != nil {
 		return fmt.Errorf("self-enrollment request failed: %w", err)
 	}
@@ -259,6 +270,91 @@ func runSelfEnrollmentToConfig(apiKey, appKey, datadogSite string, selfAuth bool
 	}
 
 	return nil
+}
+
+func findDiscoveredConnections() ([]opms.SelfEnrollConnection, error) {
+	fmt.Println("Discovering connections... (hardcoded for now)")
+	script := privateactions.ConnectionInfo{
+		Tokens: []*privateactions.ConnectionToken{
+			{
+				NameSegments: []string{"root_tokens", "configFileLocation"},
+				TokenValue: &privateactions.ConnectionToken_FileSecret_{
+					FileSecret: &privateactions.ConnectionToken_FileSecret{
+						Path: "/etc/datadog-agent/script.yaml",
+					},
+				},
+			},
+		},
+		CredentialsType: 42,
+	}
+	scriptData, err := proto.Marshal(&script)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal connection info: %w", err)
+	}
+	pg := privateactions.ConnectionInfo{
+		Tokens: []*privateactions.ConnectionToken{
+			{
+				NameSegments: []string{"root_tokens", "host"},
+				TokenValue: &privateactions.ConnectionToken_FileSecret_{
+					FileSecret: &privateactions.ConnectionToken_FileSecret{
+						Path: "/etc/datadog-agent/postgresql.json",
+					},
+				},
+			},
+			{
+				NameSegments: []string{"root_tokens", "port"},
+				TokenValue: &privateactions.ConnectionToken_FileSecret_{
+					FileSecret: &privateactions.ConnectionToken_FileSecret{
+						Path: "/etc/datadog-agent/postgresql.json",
+					},
+				},
+			},
+			{
+				NameSegments: []string{"root_tokens", "user"},
+				TokenValue: &privateactions.ConnectionToken_FileSecret_{
+					FileSecret: &privateactions.ConnectionToken_FileSecret{
+						Path: "/etc/datadog-agent/postgresql.json",
+					},
+				},
+			},
+			{
+				NameSegments: []string{"root_tokens", "database"},
+				TokenValue: &privateactions.ConnectionToken_FileSecret_{
+					FileSecret: &privateactions.ConnectionToken_FileSecret{
+						Path: "/etc/datadog-agent/postgresql.json",
+					},
+				},
+			},
+			{
+				NameSegments: []string{"root_tokens", "ssl_mode"},
+				TokenValue: &privateactions.ConnectionToken_FileSecret_{
+					FileSecret: &privateactions.ConnectionToken_FileSecret{
+						Path: "/etc/datadog-agent/postgresql.json",
+					},
+				},
+			},
+		},
+		CredentialsType: 30,
+	}
+	pgData, err := proto.Marshal(&pg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal connection info: %w", err)
+	}
+
+	return []opms.SelfEnrollConnection{
+		{
+			Integration:     38, //script
+			CredentialsType: 41, // script
+			Tags:            []string{"auto-created:true"},
+			ConnectionInfo:  scriptData,
+		},
+		{
+			Integration:     30, //pg
+			CredentialsType: 31, // pg
+			Tags:            []string{"auto-created:true"},
+			ConnectionInfo:  pgData,
+		},
+	}, nil
 }
 
 func outputConfig(response *opms.EnrollmentResponse, jwk *jose.JSONWebKey, region string, appendToFile string) error {
