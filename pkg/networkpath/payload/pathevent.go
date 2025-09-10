@@ -104,6 +104,9 @@ const (
 
 // NetworkPathHop encapsulates the data for a single
 // hop within a path
+// TODO: DELETE ME
+// TODO: DELETE ME
+// TODO: DELETE ME
 type NetworkPathHop struct {
 	TTL       int    `json:"ttl"`
 	IPAddress string `json:"ip_address"`
