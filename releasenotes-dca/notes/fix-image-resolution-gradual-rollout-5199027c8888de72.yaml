@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Fix a bug where the image resolution for the gradual rollout feature was only resolving the image at start up. The
-    resolution will now happen on every webhook request for the Single Step Instrumentation feature.
