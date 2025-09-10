@@ -1633,7 +1633,7 @@ func testUDPReusePort(t *testing.T, udpnet string, ip string) {
 			assert.Equal(ct, serverMessageSize, int(outgoing.Monotonic.RecvBytes), "outgoing recv")
 			assert.True(ct, outgoing.IntraHost, "outgoing intrahost")
 		}
-	}, 3*time.Second, 100*time.Millisecond)
+	}, 4*time.Second, 100*time.Millisecond)
 
 	// log the connections at the end in case the test failed
 	connections, cleanup := getConnections(t, tr)

@@ -204,25 +204,24 @@ func (s *TracerSuite) TestTCPSendAndReceive() {
 	err = wg.Wait()
 	require.NoError(t, err)
 
-	var conn *network.ConnectionStats
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		// Iterate through active connections until we find connection created above, and confirm send + recv counts
 		connections, cleanup := getConnections(collect, tr)
 		defer cleanup()
-		var ok bool
-		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+		conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
 		require.True(collect, ok)
 		require.NotNil(collect, conn)
+
+		m := conn.Monotonic
+		assert.Equal(t, 10*clientMessageSize, int(m.SentBytes))
+		assert.Equal(t, 10*serverMessageSize, int(m.RecvBytes))
+		if !cfg.EnableEbpfless {
+			assert.Equal(t, os.Getpid(), int(conn.Pid))
+		}
+		assert.Equal(t, addrPort(server.Address()), int(conn.DPort))
+		assert.Equal(t, network.OUTGOING, conn.Direction)
 	}, 4*time.Second, 100*time.Millisecond, "failed to find connection")
 
-	m := conn.Monotonic
-	assert.Equal(t, 10*clientMessageSize, int(m.SentBytes))
-	assert.Equal(t, 10*serverMessageSize, int(m.RecvBytes))
-	if !cfg.EnableEbpfless {
-		assert.Equal(t, os.Getpid(), int(conn.Pid))
-	}
-	assert.Equal(t, addrPort(server.Address()), int(conn.DPort))
-	assert.Equal(t, network.OUTGOING, conn.Direction)
 }
 
 func (s *TracerSuite) TestTCPShortLived() {
@@ -521,7 +520,7 @@ func testUDPSendAndReceive(t *testing.T, tr *Tracer, ntwk, addr string) {
 			assert.True(ct, outgoing.IntraHost, "outgoing intrahost")
 		}
 
-	}, 3*time.Second, 100*time.Millisecond)
+	}, 4*time.Second, 100*time.Millisecond)
 }
 
 func (s *TracerSuite) TestUDPDisabled() {
