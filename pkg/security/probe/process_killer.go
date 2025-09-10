@@ -119,14 +119,6 @@ func (p *ProcessKiller) getRuleStats(ruleID string) *processKillerStats {
 func (p *ProcessKiller) updatePendingReportKillPerformed(now time.Time, killQueue *[]killContext, failedToBeKilled []uint32, nbOfKilled int64) {
 	p.Lock()
 	defer p.Unlock()
-
-	for _, pid := range failedToBeKilled {
-		// First we remove them from the killQueue
-		*killQueue = slices.DeleteFunc(*killQueue, func(kc killContext) bool {
-			return kc.pid == int(pid)
-		})
-	}
-	// Then we update the status
 	for _, report := range p.pendingReports {
 		report.Lock()
 		func() {
