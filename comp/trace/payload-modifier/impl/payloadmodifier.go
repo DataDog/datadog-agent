@@ -12,7 +12,7 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	serverlessenv "github.com/DataDog/datadog-agent/pkg/serverless/env"
 	serverlesstags "github.com/DataDog/datadog-agent/pkg/serverless/tags"
-	serverlesstrace "github.com/DataDog/datadog-agent/pkg/serverless/trace"
+	serverlessmodifier "github.com/DataDog/datadog-agent/pkg/serverless/trace/modifier"
 	pkgagent "github.com/DataDog/datadog-agent/pkg/trace/agent"
 )
 
@@ -40,7 +40,7 @@ func NewComponent(deps Dependencies) Provides {
 	// so we don't need to worry about that here.
 	if serverlessenv.IsAzureAppServicesExtension() {
 		functionTags := serverlesstags.GetFunctionTags(deps.Config)
-		modifier = serverlesstrace.NewTracerPayloadModifier(functionTags)
+		modifier = serverlessmodifier.NewTracerPayloadModifier(functionTags)
 	}
 
 	comp := &component{

@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-package trace
+// Package modifier provides trace payload modification functionality for serverless environments
+package modifier
 
 import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
