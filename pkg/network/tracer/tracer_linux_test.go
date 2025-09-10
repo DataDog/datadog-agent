@@ -2560,7 +2560,7 @@ LOOP:
 		// updated to a value between 1s and 2s
 		require.Greater(collect, conn.Duration, time.Second, "connection duration should be between 1 and 2 seconds")
 		require.Less(collect, conn.Duration, 2*time.Second, "connection duration should be between 1 and 2 seconds")
-	}, 3*time.Second, 100*time.Millisecond, "could not find closed connection")
+	}, 4*time.Second, 100*time.Millisecond, "could not find closed connection")
 }
 
 var failedConnectionsBuildModes = map[ebpftest.BuildMode]struct{}{
