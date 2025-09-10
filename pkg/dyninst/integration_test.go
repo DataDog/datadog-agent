@@ -15,7 +15,6 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"math/rand/v2"
 	"os"
 	"path"
 	"path/filepath"
@@ -45,15 +44,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symbol"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 )
 
 //go:embed testdata/decoded
 var testdataFS embed.FS
-
-const runWithLimitEnvVar = "RUN_WITH_LIMIT_PERCENT"
 
 func TestDyninst(t *testing.T) {
 	dyninsttest.SkipIfKernelNotSupported(t)
@@ -90,19 +86,6 @@ func TestDyninst(t *testing.T) {
 	}
 	rewrite, _ := strconv.ParseBool(os.Getenv("REWRITE"))
 
-	const defaultRunWithLimitPercent = 25
-	var runWithLimitPercent float64
-	if !testing.Short() && !rewrite {
-		runWithLimitPercent = defaultRunWithLimitPercent
-		runWithLimitPercentStr := os.Getenv(runWithLimitEnvVar)
-		if runWithLimitPercentStr != "" {
-			var err error
-			runWithLimitPercent, err = strconv.ParseFloat(runWithLimitPercentStr, 64)
-			require.NoError(t, err)
-			require.GreaterOrEqual(t, runWithLimitPercent, 0.0)
-			require.LessOrEqual(t, runWithLimitPercent, 100.0)
-		}
-	}
 	for _, svc := range programs {
 		if _, ok := integrationTestPrograms[svc]; !ok {
 			t.Logf("%s is not used in integration tests", svc)
@@ -110,7 +93,7 @@ func TestDyninst(t *testing.T) {
 		}
 		t.Run(svc, func(t *testing.T) {
 			runIntegrationTestSuite(
-				t, svc, rewrite, sem, runWithLimitPercent, cfgs...,
+				t, svc, rewrite, sem, cfgs...,
 			)
 		})
 	}
@@ -290,13 +273,13 @@ func testDyninst(
 			Event:       ev,
 			ServiceName: service,
 		}
-		var decodeOut bytes.Buffer
-		probe, err := decoder.Decode(event, cachingSymbolicator, &decodeOut)
+		decodeOut := []byte{}
+		decodeOut, probe, err := decoder.Decode(event, cachingSymbolicator, decodeOut)
 		require.NoError(t, err)
 		if os.Getenv("DEBUG") != "" {
-			t.Logf("Output: %s", decodeOut.String())
+			t.Logf("Output: %s", string(decodeOut))
 		}
-		redacted := redactJSON(t, "", decodeOut.Bytes(), defaultRedactors)
+		redacted := redactJSON(t, "", decodeOut, defaultRedactors)
 		if os.Getenv("DEBUG") != "" {
 			t.Logf("Sorted and redacted: %s", redacted)
 		}
@@ -325,7 +308,6 @@ func runIntegrationTestSuite(
 	service string,
 	rewrite bool,
 	sem dyninsttest.Semaphore,
-	runWithLimitPercent float64,
 	cfgs ...testprogs.Config,
 ) {
 	var outputs = struct {
@@ -387,67 +369,9 @@ func runIntegrationTestSuite(
 						})
 					}
 				})
-				t.Run("with-depth-limit", func(t *testing.T) {
-					if debug {
-						t.Skip("skipping all-probes-limited with debug")
-					}
-					if testing.Short() {
-						t.Skip("skipping all-probes-limited with short")
-					}
-					t.Parallel()
-					probes := testprogs.MustGetProbeDefinitions(t, service)
-					for _, probe := range probes {
-						// If there's already a limit, we don't need to run the
-						// test.
-						depth := probe.GetCaptureConfig().GetMaxReferenceDepth()
-						if depth < math.MaxUint32 {
-							continue
-						}
-						t.Run(probe.GetID(), func(t *testing.T) {
-							if rand.Float64()*100 > runWithLimitPercent {
-								t.Skipf(
-									"randomly skipping probe with limit due to %s %f",
-									runWithLimitEnvVar, runWithLimitPercent,
-								)
-							}
-							t.Parallel()
-							probes := probeConfigsWithMaxReferenceDepth([]ir.ProbeDefinition{probe}, 1)
-							const rewrite = true
-							var exp map[string][]json.RawMessage // no expectation
-							got := testDyninst(
-								t, service, bin, probes, rewrite, exp, debug, sem,
-							)
-							if t.Failed() {
-								return
-							}
-							require.Len(t, got, 1)
-							require.Contains(t, got, probe.GetID())
-						})
-					}
-				})
 			}
 		})
 	}
-}
-
-func probeConfigsWithMaxReferenceDepth(
-	probesCfgs []ir.ProbeDefinition, limit int,
-) []ir.ProbeDefinition {
-	for _, cfg := range probesCfgs {
-		switch cfg := cfg.(type) {
-		case *rcjson.LogProbe:
-			if cfg.Capture == nil {
-				cfg.Capture = new(rcjson.Capture)
-			}
-			cfg.Capture.MaxReferenceDepth = limit
-		case *rcjson.SnapshotProbe:
-			if cfg.Capture == nil {
-				cfg.Capture = new(rcjson.Capture)
-			}
-			cfg.Capture.MaxReferenceDepth = limit
-		}
-	}
-	return probesCfgs
 }
 
 // validateAndSaveOutputs ensures that the outputs for the same probe are consistent
