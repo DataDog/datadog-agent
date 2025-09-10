@@ -29,7 +29,7 @@ func (d *dispatcher) getState(scrub bool) (types.StateResponse, error) {
 
 	danglingConf := makeConfigArrayFromDangling(d.store.danglingConfigs)
 	if scrub {
-		scrubbedConf := make([]integration.Config, len(danglingConf))
+		scrubbedConf := make([]integration.Config, 0, len(danglingConf))
 		for _, config := range danglingConf {
 			scrubbedConf = append(scrubbedConf, integration.ScrubCheckConfig(config, log.Default()))
 		}
@@ -44,7 +44,7 @@ func (d *dispatcher) getState(scrub bool) (types.StateResponse, error) {
 	for _, node := range d.store.nodes {
 		configs := makeConfigArray(node.digestToConfig)
 		if scrub {
-			scrubbedConf := make([]integration.Config, len(configs))
+			scrubbedConf := make([]integration.Config, 0, len(configs))
 			for _, config := range configs {
 				scrubbedConf = append(scrubbedConf, integration.ScrubCheckConfig(config, log.Default()))
 			}
