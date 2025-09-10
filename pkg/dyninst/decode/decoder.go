@@ -217,9 +217,13 @@ func (s *snapshotMessage) init(
 			return probe, fmt.Errorf("error getting data items: %w", err)
 		}
 		if rootType == nil {
-			s.rootData = item.Data()
-			rootTypeID := ir.TypeID(item.Header().Type)
 			var ok bool
+			s.rootData, ok = item.Data()
+			if !ok {
+				// This should never happen.
+				return probe, errors.New("root data item marked as a failed read")
+			}
+			rootTypeID := ir.TypeID(item.Type())
 			rootType, ok = decoder.program.Types[rootTypeID].(*ir.EventRootType)
 			if !ok {
 				return nil, errors.New("expected event of type root first")
@@ -239,7 +243,7 @@ func (s *snapshotMessage) init(
 		// If the counter is greater than 1, we know that the data item is a pointer to another data item.
 		// We can then encode the pointer as a string and not as an object.
 		decoder.dataItems[typeAndAddr{
-			irType: uint32(item.Header().Type),
+			irType: uint32(item.Type()),
 			addr:   item.Header().Address,
 		}] = item
 	}

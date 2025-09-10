@@ -496,8 +496,9 @@ Package: main
 		Arg: x: string (declared at line 46, available: [46-46])
 	Function: testEmptyString (main.testEmptyString) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/strings.go [50:50]
 		Arg: x: string (declared at line 50, available: [50-50])
-	Function: executeStringFuncs (main.executeStringFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/strings.go [53:64]
-		Var: uninitializedString: string (declared at line 61, available: )
+	Function: executeStringFuncs (main.executeStringFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/strings.go [53:66]
+		Var: abc: string (declared at line 54, available: )
+		Var: uninitializedString: string (declared at line 62, available: )
 	Function: testStructWithUnsupportedFields (main.testStructWithUnsupportedFields) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [20:20]
 		Arg: a: main.hasUnsupportedFields (declared at line 20, available: [20-20])
 	Function: testStructWithArray (main.testStructWithArray) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [32:32]

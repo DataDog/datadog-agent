@@ -58,6 +58,7 @@ func TestDyninst(t *testing.T) {
 	var integrationTestPrograms = map[string]struct{}{
 		"simple": {},
 		"sample": {},
+		"fault":  {},
 	}
 
 	sem := dyninsttest.MakeSemaphore()
