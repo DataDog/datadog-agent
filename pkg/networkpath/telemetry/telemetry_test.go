@@ -36,7 +36,7 @@ func TestSubmitNetworkPathTelemetry(t *testing.T) {
 			name: "with interval",
 			path: payload.NetworkPath{
 				Origin:      payload.PathOriginNetworkPathIntegration,
-				Destination: payload.NetworkPathDestination{Hostname: "abc", IPAddress: "10.0.0.1"},
+				Destination: payload.NetworkPathDestination{Hostname: "abc"},
 				Protocol:    payload.ProtocolUDP,
 			},
 			checkDuration: 10 * time.Second,
@@ -67,7 +67,7 @@ func TestSubmitNetworkPathTelemetry(t *testing.T) {
 			name: "without interval",
 			path: payload.NetworkPath{
 				Origin:      payload.PathOriginNetworkPathIntegration,
-				Destination: payload.NetworkPathDestination{Hostname: "abc", IPAddress: "10.0.0.1"},
+				Destination: payload.NetworkPathDestination{Hostname: "abc"},
 				Protocol:    payload.ProtocolUDP,
 			},
 			checkDuration: 10 * time.Second,

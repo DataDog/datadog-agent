@@ -108,13 +108,8 @@ const (
 // TODO: DELETE ME
 // TODO: DELETE ME
 type NetworkPathHop struct {
-	TTL       int    `json:"ttl"`
-	IPAddress string `json:"ip_address"`
-
-	// hostname is the reverse DNS of the ip_address
-	// TODO (separate PR): we might want to rename it to reverse_dns_hostname for consistency with destination.reverse_dns_hostname
-	Hostname string `json:"hostname,omitempty"`
-
+	TTL       int     `json:"ttl"`
+	IPAddress string  `json:"ip_address"`
 	RTT       float64 `json:"rtt,omitempty"` // ms
 	Reachable bool    `json:"reachable"`
 }
@@ -137,10 +132,6 @@ type NetworkPathDestination struct {
 	Hostname string `json:"hostname"`
 	Port     uint16 `json:"port"`
 	Service  string `json:"service,omitempty"`
-
-	// TODO: DEPRECATED: should be part of traceroute.run
-	IPAddress          string `json:"ip_address,omitempty"`           // DEPRECATED: should be part of traceroute.run
-	ReverseDNSHostname string `json:"reverse_dns_hostname,omitempty"` // DEPRECATED: should be part of traceroute.run
 }
 
 // E2eProbe contains e2e probe results
@@ -217,13 +208,7 @@ type NetworkPath struct {
 	Protocol     Protocol               `json:"protocol"`
 	Source       NetworkPathSource      `json:"source"`
 	Destination  NetworkPathDestination `json:"destination"`
-
-	// TODO: Remove legacy hops
-	// TODO: Remove legacy hops
-	// TODO: Remove legacy hops
-	Hops []NetworkPathHop `json:"hops,omitempty"`
-
-	Traceroute Traceroute `json:"traceroute"`
-	E2eProbe   E2eProbe   `json:"e2e_probe"`
-	Tags       []string   `json:"tags,omitempty"`
+	Traceroute   Traceroute             `json:"traceroute"`
+	E2eProbe     E2eProbe               `json:"e2e_probe"`
+	Tags         []string               `json:"tags,omitempty"`
 }
