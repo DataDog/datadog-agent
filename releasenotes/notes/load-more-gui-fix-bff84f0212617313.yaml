@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Fixed the "Load more" button in the Agent GUI log page which was failing to load additional log lines after the initial load.
+    Fixed the "Load more" button in the Agent GUI log page, which was failing to load additional log lines after the initial load.
