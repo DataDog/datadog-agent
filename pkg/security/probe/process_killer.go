@@ -116,32 +116,33 @@ func (p *ProcessKiller) getRuleStats(ruleID string) *processKillerStats {
 	return stats
 }
 
+func updateKillActionReport(now time.Time, killQueue *[]killContext, report *KillActionReport, failedToBeKilled []uint32, nbOfKilled int64) {
+	report.Lock()
+	defer report.Unlock()
+	if report.Status == KillActionStatusQueued {
+		if slices.Contains(failedToBeKilled, report.Pid) {
+			if nbOfKilled > 0 {
+				report.Status = KillActionStatusPartiallyPerformed
+				report.KilledAt = now
+				return
+			}
+			report.Status = KillActionStatusError
+			return
+
+		} else if slices.ContainsFunc(*killQueue, func(kc killContext) bool {
+			return kc.pid == int(report.Pid)
+		}) {
+			report.Status = KillActionStatusPerformed
+			report.KilledAt = now
+			return
+		}
+	}
+}
 func (p *ProcessKiller) updatePendingReportKillPerformed(now time.Time, killQueue *[]killContext, failedToBeKilled []uint32, nbOfKilled int64) {
 	p.Lock()
 	defer p.Unlock()
 	for _, report := range p.pendingReports {
-		report.Lock()
-		func() {
-			defer report.Unlock()
-			if report.Status == KillActionStatusQueued {
-				if slices.Contains(failedToBeKilled, report.Pid) {
-					if nbOfKilled > 0 {
-						report.Status = KillActionStatusPartiallyPerformed
-						report.KilledAt = now
-						return
-					}
-					report.Status = KillActionStatusError
-					return
-
-				} else if slices.ContainsFunc(*killQueue, func(kc killContext) bool {
-					return kc.pid == int(report.Pid)
-				}) {
-					report.Status = KillActionStatusPerformed
-					report.KilledAt = now
-					return
-				}
-			}
-		}()
+		updateKillActionReport(now, killQueue, report, failedToBeKilled, nbOfKilled)
 	}
 }
 
