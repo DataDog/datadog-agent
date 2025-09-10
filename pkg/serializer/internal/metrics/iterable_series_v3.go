@@ -67,7 +67,7 @@ const (
 	numberOfColumns
 )
 
-var columnNames []string = []string{
+var columnNames = []string{
 	"reserved",
 	"DictNameStr",
 	"DictTagsStr",
