@@ -182,14 +182,24 @@ func unmarshalKeyReflection(cfg model.Reader, key string, target interface{}, op
 		}
 	}
 
-	settingval, err := buildTreeFromConfigSettings(cfg, key)
-	if err != nil {
-		return err
-	}
+	var inputNode nodetreemodel.Node
+	if nodeConfig, ok := cfg.(nodetreemodel.NodeTreeConfig); ok {
+		node, err := nodeConfig.GetNode(key)
+		if err != nil {
+			return err
+		}
+		inputNode = node
+	} else {
+		settingval, err := buildTreeFromConfigSettings(cfg, key)
+		if err != nil {
+			return err
+		}
 
-	input, err := nodetreemodel.NewNodeTree(settingval, cfg.GetSource(key))
-	if err != nil {
-		return err
+		node, err := nodetreemodel.NewNodeTree(settingval, cfg.GetSource(key))
+		if err != nil {
+			return err
+		}
+		inputNode = node
 	}
 
 	outValue := reflect.ValueOf(target)
@@ -208,23 +218,23 @@ func unmarshalKeyReflection(cfg model.Reader, key string, target interface{}, op
 	rootPath := []string{}
 	switch outValue.Kind() {
 	case reflect.Map:
-		return copyMap(outValue, input, rootPath, fs)
+		return copyMap(outValue, inputNode, rootPath, fs)
 	case reflect.Struct:
-		return copyStruct(outValue, input, rootPath, fs)
+		return copyStruct(outValue, inputNode, rootPath, fs)
 	case reflect.Slice:
-		if leaf, ok := input.(nodetreemodel.LeafNode); ok {
+		if leaf, ok := inputNode.(nodetreemodel.LeafNode); ok {
 			thing := leaf.Get()
 			if arr, ok := thing.([]interface{}); ok {
 				return copyList(outValue, makeNodeArray(arr), rootPath, fs)
 			}
 		}
-		if isEmptyString(input) {
+		if isEmptyString(inputNode) {
 			if fs.convertEmptyStrNil {
 				return nil
 			}
 			return fmt.Errorf("treating empty string as a nil slice not allowed for UnmarshalKey without ConvertEmptyStrNil option")
 		}
-		return fmt.Errorf("can not UnmarshalKey to a slice from a non-list input: %T", input)
+		return fmt.Errorf("can not UnmarshalKey to a slice from a non-list input: %T", inputNode)
 	default:
 		return fmt.Errorf("can only UnmarshalKey to struct, map, or slice, got %v", outValue.Kind())
 	}
