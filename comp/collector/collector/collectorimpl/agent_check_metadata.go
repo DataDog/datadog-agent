@@ -139,9 +139,10 @@ func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
 				log.Errorf("invalid instance section: %s", err)
 				continue
 			}
-			log.Debugf("JMXStatus InstanceConfig %v", instanceconfig)
 			if tagsNode, ok := instanceconfig["tags"]; ok {
-				instanceConfByName[instanceconfig["name"].(string)] = tagsNode
+				if instanceName, ok := instanceconfig["name"].(string); ok {
+					instanceConfByName[instanceName] = tagsNode
+				}
 			}
 		}
 	}
@@ -245,35 +246,34 @@ func collectTags(config string) ([]string, error) {
 	}
 
 	dec := yaml.NewDecoder(strings.NewReader(config))
-	for {
-		var doc yaml.Node
-		if err := dec.Decode(&doc); err != nil {
-			if err == io.EOF {
-				break
+	var doc yaml.Node
+	if err := dec.Decode(&doc); err != nil {
+		if err == io.EOF {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if len(doc.Content) == 0 {
+		return nil, nil
+	}
+	root := doc.Content[0]
+	if root.Kind != yaml.MappingNode {
+		return nil, nil
+	}
+
+	for i := 0; i+1 < len(root.Content); i += 2 {
+		k := root.Content[i]
+		v := root.Content[i+1]
+		if k.Kind == yaml.ScalarNode && k.Value == "tags" {
+			group := extractTags(v)
+			if len(group) == 0 {
+				return nil, nil
 			}
-			return nil, err
-		}
-		if len(doc.Content) == 0 {
-			continue
-		}
-		root := doc.Content[0]
-		if root.Kind != yaml.MappingNode {
-			continue
-		}
-		for i := 0; i+1 < len(root.Content); i += 2 {
-			k := root.Content[i]
-			v := root.Content[i+1]
-			if k.Kind == yaml.ScalarNode && k.Value == "tags" {
-				group := extractTags(v)
-				if len(group) == 0 {
-					return nil, nil
-				}
-				out := make([]string, 0, len(group))
-				for _, kv := range group {
-					out = append(out, fmt.Sprintf("%s%s", kv.k, kv.v))
-				}
-				return out, nil
+			out := make([]string, 0, len(group))
+			for _, kv := range group {
+				out = append(out, fmt.Sprintf("%s%s", kv.k, kv.v))
 			}
+			return out, nil
 		}
 	}
 	return nil, nil
