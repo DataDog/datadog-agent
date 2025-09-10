@@ -99,6 +99,20 @@ tags: "foo:bar"
 `,
 			want: []string{"foo:bar"},
 		},
+		{
+			name:   "empty",
+			config: ``,
+			want:   nil,
+		},
+		{
+			name: "below root",
+			config: `
+max_returned_metrics: 50000
+level: 
+  tags: "foo:bar"
+`,
+			want: nil,
+		},
 	}
 
 	for _, test := range tests {
