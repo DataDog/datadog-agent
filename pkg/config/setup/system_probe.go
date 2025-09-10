@@ -285,7 +285,9 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnv(join(smNS, "enable_connection_rollup"))
 	cfg.BindEnv(join(smNS, "enable_ring_buffers"))
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_event_stream"), true)
-	cfg.BindEnv(join(smNS, "kernel_buffer_pages"))
+	// kernel_buffer_pages determines the number of pages allocated *per CPU*
+	// for buffering kernel data, whether using a perf buffer or a ring buffer.
+	cfg.BindEnvAndSetDefault(join(smNS, "kernel_buffer_pages"), 16)
 	cfg.BindEnv(join(smNS, "data_channel_size"))
 
 	oldHTTPRules := join(netNS, "http_replace_rules")

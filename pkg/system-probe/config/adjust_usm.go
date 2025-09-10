@@ -71,10 +71,6 @@ func adjustUSM(cfg model.Config) {
 	applyDefault(cfg, spNS("process_service_inference", "use_windows_service_name"), true)
 	applyDefault(cfg, smNS("enable_ring_buffers"), true)
 
-	// kernel_buffer_pages determines the number of pages allocated *per CPU*
-	// for buffering kernel data, whether using a perf buffer or a ring buffer.
-	applyDefault(cfg, smNS("kernel_buffer_pages"), 16)
-
 	// data_channel_size defines the size of the Go channel that buffers events.
 	// Each event has a fixed size of approximately 4KB (sizeof(batch_data_t)).
 	// By setting this value to 100, the channel will buffer up to ~400KB of data in the Go heap memory.
