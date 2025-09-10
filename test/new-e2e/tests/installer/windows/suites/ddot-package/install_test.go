@@ -67,4 +67,5 @@ func (s *testDDOTInstallSuite) installAgentWithMSI() {
 
 func (s *testDDOTInstallSuite) uninstallAgentIfPresent() {
 	_ = windowsAgent.UninstallAgent(s.Env().RemoteHost, filepath.Join(s.SessionOutputDir(), "uninstall-agent-msi.log"))
+	s.Installer().Purge()
 }
