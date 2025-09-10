@@ -244,8 +244,7 @@ func TestMoveMountRecursiveNoPropagation(t *testing.T) {
 	defer te.UnmountAll()
 
 	if err != nil {
-		fmt.Println("Error creating new test environment", err)
-		t.Fail()
+		t.Fatal("Error creating new test environment", err)
 	}
 
 	test, err := newTestModule(t, nil, nil)
