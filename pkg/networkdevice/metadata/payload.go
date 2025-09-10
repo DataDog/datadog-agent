@@ -36,19 +36,25 @@ const (
 
 // NetworkDevicesMetadata contains network devices metadata
 type NetworkDevicesMetadata struct {
-	Subnet           string                   `json:"subnet,omitempty"`
-	Namespace        string                   `json:"namespace"`
-	Integration      integrations.Integration `json:"integration"`
-	Devices          []DeviceMetadata         `json:"devices,omitempty"`
-	Interfaces       []InterfaceMetadata      `json:"interfaces,omitempty"`
-	IPAddresses      []IPAddressMetadata      `json:"ip_addresses,omitempty"`
-	Links            []TopologyLinkMetadata   `json:"links,omitempty"`
-	VPNTunnels       []VPNTunnelMetadata      `json:"vpn_tunnels,omitempty"`
-	NetflowExporters []NetflowExporter        `json:"netflow_exporters,omitempty"`
-	Diagnoses        []DiagnosisMetadata      `json:"diagnoses,omitempty"`
-	DeviceOIDs       []DeviceOID              `json:"device_oids,omitempty"`
-	DeviceScanStatus *ScanStatusMetadata      `json:"scan_status,omitempty"`
-	CollectTimestamp int64                    `json:"collect_timestamp"`
+	Subnet            string                   `json:"subnet,omitempty"`
+	Namespace         string                   `json:"namespace"`
+	Integration       integrations.Integration `json:"integration"`
+	CollectorMetadata *CollectorMetadata       `json:"collector_metadata,omitempty"`
+	Devices           []DeviceMetadata         `json:"devices,omitempty"`
+	Interfaces        []InterfaceMetadata      `json:"interfaces,omitempty"`
+	IPAddresses       []IPAddressMetadata      `json:"ip_addresses,omitempty"`
+	Links             []TopologyLinkMetadata   `json:"links,omitempty"`
+	VPNTunnels        []VPNTunnelMetadata      `json:"vpn_tunnels,omitempty"`
+	NetflowExporters  []NetflowExporter        `json:"netflow_exporters,omitempty"`
+	Diagnoses         []DiagnosisMetadata      `json:"diagnoses,omitempty"`
+	DeviceOIDs        []DeviceOID              `json:"device_oids,omitempty"`
+	DeviceScanStatus  *ScanStatusMetadata      `json:"scan_status,omitempty"`
+	CollectTimestamp  int64                    `json:"collect_timestamp"`
+}
+
+type CollectorMetadata struct {
+	AgentVersion  string `json:"agent_version"`
+	AgentHostname string `json:"agent_hostname"`
 }
 
 // DeviceMetadata contains device metadata
