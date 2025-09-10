@@ -461,7 +461,7 @@ func (s *npCollectorImpl) enrichPathWithRDNS(path *payload.NetworkPath, knownDes
 	}
 
 	// collect unique IP addresses from destination and hops
-	ipSet := make(map[string]struct{}) // +1 for destination
+	ipSet := make(map[string]struct{})
 
 	for _, run := range path.Traceroute.Runs {
 		// only look up the destination hostname if we need to
