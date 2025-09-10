@@ -326,7 +326,6 @@ func (r *EBPFResolvers) snapshot() error {
 		return createA < createB
 	})
 
-	r.SnapshotUsingListmount = false
 	if r.SnapshotUsingListmount {
 		err = r.MountResolver.SyncCacheFromListMount()
 		if err != nil {
@@ -349,7 +348,6 @@ func (r *EBPFResolvers) snapshot() error {
 
 		// Start with the mount resolver because the process resolver might need it to resolve paths
 		if !r.SnapshotUsingListmount {
-			fmt.Println("Snapshotting")
 			if err = r.MountResolver.SyncCache(pid); err != nil {
 				if !os.IsNotExist(err) {
 					log.Debugf("snapshot failed for %d: couldn't sync mount points: %s", proc.Pid, err)

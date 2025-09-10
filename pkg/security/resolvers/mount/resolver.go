@@ -165,8 +165,8 @@ func newMountFromStatmount(sm *Statmount) *model.Mount {
 		MountIDUnique: sm.MntID,
 		Device:        utils.Mkdev(sm.SbDevMajor, sm.SbDevMinor),
 		ParentPathKey: model.PathKey{
-			MountID:       sm.MntParentIDOld,
-			UniqueMountID: sm.MntParentID,
+			MountID: sm.MntParentIDOld,
+			//UniqueMountID: sm.MntParentID,
 		},
 		FSType:        sm.FsType,
 		MountPointStr: sm.MntPoint,
