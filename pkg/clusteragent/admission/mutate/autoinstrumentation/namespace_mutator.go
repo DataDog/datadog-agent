@@ -202,7 +202,7 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 			containerMutators:     containerMutators,
 			initContainerMutators: initContainerMutators,
 			podMutators:           []podMutator{configInjector.podMutator(lib.lang)},
-		}).mutatePod(pod); err != nil {
+		}, m.imageResolver).mutatePod(pod); err != nil {
 			metrics.LibInjectionErrors.Inc(langStr, strconv.FormatBool(autoDetected), injectionType)
 			lastError = err
 			continue
@@ -308,12 +308,11 @@ func (m *mutatorCore) newInitContainerMutators(
 func (m *mutatorCore) newInjector(pod *corev1.Pod, startTime time.Time, lopts libRequirementOptions) *injector {
 	opts := []injectorOption{
 		injectorWithLibRequirementOptions(lopts),
-		injectorWithImageResolver(m.imageResolver), // FIX: Ordering is non-trivial
-		injectorWithImageTag(m.config.Instrumentation.InjectorImageTag),
+		injectorWithImageTag(m.config.Instrumentation.InjectorImageTag, m.imageResolver),
 	}
 
 	for _, e := range []annotationExtractor[injectorOption]{
-		injectorVersionAnnotationExtractor,
+		injectorVersionAnnotationExtractorFunc(m.imageResolver),
 		injectorImageAnnotationExtractor,
 		injectorDebugAnnotationExtractor,
 	} {
