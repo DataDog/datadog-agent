@@ -107,3 +107,11 @@ func (m *diagnosticsManager) reportError(
 		Message: e.Error(),
 	})
 }
+
+func (m *diagnosticsManager) remove(runtimeID string) {
+	id := any(runtimeID) // only box the string once
+	m.received.byRuntimeID.Delete(id)
+	m.installed.byRuntimeID.Delete(id)
+	m.emitted.byRuntimeID.Delete(id)
+	m.errors.byRuntimeID.Delete(id)
+}

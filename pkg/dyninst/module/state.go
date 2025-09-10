@@ -41,7 +41,7 @@ func newProcessStore() *processStore {
 	}
 }
 
-func (ps *processStore) remove(removals []procmon.ProcessID) {
+func (ps *processStore) remove(removals []procmon.ProcessID, dm *diagnosticsManager) {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
 	for _, pid := range removals {
@@ -52,6 +52,7 @@ func (ps *processStore) remove(removals []procmon.ProcessID) {
 				}
 			}
 			delete(ps.processes, pid)
+			dm.remove(state.procRuntimeID.runtimeID)
 		}
 	}
 }
