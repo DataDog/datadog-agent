@@ -21,6 +21,18 @@ install_systemd_unit() {
   port=$3
   extraenv=$4
 
+  # Build environment variables section
+  env_section="Environment=\"PORT=${port}\"\nEnvironment=\"NODE_VERSION=20\""
+
+  # Split extraenv and add each variable as a separate Environment line
+  if [[ -n "${extraenv}" ]]; then
+    while IFS= read -r -d ' ' env_var; do
+      if [[ -n "${env_var}" ]]; then
+        env_section="${env_section}\nEnvironment=\"${env_var}\""
+      fi
+    done <<< "${extraenv} "
+  fi
+
   cat > "/etc/systemd/system/${name}.service" <<- EOM
 [Unit]
 Description=${name}
@@ -33,9 +45,7 @@ Restart=always
 RestartSec=1
 User=root
 ExecStart=${command}
-Environment="PORT=${port}"
-Environment="NODE_VERSION=20"
-Environment="${extraenv}"
+$(echo -e "${env_section}")
 ${workdir}
 
 [Install]
