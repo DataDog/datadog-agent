@@ -93,8 +93,8 @@ require (
 
 require (
 	github.com/moby/term v0.5.2 // indirect
-	github.com/onsi/ginkgo/v2 v2.22.0 // indirect
-	github.com/onsi/gomega v1.36.1 // indirect
+	github.com/onsi/ginkgo/v2 v2.23.3 // indirect
+	github.com/onsi/gomega v1.36.3 // indirect
 	github.com/tidwall/gjson v1.18.0 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
 	go.opentelemetry.io/collector/config/configmiddleware v1.41.0 // indirect

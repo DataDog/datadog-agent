@@ -221,6 +221,8 @@ require (
 	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f // indirect
 	github.com/oklog/ulid v1.3.1 // indirect
 	github.com/oklog/ulid/v2 v2.1.1 // indirect
+	github.com/onsi/ginkgo/v2 v2.23.3 // indirect
+	github.com/onsi/gomega v1.36.3 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer v0.135.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/aws/ecsutil v0.135.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/common v0.135.0 // indirect
@@ -430,6 +432,3 @@ replace github.com/mattn/go-ieproxy => github.com/mattn/go-ieproxy v0.0.1
 replace github.com/openshift/api => github.com/openshift/api v0.0.0-20230726162818-81f778f3b3ec
 
 replace github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def => ../def
-
-// Pin github.com/stretchr/testify to v1.10.0 while waiting for https://github.com/DataDog/datadog-agent/pull/40182
-replace github.com/stretchr/testify => github.com/stretchr/testify v1.10.0
