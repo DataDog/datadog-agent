@@ -204,18 +204,14 @@ func fieldNameToKey(field reflect.StructField) (string, specifierSet) {
 		tagtext = val
 	}
 
-	// skip any additional specifiers such as ",omitempty" or ",squash"
-	// TODO: support multiple specifiers
-	var specifiers map[string]struct{}
-	if commaPos := strings.IndexRune(tagtext, ','); commaPos != -1 {
-		specifiers = make(map[string]struct{})
-		val := tagtext[:commaPos]
-		specifiers[tagtext[commaPos+1:]] = struct{}{}
-		if val != "" {
+	// extract specifier tags such as ",omitempty" or ",squash"
+	specifiers := make(map[string]struct{})
+	for i, val := range strings.Split(tagtext, ",") {
+		if i == 0 && val != "" {
 			name = val
+			continue
 		}
-	} else if tagtext != "" {
-		name = tagtext
+		specifiers[val] = struct{}{}
 	}
 	return strings.ToLower(name), specifiers
 }
