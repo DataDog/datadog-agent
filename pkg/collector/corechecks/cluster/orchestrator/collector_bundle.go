@@ -32,6 +32,10 @@ const (
 	defaultExtraSyncTimeout = 60 * time.Second
 	defaultMaximumCRDs      = 100
 	datadogAPIGroup         = "datadoghq.com"
+	ArgoAPIGroup            = "argoproj.io"
+	KarpenterAPIGroup       = "karpenter.sh"
+	KarpenterAWSAPIGroup    = "karpenter.k8s.aws"
+	KarpenterAzureAPIGroup  = "karpenter.azure.com"
 )
 
 var (
@@ -417,8 +421,8 @@ func (cb *CollectorBundle) GetTerminatedResourceBundle() *TerminatedResourceBund
 
 // importBuiltinCollectors imports the builtin collectors into the bundle.
 func (cb *CollectorBundle) importBuiltinCollectors() {
-	// add datadog CR collectors
-	builtinCollectors := cb.getDatadogCustomResourceCollectors()
+	// add builtin CR collectors
+	builtinCollectors := cb.getBuiltinCustomResourceCollectors()
 
 	// add terminated pod collector
 	terminatedPodCollector := cb.getTerminatedPodCollector()
@@ -434,42 +438,96 @@ func (cb *CollectorBundle) importBuiltinCollectors() {
 		}
 
 		cb.activatedCollectors[collector.Metadata().FullName()] = struct{}{}
+		log.Debugf("import builtin collector: %s", collector.Metadata().FullName())
 		cb.collectors = append(cb.collectors, collector)
 	}
 }
 
-// getDatadogCustomResourceCollectors returns a list of collectors for the Datadog custom resources
-func (cb *CollectorBundle) getDatadogCustomResourceCollectors() []collectors.K8sCollector {
-	if !cb.check.orchestratorConfig.CollectDatadogCustomResources {
-		return []collectors.K8sCollector{}
-	}
+// builtinCRDConfig represents the configuration for a built-in custom resource definition.
+type builtinCRDConfig struct {
+	group   string
+	version string
+	kind    string
+	enabled bool
+}
 
+// newBuiltinCRDConfigs returns the configuration for all built-in CRDs.
+func newBuiltinCRDConfigs() []builtinCRDConfig {
+	isDatadogCRDEnabled := pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.custom_resources.datadog.enabled")
+	isThirdPartyCRDEnabled := pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.custom_resources.third_party.enabled")
+
+	return []builtinCRDConfig{
+		{
+			group:   datadogAPIGroup,
+			enabled: isDatadogCRDEnabled,
+		},
+		{
+			group:   ArgoAPIGroup,
+			version: "v1alpha1",
+			kind:    "rollouts",
+			enabled: isThirdPartyCRDEnabled,
+		},
+		{
+			group:   KarpenterAPIGroup,
+			version: "v1",
+			enabled: isThirdPartyCRDEnabled,
+		},
+		{
+			group:   KarpenterAWSAPIGroup,
+			version: "v1",
+			enabled: isThirdPartyCRDEnabled,
+		},
+		{
+			group:   KarpenterAzureAPIGroup,
+			version: "v1beta1",
+			enabled: isThirdPartyCRDEnabled,
+		},
+	}
+}
+
+// getBuiltinCustomResourceCollectors returns the list of builtin custom resource collectors.
+func (cb *CollectorBundle) getBuiltinCustomResourceCollectors() []collectors.K8sCollector {
 	// Check if the CRD collector is present, if not, return an empty list
 	// This is to ensure that we only collect CRs if the CRD collector is present
-	hasCRDCollector := false
-	for _, collector := range cb.collectors {
-		if collector.Metadata().Name == utilTypes.CrdName {
-			hasCRDCollector = true
-			break
-		}
-	}
-	if !hasCRDCollector {
+	if !cb.hasCRDCollector() {
 		return []collectors.K8sCollector{}
 	}
 
-	crs := cb.collectorDiscovery.List(datadogAPIGroup)
+	crCollectors := make([]collectors.K8sCollector, 0, 10)
+	for _, builtinCustomResource := range newBuiltinCRDConfigs() {
+		crCollectors = append(crCollectors, cb.collectorsForBuiltinCRD(builtinCustomResource)...)
+	}
+	return crCollectors
+}
 
-	crCollectors := make([]collectors.K8sCollector, 0, len(crs))
+// collectorsForBuiltinCRD returns the list of collectors for a built-in CRD.
+func (cb *CollectorBundle) collectorsForBuiltinCRD(builtinCustomResource builtinCRDConfig) []collectors.K8sCollector {
+	if !builtinCustomResource.enabled {
+		return nil
+	}
+
+	crCollectors := make([]collectors.K8sCollector, 0, 10)
+	crs := cb.collectorDiscovery.List(builtinCustomResource.group, builtinCustomResource.version, builtinCustomResource.kind)
 	for _, c := range crs {
-		collector, err := cb.collectorDiscovery.VerifyForCRDInventory(c.Name, c.Version)
+		collector, err := cb.collectorDiscovery.VerifyForCRDInventory(c.Kind, c.GroupVersion)
 		if err != nil {
-			_ = cb.check.Warnf("Unsupported collector: %s/%s: %s", c.Version, c.Name, err)
+			_ = cb.check.Warnf("Unsupported collector: %s/%s: %s", c.GroupVersion, c.Kind, err)
 			continue
 		}
 
 		crCollectors = append(crCollectors, collector)
 	}
 	return crCollectors
+}
+
+// hasCRDCollector returns true if the CRD collector is present.
+func (cb *CollectorBundle) hasCRDCollector() bool {
+	for _, collector := range cb.collectors {
+		if collector.Metadata().Name == utilTypes.CrdName {
+			return true
+		}
+	}
+	return false
 }
 
 // getTerminatedPodCollector returns the terminated pod collector if the unassigned pod collector is present and the terminated pod collector is stable.

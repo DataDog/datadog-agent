@@ -35,16 +35,11 @@ build do
   env = with_embedded_path(env)
 
   if linux_target?
-    command "invoke installer.build --no-cgo --run-path=/opt/datadog-packages/run --install-path=#{install_dir}", env: env
+    command "invoke installer.build --no-cgo --run-path=/opt/datadog-packages/run --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     mkdir "#{install_dir}/bin"
     copy 'bin/installer', "#{install_dir}/bin/"
   elsif windows_target?
-    command "dda inv -- -e installer.build --install-path=#{install_dir}", env: env
+    command "dda inv -- -e installer.build --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     copy 'bin/installer/installer.exe', "#{install_dir}/datadog-installer.exe"
   end
-
-  # Remove empty/unneeded folders
-  delete "#{install_dir}/embedded/bin"
-  delete "#{install_dir}/embedded/lib"
-  delete "#{install_dir}/embedded/"
 end

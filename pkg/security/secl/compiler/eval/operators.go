@@ -33,6 +33,19 @@ func isArithmDeterministic(a Evaluator, b Evaluator, state *State) bool {
 	return isDc
 }
 
+// Unary evaluator
+func Unary(a *BoolEvaluator, state *State) (*BoolEvaluator, error) {
+	if a.Field != "" {
+		if err := state.UpdateFieldValues(a.Field, FieldValue{Value: true, Type: ScalarValueType}); err != nil {
+			return nil, err
+		}
+	}
+
+	a.isDeterministic = a.IsDeterministicFor(state.field)
+
+	return a, nil
+}
+
 // Or operator
 func Or(a *BoolEvaluator, b *BoolEvaluator, state *State) (*BoolEvaluator, error) {
 	isDc := a.IsDeterministicFor(state.field) || b.IsDeterministicFor(state.field)

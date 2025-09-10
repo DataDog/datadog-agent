@@ -137,6 +137,9 @@ interface_configs:
     match_value: "eth0"
     in_speed: 25
     out_speed: 10
+  - match_field: "index"
+    match_value: "2"
+    disabled: true
 `),
 			result: MyInterfaceConfigs{
 				SomeInterfaceConfigs: InterfaceConfigs{
@@ -146,13 +149,18 @@ interface_configs:
 						InSpeed:    25,
 						OutSpeed:   10,
 					},
+					{
+						MatchField: "index",
+						MatchValue: "2",
+						Disabled:   true,
+					},
 				},
 			},
 		},
 		{
 			name: "interface config as json string",
 			data: []byte(`
-interface_configs: '[{"match_field":"name","match_value":"eth0","in_speed":25,"out_speed":10}]'
+interface_configs: '[{"match_field":"name","match_value":"eth0","in_speed":25,"out_speed":10},{"match_field":"index","match_value":"2","disabled":true}]'
 `),
 			result: MyInterfaceConfigs{
 				SomeInterfaceConfigs: InterfaceConfigs{
@@ -161,6 +169,11 @@ interface_configs: '[{"match_field":"name","match_value":"eth0","in_speed":25,"o
 						MatchValue: "eth0",
 						InSpeed:    25,
 						OutSpeed:   10,
+					},
+					{
+						MatchField: "index",
+						MatchValue: "2",
+						Disabled:   true,
 					},
 				},
 			},

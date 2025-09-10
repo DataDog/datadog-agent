@@ -11,5 +11,6 @@ new-e2e-agent-platform-install-script-macos-x64:
     - !reference [.manual]
   variables:
     TARGETS: ./tests/agent-platform/macos
+    SHOULD_RUN_IN_FLAKES_FINDER: "false"
 
 

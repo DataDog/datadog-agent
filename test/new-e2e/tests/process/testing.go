@@ -382,13 +382,7 @@ func assertManualContainerCheck(t require.TestingT, check string, expectedContai
 
 // assertManualProcessDiscoveryCheck asserts that the given process is collected and reported in
 // the output of the manual process_discovery check
-func assertManualProcessDiscoveryCheck(t *testing.T, check string, process string) {
-	defer func() {
-		if t.Failed() {
-			t.Logf("Check output:\n%s\n", check)
-		}
-	}()
-
+func assertManualProcessDiscoveryCheck(t require.TestingT, check string, process string) {
 	var checkOutput struct {
 		ProcessDiscoveries []*agentmodel.ProcessDiscovery `json:"processDiscoveries"`
 	}

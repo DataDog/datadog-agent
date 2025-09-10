@@ -8,6 +8,7 @@ package discovery
 import (
 	_ "embed"
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -46,6 +47,7 @@ type linuxTestSuite struct {
 var services = []string{
 	"python-svc",
 	"python-instrumented",
+	"python-restricted",
 	"node-json-server",
 	"node-instrumented",
 	"rails-svc",
@@ -68,80 +70,6 @@ func (s *linuxTestSuite) SetupSuite() {
 	defer s.CleanupOnSetupFailure()
 
 	s.provisionServer()
-}
-
-func (s *linuxTestSuite) TestServiceDiscoveryCheck() {
-	t := s.T()
-	s.startServices()
-	defer s.stopServices()
-
-	client := s.Env().FakeIntake.Client()
-	err := client.FlushServerAndResetAggregators()
-	require.NoError(t, err)
-
-	assert.EventuallyWithT(t, func(t *assert.CollectT) {
-		assertRunningCheck(t, s.Env().RemoteHost, "service_discovery")
-	}, 2*time.Minute, 10*time.Second)
-
-	// This is very useful for debugging, but we probably don't want to decode
-	// and assert based on this in this E2E test since this is an internal
-	// interface between the agent and system-probe.
-	services := s.Env().RemoteHost.MustExecute("sudo curl -s --unix /opt/datadog-agent/run/sysprobe.sock http://unix/discovery/debug")
-	t.Log("system-probe services", services)
-
-	assert.EventuallyWithT(t, func(c *assert.CollectT) {
-		payloads, err := client.GetServiceDiscoveries()
-		require.NoError(t, err)
-
-		foundMap := make(map[string]*aggregator.ServiceDiscoveryPayload)
-		for _, p := range payloads {
-			name := p.Payload.GeneratedServiceName
-			t.Log("RequestType", p.RequestType, "GeneratedServiceName", name)
-
-			if p.RequestType == "start-service" {
-				foundMap[name] = p
-			}
-		}
-
-		s.assertService(t, c, foundMap, serviceExpectedPayload{
-			systemdServiceName:   "node-json-server",
-			instrumentation:      "none",
-			generatedServiceName: "json-server",
-			ddService:            "",
-			serviceNameSource:    "",
-		})
-		s.assertService(t, c, foundMap, serviceExpectedPayload{
-			systemdServiceName:   "node-instrumented",
-			instrumentation:      "provided",
-			generatedServiceName: "node-instrumented",
-			ddService:            "",
-			serviceNameSource:    "",
-		})
-		s.assertService(t, c, foundMap, serviceExpectedPayload{
-			systemdServiceName:   "python-svc",
-			instrumentation:      "none",
-			generatedServiceName: "python.server",
-			ddService:            "python-svc-dd",
-			serviceNameSource:    "provided",
-		})
-		s.assertService(t, c, foundMap, serviceExpectedPayload{
-			systemdServiceName:   "python-instrumented",
-			instrumentation:      "provided",
-			generatedServiceName: "python.instrumented",
-			tracerServiceNames:   []string{"python-instrumented-dd"},
-			ddService:            "python-instrumented-dd",
-			serviceNameSource:    "provided",
-		})
-		s.assertService(t, c, foundMap, serviceExpectedPayload{
-			systemdServiceName:   "rails-svc",
-			instrumentation:      "none",
-			generatedServiceName: "rails_hello",
-			ddService:            "",
-			serviceNameSource:    "",
-		})
-
-		assert.Contains(c, foundMap, "json-server")
-	}, 3*time.Minute, 10*time.Second)
 }
 
 func (s *linuxTestSuite) TestProcessCheckWithServiceDiscovery() {
@@ -181,6 +109,33 @@ func (s *linuxTestSuite) testLogs(t *testing.T) {
 
 		assert.True(c, foundStartupLog, "Should find startup log message")
 		assert.True(c, foundRequestLog, "Should find request log message")
+	}, 2*time.Minute, 10*time.Second)
+
+	// Verify discovery check reports permission warnings for restricted log
+	// files.  There is no fake intake for the check status and the check status
+	// is also sent out once every 10 minutes, so check the agent status
+	// instead, which should be good enough.
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		warnings, err := getDiscoveryCheckWarnings(t, s.Env().RemoteHost)
+		assert.NoError(c, err, "failed to get discovery check warnings from agent status")
+
+		foundPermissionWarning := false
+
+		for _, warning := range warnings {
+			t.Logf("Discovery warning: type=%s, error_code=%s, resource=%s, message=%s",
+				warning.Type, warning.ErrorCode, warning.Resource, warning.Message)
+
+			if warning.Type == "log_file" &&
+				warning.ErrorCode == "permission-denied" &&
+				strings.HasPrefix(warning.Resource, "/tmp/python-restricted") &&
+				warning.ErrorString != "" &&
+				warning.Message != "" {
+				foundPermissionWarning = true
+				break
+			}
+		}
+
+		assert.True(c, foundPermissionWarning, "Should find permission warning for restricted log file")
 	}, 2*time.Minute, 10*time.Second)
 }
 
@@ -344,32 +299,65 @@ func (s *linuxTestSuite) testProcessCheckWithServiceDiscovery(agentConfigStr str
 }
 
 type checkStatus struct {
-	CheckID           string `json:"CheckID"`
-	CheckName         string `json:"CheckName"`
-	CheckConfigSource string `json:"CheckConfigSource"`
-	ExecutionTimes    []int  `json:"ExecutionTimes"`
+	CheckID           string   `json:"CheckID"`
+	CheckName         string   `json:"CheckName"`
+	CheckConfigSource string   `json:"CheckConfigSource"`
+	ExecutionTimes    []int    `json:"ExecutionTimes"`
+	LastWarnings      []string `json:"LastWarnings"`
 }
 
-type runnerStats struct {
-	Checks map[string]checkStatus `json:"Checks"`
-}
+type (
+	checkName    = string
+	instanceName = string
+	runnerStats  struct {
+		Checks map[checkName]map[instanceName]checkStatus `json:"Checks"`
+	}
+)
 
 type collectorStatus struct {
 	RunnerStats runnerStats `json:"runnerStats"`
 }
 
-func assertCollectorStatusFromJSON(t *assert.CollectT, statusOutput, check string) {
-	var status collectorStatus
-	err := json.Unmarshal([]byte(statusOutput), &status)
-	require.NoError(t, err, "failed to unmarshal agent status")
-
-	assert.Contains(t, status.RunnerStats.Checks, check)
+// Warning represents a structured warning from discovery check
+type Warning struct {
+	Type        string `json:"type"`
+	Version     int    `json:"version"`
+	Resource    string `json:"resource"`
+	ErrorCode   string `json:"error_code"`
+	ErrorString string `json:"error_string"`
+	Message     string `json:"message"`
 }
 
-// assertRunningCheck asserts that the given agent check is running
-func assertRunningCheck(t *assert.CollectT, remoteHost *components.RemoteHost, check string) {
+// getDiscoveryCheckWarnings parses discovery check warnings from agent status
+func getDiscoveryCheckWarnings(t *testing.T, remoteHost *components.RemoteHost) ([]Warning, error) {
 	statusOutput := remoteHost.MustExecute("sudo datadog-agent status collector --json")
-	assertCollectorStatusFromJSON(t, statusOutput, check)
+	var status collectorStatus
+	err := json.Unmarshal([]byte(statusOutput), &status)
+	if err != nil {
+		return nil, err
+	}
+
+	instances, exists := status.RunnerStats.Checks["discovery"]
+	if !exists {
+		return []Warning{}, nil
+	}
+
+	discoveryCheck, exists := instances["discovery"]
+	if !exists {
+		return []Warning{}, nil
+	}
+
+	t.Logf("Discovery check warnings: %+v", discoveryCheck.LastWarnings)
+
+	var warnings []Warning
+	for _, warningStr := range discoveryCheck.LastWarnings {
+		var warning Warning
+		if err := json.Unmarshal([]byte(warningStr), &warning); err == nil {
+			warnings = append(warnings, warning)
+		}
+	}
+
+	return warnings, nil
 }
 
 // assertNotRunningCheck asserts that the given agent check is not running
@@ -492,44 +480,5 @@ func (s *linuxTestSuite) stopServices() {
 	for i := len(services) - 1; i >= 0; i-- {
 		service := services[i]
 		s.Env().RemoteHost.MustExecute("sudo systemctl stop " + service)
-	}
-}
-
-type serviceExpectedPayload struct {
-	systemdServiceName   string
-	instrumentation      string
-	generatedServiceName string
-	ddService            string
-	serviceNameSource    string
-	tracerServiceNames   []string
-}
-
-func (s *linuxTestSuite) assertService(t *testing.T, c *assert.CollectT, foundMap map[string]*aggregator.ServiceDiscoveryPayload, expected serviceExpectedPayload) {
-	t.Helper()
-
-	name := expected.generatedServiceName
-	found := foundMap[name]
-	if assert.NotNil(c, found, "could not find service %q", name) {
-		assert.Equal(c, expected.instrumentation, found.Payload.APMInstrumentation, "service %q: APM instrumentation", name)
-		assert.Equal(c, expected.generatedServiceName, found.Payload.GeneratedServiceName, "service %q: generated service name", name)
-		assert.Equal(c, expected.ddService, found.Payload.DDService, "service %q: DD service", name)
-		assert.Equal(c, expected.serviceNameSource, found.Payload.ServiceNameSource, "service %q: service name source", name)
-		assert.NotZero(c, found.Payload.RSSMemory, "service %q: expected non-zero memory usage", name)
-		if len(expected.tracerServiceNames) > 0 {
-			var foundServiceNames []string
-			var foundRuntimeIDs []string
-			for _, tm := range found.Payload.TracerMetadata {
-				foundServiceNames = append(foundServiceNames, tm.ServiceName)
-				foundRuntimeIDs = append(foundRuntimeIDs, tm.RuntimeID)
-			}
-			assert.Equal(c, expected.tracerServiceNames, foundServiceNames, "service %q: tracer service names", name)
-			assert.Len(c, foundRuntimeIDs, len(expected.tracerServiceNames), "service %q: tracer runtime ids", name)
-		}
-	} else {
-		status := s.Env().RemoteHost.MustExecute("sudo systemctl status " + expected.systemdServiceName)
-		logs := s.Env().RemoteHost.MustExecute("sudo journalctl -u " + expected.systemdServiceName)
-
-		t.Logf("Service %q status:\n:%s", expected.systemdServiceName, status)
-		t.Logf("Service %q logs:\n:%s", expected.systemdServiceName, logs)
 	}
 }

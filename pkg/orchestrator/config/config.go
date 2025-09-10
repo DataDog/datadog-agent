@@ -47,7 +47,6 @@ type OrchestratorConfig struct {
 	IsManifestCollectionEnabled    bool
 	BufferedManifestEnabled        bool
 	ManifestBufferFlushInterval    time.Duration
-	CollectDatadogCustomResources  bool
 }
 
 // NewDefaultOrchestratorConfig returns an NewDefaultOrchestratorConfig using a configuration file. It can be nil
@@ -125,7 +124,6 @@ func (oc *OrchestratorConfig) Load() error {
 	oc.IsManifestCollectionEnabled = pkgconfigsetup.Datadog().GetBool(OrchestratorNSKey("manifest_collection.enabled"))
 	oc.BufferedManifestEnabled = pkgconfigsetup.Datadog().GetBool(OrchestratorNSKey("manifest_collection.buffer_manifest"))
 	oc.ManifestBufferFlushInterval = pkgconfigsetup.Datadog().GetDuration(OrchestratorNSKey("manifest_collection.buffer_flush_interval"))
-	oc.CollectDatadogCustomResources = pkgconfigsetup.Datadog().GetBool(OrchestratorNSKey("custom_resources.datadog.enabled"))
 	return nil
 }
 

@@ -877,6 +877,7 @@ profiles:
         "snmp_device:1.2.3.4"
       ],
       "tags": [
+        "agent_host:my-hostname",
         "agent_version:%s",
         "autodiscovery_subnet:127.0.0.0/30",
 		"device_id:default:1.2.3.4",
@@ -1312,6 +1313,7 @@ metrics:
 }
 
 func TestReportDeviceMetadataEvenOnProfileError(t *testing.T) {
+	setupHostname(t)
 	mockConfig := configmock.New(t)
 	testDir := t.TempDir()
 	mockConfig.SetWithoutSource("run_path", testDir)
@@ -1547,6 +1549,7 @@ tags:
         "snmp_device:1.2.3.4"
       ],
       "tags": [
+        "agent_host:my-hostname",
         "agent_version:%s",
         "autodiscovery_subnet:127.0.0.0/30",
 		"device_id:default:1.2.3.4",
@@ -1697,6 +1700,7 @@ tags:
         "snmp_device:1.2.3.5"
       ],
       "tags": [
+        "agent_host:my-hostname",
         "agent_version:%s",
         "autodiscovery_subnet:127.0.0.0/30",
 		"device_id:default:1.2.3.5",
@@ -2015,6 +2019,7 @@ metric_tags:
         "snmp_device:%s"
       ],
       "tags": [
+        "agent_host:my-hostname",
         "agent_version:%s",
         "autodiscovery_subnet:10.10.0.0/30",
 		"device_id:%s",

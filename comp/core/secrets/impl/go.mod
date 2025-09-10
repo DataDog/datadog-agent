@@ -5,12 +5,12 @@ go 1.24.0
 require (
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.68.3
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.68.3
-	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/comp/core/secrets/utils v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.71.0-rc.1
+	github.com/DataDog/datadog-agent/comp/core/secrets/utils v0.70.0
 	github.com/DataDog/datadog-agent/comp/core/status v0.68.3
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.68.3
 	github.com/DataDog/datadog-agent/pkg/template v0.68.3
-	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.70.0
 	github.com/DataDog/datadog-agent/pkg/util/log v0.68.3
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.68.3
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.68.3
@@ -53,7 +53,7 @@ require (
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/text v0.28.0 // indirect
 	golang.org/x/time v0.12.0 // indirect
-	google.golang.org/protobuf v1.36.7 // indirect
+	google.golang.org/protobuf v1.36.8 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 

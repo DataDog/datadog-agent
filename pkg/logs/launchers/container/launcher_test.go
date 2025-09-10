@@ -5,6 +5,7 @@
 
 //go:build kubelet || docker
 
+// Package container provides container-based log launchers
 package container
 
 import (

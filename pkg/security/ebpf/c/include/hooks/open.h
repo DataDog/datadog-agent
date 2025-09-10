@@ -221,6 +221,8 @@ int __attribute__((always_inline)) _sys_open_ret(void *ctx, struct syscall_cache
 
     // increase mount ref
     inc_mount_ref(syscall->open.file.path_key.mount_id);
+
+    // check if the syscall was discarded
     if (syscall->state == DISCARDED) {
         return 0;
     }

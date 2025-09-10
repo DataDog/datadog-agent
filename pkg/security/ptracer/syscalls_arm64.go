@@ -66,6 +66,7 @@ const (
 	SetsockoptNr     = unix.SYS_SETSOCKOPT        // SetsockoptNr defines the syscall ID for arm64
 	SetrlimitNr      = unix.SYS_SETRLIMIT         // SetrlimitNr defines the syscall ID for arm64
 	Prlimit64Nr      = unix.SYS_PRLIMIT64         // Prlimit64Nr defines the syscall ID for arm64
+	PrctlNr          = unix.SYS_PRCTL             // PrctlNr defines the syscall ID for arm64
 
 	OpenNr      = -1  // OpenNr not available on arm64
 	ForkNr      = -2  // ForkNr not available on arm64

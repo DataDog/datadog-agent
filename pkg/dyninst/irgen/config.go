@@ -9,21 +9,18 @@ package irgen
 
 import "github.com/DataDog/datadog-agent/pkg/dyninst/object"
 
-// ObjectLoader is an interface that abstracts the loading of object files.
-type ObjectLoader interface {
-	Load(path string) (object.FileWithDwarf, error)
-}
-
 type config struct {
 	maxDynamicTypeSize uint32
 	maxHashBucketsSize uint32
-	objectLoader       ObjectLoader
+	objectLoader       object.Loader
+	typeIndexFactory   goTypeIndexFactory
 }
 
 var defaultConfig = config{
 	maxDynamicTypeSize: defaultMaxDynamicTypeSize,
 	maxHashBucketsSize: defaultMaxHashBucketsSize,
 	objectLoader:       object.NewInMemoryLoader(),
+	typeIndexFactory:   &inMemoryGoTypeIndexFactory{},
 }
 
 // This is an arbitrary limit for how much data will be captured for
@@ -57,8 +54,15 @@ func WithMaxDynamicDataSize(size int) Option {
 }
 
 // WithObjectLoader sets the object loader to use for loading object files.
-func WithObjectLoader(loader ObjectLoader) Option {
+func WithObjectLoader(loader object.Loader) Option {
 	return optionFunc(func(c *config) { c.objectLoader = loader })
+}
+
+// WithOnDiskGoTypeIndexFactory make irgen store the go type indexes on disk.
+func WithOnDiskGoTypeIndexFactory(diskCache *object.DiskCache) Option {
+	return optionFunc(func(c *config) {
+		c.typeIndexFactory = &onDiskGoTypeIndexFactory{diskCache: diskCache}
+	})
 }
 
 type optionFunc func(c *config)

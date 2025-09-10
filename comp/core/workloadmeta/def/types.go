@@ -7,6 +7,7 @@ package workloadmeta
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
@@ -17,6 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
@@ -48,6 +50,7 @@ const (
 	KindContainerImageMetadata Kind = "container_image_metadata"
 	KindProcess                Kind = "process"
 	KindGPU                    Kind = "gpu"
+	KindKubelet                Kind = "kubelet"
 )
 
 // Source is the source name of an entity.
@@ -197,6 +200,15 @@ const (
 	Success SBOMStatus = "Success"
 	// Failed is the status when the scan failed
 	Failed SBOMStatus = "Failed"
+)
+
+const (
+	// KubeletID is a constant ID used to build workloadmeta kubelet entitites
+	// Because there can only be one kubelet per node, this does not need to be
+	// unique
+	KubeletID = "kubelet-id"
+	// KubeletName is used to name the workloadmeta kubelet entity
+	KubeletName = "kubelet"
 )
 
 // Entity represents a single unit of work being done that is of interest to
@@ -436,6 +448,10 @@ type ContainerResources struct {
 	CPULimit      *float64
 	MemoryRequest *uint64 // Bytes
 	MemoryLimit   *uint64
+
+	// The container is requesting to use entire core(s)
+	// e.g. 1000m or 1 -- NOT 1500m or 1.5
+	RequestedWholeCores *bool
 }
 
 // String returns a string representation of ContainerPort.
@@ -1122,6 +1138,75 @@ func (m *KubernetesMetadata) String(verbose bool) string {
 
 var _ Entity = &KubernetesMetadata{}
 
+// KubeletConfigSpec is the kubelet configuration, only the
+// necessary fields are stored
+type KubeletConfigSpec struct {
+	CPUManagerPolicy string `json:"cpuManagerPolicy"`
+}
+
+// KubeletConfigDocument is the wrapper struct that holds
+// the kubelet config
+type KubeletConfigDocument struct {
+	KubeletConfig KubeletConfigSpec `json:"kubeletconfig"`
+}
+
+// String implements KubeletConfig#String
+func (kc KubeletConfigDocument) String() string {
+	out, err := json.MarshalIndent(kc, "", "  ")
+	if err != nil {
+		return fmt.Sprintf("error: %v", err)
+	}
+	return string(out)
+}
+
+// Kubelet is an Entity representing the kubelet, right now it only holds
+// the kubelet configuration
+type Kubelet struct {
+	EntityID
+	EntityMeta
+	ConfigDocument KubeletConfigDocument
+}
+
+// GetID implements Entity#GetID
+func (ku *Kubelet) GetID() EntityID {
+	return ku.EntityID
+}
+
+// Merge implements Entity#Merge
+func (ku *Kubelet) Merge(e Entity) error {
+	k, ok := e.(*Kubelet)
+	if !ok {
+		return fmt.Errorf("cannot merge Kubelet with different kind %T", e)
+	}
+
+	return merge(k, ku)
+}
+
+// DeepCopy implements Entity#DeepCopy.
+func (ku Kubelet) DeepCopy() Entity {
+	cd := deepcopy.Copy(ku).(Kubelet)
+	return &cd
+}
+
+// String implements Entity#String.
+func (ku *Kubelet) String(verbose bool) string {
+	var sb strings.Builder
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprintln(&sb, ku.EntityID.String(verbose))
+
+	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
+	_, _ = fmt.Fprint(&sb, ku.EntityMeta.String(verbose))
+
+	if verbose {
+		_, _ = fmt.Fprintln(&sb, "----------- Configuration -----------")
+		_, _ = fmt.Fprintln(&sb, ku.ConfigDocument.String())
+	}
+
+	return sb.String()
+}
+
+var _ Entity = &Kubelet{}
+
 // KubernetesDeployment is an Entity representing a Kubernetes Deployment.
 type KubernetesDeployment struct {
 	EntityID
@@ -1468,8 +1553,17 @@ type Service struct {
 	// TracerMetadata contains APM tracer metadata
 	TracerMetadata []tracermetadata.TracerMetadata
 
-	// DDService is the value from DD_SERVICE environment variable
+	// DDService is a service name currently based on either the DD_SERVICE
+	// environment variable, the DD_TAGS environment variable, or other
+	// parsing of framework-specific tracer configuration of service names, such
+	// as Java tracer properties on the command line.
+	//
+	// The UST.Service field on the other hand contains the raw value of the
+	// DD_SERVICE environment variable.
 	DDService string
+
+	// UST contains Unified Service Tagging environment variables
+	UST UST
 
 	// TCPPorts is the list of TCP ports the service is listening on
 	TCPPorts []uint16
@@ -1482,6 +1576,24 @@ type Service struct {
 
 	// Type is the service type (e.g., "web_service")
 	Type string
+}
+
+// UST contains Unified Service Tagging environment variables
+type UST struct {
+	Service string
+	Env     string
+	Version string
+}
+
+// String returns a string representation of UST
+func (u UST) String() string {
+	var sb strings.Builder
+
+	_, _ = fmt.Fprintln(&sb, "Service:", u.Service)
+	_, _ = fmt.Fprintln(&sb, "Env:", u.Env)
+	_, _ = fmt.Fprintln(&sb, "Version:", u.Version)
+
+	return sb.String()
 }
 
 // Process is an Entity that represents a process
@@ -1543,13 +1655,25 @@ func (p Process) String(verbose bool) string {
 
 	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
 	_, _ = fmt.Fprintln(&sb, "PID:", p.EntityID.ID)
+	_, _ = fmt.Fprintln(&sb, "Name:", p.Name)
+	_, _ = fmt.Fprintln(&sb, "Exe:", p.Exe)
+	_, _ = fmt.Fprintln(&sb, "Cmdline:", sliceToString(p.Cmdline))
 	_, _ = fmt.Fprintln(&sb, "Namespace PID:", p.NsPid)
 	_, _ = fmt.Fprintln(&sb, "Container ID:", p.ContainerID)
 	_, _ = fmt.Fprintln(&sb, "Creation time:", p.CreationTime)
 	if p.Language != nil {
 		_, _ = fmt.Fprintln(&sb, "Language:", p.Language.Name)
 	}
+
+	if verbose {
+		_, _ = fmt.Fprintln(&sb, "Comm:", p.Comm)
+		_, _ = fmt.Fprintln(&sb, "Cwd:", p.Cwd)
+		_, _ = fmt.Fprintln(&sb, "Uids:", p.Uids)
+		_, _ = fmt.Fprintln(&sb, "Gids:", p.Gids)
+	}
+
 	if p.Service != nil {
+		_, _ = fmt.Fprintln(&sb, "----------- Service Discovery -----------")
 		_, _ = fmt.Fprintln(&sb, "Service Generated Name:", p.Service.GeneratedName)
 		if verbose {
 			_, _ = fmt.Fprintln(&sb, "Service Generated Name Source:", p.Service.GeneratedNameSource)
@@ -1560,6 +1684,11 @@ func (p Process) String(verbose bool) string {
 			_, _ = fmt.Fprintln(&sb, "Service UDP Ports:", p.Service.UDPPorts)
 			_, _ = fmt.Fprintln(&sb, "Service APM Instrumentation:", p.Service.APMInstrumentation)
 			_, _ = fmt.Fprintln(&sb, "Service Type:", p.Service.Type)
+
+			if p.Service.UST != (UST{}) {
+				_, _ = fmt.Fprintln(&sb, "---- Unified Service Tagging ----")
+				_, _ = fmt.Fprint(&sb, p.Service.UST)
+			}
 
 			if len(p.Service.LogFiles) > 0 {
 				_, _ = fmt.Fprintln(&sb, "----------- Log Files -----------")

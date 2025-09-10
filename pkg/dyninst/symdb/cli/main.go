@@ -17,6 +17,7 @@ import (
 	"runtime/trace"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb/symdbutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -97,12 +98,12 @@ func run(binaryPath string) error {
 	}
 	if !*stream {
 		var err error
-		symbols, err = symdb.ExtractSymbols(binaryPath, opt)
+		symbols, err = symdb.ExtractSymbols(binaryPath, object.NewInMemoryLoader(), opt)
 		if err != nil {
 			return err
 		}
 	} else {
-		it, err := symdb.PackagesIterator(binaryPath, opt)
+		it, err := symdb.PackagesIterator(binaryPath, object.NewInMemoryLoader(), opt)
 		if err != nil {
 			return err
 		}

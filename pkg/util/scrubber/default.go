@@ -151,9 +151,9 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	)
 	tokenReplacer.LastUpdated = defaultVersion
 
-	secretReplacer := matchYAMLKeyPart(
-		`secret`,
-		[]string{"secret"},
+	secretReplacer := matchYAMLKey(
+		`(token_secret|consumer_secret)`,
+		[]string{"token_secret", "consumer_secret"},
 		[]byte(`$1 "********"`),
 	)
 	secretReplacer.LastUpdated = parseVersion("7.70.0") // https://github.com/DataDog/datadog-agent/pull/40345

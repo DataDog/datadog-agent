@@ -47,6 +47,7 @@ func (_ *Model) GetEventTypes() []eval.EventType {
 		eval.EventType("ondemand"),
 		eval.EventType("open"),
 		eval.EventType("packet"),
+		eval.EventType("prctl"),
 		eval.EventType("ptrace"),
 		eval.EventType("removexattr"),
 		eval.EventType("rename"),
@@ -564,7 +565,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "cgroup_write.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -576,7 +577,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "cgroup_write.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -621,7 +622,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "cgroup_write.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -633,7 +634,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "cgroup_write.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -832,7 +833,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "chdir.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -844,7 +845,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "chdir.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -889,7 +890,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "chdir.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -901,7 +902,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "chdir.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -1133,7 +1134,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "chmod.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -1145,7 +1146,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "chmod.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -1190,7 +1191,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "chmod.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -1202,7 +1203,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "chmod.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -1467,7 +1468,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "chown.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -1479,7 +1480,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "chown.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -1524,7 +1525,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "chown.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -1536,7 +1537,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "chown.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -1779,7 +1780,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "dns.question.name":
 		return &eval.StringEvaluator{
-			OpOverrides: eval.CaseInsensitiveCmp,
+			OpOverrides: []*eval.OpOverrides{eval.CaseInsensitiveCmp},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -1791,7 +1792,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "dns.question.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: eval.CaseInsensitiveCmp,
+			OpOverrides: []*eval.OpOverrides{eval.CaseInsensitiveCmp},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -2461,7 +2462,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "exec.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -2476,7 +2477,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "exec.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -2530,7 +2531,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "exec.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -2545,7 +2546,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "exec.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -2847,7 +2848,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "exec.interpreter.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -2862,7 +2863,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "exec.interpreter.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -2916,7 +2917,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "exec.interpreter.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -2931,7 +2932,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "exec.interpreter.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -3607,7 +3608,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "exit.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -3622,7 +3623,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "exit.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -3676,7 +3677,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "exit.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -3691,7 +3692,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "exit.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -3993,7 +3994,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "exit.interpreter.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -4008,7 +4009,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "exit.interpreter.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -4062,7 +4063,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "exit.interpreter.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -4077,7 +4078,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "exit.interpreter.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -4505,7 +4506,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "link.file.destination.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -4517,7 +4518,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "link.file.destination.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -4562,7 +4563,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "link.file.destination.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -4574,7 +4575,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "link.file.destination.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -4751,7 +4752,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "link.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -4763,7 +4764,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "link.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -4808,7 +4809,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "link.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -4820,7 +4821,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "link.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -5074,7 +5075,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "load_module.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -5086,7 +5087,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "load_module.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -5131,7 +5132,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "load_module.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -5143,7 +5144,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "load_module.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -5386,7 +5387,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "mkdir.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -5398,7 +5399,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "mkdir.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -5443,7 +5444,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "mkdir.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -5455,7 +5456,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "mkdir.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -5676,7 +5677,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "mmap.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -5688,7 +5689,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "mmap.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -5733,7 +5734,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "mmap.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -5745,7 +5746,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "mmap.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -6130,7 +6131,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IPNetCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -6157,7 +6159,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -6184,7 +6187,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -6211,7 +6215,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -6238,7 +6243,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -6265,7 +6271,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -6292,7 +6299,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -6319,7 +6327,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -6346,7 +6355,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -6384,7 +6394,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IPNetCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -6411,7 +6422,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -6438,7 +6450,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -6576,7 +6589,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "ondemand.name":
 		return &eval.StringEvaluator{
-			OpOverrides: OnDemandNameOverrides,
+			OpOverrides: []*eval.OpOverrides{OnDemandNameOverrides},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -6742,7 +6755,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "open.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -6754,7 +6767,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "open.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -6799,7 +6812,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "open.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -6811,7 +6824,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "open.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -6955,7 +6968,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "packet.filter":
 		return &eval.StringEvaluator{
-			OpOverrides: PacketFilterMatching,
+			OpOverrides: []*eval.OpOverrides{PacketFilterMatching},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -7064,6 +7077,50 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "prctl.is_name_truncated":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.PrCtl.IsNameTruncated
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "prctl.new_name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.PrCtl.NewName
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "prctl.option":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.PrCtl.Option
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "prctl.retval":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.PrCtl.SyscallEvent.Retval)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "process.ancestors.args":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
@@ -7086,7 +7143,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: 500 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7112,7 +7170,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7138,7 +7197,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7164,7 +7224,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7190,7 +7251,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: 500 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7216,7 +7278,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: 100 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7242,7 +7305,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7268,7 +7332,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7294,7 +7359,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7320,7 +7386,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7346,7 +7413,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7372,7 +7440,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7398,7 +7467,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7424,7 +7494,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7450,7 +7521,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7476,7 +7548,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7502,7 +7575,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7528,7 +7602,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7554,7 +7629,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7580,7 +7656,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7606,7 +7683,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: 100 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7632,7 +7710,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: 100 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7658,7 +7737,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7684,7 +7764,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7710,7 +7791,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7742,7 +7824,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7774,7 +7857,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7806,7 +7890,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7838,7 +7923,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7870,7 +7956,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7902,7 +7989,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: 999 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7934,7 +8022,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7966,7 +8055,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7998,7 +8088,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8030,7 +8121,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8062,7 +8154,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8094,7 +8187,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8126,13 +8220,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
 	case "process.ancestors.file.name":
 		return &eval.StringArrayEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -8159,13 +8254,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
 	case "process.ancestors.file.name.length":
 		return &eval.IntArrayEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) []int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -8186,7 +8282,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8218,7 +8315,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8250,7 +8348,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8282,13 +8381,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
 	case "process.ancestors.file.path":
 		return &eval.StringArrayEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -8315,13 +8415,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
 	case "process.ancestors.file.path.length":
 		return &eval.IntArrayEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) []int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -8342,7 +8443,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8374,7 +8476,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8406,7 +8509,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8438,7 +8542,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8464,7 +8569,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8490,7 +8596,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8516,7 +8623,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8542,7 +8650,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8568,7 +8677,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8594,7 +8704,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8626,7 +8737,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8658,7 +8770,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8690,7 +8803,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8722,7 +8836,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8754,7 +8869,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8786,7 +8902,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: 999 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8818,7 +8935,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8850,7 +8968,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8882,7 +9001,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8914,7 +9034,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8946,7 +9067,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8978,7 +9100,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -9010,13 +9133,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
 	case "process.ancestors.interpreter.file.name":
 		return &eval.StringArrayEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -9043,13 +9167,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
 	case "process.ancestors.interpreter.file.name.length":
 		return &eval.IntArrayEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) []int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -9070,7 +9195,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -9102,7 +9228,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -9134,7 +9261,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -9166,13 +9294,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
 	case "process.ancestors.interpreter.file.path":
 		return &eval.StringArrayEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -9199,13 +9328,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
 	case "process.ancestors.interpreter.file.path.length":
 		return &eval.IntArrayEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) []int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -9226,7 +9356,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -9258,7 +9389,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -9290,7 +9422,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -9322,7 +9455,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -9348,7 +9482,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -9374,7 +9509,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -9400,7 +9536,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -9437,7 +9574,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -9463,7 +9601,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -9489,7 +9628,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -9515,7 +9655,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -9541,7 +9682,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -9567,7 +9709,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -9593,7 +9736,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -9619,7 +9763,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -9645,7 +9790,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -10108,7 +10254,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "process.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -10123,7 +10269,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "process.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -10177,7 +10323,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "process.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -10192,7 +10338,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "process.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -10494,7 +10640,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "process.interpreter.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -10509,7 +10655,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "process.interpreter.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -10563,7 +10709,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "process.interpreter.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -10578,7 +10724,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "process.interpreter.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -11236,7 +11382,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "process.parent.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -11254,7 +11400,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "process.parent.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -11317,7 +11463,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "process.parent.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -11335,7 +11481,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "process.parent.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -11703,7 +11849,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "process.parent.interpreter.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -11721,7 +11867,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "process.parent.interpreter.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -11784,7 +11930,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "process.parent.interpreter.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -11802,7 +11948,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "process.parent.interpreter.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -12174,7 +12320,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: 500 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -12200,7 +12347,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -12226,7 +12374,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -12252,7 +12401,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -12278,7 +12428,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: 500 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -12304,7 +12455,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: 100 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -12330,7 +12482,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -12356,7 +12509,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -12382,7 +12536,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -12408,7 +12563,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -12434,7 +12590,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -12460,7 +12617,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -12486,7 +12644,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -12512,7 +12671,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -12538,7 +12698,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -12564,7 +12725,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -12590,7 +12752,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -12616,7 +12779,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -12642,7 +12806,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -12668,7 +12833,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -12694,7 +12860,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: 100 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -12720,7 +12887,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: 100 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -12746,7 +12914,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -12772,7 +12941,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -12798,7 +12968,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -12830,7 +13001,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -12862,7 +13034,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -12894,7 +13067,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -12926,7 +13100,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -12958,7 +13133,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -12990,7 +13166,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: 999 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13022,7 +13199,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13054,7 +13232,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13086,7 +13265,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13118,7 +13298,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13150,7 +13331,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13182,7 +13364,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13214,13 +13397,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.file.name":
 		return &eval.StringArrayEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -13247,13 +13431,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.file.name.length":
 		return &eval.IntArrayEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) []int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -13274,7 +13459,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13306,7 +13492,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13338,7 +13525,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13370,13 +13558,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.file.path":
 		return &eval.StringArrayEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -13403,13 +13592,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.file.path.length":
 		return &eval.IntArrayEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) []int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -13430,7 +13620,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13462,7 +13653,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13494,7 +13686,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13526,7 +13719,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13552,7 +13746,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13578,7 +13773,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13604,7 +13800,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13630,7 +13827,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13656,7 +13854,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13682,7 +13881,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13714,7 +13914,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13746,7 +13947,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13778,7 +13980,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13810,7 +14013,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13842,7 +14046,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13874,7 +14079,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: 999 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13906,7 +14112,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13938,7 +14145,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13970,7 +14178,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -14002,7 +14211,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -14034,7 +14244,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -14066,7 +14277,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -14098,13 +14310,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.interpreter.file.name":
 		return &eval.StringArrayEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -14131,13 +14344,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.interpreter.file.name.length":
 		return &eval.IntArrayEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) []int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -14158,7 +14372,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -14190,7 +14405,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -14222,7 +14438,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -14254,13 +14471,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.interpreter.file.path":
 		return &eval.StringArrayEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -14287,13 +14505,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.interpreter.file.path.length":
 		return &eval.IntArrayEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) []int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -14314,7 +14533,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -14346,7 +14566,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -14378,7 +14599,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -14410,7 +14632,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -14436,7 +14659,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -14462,7 +14686,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -14488,7 +14713,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -14525,7 +14751,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -14551,7 +14778,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -14577,7 +14805,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -14603,7 +14832,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -14629,7 +14859,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -14655,7 +14886,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -14681,7 +14913,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -14707,7 +14940,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -14733,7 +14967,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -15196,7 +15431,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "ptrace.tracee.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -15211,7 +15446,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "ptrace.tracee.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -15265,7 +15500,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "ptrace.tracee.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -15280,7 +15515,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "ptrace.tracee.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -15582,7 +15817,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "ptrace.tracee.interpreter.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -15597,7 +15832,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "ptrace.tracee.interpreter.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -15651,7 +15886,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "ptrace.tracee.interpreter.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -15666,7 +15901,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "ptrace.tracee.interpreter.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -16324,7 +16559,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "ptrace.tracee.parent.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -16342,7 +16577,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "ptrace.tracee.parent.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -16405,7 +16640,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "ptrace.tracee.parent.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -16423,7 +16658,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "ptrace.tracee.parent.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -16791,7 +17026,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "ptrace.tracee.parent.interpreter.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -16809,7 +17044,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "ptrace.tracee.parent.interpreter.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -16872,7 +17107,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "ptrace.tracee.parent.interpreter.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -16890,7 +17125,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "ptrace.tracee.parent.interpreter.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -17385,7 +17620,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "removexattr.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -17397,7 +17632,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "removexattr.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -17442,7 +17677,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "removexattr.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -17454,7 +17689,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "removexattr.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -17664,7 +17899,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "rename.file.destination.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -17676,7 +17911,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "rename.file.destination.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -17721,7 +17956,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "rename.file.destination.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -17733,7 +17968,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "rename.file.destination.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -17910,7 +18145,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "rename.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -17922,7 +18157,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "rename.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -17967,7 +18202,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "rename.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -17979,7 +18214,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "rename.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -18200,7 +18435,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "rmdir.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -18212,7 +18447,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "rmdir.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -18257,7 +18492,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "rmdir.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -18269,7 +18504,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "rmdir.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -18510,7 +18745,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: 500 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -18536,7 +18772,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -18562,7 +18799,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -18588,7 +18826,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -18614,7 +18853,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: 500 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -18640,7 +18880,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: 100 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -18666,7 +18907,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -18692,7 +18934,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -18718,7 +18961,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -18744,7 +18988,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -18770,7 +19015,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -18796,7 +19042,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -18822,7 +19069,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -18848,7 +19096,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -18874,7 +19123,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -18900,7 +19150,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -18926,7 +19177,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -18952,7 +19204,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -18978,7 +19231,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19004,7 +19258,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19030,7 +19285,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: 100 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19056,7 +19312,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: 100 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19082,7 +19339,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19108,7 +19366,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19134,7 +19393,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19166,7 +19426,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19198,7 +19459,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19230,7 +19492,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19262,7 +19525,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19294,7 +19558,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19326,7 +19591,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: 999 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19358,7 +19624,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19390,7 +19657,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19422,7 +19690,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19454,7 +19723,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19486,7 +19756,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19518,7 +19789,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19550,13 +19822,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
 	case "setrlimit.target.ancestors.file.name":
 		return &eval.StringArrayEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -19583,13 +19856,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
 	case "setrlimit.target.ancestors.file.name.length":
 		return &eval.IntArrayEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) []int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -19610,7 +19884,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19642,7 +19917,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19674,7 +19950,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19706,13 +19983,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
 	case "setrlimit.target.ancestors.file.path":
 		return &eval.StringArrayEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -19739,13 +20017,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
 	case "setrlimit.target.ancestors.file.path.length":
 		return &eval.IntArrayEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) []int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -19766,7 +20045,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19798,7 +20078,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19830,7 +20111,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19862,7 +20144,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19888,7 +20171,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19914,7 +20198,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19940,7 +20225,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19966,7 +20252,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19992,7 +20279,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20018,7 +20306,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20050,7 +20339,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20082,7 +20372,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20114,7 +20405,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20146,7 +20438,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20178,7 +20471,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20210,7 +20504,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: 999 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20242,7 +20537,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20274,7 +20570,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20306,7 +20603,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20338,7 +20636,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20370,7 +20669,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20402,7 +20702,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20434,13 +20735,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
 	case "setrlimit.target.ancestors.interpreter.file.name":
 		return &eval.StringArrayEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -20467,13 +20769,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
 	case "setrlimit.target.ancestors.interpreter.file.name.length":
 		return &eval.IntArrayEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) []int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -20494,7 +20797,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20526,7 +20830,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20558,7 +20863,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20590,13 +20896,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
 	case "setrlimit.target.ancestors.interpreter.file.path":
 		return &eval.StringArrayEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -20623,13 +20930,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
 	case "setrlimit.target.ancestors.interpreter.file.path.length":
 		return &eval.IntArrayEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) []int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -20650,7 +20958,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20682,7 +20991,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20714,7 +21024,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20746,7 +21057,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20772,7 +21084,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20798,7 +21111,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20824,7 +21138,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20861,7 +21176,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20887,7 +21203,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20913,7 +21230,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20939,7 +21257,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20965,7 +21284,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20991,7 +21311,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -21017,7 +21338,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -21043,7 +21365,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -21069,7 +21392,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -21532,7 +21856,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "setrlimit.target.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -21547,7 +21871,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "setrlimit.target.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -21601,7 +21925,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "setrlimit.target.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -21616,7 +21940,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "setrlimit.target.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -21918,7 +22242,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "setrlimit.target.interpreter.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -21933,7 +22257,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "setrlimit.target.interpreter.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -21987,7 +22311,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "setrlimit.target.interpreter.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -22002,7 +22326,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "setrlimit.target.interpreter.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -22660,7 +22984,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "setrlimit.target.parent.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -22678,7 +23002,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "setrlimit.target.parent.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -22741,7 +23065,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "setrlimit.target.parent.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -22759,7 +23083,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "setrlimit.target.parent.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -23127,7 +23451,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "setrlimit.target.parent.interpreter.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -23145,7 +23469,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "setrlimit.target.parent.interpreter.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -23208,7 +23532,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "setrlimit.target.parent.interpreter.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -23226,7 +23550,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "setrlimit.target.parent.interpreter.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -23908,7 +24232,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "setxattr.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -23920,7 +24244,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "setxattr.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -23965,7 +24289,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "setxattr.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -23977,7 +24301,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "setxattr.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -24075,7 +24399,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: 500 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24101,7 +24426,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24127,7 +24453,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24153,7 +24480,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24179,7 +24507,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: 500 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24205,7 +24534,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: 100 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24231,7 +24561,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24257,7 +24588,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24283,7 +24615,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24309,7 +24642,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24335,7 +24669,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24361,7 +24696,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24387,7 +24723,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24413,7 +24750,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24439,7 +24777,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24465,7 +24804,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24491,7 +24831,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24517,7 +24858,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24543,7 +24885,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24569,7 +24912,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24595,7 +24939,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: 100 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24621,7 +24966,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: 100 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24647,7 +24993,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24673,7 +25020,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24699,7 +25047,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24731,7 +25080,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24763,7 +25113,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24795,7 +25146,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24827,7 +25179,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24859,7 +25212,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24891,7 +25245,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: 999 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24923,7 +25278,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24955,7 +25311,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24987,7 +25344,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25019,7 +25377,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25051,7 +25410,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25083,7 +25443,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25115,13 +25476,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.file.name":
 		return &eval.StringArrayEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -25148,13 +25510,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.file.name.length":
 		return &eval.IntArrayEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) []int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -25175,7 +25538,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25207,7 +25571,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25239,7 +25604,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25271,13 +25637,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.file.path":
 		return &eval.StringArrayEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -25304,13 +25671,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.file.path.length":
 		return &eval.IntArrayEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) []int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -25331,7 +25699,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25363,7 +25732,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25395,7 +25765,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25427,7 +25798,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25453,7 +25825,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25479,7 +25852,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25505,7 +25879,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25531,7 +25906,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25557,7 +25933,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25583,7 +25960,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25615,7 +25993,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25647,7 +26026,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25679,7 +26059,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25711,7 +26092,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25743,7 +26125,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25775,7 +26158,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: 999 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25807,7 +26191,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25839,7 +26224,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25871,7 +26257,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25903,7 +26290,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25935,7 +26323,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25967,7 +26356,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25999,13 +26389,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.interpreter.file.name":
 		return &eval.StringArrayEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -26032,13 +26423,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.interpreter.file.name.length":
 		return &eval.IntArrayEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) []int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -26059,7 +26451,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -26091,7 +26484,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -26123,7 +26517,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -26155,13 +26550,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.interpreter.file.path":
 		return &eval.StringArrayEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -26188,13 +26584,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.interpreter.file.path.length":
 		return &eval.IntArrayEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) []int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -26215,7 +26612,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -26247,7 +26645,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -26279,7 +26678,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -26311,7 +26711,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -26337,7 +26738,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -26363,7 +26765,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -26389,7 +26792,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -26426,7 +26830,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -26452,7 +26857,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -26478,7 +26884,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -26504,7 +26911,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -26530,7 +26938,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -26556,7 +26965,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -26582,7 +26992,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -26608,7 +27019,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -26634,7 +27046,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -27097,7 +27510,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "signal.target.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -27112,7 +27525,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "signal.target.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -27166,7 +27579,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "signal.target.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -27181,7 +27594,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "signal.target.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -27483,7 +27896,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "signal.target.interpreter.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -27498,7 +27911,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "signal.target.interpreter.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -27552,7 +27965,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "signal.target.interpreter.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -27567,7 +27980,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "signal.target.interpreter.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -28225,7 +28638,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "signal.target.parent.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -28243,7 +28656,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "signal.target.parent.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -28306,7 +28719,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "signal.target.parent.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -28324,7 +28737,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "signal.target.parent.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -28692,7 +29105,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "signal.target.parent.interpreter.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -28710,7 +29123,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "signal.target.parent.interpreter.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -28773,7 +29186,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "signal.target.parent.interpreter.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -28791,7 +29204,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "signal.target.parent.interpreter.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -29275,7 +29688,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "splice.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -29287,7 +29700,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "splice.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -29332,7 +29745,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "splice.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -29344,7 +29757,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "splice.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -29653,7 +30066,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "unlink.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -29665,7 +30078,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "unlink.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -29710,7 +30123,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "unlink.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -29722,7 +30135,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "unlink.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -29987,7 +30400,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "utimes.file.name":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -29999,7 +30412,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "utimes.file.name.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -30044,7 +30457,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "utimes.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -30056,7 +30469,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "utimes.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -30713,6 +31126,10 @@ func (ev *Event) GetFields() []eval.Field {
 		"packet.source.port",
 		"packet.tls.version",
 		"packet.type",
+		"prctl.is_name_truncated",
+		"prctl.new_name",
+		"prctl.option",
+		"prctl.retval",
 		"process.ancestors.args",
 		"process.ancestors.args_flags",
 		"process.ancestors.args_options",
@@ -33214,6 +33631,14 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "packet", reflect.Int, "int", nil
 	case "packet.type":
 		return "packet", reflect.Int, "int", nil
+	case "prctl.is_name_truncated":
+		return "prctl", reflect.Bool, "bool", nil
+	case "prctl.new_name":
+		return "prctl", reflect.String, "string", nil
+	case "prctl.option":
+		return "prctl", reflect.Int, "int", nil
+	case "prctl.retval":
+		return "prctl", reflect.Int, "int", nil
 	case "process.ancestors.args":
 		return "", reflect.String, "string", nil
 	case "process.ancestors.args_flags":
@@ -37625,6 +38050,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint16FieldValue("packet.tls.version", &ev.RawPacket.TLSContext.Version, value)
 	case "packet.type":
 		return ev.setUint32FieldValue("packet.type", &ev.RawPacket.NetworkContext.Type, value)
+	case "prctl.is_name_truncated":
+		return ev.setBoolFieldValue("prctl.is_name_truncated", &ev.PrCtl.IsNameTruncated, value)
+	case "prctl.new_name":
+		return ev.setStringFieldValue("prctl.new_name", &ev.PrCtl.NewName, value)
+	case "prctl.option":
+		return ev.setIntFieldValue("prctl.option", &ev.PrCtl.Option, value)
+	case "prctl.retval":
+		return ev.setInt64FieldValue("prctl.retval", &ev.PrCtl.SyscallEvent.Retval, value)
 	case "process.ancestors.args":
 		return ev.setStringFieldValue("process.ancestors.args", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Args, value)
 	case "process.ancestors.args_flags":

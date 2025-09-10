@@ -661,12 +661,14 @@ func (bs *BaseSuite[Env]) AfterTest(suiteName, testName string) {
 			// run environment diagnose if the test failed
 			if diagnosableEnv, ok := any(bs.env).(common.Diagnosable); ok && diagnosableEnv != nil {
 				// at least one test failed, diagnose the environment
+				bs.T().Logf("========= Some tests failed, diagnosing environment ==========")
 				diagnose, diagnoseErr := diagnosableEnv.Diagnose(testOutputDir)
 				if diagnoseErr != nil {
 					bs.T().Logf("unable to diagnose environment: %v", diagnoseErr)
 				} else {
 					bs.T().Logf("Diagnose result:\n\n%s", diagnose)
 				}
+				bs.T().Logf("========= Environment diagnosed ==========")
 			}
 		}
 	}
@@ -732,7 +734,8 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 			bs.T().Logf("Remote stack cleaning enabled for stack %s", fullStackName)
 
 			// If we are within CI, we let the stack be destroyed by the stackcleaner-worker service
-			cmd := exec.Command("dda", "inv", "agent-ci-api", "stackcleaner/stack", "--env", "prod", "--ty", "stackcleaner_workflow_request", "--attrs", fmt.Sprintf("stack_name=%s,job_name=%s,job_id=%s,pipeline_id=%s,ref=%s,ignore_lock=bool:true,ignore_not_found=bool:false", fullStackName, os.Getenv("CI_JOB_NAME"), os.Getenv("CI_JOB_ID"), os.Getenv("CI_PIPELINE_ID"), os.Getenv("CI_COMMIT_REF_NAME")))
+			// After 10s, the API will time out without an error, this can happen on high workload but the stack will still be created from the agent-ci-api
+			cmd := exec.Command("dda", "inv", "agent-ci-api", "stackcleaner/stack", "--env", "prod", "--ty", "stackcleaner_workflow_request", "--attrs", fmt.Sprintf("stack_name=%s,job_name=%s,job_id=%s,pipeline_id=%s,ref=%s,ignore_lock=bool:true,ignore_not_found=bool:false", fullStackName, os.Getenv("CI_JOB_NAME"), os.Getenv("CI_JOB_ID"), os.Getenv("CI_PIPELINE_ID"), os.Getenv("CI_COMMIT_REF_NAME")), "--timeout", "10", "--ignore-timeout-error")
 			out, err := cmd.CombinedOutput()
 			if err != nil {
 				bs.T().Errorf("Unable to destroy stack %s: %s", stackName, out)

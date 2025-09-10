@@ -78,7 +78,7 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 	containerImg := container.Image
 	if l.filterStore.IsContainerExcluded(
 		workloadmetafilter.CreateContainer(container, workloadmetafilter.CreatePod(pod)),
-		workloadfilter.GetAutodiscoveryFilters(workloadfilter.GlobalFilter),
+		l.filterStore.GetContainerAutodiscoveryFilters(workloadfilter.GlobalFilter),
 	) {
 		log.Debugf("container %s filtered out: name %q image %q", container.ID, container.Name, containerImg.RawName)
 		return
@@ -133,12 +133,24 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 
 		svc.metricsExcluded = l.filterStore.IsContainerExcluded(
 			workloadmetafilter.CreateContainer(container, workloadmetafilter.CreatePod(pod)),
-			workloadfilter.GetAutodiscoveryFilters(workloadfilter.MetricsFilter),
+			l.filterStore.GetContainerAutodiscoveryFilters(workloadfilter.MetricsFilter),
 		)
 		svc.logsExcluded = l.filterStore.IsContainerExcluded(
 			workloadmetafilter.CreateContainer(container, workloadmetafilter.CreatePod(pod)),
-			workloadfilter.GetAutodiscoveryFilters(workloadfilter.LogsFilter),
+			l.filterStore.GetContainerAutodiscoveryFilters(workloadfilter.LogsFilter),
 		)
+
+		adIdentifier := container.Name
+		if customADID, found := utils.ExtractCheckIDFromPodAnnotations(pod.Annotations, container.Name); found {
+			adIdentifier = customADID
+			svc.adIdentifiers = append(svc.adIdentifiers, customADID)
+		}
+
+		checkNames, err := utils.ExtractCheckNamesFromPodAnnotations(pod.Annotations, adIdentifier)
+		if err != nil {
+			log.Errorf("error extracting check names from pod annotations: %s", err)
+		}
+		svc.checkNames = checkNames
 	} else {
 		checkNames, err := utils.ExtractCheckNamesFromContainerLabels(container.Labels)
 		if err != nil {
@@ -164,11 +176,11 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 		svc.checkNames = checkNames
 		svc.metricsExcluded = l.filterStore.IsContainerExcluded(
 			workloadmetafilter.CreateContainer(container, nil),
-			workloadfilter.GetAutodiscoveryFilters(workloadfilter.MetricsFilter),
+			l.filterStore.GetContainerAutodiscoveryFilters(workloadfilter.MetricsFilter),
 		)
 		svc.logsExcluded = l.filterStore.IsContainerExcluded(
 			workloadmetafilter.CreateContainer(container, nil),
-			workloadfilter.GetAutodiscoveryFilters(workloadfilter.LogsFilter),
+			l.filterStore.GetContainerAutodiscoveryFilters(workloadfilter.LogsFilter),
 		)
 	}
 

@@ -534,9 +534,9 @@ type AgentConfig struct {
 	// Lambda function name
 	LambdaFunctionName string
 
-	// Azure container apps tags, in the form of a comma-separated list of
+	// Azure serverless apps tags, in the form of a comma-separated list of
 	// key-value pairs, starting with a comma
-	AzureContainerAppTags string
+	AzureServerlessTags string
 
 	// AuthToken is the auth token for the agent
 	AuthToken string `json:"-"`
