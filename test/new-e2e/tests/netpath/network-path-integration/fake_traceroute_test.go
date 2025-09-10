@@ -37,13 +37,13 @@ var fakeRouterSetupScript []byte
 //go:embed fake-traceroute/router_teardown.sh
 var fakeRouterTeardownScript []byte
 
-type fakeTracerouteTestSuite01 struct {
+type fakeTracerouteTestSuite struct {
 	baseNetworkPathIntegrationTestSuite
 }
 
 func TestFakeTracerouteSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &fakeTracerouteTestSuite01{}, e2e.WithProvisioner(awshost.Provisioner(
+	e2e.Run(t, &fakeTracerouteTestSuite{}, e2e.WithProvisioner(awshost.Provisioner(
 		awshost.WithAgentOptions(
 			agentparams.WithAgentConfig(string(datadogYaml)),
 			agentparams.WithSystemProbeConfig(string(sysProbeConfig)),
@@ -55,7 +55,7 @@ func TestFakeTracerouteSuite(t *testing.T) {
 
 }
 
-func (s *fakeTracerouteTestSuite01) TestFakeTraceroute() {
+func (s *fakeTracerouteTestSuite) TestFakeTraceroute() {
 	t := s.T()
 	// TODO remove this if the PR fixes the flakiness
 	flake.Mark(t)
