@@ -153,6 +153,8 @@ type Capture struct {
 	MaxReferenceDepth int `json:"maxReferenceDepth"`
 	// MaxFieldCount is the maximum number of fields to capture from an object.
 	MaxFieldCount int `json:"maxFieldCount,omitempty"`
+	// MaxLength is the maximum length of a string to capture.
+	MaxLength int `json:"maxLength,omitempty"`
 	// MaxCollectionSize is the maximum number of elements to capture from a
 	// collection.
 	MaxCollectionSize int `json:"maxCollectionSize,omitempty"`
@@ -342,6 +344,12 @@ func (c *irCaptureConfig) GetMaxFieldCount() uint32 {
 	}
 	return uint32(c.MaxFieldCount)
 }
+func (c *irCaptureConfig) GetMaxLength() uint32 {
+	if c == nil || c.MaxLength == 0 {
+		return math.MaxUint32
+	}
+	return uint32(c.MaxLength)
+}
 func (c *irCaptureConfig) GetMaxCollectionSize() uint32 {
 	if c == nil || c.MaxCollectionSize == 0 {
 		return math.MaxUint32
@@ -355,6 +363,7 @@ var _ ir.CaptureConfig = noCaptureConfig{}
 
 func (noCaptureConfig) GetMaxReferenceDepth() uint32 { return 0 }
 func (noCaptureConfig) GetMaxFieldCount() uint32     { return 0 }
+func (noCaptureConfig) GetMaxLength() uint32         { return 0 }
 func (noCaptureConfig) GetMaxCollectionSize() uint32 { return 0 }
 
 type logThrottleConfig Sampling

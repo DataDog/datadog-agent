@@ -44,6 +44,7 @@ var testCases = []testCase{
 				"capture": {
 					"maxReferenceDepth": 3,
 					"maxFieldCount": 10,
+					"maxLength": 123,
 					"maxCollectionSize": 100
 				},
 				"sampling": {
@@ -69,6 +70,7 @@ var testCases = []testCase{
 				Capture: &Capture{
 					MaxReferenceDepth: 3,
 					MaxFieldCount:     10,
+					MaxLength:         123,
 					MaxCollectionSize: 100,
 				},
 				Sampling: &Sampling{
@@ -99,6 +101,7 @@ var testCases = []testCase{
 				"capture": {
 					"maxReferenceDepth": 3,
 					"maxFieldCount": 10,
+					"maxLength": 123,
 					"maxCollectionSize": 100
 				},
 				"sampling": {
@@ -123,6 +126,7 @@ var testCases = []testCase{
 				Capture: &Capture{
 					MaxReferenceDepth: 3,
 					MaxFieldCount:     10,
+					MaxLength:         123,
 					MaxCollectionSize: 100,
 				},
 				Sampling: &Sampling{

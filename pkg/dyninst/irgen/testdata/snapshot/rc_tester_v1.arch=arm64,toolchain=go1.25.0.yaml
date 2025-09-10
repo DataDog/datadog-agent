@@ -7,6 +7,7 @@ Probes:
       capture:
         maxReferenceDepth: 1
         maxFieldCount: 0
+        maxLength: 0
         maxCollectionSize: 0
       template: ""
       segments: []
@@ -24,6 +25,7 @@ Probes:
       capture:
         maxReferenceDepth: 1
         maxFieldCount: 0
+        maxLength: 0
         maxCollectionSize: 0
       template: ""
       segments: []
@@ -720,27 +722,32 @@ Types:
     - __kind: GoSliceDataType
       ID: 122
       Name: '[]*runtime.p.array'
-      ByteSize: 2048
+      DynamicSizeClass: 1
+      ByteSize: 8
       Element: 64 PointerType *runtime.p
     - __kind: GoSliceDataType
       ID: 197
       Name: '[]*table<string,[]string>.array'
-      ByteSize: 8192
+      DynamicSizeClass: 3
+      ByteSize: 8
       Element: 171 PointerType *table<string,[]string>
     - __kind: GoSliceDataType
       ID: 207
       Name: '[]*table<string,string>.array'
-      ByteSize: 8192
+      DynamicSizeClass: 3
+      ByteSize: 8
       Element: 190 PointerType *table<string,string>
     - __kind: GoSliceDataType
       ID: 198
       Name: '[]noalg.map.group[string][]string.array'
-      ByteSize: 2048
+      DynamicSizeClass: 1
+      ByteSize: 328
       Element: 194 StructureType noalg.map.group[string][]string
     - __kind: GoSliceDataType
       ID: 208
       Name: '[]noalg.map.group[string]string.array'
-      ByteSize: 2048
+      DynamicSizeClass: 1
+      ByteSize: 264
       Element: 204 StructureType noalg.map.group[string]string
     - __kind: UnresolvedPointeeType
       ID: 40
@@ -766,7 +773,8 @@ Types:
     - __kind: GoSliceDataType
       ID: 199
       Name: '[]string.array'
-      ByteSize: 2048
+      DynamicSizeClass: 1
+      ByteSize: 16
       Element: 9 GoStringHeaderType string
     - __kind: GoSliceHeaderType
       ID: 38
@@ -788,7 +796,8 @@ Types:
     - __kind: GoSliceDataType
       ID: 117
       Name: '[]uint8.array'
-      ByteSize: 2048
+      DynamicSizeClass: 1
+      ByteSize: 1
       Element: 3 BaseType uint8
     - __kind: GoSliceHeaderType
       ID: 43
@@ -810,7 +819,8 @@ Types:
     - __kind: GoSliceDataType
       ID: 119
       Name: '[]uintptr.array'
-      ByteSize: 2048
+      DynamicSizeClass: 1
+      ByteSize: 8
       Element: 1 BaseType uintptr
     - __kind: BaseType
       ID: 4
@@ -2207,7 +2217,8 @@ Types:
     - __kind: GoStringDataType
       ID: 115
       Name: string.str
-      ByteSize: 2048
+      DynamicSizeClass: 2
+      ByteSize: 1
     - __kind: StructureType
       ID: 131
       Name: struct { gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter = gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1; net/http.CloseNotifier }

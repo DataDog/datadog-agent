@@ -7,6 +7,7 @@ Probes:
       capture:
         maxReferenceDepth: 3
         maxFieldCount: 0
+        maxLength: 0
         maxCollectionSize: 0
       template: ""
       segments: []
@@ -24,6 +25,7 @@ Probes:
       capture:
         maxReferenceDepth: 5
         maxFieldCount: 0
+        maxLength: 0
         maxCollectionSize: 0
       template: ""
       segments: []
@@ -905,12 +907,14 @@ Types:
     - __kind: GoSliceDataType
       ID: 131
       Name: '[]bucket<string,int>.array'
-      ByteSize: 2048
+      DynamicSizeClass: 3
+      ByteSize: 208
       Element: 107 GoHMapBucketType bucket<string,int>
     - __kind: GoSliceDataType
       ID: 135
       Name: '[]bucket<string,main.bigStruct>.array'
-      ByteSize: 2048
+      DynamicSizeClass: 3
+      ByteSize: 208
       Element: 114 GoHMapBucketType bucket<string,main.bigStruct>
     - __kind: GoSliceHeaderType
       ID: 99
@@ -932,7 +936,8 @@ Types:
     - __kind: GoSliceDataType
       ID: 124
       Name: '[]int.array'
-      ByteSize: 2048
+      DynamicSizeClass: 1
+      ByteSize: 8
       Element: 9 BaseType int
     - __kind: ArrayType
       ID: 129
@@ -965,7 +970,8 @@ Types:
     - __kind: GoSliceDataType
       ID: 126
       Name: '[]string.array'
-      ByteSize: 2048
+      DynamicSizeClass: 1
+      ByteSize: 16
       Element: 10 GoStringHeaderType string
     - __kind: GoSliceHeaderType
       ID: 38
@@ -987,7 +993,8 @@ Types:
     - __kind: GoSliceDataType
       ID: 120
       Name: '[]uint8.array'
-      ByteSize: 2048
+      DynamicSizeClass: 1
+      ByteSize: 1
       Element: 3 BaseType uint8
     - __kind: GoSliceHeaderType
       ID: 43
@@ -1009,7 +1016,8 @@ Types:
     - __kind: GoSliceDataType
       ID: 122
       Name: '[]uintptr.array'
-      ByteSize: 2048
+      DynamicSizeClass: 1
+      ByteSize: 8
       Element: 1 BaseType uintptr
     - __kind: ArrayType
       ID: 130
@@ -2091,7 +2099,8 @@ Types:
     - __kind: GoStringDataType
       ID: 118
       Name: string.str
-      ByteSize: 2048
+      DynamicSizeClass: 2
+      ByteSize: 1
     - __kind: BaseType
       ID: 15
       Name: uint

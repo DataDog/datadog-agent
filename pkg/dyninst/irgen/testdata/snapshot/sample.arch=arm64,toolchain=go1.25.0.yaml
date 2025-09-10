@@ -10,8 +10,8 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 98}
       events:
-        - ID: 98
-          Type: 1258 EventRootType Probe[main.stackC]
+        - ID: 100
+          Type: 1260 EventRootType Probe[main.stackC]
           InjectionPoints: [{PC: "0x809fac", Frameless: true}]
           Condition: null
     - id: testAny
@@ -150,8 +150,8 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 79}
       events:
-        - ID: 79
-          Type: 1239 EventRootType Probe[main.testChannel]
+        - ID: 80
+          Type: 1240 EventRootType Probe[main.testChannel]
           InjectionPoints: [{PC: "0x809650", Frameless: true}]
           Condition: null
     - id: testCombinedByte
@@ -164,8 +164,8 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 77}
       events:
-        - ID: 77
-          Type: 1237 EventRootType Probe[main.testCombinedByte]
+        - ID: 78
+          Type: 1238 EventRootType Probe[main.testCombinedByte]
           InjectionPoints: [{PC: "0x8093d0", Frameless: true}]
           Condition: null
     - id: testCycle
@@ -178,8 +178,8 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 87}
       events:
-        - ID: 87
-          Type: 1247 EventRootType Probe[main.testCycle]
+        - ID: 88
+          Type: 1248 EventRootType Probe[main.testCycle]
           InjectionPoints: [{PC: "0x8098d0", Frameless: true}]
           Condition: null
     - id: testDeepMap1
@@ -189,6 +189,7 @@ Probes:
       capture:
         maxReferenceDepth: 1
         maxFieldCount: 0
+        maxLength: 0
         maxCollectionSize: 0
       template: ""
       segments: []
@@ -206,6 +207,7 @@ Probes:
       capture:
         maxReferenceDepth: 5
         maxFieldCount: 0
+        maxLength: 0
         maxCollectionSize: 0
       template: ""
       segments: []
@@ -223,6 +225,7 @@ Probes:
       capture:
         maxReferenceDepth: 1
         maxFieldCount: 0
+        maxLength: 0
         maxCollectionSize: 0
       template: ""
       segments: []
@@ -240,6 +243,7 @@ Probes:
       capture:
         maxReferenceDepth: 5
         maxFieldCount: 0
+        maxLength: 0
         maxCollectionSize: 0
       template: ""
       segments: []
@@ -257,6 +261,7 @@ Probes:
       capture:
         maxReferenceDepth: 1
         maxFieldCount: 0
+        maxLength: 0
         maxCollectionSize: 0
       template: ""
       segments: []
@@ -274,6 +279,7 @@ Probes:
       capture:
         maxReferenceDepth: 5
         maxFieldCount: 0
+        maxLength: 0
         maxCollectionSize: 0
       template: ""
       segments: []
@@ -294,8 +300,8 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 89}
       events:
-        - ID: 89
-          Type: 1249 EventRootType Probe[main.testEmptySlice]
+        - ID: 90
+          Type: 1250 EventRootType Probe[main.testEmptySlice]
           InjectionPoints: [{PC: "0x809c80", Frameless: true}]
           Condition: null
     - id: testEmptySliceOfStructs
@@ -308,8 +314,8 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 92}
       events:
-        - ID: 92
-          Type: 1252 EventRootType Probe[main.testEmptySliceOfStructs]
+        - ID: 93
+          Type: 1253 EventRootType Probe[main.testEmptySliceOfStructs]
           InjectionPoints: [{PC: "0x809cb0", Frameless: true}]
           Condition: null
     - id: testEmptyString
@@ -323,8 +329,8 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 106}
       events:
-        - ID: 106
-          Type: 1266 EventRootType Probe[main.testEmptyString]
+        - ID: 109
+          Type: 1269 EventRootType Probe[main.testEmptyString]
           InjectionPoints: [{PC: "0x80a070", Frameless: true}]
           Condition: null
     - id: testEmptyStruct
@@ -337,8 +343,8 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 108}
       events:
-        - ID: 108
-          Type: 1268 EventRootType Probe[main.testEmptyStruct]
+        - ID: 111
+          Type: 1271 EventRootType Probe[main.testEmptyStruct]
           InjectionPoints: [{PC: "0x80a320", Frameless: true}]
           Condition: null
     - id: testEmptyStructPointer
@@ -350,8 +356,8 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 109}
       events:
-        - ID: 109
-          Type: 1269 EventRootType Probe[main.testEmptyStructPointer]
+        - ID: 112
+          Type: 1272 EventRootType Probe[main.testEmptyStructPointer]
           InjectionPoints: [{PC: "0x80a330", Frameless: true}]
           Condition: null
     - id: testError
@@ -476,8 +482,8 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 111}
       events:
-        - ID: 111
-          Type: 1271 EventRootType Probe[main.testInlinedBBB]
+        - ID: 114
+          Type: 1274 EventRootType Probe[main.testInlinedBBB]
           InjectionPoints: [{PC: "0x8075a4", Frameless: false}]
           Condition: null
     - id: testInlinedBC
@@ -504,8 +510,8 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 112}
       events:
-        - ID: 112
-          Type: 1272 EventRootType Probe[main.testInlinedBCA]
+        - ID: 115
+          Type: 1275 EventRootType Probe[main.testInlinedBCA]
           InjectionPoints: [{PC: "0x80768c", Frameless: false}]
           Condition: null
     - id: testInlinedBCB
@@ -518,8 +524,8 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 113}
       events:
-        - ID: 113
-          Type: 1273 EventRootType Probe[main.testInlinedBCB]
+        - ID: 116
+          Type: 1276 EventRootType Probe[main.testInlinedBCB]
           InjectionPoints: [{PC: "0x807730", Frameless: false}]
           Condition: null
     - id: testInlinedPrint
@@ -533,8 +539,8 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 110}
       events:
-        - ID: 110
-          Type: 1270 EventRootType Probe[main.testInlinedPrint]
+        - ID: 113
+          Type: 1273 EventRootType Probe[main.testInlinedPrint]
           InjectionPoints:
             - PC: "0x80732c"
               Frameless: true
@@ -557,8 +563,8 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 114}
       events:
-        - ID: 114
-          Type: 1274 EventRootType Probe[main.testInlinedSq]
+        - ID: 117
+          Type: 1277 EventRootType Probe[main.testInlinedSq]
           InjectionPoints: [{PC: "0x807784", Frameless: true}]
           Condition: null
     - id: testInlinedSumArray
@@ -572,8 +578,8 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 115}
       events:
-        - ID: 115
-          Type: 1275 EventRootType Probe[main.testInlinedSumArray]
+        - ID: 118
+          Type: 1278 EventRootType Probe[main.testInlinedSumArray]
           InjectionPoints:
             - PC: "0x8077b4"
               Frameless: false
@@ -674,8 +680,8 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 81}
       events:
-        - ID: 81
-          Type: 1241 EventRootType Probe[main.testLinkedList]
+        - ID: 82
+          Type: 1242 EventRootType Probe[main.testLinkedList]
           InjectionPoints: [{PC: "0x8097e0", Frameless: true}]
           Condition: null
     - id: testMapArrayToArray
@@ -702,8 +708,8 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 67}
       events:
-        - ID: 67
-          Type: 1227 EventRootType Probe[main.testMapEmbeddedMaps]
+        - ID: 68
+          Type: 1228 EventRootType Probe[main.testMapEmbeddedMaps]
           InjectionPoints: [{PC: "0x8080a0", Frameless: true}]
           Condition: null
     - id: testMapIntToInt
@@ -730,8 +736,8 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 76}
       events:
-        - ID: 76
-          Type: 1236 EventRootType Probe[main.testMapLargeKeyLargeValue]
+        - ID: 77
+          Type: 1237 EventRootType Probe[main.testMapLargeKeyLargeValue]
           InjectionPoints: [{PC: "0x808130", Frameless: true}]
           Condition: null
     - id: testMapLargeKeySmallValue
@@ -744,8 +750,8 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 75}
       events:
-        - ID: 75
-          Type: 1235 EventRootType Probe[main.testMapLargeKeySmallValue]
+        - ID: 76
+          Type: 1236 EventRootType Probe[main.testMapLargeKeySmallValue]
           InjectionPoints: [{PC: "0x808120", Frameless: true}]
           Condition: null
     - id: testMapMassive
@@ -762,6 +768,25 @@ Probes:
           Type: 1226 EventRootType Probe[main.testMapMassive]
           InjectionPoints: [{PC: "0x808090", Frameless: true}]
           Condition: null
+    - id: testMapMassiveWithSizeLimit
+      version: 0
+      type: LOG_PROBE
+      where: {methodName: main.testMapMassive}
+      tags: ['foo:bar']
+      capture:
+        maxReferenceDepth: 0
+        maxFieldCount: 0
+        maxLength: 0
+        maxCollectionSize: 0
+      template: ""
+      segments: []
+      captureSnapshot: true
+      subprogram: {subprogram: 66}
+      events:
+        - ID: 67
+          Type: 1227 EventRootType Probe[main.testMapMassive]
+          InjectionPoints: [{PC: "0x808090", Frameless: true}]
+          Condition: null
     - id: testMapSmallKeyLargeValue
       version: 0
       type: LOG_PROBE
@@ -772,8 +797,8 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 74}
       events:
-        - ID: 74
-          Type: 1234 EventRootType Probe[main.testMapSmallKeyLargeValue]
+        - ID: 75
+          Type: 1235 EventRootType Probe[main.testMapSmallKeyLargeValue]
           InjectionPoints: [{PC: "0x808110", Frameless: true}]
           Condition: null
     - id: testMapSmallKeySmallValue
@@ -786,8 +811,8 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 73}
       events:
-        - ID: 73
-          Type: 1233 EventRootType Probe[main.testMapSmallKeySmallValue]
+        - ID: 74
+          Type: 1234 EventRootType Probe[main.testMapSmallKeySmallValue]
           InjectionPoints: [{PC: "0x808100", Frameless: true}]
           Condition: null
     - id: testMapStringToInt
@@ -842,8 +867,8 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 68}
       events:
-        - ID: 68
-          Type: 1228 EventRootType Probe[main.testMapWithLinkedList]
+        - ID: 69
+          Type: 1229 EventRootType Probe[main.testMapWithLinkedList]
           InjectionPoints: [{PC: "0x8080b0", Frameless: true}]
           Condition: null
     - id: testMapWithSmallKeyAndValue
@@ -856,8 +881,8 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 71}
       events:
-        - ID: 71
-          Type: 1231 EventRootType Probe[main.testMapWithSmallKeyAndValue]
+        - ID: 72
+          Type: 1232 EventRootType Probe[main.testMapWithSmallKeyAndValue]
           InjectionPoints: [{PC: "0x8080e0", Frameless: true}]
           Condition: null
     - id: testMapWithSmallKeyAndValueMassive
@@ -870,8 +895,8 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 72}
       events:
-        - ID: 72
-          Type: 1232 EventRootType Probe[main.testMapWithSmallKeyAndValueMassive]
+        - ID: 73
+          Type: 1233 EventRootType Probe[main.testMapWithSmallKeyAndValueMassive]
           InjectionPoints: [{PC: "0x8080f0", Frameless: true}]
           Condition: null
     - id: testMapWithSmallValue
@@ -884,8 +909,8 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 69}
       events:
-        - ID: 69
-          Type: 1229 EventRootType Probe[main.testMapWithSmallValue]
+        - ID: 70
+          Type: 1230 EventRootType Probe[main.testMapWithSmallValue]
           InjectionPoints: [{PC: "0x8080c0", Frameless: true}]
           Condition: null
     - id: testMapWithSmallValueMassive
@@ -898,8 +923,8 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 70}
       events:
-        - ID: 70
-          Type: 1230 EventRootType Probe[main.testMapWithSmallValueMassive]
+        - ID: 71
+          Type: 1231 EventRootType Probe[main.testMapWithSmallValueMassive]
           InjectionPoints: [{PC: "0x8080d0", Frameless: true}]
           Condition: null
     - id: testMassiveString
@@ -912,8 +937,27 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 104}
       events:
-        - ID: 104
-          Type: 1264 EventRootType Probe[main.testMassiveString]
+        - ID: 106
+          Type: 1266 EventRootType Probe[main.testMassiveString]
+          InjectionPoints: [{PC: "0x80a050", Frameless: true}]
+          Condition: null
+    - id: testMassiveStringWithSizeLimit
+      version: 0
+      type: LOG_PROBE
+      where: {methodName: main.testMassiveString}
+      tags: ['foo:bar']
+      capture:
+        maxReferenceDepth: 0
+        maxFieldCount: 0
+        maxLength: 11
+        maxCollectionSize: 0
+      template: ""
+      segments: []
+      captureSnapshot: true
+      subprogram: {subprogram: 104}
+      events:
+        - ID: 107
+          Type: 1267 EventRootType Probe[main.testMassiveString]
           InjectionPoints: [{PC: "0x80a050", Frameless: true}]
           Condition: null
     - id: testMultipleSimpleParams
@@ -926,8 +970,8 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 78}
       events:
-        - ID: 78
-          Type: 1238 EventRootType Probe[main.testMultipleSimpleParams]
+        - ID: 79
+          Type: 1239 EventRootType Probe[main.testMultipleSimpleParams]
           InjectionPoints: [{PC: "0x8094b0", Frameless: true}]
           Condition: null
     - id: testNilPointer
@@ -940,8 +984,8 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 86}
       events:
-        - ID: 86
-          Type: 1246 EventRootType Probe[main.testNilPointer]
+        - ID: 87
+          Type: 1247 EventRootType Probe[main.testNilPointer]
           InjectionPoints: [{PC: "0x8098b0", Frameless: true}]
           Condition: null
     - id: testNilSlice
@@ -954,8 +998,8 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 96}
       events:
-        - ID: 96
-          Type: 1256 EventRootType Probe[main.testNilSlice]
+        - ID: 97
+          Type: 1257 EventRootType Probe[main.testNilSlice]
           InjectionPoints: [{PC: "0x809cf0", Frameless: true}]
           Condition: null
     - id: testNilSliceOfStructs
@@ -968,8 +1012,8 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 93}
       events:
-        - ID: 93
-          Type: 1253 EventRootType Probe[main.testNilSliceOfStructs]
+        - ID: 94
+          Type: 1254 EventRootType Probe[main.testNilSliceOfStructs]
           InjectionPoints: [{PC: "0x809cc0", Frameless: true}]
           Condition: null
     - id: testNilSliceWithOtherParams
@@ -982,8 +1026,8 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 95}
       events:
-        - ID: 95
-          Type: 1255 EventRootType Probe[main.testNilSliceWithOtherParams]
+        - ID: 96
+          Type: 1256 EventRootType Probe[main.testNilSliceWithOtherParams]
           InjectionPoints: [{PC: "0x809ce0", Frameless: true}]
           Condition: null
     - id: testOneStringInStructPointer
@@ -996,8 +1040,8 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 103}
       events:
-        - ID: 103
-          Type: 1263 EventRootType Probe[main.testOneStringInStructPointer]
+        - ID: 105
+          Type: 1265 EventRootType Probe[main.testOneStringInStructPointer]
           InjectionPoints: [{PC: "0x80a040", Frameless: true}]
           Condition: null
     - id: testPointerLoop
@@ -1010,8 +1054,8 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 82}
       events:
-        - ID: 82
-          Type: 1242 EventRootType Probe[main.testPointerLoop]
+        - ID: 83
+          Type: 1243 EventRootType Probe[main.testPointerLoop]
           InjectionPoints: [{PC: "0x8097f0", Frameless: true}]
           Condition: null
     - id: testPointerToMap
@@ -1038,8 +1082,8 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 80}
       events:
-        - ID: 80
-          Type: 1240 EventRootType Probe[main.testPointerToSimpleStruct]
+        - ID: 81
+          Type: 1241 EventRootType Probe[main.testPointerToSimpleStruct]
           InjectionPoints: [{PC: "0x8097d0", Frameless: true}]
           Condition: null
     - id: testRuneArray
@@ -1206,8 +1250,8 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 99}
       events:
-        - ID: 99
-          Type: 1259 EventRootType Probe[main.testSingleString]
+        - ID: 101
+          Type: 1261 EventRootType Probe[main.testSingleString]
           InjectionPoints: [{PC: "0x80a000", Frameless: true}]
           Condition: null
     - id: testSingleUint
@@ -1290,8 +1334,8 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 90}
       events:
-        - ID: 90
-          Type: 1250 EventRootType Probe[main.testSliceOfSlices]
+        - ID: 91
+          Type: 1251 EventRootType Probe[main.testSliceOfSlices]
           InjectionPoints: [{PC: "0x809c90", Frameless: true}]
           Condition: null
     - id: testSmallMap
@@ -1332,8 +1376,8 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 85}
       events:
-        - ID: 85
-          Type: 1245 EventRootType Probe[main.testStringPointer]
+        - ID: 86
+          Type: 1246 EventRootType Probe[main.testStringPointer]
           InjectionPoints: [{PC: "0x809890", Frameless: true}]
           Condition: null
     - id: testStringSlice
@@ -1346,8 +1390,8 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 94}
       events:
-        - ID: 94
-          Type: 1254 EventRootType Probe[main.testStringSlice]
+        - ID: 95
+          Type: 1255 EventRootType Probe[main.testStringSlice]
           InjectionPoints: [{PC: "0x809cd0", Frameless: true}]
           Condition: null
     - id: testStringType1
@@ -1357,6 +1401,7 @@ Probes:
       capture:
         maxReferenceDepth: 1
         maxFieldCount: 0
+        maxLength: 0
         maxCollectionSize: 0
       template: ""
       segments: []
@@ -1374,6 +1419,7 @@ Probes:
       capture:
         maxReferenceDepth: 1
         maxFieldCount: 0
+        maxLength: 0
         maxCollectionSize: 0
       template: ""
       segments: []
@@ -1394,8 +1440,8 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 107}
       events:
-        - ID: 107
-          Type: 1267 EventRootType Probe[main.testStruct]
+        - ID: 110
+          Type: 1270 EventRootType Probe[main.testStruct]
           InjectionPoints: [{PC: "0x80a250", Frameless: true}]
           Condition: null
     - id: testStructSlice
@@ -1408,8 +1454,8 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 91}
       events:
-        - ID: 91
-          Type: 1251 EventRootType Probe[main.testStructSlice]
+        - ID: 92
+          Type: 1252 EventRootType Probe[main.testStructSlice]
           InjectionPoints: [{PC: "0x809ca0", Frameless: true}]
           Condition: null
     - id: testStructWithAny
@@ -1419,6 +1465,7 @@ Probes:
       capture:
         maxReferenceDepth: 1
         maxFieldCount: 0
+        maxLength: 0
         maxCollectionSize: 0
       template: ""
       segments: []
@@ -1453,8 +1500,8 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 100}
       events:
-        - ID: 100
-          Type: 1260 EventRootType Probe[main.testThreeStrings]
+        - ID: 102
+          Type: 1262 EventRootType Probe[main.testThreeStrings]
           InjectionPoints: [{PC: "0x80a010", Frameless: true}]
           Condition: null
     - id: testThreeStringsInStruct
@@ -1467,8 +1514,8 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 101}
       events:
-        - ID: 101
-          Type: 1261 EventRootType Probe[main.testThreeStringsInStruct]
+        - ID: 103
+          Type: 1263 EventRootType Probe[main.testThreeStringsInStruct]
           InjectionPoints: [{PC: "0x80a020", Frameless: true}]
           Condition: null
     - id: testThreeStringsInStructPointer
@@ -1481,8 +1528,8 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 102}
       events:
-        - ID: 102
-          Type: 1262 EventRootType Probe[main.testThreeStringsInStructPointer]
+        - ID: 104
+          Type: 1264 EventRootType Probe[main.testThreeStringsInStructPointer]
           InjectionPoints: [{PC: "0x80a030", Frameless: true}]
           Condition: null
     - id: testTypeAlias
@@ -1579,8 +1626,8 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 84}
       events:
-        - ID: 84
-          Type: 1244 EventRootType Probe[main.testUintPointer]
+        - ID: 85
+          Type: 1245 EventRootType Probe[main.testUintPointer]
           InjectionPoints: [{PC: "0x809820", Frameless: true}]
           Condition: null
     - id: testUintSlice
@@ -1593,8 +1640,8 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 88}
       events:
-        - ID: 88
-          Type: 1248 EventRootType Probe[main.testUintSlice]
+        - ID: 89
+          Type: 1249 EventRootType Probe[main.testUintSlice]
           InjectionPoints: [{PC: "0x809c70", Frameless: true}]
           Condition: null
     - id: testUnitializedString
@@ -1607,8 +1654,8 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 105}
       events:
-        - ID: 105
-          Type: 1265 EventRootType Probe[main.testUnitializedString]
+        - ID: 108
+          Type: 1268 EventRootType Probe[main.testUnitializedString]
           InjectionPoints: [{PC: "0x80a060", Frameless: true}]
           Condition: null
     - id: testUnsafePointer
@@ -1621,8 +1668,8 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 83}
       events:
-        - ID: 83
-          Type: 1243 EventRootType Probe[main.testUnsafePointer]
+        - ID: 84
+          Type: 1244 EventRootType Probe[main.testUnsafePointer]
           InjectionPoints: [{PC: "0x809800", Frameless: true}]
           Condition: null
     - id: testVeryLargeArray
@@ -1649,8 +1696,27 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 97}
       events:
-        - ID: 97
-          Type: 1257 EventRootType Probe[main.testVeryLargeSlice]
+        - ID: 98
+          Type: 1258 EventRootType Probe[main.testVeryLargeSlice]
+          InjectionPoints: [{PC: "0x809d00", Frameless: true}]
+          Condition: null
+    - id: testVeryLargeSliceWithSizeLimit
+      version: 0
+      type: LOG_PROBE
+      where: {methodName: main.testVeryLargeSlice}
+      tags: ['foo:bar']
+      capture:
+        maxReferenceDepth: 0
+        maxFieldCount: 0
+        maxLength: 0
+        maxCollectionSize: 0
+      template: ""
+      segments: []
+      captureSnapshot: true
+      subprogram: {subprogram: 97}
+      events:
+        - ID: 99
+          Type: 1259 EventRootType Probe[main.testVeryLargeSlice]
           InjectionPoints: [{PC: "0x809d00", Frameless: true}]
           Condition: null
 Subprograms:
@@ -3418,15 +3484,15 @@ Types:
       ByteSize: 8
       Pointee: 1078 PointerType *main.deepSlice3
     - __kind: PointerType
-      ID: 1104
+      ID: 1102
       Name: '**main.deepSlice8'
       ByteSize: 8
-      Pointee: 1105 PointerType *main.deepSlice8
+      Pointee: 1103 PointerType *main.deepSlice8
     - __kind: PointerType
-      ID: 1110
+      ID: 1108
       Name: '**main.deepSlice9'
       ByteSize: 8
-      Pointee: 1111 PointerType *main.deepSlice9
+      Pointee: 1109 PointerType *main.deepSlice9
     - __kind: PointerType
       ID: 149
       Name: '**main.stringType2'
@@ -3482,25 +3548,25 @@ Types:
       ByteSize: 8
       Pointee: 1086 PointerType *table<int,*main.deepMap3>
     - __kind: PointerType
-      ID: 1121
+      ID: 1119
       Name: '**table<int,*main.deepMap8>'
       ByteSize: 8
-      Pointee: 1122 PointerType *table<int,*main.deepMap8>
+      Pointee: 1120 PointerType *table<int,*main.deepMap8>
     - __kind: PointerType
-      ID: 1136
+      ID: 1134
       Name: '**table<int,*main.deepMap9>'
       ByteSize: 8
-      Pointee: 1137 PointerType *table<int,*main.deepMap9>
+      Pointee: 1135 PointerType *table<int,*main.deepMap9>
     - __kind: PointerType
       ID: 165
       Name: '**table<int,int>'
       ByteSize: 8
       Pointee: 166 PointerType *table<int,int>
     - __kind: PointerType
-      ID: 1151
+      ID: 1149
       Name: '**table<int,interface {}>'
       ByteSize: 8
-      Pointee: 1152 PointerType *table<int,interface {}>
+      Pointee: 1150 PointerType *table<int,interface {}>
     - __kind: PointerType
       ID: 202
       Name: '**table<int,uint8>'
@@ -3552,15 +3618,15 @@ Types:
       ByteSize: 8
       Pointee: 1080 GoSliceDataType []*main.deepSlice3.array
     - __kind: PointerType
-      ID: 1108
+      ID: 1106
       Name: '*[]*main.deepSlice8.array'
       ByteSize: 8
-      Pointee: 1107 GoSliceDataType []*main.deepSlice8.array
+      Pointee: 1105 GoSliceDataType []*main.deepSlice8.array
     - __kind: PointerType
-      ID: 1114
+      ID: 1112
       Name: '*[]*main.deepSlice9.array'
       ByteSize: 8
-      Pointee: 1113 GoSliceDataType []*main.deepSlice9.array
+      Pointee: 1111 GoSliceDataType []*main.deepSlice9.array
     - __kind: PointerType
       ID: 256
       Name: '*[]*runtime.p.array'
@@ -3587,15 +3653,15 @@ Types:
       ByteSize: 8
       Pointee: 855 GoSliceDataType []float64.array
     - __kind: PointerType
-      ID: 1117
+      ID: 1115
       Name: '*[]interface {}.array'
       ByteSize: 8
-      Pointee: 1116 GoSliceDataType []interface {}.array
+      Pointee: 1114 GoSliceDataType []interface {}.array
     - __kind: PointerType
-      ID: 1098
+      ID: 1160
       Name: '*[]main.structWithMap.array'
       ByteSize: 8
-      Pointee: 1097 GoSliceDataType []main.structWithMap.array
+      Pointee: 1159 GoSliceDataType []main.structWithMap.array
     - __kind: PointerType
       ID: 377
       Name: '*[]main.structWithNoStrings.array'
@@ -5153,19 +5219,19 @@ Types:
       GoKind: 22
       Pointee: 146 StructureType main.deepMap7
     - __kind: PointerType
-      ID: 1129
+      ID: 1127
       Name: '*main.deepMap8'
       ByteSize: 8
       GoRuntimeType: 385568
       GoKind: 22
-      Pointee: 1130 StructureType main.deepMap8
+      Pointee: 1128 StructureType main.deepMap8
     - __kind: PointerType
-      ID: 1144
+      ID: 1142
       Name: '*main.deepMap9'
       ByteSize: 8
       GoRuntimeType: 385504
       GoKind: 22
-      Pointee: 1145 StructureType main.deepMap9
+      Pointee: 1143 StructureType main.deepMap9
     - __kind: PointerType
       ID: 129
       Name: '*main.deepPtr2'
@@ -5188,19 +5254,19 @@ Types:
       GoKind: 22
       Pointee: 132 StructureType main.deepPtr7
     - __kind: PointerType
-      ID: 1099
+      ID: 1097
       Name: '*main.deepPtr8'
       ByteSize: 8
       GoRuntimeType: 386144
       GoKind: 22
-      Pointee: 1100 StructureType main.deepPtr8
+      Pointee: 1098 StructureType main.deepPtr8
     - __kind: PointerType
-      ID: 1101
+      ID: 1099
       Name: '*main.deepPtr9'
       ByteSize: 8
       GoRuntimeType: 386080
       GoKind: 22
-      Pointee: 1102 StructureType main.deepPtr9
+      Pointee: 1100 StructureType main.deepPtr9
     - __kind: PointerType
       ID: 136
       Name: '*main.deepSlice2'
@@ -5223,19 +5289,19 @@ Types:
       GoKind: 22
       Pointee: 138 StructureType main.deepSlice7
     - __kind: PointerType
-      ID: 1105
+      ID: 1103
       Name: '*main.deepSlice8'
       ByteSize: 8
       GoRuntimeType: 386720
       GoKind: 22
-      Pointee: 1106 StructureType main.deepSlice8
+      Pointee: 1104 StructureType main.deepSlice8
     - __kind: PointerType
-      ID: 1111
+      ID: 1109
       Name: '*main.deepSlice9'
       ByteSize: 8
       GoRuntimeType: 386656
       GoKind: 22
-      Pointee: 1112 StructureType main.deepSlice9
+      Pointee: 1110 StructureType main.deepSlice9
     - __kind: PointerType
       ID: 247
       Name: '*main.emptyStruct'
@@ -5366,25 +5432,25 @@ Types:
       ByteSize: 8
       Pointee: 1084 GoSwissMapHeaderType map<int,*main.deepMap3>
     - __kind: PointerType
-      ID: 1119
+      ID: 1117
       Name: '*map<int,*main.deepMap8>'
       ByteSize: 8
-      Pointee: 1120 GoSwissMapHeaderType map<int,*main.deepMap8>
+      Pointee: 1118 GoSwissMapHeaderType map<int,*main.deepMap8>
     - __kind: PointerType
-      ID: 1134
+      ID: 1132
       Name: '*map<int,*main.deepMap9>'
       ByteSize: 8
-      Pointee: 1135 GoSwissMapHeaderType map<int,*main.deepMap9>
+      Pointee: 1133 GoSwissMapHeaderType map<int,*main.deepMap9>
     - __kind: PointerType
       ID: 163
       Name: '*map<int,int>'
       ByteSize: 8
       Pointee: 164 GoSwissMapHeaderType map<int,int>
     - __kind: PointerType
-      ID: 1149
+      ID: 1147
       Name: '*map<int,interface {}>'
       ByteSize: 8
-      Pointee: 1150 GoSwissMapHeaderType map<int,interface {}>
+      Pointee: 1148 GoSwissMapHeaderType map<int,interface {}>
     - __kind: PointerType
       ID: 200
       Name: '*map<int,uint8>'
@@ -5908,25 +5974,25 @@ Types:
       ByteSize: 8
       Pointee: 1090 StructureType noalg.map.group[int]*main.deepMap3
     - __kind: PointerType
-      ID: 1125
+      ID: 1123
       Name: '*noalg.map.group[int]*main.deepMap8'
       ByteSize: 8
-      Pointee: 1126 StructureType noalg.map.group[int]*main.deepMap8
+      Pointee: 1124 StructureType noalg.map.group[int]*main.deepMap8
     - __kind: PointerType
-      ID: 1140
+      ID: 1138
       Name: '*noalg.map.group[int]*main.deepMap9'
       ByteSize: 8
-      Pointee: 1141 StructureType noalg.map.group[int]*main.deepMap9
+      Pointee: 1139 StructureType noalg.map.group[int]*main.deepMap9
     - __kind: PointerType
       ID: 274
       Name: '*noalg.map.group[int]int'
       ByteSize: 8
       Pointee: 275 StructureType noalg.map.group[int]int
     - __kind: PointerType
-      ID: 1155
+      ID: 1153
       Name: '*noalg.map.group[int]interface {}'
       ByteSize: 8
-      Pointee: 1156 StructureType noalg.map.group[int]interface {}
+      Pointee: 1154 StructureType noalg.map.group[int]interface {}
     - __kind: PointerType
       ID: 333
       Name: '*noalg.map.group[int]uint8'
@@ -6277,25 +6343,25 @@ Types:
       ByteSize: 8
       Pointee: 1087 StructureType table<int,*main.deepMap3>
     - __kind: PointerType
-      ID: 1122
+      ID: 1120
       Name: '*table<int,*main.deepMap8>'
       ByteSize: 8
-      Pointee: 1123 StructureType table<int,*main.deepMap8>
+      Pointee: 1121 StructureType table<int,*main.deepMap8>
     - __kind: PointerType
-      ID: 1137
+      ID: 1135
       Name: '*table<int,*main.deepMap9>'
       ByteSize: 8
-      Pointee: 1138 StructureType table<int,*main.deepMap9>
+      Pointee: 1136 StructureType table<int,*main.deepMap9>
     - __kind: PointerType
       ID: 166
       Name: '*table<int,int>'
       ByteSize: 8
       Pointee: 272 StructureType table<int,int>
     - __kind: PointerType
-      ID: 1152
+      ID: 1150
       Name: '*table<int,interface {}>'
       ByteSize: 8
-      Pointee: 1153 StructureType table<int,interface {}>
+      Pointee: 1151 StructureType table<int,interface {}>
     - __kind: PointerType
       ID: 203
       Name: '*table<int,uint8>'
@@ -6461,7 +6527,7 @@ Types:
       GoKind: 22
       Pointee: 662 BaseType vendor/golang.org/x/net/idna.runeError
     - __kind: EventRootType
-      ID: 1258
+      ID: 1260
       Name: Probe[main.stackC]
     - __kind: EventRootType
       ID: 1215
@@ -6599,7 +6665,7 @@ Types:
                   Offset: 0
                   ByteSize: 2
     - __kind: EventRootType
-      ID: 1239
+      ID: 1240
       Name: Probe[main.testChannel]
       ByteSize: 1
       PresenceBitsetSize: 1
@@ -6614,7 +6680,7 @@ Types:
                   Offset: 0
                   ByteSize: 0
     - __kind: EventRootType
-      ID: 1237
+      ID: 1238
       Name: Probe[main.testCombinedByte]
       ByteSize: 7
       PresenceBitsetSize: 1
@@ -6647,7 +6713,7 @@ Types:
                   Offset: 0
                   ByteSize: 4
     - __kind: EventRootType
-      ID: 1247
+      ID: 1248
       Name: Probe[main.testCycle]
       ByteSize: 9
       PresenceBitsetSize: 1
@@ -6752,7 +6818,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1252
+      ID: 1253
       Name: Probe[main.testEmptySliceOfStructs]
       ByteSize: 33
       PresenceBitsetSize: 1
@@ -6776,7 +6842,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1249
+      ID: 1250
       Name: Probe[main.testEmptySlice]
       ByteSize: 25
       PresenceBitsetSize: 1
@@ -6791,7 +6857,7 @@ Types:
                   Offset: 0
                   ByteSize: 24
     - __kind: EventRootType
-      ID: 1266
+      ID: 1269
       Name: Probe[main.testEmptyString]
       ByteSize: 17
       PresenceBitsetSize: 1
@@ -6806,7 +6872,7 @@ Types:
                   Offset: 0
                   ByteSize: 16
     - __kind: EventRootType
-      ID: 1269
+      ID: 1272
       Name: Probe[main.testEmptyStructPointer]
       ByteSize: 9
       PresenceBitsetSize: 1
@@ -6821,7 +6887,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1268
+      ID: 1271
       Name: Probe[main.testEmptyStruct]
       ByteSize: 1
       PresenceBitsetSize: 1
@@ -6941,7 +7007,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1271
+      ID: 1274
       Name: Probe[main.testInlinedBBB]
     - __kind: EventRootType
       ID: 1207
@@ -6968,16 +7034,16 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1272
+      ID: 1275
       Name: Probe[main.testInlinedBCA]
     - __kind: EventRootType
-      ID: 1273
+      ID: 1276
       Name: Probe[main.testInlinedBCB]
     - __kind: EventRootType
       ID: 1209
       Name: Probe[main.testInlinedBC]
     - __kind: EventRootType
-      ID: 1270
+      ID: 1273
       Name: Probe[main.testInlinedPrint]
       ByteSize: 9
       PresenceBitsetSize: 1
@@ -6992,7 +7058,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1274
+      ID: 1277
       Name: Probe[main.testInlinedSq]
       ByteSize: 9
       PresenceBitsetSize: 1
@@ -7007,7 +7073,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1275
+      ID: 1278
       Name: Probe[main.testInlinedSumArray]
       ByteSize: 41
       PresenceBitsetSize: 1
@@ -7112,7 +7178,7 @@ Types:
                   Offset: 0
                   ByteSize: 16
     - __kind: EventRootType
-      ID: 1241
+      ID: 1242
       Name: Probe[main.testLinkedList]
       ByteSize: 17
       PresenceBitsetSize: 1
@@ -7142,7 +7208,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1227
+      ID: 1228
       Name: Probe[main.testMapEmbeddedMaps]
       ByteSize: 9
       PresenceBitsetSize: 1
@@ -7172,7 +7238,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1236
+      ID: 1237
       Name: Probe[main.testMapLargeKeyLargeValue]
       ByteSize: 9
       PresenceBitsetSize: 1
@@ -7187,7 +7253,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1235
+      ID: 1236
       Name: Probe[main.testMapLargeKeySmallValue]
       ByteSize: 9
       PresenceBitsetSize: 1
@@ -7199,6 +7265,21 @@ Types:
             Operations:
                 - __kind: LocationOp
                   Variable: {subprogram: 75, index: 0, name: m}
+                  Offset: 0
+                  ByteSize: 8
+    - __kind: EventRootType
+      ID: 1227
+      Name: Probe[main.testMapMassive]
+      ByteSize: 9
+      PresenceBitsetSize: 1
+      Expressions:
+        - Name: redactMyEntries
+          Offset: 1
+          Expression:
+            Type: 189 GoMapType map[string][]main.structWithMap
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 66, index: 0, name: redactMyEntries}
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
@@ -7217,7 +7298,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1234
+      ID: 1235
       Name: Probe[main.testMapSmallKeyLargeValue]
       ByteSize: 9
       PresenceBitsetSize: 1
@@ -7232,7 +7313,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1233
+      ID: 1234
       Name: Probe[main.testMapSmallKeySmallValue]
       ByteSize: 9
       PresenceBitsetSize: 1
@@ -7292,7 +7373,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1228
+      ID: 1229
       Name: Probe[main.testMapWithLinkedList]
       ByteSize: 9
       PresenceBitsetSize: 1
@@ -7307,7 +7388,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1232
+      ID: 1233
       Name: Probe[main.testMapWithSmallKeyAndValueMassive]
       ByteSize: 9
       PresenceBitsetSize: 1
@@ -7322,7 +7403,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1231
+      ID: 1232
       Name: Probe[main.testMapWithSmallKeyAndValue]
       ByteSize: 9
       PresenceBitsetSize: 1
@@ -7337,7 +7418,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1230
+      ID: 1231
       Name: Probe[main.testMapWithSmallValueMassive]
       ByteSize: 9
       PresenceBitsetSize: 1
@@ -7352,7 +7433,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1229
+      ID: 1230
       Name: Probe[main.testMapWithSmallValue]
       ByteSize: 9
       PresenceBitsetSize: 1
@@ -7367,7 +7448,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1264
+      ID: 1266
       Name: Probe[main.testMassiveString]
       ByteSize: 17
       PresenceBitsetSize: 1
@@ -7382,7 +7463,22 @@ Types:
                   Offset: 0
                   ByteSize: 16
     - __kind: EventRootType
-      ID: 1238
+      ID: 1267
+      Name: Probe[main.testMassiveString]
+      ByteSize: 17
+      PresenceBitsetSize: 1
+      Expressions:
+        - Name: x
+          Offset: 1
+          Expression:
+            Type: 9 GoStringHeaderType string
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 104, index: 0, name: x}
+                  Offset: 0
+                  ByteSize: 16
+    - __kind: EventRootType
+      ID: 1239
       Name: Probe[main.testMultipleSimpleParams]
       ByteSize: 31
       PresenceBitsetSize: 1
@@ -7433,7 +7529,7 @@ Types:
                   Offset: 0
                   ByteSize: 16
     - __kind: EventRootType
-      ID: 1246
+      ID: 1247
       Name: Probe[main.testNilPointer]
       ByteSize: 17
       PresenceBitsetSize: 1
@@ -7457,7 +7553,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1253
+      ID: 1254
       Name: Probe[main.testNilSliceOfStructs]
       ByteSize: 33
       PresenceBitsetSize: 1
@@ -7481,7 +7577,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1255
+      ID: 1256
       Name: Probe[main.testNilSliceWithOtherParams]
       ByteSize: 34
       PresenceBitsetSize: 1
@@ -7514,7 +7610,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1256
+      ID: 1257
       Name: Probe[main.testNilSlice]
       ByteSize: 25
       PresenceBitsetSize: 1
@@ -7529,7 +7625,7 @@ Types:
                   Offset: 0
                   ByteSize: 24
     - __kind: EventRootType
-      ID: 1263
+      ID: 1265
       Name: Probe[main.testOneStringInStructPointer]
       ByteSize: 9
       PresenceBitsetSize: 1
@@ -7544,7 +7640,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1242
+      ID: 1243
       Name: Probe[main.testPointerLoop]
       ByteSize: 9
       PresenceBitsetSize: 1
@@ -7574,7 +7670,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1240
+      ID: 1241
       Name: Probe[main.testPointerToSimpleStruct]
       ByteSize: 9
       PresenceBitsetSize: 1
@@ -7754,7 +7850,7 @@ Types:
                   Offset: 0
                   ByteSize: 4
     - __kind: EventRootType
-      ID: 1259
+      ID: 1261
       Name: Probe[main.testSingleString]
       ByteSize: 17
       PresenceBitsetSize: 1
@@ -7844,7 +7940,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1250
+      ID: 1251
       Name: Probe[main.testSliceOfSlices]
       ByteSize: 25
       PresenceBitsetSize: 1
@@ -7889,7 +7985,7 @@ Types:
                   Offset: 0
                   ByteSize: 32
     - __kind: EventRootType
-      ID: 1245
+      ID: 1246
       Name: Probe[main.testStringPointer]
       ByteSize: 9
       PresenceBitsetSize: 1
@@ -7904,7 +8000,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1254
+      ID: 1255
       Name: Probe[main.testStringSlice]
       ByteSize: 25
       PresenceBitsetSize: 1
@@ -7949,7 +8045,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1251
+      ID: 1252
       Name: Probe[main.testStructSlice]
       ByteSize: 33
       PresenceBitsetSize: 1
@@ -8003,7 +8099,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1267
+      ID: 1270
       Name: Probe[main.testStruct]
       ByteSize: 57
       PresenceBitsetSize: 1
@@ -8018,7 +8114,7 @@ Types:
                   Offset: 0
                   ByteSize: 56
     - __kind: EventRootType
-      ID: 1262
+      ID: 1264
       Name: Probe[main.testThreeStringsInStructPointer]
       ByteSize: 9
       PresenceBitsetSize: 1
@@ -8033,7 +8129,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1261
+      ID: 1263
       Name: Probe[main.testThreeStringsInStruct]
       ByteSize: 49
       PresenceBitsetSize: 1
@@ -8048,7 +8144,7 @@ Types:
                   Offset: 0
                   ByteSize: 48
     - __kind: EventRootType
-      ID: 1260
+      ID: 1262
       Name: Probe[main.testThreeStrings]
       ByteSize: 49
       PresenceBitsetSize: 1
@@ -8171,7 +8267,7 @@ Types:
                   Offset: 0
                   ByteSize: 16
     - __kind: EventRootType
-      ID: 1244
+      ID: 1245
       Name: Probe[main.testUintPointer]
       ByteSize: 9
       PresenceBitsetSize: 1
@@ -8186,7 +8282,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1248
+      ID: 1249
       Name: Probe[main.testUintSlice]
       ByteSize: 25
       PresenceBitsetSize: 1
@@ -8201,7 +8297,7 @@ Types:
                   Offset: 0
                   ByteSize: 24
     - __kind: EventRootType
-      ID: 1265
+      ID: 1268
       Name: Probe[main.testUnitializedString]
       ByteSize: 17
       PresenceBitsetSize: 1
@@ -8216,7 +8312,7 @@ Types:
                   Offset: 0
                   ByteSize: 16
     - __kind: EventRootType
-      ID: 1243
+      ID: 1244
       Name: Probe[main.testUnsafePointer]
       ByteSize: 9
       PresenceBitsetSize: 1
@@ -8246,7 +8342,22 @@ Types:
                   Offset: 0
                   ByteSize: 800
     - __kind: EventRootType
-      ID: 1257
+      ID: 1258
+      Name: Probe[main.testVeryLargeSlice]
+      ByteSize: 25
+      PresenceBitsetSize: 1
+      Expressions:
+        - Name: xs
+          Offset: 1
+          Expression:
+            Type: 231 GoSliceHeaderType []uint
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 97, index: 0, name: xs}
+                  Offset: 0
+                  ByteSize: 24
+    - __kind: EventRootType
+      ID: 1259
       Name: Probe[main.testVeryLargeSlice]
       ByteSize: 25
       PresenceBitsetSize: 1
@@ -8538,7 +8649,8 @@ Types:
     - __kind: GoSliceDataType
       ID: 260
       Name: '[]*main.deepSlice2.array'
-      ByteSize: 2048
+      DynamicSizeClass: 1
+      ByteSize: 8
       Element: 136 PointerType *main.deepSlice2
     - __kind: GoSliceHeaderType
       ID: 1076
@@ -8560,10 +8672,11 @@ Types:
     - __kind: GoSliceDataType
       ID: 1080
       Name: '[]*main.deepSlice3.array'
-      ByteSize: 2048
+      DynamicSizeClass: 1
+      ByteSize: 8
       Element: 1078 PointerType *main.deepSlice3
     - __kind: GoSliceHeaderType
-      ID: 1103
+      ID: 1101
       Name: '[]*main.deepSlice8'
       ByteSize: 24
       GoRuntimeType: 477344
@@ -8571,21 +8684,22 @@ Types:
       RawFields:
         - Name: array
           Offset: 0
-          Type: 1104 PointerType **main.deepSlice8
+          Type: 1102 PointerType **main.deepSlice8
         - Name: len
           Offset: 8
           Type: 7 BaseType int
         - Name: cap
           Offset: 16
           Type: 7 BaseType int
-      Data: 1107 GoSliceDataType []*main.deepSlice8.array
+      Data: 1105 GoSliceDataType []*main.deepSlice8.array
     - __kind: GoSliceDataType
-      ID: 1107
+      ID: 1105
       Name: '[]*main.deepSlice8.array'
-      ByteSize: 2048
-      Element: 1105 PointerType *main.deepSlice8
+      DynamicSizeClass: 1
+      ByteSize: 8
+      Element: 1103 PointerType *main.deepSlice8
     - __kind: GoSliceHeaderType
-      ID: 1109
+      ID: 1107
       Name: '[]*main.deepSlice9'
       ByteSize: 24
       GoRuntimeType: 477280
@@ -8593,19 +8707,20 @@ Types:
       RawFields:
         - Name: array
           Offset: 0
-          Type: 1110 PointerType **main.deepSlice9
+          Type: 1108 PointerType **main.deepSlice9
         - Name: len
           Offset: 8
           Type: 7 BaseType int
         - Name: cap
           Offset: 16
           Type: 7 BaseType int
-      Data: 1113 GoSliceDataType []*main.deepSlice9.array
+      Data: 1111 GoSliceDataType []*main.deepSlice9.array
     - __kind: GoSliceDataType
-      ID: 1113
+      ID: 1111
       Name: '[]*main.deepSlice9.array'
-      ByteSize: 2048
-      Element: 1111 PointerType *main.deepSlice9
+      DynamicSizeClass: 1
+      ByteSize: 8
+      Element: 1109 PointerType *main.deepSlice9
     - __kind: GoSliceHeaderType
       ID: 62
       Name: '[]*runtime.p'
@@ -8626,7 +8741,8 @@ Types:
     - __kind: GoSliceDataType
       ID: 255
       Name: '[]*runtime.p.array'
-      ByteSize: 2048
+      DynamicSizeClass: 1
+      ByteSize: 8
       Element: 64 PointerType *runtime.p
     - __kind: GoSliceHeaderType
       ID: 125
@@ -8648,97 +8764,116 @@ Types:
     - __kind: GoSliceDataType
       ID: 257
       Name: '[]*string.array'
-      ByteSize: 2048
+      DynamicSizeClass: 1
+      ByteSize: 8
       Element: 95 PointerType *string
     - __kind: GoSliceDataType
       ID: 370
       Name: '[]*table<[4]int,[4]int>.array'
-      ByteSize: 8192
+      DynamicSizeClass: 3
+      ByteSize: 8
       Element: 223 PointerType *table<[4]int,[4]int>
     - __kind: GoSliceDataType
       ID: 362
       Name: '[]*table<[4]int,uint8>.array'
-      ByteSize: 8192
+      DynamicSizeClass: 3
+      ByteSize: 8
       Element: 218 PointerType *table<[4]int,uint8>
     - __kind: GoSliceDataType
       ID: 311
       Name: '[]*table<[4]string,[2]int>.array'
-      ByteSize: 8192
+      DynamicSizeClass: 3
+      ByteSize: 8
       Element: 186 PointerType *table<[4]string,[2]int>
     - __kind: GoSliceDataType
       ID: 329
       Name: '[]*table<bool,main.node>.array'
-      ByteSize: 8192
+      DynamicSizeClass: 3
+      ByteSize: 8
       Element: 198 PointerType *table<bool,main.node>
     - __kind: GoSliceDataType
       ID: 270
       Name: '[]*table<int,*main.deepMap2>.array'
-      ByteSize: 8192
+      DynamicSizeClass: 3
+      ByteSize: 8
       Element: 144 PointerType *table<int,*main.deepMap2>
     - __kind: GoSliceDataType
       ID: 1095
       Name: '[]*table<int,*main.deepMap3>.array'
-      ByteSize: 8192
+      DynamicSizeClass: 3
+      ByteSize: 8
       Element: 1086 PointerType *table<int,*main.deepMap3>
     - __kind: GoSliceDataType
-      ID: 1131
+      ID: 1129
       Name: '[]*table<int,*main.deepMap8>.array'
-      ByteSize: 8192
-      Element: 1122 PointerType *table<int,*main.deepMap8>
+      DynamicSizeClass: 3
+      ByteSize: 8
+      Element: 1120 PointerType *table<int,*main.deepMap8>
     - __kind: GoSliceDataType
-      ID: 1146
+      ID: 1144
       Name: '[]*table<int,*main.deepMap9>.array'
-      ByteSize: 8192
-      Element: 1137 PointerType *table<int,*main.deepMap9>
+      DynamicSizeClass: 3
+      ByteSize: 8
+      Element: 1135 PointerType *table<int,*main.deepMap9>
     - __kind: GoSliceDataType
       ID: 278
       Name: '[]*table<int,int>.array'
-      ByteSize: 8192
+      DynamicSizeClass: 3
+      ByteSize: 8
       Element: 166 PointerType *table<int,int>
     - __kind: GoSliceDataType
-      ID: 1159
+      ID: 1157
       Name: '[]*table<int,interface {}>.array'
-      ByteSize: 8192
-      Element: 1152 PointerType *table<int,interface {}>
+      DynamicSizeClass: 3
+      ByteSize: 8
+      Element: 1150 PointerType *table<int,interface {}>
     - __kind: GoSliceDataType
       ID: 337
       Name: '[]*table<int,uint8>.array'
-      ByteSize: 8192
+      DynamicSizeClass: 3
+      ByteSize: 8
       Element: 203 PointerType *table<int,uint8>
     - __kind: GoSliceDataType
       ID: 321
       Name: '[]*table<string,[]main.structWithMap>.array'
-      ByteSize: 8192
+      DynamicSizeClass: 3
+      ByteSize: 8
       Element: 193 PointerType *table<string,[]main.structWithMap>
     - __kind: GoSliceDataType
       ID: 302
       Name: '[]*table<string,[]string>.array'
-      ByteSize: 8192
+      DynamicSizeClass: 3
+      ByteSize: 8
       Element: 181 PointerType *table<string,[]string>
     - __kind: GoSliceDataType
       ID: 853
       Name: '[]*table<string,github.com/DataDog/go-tuf/data.HexBytes>.array'
-      ByteSize: 8192
+      DynamicSizeClass: 3
+      ByteSize: 8
       Element: 820 PointerType *table<string,github.com/DataDog/go-tuf/data.HexBytes>
     - __kind: GoSliceDataType
       ID: 294
       Name: '[]*table<string,int>.array'
-      ByteSize: 8192
+      DynamicSizeClass: 3
+      ByteSize: 8
       Element: 176 PointerType *table<string,int>
     - __kind: GoSliceDataType
       ID: 286
       Name: '[]*table<string,main.nestedStruct>.array'
-      ByteSize: 8192
+      DynamicSizeClass: 3
+      ByteSize: 8
       Element: 171 PointerType *table<string,main.nestedStruct>
     - __kind: GoSliceDataType
       ID: 354
       Name: '[]*table<uint8,[4]int>.array'
-      ByteSize: 8192
+      DynamicSizeClass: 3
+      ByteSize: 8
       Element: 213 PointerType *table<uint8,[4]int>
     - __kind: GoSliceDataType
       ID: 345
       Name: '[]*table<uint8,uint8>.array'
-      ByteSize: 8192
+      DynamicSizeClass: 3
+      ByteSize: 8
       Element: 208 PointerType *table<uint8,uint8>
     - __kind: GoSliceHeaderType
       ID: 232
@@ -8759,7 +8894,8 @@ Types:
     - __kind: GoSliceDataType
       ID: 374
       Name: '[][]uint.array'
-      ByteSize: 2048
+      DynamicSizeClass: 1
+      ByteSize: 24
       Element: 231 GoSliceHeaderType []uint
     - __kind: GoSliceHeaderType
       ID: 238
@@ -8781,7 +8917,8 @@ Types:
     - __kind: GoSliceDataType
       ID: 380
       Name: '[]bool.array'
-      ByteSize: 2048
+      DynamicSizeClass: 1
+      ByteSize: 1
       Element: 4 BaseType bool
     - __kind: GoSliceHeaderType
       ID: 832
@@ -8803,10 +8940,11 @@ Types:
     - __kind: GoSliceDataType
       ID: 855
       Name: '[]float64.array'
-      ByteSize: 2048
+      DynamicSizeClass: 1
+      ByteSize: 8
       Element: 16 BaseType float64
     - __kind: GoSliceHeaderType
-      ID: 1115
+      ID: 1113
       Name: '[]interface {}'
       ByteSize: 24
       GoRuntimeType: 487392
@@ -8821,11 +8959,12 @@ Types:
         - Name: cap
           Offset: 16
           Type: 7 BaseType int
-      Data: 1116 GoSliceDataType []interface {}.array
+      Data: 1114 GoSliceDataType []interface {}.array
     - __kind: GoSliceDataType
-      ID: 1116
+      ID: 1114
       Name: '[]interface {}.array'
-      ByteSize: 2048
+      DynamicSizeClass: 1
+      ByteSize: 16
       Element: 153 GoEmptyInterfaceType interface {}
     - __kind: GoSliceHeaderType
       ID: 319
@@ -8843,11 +8982,12 @@ Types:
         - Name: cap
           Offset: 16
           Type: 7 BaseType int
-      Data: 1097 GoSliceDataType []main.structWithMap.array
+      Data: 1159 GoSliceDataType []main.structWithMap.array
     - __kind: GoSliceDataType
-      ID: 1097
+      ID: 1159
       Name: '[]main.structWithMap.array'
-      ByteSize: 2048
+      DynamicSizeClass: 1
+      ByteSize: 8
       Element: 161 StructureType main.structWithMap
     - __kind: GoSliceHeaderType
       ID: 234
@@ -8868,97 +9008,116 @@ Types:
     - __kind: GoSliceDataType
       ID: 376
       Name: '[]main.structWithNoStrings.array'
-      ByteSize: 2048
+      DynamicSizeClass: 1
+      ByteSize: 2
       Element: 236 StructureType main.structWithNoStrings
     - __kind: GoSliceDataType
       ID: 371
       Name: '[]noalg.map.group[[4]int][4]int.array'
-      ByteSize: 2048
+      DynamicSizeClass: 1
+      ByteSize: 520
       Element: 367 StructureType noalg.map.group[[4]int][4]int
     - __kind: GoSliceDataType
       ID: 363
       Name: '[]noalg.map.group[[4]int]uint8.array'
-      ByteSize: 2048
+      DynamicSizeClass: 1
+      ByteSize: 328
       Element: 359 StructureType noalg.map.group[[4]int]uint8
     - __kind: GoSliceDataType
       ID: 312
       Name: '[]noalg.map.group[[4]string][2]int.array'
-      ByteSize: 2048
+      DynamicSizeClass: 1
+      ByteSize: 648
       Element: 307 StructureType noalg.map.group[[4]string][2]int
     - __kind: GoSliceDataType
       ID: 330
       Name: '[]noalg.map.group[bool]main.node.array'
-      ByteSize: 2048
+      DynamicSizeClass: 1
+      ByteSize: 200
       Element: 326 StructureType noalg.map.group[bool]main.node
     - __kind: GoSliceDataType
       ID: 271
       Name: '[]noalg.map.group[int]*main.deepMap2.array'
-      ByteSize: 2048
+      DynamicSizeClass: 1
+      ByteSize: 136
       Element: 265 StructureType noalg.map.group[int]*main.deepMap2
     - __kind: GoSliceDataType
       ID: 1096
       Name: '[]noalg.map.group[int]*main.deepMap3.array'
-      ByteSize: 2048
+      DynamicSizeClass: 1
+      ByteSize: 136
       Element: 1090 StructureType noalg.map.group[int]*main.deepMap3
     - __kind: GoSliceDataType
-      ID: 1132
+      ID: 1130
       Name: '[]noalg.map.group[int]*main.deepMap8.array'
-      ByteSize: 2048
-      Element: 1126 StructureType noalg.map.group[int]*main.deepMap8
+      DynamicSizeClass: 1
+      ByteSize: 136
+      Element: 1124 StructureType noalg.map.group[int]*main.deepMap8
     - __kind: GoSliceDataType
-      ID: 1147
+      ID: 1145
       Name: '[]noalg.map.group[int]*main.deepMap9.array'
-      ByteSize: 2048
-      Element: 1141 StructureType noalg.map.group[int]*main.deepMap9
+      DynamicSizeClass: 1
+      ByteSize: 136
+      Element: 1139 StructureType noalg.map.group[int]*main.deepMap9
     - __kind: GoSliceDataType
       ID: 279
       Name: '[]noalg.map.group[int]int.array'
-      ByteSize: 2048
+      DynamicSizeClass: 1
+      ByteSize: 136
       Element: 275 StructureType noalg.map.group[int]int
     - __kind: GoSliceDataType
-      ID: 1160
+      ID: 1158
       Name: '[]noalg.map.group[int]interface {}.array'
-      ByteSize: 2048
-      Element: 1156 StructureType noalg.map.group[int]interface {}
+      DynamicSizeClass: 1
+      ByteSize: 200
+      Element: 1154 StructureType noalg.map.group[int]interface {}
     - __kind: GoSliceDataType
       ID: 338
       Name: '[]noalg.map.group[int]uint8.array'
-      ByteSize: 2048
+      DynamicSizeClass: 1
+      ByteSize: 136
       Element: 334 StructureType noalg.map.group[int]uint8
     - __kind: GoSliceDataType
       ID: 322
       Name: '[]noalg.map.group[string][]main.structWithMap.array'
-      ByteSize: 2048
+      DynamicSizeClass: 1
+      ByteSize: 328
       Element: 316 StructureType noalg.map.group[string][]main.structWithMap
     - __kind: GoSliceDataType
       ID: 303
       Name: '[]noalg.map.group[string][]string.array'
-      ByteSize: 2048
+      DynamicSizeClass: 1
+      ByteSize: 328
       Element: 299 StructureType noalg.map.group[string][]string
     - __kind: GoSliceDataType
       ID: 854
       Name: '[]noalg.map.group[string]github.com/DataDog/go-tuf/data.HexBytes.array'
-      ByteSize: 2048
+      DynamicSizeClass: 1
+      ByteSize: 328
       Element: 850 StructureType noalg.map.group[string]github.com/DataDog/go-tuf/data.HexBytes
     - __kind: GoSliceDataType
       ID: 295
       Name: '[]noalg.map.group[string]int.array'
-      ByteSize: 2048
+      DynamicSizeClass: 1
+      ByteSize: 200
       Element: 291 StructureType noalg.map.group[string]int
     - __kind: GoSliceDataType
       ID: 287
       Name: '[]noalg.map.group[string]main.nestedStruct.array'
-      ByteSize: 2048
+      DynamicSizeClass: 1
+      ByteSize: 328
       Element: 283 StructureType noalg.map.group[string]main.nestedStruct
     - __kind: GoSliceDataType
       ID: 355
       Name: '[]noalg.map.group[uint8][4]int.array'
-      ByteSize: 2048
+      DynamicSizeClass: 1
+      ByteSize: 328
       Element: 350 StructureType noalg.map.group[uint8][4]int
     - __kind: GoSliceDataType
       ID: 346
       Name: '[]noalg.map.group[uint8]uint8.array'
-      ByteSize: 2048
+      DynamicSizeClass: 1
+      ByteSize: 24
       Element: 342 StructureType noalg.map.group[uint8]uint8
     - __kind: UnresolvedPointeeType
       ID: 40
@@ -8984,7 +9143,8 @@ Types:
     - __kind: GoSliceDataType
       ID: 378
       Name: '[]string.array'
-      ByteSize: 2048
+      DynamicSizeClass: 1
+      ByteSize: 16
       Element: 9 GoStringHeaderType string
     - __kind: GoSliceHeaderType
       ID: 231
@@ -9006,7 +9166,8 @@ Types:
     - __kind: GoSliceDataType
       ID: 372
       Name: '[]uint.array'
-      ByteSize: 2048
+      DynamicSizeClass: 1
+      ByteSize: 8
       Element: 10 BaseType uint
     - __kind: GoSliceHeaderType
       ID: 239
@@ -9028,7 +9189,8 @@ Types:
     - __kind: GoSliceDataType
       ID: 382
       Name: '[]uint16.array'
-      ByteSize: 2048
+      DynamicSizeClass: 1
+      ByteSize: 2
       Element: 6 BaseType uint16
     - __kind: GoSliceHeaderType
       ID: 38
@@ -9050,7 +9212,8 @@ Types:
     - __kind: GoSliceDataType
       ID: 250
       Name: '[]uint8.array'
-      ByteSize: 2048
+      DynamicSizeClass: 1
+      ByteSize: 1
       Element: 3 BaseType uint8
     - __kind: GoSliceHeaderType
       ID: 43
@@ -9072,7 +9235,8 @@ Types:
     - __kind: GoSliceDataType
       ID: 252
       Name: '[]uintptr.array'
-      ByteSize: 2048
+      DynamicSizeClass: 1
+      ByteSize: 8
       Element: 1 BaseType uintptr
     - __kind: UnresolvedPointeeType
       ID: 987
@@ -9098,7 +9262,8 @@ Types:
     - __kind: GoSliceDataType
       ID: 623
       Name: archive/tar.headerError.array
-      ByteSize: 2048
+      DynamicSizeClass: 1
+      ByteSize: 16
       Element: 9 GoStringHeaderType string
     - __kind: UnresolvedPointeeType
       ID: 922
@@ -9195,7 +9360,8 @@ Types:
     - __kind: GoStringDataType
       ID: 422
       Name: compress/flate.InternalError.str
-      ByteSize: 2048
+      DynamicSizeClass: 2
+      ByteSize: 1
     - __kind: UnresolvedPointeeType
       ID: 920
       Name: compress/flate.Writer
@@ -9522,7 +9688,8 @@ Types:
     - __kind: GoStringDataType
       ID: 431
       Name: encoding/xml.UnmarshalError.str
-      ByteSize: 2048
+      DynamicSizeClass: 2
+      ByteSize: 1
     - __kind: UnresolvedPointeeType
       ID: 601
       Name: encoding/xml.UnsupportedTypeError
@@ -9643,7 +9810,8 @@ Types:
     - __kind: GoStringDataType
       ID: 410
       Name: github.com/DataDog/datadog-go/v5/statsd.invalidTimestampErr.str
-      ByteSize: 2048
+      DynamicSizeClass: 2
+      ByteSize: 1
     - __kind: StructureType
       ID: 830
       Name: github.com/DataDog/datadog-go/v5/statsd.metric
@@ -9716,7 +9884,8 @@ Types:
     - __kind: GoStringDataType
       ID: 407
       Name: github.com/DataDog/datadog-go/v5/statsd.noClientErr.str
-      ByteSize: 2048
+      DynamicSizeClass: 2
+      ByteSize: 1
     - __kind: GoStringHeaderType
       ID: 412
       Name: github.com/DataDog/datadog-go/v5/statsd.partialWriteError
@@ -9734,7 +9903,8 @@ Types:
     - __kind: GoStringDataType
       ID: 413
       Name: github.com/DataDog/datadog-go/v5/statsd.partialWriteError.str
-      ByteSize: 2048
+      DynamicSizeClass: 2
+      ByteSize: 1
     - __kind: UnresolvedPointeeType
       ID: 908
       Name: github.com/DataDog/datadog-go/v5/statsd.udpWriter
@@ -9866,7 +10036,8 @@ Types:
     - __kind: GoSliceDataType
       ID: 857
       Name: github.com/DataDog/go-tuf/data.HexBytes.array
-      ByteSize: 2048
+      DynamicSizeClass: 1
+      ByteSize: 1
       Element: 3 BaseType uint8
     - __kind: StructureType
       ID: 582
@@ -10325,7 +10496,8 @@ Types:
     - __kind: GoStringDataType
       ID: 443
       Name: go.opentelemetry.io/otel/trace.errorConst.str
-      ByteSize: 2048
+      DynamicSizeClass: 2
+      ByteSize: 1
     - __kind: UnresolvedPointeeType
       ID: 825
       Name: go.uber.org/multierr.multiError
@@ -10435,7 +10607,8 @@ Types:
     - __kind: GoStringDataType
       ID: 450
       Name: golang.org/x/net/http2.duplicatePseudoHeaderError.str
-      ByteSize: 2048
+      DynamicSizeClass: 2
+      ByteSize: 1
     - __kind: GoStringHeaderType
       ID: 455
       Name: golang.org/x/net/http2.headerFieldNameError
@@ -10453,7 +10626,8 @@ Types:
     - __kind: GoStringDataType
       ID: 456
       Name: golang.org/x/net/http2.headerFieldNameError.str
-      ByteSize: 2048
+      DynamicSizeClass: 2
+      ByteSize: 1
     - __kind: GoStringHeaderType
       ID: 452
       Name: golang.org/x/net/http2.headerFieldValueError
@@ -10471,7 +10645,8 @@ Types:
     - __kind: GoStringDataType
       ID: 453
       Name: golang.org/x/net/http2.headerFieldValueError.str
-      ByteSize: 2048
+      DynamicSizeClass: 2
+      ByteSize: 1
     - __kind: GoStringHeaderType
       ID: 446
       Name: golang.org/x/net/http2.pseudoHeaderError
@@ -10489,7 +10664,8 @@ Types:
     - __kind: GoStringDataType
       ID: 447
       Name: golang.org/x/net/http2.pseudoHeaderError.str
-      ByteSize: 2048
+      DynamicSizeClass: 2
+      ByteSize: 1
     - __kind: UnresolvedPointeeType
       ID: 1005
       Name: golang.org/x/net/http2/hpack.Decoder
@@ -10711,33 +10887,33 @@ Types:
       GroupType: 1090 StructureType noalg.map.group[int]*main.deepMap3
       GroupSliceType: 1096 GoSliceDataType []noalg.map.group[int]*main.deepMap3.array
     - __kind: GoSwissMapGroupsType
-      ID: 1124
+      ID: 1122
       Name: groupReference<int,*main.deepMap8>
       ByteSize: 16
       GoKind: 25
       RawFields:
         - Name: data
           Offset: 0
-          Type: 1125 PointerType *noalg.map.group[int]*main.deepMap8
+          Type: 1123 PointerType *noalg.map.group[int]*main.deepMap8
         - Name: lengthMask
           Offset: 8
           Type: 8 BaseType uint64
-      GroupType: 1126 StructureType noalg.map.group[int]*main.deepMap8
-      GroupSliceType: 1132 GoSliceDataType []noalg.map.group[int]*main.deepMap8.array
+      GroupType: 1124 StructureType noalg.map.group[int]*main.deepMap8
+      GroupSliceType: 1130 GoSliceDataType []noalg.map.group[int]*main.deepMap8.array
     - __kind: GoSwissMapGroupsType
-      ID: 1139
+      ID: 1137
       Name: groupReference<int,*main.deepMap9>
       ByteSize: 16
       GoKind: 25
       RawFields:
         - Name: data
           Offset: 0
-          Type: 1140 PointerType *noalg.map.group[int]*main.deepMap9
+          Type: 1138 PointerType *noalg.map.group[int]*main.deepMap9
         - Name: lengthMask
           Offset: 8
           Type: 8 BaseType uint64
-      GroupType: 1141 StructureType noalg.map.group[int]*main.deepMap9
-      GroupSliceType: 1147 GoSliceDataType []noalg.map.group[int]*main.deepMap9.array
+      GroupType: 1139 StructureType noalg.map.group[int]*main.deepMap9
+      GroupSliceType: 1145 GoSliceDataType []noalg.map.group[int]*main.deepMap9.array
     - __kind: GoSwissMapGroupsType
       ID: 273
       Name: groupReference<int,int>
@@ -10753,19 +10929,19 @@ Types:
       GroupType: 275 StructureType noalg.map.group[int]int
       GroupSliceType: 279 GoSliceDataType []noalg.map.group[int]int.array
     - __kind: GoSwissMapGroupsType
-      ID: 1154
+      ID: 1152
       Name: groupReference<int,interface {}>
       ByteSize: 16
       GoKind: 25
       RawFields:
         - Name: data
           Offset: 0
-          Type: 1155 PointerType *noalg.map.group[int]interface {}
+          Type: 1153 PointerType *noalg.map.group[int]interface {}
         - Name: lengthMask
           Offset: 8
           Type: 8 BaseType uint64
-      GroupType: 1156 StructureType noalg.map.group[int]interface {}
-      GroupSliceType: 1160 GoSliceDataType []noalg.map.group[int]interface {}.array
+      GroupType: 1154 StructureType noalg.map.group[int]interface {}
+      GroupSliceType: 1158 GoSliceDataType []noalg.map.group[int]interface {}.array
     - __kind: GoSwissMapGroupsType
       ID: 332
       Name: groupReference<int,uint8>
@@ -11079,7 +11255,8 @@ Types:
     - __kind: GoStringDataType
       ID: 418
       Name: internal/runtime/cgroup.stringError.str
-      ByteSize: 2048
+      DynamicSizeClass: 2
+      ByteSize: 1
     - __kind: StructureType
       ID: 701
       Name: internal/runtime/maps.unhashableTypeError
@@ -11256,9 +11433,9 @@ Types:
       RawFields:
         - Name: a
           Offset: 0
-          Type: 1118 GoMapType map[int]*main.deepMap8
+          Type: 1116 GoMapType map[int]*main.deepMap8
     - __kind: StructureType
-      ID: 1130
+      ID: 1128
       Name: main.deepMap8
       ByteSize: 8
       GoRuntimeType: 1.184832e+06
@@ -11266,9 +11443,9 @@ Types:
       RawFields:
         - Name: a
           Offset: 0
-          Type: 1133 GoMapType map[int]*main.deepMap9
+          Type: 1131 GoMapType map[int]*main.deepMap9
     - __kind: StructureType
-      ID: 1145
+      ID: 1143
       Name: main.deepMap9
       ByteSize: 8
       GoRuntimeType: 1.184704e+06
@@ -11276,7 +11453,7 @@ Types:
       RawFields:
         - Name: a
           Offset: 0
-          Type: 1148 GoMapType map[int]interface {}
+          Type: 1146 GoMapType map[int]interface {}
     - __kind: StructureType
       ID: 128
       Name: main.deepPtr1
@@ -11310,9 +11487,9 @@ Types:
       RawFields:
         - Name: a
           Offset: 0
-          Type: 1099 PointerType *main.deepPtr8
+          Type: 1097 PointerType *main.deepPtr8
     - __kind: StructureType
-      ID: 1100
+      ID: 1098
       Name: main.deepPtr8
       ByteSize: 8
       GoRuntimeType: 1.185984e+06
@@ -11320,9 +11497,9 @@ Types:
       RawFields:
         - Name: a
           Offset: 0
-          Type: 1101 PointerType *main.deepPtr9
+          Type: 1099 PointerType *main.deepPtr9
     - __kind: StructureType
-      ID: 1102
+      ID: 1100
       Name: main.deepPtr9
       ByteSize: 16
       GoRuntimeType: 1.185856e+06
@@ -11364,9 +11541,9 @@ Types:
       RawFields:
         - Name: a
           Offset: 0
-          Type: 1103 GoSliceHeaderType []*main.deepSlice8
+          Type: 1101 GoSliceHeaderType []*main.deepSlice8
     - __kind: StructureType
-      ID: 1106
+      ID: 1104
       Name: main.deepSlice8
       ByteSize: 24
       GoRuntimeType: 1.187136e+06
@@ -11374,9 +11551,9 @@ Types:
       RawFields:
         - Name: a
           Offset: 0
-          Type: 1109 GoSliceHeaderType []*main.deepSlice9
+          Type: 1107 GoSliceHeaderType []*main.deepSlice9
     - __kind: StructureType
-      ID: 1112
+      ID: 1110
       Name: main.deepSlice9
       ByteSize: 24
       GoRuntimeType: 1.187008e+06
@@ -11384,7 +11561,7 @@ Types:
       RawFields:
         - Name: a
           Offset: 0
-          Type: 1115 GoSliceHeaderType []interface {}
+          Type: 1113 GoSliceHeaderType []interface {}
     - __kind: StructureType
       ID: 246
       Name: main.emptyStruct
@@ -11525,7 +11702,8 @@ Types:
     - __kind: GoStringDataType
       ID: 1054
       Name: main.stringType1.str
-      ByteSize: 2048
+      DynamicSizeClass: 2
+      ByteSize: 1
     - __kind: UnresolvedPointeeType
       ID: 1056
       Name: main.stringType2
@@ -11593,7 +11771,8 @@ Types:
     - __kind: GoSliceDataType
       ID: 1074
       Name: main.t.array
-      ByteSize: 2048
+      DynamicSizeClass: 1
+      ByteSize: 8
       Element: 229 PointerType *main.t
     - __kind: StructureType
       ID: 240
@@ -11826,7 +12005,7 @@ Types:
       TablePtrSliceType: 1095 GoSliceDataType []*table<int,*main.deepMap3>.array
       GroupType: 1090 StructureType noalg.map.group[int]*main.deepMap3
     - __kind: GoSwissMapHeaderType
-      ID: 1120
+      ID: 1118
       Name: map<int,*main.deepMap8>
       ByteSize: 48
       GoKind: 25
@@ -11839,7 +12018,7 @@ Types:
           Type: 1 BaseType uintptr
         - Name: dirPtr
           Offset: 16
-          Type: 1121 PointerType **table<int,*main.deepMap8>
+          Type: 1119 PointerType **table<int,*main.deepMap8>
         - Name: dirLen
           Offset: 24
           Type: 7 BaseType int
@@ -11858,10 +12037,10 @@ Types:
         - Name: clearSeq
           Offset: 40
           Type: 8 BaseType uint64
-      TablePtrSliceType: 1131 GoSliceDataType []*table<int,*main.deepMap8>.array
-      GroupType: 1126 StructureType noalg.map.group[int]*main.deepMap8
+      TablePtrSliceType: 1129 GoSliceDataType []*table<int,*main.deepMap8>.array
+      GroupType: 1124 StructureType noalg.map.group[int]*main.deepMap8
     - __kind: GoSwissMapHeaderType
-      ID: 1135
+      ID: 1133
       Name: map<int,*main.deepMap9>
       ByteSize: 48
       GoKind: 25
@@ -11874,7 +12053,7 @@ Types:
           Type: 1 BaseType uintptr
         - Name: dirPtr
           Offset: 16
-          Type: 1136 PointerType **table<int,*main.deepMap9>
+          Type: 1134 PointerType **table<int,*main.deepMap9>
         - Name: dirLen
           Offset: 24
           Type: 7 BaseType int
@@ -11893,8 +12072,8 @@ Types:
         - Name: clearSeq
           Offset: 40
           Type: 8 BaseType uint64
-      TablePtrSliceType: 1146 GoSliceDataType []*table<int,*main.deepMap9>.array
-      GroupType: 1141 StructureType noalg.map.group[int]*main.deepMap9
+      TablePtrSliceType: 1144 GoSliceDataType []*table<int,*main.deepMap9>.array
+      GroupType: 1139 StructureType noalg.map.group[int]*main.deepMap9
     - __kind: GoSwissMapHeaderType
       ID: 164
       Name: map<int,int>
@@ -11931,7 +12110,7 @@ Types:
       TablePtrSliceType: 278 GoSliceDataType []*table<int,int>.array
       GroupType: 275 StructureType noalg.map.group[int]int
     - __kind: GoSwissMapHeaderType
-      ID: 1150
+      ID: 1148
       Name: map<int,interface {}>
       ByteSize: 48
       GoKind: 25
@@ -11944,7 +12123,7 @@ Types:
           Type: 1 BaseType uintptr
         - Name: dirPtr
           Offset: 16
-          Type: 1151 PointerType **table<int,interface {}>
+          Type: 1149 PointerType **table<int,interface {}>
         - Name: dirLen
           Offset: 24
           Type: 7 BaseType int
@@ -11963,8 +12142,8 @@ Types:
         - Name: clearSeq
           Offset: 40
           Type: 8 BaseType uint64
-      TablePtrSliceType: 1159 GoSliceDataType []*table<int,interface {}>.array
-      GroupType: 1156 StructureType noalg.map.group[int]interface {}
+      TablePtrSliceType: 1157 GoSliceDataType []*table<int,interface {}>.array
+      GroupType: 1154 StructureType noalg.map.group[int]interface {}
     - __kind: GoSwissMapHeaderType
       ID: 201
       Name: map<int,uint8>
@@ -12288,19 +12467,19 @@ Types:
       GoKind: 21
       HeaderType: 1084 GoSwissMapHeaderType map<int,*main.deepMap3>
     - __kind: GoMapType
-      ID: 1118
+      ID: 1116
       Name: map[int]*main.deepMap8
       ByteSize: 8
       GoRuntimeType: 1.128192e+06
       GoKind: 21
-      HeaderType: 1120 GoSwissMapHeaderType map<int,*main.deepMap8>
+      HeaderType: 1118 GoSwissMapHeaderType map<int,*main.deepMap8>
     - __kind: GoMapType
-      ID: 1133
+      ID: 1131
       Name: map[int]*main.deepMap9
       ByteSize: 8
       GoRuntimeType: 1.128064e+06
       GoKind: 21
-      HeaderType: 1135 GoSwissMapHeaderType map<int,*main.deepMap9>
+      HeaderType: 1133 GoSwissMapHeaderType map<int,*main.deepMap9>
     - __kind: GoMapType
       ID: 162
       Name: map[int]int
@@ -12309,12 +12488,12 @@ Types:
       GoKind: 21
       HeaderType: 164 GoSwissMapHeaderType map<int,int>
     - __kind: GoMapType
-      ID: 1148
+      ID: 1146
       Name: map[int]interface {}
       ByteSize: 8
       GoRuntimeType: 1.127936e+06
       GoKind: 21
-      HeaderType: 1150 GoSwissMapHeaderType map<int,interface {}>
+      HeaderType: 1148 GoSwissMapHeaderType map<int,interface {}>
     - __kind: GoMapType
       ID: 199
       Name: map[int]uint8
@@ -12446,7 +12625,8 @@ Types:
     - __kind: GoStringDataType
       ID: 735
       Name: net.UnknownNetworkError.str
-      ByteSize: 2048
+      DynamicSizeClass: 2
+      ByteSize: 1
     - __kind: StructureType
       ID: 699
       Name: net.canceledError
@@ -12638,7 +12818,8 @@ Types:
     - __kind: GoStringDataType
       ID: 392
       Name: net/http.http2duplicatePseudoHeaderError.str
-      ByteSize: 2048
+      DynamicSizeClass: 2
+      ByteSize: 1
     - __kind: GoStringHeaderType
       ID: 397
       Name: net/http.http2headerFieldNameError
@@ -12656,7 +12837,8 @@ Types:
     - __kind: GoStringDataType
       ID: 398
       Name: net/http.http2headerFieldNameError.str
-      ByteSize: 2048
+      DynamicSizeClass: 2
+      ByteSize: 1
     - __kind: GoStringHeaderType
       ID: 394
       Name: net/http.http2headerFieldValueError
@@ -12674,7 +12856,8 @@ Types:
     - __kind: GoStringDataType
       ID: 395
       Name: net/http.http2headerFieldValueError.str
-      ByteSize: 2048
+      DynamicSizeClass: 2
+      ByteSize: 1
     - __kind: UnresolvedPointeeType
       ID: 768
       Name: net/http.http2httpError
@@ -12706,7 +12889,8 @@ Types:
     - __kind: GoStringDataType
       ID: 389
       Name: net/http.http2pseudoHeaderError.str
-      ByteSize: 2048
+      DynamicSizeClass: 2
+      ByteSize: 1
     - __kind: StructureType
       ID: 864
       Name: net/http.http2stickyErrWriter
@@ -12914,7 +13098,8 @@ Types:
     - __kind: GoStringDataType
       ID: 426
       Name: net/textproto.ProtocolError.str
-      ByteSize: 2048
+      DynamicSizeClass: 2
+      ByteSize: 1
     - __kind: UnresolvedPointeeType
       ID: 890
       Name: net/textproto.dotWriter
@@ -12940,7 +13125,8 @@ Types:
     - __kind: GoStringDataType
       ID: 401
       Name: net/url.EscapeError.str
-      ByteSize: 2048
+      DynamicSizeClass: 2
+      ByteSize: 1
     - __kind: GoStringHeaderType
       ID: 403
       Name: net/url.InvalidHostError
@@ -12958,7 +13144,8 @@ Types:
     - __kind: GoStringDataType
       ID: 404
       Name: net/url.InvalidHostError.str
-      ByteSize: 2048
+      DynamicSizeClass: 2
+      ByteSize: 1
     - __kind: ArrayType
       ID: 368
       Name: noalg.[8]struct { key [4]int; elem [4]int }
@@ -13014,23 +13201,23 @@ Types:
       HasCount: true
       Element: 1092 StructureType noalg.struct { key int; elem *main.deepMap3 }
     - __kind: ArrayType
-      ID: 1127
+      ID: 1125
       Name: noalg.[8]struct { key int; elem *main.deepMap8 }
       ByteSize: 128
       GoRuntimeType: 681504
       GoKind: 17
       Count: 8
       HasCount: true
-      Element: 1128 StructureType noalg.struct { key int; elem *main.deepMap8 }
+      Element: 1126 StructureType noalg.struct { key int; elem *main.deepMap8 }
     - __kind: ArrayType
-      ID: 1142
+      ID: 1140
       Name: noalg.[8]struct { key int; elem *main.deepMap9 }
       ByteSize: 128
       GoRuntimeType: 681408
       GoKind: 17
       Count: 8
       HasCount: true
-      Element: 1143 StructureType noalg.struct { key int; elem *main.deepMap9 }
+      Element: 1141 StructureType noalg.struct { key int; elem *main.deepMap9 }
     - __kind: ArrayType
       ID: 276
       Name: noalg.[8]struct { key int; elem int }
@@ -13041,14 +13228,14 @@ Types:
       HasCount: true
       Element: 277 StructureType noalg.struct { key int; elem int }
     - __kind: ArrayType
-      ID: 1157
+      ID: 1155
       Name: noalg.[8]struct { key int; elem interface {} }
       ByteSize: 192
       GoRuntimeType: 681312
       GoKind: 17
       Count: 8
       HasCount: true
-      Element: 1158 StructureType noalg.struct { key int; elem interface {} }
+      Element: 1156 StructureType noalg.struct { key int; elem interface {} }
     - __kind: ArrayType
       ID: 335
       Name: noalg.[8]struct { key int; elem uint8 }
@@ -13200,7 +13387,7 @@ Types:
           Offset: 8
           Type: 1091 ArrayType noalg.[8]struct { key int; elem *main.deepMap3 }
     - __kind: StructureType
-      ID: 1126
+      ID: 1124
       Name: noalg.map.group[int]*main.deepMap8
       ByteSize: 136
       GoRuntimeType: 1.2928e+06
@@ -13211,9 +13398,9 @@ Types:
           Type: 8 BaseType uint64
         - Name: slots
           Offset: 8
-          Type: 1127 ArrayType noalg.[8]struct { key int; elem *main.deepMap8 }
+          Type: 1125 ArrayType noalg.[8]struct { key int; elem *main.deepMap8 }
     - __kind: StructureType
-      ID: 1141
+      ID: 1139
       Name: noalg.map.group[int]*main.deepMap9
       ByteSize: 136
       GoRuntimeType: 1.292544e+06
@@ -13224,7 +13411,7 @@ Types:
           Type: 8 BaseType uint64
         - Name: slots
           Offset: 8
-          Type: 1142 ArrayType noalg.[8]struct { key int; elem *main.deepMap9 }
+          Type: 1140 ArrayType noalg.[8]struct { key int; elem *main.deepMap9 }
     - __kind: StructureType
       ID: 275
       Name: noalg.map.group[int]int
@@ -13239,7 +13426,7 @@ Types:
           Offset: 8
           Type: 276 ArrayType noalg.[8]struct { key int; elem int }
     - __kind: StructureType
-      ID: 1156
+      ID: 1154
       Name: noalg.map.group[int]interface {}
       ByteSize: 200
       GoRuntimeType: 1.292288e+06
@@ -13250,7 +13437,7 @@ Types:
           Type: 8 BaseType uint64
         - Name: slots
           Offset: 8
-          Type: 1157 ArrayType noalg.[8]struct { key int; elem interface {} }
+          Type: 1155 ArrayType noalg.[8]struct { key int; elem interface {} }
     - __kind: StructureType
       ID: 334
       Name: noalg.map.group[int]uint8
@@ -13434,7 +13621,7 @@ Types:
           Offset: 8
           Type: 1093 PointerType *main.deepMap3
     - __kind: StructureType
-      ID: 1128
+      ID: 1126
       Name: noalg.struct { key int; elem *main.deepMap8 }
       ByteSize: 16
       GoRuntimeType: 1.292672e+06
@@ -13445,9 +13632,9 @@ Types:
           Type: 7 BaseType int
         - Name: elem
           Offset: 8
-          Type: 1129 PointerType *main.deepMap8
+          Type: 1127 PointerType *main.deepMap8
     - __kind: StructureType
-      ID: 1143
+      ID: 1141
       Name: noalg.struct { key int; elem *main.deepMap9 }
       ByteSize: 16
       GoRuntimeType: 1.292416e+06
@@ -13458,7 +13645,7 @@ Types:
           Type: 7 BaseType int
         - Name: elem
           Offset: 8
-          Type: 1144 PointerType *main.deepMap9
+          Type: 1142 PointerType *main.deepMap9
     - __kind: StructureType
       ID: 277
       Name: noalg.struct { key int; elem int }
@@ -13473,7 +13660,7 @@ Types:
           Offset: 8
           Type: 7 BaseType int
     - __kind: StructureType
-      ID: 1158
+      ID: 1156
       Name: noalg.struct { key int; elem interface {} }
       ByteSize: 24
       GoRuntimeType: 1.29216e+06
@@ -13681,7 +13868,8 @@ Types:
     - __kind: GoStringDataType
       ID: 440
       Name: os/user.UnknownGroupIdError.str
-      ByteSize: 2048
+      DynamicSizeClass: 2
+      ByteSize: 1
     - __kind: BaseType
       ID: 438
       Name: os/user.UnknownUserIdError
@@ -13781,7 +13969,8 @@ Types:
     - __kind: GoStringDataType
       ID: 655
       Name: runtime.errorString.str
-      ByteSize: 2048
+      DynamicSizeClass: 2
+      ByteSize: 1
     - __kind: StructureType
       ID: 22
       Name: runtime.g
@@ -14457,7 +14646,8 @@ Types:
     - __kind: GoStringDataType
       ID: 658
       Name: runtime.plainError.str
-      ByteSize: 2048
+      DynamicSizeClass: 2
+      ByteSize: 1
     - __kind: BaseType
       ID: 60
       Name: runtime.puintptr
@@ -14573,7 +14763,8 @@ Types:
     - __kind: GoStringDataType
       ID: 248
       Name: string.str
-      ByteSize: 2048
+      DynamicSizeClass: 2
+      ByteSize: 1
     - __kind: UnresolvedPointeeType
       ID: 976
       Name: strings.Builder
@@ -14848,7 +15039,7 @@ Types:
           Offset: 16
           Type: 1088 GoSwissMapGroupsType groupReference<int,*main.deepMap3>
     - __kind: StructureType
-      ID: 1123
+      ID: 1121
       Name: table<int,*main.deepMap8>
       ByteSize: 32
       GoKind: 25
@@ -14870,9 +15061,9 @@ Types:
           Type: 7 BaseType int
         - Name: groups
           Offset: 16
-          Type: 1124 GoSwissMapGroupsType groupReference<int,*main.deepMap8>
+          Type: 1122 GoSwissMapGroupsType groupReference<int,*main.deepMap8>
     - __kind: StructureType
-      ID: 1138
+      ID: 1136
       Name: table<int,*main.deepMap9>
       ByteSize: 32
       GoKind: 25
@@ -14894,7 +15085,7 @@ Types:
           Type: 7 BaseType int
         - Name: groups
           Offset: 16
-          Type: 1139 GoSwissMapGroupsType groupReference<int,*main.deepMap9>
+          Type: 1137 GoSwissMapGroupsType groupReference<int,*main.deepMap9>
     - __kind: StructureType
       ID: 272
       Name: table<int,int>
@@ -14920,7 +15111,7 @@ Types:
           Offset: 16
           Type: 273 GoSwissMapGroupsType groupReference<int,int>
     - __kind: StructureType
-      ID: 1153
+      ID: 1151
       Name: table<int,interface {}>
       ByteSize: 32
       GoKind: 25
@@ -14942,7 +15133,7 @@ Types:
           Type: 7 BaseType int
         - Name: groups
           Offset: 16
-          Type: 1154 GoSwissMapGroupsType groupReference<int,interface {}>
+          Type: 1152 GoSwissMapGroupsType groupReference<int,interface {}>
     - __kind: StructureType
       ID: 331
       Name: table<int,uint8>
@@ -15199,7 +15390,8 @@ Types:
     - __kind: GoStringDataType
       ID: 385
       Name: time.fileSizeError.str
-      ByteSize: 2048
+      DynamicSizeClass: 2
+      ByteSize: 1
     - __kind: BaseType
       ID: 10
       Name: uint
@@ -15356,7 +15548,7 @@ Types:
       ByteSize: 4
       GoRuntimeType: 993248
       GoKind: 5
-MaxTypeID: 1275
+MaxTypeID: 1278
 Issues: []
 GoModuledataInfo: {FirstModuledataAddr: "0x12ed500", TypesOffset: 296}
 CommonTypes:

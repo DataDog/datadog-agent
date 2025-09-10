@@ -7,6 +7,7 @@ Probes:
       capture:
         maxReferenceDepth: 1
         maxFieldCount: 0
+        maxLength: 0
         maxCollectionSize: 0
       template: ""
       segments: []
@@ -24,6 +25,7 @@ Probes:
       capture:
         maxReferenceDepth: 1
         maxFieldCount: 0
+        maxLength: 0
         maxCollectionSize: 0
       template: ""
       segments: []
@@ -669,12 +671,14 @@ Types:
     - __kind: GoSliceDataType
       ID: 189
       Name: '[]bucket<string,[]string>.array'
-      ByteSize: 2048
+      DynamicSizeClass: 3
+      ByteSize: 336
       Element: 164 GoHMapBucketType bucket<string,[]string>
     - __kind: GoSliceDataType
       ID: 193
       Name: '[]bucket<string,string>.array'
-      ByteSize: 2048
+      DynamicSizeClass: 3
+      ByteSize: 272
       Element: 185 GoHMapBucketType bucket<string,string>
     - __kind: ArrayType
       ID: 187
@@ -707,7 +711,8 @@ Types:
     - __kind: GoSliceDataType
       ID: 190
       Name: '[]string.array'
-      ByteSize: 2048
+      DynamicSizeClass: 1
+      ByteSize: 16
       Element: 11 GoStringHeaderType string
     - __kind: GoSliceHeaderType
       ID: 38
@@ -729,7 +734,8 @@ Types:
     - __kind: GoSliceDataType
       ID: 113
       Name: '[]uint8.array'
-      ByteSize: 2048
+      DynamicSizeClass: 1
+      ByteSize: 1
       Element: 3 BaseType uint8
     - __kind: GoSliceHeaderType
       ID: 43
@@ -751,7 +757,8 @@ Types:
     - __kind: GoSliceDataType
       ID: 115
       Name: '[]uintptr.array'
-      ByteSize: 2048
+      DynamicSizeClass: 1
+      ByteSize: 8
       Element: 1 BaseType uintptr
     - __kind: ArrayType
       ID: 188
@@ -2065,7 +2072,8 @@ Types:
     - __kind: GoStringDataType
       ID: 111
       Name: string.str
-      ByteSize: 2048
+      DynamicSizeClass: 2
+      ByteSize: 1
     - __kind: StructureType
       ID: 124
       Name: struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.CloseNotifier }
