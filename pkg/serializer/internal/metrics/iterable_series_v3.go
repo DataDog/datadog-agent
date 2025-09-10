@@ -321,6 +321,7 @@ func (pb *payloadsBuilderV3) writeSerie(serie *metrics.Serie) error {
 	}
 
 	if len(serie.Points) > pb.maxPointsPerPayload {
+		tlmItemTooBig.Inc()
 		return nil
 	}
 
