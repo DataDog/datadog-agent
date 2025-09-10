@@ -100,7 +100,6 @@ type LogsConfig struct {
 	// Downstream code will be responsible for parsing this string.
 	AutoMultiLineSamples           []*AutoMultilineSample   `mapstructure:"auto_multi_line_detection_custom_samples" json:"auto_multi_line_detection_custom_samples" yaml:"auto_multi_line_detection_custom_samples"`
 	FingerprintConfig              *types.FingerprintConfig `mapstructure:"fingerprint_config" json:"fingerprint_config" yaml:"fingerprint_config"`
-	ExperimentalFingerprintEnabled bool                     `mapstructure:"fingerprint_enabled_experimental" json:"fingerprint_enabled_experimental" yaml:"fingerprint_enabled_experimental"`
 
 	// IntegrationSource is the source of the integration file that contains this source.
 	IntegrationSource string `mapstructure:"integration_source" json:"integration_source" yaml:"integration_source"`
@@ -249,7 +248,11 @@ func (c *LogsConfig) Dump(multiline bool) string {
 	}
 	fmt.Fprintf(&b, ws("AutoMultiLineSampleSize: %d,"), c.AutoMultiLineSampleSize)
 	fmt.Fprintf(&b, ws("AutoMultiLineMatchThreshold: %f,"), c.AutoMultiLineMatchThreshold)
-	fmt.Fprintf(&b, ws("ExperimentalFingerprintEnabled: %t}"), c.ExperimentalFingerprintEnabled)
+	if c.FingerprintConfig != nil {
+		fmt.Fprintf(&b, ws("FingerprintConfig: %+v}"), c.FingerprintConfig)
+	} else {
+		fmt.Fprint(&b, ws("FingerprintConfig: nil}"))
+	}
 	return b.String()
 }
 
