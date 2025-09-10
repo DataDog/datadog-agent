@@ -37,7 +37,7 @@ const (
 	statusRetainedActions = 10
 
 	// statusRetainedRecommendations is the maximum number of horizontal recommendations kept in status
-	statusRetainedRecommendations = 20
+	statusRetainedRecommendations = 60
 
 	// CustomRecommenderAnnotationKey is the key used to store custom recommender configuration in annotations
 	CustomRecommenderAnnotationKey = "autoscaling.datadoghq.com/custom-recommender"
