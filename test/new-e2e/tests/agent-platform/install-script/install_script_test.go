@@ -31,10 +31,10 @@ import (
 )
 
 var (
-	osDescriptors         = flag.String("osdescriptors", "", "os versions to test")
-	cwsSupportedOsVersion = flag.String("cws-supported-descriptors", "", "list of os descriptors where CWS is supported")
-	flavor                = flag.String("flavor", "datadog-agent", "flavor to test (datadog-agent, datadog-iot-agent, datadog-dogstatsd, datadog-fips-agent, datadog-fips-proxy, datadog-heroku-agent)")
-	majorVersion          = flag.String("major-version", "7", "major version to test (6, 7)")
+	osDescriptors             = flag.String("osdescriptors", "", "os versions to test")
+	cwsSupportedOsDescriptors = flag.String("cws-supported-osdescriptors", "", "list of os descriptors where CWS is supported")
+	flavor                    = flag.String("flavor", "datadog-agent", "flavor to test (datadog-agent, datadog-iot-agent, datadog-dogstatsd, datadog-fips-agent, datadog-fips-proxy, datadog-heroku-agent)")
+	majorVersion              = flag.String("major-version", "7", "major version to test (6, 7)")
 )
 
 type installScriptSuite struct {
@@ -58,7 +58,7 @@ func TestInstallScript(t *testing.T) {
 		t.Fatal("expecting some value to be passed for --osdescriptors on test invocation, got none")
 	}
 
-	cwsSupportedOsVersionList, err := platforms.ParseOSDescriptors(*cwsSupportedOsVersion)
+	cwsSupportedOsVersionList, err := platforms.ParseOSDescriptors(*cwsSupportedOsDescriptors)
 	if err != nil {
 		t.Fatalf("failed to parse cws supported os version: %v", err)
 	}

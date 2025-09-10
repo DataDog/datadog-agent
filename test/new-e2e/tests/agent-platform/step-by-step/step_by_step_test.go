@@ -29,10 +29,10 @@ import (
 )
 
 var (
-	osDescriptors         = flag.String("osdescriptors", "", "platform/arch/os version (debian-11)")
-	cwsSupportedOsVersion = flag.String("cws-supported-descriptors", "", "list of os where CWS is supported")
-	flavorName            = flag.String("flavor", "datadog-agent", "package flavor to install")
-	majorVersion          = flag.String("major-version", "7", "major version to test (6, 7)")
+	osDescriptors             = flag.String("osdescriptors", "", "platform/arch/os version (debian-11)")
+	cwsSupportedOsDescriptors = flag.String("cws-supported-osdescriptors", "", "list of os where CWS is supported")
+	flavorName                = flag.String("flavor", "datadog-agent", "package flavor to install")
+	majorVersion              = flag.String("major-version", "7", "major version to test (6, 7)")
 )
 
 type stepByStepSuite struct {
@@ -61,12 +61,12 @@ func TestStepByStepScript(t *testing.T) {
 	if len(osDescriptors) == 0 {
 		t.Fatal("expecting some value to be passed for --osdescriptors on test invocation, got none")
 	}
-	cwsSupportedOsDescriptorsList, err := platforms.ParseOSDescriptors(*cwsSupportedOsVersion)
+	cwsSupportedOsDescriptorsList, err := platforms.ParseOSDescriptors(*cwsSupportedOsDescriptors)
 	if err != nil {
 		t.Fatalf("failed to parse cws supported os descriptors: %v", err)
 	}
 	if len(cwsSupportedOsDescriptorsList) == 0 {
-		t.Fatal("expecting some value to be passed for --cws-supported-descriptors on test invocation, got none")
+		t.Fatal("expecting some value to be passed for --cws-supported-osdescriptors on test invocation, got none")
 	}
 
 	for _, osDesc := range osDescriptors {
