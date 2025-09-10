@@ -21,9 +21,9 @@ import (
 )
 
 var datadoghqRegistries = map[string]struct{}{
-	"gcr.io/datadoghq":         {},
-	"hub.docker.com/r/datadog": {},
-	"gallery.ecr.aws/datadog":  {},
+	"gcr.io/datadoghq":       {},
+	"docker.io/datadog":      {},
+	"public.ecr.aws/datadog": {},
 }
 
 // RemoteConfigClient defines the interface we need for remote config operations
