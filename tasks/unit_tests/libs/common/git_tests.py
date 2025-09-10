@@ -152,7 +152,9 @@ class TestGit(unittest.TestCase):
 
     def test_full_ref_name(self):
         self.assertEqual(get_full_ref_name("main"), "origin/main")
-        self.assertEqual(get_full_ref_name("d04e7dd6d5fc0ac2a8fb89bdce6ec97a3f210c7a"), "d04e7dd6d5fc0ac2a8fb89bdce6ec97a3f210c7a")
+        self.assertEqual(
+            get_full_ref_name("d04e7dd6d5fc0ac2a8fb89bdce6ec97a3f210c7a"), "d04e7dd6d5fc0ac2a8fb89bdce6ec97a3f210c7a"
+        )
         self.assertEqual(get_full_ref_name("refs/heads/main"), "refs/heads/main")
         self.assertEqual(get_full_ref_name("my/br4nch"), "origin/my/br4nch")
         self.assertEqual(get_full_ref_name("origin/main"), "origin/main")
