@@ -19,6 +19,8 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -38,9 +40,6 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.6.1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
-
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
 )
 
 // keyStatsComputed specifies the resource attribute key which indicates if stats have been
@@ -109,10 +108,15 @@ func (o *OTLPReceiver) Start() {
 		if err != nil {
 			log.Criticalf("Error starting OpenTelemetry gRPC server: %v", err)
 		} else {
-			o.grpcsrv = grpc.NewServer(
+			opts := []grpc.ServerOption{
 				grpc.MaxRecvMsgSize(o.grpcMaxRecvMsgSize),
 				grpc.MaxConcurrentStreams(1), // Each payload must be sent to processing stage before we decode the next.
-			)
+			}
+
+			// OTLP trace ingestion doesn't need generic gRPC metrics interceptors
+			// since we collect business-specific metrics (spans, traces, payloads) via StatsD
+
+			o.grpcsrv = grpc.NewServer(opts...)
 			ptraceotlp.RegisterGRPCServer(o.grpcsrv, o)
 			o.wg.Add(1)
 			go func() {

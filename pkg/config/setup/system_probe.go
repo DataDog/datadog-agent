@@ -266,7 +266,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_http2_monitoring"), false)
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_kafka_monitoring"), false)
 	cfg.BindEnv(join(smNS, "enable_postgres_monitoring"))
-	cfg.BindEnv(join(smNS, "enable_redis_monitoring"))
+	cfg.BindEnvAndSetDefault(join(smNS, "redis", "enabled"), false)
 	cfg.BindEnvAndSetDefault(join(smNS, "redis", "track_resources"), false)
 	cfg.BindEnvAndSetDefault(join(smNS, "tls", "istio", "enabled"), true)
 	cfg.BindEnvAndSetDefault(join(smNS, "tls", "istio", "envoy_path"), defaultEnvoyPath)
@@ -279,7 +279,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault(join(smNS, "max_kafka_stats_buffered"), 100000)
 	cfg.BindEnv(join(smNS, "max_postgres_stats_buffered"))
 	cfg.BindEnvAndSetDefault(join(smNS, "max_postgres_telemetry_buffer"), 160)
-	cfg.BindEnv(join(smNS, "max_redis_stats_buffered"))
+	cfg.BindEnv(join(smNS, "redis", "max_stats_buffered"))
 	cfg.BindEnv(join(smNS, "max_concurrent_requests"))
 	cfg.BindEnv(join(smNS, "enable_quantization"))
 	cfg.BindEnv(join(smNS, "enable_connection_rollup"))
@@ -315,7 +315,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnv(join(netNS, "http_max_request_fragment"))
 	cfg.BindEnv(join(smNS, "http_max_request_fragment"))
 
-	cfg.BindEnvAndSetDefault(join(spNS, "expected_tags_duration"), 5*time.Minute, "DD_SYSTEM_PROBE_EXPECTED_TAGS_DURATION")
+	cfg.BindEnvAndSetDefault(join(spNS, "expected_tags_duration"), 30*time.Minute, "DD_SYSTEM_PROBE_EXPECTED_TAGS_DURATION")
 
 	// list of DNS query types to be recorded
 	cfg.BindEnvAndSetDefault(join(netNS, "dns_recorded_query_types"), []string{})
@@ -441,7 +441,6 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault(join(discoveryNS, "network_stats.enabled"), true)
 	cfg.BindEnvAndSetDefault(join(discoveryNS, "network_stats.period"), "60s")
 	cfg.BindEnvAndSetDefault(join(discoveryNS, "ignored_command_names"), []string{"chronyd", "cilium-agent", "containerd", "dhclient", "dockerd", "kubelet", "livenessprobe", "local-volume-pr", "sshd", "systemd"})
-	cfg.BindEnvAndSetDefault(join(discoveryNS, "ignored_services"), []string{"datadog-agent", "trace-agent", "process-agent", "system-probe", "security-agent", "datadog-cluster-agent"})
 
 	// Fleet policies
 	cfg.BindEnv("fleet_policies_dir")

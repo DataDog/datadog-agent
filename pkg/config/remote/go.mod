@@ -11,7 +11,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/grpc v0.60.0
 	github.com/DataDog/datadog-agent/pkg/util/http v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/log v0.64.1
-	github.com/DataDog/datadog-agent/pkg/util/startstop v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/util/startstop v0.70.0
 	github.com/DataDog/datadog-agent/pkg/util/uuid v0.59.0
 	github.com/DataDog/go-tuf v1.1.1-0.5.2
 	github.com/Masterminds/semver v1.5.0
@@ -23,10 +23,30 @@ require (
 	github.com/stretchr/testify v1.10.0
 	go.etcd.io/bbolt v1.4.0
 	go.uber.org/atomic v1.11.0
-	google.golang.org/protobuf v1.36.7
+	google.golang.org/protobuf v1.36.8
 )
 
-require github.com/DataDog/datadog-agent/comp/core/secrets/def v0.0.0-00010101000000-000000000000 // indirect
+require github.com/DataDog/datadog-agent/comp/core/secrets/def v0.71.0-rc.1 // indirect
+
+require (
+	github.com/DataDog/datadog-agent/comp/core/telemetry v0.61.0 // indirect
+	github.com/DataDog/datadog-agent/comp/def v0.61.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/telemetry v0.70.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.61.0 // indirect
+	github.com/beorn7/perks v1.0.1 // indirect
+	github.com/cespare/xxhash/v2 v2.3.0 // indirect
+	github.com/inconshreveable/mousetrap v1.1.0 // indirect
+	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
+	github.com/prometheus/client_golang v1.23.0 // indirect
+	github.com/prometheus/client_model v0.6.2 // indirect
+	github.com/prometheus/common v0.65.0 // indirect
+	github.com/prometheus/procfs v0.17.0 // indirect
+	github.com/spf13/cobra v1.9.1 // indirect
+	go.uber.org/dig v1.19.0 // indirect
+	go.uber.org/fx v1.24.0 // indirect
+	go.uber.org/multierr v1.11.0 // indirect
+	go.uber.org/zap v1.27.0 // indirect
+)
 
 require (
 	cloud.google.com/go/auth v0.16.2 // indirect
@@ -34,13 +54,13 @@ require (
 	cloud.google.com/go/compute v1.37.0 // indirect
 	cloud.google.com/go/compute/metadata v0.7.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.61.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/create v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/create v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.64.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.64.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/fips v0.0.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/cache v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.61.0 // indirect

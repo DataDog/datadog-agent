@@ -6,4 +6,4 @@
 // Package awskubernetes contains the provisioner for the Kubernetes based environments
 package awskubernetes
 
-const csiDriverCommitSHA = "b005d4de4f69d3a08a751715233047f33c0ece61"
+const csiDriverCommitSHA = "d91af776a15382b030035129e3b93dc8620d787e"
