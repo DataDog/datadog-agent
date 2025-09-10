@@ -63,7 +63,7 @@ jobs:
           } >> $GITHUB_OUTPUT
 
       # and display it
-      - uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+      - uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         env:
           # We need to store the output in an environment variable and not use it directly in the createComment,
           # as it will likely not be a valid JS string (eg. if it contains a quote character)
