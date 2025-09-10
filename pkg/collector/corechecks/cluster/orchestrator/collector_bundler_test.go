@@ -24,27 +24,23 @@ import (
 func TestImportBuiltinCollectors(t *testing.T) {
 	cfg := mockconfig.New(t)
 	cfg.SetWithoutSource("orchestrator_explorer.terminated_pods.enabled", true)
+	cfg.SetWithoutSource("orchestrator_explorer.custom_resources.datadog.enabled", true)
 
 	// add resources to discovery cache to ensure that collectors are supported
 	collectorDiscovery := &discovery.DiscoveryCollector{}
 	collectorDiscovery.SetCache(
 		discovery.DiscoveryCache{
 			CollectorForVersion: map[discovery.CollectorVersion]struct{}{
-				{Version: "v1", Name: "pods"}:                                      {},
-				{Version: "datadoghq.com/v1alpha1", Name: "datadogmetrics"}:        {},
-				{Version: "datadoghq.com/v1alpha1", Name: "datadogmonitors"}:       {},
-				{Version: "datadoghq.com/v1alpha1", Name: "datadogpodautoscalers"}: {},
-				{Version: "datadoghq.com/v1alpha2", Name: "datadogpodautoscalers"}: {},
-				{Version: "datadoghq.com/v2alpha1", Name: "datadogagents"}:         {},
+				{GroupVersion: "v1", Kind: "pods"}:                                      {},
+				{GroupVersion: "datadoghq.com/v1alpha1", Kind: "datadogmetrics"}:        {},
+				{GroupVersion: "datadoghq.com/v1alpha1", Kind: "datadogmonitors"}:       {},
+				{GroupVersion: "datadoghq.com/v1alpha1", Kind: "datadogpodautoscalers"}: {},
+				{GroupVersion: "datadoghq.com/v1alpha2", Kind: "datadogpodautoscalers"}: {},
+				{GroupVersion: "datadoghq.com/v2alpha1", Kind: "datadogagents"}:         {},
 			},
 		})
 
 	cb := CollectorBundle{
-		check: &OrchestratorCheck{
-			orchestratorConfig: &orchcfg.OrchestratorConfig{
-				CollectDatadogCustomResources: true,
-			},
-		},
 		collectorDiscovery:  collectorDiscovery,
 		activatedCollectors: make(map[string]struct{}),
 		collectors: []collectors.K8sCollector{
@@ -97,11 +93,11 @@ func TestGetDatadogCustomResourceCollectors(t *testing.T) {
 			hasCrdCollectors: true,
 			supportedResources: discovery.DiscoveryCache{
 				CollectorForVersion: map[discovery.CollectorVersion]struct{}{
-					{Version: "datadoghq.com/v1alpha1", Name: "datadogmetrics"}:        {},
-					{Version: "datadoghq.com/v1alpha1", Name: "datadogmonitors"}:       {},
-					{Version: "datadoghq.com/v1alpha1", Name: "datadogpodautoscalers"}: {},
-					{Version: "datadoghq.com/v1alpha2", Name: "datadogpodautoscalers"}: {},
-					{Version: "datadoghq.com/v2alpha1", Name: "datadogagents"}:         {},
+					{GroupVersion: "datadoghq.com/v1alpha1", Kind: "datadogmetrics"}:        {},
+					{GroupVersion: "datadoghq.com/v1alpha1", Kind: "datadogmonitors"}:       {},
+					{GroupVersion: "datadoghq.com/v1alpha1", Kind: "datadogpodautoscalers"}: {},
+					{GroupVersion: "datadoghq.com/v1alpha2", Kind: "datadogpodautoscalers"}: {},
+					{GroupVersion: "datadoghq.com/v2alpha1", Kind: "datadogagents"}:         {},
 				},
 			},
 			expected: []string{
@@ -127,8 +123,8 @@ func TestGetDatadogCustomResourceCollectors(t *testing.T) {
 			hasCrdCollectors: true,
 			supportedResources: discovery.DiscoveryCache{
 				CollectorForVersion: map[discovery.CollectorVersion]struct{}{
-					{Version: "datadoghq.com/v1alpha1", Name: "datadogmetrics"}:  {},
-					{Version: "datadoghq.com/v1alpha1", Name: "datadogmonitors"}: {},
+					{GroupVersion: "datadoghq.com/v1alpha1", Kind: "datadogmetrics"}:  {},
+					{GroupVersion: "datadoghq.com/v1alpha1", Kind: "datadogmonitors"}: {},
 				},
 			},
 			expected: []string{
@@ -142,11 +138,11 @@ func TestGetDatadogCustomResourceCollectors(t *testing.T) {
 			hasCrdCollectors: true,
 			supportedResources: discovery.DiscoveryCache{
 				CollectorForVersion: map[discovery.CollectorVersion]struct{}{
-					{Version: "datadoghq.com/v1alpha1", Name: "datadogmetrics"}:        {},
-					{Version: "datadoghq.com/v1alpha1", Name: "datadogmonitors"}:       {},
-					{Version: "datadoghq.com/v1alpha1", Name: "datadogpodautoscalers"}: {},
-					{Version: "datadoghq.com/v1alpha2", Name: "datadogpodautoscalers"}: {},
-					{Version: "datadoghq.com/v2alpha1", Name: "datadogagents"}:         {},
+					{GroupVersion: "datadoghq.com/v1alpha1", Kind: "datadogmetrics"}:        {},
+					{GroupVersion: "datadoghq.com/v1alpha1", Kind: "datadogmonitors"}:       {},
+					{GroupVersion: "datadoghq.com/v1alpha1", Kind: "datadogpodautoscalers"}: {},
+					{GroupVersion: "datadoghq.com/v1alpha2", Kind: "datadogpodautoscalers"}: {},
+					{GroupVersion: "datadoghq.com/v2alpha1", Kind: "datadogagents"}:         {},
 				},
 			},
 			expected: []string{},
@@ -157,25 +153,30 @@ func TestGetDatadogCustomResourceCollectors(t *testing.T) {
 			hasCrdCollectors: false,
 			supportedResources: discovery.DiscoveryCache{
 				CollectorForVersion: map[discovery.CollectorVersion]struct{}{
-					{Version: "datadoghq.com/v1alpha1", Name: "datadogmetrics"}:        {},
-					{Version: "datadoghq.com/v1alpha1", Name: "datadogmonitors"}:       {},
-					{Version: "datadoghq.com/v1alpha1", Name: "datadogpodautoscalers"}: {},
-					{Version: "datadoghq.com/v1alpha2", Name: "datadogpodautoscalers"}: {},
-					{Version: "datadoghq.com/v2alpha1", Name: "datadogagents"}:         {},
+					{GroupVersion: "datadoghq.com/v1alpha1", Kind: "datadogmetrics"}:        {},
+					{GroupVersion: "datadoghq.com/v1alpha1", Kind: "datadogmonitors"}:       {},
+					{GroupVersion: "datadoghq.com/v1alpha1", Kind: "datadogpodautoscalers"}: {},
+					{GroupVersion: "datadoghq.com/v1alpha2", Kind: "datadogpodautoscalers"}: {},
+					{GroupVersion: "datadoghq.com/v2alpha1", Kind: "datadogagents"}:         {},
 				},
 			},
 			expected: []string{},
 		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
-			cb.check.orchestratorConfig.CollectDatadogCustomResources = testCase.enabled
+			cfg := mockconfig.New(t)
+			cfg.SetWithoutSource("orchestrator_explorer.custom_resources.datadog.enabled", testCase.enabled)
+
 			collectorDiscovery.SetCache(testCase.supportedResources)
+
 			cb.collectors = []collectors.K8sCollector{}
 			if testCase.hasCrdCollectors {
 				cb.collectors = []collectors.K8sCollector{k8s.NewCRDCollector()}
 			}
-			crCollectors := cb.getDatadogCustomResourceCollectors()
+
+			crCollectors := cb.getBuiltinCustomResourceCollectors()
 			require.Equal(t, len(testCase.expected), len(crCollectors))
+
 			names := make([]string, 0, len(crCollectors))
 			for _, collector := range crCollectors {
 				names = append(names, collector.Metadata().FullName())
@@ -184,6 +185,7 @@ func TestGetDatadogCustomResourceCollectors(t *testing.T) {
 		})
 	}
 }
+
 func TestGetTerminatedPodCollector(t *testing.T) {
 	cfg := mockconfig.New(t)
 
@@ -192,7 +194,7 @@ func TestGetTerminatedPodCollector(t *testing.T) {
 	collectorDiscovery.SetCache(
 		discovery.DiscoveryCache{
 			CollectorForVersion: map[discovery.CollectorVersion]struct{}{
-				{Version: "v1", Name: "pods"}: {},
+				{GroupVersion: "v1", Kind: "pods"}: {},
 			},
 		})
 

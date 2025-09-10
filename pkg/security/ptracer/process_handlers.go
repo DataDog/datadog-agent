@@ -17,6 +17,7 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
+	"golang.org/x/sys/unix"
 )
 
 func registerProcessHandlers(handlers map[int]syscallHandler) []string {
@@ -126,6 +127,12 @@ func registerProcessHandlers(handlers map[int]syscallHandler) []string {
 		{
 			ID:         syscallID{ID: Prlimit64Nr, Name: "prlimit64"},
 			Func:       handlePrlimit64,
+			ShouldSend: isAcceptedRetval,
+			RetFunc:    nil,
+		},
+		{
+			ID:         syscallID{ID: PrctlNr, Name: "prctl"},
+			Func:       handlePrctl,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    nil,
 		},
@@ -483,6 +490,22 @@ func handlePrlimit64(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg,
 		msg.Setrlimit.Pid = uint32(process.Pid)
 	} else {
 		msg.Setrlimit.Pid = uint32(pid)
+	}
+	return nil
+}
+
+func handlePrctl(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, _ bool) error {
+
+	msg.Type = ebpfless.SyscallTypePrctl
+	msg.Prctl = &ebpfless.PrctlSyscallMsg{
+		Option: int(tracer.ReadArgInt32(regs, 0)),
+	}
+	if msg.Prctl.Option == unix.PR_SET_NAME {
+		name, err := tracer.ReadArgString(process.Pid, regs, 1)
+		if err != nil {
+			return err
+		}
+		msg.Prctl.NewName = name
 	}
 	return nil
 }

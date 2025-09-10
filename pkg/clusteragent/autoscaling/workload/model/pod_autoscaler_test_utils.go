@@ -35,7 +35,7 @@ type FakePodAutoscalerInternal struct {
 	MainScalingValues                  ScalingValues
 	FallbackScalingValues              ScalingValues
 	HorizontalLastActions              []datadoghqcommon.DatadogPodAutoscalerHorizontalAction
-	HorizontalLastRecommendations      []HorizontalScalingValues
+	HorizontalLastRecommendations      []datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation
 	HorizontalLastLimitReason          string
 	HorizontalLastActionError          error
 	HorizontalEventsRetention          time.Duration

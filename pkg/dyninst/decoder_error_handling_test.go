@@ -10,7 +10,6 @@ package dyninst_test
 import (
 	"context"
 	"errors"
-	"io"
 	"net/http/httptest"
 	"net/url"
 	"runtime"
@@ -29,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/module"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcscrape"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symbol"
@@ -81,6 +81,7 @@ func TestDecoderErrorHandling(t *testing.T) {
 		uploader.NewLogsUploaderFactory(uploader.WithURL(logsURL)),
 		uploader.NewDiagnosticsUploader(uploader.WithURL(diagURL)),
 		symdbURL,
+		object.NewInMemoryLoader(),
 		scraper,
 		&failOnceDecoderFactory{
 			underlying: module.DefaultDecoderFactory{},
@@ -204,11 +205,11 @@ type failOnceDecoder struct {
 }
 
 func (d *failOnceDecoder) Decode(
-	event decode.Event, symbolicator symbol.Symbolicator, out io.Writer,
-) (ir.ProbeDefinition, error) {
-	probe, err := d.underlying.Decode(event, symbolicator, out)
+	event decode.Event, symbolicator symbol.Symbolicator, out []byte,
+) ([]byte, ir.ProbeDefinition, error) {
+	out, probe, err := d.underlying.Decode(event, symbolicator, out)
 	if err == nil && d.failed.CompareAndSwap(false, true) {
 		err = errors.New("boom")
 	}
-	return probe, err
+	return out, probe, err
 }

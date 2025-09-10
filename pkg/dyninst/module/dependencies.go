@@ -10,7 +10,6 @@ package module
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/decode"
@@ -42,8 +41,8 @@ type Decoder interface {
 	Decode(
 		event decode.Event,
 		symbolicator symbol.Symbolicator,
-		out io.Writer,
-	) (ir.ProbeDefinition, error)
+		out []byte,
+	) ([]byte, ir.ProbeDefinition, error)
 }
 
 // DefaultDecoderFactory is the default decoder factory.

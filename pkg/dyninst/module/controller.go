@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcscrape"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -59,6 +60,7 @@ func NewController[AT ActuatorTenant, LU LogsUploader](
 	logUploader LogsUploaderFactory[LU],
 	diagUploader DiagnosticsUploader,
 	symdbUploaderURL *url.URL,
+	objectLoader object.Loader,
 	rcScraper Scraper,
 	decoderFactory DecoderFactory,
 	irGenerator actuator.IRGenerator,
@@ -70,7 +72,7 @@ func NewController[AT ActuatorTenant, LU LogsUploader](
 		rcScraper:      rcScraper,
 		store:          store,
 		diagnostics:    newDiagnosticsManager(diagUploader),
-		symdb:          newSymdbManager(symdbUploaderURL),
+		symdb:          newSymdbManager(symdbUploaderURL, objectLoader),
 		decoderFactory: decoderFactory,
 	}
 	c.actuator = a.NewTenant(
@@ -103,7 +105,7 @@ func (c *Controller) Run(ctx context.Context, interval time.Duration) {
 }
 
 func (c *Controller) handleRemovals(removals []procmon.ProcessID) {
-	c.store.remove(removals)
+	c.store.remove(removals, c.diagnostics)
 	if len(removals) > 0 {
 		c.actuator.HandleUpdate(actuator.ProcessesUpdate{
 			Removals: removals,

@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/comp/core/secrets/fx
 go 1.24.0
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/secrets/impl v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/core/secrets/impl v0.70.0
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.68.3
 )
 
@@ -11,13 +11,13 @@ require (
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.68.3 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.68.3 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.68.3 // indirect
-	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.0.0-00010101000000-000000000000 // indirect
-	github.com/DataDog/datadog-agent/comp/core/secrets/utils v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.71.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/comp/core/secrets/utils v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/status v0.68.3 // indirect
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.68.3 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.68.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/template v0.68.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log v0.68.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/option v0.68.3 // indirect
@@ -53,7 +53,7 @@ require (
 	golang.org/x/sys v0.35.0 // indirect
 	golang.org/x/text v0.28.0 // indirect
 	golang.org/x/time v0.12.0 // indirect
-	google.golang.org/protobuf v1.36.7 // indirect
+	google.golang.org/protobuf v1.36.8 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

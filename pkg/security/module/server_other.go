@@ -7,4 +7,10 @@
 
 package module
 
+import "github.com/DataDog/datadog-agent/pkg/security/proto/api"
+
 func (a *APIServer) collectOSReleaseData() {}
+
+func (a *APIServer) fillStatusPlatform(_ *api.Status) error {
+	return nil
+}

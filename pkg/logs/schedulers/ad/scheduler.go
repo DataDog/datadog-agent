@@ -245,6 +245,12 @@ func CreateSources(config integration.Config) ([]*sourcesPkg.LogSource, error) {
 	configName := configName(config)
 	var sources []*sourcesPkg.LogSource
 	for index, cfg := range configs {
+		// Skip nil configurations
+		if cfg == nil {
+			log.Warnf("Skipping nil log configuration at index %d in config %s", index, configName)
+			continue
+		}
+
 		// if no service is set fall back to the global one
 		if cfg.Service == "" && globalServiceDefined {
 			cfg.Service = commonGlobalOptions.Service

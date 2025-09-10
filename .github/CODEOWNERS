@@ -227,7 +227,6 @@
 /cmd/agent/dist/conf.d/oracle-dbm.d/    @DataDog/database-monitoring
 /cmd/agent/dist/conf.d/network_path.d/ @DataDog/cloud-network-monitoring
 /cmd/agent/dist/conf.d/sbom.d/          @DataDog/agent-security @DataDog/container-integrations
-/cmd/agent/dist/conf.d/service_discovery.d/          @DataDog/agent-discovery
 /cmd/agent/dist/conf.d/snmp.d/          @DataDog/ndm-core
 /cmd/agent/dist/conf.d/win32_event_log.d/ @DataDog/windows-products
 /cmd/agent/dist/conf.d/windows_certificate.d/ @DataDog/windows-products
@@ -352,7 +351,7 @@
 /comp/metadata/hostgpu @DataDog/ebpf-platform
 /comp/metadata/packagesigning @DataDog/agent-delivery
 /comp/metadata/softwareinventory @DataDog/windows-products
-/comp/process/connectionscheck @DataDog/networks @DataDog/universal-service-monitoring
+/comp/process/connectionscheck @DataDog/cloud-network-monitoring @DataDog/universal-service-monitoring
 /comp/trace/etwtracer @DataDog/windows-products
 /comp/updater/daemonchecker @DataDog/fleet
 /comp/updater/ssistatus @DataDog/fleet
@@ -590,6 +589,7 @@
 /pkg/network/*usm*                      @DataDog/universal-service-monitoring
 /pkg/network/*_windows*.go              @DataDog/windows-products
 /pkg/network/config/config_test.go      @DataDog/cloud-network-monitoring @DataDog/universal-service-monitoring @DataDog/windows-products
+/pkg/network/config/usm*.go             @DataDog/universal-service-monitoring
 /pkg/network/driver_*.go                @DataDog/windows-products
 /pkg/network/dns/*_windows*.go          @DataDog/windows-products
 /pkg/network/driver/                    @DataDog/windows-products

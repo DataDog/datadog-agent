@@ -14,10 +14,11 @@ import (
 	"os/exec"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/stretchr/testify/assert"
 )
 
 func runHardlinkTests(t *testing.T, opts testOpts) {
@@ -185,6 +186,10 @@ func TestHardLink(t *testing.T) {
 func TestHardlinkBusybox(t *testing.T) {
 	SkipIfNotAvailable(t)
 
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+
 	checkKernelCompatibility(t, "Not supported on kernels < 5.12", func(kv *kernel.Version) bool {
 		return kv.Code < kernel.Kernel5_12
 	})
@@ -209,8 +214,7 @@ func TestHardlinkBusybox(t *testing.T) {
 	// busybox uses hardlinks
 	wrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "busybox", "")
 	if err != nil {
-		t.Skip("docker not available")
-		return
+		t.Fatalf("failed to start docker wrapper: %v", err)
 	}
 
 	wrapper.Run(t, "busybox-1", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {

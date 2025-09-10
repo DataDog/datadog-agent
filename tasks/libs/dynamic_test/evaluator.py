@@ -429,8 +429,9 @@ class DatadogDynTestEvaluator(DynTestEvaluator):
             - Sets unreliable_status=True for tests marked as flaky by Datadog
             - Queries up to 3 days of historical data
         """
+        escaped_job_name = job_name.replace('"', '\\"')
         events = get_ci_test_events(
-            f'@ci.pipeline.name:DataDog/datadog-agent @ci.pipeline.id:{self.pipeline_id} @ci.job.name:"{job_name.replace('"', '\\"')}"',
+            f'@ci.pipeline.name:DataDog/datadog-agent @ci.pipeline.id:{self.pipeline_id} @ci.job.name:"{escaped_job_name}"',
             3,
         )
 

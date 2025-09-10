@@ -152,7 +152,7 @@ func (p *Provider) generateContainerSpecMetrics(sender sender.Sender, pod *kubel
 
 	if container.Resources != nil { // Ephemeral containers do not have resources defined
 
-		tagList = common.AppendKubeRequestedCPUManagementTag(p.store, pod.Status.QOSClass, containerID, tagList)
+		tagList = common.AppendKubeStaticCPUsTag(p.store, pod.Status.QOSClass, containerID, tagList)
 
 		for r, value := range container.Resources.Requests {
 			sender.Gauge(common.KubeletMetricsPrefix+string(r)+".requests", value.AsApproximateFloat64(), "", tagList)

@@ -454,10 +454,13 @@ func (c *Controller) validateAutoscaler(podAutoscalerInternal model.PodAutoscale
 
 	var resourceName string
 	switch owner := podAutoscalerInternal.Spec().TargetRef.Kind; owner {
-	case "Deployment":
+	case kubernetes.DeploymentKind:
 		resourceName = kubernetes.ParseDeploymentForPodName(clusterAgentPodName)
-	case "ReplicaSet":
+	case kubernetes.ReplicaSetKind:
 		resourceName = kubernetes.ParseReplicaSetForPodName(clusterAgentPodName)
+	default:
+		// We don't support other ways to deploy the Cluster Agent
+		return nil
 	}
 
 	clusterAgentNs := common.GetMyNamespace()

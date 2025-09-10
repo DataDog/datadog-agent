@@ -6,7 +6,7 @@
       "name": "",
       "method": "main.testDeepSlice7",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {
@@ -75,8 +75,13 @@
                                     "size": "1",
                                     "elements": [
                                       {
-                                        "type": "*main.deepSlice1",
-                                        "notCapturedReason": "missing type information"
+                                        "type": "interface {}",
+                                        "fields": {
+                                          "data": {
+                                            "type": "*main.deepSlice1",
+                                            "notCapturedReason": "missing type information"
+                                          }
+                                        }
                                       }
                                     ]
                                   }

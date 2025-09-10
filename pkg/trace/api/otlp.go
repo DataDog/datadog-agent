@@ -108,10 +108,15 @@ func (o *OTLPReceiver) Start() {
 		if err != nil {
 			log.Criticalf("Error starting OpenTelemetry gRPC server: %v", err)
 		} else {
-			o.grpcsrv = grpc.NewServer(
+			opts := []grpc.ServerOption{
 				grpc.MaxRecvMsgSize(o.grpcMaxRecvMsgSize),
 				grpc.MaxConcurrentStreams(1), // Each payload must be sent to processing stage before we decode the next.
-			)
+			}
+
+			// OTLP trace ingestion doesn't need generic gRPC metrics interceptors
+			// since we collect business-specific metrics (spans, traces, payloads) via StatsD
+
+			o.grpcsrv = grpc.NewServer(opts...)
 			ptraceotlp.RegisterGRPCServer(o.grpcsrv, o)
 			o.wg.Add(1)
 			go func() {

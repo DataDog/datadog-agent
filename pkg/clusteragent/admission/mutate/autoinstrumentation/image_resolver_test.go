@@ -17,10 +17,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // mockRCClient is a lightweight mock that implements RemoteConfigClient
@@ -79,10 +80,12 @@ func (m *mockRCClient) Subscribe(product string, _ func(map[string]state.RawConf
 
 func (m *mockRCClient) GetConfigs(_ string) map[string]state.RawConfig {
 	m.mu.Lock()
-	defer m.mu.Unlock()
+	shouldBlock := m.blockGetConfigs
+	channel := m.configsReady
+	m.mu.Unlock()
 
-	if m.blockGetConfigs {
-		<-m.configsReady // Block until unblocked
+	if shouldBlock {
+		<-channel
 	}
 
 	return m.configs
@@ -91,10 +94,13 @@ func (m *mockRCClient) GetConfigs(_ string) map[string]state.RawConfig {
 func (m *mockRCClient) setBlocking(block bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.blockGetConfigs = block
-	if !block {
+
+	// Only close when switching from blocking to non-blocking
+	if !block && m.blockGetConfigs {
 		close(m.configsReady)
 	}
+
+	m.blockGetConfigs = block
 }
 
 func TestNewImageResolver(t *testing.T) {
@@ -106,7 +112,14 @@ func TestNewImageResolver(t *testing.T) {
 		assert.True(t, ok, "Should return remoteConfigImageResolver when rcClient is not nil")
 	})
 
-	t.Run("without_remote_config_client", func(t *testing.T) {
+	t.Run("without_remote_config_client__typed_nil", func(t *testing.T) {
+		resolver := NewImageResolver((*mockRCClient)(nil))
+
+		_, ok := resolver.(*noOpImageResolver)
+		assert.True(t, ok, "Should return noOpImageResolver when rcClient is nil")
+	})
+
+	t.Run("without_remote_config_client__untyped_nil", func(t *testing.T) {
 		resolver := NewImageResolver(nil)
 
 		_, ok := resolver.(*noOpImageResolver)

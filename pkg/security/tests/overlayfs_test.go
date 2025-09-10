@@ -641,9 +641,9 @@ func TestOverlayOpOverride(t *testing.T) {
 		t.Fatalf("failed to start docker wrapper: %v", err)
 	}
 	t.Cleanup(func() {
-		_, err := dockerWrapper.stop()
+		output, err := dockerWrapper.stop()
 		if err != nil {
-			t.Errorf("failed to stop docker wrapper: %v", err)
+			t.Errorf("failed to stop docker wrapper: %v\n%s", err, string(output))
 		}
 	})
 

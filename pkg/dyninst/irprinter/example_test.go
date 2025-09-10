@@ -95,6 +95,10 @@ func ExamplePrintJSON() {
 	//   "GoModuledataInfo": {
 	//     "FirstModuledataAddr": "0xdeadbeef",
 	//     "TypesOffset": 1234
+	//   },
+	//   "CommonTypes": {
+	//     "G": "4 StructureType runtime.g",
+	//     "M": "5 StructureType runtime.m"
 	//   }
 	// }
 }
@@ -137,7 +141,9 @@ func ExamplePrintYAML() {
 	// MaxTypeID: 3
 	// Issues: []
 	// GoModuledataInfo: {FirstModuledataAddr: "0xdeadbeef", TypesOffset: 1234}
-
+	// CommonTypes:
+	//     G: 4 StructureType runtime.g
+	//     M: 5 StructureType runtime.m
 }
 
 func constructExampleProgram() *ir.Program {
@@ -149,6 +155,22 @@ func constructExampleProgram() *ir.Program {
 		GoModuledataInfo: ir.GoModuledataInfo{
 			FirstModuledataAddr: 0xdeadbeef,
 			TypesOffset:         1234,
+		},
+		CommonTypes: ir.CommonTypes{
+			G: &ir.StructureType{
+				TypeCommon: ir.TypeCommon{
+					ID:       4,
+					Name:     "runtime.g",
+					ByteSize: 128,
+				},
+			},
+			M: &ir.StructureType{
+				TypeCommon: ir.TypeCommon{
+					ID:       5,
+					Name:     "runtime.m",
+					ByteSize: 128,
+				},
+			},
 		},
 	}
 

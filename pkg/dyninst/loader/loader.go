@@ -377,17 +377,8 @@ func (l *Loader) loadData(
 	); err != nil {
 		return nil, fmt.Errorf("failed to set num_go_runtime_types: %w", err)
 	}
-	if err := setVariable(
-		spec, "OFFSET_runtime_dot_moduledata__types",
-		serialized.goModuledataInfo.TypesOffset,
-	); err != nil {
-		return nil, fmt.Errorf("failed to set OFFSET_runtime_dot_moduledata__types: %w", err)
-	}
-	if err := setVariable(
-		spec, "VARIABLE_runtime_dot_firstmoduledata",
-		serialized.goModuledataInfo.FirstModuledataAddr,
-	); err != nil {
-		return nil, fmt.Errorf("failed to set VARIABLE_runtime_dot_firstmoduledata: %w", err)
+	if err := setCommonConstants(spec, serialized); err != nil {
+		return nil, fmt.Errorf("failed to set common constants: %w", err)
 	}
 
 	mapSpec, throttlerMap, err := makeArrayMap(
@@ -455,6 +446,52 @@ func (l *Loader) loadData(
 	goRuntimeTypeIDsMap = nil
 	goRuntimeTypesMap = nil
 	return m, nil
+}
+
+func setCommonConstants(spec *ebpf.CollectionSpec, serialized *serializedProgram) error {
+	if err := setVariable(
+		spec, "VARIABLE_runtime_dot_firstmoduledata",
+		serialized.goModuledataInfo.FirstModuledataAddr,
+	); err != nil {
+		return err
+	}
+	if err := setVariable(
+		spec, "OFFSET_runtime_dot_moduledata__types",
+		serialized.goModuledataInfo.TypesOffset,
+	); err != nil {
+		return err
+	}
+	offset, err := serialized.commonTypes.G.FieldOffsetByName("goid")
+	if err != nil {
+		return err
+	}
+	if err := setVariable(
+		spec, "OFFSET_runtime_dot_g__goid",
+		offset,
+	); err != nil {
+		return err
+	}
+	offset, err = serialized.commonTypes.G.FieldOffsetByName("m")
+	if err != nil {
+		return err
+	}
+	if err := setVariable(
+		spec, "OFFSET_runtime_dot_g__m",
+		offset,
+	); err != nil {
+		return err
+	}
+	offset, err = serialized.commonTypes.M.FieldOffsetByName("curg")
+	if err != nil {
+		return err
+	}
+	if err := setVariable(
+		spec, "OFFSET_runtime_dot_m__curg",
+		offset,
+	); err != nil {
+		return err
+	}
+	return nil
 }
 
 type arrayMapConfig bool

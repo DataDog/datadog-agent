@@ -85,7 +85,7 @@ func TestAppendKubeRequestedCPUManagementTag(t *testing.T) {
 			expectedTags: []string{"existing:tag"},
 		},
 		{
-			name:        "guaranteed qos with whole cores and static policy adds static tag",
+			name:        "guaranteed qos with whole cores and static policy adds kube_static_cpus:true tag",
 			qos:         "Guaranteed",
 			containerID: types.NewEntityID(types.ContainerID, "container-123"),
 			initialTags: []string{"existing:tag"},
@@ -107,10 +107,10 @@ func TestAppendKubeRequestedCPUManagementTag(t *testing.T) {
 					Resources: requestedWholeCores,
 				})
 			},
-			expectedTags: []string{"existing:tag", "kube_requested_cpu_management:static"},
+			expectedTags: []string{"existing:tag", "kube_static_cpus:true"},
 		},
 		{
-			name:        "guaranteed qos with whole cores but non-static policy adds none tag",
+			name:        "guaranteed qos with whole cores but non-static policy adds kube_static_cpus:false tag",
 			qos:         "Guaranteed",
 			containerID: types.NewEntityID(types.ContainerID, "container-123"),
 			initialTags: []string{"existing:tag"},
@@ -132,10 +132,10 @@ func TestAppendKubeRequestedCPUManagementTag(t *testing.T) {
 					Resources: requestedWholeCores,
 				})
 			},
-			expectedTags: []string{"existing:tag", "kube_requested_cpu_management:none"},
+			expectedTags: []string{"existing:tag", "kube_static_cpus:false"},
 		},
 		{
-			name:        "guaranteed qos with static policy but partial cores adds none tag",
+			name:        "guaranteed qos with static policy but partial cores adds kube_static_cpus:false tag",
 			qos:         "Guaranteed",
 			containerID: types.NewEntityID(types.ContainerID, "container-123"),
 			initialTags: []string{"existing:tag"},
@@ -157,10 +157,10 @@ func TestAppendKubeRequestedCPUManagementTag(t *testing.T) {
 					Resources: requestedPartialCores,
 				})
 			},
-			expectedTags: []string{"existing:tag", "kube_requested_cpu_management:none"},
+			expectedTags: []string{"existing:tag", "kube_static_cpus:false"},
 		},
 		{
-			name:        "guaranteed qos with static policy but nil whole cores adds none tag",
+			name:        "guaranteed qos with static policy but nil whole cores adds kube_static_cpus:false tag",
 			qos:         "Guaranteed",
 			containerID: types.NewEntityID(types.ContainerID, "container-123"),
 			initialTags: []string{"existing:tag"},
@@ -183,10 +183,10 @@ func TestAppendKubeRequestedCPUManagementTag(t *testing.T) {
 					Resources: nilRequestedWholeCores,
 				})
 			},
-			expectedTags: []string{"existing:tag", "kube_requested_cpu_management:none"},
+			expectedTags: []string{"existing:tag", "kube_static_cpus:false"},
 		},
 		{
-			name:        "non-guaranteed qos with whole cores and static policy adds none tag",
+			name:        "non-guaranteed qos with whole cores and static policy adds kube_static_cpus:false tag",
 			qos:         "Burstable",
 			containerID: types.NewEntityID(types.ContainerID, "container-123"),
 			initialTags: []string{"existing:tag"},
@@ -209,7 +209,7 @@ func TestAppendKubeRequestedCPUManagementTag(t *testing.T) {
 					Resources: requestedWholeCores,
 				})
 			},
-			expectedTags: []string{"existing:tag", "kube_requested_cpu_management:none"},
+			expectedTags: []string{"existing:tag", "kube_static_cpus:false"},
 		},
 	}
 
@@ -221,7 +221,7 @@ func TestAppendKubeRequestedCPUManagementTag(t *testing.T) {
 			))
 
 			tt.setupMock(mockStore)
-			result := AppendKubeRequestedCPUManagementTag(mockStore, tt.qos, tt.containerID, tt.initialTags)
+			result := AppendKubeStaticCPUsTag(mockStore, tt.qos, tt.containerID, tt.initialTags)
 			assert.Equal(t, tt.expectedTags, result, fmt.Sprintf("expected %v, got %v", tt.expectedTags, result))
 		})
 	}

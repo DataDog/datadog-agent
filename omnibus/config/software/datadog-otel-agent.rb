@@ -51,7 +51,7 @@ build do
     mkdir conf_dir
     mkdir embedded_bin_dir
 
-    command "dda inv -- -e otel-agent.build", :env => env
+    command "dda inv -- -e otel-agent.build", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
 
     if windows_target?
       copy 'bin/otel-agent/otel-agent.exe', embedded_bin_dir

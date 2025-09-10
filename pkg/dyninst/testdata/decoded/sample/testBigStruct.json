@@ -6,7 +6,7 @@
       "name": "",
       "method": "main.testBigStruct",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {
@@ -69,8 +69,13 @@
                     "value": "5"
                   },
                   "writer": {
-                    "type": "io.discard",
-                    "notCapturedReason": "missing type information"
+                    "type": "io.Writer",
+                    "fields": {
+                      "data": {
+                        "type": "io.discard",
+                        "fields": {}
+                      }
+                    }
                   }
                 }
               }

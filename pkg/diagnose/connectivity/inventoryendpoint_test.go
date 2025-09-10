@@ -21,13 +21,13 @@ import (
 
 func TestBuildRoute(t *testing.T) {
 	tests := []struct {
-		name           string
-		prefix         string
-		domain         domain
-		path           string
-		urlOverrideKey string
-		versioned      bool
-		expected       string
+		name             string
+		prefix           string
+		domain           domain
+		path             string
+		urlOverrideKey   string
+		urlOverrideValue string
+		expected         string
 	}{
 		{
 			name:   "basic route with dot separator",
@@ -60,26 +60,28 @@ func TestBuildRoute(t *testing.T) {
 			expected: "https://install.datadoghq.eu./api/v1/validate",
 		},
 		{
-			name:   "versioned route",
-			prefix: "app",
-			domain: domain{
-				site:          "datadoghq.com",
-				infraEndpoint: "https://app.datadoghq.com",
-			},
-			path:      "api/v1/validate",
-			versioned: true,
-			expected:  "https://6-0-0-app.agent.datadoghq.com/api/v1/validate",
-		},
-		{
 			name:   "with url override",
 			prefix: "intake.profile",
 			domain: domain{
 				site:          "datadoghq.eu",
 				infraEndpoint: "https://app.datadoghq.eu",
 			},
-			urlOverrideKey: "dd_url",
-			path:           "validate",
-			expected:       "http://myproxy.com/validate",
+			urlOverrideKey:   "dd_url",
+			urlOverrideValue: "http://myproxy.com",
+			path:             "validate",
+			expected:         "http://myproxy.com/validate",
+		},
+		{
+			name:   "with url override http",
+			prefix: "intake.profile",
+			domain: domain{
+				site:          "datadoghq.eu",
+				infraEndpoint: "https://app.datadoghq.eu",
+			},
+			urlOverrideKey:   "dd_url",
+			urlOverrideValue: "myproxy.com",
+			path:             "validate",
+			expected:         "https://myproxy.com/validate",
 		},
 	}
 
@@ -88,7 +90,6 @@ func TestBuildRoute(t *testing.T) {
 			endpointDescription := endpointDescription{
 				prefix:            tt.prefix,
 				routePath:         tt.path,
-				versioned:         tt.versioned,
 				altURLOverrideKey: tt.urlOverrideKey,
 			}
 			version.AgentVersion = "6.0.0"
@@ -97,7 +98,7 @@ func TestBuildRoute(t *testing.T) {
 			mockConfig.SetWithoutSource("multi_region_failover.enabled", tt.domain.isFailover)
 			mockConfig.SetWithoutSource("multi_region_failover.site", tt.domain.site)
 			if tt.urlOverrideKey != "" {
-				mockConfig.SetWithoutSource(tt.urlOverrideKey, "http://myproxy.com")
+				mockConfig.SetWithoutSource(tt.urlOverrideKey, tt.urlOverrideValue)
 			}
 			url := endpointDescription.buildRoute(mockConfig, tt.domain)
 			assert.Equal(t, tt.expected, url)
@@ -163,41 +164,6 @@ func TestBuildEndpoints(t *testing.T) {
 				{
 					apiKey: "api-key-2",
 					url:    "https://install.datadoghq.eu./",
-				},
-			},
-		},
-		{
-			name: "endpoint with config prefix",
-			endpointDescription: endpointDescription{
-				prefix:          "ndm.metadata.",
-				method:          http.MethodGet,
-				configPrefix:    "service.metadata.",
-				handlesFailover: true,
-			},
-			config: map[string]string{
-				"service.metadata.api_key": "api-key-custom",
-			},
-			domains: []domain{
-				{
-					site:          "datadoghq.com",
-					defaultAPIKey: "api-key-main",
-					useAltAPIKey:  true,
-				},
-				{
-					site:          "datadoghq.mrf.com",
-					defaultAPIKey: "api-key-mrf",
-					useAltAPIKey:  false,
-					isFailover:    true,
-				},
-			},
-			expectedEndpoints: []resolvedEndpoint{
-				{
-					apiKey: "api-key-custom",
-					url:    "https://ndm.metadata.datadoghq.com./",
-				},
-				{
-					apiKey: "api-key-mrf",
-					url:    "https://ndm.metadata.datadoghq.mrf.com/",
 				},
 			},
 		},
@@ -396,31 +362,6 @@ func TestCheckGet(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid status code: 401")
 }
 
-func TestCheckHeadWithRedirectLimit(t *testing.T) {
-	// Create a test server that always returns a 307 Temporary Redirect
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == "HEAD" {
-			w.WriteHeader(http.StatusTemporaryRedirect)
-		} else {
-			w.WriteHeader(http.StatusMethodNotAllowed)
-			w.Write([]byte("OK"))
-		}
-	}))
-	defer ts.Close()
-
-	endpoint := resolvedEndpoint{
-		url:           ts.URL,
-		method:        http.MethodHead,
-		apiKey:        "irrelevant",
-		limitRedirect: true,
-	}
-
-	client := &http.Client{}
-	result, err := endpoint.checkHead(context.Background(), client)
-	assert.NoError(t, err)
-	assert.Equal(t, "Success", result)
-}
-
 func TestRun(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.SetWithoutSource("api_key", "test-api-key")
@@ -457,10 +398,9 @@ func TestRun(t *testing.T) {
 		},
 	}
 
-	clientNormal := getClient(cfg, 2, logmock.New(t))
-	clientRedirect := getClient(cfg, 2, logmock.New(t), withOneRedirect())
+	client := getClient(cfg, 2, logmock.New(t))
 
-	diagnoses, err := checkEndpoints(context.Background(), testEndpoints, clientNormal, clientRedirect)
+	diagnoses, err := checkEndpoints(context.Background(), testEndpoints, client)
 	assert.NoError(t, err)
 	assert.Len(t, diagnoses, len(testEndpoints))
 	successCount := 0

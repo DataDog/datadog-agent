@@ -21,13 +21,14 @@ import (
 )
 
 func BenchmarkStatKeeperSameTX(b *testing.B) {
-	cfg := &config.Config{MaxRedisStatsBuffered: 1000}
+	cfg := config.New()
+	cfg.MaxRedisStatsBuffered = 1000
 	sk := NewStatsKeeper(cfg)
 
 	sourceIP, destIP, sourcePort, destPort := generateAddresses()
 	tx := generateRedisTransaction(sourceIP, destIP, sourcePort, destPort, uint8(GetCommand), "keyName", false, 500)
 
-	eventWrapper := NewEventWrapper(tx)
+	eventWrapper := NewEventWrapper(&tx.Header, &tx.Key)
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -37,10 +38,9 @@ func BenchmarkStatKeeperSameTX(b *testing.B) {
 }
 
 func TestProcessRedisTransactions(t *testing.T) {
-	cfg := &config.Config{
-		MaxRedisStatsBuffered: 1000,
-		RedisTrackResources:   true,
-	}
+	cfg := config.New()
+	cfg.MaxRedisStatsBuffered = 1000
+	cfg.RedisTrackResources = true
 
 	sk := NewStatsKeeper(cfg)
 	sourceIP, destIP, sourcePort, destPort := generateAddresses()
@@ -57,7 +57,8 @@ func TestProcessRedisTransactions(t *testing.T) {
 				isErr = true
 			}
 			latency := time.Duration(j%2+1) * time.Millisecond
-			tx := NewEventWrapper(generateRedisTransaction(sourceIP, destIP, sourcePort, destPort, uint8(GetCommand), keyName, isErr, latency))
+			event := generateRedisTransaction(sourceIP, destIP, sourcePort, destPort, uint8(GetCommand), keyName, isErr, latency)
+			tx := NewEventWrapper(&event.Header, &event.Key)
 			sk.Process(tx)
 		}
 	}
@@ -96,40 +97,39 @@ func generateAddresses() (util.Address, util.Address, int, int) {
 	return sourceIP, destIP, sourcePort, destPort
 }
 
-func generateRedisTransaction(source util.Address, dest util.Address, sourcePort int, destPort int, command uint8, keyName string, isError bool, latency time.Duration) *EbpfEvent {
+func generateRedisTransaction(source util.Address, dest util.Address, sourcePort int, destPort int, command uint8, keyName string, isError bool, latency time.Duration) *EbpfKeyedEvent {
 	var buf [128]byte
 	copy(buf[:], keyName)
 	keySize := len(keyName)
 	latencyNS := uint64(latency)
 
-	var event EbpfEvent
+	var event EbpfKeyedEvent
 
-	event.Tx.Request_started = 1
-	event.Tx.Response_last_seen = event.Tx.Request_started + latencyNS
-	event.Tx.Is_error = isError
-	event.Tx.Buf = buf
-	event.Tx.Buf_len = uint16(keySize)
-	event.Tx.Command = command
-	event.Tuple.Saddr_l = uint64(binary.LittleEndian.Uint32(source.Unmap().AsSlice()))
-	event.Tuple.Sport = uint16(sourcePort)
-	event.Tuple.Daddr_l = uint64(binary.LittleEndian.Uint32(dest.Unmap().AsSlice()))
-	event.Tuple.Dport = uint16(destPort)
-	event.Tuple.Metadata = 1
+	event.Header.Tx.Request_started = 1
+	event.Header.Tx.Response_last_seen = event.Header.Tx.Request_started + latencyNS
+	event.Header.Tx.Is_error = isError
+	event.Key.Buf = buf
+	event.Key.Len = uint16(keySize)
+	event.Header.Tx.Command = command
+	event.Header.Tuple.Saddr_l = uint64(binary.LittleEndian.Uint32(source.Unmap().AsSlice()))
+	event.Header.Tuple.Sport = uint16(sourcePort)
+	event.Header.Tuple.Daddr_l = uint64(binary.LittleEndian.Uint32(dest.Unmap().AsSlice()))
+	event.Header.Tuple.Dport = uint16(destPort)
+	event.Header.Tuple.Metadata = 1
 
 	return &event
 }
 
 func TestTrackResources(t *testing.T) {
 	t.Run("track_resources enabled", func(t *testing.T) {
-		cfg := &config.Config{
-			MaxRedisStatsBuffered: 1000,
-			RedisTrackResources:   true,
-		}
+		cfg := config.New()
+		cfg.MaxRedisStatsBuffered = 1000
+		cfg.RedisTrackResources = true
 		sk := NewStatsKeeper(cfg)
 
 		sourceIP, destIP, sourcePort, destPort := generateAddresses()
 		tx := generateRedisTransaction(sourceIP, destIP, sourcePort, destPort, uint8(GetCommand), "my_key", false, 500)
-		eventWrapper := NewEventWrapper(tx)
+		eventWrapper := NewEventWrapper(&tx.Header, &tx.Key)
 
 		sk.Process(eventWrapper)
 		stats := sk.GetAndResetAllStats()
@@ -144,15 +144,13 @@ func TestTrackResources(t *testing.T) {
 	})
 
 	t.Run("track_resources disabled", func(t *testing.T) {
-		cfg := &config.Config{
-			MaxRedisStatsBuffered: 1000,
-			RedisTrackResources:   false,
-		}
+		cfg := config.New()
+		cfg.MaxRedisStatsBuffered = 1000
 		sk := NewStatsKeeper(cfg)
 
 		sourceIP, destIP, sourcePort, destPort := generateAddresses()
 		tx := generateRedisTransaction(sourceIP, destIP, sourcePort, destPort, uint8(GetCommand), "my_key", false, 500)
-		eventWrapper := NewEventWrapper(tx)
+		eventWrapper := NewEventWrapper(&tx.Header, &tx.Key)
 
 		sk.Process(eventWrapper)
 		stats := sk.GetAndResetAllStats()

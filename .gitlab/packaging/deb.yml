@@ -26,14 +26,14 @@ include:
 
 .package_deb_x86:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   variables:
     DD_PKG_ARCH: x86_64
     PACKAGE_ARCH: amd64
 
 .package_deb_arm64:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:arm64"]
+  tags: ["arch:arm64", "specific:true"]
   variables:
     PACKAGE_ARCH: arm64
     DD_PKG_ARCH: arm64
@@ -165,7 +165,7 @@ iot_agent_deb-arm64:
 iot_agent_deb-armhf:
   extends: .package_iot_deb_common
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:arm64"]
+  tags: ["arch:arm64", "specific:true"]
   needs: ["iot-agent-armhf"]
   variables:
     PACKAGE_ARCH: armhf

@@ -339,7 +339,7 @@ sm_record_go_interface_impl(global_ctx_t* global_ctx, uint64_t go_runtime_type,
     LOG(4, "chase: interface type not found %llx", go_runtime_type);
     return true;
   }
-  const bool decrease_ttl = false;
+  const bool decrease_ttl = true;
   return sm_record_pointer(global_ctx, t, addr, decrease_ttl, ENQUEUE_LEN_SENTINEL);
 }
 
@@ -359,10 +359,6 @@ struct {
   __type(key, uint32_t);
   __type(value, moduledata_t);
 } moduledata_buf SEC(".maps");
-
-// These constants are filled in by the loader.
-volatile const uint64_t VARIABLE_runtime_dot_firstmoduledata = 0;
-volatile const uint32_t OFFSET_runtime_dot_moduledata__types = 0;
 
 // Translate a pointer to a type (i.e. a pointer pointing to type information
 // inside moduledata) like that found inside an empty interface to an offset

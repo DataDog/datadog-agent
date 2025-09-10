@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
-const contentLenLimit = 256000
+const contentLenLimit = 900000
 
 // brokenLine represents a decoded line and the raw length
 type brokenLine struct {

@@ -35,6 +35,7 @@ type serializedProgram struct {
 
 	goRuntimeTypeIDs goRuntimeTypeIDs
 	goModuledataInfo ir.GoModuledataInfo
+	commonTypes      ir.CommonTypes
 }
 
 type goRuntimeTypeIDs struct {
@@ -152,6 +153,7 @@ func serializeProgram(
 	}
 	sort.Sort(grts)
 	serialized.goModuledataInfo = program.GoModuledataInfo
+	serialized.commonTypes = program.CommonTypes
 
 	serialized.throttlerParams = make([]throttlerParams, len(program.Throttlers))
 	for i, t := range program.Throttlers {
