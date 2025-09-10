@@ -754,6 +754,10 @@ func TestHandleKubePod(t *testing.T) {
 				EntityMeta: workloadmeta.EntityMeta{
 					Name:      podName,
 					Namespace: podNamespace,
+					Labels: map[string]string{
+						// Argo Rollout tags
+						"rollouts-pod-template-hash": "490794276",
+					},
 				},
 				Owners: []workloadmeta.KubernetesPodOwner{
 					{
@@ -781,6 +785,7 @@ func TestHandleKubePod(t *testing.T) {
 						"kube_ownerref_kind:replicaset",
 						"kube_replica_set:some_deployment-bcd2",
 						"kube_deployment:some_deployment",
+						"kube_argo_rollout:some_deployment",
 					},
 					StandardTags: []string{},
 				},
@@ -2785,5 +2790,134 @@ func assertTagInfoListEqual(t *testing.T, expectedUpdates []*types.TagInfo, upda
 	require.Equal(t, len(expectedUpdates), len(updates))
 	for i := 0; i < len(expectedUpdates); i++ {
 		assertTagInfoEqual(t, expectedUpdates[i], updates[i])
+	}
+}
+
+func TestHandleProcess(t *testing.T) {
+	const (
+		pid               = "12345"
+		serviceNameFromDD = "my-service"
+		envFromDD         = "production"
+		versionFromDD     = "1.2.3"
+	)
+
+	collector := &WorkloadMetaCollector{}
+
+	tests := []struct {
+		name            string
+		process         *workloadmeta.Process
+		expectedTagInfo *types.TagInfo
+	}{
+		{
+			name: "process with complete UST service data",
+			process: &workloadmeta.Process{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindProcess,
+					ID:   pid,
+				},
+				Pid: 12345,
+				Service: &workloadmeta.Service{
+					UST: workloadmeta.UST{
+						Service: serviceNameFromDD,
+						Env:     envFromDD,
+						Version: versionFromDD,
+					},
+				},
+			},
+			expectedTagInfo: &types.TagInfo{
+				Source:   processSource,
+				EntityID: types.NewEntityID(types.Process, pid),
+				LowCardTags: []string{
+					fmt.Sprintf("env:%s", envFromDD),
+					fmt.Sprintf("service:%s", serviceNameFromDD),
+					fmt.Sprintf("version:%s", versionFromDD),
+				},
+				OrchestratorCardTags: []string{},
+				HighCardTags:         []string{},
+				StandardTags: []string{
+					fmt.Sprintf("env:%s", envFromDD),
+					fmt.Sprintf("service:%s", serviceNameFromDD),
+					fmt.Sprintf("version:%s", versionFromDD),
+				},
+			},
+		},
+		{
+			name: "process with partial UST service data",
+			process: &workloadmeta.Process{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindProcess,
+					ID:   pid,
+				},
+				Pid: 12345,
+				Service: &workloadmeta.Service{
+					UST: workloadmeta.UST{
+						Service: serviceNameFromDD,
+						Env:     "", // Empty env
+						Version: versionFromDD,
+					},
+				},
+			},
+			expectedTagInfo: &types.TagInfo{
+				Source:   processSource,
+				EntityID: types.NewEntityID(types.Process, pid),
+				LowCardTags: []string{
+					fmt.Sprintf("service:%s", serviceNameFromDD),
+					fmt.Sprintf("version:%s", versionFromDD),
+				},
+				OrchestratorCardTags: []string{},
+				HighCardTags:         []string{},
+				StandardTags: []string{
+					fmt.Sprintf("service:%s", serviceNameFromDD),
+					fmt.Sprintf("version:%s", versionFromDD),
+				},
+			},
+		},
+		{
+			name: "process with no service data",
+			process: &workloadmeta.Process{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindProcess,
+					ID:   pid,
+				},
+				Pid:     12345,
+				Service: nil,
+			},
+		},
+		{
+			name: "process with empty service metadata",
+			process: &workloadmeta.Process{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindProcess,
+					ID:   pid,
+				},
+				Pid: 12345,
+				Service: &workloadmeta.Service{
+					// All UST fields empty
+					UST: workloadmeta.UST{
+						Service: "",
+						Env:     "",
+						Version: "",
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			event := workloadmeta.Event{
+				Type:   workloadmeta.EventTypeSet,
+				Entity: tt.process,
+			}
+
+			result := collector.handleProcess(event)
+
+			if tt.expectedTagInfo == nil {
+				assert.Nil(t, result)
+			} else {
+				require.Len(t, result, 1)
+				assertTagInfoEqual(t, tt.expectedTagInfo, result[0])
+			}
+		})
 	}
 }

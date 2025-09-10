@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -274,7 +275,12 @@ func (l *CheckRunner) Run() error {
 		}
 	}
 	status.UpdateEnabledChecks(checkNames)
-	log.Infof("Starting process-agent with enabled checks=%v", checkNames)
+
+	runnerName := "process-agent"
+	if flavor.GetFlavor() == flavor.DefaultAgent {
+		runnerName = "process-component"
+	}
+	log.Infof("Starting %s with enabled checks=%v", runnerName, checkNames)
 
 	if realTimeAllowed && l.rtNotifierChan != nil {
 		l.listenForRTUpdates()

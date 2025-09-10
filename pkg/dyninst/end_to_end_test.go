@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -85,11 +86,11 @@ func dockerIsEnabled(t *testing.T) bool {
 	return true
 }
 
-const expectationsPath = "testdata/e2e/rc_tester.json"
+const expectationsDir = "testdata/e2e"
 
 const e2eTmpDirEnv = "E2E_TMP_DIR"
 
-//go:embed testdata/e2e/rc_tester.json
+//go:embed testdata/e2e/rc_tester.json testdata/e2e/rc_tester_v1.json
 var expectations embed.FS
 
 func TestEndToEnd(t *testing.T) {
@@ -218,7 +219,7 @@ func runE2ETest(t *testing.T, cfg e2eTestConfig) {
 	sendTestRequests(t, serverPort, numRequests)
 	waitForLogMessages(
 		t, ts.backend, numRequests*len(expectedProbeIDs),
-		expectationsPath, cfg.rewrite,
+		path.Join(expectationsDir, cfg.binary+".json"), cfg.rewrite,
 	)
 	waitForProbeStatus(
 		t, ts.backend.diagPayloadCh,
@@ -241,6 +242,22 @@ func runE2ETest(t *testing.T, cfg e2eTestConfig) {
 			assert.False(t, symdbProcStates[proc.ProcessID])
 		}
 	}, 10*time.Second, 100*time.Millisecond, "probes should be removed")
+
+	// Ensure that the diagnostics states are as expected, and get cleared
+	// when the process exits.
+	require.Equal(t,
+		[]map[string][]string{
+			{
+				"look_at_the_request": {"received", "installed", "emitted"},
+				"http_handler":        {"received", "installed", "emitted"},
+			},
+		},
+		slices.Collect(maps.Values(ts.module.Controller().DiagnosticsStates())),
+	)
+	require.NoError(t, ts.serviceCmd.Process.Signal(os.Interrupt))
+	require.NoError(t, ts.serviceCmd.Wait())
+	ts.subscriber.NotifyExit(ts.servicePID)
+	require.Empty(t, ts.module.Controller().DiagnosticsStates())
 }
 
 func makeRemoteConfigUpdate(t *testing.T, probes []ir.ProbeDefinition, addSymdb bool) map[string][]byte {
@@ -825,6 +842,14 @@ func (m *mockSubscriber) NotifyExec(pid uint32) {
 	defer m.mu.Unlock()
 	if m.exec != nil {
 		m.exec(pid)
+	}
+}
+
+func (m *mockSubscriber) NotifyExit(pid uint32) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.exit != nil {
+		m.exit(pid)
 	}
 }
 

@@ -677,6 +677,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		testMod.t = t
 		testMod.opts.dynamicOpts = opts.dynamicOpts
 		testMod.opts.staticOpts = opts.staticOpts
+		testMod.statsdClient.Flush()
 
 		if opts.staticOpts.preStartCallback != nil {
 			opts.staticOpts.preStartCallback(testMod)
@@ -694,6 +695,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		testMod.cmdWrapper = cmdWrapper
 		testMod.t = t
 		testMod.opts.dynamicOpts = opts.dynamicOpts
+		testMod.statsdClient.Flush()
 
 		if !disableTracePipe && !ebpfLessEnabled {
 			if testMod.tracePipe, err = testMod.startTracing(); err != nil {
@@ -1152,6 +1154,71 @@ func checkKernelCompatibility(tb testing.TB, why string, skipCheck func(kv *kern
 
 	if skipCheck(kv) {
 		tb.Skipf("kernel version not supported: %s", why)
+	}
+}
+
+type dockerInfo struct {
+	once sync.Once
+	err  error
+	Path string
+	Info map[string]string
+}
+
+var docker dockerInfo
+
+func checkDockerCompatibility(tb testing.TB, why string, skipCheck func(docker *dockerInfo) bool) {
+	tb.Helper()
+
+	docker.once.Do(func() {
+		docker.Info = make(map[string]string)
+
+		path, err := whichNonFatal("docker")
+		if err != nil {
+			docker.err = err
+			return
+		}
+		docker.Path = path
+
+		cmd := exec.Command(path, "info")
+		stdout, err := cmd.StdoutPipe()
+		if err != nil {
+			docker.err = err
+			return
+		}
+
+		err = cmd.Start()
+		if err != nil {
+			docker.err = err
+			return
+		}
+
+		scanner := bufio.NewScanner(stdout)
+		scanner.Split(bufio.ScanLines)
+		for scanner.Scan() {
+			line := strings.TrimSpace(scanner.Text())
+			before, after, found := strings.Cut(line, ":")
+			if !found {
+				continue
+			}
+
+			before, after = strings.TrimSpace(before), strings.TrimSpace(after)
+			switch before {
+			case "Storage Driver":
+				docker.Info[before] = after
+				tb.Logf("%s: %s", before, after)
+			}
+		}
+
+		docker.err = cmd.Wait()
+	})
+
+	if docker.err != nil {
+		tb.Errorf("failed to get docker info: %s", docker.err)
+		return
+	}
+
+	if skipCheck(&docker) {
+		tb.Skipf("docker installation not supported: %s", why)
 	}
 }
 
@@ -1823,6 +1890,9 @@ func (tm *testModule) CheckZombieProcesses() error {
 
 				comm, err := os.ReadFile(filepath.Join("/proc", pidStr, "comm"))
 				if err != nil {
+					if errors.Is(err, syscall.ESRCH) {
+						continue
+					}
 					return fmt.Errorf("failed to read comm for PID %d: %w", pid, err)
 				}
 				commStr := strings.TrimSpace(string(comm))
@@ -1833,8 +1903,8 @@ func (tm *testModule) CheckZombieProcesses() error {
 				}
 			}
 		}
-		if err := scanner.Err(); err != nil {
-			return fmt.Errorf("error reading status file for PPID %d: %w", pid, err)
+		if err := scanner.Err(); err != nil && !errors.Is(err, syscall.ESRCH) {
+			return fmt.Errorf("error reading status file for PID %d: %w", pid, err)
 		}
 	}
 

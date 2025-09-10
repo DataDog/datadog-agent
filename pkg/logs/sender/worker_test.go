@@ -80,7 +80,6 @@ func TestSender(t *testing.T) {
 	destinationsCtx.Stop()
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func TestSenderSingleDestination(t *testing.T) {
 	cfg := configmock.New(t)
 	input := make(chan *message.Payload, 1)
@@ -112,7 +111,6 @@ func TestSenderSingleDestination(t *testing.T) {
 	worker.stop()
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func TestSenderDualReliableDestination(t *testing.T) {
 	cfg := configmock.New(t)
 	input := make(chan *message.Payload, 1)
@@ -151,7 +149,6 @@ func TestSenderDualReliableDestination(t *testing.T) {
 	worker.stop()
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func TestSenderUnreliableAdditionalDestination(t *testing.T) {
 	cfg := configmock.New(t)
 	input := make(chan *message.Payload, 1)
@@ -240,7 +237,6 @@ func TestSenderUnreliableStopsWhenMainFails(t *testing.T) {
 	worker.stop()
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func TestSenderReliableContinuseWhenOneFails(t *testing.T) {
 	cfg := configmock.New(t)
 	input := make(chan *message.Payload, 1)
@@ -290,7 +286,6 @@ func TestSenderReliableContinuseWhenOneFails(t *testing.T) {
 	worker.stop()
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func TestSenderReliableWhenOneFailsAndRecovers(t *testing.T) {
 	cfg := configmock.New(t)
 	input := make(chan *message.Payload, 1)

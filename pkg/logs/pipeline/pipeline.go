@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(AML) Fix revive linter
+// Package pipeline provides log processing pipeline functionality
 package pipeline
 
 import (
@@ -39,7 +39,7 @@ func NewPipeline(
 	diagnosticMessageReceiver diagnostic.MessageReceiver,
 	serverlessMeta sender.ServerlessMeta,
 	hostname hostnameinterface.Component,
-	cfg pkgconfigmodel.Reader,
+	_ pkgconfigmodel.Reader,
 	compression logscompression.Component,
 	instanceID string,
 ) *Pipeline {
@@ -90,7 +90,6 @@ func (p *Pipeline) Flush(ctx context.Context) {
 	p.processor.Flush(ctx) // flush messages in the processor into the sender
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func getStrategy(
 	inputChan chan *message.Message,
 	outputChan chan *message.Payload,
