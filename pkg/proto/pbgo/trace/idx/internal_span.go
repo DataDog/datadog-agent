@@ -111,7 +111,7 @@ func (s *StringTable) Lookup(str string) uint32 {
 // If the ref count reaches 0, the string is set to the empty string and the lookup is removed
 func (s *StringTable) decrementReference(idx uint32) {
 	s.refs[idx]--
-	if s.refs[idx] == 0 {
+	if s.refs[idx] == 0 // TODO: can this go negative?
 		// Remove string from lookup table as well, as it is no longer referenced
 		delete(s.lookup, s.strings[idx])
 		s.strings[idx] = ""
@@ -173,6 +173,8 @@ func (tp *InternalTracerPayload) Msgsize() int {
 // This ensures that any chunks or spans that were removed from this payload will not have any strings in the string table
 // that are no longer referenced. (As tracking these using the ref count is too expensive / error prone)
 func (tp *InternalTracerPayload) ToProto() *TracerPayload {
+	// TODO: move the used strings functionality to a helper function
+	// TODO: remove the string ref counting
 	usedStrings := make([]bool, tp.Strings.Len())
 	usedStrings[tp.containerIDRef] = true
 	usedStrings[tp.languageNameRef] = true
