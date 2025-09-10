@@ -427,12 +427,12 @@ func TestIsDatadoghqRegistry(t *testing.T) {
 		},
 		{
 			name:     "hub_docker_com_datadog",
-			registry: "hub.docker.com/r/datadog",
+			registry: "docker.io/datadog",
 			expected: true,
 		},
 		{
 			name:     "gallery_ecr_aws_datadog",
-			registry: "gallery.ecr.aws/datadog",
+			registry: "public.ecr.aws/datadog",
 			expected: true,
 		},
 		{
