@@ -34,7 +34,7 @@ func (f *privilegedLogsModule) sendErrorResponse(unixConn *net.UnixConn, message
 
 // openFileHandler handles requests to open a file and transfer its file descriptor
 func (f *privilegedLogsModule) openFileHandler(w http.ResponseWriter, r *http.Request) {
-	// read the body here and then hijack the connection
+	// We need to read the body fully before hijacking the connection
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		log.Errorf("Failed to read body: %v", err)
@@ -55,7 +55,7 @@ func (f *privilegedLogsModule) openFileHandler(w http.ResponseWriter, r *http.Re
 
 	unixConn, ok := conn.(*net.UnixConn)
 	if !ok {
-		f.sendErrorResponse(unixConn, "Not a Unix connection")
+		log.Errorf("Not a Unix connection")
 		return
 	}
 
@@ -65,6 +65,8 @@ func (f *privilegedLogsModule) openFileHandler(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	log.Infof("Received request to open file: %s", req.Path)
+
 	file, err := validateAndOpen(req.Path)
 	if err != nil {
 		f.sendErrorResponse(unixConn, err.Error())
@@ -73,7 +75,7 @@ func (f *privilegedLogsModule) openFileHandler(w http.ResponseWriter, r *http.Re
 	defer file.Close()
 
 	fd := int(file.Fd())
-	log.Debugf("Sending file descriptor %d for file %s", fd, req.Path)
+	log.Tracef("Sending file descriptor %d for file %s", fd, req.Path)
 
 	response := common.OpenFileResponse{
 		Success: true,
@@ -92,5 +94,5 @@ func (f *privilegedLogsModule) openFileHandler(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	log.Debugf("File descriptor sent successfully for %s", req.Path)
+	log.Tracef("File descriptor sent successfully for %s", req.Path)
 }

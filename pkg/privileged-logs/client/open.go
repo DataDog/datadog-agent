@@ -27,13 +27,17 @@ import (
 // OpenFileAndGetFD opens a file in system-probe and returns the file descriptor
 // This function uses a custom HTTP client that can handle file descriptor transfer
 func OpenFileAndGetFD(socketPath string, filePath string) (*os.File, error) {
+	// Create a new connection instead of reusing the shared connection from
+	// pkg/system-probe/api/client/client.go, since the connection is hijacked
+	// from the control of the HTTP server library on the server side.  It also
+	// ensures that we don't affect other clients if something goes wrong with
+	// our OOB handling leaving the connection unusable.
 	conn, err := net.Dial("unix", socketPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to system-probe: %v", err)
 	}
 	defer conn.Close()
 
-	// Create the request
 	req := common.OpenFileRequest{
 		Path: filePath,
 	}
@@ -43,14 +47,12 @@ func OpenFileAndGetFD(socketPath string, filePath string) (*os.File, error) {
 		return nil, fmt.Errorf("failed to marshal request: %v", err)
 	}
 
-	// Create HTTP request
 	httpReq, err := http.NewRequest("POST", "http://sysprobe/privileged_logs/open", bytes.NewReader(reqBody))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP request: %v", err)
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 
-	// Write the request to the connection
 	if err := httpReq.Write(conn); err != nil {
 		return nil, fmt.Errorf("failed to write request: %v", err)
 	}
@@ -74,7 +76,6 @@ func OpenFileAndGetFD(socketPath string, filePath string) (*os.File, error) {
 		return nil, fmt.Errorf("no response received")
 	}
 
-	// Parse the JSON response
 	var response common.OpenFileResponse
 	if err := json.Unmarshal(buf[:n], &response); err != nil {
 		return nil, fmt.Errorf("failed to parse response: %v", err)
@@ -126,7 +127,6 @@ func Open(path string) (*os.File, error) {
 	// Check if privileged_logs module is enabled before attempting to use it
 	enabled := pkgconfigsetup.SystemProbe().GetBool("privileged_logs.enabled")
 	if !enabled {
-		log.Debugf("Permission denied but privileged_logs module is not enabled, returning original error: %v", path)
 		return file, err
 	}
 
@@ -134,7 +134,7 @@ func Open(path string) (*os.File, error) {
 
 	socketPath := pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")
 	fd, spErr := OpenFileAndGetFD(socketPath, path)
-	log.Debugf("Opened file with system-probe: %v, err: %v", path, spErr)
+	log.Tracef("Opened file with system-probe: %v, err: %v", path, spErr)
 	if spErr != nil {
 		return file, fmt.Errorf("failed to open file with system-probe: %w, original error: %w", spErr, err)
 	}
