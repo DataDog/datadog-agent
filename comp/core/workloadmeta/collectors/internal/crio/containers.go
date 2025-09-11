@@ -91,6 +91,8 @@ func getContainerStatus(ctx context.Context, client crio.Client, containerID str
 
 // getContainerImage retrieves and converts a container image to workloadmeta format.
 func getContainerImage(ctrStatus *v1.ContainerStatus) workloadmeta.ContainerImage {
+	imgID := ctrStatus.GetImageId()
+
 	if ctrStatus == nil {
 		log.Warn("container status is nil, cannot fetch image")
 		return workloadmeta.ContainerImage{}
