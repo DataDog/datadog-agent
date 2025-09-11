@@ -43,7 +43,7 @@ func registerUSMEndpoints(nt *networkTracer, httpMux *module.Router) {
 	})
 
 	httpMux.HandleFunc("/debug/postgres_monitoring", func(w http.ResponseWriter, req *http.Request) {
-		if !coreconfig.SystemProbe().GetBool("service_monitoring_config.enable_postgres_monitoring") {
+		if !coreconfig.SystemProbe().GetBool("service_monitoring_config.postgres.enabled") {
 			writeDisabledProtocolMessage("postgres", w)
 			return
 		}

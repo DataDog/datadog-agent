@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
+	"github.com/DataDog/datadog-agent/pkg/version"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
@@ -782,6 +783,23 @@ func postPromoteConfigExperimentDatadogAgentBackground(ctx context.Context) erro
 	return nil
 }
 
+// updateRegistryInstallSource updates the install source and package name to the current stable MSI.
+//
+// Called from the MSI to ensure the install source is our copy of the MSI and not the path run by the user.
+// This helps ensure the MSI is available even when the original path is a temp dir, which is common
+// with remote deployment scripts, or the Windows installer cache was removed for some reason.
+func updateRegistryInstallSource() error {
+	msiName := fmt.Sprintf("datadog-agent-%s-x86_64.msi", version.AgentPackageVersion)
+
+	stablePath := filepath.Join(paths.PackagesPath, "datadog-agent", "stable")
+	err := msi.SetSourceList("Datadog Agent", stablePath, msiName)
+	if err != nil {
+		return fmt.Errorf("failed to update MSI source list: %w", err)
+	}
+
+	return nil
+}
+
 // runDatadogAgentPackageCommand maps the package specific command names to their corresponding functions.
 func runDatadogAgentPackageCommand(ctx context.Context, command string) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, command)
@@ -798,6 +816,8 @@ func runDatadogAgentPackageCommand(ctx context.Context, command string) (err err
 		return preStopConfigExperimentDatadogAgentBackground(ctx)
 	case "postPromoteConfigExperimentBackground":
 		return postPromoteConfigExperimentDatadogAgentBackground(ctx)
+	case "updateRegistryInstallSource":
+		return updateRegistryInstallSource()
 	default:
 		return fmt.Errorf("unknown command: %s", command)
 	}

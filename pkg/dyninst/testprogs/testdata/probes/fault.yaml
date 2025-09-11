@@ -1,0 +1,9 @@
+binary: fault
+probes:
+  - id: callMe
+    type: LOG_PROBE
+    where:
+      methodName: main.callMe
+    captureSnapshot: true
+    capture:
+      maxReferenceDepth: 1
