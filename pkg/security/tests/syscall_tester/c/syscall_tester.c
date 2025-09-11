@@ -14,12 +14,14 @@
 #include <sys/stat.h>
 #include <sys/fsuid.h>
 #include <sys/mman.h>
+#include <sys/prctl.h>
 #include <fcntl.h>
 #include <pthread.h>
 #include <signal.h>
 #include <errno.h>
 #include <arpa/inet.h>
 #include <linux/un.h>
+#include <linux/prctl.h>
 #include <err.h>
 #include <limits.h>
 #include <sys/time.h>
@@ -1669,6 +1671,22 @@ int test_pause(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
+int test_prctl_setname(int argc, char **argv) {
+    if (argc != 2) {
+        fprintf(stderr, "Please specify a name to set\n");
+        return EXIT_FAILURE;
+    }
+
+    const char *name = argv[1];
+
+    if (prctl(PR_SET_NAME, name, 0, 0, 0) < 0) {
+        perror("prctl(PR_SET_NAME)");
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
 int main(int argc, char **argv) {
     setbuf(stdout, NULL);
 
@@ -1773,13 +1791,15 @@ int main(int argc, char **argv) {
         } else if (strcmp(cmd, "bind-and-listen") == 0) {
             exit_code = test_bind_and_listen(sub_argc, sub_argv);
         } else if (strcmp(cmd, "connect-and-send") == 0) {
-            exit_code = test_connect_and_send(sub_argc, sub_argv);  
+            exit_code = test_connect_and_send(sub_argc, sub_argv);
         } else if (strcmp(cmd, "chroot") == 0) {
             exit_code = test_chroot(sub_argc, sub_argv);
         } else if (strcmp(cmd, "acct") == 0) {
             exit_code = test_acct(sub_argc, sub_argv);
         } else if (strcmp(cmd, "pause") == 0) {
             exit_code = test_pause(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "prctl-setname") == 0) {
+            exit_code = test_prctl_setname(sub_argc, sub_argv);
         } else {
             fprintf(stderr, "Unknown command: %s\n", cmd);
             exit_code = EXIT_FAILURE;
