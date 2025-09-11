@@ -510,7 +510,7 @@ func start(log log.Component,
 		} else {
 			log.Info("Auto instrumentation patcher is disabled")
 		}
-		imageResolver := autoinstrumentation.NewImageResolverWithDefaultDatadoghqRegistries(rcClient, datadogConfig.GetStringSlice("admission_controller.auto_instrumentation.default_dd_registries"))
+		imageResolver := autoinstrumentation.NewImageResolver(rcClient, datadogConfig)
 
 		admissionCtx := admissionpkg.ControllerContext{
 			LeadershipStateSubscribeFunc: le.Subscribe,

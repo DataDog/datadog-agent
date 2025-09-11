@@ -206,14 +206,6 @@ func ContainerRegistry(datadogConfig config.Component, specificConfigOpt string)
 	return datadogConfig.GetString("admission_controller.container_registry")
 }
 
-func DefaultDatadoghqRegistries(datadogConfig config.Component, specificConfigOpt string) []string {
-	if datadogConfig.IsConfigured(specificConfigOpt) {
-		return datadogConfig.GetStringSlice(specificConfigOpt)
-	}
-
-	return []string{"gcr.io/datadoghq", "docker.io/datadog", "public.ecr.aws/datadog"}
-}
-
 // MarkVolumeAsSafeToEvictForAutoscaler adds the Kubernetes cluster-autoscaler
 // annotation to the given pod, marking the specified local volume as safe to
 // evict. This annotation allows the cluster-autoscaler to evict pods with the
