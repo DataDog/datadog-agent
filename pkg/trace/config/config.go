@@ -140,7 +140,9 @@ type ObfuscationConfig struct {
 
 func obfuscationMode(conf *AgentConfig, sqllexerEnabled bool) obfuscate.ObfuscationMode {
 	if conf.SQLObfuscationMode != "" {
-		if conf.SQLObfuscationMode == string(obfuscate.ObfuscateOnly) || conf.SQLObfuscationMode == string(obfuscate.ObfuscateAndNormalize) {
+		if conf.SQLObfuscationMode == string(obfuscate.ObfuscateOnly) ||
+			conf.SQLObfuscationMode == string(obfuscate.NormalizeOnly) ||
+			conf.SQLObfuscationMode == string(obfuscate.ObfuscateAndNormalize) {
 			return obfuscate.ObfuscationMode(conf.SQLObfuscationMode)
 		}
 		log.Warnf("Invalid SQL obfuscator mode %s, falling back to default", conf.SQLObfuscationMode)

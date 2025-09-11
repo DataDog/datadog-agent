@@ -1415,6 +1415,7 @@ api_key:
   ## Obfuscator mode for SQL queries.
   ## Leave empty to use the default obfuscator.
   ## Set to "obfuscate_only" to obfuscate the query with the new `sqllexer` obfuscator.
+  ## Set to "normalize_only" to normalize the query with the new `sqllexer` obfuscator.
   ## If you use DBM, set to "obfuscate_and_normalize" to obfuscate and normalize the query for better APM/DBM correlation.
   #
   # sql_obfuscation_mode: ""
