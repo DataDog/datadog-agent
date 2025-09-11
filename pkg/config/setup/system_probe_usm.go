@@ -13,35 +13,10 @@ import (
 )
 
 func initUSMSystemProbeConfig(cfg pkgconfigmodel.Setup) {
-	// For backward compatibility
-	cfg.BindEnv(join(netNS, "enable_http_monitoring"), "DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING")
-	cfg.BindEnv(join(smNS, "enable_http_monitoring"))
-
-	// For backward compatibility
-	cfg.BindEnv(join(netNS, "enable_https_monitoring"), "DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTPS_MONITORING")
-	cfg.BindEnv(join(smNS, "tls", "native", "enabled"))
-
-	// For backward compatibility
-	cfg.BindEnv(join(smNS, "enable_go_tls_support"))
-	cfg.BindEnv(join(smNS, "tls", "go", "enabled"))
-	cfg.BindEnvAndSetDefault(join(smNS, "tls", "go", "exclude_self"), true)
-
-	cfg.BindEnvAndSetDefault(join(smNS, "enable_http2_monitoring"), false)
-	cfg.BindEnvAndSetDefault(join(smNS, "enable_kafka_monitoring"), false)
-	cfg.BindEnvAndSetDefault(join(smNS, "postgres", "enabled"), false)
-	cfg.BindEnvAndSetDefault(join(smNS, "redis", "enabled"), false)
-	cfg.BindEnvAndSetDefault(join(smNS, "redis", "track_resources"), false)
-	cfg.BindEnvAndSetDefault(join(smNS, "tls", "istio", "enabled"), true)
-	cfg.BindEnvAndSetDefault(join(smNS, "tls", "istio", "envoy_path"), defaultEnvoyPath)
-	cfg.BindEnv(join(smNS, "tls", "nodejs", "enabled"))
-
-	// Default value (100000) is set in `adjustUSM`, to avoid having "deprecation warning", due to the default value.
-	cfg.BindEnv(join(netNS, "max_http_stats_buffered"), "DD_SYSTEM_PROBE_NETWORK_MAX_HTTP_STATS_BUFFERED")
-	cfg.BindEnv(join(smNS, "max_http_stats_buffered"))
-	cfg.BindEnvAndSetDefault(join(smNS, "max_kafka_stats_buffered"), 100000)
-	cfg.BindEnvAndSetDefault(join(smNS, "postgres", "max_stats_buffered"), 100000)
-	cfg.BindEnvAndSetDefault(join(smNS, "postgres", "max_telemetry_buffer"), 160)
-	cfg.BindEnvAndSetDefault(join(smNS, "redis", "max_stats_buffered"), 100000)
+	// ========================================
+	// General USM Configuration
+	// ========================================
+	cfg.BindEnvAndSetDefault(join(smNS, "enabled"), false, "DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED")
 	cfg.BindEnv(join(smNS, "max_concurrent_requests"))
 	cfg.BindEnv(join(smNS, "enable_quantization"))
 	cfg.BindEnv(join(smNS, "enable_connection_rollup"))
@@ -55,9 +30,47 @@ func initUSMSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// By setting this value to 100, the channel will buffer up to ~400KB of data in the Go heap memory.
 	cfg.BindEnvAndSetDefault(join(smNS, "data_channel_size"), 100)
 
+	// ========================================
+	// HTTP Protocol Configuration
+	// ========================================
+	cfg.BindEnv(join(smNS, "enable_http_monitoring"))
+	// For backward compatibility
+	cfg.BindEnv(join(netNS, "enable_http_monitoring"), "DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING")
+
+	// Default value (100000) is set in `adjustUSM`, to avoid having "deprecation warning", due to the default value.
+	cfg.BindEnv(join(smNS, "max_http_stats_buffered"))
+	// For backward compatibility
+	cfg.BindEnv(join(netNS, "max_http_stats_buffered"), "DD_SYSTEM_PROBE_NETWORK_MAX_HTTP_STATS_BUFFERED")
+
+	// Default value (1024) is set in `adjustUSM`, to avoid having "deprecation warning", due to the default value.
+	cfg.BindEnv(join(smNS, "max_tracked_http_connections"))
+	// For backward compatibility
+	cfg.BindEnv(join(netNS, "max_tracked_http_connections"))
+
+	// Default value (512) is set in `adjustUSM`, to avoid having "deprecation warning", due to the default value.
+	cfg.BindEnv(join(smNS, "http_notification_threshold"))
+	// For backward compatibility
+	cfg.BindEnv(join(netNS, "http_notification_threshold"))
+
+	// Default value (512) is set in `adjustUSM`, to avoid having "deprecation warning", due to the default value.
+	cfg.BindEnv(join(smNS, "http_max_request_fragment"))
+	// For backward compatibility
+	cfg.BindEnv(join(netNS, "http_max_request_fragment"))
+
+	// Default value (300) is set in `adjustUSM`, to avoid having "deprecation warning", due to the default value.
+	cfg.BindEnv(join(smNS, "http_map_cleaner_interval_in_s"))
+	// For backward compatibility
+	cfg.BindEnv(join(spNS, "http_map_cleaner_interval_in_s"))
+
+	// Default value (30) is set in `adjustUSM`, to avoid having "deprecation warning", due to the default value.
+	cfg.BindEnv(join(smNS, "http_idle_connection_ttl_in_s"))
+	// For backward compatibility
+	cfg.BindEnv(join(spNS, "http_idle_connection_ttl_in_s"))
+
 	oldHTTPRules := join(netNS, "http_replace_rules")
 	newHTTPRules := join(smNS, "http_replace_rules")
 	cfg.BindEnv(newHTTPRules)
+	// For backward compatibility
 	cfg.BindEnv(oldHTTPRules, "DD_SYSTEM_PROBE_NETWORK_HTTP_REPLACE_RULES")
 
 	httpRulesTransformer := func(key string) transformerFunction {
@@ -72,26 +85,55 @@ func initUSMSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.ParseEnvAsSliceMapString(oldHTTPRules, httpRulesTransformer(oldHTTPRules))
 	cfg.ParseEnvAsSliceMapString(newHTTPRules, httpRulesTransformer(newHTTPRules))
 
-	// Default value (1024) is set in `adjustUSM`, to avoid having "deprecation warning", due to the default value.
-	cfg.BindEnv(join(netNS, "max_tracked_http_connections"))
-	cfg.BindEnv(join(smNS, "max_tracked_http_connections"))
-	// Default value (512) is set in `adjustUSM`, to avoid having "deprecation warning", due to the default value.
-	cfg.BindEnv(join(netNS, "http_notification_threshold"))
-	cfg.BindEnv(join(smNS, "http_notification_threshold"))
-	// Default value (512) is set in `adjustUSM`, to avoid having "deprecation warning", due to the default value.
-	cfg.BindEnv(join(netNS, "http_max_request_fragment"))
-	cfg.BindEnv(join(smNS, "http_max_request_fragment"))
-
-	// service monitoring
-	cfg.BindEnvAndSetDefault(join(smNS, "enabled"), false, "DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED")
-
+	// ========================================
+	// HTTP/2 Protocol Configuration
+	// ========================================
+	cfg.BindEnvAndSetDefault(join(smNS, "enable_http2_monitoring"), false)
 	cfg.BindEnvAndSetDefault(join(smNS, "http2_dynamic_table_map_cleaner_interval_seconds"), 30)
 
-	// Default value (300) is set in `adjustUSM`, to avoid having "deprecation warning", due to the default value.
-	cfg.BindEnv(join(spNS, "http_map_cleaner_interval_in_s"))
-	cfg.BindEnv(join(smNS, "http_map_cleaner_interval_in_s"))
+	// ========================================
+	// Kafka Protocol Configuration
+	// ========================================
+	cfg.BindEnvAndSetDefault(join(smNS, "enable_kafka_monitoring"), false)
+	cfg.BindEnvAndSetDefault(join(smNS, "max_kafka_stats_buffered"), 100000)
 
-	// Default value (30) is set in `adjustUSM`, to avoid having "deprecation warning", due to the default value.
-	cfg.BindEnv(join(spNS, "http_idle_connection_ttl_in_s"))
-	cfg.BindEnv(join(smNS, "http_idle_connection_ttl_in_s"))
+	// ========================================
+	// PostgreSQL Protocol Configuration
+	// ========================================
+	cfg.BindEnvAndSetDefault(join(smNS, "postgres", "enabled"), false)
+	cfg.BindEnvAndSetDefault(join(smNS, "postgres", "max_stats_buffered"), 100000)
+	cfg.BindEnvAndSetDefault(join(smNS, "postgres", "max_telemetry_buffer"), 160)
+
+	// ========================================
+	// Redis Protocol Configuration
+	// ========================================
+	cfg.BindEnvAndSetDefault(join(smNS, "redis", "enabled"), false)
+	cfg.BindEnvAndSetDefault(join(smNS, "redis", "track_resources"), false)
+	cfg.BindEnvAndSetDefault(join(smNS, "redis", "max_stats_buffered"), 100000)
+
+	// ========================================
+	// Native TLS Configuration
+	// ========================================
+	cfg.BindEnv(join(smNS, "tls", "native", "enabled"))
+	// For backward compatibility
+	cfg.BindEnv(join(netNS, "enable_https_monitoring"), "DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTPS_MONITORING")
+
+	// ========================================
+	// Go TLS Configuration
+	// ========================================
+	cfg.BindEnv(join(smNS, "tls", "go", "enabled"))
+	// For backward compatibility
+	cfg.BindEnv(join(smNS, "enable_go_tls_support"))
+	cfg.BindEnvAndSetDefault(join(smNS, "tls", "go", "exclude_self"), true)
+
+	// ========================================
+	// Istio TLS Configuration
+	// ========================================
+	cfg.BindEnvAndSetDefault(join(smNS, "tls", "istio", "enabled"), true)
+	cfg.BindEnvAndSetDefault(join(smNS, "tls", "istio", "envoy_path"), defaultEnvoyPath)
+
+	// ========================================
+	// Node.js TLS Configuration
+	// ========================================
+	cfg.BindEnv(join(smNS, "tls", "nodejs", "enabled"))
 }
