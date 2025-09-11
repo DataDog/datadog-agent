@@ -11,6 +11,7 @@ package mount
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"golang.org/x/sys/unix"
 	"path"
 	"path/filepath"
@@ -181,15 +182,15 @@ func (mr *Resolver) HasListMount() bool {
 
 // SyncCacheFromListMount Snapshots the current mountpoints using the listmount api
 func (mr *Resolver) SyncCacheFromListMount() error {
-	mr.lock.Lock()
-	defer mr.lock.Unlock()
+	seclog.Infof("listmount sync cache")
 
-	fmt.Println("LISMNT - synchronizing cache from listmount")
 	mounts, err := GetAll("/proc")
 	if err != nil {
-		fmt.Println("LISMNT - Error synchronizing cache")
 		return fmt.Errorf("error synchronizing cache: %v", err)
 	}
+
+	mr.lock.Lock()
+	defer mr.lock.Unlock()
 
 	for _, mnt := range mounts {
 		mr.insert(newMountFromStatmount(&mnt), 0)
