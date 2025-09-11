@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"golang.org/x/sys/unix"
 )
 
 // Module is the dynamic instrumentation system probe module
@@ -101,8 +102,20 @@ func NewModule(
 	actuator := config.actuatorConstructor(loader)
 	rcScraper := rcscrape.NewScraper(actuator)
 	irGenerator := irgen.NewGenerator(irgenOptions...)
+	var ts unix.Timespec
+	if err = unix.ClockGettime(unix.CLOCK_MONOTONIC, &ts); err != nil {
+		return nil, fmt.Errorf("error getting monotonic time: %w", err)
+	}
+	approximateBootTime := time.Now().Add(time.Duration(-ts.Nano()))
 	controller := NewController(
-		actuator, logUploader, diagsUploader, symdbUploaderURL, objectLoader, rcScraper, DefaultDecoderFactory{}, irGenerator,
+		actuator,
+		logUploader,
+		diagsUploader,
+		symdbUploaderURL,
+		objectLoader,
+		rcScraper,
+		DefaultDecoderFactory{approximateBootTime: approximateBootTime},
+		irGenerator,
 	)
 	procMon := procmon.NewProcessMonitor(&processHandler{
 		scraperHandler: rcScraper.AsProcMonHandler(),

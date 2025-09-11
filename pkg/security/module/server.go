@@ -630,6 +630,76 @@ func (a *APIServer) Stop() {
 	a.stopper.Stop()
 }
 
+// GetStatus returns the status of the module
+func (a *APIServer) GetStatus(_ context.Context, _ *api.GetStatusParams) (*api.Status, error) {
+	var apiStatus api.Status
+
+	if a.cfg.SendPayloadsFromSystemProbe {
+		var endpointsStatus []string
+		if senderStatus, ok := a.msgSender.(EndpointsStatusFetcher); ok {
+			endpointsStatus = append(endpointsStatus, senderStatus.GetEndpointsStatus()...)
+		}
+		if dumpSenderStatus, ok := a.activityDumpSender.(EndpointsStatusFetcher); ok {
+			endpointsStatus = append(endpointsStatus, dumpSenderStatus.GetEndpointsStatus()...)
+		}
+		apiStatus.DirectSenderStatus = &api.DirectSenderStatus{
+			Endpoints: endpointsStatus,
+		}
+	}
+
+	if a.selfTester != nil {
+		apiStatus.SelfTests = a.selfTester.GetStatus()
+	}
+	apiStatus.PoliciesStatus = a.policiesStatus
+
+	seclVariables := a.GetSECLVariables()
+
+	var globals []*api.SECLVariableState
+	for _, global := range seclVariables {
+		if !strings.Contains(global.Name, ".") {
+			globals = append(globals, global)
+		}
+	}
+	apiStatus.GlobalVariables = globals
+
+	scopedVariables := make(map[string]map[string][]*api.SECLVariableState)
+	for _, scoped := range seclVariables {
+		split := strings.SplitN(scoped.Name, ".", 3)
+		if len(split) < 3 {
+			continue
+		}
+		scope, name, key := split[0], split[1], split[2]
+		if scope != "" {
+			if _, found := scopedVariables[scope]; !found {
+				scopedVariables[scope] = make(map[string][]*api.SECLVariableState)
+			}
+
+			scopedVariables[scope][key] = append(scopedVariables[scope][key], &api.SECLVariableState{
+				Name:  name,
+				Value: scoped.Value,
+			})
+		}
+	}
+	apiStatus.ScopedVariables = make(map[string]*api.ScopedVariableStore)
+	for scope, vars := range scopedVariables {
+		store := &api.ScopedVariableStore{
+			KeyValues: make(map[string]*api.SECLVariableStateList),
+		}
+		for key, values := range vars {
+			store.KeyValues[key] = &api.SECLVariableStateList{
+				Variables: values,
+			}
+		}
+		apiStatus.ScopedVariables[scope] = store
+	}
+
+	if err := a.fillStatusPlatform(&apiStatus); err != nil {
+		return nil, err
+	}
+
+	return &apiStatus, nil
+}
+
 // SetCWSConsumer sets the CWS consumer
 func (a *APIServer) SetCWSConsumer(consumer *CWSConsumer) {
 	a.cwsConsumer = consumer
