@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/components/defender"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/components/ngen"
 )
 
 const (
@@ -94,6 +95,13 @@ func Run(ctx *pulumi.Context, env *environments.WindowsHost, params *Provisioner
 		params.activeDirectoryOptions = append(params.activeDirectoryOptions,
 			activedirectory.WithPulumiResourceOptions(
 				pulumi.DependsOn(defender.Resources)))
+	}
+
+	if params.ngenOptions != nil {
+		_, err = ngen.New(azureEnv.CommonEnvironment, host, params.ngenOptions...)
+		if err != nil {
+			return err
+		}
 	}
 
 	if params.activeDirectoryOptions != nil {

@@ -157,18 +157,6 @@ func (ps *powerShellCommandBuilder) WaitForServiceStatus(serviceName, status str
 func (ps *powerShellCommandBuilder) DisableWindowsDefender() *powerShellCommandBuilder {
 	// ScheduleDay = 8 means never
 	ps.cmds = append(ps.cmds, `
-# hack to test ngen effect on pipeline time
-powershell.exe -Command {
-	$env:PATH = [Runtime.InteropServices.RuntimeEnvironment]::GetRuntimeDirectory()
-	[AppDomain]::CurrentDomain.GetAssemblies() | ForEach-Object {
-		$path = $_.Location
-		if ($path) {
-			$name = Split-Path $path -Leaf
-			Write-Host -ForegroundColor Yellow "Running ngen.exe on '$name'"
-			ngen.exe install $path /nologo
-		}
-	}
-}
 if ((Get-MpComputerStatus).IsTamperProtected) {
 	Write-Error "Windows Defender is tamper protected, unable to modify settings"
 }
@@ -265,5 +253,28 @@ else {
 	Write-Host "TestSigning is already enabled"
 }
 `)
+	return ps
+}
+
+// RunNgenOnLoadedAssemblies creates a command that runs ngen.exe on all currently loaded .NET assemblies
+//
+// PowerShell can be slow to start without this, making every command run slower than needed.
+//
+// There is a Windows Scheduled Task that runs ngen periodically, but our E2E tests end too soon so it doesn't run.
+// Currently, this command is taking < 1 minute to run, and the overall benefit exceeds that.
+// We have seen it take longer in the past, if this resumes we should consider adding it to a custom base image.
+//
+// https://learn.microsoft.com/en-us/dotnet/framework/tools/ngen-exe-native-image-generator
+func (ps *powerShellCommandBuilder) RunNgenOnLoadedAssemblies() *powerShellCommandBuilder {
+	ps.cmds = append(ps.cmds, `
+	$env:PATH = [Runtime.InteropServices.RuntimeEnvironment]::GetRuntimeDirectory()
+	[AppDomain]::CurrentDomain.GetAssemblies() | ForEach-Object {
+		$path = $_.Location
+		if ($path) {
+			$name = Split-Path $path -Leaf
+			Write-Host -ForegroundColor Yellow "Running ngen.exe on '$name'"
+			ngen.exe install $path /nologo
+		}
+	}`)
 	return ps
 }
