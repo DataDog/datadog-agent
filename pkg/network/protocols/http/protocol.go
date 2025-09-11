@@ -255,9 +255,9 @@ func (p *protocol) processHTTP(events []EbpfEvent) {
 	}
 }
 
-func (p *protocol) processHTTPDirect(event EbpfEvent) {
-	p.telemetry.Count(&event)
-	p.statkeeper.Process(&event)
+func (p *protocol) processHTTPDirect(event *EbpfEvent) {
+	p.telemetry.Count(event)
+	p.statkeeper.Process(event)
 }
 
 func (p *protocol) setupMapCleaner(mgr *manager.Manager) {

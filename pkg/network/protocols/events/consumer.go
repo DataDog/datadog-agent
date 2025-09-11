@@ -44,7 +44,7 @@ type Consumer[V any] interface {
 type DirectConsumer[V any] struct {
 	perf.EventHandler
 	proto    string
-	callback func(V)
+	callback func(*V)
 
 	// telemetry
 	metricGroup       *telemetry.MetricGroup
@@ -53,7 +53,7 @@ type DirectConsumer[V any] struct {
 }
 
 // NewDirectConsumer creates a new DirectConsumer for the specified protocol.
-func NewDirectConsumer[V any](proto string, callback func(V), config *config.Config) (*DirectConsumer[V], error) {
+func NewDirectConsumer[V any](proto string, callback func(*V), config *config.Config) (*DirectConsumer[V], error) {
 	if callback == nil {
 		return nil, errors.New("callback function is required")
 	}
@@ -87,7 +87,7 @@ func NewDirectConsumer[V any](proto string, callback func(V), config *config.Con
 
 		// Convert raw bytes to typed event
 		event := (*V)(unsafe.Pointer(&data[0]))
-		consumer.callback(*event)
+		consumer.callback(event)
 	}
 
 	// Set up perf mode and channel size similar to initClosedConnEventHandler
