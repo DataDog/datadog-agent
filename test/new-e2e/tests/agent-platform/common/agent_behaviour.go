@@ -310,17 +310,24 @@ func CheckCWSBehaviour(t *testing.T, client *TestClient) {
 	})
 
 	t.Run("security-agent is running", func(tt *testing.T) {
-		var err error
 		require.Eventually(tt, func() bool {
 			return AgentProcessIsRunning(client, "security-agent")
-		}, 1*time.Minute, 500*time.Millisecond, "security-agent should be running ", err)
+		}, 1*time.Minute, 500*time.Millisecond, "security-agent should be running ")
 	})
 
 	t.Run("system-probe is running", func(tt *testing.T) {
-		var err error
 		require.Eventually(tt, func() bool {
+			out, err := client.Host.Execute("pgrep -fl datadog")
+			if err == nil {
+				tt.Logf("datadog processes: %s", out)
+			} else {
+				tt.Logf("error getting datadog processes: %s", err)
+			}
+
+			tt.Logf("datadog processes: %s", out)
+
 			return AgentProcessIsRunning(client, "system-probe")
-		}, 1*time.Minute, 500*time.Millisecond, "system-probe should be running ", err)
+		}, 1*time.Minute, 500*time.Millisecond, "system-probe should be running ")
 	})
 }
 
