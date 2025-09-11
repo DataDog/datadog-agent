@@ -203,7 +203,7 @@ int setrlimit_nofile() {
     struct rlimit rlim;
     rlim.rlim_cur = 1024;  // soft limit
     rlim.rlim_max = 2048;  // hard limit
-    
+
     if (setrlimit(RLIMIT_NOFILE, &rlim) < 0) {
         perror("setrlimit RLIMIT_NOFILE");
         return EXIT_FAILURE;
@@ -215,7 +215,7 @@ int setrlimit_nproc() {
     struct rlimit rlim;
     rlim.rlim_cur = 512;   // soft limit
     rlim.rlim_max = 1024;  // hard limit
-    
+
     if (setrlimit(RLIMIT_NPROC, &rlim) < 0) {
         perror("setrlimit RLIMIT_NPROC");
         return EXIT_FAILURE;
@@ -225,7 +225,7 @@ int setrlimit_nproc() {
 
 int prlimit64_stack(void) {
     struct rlimit64 rlim;
-    rlim.rlim_cur = 1024;   
+    rlim.rlim_cur = 1024;
     rlim.rlim_max = 2048;
 
     pid_t dummy_pid = fork();
@@ -255,11 +255,11 @@ int setrlimit_core() {
     struct rlimit rlim;
     rlim.rlim_cur = 0;      // no core dumps
     rlim.rlim_max = 0;      // no core dumps
-    
+
     if (setrlimit(RLIMIT_CORE, &rlim) < 0) {
         perror("setrlimit RLIMIT_CORE");
         return EXIT_FAILURE;
-    }    
+    }
     return EXIT_SUCCESS;
 }
 
@@ -1558,7 +1558,7 @@ int test_connect_and_send(int argc, char **argv) {
     }
 
 
-    // --- TCP ---    
+    // --- TCP ---
     if (sock_type == SOCK_STREAM) {
         if (connect(s, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
             perror("connect (client)");
@@ -1569,7 +1569,7 @@ int test_connect_and_send(int argc, char **argv) {
             perror("send (client)");
             exit(EXIT_FAILURE);
         }
-        
+
         if (listen(s_listen, 1) < 0) {
             perror("listen");
             exit(EXIT_FAILURE);
@@ -1607,14 +1607,14 @@ int test_connect_and_send(int argc, char **argv) {
     } else {
         const char *msg = "Hello from UDP client!";
         ssize_t sent = sendto(s, msg, strlen(msg), 0,
-                                (struct sockaddr *)&server_addr, sizeof(server_addr));  
+                                (struct sockaddr *)&server_addr, sizeof(server_addr));
         if (sent < 0) {
             perror("sendto");
             close(s);
             close(s_listen);
             return EXIT_FAILURE;
         }
-        
+
         // Now wait before closing the socket
         printf("Waiting on port %d\n", listen_port);
         fflush(stdout);  // Send Pid to GO and synchronize with it
