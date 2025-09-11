@@ -22,7 +22,7 @@ require (
 	github.com/go-enry/go-license-detector/v4 v4.3.1
 	github.com/goware/modvendor v0.5.0
 	github.com/hashicorp/vault v1.20.3
-	github.com/hashicorp/vault/api v1.20.0
+	github.com/hashicorp/vault/api v1.21.0
 	github.com/hashicorp/vault/api/auth/approle v0.10.0
 	github.com/hashicorp/vault/api/auth/aws v0.10.0
 	github.com/hashicorp/vault/api/auth/ldap v0.10.0

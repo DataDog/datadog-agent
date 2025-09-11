@@ -775,6 +775,8 @@ github.com/hashicorp/vault-plugin-secrets-terraform v0.12.0 h1:Hgg71Sb83BRWTAYOh
 github.com/hashicorp/vault-plugin-secrets-terraform v0.12.0/go.mod h1:GhuycGndJdiVieK0W23e5sJvBNNfhsEwRhkygnAjg2U=
 github.com/hashicorp/vault/api v1.20.0 h1:KQMHElgudOsr+IbJgmbjHnCTxEpKs9LnozA1D3nozU4=
 github.com/hashicorp/vault/api v1.20.0/go.mod h1:GZ4pcjfzoOWpkJ3ijHNpEoAxKEsBJnVljyTe3jM2Sms=
+github.com/hashicorp/vault/api v1.21.0 h1:Xej4LJETV/spWRdjreb2vzQhEZt4+B5yxHAObfQVDOs=
+github.com/hashicorp/vault/api v1.21.0/go.mod h1:IUZA2cDvr4Ok3+NtK2Oq/r+lJeXkeCrHRmqdyWfpmGM=
 github.com/hashicorp/vault/api/auth/approle v0.10.0 h1:cFwz7NzhsC//3JMMEfYDKelSwZx7GhR4IdgJVgfKBgs=
 github.com/hashicorp/vault/api/auth/approle v0.10.0/go.mod h1:XJ++u6wVPOl7H2Wlb9zVvXungf5Ca1Agukq8rMwYogc=
 github.com/hashicorp/vault/api/auth/ldap v0.10.0 h1:5sdJYikTVD8auisNJpOijrr/PfnHgdTZFdFrweFAtbs=
