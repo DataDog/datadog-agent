@@ -40,6 +40,11 @@ def omnibus_run_task(ctx, task, target_project, base_dir, env, log_level="info",
             overrides.append(f"--override=host_distribution:{host_distribution}")
 
         omnibus = f"bundle exec {'omnibus.bat' if sys.platform == 'win32' else 'omnibus'}"
+
+        if sys.platform == 'win32':
+            # checking that setting AWS credentials environment variables is working
+            omnibus = """$env:AWS_ACCESS_KEY_ID="test"; $env:AWS_SECRET_ACCESS_KEY="test"; $env:AWS_SESSION_TOKEN="test"; """ + omnibus
+
         cmd = "{omnibus} {task} {project_name} --log-level={log_level} {overrides}"
         args = {
             "omnibus": omnibus,
