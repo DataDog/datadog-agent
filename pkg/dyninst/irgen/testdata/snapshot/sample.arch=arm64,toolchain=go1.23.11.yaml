@@ -186,11 +186,7 @@ Probes:
       version: 0
       type: LOG_PROBE
       where: {methodName: main.testDeepMap1}
-      capture:
-        maxReferenceDepth: 1
-        maxFieldCount: 0
-        maxLength: 0
-        maxCollectionSize: 0
+      capture: {maxReferenceDepth: 1}
       template: ""
       segments: []
       captureSnapshot: true
@@ -204,11 +200,7 @@ Probes:
       version: 0
       type: LOG_PROBE
       where: {methodName: main.testDeepMap7}
-      capture:
-        maxReferenceDepth: 5
-        maxFieldCount: 0
-        maxLength: 0
-        maxCollectionSize: 0
+      capture: {maxReferenceDepth: 5}
       template: ""
       segments: []
       captureSnapshot: true
@@ -222,11 +214,7 @@ Probes:
       version: 0
       type: LOG_PROBE
       where: {methodName: main.testDeepPtr1}
-      capture:
-        maxReferenceDepth: 1
-        maxFieldCount: 0
-        maxLength: 0
-        maxCollectionSize: 0
+      capture: {maxReferenceDepth: 1}
       template: ""
       segments: []
       captureSnapshot: true
@@ -240,11 +228,7 @@ Probes:
       version: 0
       type: LOG_PROBE
       where: {methodName: main.testDeepPtr7}
-      capture:
-        maxReferenceDepth: 5
-        maxFieldCount: 0
-        maxLength: 0
-        maxCollectionSize: 0
+      capture: {maxReferenceDepth: 5}
       template: ""
       segments: []
       captureSnapshot: true
@@ -258,11 +242,7 @@ Probes:
       version: 0
       type: LOG_PROBE
       where: {methodName: main.testDeepSlice1}
-      capture:
-        maxReferenceDepth: 1
-        maxFieldCount: 0
-        maxLength: 0
-        maxCollectionSize: 0
+      capture: {maxReferenceDepth: 1}
       template: ""
       segments: []
       captureSnapshot: true
@@ -276,11 +256,7 @@ Probes:
       version: 0
       type: LOG_PROBE
       where: {methodName: main.testDeepSlice7}
-      capture:
-        maxReferenceDepth: 5
-        maxFieldCount: 0
-        maxLength: 0
-        maxCollectionSize: 0
+      capture: {maxReferenceDepth: 5}
       template: ""
       segments: []
       captureSnapshot: true
@@ -773,11 +749,6 @@ Probes:
       type: LOG_PROBE
       where: {methodName: main.testMapMassive}
       tags: ['foo:bar']
-      capture:
-        maxReferenceDepth: 0
-        maxFieldCount: 0
-        maxLength: 0
-        maxCollectionSize: 0
       template: ""
       segments: []
       captureSnapshot: true
@@ -946,11 +917,7 @@ Probes:
       type: LOG_PROBE
       where: {methodName: main.testMassiveString}
       tags: ['foo:bar']
-      capture:
-        maxReferenceDepth: 0
-        maxFieldCount: 0
-        maxLength: 11
-        maxCollectionSize: 0
+      capture: {maxLength: 11}
       template: ""
       segments: []
       captureSnapshot: true
@@ -1398,11 +1365,7 @@ Probes:
       version: 0
       type: LOG_PROBE
       where: {methodName: main.testStringType1}
-      capture:
-        maxReferenceDepth: 1
-        maxFieldCount: 0
-        maxLength: 0
-        maxCollectionSize: 0
+      capture: {maxReferenceDepth: 1}
       template: ""
       segments: []
       captureSnapshot: true
@@ -1416,11 +1379,7 @@ Probes:
       version: 0
       type: LOG_PROBE
       where: {methodName: main.testStringType2}
-      capture:
-        maxReferenceDepth: 1
-        maxFieldCount: 0
-        maxLength: 0
-        maxCollectionSize: 0
+      capture: {maxReferenceDepth: 1}
       template: ""
       segments: []
       captureSnapshot: true
@@ -1462,11 +1421,7 @@ Probes:
       version: 0
       type: LOG_PROBE
       where: {methodName: main.testStructWithAny}
-      capture:
-        maxReferenceDepth: 1
-        maxFieldCount: 0
-        maxLength: 0
-        maxCollectionSize: 0
+      capture: {maxReferenceDepth: 1}
       template: ""
       segments: []
       captureSnapshot: true
@@ -1705,11 +1660,6 @@ Probes:
       type: LOG_PROBE
       where: {methodName: main.testVeryLargeSlice}
       tags: ['foo:bar']
-      capture:
-        maxReferenceDepth: 0
-        maxFieldCount: 0
-        maxLength: 0
-        maxCollectionSize: 0
       template: ""
       segments: []
       captureSnapshot: true

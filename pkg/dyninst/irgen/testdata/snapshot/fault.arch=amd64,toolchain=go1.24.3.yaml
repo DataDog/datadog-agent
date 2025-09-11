@@ -4,11 +4,7 @@ Probes:
       version: 0
       type: LOG_PROBE
       where: {methodName: main.callMe}
-      capture:
-        maxReferenceDepth: 1
-        maxFieldCount: 0
-        maxLength: 0
-        maxCollectionSize: 0
+      capture: {maxReferenceDepth: 1}
       template: ""
       segments: []
       captureSnapshot: true

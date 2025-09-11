@@ -4,11 +4,7 @@ Probes:
       version: 0
       type: LOG_PROBE
       where: {methodName: main.PointerChainArg}
-      capture:
-        maxReferenceDepth: 3
-        maxFieldCount: 0
-        maxLength: 0
-        maxCollectionSize: 0
+      capture: {maxReferenceDepth: 3}
       template: ""
       segments: []
       captureSnapshot: true
@@ -22,11 +18,7 @@ Probes:
       version: 0
       type: LOG_PROBE
       where: {methodName: main.PointerSmallChainArg}
-      capture:
-        maxReferenceDepth: 5
-        maxFieldCount: 0
-        maxLength: 0
-        maxCollectionSize: 0
+      capture: {maxReferenceDepth: 5}
       template: ""
       segments: []
       captureSnapshot: true
