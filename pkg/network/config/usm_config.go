@@ -61,6 +61,10 @@ type USMConfig struct {
 	// USMDirectRingBufferSize specifies the ring buffer size for USM direct consumer.
 	USMDirectRingBufferSize int
 
+	// DisableMapPreallocation controls whether eBPF maps should disable preallocation (BPF_F_NO_PREALLOC flag).
+	// When true, maps allocate entries on-demand instead of preallocating the full map size, improving memory efficiency.
+	DisableMapPreallocation bool
+
 	// ========================================
 	// HTTP Protocol Configuration
 	// ========================================
@@ -188,6 +192,7 @@ func NewUSMConfig(cfg model.Config) *USMConfig {
 		USMDirectChannelSize:       cfg.GetInt(sysconfig.FullKeyPath(smNS, "usm_direct_channel_size")),
 		USMDirectPerfBufferSize:    cfg.GetInt(sysconfig.FullKeyPath(smNS, "usm_direct_perf_buffer_size")),
 		USMDirectRingBufferSize:    cfg.GetInt(sysconfig.FullKeyPath(smNS, "usm_direct_ring_buffer_size")),
+		DisableMapPreallocation:    cfg.GetBool(sysconfig.FullKeyPath(smNS, "disable_map_preallocation")),
 
 		// HTTP Protocol Configuration
 		EnableHTTPMonitoring:      cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_http_monitoring")),
