@@ -188,11 +188,11 @@ func NewUSMConfig(cfg model.Config) *USMConfig {
 		EnableUSMEventStream:       cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_event_stream")),
 		USMKernelBufferPages:       cfg.GetInt(sysconfig.FullKeyPath(smNS, "kernel_buffer_pages")),
 		USMDataChannelSize:         cfg.GetInt(sysconfig.FullKeyPath(smNS, "data_channel_size")),
+		DisableMapPreallocation:    cfg.GetBool(sysconfig.FullKeyPath(smNS, "disable_map_preallocation")),
 		USMDirectBufferWakeupCount: cfg.GetInt(sysconfig.FullKeyPath(smNS, "usm_direct_buffer_wakeup_count")),
 		USMDirectChannelSize:       cfg.GetInt(sysconfig.FullKeyPath(smNS, "usm_direct_channel_size")),
 		USMDirectPerfBufferSize:    cfg.GetInt(sysconfig.FullKeyPath(smNS, "usm_direct_perf_buffer_size")),
 		USMDirectRingBufferSize:    cfg.GetInt(sysconfig.FullKeyPath(smNS, "usm_direct_ring_buffer_size")),
-		DisableMapPreallocation:    cfg.GetBool(sysconfig.FullKeyPath(smNS, "disable_map_preallocation")),
 
 		// HTTP Protocol Configuration
 		EnableHTTPMonitoring:      cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_http_monitoring")),
