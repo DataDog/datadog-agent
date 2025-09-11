@@ -13,15 +13,22 @@ import (
 )
 
 // StoreEventType represents the type of store event
+//
+//nolint:revive // StoreEventType is an established type name in this package
 type StoreEventType string
 
 const (
-	EventAdd    StoreEventType = "add"
+	// EventAdd represents an object creation event
+	EventAdd StoreEventType = "add"
+	// EventUpdate represents an object modification event
 	EventUpdate StoreEventType = "update"
+	// EventDelete represents an object deletion event
 	EventDelete StoreEventType = "delete"
 )
 
 // StoreEventCallback is a function type for handling store events
+//
+//nolint:revive // StoreEventCallback is an established type name in this package
 type StoreEventCallback func(eventType StoreEventType, resourceType, namespace, name string, obj interface{})
 
 // ExtractNamespaceAndName extracts namespace and name from Kubernetes objects
