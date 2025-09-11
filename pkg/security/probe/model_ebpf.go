@@ -23,12 +23,12 @@ func NewEBPFModel(probe *EBPFProbe) *model.Model {
 		ExtraValidateFieldFnc: func(field eval.Field, value eval.FieldValue) error {
 			switch field {
 			case "bpf.map.name":
-				if offset, found := probe.constantOffsets[constantfetch.OffsetNameBPFMapStructName]; !found || offset == constantfetch.ErrorSentinel {
+				if !probe.constantOffsets.IsPresent(constantfetch.OffsetNameBPFMapStructName) {
 					return fmt.Errorf("%s is not available on this kernel version", field)
 				}
 
 			case "bpf.prog.name":
-				if offset, found := probe.constantOffsets[constantfetch.OffsetNameBPFProgAuxStructName]; !found || offset == constantfetch.ErrorSentinel {
+				if !probe.constantOffsets.IsPresent(constantfetch.OffsetNameBPFProgAuxStructName) {
 					return fmt.Errorf("%s is not available on this kernel version", field)
 				}
 			case "packet.filter":

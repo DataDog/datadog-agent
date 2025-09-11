@@ -19,7 +19,7 @@ import (
 )
 
 func TestInjectorOptions(t *testing.T) {
-	i := newInjector(time.Now(), "registry", injectorWithImageResolver(newNoOpImageResolver()), injectorWithImageTag("1"))
+	i := newInjector(time.Now(), "registry", injectorWithImageTag("1", newNoOpImageResolver()))
 	require.Equal(t, "registry/apm-inject:1", i.image)
 }
 
@@ -32,8 +32,7 @@ func TestInjectorLibRequirements(t *testing.T) {
 		},
 	}
 	i := newInjector(time.Now(), "registry",
-		injectorWithImageResolver(newNoOpImageResolver()),
-		injectorWithImageTag("1"),
+		injectorWithImageTag("1", newNoOpImageResolver()),
 		injectorWithLibRequirementOptions(libRequirementOptions{initContainerMutators: mutators}),
 	)
 
@@ -103,8 +102,7 @@ func TestInjectorWithRemoteConfigImageResolver(t *testing.T) {
 			}
 
 			i := newInjector(time.Now(), tc.registry,
-				injectorWithImageResolver(resolver),
-				injectorWithImageTag(tc.tag),
+				injectorWithImageTag(tc.tag, resolver),
 			)
 
 			assert.Equal(t, tc.expectedImage, i.image, tc.description)
@@ -122,8 +120,7 @@ func TestInjectorWithRemoteConfigImageResolverAfterInit(t *testing.T) {
 	}, 100*time.Millisecond, 5*time.Millisecond, "Resolver should initialize")
 
 	i := newInjector(time.Now(), "gcr.io/datadoghq",
-		injectorWithImageResolver(resolver),
-		injectorWithImageTag("0"),
+		injectorWithImageTag("0", resolver),
 	)
 
 	assert.Equal(t, "gcr.io/datadoghq/apm-inject@sha256:inject456", i.image)

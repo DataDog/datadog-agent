@@ -140,6 +140,8 @@ probes:
   where:
     methodName: main.testEmptyString
   captureSnapshot: true
+  sampling:
+    snapshotsPerSecond: 10
 - id: testThreeStrings
   type: LOG_PROBE
   tags:

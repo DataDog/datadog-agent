@@ -317,6 +317,7 @@ Probes:
       type: LOG_PROBE
       where: {methodName: main.testEmptyString}
       tags: ['foo:bar']
+      sampling: {snapshotsPerSecond: 10}
       template: ""
       segments: []
       captureSnapshot: true
