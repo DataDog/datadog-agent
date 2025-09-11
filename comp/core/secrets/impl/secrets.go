@@ -8,9 +8,10 @@ package secretsimpl
 
 import (
 	"bytes"
-	_ "embed"
+	"embed"
 	"encoding/json"
 	"fmt"
+	"io"
 	stdmaps "maps"
 	"math/rand"
 	"net/http"
@@ -40,6 +41,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
+
+//go:embed status_templates
+var templatesFS embed.FS
 
 const auditFileBasename = "secret-audit-file.json"
 
@@ -107,6 +111,13 @@ type secretResolver struct {
 	fetchHookFunc   func([]string) (map[string]string, error)
 	scrubHookFunc   func([]string)
 
+	// secret access limitation on k8s.
+	scopeIntegrationToNamespace bool
+	allowedNamespace            []string
+	imageToHandle               map[string][]string
+
+	unresolvedSecrets map[string]struct{}
+
 	// Telemetry
 	tlmSecretBackendElapsed telemetry.Gauge
 	tlmSecretUnmarshalError telemetry.Counter
@@ -124,6 +135,7 @@ func newEnabledSecretResolver(telemetry telemetry.Component) *secretResolver {
 		tlmSecretUnmarshalError: telemetry.NewCounter("secret_backend", "unmarshal_errors_count", []string{}, "Count of errors when unmarshalling the output of the secret binary"),
 		tlmSecretResolveError:   telemetry.NewCounter("secret_backend", "resolve_errors_count", []string{"error_kind", "handle"}, "Count of errors when resolving a secret"),
 		clk:                     newClock(),
+		unresolvedSecrets:       make(map[string]struct{}),
 	}
 }
 
@@ -136,15 +148,42 @@ func NewComponent(deps Requires) Provides {
 		FlareProvider:   flaretypes.NewProvider(resolver.fillFlare),
 		InfoEndpoint:    api.NewAgentEndpointProvider(resolver.writeDebugInfo, "/secrets", "GET"),
 		RefreshEndpoint: api.NewAgentEndpointProvider(resolver.handleRefresh, "/secret/refresh", "GET"),
-		StatusProvider:  status.NewInformationProvider(secretsStatus{resolver: resolver}),
+		StatusProvider:  status.NewInformationProvider(resolver),
 	}
+}
+
+// Name returns the name of the component for status reporting
+func (r *secretResolver) Name() string {
+	return "Secrets"
+}
+
+// Section returns the section name for status reporting
+func (r *secretResolver) Section() string {
+	return "secrets"
+}
+
+// JSON populates the status map
+func (r *secretResolver) JSON(_ bool, stats map[string]interface{}) error {
+	r.getDebugInfo(stats)
+	return nil
+}
+
+// Text renders the text output
+func (r *secretResolver) Text(_ bool, buffer io.Writer) error {
+	stats := make(map[string]interface{})
+	return status.RenderText(templatesFS, "info.tmpl", buffer, r.getDebugInfo(stats))
+}
+
+// HTML renders the HTML output
+func (r *secretResolver) HTML(_ bool, buffer io.Writer) error {
+	stats := make(map[string]interface{})
+	return status.RenderHTML(templatesFS, "infoHTML.tmpl", buffer, r.getDebugInfo(stats))
 }
 
 // fillFlare add the inventory payload to flares.
 func (r *secretResolver) fillFlare(fb flaretypes.FlareBuilder) error {
 	var buffer bytes.Buffer
-	status := secretsStatus{resolver: r}
-	err := status.Text(false, &buffer)
+	err := r.Text(false, &buffer)
 	if err != nil {
 		return fmt.Errorf("error rendering secrets debug info: %w", err)
 	}
@@ -154,8 +193,7 @@ func (r *secretResolver) fillFlare(fb flaretypes.FlareBuilder) error {
 }
 
 func (r *secretResolver) writeDebugInfo(w http.ResponseWriter, _ *http.Request) {
-	status := secretsStatus{resolver: r}
-	err := status.Text(false, w)
+	err := r.Text(false, w)
 	if err != nil {
 		// bad request
 		setJSONError(w, err, 400)
@@ -166,6 +204,7 @@ func (r *secretResolver) writeDebugInfo(w http.ResponseWriter, _ *http.Request) 
 func (r *secretResolver) handleRefresh(w http.ResponseWriter, _ *http.Request) {
 	result, err := r.Refresh()
 	if err != nil {
+		log.Infof("could not refresh secrets: %s", err)
 		setJSONError(w, err, 500)
 		return
 	}
@@ -263,6 +302,10 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 	if r.auditFileMaxSize == 0 {
 		r.auditFileMaxSize = SecretAuditFileMaxSizeDefault
 	}
+
+	r.scopeIntegrationToNamespace = params.ScopeIntegrationToNamespace
+	r.allowedNamespace = params.AllowedNamespace
+	r.imageToHandle = params.ImageToHandle
 }
 
 func (r *secretResolver) startRefreshRoutine(rd *rand.Rand) {
@@ -310,9 +353,58 @@ func (r *secretResolver) SubscribeToChanges(cb secrets.SecretChangeCallback) {
 	r.subscriptions = append(r.subscriptions, cb)
 }
 
+// shouldResolvedSecret limit which secrets can be access by which containers when running on k8s.
+//
+// We enfore 3 type of limitation (each giving different level of control to the user). Those limitation are only
+// active, for now, when using the `k8s_secret@namespace/secret-name/key` notation.
+//
+// The level are:
+// - secret_scope_integration_to_their_namespace: containers can only acces secret from their own namespace
+// - secret_allowed_k8s_namespace: containers can only access secrets form a set of namespaces
+// - secrets in your configuration: user provide a mapping specifying which image can access which secrets
+func (r *secretResolver) shouldResolvedSecret(handle string, origin string, imageName string, namespace string) bool {
+	// source is not linked to a container: allowed
+	if imageName == "" && namespace == "" {
+		return true
+	}
+
+	if strings.HasPrefix(handle, "k8s_secret@") {
+		secretName := handle[11:] // remove the 'k8s_secret@' prefix
+		secretNamespace := strings.Split(secretName, "/")[0]
+
+		if r.scopeIntegrationToNamespace && namespace != secretNamespace {
+			msg := fmt.Sprintf("'%s' from integration '%s': image '%s' from namespace '%s' can't access secrets from other namespaces as per 'secret_scope_integration_to_their_namespace'",
+				handle, origin, imageName, namespace)
+			log.Warnf("secret not resolved: %s", msg)
+			r.unresolvedSecrets[msg] = struct{}{}
+			return false
+		}
+
+		if len(r.allowedNamespace) != 0 && !slices.Contains(r.allowedNamespace, secretNamespace) {
+			msg := fmt.Sprintf("'%s' from integration '%s': image '%s' from namespace '%s' can't access secrets from namespace '%s' as per 'secret_allowed_k8s_namespace'",
+				handle, origin, imageName, namespace, secretNamespace)
+			log.Warnf("secret not resolved: %s", msg)
+			r.unresolvedSecrets[msg] = struct{}{}
+			return false
+		}
+	}
+
+	if len(r.imageToHandle) > 0 {
+		if allowedSecrets, found := r.imageToHandle[imageName]; !found || !slices.Contains(allowedSecrets, handle) {
+			msg := fmt.Sprintf("'%s' from integration '%s': image '%s' can't access it as per 'secret_image_to_handle'",
+				handle, origin, imageName)
+			log.Warnf("secret not resolved: %s", msg)
+			r.unresolvedSecrets[msg] = struct{}{}
+			return false
+		}
+	}
+
+	return true
+}
+
 // Resolve replaces all encoded secrets in data by executing "secret_backend_command" once if all secrets aren't
 // present in the cache.
-func (r *secretResolver) Resolve(data []byte, origin string) ([]byte, error) {
+func (r *secretResolver) Resolve(data []byte, origin string, imageName string, namespace string) ([]byte, error) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
@@ -337,6 +429,10 @@ func (r *secretResolver) Resolve(data []byte, origin string) ([]byte, error) {
 	w := &utils.Walker{
 		Resolver: func(path []string, value string) (string, error) {
 			if ok, handle := utils.IsEnc(value); ok {
+				if !r.shouldResolvedSecret(handle, origin, imageName, namespace) {
+					return value, nil
+				}
+
 				// Check if we already know this secret
 				if secretValue, ok := r.cache[handle]; ok {
 					log.Debugf("Secret '%s' was retrieved from cache", handle)
@@ -380,11 +476,18 @@ func (r *secretResolver) Resolve(data []byte, origin string) ([]byte, error) {
 			secretResponse, err = r.fetchSecret(newHandles)
 		}
 		if err != nil {
+			for _, handle := range newHandles {
+				r.unresolvedSecrets[fmt.Sprintf("'%s' from %s: %s", handle, origin, err)] = struct{}{}
+			}
 			return nil, err
 		}
 
 		w.Resolver = func(path []string, value string) (string, error) {
 			if ok, handle := utils.IsEnc(value); ok {
+				if !r.shouldResolvedSecret(handle, origin, imageName, namespace) {
+					return value, nil
+				}
+
 				if secretValue, ok := secretResponse[handle]; ok {
 					log.Debugf("Secret '%s' was successfully resolved", handle)
 					// keep track of place where a handle was found
@@ -648,16 +751,13 @@ type handlePlace struct {
 //go:embed status_templates/refresh.tmpl
 var secretRefreshTmpl string
 
-// getDebugInfo exposes debug informations about secrets to be included in a flare
-func (r *secretResolver) getDebugInfo() map[string]interface{} {
-	stats := make(map[string]interface{})
+// getDebugInfo exposes debug informations about secrets to be included in a flare, status page and secret command
+func (r *secretResolver) getDebugInfo(stats map[string]interface{}) map[string]interface{} {
+	stats["enabled"] = r.enabled
 	if !r.enabled {
-		stats["enabled"] = false
 		stats["message"] = "Agent secrets is disabled by caller"
 		return stats
 	}
-
-	stats["enabled"] = true
 
 	if r.backendCommand == "" {
 		stats["backendCommandSet"] = false
@@ -667,6 +767,7 @@ func (r *secretResolver) getDebugInfo() map[string]interface{} {
 
 	stats["backendCommandSet"] = true
 	stats["executable"] = r.backendCommand
+	stats["backendType"] = r.backendType
 
 	// Handle permissions
 	permissions := "OK, the executable has the correct permissions"
@@ -729,5 +830,8 @@ func (r *secretResolver) getDebugInfo() map[string]interface{} {
 		stats["refreshInterval"] = r.refreshInterval.String()
 		stats["scatterDuration"] = r.scatterDuration.String()
 	}
+
+	stats["unresolvedSecrets"] = r.unresolvedSecrets
+
 	return stats
 }
