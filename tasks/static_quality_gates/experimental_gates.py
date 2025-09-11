@@ -6,6 +6,7 @@ in build jobs, generating detailed reports with file inventories for comparison.
 """
 
 import os
+import stat
 import tempfile
 from dataclasses import dataclass
 from datetime import datetime
@@ -185,7 +186,6 @@ class ArtifactProcessor(Protocol):
         ctx: Context,
         artifact_ref: str,
         gate_config: QualityGateConfig,
-        generate_checksums: bool,
         debug: bool,
     ) -> tuple[int, int, list[FileInfo], Any]:
         """
@@ -252,13 +252,12 @@ class FileUtilities:
             return None
 
     @staticmethod
-    def walk_files(directory: str, generate_checksums: bool, debug: bool) -> list[FileInfo]:
+    def walk_files(directory: str, debug: bool) -> list[FileInfo]:
         """
         Walk through files in a directory and create file inventory.
 
         Args:
             directory: Directory containing files to analyze
-            generate_checksums: Whether to generate checksums
             debug: Enable debug logging
 
         Returns:
@@ -275,13 +274,16 @@ class FileUtilities:
             print(f"📊 Found {files_count} files and {dirs_count} directories")
 
         for file_path in directory_path.rglob('*'):
-            if file_path.is_file():
+            # Check if it's a file but don't follow symlinks
+            if file_path.is_file() and not file_path.is_symlink():
                 try:
                     relative_path = str(file_path.relative_to(directory_path))
-                    size_bytes = file_path.stat().st_size
+                    # Use lstat to not follow symlinks
+                    size_bytes = file_path.lstat().st_size
 
                     checksum = None
-                    if generate_checksums:
+                    if not file_path.is_symlink():
+                        # Only generate checksums for regular files, not symlinks
                         checksum = FileUtilities.generate_checksum(file_path)
 
                     file_inventory.append(
@@ -317,11 +319,14 @@ class FileUtilities:
             Total size in bytes
         """
         total_size = 0
-        for dirpath, _, filenames in os.walk(directory):
+        for dirpath, _, filenames in os.walk(directory, followlinks=False):
             for filename in filenames:
                 file_path = os.path.join(dirpath, filename)
                 try:
-                    total_size += os.path.getsize(file_path)
+                    # Use lstat to not follow symlinks
+                    stat_info = os.lstat(file_path)
+                    if not stat.S_ISLNK(stat_info.st_mode):  # Only count regular files, not symlinks
+                        total_size += stat_info.st_size
                 except (OSError, FileNotFoundError) as e:
                     print(f"⚠️  Skipping file {file_path}: {e}")
                     continue
@@ -459,7 +464,6 @@ class UniversalArtifactMeasurer:
         artifact_ref: str,
         gate_name: str,
         build_job_name: str,
-        generate_checksums: bool = True,
         debug: bool = False,
     ) -> InPlaceArtifactReport:
         """
@@ -470,7 +474,6 @@ class UniversalArtifactMeasurer:
             artifact_ref: Reference to the artifact (path, image name, etc.)
             gate_name: Quality gate name from configuration
             build_job_name: Name of the CI job that built this artifact
-            generate_checksums: Whether to generate checksums for files
             debug: Enable debug logging
 
         Returns:
@@ -483,7 +486,7 @@ class UniversalArtifactMeasurer:
         gate_config = self.config_manager.get_gate_config(gate_name)
 
         wire_size, disk_size, file_inventory, artifact_metadata = self.processor.measure_artifact(
-            ctx, artifact_ref, gate_config, generate_checksums, debug
+            ctx, artifact_ref, gate_config, debug
         )
 
         return self.report_builder.create_report(
@@ -510,7 +513,6 @@ class PackageProcessor:
         ctx: Context,
         artifact_ref: str,
         gate_config: QualityGateConfig,
-        generate_checksums: bool,
         debug: bool,
     ) -> tuple[int, int, list[FileInfo], Any]:
         """Measure package artifact using extraction and analysis."""
@@ -528,7 +530,7 @@ class PackageProcessor:
 
             extract_package(ctx, gate_config.os, artifact_ref, extract_dir)
             disk_size = FileUtilities.calculate_directory_size(extract_dir)
-            file_inventory = FileUtilities.walk_files(extract_dir, generate_checksums, debug)
+            file_inventory = FileUtilities.walk_files(extract_dir, debug)
 
             if debug:
                 print("✅ Package analysis completed:")
@@ -552,7 +554,6 @@ class DockerProcessor:
         ctx: Context,
         artifact_ref: str,
         gate_config: QualityGateConfig,
-        generate_checksums: bool,
         debug: bool,
     ) -> tuple[int, int, list[FileInfo], DockerImageInfo]:
         """Measure Docker image using manifest inspection for wire size and docker save for disk analysis."""
@@ -563,9 +564,7 @@ class DockerProcessor:
 
         wire_size = self._get_wire_size(ctx, artifact_ref, debug)
 
-        disk_size, file_inventory, docker_info = self._measure_on_disk_size(
-            ctx, artifact_ref, generate_checksums, debug
-        )
+        disk_size, file_inventory, docker_info = self._measure_on_disk_size(ctx, artifact_ref, debug)
 
         return wire_size, disk_size, file_inventory, docker_info
 
@@ -595,7 +594,6 @@ class DockerProcessor:
         self,
         ctx: Context,
         image_ref: str,
-        generate_checksums: bool,
         debug: bool = False,
     ) -> tuple[int, list[FileInfo], DockerImageInfo | None]:
         """Measure disk size and generate file inventory using docker save extraction."""
@@ -618,9 +616,7 @@ class DockerProcessor:
                         if debug:
                             print(f"📁 Extracted tarball to: {extract_dir}")
 
-                        disk_size, file_inventory = self._analyze_extracted_docker_layers(
-                            extract_dir, generate_checksums, debug
-                        )
+                        disk_size, file_inventory = self._analyze_extracted_docker_layers(extract_dir, debug)
 
                         docker_info = self._extract_docker_metadata(extract_dir, image_ref, debug)
 
@@ -647,9 +643,9 @@ class DockerProcessor:
                 print(f"📋 Calculating wire size from manifest for {image_ref}...")
 
             manifest_output = ctx.run(
-                "DOCKER_CLI_EXPERIMENTAL=enabled docker manifest inspect -v "
-                + image_ref
-                + " | grep size | awk -F ':' '{sum+=$NF} END {printf(\"%d\",sum)}'",
+                f"DOCKER_CLI_EXPERIMENTAL=enabled docker manifest inspect -v "
+                f"{image_ref}"
+                f" | grep size | awk -F ':' '{{sum+=$NF}} END {{printf(\"%d\",sum)}}'",
                 hide=True,
             )
 
@@ -671,11 +667,11 @@ class DockerProcessor:
     def _analyze_extracted_docker_layers(
         self,
         extract_dir: str,
-        generate_checksums: bool,
         debug: bool = False,
     ) -> tuple[int, list[FileInfo]]:
         """Analyze extracted Docker save tarball to get disk size and file inventory."""
         import json
+        import subprocess
 
         total_disk_size = 0
         all_files = {}  # Use dict to handle overwrites from different layers
@@ -693,7 +689,7 @@ class DockerProcessor:
             if debug:
                 print(f"🔍 Found {len(layer_files)} layers in manifest")
 
-            # Process each layer in order
+            # Process each layer by extracting and walking files
             for i, layer_file in enumerate(layer_files):
                 layer_path = os.path.join(extract_dir, layer_file)
 
@@ -701,29 +697,38 @@ class DockerProcessor:
                     print(f"📦 Processing layer {i + 1}/{len(layer_files)}: {layer_file}")
 
                 with tempfile.TemporaryDirectory() as layer_extract_dir:
-                    extract_result = os.system(f"tar -xf '{layer_path}' -C '{layer_extract_dir}' 2>/dev/null")
+                    # Extract layer
+                    import shlex
+
+                    extract_command = (
+                        f"tar -xf {shlex.quote(layer_path)} -C {shlex.quote(layer_extract_dir)} 2>/dev/null"
+                    )
+                    extract_result = subprocess.run(extract_command, shell=True, capture_output=True).returncode
                     if extract_result != 0:
                         if debug:
                             print(f"⚠️  Skipping layer {layer_file} (extraction failed)")
                         continue
 
-                    # Walk through files in this layer
+                    # Walk through files in this layer, ensuring we don't follow symlinks
                     layer_files_processed = 0
-                    for root, _, files in os.walk(layer_extract_dir):
+                    for root, _, files in os.walk(layer_extract_dir, followlinks=False):
                         for file in files:
                             file_path = os.path.join(root, file)
                             relative_path = os.path.relpath(file_path, layer_extract_dir)
+
                             # Skip whiteout files (Those are marking files from lower layers that are removed in this layer)
                             if relative_path.startswith('.wh.') or '/.wh.' in relative_path:
                                 continue
 
                             try:
-                                file_stat = os.stat(file_path)
+                                # Use lstat to not follow symlinks, get actual file/symlink size
+                                file_stat = os.lstat(file_path)
                                 size_bytes = file_stat.st_size
 
-                                # Generate checksum if requested
+                                # Always generate checksum for regular files, not symlinks
                                 checksum = None
-                                if generate_checksums:
+                                if not stat.S_ISLNK(file_stat.st_mode):
+                                    # Only generate checksums for regular files, not symlinks
                                     checksum = FileUtilities.generate_checksum(Path(file_path))
 
                                 # Store file info (later layers override earlier ones)
@@ -742,6 +747,7 @@ class DockerProcessor:
                         print(f"   • Processed {layer_files_processed} files from this layer")
 
             file_inventory = list(all_files.values())
+            # Calculate total disk size from the final file inventory (without following symlinks)
             total_disk_size = sum(file_info.size_bytes for file_info in file_inventory)
 
             # Sort by size (descending) for easier analysis
@@ -855,7 +861,6 @@ class InPlacePackageMeasurer:
         package_path: str,
         gate_name: str,
         build_job_name: str,
-        generate_checksums: bool = True,
         debug: bool = False,
     ) -> InPlaceArtifactReport:
         """
@@ -866,7 +871,6 @@ class InPlacePackageMeasurer:
             package_path: Path to the package file
             gate_name: Quality gate name from configuration
             build_job_name: Name of the CI job that built this package
-            generate_checksums: Whether to generate checksums for files
             debug: Enable debug logging
 
         Returns:
@@ -881,7 +885,6 @@ class InPlacePackageMeasurer:
             artifact_ref=package_path,
             gate_name=gate_name,
             build_job_name=build_job_name,
-            generate_checksums=generate_checksums,
             debug=debug,
         )
 
@@ -916,7 +919,6 @@ class InPlaceDockerMeasurer:
         image_ref: str,
         gate_name: str,
         build_job_name: str,
-        generate_checksums: bool = True,
         include_layer_analysis: bool = True,
         debug: bool = False,
     ) -> InPlaceArtifactReport:
@@ -928,7 +930,6 @@ class InPlaceDockerMeasurer:
             image_ref: Docker image reference (tag, digest, or image ID)
             gate_name: Quality gate name from configuration
             build_job_name: Name of the CI job that built this image
-            generate_checksums: Whether to generate checksums for files
             include_layer_analysis: Whether to analyze individual layers (ignored, always included)
             debug: Enable debug logging
 
@@ -944,7 +945,6 @@ class InPlaceDockerMeasurer:
             artifact_ref=image_ref,
             gate_name=gate_name,
             build_job_name=build_job_name,
-            generate_checksums=generate_checksums,
             debug=debug,
         )
 
@@ -960,7 +960,6 @@ def measure_package_local(
     config_path="test/static/static_quality_gates.yml",
     output_path=None,
     build_job_name="local_test",
-    no_checksums=False,
     debug=False,
 ):
     """
@@ -975,7 +974,6 @@ def measure_package_local(
         config_path: Path to quality gates configuration (default: test/static/static_quality_gates.yml)
         output_path: Path to save the measurement report (default: {gate_name}_report.yml)
         build_job_name: Simulated build job name (default: local_test)
-        no_checksums: Skip checksum generation for faster processing (default: false)
         debug: Enable debug logging for troubleshooting (default: false)
 
     Example:
@@ -1022,7 +1020,6 @@ def measure_package_local(
             package_path=package_path,
             gate_name=gate_name,
             build_job_name=build_job_name,
-            generate_checksums=not no_checksums,
             debug=debug,
         )
 
@@ -1070,7 +1067,6 @@ def measure_image_local(
     config_path="test/static/static_quality_gates.yml",
     output_path=None,
     build_job_name="local_test",
-    no_checksums=False,
     include_layer_analysis=True,
     debug=False,
 ):
@@ -1086,7 +1082,6 @@ def measure_image_local(
         config_path: Path to quality gates configuration (default: test/static/static_quality_gates.yml)
         output_path: Path to save the measurement report (default: {gate_name}_report.yml)
         build_job_name: Simulated build job name (default: local_test)
-        no_checksums: Skip checksum generation for faster processing (default: false)
         include_layer_analysis: Whether to analyze individual layers (default: true)
         debug: Enable debug logging for troubleshooting (default: false)
 
@@ -1130,7 +1125,6 @@ def measure_image_local(
             image_ref=image_ref,
             gate_name=gate_name,
             build_job_name=build_job_name,
-            generate_checksums=not no_checksums,
             include_layer_analysis=include_layer_analysis,
             debug=debug,
         )
