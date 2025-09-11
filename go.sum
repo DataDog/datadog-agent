@@ -199,6 +199,8 @@ github.com/DataDog/test-infra-definitions v0.0.5-0.20250910092537-e26e164f5f86 h
 github.com/DataDog/test-infra-definitions v0.0.5-0.20250910092537-e26e164f5f86/go.mod h1:OuceITbReRYk6VgKwO02OxxwQLA/86Ym3Ej7llLBMiM=
 github.com/DataDog/test-infra-definitions v0.0.5-0.20250911083124-b8ddc3e130d6 h1:FE7ytJEd5wULAYtossvV+dAnFEWSJpcNcKEV898K9hY=
 github.com/DataDog/test-infra-definitions v0.0.5-0.20250911083124-b8ddc3e130d6/go.mod h1:OuceITbReRYk6VgKwO02OxxwQLA/86Ym3Ej7llLBMiM=
+github.com/DataDog/test-infra-definitions v0.0.5-0.20250911152938-df9c452641e2 h1:EGBAnkB7z35we3QyIpVJfCqcEl1kq4dP8PJ+1wbYK3U=
+github.com/DataDog/test-infra-definitions v0.0.5-0.20250911152938-df9c452641e2/go.mod h1:OuceITbReRYk6VgKwO02OxxwQLA/86Ym3Ej7llLBMiM=
 github.com/DataDog/trivy v0.0.0-20250722083937-c6ac58f23994 h1:kWy9qnN1+GGCzoJ/Q6V9UtOKNJKvryuGOc8Ib3dm/wc=
 github.com/DataDog/trivy v0.0.0-20250722083937-c6ac58f23994/go.mod h1:PTxRTPpO/cM2OqNLPPKVGtLhEBhORyrXT6mAjplzsRA=
 github.com/DataDog/viper v1.14.1-0.20250612143030-1b15c8822ed4 h1:PwqhnH1ln2EjGm9XZGUF4RTCwLt0Jt4cebbZBTe+BnA=
