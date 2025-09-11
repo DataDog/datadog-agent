@@ -41,7 +41,7 @@ datadog-agent-oci-x64-a7:
     - when: on_success
   stage: package_build
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   needs:
     [
       "go_mod_tidy_check",
@@ -62,7 +62,7 @@ datadog-agent-oci-arm64-a7:
     - when: on_success
   stage: package_build
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:arm64"]
+  tags: ["arch:arm64", "specific:true"]
   needs:
     [
       "go_mod_tidy_check",
@@ -85,7 +85,7 @@ installer-install-scripts:
     - when: on_success
   stage: package_build
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   needs:
     [
       "go_mod_tidy_check",
@@ -172,7 +172,7 @@ installer-amd64:
     - when: on_success
   stage: package_build
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   needs: ["go_mod_tidy_check", "go_deps"]
   variables:
     PACKAGE_ARCH: amd64
@@ -187,7 +187,7 @@ installer-arm64:
     - when: on_success
   stage: package_build
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:arm64"]
+  tags: ["arch:arm64", "specific:true"]
   needs: ["go_mod_tidy_check", "go_deps"]
   variables:
     PACKAGE_ARCH: arm64
@@ -222,7 +222,6 @@ windows-installer-amd64:
     - when: on_success
   script:
     - $ErrorActionPreference = 'Stop'
-    - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
     - if (Test-Path omnibus\pkg) { remove-item -recurse -force omnibus\pkg }
     - mkdir omnibus\pkg
     - >
@@ -244,8 +243,6 @@ windows-installer-amd64:
       -e CI_JOB_TOKEN=${CI_JOB_TOKEN}
       ${WINBUILDIMAGE}
       powershell -C "c:\mnt\tasks\winbuildscripts\Build-InstallerPackages.ps1 -BuildOutOfSource 1 -InstallDeps 1 -CheckGoVersion 1"
-  after_script:
-    - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
   artifacts:
     expire_in: 2 weeks
     paths:

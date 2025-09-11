@@ -33,7 +33,6 @@ const (
 func TestIgnoreComm(t *testing.T) {
 	serverDir := buildFakeServer(t)
 	discovery := setupDiscoveryModule(t)
-	discovery.mockTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(func() { cancel() })
@@ -54,8 +53,8 @@ func TestIgnoreComm(t *testing.T) {
 
 	seen := make(map[int]model.Service)
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		resp := getCheckServices(collect, discovery.url)
-		for _, s := range resp.StartedServices {
+		resp := getServices(collect, discovery.url)
+		for _, s := range resp.Services {
 			seen[s.PID] = s
 		}
 
@@ -66,7 +65,7 @@ func TestIgnoreComm(t *testing.T) {
 
 // TestIgnoreCommsLengths checks that the map contains names no longer than 15 bytes.
 func TestIgnoreCommsLengths(t *testing.T) {
-	discovery := newDiscovery(t, nil)
+	discovery := newDiscovery()
 	require.NotEmpty(t, discovery)
 	require.Equal(t, len(discovery.config.IgnoreComms), 10)
 
@@ -122,7 +121,7 @@ func TestShouldIgnoreComm(t *testing.T) {
 
 	serverBin := buildTestBin(t)
 	serverDir := filepath.Dir(serverBin)
-	discovery := newDiscovery(t, nil)
+	discovery := newDiscovery()
 	require.NotEmpty(t, discovery)
 	require.NotEmpty(t, discovery.config.IgnoreComms)
 	require.Equal(t, len(discovery.config.IgnoreComms), 10)
@@ -209,7 +208,7 @@ func BenchmarkProcName(b *testing.B) {
 
 // BenchmarkShouldIgnoreComm benchmarks reading of command name from /proc/<pid>/comm.
 func BenchmarkShouldIgnoreComm(b *testing.B) {
-	discovery := newDiscovery(b, nil)
+	discovery := newDiscovery()
 	cmd := startProcessLongComm(b)
 
 	b.ResetTimer()

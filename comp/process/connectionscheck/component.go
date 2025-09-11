@@ -10,7 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/types"
 )
 
-// team: container-experiences
+// team: cloud-network-monitoring universal-service-monitoring
 
 // Component is the component type.
 type Component interface {
