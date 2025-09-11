@@ -6,6 +6,7 @@
 package utils
 
 import (
+	"iter"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -119,4 +120,59 @@ func TestNewExpressionProgram(t *testing.T) {
 			s.evaluate(t)
 		}
 	})
+}
+
+func TestResourceTagExpressions(t *testing.T) {
+	testData := []struct {
+		name   string
+		in     []tagSelectionExpressionConfig
+		meta   KubernetesMetadata
+		expect func(t *testing.T, out iter.Seq2[TagValue, error])
+	}{
+		{
+			name: "no match-static tag",
+			in: []tagSelectionExpressionConfig{
+				{
+					Tags: map[string]string{
+						"service": `"foo"`,
+					},
+				},
+			},
+			expect: func(t *testing.T, out iter.Seq2[TagValue, error]) {
+				i := 0
+				for kv, err := range out {
+					require.NoError(t, err)
+					require.Equal(t, TagValue{Key: "service", Value: "foo"}, kv)
+					i++
+				}
+				require.Equal(t, 1, i, "only one value produced")
+			},
+		},
+		{
+			name: "matches nothing",
+			in: []tagSelectionExpressionConfig{
+				{
+					Match: `meta.namespace == "foo"`,
+					Tags: map[string]string{
+						"service": `"foo"`,
+					},
+				},
+			},
+			expect: func(t *testing.T, out iter.Seq2[TagValue, error]) {
+				for range out {
+					t.Error("should have no results")
+				}
+			},
+		},
+	}
+
+	for _, dd := range testData {
+		t.Run(dd.name, func(t *testing.T) {
+			list := parseTagExpressionsList(dd.in)
+			require.Equal(t, len(dd.in), len(list), "expressions parsed")
+
+			r := ResourceTagExpressions(list)
+			dd.expect(t, r.Eval(dd.meta))
+		})
+	}
 }

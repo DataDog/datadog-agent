@@ -32,21 +32,25 @@ func GetMetadataAsTagExpressions(c pkgconfigmodel.Reader) map[string]ResourceTag
 
 	programs := make(map[string]ResourceTagExpressions, len(config))
 	for k, v := range config {
-		list := make([]TagExpressions, len(v))
-		for i, e := range v {
-			var tagExpressions TagExpressions
-			if err := tagExpressions.parse(e); err != nil {
-				log.Errorf("Error evaluating program: %s", err)
-				continue
-			}
-
-			list[i] = tagExpressions
-		}
-
-		programs[k] = list
+		programs[k] = parseTagExpressionsList(v)
 	}
 
 	return programs
+}
+
+func parseTagExpressionsList(in []tagSelectionExpressionConfig) []TagExpressions {
+	list := make([]TagExpressions, 0, len(in))
+	for _, e := range in {
+		var expr TagExpressions
+		if err := expr.parse(e); err != nil {
+			log.Errorf("Error parsing program: %s", err)
+			continue
+		}
+
+		list = append(list, expr)
+	}
+
+	return list
 }
 
 type tagSelectionExpressionConfig struct {
