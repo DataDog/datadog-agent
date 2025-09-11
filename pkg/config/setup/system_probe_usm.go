@@ -29,6 +29,7 @@ func initUSMSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// Each event has a fixed size of approximately 4KB (sizeof(batch_data_t)).
 	// By setting this value to 100, the channel will buffer up to ~400KB of data in the Go heap memory.
 	cfg.BindEnvAndSetDefault(join(smNS, "data_channel_size"), 100)
+	cfg.BindEnvAndSetDefault(join(smNS, "disable_map_preallocation"), true)
 
 	// ========================================
 	// HTTP Protocol Configuration
