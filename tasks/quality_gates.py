@@ -429,7 +429,6 @@ def measure_package_local(
     config_path="test/static/static_quality_gates.yml",
     output_path=None,
     build_job_name="local_test",
-    no_checksums=False,
     debug=False,
 ):
     """
@@ -444,7 +443,6 @@ def measure_package_local(
         config_path: Path to quality gates configuration (default: test/static/static_quality_gates.yml)
         output_path: Path to save the measurement report (default: {gate_name}_report.yml)
         build_job_name: Simulated build job name (default: local_test)
-        no_checksums: Skip checksum generation for faster processing (default: false)
         debug: Enable debug logging for troubleshooting (default: false)
 
     Example:
@@ -457,7 +455,6 @@ def measure_package_local(
         config_path=config_path,
         output_path=output_path,
         build_job_name=build_job_name,
-        no_checksums=no_checksums,
         debug=debug,
     )
 
@@ -470,7 +467,6 @@ def measure_image_local(
     config_path="test/static/static_quality_gates.yml",
     output_path=None,
     build_job_name="local_test",
-    no_checksums=False,
     include_layer_analysis=True,
     debug=False,
 ):
@@ -486,7 +482,6 @@ def measure_image_local(
         config_path: Path to quality gates configuration (default: test/static/static_quality_gates.yml)
         output_path: Path to save the measurement report (default: {gate_name}_image_report.yml)
         build_job_name: Simulated build job name (default: local_test)
-        no_checksums: Skip checksum generation for faster processing (default: false)
         include_layer_analysis: Whether to analyze individual layers (default: true)
         debug: Enable debug logging for troubleshooting (default: false)
 
@@ -500,7 +495,6 @@ def measure_image_local(
         config_path=config_path,
         output_path=output_path,
         build_job_name=build_job_name,
-        no_checksums=no_checksums,
         include_layer_analysis=include_layer_analysis,
         debug=debug,
     )
