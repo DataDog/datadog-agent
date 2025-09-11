@@ -19,7 +19,6 @@ import (
 // Strings are reference counted, when a string has no references it is removed from the table.
 type StringTable struct {
 	strings []string
-	refs    []uint32 // ref count for each string at string[i]
 	lookup  map[string]uint32
 }
 
@@ -27,7 +26,6 @@ type StringTable struct {
 func NewStringTable() *StringTable {
 	return &StringTable{
 		strings: []string{""},
-		refs:    []uint32{0},
 		lookup:  map[string]uint32{"": 0},
 	}
 }
@@ -38,12 +36,10 @@ func NewStringTable() *StringTable {
 func StringTableFromArray(strings []string) *StringTable {
 	st := &StringTable{
 		strings: make([]string, len(strings)),
-		refs:    make([]uint32, len(strings)),
 		lookup:  make(map[string]uint32, len(strings)),
 	}
 	for i, str := range strings {
 		st.strings[i+1] = str
-		st.refs[i+1] = 1
 		st.lookup[str] = uint32(i + 1)
 	}
 	return st
@@ -63,7 +59,6 @@ func (s *StringTable) Msgsize() int {
 func (s *StringTable) Clone() *StringTable {
 	clone := &StringTable{
 		strings: append([]string{}, s.strings...),
-		refs:    append([]uint32{}, s.refs...),
 		lookup:  make(map[string]uint32, len(s.lookup)),
 	}
 	maps.Copy(clone.lookup, s.lookup)
@@ -73,7 +68,6 @@ func (s *StringTable) Clone() *StringTable {
 // addUnchecked adds a string to the string table without checking for duplicates
 func (s *StringTable) addUnchecked(str string) uint32 {
 	s.strings = append(s.strings, str)
-	s.refs = append(s.refs, 1)
 	s.lookup[str] = uint32(len(s.strings) - 1)
 	return uint32(len(s.strings) - 1)
 }
@@ -82,7 +76,6 @@ func (s *StringTable) addUnchecked(str string) uint32 {
 // This is counted as a new reference to the string.
 func (s *StringTable) Add(str string) uint32 {
 	if idx, ok := s.lookup[str]; ok {
-		s.refs[idx]++
 		return idx
 	}
 	return s.addUnchecked(str)
@@ -107,19 +100,8 @@ func (s *StringTable) Lookup(str string) uint32 {
 	return 0
 }
 
-// decrementReference decrements the ref count for the string at the given index
-// If the ref count reaches 0, the string is set to the empty string and the lookup is removed
-func (s *StringTable) decrementReference(idx uint32) {
-	s.refs[idx]--
-	if s.refs[idx] == 0 // TODO: can this go negative?
-		// Remove string from lookup table as well, as it is no longer referenced
-		delete(s.lookup, s.strings[idx])
-		s.strings[idx] = ""
-	}
-}
-
 // InternalTracerPayload is a tracer payload structure that is optimized for trace-agent usage
-// Namely it stores Attributes as a map for fast key lookups
+// Namely it stores Attributes as a map for fast key lookups.
 type InternalTracerPayload struct {
 	// array of strings referenced in this tracer payload, its chunks and spans
 	Strings *StringTable
@@ -168,13 +150,9 @@ func (tp *InternalTracerPayload) Msgsize() int {
 	return size
 }
 
-// ToProto converts an InternalTracerPayload to a proto TracerPayload
-// It builds a new string table with only the strings that are used in the tracer payload
-// This ensures that any chunks or spans that were removed from this payload will not have any strings in the string table
-// that are no longer referenced. (As tracking these using the ref count is too expensive / error prone)
-func (tp *InternalTracerPayload) ToProto() *TracerPayload {
-	// TODO: move the used strings functionality to a helper function
-	// TODO: remove the string ref counting
+// RemoveUnusedStrings removes any strings from the string table that are not referenced in the tracer payload
+// This should be called before marshalling the tracer payload to remove any sensitive strings that are no longer referenced
+func (tp *InternalTracerPayload) RemoveUnusedStrings() {
 	usedStrings := make([]bool, tp.Strings.Len())
 	usedStrings[tp.containerIDRef] = true
 	usedStrings[tp.languageNameRef] = true
@@ -185,20 +163,28 @@ func (tp *InternalTracerPayload) ToProto() *TracerPayload {
 	usedStrings[tp.hostnameRef] = true
 	usedStrings[tp.appVersionRef] = true
 	markAttributeMapStringsUsed(usedStrings, tp.Strings, tp.Attributes)
+	for _, chunk := range tp.Chunks {
+		chunk.markUsedStrings(usedStrings)
+	}
+	for i, used := range usedStrings {
+		if !used {
+			// Remove the reverse lookup and set the string to the empty string
+			// We don't adjust the table itself to avoid changing the indices of the other strings
+			delete(tp.Strings.lookup, tp.Strings.strings[i])
+			tp.Strings.strings[i] = ""
+		}
+	}
+}
+
+// ToProto converts an InternalTracerPayload to a proto TracerPayload
+func (tp *InternalTracerPayload) ToProto() *TracerPayload {
 	chunks := make([]*TraceChunk, len(tp.Chunks))
 	for i, chunk := range tp.Chunks {
-		chunks[i] = chunk.ToProto(usedStrings)
-	}
-	// We do not adjust the existing string table in case another goroutine is using it (e.g. the trace writer and span concentrator concurrently)
-	sanitizedStrings := make([]string, len(tp.Strings.strings))
-	for i, used := range usedStrings {
-		if used {
-			sanitizedStrings[i] = tp.Strings.strings[i]
-		}
+		chunks[i] = chunk.ToProto()
 	}
 
 	return &TracerPayload{
-		Strings:            sanitizedStrings,
+		Strings:            tp.Strings.strings,
 		ContainerIDRef:     tp.containerIDRef,
 		LanguageNameRef:    tp.languageNameRef,
 		LanguageVersionRef: tp.languageVersionRef,
@@ -224,7 +210,6 @@ func (tp *InternalTracerPayload) Hostname() string {
 
 // SetHostname sets the hostname for the tracer payload.
 func (tp *InternalTracerPayload) SetHostname(hostname string) {
-	tp.Strings.decrementReference(tp.hostnameRef)
 	tp.hostnameRef = tp.Strings.Add(hostname)
 }
 
@@ -235,7 +220,6 @@ func (tp *InternalTracerPayload) AppVersion() string {
 
 // SetAppVersion sets the application version for the tracer payload.
 func (tp *InternalTracerPayload) SetAppVersion(version string) {
-	tp.Strings.decrementReference(tp.appVersionRef)
 	tp.appVersionRef = tp.Strings.Add(version)
 }
 
@@ -246,7 +230,6 @@ func (tp *InternalTracerPayload) LanguageName() string {
 
 // SetLanguageName sets the language name in the string table
 func (tp *InternalTracerPayload) SetLanguageName(name string) {
-	tp.Strings.decrementReference(tp.languageNameRef)
 	tp.languageNameRef = tp.Strings.Add(name)
 }
 
@@ -257,7 +240,6 @@ func (tp *InternalTracerPayload) LanguageVersion() string {
 
 // SetLanguageVersion sets the language version in the string table
 func (tp *InternalTracerPayload) SetLanguageVersion(version string) {
-	tp.Strings.decrementReference(tp.languageVersionRef)
 	tp.languageVersionRef = tp.Strings.Add(version)
 }
 
@@ -268,7 +250,6 @@ func (tp *InternalTracerPayload) TracerVersion() string {
 
 // SetTracerVersion sets the tracer version in the string table
 func (tp *InternalTracerPayload) SetTracerVersion(version string) {
-	tp.Strings.decrementReference(tp.tracerVersionRef)
 	tp.tracerVersionRef = tp.Strings.Add(version)
 }
 
@@ -279,7 +260,6 @@ func (tp *InternalTracerPayload) ContainerID() string {
 
 // SetContainerID sets the container ID for the tracer payload.
 func (tp *InternalTracerPayload) SetContainerID(containerID string) {
-	tp.Strings.decrementReference(tp.containerIDRef)
 	tp.containerIDRef = tp.Strings.Add(containerID)
 }
 
@@ -290,7 +270,6 @@ func (tp *InternalTracerPayload) Env() string {
 
 // SetEnv sets the environment for the tracer payload.
 func (tp *InternalTracerPayload) SetEnv(env string) {
-	tp.Strings.decrementReference(tp.envRef)
 	tp.envRef = tp.Strings.Add(env)
 }
 
@@ -301,7 +280,6 @@ func (tp *InternalTracerPayload) RuntimeID() string {
 
 // SetRuntimeID sets the runtime ID for the tracer payload.
 func (tp *InternalTracerPayload) SetRuntimeID(runtimeID string) {
-	tp.Strings.decrementReference(tp.runtimeIDRef)
 	tp.runtimeIDRef = tp.Strings.Add(runtimeID)
 }
 
@@ -438,7 +416,6 @@ func (c *InternalTraceChunk) Origin() string {
 
 // SetOrigin sets the origin for the trace chunk.
 func (c *InternalTraceChunk) SetOrigin(origin string) {
-	c.Strings.decrementReference(c.originRef)
 	c.originRef = c.Strings.Add(origin)
 }
 
@@ -462,13 +439,19 @@ func (c *InternalTraceChunk) SetStringAttribute(key, value string) {
 	setStringAttribute(key, value, c.Strings, c.Attributes)
 }
 
-// ToProto converts an InternalTraceChunk to a proto TraceChunk and marks any strings referenced in this chunk in usedStrings
-func (c *InternalTraceChunk) ToProto(usedStrings []bool) *TraceChunk {
+func (c *InternalTraceChunk) markUsedStrings(usedStrings []bool) {
 	usedStrings[c.originRef] = true
 	markAttributeMapStringsUsed(usedStrings, c.Strings, c.Attributes)
+	for _, span := range c.Spans {
+		span.markUsedStrings(usedStrings)
+	}
+}
+
+// ToProto converts an InternalTraceChunk to a proto TraceChunk
+func (c *InternalTraceChunk) ToProto() *TraceChunk {
 	spans := make([]*Span, len(c.Spans))
 	for i, span := range c.Spans {
-		spans[i] = span.ToProto(usedStrings)
+		spans[i] = span.ToProto()
 	}
 	return &TraceChunk{
 		Priority:          c.Priority,
@@ -506,8 +489,7 @@ func (s *InternalSpan) ShallowCopy() *InternalSpan {
 	}
 }
 
-// ToProto converts the internal span to a protobuf span.
-func (s *InternalSpan) ToProto(usedStrings []bool) *Span {
+func (s *InternalSpan) markUsedStrings(usedStrings []bool) {
 	usedStrings[s.span.ServiceRef] = true
 	usedStrings[s.span.NameRef] = true
 	usedStrings[s.span.ResourceRef] = true
@@ -522,6 +504,10 @@ func (s *InternalSpan) ToProto(usedStrings []bool) *Span {
 	for _, event := range s.span.Events {
 		markSpanEventUsedStrings(usedStrings, s.Strings, event)
 	}
+}
+
+// ToProto converts the internal span to a protobuf span.
+func (s *InternalSpan) ToProto() *Span {
 	return s.span
 }
 
@@ -560,21 +546,21 @@ func (s *Span) ShallowCopy() *Span {
 // DebugString returns a human readable string representation of the span
 func (s *InternalSpan) DebugString() string {
 	str := "Span {"
-	str += fmt.Sprintf("Service: (%s, at %d, #refs %d), ", s.Service(), s.span.ServiceRef, s.Strings.refs[s.span.ServiceRef])
-	str += fmt.Sprintf("Name: (%s, at %d, #refs %d), ", s.Name(), s.span.NameRef, s.Strings.refs[s.span.NameRef])
-	str += fmt.Sprintf("Resource: (%s, at %d, #refs %d), ", s.Resource(), s.span.ResourceRef, s.Strings.refs[s.span.ResourceRef])
+	str += fmt.Sprintf("Service: (%s, at %d), ", s.Service(), s.span.ServiceRef)
+	str += fmt.Sprintf("Name: (%s, at %d), ", s.Name(), s.span.NameRef)
+	str += fmt.Sprintf("Resource: (%s, at %d), ", s.Resource(), s.span.ResourceRef)
 	str += fmt.Sprintf("SpanID: %d, ", s.span.SpanID)
 	str += fmt.Sprintf("ParentID: %d, ", s.span.ParentID)
 	str += fmt.Sprintf("Start: %d, ", s.span.Start)
 	str += fmt.Sprintf("Duration: %d, ", s.span.Duration)
 	str += fmt.Sprintf("Error: %t, ", s.span.Error)
 	str += fmt.Sprintf("Attributes: %v, ", s.span.Attributes)
-	str += fmt.Sprintf("Type: (%s, at %d, #refs %d), ", s.Type(), s.span.TypeRef, s.Strings.refs[s.span.TypeRef])
+	str += fmt.Sprintf("Type: (%s, at %d), ", s.Type(), s.span.TypeRef)
 	str += fmt.Sprintf("Links: %v, ", s.Links())
 	str += fmt.Sprintf("Events: %v, ", s.Events())
-	str += fmt.Sprintf("Env: (%s, at %d, #refs %d), ", s.Env(), s.span.EnvRef, s.Strings.refs[s.span.EnvRef])
-	str += fmt.Sprintf("Version: (%s, at %d, #refs %d), ", s.Version(), s.span.VersionRef, s.Strings.refs[s.span.VersionRef])
-	str += fmt.Sprintf("Component: (%s, at %d, #refs %d), ", s.Component(), s.span.ComponentRef, s.Strings.refs[s.span.ComponentRef])
+	str += fmt.Sprintf("Env: (%s, at %d), ", s.Env(), s.span.EnvRef)
+	str += fmt.Sprintf("Version: (%s, at %d), ", s.Version(), s.span.VersionRef)
+	str += fmt.Sprintf("Component: (%s, at %d), ", s.Component(), s.span.ComponentRef)
 	str += fmt.Sprintf("Kind: %s, ", s.SpanKind())
 	str += "}"
 	return str
@@ -666,7 +652,6 @@ func (s *InternalSpan) Service() string {
 
 // SetService sets the service name for the span.
 func (s *InternalSpan) SetService(svc string) {
-	s.Strings.decrementReference(s.span.ServiceRef)
 	s.span.ServiceRef = s.Strings.Add(svc)
 }
 
@@ -677,7 +662,6 @@ func (s *InternalSpan) Name() string {
 
 // SetName sets the span name.
 func (s *InternalSpan) SetName(name string) {
-	s.Strings.decrementReference(s.span.NameRef)
 	s.span.NameRef = s.Strings.Add(name)
 }
 
@@ -688,7 +672,6 @@ func (s *InternalSpan) Resource() string {
 
 // SetResource sets the resource for the span.
 func (s *InternalSpan) SetResource(resource string) {
-	s.Strings.decrementReference(s.span.ResourceRef)
 	s.span.ResourceRef = s.Strings.Add(resource)
 }
 
@@ -699,7 +682,6 @@ func (s *InternalSpan) Type() string {
 
 // SetType sets the span type.
 func (s *InternalSpan) SetType(t string) {
-	s.Strings.decrementReference(s.span.TypeRef)
 	s.span.TypeRef = s.Strings.Add(t)
 }
 
@@ -710,7 +692,6 @@ func (s *InternalSpan) Env() string {
 
 // SetEnv sets the environment for the span.
 func (s *InternalSpan) SetEnv(e string) {
-	s.Strings.decrementReference(s.span.EnvRef)
 	s.span.EnvRef = s.Strings.Add(e)
 }
 
@@ -785,7 +766,6 @@ func (s *InternalSpan) Component() string {
 
 // SetComponent sets the component for the span.
 func (s *InternalSpan) SetComponent(component string) {
-	s.Strings.decrementReference(s.span.ComponentRef)
 	s.span.ComponentRef = s.Strings.Add(component)
 }
 
@@ -796,7 +776,6 @@ func (s *InternalSpan) Version() string {
 
 // SetVersion sets the version for the span.
 func (s *InternalSpan) SetVersion(version string) {
-	s.Strings.decrementReference(s.span.VersionRef)
 	s.span.VersionRef = s.Strings.Add(version)
 }
 
@@ -1064,24 +1043,6 @@ func (attr *AnyValue) AsString(strTable *StringTable) string {
 	}
 }
 
-// RemoveStringRefs decrements the ref count for all strings (including nested values) in this AnyValue as this value is being removed / replaced
-// Noop for non-string values
-func (attr *AnyValue) RemoveStringRefs(strTable *StringTable) {
-	switch v := attr.Value.(type) {
-	case *AnyValue_StringValueRef:
-		strTable.decrementReference(v.StringValueRef)
-	case *AnyValue_ArrayValue:
-		for _, value := range v.ArrayValue.Values {
-			value.RemoveStringRefs(strTable)
-		}
-	case *AnyValue_KeyValueList:
-		for _, kv := range v.KeyValueList.KeyValues {
-			strTable.decrementReference(kv.Key)
-			kv.Value.RemoveStringRefs(strTable)
-		}
-	}
-}
-
 // AsDoubleValue returns the attribute in float64 format, returning an error if the attribute is not a float64 or can't be converted to a float64
 func (attr *AnyValue) AsDoubleValue(strTable *StringTable) (float64, error) {
 	switch v := attr.Value.(type) {
@@ -1164,19 +1125,12 @@ func setFloat64Attribute(key string, value float64, strTable *StringTable, attri
 
 func setAttribute(key string, value *AnyValue, strTable *StringTable, attributes map[uint32]*AnyValue) {
 	newKeyIdx := strTable.Add(key)
-	if oldVal, ok := attributes[newKeyIdx]; ok {
-		// Key already exists, remove the old value's string references
-		oldVal.RemoveStringRefs(strTable)
-	}
 	attributes[newKeyIdx] = value
 }
 
 func deleteAttribute(key string, strTable *StringTable, attributes map[uint32]*AnyValue) {
 	keyIdx := strTable.Lookup(key)
 	if keyIdx != 0 {
-		// Remove key ref and any value ref
-		strTable.decrementReference(keyIdx)
-		attributes[keyIdx].RemoveStringRefs(strTable)
 		delete(attributes, keyIdx)
 	}
 }

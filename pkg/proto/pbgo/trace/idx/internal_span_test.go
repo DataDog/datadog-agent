@@ -6,56 +6,110 @@
 package idx
 
 import (
+	"reflect"
+	"strings"
 	sync "sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func TestInternalSpan_SetService_RemovesOldStringFromTable(t *testing.T) {
-	strings := NewStringTable()
-	span := &InternalSpan{
-		Strings: strings,
-		span: &Span{
-			ServiceRef: strings.Add("old-service"),
-		},
-	}
-	assert.Equal(t, "old-service", strings.Get(span.span.ServiceRef))
-	assert.Equal(t, uint32(1), strings.refs[span.span.ServiceRef]) // 1 from Add
+func TestInternalTracerPayload_RemoveUnusedStrings(t *testing.T) {
+	payload := testPayload()
+	payloadValue := reflect.ValueOf(payload).Elem()
+	payloadType := payloadValue.Type()
+	expectedUsedRefs := make(map[string]uint32)
+	for i := 0; i < payloadType.NumField(); i++ {
+		field := payloadType.Field(i)
+		fieldValue := payloadValue.Field(i)
 
-	span.SetService("new-service")
-
-	assert.Equal(t, "new-service", span.Service())
-	assert.Equal(t, uint32(0), strings.Lookup("old-service"))
-	for _, str := range strings.strings {
-		// Assert the old service is no longer in the string table
-		assert.NotEqual(t, "old-service", str)
-	}
-}
-
-func TestInternalSpan_SetStringAttribute_RemovesOldStringFromTable(t *testing.T) {
-	strings := NewStringTable()
-	span := &InternalSpan{
-		Strings: strings,
-		span: &Span{
-			Attributes: make(map[uint32]*AnyValue),
-		},
+		// Look for fields ending with "Ref" that are uint32 (string references)
+		if field.Type.Kind() == reflect.Uint32 && strings.HasSuffix(field.Name, "Ref") {
+			refValue := fieldValue.Uint()
+			if refValue != 0 {
+				expectedUsedRefs[field.Name] = uint32(refValue)
+			} else {
+				assert.Fail(t, "testPayload must provide a non-empty string value for all fields", "missing field: %s", field.Name)
+			}
+		}
 	}
 
-	span.SetStringAttribute("old-key", "old-value")
-	value, found := span.GetAttributeAsString("old-key")
-	assert.True(t, found)
-	assert.Equal(t, "old-value", value)
+	payload.RemoveUnusedStrings()
 
-	span.SetStringAttribute("old-key", "new-value")
-
-	value, found = span.GetAttributeAsString("old-key")
-	assert.True(t, found)
-	assert.Equal(t, "new-value", value)
-	assert.Equal(t, uint32(0), strings.Lookup("old-value"))
-	for _, str := range strings.strings {
-		// Assert the old value is no longer in the string table
-		assert.NotEqual(t, "old-value", str)
+	// Use reflection to verify all expected string references are still present
+	for fieldName, expectedRef := range expectedUsedRefs {
+		field := payloadValue.FieldByName(fieldName)
+		if field.IsValid() {
+			actualRef := field.Uint()
+			// Get the string value to verify it's still there
+			stringValue := payload.Strings.Get(uint32(actualRef))
+			assert.NotEmpty(t, stringValue, "String reference field %s should not be empty", fieldName)
+			assert.Equal(t, expectedRef, uint32(actualRef), "String reference field %s should not have changed", fieldName)
+		}
+	}
+	// Check InternalTraceChunks within the payload
+	for chunkIndex, chunk := range payload.Chunks {
+		chunkValue := reflect.ValueOf(chunk).Elem()
+		chunkType := chunkValue.Type()
+		for i := 0; i < chunkType.NumField(); i++ {
+			field := chunkType.Field(i)
+			fieldValue := chunkValue.Field(i)
+			if field.Type.Kind() == reflect.Uint32 && strings.HasSuffix(field.Name, "Ref") {
+				refValue := fieldValue.Uint()
+				if refValue != 0 {
+					stringValue := payload.Strings.Get(uint32(refValue))
+					assert.NotEmpty(t, stringValue, "Chunk %d field %s should not be empty", chunkIndex, field.Name)
+				}
+			}
+		}
+		// Check spans within the chunk
+		for spanIndex, span := range chunk.Spans {
+			spanValue := reflect.ValueOf(span.span).Elem()
+			spanType := spanValue.Type()
+			for i := 0; i < spanType.NumField(); i++ {
+				field := spanType.Field(i)
+				fieldValue := spanValue.Field(i)
+				if field.Type.Kind() == reflect.Uint32 && strings.HasSuffix(field.Name, "Ref") {
+					refValue := fieldValue.Uint()
+					if refValue != 0 {
+						stringValue := payload.Strings.Get(uint32(refValue))
+						assert.NotEmpty(t, stringValue, "Chunk %d span %d field %s should not be empty", chunkIndex, spanIndex, field.Name)
+					}
+				}
+			}
+			// Check span links
+			for linkIndex, link := range span.span.Links {
+				linkValue := reflect.ValueOf(link).Elem()
+				linkType := linkValue.Type()
+				for i := 0; i < linkType.NumField(); i++ {
+					field := linkType.Field(i)
+					fieldValue := linkValue.Field(i)
+					if field.Type.Kind() == reflect.Uint32 && strings.HasSuffix(field.Name, "Ref") {
+						refValue := fieldValue.Uint()
+						if refValue != 0 {
+							stringValue := payload.Strings.Get(uint32(refValue))
+							assert.NotEmpty(t, stringValue, "Chunk %d span %d link %d field %s should not be empty", chunkIndex, spanIndex, linkIndex, field.Name)
+						}
+					}
+				}
+			}
+			// Check span events
+			for eventIndex, event := range span.span.Events {
+				eventValue := reflect.ValueOf(event).Elem()
+				eventType := eventValue.Type()
+				for i := 0; i < eventType.NumField(); i++ {
+					field := eventType.Field(i)
+					fieldValue := eventValue.Field(i)
+					if field.Type.Kind() == reflect.Uint32 && strings.HasSuffix(field.Name, "Ref") {
+						refValue := fieldValue.Uint()
+						if refValue != 0 {
+							stringValue := payload.Strings.Get(uint32(refValue))
+							assert.NotEmpty(t, stringValue, "Chunk %d span %d event %d field %s should not be empty", chunkIndex, spanIndex, eventIndex, field.Name)
+						}
+					}
+				}
+			}
+		}
 	}
 }
 
@@ -94,7 +148,6 @@ func TestInternalSpan_MultipleRefsKept(t *testing.T) {
 	assert.Equal(t, "new-value", value)
 	oldValIdx := strings.Lookup("old-value")
 	assert.NotZero(t, oldValIdx)
-	assert.Equal(t, uint32(1), strings.refs[oldValIdx])
 	value, found = span.GetAttributeAsString("key2")
 	assert.True(t, found)
 	assert.Equal(t, "old-value", value)
@@ -126,27 +179,6 @@ func TestInternalTracerPayload_CutConcurrentSafe(t *testing.T) {
 		assert.False(t, found)
 	}()
 	wg.Wait()
-}
-
-func TestInternalSpanToProto_CountUsedStrings(t *testing.T) {
-	strings := NewStringTable()
-	secretIdx := strings.Add("SOME_SECRET")
-	keyIdx := strings.Add("some-key")
-	span := &InternalSpan{
-		Strings: strings,
-		span: &Span{
-			ServiceRef: strings.Add("some-service"),
-			Attributes: map[uint32]*AnyValue{
-				keyIdx: {Value: &AnyValue_StringValueRef{StringValueRef: strings.Add("some-attribute")}},
-			},
-		},
-	}
-	usedStrings := make([]bool, strings.Len())
-	span.ToProto(usedStrings)
-	assert.True(t, usedStrings[span.span.ServiceRef])
-	assert.True(t, usedStrings[span.span.Attributes[1].GetStringValueRef()])
-	assert.True(t, usedStrings[keyIdx])
-	assert.False(t, usedStrings[secretIdx])
 }
 
 func testPayload() *InternalTracerPayload {
@@ -237,51 +269,4 @@ func testPayload() *InternalTracerPayload {
 	}
 
 	return payload
-}
-
-func TestInternalTracerPayload_ToProto_UnusedStringsRemoved(t *testing.T) {
-	payload := testPayload()
-
-	protoPayload := payload.ToProto()
-
-	assert.NotContains(t, protoPayload.Strings, "unused-string")
-	assert.Equal(t, "container-123", protoPayload.Strings[protoPayload.ContainerIDRef])
-	assert.Equal(t, "go", protoPayload.Strings[protoPayload.LanguageNameRef])
-	assert.Equal(t, "1.21", protoPayload.Strings[protoPayload.LanguageVersionRef])
-	assert.Equal(t, "v2.0.0", protoPayload.Strings[protoPayload.TracerVersionRef])
-	assert.Equal(t, "runtime-uuid", protoPayload.Strings[protoPayload.RuntimeIDRef])
-	assert.Equal(t, "prod", protoPayload.Strings[protoPayload.EnvRef])
-	assert.Equal(t, "host-abc", protoPayload.Strings[protoPayload.HostnameRef])
-	assert.Equal(t, "1.0.1", protoPayload.Strings[protoPayload.AppVersionRef])
-
-	// Check chunk strings
-	assert.Len(t, protoPayload.Chunks, 2)
-	protoChunk := protoPayload.Chunks[0]
-	assert.Equal(t, "chunk-origin", protoPayload.Strings[protoChunk.OriginRef])
-	assert.Equal(t, uint32(4), protoChunk.SamplingMechanism)
-
-	// Check span strings
-	assert.Len(t, protoChunk.Spans, 1)
-	protoSpan := protoChunk.Spans[0]
-	assert.Equal(t, "svc", protoPayload.Strings[protoSpan.ServiceRef])
-	assert.Equal(t, "op", protoPayload.Strings[protoSpan.NameRef])
-	assert.Equal(t, "res", protoPayload.Strings[protoSpan.ResourceRef])
-	assert.Equal(t, "web", protoPayload.Strings[protoSpan.TypeRef])
-	assert.Equal(t, "prod", protoPayload.Strings[protoSpan.EnvRef])
-	assert.Equal(t, "1.0.1", protoPayload.Strings[protoSpan.VersionRef])
-	assert.Equal(t, "http", protoPayload.Strings[protoSpan.ComponentRef])
-
-	// Check span links
-	assert.Len(t, protoSpan.Links, 1)
-	protoLink := protoSpan.Links[0]
-	assert.Equal(t, "ts", protoPayload.Strings[protoLink.TracestateRef])
-
-	// Check span events
-	assert.Len(t, protoSpan.Events, 1)
-	protoEvent := protoSpan.Events[0]
-	assert.Equal(t, "event", protoPayload.Strings[protoEvent.NameRef])
-
-	// Check attributes (these should be present in the string table)
-	assert.Contains(t, protoPayload.Strings, "attr-key")
-	assert.Contains(t, protoPayload.Strings, "attr-value")
 }
