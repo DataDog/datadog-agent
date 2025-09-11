@@ -157,6 +157,18 @@ func (ps *powerShellCommandBuilder) WaitForServiceStatus(serviceName, status str
 func (ps *powerShellCommandBuilder) DisableWindowsDefender() *powerShellCommandBuilder {
 	// ScheduleDay = 8 means never
 	ps.cmds = append(ps.cmds, `
+# hack to test ngen effect on pipeline time
+powershell.exe -Command {
+	$env:PATH = [Runtime.InteropServices.RuntimeEnvironment]::GetRuntimeDirectory()
+	[AppDomain]::CurrentDomain.GetAssemblies() | ForEach-Object {
+		$path = $_.Location
+		if ($path) {
+			$name = Split-Path $path -Leaf
+			Write-Host -ForegroundColor Yellow "`r`nRunning ngen.exe on '$name'"
+			ngen.exe install $path /nologo
+		}
+	}
+}
 if ((Get-MpComputerStatus).IsTamperProtected) {
 	Write-Error "Windows Defender is tamper protected, unable to modify settings"
 }
