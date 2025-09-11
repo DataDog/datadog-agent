@@ -26,6 +26,7 @@ import (
 	cloudprovidersnetwork "github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	trcommon "github.com/DataDog/datadog-traceroute/common"
 	tracerlog "github.com/DataDog/datadog-traceroute/log"
 	"github.com/DataDog/datadog-traceroute/result"
 	"github.com/DataDog/datadog-traceroute/runner"
@@ -125,17 +126,20 @@ func (r *Runner) RunTraceroute(ctx context.Context, cfg config.Config) (payload.
 	}
 
 	params := runner.TracerouteParams{
-		Hostname:          cfg.DestHostname,
-		Port:              int(cfg.DestPort),
-		Protocol:          strings.ToLower(string(cfg.Protocol)),
-		MinTTL:            0,
-		MaxTTL:            int(cfg.MaxTTL),
-		Delay:             DefaultDelay,
-		Timeout:           timeout,
-		TCPMethod:         traceroute.TCPMethod(cfg.TCPMethod),
-		WantV6:            false,
-		ReverseDns:        cfg.ReverseDNS,
-		TracerouteQueries: 1, // TODO: make it configurable
+		Hostname:   cfg.DestHostname,
+		Port:       int(cfg.DestPort),
+		Protocol:   strings.ToLower(string(cfg.Protocol)),
+		MinTTL:     trcommon.DefaultMinTTL,
+		MaxTTL:     int(cfg.MaxTTL),
+		Delay:      DefaultDelay,
+		Timeout:    timeout,
+		TCPMethod:  traceroute.TCPMethod(cfg.TCPMethod),
+		WantV6:     false,
+		ReverseDns: cfg.ReverseDNS,
+
+		// TODO: Using TracerouteQueries = 1 for now since this PR is only about migrating the data model.
+		//       A separate PR will 1/ make traceroute_queries configurable, 2/ use 3x as default.
+		TracerouteQueries: 1,
 	}
 
 	results, err := runner.RunTraceroute(ctx, params)
