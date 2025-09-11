@@ -7,7 +7,7 @@
   tags: ["arch:amd64", "specific:true"]
   before_script:
     - PACKAGE_VERSION="$(dda inv agent.version --url-safe)-1" || exit $?
-    - export INSTALL_DIR=/opt/datadog-packages/${OCI_PRODUCT}/${PACKAGE_VERSION}
+    - export INSTALL_DIR=${INSTALL_DIR:-/opt/datadog-packages/${OCI_PRODUCT}/${PACKAGE_VERSION}}
     - set +x
     - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
     - go env -w GOPRIVATE="github.com/DataDog/*"
@@ -167,9 +167,7 @@ ddot_oci:
   needs: ["datadog-otel-agent-x64", "datadog-otel-agent-arm64", "go_tools_deps", "ddot_win_oci"]
   variables:
     OCI_PRODUCT: "datadog-agent-ddot"
+    INSTALL_DIR: "/opt/datadog-agent"
   artifacts:
     paths:
       - ${OMNIBUS_PACKAGE_DIR}/*.oci.tar
-  before_script:
-    - PACKAGE_VERSION="$(dda inv agent.version --url-safe)-1" || exit $?
-    - export INSTALL_DIR=/opt/datadog-agent
