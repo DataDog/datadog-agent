@@ -243,6 +243,7 @@ func (w *TraceWriterV1) flushPayloadsV1(payloads []*idx.InternalTracerPayload) {
 
 	protoPayloads := make([]*idx.TracerPayload, len(payloads))
 	for i, payload := range payloads {
+		payload.RemoveUnusedStrings()
 		protoPayloads[i] = payload.ToProto()
 	}
 

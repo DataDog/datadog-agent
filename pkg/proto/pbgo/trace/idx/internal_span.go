@@ -151,7 +151,8 @@ func (tp *InternalTracerPayload) Msgsize() int {
 }
 
 // RemoveUnusedStrings removes any strings from the string table that are not referenced in the tracer payload
-// This should be called before marshalling the tracer payload to remove any sensitive strings that are no longer referenced
+// This should be called before marshalling or otherwise exposing the tracer payload to remove any sensitive
+// strings that are no longer referenced
 func (tp *InternalTracerPayload) RemoveUnusedStrings() {
 	usedStrings := make([]bool, tp.Strings.Len())
 	usedStrings[tp.containerIDRef] = true
@@ -177,6 +178,9 @@ func (tp *InternalTracerPayload) RemoveUnusedStrings() {
 }
 
 // ToProto converts an InternalTracerPayload to a proto TracerPayload
+// This returns the structure _AS IS_, so even strings that are no longer referenced
+// may be included in the resulting proto. To ensure that only used strings are included,
+// call RemoveUnusedStrings first.
 func (tp *InternalTracerPayload) ToProto() *TracerPayload {
 	chunks := make([]*TraceChunk, len(tp.Chunks))
 	for i, chunk := range tp.Chunks {
