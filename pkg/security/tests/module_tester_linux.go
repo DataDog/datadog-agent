@@ -677,6 +677,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		testMod.t = t
 		testMod.opts.dynamicOpts = opts.dynamicOpts
 		testMod.opts.staticOpts = opts.staticOpts
+		testMod.statsdClient.Flush()
 
 		if opts.staticOpts.preStartCallback != nil {
 			opts.staticOpts.preStartCallback(testMod)
@@ -694,6 +695,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		testMod.cmdWrapper = cmdWrapper
 		testMod.t = t
 		testMod.opts.dynamicOpts = opts.dynamicOpts
+		testMod.statsdClient.Flush()
 
 		if !disableTracePipe && !ebpfLessEnabled {
 			if testMod.tracePipe, err = testMod.startTracing(); err != nil {
@@ -1888,6 +1890,9 @@ func (tm *testModule) CheckZombieProcesses() error {
 
 				comm, err := os.ReadFile(filepath.Join("/proc", pidStr, "comm"))
 				if err != nil {
+					if errors.Is(err, syscall.ESRCH) {
+						continue
+					}
 					return fmt.Errorf("failed to read comm for PID %d: %w", pid, err)
 				}
 				commStr := strings.TrimSpace(string(comm))
@@ -1898,8 +1903,8 @@ func (tm *testModule) CheckZombieProcesses() error {
 				}
 			}
 		}
-		if err := scanner.Err(); err != nil {
-			return fmt.Errorf("error reading status file for PPID %d: %w", pid, err)
+		if err := scanner.Err(); err != nil && !errors.Is(err, syscall.ESRCH) {
+			return fmt.Errorf("error reading status file for PID %d: %w", pid, err)
 		}
 	}
 
