@@ -57,7 +57,9 @@ func (k *keysManager) GetKey(keyId string) types.DecodedKey {
 }
 
 func (k *keysManager) WaitForReady() {
-	//<-k.ready // TODO fix this
+	log.Info("waiting for ready")
+	<-k.ready
+	log.Info("ready")
 	return
 }
 
