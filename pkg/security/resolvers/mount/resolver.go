@@ -55,23 +55,23 @@ type redemptionEntry struct {
 func newMountFromMountInfo(mnt *mountinfo.Info) *model.Mount {
 	root := mnt.Root
 
-	if mnt.FSType == "btrfs" {
-		var subvol string
-		for _, opt := range strings.Split(mnt.VFSOptions, ",") {
-			name, val, ok := strings.Cut(opt, "=")
-			if ok && name == "subvol" {
-				subvol = val
-			}
-		}
-
-		if subvol != "" {
-			root = strings.TrimPrefix(root, subvol)
-		}
-
-		if root == "" {
-			root = "/"
-		}
-	}
+	//if mnt.FSType == "btrfs" {
+	//	var subvol string
+	//	for _, opt := range strings.Split(mnt.VFSOptions, ",") {
+	//		name, val, ok := strings.Cut(opt, "=")
+	//		if ok && name == "subvol" {
+	//			subvol = val
+	//		}
+	//	}
+	//
+	//	if subvol != "" {
+	//		root = strings.TrimPrefix(root, subvol)
+	//	}
+	//
+	//	if root == "" {
+	//		root = "/"
+	//	}
+	//}
 
 	if mnt.FSType == "cgroup2" && strings.HasPrefix(root, "/..") {
 		cfs := utils.DefaultCGroupFS()
@@ -133,7 +133,7 @@ func (mr *Resolver) IsMountIDValid(mountID uint32) (bool, error) {
 	return true, nil
 }
 
-// newMountFromMountInfo - Creates a new Mount from parsed MountInfo data
+// newMountFromStatmount - Creates a new Mount from parsed MountInfo data
 func newMountFromStatmount(sm *Statmount) *model.Mount {
 	root := sm.MntRoot
 
@@ -178,7 +178,7 @@ func newMountFromStatmount(sm *Statmount) *model.Mount {
 	}
 }
 
-// HasListMount returns true if the kernel has the listmount() sycall, false otherwise
+// HasListMount returns true if the kernel has the listmount() syscall, false otherwise
 func (mr *Resolver) HasListMount() bool {
 	_, _, errno := unix.Syscall(SysListmount, 0, 0, 0)
 	return errno != unix.ENOSYS

@@ -215,13 +215,13 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 		SyscallCtxResolver:     syscallctx.NewResolver(),
 		DNSResolver:            dnsResolver,
 		FileMetadataResolver:   fileMetadataResolver,
-		SnapshotUsingListmount: true,
+		SnapshotUsingListmount: false,
 	}
 
-	if !mountResolver.HasListMount() {
-		seclog.Warnf("listmount not found in this system, will default to procfs")
-		resolvers.SnapshotUsingListmount = false
-	}
+	//if !mountResolver.HasListMount() {
+	//	seclog.Warnf("listmount not found in this system, will default to procfs")
+	//	resolvers.SnapshotUsingListmount = false
+	//}
 
 	return resolvers, nil
 }

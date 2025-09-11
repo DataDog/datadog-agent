@@ -29,6 +29,7 @@ func (mr *NoOpResolver) SyncCache(_ uint32) error {
 	return nil
 }
 
+// HasListMount returns true if the kernel has the listmount() syscall, false otherwise
 func (mr *NoOpResolver) HasListMount() bool {
 	return false
 }
