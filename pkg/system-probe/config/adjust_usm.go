@@ -25,22 +25,14 @@ func adjustUSM(cfg model.Config) {
 	}
 
 	deprecateBool(cfg, netNS("enable_http_monitoring"), smNS("enable_http_monitoring"))
-	applyDefault(cfg, smNS("enable_http_monitoring"), true)
 	deprecateBool(cfg, netNS("enable_https_monitoring"), smNS("tls", "native", "enabled"))
-	applyDefault(cfg, smNS("tls", "native", "enabled"), true)
 	deprecateBool(cfg, smNS("enable_go_tls_support"), smNS("tls", "go", "enabled"))
-	applyDefault(cfg, smNS("tls", "go", "enabled"), true)
 	deprecateGeneric(cfg, netNS("http_replace_rules"), smNS("http_replace_rules"))
 	deprecateInt64(cfg, netNS("max_tracked_http_connections"), smNS("max_tracked_http_connections"))
-	applyDefault(cfg, smNS("max_tracked_http_connections"), 1024)
 	deprecateInt(cfg, netNS("max_http_stats_buffered"), smNS("max_http_stats_buffered"))
-	applyDefault(cfg, smNS("max_http_stats_buffered"), 100000)
 	deprecateInt(cfg, spNS("http_map_cleaner_interval_in_s"), smNS("http_map_cleaner_interval_in_s"))
-	applyDefault(cfg, smNS("http_map_cleaner_interval_in_s"), 300)
 	deprecateInt(cfg, spNS("http_idle_connection_ttl_in_s"), smNS("http_idle_connection_ttl_in_s"))
-	applyDefault(cfg, smNS("http_idle_connection_ttl_in_s"), 30)
 	deprecateInt64(cfg, netNS("http_notification_threshold"), smNS("http_notification_threshold"))
-	applyDefault(cfg, smNS("http_notification_threshold"), 512)
 	deprecateInt64(cfg, netNS("http_max_request_fragment"), smNS("http_max_request_fragment"))
 	// set the default to be the max allowed by the driver.  So now the config will allow us to
 	// shorten the allowed path, but not lengthen it.
