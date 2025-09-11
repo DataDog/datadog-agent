@@ -145,7 +145,7 @@ type Client struct {
 	ndmflowAggregator              aggregator.NDMFlowAggregator
 	netpathAggregator              aggregator.NetpathAggregator
 	serviceDiscoveryAggregator     aggregator.ServiceDiscoveryAggregator
-	hostAggregator                 aggregator.HostAggregator
+	hostAggregator                 aggregator.HostTagsAggregator
 }
 
 // NewClient creates a new fake intake client
@@ -177,7 +177,7 @@ func NewClient(fakeIntakeURL string, opts ...Option) *Client {
 		ndmflowAggregator:              aggregator.NewNDMFlowAggregator(),
 		netpathAggregator:              aggregator.NewNetpathAggregator(),
 		serviceDiscoveryAggregator:     aggregator.NewServiceDiscoveryAggregator(),
-		hostAggregator:                 aggregator.NewHostAggregator(),
+		hostAggregator:                 aggregator.NewHostTagsAggregator(),
 	}
 	for _, opt := range opts {
 		opt(client)
@@ -336,7 +336,7 @@ func (c *Client) getNetpathEvents() error {
 	return c.netpathAggregator.UnmarshallPayloads(payloads)
 }
 
-func (c *Client) getHostInfos() error {
+func (c *Client) getHostTags() error {
 	payloads, err := c.getFakePayloads(intakeEndpoint)
 	if err != nil {
 		return err
@@ -1083,24 +1083,20 @@ func (c *Client) GetLatestNetpathEvents() ([]*aggregator.Netpath, error) {
 	return netpaths, nil
 }
 
-// GetLatestHostInfos returns the latest host information received by the fake intake
-func (c *Client) GetLatestHostInfos() ([]*aggregator.Host, error) {
-	err := c.getHostInfos()
+// GetHostTags returns the latest host information received by the fake intake
+func (c *Client) GetHostTags(hostname string) []*aggregator.HostTags {
+	return c.hostAggregator.GetPayloadsByName(hostname)
+}
+
+// GetHosts returns the list of all known hostnames that have sent some host-tags
+func (c *Client) GetHosts() ([]string, error) {
+	err := c.getHostTags()
 
 	if err != nil {
 		return nil, err
 	}
 
-	var hostInfos []*aggregator.Host
-	for _, name := range c.hostAggregator.GetNames() {
-		payloads := c.hostAggregator.GetPayloadsByName(name)
-
-		if len(payloads) > 0 {
-			hostInfos = append(hostInfos, payloads...)
-		}
-	}
-
-	return hostInfos, nil
+	return c.hostAggregator.GetNames(), nil
 }
 
 // filterPayload returns payloads matching any [MatchOpt](#MatchOpt) options
