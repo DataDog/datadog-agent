@@ -7,7 +7,6 @@ package config
 
 import (
 	"fmt"
-	"runtime"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -41,13 +40,6 @@ func adjustUSM(cfg model.Config) {
 	deprecateBool(cfg, smNS("process_service_inference", "enabled"), spNS("process_service_inference", "enabled"))
 	deprecateBool(cfg, smNS("process_service_inference", "use_windows_service_name"), spNS("process_service_inference", "use_windows_service_name"))
 
-	// default on windows is now enabled; default on linux is still disabled
-	if runtime.GOOS == "windows" {
-		applyDefault(cfg, spNS("process_service_inference", "enabled"), true)
-	} else {
-		applyDefault(cfg, spNS("process_service_inference", "enabled"), false)
-	}
-
 	// Similar to the checkin in adjustNPM(). The process event data stream and USM have the same
 	// minimum kernel version requirement, but USM's check for that is done
 	// later.  This check here prevents the EventMonitorModule from getting
@@ -59,8 +51,6 @@ func adjustUSM(cfg model.Config) {
 		}
 		cfg.Set(smNS("enable_event_stream"), false, model.SourceAgentRuntime)
 	}
-
-	applyDefault(cfg, spNS("process_service_inference", "use_windows_service_name"), true)
 
 	validateInt(cfg, smNS("http_notification_threshold"), cfg.GetInt(smNS("max_tracked_http_connections"))/2, func(v int) error {
 		limit := cfg.GetInt(smNS("max_tracked_http_connections"))
