@@ -164,7 +164,7 @@ powershell.exe -Command {
 		$path = $_.Location
 		if ($path) {
 			$name = Split-Path $path -Leaf
-			Write-Host -ForegroundColor Yellow "`r`nRunning ngen.exe on '$name'"
+			Write-Host -ForegroundColor Yellow "Running ngen.exe on '$name'"
 			ngen.exe install $path /nologo
 		}
 	}
