@@ -2310,6 +2310,7 @@ api_key:
 ## @param dogstatsd_socket - string - optional - default: "/var/run/datadog/dsd.socket"
 ## @env DD_DOGSTATSD_SOCKET - string - optional - default: "/var/run/datadog/dsd.socket"
 ## Listen for Dogstatsd metrics on a Unix Socket (*nix only).
+## Set to a valid and existing filesystem path to enable.
 ## Set to "" to disable this feature.
 #
 # dogstatsd_socket: "/var/run/datadog/dsd.socket"

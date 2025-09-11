@@ -84,6 +84,7 @@ AGENT_CORECHECKS = [
     "gpu",
     "wlan",
     "discovery",
+    "versa",
 ]
 
 WINDOWS_CORECHECKS = [

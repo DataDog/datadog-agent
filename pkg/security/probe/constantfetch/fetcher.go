@@ -162,6 +162,12 @@ type ConstantFetcherStatus struct {
 	Values   map[string]ValueAndSource
 }
 
+// IsPresent checks whether a constant with the given id was successfully fetched
+func (s *ConstantFetcherStatus) IsPresent(id string) bool {
+	vs, found := s.Values[id]
+	return found && vs.Value != ErrorSentinel
+}
+
 type composeRequest struct {
 	id          string
 	sizeof      bool
@@ -172,17 +178,18 @@ type composeRequest struct {
 }
 
 // CreateConstantEditors creates constant editors based on the constants fetched
-func CreateConstantEditors(constants map[string]uint64) []manager.ConstantEditor {
-	res := make([]manager.ConstantEditor, 0, len(constants))
-	for name, value := range constants {
-		if value == ErrorSentinel {
+func CreateConstantEditors(constants *ConstantFetcherStatus) []manager.ConstantEditor {
+	res := make([]manager.ConstantEditor, 0, len(constants.Values))
+	for name, value := range constants.Values {
+		pushedValue := value.Value
+		if pushedValue == ErrorSentinel {
 			seclog.Errorf("failed to fetch constant for %s", name)
-			value = 0
+			pushedValue = 0
 		}
 
 		res = append(res, manager.ConstantEditor{
 			Name:  name,
-			Value: value,
+			Value: pushedValue,
 		})
 	}
 	return res

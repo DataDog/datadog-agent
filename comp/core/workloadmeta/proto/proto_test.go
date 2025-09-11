@@ -608,6 +608,11 @@ func TestConversions(t *testing.T) {
 						TCPPorts:           []uint16{8080, 9090},
 						UDPPorts:           []uint16{53},
 						APMInstrumentation: "enabled",
+						UST: workloadmeta.UST{
+							Service: "test_service",
+							Env:     "test_env",
+							Version: "test_version",
+						},
 					},
 				},
 			},
@@ -652,6 +657,11 @@ func TestConversions(t *testing.T) {
 						TcpPorts:           []int32{8080, 9090},
 						UdpPorts:           []int32{53},
 						ApmInstrumentation: "enabled",
+						Ust: &pb.UST{
+							Service: "test_service",
+							Env:     "test_env",
+							Version: "test_version",
+						},
 					},
 				},
 			},

@@ -587,6 +587,18 @@ func toProtoTracerMetadata(tracerMetadata tracermetadata.TracerMetadata) *pb.Tra
 	}
 }
 
+func toProtoUST(ust workloadmeta.UST) *pb.UST {
+	if ust.Service == "" && ust.Env == "" && ust.Version == "" {
+		return nil
+	}
+
+	return &pb.UST{
+		Service: ust.Service,
+		Env:     ust.Env,
+		Version: ust.Version,
+	}
+}
+
 func toProtoService(service *workloadmeta.Service) *pb.Service {
 	if service == nil {
 		return nil
@@ -616,6 +628,7 @@ func toProtoService(service *workloadmeta.Service) *pb.Service {
 		TcpPorts:                 tcpPorts,
 		UdpPorts:                 udpPorts,
 		ApmInstrumentation:       service.APMInstrumentation,
+		Ust:                      toProtoUST(service.UST),
 	}
 }
 
@@ -1115,6 +1128,18 @@ func toWorkloadmetaTracerMetadata(protoTracerMetadata *pb.TracerMetadata) tracer
 	}
 }
 
+func toWorkloadmetaUST(protoUST *pb.UST) workloadmeta.UST {
+	if protoUST == nil {
+		return workloadmeta.UST{}
+	}
+
+	return workloadmeta.UST{
+		Service: protoUST.Service,
+		Env:     protoUST.Env,
+		Version: protoUST.Version,
+	}
+}
+
 func toWorkloadmetaService(protoService *pb.Service) *workloadmeta.Service {
 	if protoService == nil {
 		return nil
@@ -1144,5 +1169,6 @@ func toWorkloadmetaService(protoService *pb.Service) *workloadmeta.Service {
 		TCPPorts:                 tcpPorts,
 		UDPPorts:                 udpPorts,
 		APMInstrumentation:       protoService.ApmInstrumentation,
+		UST:                      toWorkloadmetaUST(protoService.Ust),
 	}
 }

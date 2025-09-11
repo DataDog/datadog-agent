@@ -93,9 +93,9 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolve
 		// Get the library versions to inject. If no versions are specified, we inject all libraries.
 		var libVersions []libInfo
 		if len(t.TracerVersions) == 0 {
-			libVersions = getAllLatestDefaultLibraries(config.containerRegistry, imageResolver)
+			libVersions = getAllLatestDefaultLibraries(config.containerRegistry)
 		} else {
-			libVersions = getPinnedLibraries(t.TracerVersions, config.containerRegistry, false, imageResolver).libs
+			libVersions = getPinnedLibraries(t.TracerVersions, config.containerRegistry, false).libs
 		}
 
 		// Convert the tracer configs to env vars. We check that the env var names start with the DD_ prefix to avoid
@@ -280,7 +280,7 @@ func (m *TargetMutator) getTarget(pod *corev1.Pod) *targetInternal {
 // getTargetFromAnnotation determines which tracing libraries to use given a pod's annotations. It returns the list of
 // tracing libraries to inject.
 func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *targetInternal {
-	libVersions := extractLibrariesFromAnnotations(pod, m.containerRegistry, m.core.imageResolver)
+	libVersions := extractLibrariesFromAnnotations(pod, m.containerRegistry)
 	if len(libVersions) == 0 {
 		return nil
 	}

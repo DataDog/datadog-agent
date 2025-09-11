@@ -400,9 +400,14 @@ func (s *discovery) getServiceInfo(pid int32) (*model.Service, error) {
 		AdditionalGeneratedNames: nameMeta.AdditionalNames,
 		DDService:                nameMeta.DDService,
 		TracerMetadata:           tracerMetadataArr,
-		Language:                 string(lang),
-		APMInstrumentation:       string(apmInstrumentation),
-		CommandLine:              truncateCmdline(lang, cmdline),
+		UST: model.UST{
+			Service: env.GetDefault("DD_SERVICE", ""),
+			Env:     env.GetDefault("DD_ENV", ""),
+			Version: env.GetDefault("DD_VERSION", ""),
+		},
+		Language:           string(lang),
+		APMInstrumentation: string(apmInstrumentation),
+		CommandLine:        truncateCmdline(lang, cmdline),
 	}, nil
 }
 

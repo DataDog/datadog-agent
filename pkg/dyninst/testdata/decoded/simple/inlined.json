@@ -6,7 +6,7 @@
       "name": "",
       "method": "main.inlined",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {
@@ -63,7 +63,7 @@
       "name": "",
       "method": "main.inlined",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {

@@ -68,16 +68,24 @@ func TestSnapshot(t *testing.T) {
 			},
 		}
 
+		if _, err := whichNonFatal("docker"); err != nil {
+			t.Skip("Skip test where docker is unavailable")
+		}
+
 		dockerWrapper, err := newDockerCmdWrapper("/tmp", "/tmp", "ubuntu", "")
 		if err != nil {
-			t.Skip("Skipping created time in containers tests: Docker not available")
-			return
+			t.Fatalf("failed to create docker wrapper: %v", err)
 		}
 
 		if _, err := dockerWrapper.start(); err != nil {
 			t.Fatal(err)
 		}
-		defer dockerWrapper.stop()
+		t.Cleanup(func() {
+			output, err := dockerWrapper.stop()
+			if err != nil {
+				t.Errorf("failed to stop docker wrapper: %v\n%s", err, string(output))
+			}
+		})
 
 		sleepCtx, cancel := context.WithCancel(context.Background())
 
@@ -123,16 +131,24 @@ func TestSnapshot(t *testing.T) {
 			},
 		}
 
+		if _, err := whichNonFatal("docker"); err != nil {
+			t.Skip("Skip test where docker is unavailable")
+		}
+
 		dockerWrapper, err := newDockerCmdWrapper("/tmp", "/tmp", "ubuntu", "")
 		if err != nil {
-			t.Skip("Skipping created time in containers tests: Docker not available")
-			return
+			t.Fatalf("failed to create docker wrapper: %v", err)
 		}
 
 		if _, err := dockerWrapper.start(); err != nil {
 			t.Fatal(err)
 		}
-		defer dockerWrapper.stop()
+		t.Cleanup(func() {
+			output, err := dockerWrapper.stop()
+			if err != nil {
+				t.Errorf("failed to stop docker wrapper: %v\n%s", err, string(output))
+			}
+		})
 
 		var cmd *exec.Cmd
 		go func() {

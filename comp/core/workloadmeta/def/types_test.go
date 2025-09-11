@@ -273,10 +273,15 @@ Service Generated Name: java-app
 					AdditionalGeneratedNames: []string{"java", "app"},
 					TracerMetadata:           []tracermetadata.TracerMetadata{},
 					DDService:                "java-app",
-					TCPPorts:                 []uint16{8080, 8081},
-					UDPPorts:                 []uint16{8082, 8083},
-					APMInstrumentation:       "enabled",
-					Type:                     "web_service",
+					UST: UST{
+						Service: "java-app",
+						Env:     "production",
+						Version: "1.2.3",
+					},
+					TCPPorts:           []uint16{8080, 8081},
+					UDPPorts:           []uint16{8082, 8083},
+					APMInstrumentation: "enabled",
+					Type:               "web_service",
 					LogFiles: []string{
 						"/var/log/app_access.log",
 						"/var/log/app_error.log",
@@ -307,6 +312,10 @@ Service TCP Ports: [8080 8081]
 Service UDP Ports: [8082 8083]
 Service APM Instrumentation: enabled
 Service Type: web_service
+---- Unified Service Tagging ----
+Service: java-app
+Env: production
+Version: 1.2.3
 ----------- Log Files -----------
 /var/log/app_access.log
 /var/log/app_error.log

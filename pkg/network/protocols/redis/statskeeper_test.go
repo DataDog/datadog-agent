@@ -21,7 +21,8 @@ import (
 )
 
 func BenchmarkStatKeeperSameTX(b *testing.B) {
-	cfg := &config.Config{MaxRedisStatsBuffered: 1000}
+	cfg := config.New()
+	cfg.MaxRedisStatsBuffered = 1000
 	sk := NewStatsKeeper(cfg)
 
 	sourceIP, destIP, sourcePort, destPort := generateAddresses()
@@ -37,10 +38,9 @@ func BenchmarkStatKeeperSameTX(b *testing.B) {
 }
 
 func TestProcessRedisTransactions(t *testing.T) {
-	cfg := &config.Config{
-		MaxRedisStatsBuffered: 1000,
-		RedisTrackResources:   true,
-	}
+	cfg := config.New()
+	cfg.MaxRedisStatsBuffered = 1000
+	cfg.RedisTrackResources = true
 
 	sk := NewStatsKeeper(cfg)
 	sourceIP, destIP, sourcePort, destPort := generateAddresses()
@@ -122,10 +122,9 @@ func generateRedisTransaction(source util.Address, dest util.Address, sourcePort
 
 func TestTrackResources(t *testing.T) {
 	t.Run("track_resources enabled", func(t *testing.T) {
-		cfg := &config.Config{
-			MaxRedisStatsBuffered: 1000,
-			RedisTrackResources:   true,
-		}
+		cfg := config.New()
+		cfg.MaxRedisStatsBuffered = 1000
+		cfg.RedisTrackResources = true
 		sk := NewStatsKeeper(cfg)
 
 		sourceIP, destIP, sourcePort, destPort := generateAddresses()
@@ -145,10 +144,8 @@ func TestTrackResources(t *testing.T) {
 	})
 
 	t.Run("track_resources disabled", func(t *testing.T) {
-		cfg := &config.Config{
-			MaxRedisStatsBuffered: 1000,
-			RedisTrackResources:   false,
-		}
+		cfg := config.New()
+		cfg.MaxRedisStatsBuffered = 1000
 		sk := NewStatsKeeper(cfg)
 
 		sourceIP, destIP, sourcePort, destPort := generateAddresses()

@@ -10,7 +10,7 @@ package module
 import (
 	"encoding/json"
 	"fmt"
-	"io"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/decode"
@@ -42,15 +42,17 @@ type Decoder interface {
 	Decode(
 		event decode.Event,
 		symbolicator symbol.Symbolicator,
-		out io.Writer,
-	) (ir.ProbeDefinition, error)
+		out []byte,
+	) ([]byte, ir.ProbeDefinition, error)
 }
 
 // DefaultDecoderFactory is the default decoder factory.
-type DefaultDecoderFactory struct{}
+type DefaultDecoderFactory struct {
+	approximateBootTime time.Time
+}
 
 // NewDecoder creates a new decoder using decode.NewDecoder.
-func (DefaultDecoderFactory) NewDecoder(
+func (f DefaultDecoderFactory) NewDecoder(
 	program *ir.Program,
 	executable procmon.Executable,
 ) (_ Decoder, retErr error) {
@@ -79,7 +81,7 @@ func (DefaultDecoderFactory) NewDecoder(
 	if err != nil {
 		return nil, err
 	}
-	decoder, err := decode.NewDecoder(program, (*decode.GoTypeNameResolver)(table))
+	decoder, err := decode.NewDecoder(program, (*decode.GoTypeNameResolver)(table), f.approximateBootTime)
 	if err != nil {
 		return nil, err
 	}

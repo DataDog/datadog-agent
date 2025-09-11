@@ -235,7 +235,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 						return {{$Return}}
 					{{end -}}
 				},
-			{{end -}}
+			{{end}}
 			Field: field,
 			{{- if $Field.Iterator}}
 				{{- if gt $Field.Weight 0}}

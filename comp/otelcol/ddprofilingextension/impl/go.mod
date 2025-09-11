@@ -54,21 +54,21 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.69.2 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.69.2 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.69.2 // indirect
-	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.71.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.69.2 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.69.2 // indirect
 	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.61.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/api v0.69.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/api v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.69.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/create v0.69.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/create v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.69.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/mock v0.69.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/mock v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/model v0.69.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.69.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.69.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.69.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.69.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.69.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/fips v0.69.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.63.0-devel.0.20250123185937-1feb84b482c8 // indirect
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.61.0 // indirect

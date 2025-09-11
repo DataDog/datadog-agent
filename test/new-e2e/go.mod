@@ -21,7 +21,7 @@ require (
 	// `TEST_INFRA_DEFINITIONS_BUILDIMAGES` matches the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0123456789AB
-	github.com/DataDog/test-infra-definitions v0.0.4-0.20250903113820-6e0b7ed0e8ac
+	github.com/DataDog/test-infra-definitions v0.0.5-0.20250905093434-6bd98f512489
 	github.com/aws/aws-sdk-go-v2 v1.38.1
 	github.com/aws/aws-sdk-go-v2/config v1.31.2
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.246.0
@@ -304,8 +304,8 @@ require (
 	github.com/nats-io/nats.go v1.41.1 // indirect
 	github.com/nats-io/nkeys v0.4.10 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
-	github.com/onsi/ginkgo/v2 v2.22.0 // indirect
-	github.com/onsi/gomega v1.36.1 // indirect
+	github.com/onsi/ginkgo/v2 v2.23.3 // indirect
+	github.com/onsi/gomega v1.36.3 // indirect
 	github.com/outcaste-io/ristretto v0.2.3 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
