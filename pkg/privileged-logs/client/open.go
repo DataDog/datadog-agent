@@ -24,9 +24,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// OpenFileAndGetFD opens a file in system-probe and returns the file descriptor
+// OpenPrivileged opens a file in system-probe and returns the file descriptor
 // This function uses a custom HTTP client that can handle file descriptor transfer
-func OpenFileAndGetFD(socketPath string, filePath string) (*os.File, error) {
+func OpenPrivileged(socketPath string, filePath string) (*os.File, error) {
 	// Create a new connection instead of reusing the shared connection from
 	// pkg/system-probe/api/client/client.go, since the connection is hijacked
 	// from the control of the HTTP server library on the server side.  It also
@@ -101,7 +101,7 @@ func OpenFileAndGetFD(socketPath string, filePath string) (*os.File, error) {
 
 				if len(fds) > 0 {
 					fd := fds[0] // We only expect one file descriptor
-					log.Debugf("Received file descriptor: %d", fd)
+					log.Tracef("Received file descriptor: %d", fd)
 					return os.NewFile(uintptr(fd), filePath), nil
 				}
 			}
@@ -109,11 +109,6 @@ func OpenFileAndGetFD(socketPath string, filePath string) (*os.File, error) {
 	}
 
 	return nil, fmt.Errorf("no file descriptor received")
-}
-
-// OpenFile opens a file using the privileged logs module and returns the file descriptor
-func OpenFile(socketPath string, filePath string) (*os.File, error) {
-	return OpenFileAndGetFD(socketPath, filePath)
 }
 
 // Open opens a file with in case of permission errors, it opens the file with
@@ -124,7 +119,6 @@ func Open(path string) (*os.File, error) {
 		return file, err
 	}
 
-	// Check if privileged_logs module is enabled before attempting to use it
 	enabled := pkgconfigsetup.SystemProbe().GetBool("privileged_logs.enabled")
 	if !enabled {
 		return file, err
@@ -133,7 +127,7 @@ func Open(path string) (*os.File, error) {
 	log.Debugf("Permission denied, opening file with system-probe: %v", path)
 
 	socketPath := pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")
-	fd, spErr := OpenFileAndGetFD(socketPath, path)
+	fd, spErr := OpenPrivileged(socketPath, path)
 	log.Tracef("Opened file with system-probe: %v, err: %v", path, spErr)
 	if spErr != nil {
 		return file, fmt.Errorf("failed to open file with system-probe: %w, original error: %w", spErr, err)
