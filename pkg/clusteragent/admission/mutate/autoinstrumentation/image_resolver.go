@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -61,8 +62,9 @@ func (r *noOpImageResolver) Resolve(registry string, repository string, tag stri
 type remoteConfigImageResolver struct {
 	rcClient RemoteConfigClient
 
-	mu            sync.RWMutex
-	imageMappings map[string]map[string]ImageInfo // repository name -> tag -> resolved image
+	mu                         sync.RWMutex
+	imageMappings              map[string]map[string]ImageInfo // repository name -> tag -> resolved image
+	defaultDatadoghqRegistries []string
 
 	// Retry configuration for initial cache loading
 	maxRetries int
@@ -166,6 +168,10 @@ func (r *remoteConfigImageResolver) Resolve(registry string, repository string, 
 func isDatadoghqRegistry(registry string) bool {
 	_, exists := datadoghqRegistries[registry]
 	return exists
+}
+
+func (r *remoteConfigImageResolver) isDatadoghqRegistry(registry string) bool {
+	return slices.Contains(r.defaultDatadoghqRegistries, registry)
 }
 
 // updateCache processes configuration data and updates the image mappings cache.
@@ -281,4 +287,18 @@ func NewImageResolver(rcClient RemoteConfigClient) ImageResolver {
 		return newNoOpImageResolver()
 	}
 	return newRemoteConfigImageResolver(rcClient)
+}
+
+func NewImageResolverWithDefaultDatadoghqRegistries(rcClient RemoteConfigClient, defaultDatadoghqRegistries []string) ImageResolver {
+	if rcClient == nil || reflect.ValueOf(rcClient).IsNil() {
+		log.Debugf("No remote config client available")
+		return newNoOpImageResolver()
+	}
+	return newRemoteConfigImageResolverWithDefaultDatadoghqRegistries(rcClient, defaultDatadoghqRegistries)
+}
+
+func newRemoteConfigImageResolverWithDefaultDatadoghqRegistries(rcClient RemoteConfigClient, defaultDatadoghqRegistries []string) ImageResolver {
+	resolver := newRemoteConfigImageResolver(rcClient)
+	resolver.(*remoteConfigImageResolver).defaultDatadoghqRegistries = defaultDatadoghqRegistries
+	return resolver
 }

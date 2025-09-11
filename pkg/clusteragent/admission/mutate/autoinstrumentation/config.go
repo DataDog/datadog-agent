@@ -38,6 +38,9 @@ type Config struct {
 	// containerRegistry is the container registry to use for the autoinstrumentation logic
 	containerRegistry string
 
+	// defaultDatadoghqRegistries is the default Datadog container registries to use for the autoinstrumentation logic
+	defaultDatadoghqRegistries []string
+
 	// precomputed containerMutators for the security and profiling products
 	securityClientLibraryMutator  containerMutator
 	profilingClientLibraryMutator containerMutator
@@ -116,11 +119,13 @@ func NewConfig(datadogConfig config.Component) (*Config, error) {
 	}
 
 	containerRegistry := mutatecommon.ContainerRegistry(datadogConfig, "admission_controller.auto_instrumentation.container_registry")
+	defaultDatadoghqRegistries := mutatecommon.DefaultDatadoghqRegistries(datadogConfig, "admission_controller.auto_instrumentation.default_dd_container_registries")
 	return &Config{
 		Webhook:                       NewWebhookConfig(datadogConfig),
 		LanguageDetection:             NewLanguageDetectionConfig(datadogConfig),
 		Instrumentation:               instrumentationConfig,
 		containerRegistry:             containerRegistry,
+		defaultDatadoghqRegistries:    defaultDatadoghqRegistries,
 		initResources:                 initResources,
 		initSecurityContext:           initSecurityContext,
 		defaultResourceRequirements:   defaultResourceRequirements,
