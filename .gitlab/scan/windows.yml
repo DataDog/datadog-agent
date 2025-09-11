@@ -7,8 +7,9 @@
     OMNIBUS_PIPELINE_DIR: $OMNIBUS_PACKAGE_DIR/pipeline-$CI_PIPELINE_ID
   before_script:
     - ls $OMNIBUS_PIPELINE_DIR
+    - dda self dep sync -f virustotal
   script:
-    - dda inv virustotal.submit --omnibus-pipeline-dir $OMNIBUS_PIPELINE_DIR --pattern $SCAN_ARTIFACT_PATTERN
+    - dda inv --feat virustotal -- virustotal.submit --omnibus-pipeline-dir $OMNIBUS_PIPELINE_DIR --pattern $SCAN_ARTIFACT_PATTERN
 
 scan_packages_windows-x64:
   rules:
