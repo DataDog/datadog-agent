@@ -8,11 +8,7 @@ do-not-merge:
   needs: []
   script:
     - |
-      if [ -n "$CI_IMAGE_BTF_GEN_SUFFIX" ] ||
-         [ -n "$CI_IMAGE_DEB_X64_SUFFIX" ] ||
-         [ -n "$CI_IMAGE_DEB_ARM64_SUFFIX" ] ||
-         [ -n "$CI_IMAGE_DEB_ARMHF_SUFFIX" ] ||
-         [ -n "$CI_IMAGE_DOCKER_X64_SUFFIX" ] ||
+      if [ -n "$CI_IMAGE_DOCKER_X64_SUFFIX" ] ||
          [ -n "$CI_IMAGE_DOCKER_ARM64_SUFFIX" ] ||
          [ -n "$CI_IMAGE_LINUX_GITLAB_AGENT_DEPLOY_SUFFIX" ] ||
          [ -n "$CI_IMAGE_LINUX_SUFFIX" ] ||
