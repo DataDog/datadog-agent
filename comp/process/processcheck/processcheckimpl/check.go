@@ -7,6 +7,7 @@
 package processcheckimpl
 
 import (
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"go.uber.org/fx"
 
@@ -36,12 +37,13 @@ type check struct {
 type dependencies struct {
 	fx.In
 
-	Config        config.Component
-	Sysconfig     sysprobeconfig.Component
-	WMmeta        workloadmeta.Component
-	GpuSubscriber gpusubscriber.Component
-	Statsd        statsd.ClientInterface
-	IPC           ipc.Component
+	Config         config.Component
+	Sysconfig      sysprobeconfig.Component
+	WMmeta         workloadmeta.Component
+	WorkloadFilter workloadfilter.Component
+	GpuSubscriber  gpusubscriber.Component
+	Statsd         statsd.ClientInterface
+	IPC            ipc.Component
 }
 
 type result struct {
@@ -53,7 +55,7 @@ type result struct {
 
 func newCheck(deps dependencies) result {
 	c := &check{
-		processCheck: checks.NewProcessCheck(deps.Config, deps.Sysconfig, deps.WMmeta, deps.GpuSubscriber, deps.Statsd, deps.IPC.GetTLSServerConfig()),
+		processCheck: checks.NewProcessCheck(deps.Config, deps.Sysconfig, deps.WMmeta, deps.WorkloadFilter, deps.GpuSubscriber, deps.Statsd, deps.IPC.GetTLSServerConfig()),
 	}
 	return result{
 		Check: types.ProvidesCheck{
