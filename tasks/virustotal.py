@@ -9,7 +9,6 @@ import tempfile
 import time
 from pathlib import Path
 
-import vt
 from invoke.exceptions import Exit
 from invoke.tasks import task
 
@@ -57,6 +56,8 @@ async def _fetch_file_report(apikey: str, file_sha256: str) -> dict:
     Fetch file report from VirusTotal by SHA256 hash.
     File object attributes: https://docs.virustotal.com/reference/files
     """
+    import vt
+
     async with vt.Client(apikey) as client:
         try:
             file_obj = await client.get_object_async(f"/files/{file_sha256}")
@@ -71,6 +72,8 @@ async def _submit_scan(
 ) -> str:
     """Submit a file for VirusTotal scanning and return the analysis ID."""
 
+    import vt
+
     async with vt.Client(apikey) as client:
         try:
             with open(file_path, "rb") as f:
@@ -83,6 +86,8 @@ async def _submit_scan(
 
 async def _poll_analysis(apikey: str, analysis_id: str, poll_timeout: int = 300, poll_interval: int = 30):
     """Poll analysis results until completion and return malicious/suspicious counts."""
+
+    import vt
 
     async with vt.Client(apikey) as client:
         start_time = time.time()
