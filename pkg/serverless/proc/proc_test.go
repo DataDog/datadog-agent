@@ -179,7 +179,7 @@ func TestGetFileDescriptorUseData(t *testing.T) {
 	path = "./testData/process/invalid_missing"
 	pids = GetPidList(path)
 	fileDescriptorUseData = getFileDescriptorUseData(path, pids)
-	assert.Nil(t, fileDescriptorUseData)
+	assert.Equal(t, float64(0), fileDescriptorUseData.UseFileHandles)
 }
 
 func TestGetThreadsMaxData(t *testing.T) {
