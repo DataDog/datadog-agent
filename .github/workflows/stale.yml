@@ -37,9 +37,8 @@ jobs:
             This issue has been automatically marked as stale because it has not had recent activity.
 
 
-            It will be closed in 15 days if no further activity occurs. If this issue is still relevant, please:
-            - Add a comment to keep it open
-            - Contact the maintainers if you believe this was marked in error
+            It will be closed in 15 days if no further activity occurs. If this issue is still relevant, please add a comment to keep it open.
+
 
             Thank you for your contributions!
 
@@ -56,9 +55,8 @@ jobs:
             This pull request has been automatically marked as stale because it has not had recent activity.
 
 
-            It will be closed in 15 days if no further activity occurs. If this pull request is still relevant, please:
-            - Add a comment or push new commits to keep it open
-            - Contact the maintainers if you believe this was marked in error
+            It will be closed in 15 days if no further activity occurs. If this pull request is still relevant, please add a comment or push new commits to keep it open.
+
 
             Thank you for your contributions!
 
@@ -75,4 +73,4 @@ jobs:
           exempt-pr-labels: 'do-not-merge/WIP,do-not-merge/hold'
 
           # Additional configuration
-          operations-per-run: 100
+          operations-per-run: 50
