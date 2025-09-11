@@ -53,6 +53,17 @@ type runnerImpl struct {
 
 // NewComponent creates a new privateactionrunner component
 func NewComponent(reqs Requires) (Provides, error) {
+	enabled := reqs.Config.GetBool("privateactionrunner.enabled")
+	if !enabled {
+		// Return a no-op component when disabled
+		runner := &runnerImpl{
+			log:    reqs.Logger,
+			config: reqs.Config,
+		}
+		return Provides{
+			Comp: runner,
+		}, nil
+	}
 
 	//ctx := context.Background()
 	cfg, err := getParConfig(reqs.Config)
