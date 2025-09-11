@@ -1130,6 +1130,9 @@ workflow:
   - <<: *if_coverage_pipeline
     when: never
 
+.on_coverage_pipeline:
+  - <<: *if_coverage_pipeline
+    when: on_success
 .always_on_coverage_pipeline:
   - <<: *if_coverage_pipeline
     when: always
