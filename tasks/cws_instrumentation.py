@@ -77,7 +77,7 @@ def build(
         build_tags=build_tags,
         bin_path=agent_bin,
         env=env,
-        check_deadcode_on_deploy=True,  # the size impact is minimal so we could skip if needed
+        check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
     )
 
 

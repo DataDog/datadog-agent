@@ -19,7 +19,7 @@ class TestGoBuild(unittest.TestCase):
 
         self.assertEqual(result.exited, 0)
 
-        calls = [call("go build -trimpath main.go", env=None, hide=None)]
+        calls = [call("go build -trimpath main.go", env=None)]
         self.ctx_mock.run.assert_has_calls(calls, any_order=False)
 
     def test_with_gcflags(self):
@@ -28,7 +28,7 @@ class TestGoBuild(unittest.TestCase):
         result = go_build(self.ctx_mock, "main.go", gcflags="-gcflags=all=-N -l")
 
         self.assertEqual(result.exited, 0)
-        calls = [call("go build -gcflags=\"-gcflags=all=-N -l\" -trimpath main.go", env=None, hide=None)]
+        calls = [call("go build -gcflags=\"-gcflags=all=-N -l\" -trimpath main.go", env=None)]
         self.ctx_mock.run.assert_has_calls(calls, any_order=False)
 
     @unittest.skipIf(sys.platform == "win32", "os.chown not available on Windows")

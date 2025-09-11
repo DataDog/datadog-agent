@@ -71,7 +71,7 @@ def build(
         build_tags=build_tags,
         bin_path=os.path.join(bin_path, bin_name("dogstatsd")),
         env=env,
-        check_deadcode_on_deploy=True,
+        check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
     )
 
     # Render the configuration file template
