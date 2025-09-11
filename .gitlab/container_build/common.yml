@@ -36,7 +36,6 @@
       --gate-name "$STATIC_QUALITY_GATE_NAME" \
       --build-job-name "$CI_JOB_NAME" \
       --output-path "${REPORT_PREFIX}_size_report_${CI_PIPELINE_ID}_${CI_COMMIT_SHA:0:8}.yml" \
-      --no-checksums \
       --debug || { echo "⚠️  Docker image measurement failed for $IMAGE_REF"; exit 0; }
 
     echo "✅ Docker image measurement completed"
