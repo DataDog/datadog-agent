@@ -45,6 +45,7 @@ type Provides struct {
 type runnerImpl struct {
 	log            log.Component
 	config         config.Component
+	parConfig      *parconfig.Config
 	started        bool
 	keysManager    remoteconfig.KeysManager
 	TaskVerifier   *taskverifier.TaskVerifier
@@ -77,6 +78,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	runner := &runnerImpl{
 		log:            reqs.Logger,
 		config:         reqs.Config,
+		parConfig:      cfg,
 		keysManager:    keysManager,
 		TaskVerifier:   verifier,
 		WorkflowRunner: runners.NewWorkflowRunner(cfg, keysManager, verifier, opmsClient),
@@ -171,7 +173,7 @@ func (r *runnerImpl) Start(ctx context.Context) error {
 		r.log.Debug("privateactionrunner disabled")
 		return nil
 	}
-	r.log.Info("Starting private action runner")
+	r.log.Infof("Starting private action runner with urn %s", r.parConfig.Urn)
 	r.started = true
 	r.keysManager.Start(ctx)
 	r.WorkflowRunner.Start(ctx)
