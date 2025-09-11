@@ -3,21 +3,17 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build linux
+//go:build linux && linux_bpf
 
+// Package test provides tests for the privileged logs module.
 package test
 
 import (
-	"context"
 	"io"
-	"net"
-	"net/http"
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
-	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -25,14 +21,15 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/privileged-logs/client"
 	"github.com/DataDog/datadog-agent/pkg/privileged-logs/module"
-	apimodule "github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/pkg/system-probe/api/server"
 )
 
-func createTestFile(t *testing.T, dir, filename, content string, perm os.FileMode) string {
+func createTestFile(t *testing.T, dir, filename, content string) string {
 	filePath := filepath.Join(dir, filename)
-	err := os.WriteFile(filePath, []byte(content), perm)
+	err := os.WriteFile(filePath, []byte(content), 0000)
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		os.Remove(filePath)
+	})
 	return filePath
 }
 
@@ -76,124 +73,88 @@ func assertOpenPrivilegedError(t *testing.T, socketPath, filePath, expectedError
 	assert.Contains(t, err.Error(), expectedErrorMsg)
 }
 
-func setupTestServer(t *testing.T) (string, string, func()) {
-	var fdModule apimodule.Module
-
-	fdModule = module.NewPrivilegedLogsModule()
-	require.NotNil(t, fdModule)
-
-	// Create a test server with the module
-	tempDir := t.TempDir()
-	socketPath := filepath.Join(tempDir, "test.sock")
-	listener, err := server.NewListener(socketPath)
-	require.NoError(t, err)
-
-	// Set up HTTP router and register the module
-	httpMux := mux.NewRouter()
-	router := apimodule.NewRouter("privileged_logs", httpMux)
-	err = fdModule.Register(router)
-	require.NoError(t, err)
-
-	httpServer := &http.Server{
-		Handler: httpMux,
-	}
-
-	go func() {
-		httpServer.Serve(listener)
-	}()
-
-	// Give the server a moment to start up
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		conn, err := net.Dial("unix", socketPath)
-		require.NoError(collect, err)
-		conn.Close()
-	}, 1*time.Second, 10*time.Millisecond)
-
-	cleanup := func() {
-		httpServer.Shutdown(context.Background())
-		listener.Close()
-	}
-
-	return socketPath, tempDir, cleanup
-}
-
 type PrivilegedLogsSuite struct {
 	suite.Suite
-	socketPath string
-	tempDir    string
-	cleanup    func()
+	handler *Handler
+	tempDir string
 }
 
 func (s *PrivilegedLogsSuite) SetupSuite() {
-	s.socketPath, s.tempDir, s.cleanup = setupTestServer(s.T())
+	s.handler = Setup(s.T(), func() {
+		s.tempDir = s.T().TempDir()
+	})
 }
 
 func (s *PrivilegedLogsSuite) TearDownSuite() {
-	s.cleanup()
 }
 
 func (s *PrivilegedLogsSuite) TestPrivilegedLogsModule() {
 	testContent := "Hello, privileged logs transfer!"
-	testFile := createTestFile(s.T(), s.tempDir, "test_main.log", testContent, 0644)
+	testFile := createTestFile(s.T(), s.tempDir, "test_main.log", testContent)
 
-	assertOpenPrivilegedContent(s.T(), s.socketPath, testFile, testContent)
+	assertOpenPrivilegedContent(s.T(), s.handler.SocketPath, testFile, testContent)
+	assertOpenPrivilegedContent(s.T(), s.handler.SocketPath, testFile, testContent)
 }
 
 func (s *PrivilegedLogsSuite) TestPrivilegedLogsModule_FileNotFound() {
-	assertOpenPrivilegedError(s.T(), s.socketPath, "/nonexistent/file.log", "failed to resolve path")
+	assertOpenPrivilegedError(s.T(), s.handler.SocketPath, "/nonexistent/file.log", "failed to resolve path")
 }
 
 func (s *PrivilegedLogsSuite) TestPrivilegedLogsModule_RelativePath() {
-	assertOpenPrivilegedError(s.T(), s.socketPath, "relative/path.log", "relative path not allowed")
+	assertOpenPrivilegedError(s.T(), s.handler.SocketPath, "relative/path.log", "relative path not allowed")
 }
 
 func (s *PrivilegedLogsSuite) TestPrivilegedLogsModule_NonLogFile() {
-	nonLogFile := createTestFile(s.T(), s.tempDir, "test_nonlog.txt", "test content", 0644)
-	assertOpenPrivilegedError(s.T(), s.socketPath, nonLogFile, "non-log file not allowed")
+	nonLogFile := createTestFile(s.T(), s.tempDir, "test_nonlog.txt", "test content")
+	assertOpenPrivilegedError(s.T(), s.handler.SocketPath, nonLogFile, "non-log file not allowed")
 }
 
 func (s *PrivilegedLogsSuite) TestPrivilegedLogsModule_Symlink() {
 	testContent := "real log content"
-	realLogFile := createTestFile(s.T(), s.tempDir, "real.log", testContent, 0644)
+	realLogFile := createTestFile(s.T(), s.tempDir, "real.log", testContent)
 
 	symlinkPath := filepath.Join(s.tempDir, "fake.log")
 	err := os.Symlink(realLogFile, symlinkPath)
 	require.NoError(s.T(), err)
 
-	assertOpenPrivilegedContent(s.T(), s.socketPath, symlinkPath, testContent)
+	assertOpenPrivilegedContent(s.T(), s.handler.SocketPath, symlinkPath, testContent)
 }
 
 func (s *PrivilegedLogsSuite) TestPrivilegedLogsModule_SymlinkToNonLogFile() {
-	nonLogFile := createTestFile(s.T(), s.tempDir, "secret_nonlog.txt", "secret content", 0644)
+	nonLogFile := createTestFile(s.T(), s.tempDir, "secret_nonlog.txt", "secret content")
 
 	symlinkPath := filepath.Join(s.tempDir, "fake_nonlog.log")
 	err := os.Symlink(nonLogFile, symlinkPath)
 	require.NoError(s.T(), err)
 
-	assertOpenPrivilegedError(s.T(), s.socketPath, symlinkPath, "non-log file not allowed")
+	assertOpenPrivilegedError(s.T(), s.handler.SocketPath, symlinkPath, "non-log file not allowed")
 }
 
 func (s *PrivilegedLogsSuite) TestPrivilegedLogsModule_CaseInsensitiveLogExtension() {
 	testContent := "test content"
-	upperLogFile := createTestFile(s.T(), s.tempDir, "test_upper.LOG", testContent, 0644)
-	mixedLogFile := createTestFile(s.T(), s.tempDir, "test_mixed.Log", testContent, 0644)
+	upperLogFile := createTestFile(s.T(), s.tempDir, "test_upper.LOG", testContent)
+	mixedLogFile := createTestFile(s.T(), s.tempDir, "test_mixed.Log", testContent)
 
-	assertOpenPrivilegedContent(s.T(), s.socketPath, upperLogFile, testContent)
-	assertOpenPrivilegedContent(s.T(), s.socketPath, mixedLogFile, testContent)
+	assertOpenPrivilegedContent(s.T(), s.handler.SocketPath, upperLogFile, testContent)
+	assertOpenPrivilegedContent(s.T(), s.handler.SocketPath, mixedLogFile, testContent)
 }
 
 func (s *PrivilegedLogsSuite) TestPrivilegedLogsModule_OpenFallback() {
 	testContent := "test content"
-	upperLogFile := createTestFile(s.T(), s.tempDir, "restricted.log", testContent, 0000)
+	upperLogFile := createTestFile(s.T(), s.tempDir, "restricted.log", testContent)
 
-	setupSystemProbeConfig(s.T(), s.socketPath, true)
+	setupSystemProbeConfig(s.T(), s.handler.SocketPath, true)
 
-	// The module will also fail in this case (since the module has the same
-	// permissions as the test code) but ensure that it has been attempted.  In
-	// this test suite we do not check for the module succeeding while the
-	// normal open failing, there is a test for that in
-	// pkg/logs/launcher/file/launcher_privileged_logs_test.go.
-	assertClientOpenError(s.T(), upperLogFile, "permission denied, original error")
+	assertClientOpenContent(s.T(), upperLogFile, testContent)
+}
+
+func (s *PrivilegedLogsSuite) TestPrivilegedLogsModule_OpenFallbackError() {
+	testContent := "test content"
+	upperLogFile := createTestFile(s.T(), s.tempDir, "restricted.txt", testContent)
+
+	setupSystemProbeConfig(s.T(), s.handler.SocketPath, true)
+
+	assertClientOpenError(s.T(), upperLogFile, "non-log file not allowed")
 }
 
 func TestPrivilegedLogsSuite(t *testing.T) {
@@ -207,36 +168,29 @@ func TestPrivilegedLogsModule_Close(t *testing.T) {
 	fdModule.Close()
 }
 
-func TestOpen_SuccessfulNormalOpen(t *testing.T) {
-	tempDir := t.TempDir()
+func (s *PrivilegedLogsSuite) TestOpen_SuccessfulNormalOpen() {
 	testContent := "Hello, privileged logs transfer!"
-	testFile := createTestFile(t, tempDir, "test.log", testContent, 0644)
+	testFile := createTestFile(s.T(), s.tempDir, "test.log", testContent)
 
-	assertClientOpenContent(t, testFile, testContent)
+	// Force the file to be accesssible from the non-privileged user
+	require.NoError(s.T(), os.Chmod(testFile, 0644))
+
+	assertClientOpenContent(s.T(), testFile, testContent)
 }
 
-func TestOpen_PermissionErrorWithModuleDisabled(t *testing.T) {
-	if os.Geteuid() == 0 {
-		t.Skip("Cannot test permission error when running as root")
-	}
+func (s *PrivilegedLogsSuite) TestOpen_PermissionErrorWithModuleDisabled() {
+	testFile := createTestFile(s.T(), s.tempDir, "restricted.log", "Restricted content")
 
-	tempDir := t.TempDir()
-	testFile := createTestFile(t, tempDir, "restricted.log", "Restricted content", 0000)
+	setupSystemProbeConfig(s.T(), s.handler.SocketPath, false)
 
-	setupSystemProbeConfig(t, "/nonexistent/socket", false)
-
-	assertClientOpenError(t, testFile, "permission denied")
+	assertClientOpenError(s.T(), testFile, "permission denied")
 }
 
-func TestOpen_PermissionErrorWithModuleFailure(t *testing.T) {
-	if os.Geteuid() == 0 {
-		t.Skip("Cannot test permission error when running as root")
-	}
+func (s *PrivilegedLogsSuite) TestOpen_PermissionErrorWithModuleFailure() {
+	t := s.T()
+	testFile := createTestFile(s.T(), s.tempDir, "restricted.log", "Restricted content")
 
-	tempDir := t.TempDir()
-	testFile := createTestFile(t, tempDir, "restricted.log", "Restricted content", 0000)
-
-	setupSystemProbeConfig(t, "/nonexistent/socket", true)
+	setupSystemProbeConfig(s.T(), "/nonexistent/socket", true)
 
 	file, err := client.Open(testFile)
 	require.Error(t, err)
@@ -245,8 +199,9 @@ func TestOpen_PermissionErrorWithModuleFailure(t *testing.T) {
 	assert.Contains(t, err.Error(), "permission denied")
 }
 
-func TestOpen_NonPermissionError(t *testing.T) {
+func (s *PrivilegedLogsSuite) TestOpen_NonPermissionError() {
 	file, err := client.Open("/nonexistent/file.log")
+	t := s.T()
 	require.Error(t, err)
 	assert.Nil(t, file)
 	assert.NotContains(t, err.Error(), "system-probe")
