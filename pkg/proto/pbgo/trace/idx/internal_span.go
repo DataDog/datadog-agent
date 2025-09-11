@@ -104,6 +104,8 @@ func (s *StringTable) Lookup(str string) uint32 {
 // Namely it stores Attributes as a map for fast key lookups.
 type InternalTracerPayload struct {
 	// array of strings referenced in this tracer payload, its chunks and spans
+	// This should generally not be accessed directly, but rather through the methods on the InternalTracerPayload
+	// It is only exposed here for use in other packages that need to construct tracer payloads for testing.
 	Strings *StringTable
 	// containerID specifies the ref in the strings table of the ID of the container where the tracer is running on.
 	containerIDRef uint32
@@ -349,6 +351,9 @@ func (tp *InternalTracerPayload) Cut(i int) *InternalTracerPayload {
 // Namely it stores Attributes as a map for fast key lookups and holds a pointer to the strings slice
 // so a trace chunk holds all local context necessary to understand all fields
 type InternalTraceChunk struct {
+	// Strings referenced in this trace chunk. Note this is shared with the tracer payload
+	// This should generally not be accessed directly, but rather through the methods on the InternalTracerPayload
+	// It is only exposed here for use in other packages that need to construct tracer payloads for testing.
 	Strings           *StringTable
 	Priority          int32
 	originRef         uint32
@@ -472,7 +477,9 @@ func (c *InternalTraceChunk) ToProto() *TraceChunk {
 // Namely it stores Attributes as a map for fast key lookups and holds a pointer to the strings slice
 // so a span holds all local context necessary to understand all fields
 type InternalSpan struct {
-	// Strings is a pointer to the strings slice (Shared across a tracer payload)
+	// Strings referenced in this span. Note this is shared with the tracer payload
+	// This should generally not be accessed directly, but rather through the methods on the InternalTracerPayload
+	// It is only exposed here for use in other packages that need to construct tracer payloads for testing.
 	Strings *StringTable
 	span    *Span // We reference the proto span directly to avoid the allocation overhead when converting this to a proto span
 }
