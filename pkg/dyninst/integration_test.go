@@ -58,6 +58,7 @@ func TestDyninst(t *testing.T) {
 	var integrationTestPrograms = map[string]struct{}{
 		"simple": {},
 		"sample": {},
+		"fault":  {},
 	}
 
 	sem := dyninsttest.MakeSemaphore()
@@ -257,6 +258,7 @@ func testDyninst(
 
 	decoder, err := decode.NewDecoder(
 		sink.irp, (*decode.GoTypeNameResolver)(gotypeTable),
+		time.Now(),
 	)
 	require.NoError(t, err)
 

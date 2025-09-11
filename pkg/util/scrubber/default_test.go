@@ -832,3 +832,81 @@ log_level: info
 
 	assert.Equal(t, cleanedConfigFile, cleanedString)
 }
+
+func TestNewHTTPHeaderAndExactKeys(t *testing.T) {
+	// Test HTTP header-style API keys with "key" suffix
+	assertClean(t,
+		`x-api-key: abc123def456`,
+		`x-api-key: "********"`)
+	assertClean(t,
+		`x-dreamfactory-api-key: secret123`,
+		`x-dreamfactory-api-key: "********"`)
+	assertClean(t,
+		`x-functions-key: mykey456`,
+		`x-functions-key: "********"`)
+	assertClean(t,
+		`x-lz-api-key: lzkey789`,
+		`x-lz-api-key: "********"`)
+	assertClean(t,
+		`x-octopus-apikey: octopuskey`,
+		`x-octopus-apikey: "********"`)
+	assertClean(t,
+		`x-pm-partner-key: partnerkey123`,
+		`x-pm-partner-key: "********"`)
+	assertClean(t,
+		`x-rapidapi-key: rapidkey456`,
+		`x-rapidapi-key: "********"`)
+	assertClean(t,
+		`x-sungard-idp-api-key: sungardkey`,
+		`x-sungard-idp-api-key: "********"`)
+	assertClean(t,
+		`x-vtex-api-appkey: vtexkey789`,
+		`x-vtex-api-appkey: "********"`)
+
+	// Test HTTP header-style API keys with "token" suffix
+	assertClean(t,
+		`x-auth-token: authtoken123`,
+		`x-auth-token: "********"`)
+	assertClean(t,
+		`x-rundeck-auth-token: rundecktoken`,
+		`x-rundeck-auth-token: "********"`)
+
+	// Test HTTP header-style API keys with "auth" suffix
+	assertClean(t,
+		`x-auth: authvalue123`,
+		`x-auth: "********"`)
+	assertClean(t,
+		`x-stratum-auth: stratumauth`,
+		`x-stratum-auth: "********"`)
+
+	// Test exact key matches
+	assertClean(t,
+		`auth-tenantid: tenant123`,
+		`auth-tenantid: "********"`)
+	assertClean(t,
+		`authority: auth123`,
+		`authority: "********"`)
+	assertClean(t,
+		`cainzapp-api-key: cainzkey456`,
+		`cainzapp-api-key: "********"`)
+	assertClean(t,
+		`cms-svc-api-key: cmskey789`,
+		`cms-svc-api-key: "********"`)
+	assertClean(t,
+		`lodauth: lodauth123`,
+		`lodauth: "********"`)
+	assertClean(t,
+		`sec-websocket-key: websocketkey`,
+		`sec-websocket-key: "********"`)
+	assertClean(t,
+		`statuskey: status123`,
+		`statuskey: "********"`)
+
+	// Test that non-matching keys are not scrubbed
+	assertClean(t,
+		`regular_key: should_not_be_scrubbed`,
+		`regular_key: should_not_be_scrubbed`)
+	assertClean(t,
+		`some-other-key: also_not_scrubbed`,
+		`some-other-key: also_not_scrubbed`)
+}
