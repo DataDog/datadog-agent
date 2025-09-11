@@ -100,7 +100,7 @@ func (s *StringTable) Lookup(str string) uint32 {
 // InternalTracerPayload is a tracer payload structure that is optimized for trace-agent usage
 // Namely it stores Attributes as a map for fast key lookups.
 type InternalTracerPayload struct {
-	// array of strings referenced in this tracer payload, its chunks and spans
+	// Strings referenced in this tracer payload, its chunks and spans
 	// This should generally not be accessed directly, but rather through the methods on the InternalTracerPayload
 	// It is only exposed here for use in other packages that need to construct tracer payloads for testing.
 	Strings *StringTable

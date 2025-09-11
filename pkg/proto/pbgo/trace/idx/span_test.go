@@ -123,31 +123,35 @@ func TestUnmarshalSpanLinks(t *testing.T) {
 	})
 }
 
+func rawSpan() []byte {
+	// From RFC example
+	bts := []byte{0x85}
+	bts = append(bts, []byte{0x1, 0xAA}...) // 1st key (service), fixstr length 10
+	bts = append(bts, []byte("my-service")...)
+	bts = append(bts, []byte{0x02, 0xA9}...) // 2nd key (name), fixstr length 9
+	bts = append(bts, []byte("span-name")...)
+	bts = append(bts, []byte{0x03, 0xA8}...) // 3rd key (resource), fixstr length 8
+	bts = append(bts, []byte("GET /res")...)
+	bts = append(bts, []byte{0x04, 0xCE, 0x00, 0xBC, 0x61, 0x4E}...) // 4th key (spanID), uint32 header, 12345678
+
+	bts = append(bts, []byte{0x09, 0x99}...) // 9th key (Attributes), array header 9 elements
+	bts = append(bts, []byte{0xA3}...)       // 1st key (key), fixstr length 3
+	bts = append(bts, []byte("foo")...)
+	bts = append(bts, []byte{0x1, 0xA3}...) // 1 string value, fixstr length 3
+	bts = append(bts, []byte("bar")...)
+	bts = append(bts, []byte{0xA4}...) // fixstr length 2
+	bts = append(bts, []byte("foo2")...)
+	bts = append(bts, []byte{0x01, 0x05}...) // 01 string value, fixint index to 5
+	bts = append(bts, []byte{0xA8}...)       // fixstr length 8
+	bts = append(bts, []byte("some-num")...)
+	bts = append(bts, []byte{0x04, 0x2A}...) // 4 int value, posint 42
+	return bts
+}
+
 func TestUnmarshalSpan(t *testing.T) {
 	t.Run("valid span", func(t *testing.T) {
-		// From RFC example
 		strings := NewStringTable()
-		bts := []byte{0x85}
-		bts = append(bts, []byte{0x1, 0xAA}...) // 1st key (service), fixstr length 10
-		bts = append(bts, []byte("my-service")...)
-		bts = append(bts, []byte{0x02, 0xA9}...) // 2nd key (name), fixstr length 9
-		bts = append(bts, []byte("span-name")...)
-		bts = append(bts, []byte{0x03, 0xA8}...) // 3rd key (resource), fixstr length 8
-		bts = append(bts, []byte("GET /res")...)
-		bts = append(bts, []byte{0x04, 0xCE, 0x00, 0xBC, 0x61, 0x4E}...) // 4th key (spanID), uint32 header, 12345678
-
-		bts = append(bts, []byte{0x09, 0x99}...) // 9th key (Attributes), array header 9 elements
-		bts = append(bts, []byte{0xA3}...)       // 1st key (key), fixstr length 3
-		bts = append(bts, []byte("foo")...)
-		bts = append(bts, []byte{0x1, 0xA3}...) // 1 string value, fixstr length 3
-		bts = append(bts, []byte("bar")...)
-		bts = append(bts, []byte{0xA4}...) // fixstr length 2
-		bts = append(bts, []byte("foo2")...)
-		bts = append(bts, []byte{0x01, 0x05}...) // 01 string value, fixint index to 5
-		bts = append(bts, []byte{0xA8}...)       // fixstr length 8
-		bts = append(bts, []byte("some-num")...)
-		bts = append(bts, []byte{0x04, 0x2A}...) // 4 int value, posint 42
-
+		bts := rawSpan()
 		var span = &InternalSpan{Strings: strings}
 		o, err := span.UnmarshalMsg(bts)
 		assert.NoError(t, err)

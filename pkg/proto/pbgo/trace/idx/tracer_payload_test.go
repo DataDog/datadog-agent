@@ -133,4 +133,38 @@ func TestUnmarshalTraceChunk(t *testing.T) {
 		assert.Equal(t, expectedChunk, chunks[0])
 		strings.assertEqual(t, []string{"", "lambda"})
 	})
+	t.Run("trace chunk with a span", func(t *testing.T) {
+		strings := NewStringTable()
+		bts := []byte{0x91, 0x87, 0x01, 0x02, 0x02, 0xA6}          // array header 1 element, map header 4 elements, 1 key (priority), 2 (int32), 2 key (origin), string of length 6
+		bts = append(bts, []byte("lambda")...)                     // lambda bytes
+		bts = append(bts, []byte{0x03, 0x93, 0x01, 0x04, 0x02}...) // 3rd key (attributes), array header 3 elements, fixint 1 (string index), 4 (int type), int 2
+		bts = append(bts, []byte{0x05, mtrue}...)                  // 5th key (droppedTrace), bool true
+		bts = append(bts, []byte{0x06, 0xc4, 0x01, 0xAF}...)       // 6th key (TraceID), bin header, 1 byte in length, 0xAF
+		bts = append(bts, []byte{0x07, 0x04}...)                   // 7th key (samplingMechanism), uint32 4
+		bts = append(bts, []byte{0x04, 0x91}...)                   // 4th key (spans), array header 1 element
+		bts = append(bts, rawSpan()...)                            // span bytes
+
+		chunks, o, err := UnmarshalTraceChunkList(bts, strings)
+		assert.NoError(t, err)
+		assert.Len(t, chunks, 1)
+		assert.Len(t, chunks[0].Spans, 1)
+		assert.Len(t, o, 0)
+
+		expectedAttributes := map[uint32]*AnyValue{
+			1: {Value: &AnyValue_IntValue{IntValue: 2}},
+		}
+		assert.Equal(t, int32(2), chunks[0].Priority)
+		assert.Equal(t, uint32(1), chunks[0].originRef)
+		assert.True(t, chunks[0].DroppedTrace)
+		assert.Equal(t, []byte{0xAF}, chunks[0].TraceID)
+		assert.Equal(t, uint32(4), chunks[0].samplingMechanism)
+		assert.Len(t, chunks[0].Spans, 1)
+		// Assert on the attributes map
+		assert.Equal(t, len(expectedAttributes), len(chunks[0].Attributes))
+		for k, v := range expectedAttributes {
+			assert.Contains(t, chunks[0].Attributes, k)
+			assert.Equal(t, v, chunks[0].Attributes[k])
+		}
+		strings.assertEqual(t, []string{"", "lambda", "my-service", "span-name", "GET /res", "foo", "bar", "foo2", "some-num"})
+	})
 }
