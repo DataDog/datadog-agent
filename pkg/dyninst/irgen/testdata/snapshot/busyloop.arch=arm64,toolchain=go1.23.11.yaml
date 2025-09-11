@@ -320,7 +320,7 @@ Types:
     - __kind: GoSliceDataType
       ID: 102
       Name: '[]uint8.array'
-      DynamicSizeClass: 1
+      DynamicSizeClass: slice
       ByteSize: 1
       Element: 3 BaseType uint8
     - __kind: GoSliceHeaderType
@@ -343,7 +343,7 @@ Types:
     - __kind: GoSliceDataType
       ID: 104
       Name: '[]uintptr.array'
-      DynamicSizeClass: 1
+      DynamicSizeClass: slice
       ByteSize: 8
       Element: 1 BaseType uintptr
     - __kind: BaseType
@@ -1263,7 +1263,7 @@ Types:
     - __kind: GoStringDataType
       ID: 100
       Name: string.str
-      DynamicSizeClass: 2
+      DynamicSizeClass: string
       ByteSize: 1
     - __kind: BaseType
       ID: 12

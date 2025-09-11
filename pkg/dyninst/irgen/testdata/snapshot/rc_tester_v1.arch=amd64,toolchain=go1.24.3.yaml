@@ -707,25 +707,25 @@ Types:
     - __kind: GoSliceDataType
       ID: 194
       Name: '[]*table<string,[]string>.array'
-      DynamicSizeClass: 3
+      DynamicSizeClass: hashmap
       ByteSize: 8
       Element: 168 PointerType *table<string,[]string>
     - __kind: GoSliceDataType
       ID: 204
       Name: '[]*table<string,string>.array'
-      DynamicSizeClass: 3
+      DynamicSizeClass: hashmap
       ByteSize: 8
       Element: 187 PointerType *table<string,string>
     - __kind: GoSliceDataType
       ID: 195
       Name: '[]noalg.map.group[string][]string.array'
-      DynamicSizeClass: 1
+      DynamicSizeClass: slice
       ByteSize: 328
       Element: 191 StructureType noalg.map.group[string][]string
     - __kind: GoSliceDataType
       ID: 205
       Name: '[]noalg.map.group[string]string.array'
-      DynamicSizeClass: 1
+      DynamicSizeClass: slice
       ByteSize: 264
       Element: 201 StructureType noalg.map.group[string]string
     - __kind: UnresolvedPointeeType
@@ -752,7 +752,7 @@ Types:
     - __kind: GoSliceDataType
       ID: 196
       Name: '[]string.array'
-      DynamicSizeClass: 1
+      DynamicSizeClass: slice
       ByteSize: 16
       Element: 9 GoStringHeaderType string
     - __kind: GoSliceHeaderType
@@ -775,7 +775,7 @@ Types:
     - __kind: GoSliceDataType
       ID: 117
       Name: '[]uint8.array'
-      DynamicSizeClass: 1
+      DynamicSizeClass: slice
       ByteSize: 1
       Element: 3 BaseType uint8
     - __kind: GoSliceHeaderType
@@ -798,7 +798,7 @@ Types:
     - __kind: GoSliceDataType
       ID: 119
       Name: '[]uintptr.array'
-      DynamicSizeClass: 1
+      DynamicSizeClass: slice
       ByteSize: 8
       Element: 1 BaseType uintptr
     - __kind: BaseType
@@ -2198,7 +2198,7 @@ Types:
     - __kind: GoStringDataType
       ID: 115
       Name: string.str
-      DynamicSizeClass: 2
+      DynamicSizeClass: string
       ByteSize: 1
     - __kind: StructureType
       ID: 128

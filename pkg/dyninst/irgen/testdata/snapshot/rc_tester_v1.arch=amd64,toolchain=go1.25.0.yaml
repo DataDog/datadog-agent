@@ -728,31 +728,31 @@ Types:
     - __kind: GoSliceDataType
       ID: 122
       Name: '[]*runtime.p.array'
-      DynamicSizeClass: 1
+      DynamicSizeClass: slice
       ByteSize: 8
       Element: 64 PointerType *runtime.p
     - __kind: GoSliceDataType
       ID: 197
       Name: '[]*table<string,[]string>.array'
-      DynamicSizeClass: 3
+      DynamicSizeClass: hashmap
       ByteSize: 8
       Element: 171 PointerType *table<string,[]string>
     - __kind: GoSliceDataType
       ID: 207
       Name: '[]*table<string,string>.array'
-      DynamicSizeClass: 3
+      DynamicSizeClass: hashmap
       ByteSize: 8
       Element: 190 PointerType *table<string,string>
     - __kind: GoSliceDataType
       ID: 198
       Name: '[]noalg.map.group[string][]string.array'
-      DynamicSizeClass: 1
+      DynamicSizeClass: slice
       ByteSize: 328
       Element: 194 StructureType noalg.map.group[string][]string
     - __kind: GoSliceDataType
       ID: 208
       Name: '[]noalg.map.group[string]string.array'
-      DynamicSizeClass: 1
+      DynamicSizeClass: slice
       ByteSize: 264
       Element: 204 StructureType noalg.map.group[string]string
     - __kind: UnresolvedPointeeType
@@ -779,7 +779,7 @@ Types:
     - __kind: GoSliceDataType
       ID: 199
       Name: '[]string.array'
-      DynamicSizeClass: 1
+      DynamicSizeClass: slice
       ByteSize: 16
       Element: 9 GoStringHeaderType string
     - __kind: GoSliceHeaderType
@@ -802,7 +802,7 @@ Types:
     - __kind: GoSliceDataType
       ID: 117
       Name: '[]uint8.array'
-      DynamicSizeClass: 1
+      DynamicSizeClass: slice
       ByteSize: 1
       Element: 3 BaseType uint8
     - __kind: GoSliceHeaderType
@@ -825,7 +825,7 @@ Types:
     - __kind: GoSliceDataType
       ID: 119
       Name: '[]uintptr.array'
-      DynamicSizeClass: 1
+      DynamicSizeClass: slice
       ByteSize: 8
       Element: 1 BaseType uintptr
     - __kind: BaseType
@@ -2223,7 +2223,7 @@ Types:
     - __kind: GoStringDataType
       ID: 115
       Name: string.str
-      DynamicSizeClass: 2
+      DynamicSizeClass: string
       ByteSize: 1
     - __kind: StructureType
       ID: 131

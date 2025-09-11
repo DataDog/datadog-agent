@@ -680,13 +680,13 @@ Types:
     - __kind: GoSliceDataType
       ID: 188
       Name: '[]bucket<string,[]string>.array'
-      DynamicSizeClass: 3
+      DynamicSizeClass: hashmap
       ByteSize: 336
       Element: 163 GoHMapBucketType bucket<string,[]string>
     - __kind: GoSliceDataType
       ID: 192
       Name: '[]bucket<string,string>.array'
-      DynamicSizeClass: 3
+      DynamicSizeClass: hashmap
       ByteSize: 272
       Element: 184 GoHMapBucketType bucket<string,string>
     - __kind: ArrayType
@@ -720,7 +720,7 @@ Types:
     - __kind: GoSliceDataType
       ID: 189
       Name: '[]string.array'
-      DynamicSizeClass: 1
+      DynamicSizeClass: slice
       ByteSize: 16
       Element: 11 GoStringHeaderType string
     - __kind: GoSliceHeaderType
@@ -743,7 +743,7 @@ Types:
     - __kind: GoSliceDataType
       ID: 112
       Name: '[]uint8.array'
-      DynamicSizeClass: 1
+      DynamicSizeClass: slice
       ByteSize: 1
       Element: 3 BaseType uint8
     - __kind: GoSliceHeaderType
@@ -766,7 +766,7 @@ Types:
     - __kind: GoSliceDataType
       ID: 114
       Name: '[]uintptr.array'
-      DynamicSizeClass: 1
+      DynamicSizeClass: slice
       ByteSize: 8
       Element: 1 BaseType uintptr
     - __kind: ArrayType
@@ -2090,7 +2090,7 @@ Types:
     - __kind: GoStringDataType
       ID: 110
       Name: string.str
-      DynamicSizeClass: 2
+      DynamicSizeClass: string
       ByteSize: 1
     - __kind: StructureType
       ID: 123

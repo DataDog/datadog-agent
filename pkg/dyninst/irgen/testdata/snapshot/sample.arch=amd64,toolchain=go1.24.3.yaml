@@ -8595,7 +8595,7 @@ Types:
     - __kind: GoSliceDataType
       ID: 255
       Name: '[]*main.deepSlice2.array'
-      DynamicSizeClass: 1
+      DynamicSizeClass: slice
       ByteSize: 8
       Element: 134 PointerType *main.deepSlice2
     - __kind: GoSliceHeaderType
@@ -8618,7 +8618,7 @@ Types:
     - __kind: GoSliceDataType
       ID: 1061
       Name: '[]*main.deepSlice3.array'
-      DynamicSizeClass: 1
+      DynamicSizeClass: slice
       ByteSize: 8
       Element: 1059 PointerType *main.deepSlice3
     - __kind: GoSliceHeaderType
@@ -8641,7 +8641,7 @@ Types:
     - __kind: GoSliceDataType
       ID: 1086
       Name: '[]*main.deepSlice8.array'
-      DynamicSizeClass: 1
+      DynamicSizeClass: slice
       ByteSize: 8
       Element: 1084 PointerType *main.deepSlice8
     - __kind: GoSliceHeaderType
@@ -8664,7 +8664,7 @@ Types:
     - __kind: GoSliceDataType
       ID: 1092
       Name: '[]*main.deepSlice9.array'
-      DynamicSizeClass: 1
+      DynamicSizeClass: slice
       ByteSize: 8
       Element: 1090 PointerType *main.deepSlice9
     - __kind: GoSliceHeaderType
@@ -8687,115 +8687,115 @@ Types:
     - __kind: GoSliceDataType
       ID: 252
       Name: '[]*string.array'
-      DynamicSizeClass: 1
+      DynamicSizeClass: slice
       ByteSize: 8
       Element: 93 PointerType *string
     - __kind: GoSliceDataType
       ID: 365
       Name: '[]*table<[4]int,[4]int>.array'
-      DynamicSizeClass: 3
+      DynamicSizeClass: hashmap
       ByteSize: 8
       Element: 221 PointerType *table<[4]int,[4]int>
     - __kind: GoSliceDataType
       ID: 357
       Name: '[]*table<[4]int,uint8>.array'
-      DynamicSizeClass: 3
+      DynamicSizeClass: hashmap
       ByteSize: 8
       Element: 216 PointerType *table<[4]int,uint8>
     - __kind: GoSliceDataType
       ID: 306
       Name: '[]*table<[4]string,[2]int>.array'
-      DynamicSizeClass: 3
+      DynamicSizeClass: hashmap
       ByteSize: 8
       Element: 184 PointerType *table<[4]string,[2]int>
     - __kind: GoSliceDataType
       ID: 324
       Name: '[]*table<bool,main.node>.array'
-      DynamicSizeClass: 3
+      DynamicSizeClass: hashmap
       ByteSize: 8
       Element: 196 PointerType *table<bool,main.node>
     - __kind: GoSliceDataType
       ID: 265
       Name: '[]*table<int,*main.deepMap2>.array'
-      DynamicSizeClass: 3
+      DynamicSizeClass: hashmap
       ByteSize: 8
       Element: 142 PointerType *table<int,*main.deepMap2>
     - __kind: GoSliceDataType
       ID: 1076
       Name: '[]*table<int,*main.deepMap3>.array'
-      DynamicSizeClass: 3
+      DynamicSizeClass: hashmap
       ByteSize: 8
       Element: 1067 PointerType *table<int,*main.deepMap3>
     - __kind: GoSliceDataType
       ID: 1110
       Name: '[]*table<int,*main.deepMap8>.array'
-      DynamicSizeClass: 3
+      DynamicSizeClass: hashmap
       ByteSize: 8
       Element: 1101 PointerType *table<int,*main.deepMap8>
     - __kind: GoSliceDataType
       ID: 1125
       Name: '[]*table<int,*main.deepMap9>.array'
-      DynamicSizeClass: 3
+      DynamicSizeClass: hashmap
       ByteSize: 8
       Element: 1116 PointerType *table<int,*main.deepMap9>
     - __kind: GoSliceDataType
       ID: 273
       Name: '[]*table<int,int>.array'
-      DynamicSizeClass: 3
+      DynamicSizeClass: hashmap
       ByteSize: 8
       Element: 164 PointerType *table<int,int>
     - __kind: GoSliceDataType
       ID: 1138
       Name: '[]*table<int,interface {}>.array'
-      DynamicSizeClass: 3
+      DynamicSizeClass: hashmap
       ByteSize: 8
       Element: 1131 PointerType *table<int,interface {}>
     - __kind: GoSliceDataType
       ID: 332
       Name: '[]*table<int,uint8>.array'
-      DynamicSizeClass: 3
+      DynamicSizeClass: hashmap
       ByteSize: 8
       Element: 201 PointerType *table<int,uint8>
     - __kind: GoSliceDataType
       ID: 316
       Name: '[]*table<string,[]main.structWithMap>.array'
-      DynamicSizeClass: 3
+      DynamicSizeClass: hashmap
       ByteSize: 8
       Element: 191 PointerType *table<string,[]main.structWithMap>
     - __kind: GoSliceDataType
       ID: 297
       Name: '[]*table<string,[]string>.array'
-      DynamicSizeClass: 3
+      DynamicSizeClass: hashmap
       ByteSize: 8
       Element: 179 PointerType *table<string,[]string>
     - __kind: GoSliceDataType
       ID: 834
       Name: '[]*table<string,github.com/DataDog/go-tuf/data.HexBytes>.array'
-      DynamicSizeClass: 3
+      DynamicSizeClass: hashmap
       ByteSize: 8
       Element: 801 PointerType *table<string,github.com/DataDog/go-tuf/data.HexBytes>
     - __kind: GoSliceDataType
       ID: 289
       Name: '[]*table<string,int>.array'
-      DynamicSizeClass: 3
+      DynamicSizeClass: hashmap
       ByteSize: 8
       Element: 174 PointerType *table<string,int>
     - __kind: GoSliceDataType
       ID: 281
       Name: '[]*table<string,main.nestedStruct>.array'
-      DynamicSizeClass: 3
+      DynamicSizeClass: hashmap
       ByteSize: 8
       Element: 169 PointerType *table<string,main.nestedStruct>
     - __kind: GoSliceDataType
       ID: 349
       Name: '[]*table<uint8,[4]int>.array'
-      DynamicSizeClass: 3
+      DynamicSizeClass: hashmap
       ByteSize: 8
       Element: 211 PointerType *table<uint8,[4]int>
     - __kind: GoSliceDataType
       ID: 340
       Name: '[]*table<uint8,uint8>.array'
-      DynamicSizeClass: 3
+      DynamicSizeClass: hashmap
       ByteSize: 8
       Element: 206 PointerType *table<uint8,uint8>
     - __kind: GoSliceHeaderType
@@ -8817,7 +8817,7 @@ Types:
     - __kind: GoSliceDataType
       ID: 369
       Name: '[][]uint.array'
-      DynamicSizeClass: 1
+      DynamicSizeClass: slice
       ByteSize: 24
       Element: 229 GoSliceHeaderType []uint
     - __kind: GoSliceHeaderType
@@ -8840,7 +8840,7 @@ Types:
     - __kind: GoSliceDataType
       ID: 375
       Name: '[]bool.array'
-      DynamicSizeClass: 1
+      DynamicSizeClass: slice
       ByteSize: 1
       Element: 4 BaseType bool
     - __kind: GoSliceHeaderType
@@ -8863,7 +8863,7 @@ Types:
     - __kind: GoSliceDataType
       ID: 836
       Name: '[]float64.array'
-      DynamicSizeClass: 1
+      DynamicSizeClass: slice
       ByteSize: 8
       Element: 18 BaseType float64
     - __kind: GoSliceHeaderType
@@ -8886,7 +8886,7 @@ Types:
     - __kind: GoSliceDataType
       ID: 1095
       Name: '[]interface {}.array'
-      DynamicSizeClass: 1
+      DynamicSizeClass: slice
       ByteSize: 16
       Element: 151 GoEmptyInterfaceType interface {}
     - __kind: GoSliceHeaderType
@@ -8909,7 +8909,7 @@ Types:
     - __kind: GoSliceDataType
       ID: 1140
       Name: '[]main.structWithMap.array'
-      DynamicSizeClass: 1
+      DynamicSizeClass: slice
       ByteSize: 8
       Element: 159 StructureType main.structWithMap
     - __kind: GoSliceHeaderType
@@ -8931,115 +8931,115 @@ Types:
     - __kind: GoSliceDataType
       ID: 371
       Name: '[]main.structWithNoStrings.array'
-      DynamicSizeClass: 1
+      DynamicSizeClass: slice
       ByteSize: 2
       Element: 234 StructureType main.structWithNoStrings
     - __kind: GoSliceDataType
       ID: 366
       Name: '[]noalg.map.group[[4]int][4]int.array'
-      DynamicSizeClass: 1
+      DynamicSizeClass: slice
       ByteSize: 520
       Element: 362 StructureType noalg.map.group[[4]int][4]int
     - __kind: GoSliceDataType
       ID: 358
       Name: '[]noalg.map.group[[4]int]uint8.array'
-      DynamicSizeClass: 1
+      DynamicSizeClass: slice
       ByteSize: 328
       Element: 354 StructureType noalg.map.group[[4]int]uint8
     - __kind: GoSliceDataType
       ID: 307
       Name: '[]noalg.map.group[[4]string][2]int.array'
-      DynamicSizeClass: 1
+      DynamicSizeClass: slice
       ByteSize: 648
       Element: 302 StructureType noalg.map.group[[4]string][2]int
     - __kind: GoSliceDataType
       ID: 325
       Name: '[]noalg.map.group[bool]main.node.array'
-      DynamicSizeClass: 1
+      DynamicSizeClass: slice
       ByteSize: 200
       Element: 321 StructureType noalg.map.group[bool]main.node
     - __kind: GoSliceDataType
       ID: 266
       Name: '[]noalg.map.group[int]*main.deepMap2.array'
-      DynamicSizeClass: 1
+      DynamicSizeClass: slice
       ByteSize: 136
       Element: 260 StructureType noalg.map.group[int]*main.deepMap2
     - __kind: GoSliceDataType
       ID: 1077
       Name: '[]noalg.map.group[int]*main.deepMap3.array'
-      DynamicSizeClass: 1
+      DynamicSizeClass: slice
       ByteSize: 136
       Element: 1071 StructureType noalg.map.group[int]*main.deepMap3
     - __kind: GoSliceDataType
       ID: 1111
       Name: '[]noalg.map.group[int]*main.deepMap8.array'
-      DynamicSizeClass: 1
+      DynamicSizeClass: slice
       ByteSize: 136
       Element: 1105 StructureType noalg.map.group[int]*main.deepMap8
     - __kind: GoSliceDataType
       ID: 1126
       Name: '[]noalg.map.group[int]*main.deepMap9.array'
-      DynamicSizeClass: 1
+      DynamicSizeClass: slice
       ByteSize: 136
       Element: 1120 StructureType noalg.map.group[int]*main.deepMap9
     - __kind: GoSliceDataType
       ID: 274
       Name: '[]noalg.map.group[int]int.array'
-      DynamicSizeClass: 1
+      DynamicSizeClass: slice
       ByteSize: 136
       Element: 270 StructureType noalg.map.group[int]int
     - __kind: GoSliceDataType
       ID: 1139
       Name: '[]noalg.map.group[int]interface {}.array'
-      DynamicSizeClass: 1
+      DynamicSizeClass: slice
       ByteSize: 200
       Element: 1135 StructureType noalg.map.group[int]interface {}
     - __kind: GoSliceDataType
       ID: 333
       Name: '[]noalg.map.group[int]uint8.array'
-      DynamicSizeClass: 1
+      DynamicSizeClass: slice
       ByteSize: 136
       Element: 329 StructureType noalg.map.group[int]uint8
     - __kind: GoSliceDataType
       ID: 317
       Name: '[]noalg.map.group[string][]main.structWithMap.array'
-      DynamicSizeClass: 1
+      DynamicSizeClass: slice
       ByteSize: 328
       Element: 311 StructureType noalg.map.group[string][]main.structWithMap
     - __kind: GoSliceDataType
       ID: 298
       Name: '[]noalg.map.group[string][]string.array'
-      DynamicSizeClass: 1
+      DynamicSizeClass: slice
       ByteSize: 328
       Element: 294 StructureType noalg.map.group[string][]string
     - __kind: GoSliceDataType
       ID: 835
       Name: '[]noalg.map.group[string]github.com/DataDog/go-tuf/data.HexBytes.array'
-      DynamicSizeClass: 1
+      DynamicSizeClass: slice
       ByteSize: 328
       Element: 831 StructureType noalg.map.group[string]github.com/DataDog/go-tuf/data.HexBytes
     - __kind: GoSliceDataType
       ID: 290
       Name: '[]noalg.map.group[string]int.array'
-      DynamicSizeClass: 1
+      DynamicSizeClass: slice
       ByteSize: 200
       Element: 286 StructureType noalg.map.group[string]int
     - __kind: GoSliceDataType
       ID: 282
       Name: '[]noalg.map.group[string]main.nestedStruct.array'
-      DynamicSizeClass: 1
+      DynamicSizeClass: slice
       ByteSize: 328
       Element: 278 StructureType noalg.map.group[string]main.nestedStruct
     - __kind: GoSliceDataType
       ID: 350
       Name: '[]noalg.map.group[uint8][4]int.array'
-      DynamicSizeClass: 1
+      DynamicSizeClass: slice
       ByteSize: 328
       Element: 345 StructureType noalg.map.group[uint8][4]int
     - __kind: GoSliceDataType
       ID: 341
       Name: '[]noalg.map.group[uint8]uint8.array'
-      DynamicSizeClass: 1
+      DynamicSizeClass: slice
       ByteSize: 24
       Element: 337 StructureType noalg.map.group[uint8]uint8
     - __kind: UnresolvedPointeeType
@@ -9066,7 +9066,7 @@ Types:
     - __kind: GoSliceDataType
       ID: 373
       Name: '[]string.array'
-      DynamicSizeClass: 1
+      DynamicSizeClass: slice
       ByteSize: 16
       Element: 9 GoStringHeaderType string
     - __kind: GoSliceHeaderType
@@ -9089,7 +9089,7 @@ Types:
     - __kind: GoSliceDataType
       ID: 367
       Name: '[]uint.array'
-      DynamicSizeClass: 1
+      DynamicSizeClass: slice
       ByteSize: 8
       Element: 16 BaseType uint
     - __kind: GoSliceHeaderType
@@ -9112,7 +9112,7 @@ Types:
     - __kind: GoSliceDataType
       ID: 377
       Name: '[]uint16.array'
-      DynamicSizeClass: 1
+      DynamicSizeClass: slice
       ByteSize: 2
       Element: 6 BaseType uint16
     - __kind: GoSliceHeaderType
@@ -9135,7 +9135,7 @@ Types:
     - __kind: GoSliceDataType
       ID: 248
       Name: '[]uint8.array'
-      DynamicSizeClass: 1
+      DynamicSizeClass: slice
       ByteSize: 1
       Element: 3 BaseType uint8
     - __kind: GoSliceHeaderType
@@ -9158,7 +9158,7 @@ Types:
     - __kind: GoSliceDataType
       ID: 250
       Name: '[]uintptr.array'
-      DynamicSizeClass: 1
+      DynamicSizeClass: slice
       ByteSize: 8
       Element: 1 BaseType uintptr
     - __kind: UnresolvedPointeeType
@@ -9185,7 +9185,7 @@ Types:
     - __kind: GoSliceDataType
       ID: 610
       Name: archive/tar.headerError.array
-      DynamicSizeClass: 1
+      DynamicSizeClass: slice
       ByteSize: 16
       Element: 9 GoStringHeaderType string
     - __kind: UnresolvedPointeeType
@@ -9283,7 +9283,7 @@ Types:
     - __kind: GoStringDataType
       ID: 414
       Name: compress/flate.InternalError.str
-      DynamicSizeClass: 2
+      DynamicSizeClass: string
       ByteSize: 1
     - __kind: UnresolvedPointeeType
       ID: 901
@@ -9601,7 +9601,7 @@ Types:
     - __kind: GoStringDataType
       ID: 423
       Name: encoding/xml.UnmarshalError.str
-      DynamicSizeClass: 2
+      DynamicSizeClass: string
       ByteSize: 1
     - __kind: UnresolvedPointeeType
       ID: 588
@@ -9723,7 +9723,7 @@ Types:
     - __kind: GoStringDataType
       ID: 405
       Name: github.com/DataDog/datadog-go/v5/statsd.invalidTimestampErr.str
-      DynamicSizeClass: 2
+      DynamicSizeClass: string
       ByteSize: 1
     - __kind: StructureType
       ID: 811
@@ -9797,7 +9797,7 @@ Types:
     - __kind: GoStringDataType
       ID: 402
       Name: github.com/DataDog/datadog-go/v5/statsd.noClientErr.str
-      DynamicSizeClass: 2
+      DynamicSizeClass: string
       ByteSize: 1
     - __kind: GoStringHeaderType
       ID: 407
@@ -9816,7 +9816,7 @@ Types:
     - __kind: GoStringDataType
       ID: 408
       Name: github.com/DataDog/datadog-go/v5/statsd.partialWriteError.str
-      DynamicSizeClass: 2
+      DynamicSizeClass: string
       ByteSize: 1
     - __kind: UnresolvedPointeeType
       ID: 891
@@ -9949,7 +9949,7 @@ Types:
     - __kind: GoSliceDataType
       ID: 838
       Name: github.com/DataDog/go-tuf/data.HexBytes.array
-      DynamicSizeClass: 1
+      DynamicSizeClass: slice
       ByteSize: 1
       Element: 3 BaseType uint8
     - __kind: StructureType
@@ -10409,7 +10409,7 @@ Types:
     - __kind: GoStringDataType
       ID: 435
       Name: go.opentelemetry.io/otel/trace.errorConst.str
-      DynamicSizeClass: 2
+      DynamicSizeClass: string
       ByteSize: 1
     - __kind: UnresolvedPointeeType
       ID: 806
@@ -10520,7 +10520,7 @@ Types:
     - __kind: GoStringDataType
       ID: 442
       Name: golang.org/x/net/http2.duplicatePseudoHeaderError.str
-      DynamicSizeClass: 2
+      DynamicSizeClass: string
       ByteSize: 1
     - __kind: GoStringHeaderType
       ID: 447
@@ -10539,7 +10539,7 @@ Types:
     - __kind: GoStringDataType
       ID: 448
       Name: golang.org/x/net/http2.headerFieldNameError.str
-      DynamicSizeClass: 2
+      DynamicSizeClass: string
       ByteSize: 1
     - __kind: GoStringHeaderType
       ID: 444
@@ -10558,7 +10558,7 @@ Types:
     - __kind: GoStringDataType
       ID: 445
       Name: golang.org/x/net/http2.headerFieldValueError.str
-      DynamicSizeClass: 2
+      DynamicSizeClass: string
       ByteSize: 1
     - __kind: GoStringHeaderType
       ID: 438
@@ -10577,7 +10577,7 @@ Types:
     - __kind: GoStringDataType
       ID: 439
       Name: golang.org/x/net/http2.pseudoHeaderError.str
-      DynamicSizeClass: 2
+      DynamicSizeClass: string
       ByteSize: 1
     - __kind: UnresolvedPointeeType
       ID: 986
@@ -11582,7 +11582,7 @@ Types:
     - __kind: GoStringDataType
       ID: 1035
       Name: main.stringType1.str
-      DynamicSizeClass: 2
+      DynamicSizeClass: string
       ByteSize: 1
     - __kind: UnresolvedPointeeType
       ID: 1037
@@ -11651,7 +11651,7 @@ Types:
     - __kind: GoSliceDataType
       ID: 1055
       Name: main.t.array
-      DynamicSizeClass: 1
+      DynamicSizeClass: slice
       ByteSize: 8
       Element: 227 PointerType *main.t
     - __kind: StructureType
@@ -12451,7 +12451,7 @@ Types:
     - __kind: GoStringDataType
       ID: 718
       Name: net.UnknownNetworkError.str
-      DynamicSizeClass: 2
+      DynamicSizeClass: string
       ByteSize: 1
     - __kind: StructureType
       ID: 686
@@ -12644,7 +12644,7 @@ Types:
     - __kind: GoStringDataType
       ID: 387
       Name: net/http.http2duplicatePseudoHeaderError.str
-      DynamicSizeClass: 2
+      DynamicSizeClass: string
       ByteSize: 1
     - __kind: GoStringHeaderType
       ID: 392
@@ -12663,7 +12663,7 @@ Types:
     - __kind: GoStringDataType
       ID: 393
       Name: net/http.http2headerFieldNameError.str
-      DynamicSizeClass: 2
+      DynamicSizeClass: string
       ByteSize: 1
     - __kind: GoStringHeaderType
       ID: 389
@@ -12682,7 +12682,7 @@ Types:
     - __kind: GoStringDataType
       ID: 390
       Name: net/http.http2headerFieldValueError.str
-      DynamicSizeClass: 2
+      DynamicSizeClass: string
       ByteSize: 1
     - __kind: UnresolvedPointeeType
       ID: 751
@@ -12715,7 +12715,7 @@ Types:
     - __kind: GoStringDataType
       ID: 384
       Name: net/http.http2pseudoHeaderError.str
-      DynamicSizeClass: 2
+      DynamicSizeClass: string
       ByteSize: 1
     - __kind: StructureType
       ID: 845
@@ -12924,7 +12924,7 @@ Types:
     - __kind: GoStringDataType
       ID: 418
       Name: net/textproto.ProtocolError.str
-      DynamicSizeClass: 2
+      DynamicSizeClass: string
       ByteSize: 1
     - __kind: UnresolvedPointeeType
       ID: 871
@@ -12951,7 +12951,7 @@ Types:
     - __kind: GoStringDataType
       ID: 396
       Name: net/url.EscapeError.str
-      DynamicSizeClass: 2
+      DynamicSizeClass: string
       ByteSize: 1
     - __kind: GoStringHeaderType
       ID: 398
@@ -12970,7 +12970,7 @@ Types:
     - __kind: GoStringDataType
       ID: 399
       Name: net/url.InvalidHostError.str
-      DynamicSizeClass: 2
+      DynamicSizeClass: string
       ByteSize: 1
     - __kind: ArrayType
       ID: 363
@@ -13694,7 +13694,7 @@ Types:
     - __kind: GoStringDataType
       ID: 432
       Name: os/user.UnknownGroupIdError.str
-      DynamicSizeClass: 2
+      DynamicSizeClass: string
       ByteSize: 1
     - __kind: BaseType
       ID: 430
@@ -13795,7 +13795,7 @@ Types:
     - __kind: GoStringDataType
       ID: 642
       Name: runtime.errorString.str
-      DynamicSizeClass: 2
+      DynamicSizeClass: string
       ByteSize: 1
     - __kind: StructureType
       ID: 22
@@ -14465,7 +14465,7 @@ Types:
     - __kind: GoStringDataType
       ID: 645
       Name: runtime.plainError.str
-      DynamicSizeClass: 2
+      DynamicSizeClass: string
       ByteSize: 1
     - __kind: BaseType
       ID: 60
@@ -14569,7 +14569,7 @@ Types:
     - __kind: GoStringDataType
       ID: 246
       Name: string.str
-      DynamicSizeClass: 2
+      DynamicSizeClass: string
       ByteSize: 1
     - __kind: UnresolvedPointeeType
       ID: 957
@@ -15196,7 +15196,7 @@ Types:
     - __kind: GoStringDataType
       ID: 380
       Name: time.fileSizeError.str
-      DynamicSizeClass: 2
+      DynamicSizeClass: string
       ByteSize: 1
     - __kind: BaseType
       ID: 16

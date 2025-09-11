@@ -934,13 +934,13 @@ Types:
     - __kind: GoSliceDataType
       ID: 138
       Name: '[]*table<string,int>.array'
-      DynamicSizeClass: 3
+      DynamicSizeClass: hashmap
       ByteSize: 8
       Element: 113 PointerType *table<string,int>
     - __kind: GoSliceDataType
       ID: 148
       Name: '[]*table<string,main.bigStruct>.array'
-      DynamicSizeClass: 3
+      DynamicSizeClass: hashmap
       ByteSize: 8
       Element: 118 PointerType *table<string,main.bigStruct>
     - __kind: GoSliceHeaderType
@@ -963,19 +963,19 @@ Types:
     - __kind: GoSliceDataType
       ID: 128
       Name: '[]int.array'
-      DynamicSizeClass: 1
+      DynamicSizeClass: slice
       ByteSize: 8
       Element: 7 BaseType int
     - __kind: GoSliceDataType
       ID: 139
       Name: '[]noalg.map.group[string]int.array'
-      DynamicSizeClass: 1
+      DynamicSizeClass: slice
       ByteSize: 200
       Element: 135 StructureType noalg.map.group[string]int
     - __kind: GoSliceDataType
       ID: 149
       Name: '[]noalg.map.group[string]main.bigStruct.array'
-      DynamicSizeClass: 1
+      DynamicSizeClass: slice
       ByteSize: 200
       Element: 143 StructureType noalg.map.group[string]main.bigStruct
     - __kind: UnresolvedPointeeType
@@ -1002,7 +1002,7 @@ Types:
     - __kind: GoSliceDataType
       ID: 130
       Name: '[]string.array'
-      DynamicSizeClass: 1
+      DynamicSizeClass: slice
       ByteSize: 16
       Element: 9 GoStringHeaderType string
     - __kind: GoSliceHeaderType
@@ -1025,7 +1025,7 @@ Types:
     - __kind: GoSliceDataType
       ID: 124
       Name: '[]uint8.array'
-      DynamicSizeClass: 1
+      DynamicSizeClass: slice
       ByteSize: 1
       Element: 3 BaseType uint8
     - __kind: GoSliceHeaderType
@@ -1048,7 +1048,7 @@ Types:
     - __kind: GoSliceDataType
       ID: 126
       Name: '[]uintptr.array'
-      DynamicSizeClass: 1
+      DynamicSizeClass: slice
       ByteSize: 8
       Element: 1 BaseType uintptr
     - __kind: BaseType
@@ -2213,7 +2213,7 @@ Types:
     - __kind: GoStringDataType
       ID: 122
       Name: string.str
-      DynamicSizeClass: 2
+      DynamicSizeClass: string
       ByteSize: 1
     - __kind: StructureType
       ID: 132
