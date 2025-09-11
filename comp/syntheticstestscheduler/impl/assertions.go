@@ -9,53 +9,94 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/comp/syntheticstestscheduler/common"
-	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
 
-func (s *SyntheticsTestScheduler) runAssertions(cfg common.SyntheticsTestConfig, result payload.NetworkPath) ([]common.AssertionResult, error) {
+const (
+	incorrectAssertion = "INCORRECT_ASSERTION"
+)
+
+func (s *SyntheticsTestScheduler) runAssertions(cfg common.SyntheticsTestConfig, result common.NetStats) []common.AssertionResult {
 	assertions := make([]common.AssertionResult, 0)
 	for _, assertion := range cfg.Config.Assertions {
-		assertionResult, err := s.runAssertion(assertion, result)
-		if err != nil {
-			return nil, err
-		}
-		assertions = append(assertions, assertionResult)
+		assertions = append(assertions, s.runAssertion(assertion, result))
 	}
-	return assertions, nil
+	return assertions
 }
 
-func (s *SyntheticsTestScheduler) runAssertion(assertion common.Assertion, stats common.NetStats) (common.AssertionResult, error) {
+func (s *SyntheticsTestScheduler) runAssertion(assertion common.Assertion, stats common.NetStats) common.AssertionResult {
 	var actual interface{}
 
-	switch assertion.Field {
-	case "packetLossPercentage":
+	switch assertion.Type {
+	case common.AssertionTypePacketLoss:
 		actual = stats.PacketLossPercentage
-	case "jitter":
+	case common.AssertionTypePacketJitter:
 		actual = stats.Jitter
-	case "latency.avg":
-		actual = stats.Latency.Avg
-	case "latency.min":
-		actual = stats.Latency.Min
-	case "latency.max":
-		actual = stats.Latency.Max
-	case "hops.avg":
-		actual = stats.Hops.Avg
-	case "hops.min":
-		actual = stats.Hops.Min
-	case "hops.max":
-		actual = stats.Hops.Max
+	case common.AssertionTypeLatency:
+		switch assertion.Property {
+		case common.AssertionSubTypeAverage:
+			actual = stats.Latency.Avg
+		case common.AssertionSubTypeMin:
+			actual = stats.Latency.Min
+		case common.AssertionSubTypeMax:
+			actual = stats.Latency.Max
+		default:
+			return common.AssertionResult{
+				Operator: assertion.Operator,
+				Type:     assertion.Type,
+				Property: assertion.Property,
+				Expected: assertion.Target,
+				Failure: common.APIFailure{
+					Code:    incorrectAssertion,
+					Message: fmt.Sprintf("unsupported field: %s.%s", assertion.Type, assertion.Property),
+				},
+			}
+		}
+	case common.AssertionTypeNetworkHops:
+		switch assertion.Property {
+		case common.AssertionSubTypeAverage:
+			actual = stats.Hops.Avg
+		case common.AssertionSubTypeMin:
+			actual = stats.Hops.Min
+		case common.AssertionSubTypeMax:
+			actual = stats.Hops.Max
+		default:
+			return common.AssertionResult{
+				Operator: assertion.Operator,
+				Type:     assertion.Type,
+				Property: assertion.Property,
+				Expected: assertion.Target,
+				Failure: common.APIFailure{
+					Code:    incorrectAssertion,
+					Message: fmt.Sprintf("unsupported field: %s.%s", assertion.Type, assertion.Property),
+				},
+			}
+		}
 	default:
-		return common.AssertionResult{}, fmt.Errorf("unsupported field: %s", assertion.Field)
+		return common.AssertionResult{
+			Operator: assertion.Operator,
+			Type:     assertion.Type,
+			Property: assertion.Property,
+			Expected: assertion.Target,
+			Failure: common.APIFailure{
+				Code:    incorrectAssertion,
+				Message: fmt.Sprintf("unsupported field: %s", assertion.Type),
+			},
+		}
 	}
 
 	assertionResult := common.AssertionResult{
 		Operator: assertion.Operator,
-		Type:     assertion.Field,
-		Expected: assertion.Expected,
+		Type:     assertion.Type,
+		Property: assertion.Property,
+		Expected: assertion.Target,
 		Actual:   actual,
 	}
 	if err := assertionResult.Compare(); err != nil {
-		return assertionResult, err
+		assertionResult.Failure = common.APIFailure{
+			Code:    incorrectAssertion,
+			Message: err.Error(),
+		}
+		return assertionResult
 	}
-	return assertionResult, nil
+	return assertionResult
 }

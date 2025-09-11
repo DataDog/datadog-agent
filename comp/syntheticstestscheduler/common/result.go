@@ -74,14 +74,16 @@ type NetpathResult struct {
 
 // AssertionResult represents a validation check comparing expected and actual values.
 type AssertionResult struct {
-	Operator string      `json:"operator"`
-	Type     string      `json:"type"`
-	Expected interface{} `json:"expected"`
-	Actual   interface{} `json:"actual"`
-	Valid    bool        `json:"valid"`
+	Operator Operator         `json:"operator"`
+	Type     AssertionType    `json:"type"`
+	Property AssertionSubType `json:"property"`
+	Expected interface{}      `json:"expected"`
+	Actual   interface{}      `json:"actual"`
+	Valid    bool             `json:"valid"`
+	Failure  APIFailure       `json:"failure"`
 }
 
-// compare runs the assertion logic
+// Compare runs the assertion logic
 func (a *AssertionResult) Compare() error {
 	expectedVal := reflect.ValueOf(a.Expected)
 	actualVal := reflect.ValueOf(a.Actual)
@@ -107,16 +109,18 @@ func (a *AssertionResult) Compare() error {
 	}
 
 	switch a.Operator {
-	case "<":
+	case OperatorLessThan:
 		a.Valid = act < exp
-	case "<=":
+	case OperatorLessThanOrEquals:
 		a.Valid = act <= exp
-	case ">":
+	case OperatorMoreThan:
 		a.Valid = act > exp
-	case ">=":
+	case OperatorMoreThanOrEquals:
 		a.Valid = act >= exp
-	case "==":
+	case OperatorIs:
 		a.Valid = act == exp
+	case OperatorIsNot:
+		a.Valid = act != exp
 	default:
 		return fmt.Errorf("unsupported operator")
 	}

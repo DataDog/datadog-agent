@@ -83,51 +83,30 @@ func (s *SyntheticsTestScheduler) runWorker(workerID int) {
 			s.log.Debugf("[worker%d] stopped worker", workerID)
 			return
 		case syntheticsTestCtx := <-s.syntheticsTestProcessingChan:
-			triggeredAt := syntheticsTestCtx.nextRun
-			startedAt := s.TimeNowFn()
-
 			tracerouteCfg, err := toNetpathConfig(syntheticsTestCtx.cfg)
 			if err != nil {
 				s.log.Debugf("[worker%d] error interpreting test config: %s", workerID, err)
 			}
-
+			wResult := &workerResult{
+				testCfg:       syntheticsTestCtx,
+				triggeredAt:   syntheticsTestCtx.nextRun,
+				startedAt:     s.TimeNowFn(),
+				tracerouteCfg: tracerouteCfg,
+			}
 			result, tracerouteErr := s.runTraceroute(tracerouteCfg, s.telemetry)
-			finishedAt := s.TimeNowFn()
-			duration := finishedAt.Sub(startedAt)
-			if err != nil {
+			wResult.finishedAt = s.TimeNowFn()
+			wResult.duration = wResult.finishedAt.Sub(wResult.startedAt)
+			if tracerouteErr != nil {
 				s.log.Debugf("[worker%d] Error running traceroute: %s", workerID, err)
-				if err = s.sendResult(&workerResult{
-					tracerouteResult: result,
-					tracerouteError:  tracerouteErr,
-					assertionResult:  nil,
-					testCfg:          syntheticsTestCtx,
-					triggeredAt:      triggeredAt,
-					startedAt:        startedAt,
-					finishedAt:       finishedAt,
-					duration:         duration,
-					tracerouteCfg:    tracerouteCfg,
-				}); err != nil {
+				wResult.tracerouteError = tracerouteErr
+				if err = s.sendResult(wResult); err != nil {
 					s.log.Debugf("[worker%d] error sending result: %s", workerID, err)
 				}
 				continue
 			}
-
-			assertionResult, err := s.runAssertions(syntheticsTestCtx.cfg, result)
-			if err != nil {
-				s.log.Debugf("[worker%d] Error running assertions: %s", workerID, err)
-			}
-			if err = s.sendResult(&workerResult{
-				tracerouteResult: result,
-				tracerouteError:  tracerouteErr,
-				assertionResult:  assertionResult,
-				assertionError:   err,
-				testCfg:          syntheticsTestCtx,
-				triggeredAt:      triggeredAt,
-				startedAt:        startedAt,
-				finishedAt:       finishedAt,
-				duration:         duration,
-				tracerouteCfg:    tracerouteCfg,
-			}); err != nil {
+			wResult.tracerouteResult = result
+			wResult.assertionResult = s.runAssertions(syntheticsTestCtx.cfg, result)
+			if err = s.sendResult(wResult); err != nil {
 				s.log.Debugf("[worker%d] error sending result: %s", workerID, err)
 			}
 		}
@@ -139,7 +118,6 @@ type workerResult struct {
 	tracerouteResult payload.NetworkPath
 	tracerouteError  error
 	assertionResult  []common.AssertionResult
-	assertionError   error
 	testCfg          SyntheticsTestCtx
 	triggeredAt      time.Time
 	startedAt        time.Time
@@ -345,14 +323,6 @@ func (s *SyntheticsTestScheduler) networkPathToTestResult(w *workerResult, testC
 		result.Failure = common.APIError{
 			Code:    "UNKNOWN",
 			Message: w.tracerouteError.Error(),
-		}
-	}
-
-	if w.assertionError != nil {
-		result.Status = "failed"
-		result.Failure = common.APIError{
-			Code:    "ASSERTION ERROR",
-			Message: w.assertionError.Error(),
 		}
 	}
 
