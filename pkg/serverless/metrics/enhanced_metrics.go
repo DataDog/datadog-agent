@@ -665,12 +665,8 @@ func SendProcessEnhancedMetrics(sendMetrics chan bool, tags []string, metricAgen
 		log.Debug("Could not emit file descriptor enhanced metrics. %v", err)
 		return
 	}
-
-	fdUseData, err := proc.GetFileDescriptorUseData(pids)
-	if err != nil {
-		log.Debugf("Could not emit file descriptor enhanced metrics. %v", err)
-		return
-	}
+	
+	fdUseData := proc.GetFileDescriptorUseData(pids)
 
 	threadsMaxData, err := proc.GetThreadsMaxData(pids)
 	if err != nil {
