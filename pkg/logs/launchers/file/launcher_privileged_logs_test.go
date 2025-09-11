@@ -195,9 +195,7 @@ func setupTestServerForLauncher(t *testing.T) {
 		testHandler.wg.Wait()
 		listener.Close()
 		os.RemoveAll(tempDir)
-	})
 
-	t.Cleanup(func() {
 		// Safety check since if the umask change is mistakenly removed, the
 		// test will pass but the fd-transfer will not be used.
 		require.True(t, testHandler.called, "fd-transfer was not used")
