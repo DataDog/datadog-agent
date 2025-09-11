@@ -2496,11 +2496,13 @@ func (s *TracerSuite) TestConnectionDuration() {
 		for {
 			_, err := c.Read(b[:])
 			if err != nil && (errors.Is(err, net.ErrClosed) || err == io.EOF) {
+				t.Logf("closing connection: %s", err)
 				break
 			}
 			require.NoError(t, err)
 			_, err = c.Write([]byte("pong"))
 			if err != nil && (errors.Is(err, net.ErrClosed) || err == io.EOF) {
+				t.Logf("closing connection: %s", err)
 				break
 			}
 			require.NoError(t, err)
@@ -2548,6 +2550,7 @@ LOOP:
 	}, 3*time.Second, 100*time.Millisecond, "could not find connection")
 
 	require.NoError(t, c.Close(), "error closing client connection")
+	t.Logf("client connection closed")
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		conns, cleanup := getConnections(collect, tr)
 		defer cleanup()
