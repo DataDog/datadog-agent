@@ -66,8 +66,10 @@ func (k *keysManager) GetKey(keyId string) types.DecodedKey { //nolint:revive
 }
 
 func (k *keysManager) WaitForReady() {
-	//<-k.ready // TODO fix this
-	return //nolint:gosimple
+	log.Info("waiting for ready")
+	<-k.ready
+	log.Info("ready")
+	return
 }
 
 func (k *keysManager) AgentConfigUpdateCallback(update map[string]state.RawConfig, callback func(string, state.ApplyStatus)) {
