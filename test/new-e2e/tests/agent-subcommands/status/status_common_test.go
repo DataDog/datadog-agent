@@ -13,23 +13,17 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type baseStatusSuite struct {
 	e2e.BaseSuite[environments.Host]
-	osOption awshost.ProvisionerOption
 }
 
 type section struct {
 	name    string
 	content string
-}
-
-func (v *baseStatusSuite) GetOs() awshost.ProvisionerOption {
-	return v.osOption
 }
 
 // getStatusComponentContent returns the content of the `sectionName` section if it exists, or an error otherwise
