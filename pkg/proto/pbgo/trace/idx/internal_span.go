@@ -16,7 +16,8 @@ import (
 )
 
 // StringTable is a table of strings that is used to store the de-duplicated strings in a trace
-// Strings are reference counted, when a string has no references it is removed from the table.
+// Strings are not garbage collected automatically, so it is important to call RemoveUnusedStrings
+// on the tracer payload to remove any strings that are no longer referenced.
 type StringTable struct {
 	strings []string
 	lookup  map[string]uint32
@@ -31,8 +32,6 @@ func NewStringTable() *StringTable {
 }
 
 // StringTableFromArray creates a new string table from an array of already de-duplicated strings
-// This can't know the proper reference count for these strings, so it will set them to 1. This function
-// is only used for testing purposes.
 func StringTableFromArray(strings []string) *StringTable {
 	st := &StringTable{
 		strings: make([]string, len(strings)),
@@ -73,7 +72,6 @@ func (s *StringTable) addUnchecked(str string) uint32 {
 }
 
 // Add adds a string to the string table if it doesn't already exist and returns the index of the string
-// This is counted as a new reference to the string.
 func (s *StringTable) Add(str string) uint32 {
 	if idx, ok := s.lookup[str]; ok {
 		return idx
@@ -92,7 +90,6 @@ func (s *StringTable) Len() int {
 }
 
 // Lookup returns the index of the string in the string table, or 0 if the string is not found
-// This does not add a new reference to that string.
 func (s *StringTable) Lookup(str string) uint32 {
 	if idx, ok := s.lookup[str]; ok {
 		return idx
