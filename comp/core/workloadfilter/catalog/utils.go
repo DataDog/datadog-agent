@@ -38,7 +38,7 @@ func createCELProgram(rules string, objectType workloadfilter.ResourceType) (cel
 		return nil, nil
 	}
 	env, err := cel.NewEnv(
-		cel.Types(&workloadfilter.Container{}, &workloadfilter.Pod{}),
+		cel.Types(&workloadfilter.Container{}, &workloadfilter.Pod{}, &workloadfilter.Process{}),
 		cel.Variable(string(objectType), cel.ObjectType(convertTypeToProtoType(objectType))),
 	)
 	if err != nil {
@@ -88,9 +88,17 @@ func convertOldToNewFilter(oldFilters []string, objectType workloadfilter.Resour
 	legacyFieldMapping := getFieldMapping(objectType)
 
 	var newFilters []string
+	var processPatterns []string
+
 	for _, oldFilter := range oldFilters {
 
 		if oldFilter == "" {
+			continue
+		}
+
+		// Legacy process denylist patterns only support raw regex
+		if objectType == workloadfilter.ProcessType {
+			processPatterns = append(processPatterns, oldFilter)
 			continue
 		}
 
@@ -122,6 +130,16 @@ func convertOldToNewFilter(oldFilters []string, objectType workloadfilter.Resour
 			return "", fmt.Errorf("container filter %s:%s is unknown, ignoring it. The supported filters are 'image', 'name' and 'kube_namespace'", key, value)
 		}
 	}
+
+	// Combine process patterns into a single expression since they only support one field
+	if len(processPatterns) > 0 {
+		combinedPattern := strings.Join(processPatterns, "|")
+		newFilters = append(newFilters, fmt.Sprintf(
+			"process.cmdline.matches(%s)",
+			strconv.Quote(combinedPattern),
+		))
+	}
+
 	return strings.Join(newFilters, " || "), nil
 }
 
@@ -138,6 +156,8 @@ func convertTypeToProtoType(key workloadfilter.ResourceType) string {
 		return "datadog.filter.FilterKubeEndpoint"
 	case workloadfilter.ImageType:
 		return "datadog.filter.FilterImage"
+	case workloadfilter.ProcessType:
+		return "datadog.filter.FilterProcess"
 	default:
 		return ""
 	}

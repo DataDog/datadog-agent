@@ -14,6 +14,8 @@ import (
 	"strings"
 	"time"
 
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -90,10 +92,11 @@ type Dependencies struct {
 	// TODO: the tagger is used by the ContainerProvider, which is currently not a component so there is no direct
 	// dependency on it. The ContainerProvider needs to be componentized so it can be injected and have fx manage its
 	// lifecycle.
-	Tagger       tagger.Component
-	WorkloadMeta workloadmeta.Component
-	NpCollector  npcollector.Component
-	Checks       []types.CheckComponent `group:"check"`
+	Tagger         tagger.Component
+	WorkloadMeta   workloadmeta.Component
+	WorkloadFilter workloadfilter.Component
+	NpCollector    npcollector.Component
+	Checks         []types.CheckComponent `group:"check"`
 }
 
 func nextGroupID() func() int32 {
@@ -160,6 +163,8 @@ func MakeCommand(globalParamsGetter func() *command.GlobalParams, name string, a
 				workloadmetafx.Module(workloadmeta.Params{
 					AgentType: workloadmeta.Remote,
 				}),
+
+				workloadfilterfx.Module(),
 
 				// Tagger must be initialized after agent config has been setup
 				remoteTaggerfx.Module(tagger.RemoteParams{
