@@ -221,6 +221,8 @@ require (
 	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f // indirect
 	github.com/oklog/ulid v1.3.1 // indirect
 	github.com/oklog/ulid/v2 v2.1.1 // indirect
+	github.com/onsi/ginkgo/v2 v2.23.3 // indirect
+	github.com/onsi/gomega v1.36.3 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer v0.133.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/aws/ecsutil v0.133.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/common v0.133.0 // indirect

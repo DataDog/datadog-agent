@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"slices"
 	"testing"
+	"time"
 	"unsafe"
 
 	"github.com/go-json-experiment/json/jsontext"
@@ -33,7 +34,7 @@ func FuzzDecoder(f *testing.F) {
 		probeNames = append(probeNames, c.probeName)
 	}
 	irProg := generateIrForProbes(f, "simple", probeNames...)
-	decoder, err := NewDecoder(irProg, &noopTypeNameResolver{})
+	decoder, err := NewDecoder(irProg, &noopTypeNameResolver{}, time.Now())
 	require.NoError(f, err)
 	for _, c := range cases {
 		f.Add(c.eventConstructor(f, irProg))
@@ -60,7 +61,7 @@ func TestDecoderManually(t *testing.T) {
 		t.Run(c.probeName, func(t *testing.T) {
 			irProg := generateIrForProbes(t, "simple", c.probeName)
 			item := c.eventConstructor(t, irProg)
-			decoder, err := NewDecoder(irProg, &noopTypeNameResolver{})
+			decoder, err := NewDecoder(irProg, &noopTypeNameResolver{}, time.Now())
 			require.NoError(t, err)
 			buf, probe, err := decoder.Decode(Event{
 				Event:       output.Event(item),
@@ -82,7 +83,7 @@ func BenchmarkDecoder(b *testing.B) {
 	for _, c := range cases {
 		b.Run(c.probeName, func(b *testing.B) {
 			irProg := generateIrForProbes(b, "simple", c.probeName)
-			decoder, err := NewDecoder(irProg, &noopTypeNameResolver{})
+			decoder, err := NewDecoder(irProg, &noopTypeNameResolver{}, time.Now())
 			require.NoError(b, err)
 			symbolicator := &noopSymbolicator{}
 			event := Event{
@@ -747,7 +748,7 @@ func (t *panicDecoderType) encodeValueFields(*Decoder, *jsontext.Encoder, []byte
 
 func TestDecoderPanics(t *testing.T) {
 	irProg := generateIrForProbes(t, "simple", "stringArg")
-	decoder, err := NewDecoder(irProg, &noopTypeNameResolver{})
+	decoder, err := NewDecoder(irProg, &noopTypeNameResolver{}, time.Now())
 	require.NoError(t, err)
 	caseIdx := slices.IndexFunc(cases, func(c testCase) bool {
 		return c.probeName == "stringArg"
@@ -776,7 +777,7 @@ func TestDecoderPanics(t *testing.T) {
 
 func TestDecoderFailsOnEvaluationError(t *testing.T) {
 	irProg := generateIrForProbes(t, "simple", "stringArg")
-	decoder, err := NewDecoder(irProg, &noopTypeNameResolver{})
+	decoder, err := NewDecoder(irProg, &noopTypeNameResolver{}, time.Now())
 	require.NoError(t, err)
 	caseIdx := slices.IndexFunc(cases, func(c testCase) bool {
 		return c.probeName == "stringArg"
@@ -810,7 +811,7 @@ func TestDecoderFailsOnEvaluationError(t *testing.T) {
 // appended to only.
 func TestDecoderFailsOnEvaluationErrorAndRetainsPassedBuffer(t *testing.T) {
 	irProg := generateIrForProbes(t, "simple", "stringArg")
-	decoder, err := NewDecoder(irProg, &noopTypeNameResolver{})
+	decoder, err := NewDecoder(irProg, &noopTypeNameResolver{}, time.Now())
 	require.NoError(t, err)
 	caseIdx := slices.IndexFunc(cases, func(c testCase) bool {
 		return c.probeName == "stringArg"
