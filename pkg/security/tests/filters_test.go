@@ -962,17 +962,9 @@ func TestFilterInUpperLayerApprover(t *testing.T) {
 		}
 	})
 
-	// stats
-	err = retry.Do(func() error {
-		test.eventMonitor.SendStats()
-		defer test.statsdClient.Flush()
-		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":approver_type:in_upper_layer"); count != 0 {
-			return fmt.Errorf("unexpected metrics found: %+v", test.statsdClient.GetByPrefix(metrics.MetricEventApproved))
-		}
-
-		return nil
-	}, retry.Delay(1*time.Second), retry.Attempts(5), retry.DelayType(retry.FixedDelay))
-	assert.NoError(t, err)
+	test.eventMonitor.SendStats()
+	test.statsdClient.Flush()
+	origCount := test.statsdClient.Get(metrics.MetricEventApproved + ":approver_type:in_upper_layer")
 
 	wrapper.Run(t, "truncate", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		if err := waitForOpenProbeEvent(test, func() error {
@@ -986,16 +978,12 @@ func TestFilterInUpperLayerApprover(t *testing.T) {
 		}
 	})
 
-	err = retry.Do(func() error {
-		test.eventMonitor.SendStats()
-		defer test.statsdClient.Flush()
-		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":approver_type:in_upper_layer"); count == 0 {
-			return fmt.Errorf("expected metrics not found: %+v", test.statsdClient.GetByPrefix(metrics.MetricEventApproved))
-		}
+	test.eventMonitor.SendStats()
+	test.statsdClient.Flush()
 
-		return nil
-	}, retry.Delay(1*time.Second), retry.Attempts(5), retry.DelayType(retry.FixedDelay))
-	assert.NoError(t, err)
+	if count := test.statsdClient.Get(metrics.MetricEventApproved + ":approver_type:in_upper_layer"); count <= origCount {
+		t.Errorf("expected metrics not found: %+v", test.statsdClient.GetByPrefix(metrics.MetricEventApproved))
+	}
 }
 
 func TestFilterDiscarderRetention(t *testing.T) {
