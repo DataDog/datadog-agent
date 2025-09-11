@@ -1363,12 +1363,24 @@ func (tm *testModule) GetDumpFromDocker(dockerInstance *dockerCmdWrapper) (*acti
 	}
 	dump := findLearningContainerID(dumps, containerutils.ContainerID(dockerInstance.containerID))
 	if dump == nil {
-		return nil, errors.New("ContainerID not found on activity dump list")
+		return nil, fmt.Errorf("ContainerID %s not found on activity dump list (%+v)", dockerInstance.containerID, dumps)
 	}
 	return dump, nil
 }
 
 func (tm *testModule) StartADockerGetDump() (*dockerCmdWrapper, *activityDumpIdentifier, error) {
+	// before starting the docker, we need to make sure the traced cgroup map is not filled with
+	// entries waiting to be evicted
+	p, ok := tm.probe.PlatformProbe.(*sprobe.EBPFProbe)
+	if !ok {
+		return nil, nil, errors.New("not supported")
+	}
+	managers := p.GetProfileManager()
+	if managers == nil {
+		return nil, nil, errors.New("No manager")
+	}
+	managers.SnapshotTracedCgroups()
+
 	dockerInstance, err := tm.StartADocker()
 	if err != nil {
 		return nil, nil, err
@@ -1890,6 +1902,9 @@ func (tm *testModule) CheckZombieProcesses() error {
 
 				comm, err := os.ReadFile(filepath.Join("/proc", pidStr, "comm"))
 				if err != nil {
+					if errors.Is(err, syscall.ESRCH) {
+						continue
+					}
 					return fmt.Errorf("failed to read comm for PID %d: %w", pid, err)
 				}
 				commStr := strings.TrimSpace(string(comm))
@@ -1900,8 +1915,8 @@ func (tm *testModule) CheckZombieProcesses() error {
 				}
 			}
 		}
-		if err := scanner.Err(); err != nil {
-			return fmt.Errorf("error reading status file for PPID %d: %w", pid, err)
+		if err := scanner.Err(); err != nil && !errors.Is(err, syscall.ESRCH) {
+			return fmt.Errorf("error reading status file for PID %d: %w", pid, err)
 		}
 	}
 
