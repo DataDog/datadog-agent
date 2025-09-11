@@ -100,6 +100,7 @@ func TestFilterOpenBasenameApprover(t *testing.T) {
 	// stats
 	err = retry.Do(func() error {
 		test.eventMonitor.SendStats()
+		defer test.statsdClient.Flush()
 		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":approver_type:basename"); count == 0 {
 			return fmt.Errorf("expected metrics not found: %+v", test.statsdClient.GetByPrefix(metrics.MetricEventApproved))
 		}
@@ -376,6 +377,7 @@ func runAUIDTest(t *testing.T, test *testModule, goSyscallTester string, eventTy
 	// stats
 	err = retry.Do(func() error {
 		test.eventMonitor.SendStats()
+		defer test.statsdClient.Flush()
 		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":approver_type:auid"); count == 0 {
 			return fmt.Errorf("expected metrics not found: %+v", test.statsdClient.GetByPrefix(metrics.MetricEventApproved))
 		}
@@ -872,6 +874,7 @@ func TestFilterOpenFlagsApprover(t *testing.T) {
 	// stats
 	err = retry.Do(func() error {
 		test.eventMonitor.SendStats()
+		defer test.statsdClient.Flush()
 		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":approver_type:flag"); count == 0 {
 			return fmt.Errorf("expected metrics not found: %+v", test.statsdClient.GetByPrefix(metrics.MetricEventApproved))
 		}
@@ -896,6 +899,7 @@ func TestFilterOpenFlagsApprover(t *testing.T) {
 
 	err = retry.Do(func() error {
 		test.eventMonitor.SendStats()
+		defer test.statsdClient.Flush()
 		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":approver_type:flag"); count == 0 {
 			return fmt.Errorf("expected metrics not found: %+v", test.statsdClient.GetByPrefix(metrics.MetricEventApproved))
 		}
@@ -961,6 +965,7 @@ func TestFilterInUpperLayerApprover(t *testing.T) {
 	// stats
 	err = retry.Do(func() error {
 		test.eventMonitor.SendStats()
+		defer test.statsdClient.Flush()
 		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":approver_type:in_upper_layer"); count != 0 {
 			return fmt.Errorf("unexpected metrics found: %+v", test.statsdClient.GetByPrefix(metrics.MetricEventApproved))
 		}
@@ -983,6 +988,7 @@ func TestFilterInUpperLayerApprover(t *testing.T) {
 
 	err = retry.Do(func() error {
 		test.eventMonitor.SendStats()
+		defer test.statsdClient.Flush()
 		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":approver_type:in_upper_layer"); count == 0 {
 			return fmt.Errorf("expected metrics not found: %+v", test.statsdClient.GetByPrefix(metrics.MetricEventApproved))
 		}

@@ -109,6 +109,31 @@ func TestUSMDataChannelSize(t *testing.T) {
 	})
 }
 
+func TestDisableMapPreallocation(t *testing.T) {
+	t.Run("via yaml", func(t *testing.T) {
+		mockSystemProbe := mock.NewSystemProbe(t)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.disable_map_preallocation", false)
+		cfg := New()
+
+		assert.False(t, cfg.DisableMapPreallocation)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_DISABLE_MAP_PREALLOCATION", "false")
+		cfg := New()
+
+		assert.False(t, cfg.DisableMapPreallocation)
+	})
+
+	t.Run("default value", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		cfg := New()
+
+		assert.True(t, cfg.DisableMapPreallocation)
+	})
+}
+
 func TestMaxUSMConcurrentRequests(t *testing.T) {
 	t.Run("default value", func(t *testing.T) {
 		mock.NewSystemProbe(t)
@@ -1005,7 +1030,7 @@ func TestMaxKafkaStatsBuffered(t *testing.T) {
 func TestEnablePostgresMonitoring(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.enable_postgres_monitoring", true)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.postgres.enabled", true)
 		cfg := New()
 
 		assert.True(t, cfg.EnablePostgresMonitoring)
@@ -1013,7 +1038,7 @@ func TestEnablePostgresMonitoring(t *testing.T) {
 
 	t.Run("via ENV variable", func(t *testing.T) {
 		mock.NewSystemProbe(t)
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_POSTGRES_MONITORING", "true")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_POSTGRES_ENABLED", "true")
 		cfg := New()
 
 		_, err := sysconfig.New("", "")
@@ -1033,7 +1058,7 @@ func TestEnablePostgresMonitoring(t *testing.T) {
 func TestMaxPostgresTelemetryBuffered(t *testing.T) {
 	t.Run("value set through env var", func(t *testing.T) {
 		mock.NewSystemProbe(t)
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_MAX_POSTGRES_TELEMETRY_BUFFER", "50000")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_POSTGRES_MAX_TELEMETRY_BUFFER", "50000")
 
 		cfg := New()
 		assert.Equal(t, 50000, cfg.MaxPostgresTelemetryBuffer)
@@ -1041,7 +1066,7 @@ func TestMaxPostgresTelemetryBuffered(t *testing.T) {
 
 	t.Run("value set through yaml", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.max_postgres_telemetry_buffer", 30000)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.postgres.max_telemetry_buffer", 30000)
 
 		cfg := New()
 		assert.Equal(t, 30000, cfg.MaxPostgresTelemetryBuffer)
@@ -1051,7 +1076,7 @@ func TestMaxPostgresTelemetryBuffered(t *testing.T) {
 func TestMaxPostgresStatsBuffered(t *testing.T) {
 	t.Run("value set through env var", func(t *testing.T) {
 		mock.NewSystemProbe(t)
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_MAX_POSTGRES_STATS_BUFFERED", "50000")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_POSTGRES_MAX_STATS_BUFFERED", "50000")
 		cfg := New()
 
 		assert.Equal(t, 50000, cfg.MaxPostgresStatsBuffered)
@@ -1059,7 +1084,7 @@ func TestMaxPostgresStatsBuffered(t *testing.T) {
 
 	t.Run("value set through yaml", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.max_postgres_stats_buffered", 30000)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.postgres.max_stats_buffered", 30000)
 		cfg := New()
 
 		assert.Equal(t, 30000, cfg.MaxPostgresStatsBuffered)
@@ -1080,7 +1105,7 @@ func TestMaxPostgresStatsBuffered(t *testing.T) {
 func TestEnableRedisMonitoring(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.enable_redis_monitoring", true)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.redis.enabled", true)
 		cfg := New()
 
 		assert.True(t, cfg.EnableRedisMonitoring)
@@ -1088,7 +1113,7 @@ func TestEnableRedisMonitoring(t *testing.T) {
 
 	t.Run("via ENV variable", func(t *testing.T) {
 		mock.NewSystemProbe(t)
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_REDIS_MONITORING", "true")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_REDIS_ENABLED", "true")
 		cfg := New()
 
 		_, err := sysconfig.New("", "")
@@ -1133,7 +1158,7 @@ func TestRedisTrackResources(t *testing.T) {
 func TestMaxRedisStatsBuffered(t *testing.T) {
 	t.Run("value set through env var", func(t *testing.T) {
 		mock.NewSystemProbe(t)
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_MAX_REDIS_STATS_BUFFERED", "50000")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_REDIS_MAX_STATS_BUFFERED", "50000")
 		cfg := New()
 
 		assert.Equal(t, 50000, cfg.MaxRedisStatsBuffered)
@@ -1141,7 +1166,7 @@ func TestMaxRedisStatsBuffered(t *testing.T) {
 
 	t.Run("value set through yaml", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.max_redis_stats_buffered", 30000)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.redis.max_stats_buffered", 30000)
 		cfg := New()
 
 		assert.Equal(t, 30000, cfg.MaxRedisStatsBuffered)
