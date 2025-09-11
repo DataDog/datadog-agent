@@ -45,6 +45,11 @@ type DirectConsumer[V any] struct {
 	perf.EventHandler
 	proto    string
 	callback func(V)
+
+	// telemetry
+	metricGroup       *telemetry.MetricGroup
+	eventsCount       *telemetry.Counter
+	invalidEventCount *telemetry.Counter
 }
 
 // NewDirectConsumer creates a new DirectConsumer for the specified protocol.
@@ -53,18 +58,32 @@ func NewDirectConsumer[V any](proto string, callback func(V), config *config.Con
 		return nil, errors.New("callback function is required")
 	}
 
+	// setup telemetry
+	metricGroup := telemetry.NewMetricGroup(
+		fmt.Sprintf("usm.%s", proto),
+		telemetry.OptStatsd,
+	)
+	eventsCount := metricGroup.NewCounter("events_captured")
+	invalidEventCount := metricGroup.NewCounter("invalid_event_count")
+
 	consumer := &DirectConsumer[V]{
-		proto:    proto,
-		callback: callback,
+		proto:             proto,
+		callback:          callback,
+		metricGroup:       metricGroup,
+		eventsCount:       eventsCount,
+		invalidEventCount: invalidEventCount,
 	}
 
 	// Create handler function that processes individual events
 	handler := func(data []byte) {
 		if len(data) < int(unsafe.Sizeof(*new(V))) {
+			consumer.invalidEventCount.Add(1)
 			log.Debugf("DirectConsumer %s: received data too small for event type, size: %d, expected: %d",
 				proto, len(data), int(unsafe.Sizeof(*new(V))))
 			return
 		}
+
+		consumer.eventsCount.Add(1)
 
 		// Convert raw bytes to typed event
 		event := (*V)(unsafe.Pointer(&data[0]))
@@ -122,7 +141,10 @@ func (c *DirectConsumer[V]) Start() {
 // Sync implements Consumer interface
 func (c *DirectConsumer[V]) Sync() {
 	// Flush any pending data from the ring buffer
-	log.Debugf("DirectConsumer: syncing for protocol %s", c.proto)
+	if log.ShouldLog(log.DebugLvl) {
+		log.Debugf("DirectConsumer: syncing for protocol %s", c.proto)
+		log.Debugf("usm events summary: name=%q %s", c.proto, c.metricGroup.Summary())
+	}
 	c.Flush()
 }
 
