@@ -20,7 +20,7 @@ import (
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 )
 
-type windowsNetworkPathIntegrationTestSuite01 struct {
+type windowsNetworkPathIntegrationTestSuite struct {
 	baseNetworkPathIntegrationTestSuite
 }
 
@@ -30,7 +30,7 @@ var networkPathIntegrationWindows []byte
 // TestNetworkPathIntegrationSuiteLinux runs the Network Path Integration e2e suite for linux
 func TestWindowsNetworkPathIntegrationSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &windowsNetworkPathIntegrationTestSuite01{}, e2e.WithProvisioner(awshost.Provisioner(
+	e2e.Run(t, &windowsNetworkPathIntegrationTestSuite{}, e2e.WithProvisioner(awshost.Provisioner(
 		awshost.WithAgentOptions(
 			agentparams.WithSystemProbeConfig(string(sysProbeConfig)),
 			agentparams.WithIntegration("network_path.d", string(networkPathIntegrationWindows)),
@@ -39,7 +39,7 @@ func TestWindowsNetworkPathIntegrationSuite(t *testing.T) {
 	)))
 }
 
-func (s *windowsNetworkPathIntegrationTestSuite01) SetupSuite() {
+func (s *windowsNetworkPathIntegrationTestSuite) SetupSuite() {
 	s.baseNetworkPathIntegrationTestSuite.SetupSuite()
 
 	// disable defender firewall for windows
@@ -48,7 +48,7 @@ func (s *windowsNetworkPathIntegrationTestSuite01) SetupSuite() {
 	s.Require().NoError(err)
 }
 
-func (s *windowsNetworkPathIntegrationTestSuite01) TestWindowsNetworkPathIntegrationMetrics() {
+func (s *windowsNetworkPathIntegrationTestSuite) TestWindowsNetworkPathIntegrationMetrics() {
 	fakeIntake := s.Env().FakeIntake
 	hostname := s.Env().Agent.Client.Hostname()
 	s.EventuallyWithT(func(c *assert.CollectT) {
@@ -65,7 +65,7 @@ func (s *windowsNetworkPathIntegrationTestSuite01) TestWindowsNetworkPathIntegra
 }
 
 // disable defender firewall for windows
-func (s *windowsNetworkPathIntegrationTestSuite01) disableFirewall() error {
+func (s *windowsNetworkPathIntegrationTestSuite) disableFirewall() error {
 	_, err := s.Env().RemoteHost.Host.Execute("Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled False")
 	return err
 }
