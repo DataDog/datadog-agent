@@ -150,6 +150,15 @@ func unmarshalKeyReflection(cfg model.Reader, key string, target interface{}, op
 	}
 
 	outValue := reflect.ValueOf(target)
+	// Resolve pointers 2 times. This is needed because callers often do this:
+	//
+	// mystruct := &MyStruct{}
+	// err := structure.UnmarshalKey(config, "my_key", &mystruct)
+	//
+	// It would take highly unusual code to have more indirection than this.
+	if outValue.Kind() == reflect.Pointer {
+		outValue = reflect.Indirect(outValue)
+	}
 	if outValue.Kind() == reflect.Pointer {
 		outValue = reflect.Indirect(outValue)
 	}
