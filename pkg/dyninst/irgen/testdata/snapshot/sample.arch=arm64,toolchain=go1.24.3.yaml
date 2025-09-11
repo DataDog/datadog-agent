@@ -7207,7 +7207,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1208
+      ID: 1207
       Name: Probe[main.testMapMassive]
       ByteSize: 9
       PresenceBitsetSize: 1
@@ -7222,7 +7222,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1207
+      ID: 1208
       Name: Probe[main.testMapMassive]
       ByteSize: 9
       PresenceBitsetSize: 1
@@ -8281,7 +8281,7 @@ Types:
                   Offset: 0
                   ByteSize: 800
     - __kind: EventRootType
-      ID: 1240
+      ID: 1239
       Name: Probe[main.testVeryLargeSlice]
       ByteSize: 25
       PresenceBitsetSize: 1
@@ -8296,7 +8296,7 @@ Types:
                   Offset: 0
                   ByteSize: 24
     - __kind: EventRootType
-      ID: 1239
+      ID: 1240
       Name: Probe[main.testVeryLargeSlice]
       ByteSize: 25
       PresenceBitsetSize: 1

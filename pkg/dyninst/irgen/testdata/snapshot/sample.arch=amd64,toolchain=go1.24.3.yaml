@@ -7387,7 +7387,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1248
+      ID: 1247
       Name: Probe[main.testMassiveString]
       ByteSize: 17
       PresenceBitsetSize: 1
@@ -7402,7 +7402,7 @@ Types:
                   Offset: 0
                   ByteSize: 16
     - __kind: EventRootType
-      ID: 1247
+      ID: 1248
       Name: Probe[main.testMassiveString]
       ByteSize: 17
       PresenceBitsetSize: 1

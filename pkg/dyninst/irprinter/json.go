@@ -159,7 +159,10 @@ func marshalTypeMap(enc *jsontext.Encoder, tm map[ir.TypeID]ir.Type) error {
 		ids = append(ids, id)
 	}
 	slices.SortFunc(ids, func(a, b ir.TypeID) int {
-		return cmp.Compare(tm[a].GetName(), tm[b].GetName())
+		return cmp.Or(
+			cmp.Compare(tm[a].GetName(), tm[b].GetName()),
+			cmp.Compare(tm[a].GetID(), tm[b].GetID()),
+		)
 	})
 	if err := enc.WriteToken(jsontext.BeginArray); err != nil {
 		return err
