@@ -317,11 +317,11 @@ func CheckCWSBehaviour(t *testing.T, client *TestClient) {
 
 	t.Run("system-probe is running", func(tt *testing.T) {
 		require.Eventually(tt, func() bool {
-			out, err := client.Host.Execute("pgrep -fl datadog")
+			out, err := client.Host.Execute("pgrep -fl system-probe")
 			if err == nil {
-				tt.Logf("datadog processes: %s", out)
+				tt.Logf("system-probe processes: %s", out)
 			} else {
-				tt.Logf("error getting datadog processes: %s", err)
+				tt.Logf("error getting system-probe processes: %s", err)
 			}
 
 			tt.Logf("datadog processes: %s", out)
