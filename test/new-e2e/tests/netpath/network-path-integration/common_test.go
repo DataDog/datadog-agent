@@ -8,6 +8,7 @@ package networkpathintegration
 
 import (
 	_ "embed"
+	"encoding/json"
 	"fmt"
 	"os"
 	"time"
@@ -82,6 +83,13 @@ func (s *baseNetworkPathIntegrationTestSuite) expectNetpath(c *assert.CollectT, 
 }
 
 func assertPayloadBase(c *assert.CollectT, np *aggregator.Netpath, hostname string) {
+	if isNetpathDebugMode() {
+		// Print payloads when debug mode, this helps debugging tests during development time
+		tcpPathJSON, err := json.Marshal(np)
+		assert.NoError(c, err)
+		fmt.Println("NETWORK PATH PAYLOAD: ", string(tcpPathJSON))
+	}
+
 	assert.Equal(c, payload.PathOrigin("network_path_integration"), np.Origin)
 	assert.NotEmpty(c, np.PathtraceID)
 	assert.Equal(c, "default", np.Namespace)
@@ -120,10 +128,10 @@ func (s *baseNetworkPathIntegrationTestSuite) checkGoogleTCPSocket(c *assert.Col
 	np := s.expectNetpath(c, func(np *aggregator.Netpath) bool {
 		return np.Destination.Hostname == "8.8.8.8" && np.Protocol == "TCP"
 	})
-	assert.NotZero(c, np.Destination.Port)
 
 	assertPayloadBase(c, np, agentHostname)
 
+	assert.NotZero(c, np.Destination.Port)
 	require.NotEmpty(c, np.Traceroute.Runs)
 	assert.NotEmpty(c, np.Traceroute.Runs[0].Hops)
 
