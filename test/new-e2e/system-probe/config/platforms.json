@@ -90,7 +90,7 @@
     "debian_12": {
       "os_name": "Debian GNU/Linux",
       "os_id": "debian",
-      "kernel": "6.1.0-38",
+      "kernel": "6.1.0-39",
       "os_version": "12",
       "image": "debian-12-generic-x86_64.qcow2.xz",
       "image_version": "guillermo.julian/update-images",
@@ -349,7 +349,7 @@
     "debian_12": {
       "os_name": "Debian GNU/Linux",
       "os_id": "debian",
-      "kernel": "6.1.0-38",
+      "kernel": "6.1.0-39",
       "os_version": "12",
       "image": "debian-12-generic-arm64.qcow2.xz",
       "image_version": "guillermo.julian/update-images",
