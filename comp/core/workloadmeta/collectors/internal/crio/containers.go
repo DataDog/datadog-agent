@@ -91,6 +91,8 @@ func getContainerStatus(ctx context.Context, client crio.Client, containerID str
 
 // getContainerImage retrieves and converts a container image to workloadmeta format.
 func getContainerImage(ctrStatus *v1.ContainerStatus) workloadmeta.ContainerImage {
+	imgID := ctrStatus.GetImageId()
+
 	if ctrStatus == nil {
 		log.Warn("container status is nil, cannot fetch image")
 		return workloadmeta.ContainerImage{}
@@ -102,9 +104,9 @@ func getContainerImage(ctrStatus *v1.ContainerStatus) workloadmeta.ContainerImag
 		return workloadmeta.ContainerImage{}
 	}
 
-	imgID, digestErr := parseDigests([]string{ctrStatus.ImageRef})
+	digest, digestErr := parseDigests([]string{ctrStatus.ImageRef})
 	if digestErr != nil {
-		imgID = ctrStatus.ImageRef
+		digest = ctrStatus.ImageRef
 	}
 
 	wmImg, err := workloadmeta.NewContainerImage(imgID, imageSpec.Image)
@@ -116,7 +118,7 @@ func getContainerImage(ctrStatus *v1.ContainerStatus) workloadmeta.ContainerImag
 		// Don't log if the container image could not be created
 		log.Warnf("Failed to parse digest for image with ID %s: %v. As a result, SBOM vulnerabilities may not be properly linked to this image.", imgID, digestErr)
 	}
-	wmImg.RepoDigest = ctrStatus.ImageRef
+	wmImg.RepoDigest = digest
 
 	return wmImg
 }
