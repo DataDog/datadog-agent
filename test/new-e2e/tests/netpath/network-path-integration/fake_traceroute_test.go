@@ -19,7 +19,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
@@ -57,8 +56,6 @@ func TestFakeTracerouteSuite(t *testing.T) {
 
 func (s *fakeTracerouteTestSuite) TestFakeTraceroute() {
 	t := s.T()
-	// TODO remove this if the PR fixes the flakiness
-	flake.Mark(t)
 
 	t.Cleanup(func() {
 		s.Env().RemoteHost.MustExecute("sudo sh /tmp/router_teardown.sh")

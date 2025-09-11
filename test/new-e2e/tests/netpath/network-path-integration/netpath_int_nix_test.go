@@ -14,19 +14,18 @@ import (
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 )
 
-type linuxNetworkPathIntegrationTestSuite struct {
+type linuxNetworkPathIntegrationTestSuite01 struct {
 	baseNetworkPathIntegrationTestSuite
 }
 
 // TestNetworkPathIntegrationSuiteLinux runs the Network Path Integration e2e suite for linux
 func TestLinuxNetworkPathIntegrationSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &linuxNetworkPathIntegrationTestSuite{}, e2e.WithProvisioner(awshost.Provisioner(
+	e2e.Run(t, &linuxNetworkPathIntegrationTestSuite01{}, e2e.WithProvisioner(awshost.Provisioner(
 		awshost.WithAgentOptions(
 			agentparams.WithSystemProbeConfig(string(sysProbeConfig)),
 			agentparams.WithIntegration("network_path.d", string(networkPathIntegration)),
@@ -35,10 +34,7 @@ func TestLinuxNetworkPathIntegrationSuite(t *testing.T) {
 
 }
 
-func (s *linuxNetworkPathIntegrationTestSuite) TestLinuxNetworkPathIntegrationMetrics() {
-	// TODO remove after fixing metrics flake
-	flake.Mark(s.T())
-
+func (s *linuxNetworkPathIntegrationTestSuite01) TestLinuxNetworkPathIntegrationMetrics() {
 	fakeIntake := s.Env().FakeIntake
 	hostname := s.Env().Agent.Client.Hostname()
 	s.EventuallyWithT(func(c *assert.CollectT) {
