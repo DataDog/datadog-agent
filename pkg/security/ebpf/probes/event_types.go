@@ -609,7 +609,9 @@ func GetSelectorsPerEventType(hasFentry bool, hasCgroupSocket bool) map[eval.Eve
 	if err == nil {
 		if _, ok := loadedModules["nf_nat"]; ok {
 			for _, networkEventType := range networkEventTypes {
-				selectorsPerEventTypeStore[networkEventType] = append(selectorsPerEventTypeStore[networkEventType], NetworkNFNatSelectors()...)
+				if model.EventTypeDependsOnInterfaceTracking(networkEventType) {
+					selectorsPerEventTypeStore[networkEventType] = append(selectorsPerEventTypeStore[networkEventType], NetworkNFNatSelectors()...)
+				}
 			}
 		}
 	}

@@ -578,6 +578,11 @@ func (rs *RuleSet) innerAddExpandedRule(parsingContext *ast.ParsingContext, pRul
 		if enabled, exists := rs.opts.EventTypeEnabled[eventType]; !exists || !enabled {
 			return model.UnknownCategory, &ErrRuleLoad{Rule: pRule, Err: ErrEventTypeNotEnabled}
 		}
+
+		// ignore rules requiring an unsupported event type to execute their action
+		if err = pRule.AreActionsSupported(rs.opts.EventTypeEnabled); err != nil {
+			return model.UnknownCategory, &ErrRuleLoad{Rule: pRule, Err: err}
+		}
 	}
 
 	for _, action := range rule.PolicyRule.Actions {
