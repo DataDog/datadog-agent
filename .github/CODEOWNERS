@@ -388,6 +388,7 @@
 /pkg/cli/subcommands/autoscalerlist     @DataDog/container-autoscaling @DataDog/container-integrations
 /pkg/discovery/                         @DataDog/agent-discovery
 /pkg/errors/                            @DataDog/agent-runtimes
+/pkg/privileged-logs/                        @DataDog/agent-discovery @DataDog/agent-log-pipelines
 /pkg/fips                               @DataDog/agent-runtimes
 /pkg/gohai                              @DataDog/agent-configuration
 /pkg/gpu/                               @DataDog/ebpf-platform
