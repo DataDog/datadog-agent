@@ -221,6 +221,36 @@ func protoDecodeFileEvent(fi *adproto.FileInfo) *model.FileEvent {
 	return fe
 }
 
+func protoDecodeFileInfo(fi *adproto.FileInfo) *FileInfo {
+	if fi == nil {
+		return nil
+	}
+
+	fileInfo := &FileInfo{
+		UID:               fi.Uid,
+		User:              fi.User,
+		GID:               fi.Gid,
+		Group:             fi.Group,
+		Mode:              fi.Mode,
+		Ctime:             fi.Ctime,
+		Mtime:             fi.Mtime,
+		MountID:           fi.MountId,
+		Inode:             fi.Inode,
+		InUpperLayer:      fi.InUpperLayer,
+		Path:              fi.Path,
+		Basename:          fi.Basename,
+		Filesystem:        fi.Filesystem,
+		PackageName:       fi.PackageName,
+		PackageVersion:    fi.PackageVersion,
+		PackageSrcversion: fi.PackageSrcversion,
+		Hashes:            make([]string, len(fi.Hashes)),
+		HashState:         model.HashState(fi.HashState),
+	}
+	copy(fileInfo.Hashes, fi.Hashes)
+
+	return fileInfo
+}
+
 func protoDecodeFileActivityNode(fan *adproto.FileActivityNode) *FileNode {
 	if fan == nil {
 		return nil
@@ -229,7 +259,7 @@ func protoDecodeFileActivityNode(fan *adproto.FileActivityNode) *FileNode {
 	pfan := &FileNode{
 		MatchedRules:   make([]*model.MatchedRule, 0, len(fan.MatchedRules)),
 		Name:           fan.Name,
-		File:           protoDecodeFileEvent(fan.File),
+		File:           protoDecodeFileInfo(fan.File),
 		GenerationType: NodeGenerationType(fan.GenerationType),
 		Open:           protoDecodeOpenNode(fan.Open),
 		Children:       make(map[string]*FileNode, len(fan.Children)),
