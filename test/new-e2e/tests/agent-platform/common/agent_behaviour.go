@@ -324,8 +324,6 @@ func CheckCWSBehaviour(t *testing.T, client *TestClient) {
 				tt.Logf("error getting system-probe processes: %s", err)
 			}
 
-			tt.Logf("datadog processes: %s", out)
-
 			return AgentProcessIsRunning(client, "system-probe")
 		}, 1*time.Minute, 500*time.Millisecond, "system-probe should be running ")
 	})
@@ -337,18 +335,21 @@ func CheckSystemProbeBehavior(t *testing.T, client *TestClient) {
 		err := client.SetConfig(client.Helper.GetConfigFolder()+"system-probe.yaml", "system_probe_config.enabled", "true")
 		require.NoError(tt, err)
 
-		err = client.SetConfig(client.Helper.GetConfigFolder()+"system-probe.yaml", "system_probe_config.enabled", "true")
-		require.NoError(tt, err)
-
 		_, err = client.SvcManager.Restart(client.Helper.GetServiceName())
 		require.NoError(tt, err, "datadog-agent should restart after CWS is enabled")
 	})
 
 	t.Run("system-probe is running", func(tt *testing.T) {
-		var err error
 		require.Eventually(tt, func() bool {
+			out, err := client.Host.Execute("pgrep -fl system-probe")
+			if err == nil {
+				tt.Logf("system-probe processes: %s", out)
+			} else {
+				tt.Logf("error getting system-probe processes: %s", err)
+			}
+
 			return AgentProcessIsRunning(client, "system-probe")
-		}, 1*time.Minute, 500*time.Millisecond, "system-probe should be running ", err)
+		}, 1*time.Minute, 500*time.Millisecond, "system-probe should be running ")
 	})
 
 	t.Run("ebpf programs are unpacked and valid", func(tt *testing.T) {
