@@ -49,9 +49,12 @@ func (d *DataItem) Header() *DataItemHeader {
 	return d.header
 }
 
-// Data returns the data of the data item.
-func (d *DataItem) Data() []byte {
-	return d.data
+// Data returns the data of the data item if it was not marked as a failed read.
+func (d *DataItem) Data() ([]byte, bool) {
+	if d.header.Type&DataItemFailedReadMask != 0 {
+		return nil, false
+	}
+	return d.data, true
 }
 
 func nextMultipleOf8(v int) int {
