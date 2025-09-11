@@ -983,3 +983,83 @@ func TestPreGeneratedIntegrityChecks(t *testing.T) {
 		}
 	}
 }
+
+func TestUpdateMetadataOnlyWhenHashUnchangedVersionIncreased(t *testing.T) {
+	ta := newTestArtifacts()
+
+	// Initial add of a config
+	file := newCWSDDFile()
+	path, _, data := addCWSDDFile("test", 1, file, ta.targets)
+	b := signTargets(ta.key, ta.targets)
+	update := Update{
+		TUFRoots:      make([][]byte, 0),
+		TUFTargets:    b,
+		TargetFiles:   map[string][]byte{path: data},
+		ClientConfigs: []string{path},
+	}
+
+	r := ta.repository
+	_, err := r.Update(update)
+	assert.NoError(t, err)
+
+	// Same file contents (same hashes), but bump the metadata version
+	_, hashesV2, _ := addCWSDDFile("test", 2, file, ta.targets)
+	b = signTargets(ta.key, ta.targets)
+	update = Update{
+		TUFRoots:      make([][]byte, 0),
+		TUFTargets:    b,
+		TargetFiles:   map[string][]byte{path: data},
+		ClientConfigs: []string{path},
+	}
+
+	updatedProducts, err := r.Update(update)
+	assert.NoError(t, err)
+	// No product callbacks should be triggered for metadata-only updates
+	assert.Equal(t, 0, len(updatedProducts))
+
+	storedFile, ok := r.GetConfigs(ProductCWSDD)[path]
+	assert.True(t, ok)
+	assert.Equal(t, file, storedFile.Config)
+	assert.EqualValues(t, 2, storedFile.Metadata.Version)
+	assertHashesEqual(t, hashesV2, storedFile.Metadata.Hashes)
+
+	state, err := r.CurrentState()
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(state.Configs))
+	assert.Equal(t, 1, len(state.CachedFiles))
+	assert.EqualValues(t, 2, state.Configs[0].Version)
+
+	// Repeat the same test against the unverified repository
+	r = ta.unverifiedRepository
+	_, err = r.Update(Update{
+		TUFRoots:      make([][]byte, 0),
+		TUFTargets:    signTargets(ta.key, ta.targets), // ta.targets currently at v2 for this path
+		TargetFiles:   map[string][]byte{path: data},
+		ClientConfigs: []string{path},
+	})
+	assert.NoError(t, err)
+
+	// Bump to version 3 with same content to exercise metadata-only update again
+	_, hashesV3, _ := addCWSDDFile("test", 3, file, ta.targets)
+	b = signTargets(ta.key, ta.targets)
+	updatedProducts, err = r.Update(Update{
+		TUFRoots:      make([][]byte, 0),
+		TUFTargets:    b,
+		TargetFiles:   map[string][]byte{path: data},
+		ClientConfigs: []string{path},
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(updatedProducts))
+
+	storedFile, ok = r.GetConfigs(ProductCWSDD)[path]
+	assert.True(t, ok)
+	assert.Equal(t, file, storedFile.Config)
+	assert.EqualValues(t, 3, storedFile.Metadata.Version)
+	assertHashesEqual(t, hashesV3, storedFile.Metadata.Hashes)
+
+	state, err = r.CurrentState()
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(state.Configs))
+	assert.Equal(t, 1, len(state.CachedFiles))
+	assert.EqualValues(t, 3, state.Configs[0].Version)
+}
