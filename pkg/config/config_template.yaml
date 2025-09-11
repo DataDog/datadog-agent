@@ -1119,7 +1119,7 @@ api_key:
   ## @env DD_LOGS_CONFIG_MAX_MESSAGE_SIZE_BYTES - integer - optional - default : 900000
   ## The maximum size of single log message in bytes. If maxMessageSizeBytes exceeds
   ## the documented API limit of 1MB - any payloads larger than 1MB will be dropped by the intake.
-  # https://docs.datadoghq.com/api/latest/logs/
+  ## https://docs.datadoghq.com/api/latest/logs/
   #
   # max_message_size_bytes: 900000
 
