@@ -1026,7 +1026,6 @@ func TestIsRemoteConfigEnabled(t *testing.T) {
 	testConfig = newTestConf(t)
 	require.False(t, IsRemoteConfigEnabled(testConfig))
 
-	t.Unsetenv("DD_FIPS_ENABLED")
 	t.Setenv("DD_SITE", "ddog-gov.com")
 	testConfig = newTestConf(t)
 	require.False(t, IsRemoteConfigEnabled(testConfig))
@@ -1037,7 +1036,6 @@ func TestIsRemoteConfigEnabled(t *testing.T) {
 	testConfig.SetWithoutSource("remote_configuration.enabled", true)
 	require.True(t, IsRemoteConfigEnabled(testConfig))
 
-	t.Unsetenv("DD_FIPS_ENABLED")
 	t.Setenv("DD_SITE", "ddog-gov.com")
 	testConfig = newTestConf(t)
 	testConfig.SetWithoutSource("remote_configuration.enabled", true)
@@ -1049,7 +1047,6 @@ func TestIsRemoteConfigEnabled(t *testing.T) {
 	testConfig.SetWithoutSource("remote_configuration.enabled", false)
 	require.False(t, IsRemoteConfigEnabled(testConfig))
 
-	t.Unsetenv("DD_FIPS_ENABLED")
 	t.Setenv("DD_SITE", "ddog-gov.com")
 	testConfig = newTestConf(t)
 	testConfig.SetWithoutSource("remote_configuration.enabled", false)
