@@ -8,6 +8,10 @@
   before_script:
     - PACKAGE_VERSION="$(dda inv agent.version --url-safe)-1" || exit $?
     - export INSTALL_DIR=/opt/datadog-packages/${OCI_PRODUCT}/${PACKAGE_VERSION}
+    - set +x
+    - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
+    - go env -w GOPRIVATE="github.com/DataDog/*"
+    - ${CI_PROJECT_DIR}/tools/ci/retry.sh go install github.com/DataDog/datadog-packages/cmd/datadog-package@latest
   variables:
     KUBERNETES_CPU_REQUEST: 16
     KUBERNETES_MEMORY_REQUEST: "32Gi"
@@ -17,10 +21,6 @@
     - rm -f $OMNIBUS_PACKAGE_DIR/*-dbg-*.tar.xz
     - ls -l $OMNIBUS_PACKAGE_DIR
     - dda self dep sync -f legacy-tasks
-    - set +x
-    - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
-    - go env -w GOPRIVATE="github.com/DataDog/*"
-    - ${CI_PROJECT_DIR}/tools/ci/retry.sh go install github.com/DataDog/datadog-packages/cmd/datadog-package@latest
     - OUTPUT_DIR="/tmp/oci_output"
     - mkdir -p ${OUTPUT_DIR}
     - ls $OMNIBUS_PACKAGE_DIR
@@ -75,31 +75,54 @@
     paths:
       - ${OMNIBUS_PACKAGE_DIR}
 
-agent_win_oci:
-  stage: packaging
+.package_oci_win:
   extends: .package_oci
-  needs:
-    - job: "windows_msi_and_bosh_zip_x64-a7"
-      artifacts: true
-  rules:
-    - !reference [.except_mergequeue]
-    - when: on_success
   script:
     - set -euo pipefail
-    - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/" || true
-    - go env -w GOPRIVATE="github.com/DataDog/*" || true
-    - ${CI_PROJECT_DIR}/tools/ci/retry.sh go install github.com/DataDog/datadog-packages/cmd/datadog-package@latest
-    - PIPE_DIR="${CI_PROJECT_DIR}/omnibus/pkg/pipeline-${CI_PIPELINE_ID}"
-    - MSI="$(ls -1 "${PIPE_DIR}"/datadog-agent-*x86_64.msi | head -n1)"
-    - '[ -n "${MSI}" ]'
-    - STAGING="$(mktemp -d)"; cp "${MSI}" "${STAGING}/"
-    - BASE="$(basename "${MSI}")"
-    - VERSION="$(echo "${BASE}" | sed -E 's/^datadog-agent-(.+)-x86_64\.msi$/\1/')"
-    - datadog-package create --version "${VERSION}" --package datadog-agent --os windows --arch amd64 --archive --archive-path "${PIPE_DIR}/datadog-agent-${VERSION}-windows-amd64.oci.tar" "${STAGING}/"
+    - PIPE_DIR="$OMNIBUS_PACKAGE_DIR/pipeline-$CI_PIPELINE_ID"
+    - ARTIFACT="$(ls -1 "${PIPE_DIR}"/${WIN_ARTIFACT_PATTERN} | head -n1)"
+    - '[ -n "${ARTIFACT}" ]'
+    - |
+      case "${WIN_SOURCE_TYPE}" in
+        msi)
+          STAGING="$(mktemp -d)"; cp "${ARTIFACT}" "${STAGING}/"
+          BASE="$(basename "${ARTIFACT}")"
+          VERSION="$(echo "${BASE}" | sed -E "${WIN_VERSION_SED}")"
+          SRC_DIR="${STAGING}"
+          EXTRA_FLAGS=""
+          ;;
+        zip)
+          WIN_INPUT="/tmp/win_oci_input"; mkdir -p "${WIN_INPUT}"
+          unzip -q "${ARTIFACT}" -d "${WIN_INPUT}"
+          ZIP_BASE="$(basename "${ARTIFACT}")"
+          VERSION="$(echo "${ZIP_BASE}" | sed -E "${WIN_VERSION_SED}")"
+          SRC_DIR="${WIN_INPUT}"
+          EXTRA_FLAGS=""
+          if [ -d "${WIN_INPUT}/etc/datadog-agent" ]; then
+            EXTRA_FLAGS="--configs ${WIN_INPUT}/etc/datadog-agent"
+          fi
+          ;;
+        *)
+          echo "Unknown WIN_SOURCE_TYPE: ${WIN_SOURCE_TYPE}"; exit 1
+          ;;
+      esac
+    - datadog-package create --version "${VERSION}" --package "${OCI_PRODUCT}" --os windows --arch amd64 --archive --archive-path "${PIPE_DIR}/${OCI_PRODUCT}-${VERSION}-windows-amd64.oci.tar" ${EXTRA_FLAGS} "${SRC_DIR}/"
+    - ls -l "${PIPE_DIR}"
   artifacts:
     expire_in: 2 weeks
     paths:
-      - omnibus/pkg/pipeline-$CI_PIPELINE_ID
+      - ${OMNIBUS_PACKAGE_DIR}/pipeline-$CI_PIPELINE_ID
+
+agent_win_oci:
+  extends: .package_oci_win
+  needs:
+    - job: "windows_msi_and_bosh_zip_x64-a7"
+      artifacts: true
+  variables:
+    OCI_PRODUCT: "datadog-agent"
+    WIN_SOURCE_TYPE: "msi"
+    WIN_ARTIFACT_PATTERN: "datadog-agent-*x86_64.msi"
+    WIN_VERSION_SED: 's/^datadog-agent-(.+)-x86_64\.msi$/\1/'
 
 agent_oci:
   extends: .package_oci
@@ -129,34 +152,15 @@ installer_oci:
     OCI_PRODUCT: "datadog-installer"
 
 ddot_win_oci:
-  extends: .package_oci
-  stage: packaging
+  extends: .package_oci_win
   needs:
     - job: "windows_zip_ddot_x64"
       artifacts: true
-  rules:
-    - !reference [.except_mergequeue]
-    - when: on_success
-  script:
-    - set -euo pipefail
-    - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
-    - go env -w GOPRIVATE="github.com/DataDog/*"
-    - ${CI_PROJECT_DIR}/tools/ci/retry.sh go install github.com/DataDog/datadog-packages/cmd/datadog-package@latest
-    - PIPE_DIR="${CI_PROJECT_DIR}/omnibus/pkg/pipeline-${CI_PIPELINE_ID}"
-    - WIN_ZIP="$(ls -1 "${PIPE_DIR}"/datadog-agent-ddot-*x86_64.zip | head -n1)"
-    - '[ -n "${WIN_ZIP}" ]'
-    - WIN_INPUT="/tmp/win_ddot_input"; mkdir -p "${WIN_INPUT}"
-    - unzip -q "${WIN_ZIP}" -d "${WIN_INPUT}"
-    - ZIP_BASE="$(basename "${WIN_ZIP}")"
-    - VERSION="$(echo "${ZIP_BASE}" | sed -E 's/^datadog-agent-ddot-(.+)-x86_64\.zip$/\1/')"
-    - EXTRA_FLAGS=""
-    - '[ -d "${WIN_INPUT}/etc/datadog-agent" ] && EXTRA_FLAGS="--configs ${WIN_INPUT}/etc/datadog-agent" || true'
-    - datadog-package create --version "${VERSION}" --package datadog-agent-ddot --os windows --arch amd64 --archive --archive-path "${PIPE_DIR}/datadog-agent-ddot-${VERSION}-windows-amd64.oci.tar" ${EXTRA_FLAGS} "${WIN_INPUT}/"
-    - ls -l "${PIPE_DIR}"
-  artifacts:
-    expire_in: 2 weeks
-    paths:
-      - omnibus/pkg/pipeline-$CI_PIPELINE_ID
+  variables:
+    OCI_PRODUCT: "datadog-agent-ddot"
+    WIN_SOURCE_TYPE: "zip"
+    WIN_ARTIFACT_PATTERN: "datadog-agent-ddot-*x86_64.zip"
+    WIN_VERSION_SED: 's/^datadog-agent-ddot-(.+)-x86_64\.zip$/\1/'
 
 ddot_oci:
   extends: .package_oci
