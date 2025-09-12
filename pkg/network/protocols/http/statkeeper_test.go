@@ -13,11 +13,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
 func TestProcessHTTPTransactions(t *testing.T) {
@@ -463,4 +465,62 @@ func TestGRPCQuantizationBehavior(t *testing.T) {
 			assert.NotEqual(t, "/google.pubsub.v1.Publisher/Publish", path, "GET requests with gRPC-like paths should be quantized")
 		}
 	})
+}
+
+func benchmarkRequestStats(b *testing.B, statsMaxSize int) {
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		stats := make(map[Key]*RequestStats)
+		key := Key{}
+		for j := 0; j < statsMaxSize; j++ {
+			key.SrcPort = uint16(j) % 65000
+			key.DstPort = uint16(j) / 65000
+			stats[key] = NewRequestStats()
+		}
+	}
+}
+
+func BenchmarkRequestStats1000(b *testing.B) {
+	benchmarkRequestStats(b, 1000)
+}
+
+func BenchmarkRequestStats10000(b *testing.B) {
+	benchmarkRequestStats(b, 10000)
+}
+
+func BenchmarkRequestStats100000(b *testing.B) {
+	benchmarkRequestStats(b, 100000)
+}
+
+func benchmarkRequestStatsPool2(b *testing.B, statsMaxSize int) {
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		stats := make(map[Key]*RequestStats)
+		key := Key{}
+		for j := 0; j < statsMaxSize; j++ {
+			key.SrcPort = uint16(j) % 65000
+			key.DstPort = uint16(j) / 65000
+			stats[key] = reqStatsPool.Get()
+		}
+		for _, reqStats := range stats {
+			clear(reqStats.Data)
+			reqStatsPool.Put(reqStats)
+		}
+	}
+}
+
+func BenchmarkRequestStatsPool1000(b *testing.B) {
+	benchmarkRequestStatsPool2(b, 1000)
+}
+
+func BenchmarkRequestStatsPool10000(b *testing.B) {
+	benchmarkRequestStatsPool2(b, 10000)
+}
+
+func BenchmarkRequestStatsPool100000(b *testing.B) {
+	benchmarkRequestStatsPool2(b, 100000)
 }
