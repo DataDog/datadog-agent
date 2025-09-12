@@ -317,6 +317,7 @@ Probes:
       type: LOG_PROBE
       where: {methodName: main.testEmptyString}
       tags: ['foo:bar']
+      sampling: {snapshotsPerSecond: 10}
       template: ""
       segments: []
       captureSnapshot: true
@@ -338,7 +339,7 @@ Probes:
       events:
         - ID: 108
           Type: 1268 EventRootType Probe[main.testEmptyStruct]
-          InjectionPoints: [{PC: "0x80a310", Frameless: true}]
+          InjectionPoints: [{PC: "0x80a320", Frameless: true}]
           Condition: null
     - id: testEmptyStructPointer
       version: 0
@@ -351,7 +352,7 @@ Probes:
       events:
         - ID: 109
           Type: 1269 EventRootType Probe[main.testEmptyStructPointer]
-          InjectionPoints: [{PC: "0x80a320", Frameless: true}]
+          InjectionPoints: [{PC: "0x80a330", Frameless: true}]
           Condition: null
     - id: testError
       version: 0
@@ -1395,7 +1396,7 @@ Probes:
       events:
         - ID: 107
           Type: 1267 EventRootType Probe[main.testStruct]
-          InjectionPoints: [{PC: "0x80a240", Frameless: true}]
+          InjectionPoints: [{PC: "0x80a250", Frameless: true}]
           Condition: null
     - id: testStructSlice
       version: 0
@@ -3276,13 +3277,13 @@ Subprograms:
           IsReturn: false
     - ID: 107
       Name: main.testStruct
-      OutOfLinePCRanges: [0x80a240..0x80a260]
+      OutOfLinePCRanges: [0x80a250..0x80a270]
       InlinePCRanges: []
       Variables:
         - Name: x
           Type: 244 StructureType main.aStruct
           Locations:
-            - Range: 0x80a240..0x80a260
+            - Range: 0x80a250..0x80a270
               Pieces:
                 - Size: 1
                   Op: {RegNo: 0, Shift: 0}
@@ -3302,23 +3303,23 @@ Subprograms:
           IsReturn: false
     - ID: 108
       Name: main.testEmptyStruct
-      OutOfLinePCRanges: [0x80a310..0x80a320]
+      OutOfLinePCRanges: [0x80a320..0x80a330]
       InlinePCRanges: []
       Variables:
         - Name: e
           Type: 246 StructureType main.emptyStruct
-          Locations: [{Range: 0x80a310..0x80a320, Pieces: []}]
+          Locations: [{Range: 0x80a320..0x80a330, Pieces: []}]
           IsParameter: true
           IsReturn: false
     - ID: 109
       Name: main.testEmptyStructPointer
-      OutOfLinePCRanges: [0x80a320..0x80a330]
+      OutOfLinePCRanges: [0x80a330..0x80a340]
       InlinePCRanges: []
       Variables:
         - Name: e
           Type: 247 PointerType *main.emptyStruct
           Locations:
-            - Range: 0x80a320..0x80a330
+            - Range: 0x80a330..0x80a340
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           IsParameter: true
           IsReturn: false
