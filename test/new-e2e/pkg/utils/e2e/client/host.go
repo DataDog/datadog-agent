@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
 )
 
 const (
@@ -135,6 +136,8 @@ func (h *sshExecutor) Reconnect() error {
 }
 
 // Execute executes a command and returns an error if any.
+//
+//dd:span
 func (h *sshExecutor) Execute(command string, options ...ExecuteOption) (string, error) {
 	params, err := optional.MakeParams(options...)
 	if err != nil {
@@ -146,6 +149,9 @@ func (h *sshExecutor) Execute(command string, options ...ExecuteOption) (string,
 
 func (h *sshExecutor) executeAndReconnectOnError(command string) (string, error) {
 	scrubbedCommand := h.scrubber.ScrubLine(command) // scrub the command in case it contains secrets
+	ddspan, _ := tracer.StartSpanFromContext(h.context.T().Context(), "ssh.execute")
+	ddspan.SetTag("command", scrubbedCommand)
+	defer ddspan.Finish()
 	h.context.T().Logf("%s - %s - Executing command `%s`", time.Now().Format("02-01-2006 15:04:05"), h.context.T().Name(), scrubbedCommand)
 	stdout, err := execute(h.client, command)
 	if err != nil && strings.Contains(err.Error(), "failed to create session:") {
