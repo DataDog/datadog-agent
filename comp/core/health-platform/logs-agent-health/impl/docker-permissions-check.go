@@ -362,7 +362,7 @@ func (d *DockerPermissionsCheck) createDockerIssue(issueType string, dockerRootD
 			{Order: 3, Text: "Restart the datadog-agent service: systemctl restart datadog-agent"},
 			{Order: 4, Text: "Verify Docker socket access by checking agent logs"},
 		}
-		scriptFilename = "fix_docker_socket_access.sh"
+		scriptFilename = "update-agent-perm-1"
 		scriptContent = "usermod -aG docker dd-agent && systemctl restart datadog-agent"
 		tags = []string{"docker", "socket", "permissions", "access-control", "metrics"}
 
@@ -385,7 +385,7 @@ func (d *DockerPermissionsCheck) createDockerIssue(issueType string, dockerRootD
 			{Order: 7, Text: "⚠️  LAST RESORT: If ACLs don't work, add dd-agent to root group (gives root privileges):"},
 			{Order: 8, Text: "usermod -aG root dd-agent && systemctl restart datadog-agent"},
 		}
-		scriptFilename = "fix_docker_file_tailing.sh"
+		scriptFilename = "update-agent-perm-2"
 		scriptContent = fmt.Sprintf("setfacl -Rm g:dd-agent:rx %s/containers && setfacl -Rm g:dd-agent:r %s/containers/*/*.log && setfacl -Rdm g:dd-agent:rx %s/containers && systemctl restart datadog-agent", dockerDir, dockerDir, dockerDir)
 		tags = []string{"docker", "logs", "permissions", "file-tailing", "socket-tailing", "host-install"}
 
