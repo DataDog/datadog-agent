@@ -978,7 +978,7 @@ func (c *ntmConfig) ConfigFileUsed() string {
 
 // BindEnvAndSetDefault binds an environment variable and sets a default for the given key
 func (c *ntmConfig) BindEnvAndSetDefault(key string, val interface{}, envvars ...string) {
-	c.BindEnv(key, envvars...) //nolint:errcheck
+	c.BindEnv(key, envvars...) //nolint:errcheck,forbidigo
 	c.SetDefault(key, val)
 }
 
