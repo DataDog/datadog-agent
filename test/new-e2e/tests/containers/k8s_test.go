@@ -477,8 +477,10 @@ func (suite *k8sSuite) TestNginx() {
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
 				`^kube_cluster_name:`,
+				`^cluster_name:`,
 				`^kube_deployment:nginx$`,
 				`^kube_namespace:workload-nginx$`,
+				`^kube_instance_tag:static$`, // This is applied via KSM core check instance config
 			},
 			Value: &testMetricExpectValueArgs{
 				Max: 5,
@@ -569,8 +571,10 @@ func (suite *k8sSuite) TestRedis() {
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
 				`^kube_cluster_name:`,
+				`^cluster_name:`,
 				`^kube_deployment:redis$`,
 				`^kube_namespace:workload-redis$`,
+				`^kube_instance_tag:static$`,
 			},
 			Value: &testMetricExpectValueArgs{
 				Max: 5,
@@ -590,6 +594,8 @@ func (suite *k8sSuite) TestRedis() {
 				`^container_name:redis$`,
 				`^dirname:/var/log/pods/workload-redis_redis-`,
 				`^display_container_name:redis`,
+				`^git\.commit\.sha:[[:xdigit:]]{40}$`, // org.opencontainers.image.revision docker image label
+				`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source docker image label
 				`^filename:[[:digit:]]+.log$`,
 				`^image_id:ghcr\.io/datadog/redis@sha256:`,
 				`^image_name:ghcr\.io/datadog/redis$`,
