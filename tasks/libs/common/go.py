@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import io
 import os
-import shutil
 import sys
 from pathlib import Path
 from typing import cast
@@ -103,9 +102,10 @@ def _handle_pipe_to_whydeadcode(ctx: Context, cmd: str, env: dict[str, str] | No
     # any unrecognized log line is shown by whydeadcode anyway
     result = cast(Result, runner.run(cmd, env=env, hide="stderr"))
 
-    if not shutil.which("whydeadcode"):
-        with ctx.cd("internal/tools"):
-            run_command_with_retry(ctx, "go install github.com/aarzilli/whydeadcode", max_retry=3)
+    # worst case it's already installed and nothing happens
+    with ctx.cd("internal/tools"):
+        # pass the env to the command so that it can check GOPATH/GOBIN when installing
+        ctx.run("go install github.com/aarzilli/whydeadcode", env=env)
 
     # whydeadcode prints unexpected input on stderr (eg. build warnings), and
     # dead code call stack on stdout
