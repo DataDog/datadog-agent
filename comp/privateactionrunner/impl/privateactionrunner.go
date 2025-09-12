@@ -175,8 +175,9 @@ func (r *runnerImpl) Start(ctx context.Context) error {
 	}
 	r.log.Infof("Starting private action runner with urn %s", r.parConfig.Urn)
 	r.started = true
-	r.keysManager.Start(ctx)
-	r.WorkflowRunner.Start(ctx)
+	noDeadlineCtx := context.Background()
+	r.keysManager.Start(noDeadlineCtx)
+	r.WorkflowRunner.Start(noDeadlineCtx)
 	return nil
 }
 
