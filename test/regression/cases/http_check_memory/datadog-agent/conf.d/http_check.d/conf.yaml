@@ -1,5 +1,4 @@
 init_config:
 instances:
-  - name: "http check"
+  - name: "My first service"
     url: http://datadoghq.com
-    min_collection_interval: 15
