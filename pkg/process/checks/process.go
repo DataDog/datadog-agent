@@ -472,7 +472,7 @@ func chunkProcessesAndContainers(
 
 // fmtProcesses goes through each process, converts them to process object and group them by containers
 // non-container processes would be in a single group with key as empty string ""
-func fmtProcesses(scrubber *procutil.DataScrubber, filter workloadfilter.Component, procs, lastProcs map[int32]*procutil.Process, ctrByProc map[int]string, syst2, syst1 cpu.TimesStat, lastRun time.Time, lookupIdProbe *LookupIdProbe, zombiesIgnored bool, serviceExtractor *parser.ServiceExtractor, pidToGPUTags map[int32][]string, now time.Time) map[string][]*model.Process {
+func fmtProcesses(scrubber *procutil.DataScrubber, filter workloadfilter.Component, procs, lastProcs map[int32]*procutil.Process, ctrByProc map[int]string, syst2, syst1 cpu.TimesStat, lastRun time.Time, lookupIDProbe *LookupIdProbe, zombiesIgnored bool, serviceExtractor *parser.ServiceExtractor, pidToGPUTags map[int32][]string, now time.Time) map[string][]*model.Process {
 	procsByCtr := make(map[string][]*model.Process)
 
 	for _, fp := range procs {
@@ -486,7 +486,7 @@ func fmtProcesses(scrubber *procutil.DataScrubber, filter workloadfilter.Compone
 			Pid:                    fp.Pid,
 			NsPid:                  fp.NsPid,
 			Command:                formatCommand(fp),
-			User:                   formatUser(fp, lookupIdProbe),
+			User:                   formatUser(fp, lookupIDProbe),
 			Memory:                 formatMemory(fp.Stats),
 			Cpu:                    formatCPU(fp.Stats, lastProcs[fp.Pid].Stats, syst2, syst1),
 			CreateTime:             fp.Stats.CreateTime,
