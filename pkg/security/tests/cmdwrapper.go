@@ -50,7 +50,7 @@ var dockerImageLibrary = map[string][]string{
 	},
 	"busybox": {
 		"busybox:1.36.1",
-		"docker.io/busybox:1.36.1", // before changing the version make sure that the new version behaves as previously (hardlink vs symlink)
+		"public.ecr.aws/docker/library/busybox:1.36.1", // before changing the version make sure that the new version behaves as previously (hardlink vs symlink)
 	},
 }
 
@@ -165,15 +165,19 @@ func (d *dockerCmdWrapper) Type() wrapperType {
 
 func (d *dockerCmdWrapper) selectImageFromLibrary(kind string) error {
 	var err error
+	var output []byte
 	for _, entry := range dockerImageLibrary[kind] {
 		cmd := exec.Command(d.executable, "pull", entry)
-		err = cmd.Run()
+		output, err = cmd.CombinedOutput()
 		if err == nil {
 			d.image = entry
 			break
 		}
 	}
-	return err
+	if err != nil {
+		return fmt.Errorf("%w, cmd output:\n%s", err, string(output))
+	}
+	return nil
 }
 
 func newDockerCmdWrapper(mountSrc, mountDest string, kind string, runtimeCommand string) (*dockerCmdWrapper, error) {
@@ -188,9 +192,9 @@ func newDockerCmdWrapper(mountSrc, mountDest string, kind string, runtimeCommand
 
 	// check docker is available
 	cmd := exec.Command(executable, "version")
-	output, err := cmd.Output()
+	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w, cmd output:\n%s", err, string(output))
 	}
 
 	for _, line := range strings.Split(strings.ToLower(string(output)), "\n") {

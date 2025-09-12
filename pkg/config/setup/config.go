@@ -133,7 +133,7 @@ const (
 
 	// DefaultMaxMessageSizeBytes is the default value for max_message_size_bytes
 	// If a log message is larger than this byte limit, the overflow bytes will be truncated.
-	DefaultMaxMessageSizeBytes = 256 * 1000
+	DefaultMaxMessageSizeBytes = 900 * 1000
 
 	// DefaultNetworkPathTimeout defines the default timeout for a network path test
 	DefaultNetworkPathTimeout = 1000
@@ -275,6 +275,7 @@ func init() {
 	initConfig()
 
 	datadog.(pkgconfigmodel.BuildableConfig).BuildSchema()
+	systemProbe.(pkgconfigmodel.BuildableConfig).BuildSchema()
 }
 
 // initCommonWithServerless initializes configs that are common to all agents, in particular serverless.
@@ -853,6 +854,11 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.enabled", true)
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.endpoint", "/injectlib")
 	config.BindEnv("admission_controller.auto_instrumentation.container_registry")
+	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.default_dd_registries", map[string]any{
+		"gcr.io/datadoghq":       struct{}{},
+		"docker.io/datadog":      struct{}{},
+		"public.ecr.aws/datadog": struct{}{},
+	})
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.enabled", false)
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.fallback_to_file_provider", false)                                // to be enabled only in e2e tests
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.file_provider_path", "/etc/datadog-agent/patch/auto-instru.json") // to be used only in e2e tests
@@ -923,6 +929,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("orchestrator_explorer.terminated_resources.enabled", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.terminated_pods.enabled", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.custom_resources.datadog.enabled", false)
+	config.BindEnvAndSetDefault("orchestrator_explorer.custom_resources.third_party.enabled", false)
 
 	// Container lifecycle configuration
 	config.BindEnvAndSetDefault("container_lifecycle.enabled", true)
@@ -961,6 +968,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("sbom.container_image.exclude_pause_container", true)
 	config.BindEnvAndSetDefault("sbom.container_image.allow_missing_repodigest", false)
 	config.BindEnvAndSetDefault("sbom.container_image.additional_directories", []string{})
+	config.BindEnvAndSetDefault("sbom.container_image.use_spread_refresher", false)
 
 	// Container file system SBOM configuration
 	config.BindEnvAndSetDefault("sbom.container.enabled", false)
@@ -1058,7 +1066,6 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	} else {
 		config.BindEnvAndSetDefault("runtime_security_config.socket", filepath.Join(InstallPath, "run/runtime-security.sock"))
 	}
-	config.BindEnvAndSetDefault("runtime_security_config.log_profiled_workloads", false)
 	config.BindEnvAndSetDefault("runtime_security_config.use_secruntime_track", true)
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.endpoints.")
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.activity_dump.remote_storage.endpoints.")

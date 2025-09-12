@@ -1,0 +1,106 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testDeepMap7",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.testDeepMap7",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
+            "lineNumber": 183
+          },
+          {
+            "function": "main.executeComplexFuncs",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
+            "lineNumber": 260
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 36
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "testDeepMap7",
+          "location": {
+            "method": "main.testDeepMap7"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "a": {
+                "type": "*main.deepMap7",
+                "address": "[addr]",
+                "fields": {
+                  "a": {
+                    "type": "map[int]*main.deepMap8",
+                    "size": "1",
+                    "entries": [
+                      [
+                        {
+                          "type": "int",
+                          "value": "8"
+                        },
+                        {
+                          "type": "*main.deepMap8",
+                          "address": "[addr]",
+                          "fields": {
+                            "a": {
+                              "type": "map[int]*main.deepMap9",
+                              "size": "1",
+                              "entries": [
+                                [
+                                  {
+                                    "type": "int",
+                                    "value": "9"
+                                  },
+                                  {
+                                    "type": "*main.deepMap9",
+                                    "address": "[addr]",
+                                    "fields": {
+                                      "a": {
+                                        "type": "map[int]interface {}",
+                                        "notCapturedReason": "depth"
+                                      }
+                                    }
+                                  }
+                                ]
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]"
+  }
+]

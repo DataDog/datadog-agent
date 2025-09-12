@@ -15,6 +15,7 @@ from tasks.github_tasks import (
     extract_test_qa_description,
     pr_merge_dd_event_sender,
 )
+from tasks.libs.pipeline.notifications import DEFAULT_SLACK_CHANNEL
 from tasks.libs.types.types import PermissionCheck
 
 
@@ -508,7 +509,7 @@ class TestCheckPermissions(unittest.TestCase):
             {'type': 'section', 'text': {'type': 'mrkdwn', 'text': 'Admins:\n - <http://zorro|zorro>\n'}},
         ]
         client_mock.chat_postMessage.assert_called_once_with(
-            channel="agent-devx-ops",
+            channel=DEFAULT_SLACK_CHANNEL,
             blocks=blocks,
             text=''.join(b['text']['text'] for b in blocks),
         )
@@ -550,7 +551,7 @@ class TestCheckPermissions(unittest.TestCase):
             },
         ]
         client_mock.chat_postMessage.assert_called_once_with(
-            channel="agent-devx-ops",
+            channel=DEFAULT_SLACK_CHANNEL,
             blocks=blocks,
             text=''.join(b['text']['text'] for b in blocks),
         )
@@ -608,7 +609,7 @@ class TestCheckPermissions(unittest.TestCase):
             },
         ]
         client_mock.chat_postMessage.assert_called_once_with(
-            channel="agent-devx-ops",
+            channel=DEFAULT_SLACK_CHANNEL,
             blocks=blocks,
             text=''.join(b['text']['text'] for b in blocks),
         )
@@ -662,7 +663,7 @@ class TestCheckPermissions(unittest.TestCase):
             },
         ]
         client_mock.chat_postMessage.assert_called_once_with(
-            channel="agent-devx-ops",
+            channel=DEFAULT_SLACK_CHANNEL,
             blocks=blocks,
             text=''.join(b['text']['text'] for b in blocks),
         )

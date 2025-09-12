@@ -14,64 +14,69 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/gosym"
+	"github.com/spf13/cobra"
+
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 )
 
-func run(binary string, pc uint64) error {
-	mef, err := object.OpenMMappingElfFile(binary)
-	if err != nil {
-		return err
+func main() {
+	if err := rootCmd.Execute(); err != nil {
+		os.Exit(1)
 	}
-	defer func() { err = errors.Join(err, mef.Close()) }()
-	moduledata, err := object.ParseModuleData(mef)
-	if err != nil {
-		return err
-	}
-	goDebugSections, err := moduledata.GoDebugSections(mef)
-	if err != nil {
-		return err
-	}
-	defer func() { err = errors.Join(err, goDebugSections.Close()) }()
-	goVersion, err := object.ReadGoVersion(mef)
-	if err != nil {
-		return err
-	}
-	symtab, err := gosym.ParseGoSymbolTable(
-		goDebugSections.PcLnTab.Data(),
-		goDebugSections.GoFunc.Data(),
-		moduledata.Text,
-		moduledata.EText,
-		moduledata.MinPC,
-		moduledata.MaxPC,
-		goVersion,
-	)
-	if err != nil {
-		return err
-	}
-	locations := symtab.LocatePC(pc)
-	if len(locations) == 0 {
-		return fmt.Errorf("no location found for pc 0x%x", pc)
-	}
-	for _, location := range locations {
-		fmt.Printf("%s@%s:%d\n", location.Function, location.File, location.Line)
-	}
-	return nil
 }
 
-func main() {
-	if len(os.Args) != 3 {
-		fmt.Println("Usage: symbol <binary> <pc>")
-		os.Exit(1)
-	}
-	pc, err := strconv.ParseUint(os.Args[2], 16, 64)
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-	err = run(os.Args[1], pc)
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
+var rootCmd = &cobra.Command{
+	Short: "PC symbolication utilities",
+}
+
+func init() {
+	rootCmd.AddCommand(addr2lineCmd)
+	rootCmd.AddCommand(listCmd)
+}
+
+var addr2lineCmd = &cobra.Command{
+	Use:   "addr2line <binary> <pc>",
+	Short: "Resolve a PC to function@file:line",
+	Args:  cobra.ExactArgs(2),
+	RunE: func(cmd *cobra.Command, args []string) (retErr error) {
+		pc, err := strconv.ParseUint(args[1], 0, 64)
+		if err != nil {
+			return fmt.Errorf("invalid pc: %w", err)
+		}
+		binary := args[0]
+		cmd.SilenceUsage = true
+		symtab, err := object.OpenGoSymbolTable(binary)
+		if err != nil {
+			return err
+		}
+		defer func() { retErr = errors.Join(retErr, symtab.Close()) }()
+		locations := symtab.LocatePC(pc)
+		if len(locations) == 0 {
+			return fmt.Errorf("no location found for pc 0x%x", pc)
+		}
+		for _, location := range locations {
+			fmt.Printf("%s@%s:%d\n", location.Function, location.File, location.Line)
+		}
+		return nil
+	},
+}
+
+var listCmd = &cobra.Command{
+	Use:   "list <binary>",
+	Short: "List all functions in a Go binary",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) (retErr error) {
+		binary := args[0]
+		cmd.SilenceUsage = true
+
+		symtab, err := object.OpenGoSymbolTable(binary)
+		if err != nil {
+			return err
+		}
+		defer func() { retErr = errors.Join(retErr, symtab.Close()) }()
+		for fn := range symtab.Functions() {
+			fmt.Printf("%s %#x-%#x\n", fn.Name(), fn.Entry, fn.End)
+		}
+		return nil
+	},
 }
