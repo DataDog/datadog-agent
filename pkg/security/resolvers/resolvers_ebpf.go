@@ -215,13 +215,13 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 		SyscallCtxResolver:     syscallctx.NewResolver(),
 		DNSResolver:            dnsResolver,
 		FileMetadataResolver:   fileMetadataResolver,
-		SnapshotUsingListmount: false,
+		SnapshotUsingListmount: true,
 	}
 
-	//if !mountResolver.HasListMount() {
-	//	seclog.Warnf("listmount not found in this system, will default to procfs")
-	//	resolvers.SnapshotUsingListmount = false
-	//}
+	if !mountResolver.HasListMount() {
+		seclog.Warnf("listmount not found in this system, will default to procfs")
+		resolvers.SnapshotUsingListmount = false
+	}
 
 	return resolvers, nil
 }
@@ -330,7 +330,7 @@ func (r *EBPFResolvers) snapshot() error {
 	if r.SnapshotUsingListmount {
 		err = r.MountResolver.SyncCacheFromListMount()
 		if err != nil {
-			seclog.Errorf("failed to sync cache from listmount: %v", err)
+			seclog.Errorf("Failed to sync cache from listmount: %v", err)
 			r.SnapshotUsingListmount = false
 		}
 	}

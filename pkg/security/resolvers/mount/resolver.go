@@ -55,23 +55,23 @@ type redemptionEntry struct {
 func newMountFromMountInfo(mnt *mountinfo.Info) *model.Mount {
 	root := mnt.Root
 
-	//if mnt.FSType == "btrfs" {
-	//	var subvol string
-	//	for _, opt := range strings.Split(mnt.VFSOptions, ",") {
-	//		name, val, ok := strings.Cut(opt, "=")
-	//		if ok && name == "subvol" {
-	//			subvol = val
-	//		}
-	//	}
-	//
-	//	if subvol != "" {
-	//		root = strings.TrimPrefix(root, subvol)
-	//	}
-	//
-	//	if root == "" {
-	//		root = "/"
-	//	}
-	//}
+	if mnt.FSType == "btrfs" {
+		var subvol string
+		for _, opt := range strings.Split(mnt.VFSOptions, ",") {
+			name, val, ok := strings.Cut(opt, "=")
+			if ok && name == "subvol" {
+				subvol = val
+			}
+		}
+
+		if subvol != "" {
+			root = strings.TrimPrefix(root, subvol)
+		}
+
+		if root == "" {
+			root = "/"
+		}
+	}
 
 	if mnt.FSType == "cgroup2" && strings.HasPrefix(root, "/..") {
 		cfs := utils.DefaultCGroupFS()
@@ -137,24 +137,6 @@ func (mr *Resolver) IsMountIDValid(mountID uint32) (bool, error) {
 func newMountFromStatmount(sm *Statmount) *model.Mount {
 	root := sm.MntRoot
 
-	//if sm.FsType == "btrfs" {
-	//	var subvol string
-	//	for _, opt := range strings.Split(sm.VFSOptions, ",") {
-	//		name, val, ok := strings.Cut(opt, "=")
-	//		if ok && name == "subvol" {
-	//			subvol = val
-	//		}
-	//	}
-	//
-	//	if subvol != "" {
-	//		root = strings.TrimPrefix(root, subvol)
-	//	}
-	//
-	//	if root == "" {
-	//		root = "/"
-	//	}
-	//}
-
 	if sm.FsType == "cgroup2" && strings.HasPrefix(root, "/..") {
 		cfs := utils.DefaultCGroupFS()
 		root = filepath.Join(cfs.GetRootCGroupPath(), root)
@@ -186,12 +168,12 @@ func (mr *Resolver) HasListMount() bool {
 
 // SyncCacheFromListMount Snapshots the current mountpoints using the listmount api
 func (mr *Resolver) SyncCacheFromListMount() error {
-	seclog.Infof("listmount sync cache")
-
 	mounts, err := GetAll("/proc")
 	if err != nil {
 		return fmt.Errorf("error synchronizing cache: %v", err)
 	}
+
+	seclog.Warnf("listmount sync cache found %d entries", len(mounts))
 
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
