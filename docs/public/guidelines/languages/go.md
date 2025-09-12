@@ -227,7 +227,7 @@ func TestThingFunctionality(t *testing.T) {
 }
 ```
 
-## Logs
+## Logging
 
 Logging utilizes the [`github.com/cihub/seelog`](https://github.com/cihub/seelog) package as its underlying framework.
 You can access logging through `pkg/util/log` and the `comp/core/log` component wrappers.

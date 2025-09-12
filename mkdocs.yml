@@ -74,7 +74,7 @@ nav:
   - Languages:
     - Go: guidelines/languages/go.md
   - Conventions:
-    - Logs: guidelines/conventions/logs.md
+    - Logging: guidelines/conventions/logging.md
 - Components:
   - Overview: components/overview.md
   - Components:
