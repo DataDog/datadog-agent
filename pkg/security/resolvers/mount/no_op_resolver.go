@@ -53,7 +53,7 @@ func (mr *NoOpResolver) ResolveMountRoot(_ uint32, _ uint32, _ uint32, _ contain
 }
 
 // ResolveMountPath returns the path of a mount identified by its mount ID.
-func (mr *NoOpResolver) ResolveMountPath(_ uint32, _ uint32, _ uint32, _ containerutils.ContainerID) (string, model.MountSource, model.MountOrigin, error) {
+func (mr *NoOpResolver) ResolveMountPath(_ uint32) (string, model.MountSource, model.MountOrigin, error) {
 	return "", model.MountSourceUnknown, model.MountOriginUnknown, nil
 }
 

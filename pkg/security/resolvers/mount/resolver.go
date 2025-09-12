@@ -433,11 +433,11 @@ func (mr *Resolver) resolveMountRoot(mountID uint32, device uint32, pid uint32, 
 }
 
 // ResolveMountPath returns the path of a mount identified by its mount ID.
-func (mr *Resolver) ResolveMountPath(mountID uint32, device uint32, pid uint32, containerID containerutils.ContainerID) (string, model.MountSource, model.MountOrigin, error) {
+func (mr *Resolver) ResolveMountPath(mountID uint32) (string, model.MountSource, model.MountOrigin, error) {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
-	return mr.resolveMountPath(mountID, device, pid, containerID)
+	return mr.resolveMountPath(mountID)
 }
 
 func (mr *Resolver) syncCacheMiss() {
@@ -459,16 +459,16 @@ func (mr *Resolver) reSyncCache(mountID uint32, pids []uint32, containerID conta
 	return nil
 }
 
-func (mr *Resolver) resolveMountPath(mountID uint32, device uint32, pid uint32, containerID containerutils.ContainerID) (string, model.MountSource, model.MountOrigin, error) {
+func (mr *Resolver) resolveMountPath(mountID uint32) (string, model.MountSource, model.MountOrigin, error) {
 	if _, err := mr.IsMountIDValid(mountID); err != nil {
 		return "", model.MountSourceUnknown, model.MountOriginUnknown, err
 	}
 
 	// force a resolution here to make sure the LRU keeps doing its job and doesn't evict important entries
 	// TODO: DO NOT rely on containerID, but resolve the pid namespace instead to get namespaced PIDs
-	workload, _ := mr.cgroupsResolver.GetWorkload(containerID)
+	//workload, _ := mr.cgroupsResolver.GetWorkload(containerID)
 
-	path, source, origin, err := mr.getMountPath(mountID, device, pid)
+	path, source, origin, err := mr.getMountPath(mountID, 0, 0)
 	if err == nil {
 		mr.cacheHitsStats.Inc()
 		return path, source, origin, nil
@@ -479,11 +479,11 @@ func (mr *Resolver) resolveMountPath(mountID uint32, device uint32, pid uint32, 
 		return "", model.MountSourceUnknown, model.MountOriginUnknown, &ErrMountNotFound{MountID: mountID}
 	}
 
-	if err := mr.reSyncCache(mountID, []uint32{pid}, containerID, workload); err != nil {
+	if err := mr.reSyncCache(mountID, []uint32{}, "", nil); err != nil {
 		return "", model.MountSourceUnknown, model.MountOriginUnknown, err
 	}
 
-	path, source, origin, err = mr.getMountPath(mountID, device, pid)
+	path, source, origin, err = mr.getMountPath(mountID, 0, 0)
 	if err == nil {
 		mr.procHitsStats.Inc()
 		return path, source, origin, nil

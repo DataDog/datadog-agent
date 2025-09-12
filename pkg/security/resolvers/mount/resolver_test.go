@@ -459,7 +459,7 @@ func TestMountResolver(t *testing.T) {
 			}
 
 			for _, testC := range tt.args.cases {
-				p, _, _, err := mr.ResolveMountPath(testC.mountID, testC.device, pid, "")
+				p, _, _, err := mr.ResolveMountPath(testC.mountID)
 				if err != nil {
 					if testC.expectedError != nil {
 						assert.Equal(t, testC.expectedError.Error(), err.Error())
