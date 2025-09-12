@@ -204,3 +204,14 @@ func TestTruncateAttributeValueTooLongV1(t *testing.T) {
 	assert.True(t, ok)
 	assert.Len(t, actualVal, MaxMetaValLen+3)
 }
+
+func TestTruncateAttributeValueStructuredKeyTooLongV1(t *testing.T) {
+	a := &Agent{conf: config.New()}
+	s := newTestSpanV1(idx.NewStringTable())
+	val := strings.Repeat("TOOLONG", 25000)
+	s.SetStringAttribute("_dd.protected_key.json", val)
+	a.TruncateV1(s)
+	actualVal, ok := s.GetAttributeAsString("_dd.protected_key.json")
+	assert.True(t, ok)
+	assert.Equal(t, actualVal, val)
+}

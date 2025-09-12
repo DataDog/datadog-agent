@@ -64,7 +64,6 @@ func (a *Agent) Truncate(s *pb.Span) {
 // TruncateV1 checks that the span resource, meta and metrics are within the max length
 // and modifies them if they are not
 func (a *Agent) TruncateV1(s *idx.InternalSpan) {
-	//TODO: This function knows too much about the internal span structure, we should refactor it
 	r, ok := a.TruncateResource(s.Resource())
 	if !ok {
 		log.Debugf("span.truncate: truncated `Resource` (max %d chars): %s", a.conf.MaxResourceLen, s.Resource)
@@ -100,7 +99,7 @@ const (
 	// MaxMetaKeyLen the maximum length of metadata key
 	MaxMetaKeyLen = 200
 	// MaxMetaValLen the maximum length of metadata value
-	MaxMetaValLen = 25000
+	MaxMetaValLen = 25_000
 	// MaxMetricsKeyLen the maximum length of a metric name key
 	MaxMetricsKeyLen = MaxMetaKeyLen
 )
