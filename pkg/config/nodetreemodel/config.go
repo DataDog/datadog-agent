@@ -751,7 +751,7 @@ func (c *ntmConfig) mergeWithEnvPrefix(key string) string {
 }
 
 // BindEnv binds one or more environment variables to the given key
-func (c *ntmConfig) BindEnv(key string, envvars ...string) {
+func (c *ntmConfig) BindEnv(key string, envvars ...string) { //nolint:forbidigo
 	c.Lock()
 	defer c.Unlock()
 
@@ -978,7 +978,7 @@ func (c *ntmConfig) ConfigFileUsed() string {
 
 // BindEnvAndSetDefault binds an environment variable and sets a default for the given key
 func (c *ntmConfig) BindEnvAndSetDefault(key string, val interface{}, envvars ...string) {
-	c.BindEnv(key, envvars...) //nolint:errcheck
+	c.BindEnv(key, envvars...) //nolint:errcheck,forbidigo
 	c.SetDefault(key, val)
 }
 

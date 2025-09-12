@@ -61,7 +61,7 @@ network_devices:
         12
 `
 	viperConf, ntmConf := constructBothConfigs(dataYaml, false, func(cfg model.Setup) {
-		cfg.SetKnown("network_devices.autodiscovery.workers")
+		cfg.SetKnown("network_devices.autodiscovery.workers") //nolint:forbidigo
 		cfg.SetDefault("network_devices.autodiscovery.workers", 5)
 	})
 
@@ -94,7 +94,7 @@ network_devices:
     - workers: 10
 `
 	viperConf, ntmConf := constructBothConfigs(dataYaml, false, func(cfg model.Setup) {
-		cfg.SetKnown("network_devices.autodiscovery.workers")
+		cfg.SetKnown("network_devices.autodiscovery.workers") //nolint:forbidigo
 	})
 
 	warnings := viperConf.Warnings()

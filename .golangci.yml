@@ -431,9 +431,6 @@ issues:
     - path: comp/systray/systray/systrayimpl/doflare.go
       linters:
         - pkgconfigusage
-  new: true
-  new-from-merge-base: main
-  whole-files: false
 
 linters:
   disable-all: true

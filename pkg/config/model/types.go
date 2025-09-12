@@ -226,7 +226,7 @@ type Setup interface {
 	SetDefault(key string, value interface{})
 
 	SetEnvPrefix(in string)
-	BindEnv(key string, envvars ...string)
+	BindEnv(key string, envvars ...string) //nolint:forbidigo
 	SetEnvKeyReplacer(r *strings.Replacer)
 
 	// The following helpers allow a type to be enforce when parsing environment variables. Most of them exists to
@@ -280,7 +280,7 @@ type Config interface {
 	Compound
 	// TODO: This method shouldn't be here, but it is depended upon by an external repository
 	// https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/e7c3295769637e61558c6892be732398840dd5f5/pkg/datadog/agentcomponents/agentcomponents.go#L166
-	SetKnown(key string)
+	SetKnown(key string) //nolint:forbidigo
 }
 
 // BuildableConfig is the most-general interface for the Config, it can be

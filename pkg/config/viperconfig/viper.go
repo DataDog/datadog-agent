@@ -190,7 +190,7 @@ func (c *safeConfig) mergeViperInstances(key string) {
 func (c *safeConfig) SetKnown(key string) {
 	c.Lock()
 	defer c.Unlock()
-	c.Viper.SetKnown(key)
+	c.Viper.SetKnown(key) //nolint:forbidigo
 }
 
 // IsKnown returns whether a key is known
@@ -571,8 +571,8 @@ func (c *safeConfig) BindEnv(key string, envvars ...string) {
 	}
 
 	newKeys := append([]string{key}, envvars...)
-	_ = c.configSources[model.SourceEnvVar].BindEnv(newKeys...)
-	_ = c.Viper.BindEnv(newKeys...)
+	_ = c.configSources[model.SourceEnvVar].BindEnv(newKeys...) //nolint:forbidigo
+	_ = c.Viper.BindEnv(newKeys...)                             //nolint:forbidigo
 }
 
 // SetEnvKeyReplacer wraps Viper for concurrent access
@@ -825,7 +825,7 @@ func (c *safeConfig) GetEnvVars() []string {
 // BindEnvAndSetDefault implements the Config interface
 func (c *safeConfig) BindEnvAndSetDefault(key string, val interface{}, envvars ...string) {
 	c.SetDefault(key, val)
-	c.BindEnv(key, envvars...) //nolint:errcheck
+	c.BindEnv(key, envvars...) //nolint:errcheck,forbidigo
 }
 
 func (c *safeConfig) Warnings() *model.Warnings {

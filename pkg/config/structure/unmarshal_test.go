@@ -329,7 +329,7 @@ endpoints:
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
 			mockConfig := newConfigFromYaml(t, tc.conf)
-			mockConfig.SetKnown("endpoints")
+			mockConfig.SetKnown("endpoints") //nolint:forbidigo
 
 			var endpoints = []endpoint{}
 			err := unmarshalKeyReflection(mockConfig, "endpoints", &endpoints)
@@ -346,7 +346,7 @@ endpoints:
 
 func TestUnmarshalAllMapString(t *testing.T) {
 	mockConfig := newEmptyMockConf(t)
-	mockConfig.SetKnown("test")
+	mockConfig.SetKnown("test") //nolint:forbidigo
 
 	type testString struct {
 		A string
@@ -373,7 +373,7 @@ func TestUnmarshalAllMapString(t *testing.T) {
 
 func TestUnmarshalAllMapInt(t *testing.T) {
 	mockConfig := newEmptyMockConf(t)
-	mockConfig.SetKnown("test")
+	mockConfig.SetKnown("test") //nolint:forbidigo
 
 	type testInt struct {
 		A int
@@ -397,7 +397,7 @@ func TestUnmarshalAllMapInt(t *testing.T) {
 
 func TestUnmarshalAllMapBool(t *testing.T) {
 	mockConfig := newEmptyMockConf(t)
-	mockConfig.SetKnown("test")
+	mockConfig.SetKnown("test") //nolint:forbidigo
 
 	type testBool struct {
 		A bool
@@ -583,7 +583,7 @@ feature:
 			}
 
 			mockConfig := newConfigFromYaml(t, tc.conf)
-			mockConfig.SetKnown("feature")
+			mockConfig.SetKnown("feature") //nolint:forbidigo
 
 			var feature = featureConfig{}
 			err := unmarshalKeyReflection(mockConfig, "feature", &feature)
@@ -745,7 +745,7 @@ feature:
 			}
 
 			mockConfig := newConfigFromYaml(t, tc.conf)
-			mockConfig.SetKnown("feature")
+			mockConfig.SetKnown("feature") //nolint:forbidigo
 
 			var feature = uintConfig{}
 			err := unmarshalKeyReflection(mockConfig, "feature", &feature)
@@ -852,7 +852,7 @@ feature:
 			}
 
 			mockConfig := newConfigFromYaml(t, tc.conf)
-			mockConfig.SetKnown("feature")
+			mockConfig.SetKnown("feature") //nolint:forbidigo
 
 			var feature = floatConfig{}
 			err := unmarshalKeyReflection(mockConfig, "feature", &feature)
@@ -1004,7 +1004,7 @@ feature:
 			}
 
 			mockConfig := newConfigFromYaml(t, tc.conf)
-			mockConfig.SetKnown("feature")
+			mockConfig.SetKnown("feature") //nolint:forbidigo
 
 			var feature = stringConfig{}
 			err := unmarshalKeyReflection(mockConfig, "feature", &feature)
@@ -1036,7 +1036,7 @@ feature:
   EnABLeD: "true"
 `
 	mockConfig := newConfigFromYaml(t, confYaml)
-	mockConfig.SetKnown("feature")
+	mockConfig.SetKnown("feature") //nolint:forbidigo
 
 	var feature = featureConfig{}
 	err := unmarshalKeyReflection(mockConfig, "feature", &feature)
@@ -1057,7 +1057,7 @@ feature:
   enabled: "true"
 `
 	mockConfig := newConfigFromYaml(t, confYaml)
-	mockConfig.SetKnown("feature")
+	mockConfig.SetKnown("feature") //nolint:forbidigo
 
 	// If the data from the config is missing, UnmarshalKey is a no-op, does
 	// nothing, and returns no error
@@ -1074,7 +1074,7 @@ feature:
 `
 
 		mockConfig := newConfigFromYaml(t, confYaml)
-		mockConfig.SetKnown("feature")
+		mockConfig.SetKnown("feature") //nolint:forbidigo
 
 		feature := struct {
 			Enabled int
@@ -1092,7 +1092,7 @@ feature:
 `
 
 		mockConfig := newConfigFromYaml(t, confYaml)
-		mockConfig.SetKnown("feature")
+		mockConfig.SetKnown("feature") //nolint:forbidigo
 
 		feature := struct {
 			Enabled float64
@@ -1110,7 +1110,7 @@ feature:
 `
 
 		mockConfig := newConfigFromYaml(t, confYaml)
-		mockConfig.SetKnown("feature")
+		mockConfig.SetKnown("feature") //nolint:forbidigo
 
 		feature := struct {
 			Enabled bool
@@ -1128,7 +1128,7 @@ feature:
 `
 
 		mockConfig := newConfigFromYaml(t, confYaml)
-		mockConfig.SetKnown("feature")
+		mockConfig.SetKnown("feature") //nolint:forbidigo
 
 		feature := struct {
 			Enabled bool
@@ -1147,7 +1147,7 @@ feature:
 `
 
 		mockConfig := newConfigFromYaml(t, confYaml)
-		mockConfig.SetKnown("feature")
+		mockConfig.SetKnown("feature") //nolint:forbidigo
 
 		feature := struct {
 			Enabled uint
@@ -1165,7 +1165,7 @@ feature:
 `
 
 		mockConfig := newConfigFromYaml(t, confYaml)
-		mockConfig.SetKnown("feature")
+		mockConfig.SetKnown("feature") //nolint:forbidigo
 
 		feature := struct {
 			Enabled int
@@ -1183,7 +1183,7 @@ feature:
 `
 
 		mockConfig := newConfigFromYaml(t, confYaml)
-		mockConfig.SetKnown("feature")
+		mockConfig.SetKnown("feature") //nolint:forbidigo
 
 		feature := struct {
 			Enabled float64
@@ -1201,7 +1201,7 @@ feature:
 `
 
 		mockConfig := newConfigFromYaml(t, confYaml)
-		mockConfig.SetKnown("feature")
+		mockConfig.SetKnown("feature") //nolint:forbidigo
 
 		feature := struct {
 			Enabled string
@@ -1220,7 +1220,7 @@ feature:
 `
 
 		mockConfig := newConfigFromYaml(t, confYaml)
-		mockConfig.SetKnown("feature")
+		mockConfig.SetKnown("feature") //nolint:forbidigo
 
 		feature := struct {
 			Enabled string
@@ -1247,7 +1247,7 @@ feature:
 	want := "true"
 
 	mockConfig := newConfigFromYaml(t, confYaml)
-	mockConfig.SetKnown("feature")
+	mockConfig.SetKnown("feature") //nolint:forbidigo
 
 	t.Run("json omitempty", func(t *testing.T) {
 		feature := struct {
@@ -1476,7 +1476,7 @@ service:
   apikey: abc1
 `
 	mockConfig := newConfigFromYaml(t, confYaml)
-	mockConfig.SetKnown("service")
+	mockConfig.SetKnown("service") //nolint:forbidigo
 	var svc = squashConfig{}
 
 	t.Run("squash flag succeeds with option", func(t *testing.T) {
@@ -1521,7 +1521,7 @@ service:
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
 			mockConfig := newConfigFromYaml(t, tc.conf)
-			mockConfig.SetKnown("service")
+			mockConfig.SetKnown("service") //nolint:forbidigo
 
 			svc := &serviceConfig{}
 			err := unmarshalKeyReflection(mockConfig, "service", svc, ErrorUnused)
@@ -1546,7 +1546,7 @@ service:
   disabled: f
 `
 	mockConfig := newConfigFromYaml(t, confYaml)
-	mockConfig.SetKnown("service")
+	mockConfig.SetKnown("service") //nolint:forbidigo
 	var svc = make(map[string]string)
 
 	err := unmarshalKeyReflection(mockConfig, "service", &svc)
@@ -1567,7 +1567,7 @@ service:
   disabled: false
 `
 	mockConfig := newConfigFromYaml(t, confYaml)
-	mockConfig.SetKnown("service")
+	mockConfig.SetKnown("service") //nolint:forbidigo
 	var svc = make(map[string]bool)
 
 	err := unmarshalKeyReflection(mockConfig, "service", &svc)
@@ -1618,7 +1618,7 @@ feature_flags:
 	}
 
 	mockConfig := newConfigFromYaml(t, confYaml)
-	mockConfig.SetKnown("feature_flags")
+	mockConfig.SetKnown("feature_flags") //nolint:forbidigo
 
 	flags := FeatureFlags{}
 
