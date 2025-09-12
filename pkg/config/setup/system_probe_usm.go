@@ -92,11 +92,11 @@ func initUSMSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// ========================================
 	cfg.BindEnvAndSetDefault(join(smNS, "kafka", "enabled"), false)
 	// For backward compatibility
-	cfg.BindEnv(join(smNS, "enable_kafka_monitoring"))
+	cfg.BindEnvAndSetDefault(join(smNS, "enable_kafka_monitoring"), false)
 
 	cfg.BindEnvAndSetDefault(join(smNS, "kafka", "max_stats_buffered"), 100000)
 	// For backward compatibility
-	cfg.BindEnv(join(smNS, "max_kafka_stats_buffered"))
+	cfg.BindEnvAndSetDefault(join(smNS, "max_kafka_stats_buffered"), 100000)
 
 	// ========================================
 	// PostgreSQL Protocol Configuration
