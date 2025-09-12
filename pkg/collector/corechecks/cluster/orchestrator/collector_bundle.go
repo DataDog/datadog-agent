@@ -455,8 +455,8 @@ type builtinCRDConfig struct {
 	group string
 	// preferredVersion is the preferred API version we want to collect for this custom resource
 	preferredVersion string
-	// availableVersions is a list of versions that we can fall back to in order when preferredVersion is unavailable
-	availableVersions []string
+	// fallbackVersions is a list of versions that we can fall back to in order when preferredVersion is unavailable
+	fallbackVersions []string
 	// kind is the resource kind name
 	kind string
 	// enabled indicates whether collection of this CRD is enabled
@@ -466,10 +466,10 @@ type builtinCRDConfig struct {
 // crdConfigOption represents a configuration option for builtin CRD config.
 type crdConfigOption func(*builtinCRDConfig)
 
-// withAvailableVersions sets the available fallback versions for the CRD.
-func withAvailableVersions(versions []string) crdConfigOption {
+// withFallbackVersions sets the available fallback versions for the CRD.
+func withFallbackVersions(versions []string) crdConfigOption {
 	return func(config *builtinCRDConfig) {
-		config.availableVersions = versions
+		config.fallbackVersions = versions
 	}
 }
 
@@ -535,10 +535,10 @@ func (cb *CollectorBundle) collectorsForBuiltinCRD(builtinCustomResource builtin
 		return nil
 	}
 
-	version, ok := cb.collectorDiscovery.OptimalVersion(builtinCustomResource.group, builtinCustomResource.preferredVersion, builtinCustomResource.availableVersions)
+	version, ok := cb.collectorDiscovery.OptimalVersion(builtinCustomResource.group, builtinCustomResource.preferredVersion, builtinCustomResource.fallbackVersions)
 	if !ok {
 		log.Infof("Skipping built-in CR collector: no supported version found for %s/%s (preferred: %s, fallback: %s)",
-			builtinCustomResource.group, builtinCustomResource.kind, builtinCustomResource.preferredVersion, builtinCustomResource.availableVersions)
+			builtinCustomResource.group, builtinCustomResource.kind, builtinCustomResource.preferredVersion, builtinCustomResource.fallbackVersions)
 		return nil
 	}
 
