@@ -28,8 +28,6 @@ type batchStrategy struct {
 	batchWait      time.Duration
 	stopChan       chan struct{} // closed when the goroutine has finished
 	clock          clock.Clock
-	mainBatch      *batch
-	mrfBatch       *batch
 	maxBatchSize   int
 	maxContentSize int
 	compression    compression.Compressor
@@ -115,10 +113,10 @@ func (s *batchStrategy) Start() {
 					return
 				}
 
-				s.getBatch("main").processMessage(m, s.outputChan)
-
 				if m.IsMRFAllow {
 					s.getBatch("mrf").processMessage(m, s.outputChan)
+				} else {
+					s.getBatch("main").processMessage(m, s.outputChan)
 				}
 			case <-flushTicker.C:
 				// flush the payloads at a regular interval so pending messages don't wait here for too long.

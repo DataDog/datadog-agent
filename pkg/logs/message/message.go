@@ -431,10 +431,10 @@ func MultiLineSourceTag(source string) string {
 }
 
 // IsMRF returns true if the payload should be sent to MRF endpoints.
-func (p *Payload) IsMRF() bool {
-	if len(p.MessageMetas) == 0 {
+func (m *Payload) IsMRF() bool {
+	if len(m.MessageMetas) == 0 {
 		return false
 	}
 	// all messages in a payload are either all MRF or not
-	return p.MessageMetas[0].IsMRFAllow
+	return m.MessageMetas[0].IsMRFAllow
 }

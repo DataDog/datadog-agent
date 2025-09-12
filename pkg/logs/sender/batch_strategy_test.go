@@ -291,7 +291,7 @@ func TestBatchStrategyFlushChannel(t *testing.T) {
 
 func TestBatchStrategyMRFRouting(t *testing.T) {
 	input := make(chan *message.Message)
-	output := make(chan *message.Payload)
+	output := make(chan *message.Payload, 2) // Buffer for two payloads
 	flushChan := make(chan struct{})
 	var batchSize = 100
 	var contentSize = 100
@@ -309,66 +309,31 @@ func TestBatchStrategyMRFRouting(t *testing.T) {
 		metrics.NewNoopPipelineMonitor(""),
 		"test")
 	strategy.Start()
+	normalMessage := message.NewMessage([]byte("normal message"), nil, "", 0)
+
 	mrfMessage := message.NewMessage([]byte("mrf message"), nil, "", 0)
 	mrfMessage.IsMRFAllow = true
+
+	input <- normalMessage
 	input <- mrfMessage
 
 	flushChan <- struct{}{}
 
-	// Should receive exactly one MRF payload
-	mrfPayload := <-output
-	assert.True(t, mrfPayload.IsMRF())
-	assert.Equal(t, mrfPayload.Encoded, []byte(`[mrf message]`))
+	// Should receive two payloads: main and MRF
+	payloads := make([]*message.Payload, 2)
+	payloads[0] = <-output
+	payloads[1] = <-output
 
-	strategy.Stop()
-}
-
-func TestBatchStrategyDualMRFDelivery(t *testing.T) {
-	input := make(chan *message.Message)
-	output := make(chan *message.Payload, 10) // Buffered to handle multiple payloads
-	flushChan := make(chan struct{})
-	var batchSize = 100
-	var contentSize = 100
-
-	strategy := NewBatchStrategy(
-		input,
-		output,
-		flushChan,
-		NewMockServerlessMeta(false),
-		100*time.Millisecond,
-		batchSize,
-		contentSize,
-		"test",
-		compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1),
-		metrics.NewNoopPipelineMonitor(""),
-		"test")
-	strategy.Start()
-
-	// Send MRF message - should go to both main and mrf batches
-	mrfMessage := message.NewMessage([]byte("mrf message"), nil, "", 0)
-	mrfMessage.IsMRFAllow = true
-	input <- mrfMessage
-
-	flushChan <- struct{}{}
-
-	// Should receive two payloads: one from main batch, one from mrf batch
-	var mainPayload, mrfPayload *message.Payload
-	for i := 0; i < 2; i++ {
-		payload := <-output
+	var hasNormal, hasMRF bool
+	for _, payload := range payloads {
 		if payload.IsMRF() {
-			mrfPayload = payload
+			hasMRF = true
 		} else {
-			mainPayload = payload
+			hasNormal = true
 		}
 	}
-
-	// Verify both payloads contain the MRF message
-	assert.NotNil(t, mainPayload)
-	assert.NotNil(t, mrfPayload)
-	assert.Equal(t, &mrfMessage.MessageMetadata, mainPayload.MessageMetas[0])
-	assert.Equal(t, &mrfMessage.MessageMetadata, mrfPayload.MessageMetas[0])
-	assert.False(t, mainPayload.IsMRF())
-	assert.True(t, mrfPayload.IsMRF())
+	assert.True(t, hasNormal, "Should have received normal payload")
+	assert.True(t, hasMRF, "Should have received MRF payload")
 
 	strategy.Stop()
 }
