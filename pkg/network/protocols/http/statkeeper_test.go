@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
 func TestProcessHTTPTransactions(t *testing.T) {
