@@ -179,8 +179,9 @@ func (r *runnerImpl) Start(ctx context.Context) error {
 	}
 	r.log.Info("Starting private action runner")
 	r.started = true
-	r.keysManager.Start(ctx)
-	r.WorkflowRunner.Start(ctx)
+	noDeadlineCtx := context.Background()
+	r.keysManager.Start(noDeadlineCtx)
+	r.WorkflowRunner.Start(noDeadlineCtx)
 	return nil
 }
 
