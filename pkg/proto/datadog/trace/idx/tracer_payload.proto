@@ -48,5 +48,4 @@ message TracerPayload {
 	map<uint32, AnyValue> attributes = 10;
 	// chunks specifies list of containing trace chunks.
 	repeated TraceChunk chunks = 11;
-
 }
