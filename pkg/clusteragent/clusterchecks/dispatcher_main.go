@@ -39,6 +39,7 @@ type dispatcher struct {
 	excludedChecks                   map[string]struct{}
 	excludedChecksFromDispatching    map[string]struct{}
 	rebalancingPeriod                time.Duration
+	ksmSharding                      *KSMShardingManager
 }
 
 func newDispatcher(tagger tagger.Component) *dispatcher {
@@ -102,6 +103,13 @@ func newDispatcher(tagger tagger.Component) *dispatcher {
 
 	d.rebalancingPeriod = pkgconfigsetup.Datadog().GetDuration("cluster_checks.rebalance_period")
 
+	// Initialize KSM sharding
+	ksmShardingEnabled := pkgconfigsetup.Datadog().GetBool("cluster_checks.ksm_sharding.enabled")
+	d.ksmSharding = NewKSMShardingManager(ksmShardingEnabled)
+	if ksmShardingEnabled {
+		log.Info("KSM namespace sharding is enabled")
+	}
+
 	advancedDispatchingEnabled := pkgconfigsetup.Datadog().GetBool("cluster_checks.advanced_dispatching_enabled")
 	if !advancedDispatchingEnabled {
 		return d
@@ -148,6 +156,15 @@ func (d *dispatcher) Schedule(configs []integration.Config) {
 			d.addEndpointConfig(patched, c.NodeName)
 			continue
 		}
+
+		// Check if this is a KSM check that should be sharded
+		if d.ksmSharding != nil && d.ksmSharding.IsKSMCheck(c) {
+			if d.scheduleKSMCheck(c) {
+				continue // Successfully handled as sharded KSM check
+			}
+			// Fall through to normal scheduling if sharding failed or not applicable
+		}
+
 		patched, err := d.patchConfiguration(c)
 		if err != nil {
 			log.Warnf("Cannot patch configuration %s: %s", c.Digest(), err)
