@@ -116,6 +116,8 @@ func AllProbes(fentry bool, cgroup2MountPoint string) []*manager.Probe {
 	allProbes = append(allProbes, getSetSockOptProbe(fentry)...)
 	allProbes = append(allProbes, getSetrlimitProbes(fentry)...)
 	allProbes = append(allProbes, getCapabilitiesMonitoringProbes()...)
+	allProbes = append(allProbes, getPrCtlProbes(fentry)...)
+	allProbes = append(allProbes, getSocketProbes(cgroup2MountPoint)...)
 
 	allProbes = append(allProbes,
 		&manager.Probe{
@@ -202,6 +204,7 @@ type MapSpecEditorOpts struct {
 	NetworkSkStorageEnabled       bool
 	SpanTrackMaxCount             int
 	CapabilitiesMonitoringEnabled bool
+	CgroupSocketEnabled           bool
 }
 
 // AllMapSpecEditors returns the list of map editors
@@ -326,6 +329,13 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 			MaxEntries: opts.RingBufferSize,
 			Type:       ebpf.RingBuf,
 			EditorFlag: manager.EditMaxEntries | manager.EditType | manager.EditKeyValue,
+		}
+	}
+
+	if opts.CgroupSocketEnabled {
+		editors["sock_cookie_pid"] = manager.MapSpecEditor{
+			MaxEntries: 40000,
+			EditorFlag: manager.EditMaxEntries,
 		}
 	}
 

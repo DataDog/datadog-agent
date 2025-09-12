@@ -29,7 +29,7 @@ type GoVersion struct {
 	PatchOrRC PatchOrReleaseCandidate
 }
 
-// ReadGoVersion extracts the Go version from an object file
+// ReadGoVersion extracts the Go version from an object file.
 func ReadGoVersion(mef File) (*GoVersion, error) {
 	// Find the runtime.buildVersion symbol
 	symbols, err := mef.Symbols()
@@ -72,7 +72,7 @@ func ReadGoVersion(mef File) (*GoVersion, error) {
 	if !ok {
 		return nil, fmt.Errorf("failed to parse version: %s", versionStr)
 	}
-	return &version, nil
+	return version, nil
 }
 
 func readString(mef SectionLoader, section *safeelf.SectionHeader, address, size uint64) (string, error) {
@@ -139,38 +139,38 @@ func readString(mef SectionLoader, section *safeelf.SectionHeader, address, size
 var goVersionRegex = regexp.MustCompile(`^go(\d+)\.(\d+)(\.(\d+)|rc(\d+))`)
 
 // ParseGoVersion parses a Go version string into a GoVersion struct.
-func ParseGoVersion(version string) (GoVersion, bool) {
+func ParseGoVersion(version string) (*GoVersion, bool) {
 	matches := goVersionRegex.FindStringSubmatch(version)
 	if matches == nil {
-		return GoVersion{}, false
+		return nil, false
 	}
 
 	major, err := strconv.ParseUint(matches[1], 10, 16)
 	if err != nil {
-		return GoVersion{}, false
+		return nil, false
 	}
 
 	minor, err := strconv.ParseUint(matches[2], 10, 16)
 	if err != nil {
-		return GoVersion{}, false
+		return nil, false
 	}
 
 	var patchOrRC PatchOrReleaseCandidate
 	if matches[4] != "" { // patch version
 		patch, err := strconv.ParseUint(matches[4], 10, 16)
 		if err != nil {
-			return GoVersion{}, false
+			return nil, false
 		}
 		patchOrRC = PatchOrReleaseCandidate{IsPatch: true, Version: uint16(patch)}
 	} else if matches[5] != "" { // release candidate
 		rc, err := strconv.ParseUint(matches[5], 10, 16)
 		if err != nil {
-			return GoVersion{}, false
+			return nil, false
 		}
 		patchOrRC = PatchOrReleaseCandidate{IsPatch: false, Version: uint16(rc)}
 	}
 
-	return GoVersion{
+	return &GoVersion{
 		Major:     uint16(major),
 		Minor:     uint16(minor),
 		PatchOrRC: patchOrRC,

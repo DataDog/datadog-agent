@@ -195,7 +195,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 		return errors.NewDisabled(componentName, "wlm process collection disabled")
 	}
 
-	if !c.isProcessCollectionEnabled() && !c.isServiceDiscoveryEnabled() {
+	if !c.isProcessCollectionEnabled() && !c.isServiceDiscoveryEnabled() && !c.isLanguageCollectionEnabled() {
 		return errors.NewDisabled(componentName, "wlm process collection and service discovery are disabled")
 	}
 
@@ -208,7 +208,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 	}
 	c.store = store
 
-	if c.isProcessCollectionEnabled() {
+	if c.isProcessCollectionEnabled() || c.isLanguageCollectionEnabled() {
 		go c.collectProcesses(ctx, c.clock.Ticker(c.processCollectionIntervalConfig()))
 	}
 
@@ -222,7 +222,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 			telemetry.DefaultOptions,
 		)
 
-		if c.isProcessCollectionEnabled() {
+		if c.isProcessCollectionEnabled() || c.isLanguageCollectionEnabled() {
 			log.Debug("Starting cached service collection (process collection enabled)")
 			go c.collectServicesCached(ctx, c.clock.Ticker(serviceCollectionInterval))
 		} else {
@@ -350,11 +350,11 @@ func (c *collector) filterPidsToRequest(alivePids core.PidSet, procs map[int32]*
 }
 
 // getDiscoveryServices calls the system-probe /discovery/services endpoint
-func (c *collector) getDiscoveryServices(newPids []int32, heartbeatPids []int32) (*model.ServicesEndpointResponse, error) {
-	var responseData model.ServicesEndpointResponse
+func (c *collector) getDiscoveryServices(newPids []int32, heartbeatPids []int32) (*model.ServicesResponse, error) {
+	var responseData model.ServicesResponse
 
 	// Create params with categorized PIDs and convert to JSON
-	params := core.DefaultParams()
+	params := core.Params{}
 	params.NewPids = newPids
 	params.HeartbeatPids = heartbeatPids
 
@@ -832,6 +832,11 @@ func convertModelServiceToService(modelService *model.Service) *workloadmeta.Ser
 		APMInstrumentation:       modelService.APMInstrumentation,
 		Type:                     modelService.Type,
 		LogFiles:                 modelService.LogFiles,
+		UST: workloadmeta.UST{
+			Service: modelService.UST.Service,
+			Env:     modelService.UST.Env,
+			Version: modelService.UST.Version,
+		},
 	}
 }
 
