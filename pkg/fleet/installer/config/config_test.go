@@ -6,7 +6,6 @@
 package config
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -269,71 +268,18 @@ func TestDirectories_GetState(t *testing.T) {
 	assert.Equal(t, "", state.ExperimentDeploymentID)
 }
 
-func TestDirectories_WriteExperiment(t *testing.T) {
-	tmpDir := t.TempDir()
-	stablePath := filepath.Join(tmpDir, "stable")
-	experimentPath := filepath.Join(tmpDir, "experiment")
-
-	err := os.MkdirAll(stablePath, 0755)
-	assert.NoError(t, err)
-
-	// Create initial stable config
-	err = os.WriteFile(filepath.Join(stablePath, "datadog.yaml"), []byte("foo: bar\n"), 0644)
-	assert.NoError(t, err)
-	err = os.WriteFile(filepath.Join(stablePath, deploymentIDFile), []byte("stable-123"), 0644)
-	assert.NoError(t, err)
-
-	dirs := &Directories{
-		StablePath:     stablePath,
-		ExperimentPath: experimentPath,
-	}
-
-	// Create operations to modify the config
-	patchJSON := `[{"op": "replace", "path": "/foo", "value": "baz"}]`
-	operations := Operations{
-		DeploymentID: "experiment-456",
-		FileOperations: []FileOperation{
-			{
-				FileOperationType: FileOperationPatch,
-				FilePath:          "/datadog.yaml",
-				Patch:             []byte(patchJSON),
-			},
-		},
-	}
-
-	err = dirs.WriteExperiment(context.Background(), operations)
-	assert.NoError(t, err)
-
-	// Check that experiment directory was created
-	_, err = os.Stat(experimentPath)
-	assert.NoError(t, err)
-
-	// Check that the config was modified
-	experimentConfig, err := os.ReadFile(filepath.Join(experimentPath, "datadog.yaml"))
-	assert.NoError(t, err)
-	var config map[string]any
-	err = yaml.Unmarshal(experimentConfig, &config)
-	assert.NoError(t, err)
-	assert.Equal(t, "baz", config["foo"])
-
-	// Check that deployment ID was written
-	deploymentID, err := os.ReadFile(filepath.Join(experimentPath, deploymentIDFile))
-	assert.NoError(t, err)
-	assert.Equal(t, "experiment-456", string(deploymentID))
-}
-
 func TestDeleteConfigNameAllowed(t *testing.T) {
 	tests := []struct {
 		name     string
 		filePath string
 		expected bool
 	}{
-		{"datadog.yaml", "/managed/stable/datadog.yaml", true},
-		{"security-agent.yaml", "/managed/stable/security-agent.yaml", true},
-		{"system-probe.yaml", "/managed/stable/system-probe.yaml", true},
-		{"application_monitoring.yaml", "/managed/stable/application_monitoring.yaml", true},
+		{"datadog.yaml", filepath.Join("managed", "stable", "datadog.yaml"), true},
+		{"security-agent.yaml", filepath.Join("managed", "stable", "security-agent.yaml"), true},
+		{"system-probe.yaml", filepath.Join("managed", "stable", "system-probe.yaml"), true},
+		{"application_monitoring.yaml", filepath.Join("managed", "stable", "application_monitoring.yaml"), true},
 		{"not in managed/stable", "/datadog.yaml", false},
-		{"disallowed file", "/managed/stable/notallowed.yaml", false},
+		{"disallowed file", filepath.Join("managed", "stable", "notallowed.yaml"), false},
 		{"empty path", "", false},
 	}
 

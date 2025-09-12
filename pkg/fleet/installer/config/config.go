@@ -268,7 +268,7 @@ var (
 		"/conf.d/*.d/*.yaml",
 	}
 
-	legacyPathPrefix = "/managed/stable/"
+	legacyPathPrefix = filepath.Join("managed", "stable")
 
 	deleteAllowedConfigFiles = []string{
 		"/datadog.yaml",
