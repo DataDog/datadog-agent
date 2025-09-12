@@ -424,6 +424,21 @@ bool Three::getCheck(RtLoaderPyObject *py_class, const char *init_config_str, co
     }
 
 done:
+    // Hardcode the configuration to be sure that the fields `name` and `url` will exist for `http_check`
+    PyObject *key;
+    PyObject *value;
+
+    key = PyUnicode_FromString("name");
+    value = PyUnicode_FromString("http_check");
+    PyDict_SetItem(instance, key, value);
+
+    key = PyUnicode_FromString("url");
+    value = PyUnicode_FromString("http://datadoghq.com");
+    PyDict_SetItem(instance, key, value);
+
+    Py_XDECREF(key);
+    Py_XDECREF(value);
+
     // We purposefully avoid calling Py_XDECREF on instance because we lost ownership earlier by
     // calling PyTuple_SetItem. More details are available in the comment above this PyTuple_SetItem
     // call
