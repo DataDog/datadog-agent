@@ -167,7 +167,7 @@ func getParConfig(component config.Component) (*parconfig.Config, error) {
 	}, nil
 }
 
-func (r *runnerImpl) Start(ctx context.Context) error {
+func (r *runnerImpl) Start(_ context.Context) error {
 	enabled := r.config.GetBool("privateactionrunner.enabled")
 	if !enabled {
 		r.log.Debug("privateactionrunner disabled")
