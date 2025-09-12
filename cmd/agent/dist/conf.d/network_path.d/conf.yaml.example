@@ -28,7 +28,7 @@ instances:
 
     ## @param protocol - string - optional - default: UDP
     ## Protocol used to monitor an endpoint via Network Path.
-    ## Available protocols: UDP, TCP
+    ## Available protocols: UDP, TCP, ICMP
     #
     # protocol: <PROTOCOL>
 
