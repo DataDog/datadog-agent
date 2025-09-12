@@ -24,7 +24,7 @@ import (
 )
 
 // runWorkers starts the configured number of worker goroutines and waits for them.
-func (s *SyntheticsTestScheduler) runWorkers() {
+func (s *SyntheticsTestScheduler) runWorkers(ctx context.Context) {
 	s.log.Debugf("starting workers (%d)", s.workers)
 
 	var wg sync.WaitGroup
@@ -33,7 +33,7 @@ func (s *SyntheticsTestScheduler) runWorkers() {
 		s.log.Debugf("starting worker #%d", w)
 		go func() {
 			defer wg.Done()
-			s.runWorker(w)
+			s.runWorker(ctx, w)
 		}()
 	}
 	wg.Wait()
@@ -41,14 +41,14 @@ func (s *SyntheticsTestScheduler) runWorkers() {
 }
 
 // flushLoop periodically enqueues tests that are due.
-func (s *SyntheticsTestScheduler) flushLoop() {
+func (s *SyntheticsTestScheduler) flushLoop(ctx context.Context) {
 	s.log.Debugf("starting flush loop")
+	defer close(s.flushLoopDone)
 
 	for {
 		select {
-		case <-s.stopChan:
+		case <-ctx.Done():
 			s.log.Info("stopped flush loop")
-			s.flushLoopDone <- struct{}{}
 			return
 		case flushTime := <-s.tickerC:
 			s.flush(flushTime)
@@ -73,11 +73,11 @@ func (s *SyntheticsTestScheduler) flush(flushTime time.Time) {
 }
 
 // runWorker is the main loop for a single worker.
-func (s *SyntheticsTestScheduler) runWorker(workerID int) {
+func (s *SyntheticsTestScheduler) runWorker(ctx context.Context, workerID int) {
 	for {
 		select {
-		case <-s.stopChan:
-			s.log.Debugf("[worker%d] stopped worker", workerID)
+		case <-ctx.Done():
+			s.log.Debugf("worker %d stopping", workerID)
 			return
 		case syntheticsTestCtx := <-s.syntheticsTestProcessingChan:
 			triggeredAt := syntheticsTestCtx.nextRun
@@ -88,7 +88,12 @@ func (s *SyntheticsTestScheduler) runWorker(workerID int) {
 				s.log.Debugf("[worker%d] error interpreting test config: %s", workerID, err)
 			}
 
-			result, err := s.runTraceroute(tracerouteCfg, s.telemetry)
+			hname, err := s.hostNameService.Get(ctx)
+			if err != nil {
+				s.log.Debugf("[worker%d] Error running traceroute: %s", workerID, err)
+			}
+
+			result, err := s.runTraceroute(ctx, tracerouteCfg, s.telemetry)
 			if err != nil {
 				s.log.Debugf("[worker%d] Error running traceroute: %s", workerID, err)
 			}
@@ -97,6 +102,7 @@ func (s *SyntheticsTestScheduler) runWorker(workerID int) {
 			duration := finishedAt.Sub(startedAt)
 
 			if err = s.sendResult(&WorkerResult{
+				hostname:         hname,
 				tracerouteResult: result,
 				tracerouteError:  err,
 				testCfg:          syntheticsTestCtx,
@@ -117,12 +123,12 @@ type WorkerResult struct {
 	tracerouteResult payload.NetworkPath
 	tracerouteError  error
 	testCfg          SyntheticsTestCtx
-
-	triggeredAt   time.Time
-	startedAt     time.Time
-	finishedAt    time.Time
-	duration      time.Duration
-	tracerouteCfg config.Config
+	triggeredAt      time.Time
+	startedAt        time.Time
+	finishedAt       time.Time
+	duration         time.Duration
+	tracerouteCfg    config.Config
+	hostname         string
 }
 
 // toNetpathConfig converts a SyntheticsTestConfig into a system-probe Config.
@@ -229,18 +235,19 @@ func (s *SyntheticsTestScheduler) sendSyntheticsTestResult(w *WorkerResult) erro
 	if err != nil {
 		return err
 	}
+
 	s.log.Debugf("synthetics network path test event: %s", string(payloadBytes))
 	m := message.NewMessage(payloadBytes, nil, "", 0)
 	return s.epForwarder.SendEventPlatformEventBlocking(m, eventplatform.EventTypeSynthetics)
 }
 
 // runTraceroute is the default traceroute execution using the traceroute package.
-func runTraceroute(cfg config.Config, telemetry telemetry.Component) (payload.NetworkPath, error) {
+func runTraceroute(ctx context.Context, cfg config.Config, telemetry telemetry.Component) (payload.NetworkPath, error) {
 	tr, err := traceroute.New(cfg, telemetry)
 	if err != nil {
 		return payload.NetworkPath{}, fmt.Errorf("new traceroute error: %s", err)
 	}
-	path, err := tr.Run(context.TODO())
+	path, err := tr.Run(ctx)
 	if err != nil {
 		return payload.NetworkPath{}, fmt.Errorf("run traceroute error: %s", err)
 	}
@@ -262,41 +269,12 @@ func (s *SyntheticsTestScheduler) networkPathToTestResult(w *WorkerResult) (*com
 		return nil, err
 	}
 
-	np := w.tracerouteResult
-	hops := make([]common.NetpathHop, 0, len(np.Hops))
-	for _, h := range np.Hops {
-		hops = append(hops, common.NetpathHop{
-			TTL:       h.TTL,
-			RTT:       h.RTT,
-			IPAddress: h.IPAddress,
-			Hostname:  h.Hostname,
-			Reachable: h.Reachable,
-		})
-	}
-
-	netpath := common.NetpathResult{
-		Timestamp:    np.Timestamp,
-		PathtraceID:  np.PathtraceID,
-		Origin:       string(np.Origin),
-		Protocol:     string(np.Protocol),
-		AgentVersion: np.AgentVersion,
-		Namespace:    np.Namespace,
-		Source: common.NetpathSource{
-			Hostname: np.Source.Hostname,
-		},
-		Destination: common.NetpathDestination{
-			Hostname:           np.Destination.Hostname,
-			IPAddress:          np.Destination.IPAddress,
-			Port:               int(np.Destination.Port),
-			ReverseDNSHostname: np.Destination.ReverseDNSHostname,
-		},
-		Hops:         hops,
-		TestConfigID: w.testCfg.cfg.PublicID,
-		TestResultID: testResultID,
-		Traceroute:   common.TracerouteTest{},
-		E2E:          common.E2ETest{},
-		Tags:         np.Tags,
-	}
+	w.tracerouteResult.Source.Name = w.hostname
+	w.tracerouteResult.Source.DisplayName = w.hostname
+	w.tracerouteResult.Source.Hostname = w.hostname
+	w.tracerouteResult.TestConfigID = w.testCfg.cfg.PublicID
+	w.tracerouteResult.TestResultID = testResultID
+	w.tracerouteResult.Origin = "synthetics"
 
 	result := common.Result{
 		ID:              testResultID,
@@ -304,7 +282,6 @@ func (s *SyntheticsTestScheduler) networkPathToTestResult(w *WorkerResult) (*com
 		TestFinishedAt:  w.finishedAt.UnixMilli(),
 		TestStartedAt:   w.startedAt.UnixMilli(),
 		TestTriggeredAt: w.triggeredAt.UnixMilli(),
-		Assertions:      nil,
 		Duration:        w.duration.Milliseconds(),
 		Request: common.Request{
 			Host:    w.tracerouteCfg.DestHostname,
@@ -312,9 +289,16 @@ func (s *SyntheticsTestScheduler) networkPathToTestResult(w *WorkerResult) (*com
 			MaxTTL:  int(w.tracerouteCfg.MaxTTL),
 			Timeout: int(w.tracerouteCfg.Timeout.Milliseconds()),
 		},
-		Netstats: common.NetStats{},
-		Netpath:  netpath,
-		Status:   "passed",
+		Netstats: common.NetStats{
+			PacketsSent:          w.tracerouteResult.E2eProbe.PacketsSent,
+			PacketsReceived:      w.tracerouteResult.E2eProbe.PacketsReceived,
+			PacketLossPercentage: w.tracerouteResult.E2eProbe.PacketLossPercentage,
+			Jitter:               w.tracerouteResult.E2eProbe.Jitter,
+			Latency:              w.tracerouteResult.E2eProbe.RTT,
+			Hops:                 w.tracerouteResult.Traceroute.HopCount,
+		},
+		Netpath: w.tracerouteResult,
+		Status:  "passed",
 	}
 
 	if w.tracerouteError != nil {
