@@ -8,7 +8,6 @@
 package kubeapiserver
 
 import (
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -564,10 +563,6 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if os.Getenv("DD_CONF_NODETREEMODEL") == "unmarshal" && test.name == "apm enabled enables namespace collection" {
-				// TODO: Fix this test case when using reflection based UnmarshalKey
-				t.Skip("This test fails with reflection based UnmarshalKey")
-			}
 			cfg := config.NewMockWithOverrides(t, test.cfg)
 			assert.ElementsMatch(t, test.expectedResources, resourcesWithMetadataCollectionEnabled(cfg))
 		})

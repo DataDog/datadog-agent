@@ -504,6 +504,15 @@ func copyAny(target reflect.Value, input nodetreemodel.Node, currPath []string, 
 			}
 		}
 		return fmt.Errorf("at %v: scalar required, but input is not a leaf: %v of %T", currPath, input, input)
+	} else if target.Kind() == reflect.Interface {
+		// If the target is an interface{}, assume it's a scalar since it's likely part of a
+		// heterogeneous slice like []interface{}. Don't use copyAny since that expects to
+		// understand a concrete scalar type, instead simply copy the value using reflection.
+		if leaf, ok := input.(nodetreemodel.LeafNode); ok {
+			target.Set(reflect.ValueOf(leaf.Get()))
+			return nil
+		}
+		return fmt.Errorf("at %v: can't copy inner node to interface: %v of %T", currPath, input, input)
 	} else if target.Kind() == reflect.Map {
 		return copyMap(target, input, currPath, fs)
 	} else if target.Kind() == reflect.Struct {
