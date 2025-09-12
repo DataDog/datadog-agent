@@ -753,11 +753,14 @@ func (e *cacheEntry) release() error {
 			e.cache.mu.totalBytes -= length
 		}
 	}()
+	// If the entry was never actually mmapped, we don't need to munmap.
 	var munmapErr error
-	if err := syscall.Munmap(e.decompress.data); err != nil {
-		munmapErr = fmt.Errorf("failed to munmap decompressed data: %w", err)
+	if e.decompress.data != nil {
+		if err := syscall.Munmap(e.decompress.data); err != nil {
+			munmapErr = fmt.Errorf("failed to munmap decompressed data: %w", err)
+		}
+		e.decompress.data = nil
 	}
-	e.decompress.data = nil
 	return munmapErr
 }
 

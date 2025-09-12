@@ -185,3 +185,8 @@ func activityDumpRemoteStorageEndpoints(endpointPrefix string, intakeTrackType l
 	}
 	return endpoints, nil
 }
+
+// GetEndpointsStatus returns the status of the endpoints
+func (backend *ActivityDumpRemoteBackend) GetEndpointsStatus() []string {
+	return backend.endpoints.GetStatus()
+}

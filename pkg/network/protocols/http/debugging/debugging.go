@@ -65,7 +65,7 @@ func HTTP(stats map[http.Key]*http.RequestStats, dns map[util.Address][]dns.Host
 
 		for status, stat := range v.Data {
 			debug.StaticTags = stat.StaticTags
-			debug.DynamicTags = stat.DynamicTags
+			debug.DynamicTags = stat.DynamicTags.GetAll()
 
 			debug.ByStatus[status] = Stats{
 				Count:              stat.Count,
