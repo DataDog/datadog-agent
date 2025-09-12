@@ -1026,7 +1026,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: 200 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -1052,7 +1053,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -1078,7 +1080,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -1104,7 +1107,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: 100 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -1130,7 +1134,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: 100 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -1157,7 +1162,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -1184,7 +1190,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -1211,7 +1218,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -1238,7 +1246,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -1265,7 +1274,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -1302,7 +1312,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -1328,7 +1339,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -1354,7 +1366,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -1380,7 +1393,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
