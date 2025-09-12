@@ -158,3 +158,34 @@ func TestFlow_IsEqualFlowContext(t *testing.T) {
 	flow.Bytes = 999
 	assert.True(t, IsEqualFlowContext(origFlow, flow))
 }
+
+// Add this test to verify both hash implementations produce the same result
+func TestFlow_AggregationHashConsistency(t *testing.T) {
+	flow := Flow{
+		Namespace:      "test-ns",
+		ExporterAddr:   []byte{192, 168, 1, 1},
+		SrcAddr:        []byte{10, 0, 0, 1},
+		DstAddr:        []byte{10, 0, 0, 2},
+		SrcPort:        1234,
+		DstPort:        80,
+		IPProtocol:     6,
+		Tos:            0,
+		InputInterface: 1,
+	}
+
+	// Both implementations should produce the same hash
+	hashSyncPool := flow.AggregationHash()
+	hashOriginal := flow.AggregationHashOriginal()
+
+	assert.Equal(t, hashOriginal, hashSyncPool, "Both hash implementations should produce the same result")
+
+	// Test with different flow to ensure they produce different hashes
+	flow2 := flow
+	flow2.SrcPort = 5678
+
+	hashSyncPool2 := flow2.AggregationHash()
+	hashOriginal2 := flow2.AggregationHashOriginal()
+
+	assert.Equal(t, hashOriginal2, hashSyncPool2, "Both hash implementations should produce the same result for modified flow")
+	assert.NotEqual(t, hashSyncPool, hashSyncPool2, "Different flows should produce different hashes")
+}
