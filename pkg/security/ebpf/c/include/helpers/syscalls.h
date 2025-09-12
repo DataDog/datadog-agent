@@ -119,8 +119,17 @@ void __attribute__((always_inline)) cache_syscall(struct syscall_cache_t *syscal
 
     // handle kill action
     send_signal(pid);
-
     bpf_map_update_elem(&syscalls, &pid_tgid, syscall, BPF_ANY);
+
+    monitor_syscalls(syscall->type, 1);
+}
+void __attribute__((always_inline)) cache_syscall_debug(struct syscall_cache_t *syscall) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u32 pid = pid_tgid >> 32;
+    bpf_printk("CACHE | TGID : %llu", pid_tgid);
+    // handle kill action
+    send_signal(pid);
+    bpf_map_update_elem(&syscalls2, &pid_tgid, syscall, BPF_ANY);
 
     monitor_syscalls(syscall->type, 1);
 }
@@ -136,9 +145,24 @@ struct syscall_cache_t *__attribute__((always_inline)) peek_task_syscall(u64 pid
     return NULL;
 }
 
+struct syscall_cache_t *__attribute__((always_inline)) peek_task_syscall_debug(u64 pid_tgid, u64 type) {
+    struct syscall_cache_t *syscall = (struct syscall_cache_t *)bpf_map_lookup_elem(&syscalls2, &pid_tgid);
+    if (!syscall) {
+        return NULL;
+    }
+    if (!type || syscall->type == type) {
+        return syscall;
+    }
+    return NULL;
+}
 struct syscall_cache_t *__attribute__((always_inline)) peek_syscall(u64 type) {
     u64 key = bpf_get_current_pid_tgid();
     return peek_task_syscall(key, type);
+}
+
+struct syscall_cache_t *__attribute__((always_inline)) peek_syscall_debug(u64 type) {
+    u64 key = bpf_get_current_pid_tgid();
+    return peek_task_syscall_debug(key, type);
 }
 
 struct syscall_cache_t *__attribute__((always_inline)) peek_syscall_with(int (*predicate)(u64 type)) {

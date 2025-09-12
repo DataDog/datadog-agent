@@ -338,8 +338,19 @@ func GetSelectorsPerEventType(hasFentry bool, hasCgroupSocket bool) map[eval.Eve
 						UID:          SecurityAgentUID,
 						EBPFFuncName: "hook_pam_start",
 					},
-				}}},
-		},
+				},
+				&manager.ProbeSelector{
+					ProbeIdentificationPair: manager.ProbeIdentificationPair{
+						UID:          SecurityAgentUID,
+						EBPFFuncName: "rethook_pam_start",
+					},
+				},
+				&manager.ProbeSelector{
+					ProbeIdentificationPair: manager.ProbeIdentificationPair{
+						UID:          SecurityAgentUID,
+						EBPFFuncName: "hook_pam_set_item",
+					}},
+			}}},
 
 		// List of probes required to capture chmod events
 		"chmod": {

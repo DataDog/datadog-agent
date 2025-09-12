@@ -583,6 +583,8 @@ struct pam_event_t {
     struct syscall_t syscall;
     char service[64];
     char user[64];
+    char hostIP[32];
+    
 };
 
 #endif

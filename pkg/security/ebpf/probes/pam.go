@@ -11,7 +11,7 @@ package probes
 import manager "github.com/DataDog/ebpf-manager"
 
 func getPamProbes() []*manager.Probe {
-	var sshProbes = []*manager.Probe{
+	var pamProbes = []*manager.Probe{
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
@@ -19,7 +19,28 @@ func getPamProbes() []*manager.Probe {
 			},
 			BinaryPath: "/lib/aarch64-linux-gnu/libpam.so.0",
 		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "rethook_pam_start",
+			},
+			BinaryPath: "/lib/aarch64-linux-gnu/libpam.so.0",
+		},
+		// {
+		// 	ProbeIdentificationPair: manager.ProbeIdentificationPair{
+		// 		UID:          SecurityAgentUID,
+		// 		EBPFFuncName: "hook_pam_start",
+		// 	},
+		// 	BinaryPath: "/lib/i386-linux-gnu/libpam.so.0",
+		// },
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_pam_set_item",
+			},
+			BinaryPath: "/lib/aarch64-linux-gnu/libpam.so.0",
+		},
 	}
 
-	return sshProbes
+	return pamProbes
 }

@@ -47,6 +47,7 @@ func (_ *Model) GetEventTypes() []eval.EventType {
 		eval.EventType("ondemand"),
 		eval.EventType("open"),
 		eval.EventType("packet"),
+		eval.EventType("pam"),
 		eval.EventType("prctl"),
 		eval.EventType("ptrace"),
 		eval.EventType("removexattr"),
@@ -7072,6 +7073,50 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return int(ev.RawPacket.NetworkContext.Type)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "pam.host_ip":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Pam.HostIP
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "pam.hostname":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Pam.Hostname
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "pam.service":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Pam.Service
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "pam.user":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Pam.User
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -31126,6 +31171,10 @@ func (ev *Event) GetFields() []eval.Field {
 		"packet.source.port",
 		"packet.tls.version",
 		"packet.type",
+		"pam.host_ip",
+		"pam.hostname",
+		"pam.service",
+		"pam.user",
 		"prctl.is_name_truncated",
 		"prctl.new_name",
 		"prctl.option",
@@ -33631,6 +33680,14 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "packet", reflect.Int, "int", nil
 	case "packet.type":
 		return "packet", reflect.Int, "int", nil
+	case "pam.host_ip":
+		return "pam", reflect.String, "string", nil
+	case "pam.hostname":
+		return "pam", reflect.String, "string", nil
+	case "pam.service":
+		return "pam", reflect.String, "string", nil
+	case "pam.user":
+		return "pam", reflect.String, "string", nil
 	case "prctl.is_name_truncated":
 		return "prctl", reflect.Bool, "bool", nil
 	case "prctl.new_name":
@@ -38050,6 +38107,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint16FieldValue("packet.tls.version", &ev.RawPacket.TLSContext.Version, value)
 	case "packet.type":
 		return ev.setUint32FieldValue("packet.type", &ev.RawPacket.NetworkContext.Type, value)
+	case "pam.host_ip":
+		return ev.setStringFieldValue("pam.host_ip", &ev.Pam.HostIP, value)
+	case "pam.hostname":
+		return ev.setStringFieldValue("pam.hostname", &ev.Pam.Hostname, value)
+	case "pam.service":
+		return ev.setStringFieldValue("pam.service", &ev.Pam.Service, value)
+	case "pam.user":
+		return ev.setStringFieldValue("pam.user", &ev.Pam.User, value)
 	case "prctl.is_name_truncated":
 		return ev.setBoolFieldValue("prctl.is_name_truncated", &ev.PrCtl.IsNameTruncated, value)
 	case "prctl.new_name":

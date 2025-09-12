@@ -279,6 +279,7 @@ struct syscall_cache_t {
         struct {
             char service[64];
             char user[64];
+            char hostIP[32];
         } pam;
     };
 };

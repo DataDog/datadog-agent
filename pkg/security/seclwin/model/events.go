@@ -117,6 +117,8 @@ const (
 	RawPacketFilterEventType
 	// NetworkFlowMonitorEventType is sent to monitor network activity
 	NetworkFlowMonitorEventType
+	// PamEventType is sent when a pam event is captured
+	PamEventType
 	// PrCtlEventType is sent when a prctl event is captured
 	PrCtlEventType
 	// StatEventType stat event (used kernel side only)

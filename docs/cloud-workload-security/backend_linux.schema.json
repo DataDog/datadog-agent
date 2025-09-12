@@ -1222,6 +1222,34 @@
       ],
       "description": "PTraceEventSerializer serializes a mmap event to JSON"
     },
+    "PamEvent": {
+      "properties": {
+        "service": {
+          "type": "string",
+          "description": "Service name"
+        },
+        "user": {
+          "type": "string",
+          "description": "User name"
+        },
+        "host_ip": {
+          "type": "string",
+          "description": "HostIP"
+        },
+        "hostname": {
+          "type": "string",
+          "description": "HostName"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "service",
+        "user",
+        "host_ip",
+        "hostname"
+      ]
+    },
     "PrCtlEvent": {
       "properties": {
         "option": {
@@ -2253,6 +2281,9 @@
     },
     "prctl": {
       "$ref": "#/$defs/PrCtlEvent"
+    },
+    "pam": {
+      "$ref": "#/$defs/PamEvent"
     }
   },
   "additionalProperties": false,
