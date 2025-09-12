@@ -193,7 +193,7 @@ func (h *StatKeeper) add(tx Transaction) {
 			return
 		}
 		h.telemetry.aggregations.Add(1)
-		stats = NewRequestStats()
+		stats = reqStatsPool.Get()
 		h.stats[key] = stats
 	}
 

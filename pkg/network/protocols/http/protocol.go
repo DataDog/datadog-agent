@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
 type protocol struct {
@@ -241,6 +242,12 @@ func (p *protocol) setupMapCleaner(mgr *manager.Manager) {
 	p.mapCleaner = mapCleaner
 }
 
+var (
+	reqStatsPool = ddsync.NewTypedPool[RequestStats](func() *RequestStats {
+		return NewRequestStats()
+	})
+)
+
 // GetStats returns a map of HTTP stats and a callback to clean resources.
 // The format of HTTP stats:
 // [source, dest tuple, request path] -> RequestStats object
@@ -254,6 +261,8 @@ func (p *protocol) GetStats() (*protocols.ProtocolStats, func()) {
 		}, func() {
 			for _, elem := range stats {
 				elem.Close()
+				clear(elem.Data)
+				reqStatsPool.Put(elem)
 			}
 		}
 }
