@@ -25,14 +25,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/tinylib/msgp/msgp"
 	"go.uber.org/atomic"
-
-	"github.com/DataDog/datadog-go/v5/statsd"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
+	"github.com/DataDog/datadog-agent/pkg/trace/api/loader"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -266,7 +266,25 @@ func (r *HTTPReceiver) Start() {
 
 	if r.conf.ReceiverPort > 0 {
 		addr := net.JoinHostPort(r.conf.ReceiverHost, strconv.Itoa(r.conf.ReceiverPort))
-		ln, err := r.listenTCP(addr)
+
+		var ln net.Listener
+		var err error
+		if tcpFDStr, ok := os.LookupEnv("DD_APM_NET_RECEIVER_FD"); ok {
+			//TODO handle error properly
+			unixFD, _ := strconv.Atoi(tcpFDStr)
+			log.Infof("TCP listener: using provided file descriptor %d", unixFD)
+			f := os.NewFile(uintptr(unixFD), "tcp_conn")
+			//TODO: handle f.Close()
+			//TODO handle error properly
+			listener, flerr := net.FileListener(f)
+			if flerr != nil {
+				log.Warnf("file listener: %v", flerr)
+			}
+			ln, err = r.listenTCPListener(listener)
+		} else {
+			ln, err = r.listenTCP(addr)
+		}
+
 		if err != nil {
 			r.telemetryCollector.SendStartupError(telemetry.CantStartHttpServer, err)
 			killProcess("Error creating tcp listener: %v", err)
@@ -284,8 +302,23 @@ func (r *HTTPReceiver) Start() {
 	}
 
 	if path := r.conf.ReceiverSocket; path != "" {
+		log.Infof("Using UDS listener at %s", path)
 		if _, err := os.Stat(filepath.Dir(path)); !os.IsNotExist(err) {
-			ln, err := r.listenUnix(path)
+			var ln net.Listener
+			var err error
+			if unixFDStr, ok := os.LookupEnv("DD_APM_UNIX_RECEIVER_FD"); ok {
+				//TODO handle error properly
+				unixFD, _ := strconv.Atoi(unixFDStr)
+				log.Infof("UDS listener: using provided file descriptor %d", unixFD)
+				f := os.NewFile(uintptr(unixFD), "unix_conn")
+				//TODO: handle f.Close()
+				//TODO: handle error properly
+				listener, _ := net.FileListener(f)
+				ln, err = r.listenUnixListener(path, listener)
+			} else {
+				ln, err = r.listenUnix(path)
+			}
+
 			if err != nil {
 				log.Errorf("Error creating UDS listener: %v", err)
 				r.telemetryCollector.SendStartupError(telemetry.CantStartUdsServer, err)
@@ -331,37 +364,27 @@ func (r *HTTPReceiver) Start() {
 
 // listenUnix returns a net.Listener listening on the given "unix" socket path.
 func (r *HTTPReceiver) listenUnix(path string) (net.Listener, error) {
-	fi, err := os.Stat(path)
-	if err == nil {
-		// already exists
-		if fi.Mode()&os.ModeSocket == 0 {
-			return nil, fmt.Errorf("cannot reuse %q; not a unix socket", path)
-		}
-		if err := os.Remove(path); err != nil {
-			return nil, fmt.Errorf("unable to remove stale socket: %v", err)
-		}
-	}
-	ln, err := net.Listen("unix", path)
+	ln, err := loader.GetUnixListener(path)
 	if err != nil {
 		return nil, err
 	}
-	if unixLn, ok := ln.(*net.UnixListener); ok {
-		// We do not want to unlink the socket here as we can't be sure if another trace-agent has already
-		// put a new file at the same path.
-		unixLn.SetUnlinkOnClose(false)
+	return r.listenUnixListener(path, ln)
+}
+
+func (r *HTTPReceiver) listenUnixListener(_path string, ln net.Listener) (net.Listener, error) {
+	return NewMeasuredListener(ln, "uds_connections", r.conf.MaxConnections, r.statsd), nil
+}
+
+func (r *HTTPReceiver) listenTCP(addr string) (net.Listener, error) {
+	tcpln, err := loader.GetTCPListener(addr)
+	if err != nil {
+		return nil, err
 	}
-	if err := os.Chmod(path, 0o722); err != nil {
-		return nil, fmt.Errorf("error setting socket permissions: %v", err)
-	}
-	return NewMeasuredListener(ln, "uds_connections", r.conf.MaxConnections, r.statsd), err
+	return r.listenTCPListener(tcpln)
 }
 
 // listenTCP creates a new net.Listener on the provided TCP address.
-func (r *HTTPReceiver) listenTCP(addr string) (net.Listener, error) {
-	tcpln, err := net.Listen("tcp", addr)
-	if err != nil {
-		return nil, err
-	}
+func (r *HTTPReceiver) listenTCPListener(tcpln net.Listener) (net.Listener, error) {
 	if climit := r.conf.ConnectionLimit; climit > 0 {
 		ln, err := newRateLimitedListener(tcpln, climit, r.statsd)
 		go func() {
@@ -370,7 +393,7 @@ func (r *HTTPReceiver) listenTCP(addr string) (net.Listener, error) {
 		}()
 		return ln, err
 	}
-	return NewMeasuredListener(tcpln, "tcp_connections", r.conf.MaxConnections, r.statsd), err
+	return NewMeasuredListener(tcpln, "tcp_connections", r.conf.MaxConnections, r.statsd), nil
 }
 
 // Stop stops the receiver and shuts down the HTTP server.
