@@ -297,7 +297,7 @@ exclude '\.git*'
 exclude 'bundler\/git'
 
 # Exclude headers that are not needed in the final package
-exclude "embedded/include/systemd"
+exclude "embedded/include"
 
 if windows_target?
   FORBIDDEN_SYMBOLS = [
