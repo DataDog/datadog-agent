@@ -240,11 +240,11 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.SetKnown(join(spNS, "process_service_inference", "use_improved_algorithm")) //nolint:forbidigo
 
 	// For backward compatibility
-	cfg.BindEnv(join(smNS, "process_service_inference", "enabled"), "DD_SYSTEM_PROBE_PROCESS_SERVICE_INFERENCE_ENABLED")
+	cfg.BindEnv(join(smNS, "process_service_inference", "enabled"), "DD_SYSTEM_PROBE_PROCESS_SERVICE_INFERENCE_ENABLED") //nolint:forbidigo
 	cfg.BindEnvAndSetDefault(join(spNS, "process_service_inference", "enabled"), runtime.GOOS == "windows")
 
 	// For backward compatibility
-	cfg.BindEnv(join(smNS, "process_service_inference", "use_windows_service_name"), "DD_SYSTEM_PROBE_PROCESS_SERVICE_INFERENCE_USE_WINDOWS_SERVICE_NAME")
+	cfg.BindEnv(join(smNS, "process_service_inference", "use_windows_service_name"), "DD_SYSTEM_PROBE_PROCESS_SERVICE_INFERENCE_USE_WINDOWS_SERVICE_NAME") //nolint:forbidigo
 	// default on windows is now enabled; default on linux is still disabled
 	cfg.BindEnvAndSetDefault(join(spNS, "process_service_inference", "use_windows_service_name"), true)
 
