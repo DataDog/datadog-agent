@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Add support for KSM custom resource definition metrics of type Info, enabling collection and forwarding of CR info metrics
+    Add support for KSM custom resource definition metrics of type Info, enabling collection and forwarding of custom resource info metrics
