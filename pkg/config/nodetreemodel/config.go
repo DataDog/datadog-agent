@@ -751,7 +751,7 @@ func (c *ntmConfig) mergeWithEnvPrefix(key string) string {
 }
 
 // BindEnv binds one or more environment variables to the given key
-func (c *ntmConfig) BindEnv(key string, envvars ...string) { //nolint:forbidigo
+func (c *ntmConfig) BindEnv(key string, envvars ...string) {
 	c.Lock()
 	defer c.Unlock()
 

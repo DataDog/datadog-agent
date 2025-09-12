@@ -280,7 +280,7 @@ type Config interface {
 	Compound
 	// TODO: This method shouldn't be here, but it is depended upon by an external repository
 	// https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/e7c3295769637e61558c6892be732398840dd5f5/pkg/datadog/agentcomponents/agentcomponents.go#L166
-	SetKnown(key string) //nolint:forbidigo
+	SetKnown(key string)
 }
 
 // BuildableConfig is the most-general interface for the Config, it can be
