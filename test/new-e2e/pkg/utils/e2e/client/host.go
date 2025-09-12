@@ -294,6 +294,23 @@ func (h *Host) ReadFile(path string) ([]byte, error) {
 	return content.Bytes(), nil
 }
 
+// ReadFileWithPrivileges reads the content of the file using administrative privileges, return bytes read and error if any
+func (h *Host) ReadFileWithPrivileges(path string) ([]byte, error) {
+	h.context.T().Logf("Reading file with administrative privileges at %s", path)
+
+	if h.osFamily == oscomp.WindowsFamily {
+		// Already running as administrator on Windows
+		return h.ReadFile(path)
+	}
+
+	cmd := buildCommandOnLinuxAndMacOS(fmt.Sprintf("sudo cat \"%s\"", path), nil)
+	stdout, err := h.Execute(cmd)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read file with administrative privileges: %w", err)
+	}
+	return []byte(stdout), nil
+}
+
 // WriteFile write content to the file and returns the number of bytes written and error if any
 func (h *Host) WriteFile(path string, content []byte) (int64, error) {
 	h.context.T().Logf("Writing to file at %s", path)
