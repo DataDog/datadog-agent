@@ -1296,6 +1296,7 @@ feature:
 
 		err := unmarshalKeyReflection(mockConfig, "feature", &feature)
 		require.Error(t, err)
+		assert.Contains(t, err.Error(), "EnableSquash")
 	})
 }
 
