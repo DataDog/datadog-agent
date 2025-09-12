@@ -369,6 +369,8 @@
 /comp/serializer/logscompression @DataDog/agent-log-pipelines
 /comp/serializer/metricscompression @DataDog/agent-metric-pipelines
 /comp/snmpscan @DataDog/ndm-core
+/comp/syntheticstestscheduler @DataDog/synthetics-executing
+/comp/syntheticstestscheduler/impl @DataDog/synthetics-executing
 # END COMPONENTS
 
 # Additional notification to  @iglendd about Agent Telemetry changes for optional approval and governance acknowledgement

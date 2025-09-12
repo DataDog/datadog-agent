@@ -772,14 +772,21 @@ Package logscompression provides the component for logs compression
 
 Package metricscompression provides the component for metrics compression
 
-## [comp/syntheticstestscheduler](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/syntheticstestscheduler)
-
-*Datadog Team*: synthetics-executing
-
-Package syntheticstestscheduler implements the synthetics scheduler of network tests
-
 ### [comp/snmpscan](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/snmpscan)
 
 *Datadog Team*: ndm-core
 
 Package snmpscan is a light component that can be used to perform a scan or a walk of a particular device
+
+### [comp/syntheticstestscheduler](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/syntheticstestscheduler)
+
+*Datadog Team*: synthetics-executing
+
+Package syntheticstestscheduler defines a synthetics scheduler component to run
+network tests based on remote config.
+
+### [comp/syntheticstestscheduler/impl](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/syntheticstestscheduler/impl)
+
+*Datadog Team*: synthetics-executing
+
+Package syntheticstestschedulerimpl implements synthetics test scheduler.

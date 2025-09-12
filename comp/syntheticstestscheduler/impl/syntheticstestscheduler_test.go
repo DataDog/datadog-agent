@@ -10,11 +10,14 @@ package syntheticstestschedulerimpl
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
+	"net"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
@@ -32,6 +35,9 @@ import (
 
 func Test_SyntheticsTestScheduler_StartAndStop(t *testing.T) {
 	// GIVEN
+	testDir := t.TempDir()
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("run_path", testDir)
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
 	l, err := utillog.LoggerFromWriterWithMinLevelAndFormat(w, utillog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
@@ -42,18 +48,19 @@ func Test_SyntheticsTestScheduler_StartAndStop(t *testing.T) {
 		flushInterval:              100 * time.Millisecond,
 		syntheticsSchedulerEnabled: true,
 	}
-	scheduler, err := newSyntheticsTestScheduler(configs, nil, l, time.Now)
+	ctx, cancel := context.WithCancel(context.TODO())
+	scheduler, err := newSyntheticsTestScheduler(configs, nil, l, nil, time.Now, cancel)
 	assert.Nil(t, err)
 	assert.False(t, scheduler.running)
 
 	// TEST START
-	err = scheduler.start()
+	err = scheduler.start(ctx)
 	assert.Nil(t, err)
 
 	assert.True(t, scheduler.running)
 
 	// TEST START CALLED TWICE
-	err = scheduler.start()
+	err = scheduler.start(ctx)
 	assert.EqualError(t, err, "server already started")
 
 	// TEST STOP
@@ -315,7 +322,7 @@ func Test_SyntheticsTestScheduler_OnConfigUpdate(t *testing.T) {
 				return now
 			}
 
-			scheduler, err := newSyntheticsTestScheduler(configs, nil, l, timeNowFn)
+			scheduler, err := newSyntheticsTestScheduler(configs, nil, l, nil, timeNowFn, nil)
 			assert.Nil(t, err)
 			assert.False(t, scheduler.running)
 			applied := map[string]state.ApplyStatus{}
@@ -370,47 +377,31 @@ func Test_SyntheticsTestScheduler_Processing(t *testing.T) {
 		name                  string
 		updateJSON            map[string]string
 		expectedEventJSON     string
-		expectedRunTraceroute func(cfg config.Config, _ telemetry.Component) (payload.NetworkPath, error)
+		expectedRunTraceroute func(context.Context, config.Config, telemetry.Component) (payload.NetworkPath, error)
 	}
 
 	testCases := []testCase{
 		{
 			name: "one test provided",
 			updateJSON: map[string]string{"datadog/2/SYNTHETICS_TEST/config-1/aaa111": `{
-				"version":1,"type":"network","subtype":"tcp",
-				"config":{"assertions":[],"request":{"host":"example.com","port":443,"tcp_method":"syn","probe_count":3,"traceroute_count":1,"max_ttl":30,"timeout":5,"source_service":"frontend","destination_service":"backend"}},
-				"orgID":12345,"mainDC":"us1.staging.dog","publicID":"puf-9fm-c89"
-			}`},
-			expectedEventJSON: `{"_dd":{},"result":{"id":"4907739274636687553","initialId":"4907739274636687553","testFinishedAt":1756901488592,"testStartedAt":1756901488591,"testTriggeredAt":1756901488590,"assertions":null,"failure":null,"duration":1,"request":{"host":"example.com","port":443,"maxTtl":30,"timeout":5000},"netstats":{"packetsSent":0,"packetsReceived":0,"packetLossPercentage":0,"jitter":0,"latency":{"avg":0,"min":0,"max":0},"hops":{"avg":0,"min":0,"max":0}},"netpath":{"timestamp":0,"pathtrace_id":"pathtrace-id-111-example.com","origin":"","protocol":"TCP","agent_version":"","namespace":"","source":{"hostname":"abc"},"destination":{"hostname":"example.com","ip_address":"example.com","port":443,"reverse_dns_hostname":""},"hops":[{"ttl":0,"rtt":0,"ip_address":"1.1.1.1","hostname":"hop_1","reachable":false},{"ttl":0,"rtt":0,"ip_address":"1.1.1.2","hostname":"hop_2","reachable":false}],"test_config_id":"puf-9fm-c89","test_result_id":"4907739274636687553","traceroute_test":{"traceroute_runs":null,"hop_count_avg":0,"hop_count_min":0,"hop_count_max":0},"e2e_test":{"packet_loss":0,"latency_avg":0,"latency_min":0,"latency_max":0,"jitter":0},"tags":null},"status":"passed"},"test":{"_internalId":"puf-9fm-c89","id":"puf-9fm-c89","subType":"tcp","type":"network","version":1},"v":1}`,
-			expectedRunTraceroute: func(cfg config.Config, _ telemetry.Component) (payload.NetworkPath, error) {
+					"version":1,"type":"network","subtype":"tcp",
+					"config":{"assertions":[],"request":{"host":"example.com","port":443,"tcp_method":"syn","probe_count":3,"traceroute_count":1,"max_ttl":30,"timeout":5,"source_service":"frontend","destination_service":"backend"}},
+					"orgID":12345,"mainDC":"us1.staging.dog","publicID":"puf-9fm-c89"
+				}`},
+			expectedEventJSON: `{"_dd":{},"result":{"id":"4907739274636687553","initialId":"4907739274636687553","testFinishedAt":1756901488592,"testStartedAt":1756901488591,"testTriggeredAt":1756901488590,"assertions":null,"failure":null,"duration":1,"request":{"host":"example.com","port":443,"maxTtl":30,"timeout":5000},"netstats":{"packetsSent":0,"packetsReceived":0,"packetLossPercentage":0,"jitter":0,"latency":{"avg":0,"min":0,"max":0},"hops":{"avg":0,"min":0,"max":0}},"netpath":{"timestamp":0,"agent_version":"","namespace":"","test_config_id":"puf-9fm-c89","test_result_id":"4907739274636687553","pathtrace_id":"pathtrace-id-111-example.com","origin":"synthetics","protocol":"TCP","source":{"name":"test-hostname","display_name":"test-hostname","hostname":"test-hostname"},"destination":{"hostname":"example.com","port":443},"traceroute":{"runs":[{"run_id":"1","source":{"ip_address":"","port":0},"destination":{"ip_address":"","port":0},"hops":[{"ttl":0,"ip_address":"1.1.1.1","reachable":false},{"ttl":0,"ip_address":"1.1.1.2","reachable":false}]}],"hop_count":{"avg":0,"min":0,"max":0}},"e2e_probe":{"rtts":null,"packets_sent":0,"packets_received":0,"packet_loss_percentage":0,"jitter":0,"rtt":{"avg":0,"min":0,"max":0}}},"status":"passed"},"test":{"_internalId":"puf-9fm-c89","id":"puf-9fm-c89","subType":"tcp","type":"network","version":1},"v":1}`,
+			expectedRunTraceroute: func(_ context.Context, cfg config.Config, _ telemetry.Component) (payload.NetworkPath, error) {
 				return payload.NetworkPath{
 					PathtraceID: "pathtrace-id-111-" + cfg.DestHostname,
 					Protocol:    cfg.Protocol,
-					Source:      payload.NetworkPathSource{Hostname: "abc"},
-					Destination: payload.NetworkPathDestination{Hostname: cfg.DestHostname, IPAddress: cfg.DestHostname, Port: cfg.DestPort},
-					Hops: []payload.NetworkPathHop{
-						{Hostname: "hop_1", IPAddress: "1.1.1.1"},
-						{Hostname: "hop_2", IPAddress: "1.1.1.2"},
-					},
-				}, nil
-			},
-		}, {
-			name: "two network testsprovided",
-			updateJSON: map[string]string{"datadog/2/SYNTHETICS_TEST/config-1/aaa111": `{
-				"version":1,"type":"network","subtype":"tcp",
-				"config":{"assertions":[],"request":{"host":"example.com","port":443,"tcp_method":"syn","probe_count":3,"traceroute_count":1,"max_ttl":30,"timeout":5,"source_service":"frontend","destination_service":"backend"}},
-				"orgID":12345,"mainDC":"us1.staging.dog","publicID":"puf-9fm-c89"
-			}`},
-			expectedEventJSON: `{"_dd":{},"result":{"id":"4907739274636687553","initialId":"4907739274636687553","testFinishedAt":1756901488592,"testStartedAt":1756901488591,"testTriggeredAt":1756901488590,"assertions":null,"failure":null,"duration":1,"request":{"host":"example.com","port":443,"maxTtl":30,"timeout":5000},"netstats":{"packetsSent":0,"packetsReceived":0,"packetLossPercentage":0,"jitter":0,"latency":{"avg":0,"min":0,"max":0},"hops":{"avg":0,"min":0,"max":0}},"netpath":{"timestamp":0,"pathtrace_id":"pathtrace-id-111-example.com","origin":"","protocol":"TCP","agent_version":"","namespace":"","source":{"hostname":"abc"},"destination":{"hostname":"example.com","ip_address":"example.com","port":443,"reverse_dns_hostname":""},"hops":[{"ttl":0,"rtt":0,"ip_address":"1.1.1.1","hostname":"hop_1","reachable":false},{"ttl":0,"rtt":0,"ip_address":"1.1.1.2","hostname":"hop_2","reachable":false}],"test_config_id":"puf-9fm-c89","test_result_id":"4907739274636687553","traceroute_test":{"traceroute_runs":null,"hop_count_avg":0,"hop_count_min":0,"hop_count_max":0},"e2e_test":{"packet_loss":0,"latency_avg":0,"latency_min":0,"latency_max":0,"jitter":0},"tags":null},"status":"passed"},"test":{"_internalId":"puf-9fm-c89","id":"puf-9fm-c89","subType":"tcp","type":"network","version":1},"v":1}`,
-			expectedRunTraceroute: func(cfg config.Config, _ telemetry.Component) (payload.NetworkPath, error) {
-				return payload.NetworkPath{
-					PathtraceID: "pathtrace-id-111-" + cfg.DestHostname,
-					Protocol:    cfg.Protocol,
-					Source:      payload.NetworkPathSource{Hostname: "abc"},
-					Destination: payload.NetworkPathDestination{Hostname: cfg.DestHostname, IPAddress: cfg.DestHostname, Port: cfg.DestPort},
-					Hops: []payload.NetworkPathHop{
-						{Hostname: "hop_1", IPAddress: "1.1.1.1"},
-						{Hostname: "hop_2", IPAddress: "1.1.1.2"},
+					Destination: payload.NetworkPathDestination{Hostname: cfg.DestHostname, Port: cfg.DestPort},
+					Traceroute: payload.Traceroute{
+						Runs: []payload.TracerouteRun{{
+							RunID: "1",
+							Hops: []payload.TracerouteHop{
+								{IPAddress: net.ParseIP("1.1.1.1")},
+								{IPAddress: net.ParseIP("1.1.1.2")},
+							},
+						}},
 					},
 				}, nil
 			},
@@ -446,7 +437,8 @@ func Test_SyntheticsTestScheduler_Processing(t *testing.T) {
 				return t
 			}
 
-			scheduler, err := newSyntheticsTestScheduler(configs, mockEpForwarder, l, timeNowFn)
+			ctx, cancel := context.WithCancel(context.TODO())
+			scheduler, err := newSyntheticsTestScheduler(configs, mockEpForwarder, l, &mockHostname{}, timeNowFn, cancel)
 			assert.Nil(t, err)
 			assert.False(t, scheduler.running)
 
@@ -477,15 +469,31 @@ func Test_SyntheticsTestScheduler_Processing(t *testing.T) {
 				Do(func(_, _ interface{}) { close(done) }).
 				Return(nil).Times(1)
 
-			assert.Nil(t, scheduler.start())
+			assert.Nil(t, scheduler.start(ctx))
 
 			select {
 			case <-done:
 			case <-time.After(3 * time.Second):
 				t.Fatal("mock was never called")
 			}
+			scheduler.stop()
 		})
 	}
+}
+
+type mockHostname struct{}
+
+func (m *mockHostname) GetWithProvider(_ context.Context) (hostnameinterface.Data, error) {
+	return hostnameinterface.Data{
+		Hostname: "test-hostname",
+		Provider: "test-provider",
+	}, nil
+}
+func (m *mockHostname) GetSafe(_ context.Context) string {
+	return "test-hostname"
+}
+func (m *mockHostname) Get(_ context.Context) (string, error) {
+	return "test-hostname", nil
 }
 
 func Test_SyntheticsTestScheduler_RunWorker_ProcessesTestCtxAndSendsResult(t *testing.T) {
@@ -494,17 +502,19 @@ func Test_SyntheticsTestScheduler_RunWorker_ProcessesTestCtxAndSendsResult(t *te
 	l, err := utillog.LoggerFromWriterWithMinLevelAndFormat(w, utillog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
 	assert.Nil(t, err)
 	utillog.SetupLogger(l, "debug")
+	ctx, cancel := context.WithCancel(context.TODO())
 
 	scheduler := &SyntheticsTestScheduler{
 		syntheticsTestProcessingChan: make(chan SyntheticsTestCtx, 1),
-		stopChan:                     make(chan struct{}),
+		cancel:                       cancel,
 		TimeNowFn:                    func() time.Time { return time.Unix(1000, 0) },
 		log:                          l,
 		flushInterval:                100 * time.Millisecond,
 		workers:                      4,
+		hostNameService:              &mockHostname{},
 	}
 
-	scheduler.runTraceroute = func(config.Config, telemetry.Component) (payload.NetworkPath, error) {
+	scheduler.runTraceroute = func(context.Context, config.Config, telemetry.Component) (payload.NetworkPath, error) {
 		return payload.NetworkPath{
 			PathtraceID: "path-123",
 			Protocol:    payload.ProtocolTCP,
@@ -542,7 +552,7 @@ func Test_SyntheticsTestScheduler_RunWorker_ProcessesTestCtxAndSendsResult(t *te
 		cfg:     testCfg,
 	}
 
-	go scheduler.runWorker(0)
+	go scheduler.runWorker(ctx, 0)
 
 	var got *WorkerResult
 	select {
@@ -552,7 +562,7 @@ func Test_SyntheticsTestScheduler_RunWorker_ProcessesTestCtxAndSendsResult(t *te
 		t.Fatal("timeout waiting for WorkerResult")
 	}
 
-	close(scheduler.stopChan)
+	scheduler.stop()
 
 	if got.testCfg.cfg.PublicID != "abc123" {
 		t.Errorf("unexpected PublicID: %s", got.testCfg.cfg.PublicID)
@@ -561,7 +571,6 @@ func Test_SyntheticsTestScheduler_RunWorker_ProcessesTestCtxAndSendsResult(t *te
 		t.Errorf("unexpected PathtraceID: %s", got.tracerouteResult.PathtraceID)
 	}
 }
-
 func TestFlushEnqueuesDueTests(t *testing.T) {
 	now := time.Now()
 	var b bytes.Buffer

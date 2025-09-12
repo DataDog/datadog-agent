@@ -6,11 +6,13 @@
 package syntheticstestschedulerimpl
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
@@ -27,8 +29,8 @@ const cacheKey = "synthetics-tests-scheduler"
 type SyntheticsTestScheduler struct {
 	log                          log.Component
 	state                        runningState
+	cancel                       context.CancelFunc
 	running                      bool
-	stopChan                     chan struct{}
 	workers                      int
 	workersDone                  chan struct{}
 	TimeNowFn                    func() time.Time
@@ -40,17 +42,19 @@ type SyntheticsTestScheduler struct {
 	generateTestResultID         func() (string, error)
 	ticker                       *time.Ticker
 	tickerC                      <-chan time.Time
-	runTraceroute                func(cfg config.Config, telemetry telemetry.Component) (payload.NetworkPath, error)
+	runTraceroute                func(ctx context.Context, cfg config.Config, telemetry telemetry.Component) (payload.NetworkPath, error)
 	sendResult                   func(w *WorkerResult) error
+	hostNameService              hostname.Component
 }
 
 // newSyntheticsTestScheduler creates a scheduler and initializes its state.
-func newSyntheticsTestScheduler(configs *schedulerConfigs, epForwarder eventplatform.Forwarder, logger log.Component, timeFunc func() time.Time) (*SyntheticsTestScheduler, error) {
+func newSyntheticsTestScheduler(configs *schedulerConfigs, epForwarder eventplatform.Forwarder, logger log.Component, hostNameService hostname.Component, timeFunc func() time.Time, cancel context.CancelFunc) (*SyntheticsTestScheduler, error) {
 	scheduler := &SyntheticsTestScheduler{
 		epForwarder:                  epForwarder,
 		log:                          logger,
+		hostNameService:              hostNameService,
 		state:                        runningState{tests: map[string]*runningTestState{}},
-		stopChan:                     make(chan struct{}),
+		cancel:                       cancel,
 		workersDone:                  make(chan struct{}),
 		flushLoopDone:                make(chan struct{}),
 		syntheticsTestProcessingChan: make(chan SyntheticsTestCtx, 100),
@@ -181,7 +185,7 @@ func (s *SyntheticsTestScheduler) loadConfigsFromCache() error {
 }
 
 // start launches flush loop and workers.
-func (s *SyntheticsTestScheduler) start() error {
+func (s *SyntheticsTestScheduler) start(ctx context.Context) error {
 	if s.running {
 		return errors.New("server already started")
 	}
@@ -189,8 +193,8 @@ func (s *SyntheticsTestScheduler) start() error {
 
 	s.log.Info("start Synthetics Test Scheduler")
 
-	go s.flushLoop()
-	go s.runWorkers()
+	go s.flushLoop(ctx)
+	go s.runWorkers(ctx)
 
 	return nil
 }
@@ -205,7 +209,7 @@ func (s *SyntheticsTestScheduler) stop() {
 	s.log.Info("stopping synthetics test scheduler")
 
 	// Signal stop
-	close(s.stopChan)
+	s.cancel()
 
 	// Wait for workers to stop
 	<-s.workersDone

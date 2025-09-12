@@ -6,11 +6,14 @@
 // Package syntheticstestschedulerimpl implements synthetics test scheduler.
 package syntheticstestschedulerimpl
 
+// team: synthetics-executing
+
 import (
 	"context"
 	"time"
 
 	agentconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -22,11 +25,12 @@ import (
 
 // Requires defines the dependencies for the syntheticstestscheduler component
 type Requires struct {
-	Lifecycle   compdef.Lifecycle
-	EpForwarder eventplatform.Component
-	Logger      log.Component
-	Telemetry   telemetry.Component
-	AgentConfig agentconfig.Component
+	Lifecycle       compdef.Lifecycle
+	EpForwarder     eventplatform.Component
+	Logger          log.Component
+	Telemetry       telemetry.Component
+	AgentConfig     agentconfig.Component
+	HostnameService hostname.Component
 }
 
 // Provides defines the output of the syntheticstestscheduler component
@@ -52,11 +56,14 @@ func NewComponent(reqs Requires) (Provides, error) {
 		return Provides{}, reqs.Logger.Errorf("error getting EpForwarder")
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
 	scheduler, err := newSyntheticsTestScheduler(
 		configs,
 		epForwarder,
 		reqs.Logger,
-		time.Now)
+		reqs.HostnameService,
+		time.Now,
+		cancel)
 	if err != nil {
 		return Provides{}, err
 	}
@@ -68,7 +75,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 	reqs.Lifecycle.Append(compdef.Hook{
 		OnStart: func(context.Context) error {
-			return scheduler.start()
+			return scheduler.start(ctx)
 		},
 		OnStop: func(context.Context) error {
 			scheduler.stop()

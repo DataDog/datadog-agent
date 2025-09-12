@@ -5,67 +5,7 @@
 
 package common
 
-// NetpathSource represents the source host of a network path.
-type NetpathSource struct {
-	Hostname string `json:"hostname"`
-}
-
-// NetpathDestination represents the destination host of a network path.
-type NetpathDestination struct {
-	Hostname           string `json:"hostname"`
-	IPAddress          string `json:"ip_address"`
-	Port               int    `json:"port"`
-	ReverseDNSHostname string `json:"reverse_dns_hostname"`
-}
-
-// NetpathHop represents a single hop in a traceroute path.
-type NetpathHop struct {
-	TTL       int     `json:"ttl"`
-	RTT       float64 `json:"rtt"`
-	IPAddress string  `json:"ip_address"`
-	Hostname  string  `json:"hostname"`
-	Reachable bool    `json:"reachable"`
-}
-
-// TracerouteRun represents the result of one traceroute attempt.
-type TracerouteRun struct {
-	Hops []NetpathHop `json:"hops"`
-}
-
-// TracerouteTest aggregates multiple traceroute runs and hop statistics.
-type TracerouteTest struct {
-	TracerouteRuns []TracerouteRun `json:"traceroute_runs"`
-	HopCountAvg    float64         `json:"hop_count_avg"`
-	HopCountMin    int             `json:"hop_count_min"`
-	HopCountMax    int             `json:"hop_count_max"`
-}
-
-// E2ETest represents end-to-end test results such as latency and jitter.
-type E2ETest struct {
-	PacketLoss float64 `json:"packet_loss"`
-	LatencyAvg float64 `json:"latency_avg"`
-	LatencyMin float64 `json:"latency_min"`
-	LatencyMax float64 `json:"latency_max"`
-	Jitter     float64 `json:"jitter"`
-}
-
-// NetpathResult represents the full result of a network path test.
-type NetpathResult struct {
-	Timestamp    int64              `json:"timestamp"`
-	PathtraceID  string             `json:"pathtrace_id"`
-	Origin       string             `json:"origin"`
-	Protocol     string             `json:"protocol"`
-	AgentVersion string             `json:"agent_version"`
-	Namespace    string             `json:"namespace"`
-	Source       NetpathSource      `json:"source"`
-	Destination  NetpathDestination `json:"destination"`
-	Hops         []NetpathHop       `json:"hops"`
-	TestConfigID string             `json:"test_config_id"`
-	TestResultID string             `json:"test_result_id"`
-	Traceroute   TracerouteTest     `json:"traceroute_test"`
-	E2E          E2ETest            `json:"e2e_test"`
-	Tags         []string           `json:"tags"`
-}
+import "github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 
 // Assertion represents a validation check comparing expected and actual values.
 type Assertion struct {
@@ -86,36 +26,28 @@ type Request struct {
 
 // NetStats contains aggregated network statistics such as latency and jitter.
 type NetStats struct {
-	PacketsSent          int     `json:"packetsSent"`
-	PacketsReceived      int     `json:"packetsReceived"`
-	PacketLossPercentage float64 `json:"packetLossPercentage"`
-	Jitter               float64 `json:"jitter"`
-	Latency              struct {
-		Avg float64 `json:"avg"`
-		Min float64 `json:"min"`
-		Max float64 `json:"max"`
-	} `json:"latency"`
-	Hops struct {
-		Avg float64 `json:"avg"`
-		Min int     `json:"min"`
-		Max int     `json:"max"`
-	} `json:"hops"`
+	PacketsSent          int                        `json:"packetsSent"`
+	PacketsReceived      int                        `json:"packetsReceived"`
+	PacketLossPercentage float32                    `json:"packetLossPercentage"`
+	Jitter               float64                    `json:"jitter"`
+	Latency              payload.E2eProbeRttLatency `json:"latency"`
+	Hops                 payload.HopCountStats      `json:"hops"`
 }
 
 // Result represents the outcome of a test run including assertions and stats.
 type Result struct {
-	ID              string         `json:"id"`
-	InitialID       string         `json:"initialId"`
-	TestFinishedAt  int64          `json:"testFinishedAt"`
-	TestStartedAt   int64          `json:"testStartedAt"`
-	TestTriggeredAt int64          `json:"testTriggeredAt"`
-	Assertions      []Assertion    `json:"assertions"`
-	Failure         ErrorOrFailure `json:"failure"`
-	Duration        int64          `json:"duration"`
-	Request         Request        `json:"request"`
-	Netstats        NetStats       `json:"netstats"`
-	Netpath         NetpathResult  `json:"netpath"`
-	Status          string         `json:"status"`
+	ID              string              `json:"id"`
+	InitialID       string              `json:"initialId"`
+	TestFinishedAt  int64               `json:"testFinishedAt"`
+	TestStartedAt   int64               `json:"testStartedAt"`
+	TestTriggeredAt int64               `json:"testTriggeredAt"`
+	Assertions      []Assertion         `json:"assertions"`
+	Failure         ErrorOrFailure      `json:"failure"`
+	Duration        int64               `json:"duration"`
+	Request         Request             `json:"request"`
+	Netstats        NetStats            `json:"netstats"`
+	Netpath         payload.NetworkPath `json:"netpath"`
+	Status          string              `json:"status"`
 }
 
 // Test represents the definition of a test including metadata and version.
