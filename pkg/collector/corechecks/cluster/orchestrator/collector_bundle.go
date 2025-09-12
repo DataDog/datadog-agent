@@ -455,47 +455,59 @@ type builtinCRDConfig struct {
 	group string
 	// preferredVersion is the preferred API version we want to collect for this custom resource
 	preferredVersion string
-	// availableVersions is a list of versions that we can fall back to in order when preferredVersion is unavailable
-	availableVersions []string
+	// fallbackVersions is a list of versions that we can fall back to in order when preferredVersion is unavailable
+	fallbackVersions []string
 	// kind is the resource kind name
 	kind string
 	// enabled indicates whether collection of this CRD is enabled
 	enabled bool
 }
 
-// newBuiltinCRDConfig creates a new builtinCRDConfig.
-func newBuiltinCRDConfig(group, preferredVersion, kind string, availableVersions []string, enabled bool) builtinCRDConfig {
-	return builtinCRDConfig{
-		group:             group,
-		preferredVersion:  preferredVersion,
-		availableVersions: availableVersions,
-		kind:              kind,
-		enabled:           enabled,
+// crdConfigOption represents a configuration option for builtin CRD config.
+type crdConfigOption func(*builtinCRDConfig)
+
+// withFallbackVersions sets the available fallback versions for the CRD.
+func withFallbackVersions(versions []string) crdConfigOption {
+	return func(config *builtinCRDConfig) {
+		config.fallbackVersions = versions
 	}
+}
+
+// newBuiltinCRDConfig creates a new builtinCRDConfig with optional configuration.
+func newBuiltinCRDConfig(group, preferredVersion, kind string, opts ...crdConfigOption) builtinCRDConfig {
+	config := builtinCRDConfig{
+		group:            group,
+		preferredVersion: preferredVersion,
+		kind:             kind,
+		enabled:          pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.custom_resources.ootb.enabled"),
+	}
+
+	for _, opt := range opts {
+		opt(&config)
+	}
+
+	return config
 }
 
 // newBuiltinCRDConfigs returns the configuration for all built-in CRDs.
 func newBuiltinCRDConfigs() []builtinCRDConfig {
-	isDatadogCRDEnabled := pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.custom_resources.datadog.enabled")
-	isThirdPartyCRDEnabled := pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.custom_resources.third_party.enabled")
-
 	return []builtinCRDConfig{
 		// Datadog resources
-		newBuiltinCRDConfig(datadogAPIGroup, "v1alpha1", "datadogslos", nil, isDatadogCRDEnabled),
-		newBuiltinCRDConfig(datadogAPIGroup, "v1alpha1", "datadogdashboards", nil, isDatadogCRDEnabled),
-		newBuiltinCRDConfig(datadogAPIGroup, "v1alpha1", "datadogagentprofiles", nil, isDatadogCRDEnabled),
-		newBuiltinCRDConfig(datadogAPIGroup, "v1alpha1", "datadogmonitors", nil, isDatadogCRDEnabled),
-		newBuiltinCRDConfig(datadogAPIGroup, "v1alpha1", "datadogmetrics", nil, isDatadogCRDEnabled),
-		newBuiltinCRDConfig(datadogAPIGroup, "v1alpha2", "datadogpodautoscalers", nil, isDatadogCRDEnabled),
-		newBuiltinCRDConfig(datadogAPIGroup, "v2alpha1", "datadogagents", nil, isDatadogCRDEnabled),
+		newBuiltinCRDConfig(datadogAPIGroup, "v1alpha1", "datadogslos"),
+		newBuiltinCRDConfig(datadogAPIGroup, "v1alpha1", "datadogdashboards"),
+		newBuiltinCRDConfig(datadogAPIGroup, "v1alpha1", "datadogagentprofiles"),
+		newBuiltinCRDConfig(datadogAPIGroup, "v1alpha1", "datadogmonitors"),
+		newBuiltinCRDConfig(datadogAPIGroup, "v1alpha1", "datadogmetrics"),
+		newBuiltinCRDConfig(datadogAPIGroup, "v1alpha2", "datadogpodautoscalers"),
+		newBuiltinCRDConfig(datadogAPIGroup, "v2alpha1", "datadogagents"),
 
 		// Argo resources
-		newBuiltinCRDConfig(ArgoAPIGroup, "v1alpha1", "rollouts", nil, isThirdPartyCRDEnabled),
+		newBuiltinCRDConfig(ArgoAPIGroup, "v1alpha1", "rollouts"),
 
 		// Karpenter resources (empty kind = all resources in group)
-		newBuiltinCRDConfig(KarpenterAPIGroup, "v1", "", nil, isThirdPartyCRDEnabled),
-		newBuiltinCRDConfig(KarpenterAWSAPIGroup, "v1", "", nil, isThirdPartyCRDEnabled),
-		newBuiltinCRDConfig(KarpenterAzureAPIGroup, "v1beta1", "", nil, isThirdPartyCRDEnabled),
+		newBuiltinCRDConfig(KarpenterAPIGroup, "v1", ""),
+		newBuiltinCRDConfig(KarpenterAWSAPIGroup, "v1", ""),
+		newBuiltinCRDConfig(KarpenterAzureAPIGroup, "v1beta1", ""),
 	}
 }
 
@@ -523,10 +535,10 @@ func (cb *CollectorBundle) collectorsForBuiltinCRD(builtinCustomResource builtin
 		return nil
 	}
 
-	version, ok := cb.collectorDiscovery.OptimalVersion(builtinCustomResource.group, builtinCustomResource.preferredVersion, builtinCustomResource.availableVersions)
+	version, ok := cb.collectorDiscovery.OptimalVersion(builtinCustomResource.group, builtinCustomResource.preferredVersion, builtinCustomResource.fallbackVersions)
 	if !ok {
 		log.Infof("Skipping built-in CR collector: no supported version found for %s/%s (preferred: %s, fallback: %s)",
-			builtinCustomResource.group, builtinCustomResource.kind, builtinCustomResource.preferredVersion, builtinCustomResource.availableVersions)
+			builtinCustomResource.group, builtinCustomResource.kind, builtinCustomResource.preferredVersion, builtinCustomResource.fallbackVersions)
 		return nil
 	}
 
