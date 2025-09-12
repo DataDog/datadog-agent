@@ -270,3 +270,239 @@ func testPayload() *InternalTracerPayload {
 
 	return payload
 }
+
+func TestInternalSpan_MapStringAttributes_BasicValueTransformation(t *testing.T) {
+	stringTable := NewStringTable()
+	span := &InternalSpan{
+		Strings: stringTable,
+		span: &Span{
+			Attributes: map[uint32]*AnyValue{
+				stringTable.Add("foo.bar"): {Value: &AnyValue_StringValueRef{StringValueRef: stringTable.Add("baz")}},
+				stringTable.Add("qux"):     {Value: &AnyValue_StringValueRef{StringValueRef: stringTable.Add("quux")}},
+			},
+		},
+	}
+
+	span.MapStringAttributes(func(k, v string) (string, string, bool) {
+		return k, strings.ToUpper(v), true
+	})
+
+	fooBar, found := span.GetAttributeAsString("foo.bar")
+	assert.True(t, found)
+	assert.Equal(t, "BAZ", fooBar)
+
+	qux, found := span.GetAttributeAsString("qux")
+	assert.True(t, found)
+	assert.Equal(t, "QUUX", qux)
+}
+
+func TestInternalSpan_MapStringAttributes_KeyTransformation(t *testing.T) {
+	stringTable := NewStringTable()
+	span := &InternalSpan{
+		Strings: stringTable,
+		span: &Span{
+			Attributes: map[uint32]*AnyValue{
+				stringTable.Add("foo.bar"): {Value: &AnyValue_StringValueRef{StringValueRef: stringTable.Add("baz")}},
+				stringTable.Add("qux"):     {Value: &AnyValue_StringValueRef{StringValueRef: stringTable.Add("quux")}},
+			},
+		},
+	}
+
+	span.MapStringAttributes(func(k, v string) (string, string, bool) {
+		return "dd." + k, v, true
+	})
+
+	fooBar, found := span.GetAttributeAsString("dd.foo.bar")
+	assert.True(t, found)
+	assert.Equal(t, "baz", fooBar)
+
+	qux, found := span.GetAttributeAsString("dd.qux")
+	assert.True(t, found)
+	assert.Equal(t, "quux", qux)
+
+	_, found = span.GetAttributeAsString("foo.bar")
+	assert.False(t, found)
+	_, found = span.GetAttributeAsString("qux")
+	assert.False(t, found)
+}
+
+func TestInternalSpan_MapStringAttributes_NoReplace(t *testing.T) {
+	stringTable := NewStringTable()
+	originalFoo := "baz"
+	originalQux := "quux"
+
+	span := &InternalSpan{
+		Strings: stringTable,
+		span: &Span{
+			Attributes: map[uint32]*AnyValue{
+				stringTable.Add("foo.bar"): {Value: &AnyValue_StringValueRef{StringValueRef: stringTable.Add(originalFoo)}},
+				stringTable.Add("qux"):     {Value: &AnyValue_StringValueRef{StringValueRef: stringTable.Add(originalQux)}},
+			},
+		},
+	}
+
+	span.MapStringAttributes(func(k, v string) (string, string, bool) {
+		return "transformed-" + k, "transformed-" + v, false
+	})
+
+	fooBar, found := span.GetAttributeAsString("foo.bar")
+	assert.True(t, found)
+	assert.Equal(t, originalFoo, fooBar)
+
+	qux, found := span.GetAttributeAsString("qux")
+	assert.True(t, found)
+	assert.Equal(t, originalQux, qux)
+}
+
+func TestInternalSpan_MapStringAttributes_NonStringAttributesIgnored(t *testing.T) {
+	stringTable := NewStringTable()
+	span := &InternalSpan{
+		Strings: stringTable,
+		span: &Span{
+			Attributes: map[uint32]*AnyValue{
+				stringTable.Add("string.attr"):  {Value: &AnyValue_StringValueRef{StringValueRef: stringTable.Add("string-value")}},
+				stringTable.Add("number.attr"):  {Value: &AnyValue_DoubleValue{DoubleValue: 42.0}},
+				stringTable.Add("boolean.attr"): {Value: &AnyValue_BoolValue{BoolValue: true}},
+			},
+		},
+	}
+
+	span.MapStringAttributes(func(k, v string) (string, string, bool) {
+		return "transformed-" + k, "transformed-" + v, true
+	})
+
+	stringAttr, found := span.GetAttributeAsString("transformed-string.attr")
+	assert.True(t, found)
+	assert.Equal(t, "transformed-string-value", stringAttr)
+
+	numberAttr, found := span.GetAttributeAsFloat64("number.attr")
+	assert.True(t, found)
+	assert.Equal(t, 42.0, numberAttr)
+
+	boolAttrStr, found := span.GetAttributeAsString("boolean.attr")
+	assert.True(t, found)
+	assert.Equal(t, "true", boolAttrStr)
+}
+
+func TestInternalSpan_MapStringAttributes_EmptyAttributes(t *testing.T) {
+	stringTable := NewStringTable()
+	span := &InternalSpan{
+		Strings: stringTable,
+		span: &Span{
+			Attributes: make(map[uint32]*AnyValue),
+		},
+	}
+
+	span.MapStringAttributes(func(k, v string) (string, string, bool) {
+		return k, v, true
+	})
+
+	assert.Empty(t, span.span.Attributes)
+}
+
+func TestInternalSpan_MapStringAttributes_MixedAttributes(t *testing.T) {
+	stringTable := NewStringTable()
+	span := &InternalSpan{
+		Strings: stringTable,
+		span: &Span{
+			Attributes: map[uint32]*AnyValue{
+				stringTable.Add("string1"): {Value: &AnyValue_StringValueRef{StringValueRef: stringTable.Add("value1")}},
+				stringTable.Add("number"):  {Value: &AnyValue_DoubleValue{DoubleValue: 123.0}},
+				stringTable.Add("string2"): {Value: &AnyValue_StringValueRef{StringValueRef: stringTable.Add("value2")}},
+				stringTable.Add("bool"):    {Value: &AnyValue_BoolValue{BoolValue: false}},
+			},
+		},
+	}
+	span.MapStringAttributes(func(k, v string) (string, string, bool) {
+		return "prefix." + k, "transformed." + v, true
+	})
+
+	string1, found := span.GetAttributeAsString("prefix.string1")
+	assert.True(t, found)
+	assert.Equal(t, "transformed.value1", string1)
+	string2, found := span.GetAttributeAsString("prefix.string2")
+	assert.True(t, found)
+	assert.Equal(t, "transformed.value2", string2)
+	number, found := span.GetAttributeAsFloat64("number")
+	assert.True(t, found)
+	assert.Equal(t, 123.0, number)
+	boolAttrStr, found := span.GetAttributeAsString("bool")
+	assert.True(t, found)
+	assert.Equal(t, "false", boolAttrStr)
+	_, found = span.GetAttributeAsString("string1")
+	assert.False(t, found)
+	_, found = span.GetAttributeAsString("string2")
+	assert.False(t, found)
+}
+
+func TestInternalSpan_MapStringAttributes_MultipleStringAttributes(t *testing.T) {
+	stringTable := NewStringTable()
+	span := &InternalSpan{
+		Strings: stringTable,
+		span: &Span{
+			Attributes: map[uint32]*AnyValue{
+				stringTable.Add("foo"):         {Value: &AnyValue_StringValueRef{StringValueRef: stringTable.Add("bar")}},
+				stringTable.Add("potato"):      {Value: &AnyValue_StringValueRef{StringValueRef: stringTable.Add("soup")}},
+				stringTable.Add("banana"):      {Value: &AnyValue_StringValueRef{StringValueRef: stringTable.Add("split")}},
+				stringTable.Add("pizza"):       {Value: &AnyValue_StringValueRef{StringValueRef: stringTable.Add("slice")}},
+				stringTable.Add("http.status"): {Value: &AnyValue_StringValueRef{StringValueRef: stringTable.Add("200")}},
+			},
+		},
+	}
+	span.MapStringAttributes(func(k, v string) (string, string, bool) {
+		if strings.HasPrefix(k, "http") {
+			return "dd." + k, "status_" + v, true
+		}
+		return k, v, false
+	})
+
+	httpStatus, found := span.GetAttributeAsString("dd.http.status")
+	assert.True(t, found)
+	assert.Equal(t, "status_200", httpStatus)
+	foo, found := span.GetAttributeAsString("foo")
+	assert.True(t, found)
+	assert.Equal(t, "bar", foo)
+	potato, found := span.GetAttributeAsString("potato")
+	assert.True(t, found)
+	assert.Equal(t, "soup", potato)
+	banana, found := span.GetAttributeAsString("banana")
+	assert.True(t, found)
+	assert.Equal(t, "split", banana)
+	pizza, found := span.GetAttributeAsString("pizza")
+	assert.True(t, found)
+	assert.Equal(t, "slice", pizza)
+	_, found = span.GetAttributeAsString("http.status")
+	assert.False(t, found)
+}
+
+func TestInternalSpan_MapStringAttributes_KeyAndValueTransformation(t *testing.T) {
+	stringTable := NewStringTable()
+	span := &InternalSpan{
+		Strings: stringTable,
+		span: &Span{
+			Attributes: map[uint32]*AnyValue{
+				stringTable.Add("user.id"):    {Value: &AnyValue_StringValueRef{StringValueRef: stringTable.Add("12345")}},
+				stringTable.Add("request.id"): {Value: &AnyValue_StringValueRef{StringValueRef: stringTable.Add("req-abc")}},
+			},
+		},
+	}
+
+	span.MapStringAttributes(func(k, v string) (string, string, bool) {
+		newKey := "custom." + strings.ToUpper(k)
+		newValue := "processed_" + strings.ToUpper(v)
+		return newKey, newValue, true
+	})
+
+	userID, found := span.GetAttributeAsString("custom.USER.ID")
+	assert.True(t, found)
+	assert.Equal(t, "processed_12345", userID)
+
+	requestID, found := span.GetAttributeAsString("custom.REQUEST.ID")
+	assert.True(t, found)
+	assert.Equal(t, "processed_REQ-ABC", requestID)
+
+	_, found = span.GetAttributeAsString("user.id")
+	assert.False(t, found)
+	_, found = span.GetAttributeAsString("request.id")
+	assert.False(t, found)
+}

@@ -39,8 +39,8 @@ type obfuscateSpan interface {
 	Resource() string
 	SetResource(resource string)
 	Service() string
-	// MapStringAttributes applies a function to all string attributes of the span, if the function returns a non-empty string, the attribute is set to the new value
-	MapStringAttributes(func(k, v string) string)
+	// MapAttributesAsStrings applies a function to all string attributes of the span, if the function returns a non-empty string, the attribute is set to the new value
+	MapAttributesAsStrings(func(k, v string) string)
 }
 
 type obfuscateSpanV0 struct {
@@ -75,7 +75,7 @@ func (o *obfuscateSpanV0) Service() string {
 	return o.span.Service
 }
 
-func (o *obfuscateSpanV0) MapStringAttributes(f func(k, v string) string) {
+func (o *obfuscateSpanV0) MapAttributesAsStrings(f func(k, v string) string) {
 	for k, v := range o.span.Meta {
 		newV := f(k, v)
 		if newV != "" && newV != v {
@@ -146,7 +146,7 @@ func obfuscateValkeySpan(o *obfuscate.Obfuscator, span obfuscateSpan, removeAllA
 func (a *Agent) obfuscateSpanInternal(span obfuscateSpan) {
 	o := a.lazyInitObfuscator()
 	if a.conf.Obfuscation != nil && a.conf.Obfuscation.CreditCards.Enabled {
-		span.MapStringAttributes(func(k, v string) string {
+		span.MapAttributesAsStrings(func(k, v string) string {
 			newV := o.ObfuscateCreditCardNumber(k, v)
 			if newV != v {
 				log.Debugf("obfuscating possible credit card under key %s from service %s", k, span.Service())

@@ -36,6 +36,7 @@ func (tp *InternalTracerPayload) UnmarshalMsg(bts []byte) (o []byte, err error) 
 		switch fieldNum {
 		case 1:
 			// If strings are sent they must be sent first.
+			// TODO: this should always be an error
 			if tp.Strings.Len() > 1 {
 				err = msgp.WrapError(err, "Unexpected strings attribute, strings must be sent first")
 				return

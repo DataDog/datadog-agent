@@ -200,9 +200,7 @@ func TestTruncateAttributeValueTooLongV1(t *testing.T) {
 	val := strings.Repeat("TOOLONG", 25000)
 	s.SetStringAttribute("foo", val)
 	a.TruncateV1(s)
-	for _, v := range s.Attributes() {
-		if strVal, ok := v.Value.(*idx.AnyValue_StringValueRef); ok {
-			assert.True(t, len(s.Strings.Get(strVal.StringValueRef)) < MaxMetaValLen+4)
-		}
-	}
+	actualVal, ok := s.GetAttributeAsString("foo")
+	assert.True(t, ok)
+	assert.Len(t, actualVal, MaxMetaValLen+3)
 }

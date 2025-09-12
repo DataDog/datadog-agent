@@ -71,33 +71,29 @@ func (a *Agent) TruncateV1(s *idx.InternalSpan) {
 		s.SetResource(r)
 	}
 
-	for k, v := range s.Attributes() {
+	s.MapStringAttributes(func(k, v string) (string, string, bool) {
 		modified := false
-		kString := s.Strings.Get(k)
-		if len(kString) > MaxMetaKeyLen {
-			log.Debugf("span.truncate: truncating `Meta` key (max %d chars): %s", MaxMetaKeyLen, kString)
-			s.DeleteAttribute(kString)
-			kString = normalize.TruncateUTF8(kString, MaxMetaKeyLen) + "..."
+		newK := k
+		newV := v
+
+		// Do not truncate structured meta tags.
+		if isStructuredMetaKey(k) {
+			return newK, newV, false
+		}
+
+		if len(k) > MaxMetaKeyLen {
+			log.Debugf("span.truncate: truncating `Meta` key (max %d chars): %s", MaxMetaKeyLen, k)
+			newK = normalize.TruncateUTF8(k, MaxMetaKeyLen) + "..."
 			modified = true
 		}
-		newV := v
-		switch vAttr := v.Value.(type) {
-		case *idx.AnyValue_StringValueRef:
-			vString := s.Strings.Get(vAttr.StringValueRef)
-			if len(vString) > MaxMetaValLen {
-				vString = normalize.TruncateUTF8(vString, MaxMetaValLen) + "..."
-				newV = &idx.AnyValue{
-					Value: &idx.AnyValue_StringValueRef{
-						StringValueRef: s.Strings.Add(vString),
-					},
-				}
-				modified = true
-			}
+
+		if len(v) > MaxMetaValLen {
+			newV = normalize.TruncateUTF8(v, MaxMetaValLen) + "..."
+			modified = true
 		}
-		if modified {
-			s.Attributes()[s.Strings.Add(kString)] = newV
-		}
-	}
+
+		return newK, newV, modified
+	})
 }
 
 const (

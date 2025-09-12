@@ -901,10 +901,10 @@ func (s *InternalSpan) DeleteAttribute(key string) {
 	deleteAttribute(key, s.Strings, s.span.Attributes)
 }
 
-// MapStringAttributes maps over all string attributes and applies the given function to each attribute
+// MapAttributesAsStrings maps over all string attributes and applies the given function to each attribute
 // Note that this will only act on true attributes, fields like env, version, component, etc are not considered
 // The provided function will receive all attributes as strings, and should return the new value for the attribute
-func (s *InternalSpan) MapStringAttributes(f func(k, v string) string) {
+func (s *InternalSpan) MapAttributesAsStrings(f func(k, v string) string) {
 	for k, v := range s.span.Attributes {
 		// TODO: we could cache the results of these transformations
 		// TODO: This is only used for CC obfuscation today, we could optimize this to reduce the overhead here
@@ -915,6 +915,34 @@ func (s *InternalSpan) MapStringAttributes(f func(k, v string) string) {
 				Value: &AnyValue_StringValueRef{
 					StringValueRef: s.Strings.Add(newV),
 				},
+			}
+		}
+	}
+}
+
+type MapStringAttributesFunc func(k, v string) (newK string, newV string, shouldReplace bool)
+
+// MapStringAttributes maps over all string attributes and applies the given function to each attribute
+// Note that this will only act on true attributes, fields like env, version, component, etc are not considered
+// The provided function will only act on attributes that are string types
+func (s *InternalSpan) MapStringAttributes(f MapStringAttributesFunc) {
+	for k, v := range s.span.Attributes {
+		if vStrAttr, ok := v.Value.(*AnyValue_StringValueRef); ok {
+			oldK := s.Strings.Get(k)
+			oldV := s.Strings.Get(vStrAttr.StringValueRef)
+			newK, newV, shouldReplace := f(oldK, oldV)
+			if shouldReplace {
+				newVAttr := v
+				if newV != oldV {
+					newVAttr.Value.(*AnyValue_StringValueRef).StringValueRef = s.Strings.Add(newV)
+				}
+				kIdx := k
+				if newK != oldK {
+					// Key has changed we must introduce a new attribute
+					delete(s.span.Attributes, k)
+					kIdx = s.Strings.Add(newK)
+				}
+				s.span.Attributes[kIdx] = newVAttr
 			}
 		}
 	}
