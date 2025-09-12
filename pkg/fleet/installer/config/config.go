@@ -83,6 +83,9 @@ func (d *Directories) WriteExperiment(ctx context.Context, operations Operations
 	if err != nil {
 		return err
 	}
+
+	operations.FileOperations = append(operations.FileOperations, buildOperationsFromLegacyInstaller(d.StablePath)...)
+
 	err = operations.Apply(d.ExperimentPath)
 	if err != nil {
 		return err
@@ -155,6 +158,8 @@ type FileOperation struct {
 
 func (a *FileOperation) apply(root *os.Root) error {
 	if !configNameAllowed(a.FilePath) {
+		if !(a.FileOperationType == FileOperationDelete && deleteConfigNameAllowed(a.FilePath)) {
+		}
 		return fmt.Errorf("modifying config file %s is not allowed", a.FilePath)
 	}
 	path := strings.TrimPrefix(a.FilePath, "/")
@@ -264,6 +269,15 @@ var (
 		"/conf.d/*.yaml",
 		"/conf.d/*.d/*.yaml",
 	}
+
+	legacyPathPrefix = "/managed/stable/"
+
+	deleteAllowedConfigFiles = []string{
+		"/datadog.yaml",
+		"/security-agent.yaml",
+		"/system-probe.yaml",
+		"/application_monitoring.yaml",
+	}
 )
 
 func configNameAllowed(file string) bool {
@@ -277,4 +291,57 @@ func configNameAllowed(file string) bool {
 		}
 	}
 	return false
+}
+
+func deleteConfigNameAllowed(file string) bool {
+	for _, allowedFile := range deleteAllowedConfigFiles {
+		match, err := filepath.Match(filepath.Join(legacyPathPrefix, allowedFile), file)
+		if err != nil {
+			return false
+		}
+		if match {
+			return true
+		}
+	}
+	return false
+}
+
+func buildOperationsFromLegacyInstaller(rootPath string) []FileOperation {
+	var allOps []FileOperation
+
+	for _, allowedFile := range deleteAllowedConfigFiles {
+		ops, err := buildOperationsFromLegacyConfigFile(rootPath, allowedFile)
+		if err == nil {
+			allOps = append(allOps, ops...)
+		}
+	}
+	return allOps
+}
+
+func buildOperationsFromLegacyConfigFile(rootPath, filePath string) ([]FileOperation, error) {
+	var ops []FileOperation
+
+	// Read the stable config file
+	stableDatadogYAML, err := os.ReadFile(filepath.Join(rootPath, legacyPathPrefix, filePath))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return ops, nil
+		}
+		return ops, err
+	}
+
+	// Add the merge patch operation
+	ops = append(ops, FileOperation{
+		FileOperationType: FileOperationType(FileOperationMergePatch),
+		FilePath:          filePath,
+		Patch:             stableDatadogYAML,
+	})
+
+	// Add the delete operation for the old file
+	ops = append(ops, FileOperation{
+		FileOperationType: FileOperationType(FileOperationDelete),
+		FilePath:          filepath.Join(legacyPathPrefix, filePath),
+	})
+
+	return ops, nil
 }
