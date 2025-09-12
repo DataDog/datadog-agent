@@ -69,7 +69,6 @@ func (span *InternalSpan) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				return
 			}
 			span.span.NameRef = name
-
 		case 3:
 			var resc uint32
 			resc, o, err = UnmarshalStreamingString(o, span.Strings)
@@ -440,23 +439,13 @@ func UnmarshalStreamingString(bts []byte, strings *StringTable) (index uint32, o
 }
 
 // Helper functions for msgp deserialization
-
 const (
 	first3        = 0xe0
-	mfalse  uint8 = 0xc2
 	mtrue   uint8 = 0xc3
 	mfixstr uint8 = 0xa0
 	mstr8   uint8 = 0xd9
 	mstr16  uint8 = 0xda
 	mstr32  uint8 = 0xdb
-	muint8  uint8 = 0xcc
-	muint16 uint8 = 0xcd
-	muint32 uint8 = 0xce
-	muint64 uint8 = 0xcf
-	mint8   uint8 = 0xd0
-	mint16  uint8 = 0xd1
-	mint32  uint8 = 0xd2
-	mint64  uint8 = 0xd3
 )
 
 func isString(bts []byte) bool {
@@ -840,6 +829,7 @@ func (s *SerializedStrings) AppendStreamingString(str string, strTableIndex uint
 		s.strIndexes[strTableIndex] = s.curIndex
 		s.curIndex++
 	} else {
+		// TODO better names
 		// String is already serialized, write the index
 		index := s.strIndexes[strTableIndex]
 		b = msgp.AppendUint32(b, index)

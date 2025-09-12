@@ -14,6 +14,7 @@ import (
 const maxSize = 25 * 1e6 // maxSize protects the decoder from payloads lying about their size
 
 // UnmarshalMsg unmarshals a TracerPayload from a byte stream, updating the strings slice with new strings
+// Returns any leftover bytes after the tracer payload is unmarshalled and any error that occurred
 func (tp *InternalTracerPayload) UnmarshalMsg(bts []byte) (o []byte, err error) {
 	if tp.Strings == nil {
 		tp.Strings = NewStringTable()

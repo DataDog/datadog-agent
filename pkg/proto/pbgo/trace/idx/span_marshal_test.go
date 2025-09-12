@@ -379,6 +379,7 @@ func (span *InternalSpan) assertEqual(t *testing.T, expected *InternalSpan) {
 	assert.Equal(t, expected.span.Start, span.span.Start)
 	assert.Equal(t, expected.span.Duration, span.span.Duration)
 	assert.Equal(t, expected.span.Error, span.span.Error)
+	assert.Len(t, span.span.Attributes, len(expected.span.Attributes))
 	for k, v := range expected.span.Attributes {
 		// If a key is overwritten in unmarshalling it can result in a different index
 		// so we need to lookup the key from the strings table
