@@ -1,5 +1,13 @@
 {
     "version": "0.2.0",
+    "inputs": [
+        {
+            "id": "pid",
+            "description": "Process ID to attach to",
+            "default": "",
+            "type": "promptString"
+        }
+    ],
     "configurations": [
         {
             "name": "Build Run Debug",
@@ -27,6 +35,13 @@
                 "-c",
                 "${workspaceRoot}/bin/agent/dist/datadog.yaml"
             ]
+        },
+        {
+            "name": "Debug by PID",
+            "type": "go",
+            "request": "attach",
+            "mode": "local",
+            "processId": "${input:pid}"
         },
         {
             "name": "Build Run Debug Otel agent",
