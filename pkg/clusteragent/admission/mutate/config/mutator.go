@@ -132,15 +132,24 @@ func (i *Mutator) MutatePod(pod *corev1.Pod, _ string, _ dynamic.Interface) (boo
 	case socket, csi:
 		useCSI := (mode == csi)
 		injectedVolumesOrVolumeMounts := i.injectSocketVolumes(pod, useCSI)
-		apmMountBase := i.config.socketPath
-		dsdMountBase := i.config.socketPath
-		if i.config.dogStatsDAgentHostSocket != i.config.traceAgentHostSocket && !i.config.typeSocketVolumes {
-			dsdMountBase = i.config.socketPath + i.config.dsdSuffix
-			apmMountBase = i.config.socketPath + i.config.apmSuffix
-		}
+		if shouldUseSocketVolumeType(pod, i.config.typeSocketVolumes) {
 
-		traceURLSocketEnvVar.Value = "unix://" + apmMountBase + "/apm.socket"
-		dogstatsdURLSocketEnvVar.Value = "unix://" + dsdMountBase + "/dsd.socket"
+			traceURLSocketEnvVar.Value = i.config.traceAgentSocket
+			dogstatsdURLSocketEnvVar.Value = i.config.dogStatsDSocket
+
+		} else {
+
+			apmMountBase := i.config.socketPath
+			dsdMountBase := i.config.socketPath
+
+			if useCSI || (i.config.dogStatsDAgentHostSocket != i.config.traceAgentHostSocket) {
+				apmMountBase = i.config.socketPath + i.config.apmSuffix
+				dsdMountBase = i.config.socketPath + i.config.dsdSuffix
+			}
+
+			traceURLSocketEnvVar.Value = "unix://" + apmMountBase + "/apm.socket"
+			dogstatsdURLSocketEnvVar.Value = "unix://" + dsdMountBase + "/dsd.socket"
+		}
 
 		injectedEnv := mutatecommon.InjectEnv(pod, traceURLSocketEnvVar)
 		injectedEnv = mutatecommon.InjectEnv(pod, dogstatsdURLSocketEnvVar) || injectedEnv
@@ -221,45 +230,31 @@ func (i *Mutator) injectSocketVolumes(pod *corev1.Pod, withCSI bool) bool {
 		var plans []plannedMount
 
 		if withCSI {
-			if csiDSDSocketDirectory == csiAPMSocketDirectory {
-				// one CSI mount at base container path
+
+			// two CSI mounts at distinct container dirs
+			entries := []struct {
+				name    string
+				subdir  string
+				csiType csiInjectionType
+			}{
+				{DatadogVolumeName + "-dsd", i.config.dsdSuffix, csiDSDSocketDirectory},
+				{DatadogVolumeName + "-apm", i.config.apmSuffix, csiAPMSocketDirectory},
+			}
+			for _, entry := range entries {
 				volume, volumeMount := buildCSIVolume(
-					DatadogVolumeName,
-					i.config.socketPath,
-					csiDSDSocketDirectory,
+					entry.name,
+					i.config.socketPath+entry.subdir,
+					entry.csiType,
 					true,
 					i.config.csiDriver,
 				)
 				plans = append(plans, plannedMount{
-					name:        DatadogVolumeName,
+					name:        entry.name,
 					volume:      volume,
 					volumeMount: volumeMount,
 				})
-			} else {
-				// two CSI mounts at distinct container dirs
-				entries := []struct {
-					name    string
-					subdir  string
-					csiType csiInjectionType
-				}{
-					{DatadogVolumeName, i.config.dsdSuffix, csiDSDSocketDirectory},
-					{DatadogVolumeName + "-apm", i.config.apmSuffix, csiAPMSocketDirectory},
-				}
-				for _, entry := range entries {
-					volume, volumeMount := buildCSIVolume(
-						entry.name,
-						i.config.socketPath+entry.subdir,
-						entry.csiType,
-						true,
-						i.config.csiDriver,
-					)
-					plans = append(plans, plannedMount{
-						name:        entry.name,
-						volume:      volume,
-						volumeMount: volumeMount,
-					})
-				}
 			}
+
 		} else {
 			if i.config.dogStatsDAgentHostSocket == i.config.traceAgentHostSocket {
 				// one directory mount (both sockets under same host dir)
@@ -282,7 +277,7 @@ func (i *Mutator) injectSocketVolumes(pod *corev1.Pod, withCSI bool) bool {
 					host   string
 					subdir string
 				}{
-					{DatadogVolumeName, i.config.dogStatsDAgentHostSocket, i.config.dsdSuffix},
+					{DatadogVolumeName + "-dsd", i.config.dogStatsDAgentHostSocket, i.config.dsdSuffix},
 					{DatadogVolumeName + "-apm", i.config.traceAgentHostSocket, i.config.apmSuffix},
 				}
 				for _, entry := range entries {

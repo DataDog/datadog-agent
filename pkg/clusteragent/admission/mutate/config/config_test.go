@@ -353,7 +353,7 @@ func TestInjectSocket(t *testing.T) {
 					},
 				},
 				{
-					Name: "datadog",
+					Name: "datadog-dsd",
 					VolumeSource: corev1.VolumeSource{
 						HostPath: &corev1.HostPathVolumeSource{
 							Path: "/var/run/datadog-dsd",
@@ -369,7 +369,7 @@ func TestInjectSocket(t *testing.T) {
 					ReadOnly:  true,
 				},
 				{
-					Name:      "datadog",
+					Name:      "datadog-dsd",
 					MountPath: "/var/run/datadog/dsd",
 					ReadOnly:  true,
 				},
@@ -384,7 +384,7 @@ func TestInjectSocket(t *testing.T) {
 			withCSIDriver: true,
 			expectedVolumes: []corev1.Volume{
 				{
-					Name: "datadog",
+					Name: "datadog-dsd",
 
 					VolumeSource: corev1.VolumeSource{
 						CSI: &corev1.CSIVolumeSource{
@@ -412,7 +412,7 @@ func TestInjectSocket(t *testing.T) {
 			},
 			expectedVolumeMounts: []corev1.VolumeMount{
 				{
-					Name:      "datadog",
+					Name:      "datadog-dsd",
 					MountPath: "/var/run/datadog/dsd",
 					ReadOnly:  true,
 				},
@@ -456,13 +456,20 @@ func TestInjectSocket(t *testing.T) {
 
 			assert.ElementsMatch(t, pod.Spec.Containers[0].VolumeMounts, test.expectedVolumeMounts)
 			assert.ElementsMatch(t, pod.Spec.Volumes, test.expectedVolumes)
-
+			for _, want := range test.expectedEnvs {
+				assert.Contains(t, pod.Spec.Containers[0].Env, want)
+			}
 			safe := pod.Annotations[mutatecommon.K8sAutoscalerSafeToEvictVolumesAnnotation]
-			expectedNames := []string{}
+			parts := []string{}
+			if safe != "" {
+				parts = strings.Split(safe, ",")
+			}
+
+			expectedNames := make([]string, 0, len(test.expectedVolumes))
 			for _, v := range test.expectedVolumes {
 				expectedNames = append(expectedNames, v.Name)
 			}
-			parts := strings.Split(safe, ",")
+
 			assert.ElementsMatch(t, expectedNames, parts)
 		})
 	}
@@ -659,7 +666,9 @@ func TestInjectSocket_VolumeTypeSocket(t *testing.T) {
 
 			assert.ElementsMatch(t, pod.Spec.Containers[0].VolumeMounts, test.expectedVolumeMounts)
 			assert.ElementsMatch(t, pod.Spec.Volumes, test.expectedVolumes)
-
+			for _, want := range test.expectedEnvs {
+				assert.Contains(t, pod.Spec.Containers[0].Env, want)
+			}
 			safeToEvictVolumes := strings.Split(pod.Annotations[mutatecommon.K8sAutoscalerSafeToEvictVolumesAnnotation], ",")
 			assert.Len(t, safeToEvictVolumes, 2)
 			assert.Contains(t, safeToEvictVolumes, "datadog-dogstatsd")
