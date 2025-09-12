@@ -81,5 +81,10 @@ func getKnownErrors() []knownError {
 			retryType:    ReUp,
 			maxRetry:     5,
 		},
+		{
+			// SSH dial failures during cloud-init waiting
+			errorMessage: `Dial \d+/\d+ failed: retrying`,
+			retryType:    ReCreate,
+		},
 	}
 }
