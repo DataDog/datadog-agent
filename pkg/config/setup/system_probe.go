@@ -9,6 +9,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -240,11 +241,12 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 
 	// For backward compatibility
 	cfg.BindEnv(join(smNS, "process_service_inference", "enabled"), "DD_SYSTEM_PROBE_PROCESS_SERVICE_INFERENCE_ENABLED")
-	cfg.BindEnv(join(spNS, "process_service_inference", "enabled"))
+	cfg.BindEnvAndSetDefault(join(spNS, "process_service_inference", "enabled"), runtime.GOOS == "windows")
 
 	// For backward compatibility
 	cfg.BindEnv(join(smNS, "process_service_inference", "use_windows_service_name"), "DD_SYSTEM_PROBE_PROCESS_SERVICE_INFERENCE_USE_WINDOWS_SERVICE_NAME")
-	cfg.BindEnv(join(spNS, "process_service_inference", "use_windows_service_name"))
+	// default on windows is now enabled; default on linux is still disabled
+	cfg.BindEnvAndSetDefault(join(spNS, "process_service_inference", "use_windows_service_name"), true)
 
 	// network_config namespace only
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_gateway_lookup"), true, "DD_SYSTEM_PROBE_NETWORK_ENABLE_GATEWAY_LOOKUP")

@@ -64,7 +64,7 @@ func newBatcher(name string, sender sender, batcherConfig batcherConfig) *batche
 		sendResultCh: make(chan sendResult),
 		ctx:          ctx,
 		cancel:       cancel,
-		state:        newBatcherState(batcherConfig),
+		state:        newBatcherState(name, batcherConfig),
 		timer:        timer,
 		sender:       sender,
 		// Used to rate-limit log messages about failed batches.
@@ -122,28 +122,30 @@ func (b *batcher) run() {
 				)
 			}
 		case result := <-b.sendResultCh:
+			stats, err := b.state.handleBatchOutcomeEvent(result, b)
+			if err != nil {
+				log.Warnf(
+					"uploader %s: failed to handle batch outcome event: %v",
+					name, err,
+				)
+				break
+			}
 			if result.err != nil {
 				if b.errLogLimiter.Allow() {
 					log.Warnf(
-						"uploader %s: batch outcome id=%d: err=%v",
-						name, result.id, result.err,
+						"uploader %s: batch outcome id=%d (items=%d, bytes=%d): err=%v",
+						name, result.id, stats.items, stats.bytes, result.err,
 					)
 				} else if log.ShouldLog(log.DebugLvl) {
 					log.Debugf(
-						"uploader %s: batch outcome id=%d: err=%v",
-						name, result.id, result.err,
+						"uploader %s: batch outcome id=%d (items=%d, bytes=%d): err=%v",
+						name, result.id, stats.items, stats.bytes, result.err,
 					)
 				}
 			} else if log.ShouldLog(log.TraceLvl) {
 				log.Tracef(
-					"uploader %s: batch outcome id=%d: success",
-					name, result.id,
-				)
-			}
-			if err := b.state.handleBatchOutcomeEvent(result, b); err != nil {
-				log.Warnf(
-					"uploader %s: failed to handle batch outcome event: %v",
-					name, err,
+					"uploader %s: batch outcome id=%d (items=%d, bytes=%d): success",
+					name, result.id, stats.items, stats.bytes,
 				)
 			}
 		case <-b.ctx.Done():
