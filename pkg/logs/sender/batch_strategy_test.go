@@ -59,49 +59,7 @@ func TestBatchStrategySendsPayloadWhenBufferIsFull(t *testing.T) {
 	}
 }
 
-func TestBatchStrategyOverflowsOnTooLargeMessage(t *testing.T) {
-	input := make(chan *message.Message)
-	output := make(chan *message.Payload)
-	flushChan := make(chan struct{})
-
-	s := NewBatchStrategy(
-		input,
-		output,
-		flushChan,
-		NewMockServerlessMeta(false),
-		100*time.Millisecond,
-		2,
-		2,
-		"test",
-		compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1),
-		metrics.NewNoopPipelineMonitor(""),
-		"test")
-
-	s.Start()
-
-	message1 := message.NewMessage([]byte("a"), nil, "", 0)
-	input <- message1
-
-	// message2 will overflow the first payload causing message1 to flush, but then also fail to be added to the buffer
-	// because it's too big on it's own. message2 is dropped.
-	message2 := message.NewMessage([]byte("bbbbbb"), nil, "", 0)
-	input <- message2
-
-	expectedPayload := &message.Payload{
-		MessageMetas:  []*message.MessageMetadata{&message1.MessageMetadata},
-		Encoded:       []byte(`[a]`),
-		Encoding:      "identity",
-		UnencodedSize: 3,
-	}
-
-	// expect payload to be sent because buffer is full
-	assert.Equal(t, expectedPayload, <-output)
-	s.Stop()
-
-	if _, isOpen := <-input; isOpen {
-		assert.Fail(t, "input should be closed")
-	}
-}
+// Test removed - batch overflow logic now tested in batch_test.go
 
 func TestBatchStrategySendsPayloadWhenBufferIsOutdated(t *testing.T) {
 	input := make(chan *message.Message)
@@ -331,7 +289,7 @@ func TestBatchStrategyFlushChannel(t *testing.T) {
 	}
 }
 
-func TestBatchMRFPayloads(t *testing.T) {
+func TestBatchStrategyMRFRouting(t *testing.T) {
 	input := make(chan *message.Message)
 	output := make(chan *message.Payload)
 	flushChan := make(chan struct{})
@@ -357,14 +315,17 @@ func TestBatchMRFPayloads(t *testing.T) {
 
 	flushChan <- struct{}{}
 
+	// Should receive exactly one MRF payload
 	mrfPayload := <-output
 	assert.True(t, mrfPayload.IsMRF())
 	assert.Equal(t, mrfPayload.Encoded, []byte(`[mrf message]`))
+
+	strategy.Stop()
 }
 
-func TestMainAndMrfPayloads(t *testing.T) {
+func TestBatchStrategyDualMRFDelivery(t *testing.T) {
 	input := make(chan *message.Message)
-	output := make(chan *message.Payload)
+	output := make(chan *message.Payload, 10) // Buffered to handle multiple payloads
 	flushChan := make(chan struct{})
 	var batchSize = 100
 	var contentSize = 100
@@ -383,19 +344,31 @@ func TestMainAndMrfPayloads(t *testing.T) {
 		"test")
 	strategy.Start()
 
-	mainMessage := message.NewMessage([]byte("main message"), nil, "", 0)
-	input <- mainMessage
+	// Send MRF message - should go to both main and mrf batches
 	mrfMessage := message.NewMessage([]byte("mrf message"), nil, "", 0)
 	mrfMessage.IsMRFAllow = true
 	input <- mrfMessage
 
 	flushChan <- struct{}{}
 
-	mainPayload := <-output
-	mrfPayload := <-output
+	// Should receive two payloads: one from main batch, one from mrf batch
+	var mainPayload, mrfPayload *message.Payload
+	for i := 0; i < 2; i++ {
+		payload := <-output
+		if payload.IsMRF() {
+			mrfPayload = payload
+		} else {
+			mainPayload = payload
+		}
+	}
 
-	assert.Equal(t, mainPayload.MessageMetas[0], &mainMessage.MessageMetadata)
-	assert.Equal(t, mrfPayload.MessageMetas[0], &mrfMessage.MessageMetadata)
-	assert.Equal(t, mainPayload.IsMRF(), false)
-	assert.Equal(t, mrfPayload.IsMRF(), true)
+	// Verify both payloads contain the MRF message
+	assert.NotNil(t, mainPayload)
+	assert.NotNil(t, mrfPayload)
+	assert.Equal(t, &mrfMessage.MessageMetadata, mainPayload.MessageMetas[0])
+	assert.Equal(t, &mrfMessage.MessageMetadata, mrfPayload.MessageMetas[0])
+	assert.False(t, mainPayload.IsMRF())
+	assert.True(t, mrfPayload.IsMRF())
+
+	strategy.Stop()
 }

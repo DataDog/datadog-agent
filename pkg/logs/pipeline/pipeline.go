@@ -39,7 +39,7 @@ func NewPipeline(
 	diagnosticMessageReceiver diagnostic.MessageReceiver,
 	serverlessMeta sender.ServerlessMeta,
 	hostname hostnameinterface.Component,
-	_ pkgconfigmodel.Reader,
+	cfg pkgconfigmodel.Reader,
 	compression logscompression.Component,
 	instanceID string,
 ) *Pipeline {
