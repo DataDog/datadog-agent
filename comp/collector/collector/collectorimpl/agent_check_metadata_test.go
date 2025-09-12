@@ -53,7 +53,7 @@ func TestExternalHostTags(t *testing.T) {
 		}),
 	))
 
-	pl := c.GetPayload(context.Background())
+	pl := c.GetPayload(context.Background(), c.getAgentCheckResults())
 	hpl := pl.ExternalhostTags
 	assert.Len(t, hpl, 2)
 	for _, elem := range hpl {
