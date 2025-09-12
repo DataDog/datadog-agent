@@ -374,7 +374,6 @@ const mainPackageName = "main"
 
 // packagesIterator walks the DWARF data for a binary, extracting symbols in the
 // SymDB format.
-// nolint:revive  // ignore stutter rule
 type packagesIterator struct {
 	// The DWARF data to extract symbols from.
 	dwarfData *dwarf.Data

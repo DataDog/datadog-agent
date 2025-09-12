@@ -500,7 +500,7 @@ Package apiserver initializes the api server that powers many subcommands.
 
 ### [comp/process/connectionscheck](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process/connectionscheck)
 
-*Datadog Team*: networks universal-service-monitoring
+*Datadog Team*: cloud-network-monitoring universal-service-monitoring
 
 Package connectionscheck implements a component to handle Connections data collection in the Process Agent.
 
@@ -658,6 +658,10 @@ component temporarily wraps pkg/trace/config.
 *Datadog Team*: windows-products
 
 Package etwtracer provides ETW events to the .Net tracer
+
+### [comp/trace/payload-modifier](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/trace/payload-modifier)
+
+Package payloadmodifier defines the trace payload modifier component interface
 
 ### [comp/trace/status](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/trace/status)
 
