@@ -7,6 +7,7 @@ package secretsimpl
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"maps"
 	"os"
@@ -314,4 +315,35 @@ func TestFetchSecretPayloadIncludesBackendConfig(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, capturedPayload, `"type":"aws.secrets"`)
 	assert.Contains(t, capturedPayload, `"config":{"foo":"bar"}`)
+}
+
+func TestFetchSecretBackendVersionSuccess(t *testing.T) {
+	tel := nooptelemetry.GetCompatComponent()
+	resolver := newEnabledSecretResolver(tel)
+
+	resolver.commandHookFunc = func(payload string) ([]byte, error) {
+		if payload == "--version" {
+			return []byte("test-backend-v1.2.3"), nil
+		}
+		return []byte(`{"secret":{"value":"test"}}`), nil
+	}
+
+	version, err := resolver.fetchSecretBackendVersion()
+	assert.NoError(t, err)
+	assert.Equal(t, "test-backend-v1.2.3", version)
+}
+
+func TestFetchSecretBackendVersionTimeout(t *testing.T) {
+	tel := nooptelemetry.GetCompatComponent()
+	resolver := newEnabledSecretResolver(tel)
+
+	resolver.commandHookFunc = func(payload string) ([]byte, error) {
+		if payload == "--version" {
+			return nil, context.DeadlineExceeded
+		}
+		return []byte(`{"secret":{"value":"test"}}`), nil
+	}
+
+	_, err := resolver.fetchSecretBackendVersion()
+	assert.Error(t, err)
 }
