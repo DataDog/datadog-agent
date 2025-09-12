@@ -80,7 +80,7 @@ func (s *fakeTracerouteTestSuite) TestFakeTraceroute() {
 		assert.Equal(c, hostname, np.Source.Hostname)
 		assert.Equal(c, targetIP.String(), np.Destination.Hostname)
 
-		require.Len(c, np.Traceroute.Runs, 3) // runs 3 traceroute by default
+		require.Len(c, np.Traceroute.Runs, 1) // runs 1 traceroute by default
 
 		run1 := np.Traceroute.Runs[0]
 
