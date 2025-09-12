@@ -902,7 +902,10 @@ workflow:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
+        - cmd/system-probe/modules/traceroute.go
         - pkg/collector/corechecks/networkpath/**/*
+        - pkg/networkpath/**/*
+        - comp/networkpath/**/*
         - test/new-e2e/tests/netpath/**/*
         - test/new-e2e/go.mod
       compare_to: $COMPARE_TO_BRANCH
