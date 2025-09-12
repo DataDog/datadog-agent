@@ -21,10 +21,8 @@ import (
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/content"
 	"github.com/containerd/containerd/images/archive"
-	"github.com/containerd/containerd/leases"
 	"github.com/containerd/containerd/mount"
 	"github.com/containerd/containerd/namespaces"
-	"github.com/containerd/errdefs"
 	refdocker "github.com/distribution/reference"
 	"github.com/docker/docker/api/types/container"
 	dimage "github.com/docker/docker/api/types/image"
@@ -232,30 +230,21 @@ func (c *Collector) ScanContainerdImageFromSnapshotter(ctx context.Context, imgM
 	// Computing duration of containerd lease
 	deadline, _ := ctx.Deadline()
 	expiration := deadline.Sub(time.Now().Add(cleanupTimeout))
-	clClient := client.RawClient()
 	imageID := imgMeta.ID
 
-	mounts, err := client.Mounts(ctx, expiration, imgMeta.Namespace, img)
+	mounts, cleanLease, err := client.Mounts(ctx, expiration, imgMeta.Namespace, img)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get mounts for image %s, err: %w", imgMeta.ID, err)
 	}
+	defer func() {
+		if err := cleanLease(ctx); err != nil {
+			log.Warnf("Unable to cancel containerd lease with id: %s, err: %v", imageID, err)
+		}
+	}()
 
 	layers := extractLayersFromOverlayFSMounts(mounts)
 	if len(layers) == 0 {
 		return nil, fmt.Errorf("unable to extract layers from overlayfs mounts %+v for image %s", mounts, imgMeta.ID)
-	}
-
-	ctx = namespaces.WithNamespace(ctx, imgMeta.Namespace)
-	// Adding a lease to cleanup dandling snaphots at expiration
-	ctx, done, err := clClient.WithLease(ctx,
-		leases.WithID(imageID),
-		leases.WithExpiration(expiration),
-		leases.WithLabels(map[string]string{
-			"containerd.io/gc.ref.snapshot." + containerd.DefaultSnapshotter: imageID,
-		}),
-	)
-	if err != nil && !errdefs.IsAlreadyExists(err) {
-		return nil, fmt.Errorf("unable to get a lease, err: %w", err)
 	}
 
 	fakeContainer, err := newFakeContainer(layers, imgMeta, fanalImage.inspect.RootFS.Layers)
@@ -267,10 +256,6 @@ func (c *Collector) ScanContainerdImageFromSnapshotter(ctx context.Context, imgM
 		image:         fanalImage,
 		fakeContainer: fakeContainer,
 	}, imgMeta, scanOptions)
-
-	if err := done(ctx); err != nil {
-		log.Warnf("Unable to cancel containerd lease with id: %s, err: %v", imageID, err)
-	}
 
 	return report, err
 }
