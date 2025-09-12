@@ -104,15 +104,15 @@ def _handle_pipe_to_whydeadcode(ctx: Context, cmd: str, env: dict[str, str] | No
 
     # worst case it's already installed and nothing happens
     with ctx.cd("internal/tools"):
-        # pass the env to the command so that it can check GOPATH/GOBIN when installing
-        ctx.run("go install github.com/aarzilli/whydeadcode", env=env)
+        # pass the env to the command so that it can check GOPATH/GOBIN
+        ctx.run("go install -x github.com/aarzilli/whydeadcode", env=env)
 
     # whydeadcode prints unexpected input on stderr (eg. build warnings), and
     # dead code call stack on stdout
     # it returns non-zero if non-expected input is passed, and 0 otherwise, even if dead code elimination is disabled
     # so we check whether stdout is empty to know if dead code elimination is disabled
     whydeadcoderes = cast(
-        Result, runner.run("whydeadcode", in_stream=CustomReader(result.stderr), warn=True, hide="out")
+        Result, runner.run("whydeadcode", in_stream=CustomReader(result.stderr), warn=True, hide="out", env=env)
     )
     if whydeadcoderes.stdout:
         print(
