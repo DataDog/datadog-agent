@@ -8,17 +8,17 @@ package agenttests
 import (
 	"fmt"
 	"os"
-	"strings"
 	"testing"
-	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
 	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	installerhost "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
+	suiteasserts "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/suite-assertions"
+	wincommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	infraos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/resources/aws"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
@@ -115,11 +115,13 @@ func proxyEnvProvisioner() provisioners.PulumiEnvRunFunc[proxyEnv] {
 }
 
 // testInstallExeProxySuite installs via the installer exe while using an HTTP(S) proxy
+//
+// TODO: Can't use installerwindows.BaseSuite because we have a custom env. Would need to make a lot of changes to make it work.
 type testInstallExeProxySuite struct {
 	e2e.BaseSuite[proxyEnv]
 }
 
-// TestInstallExeWithProxy provisions a Windows host and a Linux proxy host, configures the proxy, then installs via the exe using that proxy
+// TestInstallExeWithProxy tests installing the Datadog Agent using the Datadog installer exe with an HTTP(S) proxy.
 func TestInstallExeWithProxy(t *testing.T) {
 	e2e.Run(
 		t,
@@ -128,72 +130,66 @@ func TestInstallExeWithProxy(t *testing.T) {
 	)
 }
 
+func (s *testInstallExeProxySuite) BeforeTest(suiteName, testName string) {
+	s.BaseSuite.BeforeTest(suiteName, testName)
+
+	linuxHost := s.Env().LinuxProxy
+	windowsHost := s.Env().WindowsVM
+
+	// start Squid on the Linux host
+	proxyHost := installerhost.New(s.T, linuxHost, infraos.UbuntuDefault, infraos.AMD64Arch)
+	proxyHost.SetupProxy()
+	s.T().Cleanup(func() { proxyHost.RemoveProxy() })
+	proxyIP := linuxHost.HostOutput.Address
+	proxyURL := fmt.Sprintf("http://%s:3128", proxyIP)
+
+	// Configure Windows Firewall to allow outbound only to the proxy
+	s.Require().NoError(wincommon.BlockAllOutboundExceptProxy(windowsHost, proxyIP, 3128))
+	s.T().Cleanup(func() { wincommon.ResetOutboundPolicyAndRemoveProxyRules(windowsHost) })
+
+	// Configure Windows system proxy
+	s.Require().NoError(wincommon.SetSystemProxy(windowsHost, proxyURL))
+	s.T().Cleanup(func() { wincommon.ResetSystemProxy(windowsHost) })
+}
+
 func (s *testInstallExeProxySuite) TestInstallAgentPackageWithProxy() {
-	// Arrange: start Squid on the Linux host
-	linuxHost := installerhost.New(s.T, s.Env().LinuxProxy, infraos.UbuntuDefault, infraos.AMD64Arch)
-	linuxHost.SetupProxy()
-	// s.T().Cleanup(func() { linuxHost.RemoveProxy() })
+	linuxHost := s.Env().LinuxProxy
+	windowsHost := s.Env().WindowsVM
 
-	// Build proxy env vars for Windows installer
-	proxyURL := fmt.Sprintf("http://%s:3128", s.Env().LinuxProxy.HostOutput.Address)
-	proxyIP := s.Env().LinuxProxy.HostOutput.Address
+	// Arrange
+
+	// Act
+	// run the installer exe with proxy env vars
+	proxyURL := fmt.Sprintf("http://%s:3128", linuxHost.HostOutput.Address)
 	envVars := map[string]string{
-		"DD_PROXY_HTTP":     proxyURL,
-		"DD_PROXY_HTTPS":    proxyURL,
-		"DD_API_KEY":        "deadbeefdeadbeefdeadbeefdeadbeef",
-		"DD_SITE":           "datadoghq.com",
-		"DD_REMOTE_UPDATES": "true",
+		// for datadog code
+		"DD_PROXY_HTTP":  proxyURL,
+		"DD_PROXY_HTTPS": proxyURL,
 	}
-
-	// Configure Windows Firewall to allow outbound only to the proxy (80/443), then install via proxy
-	fw := fmt.Sprintf(`
-		$proxyIp = '%s'
-		# Block all outbound by default, then allow only the proxy for 80/443
-		Set-NetFirewallProfile -Profile Domain,Public,Private -DefaultOutboundAction Block
-		New-NetFirewallRule -DisplayName 'AllowProxy80' -Direction Outbound -Action Allow -RemoteAddress $proxyIp -Protocol TCP -RemotePort 80
-		New-NetFirewallRule -DisplayName 'AllowProxy443' -Direction Outbound -Action Allow -RemoteAddress $proxyIp -Protocol TCP -RemotePort 443
-	`, proxyIP)
-	_, err := s.Env().WindowsVM.Execute(fw)
+	installExe := installerwindows.NewDatadogInstallExe(windowsHost, installerwindows.WithExtraEnvVars(envVars))
+	_, err := installExe.Run()
 	s.Require().NoError(err)
 
-	// Ensure firewall rules are cleaned up even if the test fails
-	s.T().Cleanup(func() {
-		_, _ = s.Env().WindowsVM.Execute(`Remove-NetFirewallRule -DisplayName 'AllowProxy80' -ErrorAction SilentlyContinue; Remove-NetFirewallRule -DisplayName 'AllowProxy443' -ErrorAction SilentlyContinue; Set-NetFirewallProfile -Profile Domain,Public,Private -DefaultOutboundAction Allow`)
-	})
-
-	ps := `
-		[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072;
-		$temp = [System.IO.Path]::GetTempFileName() + '.exe';
-		$uri  = 'https://install.datadoghq.com/datadog-installer-x86_64.exe';
-		(New-Object System.Net.WebClient).DownloadFile($uri, $temp);
-		& $temp setup --flavor default
-	`
-	output, err := s.Env().WindowsVM.Execute(ps, client.WithEnvVariables(envVars))
-	if s.NoError(err) {
-		fmt.Printf("%s\n", output)
-	}
-
-	// Assert: installer and agent services are running
-	_, err = s.Env().WindowsVM.Execute(`if ((Get-Service -Name 'Datadog Installer').Status -ne 'Running') { throw 'Installer not running' }`)
-	s.Require().NoError(err)
-	_, err = s.Env().WindowsVM.Execute(`if ((Get-Service -Name 'datadogagent').Status -ne 'Running') { throw 'Agent not running' }`)
-	s.Require().NoError(err)
+	// Assert
+	s.Require().Host(windowsHost).
+		HasARunningDatadogInstallerService().
+		HasARunningDatadogAgentService().RuntimeConfig().
+		// proxy options should be written in Agent config
+		WithValueEqual("proxy.http", proxyURL).
+		WithValueEqual("proxy.https", proxyURL)
 
 	// Verify squid-proxy saw traffic to the container/installer host (configurable)
+	// TODO: if we used BaseSuite we could use CurrentAgentVersion() to get the registry URL.
+	//       would need to add support to install_script.go, too. it currently only supports
+	//       the pipeline version.
 	registryHost := os.Getenv("DD_TEST_REGISTRY_HOST")
 	if registryHost == "" {
-		registryHost = "install.datadoghq.com"
+		registryHost = consts.PipelineOCIRegistry
 	}
-	var logs string
-	found := false
-	for i := 0; i < 30; i++ {
-		l, _ := s.Env().LinuxProxy.Execute("sudo docker logs --since 10m squid-proxy | cat")
-		logs = l
-		if strings.Contains(logs, registryHost) {
-			found = true
-			break
-		}
-		time.Sleep(1 * time.Second)
-	}
-	s.Require().True(found, "expected squid-proxy logs to include traffic to %s; logs:\n%s", registryHost, logs)
+	squidLogs := linuxHost.MustExecute("sudo docker logs squid-proxy")
+	s.Require().Contains(squidLogs, registryHost, "expected squid-proxy logs to include traffic to %s", registryHost)
+}
+
+func (s *testInstallExeProxySuite) Require() *suiteasserts.SuiteAssertions {
+	return suiteasserts.New(s, s.BaseSuite.Require())
 }

@@ -7,6 +7,7 @@ package installer
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -74,6 +75,15 @@ func (b *baseInstaller) getInstallerURL(params Params) (string, error) {
 // Always sets DD_REMOTE_UPDATES to true to ensure remote updates are enabled.
 func (b *baseInstaller) getBaseEnvVars() map[string]string {
 	envVars := installer.InstallScriptEnv(e2eos.AMD64Arch)
+	apiKey := os.Getenv("DD_API_KEY")
+	if apiKey == "" {
+		var err error
+		apiKey, err = runner.GetProfile().SecretStore().Get(parameters.APIKey)
+		if apiKey == "" || err != nil {
+			apiKey = "deadbeefdeadbeefdeadbeefdeadbeef"
+		}
+	}
+	envVars["DD_API_KEY"] = apiKey
 	for k, v := range b.params.extraEnvVars {
 		envVars[k] = v
 	}
