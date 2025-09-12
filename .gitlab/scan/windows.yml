@@ -6,6 +6,7 @@
     SCAN_ARTIFACT_PATTERN: "datadog-agent-7*.msi"
     OMNIBUS_PIPELINE_DIR: $OMNIBUS_PACKAGE_DIR/pipeline-$CI_PIPELINE_ID
   before_script:
+    - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
     - ls $OMNIBUS_PIPELINE_DIR
     - dda self dep sync -f virustotal
   script:

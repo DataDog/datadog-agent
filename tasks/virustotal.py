@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import json
 import os
@@ -56,7 +55,7 @@ async def _fetch_file_report(apikey: str, file_sha256: str) -> dict:
     Fetch file report from VirusTotal by SHA256 hash.
     File object attributes: https://docs.virustotal.com/reference/files
     """
-    import vt
+    import vt  # Lazily import because virustotal dep is optional in CI
 
     async with vt.Client(apikey) as client:
         try:
@@ -258,6 +257,7 @@ def submit(
     JUnit format follows Datadog Test Visibility guidance. See:
     https://docs.datadoghq.com/tests/setup/junit_xml?tab=gitlab
     """
+    import asyncio  # lazily import to avoid startup overhead for everyone
 
     async def _async_vt_scan():
         """Async wrapper for VirusTotal operations."""
@@ -288,7 +288,7 @@ def submit(
 
             file_report = await _fetch_file_report(apikey, file_sha)
 
-            print(f"Goto https://www.virustotal.com/gui/file/{file_sha} for more details")
+        print(f"Goto https://www.virustotal.com/gui/file/{file_sha} for more details")
 
         return artifact, file_sha, file_report
 
