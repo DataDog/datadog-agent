@@ -170,7 +170,7 @@ func getParConfig(component config.Component) (*parconfig.Config, error) {
 	}, nil
 }
 
-func (r *runnerImpl) Start(ctx context.Context) error {
+func (r *runnerImpl) Start(_ context.Context) error {
 	enabled := r.config.GetBool("privateactionrunner.enabled")
 	if !enabled {
 		r.log.Debug("privateactionrunner disabled")
@@ -182,8 +182,9 @@ func (r *runnerImpl) Start(ctx context.Context) error {
 	}
 	r.log.Info("Starting private action runner")
 	r.started = true
-	r.keysManager.Start(ctx)
-	r.WorkflowRunner.Start(ctx)
+	noDeadlineCtx := context.Background()
+	r.keysManager.Start(noDeadlineCtx)
+	r.WorkflowRunner.Start(noDeadlineCtx)
 	return nil
 }
 
