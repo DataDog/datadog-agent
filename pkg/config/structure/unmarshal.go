@@ -377,18 +377,28 @@ func copyLeaf(target reflect.Value, input nodetreemodel.LeafNode, _ *featureSet)
 		return nil
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32:
 		v, err := cast.ToUintE(inVal)
-		if err != nil {
-			return err
+		if err == nil {
+			target.SetUint(uint64(v))
+			return nil
 		}
-		target.SetUint(uint64(v))
-		return nil
+		// If input is a negative int, cast.ToUint won't work, force a conversion
+		// by wrapping around the value
+		if num, converts := inVal.(int); converts {
+			target.SetUint(uint64(num))
+			return nil
+		}
+		return err
 	case reflect.Uint64:
 		v, err := cast.ToUint64E(inVal)
-		if err != nil {
-			return err
+		if err == nil {
+			target.SetUint(uint64(v))
+			return nil
 		}
-		target.SetUint(uint64(v))
-		return nil
+		if num, converts := inVal.(int); converts {
+			target.SetUint(uint64(num))
+			return nil
+		}
+		return err
 	case reflect.Float32, reflect.Float64:
 		v, err := cast.ToFloat64E(inVal)
 		if err != nil {

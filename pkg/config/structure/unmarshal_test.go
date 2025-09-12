@@ -1082,24 +1082,6 @@ feature:
 		assert.Contains(t, err.Error(), "could not convert \"\" to bool")
 	})
 
-	t.Run("errors on negative to uint", func(t *testing.T) {
-		confYaml := `
-feature:
-  enabled: -1
-`
-
-		mockConfig := newConfigFromYaml(t, confYaml)
-		mockConfig.SetKnown("feature")
-
-		feature := struct {
-			Enabled uint
-		}{}
-
-		err := unmarshalKeyReflection(mockConfig, "feature", &feature)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "unable to cast negative value")
-	})
-
 	t.Run("errors on bool to int", func(t *testing.T) {
 		confYaml := `
 feature:
@@ -1172,6 +1154,24 @@ feature:
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "scalar required")
 	})
+}
+
+func TestUnmarshalKeyCanConvertToUint(t *testing.T) {
+	confYaml := `
+feature:
+  enabled: -1
+`
+
+	mockConfig := newConfigFromYaml(t, confYaml)
+	mockConfig.SetKnown("feature")
+
+	feature := struct {
+		Enabled uint
+	}{}
+
+	err := unmarshalKeyReflection(mockConfig, "feature", &feature)
+	require.NoError(t, err)
+	assert.Equal(t, uint(0xffffffffffffffff), feature.Enabled)
 }
 
 // A flag is provided as a struct tag after a field name separated by a comma that
