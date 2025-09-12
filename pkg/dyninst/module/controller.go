@@ -105,7 +105,7 @@ func (c *Controller) Run(ctx context.Context, interval time.Duration) {
 }
 
 func (c *Controller) handleRemovals(removals []procmon.ProcessID) {
-	c.store.remove(removals)
+	c.store.remove(removals, c.diagnostics)
 	if len(removals) > 0 {
 		c.actuator.HandleUpdate(actuator.ProcessesUpdate{
 			Removals: removals,
