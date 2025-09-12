@@ -32,7 +32,10 @@ func TestWindowsStatusSuite(t *testing.T) {
 
 func (v *windowsStatusSuite) TestStatusHostname() {
 
-	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(v.GetOs(), awshost.WithAgentOptions(agentparams.WithAgentConfig("ec2_prefer_imdsv2: true"))))
+	config := agentparams.WithAgentConfig("ec2_prefer_imdsv2: true")
+	options := awshost.WithAgentOptions(config)
+	provisioner := awshost.ProvisionerNoFakeIntake(options)
+	v.UpdateEnv(provisioner)
 	// e2e metadata provider already uses IMDSv2
 	metadata := client.NewEC2Metadata(v.T(), v.Env().RemoteHost.Host, v.Env().RemoteHost.OSFamily)
 	resourceID := metadata.Get("instance-id")
