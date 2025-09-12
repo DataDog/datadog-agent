@@ -222,7 +222,7 @@ func TestDirectories_GetState(t *testing.T) {
 	tmpDir := t.TempDir()
 	stablePath := filepath.Join(tmpDir, "stable")
 	experimentPath := filepath.Join(tmpDir, "experiment")
-	
+
 	err := os.MkdirAll(stablePath, 0755)
 	assert.NoError(t, err)
 	err = os.MkdirAll(experimentPath, 0755)
@@ -273,7 +273,7 @@ func TestDirectories_WriteExperiment(t *testing.T) {
 	tmpDir := t.TempDir()
 	stablePath := filepath.Join(tmpDir, "stable")
 	experimentPath := filepath.Join(tmpDir, "experiment")
-	
+
 	err := os.MkdirAll(stablePath, 0755)
 	assert.NoError(t, err)
 
@@ -383,7 +383,7 @@ func TestBuildOperationsFromLegacyInstaller(t *testing.T) {
 	assert.NoError(t, err)
 
 	ops := buildOperationsFromLegacyInstaller(tmpDir)
-	
+
 	// Should have 4 operations: 2 merge patches + 2 deletes
 	assert.Len(t, ops, 4)
 

@@ -157,9 +157,7 @@ type FileOperation struct {
 }
 
 func (a *FileOperation) apply(root *os.Root) error {
-	if !configNameAllowed(a.FilePath) {
-		if !(a.FileOperationType == FileOperationDelete && deleteConfigNameAllowed(a.FilePath)) {
-		}
+	if !configNameAllowed(a.FilePath) && !(a.FileOperationType == FileOperationDelete && deleteConfigNameAllowed(a.FilePath)) {
 		return fmt.Errorf("modifying config file %s is not allowed", a.FilePath)
 	}
 	path := strings.TrimPrefix(a.FilePath, "/")
