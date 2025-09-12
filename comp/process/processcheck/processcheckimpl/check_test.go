@@ -8,7 +8,6 @@ package processcheckimpl
 import (
 	"testing"
 
-	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 
@@ -98,7 +97,6 @@ func TestProcessChecksIsEnabled(t *testing.T) {
 				sysprobeconfigimpl.MockModule(),
 				fx.Replace(sysprobeconfigimpl.MockParams{Overrides: tc.sysProbeConfigs}),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-				workloadfilterfxmock.MockModule(),
 				gpusubscriberfxmock.MockModule(),
 				fx.Provide(func() statsd.ClientInterface {
 					return &statsd.NoOpClient{}
