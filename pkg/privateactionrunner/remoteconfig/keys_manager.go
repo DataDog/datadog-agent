@@ -69,7 +69,6 @@ func (k *keysManager) WaitForReady() {
 	log.Info("waiting for ready")
 	<-k.ready
 	log.Info("ready")
-	return
 }
 
 func (k *keysManager) AgentConfigUpdateCallback(update map[string]state.RawConfig, callback func(string, state.ApplyStatus)) {
