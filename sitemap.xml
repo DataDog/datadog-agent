@@ -73,6 +73,10 @@
          <lastmod>2020-02-02</lastmod>
     </url>
     <url>
+         <loc>https://datadoghq.dev/datadog-agent/guidelines/conventions/logging/</loc>
+         <lastmod>2020-02-02</lastmod>
+    </url>
+    <url>
          <loc>https://datadoghq.dev/datadog-agent/guidelines/deprecated-components-documentation/defining-apps/</loc>
          <lastmod>2020-02-02</lastmod>
     </url>
