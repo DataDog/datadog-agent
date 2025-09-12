@@ -6,6 +6,8 @@
 // Package syntheticstestschedulerimpl implements synthetics test scheduler.
 package syntheticstestschedulerimpl
 
+// team: synthetics-executing
+
 import (
 	"context"
 	"time"

@@ -6,6 +6,8 @@
 // Package fx provides the fx module for the syntheticstestscheduler component
 package fx
 
+// team: synthetics-executing
+
 import (
 	syntheticstestscheduler "github.com/DataDog/datadog-agent/comp/syntheticstestscheduler/def"
 	syntheticstestschedulerimpl "github.com/DataDog/datadog-agent/comp/syntheticstestscheduler/impl"
