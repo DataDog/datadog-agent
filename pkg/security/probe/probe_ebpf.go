@@ -2379,8 +2379,8 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, err
 
 	// check if there is a network packet action
 	if isRawPacketActionPresent(rs) && p.config.RuntimeSecurity.EnforcementEnabled {
-		if !slices.Contains(eventTypes, model.RawPacketActionEventType.String()) {
-			eventTypes = append(eventTypes, model.RawPacketActionEventType.String())
+		if !slices.Contains(eventTypes, model.RawPacketFilterEventType.String()) {
+			eventTypes = append(eventTypes, model.RawPacketFilterEventType.String())
 		}
 	}
 
