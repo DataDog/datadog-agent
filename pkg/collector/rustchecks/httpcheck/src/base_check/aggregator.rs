@@ -57,8 +57,8 @@ type SubmitServiceCheck = extern "C" fn(
 
 /// Signature of the submit event function
 type SubmitEvent = extern "C" fn(
-    *mut c_char, // check_id
-    Event,       // event
+    *mut c_char,        // check_id
+    *const Event,       // event
 );
 /// Signature of the submit histogram bucket function
 type SubmitHistogramBucket = extern "C" fn(
@@ -182,5 +182,65 @@ impl Aggregator {
         free_cstring(cstr_hostname);
         free_cstring(cstr_message);
 
+    }
+
+    pub fn submit_event(&self, check_id: &str, event: &Event) {
+        // convert to C strings
+        let cstr_check_id = to_cstring(check_id);
+
+        // submit the service check
+        (self.cb_submit_event)(
+            cstr_check_id,
+            event,
+        );
+
+        // free every C string allocated
+        free_cstring(cstr_check_id);
+    }
+    pub fn submit_histogram_bucket(&self, check_id: &str, metric_name: &str, value: c_longlong, lower_bound: f32, upper_bound: f32, monotonic: c_int, hostname: &str, tags: &[String], flush_first_value: bool) {
+        // convert to C strings
+        let cstr_check_id = to_cstring(check_id);
+        let cstr_metric_name = to_cstring(metric_name);
+        let cstr_hostname = to_cstring(hostname);
+        let cstr_tags = to_cstring_array(tags);
+
+        // submit the histogram bucket
+        (self.cb_submit_histogram_bucket)(
+            cstr_check_id,
+            cstr_metric_name,
+            value,
+            lower_bound,
+            upper_bound,
+            monotonic,
+            cstr_hostname,
+            cstr_tags,
+            flush_first_value,
+        );
+
+        // free every C string allocated
+        free_cstring(cstr_check_id);
+        free_cstring(cstr_metric_name);
+        free_cstring(cstr_hostname);
+        free_cstring_array(cstr_tags);
+    }
+
+    pub fn submit_event_platform_event(&self, check_id: &str, raw_event_pointer: &str, raw_event_size: c_int, event_type: &str) {
+        // convert to C strings
+        let cstr_check_id = to_cstring(check_id);
+        let cstr_raw_event_pointer = to_cstring(raw_event_pointer);
+        let cstr_event_type = to_cstring(event_type);
+
+        // submit the event platform event
+        (self.cb_submit_event_platform_event)(
+            cstr_check_id,
+            cstr_raw_event_pointer,
+            raw_event_size,
+            cstr_event_type,
+        );
+
+        // free every C string allocated
+        free_cstring(cstr_check_id);
+        free_cstring(cstr_raw_event_pointer);
+        free_cstring(cstr_event_type);
     }
 }

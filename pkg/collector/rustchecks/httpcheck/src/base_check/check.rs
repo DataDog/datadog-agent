@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use super::aggregator::{Instance, MetricType, Aggregator};
+use super::aggregator::{Instance, Aggregator, MetricType, Event};
 
 use std::error::Error;
 
@@ -66,5 +66,20 @@ impl AgentCheck {
     /// Send Servive Check
     pub fn service_check(&self, name: &str, status: ServiceCheckStatus, tags: &[String], hostname: &str, message: &str) {
         self.aggregator.submit_service_check(&self.check_id, name, status as i32, tags, hostname, message);
+    }
+
+    /// Send Event
+    pub fn event(&self, event: &Event) {
+        self.aggregator.submit_event(&self.check_id, event);
+    }
+
+    /// Send Histogram Bucket
+    pub fn submit_histogram_bucket(&self, metric_name: &str, value: i64, lower_bound: f32, upper_bound: f32, monotonic: i32, hostname: &str, tags: &[String], flush_first_value: bool) {
+        self.aggregator.submit_histogram_bucket(&self.check_id, metric_name, value, lower_bound, upper_bound, monotonic, hostname, tags, flush_first_value);
+    }
+
+    /// Send Event Platform Evemt
+    pub fn submit_event_platform_event(&self, raw_event_pointer: &str, raw_event_size: i32, event_type: &str) {
+        self.aggregator.submit_event_platform_event(&self.check_id, raw_event_pointer, raw_event_size, event_type);
     }
 }
