@@ -183,43 +183,49 @@ func (e *Kubernetes) Coverage(outputDir string) (string, error) {
 	ctx := context.Background()
 	outStr := []string{"===== Coverage ====="}
 
-	outStr = append(outStr, "==== Linux pods ====")
 	// Process Linux pods
 	linuxPods, err := e.KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
 		LabelSelector: fields.OneTermEqualSelector("app", e.Agent.LinuxNodeAgent.LabelSelectors["app"]).String(),
 	})
 	if err != nil {
-		outStr = append(outStr, fmt.Sprintf("Failed to list linux pods: %s\n", err.Error()))
+		outStr = append(outStr, fmt.Sprintf("Failed to list linux pods: %s", err.Error()))
 	} else {
+		if len(linuxPods.Items) >= 1 {
+			outStr = append(outStr, "==== Linux pods ====")
+		}
 		for _, pod := range linuxPods.Items {
-			outStr = append(outStr, fmt.Sprintf("Pod %s:\n", pod.Name))
+			outStr = append(outStr, fmt.Sprintf("Pod %s:", pod.Name))
 			result := e.generateAndDownloadCoverageForPod(pod, podTypeLinux, outputDir)
 			outStr = append(outStr, result)
 		}
 	}
 
-	outStr = append(outStr, "==== Windows pods ====")
 	// Process Windows pods
 	windowsPods, err := e.KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
 		LabelSelector: fields.OneTermEqualSelector("app", e.Agent.WindowsNodeAgent.LabelSelectors["app"]).String(),
 	})
 	if err != nil {
-		outStr = append(outStr, fmt.Sprintf("Failed to list windows pods: %s\n", err.Error()))
+		outStr = append(outStr, fmt.Sprintf("Failed to list windows pods: %s", err.Error()))
 	} else {
+		if len(windowsPods.Items) >= 1 {
+			outStr = append(outStr, "==== Windows pods ====")
+		}
 		for _, pod := range windowsPods.Items {
 			result := e.generateAndDownloadCoverageForPod(pod, podTypeWindows, outputDir)
 			outStr = append(outStr, result)
 		}
 	}
 
-	outStr = append(outStr, "==== Cluster Agent pods ====")
 	// Process Cluster Agent pods
 	clusterAgentPods, err := e.KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
 		LabelSelector: fields.OneTermEqualSelector("app", e.Agent.LinuxClusterAgent.LabelSelectors["app"]).String(),
 	})
 	if err != nil {
-		outStr = append(outStr, fmt.Sprintf("Failed to list cluster agent pods: %s\n", err.Error()))
+		outStr = append(outStr, fmt.Sprintf("Failed to list cluster agent pods: %s", err.Error()))
 	} else {
+		if len(clusterAgentPods.Items) >= 1 {
+			outStr = append(outStr, "==== Cluster Agent pods ====")
+		}
 		for _, pod := range clusterAgentPods.Items {
 			result := e.generateAndDownloadCoverageForPod(pod, podTypeClusterAgent, outputDir)
 			outStr = append(outStr, result)
@@ -233,11 +239,11 @@ func (e *Kubernetes) generateAndDownloadCoverageForPod(pod v1.Pod, podType podTy
 	commandCoverages := e.getAgentCoverageCommands(podType)
 	outStr := []string{}
 	for container, command := range commandCoverages {
-		outStr = append(outStr, fmt.Sprintf("Container %s:\n", container))
+		outStr = append(outStr, fmt.Sprintf("Container %s:", container))
 		stdout, stderr, err := e.KubernetesCluster.KubernetesClient.PodExec(pod.Namespace, pod.Name, container, command)
 		output := strings.Join([]string{stdout, stderr}, "\n")
 		if err != nil {
-			outStr = append(outStr, fmt.Sprintf("Error: %v\n", err))
+			outStr = append(outStr, fmt.Sprintf("Error: %v", err))
 			continue
 		}
 		// find coverage folder in command output
@@ -249,7 +255,7 @@ func (e *Kubernetes) generateAndDownloadCoverageForPod(pod v1.Pod, podType podTy
 		}
 		err = e.KubernetesCluster.KubernetesClient.DownloadFromPod(pod.Namespace, pod.Name, container, matches[1], fmt.Sprintf("%s/coverage", outputDir))
 		if err != nil {
-			outStr = append(outStr, fmt.Sprintf("Error: error while getting folder:%v\n", err))
+			outStr = append(outStr, fmt.Sprintf("Error: error while getting folder:%v", err))
 		}
 		outStr = append(outStr, fmt.Sprintf("Downloaded coverage folder: %s", matches[1]))
 	}

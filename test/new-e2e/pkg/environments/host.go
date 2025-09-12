@@ -135,7 +135,7 @@ func (e *Host) Coverage(outputDir string) (string, error) {
 		outStr = append(outStr, fmt.Sprintf("==== %s ====", agent))
 		output, err := e.RemoteHost.Execute(command)
 		if err != nil {
-			outStr = append(outStr, fmt.Sprintf("%s: %v\n", agent, err))
+			outStr = append(outStr, fmt.Sprintf("%s: %v", agent, err))
 			continue
 		}
 		// find coverage folder in command output
@@ -148,7 +148,7 @@ func (e *Host) Coverage(outputDir string) (string, error) {
 		outStr = append(outStr, fmt.Sprintf("Coverage folder: %s", matches[1]))
 		err = e.RemoteHost.GetFolder(matches[1], filepath.Join(outputDir, filepath.Base(matches[1])))
 		if err != nil {
-			outStr = append(outStr, fmt.Sprintf("%s: error while getting folder:%v\n", agent, err))
+			outStr = append(outStr, fmt.Sprintf("%s: error while getting folder:%v", agent, err))
 			continue
 		}
 		outStr = append(outStr, fmt.Sprintf("Downloaded coverage folder: %s", matches[1]))
