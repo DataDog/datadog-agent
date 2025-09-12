@@ -14,6 +14,14 @@ from invoke.tasks import task
 from tasks.libs.common.junit_upload_core import get_datadog_ci_command
 from tasks.libs.common.utils import gitlab_section
 
+_vt_api_call_count = 0
+
+
+def _increment_vt_call_count():
+    """Increment the VT API call counter."""
+    global _vt_api_call_count
+    _vt_api_call_count += 1
+
 
 def _sha256_file(path: Path) -> str:
     h = hashlib.sha256()
@@ -59,6 +67,7 @@ async def _fetch_file_report(apikey: str, file_sha256: str) -> dict:
 
     async with vt.Client(apikey) as client:
         try:
+            _increment_vt_call_count()
             file_obj = await client.get_object_async(f"/files/{file_sha256}")
             return file_obj.to_dict()
         except Exception as e:
@@ -76,6 +85,7 @@ async def _submit_scan(
     async with vt.Client(apikey) as client:
         try:
             with open(file_path, "rb") as f:
+                _increment_vt_call_count()
                 analysis = await client.scan_file_async(f, wait_for_completion=False)
             analysis_id = analysis.id
             return analysis_id
@@ -92,6 +102,7 @@ async def _poll_analysis(apikey: str, analysis_id: str, poll_timeout: int = 300,
         start_time = time.time()
         while True:
             try:
+                _increment_vt_call_count()
                 analysis = await client.get_object_async(f"/analyses/{analysis_id}")
                 attributes = analysis.to_dict().get("attributes", {})
                 status = attributes.get("status", "unknown")
@@ -188,6 +199,7 @@ def _write_junit_xml(
     )
     add_tag("vt.malicious", str(malicious))
     add_tag("vt.suspicious", str(suspicious))
+    add_tag("vt.api_call_count", str(_vt_api_call_count))
     add_tag("vt.url", f"https://www.virustotal.com/gui/file/{file_sha256}")
     # Include GitLab CI metadata as tags
     add_tag("ci.pipeline.id", os.environ.get("CI_PIPELINE_ID", ""))
