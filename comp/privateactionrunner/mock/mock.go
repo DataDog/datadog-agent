@@ -30,6 +30,11 @@ func (m mock) Stop(_ context.Context) error {
 	return nil
 }
 
+// GetRunnerID implements the privateactionrunner.Component interface
+func (m mock) GetRunnerID() string {
+	return "" // Mock returns empty string by default
+}
+
 // Provides that defines the output of mocked privateactionrunner component
 type Provides struct {
 	comp privateactionrunner.Component
