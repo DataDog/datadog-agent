@@ -807,7 +807,7 @@ func TestLauncherScanWithTooManyFiles(t *testing.T) {
 func TestLauncherUpdatesSourceForExistingTailer(t *testing.T) {
 	testDir := t.TempDir()
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	
+
 	path := fmt.Sprintf("%s/*.log", testDir)
 	os.Create(path)
 	openFilesLimit := 2
