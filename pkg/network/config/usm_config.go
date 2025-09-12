@@ -49,6 +49,10 @@ type USMConfig struct {
 	// USMDataChannelSize specifies the size of the data channel for USM
 	USMDataChannelSize int
 
+	// DisableMapPreallocation controls whether eBPF maps should disable preallocation (BPF_F_NO_PREALLOC flag).
+	// When true, maps allocate entries on-demand instead of preallocating the full map size, improving memory efficiency.
+	DisableMapPreallocation bool
+
 	// ========================================
 	// HTTP Protocol Configuration
 	// ========================================
@@ -172,6 +176,7 @@ func NewUSMConfig(cfg model.Config) *USMConfig {
 		EnableUSMEventStream:      cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_event_stream")),
 		USMKernelBufferPages:      cfg.GetInt(sysconfig.FullKeyPath(smNS, "kernel_buffer_pages")),
 		USMDataChannelSize:        cfg.GetInt(sysconfig.FullKeyPath(smNS, "data_channel_size")),
+		DisableMapPreallocation:   cfg.GetBool(sysconfig.FullKeyPath(smNS, "disable_map_preallocation")),
 
 		// HTTP Protocol Configuration
 		EnableHTTPMonitoring:      cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_http_monitoring")),

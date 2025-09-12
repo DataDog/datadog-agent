@@ -10,4 +10,6 @@ claim_pattern:
 
 permissions:
   contents: read
+  members: read
+  metadata: read
   pull_requests: write

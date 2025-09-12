@@ -130,6 +130,7 @@ func parseParams(req *http.Request) (tracerouteutil.Config, error) {
 	protocol := query.Get("protocol")
 	tcpMethod := query.Get("tcp_method")
 	tcpSynParisTracerouteMode := query.Get("tcp_syn_paris_traceroute_mode")
+	reverseDNS := query.Get("reverse_dns")
 
 	return tracerouteutil.Config{
 		DestHostname:              host,
@@ -139,6 +140,7 @@ func parseParams(req *http.Request) (tracerouteutil.Config, error) {
 		Protocol:                  payload.Protocol(protocol),
 		TCPMethod:                 payload.TCPMethod(tcpMethod),
 		TCPSynParisTracerouteMode: tcpSynParisTracerouteMode == "true",
+		ReverseDNS:                reverseDNS == "true",
 	}, nil
 }
 

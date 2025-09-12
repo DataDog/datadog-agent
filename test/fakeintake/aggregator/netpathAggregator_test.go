@@ -7,6 +7,7 @@ package aggregator
 
 import (
 	_ "embed"
+	"net"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
@@ -37,40 +38,36 @@ func TestNetpathAggregator(t *testing.T) {
 		assert.Len(t, netpaths, 1)
 		np := netpaths[0]
 
-		assert.Equal(t, int64(1737933404281), np.Timestamp)
-		assert.Equal(t, "7.64.0-devel+git.40.38beef2", np.AgentVersion)
+		assert.Equal(t, int64(1757494901878), np.Timestamp)
+		assert.Equal(t, "7.72.0-devel+git.93.cb80d71", np.AgentVersion)
 		assert.Equal(t, "default", np.Namespace)
-		assert.Equal(t, "da6f9055-b7df-41b0-bafd-0e5d3c6c370e", np.PathtraceID)
+		assert.Equal(t, "bf6a0ba9-8823-4089-a3ff-ff9f7b7ff978", np.PathtraceID)
 		assert.Equal(t, payload.PathOrigin("network_path_integration"), np.Origin)
 		assert.Equal(t, payload.Protocol("TCP"), np.Protocol)
-		assert.Equal(t, "i-019fda1a9f830d95e", np.Source.Hostname)
+		assert.Equal(t, "my-host", np.Source.Hostname)
 		assert.Equal(t, "subnet-091570395d476e9ce", np.Source.Via.Subnet.Alias)
 		assert.Equal(t, "vpc-029c0faf8f49dee8d", np.Source.NetworkID)
-		assert.Equal(t, "api.datadoghq.eu", np.Destination.Hostname)
-		assert.Equal(t, "34.107.236.155", np.Destination.IPAddress)
+		assert.Equal(t, "google.com", np.Destination.Hostname)
 		assert.Equal(t, uint16(443), np.Destination.Port)
-		assert.Equal(t, "155.236.107.34.bc.googleusercontent.com", np.Destination.ReverseDNSHostname)
 
-		assert.Len(t, np.Hops, 9)
-		assert.Equal(t, payload.NetworkPathHop{
+		assert.Len(t, np.Traceroute.Runs, 3)
+		run1 := np.Traceroute.Runs[0]
+		assert.Equal(t, payload.TracerouteHop{
 			TTL:       1,
-			IPAddress: "10.1.62.52",
-			Hostname:  "ip-10-1-62-52.ec2.internal",
-			RTT:       0.39,
+			IPAddress: net.ParseIP("192.168.1.1"),
+			RTT:       4.494625,
 			Reachable: true,
-		}, np.Hops[0])
-		assert.Equal(t, payload.NetworkPathHop{
+		}, run1.Hops[0])
+		assert.Equal(t, payload.TracerouteHop{
 			TTL:       2,
-			IPAddress: "unknown_hop_2",
-			Hostname:  "unknown_hop_2",
 			Reachable: false,
-		}, np.Hops[1])
-		assert.Equal(t, payload.NetworkPathHop{
-			TTL:       9,
-			IPAddress: "34.107.236.155",
-			Hostname:  "155.236.107.34.bc.googleusercontent.com",
-			RTT:       2.864,
-			Reachable: true,
-		}, np.Hops[8])
+		}, run1.Hops[1])
+		assert.Equal(t, payload.TracerouteHop{
+			TTL:        3,
+			IPAddress:  net.ParseIP("80.10.45.2"),
+			ReverseDNS: []string{"xxx.rbci.orange.net."},
+			RTT:        6.245875,
+			Reachable:  true,
+		}, run1.Hops[2])
 	})
 }
