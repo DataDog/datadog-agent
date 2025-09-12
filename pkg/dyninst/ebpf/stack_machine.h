@@ -360,10 +360,6 @@ struct {
   __type(value, moduledata_t);
 } moduledata_buf SEC(".maps");
 
-// These constants are filled in by the loader.
-volatile const uint64_t VARIABLE_runtime_dot_firstmoduledata = 0;
-volatile const uint32_t OFFSET_runtime_dot_moduledata__types = 0;
-
 // Translate a pointer to a type (i.e. a pointer pointing to type information
 // inside moduledata) like that found inside an empty interface to an offset
 // into moduledata. We commonly represent runtime type information as such an
