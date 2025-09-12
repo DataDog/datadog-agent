@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
 	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
 	installerhost "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
@@ -87,7 +88,7 @@ func (s *testInstallExeSuite) TestInstallAgentPackage() {
 
 // proxyEnv provisions a Windows VM (for the installer) and a Linux VM (hosting a Squid proxy)
 type proxyEnv struct {
-	WindowsVM  *components.RemoteHost
+	environments.WindowsHost
 	LinuxProxy *components.RemoteHost
 }
 
@@ -99,11 +100,11 @@ func proxyEnvProvisioner() provisioners.PulumiEnvRunFunc[proxyEnv] {
 			return err
 		}
 
-		win, err := ec2.NewVM(awsEnv, "WindowsVM", ec2.WithOS(infraos.WindowsDefault))
-		if err != nil {
+		// Windows host using standard WindowsHost provisioner pattern
+		params := winawshost.GetProvisionerParams(winawshost.WithoutAgent(), winawshost.WithoutFakeIntake())
+		if err := winawshost.Run(ctx, &env.WindowsHost, awsEnv, params); err != nil {
 			return err
 		}
-		win.Export(ctx, &env.WindowsVM.HostOutput)
 
 		lin, err := ec2.NewVM(awsEnv, "LinuxProxyVM", ec2.WithOS(infraos.UbuntuDefault))
 		if err != nil {
@@ -134,7 +135,7 @@ func (s *testInstallExeProxySuite) BeforeTest(suiteName, testName string) {
 	s.BaseSuite.BeforeTest(suiteName, testName)
 
 	linuxHost := s.Env().LinuxProxy
-	windowsHost := s.Env().WindowsVM
+	windowsHost := s.Env().RemoteHost
 
 	// start Squid on the Linux host
 	proxyHost := installerhost.New(s.T, linuxHost, infraos.UbuntuDefault, infraos.AMD64Arch)
@@ -154,7 +155,7 @@ func (s *testInstallExeProxySuite) BeforeTest(suiteName, testName string) {
 
 func (s *testInstallExeProxySuite) TestInstallAgentPackageWithProxy() {
 	linuxHost := s.Env().LinuxProxy
-	windowsHost := s.Env().WindowsVM
+	windowsHost := s.Env().RemoteHost
 
 	// Arrange
 
