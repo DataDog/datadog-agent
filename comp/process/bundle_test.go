@@ -9,7 +9,6 @@ import (
 	"context"
 	"testing"
 
-	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
@@ -54,7 +53,6 @@ func TestBundleDependencies(t *testing.T) {
 		fx.Provide(func() types.CheckComponent { return nil }),
 		core.MockBundle(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-		workloadfilterfx.Module(),
 		fx.Provide(func() tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 		coreStatusImpl.Module(),
 		settingsimpl.MockModule(),

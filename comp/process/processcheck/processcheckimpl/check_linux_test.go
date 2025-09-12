@@ -20,7 +20,6 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
-	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	gpusubscriberfxmock "github.com/DataDog/datadog-agent/comp/process/gpusubscriber/fx-mock"
@@ -64,7 +63,6 @@ func TestProcessCheckEnablementOnCoreAgent(t *testing.T) {
 				fx.Provide(func(t testing.TB) config.Component { return config.NewMockWithOverrides(t, configs) }),
 				sysprobeconfigimpl.MockModule(),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-				workloadfilterfxmock.MockModule(),
 				gpusubscriberfxmock.MockModule(),
 				fx.Provide(func() statsd.ClientInterface {
 					return &statsd.NoOpClient{}
