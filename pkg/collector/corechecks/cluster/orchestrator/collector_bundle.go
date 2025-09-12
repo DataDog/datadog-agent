@@ -463,39 +463,51 @@ type builtinCRDConfig struct {
 	enabled bool
 }
 
-// newBuiltinCRDConfig creates a new builtinCRDConfig.
-func newBuiltinCRDConfig(group, preferredVersion, kind string, availableVersions []string, enabled bool) builtinCRDConfig {
-	return builtinCRDConfig{
-		group:             group,
-		preferredVersion:  preferredVersion,
-		availableVersions: availableVersions,
-		kind:              kind,
-		enabled:           enabled,
+// crdConfigOption represents a configuration option for builtin CRD config.
+type crdConfigOption func(*builtinCRDConfig)
+
+// withAvailableVersions sets the available fallback versions for the CRD.
+func withAvailableVersions(versions []string) crdConfigOption {
+	return func(config *builtinCRDConfig) {
+		config.availableVersions = versions
 	}
+}
+
+// newBuiltinCRDConfig creates a new builtinCRDConfig with optional configuration.
+func newBuiltinCRDConfig(group, preferredVersion, kind string, opts ...crdConfigOption) builtinCRDConfig {
+	config := builtinCRDConfig{
+		group:            group,
+		preferredVersion: preferredVersion,
+		kind:             kind,
+		enabled:          pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.custom_resources.ootb.enabled"),
+	}
+
+	for _, opt := range opts {
+		opt(&config)
+	}
+
+	return config
 }
 
 // newBuiltinCRDConfigs returns the configuration for all built-in CRDs.
 func newBuiltinCRDConfigs() []builtinCRDConfig {
-	isDatadogCRDEnabled := pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.custom_resources.datadog.enabled")
-	isThirdPartyCRDEnabled := pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.custom_resources.third_party.enabled")
-
 	return []builtinCRDConfig{
 		// Datadog resources
-		newBuiltinCRDConfig(datadogAPIGroup, "v1alpha1", "datadogslos", nil, isDatadogCRDEnabled),
-		newBuiltinCRDConfig(datadogAPIGroup, "v1alpha1", "datadogdashboards", nil, isDatadogCRDEnabled),
-		newBuiltinCRDConfig(datadogAPIGroup, "v1alpha1", "datadogagentprofiles", nil, isDatadogCRDEnabled),
-		newBuiltinCRDConfig(datadogAPIGroup, "v1alpha1", "datadogmonitors", nil, isDatadogCRDEnabled),
-		newBuiltinCRDConfig(datadogAPIGroup, "v1alpha1", "datadogmetrics", nil, isDatadogCRDEnabled),
-		newBuiltinCRDConfig(datadogAPIGroup, "v1alpha2", "datadogpodautoscalers", nil, isDatadogCRDEnabled),
-		newBuiltinCRDConfig(datadogAPIGroup, "v2alpha1", "datadogagents", nil, isDatadogCRDEnabled),
+		newBuiltinCRDConfig(datadogAPIGroup, "v1alpha1", "datadogslos"),
+		newBuiltinCRDConfig(datadogAPIGroup, "v1alpha1", "datadogdashboards"),
+		newBuiltinCRDConfig(datadogAPIGroup, "v1alpha1", "datadogagentprofiles"),
+		newBuiltinCRDConfig(datadogAPIGroup, "v1alpha1", "datadogmonitors"),
+		newBuiltinCRDConfig(datadogAPIGroup, "v1alpha1", "datadogmetrics"),
+		newBuiltinCRDConfig(datadogAPIGroup, "v1alpha2", "datadogpodautoscalers"),
+		newBuiltinCRDConfig(datadogAPIGroup, "v2alpha1", "datadogagents"),
 
 		// Argo resources
-		newBuiltinCRDConfig(ArgoAPIGroup, "v1alpha1", "rollouts", nil, isThirdPartyCRDEnabled),
+		newBuiltinCRDConfig(ArgoAPIGroup, "v1alpha1", "rollouts"),
 
 		// Karpenter resources (empty kind = all resources in group)
-		newBuiltinCRDConfig(KarpenterAPIGroup, "v1", "", nil, isThirdPartyCRDEnabled),
-		newBuiltinCRDConfig(KarpenterAWSAPIGroup, "v1", "", nil, isThirdPartyCRDEnabled),
-		newBuiltinCRDConfig(KarpenterAzureAPIGroup, "v1beta1", "", nil, isThirdPartyCRDEnabled),
+		newBuiltinCRDConfig(KarpenterAPIGroup, "v1", ""),
+		newBuiltinCRDConfig(KarpenterAWSAPIGroup, "v1", ""),
+		newBuiltinCRDConfig(KarpenterAzureAPIGroup, "v1beta1", ""),
 	}
 }
 

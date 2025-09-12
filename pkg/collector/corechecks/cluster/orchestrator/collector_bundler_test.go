@@ -58,7 +58,7 @@ func createMockAPIClient() *apiserver.APIClient {
 func TestImportBuiltinCollectors(t *testing.T) {
 	cfg := mockconfig.New(t)
 	cfg.SetWithoutSource("orchestrator_explorer.terminated_pods.enabled", true)
-	cfg.SetWithoutSource("orchestrator_explorer.custom_resources.datadog.enabled", true)
+	cfg.SetWithoutSource("orchestrator_explorer.custom_resources.ootb.enabled", true)
 
 	// Set up discovery cache with supported resources
 	collectorDiscovery := &discovery.DiscoveryCollector{}
@@ -287,7 +287,7 @@ func TestGetDatadogCustomResourceCollectors(t *testing.T) {
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			cfg := mockconfig.New(t)
-			cfg.SetWithoutSource("orchestrator_explorer.custom_resources.datadog.enabled", testCase.enabled)
+			cfg.SetWithoutSource("orchestrator_explorer.custom_resources.ootb.enabled", testCase.enabled)
 
 			collectorDiscovery.SetCache(testCase.supportedResources)
 
