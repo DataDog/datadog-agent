@@ -271,6 +271,7 @@ func (s *Serializer) SendIterableSeries(serieSource metrics.SerieSource) error {
 		pipelines = append(pipelines, metricsserializer.Pipeline{
 			FilterFunc:  func(series *metrics.Serie) bool { return true },
 			Destination: transaction.AllRegions,
+			UseV3:       s.config.GetBool("use_v3_api.series"),
 		})
 	}
 
