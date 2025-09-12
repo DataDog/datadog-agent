@@ -668,6 +668,11 @@ func (r *secretResolver) getDebugInfo() map[string]interface{} {
 	stats["backendCommandSet"] = true
 	stats["executable"] = r.backendCommand
 
+	// Add backend secret version information
+	if version, err := r.fetchSecretBackendVersion(); err == nil {
+		stats["executableVersion"] = strings.TrimSpace(version)
+	}
+
 	// Handle permissions
 	permissions := "OK, the executable has the correct permissions"
 	permissionsOK := true
