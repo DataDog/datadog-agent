@@ -231,6 +231,9 @@ RUN if [ ! -f /opt/datadog-agent/embedded/bin/otel-agent ]; then \
   else \
   mv /etc/datadog-agent/otel-config.yaml.example /etc/datadog-agent/otel-config.yaml; fi
 
+# Fix ownership with 100:0 so both dd-agent and root can run s6-chown without errors
+RUN sed -i 's/root/100:0/g' /etc/s6/init/init-stage2-fixattrs.txt
+
 RUN find /etc -type d,f -perm -o+w -print0 | xargs -r -0 chmod g-w,o-w
 
 # Add Debian snapshot date for debugging
