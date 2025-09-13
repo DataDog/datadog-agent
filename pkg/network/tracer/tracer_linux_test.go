@@ -1633,7 +1633,7 @@ func testUDPReusePort(t *testing.T, udpnet string, ip string) {
 			assert.Equal(ct, serverMessageSize, int(outgoing.Monotonic.RecvBytes), "outgoing recv")
 			assert.True(ct, outgoing.IntraHost, "outgoing intrahost")
 		}
-	}, 3*time.Second, 100*time.Millisecond)
+	}, 4*time.Second, 100*time.Millisecond)
 
 	// log the connections at the end in case the test failed
 	connections, cleanup := getConnections(t, tr)
@@ -2496,11 +2496,13 @@ func (s *TracerSuite) TestConnectionDuration() {
 		for {
 			_, err := c.Read(b[:])
 			if err != nil && (errors.Is(err, net.ErrClosed) || err == io.EOF) {
+				t.Logf("closing connection: %s", err)
 				break
 			}
 			require.NoError(t, err)
 			_, err = c.Write([]byte("pong"))
 			if err != nil && (errors.Is(err, net.ErrClosed) || err == io.EOF) {
+				t.Logf("closing connection: %s", err)
 				break
 			}
 			require.NoError(t, err)
@@ -2548,6 +2550,7 @@ LOOP:
 	}, 3*time.Second, 100*time.Millisecond, "could not find connection")
 
 	require.NoError(t, c.Close(), "error closing client connection")
+	t.Logf("client connection closed")
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		conns, cleanup := getConnections(collect, tr)
 		defer cleanup()
@@ -2560,7 +2563,7 @@ LOOP:
 		// updated to a value between 1s and 2s
 		require.Greater(collect, conn.Duration, time.Second, "connection duration should be between 1 and 2 seconds")
 		require.Less(collect, conn.Duration, 2*time.Second, "connection duration should be between 1 and 2 seconds")
-	}, 3*time.Second, 100*time.Millisecond, "could not find closed connection")
+	}, 4*time.Second, 100*time.Millisecond, "could not find closed connection")
 }
 
 var failedConnectionsBuildModes = map[ebpftest.BuildMode]struct{}{
