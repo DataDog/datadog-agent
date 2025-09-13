@@ -113,11 +113,6 @@ type Collector struct {
 	arch   string
 }
 
-// CleanCache cleans the cache
-func (c *Collector) CleanCache() error {
-	return nil
-}
-
 // Init initialize the host collector
 func (c *Collector) Init(_ config.Component, _ option.Option[workloadmeta.Component]) (err error) {
 	if c.version, err = winutil.GetWindowsBuildString(); err != nil {
