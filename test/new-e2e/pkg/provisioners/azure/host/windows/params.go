@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/components/defender"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/components/ngen"
 	"github.com/DataDog/test-infra-definitions/components/activedirectory"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/DataDog/test-infra-definitions/scenarios/azure/compute"
@@ -28,6 +29,7 @@ type ProvisionerParams struct {
 	activeDirectoryOptions []activedirectory.Option
 	defenderOptions        []defender.Option
 	installerOptions       []installer.Option
+	ngenOptions            []ngen.Option
 }
 
 // ProvisionerOption is a provisioner option.
@@ -114,6 +116,14 @@ func WithInstaller(opts ...installer.Option) ProvisionerOption {
 	}
 }
 
+// WithNgenOptions configures running ngen on the Windows VM
+func WithNgenOptions(opts ...ngen.Option) ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.ngenOptions = append(params.ngenOptions, opts...)
+		return nil
+	}
+}
+
 func getProvisionerParams(opts ...ProvisionerOption) *ProvisionerParams {
 	params := &ProvisionerParams{
 		name:               defaultVMName,
@@ -123,6 +133,7 @@ func getProvisionerParams(opts ...ProvisionerOption) *ProvisionerParams {
 		fakeintakeOptions:  []fakeintake.Option{},
 		// Disable Windows Defender on VMs by default
 		defenderOptions: []defender.Option{defender.WithDefenderDisabled()},
+		ngenOptions:     []ngen.Option{},
 	}
 	err := optional.ApplyOptions(params, opts)
 	if err != nil {

@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/components/defender"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/components/fipsmode"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/components/ngen"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/components/testsigning"
 )
 
@@ -47,6 +48,7 @@ type ProvisionerParams struct {
 	defenderoptions        []defender.Option
 	installerOptions       []installer.Option
 	fipsModeOptions        []fipsmode.Option
+	ngenOptions            []ngen.Option
 	testsigningOptions     []testsigning.Option
 }
 
@@ -143,6 +145,14 @@ func WithTestSigningOptions(opts ...testsigning.Option) ProvisionerOption {
 	}
 }
 
+// WithNgenOptions configures running ngen on an EC2 VM.
+func WithNgenOptions(opts ...ngen.Option) ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.ngenOptions = append(params.ngenOptions, opts...)
+		return nil
+	}
+}
+
 // WithInstaller configures Datadog Installer on an EC2 VM.
 func WithInstaller(opts ...installer.Option) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
@@ -178,6 +188,13 @@ func Run(ctx *pulumi.Context, env *environments.WindowsHost, awsEnv aws.Environm
 		params.testsigningOptions = append(params.testsigningOptions,
 			testsigning.WithPulumiResourceOptions(
 				pulumi.DependsOn(defender.Resources)))
+	}
+
+	if params.ngenOptions != nil {
+		_, err = ngen.New(awsEnv.CommonEnvironment, host, params.ngenOptions...)
+		if err != nil {
+			return err
+		}
 	}
 
 	if params.testsigningOptions != nil {
@@ -288,6 +305,7 @@ func GetProvisionerParams(opts ...ProvisionerOption) *ProvisionerParams {
 		// Disable Windows Defender on VMs by default
 		defenderoptions:    []defender.Option{defender.WithDefenderDisabled()},
 		fipsModeOptions:    []fipsmode.Option{},
+		ngenOptions:        []ngen.Option{},
 		testsigningOptions: []testsigning.Option{},
 	}
 
