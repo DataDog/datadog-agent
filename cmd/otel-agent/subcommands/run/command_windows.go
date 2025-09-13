@@ -15,7 +15,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Windows MakeCommand: dispatches to service mode when running as a service.
+// MakeCommand creates the 'run' command on Windows
 func MakeCommand(globalConfGetter func() *subcommands.GlobalParams) *cobra.Command {
 	params := &cliParams{}
 
