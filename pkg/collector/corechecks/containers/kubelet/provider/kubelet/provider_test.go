@@ -286,7 +286,9 @@ func (suite *ProviderTestSuite) TestPVCMetricsExcludedByNamespace() {
 
 	mockConfig := configmock.New(suite.T())
 	mockConfig.SetWithoutSource("container_exclude", "kube_namespace:default")
-	suite.provider.filterStore = workloadfilterfxmock.SetupMockFilter(suite.T())
+	mockFilterStore := workloadfilterfxmock.SetupMockFilter(suite.T())
+	suite.provider.containerFilter = mockFilterStore.GetContainerSharedMetricFilters()
+	suite.provider.podFilter = mockFilterStore.GetPodSharedMetricFilters()
 
 	err = suite.provider.Provide(kubeletMock, suite.mockSender)
 	if err != nil {

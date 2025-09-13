@@ -19,6 +19,13 @@ const (
 	LogsFilter    Scope = "LogsFilter"
 )
 
+// FilterBundle represents a bundle of filters for a given resource type.
+type FilterBundle interface {
+	IsExcluded(obj Filterable) bool
+	GetResult(obj Filterable) Result
+	GetErrors() []error
+}
+
 // Result is an enumeration that represents the possible results of a filter evaluation.
 type Result int
 
