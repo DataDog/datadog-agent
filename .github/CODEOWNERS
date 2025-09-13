@@ -677,6 +677,7 @@
 /tasks/winbuildscripts/                 @DataDog/windows-products
 /tasks/winbuild.py                      @DataDog/windows-products
 /tasks/windows_resources.py             @DataDog/windows-products
+/tasks/virustotal.py                    @DataDog/windows-products
 /tasks/collector.py                     @DataDog/opentelemetry-agent
 /tasks/components.py                    @DataDog/agent-runtimes
 /tasks/components_templates             @DataDog/agent-runtimes
