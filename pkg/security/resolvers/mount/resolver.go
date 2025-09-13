@@ -10,6 +10,9 @@ package mount
 
 import (
 	"encoding/json"
+	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	"golang.org/x/sys/unix"
 	"path"
 	"path/filepath"
 	"slices"
@@ -124,6 +127,58 @@ func (mr *Resolver) IsMountIDValid(mountID uint32) (bool, error) {
 	}
 
 	return true, nil
+}
+
+// newMountFromStatmount - Creates a new Mount from parsed MountInfo data
+func newMountFromStatmount(sm *Statmount) *model.Mount {
+	root := sm.MntRoot
+
+	if sm.FsType == "cgroup2" && strings.HasPrefix(root, "/..") {
+		cfs := utils.DefaultCGroupFS()
+		root = filepath.Join(cfs.GetRootCGroupPath(), root)
+	}
+
+	// create a Mount out of the parsed MountInfo
+	return &model.Mount{
+		MountID:       sm.MntIDOld,
+		MountIDUnique: sm.MntID,
+		Device:        utils.Mkdev(sm.SbDevMajor, sm.SbDevMinor),
+		ParentPathKey: model.PathKey{
+			MountID: sm.MntParentIDOld,
+		},
+		FSType:        sm.FsType,
+		MountPointStr: sm.MntPoint,
+		Path:          sm.MntPoint,
+		RootStr:       root,
+		Origin:        model.MountOriginListmount,
+		Visible:       true,
+		Detached:      false,
+	}
+}
+
+// HasListMount returns true if the kernel has the listmount() syscall, false otherwise
+func (mr *Resolver) HasListMount() bool {
+	_, _, errno := unix.Syscall(SysListmount, 0, 0, 0)
+	return errno != unix.ENOSYS
+}
+
+// SyncCacheFromListMount Snapshots the current mountpoints using the listmount api
+func (mr *Resolver) SyncCacheFromListMount() error {
+	mounts, err := GetAll("/proc")
+	if err != nil {
+		return fmt.Errorf("error synchronizing cache: %v", err)
+	}
+
+	seclog.Warnf("listmount sync cache found %d entries", len(mounts))
+
+	mr.lock.Lock()
+	defer mr.lock.Unlock()
+
+	for _, mnt := range mounts {
+		mr.insert(newMountFromStatmount(&mnt), 0)
+	}
+
+	return nil
 }
 
 // SyncCache Snapshots the current mount points of the system by reading through /proc/[pid]/mountinfo.
