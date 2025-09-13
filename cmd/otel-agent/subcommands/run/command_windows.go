@@ -1,0 +1,36 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build windows && otlp
+
+package run
+
+import (
+	"context"
+
+	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil/servicemain"
+	"github.com/spf13/cobra"
+)
+
+// Windows MakeCommand: dispatches to service mode when running as a service.
+func MakeCommand(globalConfGetter func() *subcommands.GlobalParams) *cobra.Command {
+	params := &cliParams{}
+
+	cmd := &cobra.Command{
+		Use:   "run",
+		Short: "Starting OpenTelemetry Collector",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			params.GlobalParams = globalConfGetter()
+			if servicemain.RunningAsWindowsService() {
+				servicemain.Run(&service{cliParams: params})
+				return nil
+			}
+			return runOTelAgentCommand(context.Background(), params)
+		},
+	}
+	cmd.Flags().StringVarP(&params.pidfilePath, "pidfile", "p", "", "path to the pidfile")
+	return cmd
+}

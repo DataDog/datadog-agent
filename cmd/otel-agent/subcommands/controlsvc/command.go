@@ -26,7 +26,7 @@ func Commands(_ *subcommands.GlobalParams) []*cobra.Command {
 			Short:   "starts the otel-agent within the service control manager",
 			Long:    ``,
 			RunE: func(_ *cobra.Command, _ []string) error {
-				return fxutil.OneShot(controlsvc.StartService)
+				return controlsvc.StartService()
 			},
 		},
 		{

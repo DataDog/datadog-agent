@@ -14,56 +14,39 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil/servicemain"
 )
 
-const (
-	// loggerName is the application logger identifier for service mode
-	loggerName = "OTELCOL"
-)
+// service implements servicemain.Service for otel-agent
+type service struct {
+	servicemain.DefaultSettings
+	cliParams *cliParams
+}
 
-// StartOTelAgentWithDefaults starts the otel-agent with default parameters for Windows service
-func StartOTelAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error) {
-	errChan := make(chan error, 1)
+func (s *service) Name() string { return "datadog-otel-agent" }
 
-	go func() {
-		defer close(errChan)
+// Init does not need additional setup since args were parsed via Cobra.
+func (s *service) Init() error { return nil }
 
-		// Wait for context from service
-		ctx := <-ctxChan
-
-		// Create default parameters for service mode
-		// Prefer ProgramData\Datadog\otel-config.yaml to align with runtime config location
+func (s *service) Run(ctx context.Context) error {
+	params := s.cliParams
+	if params == nil {
+		params = &cliParams{GlobalParams: &subcommands.GlobalParams{}}
+	}
+	// Fallback defaults only if necessary path is not provided
+	if len(params.ConfPaths) == 0 || params.CoreConfPath == "" {
 		pd, _ := winutil.GetProgramDataDir()
-		// Normalize to avoid duplicate 'Datadog' and handle trailing separators
 		ddRoot := strings.TrimRight(pd, "\\/")
 		if !strings.EqualFold(filepath.Base(ddRoot), "Datadog") {
 			ddRoot = filepath.Join(ddRoot, "Datadog")
 		}
-
-		svcCfg := filepath.Join(ddRoot, "otel-config.yaml")
-		confURL := "file:" + filepath.ToSlash(svcCfg)
-
-		// Also point core config to ProgramData so otelcollector.enabled is read correctly.
-		// NOTE: CoreConfPath expects a native filesystem path, not a confmap URI.
-		coreCfgPath := filepath.Join(ddRoot, "datadog.yaml")
-
-		params := &cliParams{
-			GlobalParams: &subcommands.GlobalParams{
-				ConfPaths:    []string{confURL},
-				CoreConfPath: coreCfgPath,
-				ConfigName:   "datadog-otel",
-				LoggerName:   loggerName,
-				BYOC:         false,
-			},
-			pidfilePath: "", // No pidfile for service mode
+		if len(params.ConfPaths) == 0 {
+			cfg := filepath.Join(ddRoot, "otel-config.yaml")
+			params.ConfPaths = []string{"file:" + filepath.ToSlash(cfg)}
 		}
-
-		// Run the otel-agent command with the service context
-		err := runOTelAgentCommand(ctx, params)
-		if err != nil {
-			errChan <- err
+		if params.CoreConfPath == "" {
+			params.CoreConfPath = filepath.Join(ddRoot, "datadog.yaml")
 		}
-	}()
-
-	return errChan, nil
+	}
+	return runOTelAgentCommand(ctx, params)
 }

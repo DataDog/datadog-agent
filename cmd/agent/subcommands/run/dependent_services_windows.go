@@ -87,7 +87,7 @@ var subservices = []Servicedef{
 		},
 		serviceName:    "datadog-otel-agent",
 		serviceInit:    otelInit,
-		shouldShutdown: false,
+		shouldShutdown: true, // NOTE: not really ncessary with SCM dependency in place
 	},
 }
 
