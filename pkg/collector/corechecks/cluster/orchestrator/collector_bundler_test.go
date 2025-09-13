@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/inventory"
@@ -34,9 +35,26 @@ func TestImportBuiltinCollectors(t *testing.T) {
 				{GroupVersion: "v1", Kind: "pods"}:                                      {},
 				{GroupVersion: "datadoghq.com/v1alpha1", Kind: "datadogmetrics"}:        {},
 				{GroupVersion: "datadoghq.com/v1alpha1", Kind: "datadogmonitors"}:       {},
+				{GroupVersion: "datadoghq.com/v1alpha1", Kind: "datadogslos"}:           {},
+				{GroupVersion: "datadoghq.com/v1alpha1", Kind: "datadogdashboards"}:     {},
+				{GroupVersion: "datadoghq.com/v1alpha1", Kind: "datadogagentprofiles"}:  {},
 				{GroupVersion: "datadoghq.com/v1alpha1", Kind: "datadogpodautoscalers"}: {},
 				{GroupVersion: "datadoghq.com/v1alpha2", Kind: "datadogpodautoscalers"}: {},
 				{GroupVersion: "datadoghq.com/v2alpha1", Kind: "datadogagents"}:         {},
+			},
+			Groups: []*v1.APIGroup{
+				{
+					Name: "datadoghq.com",
+					Versions: []v1.GroupVersionForDiscovery{
+						{Version: "v1alpha1"},
+						{Version: "v1alpha2"},
+						{Version: "v2alpha1"},
+					},
+					PreferredVersion: v1.GroupVersionForDiscovery{
+						GroupVersion: "datadoghq.com/v2alpha1",
+						Version:      "v2alpha1",
+					},
+				},
 			},
 		})
 
@@ -62,8 +80,10 @@ func TestImportBuiltinCollectors(t *testing.T) {
 		"apiextensions.k8s.io/v1/customresourcedefinitions",
 		"datadoghq.com/v1alpha1/datadogmetrics",
 		"datadoghq.com/v1alpha1/datadogmonitors",
-		"datadoghq.com/v1alpha1/datadogpodautoscalers",
-		"datadoghq.com/v1alpha2/datadogpodautoscalers",
+		"datadoghq.com/v1alpha1/datadogslos",
+		"datadoghq.com/v1alpha1/datadogdashboards",
+		"datadoghq.com/v1alpha1/datadogagentprofiles",
+		"datadoghq.com/v1alpha2/datadogpodautoscalers", // preferred version selected
 		"datadoghq.com/v2alpha1/datadogagents",
 	}
 	require.ElementsMatch(t, expected, names)
@@ -95,16 +115,35 @@ func TestGetDatadogCustomResourceCollectors(t *testing.T) {
 				CollectorForVersion: map[discovery.CollectorVersion]struct{}{
 					{GroupVersion: "datadoghq.com/v1alpha1", Kind: "datadogmetrics"}:        {},
 					{GroupVersion: "datadoghq.com/v1alpha1", Kind: "datadogmonitors"}:       {},
+					{GroupVersion: "datadoghq.com/v1alpha1", Kind: "datadogslos"}:           {},
+					{GroupVersion: "datadoghq.com/v1alpha1", Kind: "datadogdashboards"}:     {},
+					{GroupVersion: "datadoghq.com/v1alpha1", Kind: "datadogagentprofiles"}:  {},
 					{GroupVersion: "datadoghq.com/v1alpha1", Kind: "datadogpodautoscalers"}: {},
 					{GroupVersion: "datadoghq.com/v1alpha2", Kind: "datadogpodautoscalers"}: {},
 					{GroupVersion: "datadoghq.com/v2alpha1", Kind: "datadogagents"}:         {},
+				},
+				Groups: []*v1.APIGroup{
+					{
+						Name: "datadoghq.com",
+						Versions: []v1.GroupVersionForDiscovery{
+							{Version: "v1alpha1"},
+							{Version: "v1alpha2"},
+							{Version: "v2alpha1"},
+						},
+						PreferredVersion: v1.GroupVersionForDiscovery{
+							GroupVersion: "datadoghq.com/v1alpha2",
+							Version:      "v1alpha2",
+						},
+					},
 				},
 			},
 			expected: []string{
 				"datadoghq.com/v1alpha1/datadogmetrics",
 				"datadoghq.com/v1alpha1/datadogmonitors",
-				"datadoghq.com/v1alpha1/datadogpodautoscalers",
-				"datadoghq.com/v1alpha2/datadogpodautoscalers",
+				"datadoghq.com/v1alpha1/datadogslos",
+				"datadoghq.com/v1alpha1/datadogdashboards",
+				"datadoghq.com/v1alpha1/datadogagentprofiles",
+				"datadoghq.com/v1alpha2/datadogpodautoscalers", // preferred version selected
 				"datadoghq.com/v2alpha1/datadogagents",
 			},
 		},
@@ -114,6 +153,7 @@ func TestGetDatadogCustomResourceCollectors(t *testing.T) {
 			hasCrdCollectors: true,
 			supportedResources: discovery.DiscoveryCache{
 				CollectorForVersion: map[discovery.CollectorVersion]struct{}{},
+				Groups:              []*v1.APIGroup{},
 			},
 			expected: []string{},
 		},
@@ -125,6 +165,18 @@ func TestGetDatadogCustomResourceCollectors(t *testing.T) {
 				CollectorForVersion: map[discovery.CollectorVersion]struct{}{
 					{GroupVersion: "datadoghq.com/v1alpha1", Kind: "datadogmetrics"}:  {},
 					{GroupVersion: "datadoghq.com/v1alpha1", Kind: "datadogmonitors"}: {},
+				},
+				Groups: []*v1.APIGroup{
+					{
+						Name: "datadoghq.com",
+						Versions: []v1.GroupVersionForDiscovery{
+							{Version: "v1alpha1"},
+						},
+						PreferredVersion: v1.GroupVersionForDiscovery{
+							GroupVersion: "datadoghq.com/v1alpha1",
+							Version:      "v1alpha1",
+						},
+					},
 				},
 			},
 			expected: []string{
@@ -144,6 +196,20 @@ func TestGetDatadogCustomResourceCollectors(t *testing.T) {
 					{GroupVersion: "datadoghq.com/v1alpha2", Kind: "datadogpodautoscalers"}: {},
 					{GroupVersion: "datadoghq.com/v2alpha1", Kind: "datadogagents"}:         {},
 				},
+				Groups: []*v1.APIGroup{
+					{
+						Name: "datadoghq.com",
+						Versions: []v1.GroupVersionForDiscovery{
+							{Version: "v1alpha1"},
+							{Version: "v1alpha2"},
+							{Version: "v2alpha1"},
+						},
+						PreferredVersion: v1.GroupVersionForDiscovery{
+							GroupVersion: "datadoghq.com/v1alpha2",
+							Version:      "v1alpha2",
+						},
+					},
+				},
 			},
 			expected: []string{},
 		},
@@ -158,6 +224,20 @@ func TestGetDatadogCustomResourceCollectors(t *testing.T) {
 					{GroupVersion: "datadoghq.com/v1alpha1", Kind: "datadogpodautoscalers"}: {},
 					{GroupVersion: "datadoghq.com/v1alpha2", Kind: "datadogpodautoscalers"}: {},
 					{GroupVersion: "datadoghq.com/v2alpha1", Kind: "datadogagents"}:         {},
+				},
+				Groups: []*v1.APIGroup{
+					{
+						Name: "datadoghq.com",
+						Versions: []v1.GroupVersionForDiscovery{
+							{Version: "v1alpha1"},
+							{Version: "v1alpha2"},
+							{Version: "v2alpha1"},
+						},
+						PreferredVersion: v1.GroupVersionForDiscovery{
+							GroupVersion: "datadoghq.com/v1alpha2",
+							Version:      "v1alpha2",
+						},
+					},
 				},
 			},
 			expected: []string{},
@@ -244,4 +324,41 @@ func TestGetTerminatedPodCollector(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNewBuiltinCRDConfigs(t *testing.T) {
+	configs := newBuiltinCRDConfigs()
+
+	// Expected configurations (group/version/kind)
+	expectedConfigs := []string{
+		// Datadog resources
+		"datadoghq.com/v1alpha2/datadogpodautoscalers",
+		"datadoghq.com/v2alpha1/datadogagents",
+		"datadoghq.com/v1alpha1/datadogslos",
+		"datadoghq.com/v1alpha1/datadogdashboards",
+		"datadoghq.com/v1alpha1/datadogagentprofiles",
+		"datadoghq.com/v1alpha1/datadogmonitors",
+		"datadoghq.com/v1alpha1/datadogmetrics",
+
+		// Argo
+		"argoproj.io/v1alpha1/rollouts",
+
+		// karpenter all resources
+		"karpenter.sh/v1/",
+		"karpenter.k8s.aws/v1/",
+		"karpenter.azure.com/v1beta1/",
+	}
+
+	// Verify all expected configs are present
+	foundConfigs := make([]string, 0, len(configs))
+	for _, config := range configs {
+		gvk := config.group + "/" + config.preferredVersion + "/" + config.kind
+		foundConfigs = append(foundConfigs, gvk)
+
+		// Verify config structure
+		require.NotEmpty(t, config.group, "Group should not be empty")
+		require.NotEmpty(t, config.preferredVersion, "Version should not be empty")
+	}
+
+	require.ElementsMatch(t, expectedConfigs, foundConfigs)
 }
