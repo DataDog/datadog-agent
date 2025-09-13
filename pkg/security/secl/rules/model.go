@@ -118,6 +118,7 @@ const (
 type ActionDefinitionInterface interface {
 	PreCheck(opts PolicyLoaderOpts) error
 	PostCheck(rule *eval.Rule) error
+	IsActionSupported(eventTypeEnabled map[eval.EventType]bool) error
 }
 
 // ActionDefinition describes a rule action section
@@ -204,6 +205,20 @@ func (a *ActionDefinition) PostCheck(rule *eval.Rule) error {
 	return nil
 }
 
+// IsActionSupported returns true if the action is supported given a list of enabled event type
+func (a *ActionDefinition) IsActionSupported(eventTypeEnabled map[eval.EventType]bool) error {
+	candidateActions := a.getCandidateActions()
+
+	for _, action := range candidateActions {
+		if !reflect.ValueOf(action).IsNil() {
+			if err := action.IsActionSupported(eventTypeEnabled); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 // Scope describes the scope variables
 type Scope string
 
@@ -217,6 +232,11 @@ func (a *DefaultActionDefinition) PreCheck(_ PolicyLoaderOpts) error {
 
 // PostCheck returns an error if the action is invalid after parsing
 func (a *DefaultActionDefinition) PostCheck(_ *eval.Rule) error {
+	return nil
+}
+
+// IsActionSupported returns true if the action is supported with the provided set of enabled event types
+func (a *DefaultActionDefinition) IsActionSupported(_ map[eval.EventType]bool) error {
 	return nil
 }
 
@@ -380,6 +400,14 @@ func (n *NetworkFilterDefinition) PreCheck(_ PolicyLoaderOpts) error {
 		return fmt.Errorf("invalid scope '%s'", n.Scope)
 	}
 
+	return nil
+}
+
+// IsActionSupported returns true if the action is supported with the provided set of enabled event types
+func (n *NetworkFilterDefinition) IsActionSupported(eventTypeEnabled map[eval.EventType]bool) error {
+	if !eventTypeEnabled[model.RawPacketFilterEventType.String()] {
+		return fmt.Errorf("network_filter action requires %s event type", model.RawPacketActionEventType)
+	}
 	return nil
 }
 
