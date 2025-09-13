@@ -3,26 +3,35 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build windows && otlp
+//go:build windows && otlp && test
 
 package controlsvc
 
 import (
 	"testing"
+
+	winctrl "github.com/DataDog/datadog-agent/cmd/otel-agent/windows/controlsvc"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-func TestCommands(t *testing.T) {
+func TestControlSvcOneShotSubcommands(t *testing.T) {
 	cmds := Commands(nil)
-	if len(cmds) != 3 {
-		t.Fatalf("expected 3 commands, got %d", len(cmds))
-	}
-	want := []string{"start-service", "stop-service", "restart-service"}
-	for i, w := range want {
-		if cmds[i].Use != w {
-			t.Fatalf("cmd %d use: want %q, got %q", i, w, cmds[i].Use)
-		}
-		if cmds[i].RunE == nil {
-			t.Fatalf("cmd %q RunE is nil", cmds[i].Use)
-		}
-	}
+
+	// stop-service → OneShot(winctrl.StopService)
+	fxutil.TestOneShotSubcommand(
+		t,
+		cmds,
+		[]string{"stop-service"},
+		winctrl.StopService,
+		func() {},
+	)
+
+	// restart-service → OneShot(winctrl.RestartService)
+	fxutil.TestOneShotSubcommand(
+		t,
+		cmds,
+		[]string{"restart-service"},
+		winctrl.RestartService,
+		func() {},
+	)
 }
