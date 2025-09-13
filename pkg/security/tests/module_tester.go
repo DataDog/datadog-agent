@@ -788,6 +788,7 @@ func genTestConfigs(cfgDir string, opts testOpts) (*emconfig.Config, *secconfig.
 		"ActivityDumpTracedCgroupsCount":             opts.activityDumpTracedCgroupsCount,
 		"ActivityDumpCgroupDifferentiateArgs":        opts.activityDumpCgroupDifferentiateArgs,
 		"ActivityDumpAutoSuppressionEnabled":         opts.activityDumpAutoSuppressionEnabled,
+		"TraceSystemdCgroups":                        opts.traceSystemdCgroups,
 		"ActivityDumpTracedEventTypes":               opts.activityDumpTracedEventTypes,
 		"ActivityDumpLocalStorageDirectory":          opts.activityDumpLocalStorageDirectory,
 		"ActivityDumpLocalStorageCompression":        opts.activityDumpLocalStorageCompression,
