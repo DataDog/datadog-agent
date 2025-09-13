@@ -329,7 +329,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	// If true, Python is loaded when the first Python check is loaded.
 	// Otherwise, Python is loaded when the collector is initialized.
-	config.BindEnvAndSetDefault("python_lazy_loading", true)
+	config.BindEnvAndSetDefault("python_lazy_loading", false)
 
 	// If false, the core check will be skipped.
 	config.BindEnvAndSetDefault("disk_check.use_core_loader", false)
@@ -1164,6 +1164,9 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	// Config Stream
 	config.BindEnvAndSetDefault("config_stream.sleep_interval", 3*time.Second)
+
+	// Shared libraries check
+	config.BindEnvAndSetDefault("shared_libraries_check.enabled", true)
 }
 
 func agent(config pkgconfigmodel.Setup) {
