@@ -75,7 +75,7 @@ type ContainerdItf interface {
 	CallWithClientContext(namespace string, f func(context.Context) error) error
 	IsSandbox(namespace string, ctn containerd.Container) (bool, error)
 	MountImage(ctx context.Context, expiration time.Duration, namespace string, img containerd.Image, targetDir string) (func(context.Context) error, error)
-	Mounts(ctx context.Context, expiration time.Duration, namespace string, img containerd.Image) ([]mount.Mount, error)
+	Mounts(ctx context.Context, expiration time.Duration, namespace string, img containerd.Image) ([]mount.Mount, func(context.Context) error, error)
 }
 
 // ContainerdUtil is the util used to interact with the Containerd api.
@@ -501,15 +501,12 @@ func (c *ContainerdUtil) getMounts(ctx context.Context, expiration time.Duration
 }
 
 // Mounts returns the mounts for an image
-func (c *ContainerdUtil) Mounts(ctx context.Context, expiration time.Duration, namespace string, img containerd.Image) ([]mount.Mount, error) {
+func (c *ContainerdUtil) Mounts(ctx context.Context, expiration time.Duration, namespace string, img containerd.Image) ([]mount.Mount, func(context.Context) error, error) {
 	mounts, clean, err := c.getMounts(ctx, expiration, namespace, img)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	if err := clean(ctx); err != nil {
-		return nil, fmt.Errorf("unable to clean snapshot, err: %w", err)
-	}
-	return mounts, nil
+	return mounts, clean, nil
 }
 
 // MountImage mounts an image to a directory
