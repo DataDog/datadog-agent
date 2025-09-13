@@ -93,15 +93,15 @@ func (rc statusProvider) populateStatus(stats map[string]interface{}) {
 	if isRemoteConfigEnabled(rc.Config) && expvar.Get("remoteConfigStatus") != nil {
 		remoteConfigStatusJSON := expvar.Get("remoteConfigStatus").String()
 		json.Unmarshal([]byte(remoteConfigStatusJSON), &status) //nolint:errcheck
-	} else {
+	} else if !rc.Config.GetBool("remote_configuration.enabled") {
 		isFipsAgent, _ := fips.Enabled()
-		if !rc.Config.GetBool("remote_configuration.enabled") {
-			status["disabledReason"] = "it is explicitly disabled in the agent configuration. (`remote_configuration.enabled: false`)"
-		} else if rc.Config.GetBool("fips.enabled") || isFipsAgent {
-			status["disabledReason"] = "it is not supported when FIPS is enabled. (FIPS Agent or `fips.enabled: true` with FIPS Proxy)"
-		} else if rc.Config.GetString("site") == "ddog-gov.com" {
-			status["disabledReason"] = "it is not supported on GovCloud. (`site: \"ddog-gov.com\"`)"
+		if rc.Config.GetBool("fips.enabled") || isFipsAgent || rc.Config.GetString("site") == "ddog-gov.com" {
+			if !rc.Config.IsConfigured("remote_configuration.enabled") {
+				status["disabledReason"] = "it is not explicitly enabled in the agent configuration.. (`remote_configuration.enabled is unset`)"
+			}
 		}
+		status["disabledReason"] = "it is explicitly disabled in the agent configuration. (`remote_configuration.enabled: false`)"
+
 	}
 
 	stats["remoteConfiguration"] = status
@@ -115,10 +115,13 @@ func (rc statusProvider) populateStatus(stats map[string]interface{}) {
 }
 
 func isRemoteConfigEnabled(conf config.Component) bool {
-	// Disable Remote Config for GovCloud
+	// Disable Remote Config for GovCloud if it's not explicitly enabled
 	isFipsAgent, _ := fips.Enabled()
 	if conf.GetBool("fips.enabled") || isFipsAgent || conf.GetString("site") == "ddog-gov.com" {
-		return false
+		if !conf.IsConfigured("remote_configuration.enabled") {
+			return false
+		}
 	}
+
 	return conf.GetBool("remote_configuration.enabled")
 }
