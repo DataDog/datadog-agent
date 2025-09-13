@@ -217,6 +217,8 @@ func (c *fakeContainerdContainer) Layers() (layers []ftypes.LayerPath) {
 // ContainerdAccessor is a function that should return a containerd client
 type ContainerdAccessor func() (cutil.ContainerdItf, error)
 
+const defaultExpiration = 1 * time.Minute
+
 // ScanContainerdImageFromSnapshotter scans containerd image directly from the snapshotter
 func (c *Collector) ScanContainerdImageFromSnapshotter(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, img containerd.Image, client cutil.ContainerdItf, scanOptions sbom.ScanOptions) (sbom.Report, error) {
 	fanalImage, cleanup, err := convertContainerdImage(ctx, client.RawClient(), imgMeta, img)
@@ -228,8 +230,10 @@ func (c *Collector) ScanContainerdImageFromSnapshotter(ctx context.Context, imgM
 	}
 
 	// Computing duration of containerd lease
-	deadline, _ := ctx.Deadline()
-	expiration := deadline.Sub(time.Now().Add(cleanupTimeout))
+	expiration := defaultExpiration
+	if deadline, ok := ctx.Deadline(); ok {
+		expiration = time.Until(deadline)
+	}
 	imageID := imgMeta.ID
 
 	mounts, cleanLease, err := client.Mounts(ctx, expiration, imgMeta.Namespace, img)
