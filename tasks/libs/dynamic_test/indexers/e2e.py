@@ -331,3 +331,131 @@ class PackageCoverageDynTestIndexer(CoverageDynTestIndexer):
             print(color_message(f"Error parsing coverage file {coverage_txt}: {e}", Color.ORANGE))
             return set()
         return covered
+
+
+class DiffedPackageCoverageDynTestIndexer(CoverageDynTestIndexer):
+    """Package coverage-based indexer that uses baseline comparison for differential coverage.
+
+    This indexer extends CoverageDynTestIndexer to compute dynamic test indexes based on
+    the difference between current package coverage and a baseline package coverage using
+    'go tool covdata subtract' for precise differential coverage computation.
+
+    Expected Input Structure:
+        coverage_root/ (same as base class)
+        baseline_coverage_root/ (same structure as coverage_root)
+
+    Process:
+    1. For each test suite, uses 'go tool covdata subtract' to compute precise diff
+    2. Converts differential coverage to text format
+    3. Parses differential coverage to extract affected packages
+    4. Builds index only for packages with new/increased coverage
+    """
+
+    def __init__(self, coverage_root: str, baseline_coverage_root: str) -> None:
+        """Initialize the differential package coverage indexer.
+
+        Args:
+            coverage_root: Path to the current coverage data directory
+            baseline_coverage_root: Path to the baseline coverage data directory
+        """
+        super().__init__(coverage_root)
+        self.baseline_coverage_root = baseline_coverage_root
+
+    def compute_index(self, ctx: Context) -> DynamicTestIndex:
+        """Compute the dynamic test index from differential package coverage data.
+
+        Args:
+            ctx: Invoke context for running shell commands
+
+        Returns:
+            DynamicTestIndex: Index mapping packages with differential coverage to tests per job
+        """
+        coverage_path = Path(self.coverage_root)
+        baseline_path = Path(self.baseline_coverage_root)
+
+        if not coverage_path.exists() or not coverage_path.is_dir():
+            raise FileNotFoundError(f"Coverage root not found: {self.coverage_root}")
+        if not baseline_path.exists() or not baseline_path.is_dir():
+            raise FileNotFoundError(f"Baseline coverage root not found: {self.baseline_coverage_root}")
+
+        job_to_item_tests: dict[str, dict[str, list[str]]] = {}
+
+        for entry in sorted(coverage_path.iterdir()):
+            if not entry.is_dir():
+                continue
+
+            suite_folder = entry
+            suite_name = suite_folder.name
+            baseline_suite = baseline_path / suite_name
+
+            if not baseline_suite.exists() or not baseline_suite.is_dir():
+                print(color_message(f"No baseline suite for {suite_name}, skipping diff", Color.ORANGE))
+                continue
+
+            metadata = self._read_metadata(suite_folder)
+            job_name = metadata.get("job_name", suite_folder.name)
+            test_name = metadata.get("test", suite_folder.name)
+
+            # Get differential coverage using go tool covdata subtract
+            diff_covered = self._get_differential_packages(ctx, suite_folder, baseline_suite)
+
+            if not diff_covered:
+                continue
+
+            job_entry = job_to_item_tests.setdefault(job_name, {})
+            for package_path in diff_covered:
+                tests = job_entry.setdefault(package_path, [])
+                if test_name not in tests:
+                    tests.append(test_name)
+
+        return DynamicTestIndex(job_to_item_tests)
+
+    def _get_differential_packages(self, ctx: Context, current_suite: Path, baseline_suite: Path) -> set[str]:
+        """Compute differential package coverage between current and baseline using go tool covdata subtract.
+
+        Args:
+            ctx: Invoke context for running shell commands
+            current_suite: Path to the current test suite folder
+            baseline_suite: Path to the baseline test suite folder
+
+        Returns:
+            set[str]: Set of package paths that have differential coverage
+        """
+        current_coverage_dir = current_suite / "coverage"
+        baseline_coverage_dir = baseline_suite / "coverage"
+
+        if not current_coverage_dir.exists() or not current_coverage_dir.is_dir():
+            return set()
+        if not baseline_coverage_dir.exists() or not baseline_coverage_dir.is_dir():
+            return set()
+
+        # Create a temporary directory for the differential coverage
+        diff_coverage_dir = current_suite / "diff_coverage"
+        diff_coverage_dir.mkdir(exist_ok=True)
+
+        # Use go tool covdata subtract to compute the difference
+        subtract_result = ctx.run(
+            f"go tool covdata subtract -i={current_coverage_dir},{baseline_coverage_dir} -o={diff_coverage_dir}",
+            echo=False,
+            warn=True,
+        )
+
+        if subtract_result.failed:
+            print(color_message(f"Failed to compute coverage diff for {current_suite.name}", Color.ORANGE))
+            return set()
+
+        # Convert differential coverage to text format
+        diff_coverage_txt = current_suite / "diff_coverage.txt"
+        ctx.run(
+            f"go tool covdata textfmt -i={diff_coverage_dir} -o={diff_coverage_txt}",
+            echo=False,
+            warn=True,
+        )
+
+        if not diff_coverage_txt.exists():
+            print(
+                color_message(f"Failed to generate differential coverage text for {current_suite.name}", Color.ORANGE)
+            )
+            return set()
+
+        return self._parse_coverage_file(diff_coverage_txt)
