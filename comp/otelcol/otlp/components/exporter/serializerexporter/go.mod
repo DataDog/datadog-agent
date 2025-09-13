@@ -12,7 +12,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.69.2
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.133.0
-	github.com/stretchr/testify v1.10.0
+	github.com/stretchr/testify v1.11.0
 	github.com/tinylib/msgp v1.3.0
 	go.opentelemetry.io/collector/component v1.39.0
 	go.opentelemetry.io/collector/config/confignet v1.39.0 // indirect
