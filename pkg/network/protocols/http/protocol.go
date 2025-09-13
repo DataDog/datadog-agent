@@ -30,12 +30,13 @@ import (
 )
 
 type protocol struct {
-	cfg            *config.Config
-	telemetry      *Telemetry
-	statkeeper     *StatKeeper
-	mapCleaner     *ddebpf.MapCleaner[netebpf.ConnTuple, EbpfTx]
-	eventsConsumer *events.Consumer[EbpfEvent]
-	mgr            *manager.Manager
+	cfg               *config.Config
+	telemetry         *Telemetry
+	statkeeper        *StatKeeper
+	mapCleaner        *ddebpf.MapCleaner[netebpf.ConnTuple, EbpfTx]
+	consumer          *events.KernelAdaptiveConsumer[EbpfEvent]
+	mgr               *manager.Manager
+	useDirectConsumer bool
 }
 
 const (
@@ -125,11 +126,31 @@ func newHTTPProtocol(mgr *manager.Manager, cfg *config.Config) (protocols.Protoc
 
 	telemetry := NewTelemetry("http")
 
-	return &protocol{
+	p := &protocol{
 		cfg:       cfg,
 		telemetry: telemetry,
 		mgr:       mgr,
-	}, nil
+	}
+
+	// Create adaptive consumer that determines kernel version and callback internally
+	if err := p.createAdaptiveConsumer(); err != nil {
+		return nil, err
+	}
+
+	return p, nil
+}
+
+// Modifiers implements the ModifierProvider interface
+func (p *protocol) Modifiers() []ddebpf.Modifier {
+	if p.consumer == nil {
+		// BatchConsumer case: consumer created in PreStart(), return empty modifiers for now
+		if !p.useDirectConsumer {
+			return []ddebpf.Modifier{}
+		}
+		// This shouldn't happen for DirectConsumer, but return empty as fallback
+		return []ddebpf.Modifier{}
+	}
+	return p.consumer.Modifiers()
 }
 
 // Name return the program's name.
@@ -156,22 +177,40 @@ func (p *protocol) ConfigureOptions(opts *manager.Options) {
 	}
 	opts.ActivatedProbes = append(opts.ActivatedProbes, &manager.ProbeSelector{ProbeIdentificationPair: netifProbeID})
 	utils.EnableOption(opts, "http_monitoring_enabled")
+
+	// Set eBPF constant based on consumer type
+	var constantValue uint64
+	if p.useDirectConsumer {
+		constantValue = 1
+	} else {
+		constantValue = 0
+	}
+	opts.ConstantEditors = append(opts.ConstantEditors, manager.ConstantEditor{
+		Name:  "use_direct_consumer",
+		Value: constantValue,
+	})
+
 	// Configure event stream
 	events.Configure(p.cfg, eventStream, p.mgr, opts)
 }
 
 func (p *protocol) PreStart() (err error) {
-	p.eventsConsumer, err = events.NewConsumer(
-		"http",
-		p.mgr,
-		p.processHTTP,
-	)
-	if err != nil {
-		return
+	// If using BatchConsumer, create it now (after manager initialization)
+	if !p.useDirectConsumer {
+		batchConsumer, err := events.NewBatchConsumer("http", p.mgr, p.processHTTP)
+		if err != nil {
+			return err
+		}
+		p.consumer = events.NewKernelAdaptiveConsumer[EbpfEvent](
+			batchConsumer,
+			[]ddebpf.Modifier{}, // BatchConsumer needs no modifiers
+		)
 	}
 
 	p.statkeeper = NewStatkeeper(p.cfg, p.telemetry, NewIncompleteBuffer(p.cfg, p.telemetry))
-	p.eventsConsumer.Start()
+
+	// Start the consumer (works for both DirectConsumer and BatchConsumer)
+	p.consumer.Start()
 
 	return
 }
@@ -187,8 +226,8 @@ func (p *protocol) Stop() {
 	// mapCleaner handles nil pointer receivers
 	p.mapCleaner.Stop()
 
-	if p.eventsConsumer != nil {
-		p.eventsConsumer.Stop()
+	if p.consumer != nil {
+		p.consumer.Stop()
 	}
 
 	if p.statkeeper != nil {
@@ -214,6 +253,11 @@ func (p *protocol) processHTTP(events []EbpfEvent) {
 		p.telemetry.Count(tx)
 		p.statkeeper.Process(tx)
 	}
+}
+
+func (p *protocol) processHTTPDirect(event *EbpfEvent) {
+	p.telemetry.Count(event)
+	p.statkeeper.Process(event)
 }
 
 func (p *protocol) setupMapCleaner(mgr *manager.Manager) {
@@ -245,7 +289,7 @@ func (p *protocol) setupMapCleaner(mgr *manager.Manager) {
 // The format of HTTP stats:
 // [source, dest tuple, request path] -> RequestStats object
 func (p *protocol) GetStats() (*protocols.ProtocolStats, func()) {
-	p.eventsConsumer.Sync()
+	p.consumer.Sync()
 	p.telemetry.Log()
 	stats := p.statkeeper.GetAndResetAllStats()
 	return &protocols.ProtocolStats{
@@ -261,4 +305,32 @@ func (p *protocol) GetStats() (*protocols.ProtocolStats, func()) {
 // IsBuildModeSupported returns always true, as http module is supported by all modes.
 func (*protocol) IsBuildModeSupported(buildmode.Type) bool {
 	return true
+}
+
+// createAdaptiveConsumer creates the appropriate consumer based on kernel version
+// and determines which callback method to use internally
+func (p *protocol) createAdaptiveConsumer() error {
+	kernelVersion, err := kernel.HostVersion()
+	if err != nil {
+		return err
+	}
+
+	if kernelVersion >= kernel.VersionCode(5, 8, 0) {
+		// Use DirectConsumer for kernel ≥5.8 (supports bpf_perf_event_output in socket filters)
+		directConsumer, err := events.NewDirectConsumer("http", p.processHTTPDirect, p.cfg)
+		if err != nil {
+			return err
+		}
+		p.consumer = events.NewKernelAdaptiveConsumer[EbpfEvent](
+			directConsumer,
+			[]ddebpf.Modifier{&directConsumer.EventHandler},
+		)
+		p.useDirectConsumer = true
+	} else {
+		// BatchConsumer will be created in PreStart() after manager initialization
+		// to avoid "manager must be initialized first" error
+		p.useDirectConsumer = false
+	}
+
+	return nil
 }
