@@ -23,17 +23,20 @@ import (
 	generator "k8s.io/kube-state-metrics/v2/pkg/metric_generator"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // NewDeploymentRolloutFactory returns a new Deployment rollout factory that provides rollout duration metrics
-func NewDeploymentRolloutFactory(client *apiserver.APIClient) customresource.RegistryFactory {
+func NewDeploymentRolloutFactory(client *apiserver.APIClient, rolloutTracker RolloutOperations) customresource.RegistryFactory {
 	return &deploymentRolloutFactory{
-		client: client.Cl,
+		client:         client.Cl,
+		rolloutTracker: rolloutTracker,
 	}
 }
 
 type deploymentRolloutFactory struct {
-	client kubernetes.Interface
+	client         kubernetes.Interface
+	rolloutTracker RolloutOperations
 }
 
 func (f *deploymentRolloutFactory) Name() string {
@@ -53,13 +56,23 @@ func (f *deploymentRolloutFactory) MetricFamilyGenerators() []generator.FamilyGe
 			basemetrics.ALPHA,
 			"",
 			wrapDeploymentFunc(func(d *appsv1.Deployment) *metric.Family {
-				// Check if deployment has an ongoing rollout
-				isOngoing := d.Generation != d.Status.ObservedGeneration ||
-					(d.Spec.Replicas != nil && d.Status.ReadyReplicas != *d.Spec.Replicas)
+
+				// if the generation changes we should consider the rollout ongoing,
+				// but if the generation didn't change, and there's also no rollout
+				// status, this could be a temporary pod issue, or something like
+				// node migration where pods are spun down and moved to another node,
+				// so we don't consider that ongoing, or we'd emit a metric for deployments
+				// that have been stable for a while and then were migrated.
+				isNewRollout := d.Generation != d.Status.ObservedGeneration
+				hasRolloutCondition := f.rolloutTracker.HasRolloutCondition(d)
+				isOngoing := isNewRollout || hasRolloutCondition
+
+				log.Infof("ROLLOUT-DEBUG Deployment %s/%s: isOngoing=%t, isNewRollout=%t, hasRolloutCondition=%t, generation=%d, observedGeneration=%d, readyReplicas=%d, replicas=%v",
+					d.Namespace, d.Name, isOngoing, isNewRollout, hasRolloutCondition, d.Generation, d.Status.ObservedGeneration,
+					d.Status.ReadyReplicas, d.Spec.Replicas)
 
 				if isOngoing {
-					// Store deployment for rollout tracking
-					StoreDeployment(d)
+					f.rolloutTracker.StoreDeployment(d)
 
 					// Return dummy metric with value 1 to trigger transformer
 					return &metric.Family{
@@ -73,7 +86,7 @@ func (f *deploymentRolloutFactory) MetricFamilyGenerators() []generator.FamilyGe
 					}
 				}
 				// Rollout complete - cleanup and return 0
-				CleanupDeployment(d.Namespace, d.Name)
+				f.rolloutTracker.CleanupDeployment(d.Namespace, d.Name)
 				return &metric.Family{
 					Metrics: []*metric.Metric{
 						{
