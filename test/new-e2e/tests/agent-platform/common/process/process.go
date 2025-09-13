@@ -25,7 +25,7 @@ func IsRunning(host *components.RemoteHost, processName string) (bool, error) {
 	return false, fmt.Errorf("unsupported OS type: %v", os)
 }
 
-// FindPID returns list of PIDs that match processName
+// FindPID returns list of PIDs of processes whose name match the pattern processName
 func FindPID(host *components.RemoteHost, processName string) ([]int, error) {
 	os := host.OSFamily
 	if os == componentos.LinuxFamily {
