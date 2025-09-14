@@ -320,8 +320,8 @@ func (tx *EbpfTx) StaticTags() uint64 {
 	return uint64(tx.Stream.Tags)
 }
 
-// DynamicTags returns the dynamic tags of the transaction.
-func (tx *EbpfTx) DynamicTags() []string {
+// OsSpecific returns nothing for Linux.
+func (tx *EbpfTx) OsSpecific() *http.RequestStatOSSpecific {
 	return nil
 }
 

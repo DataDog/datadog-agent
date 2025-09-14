@@ -58,7 +58,6 @@ func (e *http2Encoder) EncodeConnection(c network.ConnectionStats, builder *mode
 
 func (e *http2Encoder) encodeData(connectionData *USMConnectionData[http.Key, *http.RequestStats], w io.Writer) (uint64, map[string]struct{}) {
 	var staticTags uint64
-	dynamicTags := make(map[string]struct{})
 	e.http2AggregationsBuilder.Reset(w)
 
 	for _, kvPair := range connectionData.Data {
@@ -86,14 +85,11 @@ func (e *http2Encoder) encodeData(connectionData *USMConnectionData[http.Key, *h
 				})
 
 				staticTags |= stats.StaticTags
-				for dynamicTag := range stats.DynamicTags {
-					dynamicTags[dynamicTag] = struct{}{}
-				}
 			}
 		})
 	}
 
-	return staticTags, dynamicTags
+	return staticTags, nil
 }
 
 func (e *http2Encoder) Close() {

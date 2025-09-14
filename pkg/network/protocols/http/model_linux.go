@@ -92,8 +92,8 @@ func (e *EbpfEvent) StaticTags() uint64 {
 	return e.Http.Tags
 }
 
-// DynamicTags returns the dynamic tags associated to the HTTP trasnaction
-func (e *EbpfEvent) DynamicTags() []string {
+// OsSpecific returns nothing for Linux.
+func (e *EbpfEvent) OsSpecific() *RequestStatOSSpecific {
 	return nil
 }
 

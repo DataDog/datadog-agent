@@ -16,7 +16,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -197,11 +196,7 @@ func (h *StatKeeper) add(tx Transaction) {
 		h.stats[key] = stats
 	}
 
-	dynamicTagsSet := common.StringSet(nil)
-	if dynamicTags := tx.DynamicTags(); len(dynamicTags) > 0 {
-		dynamicTagsSet = common.NewStringSet(dynamicTags...)
-	}
-	stats.AddRequest(tx.StatusCode(), latency, tx.StaticTags(), dynamicTagsSet)
+	stats.AddRequest(tx.StatusCode(), latency, tx.StaticTags(), tx.OsSpecific())
 }
 
 func pathIsMalformed(fullPath []byte) bool {

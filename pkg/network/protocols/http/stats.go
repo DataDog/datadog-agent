@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux_bpf || (windows && npm)
+
 package http
 
 import (
@@ -13,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/intern"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -123,8 +124,7 @@ type RequestStat struct {
 	// Tags bitfields from tags-types.h
 	StaticTags uint64
 
-	// Dynamic tags (if attached)
-	DynamicTags common.StringSet
+	*RequestStatOSSpecific
 }
 
 func (r *RequestStat) initSketch() error {
@@ -166,7 +166,7 @@ func (r *RequestStats) CombineWith(newStats *RequestStats) {
 
 		if newRequests.Count == 1 {
 			// The other bucket has a single latency sample, so we "manually" add it
-			r.AddRequest(statusCode, newRequests.FirstLatencySample, newRequests.StaticTags, newRequests.DynamicTags)
+			r.AddRequest(statusCode, newRequests.FirstLatencySample, newRequests.StaticTags, newRequests.RequestStatOSSpecific)
 			continue
 		}
 
@@ -200,7 +200,7 @@ func (r *RequestStats) CombineWith(newStats *RequestStats) {
 }
 
 // AddRequest takes information about a HTTP transaction and adds it to the request stats
-func (r *RequestStats) AddRequest(statusCode uint16, latency float64, staticTags uint64, dynamicTags common.StringSet) {
+func (r *RequestStats) AddRequest(statusCode uint16, latency float64, staticTags uint64, osSpecificFields *RequestStatOSSpecific) {
 	if !isValidStatusCode(statusCode) {
 		return
 	}
@@ -212,14 +212,7 @@ func (r *RequestStats) AddRequest(statusCode uint16, latency float64, staticTags
 	}
 
 	stats.StaticTags |= staticTags
-	if len(dynamicTags) != 0 {
-		if stats.DynamicTags == nil {
-			stats.DynamicTags = common.NewStringSet()
-		}
-		for tag := range dynamicTags {
-			stats.DynamicTags.Add(tag)
-		}
-	}
+	stats.RequestStatOSSpecific.merge(osSpecificFields)
 
 	stats.Count++
 	if stats.Count == 1 {

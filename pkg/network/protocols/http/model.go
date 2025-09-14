@@ -22,7 +22,7 @@ type Transaction interface {
 	StatusCode() uint16
 	SetStatusCode(uint16)
 	StaticTags() uint64
-	DynamicTags() []string
+	OsSpecific() *RequestStatOSSpecific
 	String() string
 	Incomplete() bool
 	Path(buffer []byte) ([]byte, bool)
