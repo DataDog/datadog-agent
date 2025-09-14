@@ -145,6 +145,7 @@ func (r *RequestStat) close() {
 	if r.Latencies != nil {
 		r.Latencies.Clear()
 		protocols.SketchesPool.Put(r.Latencies)
+		r.Latencies = nil
 	}
 
 	r.Count = 0
