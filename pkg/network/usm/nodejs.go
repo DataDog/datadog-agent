@@ -200,7 +200,7 @@ type nodeJSMonitor struct {
 var _ protocols.Protocol = (*nodeJSMonitor)(nil)
 
 func newNodeJSMonitor(mgr *manager.Manager, c *config.Config) (protocols.Protocol, error) {
-	if !c.EnableNodeJSMonitoring || !usmconfig.TLSSupported(c) || !usmconfig.UretprobeSupported() {
+	if !c.EnableNodeJSMonitoring || !usmconfig.TLSSupported(c) {
 		return nil, nil
 	}
 

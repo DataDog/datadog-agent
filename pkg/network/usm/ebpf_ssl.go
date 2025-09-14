@@ -450,7 +450,7 @@ type sslProgram struct {
 }
 
 func newSSLProgramProtocolFactory(m *manager.Manager, c *config.Config) (protocols.Protocol, error) {
-	if !c.EnableNativeTLSMonitoring || !usmconfig.TLSSupported(c) || !usmconfig.UretprobeSupported() {
+	if !c.EnableNativeTLSMonitoring || !usmconfig.TLSSupported(c) {
 		return nil, nil
 	}
 

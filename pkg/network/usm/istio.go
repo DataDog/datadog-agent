@@ -150,7 +150,7 @@ type istioMonitor struct {
 var _ protocols.Protocol = (*istioMonitor)(nil)
 
 func newIstioMonitor(mgr *manager.Manager, c *config.Config) (protocols.Protocol, error) {
-	if !c.EnableIstioMonitoring || !usmconfig.TLSSupported(c) || !usmconfig.UretprobeSupported() {
+	if !c.EnableIstioMonitoring || !usmconfig.TLSSupported(c) {
 		return nil, nil
 	}
 

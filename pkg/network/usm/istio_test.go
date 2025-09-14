@@ -27,8 +27,10 @@ const (
 )
 
 func TestIsIstioBinary(t *testing.T) {
-	utils.SkipIfTLSUnsupported(t, utils.NewUSMEmptyConfig())
-	procRoot := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{})
+	if !usmconfig.TLSSupported(utils.NewUSMEmptyConfig()) {
+		t.Skip("TLS not supported")
+	}
+	procRoot := uprobes.CreateFakeProcFS(t, []uprobes.FakeProcFSEntry{})
 	m := newIstioTestMonitor(t, procRoot)
 
 	t.Run("an actual envoy process", func(t *testing.T) {
@@ -40,7 +42,9 @@ func TestIsIstioBinary(t *testing.T) {
 }
 
 func TestGetEnvoyPathWithConfig(t *testing.T) {
-	utils.SkipIfTLSUnsupported(t, utils.NewUSMEmptyConfig())
+	if !usmconfig.TLSSupported(utils.NewUSMEmptyConfig()) {
+		t.Skip("TLS not supported")
+	}
 	cfg := utils.NewUSMEmptyConfig()
 	cfg.EnableIstioMonitoring = true
 	cfg.EnvoyPath = "/test/envoy"
@@ -51,7 +55,9 @@ func TestGetEnvoyPathWithConfig(t *testing.T) {
 }
 
 func TestIstioSync(t *testing.T) {
-	utils.SkipIfTLSUnsupported(t, utils.NewUSMEmptyConfig())
+	if !usmconfig.TLSSupported(utils.NewUSMEmptyConfig()) {
+		t.Skip("TLS not supported")
+	}
 	t.Run("calling sync for the first time", func(tt *testing.T) {
 		procRoot := kernel.CreateFakeProcFS(tt, []kernel.FakeProcFSEntry{
 			{Pid: 1, Exe: defaultEnvoyName},
