@@ -273,6 +273,7 @@ func (r *RequestStats) Close() {
 			requestStatPool.Put(stats)
 		}
 	}
+	clear(r.Data)
 }
 
 // isValidStatusCode checks if the status code is in the range of valid HTTP responses
