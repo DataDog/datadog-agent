@@ -22,7 +22,10 @@ var (
 	// CIncludePattern is the regex for #include headers of C files
 	CIncludePattern = `^\s*#include\s+"(.*)"$`
 	includeRegexp   *regexp.Regexp
-	ignoredHeaders  = map[string]struct{}{"vmlinux.h": {}}
+	ignoredHeaders  = map[string]struct{}{
+		"vmlinux.h":     {},
+		"tests/tests.h": {}, // CWS baloum tests
+	}
 )
 
 func init() {
