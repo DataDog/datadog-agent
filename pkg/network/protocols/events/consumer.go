@@ -116,7 +116,7 @@ func NewDirectConsumer[V any](proto string, callback func(*V), config *config.Co
 		mapName,
 		handler,
 		mode,
-		perf.SendTelemetry(true), // TODO: Make this configurable like config.InternalTelemetryEnabled
+		perf.SendTelemetry(config.InternalTelemetryEnabled),
 		perf.RingBufferEnabledConstantName("ringbuffers_enabled"),
 		perf.RingBufferWakeupSize("ringbuffer_wakeup_size",
 			uint64(config.USMDirectBufferWakeupCount*(eventSize+unix.BPF_RINGBUF_HDR_SZ))),
