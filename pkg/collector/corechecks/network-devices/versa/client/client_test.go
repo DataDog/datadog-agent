@@ -406,19 +406,21 @@ func TestGetSLAMetrics(t *testing.T) {
 func TestGetLinkUsageMetrics(t *testing.T) {
 	expectedLinkUsageMetrics := []LinkUsageMetrics{
 		{
-			DrillKey:          "test-branch-2B,INET-1",
-			Site:              "test-branch-2B",
-			AccessCircuit:     "INET-1",
-			UplinkBandwidth:   "10000000000",
-			DownlinkBandwidth: "10000000000",
-			Type:              "Unknown",
-			Media:             "Unknown",
-			IP:                "10.20.20.7",
-			ISP:               "",
-			VolumeTx:          757144.0,
-			VolumeRx:          457032.0,
-			BandwidthTx:       6730.168888888889,
-			BandwidthRx:       4062.5066666666667,
+			DrillKey:                "test-branch-2B,INET-1",
+			Site:                    "test-branch-2B",
+			AccessCircuit:           "INET-1",
+			UplinkBandwidthString:   "10000000000",
+			DownlinkBandwidthString: "10000000000",
+			UplinkBandwidth:         10000000000.0,
+			DownlinkBandwidth:       10000000000.0,
+			Type:                    "Unknown",
+			Media:                   "Unknown",
+			IP:                      "10.20.20.7",
+			ISP:                     "",
+			VolumeTx:                757144.0,
+			VolumeRx:                457032.0,
+			BandwidthTx:             6730.168888888889,
+			BandwidthRx:             4062.5066666666667,
 		},
 	}
 	server := SetupMockAPIServer()
@@ -822,4 +824,111 @@ func TestGetAnalyticsInterfacesEmptyTenant(t *testing.T) {
 	_, err = client.GetAnalyticsInterfaces("")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "tenant cannot be empty")
+}
+
+func TestPaginationParameterName(t *testing.T) {
+	tests := []struct {
+		name               string
+		useStartPagination bool
+		expectedParam      string
+	}{
+		{
+			name:               "default pagination uses offset",
+			useStartPagination: false,
+			expectedParam:      "offset",
+		},
+		{
+			name:               "feature flag enabled uses start",
+			useStartPagination: true,
+			expectedParam:      "start",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			authConfig := AuthConfig{
+				Method:   "basic",
+				Username: "user",
+				Password: "password",
+			}
+
+			client, err := NewClient("example.com", 9182, "analytics.example.com:8443", false, authConfig)
+			require.NoError(t, err)
+
+			client.useStartPagination = tt.useStartPagination
+
+			param := client.getOffsetParamName()
+			require.Equal(t, tt.expectedParam, param)
+		})
+	}
+}
+
+func TestWithStartPaginationOption(t *testing.T) {
+	// Create mock AuthConfig
+	authConfig := AuthConfig{
+		Method:   "basic",
+		Username: "user",
+		Password: "password",
+	}
+
+	// Test with feature flag disabled (default)
+	client, err := NewClient("example.com", 9182, "analytics.example.com:8443", false, authConfig)
+	require.NoError(t, err)
+	require.False(t, client.useStartPagination)
+	require.Equal(t, "offset", client.getOffsetParamName())
+
+	// Test with feature flag enabled
+	client, err = NewClient("example.com", 9182, "analytics.example.com:8443", false, authConfig, WithStartPagination(true))
+	require.NoError(t, err)
+	require.True(t, client.useStartPagination)
+	require.Equal(t, "start", client.getOffsetParamName())
+
+	// Test with feature flag explicitly disabled
+	client, err = NewClient("example.com", 9182, "analytics.example.com:8443", false, authConfig, WithStartPagination(false))
+	require.NoError(t, err)
+	require.False(t, client.useStartPagination)
+	require.Equal(t, "offset", client.getOffsetParamName())
+}
+
+func TestWithAlternateAppliancesOption(t *testing.T) {
+	authConfig := AuthConfig{
+		Method:   "basic",
+		Username: "user",
+		Password: "password",
+	}
+
+	// Test with feature flag disabled (default)
+	client, err := NewClient("example.com", 9182, "analytics.example.com:8443", false, authConfig)
+	require.NoError(t, err)
+	require.False(t, client.useAlternateAppliances)
+
+	// Test with feature flag enabled
+	client, err = NewClient("example.com", 9182, "analytics.example.com:8443", false, authConfig, WithAlternateAppliances(true))
+	require.NoError(t, err)
+	require.True(t, client.useAlternateAppliances)
+
+	// Test with feature flag explicitly disabled
+	client, err = NewClient("example.com", 9182, "analytics.example.com:8443", false, authConfig, WithAlternateAppliances(false))
+	require.NoError(t, err)
+	require.False(t, client.useAlternateAppliances)
+}
+
+func TestUseAlternateAppliancesFlag(t *testing.T) {
+	authConfig := AuthConfig{
+		Method:   "basic",
+		Username: "user",
+		Password: "password",
+	}
+
+	t.Run("UseAlternateAppliances=false", func(t *testing.T) {
+		client, err := NewClient("example.com", 9182, "analytics.example.com:8443", false, authConfig, WithAlternateAppliances(false))
+		require.NoError(t, err)
+		require.False(t, client.useAlternateAppliances)
+	})
+
+	t.Run("UseAlternateAppliances=true", func(t *testing.T) {
+		client, err := NewClient("example.com", 9182, "analytics.example.com:8443", false, authConfig, WithAlternateAppliances(true))
+		require.NoError(t, err)
+		require.True(t, client.useAlternateAppliances)
+	})
 }
