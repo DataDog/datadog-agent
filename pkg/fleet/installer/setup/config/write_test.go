@@ -89,24 +89,6 @@ site: datadoghq.com
 `,
 		},
 		{
-			// yaml.Node treats comment-only yaml files with the --- header differently
-			// than without it. In this case, it's parsed as a null scalar node,
-			// and the comment is a foot comment.
-			// Note that this differs from the previous test without the --- header.
-			// Not sure if this is a yaml.Node bug or expected behavior.
-			// If a yaml.Node update changes to the output to match then we can just update the test.
-			name: "document start with only comments",
-			initialYAML: `---
-# comment
-`,
-			config: simpleConfig{Site: "datadoghq.com"},
-			merge:  true,
-			expectedYAML: `site: datadoghq.com
-
-# comment
-`,
-		},
-		{
 			name: "preserves block style comments",
 			initialYAML: `api_key: oldkey
 ###########################

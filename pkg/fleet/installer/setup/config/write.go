@@ -50,8 +50,7 @@ func writeConfig(path string, config any, perms os.FileMode, merge bool) error {
 	// Merge the updated `config` node tree into the original YAML
 	rootIsEmpty := len(root.Content) == 0
 	if len(root.Content) > 0 && len(updatedRoot.Content) > 0 {
-		// Merge at the DocumentNode level to handle non-mapping roots (e.g., scalar or empty)
-		mergeNodes(&root, &updatedRoot)
+		mergeNodes(root.Content[0], updatedRoot.Content[0])
 	} else if rootIsEmpty {
 		root = updatedRoot
 	}
@@ -83,39 +82,9 @@ func writeConfig(path string, config any, perms os.FileMode, merge bool) error {
 // mergeNodes merges the src node into the dst node
 //
 // The values are merged as follows:
-//   - If the value is a mapping, the nodes are merged recursively
-//   - for other types, the src value overrides the dst value
+// - If the value is a mapping, the nodes are merged recursively
+// - for other types, the src value overrides the dst value
 func mergeNodes(dst *yaml.Node, src *yaml.Node) {
-	// Handle top-level DocumentNode merging to support empty, scalar, and mapping roots
-	if dst.Kind == yaml.DocumentNode && src.Kind == yaml.DocumentNode {
-		// If source document has no content, nothing to merge
-		if len(src.Content) == 0 {
-			return
-		}
-		// If the destination document has no content, copy source content
-		// Example: file with only comments
-		if len(dst.Content) == 0 {
-			dst.Content = src.Content[:]
-			return
-		}
-
-		dstChild := dst.Content[0]
-		srcChild := src.Content[0]
-
-		if dstChild.Kind == yaml.MappingNode && srcChild.Kind == yaml.MappingNode {
-			mergeNodes(dstChild, srcChild)
-			return
-		}
-
-		// For non-mapping roots, replace destination root with source root
-		// and copy node-level comments if missing on current.
-		// Example: --- header and only a comment, no other fields.
-		//          not sure if this is a yaml.Node bug or expected behavior...
-		copyNodeComments(srcChild, dstChild)
-		dst.Content[0] = srcChild
-		return
-	}
-
 	if dst.Kind != yaml.MappingNode || src.Kind != yaml.MappingNode {
 		return
 	}
@@ -138,24 +107,20 @@ func mergeNodes(dst *yaml.Node, src *yaml.Node) {
 			} else {
 				// for other types, the src value overrides the dst value
 
-				// Replace node and copy node-level comments if missing on current
-				copyNodeComments(srcVal, dstVal)
+				// Copy node-level comments if missing on current
+				if srcVal.HeadComment == "" && dstVal.HeadComment != "" {
+					srcVal.HeadComment = dstVal.HeadComment
+				}
+				if srcVal.LineComment == "" && dstVal.LineComment != "" {
+					srcVal.LineComment = dstVal.LineComment
+				}
+				if srcVal.FootComment == "" && dstVal.FootComment != "" {
+					srcVal.FootComment = dstVal.FootComment
+				}
 				dst.Content[idx+1] = srcVal
 			}
 		} else {
 			dst.Content = append(dst.Content, srcKey, srcVal)
 		}
-	}
-}
-
-func copyNodeComments(dst *yaml.Node, src *yaml.Node) {
-	if src.HeadComment != "" && dst.HeadComment == "" {
-		dst.HeadComment = src.HeadComment
-	}
-	if src.LineComment != "" && dst.LineComment == "" {
-		dst.LineComment = src.LineComment
-	}
-	if src.FootComment != "" && dst.FootComment == "" {
-		dst.FootComment = src.FootComment
 	}
 }
