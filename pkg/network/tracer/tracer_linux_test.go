@@ -1610,13 +1610,16 @@ func testUDPReusePort(t *testing.T, udpnet string, ip string) {
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
 	t.Logf("port: %d", assignedPort)
 
+	var incoming, outgoing *network.ConnectionStats
 	assert.EventuallyWithT(t, func(ct *assert.CollectT) {
-		// use t instead of ct because getConnections uses require (not assert), and we get a better error message that way
 		connections, cleanup := getConnections(ct, tr)
 		defer cleanup()
 
-		incoming, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
-		if assert.True(ct, ok, "unable to find incoming connection") {
+		curIncoming, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
+		if ok {
+			incoming = curIncoming
+		}
+		if assert.NotNil(ct, incoming, "unable to find incoming connection") {
 			assert.Equal(ct, network.INCOMING, incoming.Direction)
 
 			// make sure the inverse values are seen for the other message
@@ -1625,8 +1628,11 @@ func testUDPReusePort(t *testing.T, udpnet string, ip string) {
 			assert.True(ct, incoming.IntraHost, "incoming intrahost")
 		}
 
-		outgoing, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-		if assert.True(ct, ok, "unable to find outgoing connection") {
+		curOutgoing, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+		if ok {
+			outgoing = curOutgoing
+		}
+		if assert.NotNil(ct, outgoing, "unable to find outgoing connection") {
 			assert.Equal(ct, network.OUTGOING, outgoing.Direction)
 
 			assert.Equal(ct, clientMessageSize, int(outgoing.Monotonic.SentBytes), "outgoing sent")
