@@ -7,7 +7,7 @@
       "kernel": "6.0.7-301.fc37",
       "os_version": "37",
       "image": "Fedora-Cloud-Base-37.x86_64.qcow2.xz",
-      "image_version": "20241003_a9a46356"
+      "image_version": "guillermo.julian/update-images"
     },
     "fedora_38": {
       "os_name": "Fedora Linux",
@@ -15,7 +15,7 @@
       "kernel": "6.2.9-300.fc38",
       "os_version": "38",
       "image": "Fedora-Cloud-Base-38.x86_64.qcow2.xz",
-      "image_version": "20241003_a9a46356"
+      "image_version": "guillermo.julian/update-images"
     },
     "amazon_4.14": {
       "os_name": "Amazon Linux",
@@ -71,7 +71,7 @@
       "kernel": "4.19.0-27",
       "os_version": "10",
       "image": "debian-10-generic-x86_64.qcow2.xz",
-      "image_version": "20241003_a9a46356",
+      "image_version": "guillermo.julian/update-images",
       "alt_version_names": [
         "buster"
       ]
@@ -79,10 +79,10 @@
     "debian_11": {
       "os_name": "Debian GNU/Linux",
       "os_id": "debian",
-      "kernel": "5.10.0-32",
+      "kernel": "5.10.0-35",
       "os_version": "11",
       "image": "debian-11-generic-x86_64.qcow2.xz",
-      "image_version": "20241003_a9a46356",
+      "image_version": "guillermo.julian/update-images",
       "alt_version_names": [
         "bullseye"
       ]
@@ -90,10 +90,10 @@
     "debian_12": {
       "os_name": "Debian GNU/Linux",
       "os_id": "debian",
-      "kernel": "6.1.0-25",
+      "kernel": "6.1.0-39",
       "os_version": "12",
       "image": "debian-12-generic-x86_64.qcow2.xz",
-      "image_version": "20241003_a9a46356",
+      "image_version": "guillermo.julian/update-images",
       "alt_version_names": [
         "bookworm"
       ]
@@ -144,7 +144,7 @@
       "kernel": "4.4.0-210-generic",
       "os_version": "16.04",
       "image": "ubuntu-16.04-x86_64.qcow2.xz",
-      "image_version": "20241003_a9a46356",
+      "image_version": "guillermo.julian/update-images",
       "alt_version_names": [
         "xenial"
       ]
@@ -155,7 +155,7 @@
       "kernel": "4.18.0-25-generic",
       "os_version": "18.04",
       "image": "ubuntu-18.04-x86_64.qcow2.xz",
-      "image_version": "20241003_a9a46356",
+      "image_version": "guillermo.julian/update-images",
       "alt_version_names": [
         "bionic"
       ]
@@ -166,7 +166,7 @@
       "kernel": "5.4.0-167-generic",
       "os_version": "20.04",
       "image": "ubuntu-20.04-x86_64.qcow2.xz",
-      "image_version": "20241003_a9a46356",
+      "image_version": "guillermo.julian/update-images",
       "alt_version_names": [
         "focal"
       ]
@@ -177,7 +177,7 @@
       "kernel": "5.15.0-91-generic",
       "os_version": "22.04",
       "image": "ubuntu-22.04-x86_64.qcow2.xz",
-      "image_version": "20241003_a9a46356",
+      "image_version": "guillermo.julian/update-images",
       "alt_version_names": [
         "jammy"
       ]
@@ -199,7 +199,7 @@
       "kernel": "6.8.0-31-generic",
       "os_version": "24.04",
       "image": "ubuntu-24.04-x86_64.qcow2.xz",
-      "image_version": "20241003_a9a46356",
+      "image_version": "guillermo.julian/update-images",
       "alt_version_names": [
         "noble"
       ]
@@ -223,10 +223,10 @@
     "suse_12.5": {
       "os_name": "SLES",
       "os_id": "sles",
-      "kernel": "4.12.14-122.228.1",
+      "kernel": "4.12.14-122.231.1",
       "os_version": "12.5",
       "image": "suse-12.5-x86_64.qcow2.xz",
-      "image_version": "20241003_a9a46356"
+      "image_version": "guillermo.julian/update-images"
     },
     "debian_9": {
       "os_name": "Debian GNU/Linux",
@@ -234,7 +234,7 @@
       "kernel": "4.9.0-19",
       "os_version": "9",
       "image": "debian-9-generic-x86_64.qcow2.xz",
-      "image_version": "20241003_a9a46356",
+      "image_version": "guillermo.julian/update-images",
       "alt_version_names": [
         "stretch"
       ]
@@ -245,7 +245,7 @@
       "kernel": "6.8.5-301.fc40",
       "os_version": "40",
       "image": "Fedora-Cloud-Base-40.x86_64.qcow2.xz",
-      "image_version": "20241003_a9a46356"
+      "image_version": "guillermo.julian/update-images"
     },
     "ubuntu_24.10": {
       "os_name": "Ubuntu",
@@ -253,7 +253,7 @@
       "kernel": "6.11.0-8-generic",
       "os_version": "24.10",
       "image": "ubuntu-24.10-x86_64.qcow2.xz",
-      "image_version": "20241028_31340374",
+      "image_version": "guillermo.julian/update-images",
       "alt_version_names": [
         "oracular"
       ]
@@ -282,7 +282,7 @@
       "kernel": "6.0.7-301.fc37",
       "os_version": "37",
       "image": "Fedora-Cloud-Base-37.arm64.qcow2.xz",
-      "image_version": "20241003_a9a46356"
+      "image_version": "guillermo.julian/update-images"
     },
     "fedora_38": {
       "os_name": "Fedora Linux",
@@ -290,7 +290,7 @@
       "kernel": "6.2.9-300.fc38",
       "os_version": "38",
       "image": "Fedora-Cloud-Base-38.arm64.qcow2.xz",
-      "image_version": "20241003_a9a46356"
+      "image_version": "guillermo.julian/update-images"
     },
     "amazon_4.14": {
       "os_name": "Amazon Linux",
@@ -330,7 +330,7 @@
       "kernel": "4.19.0-27",
       "os_version": "10",
       "image": "debian-10-generic-arm64.qcow2.xz",
-      "image_version": "20241003_a9a46356",
+      "image_version": "guillermo.julian/update-images",
       "alt_version_names": [
         "buster"
       ]
@@ -338,10 +338,10 @@
     "debian_11": {
       "os_name": "Debian GNU/Linux",
       "os_id": "debian",
-      "kernel": "5.10.0-32",
+      "kernel": "5.10.0-35",
       "os_version": "11",
       "image": "debian-11-generic-arm64.qcow2.xz",
-      "image_version": "20241003_a9a46356",
+      "image_version": "guillermo.julian/update-images",
       "alt_version_names": [
         "bullseye"
       ]
@@ -349,10 +349,10 @@
     "debian_12": {
       "os_name": "Debian GNU/Linux",
       "os_id": "debian",
-      "kernel": "6.1.0-25",
+      "kernel": "6.1.0-39",
       "os_version": "12",
       "image": "debian-12-generic-arm64.qcow2.xz",
-      "image_version": "20241003_a9a46356",
+      "image_version": "guillermo.julian/update-images",
       "alt_version_names": [
         "bookworm"
       ]
@@ -411,7 +411,7 @@
       "kernel": "4.18.0-25-generic",
       "os_version": "18.04",
       "image": "ubuntu-18.04-arm64.qcow2.xz",
-      "image_version": "20241003_a9a46356",
+      "image_version": "guillermo.julian/update-images",
       "alt_version_names": [
         "bionic"
       ]
@@ -422,7 +422,7 @@
       "kernel": "5.4.0-167-generic",
       "os_version": "20.04",
       "image": "ubuntu-20.04-arm64.qcow2.xz",
-      "image_version": "20241003_a9a46356",
+      "image_version": "guillermo.julian/update-images",
       "alt_version_names": [
         "focal"
       ]
@@ -433,7 +433,7 @@
       "kernel": "5.15.0-91-generic",
       "os_version": "22.04",
       "image": "ubuntu-22.04-arm64.qcow2.xz",
-      "image_version": "20241003_a9a46356",
+      "image_version": "guillermo.julian/update-images",
       "alt_version_names": [
         "jammy"
       ]
@@ -455,7 +455,7 @@
       "kernel": "6.8.0-31-generic",
       "os_version": "24.04",
       "image": "ubuntu-24.04-arm64.qcow2.xz",
-      "image_version": "20241003_a9a46356",
+      "image_version": "guillermo.julian/update-images",
       "alt_version_names": [
         "noble"
       ]
@@ -479,10 +479,10 @@
     "suse_12.5": {
       "os_name": "SLES",
       "os_id": "sles",
-      "kernel": "4.12.14-122.228.1",
+      "kernel": "4.12.14-122.231.1",
       "os_version": "12.5",
       "image": "suse-12.5-arm64.qcow2.xz",
-      "image_version": "20241003_a9a46356"
+      "image_version": "guillermo.julian/update-images"
     },
     "fedora_40": {
       "os_name": "Fedora Linux",
@@ -490,7 +490,7 @@
       "kernel": "6.8.5-301.fc40",
       "os_version": "40",
       "image": "Fedora-Cloud-Base-40.arm64.qcow2.xz",
-      "image_version": "20241003_a9a46356"
+      "image_version": "guillermo.julian/update-images"
     },
     "ubuntu_24.10": {
       "os_name": "Ubuntu",
@@ -498,7 +498,7 @@
       "kernel": "6.11.0-8-generic",
       "os_version": "24.10",
       "image": "ubuntu-24.10-arm64.qcow2.xz",
-      "image_version": "20241028_31340374",
+      "image_version": "guillermo.julian/update-images",
       "alt_version_names": [
         "oracular"
       ]
