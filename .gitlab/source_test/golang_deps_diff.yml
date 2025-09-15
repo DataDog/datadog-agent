@@ -33,9 +33,9 @@ golang_deps_commenter:
   needs: ["golang_deps_diff"]
   script:
     - if [ ! -s deps-report.md ]; then
-        dda inv -- -e pr-commenter --title="Go Package Import Differences" --delete ;
+        dda inv -- -e github.pr-commenter --title="Go Package Import Differences" --delete ;
       else
-        dda inv -- -e pr-commenter --title="Go Package Import Differences" --body-file=deps-report.md ;
+        dda inv -- -e github.pr-commenter --title="Go Package Import Differences" --body-file=deps-report.md ;
       fi
 
 golang_deps_send_count_metrics:
