@@ -264,7 +264,6 @@ func (d *daemonImpl) getConfig(version string) (installerConfig, error) {
 
 	config, ok := configs[version]
 	if !ok {
-		// TODO
 		return installerConfig{}, fmt.Errorf("config version %s not found in available configs", version)
 	}
 	return config, nil

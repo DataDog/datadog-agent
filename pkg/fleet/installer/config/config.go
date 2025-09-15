@@ -17,6 +17,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/symlink"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	patch "gopkg.in/evanphx/json-patch.v4"
 	"gopkg.in/yaml.v3"
 )
@@ -84,7 +85,7 @@ func (d *Directories) WriteExperiment(ctx context.Context, operations Operations
 		return err
 	}
 
-	operations.FileOperations = append(operations.FileOperations, buildOperationsFromLegacyInstaller(d.StablePath)...)
+	operations.FileOperations = append(buildOperationsFromLegacyInstaller(d.StablePath), operations.FileOperations...)
 
 	err = operations.Apply(d.ExperimentPath)
 	if err != nil {
@@ -157,6 +158,7 @@ type FileOperation struct {
 }
 
 func (a *FileOperation) apply(root *os.Root) error {
+	log.Debugf("Applying fleet-automation file operation: %+v", a)
 	if !configNameAllowed(a.FilePath) && !(a.FileOperationType == FileOperationDelete && deleteConfigNameAllowed(a.FilePath)) {
 		return fmt.Errorf("modifying config file %s is not allowed", a.FilePath)
 	}
