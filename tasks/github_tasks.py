@@ -308,7 +308,7 @@ def pr_commenter(
     title: str,
     body: str = '',
     body_file: str = '',
-    pr_id: int | None = None,
+    pr_id: int = 0,
     verbose: bool = True,
     delete: bool = False,
     force_delete: bool = False,
@@ -343,7 +343,7 @@ def pr_commenter(
 
     github = GithubAPI()
 
-    if pr_id is None:
+    if pr_id == 0:
         branch = os.environ["CI_COMMIT_BRANCH"]
         prs = list(github.get_pr_for_branch(branch))
         if len(prs) == 0 and not fail_on_pr_missing:
