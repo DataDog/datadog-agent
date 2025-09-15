@@ -10,6 +10,7 @@ package collectorv2
 
 import (
 	"context"
+	"errors"
 	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -22,6 +23,7 @@ type OSScanner struct {
 }
 
 type actualScanner interface {
+	Name() string
 	ListPackages(ctx context.Context, root *os.Root) (types.Result, error)
 }
 
@@ -47,7 +49,10 @@ func (s *OSScanner) DirectScanForTrivyReport(ctx context.Context, root string) (
 	for _, scanner := range s.scanners {
 		result, err := scanner.ListPackages(ctx, rootFS)
 		if err != nil {
-			seclog.Errorf("failed to list packages with dpkg scanner: %v", err)
+			if !errors.Is(err, os.ErrNotExist) {
+				seclog.Errorf("failed to list packages with %s scanner: %v", scanner.Name(), err)
+			}
+			continue
 		}
 		report.Results = append(report.Results, result)
 	}

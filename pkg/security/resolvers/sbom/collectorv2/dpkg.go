@@ -28,7 +28,11 @@ import (
 type dpkgScanner struct {
 }
 
-func (s *dpkgScanner) ListPackages(ctx context.Context, root *os.Root) (types.Result, error) {
+func (s *dpkgScanner) Name() string {
+	return "dpkg"
+}
+
+func (s *dpkgScanner) ListPackages(_ context.Context, root *os.Root) (types.Result, error) {
 	pkgs, err := s.listInstalledPkgs(root)
 	if err != nil {
 		return types.Result{}, err

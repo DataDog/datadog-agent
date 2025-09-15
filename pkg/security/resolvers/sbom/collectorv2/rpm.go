@@ -36,10 +36,14 @@ var rpmdbPaths = []string{
 type rpmScanner struct {
 }
 
-func (s *rpmScanner) ListPackages(ctx context.Context, root *os.Root) (types.Result, error) {
+func (s *rpmScanner) Name() string {
+	return "rpm"
+}
+
+func (s *rpmScanner) ListPackages(_ context.Context, root *os.Root) (types.Result, error) {
 	for _, rpmdbPath := range rpmdbPaths {
-		if _, err := root.Stat(rpmdbPath); err == nil {
-			// found the rpmdb path
+		if _, err := root.Stat(rpmdbPath); err != nil {
+			continue
 		}
 
 		// sadly, we need to escape the root here :(
@@ -64,8 +68,7 @@ func (s *rpmScanner) ListPackages(ctx context.Context, root *os.Root) (types.Res
 			})
 		}
 		return types.Result{Packages: packages}, nil
-
 	}
 
-	return types.Result{}, fmt.Errorf("no rpmdb found in any of the known paths")
+	return types.Result{}, fmt.Errorf("no rpmdb found in any of the known paths: %w", os.ErrNotExist)
 }
