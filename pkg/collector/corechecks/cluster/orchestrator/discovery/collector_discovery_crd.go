@@ -206,7 +206,7 @@ func (d *DiscoveryCollector) List(group, version, kind string) []CollectorVersio
 }
 
 // OptimalVersion returns the best available version for a given group.
-func (d *DiscoveryCollector) OptimalVersion(groupName, preferredVersion string, availableVersions []string) (string, bool) {
+func (d *DiscoveryCollector) OptimalVersion(groupName, preferredVersion string, fallbackVersions []string) (string, bool) {
 	supportedVersions := d.getSupportedVersions(groupName)
 	if len(supportedVersions) == 0 {
 		return "", false
@@ -217,8 +217,8 @@ func (d *DiscoveryCollector) OptimalVersion(groupName, preferredVersion string, 
 		return preferredVersion, true
 	}
 
-	// Try available versions in order
-	for _, version := range availableVersions {
+	// Try fallback versions in order
+	for _, version := range fallbackVersions {
 		if version != "" && supportedVersions[version] {
 			return version, true
 		}

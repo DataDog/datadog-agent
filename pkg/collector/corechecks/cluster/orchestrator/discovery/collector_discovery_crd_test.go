@@ -159,13 +159,13 @@ func TestDiscoveryCollector_List(t *testing.T) {
 
 func TestDiscoveryCollector_OptimalVersion(t *testing.T) {
 	tests := []struct {
-		name              string
-		setup             func() *DiscoveryCollector
-		groupName         string
-		preferredVersion  string
-		availableVersions []string
-		expectedVersion   string
-		expectedFound     bool
+		name             string
+		setup            func() *DiscoveryCollector
+		groupName        string
+		preferredVersion string
+		fallbackVersions []string
+		expectedVersion  string
+		expectedFound    bool
 	}{
 		{
 			name: "returns preferred version when available",
@@ -185,11 +185,11 @@ func TestDiscoveryCollector_OptimalVersion(t *testing.T) {
 					},
 				}
 			},
-			groupName:         "datadoghq.com",
-			preferredVersion:  "v1alpha2",
-			availableVersions: []string{"v1alpha1", "v1beta1"},
-			expectedVersion:   "v1alpha2",
-			expectedFound:     true,
+			groupName:        "datadoghq.com",
+			preferredVersion: "v1alpha2",
+			fallbackVersions: []string{"v1alpha1", "v1beta1"},
+			expectedVersion:  "v1alpha2",
+			expectedFound:    true,
 		},
 		{
 			name: "returns first available version when preferred not supported",
@@ -208,11 +208,11 @@ func TestDiscoveryCollector_OptimalVersion(t *testing.T) {
 					},
 				}
 			},
-			groupName:         "datadoghq.com",
-			preferredVersion:  "v1alpha2", // not supported
-			availableVersions: []string{"v1beta1", "v1alpha1"},
-			expectedVersion:   "v1beta1",
-			expectedFound:     true,
+			groupName:        "datadoghq.com",
+			preferredVersion: "v1alpha2", // not supported
+			fallbackVersions: []string{"v1beta1", "v1alpha1"},
+			expectedVersion:  "v1beta1",
+			expectedFound:    true,
 		},
 		{
 			name: "returns second available version when first not supported",
@@ -231,11 +231,11 @@ func TestDiscoveryCollector_OptimalVersion(t *testing.T) {
 					},
 				}
 			},
-			groupName:         "argoproj.io",
-			preferredVersion:  "v2",                             // not supported
-			availableVersions: []string{"v1alpha2", "v1alpha1"}, // first not supported
-			expectedVersion:   "v1alpha1",
-			expectedFound:     true,
+			groupName:        "argoproj.io",
+			preferredVersion: "v2",                             // not supported
+			fallbackVersions: []string{"v1alpha2", "v1alpha1"}, // first not supported
+			expectedVersion:  "v1alpha1",
+			expectedFound:    true,
 		},
 		{
 			name: "returns false when group not found",
@@ -253,11 +253,11 @@ func TestDiscoveryCollector_OptimalVersion(t *testing.T) {
 					},
 				}
 			},
-			groupName:         "unknown.io",
-			preferredVersion:  "v1alpha1",
-			availableVersions: []string{"v1alpha1"},
-			expectedVersion:   "",
-			expectedFound:     false,
+			groupName:        "unknown.io",
+			preferredVersion: "v1alpha1",
+			fallbackVersions: []string{"v1alpha1"},
+			expectedVersion:  "",
+			expectedFound:    false,
 		},
 		{
 			name: "returns false when no versions supported",
@@ -276,11 +276,11 @@ func TestDiscoveryCollector_OptimalVersion(t *testing.T) {
 					},
 				}
 			},
-			groupName:         "datadoghq.com",
-			preferredVersion:  "v2",                      // not supported
-			availableVersions: []string{"v1beta1", "v3"}, // none supported
-			expectedVersion:   "",
-			expectedFound:     false,
+			groupName:        "datadoghq.com",
+			preferredVersion: "v2",                      // not supported
+			fallbackVersions: []string{"v1beta1", "v3"}, // none supported
+			expectedVersion:  "",
+			expectedFound:    false,
 		},
 		{
 			name: "works with empty preferred version",
@@ -299,11 +299,11 @@ func TestDiscoveryCollector_OptimalVersion(t *testing.T) {
 					},
 				}
 			},
-			groupName:         "karpenter.sh",
-			preferredVersion:  "", // empty
-			availableVersions: []string{"v1"},
-			expectedVersion:   "v1",
-			expectedFound:     true,
+			groupName:        "karpenter.sh",
+			preferredVersion: "", // empty
+			fallbackVersions: []string{"v1"},
+			expectedVersion:  "v1",
+			expectedFound:    true,
 		},
 		{
 			name: "handles empty available versions",
@@ -321,11 +321,11 @@ func TestDiscoveryCollector_OptimalVersion(t *testing.T) {
 					},
 				}
 			},
-			groupName:         "datadoghq.com",
-			preferredVersion:  "v1alpha2", // not supported
-			availableVersions: []string{}, // empty
-			expectedVersion:   "",
-			expectedFound:     false,
+			groupName:        "datadoghq.com",
+			preferredVersion: "v1alpha2", // not supported
+			fallbackVersions: []string{}, // empty
+			expectedVersion:  "",
+			expectedFound:    false,
 		},
 		{
 			name: "skips empty versions in available list",
@@ -344,18 +344,18 @@ func TestDiscoveryCollector_OptimalVersion(t *testing.T) {
 					},
 				}
 			},
-			groupName:         "datadoghq.com",
-			preferredVersion:  "v2",                         // not supported
-			availableVersions: []string{"", "v1alpha1", ""}, // empty strings
-			expectedVersion:   "v1alpha1",
-			expectedFound:     true,
+			groupName:        "datadoghq.com",
+			preferredVersion: "v2",                         // not supported
+			fallbackVersions: []string{"", "v1alpha1", ""}, // empty strings
+			expectedVersion:  "v1alpha1",
+			expectedFound:    true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dc := tt.setup()
-			version, found := dc.OptimalVersion(tt.groupName, tt.preferredVersion, tt.availableVersions)
+			version, found := dc.OptimalVersion(tt.groupName, tt.preferredVersion, tt.fallbackVersions)
 
 			assert.Equal(t, tt.expectedFound, found, "OptimalVersion() found mismatch")
 			assert.Equal(t, tt.expectedVersion, version, "OptimalVersion() version mismatch")
