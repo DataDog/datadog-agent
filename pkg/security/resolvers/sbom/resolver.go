@@ -144,12 +144,10 @@ type sbomCollector interface {
 	DirectScanForTrivyReport(ctx context.Context, root string) (*types.Report, error)
 }
 
-const useV2Collector = true
-
 // NewSBOMResolver returns a new instance of Resolver
 func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInterface) (*Resolver, error) {
 	var sbomCollector sbomCollector
-	if useV2Collector {
+	if c.SBOMResolverUseV2Collector {
 		sbomCollector = collectorv2.NewOSScanner()
 	} else {
 		opts := sbom.ScanOptions{
