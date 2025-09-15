@@ -37,6 +37,8 @@
 
 load("@rules_cc//cc:defs.bzl", "cc_library")
 load("@rules_license//rules:license.bzl", "license")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
 
 package(
     default_applicable_licenses = [":license"],
@@ -149,6 +151,30 @@ alias(
     name = "zlib",
     actual = ":z",
     visibility = ["//visibility:public"],
+)
+
+pkg_files(
+    name = "lib_files",
+    srcs = [":z"],
+    prefix = "lib",
+)
+
+pkg_files(
+    name = "hdr_files",
+    srcs = [
+        "zconf.h",
+        "zlib.h",
+    ],
+    prefix = "include",
+)
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":hdr_files",
+        ":lib_files",
+    ],
+    destdir = "/tmp",
 )
 
 # buildifier: disable=no-effect
