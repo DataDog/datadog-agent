@@ -4,10 +4,7 @@ Probes:
       version: 0
       type: LOG_PROBE
       where: {methodName: main.PointerChainArg}
-      capture:
-        maxReferenceDepth: 3
-        maxFieldCount: 0
-        maxCollectionSize: 0
+      capture: {maxReferenceDepth: 3}
       template: ""
       segments: []
       captureSnapshot: true
@@ -21,10 +18,7 @@ Probes:
       version: 0
       type: LOG_PROBE
       where: {methodName: main.PointerSmallChainArg}
-      capture:
-        maxReferenceDepth: 5
-        maxFieldCount: 0
-        maxCollectionSize: 0
+      capture: {maxReferenceDepth: 5}
       template: ""
       segments: []
       captureSnapshot: true
@@ -932,12 +926,14 @@ Types:
     - __kind: GoSliceDataType
       ID: 137
       Name: '[]*table<string,int>.array'
-      ByteSize: 8192
+      DynamicSizeClass: hashmap
+      ByteSize: 8
       Element: 112 PointerType *table<string,int>
     - __kind: GoSliceDataType
       ID: 147
       Name: '[]*table<string,main.bigStruct>.array'
-      ByteSize: 8192
+      DynamicSizeClass: hashmap
+      ByteSize: 8
       Element: 117 PointerType *table<string,main.bigStruct>
     - __kind: GoSliceHeaderType
       ID: 104
@@ -959,17 +955,20 @@ Types:
     - __kind: GoSliceDataType
       ID: 127
       Name: '[]int.array'
-      ByteSize: 2048
+      DynamicSizeClass: slice
+      ByteSize: 8
       Element: 7 BaseType int
     - __kind: GoSliceDataType
       ID: 138
       Name: '[]noalg.map.group[string]int.array'
-      ByteSize: 2048
+      DynamicSizeClass: slice
+      ByteSize: 200
       Element: 134 StructureType noalg.map.group[string]int
     - __kind: GoSliceDataType
       ID: 148
       Name: '[]noalg.map.group[string]main.bigStruct.array'
-      ByteSize: 2048
+      DynamicSizeClass: slice
+      ByteSize: 200
       Element: 142 StructureType noalg.map.group[string]main.bigStruct
     - __kind: UnresolvedPointeeType
       ID: 40
@@ -995,7 +994,8 @@ Types:
     - __kind: GoSliceDataType
       ID: 129
       Name: '[]string.array'
-      ByteSize: 2048
+      DynamicSizeClass: slice
+      ByteSize: 16
       Element: 9 GoStringHeaderType string
     - __kind: GoSliceHeaderType
       ID: 38
@@ -1017,7 +1017,8 @@ Types:
     - __kind: GoSliceDataType
       ID: 123
       Name: '[]uint8.array'
-      ByteSize: 2048
+      DynamicSizeClass: slice
+      ByteSize: 1
       Element: 3 BaseType uint8
     - __kind: GoSliceHeaderType
       ID: 43
@@ -1039,7 +1040,8 @@ Types:
     - __kind: GoSliceDataType
       ID: 125
       Name: '[]uintptr.array'
-      ByteSize: 2048
+      DynamicSizeClass: slice
+      ByteSize: 8
       Element: 1 BaseType uintptr
     - __kind: BaseType
       ID: 4
@@ -2197,7 +2199,8 @@ Types:
     - __kind: GoStringDataType
       ID: 121
       Name: string.str
-      ByteSize: 2048
+      DynamicSizeClass: string
+      ByteSize: 1
     - __kind: StructureType
       ID: 131
       Name: table<string,int>

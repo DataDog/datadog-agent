@@ -44,13 +44,13 @@ func (h *Handler) RejectOrForwardLeaderQuery(rw http.ResponseWriter, req *http.R
 }
 
 // GetState returns the state of the dispatching, for the clusterchecks cmd
-func (h *Handler) GetState() (types.StateResponse, error) {
+func (h *Handler) GetState(scrub bool) (types.StateResponse, error) {
 	h.m.RLock()
 	defer h.m.RUnlock()
 
 	switch h.state {
 	case leader:
-		return h.dispatcher.getState()
+		return h.dispatcher.getState(scrub)
 	case follower:
 		return types.StateResponse{NotRunning: "currently follower"}, nil
 	default:

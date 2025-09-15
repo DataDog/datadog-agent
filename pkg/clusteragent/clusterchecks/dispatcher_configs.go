@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // getAllConfigs returns all configurations known to the store, for reporting
@@ -22,18 +23,37 @@ func (d *dispatcher) getAllConfigs() ([]integration.Config, error) {
 	return makeConfigArray(d.store.digestToConfig), nil
 }
 
-func (d *dispatcher) getState() (types.StateResponse, error) {
+func (d *dispatcher) getState(scrub bool) (types.StateResponse, error) {
 	d.store.RLock()
 	defer d.store.RUnlock()
 
+	danglingConf := makeConfigArrayFromDangling(d.store.danglingConfigs)
+	if scrub {
+		scrubbedConf := make([]integration.Config, 0, len(danglingConf))
+		for _, config := range danglingConf {
+			scrubbedConf = append(scrubbedConf, integration.ScrubCheckConfig(config, log.Default()))
+		}
+		danglingConf = scrubbedConf
+	}
+
 	response := types.StateResponse{
 		Warmup:   !d.store.active,
-		Dangling: makeConfigArrayFromDangling(d.store.danglingConfigs),
+		Dangling: danglingConf,
 	}
+
 	for _, node := range d.store.nodes {
+		configs := makeConfigArray(node.digestToConfig)
+		if scrub {
+			scrubbedConf := make([]integration.Config, 0, len(configs))
+			for _, config := range configs {
+				scrubbedConf = append(scrubbedConf, integration.ScrubCheckConfig(config, log.Default()))
+			}
+			configs = scrubbedConf
+		}
+
 		n := types.StateNodeResponse{
 			Name:    node.name,
-			Configs: makeConfigArray(node.digestToConfig),
+			Configs: configs,
 		}
 		response.Nodes = append(response.Nodes, n)
 	}

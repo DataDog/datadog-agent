@@ -391,3 +391,8 @@ func (c *CWSConsumer) PrepareForFunctionalTests() {
 	// no need for container running telemetry in functional tests
 	c.crtelemetry = nil
 }
+
+// GetStatus returns the status of the module
+func (c *CWSConsumer) GetStatus(ctx context.Context) (*api.Status, error) {
+	return c.apiServer.GetStatus(ctx, &api.GetStatusParams{})
+}

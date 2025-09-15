@@ -264,13 +264,12 @@ func TestEventIterator(t *testing.T) {
 						require.Regexp(t, pattern, err)
 					} else {
 						require.NoError(t, err)
-						items = append(
-							items,
-							testDataItem{
-								header: *item.Header(),
-								data:   item.Data(),
-							},
-						)
+						data, ok := item.Data()
+						require.True(t, ok)
+						items = append(items, testDataItem{
+							header: *item.Header(),
+							data:   data,
+						})
 					}
 				} else {
 					require.NoError(
@@ -278,10 +277,12 @@ func TestEventIterator(t *testing.T) {
 						"got unexpected error from DataItems iterator on item %d",
 						i,
 					)
-					items = append(
-						items,
-						testDataItem{header: *item.Header(), data: item.Data()},
-					)
+					data, ok := item.Data()
+					require.True(t, ok)
+					items = append(items, testDataItem{
+						header: *item.Header(),
+						data:   data,
+					})
 				}
 				i++
 			}

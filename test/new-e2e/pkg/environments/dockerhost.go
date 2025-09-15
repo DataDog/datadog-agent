@@ -56,6 +56,75 @@ func (e *DockerHost) Diagnose(outputDir string) (string, error) {
 	return strings.Join(diagnoses, "\n"), nil
 }
 
+// Coverage generates a coverage report for the Docker agent
+func (e *DockerHost) Coverage(outputDir string) (string, error) {
+	if e.Docker == nil {
+		return "", fmt.Errorf("Docker component is not initialized")
+	}
+	if e.Agent == nil {
+		return "", fmt.Errorf("Agent component is not initialized")
+	}
+
+	outStr := []string{"===== Coverage ====="}
+	outStr = append(outStr, "==== Docker Agent ====")
+
+	result := e.generateAndDownloadCoverageForContainer(outputDir)
+	outStr = append(outStr, result)
+
+	return strings.Join(outStr, "\n"), nil
+}
+
+// getAgentCoverageCommands returns the coverage commands for each agent component
+func (e *DockerHost) getAgentCoverageCommands() map[string][]string {
+	return map[string][]string{
+		"agent":          {"agent", "coverage", "generate"},
+		"trace-agent":    {"trace-agent", "coverage", "generate", "-c", "/etc/datadog-agent/datadog.yaml"},
+		"process-agent":  {"process-agent", "coverage", "generate"},
+		"security-agent": {"security-agent", "coverage", "generate"},
+		"system-probe":   {"system-probe", "coverage", "generate"},
+	}
+}
+
+func (e *DockerHost) generateAndDownloadCoverageForContainer(outputDir string) string {
+	commandCoverages := e.getAgentCoverageCommands()
+	outStr := []string{}
+
+	for component, command := range commandCoverages {
+		outStr = append(outStr, fmt.Sprintf("Component %s:\n", component))
+
+		// Execute coverage command in the Docker container
+		stdout, err := e.Docker.Client.ExecuteCommandWithErr(e.Agent.ContainerName, command...)
+		if err != nil {
+			outStr = append(outStr, fmt.Sprintf("Error: %v\n", err))
+			continue
+		}
+
+		// find coverage folder in command output
+		re := regexp.MustCompile(`(?m)Coverage written to (.+)$`)
+		matches := re.FindStringSubmatch(stdout)
+		if len(matches) < 2 {
+			outStr = append(outStr, fmt.Sprintf("Error: output does not contain the path to the coverage folder, output: %s", stdout))
+			continue
+		}
+
+		coveragePath := matches[1]
+
+		// Create local destination directory
+		localCoverageDir := filepath.Join(outputDir, "coverage")
+
+		// Download the coverage folder from the Docker container
+		err = e.Docker.Client.DownloadFile(e.Agent.ContainerName, coveragePath, localCoverageDir)
+		if err != nil {
+			outStr = append(outStr, fmt.Sprintf("Error: error while downloading coverage folder: %v\n", err))
+			continue
+		}
+
+		outStr = append(outStr, fmt.Sprintf("Downloaded coverage folder: %s to %s", coveragePath, localCoverageDir))
+	}
+
+	return strings.Join(outStr, "\n")
+}
+
 func (e *DockerHost) generateAndDownloadAgentFlare(outputDir string) (string, error) {
 	if e.Agent == nil || e.Docker == nil {
 		return "", fmt.Errorf("Agent or Docker component is not initialized, cannot generate flare")

@@ -42,8 +42,8 @@ func NewTeeConfig(baseline, compare model.BuildableConfig) model.BuildableConfig
 // current config, instead of treating it as sealed
 // NOTE: Only used by OTel, no new uses please!
 func (t *teeConfig) RevertFinishedBackToBuilder() model.BuildableConfig {
-	t.baseline.RevertFinishedBackToBuilder()
-	t.compare.RevertFinishedBackToBuilder()
+	t.baseline.RevertFinishedBackToBuilder() //nolint:forbidigo // legitimate use within interface implementation
+	t.compare.RevertFinishedBackToBuilder()  //nolint:forbidigo // legitimate use within interface implementation
 	return t
 }
 

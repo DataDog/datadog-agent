@@ -127,8 +127,9 @@ func serializeProgram(
 		typeID := uint64(t.GetID())
 		serialized.typeIDs[i] = typeID
 		serialized.typeInfos[i] = typeInfo{
-			Byte_len:   t.GetByteSize(),
-			Enqueue_pc: metadata.FunctionLoc[compiler.ProcessType{Type: t}],
+			Dynamic_size_class: uint32(t.GetDynamicSizeClass()),
+			Byte_len:           t.GetByteSize(),
+			Enqueue_pc:         metadata.FunctionLoc[compiler.ProcessType{Type: t}],
 		}
 		if goRuntimeType, ok := t.GetGoRuntimeType(); ok {
 			grts.goRuntimeTypes = append(grts.goRuntimeTypes, uint64(goRuntimeType))
@@ -168,7 +169,9 @@ func serializeProgram(
 			serialized.probeParams = append(serialized.probeParams, probeParams{
 				Throttler_idx:         uint32(f.ThrottlerIdx),
 				Stack_machine_pc:      metadata.FunctionLoc[f],
-				Pointer_chasing_limit: uint32(f.PointerChasingLimit),
+				Pointer_chasing_limit: f.PointerChasingLimit,
+				Collection_size_limit: f.CollectionSizeLimit,
+				String_size_limit:     f.StringSizeLimit,
 				Frameless:             f.Frameless,
 			})
 			serialized.bpfAttachPoints = append(serialized.bpfAttachPoints, BPFAttachPoint{

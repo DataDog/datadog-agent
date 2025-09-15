@@ -12,8 +12,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	corev1 "k8s.io/api/core/v1"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -72,13 +73,12 @@ var volumeMountETCDPreloadAppContainer = etcVolume.mount(corev1.VolumeMount{
 })
 
 type injector struct {
-	image         string
-	registry      string
-	debug         bool
-	injected      bool
-	injectTime    time.Time
-	opts          libRequirementOptions
-	imageResolver ImageResolver
+	image      string
+	registry   string
+	debug      bool
+	injected   bool
+	injectTime time.Time
+	opts       libRequirementOptions
 }
 
 func (i *injector) initContainer() initContainer {
@@ -150,9 +150,16 @@ func (i *injector) requirements() libRequirement {
 
 type injectorOption func(*injector)
 
-var injectorVersionAnnotationExtractor = annotationExtractor[injectorOption]{
-	key: "admission.datadoghq.com/apm-inject.version",
-	do:  infallibleFn(injectorWithImageTag),
+var injectorVersionAnnotationExtractorFunc = func(imageResolver ImageResolver) annotationExtractor[injectorOption] {
+	injectorVersionAnnotationExtractor := annotationExtractor[injectorOption]{
+		key: "admission.datadoghq.com/apm-inject.version",
+		do: infallibleFn(func(tag string) injectorOption {
+			return injectorWithImageTag(tag, imageResolver)
+		},
+		),
+	}
+
+	return injectorVersionAnnotationExtractor
 }
 
 var injectorImageAnnotationExtractor = annotationExtractor[injectorOption]{
@@ -177,13 +184,13 @@ func injectorWithImageName(name string) injectorOption {
 	}
 }
 
-func injectorWithImageTag(tag string) injectorOption {
+func injectorWithImageTag(tag string, imageResolver ImageResolver) injectorOption {
 	return func(i *injector) {
-		if i.imageResolver == nil {
+		if imageResolver == nil {
 			log.Error("injectorWithImageTag called without imageResolver")
 			return
 		}
-		if resolvedImage, ok := i.imageResolver.Resolve(i.registry, "apm-inject", tag); ok {
+		if resolvedImage, ok := imageResolver.Resolve(i.registry, "apm-inject", tag); ok {
 			log.Debugf("Resolved image for %s/apm-inject:%s: %s", i.registry, tag, resolvedImage.FullImageRef)
 			i.image = resolvedImage.FullImageRef
 			return
@@ -204,12 +211,6 @@ func injectorDebug(boolean string) injectorOption {
 	}
 	return func(i *injector) {
 		i.debug = debug
-	}
-}
-
-func injectorWithImageResolver(imageResolver ImageResolver) injectorOption {
-	return func(i *injector) {
-		i.imageResolver = imageResolver
 	}
 }
 

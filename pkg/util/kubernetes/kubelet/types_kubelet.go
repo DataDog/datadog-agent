@@ -221,6 +221,7 @@ func (s *Status) GetAllContainers() []ContainerStatus {
 type Conditions struct {
 	Type   string `json:"type,omitempty"`
 	Status string `json:"status,omitempty"`
+	Reason string `json:"reason,omitempty"`
 }
 
 // ContainerStatus contains fields for unmarshalling a Pod.Status.Containers

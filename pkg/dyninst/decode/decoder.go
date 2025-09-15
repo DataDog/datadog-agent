@@ -74,6 +74,7 @@ type Decoder struct {
 	stackFrames          map[uint64][]symbol.StackFrame
 	typesByGoRuntimeType map[uint32]ir.TypeID
 	typeNameResolver     TypeNameResolver
+	approximateBootTime  time.Time
 
 	// These fields are initialized and reset for each message.
 	snapshotMessage    snapshotMessage
@@ -86,6 +87,7 @@ type Decoder struct {
 func NewDecoder(
 	program *ir.Program,
 	typeNameResolver TypeNameResolver,
+	approximateBootTime time.Time,
 ) (*Decoder, error) {
 	decoder := &Decoder{
 		program:              program,
@@ -94,6 +96,7 @@ func NewDecoder(
 		stackFrames:          make(map[uint64][]symbol.StackFrame),
 		typesByGoRuntimeType: make(map[uint32]ir.TypeID),
 		typeNameResolver:     typeNameResolver,
+		approximateBootTime:  approximateBootTime,
 		snapshotMessage:      snapshotMessage{},
 		dataItems:            make(map[typeAndAddr]output.DataItem),
 		currentlyEncoding:    make(map[typeAndAddr]struct{}),
@@ -214,9 +217,13 @@ func (s *snapshotMessage) init(
 			return probe, fmt.Errorf("error getting data items: %w", err)
 		}
 		if rootType == nil {
-			s.rootData = item.Data()
-			rootTypeID := ir.TypeID(item.Header().Type)
 			var ok bool
+			s.rootData, ok = item.Data()
+			if !ok {
+				// This should never happen.
+				return probe, errors.New("root data item marked as a failed read")
+			}
+			rootTypeID := ir.TypeID(item.Type())
 			rootType, ok = decoder.program.Types[rootTypeID].(*ir.EventRootType)
 			if !ok {
 				return nil, errors.New("expected event of type root first")
@@ -236,7 +243,7 @@ func (s *snapshotMessage) init(
 		// If the counter is greater than 1, we know that the data item is a pointer to another data item.
 		// We can then encode the pointer as a string and not as an object.
 		decoder.dataItems[typeAndAddr{
-			irType: uint32(item.Header().Type),
+			irType: uint32(item.Type()),
 			addr:   item.Header().Address,
 		}] = item
 	}
@@ -247,8 +254,7 @@ func (s *snapshotMessage) init(
 	if err != nil {
 		return probe, fmt.Errorf("error getting header %w", err)
 	}
-	// TODO: resolve value from header.Ktime_ns to wall time
-	s.Debugger.Snapshot.Timestamp = int(time.Now().UTC().UnixMilli())
+	s.Debugger.Snapshot.Timestamp = int(decoder.approximateBootTime.Add(time.Duration(header.Ktime_ns)).UnixMilli())
 	s.Timestamp = s.Debugger.Snapshot.Timestamp
 
 	stackFrames, ok := decoder.stackFrames[header.Stack_hash]

@@ -26,7 +26,7 @@ func registerUSMEndpoints(nt *networkTracer, httpMux *module.Router) {
 	registerUSMCommonEndpoints(nt, httpMux)
 
 	httpMux.HandleFunc("/debug/kafka_monitoring", func(w http.ResponseWriter, req *http.Request) {
-		if !coreconfig.SystemProbe().GetBool("service_monitoring_config.enable_kafka_monitoring") {
+		if !coreconfig.SystemProbe().GetBool("service_monitoring_config.kafka.enabled") {
 			writeDisabledProtocolMessage("kafka", w)
 			return
 		}

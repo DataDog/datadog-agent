@@ -27,7 +27,7 @@ func newDiagnosticTracker(name string) *diagnosticTracker {
 	}
 }
 
-func (e *diagnosticTracker) mark(runtimeID string, probeID string) (first bool) {
+func (e *diagnosticTracker) mark(runtimeID string, probeID string, probeVersion int) (first bool) {
 	var byProbeID *sync.Map
 	{
 		byProbeIDi, ok := e.byRuntimeID.Load(runtimeID)
@@ -36,14 +36,16 @@ func (e *diagnosticTracker) mark(runtimeID string, probeID string) (first bool) 
 		}
 		byProbeID = byProbeIDi.(*sync.Map)
 	}
-	_, ok := byProbeID.LoadOrStore(probeID, struct{}{})
-	if !ok {
+	v, ok := byProbeID.LoadOrStore(probeID, probeVersion)
+	prevVersion, _ := v.(int)
+	first = !ok || prevVersion < probeVersion
+	if first {
 		log.Tracef(
-			"mark %s: probeId %v marked for runtimeId %v",
-			e.name, probeID, runtimeID,
+			"mark %s: probeId %v (version %v) marked for runtimeId %v",
+			e.name, probeID, probeVersion, runtimeID,
 		)
 	}
-	return !ok
+	return first
 }
 
 type diagnosticsManager struct {
@@ -71,7 +73,7 @@ func (m *diagnosticsManager) enqueue(
 	status uploader.Status,
 	exception *uploader.DiagnosticException,
 ) bool {
-	if !tracker.mark(runtimeID.runtimeID, probe.GetID()) {
+	if !tracker.mark(runtimeID.runtimeID, probe.GetID(), probe.GetVersion()) {
 		return false
 	}
 	diag := uploader.Diagnostic{

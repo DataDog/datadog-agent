@@ -404,6 +404,7 @@ func TestTargetEnvVar(t *testing.T) {
 }
 
 func TestGetPinnedLibraries(t *testing.T) {
+
 	tests := []struct {
 		name          string
 		libVersions   map[string]string
@@ -522,7 +523,7 @@ func TestGetPinnedLibraries(t *testing.T) {
 				libs: []libInfo{
 					defaultLibInfo(java),
 					defaultLibInfo(python),
-					js.libInfo("", "registry/dd-lib-js-init:v3"),
+					defaultLibInfoWithVersion(js, "v3"),
 					defaultLibInfo(dotnet),
 					defaultLibInfo(ruby),
 				},
@@ -533,8 +534,7 @@ func TestGetPinnedLibraries(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			imageResolver := newNoOpImageResolver()
-			pinned := getPinnedLibraries(tt.libVersions, "registry", tt.checkDefaults, imageResolver)
+			pinned := getPinnedLibraries(tt.libVersions, "registry", tt.checkDefaults)
 			require.ElementsMatch(t, tt.expected.libs, pinned.libs, "libs match")
 			require.Equal(t, tt.expected.areSetToDefaults, pinned.areSetToDefaults, "areSetToDefaults match")
 		})

@@ -232,6 +232,16 @@ func TestController_ProgramLifecycleFlow(t *testing.T) {
 	diagUploader := &fakeDiagnosticsUploader{}
 	logUploaderFactory := &fakeLogsUploaderFactory{}
 
+	collectDiagnosticVersions := func(status uploader.Status) map[string]int {
+		versionsMap := make(map[string]int)
+		for _, msg := range diagUploader.messages {
+			if msg.Debugger.Diagnostic.Status == status {
+				versionsMap[msg.Debugger.Diagnostic.ProbeID] = msg.Debugger.Diagnostic.ProbeVersion
+			}
+		}
+		return versionsMap
+	}
+
 	processUpdate := createTestProcessUpdate()
 	processUpdate.Container = procmon.ContainerInfo{
 		ContainerID: "container-123",
@@ -256,16 +266,9 @@ func TestController_ProgramLifecycleFlow(t *testing.T) {
 	require.NotNil(t, a.tenant.reporter)
 
 	controller.CheckForUpdates()
-
-	a.tenant.reporter.ReportAttached(procID, program)
-
-	installedCount := 0
-	for _, msg := range diagUploader.messages {
-		if msg.Debugger.Diagnostic.Status == uploader.StatusInstalled {
-			installedCount++
-		}
-	}
-	assert.Equal(t, 2, installedCount)
+	initialProbeVersions := map[string]int{"probe-1": 1, "probe-2": 1}
+	require.Equal(t, initialProbeVersions, collectDiagnosticVersions(uploader.StatusReceived))
+	require.Empty(t, collectDiagnosticVersions(uploader.StatusInstalled))
 
 	sink, err := a.tenant.reporter.ReportLoaded(procID, processUpdate.Executable, program)
 	require.NoError(t, err)
@@ -279,6 +282,40 @@ func TestController_ProgramLifecycleFlow(t *testing.T) {
 			ContainerID: "container-123",
 		}},
 	)
+
+	a.tenant.reporter.ReportAttached(procID, program)
+	require.Equal(t, initialProbeVersions, collectDiagnosticVersions(uploader.StatusReceived))
+	require.Equal(t, initialProbeVersions, collectDiagnosticVersions(uploader.StatusInstalled))
+
+	// Decode an event and check that the emitting diagnostic is reported.
+	require.Empty(t, collectDiagnosticVersions(uploader.StatusEmitting))
+	decoder.probe = processUpdate.Probes[0]
+	require.NoError(t, sink.HandleEvent(nil))
+	initialEmittedVersions := map[string]int{"probe-1": 1}
+	require.Equal(t, initialEmittedVersions, collectDiagnosticVersions(uploader.StatusEmitting))
+
+	// Report a process update that adds a new probe version, and ensure that
+	// we get new diagnostics for the new probe version.
+	processUpdate.Probes[0].(*rcjson.LogProbe).Version++
+	scraper.updates = []rcscrape.ProcessUpdate{processUpdate}
+	controller.CheckForUpdates()
+	updatedProbeVersions := map[string]int{"probe-1": 2, "probe-2": 1}
+	require.Equal(t, updatedProbeVersions, collectDiagnosticVersions(uploader.StatusReceived))
+	require.Equal(t, initialProbeVersions, collectDiagnosticVersions(uploader.StatusInstalled))
+
+	// Make sure that post attachment, the new probe version is reported.
+	program.Probes[0].ProbeDefinition = processUpdate.Probes[0]
+	program.ID++
+	a.tenant.reporter.ReportAttached(procID, program)
+	sink, err = a.tenant.reporter.ReportLoaded(procID, processUpdate.Executable, program)
+	require.NoError(t, err)
+	require.NotNil(t, sink)
+	require.Equal(t, updatedProbeVersions, collectDiagnosticVersions(uploader.StatusInstalled))
+	require.Equal(t, initialEmittedVersions, collectDiagnosticVersions(uploader.StatusEmitting))
+
+	updatedEmittedVersions := map[string]int{"probe-1": 2}
+	require.NoError(t, sink.HandleEvent(nil))
+	require.Equal(t, updatedEmittedVersions, collectDiagnosticVersions(uploader.StatusEmitting))
 }
 
 // TestController_IRGenerationFailure verifies that IR generation failures

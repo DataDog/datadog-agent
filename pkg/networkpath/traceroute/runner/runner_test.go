@@ -6,12 +6,10 @@
 package runner
 
 import (
-	"fmt"
 	"net"
 	"testing"
 
-	"github.com/DataDog/datadog-traceroute/common"
-	"github.com/DataDog/datadog-traceroute/sack"
+	"github.com/DataDog/datadog-traceroute/result"
 	"github.com/golang/mock/gomock"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -39,7 +37,7 @@ func TestProcessResults(t *testing.T) {
 	runner := &Runner{}
 	tts := []struct {
 		description      string
-		inputResults     *common.Results
+		inputResults     *result.Results
 		protocol         payload.Protocol
 		hname            string
 		destinationHost  string
@@ -53,31 +51,65 @@ func TestProcessResults(t *testing.T) {
 			errMsg:       "",
 		},
 		{
-			description:      "successful processing no gateway lookup, did not reach target",
+			description:      "test all fields",
 			useGatewayLookup: false,
 			protocol:         payload.ProtocolUDP,
 			hname:            "test-hostname",
 			destinationHost:  "test-destination-hostname",
-			inputResults: &common.Results{
-				Source:     net.ParseIP("10.0.0.5"),
-				SourcePort: 12345,
-				Target:     net.ParseIP("8.8.8.8"),
-				DstPort:    33434, // computer port or Boca Raton, FL?
-				Hops: []*common.Hop{
-					{
-						IP:       net.ParseIP("10.0.0.1"),
-						ICMPType: 11,
-						ICMPCode: 0,
-						RTT:      10000000, // 10ms
+			inputResults: &result.Results{
+				Params: result.Params{
+					Port: 33434,
+				},
+				Traceroute: result.Traceroute{
+					Runs: []result.TracerouteRun{
+						{
+							RunID: "aa-bb-cc",
+							Source: result.TracerouteSource{
+								IPAddress: net.ParseIP("10.0.0.5"),
+								Port:      12345,
+							},
+							Destination: result.TracerouteDestination{
+								IPAddress: net.ParseIP("8.8.8.8"),
+								Port:      33434, // computer port or Boca Raton, FL?
+							},
+							Hops: []*result.TracerouteHop{
+								{
+									TTL:       1,
+									IPAddress: net.ParseIP("10.0.0.1"),
+									ICMPType:  11,
+									ICMPCode:  0,
+									RTT:       0.001, // seconds
+								},
+								{
+									TTL:       2,
+									IPAddress: net.IP{},
+								},
+								{
+									TTL:       3,
+									IPAddress: net.ParseIP("172.0.0.255"),
+									ICMPType:  11,
+									ICMPCode:  0,
+									RTT:       0.003512345, // seconds
+								},
+							},
+						},
 					},
-					{
-						IP: net.IP{},
+					HopCount: result.HopCountStats{
+						Avg: 10,
+						Min: 5,
+						Max: 15,
 					},
-					{
-						IP:       net.ParseIP("172.0.0.255"),
-						ICMPType: 11,
-						ICMPCode: 0,
-						RTT:      3512345, // 3.512ms
+				},
+				E2eProbe: result.E2eProbe{
+					RTTs:                 []float64{0.100, 0.200},
+					PacketsSent:          10,
+					PacketsReceived:      5,
+					PacketLossPercentage: 0.5,
+					Jitter:               10,
+					RTT: result.E2eProbeRTT{
+						Avg: 15,
+						Min: 10,
+						Max: 20,
 					},
 				},
 			},
@@ -85,34 +117,143 @@ func TestProcessResults(t *testing.T) {
 				AgentVersion: version.AgentVersion,
 				Protocol:     payload.ProtocolUDP,
 				Source: payload.NetworkPathSource{
-					Hostname: "test-hostname",
+					Hostname:    "test-hostname",
+					Name:        "test-hostname",
+					DisplayName: "test-hostname",
 				},
 				Destination: payload.NetworkPathDestination{
-					Hostname:  "test-destination-hostname",
-					IPAddress: "8.8.8.8",
-					Port:      33434,
+					Hostname: "test-destination-hostname",
+					Port:     33434,
 				},
-				Hops: []payload.NetworkPathHop{
-					{
-						TTL:       1,
-						IPAddress: "10.0.0.1",
-						Hostname:  "10.0.0.1",
-						RTT:       10,
-						Reachable: true,
+				Traceroute: payload.Traceroute{
+					Runs: []payload.TracerouteRun{
+						{
+							RunID: "aa-bb-cc",
+							Source: payload.TracerouteSource{
+								IPAddress: net.ParseIP("10.0.0.5"),
+								Port:      12345,
+							},
+							Destination: payload.TracerouteDestination{
+								IPAddress: net.ParseIP("8.8.8.8"),
+								Port:      33434, // computer port or Boca Raton, FL?
+							},
+							Hops: []payload.TracerouteHop{
+								{
+									TTL:       1,
+									IPAddress: net.ParseIP("10.0.0.1"),
+									RTT:       0.001, // seconds
+								},
+								{
+									TTL:       2,
+									IPAddress: net.IP{},
+								},
+								{
+									TTL:       3,
+									IPAddress: net.ParseIP("172.0.0.255"),
+									RTT:       0.003512345, // seconds
+								},
+							},
+						},
 					},
-					{
-						TTL:       2,
-						IPAddress: "unknown_hop_2",
-						Hostname:  "unknown_hop_2",
-						RTT:       0,
-						Reachable: false,
+					HopCount: payload.HopCountStats{
+						Avg: 10,
+						Min: 5,
+						Max: 15,
 					},
-					{
-						TTL:       3,
-						IPAddress: "172.0.0.255",
-						Hostname:  "172.0.0.255",
-						RTT:       3.512,
-						Reachable: true,
+				},
+				E2eProbe: payload.E2eProbe{
+					RTTs:                 []float64{0.100, 0.200},
+					PacketsSent:          10,
+					PacketsReceived:      5,
+					PacketLossPercentage: 0.5,
+					Jitter:               10,
+					RTT: payload.E2eProbeRttLatency{
+						Avg: 15,
+						Min: 10,
+						Max: 20,
+					},
+				},
+			},
+		},
+		{
+			description:      "successful processing no gateway lookup, did not reach target",
+			useGatewayLookup: false,
+			protocol:         payload.ProtocolUDP,
+			hname:            "test-hostname",
+			destinationHost:  "test-destination-hostname",
+			inputResults: &result.Results{
+				Params: result.Params{
+					Port: 33434,
+				},
+				Traceroute: result.Traceroute{
+					Runs: []result.TracerouteRun{
+						{
+							Source: result.TracerouteSource{
+								IPAddress: net.ParseIP("10.0.0.5"),
+								Port:      12345,
+							},
+							Destination: result.TracerouteDestination{
+								IPAddress: net.ParseIP("8.8.8.8"),
+								Port:      33434, // computer port or Boca Raton, FL?
+							},
+							Hops: []*result.TracerouteHop{
+								{
+									IPAddress: net.ParseIP("10.0.0.1"),
+									ICMPType:  11,
+									ICMPCode:  0,
+									RTT:       0.001, // seconds
+								},
+								{
+									IPAddress: net.IP{},
+								},
+								{
+									IPAddress: net.ParseIP("172.0.0.255"),
+									ICMPType:  11,
+									ICMPCode:  0,
+									RTT:       0.003512345, // seconds
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: payload.NetworkPath{
+				AgentVersion: version.AgentVersion,
+				Protocol:     payload.ProtocolUDP,
+				Source: payload.NetworkPathSource{
+					Hostname:    "test-hostname",
+					Name:        "test-hostname",
+					DisplayName: "test-hostname",
+				},
+				Destination: payload.NetworkPathDestination{
+					Hostname: "test-destination-hostname",
+					Port:     33434,
+				},
+				Traceroute: payload.Traceroute{
+					Runs: []payload.TracerouteRun{
+						{
+							Source: payload.TracerouteSource{
+								IPAddress: net.ParseIP("10.0.0.5"),
+								Port:      12345,
+							},
+							Destination: payload.TracerouteDestination{
+								IPAddress: net.ParseIP("8.8.8.8"),
+								Port:      33434, // computer port or Boca Raton, FL?
+							},
+							Hops: []payload.TracerouteHop{
+								{
+									IPAddress: net.ParseIP("10.0.0.1"),
+									RTT:       0.001, // seconds
+								},
+								{
+									IPAddress: net.IP{},
+								},
+								{
+									IPAddress: net.ParseIP("172.0.0.255"),
+									RTT:       0.003512345, // seconds
+								},
+							},
+						},
 					},
 				},
 			},
@@ -123,26 +264,39 @@ func TestProcessResults(t *testing.T) {
 			protocol:         payload.ProtocolTCP,
 			hname:            "test-hostname",
 			destinationHost:  "test-destination-hostname",
-			inputResults: &common.Results{
-				Source:     net.ParseIP("10.0.0.5"),
-				SourcePort: 12345,
-				Target:     net.ParseIP("8.8.8.8"),
-				DstPort:    443, // computer port or Boca Raton, FL?
-				Hops: []*common.Hop{
-					{
-						IP:       net.ParseIP("10.0.0.1"),
-						ICMPType: 11,
-						ICMPCode: 0,
-						RTT:      1000000, // 1ms
-					},
-					{
-						IP: net.IP{},
-					},
-					{
-						IP:       net.ParseIP("172.0.0.255"),
-						ICMPType: 11,
-						ICMPCode: 0,
-						RTT:      40000000, // 40ms
+			inputResults: &result.Results{
+				Params: result.Params{
+					Port: 443,
+				},
+				Traceroute: result.Traceroute{
+					Runs: []result.TracerouteRun{
+						{
+							Source: result.TracerouteSource{
+								IPAddress: net.ParseIP("10.0.0.5"),
+								Port:      12345,
+							},
+							Destination: result.TracerouteDestination{
+								IPAddress: net.ParseIP("8.8.8.8"),
+								Port:      443, // computer port or Boca Raton, FL?
+							},
+							Hops: []*result.TracerouteHop{
+								{
+									IPAddress: net.ParseIP("10.0.0.1"),
+									ICMPType:  11,
+									ICMPCode:  0,
+									RTT:       0.001, // 1ms
+								},
+								{
+									IPAddress: net.IP{},
+								},
+								{
+									IPAddress: net.ParseIP("172.0.0.255"),
+									ICMPType:  11,
+									ICMPCode:  0,
+									RTT:       0.04, // 40ms
+								},
+							},
+						},
 					},
 				},
 			},
@@ -150,7 +304,9 @@ func TestProcessResults(t *testing.T) {
 				AgentVersion: version.AgentVersion,
 				Protocol:     payload.ProtocolTCP,
 				Source: payload.NetworkPathSource{
-					Hostname: "test-hostname",
+					Hostname:    "test-hostname",
+					Name:        "test-hostname",
+					DisplayName: "test-hostname",
 					Via: &network.Via{
 						Subnet: network.Subnet{
 							Alias: "test-subnet",
@@ -158,31 +314,34 @@ func TestProcessResults(t *testing.T) {
 					},
 				},
 				Destination: payload.NetworkPathDestination{
-					Hostname:  "test-destination-hostname",
-					IPAddress: "8.8.8.8",
-					Port:      443,
+					Hostname: "test-destination-hostname",
+					Port:     443,
 				},
-				Hops: []payload.NetworkPathHop{
-					{
-						TTL:       1,
-						IPAddress: "10.0.0.1",
-						Hostname:  "10.0.0.1",
-						RTT:       1,
-						Reachable: true,
-					},
-					{
-						TTL:       2,
-						IPAddress: "unknown_hop_2",
-						Hostname:  "unknown_hop_2",
-						RTT:       0,
-						Reachable: false,
-					},
-					{
-						TTL:       3,
-						IPAddress: "172.0.0.255",
-						Hostname:  "172.0.0.255",
-						RTT:       40,
-						Reachable: true,
+				Traceroute: payload.Traceroute{
+					Runs: []payload.TracerouteRun{
+						{
+							Source: payload.TracerouteSource{
+								IPAddress: net.ParseIP("10.0.0.5"),
+								Port:      12345,
+							},
+							Destination: payload.TracerouteDestination{
+								IPAddress: net.ParseIP("8.8.8.8"),
+								Port:      443, // computer port or Boca Raton, FL?
+							},
+							Hops: []payload.TracerouteHop{
+								{
+									IPAddress: net.ParseIP("10.0.0.1"),
+									RTT:       0.001, // 1ms
+								},
+								{
+									IPAddress: net.IP{},
+								},
+								{
+									IPAddress: net.ParseIP("172.0.0.255"),
+									RTT:       0.04, // 40ms
+								},
+							},
+						},
 					},
 				},
 			},
@@ -193,31 +352,44 @@ func TestProcessResults(t *testing.T) {
 			protocol:         payload.ProtocolUDP,
 			hname:            "test-hostname",
 			destinationHost:  "test-destination-hostname",
-			inputResults: &common.Results{
-				Source:     net.ParseIP("10.0.0.5"),
-				SourcePort: 12345,
-				Target:     net.ParseIP("8.8.8.8"),
-				DstPort:    33434, // computer port or Boca Raton, FL?
-				Hops: []*common.Hop{
-					{
-						IP:       net.ParseIP("10.0.0.1"),
-						ICMPType: 11,
-						ICMPCode: 0,
-						RTT:      1000000, // 1ms
-					},
-					{
-						IP: net.IP{},
-					},
-					{
-						IP:       net.ParseIP("172.0.0.255"),
-						ICMPType: 11,
-						ICMPCode: 0,
-						RTT:      80000000, // 80ms
-					},
-					{
-						IP:   net.ParseIP("8.8.8.8"),
-						Port: 443,
-						RTT:  120000000, // 120ms
+			inputResults: &result.Results{
+				Params: result.Params{
+					Port: 33434,
+				},
+				Traceroute: result.Traceroute{
+					Runs: []result.TracerouteRun{
+						{
+							Source: result.TracerouteSource{
+								IPAddress: net.ParseIP("10.0.0.5"),
+								Port:      12345,
+							},
+							Destination: result.TracerouteDestination{
+								IPAddress: net.ParseIP("8.8.8.8"),
+								Port:      33434, // computer port or Boca Raton, FL?
+							},
+							Hops: []*result.TracerouteHop{
+								{
+									IPAddress: net.ParseIP("10.0.0.1"),
+									ICMPType:  11,
+									ICMPCode:  0,
+									RTT:       0.001, // 1ms
+								},
+								{
+									IPAddress: net.IP{},
+								},
+								{
+									IPAddress: net.ParseIP("172.0.0.255"),
+									ICMPType:  11,
+									ICMPCode:  0,
+									RTT:       0.08, // 80ms
+								},
+								{
+									IPAddress: net.ParseIP("8.8.8.8"),
+									Port:      443,
+									RTT:       0.120,
+								},
+							},
+						},
 					},
 				},
 			},
@@ -225,7 +397,9 @@ func TestProcessResults(t *testing.T) {
 				AgentVersion: version.AgentVersion,
 				Protocol:     payload.ProtocolUDP,
 				Source: payload.NetworkPathSource{
-					Hostname: "test-hostname",
+					Hostname:    "test-hostname",
+					Name:        "test-hostname",
+					DisplayName: "test-hostname",
 					Via: &network.Via{
 						Subnet: network.Subnet{
 							Alias: "test-subnet",
@@ -233,38 +407,38 @@ func TestProcessResults(t *testing.T) {
 					},
 				},
 				Destination: payload.NetworkPathDestination{
-					Hostname:  "test-destination-hostname",
-					IPAddress: "8.8.8.8",
-					Port:      33434,
+					Hostname: "test-destination-hostname",
+					Port:     33434,
 				},
-				Hops: []payload.NetworkPathHop{
-					{
-						TTL:       1,
-						IPAddress: "10.0.0.1",
-						Hostname:  "10.0.0.1",
-						RTT:       1,
-						Reachable: true,
-					},
-					{
-						TTL:       2,
-						IPAddress: "unknown_hop_2",
-						Hostname:  "unknown_hop_2",
-						RTT:       0,
-						Reachable: false,
-					},
-					{
-						TTL:       3,
-						IPAddress: "172.0.0.255",
-						Hostname:  "172.0.0.255",
-						RTT:       80,
-						Reachable: true,
-					},
-					{
-						TTL:       4,
-						IPAddress: "8.8.8.8",
-						Hostname:  "8.8.8.8",
-						RTT:       120,
-						Reachable: true,
+				Traceroute: payload.Traceroute{
+					Runs: []payload.TracerouteRun{
+						{
+							Source: payload.TracerouteSource{
+								IPAddress: net.ParseIP("10.0.0.5"),
+								Port:      12345,
+							},
+							Destination: payload.TracerouteDestination{
+								IPAddress: net.ParseIP("8.8.8.8"),
+								Port:      33434, // computer port or Boca Raton, FL?
+							},
+							Hops: []payload.TracerouteHop{
+								{
+									IPAddress: net.ParseIP("10.0.0.1"),
+									RTT:       0.001, // 1ms
+								},
+								{
+									IPAddress: net.IP{},
+								},
+								{
+									IPAddress: net.ParseIP("172.0.0.255"),
+									RTT:       0.08, // 80ms
+								},
+								{
+									IPAddress: net.ParseIP("8.8.8.8"),
+									RTT:       0.120,
+								},
+							},
+						},
 					},
 				},
 			},
@@ -290,7 +464,7 @@ func TestProcessResults(t *testing.T) {
 			}
 			dstPort := uint16(0)
 			if test.inputResults != nil {
-				dstPort = test.inputResults.DstPort
+				dstPort = uint16(test.inputResults.Params.Port)
 			}
 			actual, err := runner.processResults(test.inputResults, test.protocol, test.hname, test.destinationHost, dstPort)
 			if test.errMsg != "" {
@@ -301,131 +475,14 @@ func TestProcessResults(t *testing.T) {
 			}
 			require.Nil(t, err)
 			require.NotNil(t, actual)
+			assert.NotNil(t, actual.TestResultID)
+			assert.NotNil(t, actual.Timestamp)
 			diff := cmp.Diff(test.expected, actual,
 				cmpopts.IgnoreFields(payload.NetworkPath{}, "Timestamp"),
 				cmpopts.IgnoreFields(payload.NetworkPath{}, "PathtraceID"),
+				cmpopts.IgnoreFields(payload.NetworkPath{}, "TestResultID"),
 			)
 			assert.Empty(t, diff)
 		})
 	}
-}
-
-func neverCalled(t *testing.T) tracerouteImpl {
-	return func() (*common.Results, error) {
-		t.Fatal("should not call this")
-		return nil, fmt.Errorf("should not call this")
-	}
-}
-
-func TestTCPFallback(t *testing.T) {
-	dummySyn := &common.Results{}
-	dummySack := &common.Results{}
-	dummyErr := fmt.Errorf("test error")
-	dummySackUnsupportedErr := &sack.NotSupportedError{
-		Err: fmt.Errorf("dummy sack unsupported"),
-	}
-	dummySynSocket := &common.Results{}
-
-	t.Run("force SYN", func(t *testing.T) {
-		doSyn := func() (*common.Results, error) {
-			return dummySyn, nil
-		}
-		doSack := neverCalled(t)
-		doSynSocket := neverCalled(t)
-		// success case
-		results, err := performTCPFallback(payload.TCPConfigSYN, doSyn, doSack, doSynSocket)
-		require.NoError(t, err)
-		require.Equal(t, dummySyn, results)
-
-		doSyn = func() (*common.Results, error) {
-			return nil, dummyErr
-		}
-		// error case
-		results, err = performTCPFallback(payload.TCPConfigSYN, doSyn, doSack, doSynSocket)
-		require.Equal(t, dummyErr, err)
-		require.Nil(t, results)
-	})
-
-	t.Run("force SACK", func(t *testing.T) {
-		doSyn := neverCalled(t)
-		doSack := func() (*common.Results, error) {
-			return dummySack, nil
-		}
-		doSynSocket := neverCalled(t)
-		// success case
-		results, err := performTCPFallback(payload.TCPConfigSACK, doSyn, doSack, doSynSocket)
-		require.NoError(t, err)
-		require.Equal(t, dummySack, results)
-
-		doSack = func() (*common.Results, error) {
-			return nil, dummyErr
-		}
-		// error case
-		results, err = performTCPFallback(payload.TCPConfigSACK, doSyn, doSack, doSynSocket)
-		require.Equal(t, dummyErr, err)
-		require.Nil(t, results)
-	})
-
-	t.Run("prefer SACK - only running sack", func(t *testing.T) {
-		doSyn := neverCalled(t)
-		doSack := func() (*common.Results, error) {
-			return dummySack, nil
-		}
-		doSynSocket := neverCalled(t)
-		// success case
-		results, err := performTCPFallback(payload.TCPConfigPreferSACK, doSyn, doSack, doSynSocket)
-		require.NoError(t, err)
-		require.Equal(t, dummySack, results)
-
-		doSack = func() (*common.Results, error) {
-			return nil, dummyErr
-		}
-		// error case (sack encounters a fatal error and does not fall back to SYN)
-		results, err = performTCPFallback(payload.TCPConfigPreferSACK, doSyn, doSack, doSynSocket)
-		require.ErrorIs(t, err, dummyErr)
-		require.Nil(t, results)
-	})
-
-	t.Run("prefer SACK - fallback case", func(t *testing.T) {
-		doSyn := func() (*common.Results, error) {
-			return dummySyn, nil
-		}
-		doSack := func() (*common.Results, error) {
-			// cause a fallback because the target doesn't support SACK
-			return nil, dummySackUnsupportedErr
-		}
-		doSynSocket := neverCalled(t)
-		// success case
-		results, err := performTCPFallback(payload.TCPConfigPreferSACK, doSyn, doSack, doSynSocket)
-		require.NoError(t, err)
-		require.Equal(t, dummySyn, results)
-
-		doSyn = func() (*common.Results, error) {
-			return nil, dummyErr
-		}
-		// error case
-		results, err = performTCPFallback(payload.TCPConfigPreferSACK, doSyn, doSack, doSynSocket)
-		require.Equal(t, dummyErr, err)
-		require.Nil(t, results)
-	})
-
-	t.Run("force SYN socket", func(t *testing.T) {
-		doSyn := neverCalled(t)
-		doSack := neverCalled(t)
-		doSynSocket := func() (*common.Results, error) {
-			return dummySynSocket, nil
-		}
-		// success case
-		results, err := performTCPFallback(payload.TCPConfigSYNSocket, doSyn, doSack, doSynSocket)
-		require.NoError(t, err)
-		require.Equal(t, dummySynSocket, results)
-
-		doSynSocket = func() (*common.Results, error) {
-			return nil, dummyErr
-		}
-		// error case
-		results, err = performTCPFallback(payload.TCPConfigSYNSocket, doSyn, doSack, doSynSocket)
-		require.Equal(t, dummyErr, err)
-		require.Nil(t, results)
-	})
 }

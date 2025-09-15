@@ -72,9 +72,11 @@ func (d *Monitor) SendStats() error {
 
 	for eventType, stats := range statsByEventType {
 		eventTypeTag := fmt.Sprintf("event_type:%s", model.EventType(eventType).String())
+		categoryTag := fmt.Sprintf("category:%s", model.GetEventTypeCategoryUserFacing(model.EventType(eventType).String()))
 		if stats.EventRejected != 0 {
 			tagsForRejectedEvents := []string{
 				eventTypeTag,
+				categoryTag,
 			}
 			_ = d.statsdClient.Count(metrics.MetricEventRejected, int64(stats.EventRejected), tagsForRejectedEvents, 1.0)
 		}
@@ -83,6 +85,7 @@ func (d *Monitor) SendStats() error {
 			tagsForPolicyApprovedEvents := []string{
 				"approver_type:" + kfilters.PolicyApproverType,
 				eventTypeTag,
+				categoryTag,
 			}
 			_ = d.statsdClient.Count(metrics.MetricEventApproved, int64(stats.EventApprovedByPolicy), tagsForPolicyApprovedEvents, 1.0)
 		}
@@ -91,6 +94,7 @@ func (d *Monitor) SendStats() error {
 			tagsForBasenameApprovedEvents := []string{
 				"approver_type:" + kfilters.BasenameApproverType,
 				eventTypeTag,
+				categoryTag,
 			}
 			_ = d.statsdClient.Count(metrics.MetricEventApproved, int64(stats.EventApprovedByBasename), tagsForBasenameApprovedEvents, 1.0)
 		}
@@ -99,6 +103,7 @@ func (d *Monitor) SendStats() error {
 			tagsForFlagApprovedEvents := []string{
 				"approver_type:" + kfilters.FlagApproverType,
 				eventTypeTag,
+				categoryTag,
 			}
 			_ = d.statsdClient.Count(metrics.MetricEventApproved, int64(stats.EventApprovedByFlag), tagsForFlagApprovedEvents, 1.0)
 		}
@@ -107,6 +112,7 @@ func (d *Monitor) SendStats() error {
 			tagsForAUIDApprovedEvents := []string{
 				"approver_type:" + kfilters.AUIDApproverType,
 				eventTypeTag,
+				categoryTag,
 			}
 			_ = d.statsdClient.Count(metrics.MetricEventApproved, int64(stats.EventApprovedByAUID), tagsForAUIDApprovedEvents, 1.0)
 		}
@@ -115,6 +121,7 @@ func (d *Monitor) SendStats() error {
 			tagsForInUpperLayerApprovedEvents := []string{
 				"approver_type:" + kfilters.InUpperLayerApproverType,
 				eventTypeTag,
+				categoryTag,
 			}
 			_ = d.statsdClient.Count(metrics.MetricEventApproved, int64(stats.EventApprovedByInUpperLayer), tagsForInUpperLayerApprovedEvents, 1.0)
 		}

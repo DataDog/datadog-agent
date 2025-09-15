@@ -9,9 +9,11 @@
 package containers
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -120,6 +122,15 @@ func matchKubernetesDevices(container *workloadmeta.Container, devices []ddnvml.
 
 		filteredDevices = append(filteredDevices, matchingDevice)
 	}
+
+	// K8s can return the devices in a random order. However, NVIDIA will see them exposed
+	// based on their actual device index in the system. Ensure that order is respected.
+	slices.SortFunc(filteredDevices, func(a, b ddnvml.Device) int {
+		aInfo := a.GetDeviceInfo()
+		bInfo := b.GetDeviceInfo()
+
+		return cmp.Compare(aInfo.Index, bInfo.Index)
+	})
 
 	return filteredDevices, multiErr
 }
