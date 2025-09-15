@@ -14,6 +14,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
+	"github.com/DataDog/datadog-agent/pkg/status/jmx"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 )
@@ -24,6 +25,16 @@ func (ic *inventorychecksImpl) getJMXChecksMetadata() (jmxMetadata map[string][]
 	if err != nil {
 		ic.log.Warnf("could not get JMX metadata: %v", err)
 		return
+	}
+
+	// Get JMX status to extract Java version information
+	statusData := make(map[string]interface{})
+	jmx.PopulateStatus(statusData)
+	var jmxFetchVersion, javaRuntimeVersion string
+	if jmxStatusInfo, ok := statusData["JMXStatus"]; ok {
+		if status, ok := jmxStatusInfo.(jmx.Status); ok {
+			jmxFetchVersion, javaRuntimeVersion = status.GetInfo()
+		}
 	}
 
 	if configsRaw, ok := jmxIntegrations["configs"]; ok {
@@ -59,13 +70,23 @@ func (ic *inventorychecksImpl) getJMXChecksMetadata() (jmxMetadata map[string][]
 					provider = "file"
 				}
 
-				jmxMetadata[jmxName] = append(jmxMetadata[jmxName], metadata{
+				metadataEntry := metadata{
 					"init_config":     string(initConfigYaml),
 					"instance":        string(instanceYaml),
 					"config.provider": provider,
 					"config.hash":     configHash,
 					"config.source":   source,
-				})
+				}
+
+				// Add Java version information if available
+				if jmxFetchVersion != "" {
+					metadataEntry["jmxfetch.version"] = jmxFetchVersion
+				}
+				if javaRuntimeVersion != "" {
+					metadataEntry["java.runtime_version"] = javaRuntimeVersion
+				}
+
+				jmxMetadata[jmxName] = append(jmxMetadata[jmxName], metadataEntry)
 			}
 		}
 	}
