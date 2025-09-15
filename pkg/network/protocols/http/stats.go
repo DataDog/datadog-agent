@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/intern"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
 // Interner is used to intern strings to save memory allocations.
@@ -68,6 +69,10 @@ func (m Method) String() string {
 		return "UNKNOWN"
 	}
 }
+
+var (
+	requestStatPool = ddsync.NewDefaultTypedPool[RequestStat]()
+)
 
 // Path represents the HTTP path
 type Path struct {
@@ -140,7 +145,13 @@ func (r *RequestStat) close() {
 	if r.Latencies != nil {
 		r.Latencies.Clear()
 		protocols.SketchesPool.Put(r.Latencies)
+		r.Latencies = nil
 	}
+
+	r.Count = 0
+	r.FirstLatencySample = 0
+	r.StaticTags = 0
+	clear(r.DynamicTags)
 }
 
 // RequestStats stores HTTP request statistics.
@@ -207,7 +218,7 @@ func (r *RequestStats) AddRequest(statusCode uint16, latency float64, staticTags
 
 	stats, exists := r.Data[statusCode]
 	if !exists {
-		stats = &RequestStat{}
+		stats = requestStatPool.Get()
 		r.Data[statusCode] = stats
 	}
 
@@ -260,8 +271,10 @@ func (r *RequestStats) Close() {
 	for _, stats := range r.Data {
 		if stats != nil {
 			stats.close()
+			requestStatPool.Put(stats)
 		}
 	}
+	clear(r.Data)
 }
 
 // isValidStatusCode checks if the status code is in the range of valid HTTP responses

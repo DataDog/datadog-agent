@@ -41,8 +41,8 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.69.2
 	github.com/DataDog/datadog-go/v5 v5.6.0
 	// TODO: pin to an operator released version once there is a release that includes the api module
-	github.com/DataDog/datadog-operator/api v0.0.0-20250417130148-1aa8dc0fc964
-	github.com/DataDog/datadog-traceroute v0.1.5
+	github.com/DataDog/datadog-operator/api v0.0.0-20250909133746-a88261a5540c
+	github.com/DataDog/datadog-traceroute v0.1.21
 	github.com/DataDog/ebpf-manager v0.7.14
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.12
