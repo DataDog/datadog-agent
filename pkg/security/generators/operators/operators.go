@@ -53,16 +53,12 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 	isDc := isArithmDeterministic(a, b, state)
 	{{ end }}
 
-	if field := a.OriginField(); field != "" {
-		if err := state.UpdateFieldValues(field, FieldValue{Value: b.Value, Type: {{ .ValueType }}}); err != nil {
-			return nil, err
-		}
+	if err := state.UpdateOriginFielderValues(a, FieldValue{Value: b.Value, Type: {{ .ValueType }}}); err != nil {
+		return nil, err
 	}
 
-	if field := b.OriginField(); field != "" {
-		if err := state.UpdateFieldValues(field, FieldValue{Value: a.Value, Type: {{ .ValueType }}}); err != nil {
-			return nil, err
-		}
+	if err := state.UpdateOriginFielderValues(b, FieldValue{Value: a.Value, Type: {{ .ValueType }}}); err != nil {
+		return nil, err
 	}
 
 	{{ if eq .ValueType "BitmaskValueType" }}
