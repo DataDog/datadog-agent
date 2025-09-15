@@ -6,7 +6,7 @@ require (
 	github.com/DataDog/go-tuf v1.1.1-0.5.2
 	github.com/pkg/errors v0.9.1
 	github.com/secure-systems-lab/go-securesystemslib v0.9.0
-	github.com/stretchr/testify v1.10.0
+	github.com/stretchr/testify v1.11.1
 )
 
 require (
@@ -17,6 +17,9 @@ require (
 	golang.org/x/crypto v0.41.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+// Pin github.com/stretchr/testify to v1.10.0 while waiting for https://github.com/DataDog/datadog-agent/pull/40182
+replace github.com/stretchr/testify => github.com/stretchr/testify v1.10.0
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
