@@ -73,6 +73,10 @@ nav:
   - Documentation: guidelines/docs.md
   - Languages:
     - Go: guidelines/languages/go.md
+  - Testing:
+    - Test categories: guidelines/testing/test-categories.md
+  - Conventions:
+    - Logging: guidelines/conventions/logging.md
 - Components:
   - Overview: components/overview.md
   - Components:
