@@ -610,7 +610,7 @@ func (z *Span) UnmarshalMsg(bts []byte) (o []byte, err error) {
 			}
 			z.Resource, bts, err = parseStringBytes(bts)
 			if err != nil {
-				err = msgp.WrapError(err, "Resource")
+				err = msgp.WrapError(err, "Service")
 				return
 			}
 		case "trace_id":
