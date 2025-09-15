@@ -32,7 +32,9 @@ golang_deps_commenter:
   rules:
     - !reference [.on_dev_branches]
     - when: on_success
-  needs: ["golang_deps_diff"]
+  needs:
+    - job: golang_deps_diff
+      artifacts: true
   variables:
     # Not using the entrypoint script for the pr-commenter image
     FF_KUBERNETES_HONOR_ENTRYPOINT: false
