@@ -124,7 +124,7 @@ func TestInitData(t *testing.T) {
 		"service_monitoring_config.tls.native.enabled":         true,
 		"service_monitoring_config.enabled":                    true,
 		"service_monitoring_config.http2.enabled":              true,
-		"service_monitoring_config.enable_kafka_monitoring":    true,
+		"service_monitoring_config.kafka.enabled":              true,
 		"service_monitoring_config.postgres.enabled":           true,
 		"service_monitoring_config.redis.enabled":              true,
 		"service_monitoring_config.tls.istio.enabled":          true,
@@ -616,7 +616,8 @@ service_monitoring_config:
     go:
       enabled: true
   enabled: true
-  enable_kafka_monitoring: true
+  kafka:
+    enabled: true
   postgres:
     enabled: true
   redis:
