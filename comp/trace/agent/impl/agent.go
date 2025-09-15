@@ -61,15 +61,16 @@ type dependencies struct {
 	Lc         fx.Lifecycle
 	Shutdowner fx.Shutdowner
 
-	Config             config.Component
-	Secrets            option.Option[secrets.Component]
-	Context            context.Context
-	Params             *Params
-	TelemetryCollector telemetry.TelemetryCollector
-	Statsd             statsd.Component
-	Tagger             tagger.Component
-	Compressor         compression.Component
-	IPC                ipc.Component
+	Config                config.Component
+	Secrets               option.Option[secrets.Component]
+	Context               context.Context
+	Params                *Params
+	TelemetryCollector    telemetry.TelemetryCollector
+	Statsd                statsd.Component
+	Tagger                tagger.Component
+	Compressor            compression.Component
+	IPC                   ipc.Component
+	TracerPayloadModifier pkgagent.TracerPayloadModifier
 }
 
 var _ traceagent.Component = (*component)(nil)
@@ -144,6 +145,7 @@ func NewAgent(deps dependencies) (traceagent.Component, error) {
 		statsdCl,
 		deps.Compressor,
 	)
+	c.Agent.TracerPayloadModifier = deps.TracerPayloadModifier
 
 	c.config.OnUpdateAPIKey(c.UpdateAPIKey)
 

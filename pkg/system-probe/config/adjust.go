@@ -63,7 +63,7 @@ func Adjust(cfg model.Config) {
 // validateString validates the string configuration value at `key` using a custom provided function `valFn`.
 // If `key` is not set or `valFn` returns an error, the `defaultVal` is used instead.
 func validateString(cfg model.Config, key string, defaultVal string, valFn func(string) error) {
-	if cfg.IsSet(key) {
+	if cfg.IsConfigured(key) {
 		if err := valFn(cfg.GetString(key)); err != nil {
 			log.Errorf("error validating `%s`: %s, using default value of `%s`", key, err, defaultVal)
 			cfg.Set(key, defaultVal, model.SourceAgentRuntime)
@@ -76,7 +76,7 @@ func validateString(cfg model.Config, key string, defaultVal string, valFn func(
 // validateInt validates the int configuration value at `key` using a custom provided function `valFn`.
 // If `key` is not set or `valFn` returns an error, the `defaultVal` is used instead.
 func validateInt(cfg model.Config, key string, defaultVal int, valFn func(int) error) {
-	if cfg.IsSet(key) {
+	if cfg.IsConfigured(key) {
 		if err := valFn(cfg.GetInt(key)); err != nil {
 			log.Errorf("error validating `%s`: %s, using default value of `%d`", key, err, defaultVal)
 			cfg.Set(key, defaultVal, model.SourceAgentRuntime)
@@ -89,7 +89,7 @@ func validateInt(cfg model.Config, key string, defaultVal int, valFn func(int) e
 // validateInt64 validates the int64 configuration value at `key` using a custom provided function `valFn`.
 // If `key` is not set or `valFn` returns an error, the `defaultVal` is used instead.
 func validateInt64(cfg model.Config, key string, defaultVal int64, valFn func(int64) error) {
-	if cfg.IsSet(key) {
+	if cfg.IsConfigured(key) {
 		if err := valFn(cfg.GetInt64(key)); err != nil {
 			log.Errorf("error validating `%s`: %s. using default value of `%d`", key, err, defaultVal)
 			cfg.Set(key, defaultVal, model.SourceAgentRuntime)
@@ -101,7 +101,7 @@ func validateInt64(cfg model.Config, key string, defaultVal int64, valFn func(in
 
 // applyDefault sets configuration `key` to `defaultVal` only if not previously set.
 func applyDefault(cfg model.Config, key string, defaultVal interface{}) {
-	if !cfg.IsSet(key) {
+	if !cfg.IsConfigured(key) {
 		cfg.Set(key, defaultVal, model.SourceAgentRuntime)
 	}
 }
@@ -149,9 +149,9 @@ func deprecateString(cfg model.Config, oldkey string, newkey string) {
 // deprecateCustom logs a deprecation message if `oldkey` is used.
 // It sets `newkey` to the value obtained from `getFn`, but only if `oldkey` is set and `newkey` is not set.
 func deprecateCustom(cfg model.Config, oldkey string, newkey string, getFn func(model.Config) interface{}) {
-	if cfg.IsSet(oldkey) {
+	if cfg.IsConfigured(oldkey) {
 		log.Warn(deprecationMessage(oldkey, newkey))
-		if !cfg.IsSet(newkey) {
+		if !cfg.IsConfigured(newkey) {
 			cfg.Set(newkey, getFn(cfg), model.SourceAgentRuntime)
 		}
 	}

@@ -13,8 +13,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/intern"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
 // Interner is used to intern strings to save memory allocations.
@@ -67,6 +69,10 @@ func (m Method) String() string {
 		return "UNKNOWN"
 	}
 }
+
+var (
+	requestStatPool = ddsync.NewDefaultTypedPool[RequestStat]()
+)
 
 // Path represents the HTTP path
 type Path struct {
@@ -123,7 +129,7 @@ type RequestStat struct {
 	StaticTags uint64
 
 	// Dynamic tags (if attached)
-	DynamicTags []string
+	DynamicTags common.StringSet
 }
 
 func (r *RequestStat) initSketch() error {
@@ -139,7 +145,13 @@ func (r *RequestStat) close() {
 	if r.Latencies != nil {
 		r.Latencies.Clear()
 		protocols.SketchesPool.Put(r.Latencies)
+		r.Latencies = nil
 	}
+
+	r.Count = 0
+	r.FirstLatencySample = 0
+	r.StaticTags = 0
+	clear(r.DynamicTags)
 }
 
 // RequestStats stores HTTP request statistics.
@@ -199,20 +211,25 @@ func (r *RequestStats) CombineWith(newStats *RequestStats) {
 }
 
 // AddRequest takes information about a HTTP transaction and adds it to the request stats
-func (r *RequestStats) AddRequest(statusCode uint16, latency float64, staticTags uint64, dynamicTags []string) {
+func (r *RequestStats) AddRequest(statusCode uint16, latency float64, staticTags uint64, dynamicTags common.StringSet) {
 	if !isValidStatusCode(statusCode) {
 		return
 	}
 
 	stats, exists := r.Data[statusCode]
 	if !exists {
-		stats = &RequestStat{}
+		stats = requestStatPool.Get()
 		r.Data[statusCode] = stats
 	}
 
 	stats.StaticTags |= staticTags
 	if len(dynamicTags) != 0 {
-		stats.DynamicTags = append(stats.DynamicTags, dynamicTags...)
+		if stats.DynamicTags == nil {
+			stats.DynamicTags = common.NewStringSet()
+		}
+		for tag := range dynamicTags {
+			stats.DynamicTags.Add(tag)
+		}
 	}
 
 	stats.Count++
@@ -254,8 +271,10 @@ func (r *RequestStats) Close() {
 	for _, stats := range r.Data {
 		if stats != nil {
 			stats.close()
+			requestStatPool.Put(stats)
 		}
 	}
+	clear(r.Data)
 }
 
 // isValidStatusCode checks if the status code is in the range of valid HTTP responses

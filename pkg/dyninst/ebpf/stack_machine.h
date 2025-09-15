@@ -12,6 +12,8 @@
 #include "queue.h"
 #include "chased_pointers_trie.h"
 
+const int32_t defaultCollectionSizeBytesLimit = 2048;
+
 DEFINE_BINARY_SEARCH(
   lookup_type_info,
   type_t,
@@ -248,7 +250,35 @@ sm_chase_pointer(global_ctx_t* ctx, pointers_queue_item_t item) {
   if (info->byte_len == 0) {
     return true;
   }
-  sm->offset = scratch_buf_serialize(ctx->buf, &item.di, info->byte_len);
+  uint32_t byte_len = info->byte_len;
+  switch (info->dynamic_size_class) {
+    case DYNAMIC_SIZE_CLASS_STATIC:
+      break;
+    case DYNAMIC_SIZE_CLASS_SLICE:
+      if (sm->collection_size_limit == -1) {
+        byte_len = defaultCollectionSizeBytesLimit;
+      } else {
+        // In this case the info stores byte len of a single element.
+        byte_len = sm->collection_size_limit * info->byte_len;
+      }
+      break;
+    case DYNAMIC_SIZE_CLASS_STRING:
+      if (sm->string_size_limit == -1) {
+        byte_len = defaultCollectionSizeBytesLimit;
+      } else {
+        byte_len = sm->string_size_limit;
+      }
+      break;
+    case DYNAMIC_SIZE_CLASS_HASHMAP:
+      if (sm->collection_size_limit == -1) {
+        byte_len = defaultCollectionSizeBytesLimit * 4;
+      } else {
+        // In this case the info stores byte len of a single element.
+        byte_len = sm->collection_size_limit * info->byte_len * 4;
+      }
+      break;
+  }
+  sm->offset = scratch_buf_serialize(ctx->buf, &item.di, byte_len);
   if (!sm->offset) {
     LOG(3, "chase: failed to serialize type %d", item.di.type);
     return true;
@@ -339,7 +369,7 @@ sm_record_go_interface_impl(global_ctx_t* global_ctx, uint64_t go_runtime_type,
     LOG(4, "chase: interface type not found %llx", go_runtime_type);
     return true;
   }
-  const bool decrease_ttl = false;
+  const bool decrease_ttl = true;
   return sm_record_pointer(global_ctx, t, addr, decrease_ttl, ENQUEUE_LEN_SENTINEL);
 }
 
@@ -359,10 +389,6 @@ struct {
   __type(key, uint32_t);
   __type(value, moduledata_t);
 } moduledata_buf SEC(".maps");
-
-// These constants are filled in by the loader.
-volatile const uint64_t VARIABLE_runtime_dot_firstmoduledata = 0;
-volatile const uint32_t OFFSET_runtime_dot_moduledata__types = 0;
 
 // Translate a pointer to a type (i.e. a pointer pointing to type information
 // inside moduledata) like that found inside an empty interface to an offset

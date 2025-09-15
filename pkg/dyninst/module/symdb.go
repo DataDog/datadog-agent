@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb/uploader"
@@ -23,10 +24,11 @@ import (
 // symdbManager deals with uploading symbols to the SymDB backend.
 type symdbManager struct {
 	// If enabled is false, we never upload anything.
-	enabled   bool
-	uploadURL *url.URL
-	cfg       symdbManagerConfig
-	mu        struct {
+	enabled      bool
+	uploadURL    *url.URL
+	objectLoader object.Loader
+	cfg          symdbManagerConfig
+	mu           struct {
 		sync.Mutex
 		queuedUploads []uploadRequest
 		cond          *sync.Cond
@@ -65,7 +67,11 @@ type uploadRequest struct {
 // newSymdbManager creates a new symdbManager and starts the upload worker.
 //
 // If uploadURL is nil, the manager is disabled and no uploads are performed.
-func newSymdbManager(uploadURL *url.URL, opts ...option) *symdbManager {
+func newSymdbManager(
+	uploadURL *url.URL,
+	objectLoader object.Loader,
+	opts ...option,
+) *symdbManager {
 	cfg := symdbManagerConfig{
 		maxBufferFuncs: 10000,
 	}
@@ -77,6 +83,7 @@ func newSymdbManager(uploadURL *url.URL, opts ...option) *symdbManager {
 	m := &symdbManager{
 		enabled:      uploadURL != nil,
 		uploadURL:    uploadURL,
+		objectLoader: objectLoader,
 		cfg:          cfg,
 		workerCancel: cancel,
 	}
@@ -300,7 +307,9 @@ func (m *symdbManager) worker(ctx context.Context) {
 func (m *symdbManager) performUpload(ctx context.Context, procID processKey, runtimeID string, executablePath string) error {
 	log.Infof("SymDB: uploading symbols for process %v (service: %s, version: %s, executable: %s)",
 		procID.pid, procID.service, procID.version, executablePath)
-	it, err := symdb.PackagesIterator(executablePath,
+	it, err := symdb.PackagesIterator(
+		executablePath,
+		m.objectLoader,
 		symdb.ExtractOptions{
 			Scope:                   symdb.ExtractScopeModulesFromSameOrg,
 			IncludeInlinedFunctions: false,
