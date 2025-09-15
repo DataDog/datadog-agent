@@ -208,7 +208,8 @@ type uptaneClient interface {
 	TargetsCustom() ([]byte, error)
 	TimestampExpires() (time.Time, error)
 	TUFVersionState() (uptane.TUFVersions, error)
-	TransactionalStore() *uptane.TransactionalStore
+	Close() error
+	GetTransactionalStoreMetadata() (*uptane.Metadata, error)
 }
 
 // coreAgentUptaneClient provides functions to get TUF/uptane repo data and update the agent's state via the RC backend.
@@ -454,11 +455,6 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 	}
 	dbPath := path.Join(databaseFilePath, options.databaseFileName)
 
-	transactionalStore, err := uptane.NewTransactionalStore(dbPath, agentVersion, authKeys.apiKey, baseURL.String())
-	if err != nil {
-		return nil, err
-	}
-
 	configRoot := options.configRootOverride
 	directorRoot := options.directorRootOverride
 	opt := []uptane.ClientOption{
@@ -468,8 +464,8 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 	if authKeys.rcKeySet {
 		opt = append(opt, uptane.WithOrgIDCheck(authKeys.rcKey.OrgID))
 	}
-	uptaneClient, err := uptane.NewCoreAgentClient(
-		transactionalStore,
+	uptaneClient, err := uptane.NewCoreAgentClienWithNewTransactionalStore(
+		dbPath, agentVersion, authKeys.apiKey, baseURL.String(),
 		newRCBackendOrgUUIDProvider(http),
 		opt...,
 	)
@@ -650,7 +646,7 @@ func (s *CoreAgentService) Stop() error {
 		close(s.stopConfigPoller)
 	}
 	// close boltDB via the transactional store
-	return s.uptane.TransactionalStore().Close()
+	return s.uptane.Close()
 }
 
 func (s *CoreAgentService) pollOrgStatus() {
@@ -1079,15 +1075,18 @@ func (s *CoreAgentService) ConfigResetState() (*pbgo.ResetStateConfigResponse, e
 	s.Lock()
 	defer s.Unlock()
 
-	// recreate transactional store
-	s.uptane.TransactionalStore().Recreate()
+	// get metadata from current ts to recreate it with same params
+	metadata, err := s.uptane.GetTransactionalStoreMetadata()
+	if err != nil {
+		return nil, err
+	}
 
 	opt := []uptane.ClientOption{
 		uptane.WithConfigRootOverride(s.site, s.configRoot),
 		uptane.WithDirectorRootOverride(s.site, s.directorRoot),
 	}
-	uptaneClient, err := uptane.NewCoreAgentClient(
-		s.uptane.TransactionalStore(),
+	uptaneClient, err := uptane.NewCoreAgentClienWithRecreatedTransactionalStore(
+		metadata.Path, metadata.AgentVersion, metadata.ApiKey, metadata.Url,
 		newRCBackendOrgUUIDProvider(s.api),
 		opt...,
 	)
@@ -1216,12 +1215,8 @@ type HTTPClient struct {
 // An HTTPClient must be closed via HTTPClient.Close() before creating a new one.
 func NewHTTPClient(runPath, site, apiKey, agentVersion string) (*HTTPClient, error) {
 	dbPath := path.Join(runPath, "remote-config-cdn.db")
-	transactionalStore, err := uptane.NewTransactionalStore(dbPath, agentVersion, apiKey, site)
-	if err != nil {
-		return nil, err
-	}
 
-	uptaneCDNClient, err := uptane.NewCDNClient(transactionalStore, apiKey, site)
+	uptaneCDNClient, err := uptane.NewCDNClient(dbPath, agentVersion, apiKey, site)
 	if err != nil {
 		return nil, err
 	}
@@ -1237,7 +1232,7 @@ func NewHTTPClient(runPath, site, apiKey, agentVersion string) (*HTTPClient, err
 // Close closes the HTTPClient and cleans up any resources. Close must be called
 // before any other HTTPClients are instantiated via NewHTTPClient
 func (c *HTTPClient) Close() error {
-	return c.uptane.TransactionalStore().Close()
+	return c.uptane.Close()
 }
 
 // GetCDNConfigUpdate returns any updated configs. If multiple requests have been made

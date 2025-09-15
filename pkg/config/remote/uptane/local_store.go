@@ -32,10 +32,10 @@ type localStore struct {
 	// This is outside of the TUF specification but needed to update partial clients
 	rootsBucket string
 
-	store *TransactionalStore
+	store *transactionalStore
 }
 
-func newLocalStore(ts *TransactionalStore, repository string, initialRoots meta.EmbeddedRoot) (*localStore, error) {
+func newLocalStore(ts *transactionalStore, repository string, initialRoots meta.EmbeddedRoot) (*localStore, error) {
 	s := &localStore{
 		store:       ts,
 		metasBucket: fmt.Sprintf("%s_metas", repository),
@@ -187,10 +187,10 @@ func (s *localStore) Flush() error {
 	return s.store.commit()
 }
 
-func newLocalStoreDirector(ts *TransactionalStore, site string, directorRootOverride string) (*localStore, error) {
+func newLocalStoreDirector(ts *transactionalStore, site string, directorRootOverride string) (*localStore, error) {
 	return newLocalStore(ts, "director", meta.RootsDirector(site, directorRootOverride))
 }
 
-func newLocalStoreConfig(ts *TransactionalStore, site string, configRootOverride string) (*localStore, error) {
+func newLocalStoreConfig(ts *transactionalStore, site string, configRootOverride string) (*localStore, error) {
 	return newLocalStore(ts, "config", meta.RootsConfig(site, configRootOverride))
 }

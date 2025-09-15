@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote/meta"
 )
 
-func getTestTransactionalStore(t *testing.T) *TransactionalStore {
+func getTestTransactionalStore(t *testing.T) *transactionalStore {
 	dir := t.TempDir()
 	db, err := bbolt.Open(dir+"/remote-config.db", 0600, &bbolt.Options{})
 	if err != nil {
@@ -25,7 +25,7 @@ func getTestTransactionalStore(t *testing.T) *TransactionalStore {
 	t.Cleanup(func() {
 		db.Close()
 	})
-	return &TransactionalStore{
+	return &transactionalStore{
 		db:         db,
 		cachedData: make(map[string]dbBucket),
 	}

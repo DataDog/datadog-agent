@@ -11,11 +11,11 @@ import (
 
 // orgStore persists org-specific data
 type orgStore struct {
-	ts        *TransactionalStore
+	ts        *transactionalStore
 	orgBucket string
 }
 
-func newOrgStore(ts *TransactionalStore) *orgStore {
+func newOrgStore(ts *transactionalStore) *orgStore {
 	return &orgStore{
 		ts:        ts,
 		orgBucket: "org",

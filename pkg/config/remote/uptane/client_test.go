@@ -41,13 +41,13 @@ func newTestConfig(t testing.TB, repo testRepositories) model.Config {
 	return cfg
 }
 
-func newTestClient(ts *TransactionalStore, cfg model.Config) (*CoreAgentClient, error) {
+func newTestClient(ts *transactionalStore, cfg model.Config) (*CoreAgentClient, error) {
 	opts := []ClientOption{
 		WithOrgIDCheck(2),
 		WithConfigRootOverride("datadoghq.com", cfg.GetString("remote_configuration.config_root")),
 		WithDirectorRootOverride("datadoghq.com", cfg.GetString("remote_configuration.director_root")),
 	}
-	return NewCoreAgentClient(ts, getTestOrgUUIDProvider(2), opts...)
+	return newCoreAgentClient(ts, getTestOrgUUIDProvider(2), opts...)
 }
 
 func TestClientState(t *testing.T) {
@@ -286,7 +286,7 @@ func TestClientVerifyOrgUUID(t *testing.T) {
 
 func TestOrgStore(t *testing.T) {
 	ts := getTestTransactionalStore(t)
-	client, err := NewCoreAgentClient(ts, getTestOrgUUIDProvider(2), WithOrgIDCheck(2))
+	client, err := newCoreAgentClient(ts, getTestOrgUUIDProvider(2), WithOrgIDCheck(2))
 	assert.NoError(t, err)
 
 	// Store key

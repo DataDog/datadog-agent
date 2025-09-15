@@ -22,7 +22,7 @@ type dbBucket map[string][]byte
 // All writes go to the in-memory structure until the `commit` method is called.
 // All reads first read the in-memory data and fallback to the on disk one.
 // A call to `commit` will flush all changes to the DB in a single transaction.
-type TransactionalStore struct {
+type transactionalStore struct {
 	// underlying database where we apply many changes atomically
 	db *bbolt.DB
 
@@ -36,50 +36,67 @@ type TransactionalStore struct {
 // Represents a transaction around the store.
 // It doesn't provide any locking, as it's all managed by View/Update calls
 type transaction struct {
-	store *TransactionalStore
+	store *transactionalStore
 }
 
-func NewTransactionalStore(dbPath string, agentVersion string, apiKey string, url string) (*TransactionalStore, error) {
+// Metadata needed in order to recreate boltDB
+type Metadata struct {
+	Path         string
+	AgentVersion string
+	ApiKey       string
+	Url          string
+}
+
+func NewTransactionalStore(dbPath string, agentVersion string, apiKey string, url string) (*transactionalStore, error) {
 	// transactional store should be in charge of opening/closing boltDB
 	db, err := openCacheDB(dbPath, agentVersion, apiKey, url)
 	if err != nil {
 		db.Close()
 		return nil, err
 	}
-	s := &TransactionalStore{
+	s := &transactionalStore{
 		db:         db,
 		cachedData: make(map[string]dbBucket),
 	}
 	return s, nil
 }
 
-// Recreate will use the metadata & path from the existing TS boltDB to open a new one & clear cachedData
-func (ts *TransactionalStore) Recreate() error {
+// RecreateTransactionalStore uses the metadata & path from the existing TS boltDB to open a new one & clear cachedData
+func RecreateTransactionalStore(dbPath string, agentVersion string, apiKey string, url string) (*transactionalStore, error) {
+	db, err := recreate(dbPath, agentVersion, apiKey, url)
+	if err != nil {
+		db.Close()
+		return nil, err
+	}
+	s := &transactionalStore{
+		db:         db,
+		cachedData: make(map[string]dbBucket),
+	}
+	return s, nil
+}
+
+// getTSMetadata gets metadata from existing transactional db and then closes the existing underlying boltDB
+func (ts *transactionalStore) getTSMetadata() (*Metadata, error) {
 	metadata, err := getMetadata(ts.db)
 	if err != nil {
-		return fmt.Errorf("could not read metadata from the database: %w", err)
+		return nil, fmt.Errorf("could not read metadata from the database: %w", err)
 	}
-
-	path := ts.db.Path()
 
 	err = ts.db.Close()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	db, err := recreate(path, metadata.Version, metadata.APIKeyHash, metadata.URL)
-	if err != nil {
-		return err
-	}
-
-	ts.db = db
-	ts.cachedData = make(map[string]dbBucket)
-
-	return nil
+	return &Metadata{
+		Path:         ts.db.Path(),
+		AgentVersion: metadata.Version,
+		ApiKey:       metadata.APIKeyHash,
+		Url:          metadata.URL,
+	}, nil
 }
 
 // getMemBucket returns a refence to the in-memory bucket
-func (ts *TransactionalStore) getMemBucket(bucketName string) dbBucket {
+func (ts *transactionalStore) getMemBucket(bucketName string) dbBucket {
 	cachedBucket, ok := ts.cachedData[bucketName]
 	if !ok {
 		cachedBucket = make(dbBucket)
@@ -93,7 +110,7 @@ type pathData struct {
 	data []byte
 }
 
-func (ts *TransactionalStore) getAll(bucketName string) ([]pathData, error) {
+func (ts *transactionalStore) getAll(bucketName string) ([]pathData, error) {
 	seenBlobs := map[string]struct{}{}
 	blobs := []pathData{}
 
@@ -133,13 +150,13 @@ func (ts *TransactionalStore) getAll(bucketName string) ([]pathData, error) {
 }
 
 // transaction types
-func (ts *TransactionalStore) view(fn func(*transaction) error) error {
+func (ts *transactionalStore) view(fn func(*transaction) error) error {
 	ts.lock.RLock()
 	defer ts.lock.RUnlock()
 	return fn(&transaction{ts})
 }
 
-func (ts *TransactionalStore) update(fn func(*transaction) error) error {
+func (ts *transactionalStore) update(fn func(*transaction) error) error {
 	ts.lock.Lock()
 	defer ts.lock.Unlock()
 	err := fn(&transaction{ts})
@@ -182,7 +199,7 @@ func (t *transaction) pruneTargetFiles(bucketName string, keptPaths []string) er
 }
 
 // commit all data from each bucket to the underlying database
-func (ts *TransactionalStore) commit() error {
+func (ts *transactionalStore) commit() error {
 	ts.lock.Lock()
 	defer ts.lock.Unlock()
 	err := ts.db.Update(func(tx *bbolt.Tx) error {
@@ -218,7 +235,7 @@ func (ts *TransactionalStore) commit() error {
 }
 
 // removes all cached changes
-func (ts *TransactionalStore) rollback() {
+func (ts *transactionalStore) rollback() {
 	ts.lock.Lock()
 	defer ts.lock.Unlock()
 	if len(ts.cachedData) > 0 {
@@ -227,14 +244,14 @@ func (ts *TransactionalStore) rollback() {
 	}
 }
 
-func (ts *TransactionalStore) Close() error {
+func (ts *transactionalStore) Close() error {
 	ts.lock.Lock()
 	defer ts.lock.Unlock()
 	return ts.db.Close()
 }
 
 // for test in service pkg
-func (ts *TransactionalStore) GetPath() string {
+func (ts *transactionalStore) GetPath() string {
 	ts.lock.Lock()
 	defer ts.lock.Unlock()
 	return ts.db.Path()

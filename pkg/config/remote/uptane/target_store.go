@@ -11,11 +11,11 @@ import (
 
 // targetStore persists all the target files present in the current director targets.json
 type targetStore struct {
-	ts           *TransactionalStore
+	ts           *transactionalStore
 	targetBucket string
 }
 
-func newTargetStore(ts *TransactionalStore) *targetStore {
+func newTargetStore(ts *transactionalStore) *targetStore {
 	return &targetStore{
 		ts:           ts,
 		targetBucket: "targets",

@@ -15,7 +15,7 @@ import (
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
 
-func getBenchmarkTransactionalStore(b *testing.B) *TransactionalStore {
+func getBenchmarkTransactionalStore(b *testing.B) *transactionalStore {
 	dir := b.TempDir()
 	db, err := bbolt.Open(dir+"/remote-config.db", 0600, &bbolt.Options{})
 	if err != nil {
@@ -24,7 +24,7 @@ func getBenchmarkTransactionalStore(b *testing.B) *TransactionalStore {
 	b.Cleanup(func() {
 		db.Close()
 	})
-	return &TransactionalStore{
+	return &transactionalStore{
 		db:         db,
 		cachedData: make(map[string]dbBucket),
 	}

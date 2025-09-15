@@ -48,7 +48,7 @@ type Client struct {
 	cachedVerifyTime time.Time
 
 	// TUF transaction tracker
-	transactionalStore *TransactionalStore
+	transactionalStore *transactionalStore
 
 	orgVerificationEnabled bool
 }
@@ -96,8 +96,8 @@ func WithConfigRootOverride(site string, configRootOverride string) ClientOption
 // OrgUUIDProvider is a provider of the agent org UUID
 type OrgUUIDProvider func() (string, error)
 
-// NewCoreAgentClient creates a new uptane client
-func NewCoreAgentClient(transactionalStore *TransactionalStore, orgUUIDProvider OrgUUIDProvider, options ...ClientOption) (c *CoreAgentClient, err error) {
+// newCoreAgentClient creates a new uptane client
+func newCoreAgentClient(transactionalStore *transactionalStore, orgUUIDProvider OrgUUIDProvider, options ...ClientOption) (c *CoreAgentClient, err error) {
 	targetStore := newTargetStore(transactionalStore)
 	orgStore := newOrgStore(transactionalStore)
 
@@ -128,6 +128,26 @@ func NewCoreAgentClient(transactionalStore *TransactionalStore, orgUUIDProvider 
 	c.configTUFClient = client.NewClient(c.configLocalStore, c.configRemoteStore)
 	c.directorTUFClient = client.NewClient(c.directorLocalStore, c.directorRemoteStore)
 	return c, nil
+}
+
+// NewCoreAgentClienWithNewTransactionalStore creates a new uptane client with a new transactional store
+func NewCoreAgentClienWithNewTransactionalStore(dbPath, agentVersion, apiKey, url string, orgUUIDProvider OrgUUIDProvider, options ...ClientOption) (c *CoreAgentClient, err error) {
+	transactionalStore, err := NewTransactionalStore(dbPath, agentVersion, apiKey, url)
+	if err != nil {
+		return nil, err
+	}
+
+	return newCoreAgentClient(transactionalStore, orgUUIDProvider, options...)
+}
+
+// NewCoreAgentClienWithRecreatedTransactionalStore creates a new uptane client with a recreated transactional store
+func NewCoreAgentClienWithRecreatedTransactionalStore(dbPath, agentVersion, apiKey, url string, orgUUIDProvider OrgUUIDProvider, options ...ClientOption) (c *CoreAgentClient, err error) {
+	transactionalStore, err := RecreateTransactionalStore(dbPath, agentVersion, apiKey, url)
+	if err != nil {
+		return nil, err
+	}
+
+	return newCoreAgentClient(transactionalStore, orgUUIDProvider, options...)
 }
 
 // Update updates the uptane client and rollbacks in case of error
@@ -184,7 +204,11 @@ func (c *CoreAgentClient) updateRepos(response *pbgo.LatestConfigsResponse) erro
 }
 
 // NewCDNClient creates a new uptane client that will fetch the latest configs from the server over HTTP(s)
-func NewCDNClient(transactionalStore *TransactionalStore, apiKey, site string, options ...ClientOption) (c *CDNClient, err error) {
+func NewCDNClient(dbPath, agentVersion, apiKey, site string, options ...ClientOption) (c *CDNClient, err error) {
+	transactionalStore, err := NewTransactionalStore(dbPath, agentVersion, apiKey, site)
+	if err != nil {
+		return nil, err
+	}
 	targetStore := newTargetStore(transactionalStore)
 	orgStore := newOrgStore(transactionalStore)
 
@@ -219,6 +243,11 @@ func NewCDNClient(transactionalStore *TransactionalStore, apiKey, site string, o
 	c.configTUFClient = client.NewClient(c.configLocalStore, c.configRemoteStore)
 	c.directorTUFClient = client.NewClient(c.directorLocalStore, c.directorRemoteStore)
 	return c, nil
+}
+
+// Closes underlying boltDB
+func (c *Client) Close() error {
+	return c.transactionalStore.Close()
 }
 
 // Update updates the uptane client and rollbacks in case of error
@@ -592,6 +621,6 @@ func configMetasUpdateSummary(metas *pbgo.ConfigMetas) string {
 	return b.String()
 }
 
-func (c *Client) TransactionalStore() *TransactionalStore {
-	return c.transactionalStore
+func (c *Client) GetTransactionalStoreMetadata() (*Metadata, error) {
+	return c.transactionalStore.getTSMetadata()
 }
