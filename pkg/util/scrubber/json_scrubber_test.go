@@ -48,6 +48,11 @@ func TestScrubJSON(t *testing.T) {
 			input:    []byte(`{}`),
 			expected: []byte(`{}`),
 		},
+		{
+			name:     "complex config with password and tags",
+			input:    []byte(`{"host": "localhost", "password": "secret123", "port": 9003, "tags": ["service: api", "partner: aa", "stage: prod", "source: tomcat-jmx"], "user": "admin"}`),
+			expected: []byte(`{"host": "localhost", "password": "********", "port": 9003, "tags": ["service: api", "partner: aa", "stage: prod", "source: tomcat-jmx"], "user": "admin"}`),
+		},
 	}
 
 	for _, tc := range testCases {

@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 type jmxState struct {
@@ -109,7 +110,13 @@ func GetIntegrations() (map[string]interface{}, error) {
 
 	for name, config := range GetScheduledConfigs() {
 		var rawInitConfig integration.RawMap
-		err := yaml.Unmarshal(config.InitConfig, &rawInitConfig)
+		// call scrubber.ScrubYaml on config.InitConfig
+		scrubbedInitConfig, err := scrubber.ScrubYaml(config.InitConfig)
+		if err != nil {
+			return nil, fmt.Errorf("unable to scrub JMX configuration: %w", err)
+		}
+
+		err = yaml.Unmarshal(scrubbedInitConfig, &rawInitConfig)
 		if err != nil {
 			return nil, fmt.Errorf("unable to parse JMX configuration: %w", err)
 		}
