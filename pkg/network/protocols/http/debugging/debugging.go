@@ -18,14 +18,14 @@ import (
 // RequestSummary represents a (debug-friendly) aggregated view of requests
 // matching a (client, server, path, method) tuple
 type RequestSummary struct {
-	Client      Address
-	Server      Address
-	DNS         string
-	Path        string
-	Method      string
-	ByStatus    map[uint16]Stats
-	StaticTags  uint64
-	DynamicTags []string
+	Client     Address
+	Server     Address
+	DNS        string
+	Path       string
+	Method     string
+	ByStatus   map[uint16]Stats
+	StaticTags uint64
+	OSSpecific *http.RequestStatOSSpecific
 }
 
 // Address represents represents a IP:Port
@@ -65,7 +65,7 @@ func HTTP(stats map[http.Key]*http.RequestStats, dns map[util.Address][]dns.Host
 
 		for status, stat := range v.Data {
 			debug.StaticTags = stat.StaticTags
-			debug.DynamicTags = stat.DynamicTags.GetAll()
+			debug.OSSpecific = stat.RequestStatOSSpecific
 
 			debug.ByStatus[status] = Stats{
 				Count:              stat.Count,
