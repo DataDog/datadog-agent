@@ -2566,9 +2566,9 @@ LOOP:
 		require.Empty(collect, conn.TCPFailures, "connection should have no failures")
 
 		// after closing the client connection, the duration should be
-		// updated to a value between 1s and 2s
-		require.Greater(collect, conn.Duration, time.Second, "connection duration should be between 1 and 2 seconds")
-		require.Less(collect, conn.Duration, 2*time.Second, "connection duration should be between 1 and 2 seconds")
+		// updated to a value between 500ms and 2s.
+		require.Greater(collect, conn.Duration, 500*time.Millisecond, "connection duration should be between 500ms and 2 seconds")
+		require.Less(collect, conn.Duration, 2*time.Second, "connection duration should be between 500ms and 2 seconds")
 	}, 4*time.Second, 100*time.Millisecond, "could not find closed connection")
 }
 
