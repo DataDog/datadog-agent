@@ -40,7 +40,6 @@ type dependencies struct {
 	Attacher            Attacher
 	LogsFactory         LogsUploaderFactory[LogsUploader]
 	DiagnosticsUploader DiagnosticsUploader
-	ObjectLoader        object.Loader
 	symdbManager        *symdbManager
 }
 

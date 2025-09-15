@@ -142,7 +142,6 @@ func (c *realDependencies) asDependencies() dependencies {
 		Attacher:            c.attacher,
 		LogsFactory:         logsUploaderFactoryImpl[*uploader.LogsUploader]{factory: c.logUploader},
 		DiagnosticsUploader: c.diagsUploader,
-		ObjectLoader:        c.objectLoader,
 		symdbManager:        c.symdbManager,
 	}
 }
