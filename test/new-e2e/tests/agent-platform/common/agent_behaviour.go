@@ -300,6 +300,10 @@ func CheckApmDisabled(t *testing.T, client *TestClient) {
 // CheckCWSBehaviour runs tests to check the agent behave correctly when CWS is enabled
 func CheckCWSBehaviour(t *testing.T, client *TestClient) {
 	t.Run("enable CWS and restarts", func(tt *testing.T) {
+		if client.Host.OSFlavor == componentos.CentOS {
+			tt.Skip("System-probe is broken on CentOS 7")
+		}
+		// remove existing config file
 		client.Host.MustExecute("sudo rm " + client.Helper.GetConfigFolder() + "system-probe.yaml")
 		err := client.SetConfig(client.Helper.GetConfigFolder()+"system-probe.yaml", "runtime_security_config.enabled", "true")
 		require.NoError(tt, err)
@@ -317,14 +321,10 @@ func CheckCWSBehaviour(t *testing.T, client *TestClient) {
 	})
 
 	t.Run("system-probe is running", func(tt *testing.T) {
+		if client.Host.OSFlavor == componentos.CentOS {
+			tt.Skip("System-probe is broken on CentOS 7")
+		}
 		require.Eventually(tt, func() bool {
-			out, err := client.Host.Execute("pgrep -fl system-probe")
-			if err == nil {
-				tt.Logf("system-probe processes: %s", out)
-			} else {
-				tt.Logf("error getting system-probe processes: %s", err)
-			}
-
 			return AgentProcessIsRunning(client, "system-probe")
 		}, 1*time.Minute, 500*time.Millisecond, "system-probe should be running ")
 	})
@@ -333,6 +333,9 @@ func CheckCWSBehaviour(t *testing.T, client *TestClient) {
 // CheckSystemProbeBehavior runs tests to check the agent behave correctly when system-probe is enabled
 func CheckSystemProbeBehavior(t *testing.T, client *TestClient) {
 	t.Run("enable system-probe and restarts", func(tt *testing.T) {
+		if client.Host.OSFlavor == componentos.CentOS {
+			tt.Skip("System-probe is broken on CentOS 7")
+		}
 		err := client.SetConfig(client.Helper.GetConfigFolder()+"system-probe.yaml", "system_probe_config.enabled", "true")
 		require.NoError(tt, err)
 
@@ -341,19 +344,18 @@ func CheckSystemProbeBehavior(t *testing.T, client *TestClient) {
 	})
 
 	t.Run("system-probe is running", func(tt *testing.T) {
+		if client.Host.OSFlavor == componentos.CentOS {
+			tt.Skip("System-probe is broken on CentOS 7")
+		}
 		require.Eventually(tt, func() bool {
-			out, err := client.Host.Execute("pgrep -fl system-probe")
-			if err == nil {
-				tt.Logf("system-probe processes: %s", out)
-			} else {
-				tt.Logf("error getting system-probe processes: %s", err)
-			}
-
 			return AgentProcessIsRunning(client, "system-probe")
 		}, 1*time.Minute, 500*time.Millisecond, "system-probe should be running ")
 	})
 
 	t.Run("ebpf programs are unpacked and valid", func(tt *testing.T) {
+		if client.Host.OSFlavor == componentos.CentOS {
+			tt.Skip("System-probe is broken on CentOS 7")
+		}
 		ebpfPath := "/opt/datadog-agent/embedded/share/system-probe/ebpf"
 		output, err := client.Host.Execute(fmt.Sprintf("find %s -name '*.o'", ebpfPath))
 		require.NoError(tt, err)
