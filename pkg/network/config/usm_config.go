@@ -188,8 +188,8 @@ func NewUSMConfig(cfg model.Config) *USMConfig {
 		HTTPMaxRequestFragment:    cfg.GetInt64(sysconfig.FullKeyPath(smNS, "http_max_request_fragment")),
 
 		// HTTP2 Protocol Configuration
-		EnableHTTP2Monitoring:               cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_http2_monitoring")),
-		HTTP2DynamicTableMapCleanerInterval: time.Duration(cfg.GetInt(sysconfig.FullKeyPath(smNS, "http2_dynamic_table_map_cleaner_interval_seconds"))) * time.Second,
+		EnableHTTP2Monitoring:               cfg.GetBool(sysconfig.FullKeyPath(smNS, "http2", "enabled")),
+		HTTP2DynamicTableMapCleanerInterval: time.Duration(cfg.GetInt(sysconfig.FullKeyPath(smNS, "http2", "dynamic_table_map_cleaner_interval_seconds"))) * time.Second,
 
 		// Kafka Protocol Configuration
 		EnableKafkaMonitoring: cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_kafka_monitoring")),
