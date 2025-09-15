@@ -147,9 +147,6 @@ COPY datadog*.yaml etc/datadog-agent/
 # Installation information
 COPY install_info etc/datadog-agent/
 
-# shared libraries
-COPY lib/ opt/embedded/lib/
-
 # Extract and cleanup:
 #   - unused systemd unit
 #   - unused installer binary
@@ -260,3 +257,4 @@ CMD ["/bin/entrypoint.sh"]
 
 FROM release AS test
 COPY --chmod=755 test_image_contents.py /tmp/test_image_contents.py
+RUN ./tmp/test_image_contents.py && rm -f ./tmp/test_image_contents.py
