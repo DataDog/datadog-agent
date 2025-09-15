@@ -307,6 +307,7 @@ def pr_commenter(
     _,
     title: str,
     body: str = '',
+    body_file: str = '',
     pr_id: int | None = None,
     verbose: bool = True,
     delete: bool = False,
@@ -328,6 +329,12 @@ def pr_commenter(
     """
 
     from tasks.libs.ciproviders.github_api import GithubAPI
+
+    assert not body_file or not body, "Use either body or body_file, not both"
+
+    if body_file:
+        with open(body_file) as f:
+            body = f.read()
 
     if not body and not delete:
         return
