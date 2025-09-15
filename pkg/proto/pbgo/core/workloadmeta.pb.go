@@ -2235,7 +2235,7 @@ const file_datadog_workloadmeta_workloadmeta_proto_rawDesc = "" +
 	"\x03UST\x12\x18\n" +
 	"\aservice\x18\x01 \x01(\tR\aservice\x12\x10\n" +
 	"\x03env\x18\x02 \x01(\tR\x03env\x12\x18\n" +
-	"\aversion\x18\x03 \x01(\tR\aversion\"\x86\x03\n" +
+	"\aversion\x18\x03 \x01(\tR\aversion\"\x80\x03\n" +
 	"\aService\x12$\n" +
 	"\rgeneratedName\x18\x01 \x01(\tR\rgeneratedName\x120\n" +
 	"\x13generatedNameSource\x18\x02 \x01(\tR\x13generatedNameSource\x12:\n" +
@@ -2244,7 +2244,7 @@ const file_datadog_workloadmeta_workloadmeta_proto_rawDesc = "" +
 	"\btcpPorts\x18\a \x03(\x05R\btcpPorts\x12\x1a\n" +
 	"\budpPorts\x18\b \x03(\x05R\budpPorts\x12.\n" +
 	"\x12apmInstrumentation\x18\t \x01(\tR\x12apmInstrumentation\x12+\n" +
-	"\x03ust\x18\x11 \x01(\v2\x19.datadog.workloadmeta.USTR\x03ustJ\x04\b\x06\x10\a\"8\n" +
+	"\x03ust\x18\x11 \x01(\v2\x19.datadog.workloadmeta.USTR\x03ust\"8\n" +
 	"\bLanguage\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x18\n" +
 	"\aversion\x18\x02 \x01(\tR\aversion\"\x98\x04\n" +
