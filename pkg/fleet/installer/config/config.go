@@ -16,7 +16,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	patch "gopkg.in/evanphx/json-patch.v4"
 	"gopkg.in/yaml.v3"
 
@@ -155,7 +154,6 @@ type FileOperation struct {
 }
 
 func (a *FileOperation) apply(root *os.Root) error {
-	log.Debugf("Applying fleet-automation file operation: %+v", a)
 	if !configNameAllowed(a.FilePath) && !(a.FileOperationType == FileOperationDelete && deleteConfigNameAllowed(a.FilePath)) {
 		return fmt.Errorf("modifying config file %s is not allowed", a.FilePath)
 	}
@@ -267,7 +265,7 @@ var (
 		"/conf.d/*.d/*.yaml",
 	}
 
-	legacyPathPrefix = filepath.Join("managed", "stable")
+	legacyPathPrefix = "/" + filepath.Join("managed", "datadog-agent", "stable")
 
 	deleteAllowedConfigFiles = []string{
 		"/datadog.yaml",
@@ -292,7 +290,7 @@ func configNameAllowed(file string) bool {
 
 func deleteConfigNameAllowed(file string) bool {
 	for _, allowedFile := range deleteAllowedConfigFiles {
-		match, err := filepath.Match(filepath.Join(legacyPathPrefix, allowedFile), file)
+		match, err := filepath.Match(fmt.Sprintf("/managed/datadog-agent/*%s", allowedFile), file)
 		if err != nil {
 			return false
 		}
@@ -306,8 +304,14 @@ func deleteConfigNameAllowed(file string) bool {
 func buildOperationsFromLegacyInstaller(rootPath string) []FileOperation {
 	var allOps []FileOperation
 
+	// Eval legacyPathPrefix symlink from rootPath
+	stableDirPath, err := filepath.EvalSymlinks(filepath.Join(rootPath, legacyPathPrefix))
+	if err != nil {
+		return allOps
+	}
+
 	for _, allowedFile := range deleteAllowedConfigFiles {
-		ops, err := buildOperationsFromLegacyConfigFile(rootPath, allowedFile)
+		ops, err := buildOperationsFromLegacyConfigFile(rootPath, allowedFile, stableDirPath)
 		if err == nil {
 			allOps = append(allOps, ops...)
 		}
@@ -315,11 +319,12 @@ func buildOperationsFromLegacyInstaller(rootPath string) []FileOperation {
 	return allOps
 }
 
-func buildOperationsFromLegacyConfigFile(rootPath, filePath string) ([]FileOperation, error) {
+func buildOperationsFromLegacyConfigFile(rootPath, filePath, stableDirPath string) ([]FileOperation, error) {
 	var ops []FileOperation
 
 	// Read the stable config file
-	stableDatadogYAML, err := os.ReadFile(filepath.Join(rootPath, legacyPathPrefix, filePath))
+	fullPath := filepath.Join(stableDirPath, filePath)
+	stableDatadogYAML, err := os.ReadFile(fullPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return ops, nil
@@ -327,17 +332,36 @@ func buildOperationsFromLegacyConfigFile(rootPath, filePath string) ([]FileOpera
 		return ops, err
 	}
 
+	// Since the config is YAML, we need to convert it to JSON
+	// 1. Parse the YAML in interface{}
+	// 2. Serialize the interface{} to JSON
+	var stableDatadogJSON interface{}
+	err = yaml.Unmarshal(stableDatadogYAML, &stableDatadogJSON)
+	if err != nil {
+		return ops, err
+	}
+	stableDatadogJSONBytes, err := json.Marshal(stableDatadogJSON)
+	if err != nil {
+		return ops, err
+	}
+
 	// Add the merge patch operation
 	ops = append(ops, FileOperation{
 		FileOperationType: FileOperationType(FileOperationMergePatch),
 		FilePath:          filePath,
-		Patch:             stableDatadogYAML,
+		Patch:             stableDatadogJSONBytes,
 	})
+
+	managedDir := strings.LastIndex(fullPath, "/managed")
+	if managedDir == -1 {
+		return ops, fmt.Errorf("managed directory not found in file path: %s", filePath)
+	}
+	fPath := fullPath[managedDir:]
 
 	// Add the delete operation for the old file
 	ops = append(ops, FileOperation{
 		FileOperationType: FileOperationType(FileOperationDelete),
-		FilePath:          filepath.Join(legacyPathPrefix, filePath),
+		FilePath:          fPath,
 	})
 
 	return ops, nil

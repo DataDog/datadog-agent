@@ -302,7 +302,7 @@ func TestBuildOperationsFromLegacyConfigFile(t *testing.T) {
 	err = os.WriteFile(filepath.Join(managedDir, "datadog.yaml"), legacyConfig, 0644)
 	assert.NoError(t, err)
 
-	ops, err := buildOperationsFromLegacyConfigFile(tmpDir, "/datadog.yaml")
+	ops, err := buildOperationsFromLegacyConfigFile(tmpDir, "/datadog.yaml", managedDir)
 	assert.NoError(t, err)
 	assert.Len(t, ops, 2)
 
