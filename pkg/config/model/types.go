@@ -226,7 +226,7 @@ type Setup interface {
 	SetDefault(key string, value interface{})
 
 	SetEnvPrefix(in string)
-	BindEnv(key string, envvars ...string) //nolint:forbidigo
+	BindEnv(key string, envvars ...string)
 	SetEnvKeyReplacer(r *strings.Replacer)
 
 	// The following helpers allow a type to be enforce when parsing environment variables. Most of them exists to
