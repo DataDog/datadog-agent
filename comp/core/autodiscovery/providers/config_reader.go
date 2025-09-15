@@ -33,6 +33,7 @@ type configFormat struct {
 	InitConfig              interface{}                        `yaml:"init_config"`
 	MetricConfig            interface{}                        `yaml:"jmx_metrics"`
 	LogsConfig              interface{}                        `yaml:"logs"`
+	DiscoveryConfig         interface{}                        `yaml:"discovery"`
 	Instances               []integration.RawMap
 	DockerImages            []string `yaml:"docker_images"`             // Only imported for deprecation warning
 	IgnoreAutodiscoveryTags bool     `yaml:"ignore_autodiscovery_tags"` // Use to ignore tags coming from autodiscovery
@@ -380,9 +381,9 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, error
 		log.Warnf("reading config file %v: %v\n", fpath, strictErr)
 	}
 
-	// If no valid instances were found & this is neither a metrics file, nor a logs file
-	// this is not a valid configuration file
-	if cf.MetricConfig == nil && cf.LogsConfig == nil && len(cf.Instances) < 1 {
+	// If no valid instances were found & this is neither a metrics file, nor a logs file, nor a discovery file
+	// this is not a valid configuration file. However, allow discovery-only configs with AD identifiers.
+	if cf.MetricConfig == nil && cf.LogsConfig == nil && cf.DiscoveryConfig == nil && len(cf.Instances) < 1 {
 		return conf, errors.New("Configuration file contains no valid instances")
 	}
 
@@ -420,6 +421,11 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, error
 		logsConfig := make(map[string]interface{})
 		logsConfig["logs"] = cf.LogsConfig
 		conf.LogsConfig, _ = yaml.Marshal(logsConfig)
+	}
+
+	// If discovery was found, add it to the config
+	if cf.DiscoveryConfig != nil {
+		conf.DiscoveryConfig, _ = yaml.Marshal(cf.DiscoveryConfig)
 	}
 
 	// Copy auto discovery identifiers
