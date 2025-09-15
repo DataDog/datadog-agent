@@ -495,6 +495,24 @@ func (p *PodAutoscalerInternal) CustomRecommenderConfiguration() *RecommenderCon
 	return p.customRecommenderConfiguration
 }
 
+// OwnerReference represents a reference to an owner object
+type OwnerReference struct {
+	Namespace  string
+	Name       string
+	Kind       string
+	APIVersion string
+}
+
+// GetOwnerReference returns the OwnerReference for a given PodAutoscalerInternal object
+func (p *PodAutoscalerInternal) GetOwnerReference() OwnerReference {
+	return OwnerReference{
+		Namespace:  p.namespace,
+		Name:       p.spec.TargetRef.Name,
+		Kind:       p.spec.TargetRef.Kind,
+		APIVersion: p.spec.TargetRef.APIVersion,
+	}
+}
+
 //
 // Helpers
 //
