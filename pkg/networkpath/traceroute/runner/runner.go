@@ -139,7 +139,8 @@ func (r *Runner) RunTraceroute(ctx context.Context, cfg config.Config) (payload.
 
 		// TODO: Using TracerouteQueries = 1 for now since this PR is only about migrating the data model.
 		//       A separate PR will 1/ make traceroute_queries configurable, 2/ use 3x as default.
-		TracerouteQueries: 1,
+		TracerouteQueries: 3,
+		E2eQueries:        50,
 	}
 
 	results, err := runner.RunTraceroute(ctx, params)
