@@ -48,6 +48,7 @@ const (
 	provisionerBaseID = "aws-kind-"
 	defaultVMName     = "kind"
 )
+
 // kubernetesVersionOverride wraps an Environment to override the KubernetesVersion method
 type kubernetesVersionOverride struct {
 	config.Env
@@ -57,6 +58,7 @@ type kubernetesVersionOverride struct {
 func (k *kubernetesVersionOverride) KubernetesVersion() string {
 	return k.overrideVersion
 }
+
 // KindDiagnoseFunc is the diagnose function for the Kind provisioner
 func KindDiagnoseFunc(ctx context.Context, stackName string) (string, error) {
 	dumpResult, err := dumpKindClusterState(ctx, stackName)
@@ -96,7 +98,7 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 	// Resolve "latest" to actual version early to prevent semver parsing errors in components
 	resolvedKubeVersion := awsEnv.KubernetesVersion()
 	_ = ctx.Log.Info(fmt.Sprintf("CONTINT-4708: Initial kubernetesVersion from awsEnv: %s", resolvedKubeVersion), nil)
-	
+
 	if resolvedKubeVersion == "latest" {
 		_ = ctx.Log.Info("CONTINT-4708: Detected kubernetesVersion=latest, resolving to actual version", nil)
 		kindConfig, err := kubeComp.GetKindVersionConfig("latest")
@@ -277,7 +279,7 @@ agents:
 				Env:             &awsEnv,
 				overrideVersion: resolvedKubeVersion,
 			}
-			
+
 			if _, err := nginx.K8sAppDefinition(envForComponents, kubeProvider, "workload-nginx", "", true, dependsOnDDAgent /* for DDM */, dependsOnVPA); err != nil {
 				return err
 			}
