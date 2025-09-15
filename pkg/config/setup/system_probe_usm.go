@@ -34,22 +34,19 @@ func initUSMSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// ========================================
 	// HTTP Protocol Configuration
 	// ========================================
-	cfg.BindEnv(join(smNS, "enable_http_monitoring"))
+	cfg.BindEnvAndSetDefault(join(smNS, "enable_http_monitoring"), true)
 	// For backward compatibility
 	cfg.BindEnv(join(netNS, "enable_http_monitoring"), "DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING")
 
-	// Default value (100000) is set in `adjustUSM`, to avoid having "deprecation warning", due to the default value.
-	cfg.BindEnv(join(smNS, "max_http_stats_buffered"))
+	cfg.BindEnvAndSetDefault(join(smNS, "max_http_stats_buffered"), 100000)
 	// For backward compatibility
 	cfg.BindEnv(join(netNS, "max_http_stats_buffered"), "DD_SYSTEM_PROBE_NETWORK_MAX_HTTP_STATS_BUFFERED")
 
-	// Default value (1024) is set in `adjustUSM`, to avoid having "deprecation warning", due to the default value.
-	cfg.BindEnv(join(smNS, "max_tracked_http_connections"))
+	cfg.BindEnvAndSetDefault(join(smNS, "max_tracked_http_connections"), 1024)
 	// For backward compatibility
 	cfg.BindEnv(join(netNS, "max_tracked_http_connections"))
 
-	// Default value (512) is set in `adjustUSM`, to avoid having "deprecation warning", due to the default value.
-	cfg.BindEnv(join(smNS, "http_notification_threshold"))
+	cfg.BindEnvAndSetDefault(join(smNS, "http_notification_threshold"), 512)
 	// For backward compatibility
 	cfg.BindEnv(join(netNS, "http_notification_threshold"))
 
@@ -58,13 +55,11 @@ func initUSMSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// For backward compatibility
 	cfg.BindEnv(join(netNS, "http_max_request_fragment"))
 
-	// Default value (300) is set in `adjustUSM`, to avoid having "deprecation warning", due to the default value.
-	cfg.BindEnv(join(smNS, "http_map_cleaner_interval_in_s"))
+	cfg.BindEnvAndSetDefault(join(smNS, "http_map_cleaner_interval_in_s"), 300)
 	// For backward compatibility
 	cfg.BindEnv(join(spNS, "http_map_cleaner_interval_in_s"))
 
-	// Default value (30) is set in `adjustUSM`, to avoid having "deprecation warning", due to the default value.
-	cfg.BindEnv(join(smNS, "http_idle_connection_ttl_in_s"))
+	cfg.BindEnvAndSetDefault(join(smNS, "http_idle_connection_ttl_in_s"), 30)
 	// For backward compatibility
 	cfg.BindEnv(join(spNS, "http_idle_connection_ttl_in_s"))
 
@@ -95,7 +90,12 @@ func initUSMSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// ========================================
 	// Kafka Protocol Configuration
 	// ========================================
+	cfg.BindEnvAndSetDefault(join(smNS, "kafka", "enabled"), false)
+	// For backward compatibility
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_kafka_monitoring"), false)
+
+	cfg.BindEnvAndSetDefault(join(smNS, "kafka", "max_stats_buffered"), 100000)
+	// For backward compatibility
 	cfg.BindEnvAndSetDefault(join(smNS, "max_kafka_stats_buffered"), 100000)
 
 	// ========================================
@@ -115,14 +115,14 @@ func initUSMSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// ========================================
 	// Native TLS Configuration
 	// ========================================
-	cfg.BindEnv(join(smNS, "tls", "native", "enabled"))
+	cfg.BindEnvAndSetDefault(join(smNS, "tls", "native", "enabled"), true)
 	// For backward compatibility
 	cfg.BindEnv(join(netNS, "enable_https_monitoring"), "DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTPS_MONITORING")
 
 	// ========================================
 	// Go TLS Configuration
 	// ========================================
-	cfg.BindEnv(join(smNS, "tls", "go", "enabled"))
+	cfg.BindEnvAndSetDefault(join(smNS, "tls", "go", "enabled"), true)
 	// For backward compatibility
 	cfg.BindEnv(join(smNS, "enable_go_tls_support"))
 	cfg.BindEnvAndSetDefault(join(smNS, "tls", "go", "exclude_self"), true)

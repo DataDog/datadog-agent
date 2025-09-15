@@ -32,7 +32,7 @@ func checkBasicMetrics(c *assert.CollectT, fakeIntake *components.FakeIntake) {
 func checkLastNDMPayload(c *assert.CollectT, fakeIntake *components.FakeIntake, expectedNamespace string) *aggregator.NDMPayload {
 	ndmPayloads, err := fakeIntake.Client().GetNDMPayloads()
 	require.NoError(c, err)
-	require.Greater(c, len(ndmPayloads), 0)
+	require.NotEmpty(c, ndmPayloads)
 
 	ndmPayload := ndmPayloads[len(ndmPayloads)-1]
 	assert.Equal(c, "snmp", ndmPayload.Integration)

@@ -72,12 +72,12 @@ require (
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.65.0 // indirect
-	github.com/shirou/gopsutil/v4 v4.25.8-0.20250809033336-ffcdc2b7662f // indirect
+	github.com/shirou/gopsutil/v4 v4.25.8 // indirect
 	github.com/spf13/afero v1.14.0 // indirect
 	github.com/spf13/cast v1.9.2 // indirect
-	github.com/spf13/cobra v1.9.1 // indirect
+	github.com/spf13/cobra v1.10.1 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
-	github.com/spf13/pflag v1.0.7 // indirect
+	github.com/spf13/pflag v1.0.9 // indirect
 	github.com/tklauser/go-sysconf v0.3.15 // indirect
 	github.com/tklauser/numcpus v0.10.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
@@ -93,6 +93,9 @@ require (
 	google.golang.org/protobuf v1.36.8 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
+
+// Pin github.com/stretchr/testify to v1.10.0 while waiting for https://github.com/DataDog/datadog-agent/pull/40182
+replace github.com/stretchr/testify => github.com/stretchr/testify v1.10.0
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 

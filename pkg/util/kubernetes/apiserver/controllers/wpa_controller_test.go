@@ -390,6 +390,7 @@ func TestWPAController(t *testing.T) {
 		hctrl.toStore.m.Lock()
 		defer hctrl.toStore.m.Unlock()
 		st := hctrl.toStore.data
+		require.NotEmpty(t, st)
 		require.Len(t, st, 1)
 		// Not comparing timestamps to avoid flakyness.
 		require.Equal(t, ExtVal[0].Ref, st[key].Ref)

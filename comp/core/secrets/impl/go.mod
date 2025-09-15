@@ -44,8 +44,8 @@ require (
 	github.com/prometheus/common v0.65.0 // indirect
 	github.com/prometheus/procfs v0.17.0 // indirect
 	github.com/spf13/cast v1.9.2 // indirect
-	github.com/spf13/cobra v1.9.1 // indirect
-	github.com/spf13/pflag v1.0.7 // indirect
+	github.com/spf13/cobra v1.10.1 // indirect
+	github.com/spf13/pflag v1.0.9 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/dig v1.19.0 // indirect
 	go.uber.org/fx v1.24.0 // indirect
@@ -56,6 +56,9 @@ require (
 	google.golang.org/protobuf v1.36.8 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+// Pin github.com/stretchr/testify to v1.10.0 while waiting for https://github.com/DataDog/datadog-agent/pull/40182
+replace github.com/stretchr/testify => github.com/stretchr/testify v1.10.0
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
