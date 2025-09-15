@@ -17,7 +17,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/symlink"
-	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	patch "gopkg.in/evanphx/json-patch.v4"
 	"gopkg.in/yaml.v3"
 )
