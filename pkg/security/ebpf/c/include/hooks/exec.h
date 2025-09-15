@@ -316,6 +316,10 @@ int __attribute__((always_inline)) handle_do_exit(ctx_t *ctx) {
             event.exit_code |= 0x80;
             bpf_map_delete_elem(&tasks_in_coredump, &pid_tgid);
         }
+
+        // should be sampled for activity dumps
+        event.event.flags |= EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE;
+
         send_event(ctx, EVENT_EXIT, event);
 
         unregister_span_memory();
