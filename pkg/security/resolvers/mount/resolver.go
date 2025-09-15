@@ -173,7 +173,7 @@ func (mr *Resolver) SyncCacheFromListMount() error {
 		return fmt.Errorf("error synchronizing cache: %v", err)
 	}
 
-	seclog.Warnf("listmount sync cache found %d entries", len(mounts))
+	seclog.Infof("listmount sync cache found %d entries", len(mounts))
 
 	mr.lock.Lock()
 	defer mr.lock.Unlock()

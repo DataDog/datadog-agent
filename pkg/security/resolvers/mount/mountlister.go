@@ -217,8 +217,9 @@ func GetAll(procfs string) ([]Statmount, error) {
 	ret := make([]Statmount, 0, 255)
 	go func() {
 		runtime.LockOSThread()
-		// Lock but don't unlock, because as per go's runtime package documentation,
+		// Lock but don't unlock, in order to force the runtime to remove this thread from the pool
 		// "If the calling goroutine exits without unlocking the thread, the thread will be terminated."
+		// Afterward, the runtime will detect this and spawn a new clean thread to replace it.
 
 		if err := unix.Unshare(unix.CLONE_FS); err != nil {
 			done <- fmt.Errorf("unshare error: %w", err)
