@@ -24,9 +24,12 @@ typedef struct di_event_header {
   // The Go ID of the goroutine that produced this event.
   uint64_t goid;
 
+  // The offset of the call from the root of the stack (used to pair calls with
+  // their correspond returns, particularly in the case of recursive calls).
+  uint32_t stack_offset;
   // The number of bytes for a stack trace that follows this header.
   uint16_t stack_byte_len;
-  char __padding[6];
+  char __padding[2];
 
   // Hash of the stack trace that follows this header.
   uint64_t stack_hash;

@@ -22,38 +22,48 @@ struct {
   __type(value, uint64_t);
 } throttled_events SEC(".maps");
 
-static uint64_t read_goid(uint64_t g_ptr) {
-  uint64_t goid;
+static inline __attribute__((always_inline)) void
+read_g_fields(uint64_t g_ptr, uint64_t stack_ptr, uint64_t* goid, uint32_t* stack_offset) {
+  if (OFFSET_runtime_dot_g__goid == 0 && OFFSET_runtime_dot_g__m == 0) {
+    return;
+  }
   if (bpf_probe_read_user(
-          &goid, sizeof(goid),
+          goid, sizeof(*goid),
           (void*)(g_ptr + OFFSET_runtime_dot_g__goid))) {
     LOG(2, "failed to read goid %llx", g_ptr);
-    return 0;
+    return;
   }
-  if (goid != 0) {
-    return goid;
+  if (*goid == 0) {
+    // This is pseudo-g. Extract g_ptr->m->curg->goid.
+    uint64_t m_ptr;
+    if (bpf_probe_read_user(
+            &m_ptr, sizeof(m_ptr),
+            (void*)(g_ptr + OFFSET_runtime_dot_g__m))) {
+      LOG(2, "failed to read m %llx", g_ptr);
+      return;
+    }
+    if (bpf_probe_read_user(
+            &g_ptr, sizeof(g_ptr),
+            (void*)(m_ptr + OFFSET_runtime_dot_m__curg))) {
+      LOG(2, "failed to read curg %llx", m_ptr);
+      return;
+    }
+    if (bpf_probe_read_user(
+            goid, sizeof(*goid),
+            (void*)(g_ptr + OFFSET_runtime_dot_g__goid))) {
+      LOG(2, "failed to read goid %llx", g_ptr);
+      return;
+    }
   }
-  // This is pseudo-g. Extract g_ptr->m->curg->goid.
-  uint64_t m_ptr;
+  uint64_t stack_hi;
   if (bpf_probe_read_user(
-          &m_ptr, sizeof(m_ptr),
-          (void*)(g_ptr + OFFSET_runtime_dot_g__m))) {
-    LOG(2, "failed to read m %llx", g_ptr);
-    return 0;
+          &stack_hi, sizeof(stack_hi),
+          (void*)(g_ptr + OFFSET_runtime_dot_g__stack + OFFSET_runtime_dot_stack__hi))) {
+    LOG(2, "failed to read stack.lo %llx", g_ptr);
+    return;
   }
-  if (bpf_probe_read_user(
-          &g_ptr, sizeof(g_ptr),
-          (void*)(m_ptr + OFFSET_runtime_dot_m__curg))) {
-    LOG(2, "failed to read curg %llx", m_ptr);
-    return 0;
-  }
-  if (bpf_probe_read_user(
-          &goid, sizeof(goid),
-          (void*)(g_ptr + OFFSET_runtime_dot_g__goid))) {
-    LOG(2, "failed to read goid %llx", g_ptr);
-    return 0;
-  }
-  return goid;
+  *stack_offset = (stack_hi - stack_ptr);
+  return;
 }
 
 SEC("uprobe")
@@ -108,9 +118,13 @@ int probe_run_with_cookie(struct pt_regs* regs) {
       .prog_id = prog_id,
   };
 #if defined(bpf_target_x86)
-  header->goid = read_goid(regs->DWARF_REGISTER_14);
+  if (params->frameless) {
+    read_g_fields(regs->DWARF_REGISTER_14, regs->DWARF_SP_REG, &header->goid, &header->stack_offset);
+  } else {
+    read_g_fields(regs->DWARF_REGISTER_14, regs->DWARF_BP_REG, &header->goid, &header->stack_offset);
+  }
 #elif defined(bpf_target_arm64)
-  header->goid = read_goid(regs->DWARF_REGISTER(28));
+  read_g_fields(regs->DWARF_REGISTER(28), regs->DWARF_SP_REG, &header->goid, &header->stack_offset);
 #else
 #error "Unsupported architecture"
 #endif

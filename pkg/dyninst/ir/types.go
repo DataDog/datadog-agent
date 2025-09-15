@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"iter"
 	"reflect"
+	"slices"
 )
 
 // Type represents a an in-memory representation of a type in the target
@@ -188,12 +189,21 @@ func (t *StructureType) Fields() iter.Seq[Field] {
 
 // FieldOffsetByName returns the offset of the field with the given name.
 func (t *StructureType) FieldOffsetByName(name string) (uint32, error) {
-	for _, f := range t.RawFields {
-		if f.Name == name {
-			return f.Offset, nil
-		}
+	field, ok := t.FieldByName(name)
+	if !ok {
+		return 0, fmt.Errorf("no field %s in struct %s", name, t.Name)
 	}
-	return 0, fmt.Errorf("no field %s in struct %s", name, t.Name)
+	return field.Offset, nil
+}
+
+// FieldByName returns the field with the given name.
+func (t *StructureType) FieldByName(name string) (*Field, bool) {
+	if idx := slices.IndexFunc(t.RawFields, func(f Field) bool {
+		return f.Name == name
+	}); idx >= 0 {
+		return &t.RawFields[idx], true
+	}
+	return nil, false
 }
 
 // Field is a field in a structure.
