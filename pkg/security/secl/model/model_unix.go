@@ -1051,6 +1051,7 @@ type PrCtlEvent struct {
 	IsNameTruncated bool   `field:"is_name_truncated"` // SECLDoc[is_name_truncated] Definition:`Indicates that the name field is truncated`
 }
 
+// PamEvent represents a pam event
 type PamEvent struct {
 	SyscallEvent
 	Service  string `field:"service"`  // SECLDoc[service] Definition:`Authentication service name`
