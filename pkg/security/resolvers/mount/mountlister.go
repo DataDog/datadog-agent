@@ -205,7 +205,7 @@ func collectUniqueMountNSFDs(procfs string) ([]mountNsInoFd, error) {
 func GetAll(procfs string) ([]Statmount, error) {
 	nsFDs, err := collectUniqueMountNSFDs(procfs)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error collecting unique mount namespace file descriptors: %w", err)
 	}
 	defer func() {
 		for _, inoFd := range nsFDs {
@@ -221,7 +221,7 @@ func GetAll(procfs string) ([]Statmount, error) {
 		// "If the calling goroutine exits without unlocking the thread, the thread will be terminated."
 
 		if err := unix.Unshare(unix.CLONE_FS); err != nil {
-			done <- err
+			done <- fmt.Errorf("unshare error: %w", err)
 			return
 		}
 
