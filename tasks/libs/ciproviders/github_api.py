@@ -550,7 +550,7 @@ class GithubAPI:
             installations = integration.get_installations()
             if installations.totalCount == 0:
                 raise Exit(message='No usable installation found', code=1)
-            installation_id = installations[0]
+            installation_id = installations[0].id
         return appAuth.get_installation_auth(int(installation_id))
 
     @staticmethod
