@@ -997,8 +997,9 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("otelcollector.extension_timeout", 0)         // in seconds, 0 for default value
 	config.BindEnvAndSetDefault("otelcollector.submit_dummy_metadata", false) // dev flag - to be removed
 	config.BindEnvAndSetDefault("otelcollector.converter.enabled", true)
+	config.BindEnvAndSetDefault("otelcollector.gateway.enabled", false)
 	config.BindEnvAndSetDefault("otelcollector.flare.timeout", 60)
-	config.BindEnvAndSetDefault("otelcollector.converter.features", []string{"infraattributes", "prometheus", "pprof", "zpages", "health_check", "ddflare"})
+	config.BindEnvAndSetDefault("otelcollector.converter.features", []string{"infraattributes", "prometheus", "pprof", "zpages", "health_check", "ddflare", "datadog"})
 	config.ParseEnvAsStringSlice("otelcollector.converter.features", func(s string) []string {
 		// Support both comma and space separators
 		return strings.FieldsFunc(s, func(r rune) bool {
