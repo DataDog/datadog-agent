@@ -119,7 +119,7 @@ func GetIntegrations() (map[string]interface{}, error) {
 		instances := []integration.JSONMap{}
 		for _, instance := range config.Instances {
 			var rawInstanceConfig integration.JSONMap
-			err = yaml.Unmarshal(instance, &rawInstanceConfig)
+			err := yaml.Unmarshal(instance, &rawInstanceConfig)
 			if err != nil {
 				return nil, fmt.Errorf("unable to parse JMX configuration: %w", err)
 			}
