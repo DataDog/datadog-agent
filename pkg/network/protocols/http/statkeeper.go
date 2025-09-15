@@ -16,7 +16,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
+)
+
+var (
+	requestStatsPool = ddsync.NewTypedPool[RequestStats](NewRequestStats)
 )
 
 // StatKeeper is responsible for aggregating HTTP stats.
@@ -192,11 +198,15 @@ func (h *StatKeeper) add(tx Transaction) {
 			return
 		}
 		h.telemetry.aggregations.Add(1)
-		stats = NewRequestStats()
+		stats = requestStatsPool.Get()
 		h.stats[key] = stats
 	}
 
-	stats.AddRequest(tx.StatusCode(), latency, tx.StaticTags(), tx.DynamicTags())
+	dynamicTagsSet := common.StringSet(nil)
+	if dynamicTags := tx.DynamicTags(); len(dynamicTags) > 0 {
+		dynamicTagsSet = common.NewStringSet(dynamicTags...)
+	}
+	stats.AddRequest(tx.StatusCode(), latency, tx.StaticTags(), dynamicTagsSet)
 }
 
 func pathIsMalformed(fullPath []byte) bool {

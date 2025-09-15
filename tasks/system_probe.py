@@ -231,7 +231,7 @@ def ninja_security_ebpf_programs(
         infile=infile,
         outfile=outfile,
         variables={
-            "flags": security_flags + " -DUSE_SYSCALL_WRAPPER=0",
+            "flags": security_flags,
             "kheaders": kheaders,
         },
     )
@@ -245,7 +245,7 @@ def ninja_security_ebpf_programs(
         infile=infile,
         outfile=syscall_wrapper_outfile,
         variables={
-            "flags": security_flags + " -DUSE_SYSCALL_WRAPPER=1",
+            "flags": security_flags + " -DUSE_SYSCALL_WRAPPER",
             "kheaders": kheaders,
         },
     )
@@ -259,7 +259,7 @@ def ninja_security_ebpf_programs(
         infile=infile,
         outfile=syscall_wrapper_outfile,
         variables={
-            "flags": security_flags + " -DUSE_SYSCALL_WRAPPER=1 -DUSE_FENTRY=1",
+            "flags": security_flags + " -DUSE_SYSCALL_WRAPPER -DUSE_FENTRY",
             "kheaders": kheaders,
         },
     )
