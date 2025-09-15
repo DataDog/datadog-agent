@@ -201,13 +201,29 @@ func generateIR(
 		return nil, err
 	}
 
-	typeCatalog := newTypeCatalog(
-		d, ptrSize, cfg.maxDynamicTypeSize, cfg.maxHashBucketsSize,
-	)
+	typeCatalog := newTypeCatalog(d, ptrSize)
+	var commonTypes ir.CommonTypes
 	for _, offset := range processed.interestingTypes {
-		if _, err := typeCatalog.addType(offset); err != nil {
+		t, err := typeCatalog.addType(offset)
+		if err != nil {
 			return nil, fmt.Errorf("failed to add type at offset %#x: %w", offset, err)
 		}
+		ok := true
+		switch t.GetName() {
+		case "runtime.g":
+			commonTypes.G, ok = t.(*ir.StructureType)
+		case "runtime.m":
+			commonTypes.M, ok = t.(*ir.StructureType)
+		}
+		if !ok {
+			return nil, fmt.Errorf("expected structure type for %q, got %T", t.GetName(), t)
+		}
+	}
+	if commonTypes.G == nil {
+		return nil, fmt.Errorf("runtime.g not found")
+	}
+	if commonTypes.M == nil {
+		return nil, fmt.Errorf("runtime.m not found")
 	}
 
 	// Materialize before creating probes so IR subprograms and vars exist.
@@ -310,6 +326,7 @@ func generateIR(
 		MaxTypeID:        typeCatalog.idAlloc.alloc,
 		Issues:           issues,
 		GoModuledataInfo: processed.goModuledataInfo,
+		CommonTypes:      commonTypes,
 	}, nil
 }
 
@@ -1118,9 +1135,10 @@ func completeSwissMapHeaderType(tc *typeCatalog, st *ir.StructureType) error {
 
 	tablePtrSliceDataType := &ir.GoSliceDataType{
 		TypeCommon: ir.TypeCommon{
-			ID:       tc.idAlloc.next(),
-			Name:     fmt.Sprintf("[]%s.array", tablePtrType.GetName()),
-			ByteSize: tc.maxHashBucketsSize,
+			ID:               tc.idAlloc.next(),
+			Name:             fmt.Sprintf("[]%s.array", tablePtrType.GetName()),
+			DynamicSizeClass: ir.DynamicSizeHashmap,
+			ByteSize:         tablePtrType.GetByteSize(),
 		},
 		Element: tablePtrType,
 	}
@@ -1128,9 +1146,10 @@ func completeSwissMapHeaderType(tc *typeCatalog, st *ir.StructureType) error {
 
 	groupSliceType := &ir.GoSliceDataType{
 		TypeCommon: ir.TypeCommon{
-			ID:       tc.idAlloc.next(),
-			Name:     fmt.Sprintf("[]%s.array", groupType.GetName()),
-			ByteSize: uint32(tc.maxDynamicTypeSize),
+			ID:               tc.idAlloc.next(),
+			Name:             fmt.Sprintf("[]%s.array", groupType.GetName()),
+			DynamicSizeClass: ir.DynamicSizeSlice,
+			ByteSize:         groupType.GetByteSize(),
 		},
 		Element: groupType,
 	}
@@ -1178,9 +1197,10 @@ func completeHMapHeaderType(tc *typeCatalog, st *ir.StructureType) error {
 	}
 	bucketsSliceDataType := &ir.GoSliceDataType{
 		TypeCommon: ir.TypeCommon{
-			ID:       tc.idAlloc.next(),
-			Name:     fmt.Sprintf("[]%s.array", bucketsType.GetName()),
-			ByteSize: tc.maxDynamicTypeSize,
+			ID:               tc.idAlloc.next(),
+			Name:             fmt.Sprintf("[]%s.array", bucketsType.GetName()),
+			DynamicSizeClass: ir.DynamicSizeHashmap,
+			ByteSize:         bucketsType.GetByteSize(),
 		},
 		Element: bucketsType,
 	}
@@ -1202,9 +1222,10 @@ func completeGoStringType(tc *typeCatalog, st *ir.StructureType) error {
 	}
 	strDataType := &ir.GoStringDataType{
 		TypeCommon: ir.TypeCommon{
-			ID:       tc.idAlloc.next(),
-			Name:     fmt.Sprintf("%s.str", st.Name),
-			ByteSize: tc.maxDynamicTypeSize,
+			ID:               tc.idAlloc.next(),
+			Name:             fmt.Sprintf("%s.str", st.Name),
+			DynamicSizeClass: ir.DynamicSizeString,
+			ByteSize:         1,
 		},
 	}
 	tc.typesByID[strDataType.ID] = strDataType
@@ -1237,9 +1258,10 @@ func completeGoSliceType(tc *typeCatalog, st *ir.StructureType) error {
 	}
 	arrayDataType := &ir.GoSliceDataType{
 		TypeCommon: ir.TypeCommon{
-			ID:       tc.idAlloc.next(),
-			Name:     fmt.Sprintf("%s.array", st.Name),
-			ByteSize: tc.maxDynamicTypeSize,
+			ID:               tc.idAlloc.next(),
+			Name:             fmt.Sprintf("%s.array", st.Name),
+			DynamicSizeClass: ir.DynamicSizeSlice,
+			ByteSize:         elementType.GetByteSize(),
 		},
 		Element: elementType,
 	}
@@ -1519,11 +1541,18 @@ func (v *unitChildVisitor) push(
 			}
 		}
 
-		nameWithoutStar := name
-		if entry.Tag == dwarf.TagPointerType {
-			nameWithoutStar = name[1:]
+		interesting := false
+		if entry.Tag != dwarf.TagTypedef && (name == "runtime.g" || name == "runtime.m") {
+			interesting = true
 		}
-		if primitiveTypeNameRegexp.MatchString(nameWithoutStar) {
+		if !interesting {
+			nameWithoutStar := name
+			if entry.Tag == dwarf.TagPointerType {
+				nameWithoutStar = name[1:]
+			}
+			interesting = primitiveTypeNameRegexp.MatchString(nameWithoutStar)
+		}
+		if interesting {
 			v.root.interestingTypes = append(v.root.interestingTypes, entry.Offset)
 		}
 		return nil, nil
