@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Fixed a bug which causes the ecs_metadata.json file to not be generating when generating an Agent flare on ECS Fargate. 
+    Fixed a bug which causes the ecs_metadata.json file to not be generating when generating an Agent flare on ECS Fargate.
