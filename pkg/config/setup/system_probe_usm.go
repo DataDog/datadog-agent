@@ -90,7 +90,12 @@ func initUSMSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// ========================================
 	// Kafka Protocol Configuration
 	// ========================================
+	cfg.BindEnvAndSetDefault(join(smNS, "kafka", "enabled"), false)
+	// For backward compatibility
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_kafka_monitoring"), false)
+
+	cfg.BindEnvAndSetDefault(join(smNS, "kafka", "max_stats_buffered"), 100000)
+	// For backward compatibility
 	cfg.BindEnvAndSetDefault(join(smNS, "max_kafka_stats_buffered"), 100000)
 
 	// ========================================
