@@ -33,6 +33,20 @@ func (s *State) UpdateFields(field Field) {
 	}
 }
 
+type OriginFielder interface {
+	OriginField() Field
+}
+
+// UpdateFieldValues updates the field values
+func (s *State) UpdateOriginFielderValues(fielder OriginFielder, value FieldValue) error {
+	field := fielder.OriginField()
+	if field == "" {
+		return nil
+	}
+
+	return s.UpdateFieldValues(field, value)
+}
+
 // UpdateFieldValues updates the field values
 func (s *State) UpdateFieldValues(field Field, value FieldValue) error {
 	values := s.fieldValues[field]
