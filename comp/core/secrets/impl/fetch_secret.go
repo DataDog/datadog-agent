@@ -149,7 +149,7 @@ func (r *secretResolver) fetchSecretBackendVersion() (string, error) {
 		return "", fmt.Errorf("version command failed: %w", err)
 	}
 
-	return stdout.buf.String(), nil
+	return strings.TrimSpace(stdout.buf.String()), nil
 }
 
 // fetchSecret receives a list of secrets name to fetch, exec a custom
