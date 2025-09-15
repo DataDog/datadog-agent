@@ -300,9 +300,6 @@ func CheckApmDisabled(t *testing.T, client *TestClient) {
 // CheckCWSBehaviour runs tests to check the agent behave correctly when CWS is enabled
 func CheckCWSBehaviour(t *testing.T, client *TestClient) {
 	t.Run("enable CWS and restarts", func(tt *testing.T) {
-		if client.Host.OSFlavor == componentos.CentOS {
-			tt.Skip("System-probe is broken on CentOS 7")
-		}
 		// remove existing config file
 		client.Host.MustExecute("sudo rm " + client.Helper.GetConfigFolder() + "system-probe.yaml")
 		err := client.SetConfig(client.Helper.GetConfigFolder()+"system-probe.yaml", "runtime_security_config.enabled", "true")
