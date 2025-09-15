@@ -278,7 +278,7 @@ require (
 	github.com/shirou/gopsutil/v4 v4.25.8 // indirect
 	github.com/shurcooL/httpfs v0.0.0-20230704072500-f1e31cf0ba5c // indirect
 	github.com/signalfx/sapm-proto v0.18.0 // indirect
-	github.com/spf13/cast v1.9.2 // indirect
+	github.com/spf13/cast v1.10.0 // indirect
 	github.com/spf13/cobra v1.10.1 // indirect
 	github.com/spf13/pflag v1.0.9 // indirect
 	github.com/stackitcloud/stackit-sdk-go/core v0.17.2 // indirect
