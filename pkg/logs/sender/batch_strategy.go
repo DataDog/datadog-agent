@@ -17,6 +17,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const mainBatch string = "main"
+const mrfBatch string = "mrf"
+
 // batchStrategy contains all the logic to send logs in batch.
 type batchStrategy struct {
 	inputChan      chan *message.Message
@@ -114,9 +117,9 @@ func (s *batchStrategy) Start() {
 				}
 
 				if m.IsMRFAllow {
-					s.getBatch("mrf").processMessage(m, s.outputChan)
+					s.getBatch(mrfBatch).processMessage(m, s.outputChan)
 				} else {
-					s.getBatch("main").processMessage(m, s.outputChan)
+					s.getBatch(mainBatch).processMessage(m, s.outputChan)
 				}
 			case <-flushTicker.C:
 				// flush the payloads at a regular interval so pending messages don't wait here for too long.
