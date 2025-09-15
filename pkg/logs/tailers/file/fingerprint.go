@@ -59,22 +59,20 @@ func (f *Fingerprinter) ShouldFileFingerprint(file *File) bool {
 	fileFingerprintConfig := file.Source.Config().FingerprintConfig
 
 	// Check per-source config first (takes precedence over global config)
-	if fileFingerprintConfig != nil && fileFingerprintConfig.FingerprintStrategy != "" {
+	if fileFingerprintConfig != nil {
 		if fileFingerprintConfig.FingerprintStrategy == types.FingerprintStrategyDisabled {
 			log.Debugf("Fingerprinting disabled for source %s, skipping file %s", file.Source.Config().Source, file.Path)
 			return false
 		}
-		log.Debugf("File %s will be fingerprinted with per-source config (strategy: %s)", file.Path, fileFingerprintConfig.FingerprintStrategy)
-		return true
+		if fileFingerprintConfig.FingerprintStrategy != "" {
+			log.Debugf("File %s will be fingerprinted with per-source config (strategy: %s)", file.Path, fileFingerprintConfig.FingerprintStrategy)
+			return true
+		}
 	}
 
-	// Fall back to global config
-	if !f.IsFingerprintingEnabled() {
-		log.Debugf("Fingerprinting disabled globally, skipping file %s", file.Path)
-		return false
-	}
-
-	if f.GetFingerprintConfig() == nil {
+	// Now, check global config
+	globalConfig := f.GetFingerprintConfig()
+	if globalConfig == nil {
 		log.Debugf("No fingerprint config available for file %s (source config: %+v, global config: %+v)",
 			file.Path,
 			file.Source.Config().FingerprintConfig,
@@ -82,7 +80,12 @@ func (f *Fingerprinter) ShouldFileFingerprint(file *File) bool {
 		return false
 	}
 
-	log.Debugf("File %s will be fingerprinted with global config", file.Path)
+	if globalConfig.FingerprintStrategy == types.FingerprintStrategyDisabled {
+		log.Debugf("Fingerprinting disabled for file %s based on global config, skipping file %s", file.Path, file.Path)
+		return false
+	}
+
+	log.Debugf("File %s will be fingerprinted with global config: %s", file.Path, globalConfig.FingerprintStrategy)
 	return true
 }
 
@@ -129,11 +132,6 @@ func (f *Fingerprinter) ComputeFingerprint(file *File) (*types.Fingerprint, erro
 
 	// If per-source config exists but no strategy is set, or no per-source config exists,
 	// fall back to global config
-	if !f.IsFingerprintingEnabled() {
-		log.Debugf("Fingerprinting disabled globally, returning invalid fingerprint")
-		return newInvalidFingerprint(nil), nil
-	}
-
 	fingerprintConfig := f.GetFingerprintConfig()
 	if fingerprintConfig == nil {
 		log.Debugf("No fingerprint config found in file source or defaults, returning invalid fingerprint")
@@ -273,11 +271,6 @@ func computeFingerPrintByLines(fpFile *os.File, filePath string, fingerprintConf
 	checksum := crc64.Checksum(buffer, crc64Table)
 	log.Debugf("Computed line-based fingerprint 0x%x for file %q (bytes=%d, lines=%d)", checksum, filePath, len(buffer), linesRead)
 	return &types.Fingerprint{Value: checksum, Config: fingerprintConfig}, nil
-}
-
-// IsFingerprintingEnabled returns whether or not our configuration has fingerprinting disabled
-func (f *Fingerprinter) IsFingerprintingEnabled() bool {
-	return f.FingerprintConfig.FingerprintStrategy != types.FingerprintStrategyDisabled
 }
 
 // GetFingerprintConfig returns the fingerprint configuration
