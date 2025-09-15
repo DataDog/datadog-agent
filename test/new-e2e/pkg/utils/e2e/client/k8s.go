@@ -8,10 +8,13 @@ package client
 import (
 	"archive/tar"
 	"context"
+	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	kubeClient "k8s.io/client-go/kubernetes"
@@ -85,11 +88,18 @@ func (k *KubernetesClient) PodExec(namespace, pod, container string, cmd []strin
 // DownloadFromPod downloads a folder from a pod to a local destination
 func (k *KubernetesClient) DownloadFromPod(namespace, podName, container, srcPath, destPath string) error {
 	reader, outStream := io.Pipe()
+	// Tar from the parent directory to avoid embedding parent folders (e.g., /tmp)
+
+	parentDir := filepath.Dir(srcPath)
+	baseName := filepath.Base(srcPath)
 	options := &corev1.PodExecOptions{
 		Container: container,
-		Command:   []string{"tar", "cf", "-", srcPath},
-		Stdout:    true,
-		Stderr:    true,
+		// Use options first to satisfy both GNU tar and BusyBox tar
+		Command: []string{"tar", "cf", "-", "-C", parentDir, baseName},
+		Stdin:   false,
+		Stdout:  true,
+		Stderr:  true,
+		TTY:     false,
 	}
 
 	req := k.K8sClient.CoreV1().RESTClient().Post().
@@ -105,13 +115,25 @@ func (k *KubernetesClient) DownloadFromPod(namespace, podName, container, srcPat
 		return err
 	}
 
+	// Capture stream errors from the goroutine
+	streamErrCh := make(chan error, 1)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
 	go func() {
-		defer outStream.Close()
-		err = exec.StreamWithContext(context.Background(), remotecommand.StreamOptions{
+		var stderrSb strings.Builder
+
+		streamErr := exec.StreamWithContext(ctx, remotecommand.StreamOptions{
 			Stdout: outStream,
-			Stderr: os.Stderr,
+			Stderr: &stderrSb,
 			Tty:    false,
 		})
+		if streamErr != nil && !errors.Is(streamErr, context.Canceled) {
+			_ = outStream.CloseWithError(fmt.Errorf("stream error: %w, %s", streamErr, stderrSb.String()))
+			streamErrCh <- streamErr
+			return
+		}
+		_ = outStream.Close()
+		streamErrCh <- nil
 	}()
 
 	if err := os.MkdirAll(destPath, 0755); err != nil {
@@ -122,13 +144,23 @@ func (k *KubernetesClient) DownloadFromPod(namespace, podName, container, srcPat
 	for {
 		header, err := tarReader.Next()
 		if err == io.EOF {
+			// Reading the tar file is complete let's cancel the execution stream, as it is not stopped and will hang otherwise.
+			cancel()
 			break
 		}
 		if err != nil {
 			return err
 		}
-		splittedSrcPath := strings.Split(srcPath, "/")
-		target := filepath.Join(destPath, strings.TrimPrefix(header.Name, splittedSrcPath[len(splittedSrcPath)-1]))
+		// Strip the top-level folder (baseName) so contents land directly in destPath
+		entryName := strings.TrimPrefix(header.Name, "./")
+		if entryName == baseName || entryName == baseName+"/" {
+			// Skip the root directory entry
+			continue
+		}
+		if strings.HasPrefix(entryName, baseName+"/") {
+			entryName = strings.TrimPrefix(entryName, baseName+"/")
+		}
+		target := filepath.Join(destPath, entryName)
 
 		switch header.Typeflag {
 		case tar.TypeDir:
@@ -145,13 +177,17 @@ func (k *KubernetesClient) DownloadFromPod(namespace, podName, container, srcPat
 			if err != nil {
 				return err
 			}
-			defer file.Close()
-
 			if _, err := io.Copy(file, tarReader); err != nil {
+				_ = file.Close()
+				return err
+			}
+			if err := file.Close(); err != nil {
 				return err
 			}
 		}
 	}
+	// Ensure the exec stream completed successfully
+	streamErr := <-streamErrCh
 
-	return nil
+	return streamErr
 }

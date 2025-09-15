@@ -106,9 +106,19 @@ description: "Datadog Distribution of OpenTelemetry Collector (Custom)"
 contents:
   - src: bin/otel-agent/otel-agent
     dst: /opt/datadog-agent/embedded/bin/otel-agent
-    type: file
     file_info:
       mode: 0755
+  - src: bin/otel-agent/dist/otel-config.yaml
+    dst: /etc/datadog-agent/otel-config.yaml.example
+conflicts:
+  - datadog-agent-ddot
+overrides:
+  deb:
+    depends:
+      - "datadog-agent (= 1:${AGENT_VERSION}-1)"
+  rpm:
+    depends:
+      - "datadog-agent = 1:${AGENT_VERSION}-1"
 EOF
   nfpm package --config nfpm.yaml --target /dist --packager "${PACKAGE_TYPE}"
 else
