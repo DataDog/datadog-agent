@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -108,6 +109,17 @@ func (r *secretResolver) fetchSecretBackendVersion() (string, error) {
 	// hook used only for tests
 	if r.versionHookFunc != nil {
 		return r.versionHookFunc()
+	}
+
+	// check if binary likely supports --version
+	content, err := os.ReadFile(r.backendCommand)
+	if err != nil {
+		log.Debugf("Could not read binary %s to check for --version support: %v", r.backendCommand, err)
+		return "", fmt.Errorf("could not read binary to check version support")
+	}
+
+	if !bytes.Contains(content, []byte("--version")) {
+		return "", fmt.Errorf("binary does not appear to support --version")
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(),
