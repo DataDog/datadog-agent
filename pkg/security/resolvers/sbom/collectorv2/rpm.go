@@ -61,10 +61,20 @@ func (s *rpmScanner) ListPackages(_ context.Context, root *os.Root) (types.Resul
 
 		packages := make([]ftypes.Package, 0, len(pkgs))
 		for _, pkg := range pkgs {
+			files, err := pkg.InstalledFileNames()
+			if err != nil {
+				return types.Result{}, fmt.Errorf("unable to get installed files: %w", err)
+			}
+
+			for i, file := range files {
+				files[i] = filepath.ToSlash(file)
+			}
+
 			packages = append(packages, ftypes.Package{
-				Name:       pkg.Name,
-				Version:    pkg.Version,
-				SrcVersion: pkg.Version,
+				Name:           pkg.Name,
+				Version:        pkg.Version,
+				SrcVersion:     pkg.Version,
+				InstalledFiles: files,
 			})
 		}
 		return types.Result{Packages: packages}, nil
