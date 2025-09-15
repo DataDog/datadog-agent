@@ -47,7 +47,7 @@ require (
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/google/go-tpm v0.9.5 // indirect
 	go.opentelemetry.io/collector/pdata/xpdata v0.135.0 // indirect
-	golang.org/x/crypto v0.41.0 // indirect
+	golang.org/x/crypto v0.42.0 // indirect
 )
 
 require go.opentelemetry.io/collector/exporter/exporterhelper v0.135.0
@@ -156,7 +156,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.71.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.71.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.71.0-rc.1 // indirect
-	github.com/DataDog/datadog-api-client-go/v2 v2.44.0 // indirect
+	github.com/DataDog/datadog-api-client-go/v2 v2.45.0 // indirect
 	github.com/DataDog/go-sqllexer v0.1.6 // indirect
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
@@ -260,11 +260,11 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/exp v0.0.0-20250808145144-a408d31f581a // indirect
-	golang.org/x/net v0.43.0 // indirect
+	golang.org/x/net v0.44.0 // indirect
 	golang.org/x/oauth2 v0.30.0 // indirect
-	golang.org/x/sync v0.16.0 // indirect
-	golang.org/x/sys v0.35.0 // indirect
-	golang.org/x/text v0.28.0 // indirect
+	golang.org/x/sync v0.17.0 // indirect
+	golang.org/x/sys v0.36.0 // indirect
+	golang.org/x/text v0.29.0 // indirect
 	golang.org/x/time v0.12.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250707201910-8d1bb00bc6a7 // indirect
 	google.golang.org/grpc v1.75.0 // indirect

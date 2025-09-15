@@ -97,7 +97,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.71.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.71.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.71.0-rc.1 // indirect
-	github.com/DataDog/datadog-api-client-go/v2 v2.44.0 // indirect
+	github.com/DataDog/datadog-api-client-go/v2 v2.45.0 // indirect
 	github.com/DataDog/sketches-go v1.4.7 // indirect
 	github.com/DataDog/viper v1.14.1-0.20250612143030-1b15c8822ed4 // indirect
 	github.com/DataDog/zstd v1.5.6 // indirect
@@ -170,12 +170,12 @@ require (
 	go.opentelemetry.io/otel/trace v1.38.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	golang.org/x/crypto v0.41.0 // indirect
+	golang.org/x/crypto v0.42.0 // indirect
 	golang.org/x/exp v0.0.0-20250808145144-a408d31f581a // indirect
-	golang.org/x/net v0.43.0 // indirect
+	golang.org/x/net v0.44.0 // indirect
 	golang.org/x/oauth2 v0.30.0 // indirect
-	golang.org/x/sys v0.35.0 // indirect
-	golang.org/x/text v0.28.0 // indirect
+	golang.org/x/sys v0.36.0 // indirect
+	golang.org/x/text v0.29.0 // indirect
 	golang.org/x/time v0.12.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250707201910-8d1bb00bc6a7 // indirect
 	google.golang.org/grpc v1.75.0 // indirect
