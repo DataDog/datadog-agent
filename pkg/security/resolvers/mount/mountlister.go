@@ -268,7 +268,8 @@ func GetAll(procfs string) ([]Statmount, error) {
 						MntID: ids[i],
 						Param: mask,
 					}
-					if err := statmount(&req2, buf); err != nil {
+					// Ignore ENOENT, sometimes the mountpoint might have been unmounted between listmount and this call
+					if err := statmount(&req2, buf); err != nil && err != unix.ENOENT {
 						done <- fmt.Errorf("failed to statmount: %v", err)
 						return
 					}
