@@ -66,9 +66,14 @@ func (s *haAgentTestSuite) TestHaAgentRunningMetrics() {
 }
 
 func (s *haAgentTestSuite) TestHaAgentAddedToRCListeners() {
+	// To be able to access the logs files
+	if err := s.Env().RemoteHost.AddUserToAgentGroup(); err != nil {
+		s.T().Fatal(err)
+	}
+
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		s.T().Log("try assert HA Agent added to RCListeners in agent.log")
-		output, err := s.Env().RemoteHost.Execute("cat /var/log/datadog/agent.log")
+		output, err := s.Env().RemoteHost.ReadFile("/var/log/datadog/agent.log")
 		require.NoError(c, err)
 
 		assert.Contains(c, output, "Add HA Agent RCListener")

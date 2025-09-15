@@ -46,6 +46,11 @@ func TestRcTracerSuite(t *testing.T) {
 
 // TestRemoteConfigTracerUpdate tests the remote-config service by attempting to retrieve RC payloads as if a tracer were calling it
 func (s *tracerSuite) TestRemoteConfigTracerUpdate() {
+	// To be able to access the logs files
+	if err := s.Env().RemoteHost.AddUserToAgentGroup(); err != nil {
+		s.T().Fatal(err)
+	}
+
 	expectedAgentLogs := []string{
 		// Ensure the remote config service starts
 		"remote config service started",

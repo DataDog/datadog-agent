@@ -48,7 +48,7 @@ type authArtifactBase struct {
 	agentProcesses     []string
 }
 
-func (a *authArtifactBase) TestServersideIPCCertUsage() {
+func (a *authArtifactBase) testServersideIPCCertUsage() {
 	// checking agent working correctly
 	if a.Env().RemoteHost.OSFamily == osComp.WindowsFamily {
 		a.svcManager = svcmanager.NewWindows(a.Env().RemoteHost)

@@ -41,6 +41,11 @@ func TestSslConfigSuite(t *testing.T) {
 
 // TestRemoteConfigSSLConfigMismatch tests the startup condition where the agent's SSL config is disabled but RC's TLS validation is not explicitly disabled
 func (s *sslConfigSuite) TestRemoteConfigSSLConfigMismatch() {
+	// To be able to access the logs files
+	if err := s.Env().RemoteHost.AddUserToAgentGroup(); err != nil {
+		s.T().Fatal(err)
+	}
+
 	expectedLogs := []string{
 		// Ensure the agent logs a warning about the SSL config mismatch
 		"remote Configuration does not allow skipping TLS validation by default",

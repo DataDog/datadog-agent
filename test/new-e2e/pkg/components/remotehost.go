@@ -6,6 +6,8 @@
 package components
 
 import (
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 
@@ -37,4 +39,19 @@ func (h *RemoteHost) DownloadAgentLogs(localPath string) error {
 		agentLogsPath = "C:/ProgramData/Datadog/Logs/agent.log"
 	}
 	return h.Host.GetFile(agentLogsPath, localPath)
+}
+
+// AddUserToAgentGroup adds the current user of the ssh connection to the `dd-agent` group.
+// Useful to access the logs files since the directory `/var/log/datadog` is restricted to the `dd-agent` user and group.
+func (h *RemoteHost) AddUserToAgentGroup() error {
+	cmd := fmt.Sprintf("sudo usermod -aG dd-agent %s", h.Username)
+	_, err := h.Execute(cmd)
+	if err != nil {
+		return fmt.Errorf("Unable to add ssh user to `dd-agent` group: %v", err)
+	}
+	// Reconnect for the group membership to be updated
+	if err := h.Reconnect(); err != nil {
+		return fmt.Errorf("Unable to reconnect to the host: %v", err)
+	}
+	return nil
 }

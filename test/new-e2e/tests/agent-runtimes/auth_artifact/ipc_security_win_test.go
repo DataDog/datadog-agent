@@ -97,3 +97,8 @@ func join(elem ...string) string {
 	}
 	return filepath.Clean(b.String())
 }
+
+func (a *authArtifactWindows) TestServersideIPCCertUsage() {
+	// Already running as administrator on Windows
+	a.authArtifactBase.testServersideIPCCertUsage()
+}
