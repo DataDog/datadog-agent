@@ -153,6 +153,7 @@ func setupCommonHostTags(s *common.Setup) {
 		v = strings.Trim(v, "\"'")
 		return workspaceNameRegex.ReplaceAllString(v, "_")
 	})
+	// No need to normalize workspace url:  metrics tags normalization allows the :/-, usually found in such url
 	setIfExists(s, "WORKSPACE_URL", "workspace_url", nil)
 
 	setClearIfExists(s, "DB_CLUSTER_ID", "cluster_id", nil)
