@@ -221,7 +221,7 @@ func (p *Provider) generatePodTerminationMetric(sender sender.Sender, pod *kubel
 func (p *Provider) generatePodResizeMetric(sender sender.Sender, pod *kubelet.Pod) {
 
 	var cond *kubelet.Conditions
-	for _, c := range pod.Status.Conditions{
+	for _, c := range pod.Status.Conditions {
 		if c.Type == kubePodConditionResizePending {
 			cond = &c
 			break
