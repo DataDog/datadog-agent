@@ -311,7 +311,7 @@ func buildOperationsFromLegacyInstaller(rootPath string) []FileOperation {
 	}
 
 	for _, allowedFile := range deleteAllowedConfigFiles {
-		ops, err := buildOperationsFromLegacyConfigFile(rootPath, allowedFile, stableDirPath)
+		ops, err := buildOperationsFromLegacyConfigFile(allowedFile, stableDirPath)
 		if err == nil {
 			allOps = append(allOps, ops...)
 		}
@@ -319,7 +319,7 @@ func buildOperationsFromLegacyInstaller(rootPath string) []FileOperation {
 	return allOps
 }
 
-func buildOperationsFromLegacyConfigFile(rootPath, filePath, stableDirPath string) ([]FileOperation, error) {
+func buildOperationsFromLegacyConfigFile(filePath, stableDirPath string) ([]FileOperation, error) {
 	var ops []FileOperation
 
 	// Read the stable config file
