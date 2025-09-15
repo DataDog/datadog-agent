@@ -174,14 +174,12 @@ func load() (*types.Config, error) {
 	if gpuEnabled {
 		c.EnabledModules[GPUMonitoringModule] = struct{}{}
 	}
+	if cfg.GetBool(privilegedLogsNS("enabled")) {
+		c.EnabledModules[PrivilegedLogsModule] = struct{}{}
+	}
 
 	if cfg.GetBool(wcdNS("enabled")) {
 		c.EnabledModules[WindowsCrashDetectModule] = struct{}{}
-	}
-
-	// Enable privileged logs module on Linux only if explicitly enabled
-	if runtime.GOOS == "linux" && cfg.GetBool(privilegedLogsNS("enabled")) {
-		c.EnabledModules[PrivilegedLogsModule] = struct{}{}
 	}
 	if runtime.GOOS == "windows" {
 		if c.ModuleIsEnabled(NetworkTracerModule) || c.ModuleIsEnabled(EventMonitorModule) {
