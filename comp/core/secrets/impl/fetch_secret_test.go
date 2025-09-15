@@ -321,11 +321,8 @@ func TestFetchSecretBackendVersionSuccess(t *testing.T) {
 	tel := nooptelemetry.GetCompatComponent()
 	resolver := newEnabledSecretResolver(tel)
 
-	resolver.commandHookFunc = func(payload string) ([]byte, error) {
-		if payload == "--version" {
-			return []byte("test-backend-v1.2.3"), nil
-		}
-		return []byte(`{"secret":{"value":"test"}}`), nil
+	resolver.versionHookFunc = func() (string, error) {
+		return "test-backend-v1.2.3", nil
 	}
 
 	version, err := resolver.fetchSecretBackendVersion()
@@ -337,11 +334,8 @@ func TestFetchSecretBackendVersionTimeout(t *testing.T) {
 	tel := nooptelemetry.GetCompatComponent()
 	resolver := newEnabledSecretResolver(tel)
 
-	resolver.commandHookFunc = func(payload string) ([]byte, error) {
-		if payload == "--version" {
-			return nil, context.DeadlineExceeded
-		}
-		return []byte(`{"secret":{"value":"test"}}`), nil
+	resolver.versionHookFunc = func() (string, error) {
+		return "", context.DeadlineExceeded
 	}
 
 	_, err := resolver.fetchSecretBackendVersion()

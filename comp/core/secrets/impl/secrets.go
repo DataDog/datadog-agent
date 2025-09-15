@@ -104,6 +104,7 @@ type secretResolver struct {
 
 	// can be overridden for testing purposes
 	commandHookFunc func(string) ([]byte, error)
+	versionHookFunc func() (string, error)
 	fetchHookFunc   func([]string) (map[string]string, error)
 	scrubHookFunc   func([]string)
 

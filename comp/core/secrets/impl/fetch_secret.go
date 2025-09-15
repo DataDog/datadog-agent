@@ -106,12 +106,8 @@ func (r *secretResolver) execCommand(inputPayload string) ([]byte, error) {
 
 func (r *secretResolver) fetchSecretBackendVersion() (string, error) {
 	// hook used only for tests
-	if r.commandHookFunc != nil {
-		result, err := r.commandHookFunc("--version")
-		if err != nil {
-			return "", err
-		}
-		return string(result), nil
+	if r.versionHookFunc != nil {
+		return r.versionHookFunc()
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(),
