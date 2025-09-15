@@ -24,6 +24,9 @@ import (
 	"github.com/skydive-project/go-debouncer"
 	"go.uber.org/atomic"
 
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/sbom"
+	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/host"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
@@ -126,7 +129,7 @@ type Resolver struct {
 	pendingScan     []containerutils.ContainerID
 
 	statsdClient   statsd.ClientInterface
-	sbomCollector  *HostOSScannerV2
+	sbomCollector  sbomCollector
 	hostRootDevice uint64
 	hostSBOM       *SBOM
 
@@ -136,9 +139,27 @@ type Resolver struct {
 	sbomsCacheMiss        *atomic.Uint64
 }
 
+type sbomCollector interface {
+	DirectScanForTrivyReport(ctx context.Context, root string) (*types.Report, error)
+}
+
+const useV2Collector = true
+
 // NewSBOMResolver returns a new instance of Resolver
 func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInterface) (*Resolver, error) {
-	sbomCollector := NewHostOSScannerV2()
+	var sbomCollector sbomCollector
+	if useV2Collector {
+		sbomCollector = NewHostOSScannerV2()
+	} else {
+		opts := sbom.ScanOptions{
+			Analyzers: c.SBOMResolverAnalyzers,
+		}
+		c, err := host.NewCollectorForCWS(pkgconfigsetup.SystemProbe(), opts)
+		if err != nil {
+			return nil, err
+		}
+		sbomCollector = c
+	}
 
 	dataCache, err := simplelru.NewLRU[workloadKey, *Data](c.SBOMResolverWorkloadsCacheSize, nil)
 	if err != nil {
