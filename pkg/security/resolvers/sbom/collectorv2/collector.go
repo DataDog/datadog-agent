@@ -10,6 +10,7 @@ package collectorv2
 
 import (
 	"context"
+	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/aquasecurity/trivy/pkg/types"
@@ -21,7 +22,7 @@ type OSScanner struct {
 }
 
 type actualScanner interface {
-	ListPackages(ctx context.Context, root string) (types.Result, error)
+	ListPackages(ctx context.Context, root *os.Root) (types.Result, error)
 }
 
 // NewOSScanner returns a new OSScanner
@@ -29,15 +30,22 @@ func NewOSScanner() *OSScanner {
 	return &OSScanner{
 		scanners: []actualScanner{
 			&dpkgScanner{},
+			&rpmScanner{},
 		},
 	}
 }
 
 // DirectScanForTrivyReport scans the given rootfs and returns a trivy report
 func (s *OSScanner) DirectScanForTrivyReport(ctx context.Context, root string) (*types.Report, error) {
+	rootFS, err := os.OpenRoot(root)
+	if err != nil {
+		return nil, err
+	}
+	defer rootFS.Close()
+
 	report := &types.Report{}
 	for _, scanner := range s.scanners {
-		result, err := scanner.ListPackages(ctx, root)
+		result, err := scanner.ListPackages(ctx, rootFS)
 		if err != nil {
 			seclog.Errorf("failed to list packages with dpkg scanner: %v", err)
 		}

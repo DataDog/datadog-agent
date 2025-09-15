@@ -28,19 +28,13 @@ import (
 type dpkgScanner struct {
 }
 
-func (s *dpkgScanner) ListPackages(ctx context.Context, root string) (types.Result, error) {
-	rootFS, err := os.OpenRoot(root)
-	if err != nil {
-		return types.Result{}, err
-	}
-	defer rootFS.Close()
-
-	pkgs, err := s.listInstalledPkgs(rootFS)
+func (s *dpkgScanner) ListPackages(ctx context.Context, root *os.Root) (types.Result, error) {
+	pkgs, err := s.listInstalledPkgs(root)
 	if err != nil {
 		return types.Result{}, err
 	}
 
-	installedFiles, err := s.listInstalledFiles(rootFS)
+	installedFiles, err := s.listInstalledFiles(root)
 	if err != nil {
 		return types.Result{}, err
 	}
