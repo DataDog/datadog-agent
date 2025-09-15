@@ -792,9 +792,9 @@ def generate_local_github_token(ctx):
     try:
         token = ctx.run('ddtool auth github token', hide=True).stdout.strip()
 
-        assert token.startswith('gh') and ' ' not in token, (
-            "`ddtool auth github token` returned an invalid token, it might be due to ddtool outdated. Please run `brew update && brew upgrade ddtool`."
-        )
+        assert (
+            token.startswith('gh') and ' ' not in token
+        ), "`ddtool auth github token` returned an invalid token, it might be due to ddtool outdated. Please run `brew update && brew upgrade ddtool`."
 
         return token
     except AssertionError:
