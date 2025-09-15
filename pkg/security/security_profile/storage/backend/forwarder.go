@@ -22,7 +22,6 @@ import (
 	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
-	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	ddhttputil "github.com/DataDog/datadog-agent/pkg/util/http"
@@ -139,18 +138,13 @@ func (backend *ActivityDumpRemoteBackend) HandleActivityDump(imageName string, i
 		return fmt.Errorf("couldn't build request: %w", err)
 	}
 
-	selector := &cgroupModel.WorkloadSelector{
-		Image: imageName,
-		Tag:   imageTag,
-	}
-
 	for _, endpoint := range backend.endpoints.Endpoints {
 		url := utils.GetEndpointURL(endpoint, "api/v2/secdump")
 
 		if err := backend.sendToEndpoint(url, endpoint.GetAPIKey(), writer, body); err != nil {
 			seclog.Warnf("couldn't sent activity dump to [%s, body size: %d, dump size: %d]: %v", url, body.Len(), len(data), err)
 		} else {
-			seclog.Infof("[%s] file for activity dump [%s] successfully sent to [%s]", config.Protobuf, selector, url)
+			seclog.Infof("[%s] file for activity dump [image_name:%s image_tag:%s] successfully sent to [%s]", config.Protobuf, imageName, imageTag, url)
 		}
 	}
 
