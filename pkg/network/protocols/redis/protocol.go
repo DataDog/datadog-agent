@@ -13,6 +13,7 @@ import (
 
 	"github.com/cilium/ebpf"
 	"github.com/davecgh/go-spew/spew"
+	"golang.org/x/sys/unix"
 
 	manager "github.com/DataDog/ebpf-manager"
 
@@ -121,9 +122,17 @@ func (p *protocol) Name() string {
 // ConfigureOptions add the necessary options for the redis monitoring
 // to work, to be used by the manager.
 func (p *protocol) ConfigureOptions(opts *manager.Options) {
+	var mapFlags uint32
+	editorFlag := manager.EditMaxEntries
+	if p.cfg.DisableMapPreallocation {
+		mapFlags = unix.BPF_F_NO_PREALLOC
+		editorFlag |= manager.EditFlags
+	}
+
 	opts.MapSpecEditors[inFlightMap] = manager.MapSpecEditor{
 		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
-		EditorFlag: manager.EditMaxEntries,
+		Flags:      mapFlags,
+		EditorFlag: editorFlag,
 	}
 	netifProbeID := manager.ProbeIdentificationPair{
 		EBPFFuncName: netifProbe,
@@ -138,14 +147,16 @@ func (p *protocol) ConfigureOptions(opts *manager.Options) {
 		utils.EnableOption(opts, "redis_with_key_monitoring_enabled")
 		opts.MapSpecEditors[keyInFlightMap] = manager.MapSpecEditor{
 			MaxEntries: p.cfg.MaxUSMConcurrentRequests,
-			EditorFlag: manager.EditMaxEntries,
+			Flags:      mapFlags,
+			EditorFlag: editorFlag,
 		}
 		events.Configure(p.cfg, keyedEventStream, p.mgr, opts)
 	} else {
 		utils.EnableOption(opts, "redis_monitoring_enabled")
 		opts.MapSpecEditors[keyInFlightMap] = manager.MapSpecEditor{
 			MaxEntries: 1,
-			EditorFlag: manager.EditMaxEntries,
+			Flags:      mapFlags,
+			EditorFlag: editorFlag,
 		}
 		events.Configure(p.cfg, name, p.mgr, opts)
 	}
