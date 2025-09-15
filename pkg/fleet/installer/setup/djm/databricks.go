@@ -153,6 +153,7 @@ func setupCommonHostTags(s *common.Setup) {
 		v = strings.Trim(v, "\"'")
 		return workspaceNameRegex.ReplaceAllString(v, "_")
 	})
+	setIfExists(s, "WORKSPACE_URL", "workspace_url", nil)
 
 	setClearIfExists(s, "DB_CLUSTER_ID", "cluster_id", nil)
 	setIfExists(s, "DB_CLUSTER_NAME", "cluster_name", func(v string) string {
