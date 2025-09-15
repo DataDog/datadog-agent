@@ -29,7 +29,8 @@ bazel:build-deps:macos-arm64:
   script:
     - bazel build //deps/...
 
-bazel:build-deps:windows-amd64:
+# TODO(agent-build): re-enable when we're sure they won't cause problems (#incident-42947)
+.bazel:build-deps:windows-amd64:
   extends: [ .bazel:build-deps, .bazel:ext:windows ]
   variables:
     ARCH: x64

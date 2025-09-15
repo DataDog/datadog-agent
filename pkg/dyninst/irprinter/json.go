@@ -78,6 +78,20 @@ func PrintJSON(p *ir.Program) ([]byte, error) {
 				return json.SkipFunc
 			}
 			return enc.WriteToken(jsontext.String(fmt.Sprintf("0x%x", v)))
+		}),
+		json.MarshalToFunc(func(enc *jsontext.Encoder, v ir.DynamicSizeClass) error {
+			switch v {
+			case ir.DynamicSizeSlice:
+				return enc.WriteToken(jsontext.String("slice"))
+			case ir.DynamicSizeString:
+				return enc.WriteToken(jsontext.String("string"))
+			case ir.DynamicSizeHashmap:
+				return enc.WriteToken(jsontext.String("hashmap"))
+			case ir.StaticSize:
+				return enc.WriteToken(jsontext.String("static"))
+			default:
+				return fmt.Errorf("unknown dynamic size class: %d", v)
+			}
 		}))
 	probeMarshalers := json.JoinMarshalers(
 		basicMarshalers,
@@ -159,7 +173,10 @@ func marshalTypeMap(enc *jsontext.Encoder, tm map[ir.TypeID]ir.Type) error {
 		ids = append(ids, id)
 	}
 	slices.SortFunc(ids, func(a, b ir.TypeID) int {
-		return cmp.Compare(tm[a].GetName(), tm[b].GetName())
+		return cmp.Or(
+			cmp.Compare(tm[a].GetName(), tm[b].GetName()),
+			cmp.Compare(tm[a].GetID(), tm[b].GetID()),
+		)
 	})
 	if err := enc.WriteToken(jsontext.BeginArray); err != nil {
 		return err

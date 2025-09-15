@@ -12,6 +12,8 @@
 #include "queue.h"
 #include "chased_pointers_trie.h"
 
+const int32_t defaultCollectionSizeBytesLimit = 2048;
+
 DEFINE_BINARY_SEARCH(
   lookup_type_info,
   type_t,
@@ -248,7 +250,35 @@ sm_chase_pointer(global_ctx_t* ctx, pointers_queue_item_t item) {
   if (info->byte_len == 0) {
     return true;
   }
-  sm->offset = scratch_buf_serialize(ctx->buf, &item.di, info->byte_len);
+  uint32_t byte_len = info->byte_len;
+  switch (info->dynamic_size_class) {
+    case DYNAMIC_SIZE_CLASS_STATIC:
+      break;
+    case DYNAMIC_SIZE_CLASS_SLICE:
+      if (sm->collection_size_limit == -1) {
+        byte_len = defaultCollectionSizeBytesLimit;
+      } else {
+        // In this case the info stores byte len of a single element.
+        byte_len = sm->collection_size_limit * info->byte_len;
+      }
+      break;
+    case DYNAMIC_SIZE_CLASS_STRING:
+      if (sm->string_size_limit == -1) {
+        byte_len = defaultCollectionSizeBytesLimit;
+      } else {
+        byte_len = sm->string_size_limit;
+      }
+      break;
+    case DYNAMIC_SIZE_CLASS_HASHMAP:
+      if (sm->collection_size_limit == -1) {
+        byte_len = defaultCollectionSizeBytesLimit * 4;
+      } else {
+        // In this case the info stores byte len of a single element.
+        byte_len = sm->collection_size_limit * info->byte_len * 4;
+      }
+      break;
+  }
+  sm->offset = scratch_buf_serialize(ctx->buf, &item.di, byte_len);
   if (!sm->offset) {
     LOG(3, "chase: failed to serialize type %d", item.di.type);
     return true;

@@ -7,7 +7,10 @@ typedef struct probe_params {
   uint32_t throttler_idx;
   uint32_t stack_machine_pc;
   uint32_t pointer_chasing_limit;
+  uint32_t collection_size_limit;
+  uint32_t string_size_limit;
   bool frameless;
+  bool __padding[3];
 } probe_params_t;
 
 typedef struct throttler_params {
@@ -15,9 +18,18 @@ typedef struct throttler_params {
   int64_t budget;
 } throttler_params_t;
 
+typedef enum dynamic_size_class {
+  DYNAMIC_SIZE_CLASS_STATIC = 0,
+  DYNAMIC_SIZE_CLASS_SLICE = 1,
+  DYNAMIC_SIZE_CLASS_STRING = 2,
+  DYNAMIC_SIZE_CLASS_HASHMAP = 3,
+} dynamic_size_class_t;
+
 typedef struct type_info {
+  dynamic_size_class_t dynamic_size_class;
   uint32_t byte_len;
   uint32_t enqueue_pc;
+  uint32_t __padding;
 } type_info_t;
 
 typedef enum sm_opcode {

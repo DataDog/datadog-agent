@@ -1,0 +1,36 @@
+generator:
+  - http:
+      seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
+             59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 131]
+      headers:
+        content-type: "application/x-protobuf"
+      target_uri: "http://127.0.0.1:4318/v1/metrics"
+      bytes_per_second: "6 MiB"
+      parallel_connections: 5
+      method:
+        post:
+          maximum_prebuild_cache_size_bytes: "512 MiB"
+          variant:
+            opentelemetry_metrics:
+              metric_weights:
+                  gauge: 0
+                  sum_delta: 100
+                  sum_cumulative: 0
+              contexts:
+                total_contexts:
+                  constant: 10000
+
+blackhole:
+  - http:
+      binding_addr: "127.0.0.1:9091"
+      body_variant: "nothing"
+  - http:
+      binding_addr: "127.0.0.1:9092"
+      body_variant: "nothing"
+  - http:
+      binding_addr: "127.0.0.1:9093"
+      body_variant: "nothing"
+
+target_metrics:
+  - prometheus:
+      uri: "http://127.0.0.1:5000/telemetry"

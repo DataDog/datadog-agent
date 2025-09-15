@@ -388,7 +388,7 @@ This indicates an issue with the dynamic test system that may affect CI performa
         for test in current_job_tests:
             if test.name not in indexed_tests:
                 continue
-            if test.status == "failed" and not test.unreliable_status and test.name not in predicted_executed_tests:
+            if test.status == "fail" and not test.unreliable_status and test.name not in predicted_executed_tests:
                 not_executed_failing_tests.add(test.name)
 
         return EvaluationResult(job, actual_executed_tests, predicted_executed_tests, not_executed_failing_tests)

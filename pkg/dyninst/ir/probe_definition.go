@@ -53,6 +53,7 @@ type FunctionWhere interface {
 type CaptureConfig interface {
 	GetMaxReferenceDepth() uint32
 	GetMaxFieldCount() uint32
+	GetMaxLength() uint32
 	GetMaxCollectionSize() uint32
 }
 
