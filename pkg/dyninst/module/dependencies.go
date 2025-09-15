@@ -55,6 +55,8 @@ type ProcessSubscriber interface {
 type Scraper interface {
 	// GetUpdates returns the current set of updates.
 	GetUpdates() []rcscrape.ProcessUpdate
+	// AsProcMonHandler returns a procmon.Handler attached to the Scraper.
+	AsProcMonHandler() procmon.Handler
 }
 
 // IRGenerator is used to generate IR from binary updates.
