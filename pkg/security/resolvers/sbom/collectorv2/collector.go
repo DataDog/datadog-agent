@@ -5,8 +5,8 @@
 
 //go:build linux && trivy
 
-// Package sbom holds sbom related files
-package sbom
+// Package collectorv2 holds sbom related files
+package collectorv2
 
 import (
 	"bufio"
@@ -25,14 +25,15 @@ import (
 	"github.com/aquasecurity/trivy/pkg/types"
 )
 
-type HostOSScannerV2 struct {
+// OSScanner is responsible for scanning the host OS for packages
+type OSScanner struct {
 }
 
-func NewHostOSScannerV2() *HostOSScannerV2 {
-	return &HostOSScannerV2{}
+func NewOSScanner() *OSScanner {
+	return &OSScanner{}
 }
 
-func (s *HostOSScannerV2) DirectScanForTrivyReport(ctx context.Context, root string) (*types.Report, error) {
+func (s *OSScanner) DirectScanForTrivyReport(ctx context.Context, root string) (*types.Report, error) {
 	rootFS, err := os.OpenRoot(root)
 	if err != nil {
 		return nil, err
@@ -72,7 +73,7 @@ const infoPath = "var/lib/dpkg/info/"
 const readDirBatchSize = 32
 const md5sumsSuffix = ".md5sums"
 
-func (s *HostOSScannerV2) listInstalledPkgs(root *os.Root) ([]ftypes.Package, error) {
+func (s *OSScanner) listInstalledPkgs(root *os.Root) ([]ftypes.Package, error) {
 	pkgs, err := s.parseStatusFile(root, statusPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse dpkg status file (%s): %w", statusPath, err)
@@ -109,7 +110,7 @@ func (s *HostOSScannerV2) listInstalledPkgs(root *os.Root) ([]ftypes.Package, er
 	return pkgs, nil
 }
 
-func (s *HostOSScannerV2) listInstalledFiles(root *os.Root) (map[string][]string, error) {
+func (s *OSScanner) listInstalledFiles(root *os.Root) (map[string][]string, error) {
 	// first with the main info dir
 	installedFilesInfo, err := s.listInstalledFilesFromDir(root, infoPath)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -132,7 +133,7 @@ func (s *HostOSScannerV2) listInstalledFiles(root *os.Root) (map[string][]string
 	return res, nil
 }
 
-func (s *HostOSScannerV2) listInstalledFilesFromDir(root *os.Root, baseDir string) (map[string][]string, error) {
+func (s *OSScanner) listInstalledFilesFromDir(root *os.Root, baseDir string) (map[string][]string, error) {
 	infoDir, err := root.Open(baseDir)
 	if err != nil {
 		return nil, err
@@ -172,7 +173,7 @@ func (s *HostOSScannerV2) listInstalledFilesFromDir(root *os.Root, baseDir strin
 	return res, nil
 }
 
-func (s *HostOSScannerV2) parseInfoFile(root *os.Root, path string) ([]string, error) {
+func (s *OSScanner) parseInfoFile(root *os.Root, path string) ([]string, error) {
 	f, err := root.Open(path)
 	if err != nil {
 
@@ -197,7 +198,7 @@ func (s *HostOSScannerV2) parseInfoFile(root *os.Root, path string) ([]string, e
 	return installedFiles, nil
 }
 
-func (s *HostOSScannerV2) parseStatusFile(root *os.Root, path string) ([]ftypes.Package, error) {
+func (s *OSScanner) parseStatusFile(root *os.Root, path string) ([]ftypes.Package, error) {
 	f, err := root.Open(path)
 	if err != nil {
 		if os.IsNotExist(err) {

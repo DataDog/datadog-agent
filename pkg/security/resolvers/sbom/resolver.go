@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom/collectorv2"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -149,7 +150,7 @@ const useV2Collector = true
 func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInterface) (*Resolver, error) {
 	var sbomCollector sbomCollector
 	if useV2Collector {
-		sbomCollector = NewHostOSScannerV2()
+		sbomCollector = collectorv2.NewOSScanner()
 	} else {
 		opts := sbom.ScanOptions{
 			Analyzers: c.SBOMResolverAnalyzers,
