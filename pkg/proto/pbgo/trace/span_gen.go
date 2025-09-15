@@ -599,7 +599,7 @@ func (z *Span) UnmarshalMsg(bts []byte) (o []byte, err error) {
 			}
 			z.Name, bts, err = parseStringBytes(bts)
 			if err != nil {
-				err = msgp.WrapError(err, "Name")
+				err = msgp.WrapError(err, "Service")
 				return
 			}
 		case "resource":
