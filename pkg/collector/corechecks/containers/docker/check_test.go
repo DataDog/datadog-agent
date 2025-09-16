@@ -215,7 +215,7 @@ func TestDockerCustomPart(t *testing.T) {
 		tagger:           fakeTagger,
 	}
 
-	err := check.runDockerCustom(mockSender, &dockerClient, dockerClient.FakeContainerList)
+	err := check.runDockerCustom(mockSender, &dockerClient, dockerClient.FakeContainerList, true)
 	assert.NoError(t, err)
 
 	mockSender.AssertNumberOfCalls(t, "Gauge", 14)
@@ -294,7 +294,7 @@ func TestContainersRunning(t *testing.T) {
 		tagger:         fakeTagger,
 	}
 
-	err := check.runDockerCustom(mockSender, &dockerClient, dockerClient.FakeContainerList)
+	err := check.runDockerCustom(mockSender, &dockerClient, dockerClient.FakeContainerList, false)
 	assert.NoError(t, err)
 
 	// Containers that share the same set of tags should be reported together,
@@ -358,4 +358,46 @@ func TestProcess_CPUSharesMetric(t *testing.T) {
 	mockSender.AssertMetric(t, "Gauge", "docker.cpu.shares", 1024, "", expectedTags)
 	mockSender.AssertMetric(t, "Gauge", "docker.cpu.shares", 2597, "", expectedTags)
 	mockSender.AssertNotCalled(t, "Gauge", "docker.cpu.shares", 0.0, "", mocksender.MatchTagsContains(expectedTags))
+}
+
+func TestDockerCheckSizeMetricsNotCollectedWhenDisabled(t *testing.T) {
+	dockerClient := docker.FakeDockerClient{
+		FakeContainerList: []container.Summary{
+			{
+				ID:         "container_id",
+				Names:      []string{"/container_name"},
+				Image:      "datadog/agent:latest",
+				ImageID:    "sha256:image_id",
+				State:      "running",
+				SizeRw:     100,
+				SizeRootFs: 200,
+			},
+		},
+	}
+
+	mockSender := mocksender.NewMockSender("docker")
+	mockSender.SetupAcceptAll()
+
+	fakeTagger := taggermock.SetupFakeTagger(t)
+	defer fakeTagger.ResetTagger()
+	fakeTagger.SetTags("container_id://container_id", "workload", []string{"image_name:datadog/agent", "short:agent", "tag:latest"}, nil, nil, nil)
+
+	check := DockerCheck{
+		CheckBase: core.NewCheckBase("docker"),
+		instance: &DockerConfig{
+			CollectContainerSize: true,
+		},
+		tagger: fakeTagger,
+	}
+
+	// Test with collectContainerSize=false - size metrics should not be sent
+	err := check.runDockerCustom(mockSender, &dockerClient, dockerClient.FakeContainerList, false)
+	assert.NoError(t, err)
+
+	// Should not have size metrics when collectContainerSize is false
+	mockSender.AssertNotCalled(t, "Gauge", "docker.container.size_rw")
+	mockSender.AssertNotCalled(t, "Gauge", "docker.container.size_rootfs")
+
+	// But should still have other container metrics
+	mockSender.AssertMetric(t, "Gauge", "docker.containers.running", 1, "", []string{"image_name:datadog/agent", "short:agent", "tag:latest"})
 }
