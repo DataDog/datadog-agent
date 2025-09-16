@@ -8,6 +8,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -274,18 +275,18 @@ func TestDeleteConfigNameAllowed(t *testing.T) {
 		filePath string
 		expected bool
 	}{
-		{"datadog.yaml", "/managed/datadog-agent/stable/datadog.yaml", true},
-		{"security-agent.yaml", "/managed/datadog-agent/stable/security-agent.yaml", true},
-		{"system-probe.yaml", "/managed/datadog-agent/stable/system-probe.yaml", true},
-		{"application_monitoring.yaml", "/managed/datadog-agent/stable/application_monitoring.yaml", true},
-		{"not in managed/stable", "/datadog.yaml", false},
-		{"disallowed file", "/managed/datadog-agent/stable/notallowed.yaml", false},
+		{"datadog.yaml", filepath.Join("managed", "datadog-agent", "stable", "datadog.yaml"), true},
+		{"security-agent.yaml", filepath.Join("managed", "datadog-agent", "stable", "security-agent.yaml"), true},
+		{"system-probe.yaml", filepath.Join("managed", "datadog-agent", "stable", "system-probe.yaml"), true},
+		{"application_monitoring.yaml", filepath.Join("managed", "datadog-agent", "stable", "application_monitoring.yaml"), true},
+		{"not in managed/stable", filepath.Join("managed", "datadog-agent", "datadog.yaml"), false},
+		{"disallowed file", filepath.Join("managed", "datadog-agent", "stable", "notallowed.yaml"), false},
 		{"empty path", "", false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := deleteConfigNameAllowed(tt.filePath)
+			result := deleteConfigNameAllowed("/" + tt.filePath)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -313,7 +314,7 @@ func TestBuildOperationsFromLegacyConfigFile(t *testing.T) {
 
 	// Check delete operation
 	assert.Equal(t, FileOperationDelete, ops[1].FileOperationType)
-	assert.Equal(t, "/managed/stable/datadog.yaml", ops[1].FilePath)
+	assert.Equal(t, filepath.Join("managed", "stable", "datadog.yaml"), strings.TrimPrefix(ops[1].FilePath, "/"))
 }
 
 func TestBuildOperationsFromLegacyInstaller(t *testing.T) {
@@ -336,10 +337,10 @@ func TestBuildOperationsFromLegacyInstaller(t *testing.T) {
 	// Check that we have operations for both files
 	filePaths := make(map[string]bool)
 	for _, op := range ops {
-		filePaths[op.FilePath] = true
+		filePaths[strings.TrimPrefix(op.FilePath, "/")] = true
 	}
-	assert.True(t, filePaths["/datadog.yaml"])
-	assert.True(t, filePaths["/security-agent.yaml"])
-	assert.True(t, filePaths["/managed/datadog-agent/stable/datadog.yaml"])
-	assert.True(t, filePaths["/managed/datadog-agent/stable/security-agent.yaml"])
+	assert.True(t, filePaths["datadog.yaml"])
+	assert.True(t, filePaths["security-agent.yaml"])
+	assert.True(t, filePaths[filepath.Join("managed", "datadog-agent", "stable", "datadog.yaml")])
+	assert.True(t, filePaths[filepath.Join("managed", "datadog-agent", "stable", "security-agent.yaml")])
 }
