@@ -84,3 +84,8 @@ func (c *mockimpl) ReloadAllCheckInstances(_ string, _ []check.Check) ([]checkid
 
 // AddEventReceiver adds a callback to the collector to be called each time a check is added or removed.
 func (c *mockimpl) AddEventReceiver(_ collector.EventReceiver) {}
+
+// GetChecksResults returns the result from the last run of the check.
+func (c *mockimpl) GetChecksResults() []map[string]interface{} {
+	return []map[string]interface{}{}
+}
