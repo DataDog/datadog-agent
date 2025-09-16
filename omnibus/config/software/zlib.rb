@@ -57,6 +57,6 @@ build do
     make(*make_args, env: env)
     make("install", *make_args, env: env)
   else
-    command "bazelisk run -- @zlib//:install --destdir='#{install_dir}/embedded'"
+    command "echo where am i vs #{project_dir} ; /bin/pwd; cd #{project_dir} ; /bin/pwd ; bazelisk run -- @zlib//:install --destdir='#{install_dir}/embedded'"
   end
 end
