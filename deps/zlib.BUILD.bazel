@@ -35,7 +35,8 @@
 
 """Agent specific BUILD file for zlib."""
 
-load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 
 package(
@@ -149,6 +150,12 @@ alias(
     name = "zlib",
     actual = ":z",
     visibility = ["//visibility:public"],
+)
+
+cc_shared_library(
+    name = "zlib_so",
+    shared_lib_name = "zlib.so",
+    deps = [":z"],
 )
 
 # buildifier: disable=no-effect
