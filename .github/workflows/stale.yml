@@ -30,41 +30,47 @@ jobs:
 
           # Stale configuration
           days-before-stale: 15
-          days-before-close: 15
+          days-before-close: 30
 
           # Issue configuration
           stale-issue-message: |
-            This issue has been automatically marked as stale because it has not had recent activity.
+            This issue has been automatically marked as stale because it has not had activity in the past 15 days.
 
 
-            It will be closed in 15 days if no further activity occurs. If this issue is still relevant, please add a comment to keep it open.
+            It will be closed in 30 days if no further activity occurs. If this issue is still relevant, adding a comment will keep it open. Also, you can always reopen the issue if you missed the window.
 
 
             Thank you for your contributions!
 
           close-issue-message: |
-            This issue was closed because it has been stale for 15 days with no activity.
+            This issue was automatically closed because it has been stale for 30 days with no activity.
 
 
-            If you believe this issue is still relevant, please reopen it or create a new issue with updated information.
+            If this issue is still relevant, please reopen it or create a new issue with updated information.
+
+
+            Thanks!
 
           stale-issue-label: 'stale'
 
           # Pull request configuration
           stale-pr-message: |
-            This pull request has been automatically marked as stale because it has not had recent activity.
+            This pull request has been automatically marked as stale because it has not had activity in the past 15 days.
 
 
-            It will be closed in 15 days if no further activity occurs. If this pull request is still relevant, please add a comment or push new commits to keep it open.
+            It will be closed in 15 days if no further activity occurs. If this pull request is still relevant, adding a comment or pushing new commits will keep it open. Also, you can always reopen the pull request if you missed the window.
 
 
             Thank you for your contributions!
 
           close-pr-message: |
-            This pull request was closed because it has been stale for 15 days with no activity.
+            This pull request was automatically closed because it has been stale for 15 days with no activity.
 
 
-            If you believe this pull request is still relevant, please reopen it or create a new pull request with updated information.
+            If this pull request is still relevant, please reopen it or create a new pull request with updated information.
+
+
+            Thanks!
 
           stale-pr-label: 'stale'
 
