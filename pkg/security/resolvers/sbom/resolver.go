@@ -18,19 +18,16 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
-	"github.com/aquasecurity/trivy/pkg/types"
 	"github.com/avast/retry-go/v4"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"github.com/skydive-project/go-debouncer"
 	"go.uber.org/atomic"
 
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/sbom"
-	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/host"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom/collectorv2"
+	sbomtypes "github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom/types"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -85,9 +82,9 @@ func (s *SBOM) IsComputed() bool {
 }
 
 // SetReport sets the SBOM report
-func (s *SBOM) setReport(report *types.Report) {
+func (s *SBOM) setReport(pkgs []sbomtypes.PackageWithInstalledFiles) {
 	// build file cache
-	s.data.files = newFileQuerier(report)
+	s.data.files = newFileQuerier(pkgs)
 }
 
 func (s *SBOM) stop() {
@@ -141,7 +138,7 @@ type Resolver struct {
 }
 
 type sbomCollector interface {
-	DirectScanForTrivyReport(ctx context.Context, root string) (*types.Report, error)
+	ScanInstalledPackages(ctx context.Context, root string) ([]sbomtypes.PackageWithInstalledFiles, error)
 }
 
 // NewSBOMResolver returns a new instance of Resolver
@@ -150,10 +147,7 @@ func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.Client
 	if c.SBOMResolverUseV2Collector {
 		sbomCollector = collectorv2.NewOSScanner()
 	} else {
-		opts := sbom.ScanOptions{
-			Analyzers: c.SBOMResolverAnalyzers,
-		}
-		c, err := host.NewCollectorForCWS(pkgconfigsetup.SystemProbe(), opts)
+		c, err := newTrivyCollector(c)
 		if err != nil {
 			return nil, err
 		}
@@ -277,12 +271,12 @@ func (r *Resolver) RefreshSBOM(containerID containerutils.ContainerID) error {
 	return fmt.Errorf("container %s not found", containerID)
 }
 
-// generateSBOM calls Trivy to generate the SBOM of a sbom
-func (r *Resolver) generateSBOM(root string) (*types.Report, error) {
+// generateSBOM calls the collector to generate the SBOM of a sbom
+func (r *Resolver) generateSBOM(root string) ([]sbomtypes.PackageWithInstalledFiles, error) {
 	seclog.Infof("Generating SBOM for %s", root)
 	r.sbomGenerations.Inc()
 
-	report, err := r.sbomCollector.DirectScanForTrivyReport(context.Background(), root)
+	report, err := r.sbomCollector.ScanInstalledPackages(context.Background(), root)
 	if err != nil {
 		r.failedSBOMGenerations.Inc()
 		return nil, fmt.Errorf("failed to generate SBOM for %s: %w", root, err)
@@ -293,11 +287,11 @@ func (r *Resolver) generateSBOM(root string) (*types.Report, error) {
 	return report, nil
 }
 
-func (r *Resolver) doScan(sbom *SBOM) (*types.Report, error) {
+func (r *Resolver) doScan(sbom *SBOM) ([]sbomtypes.PackageWithInstalledFiles, error) {
 	var (
 		lastErr error
 		scanned bool
-		report  *types.Report
+		report  []sbomtypes.PackageWithInstalledFiles
 	)
 
 	cfs := utils.DefaultCGroupFS()
@@ -439,7 +433,7 @@ func (r *Resolver) getSBOM(containerID containerutils.ContainerID) *SBOM {
 
 // ResolvePackage returns the Package that owns the provided file. Make sure the internal fields of "file" are properly
 // resolved.
-func (r *Resolver) ResolvePackage(containerID containerutils.ContainerID, file *model.FileEvent) *Package {
+func (r *Resolver) ResolvePackage(containerID containerutils.ContainerID, file *model.FileEvent) *sbomtypes.Package {
 	sbom := r.getSBOM(containerID)
 	if sbom == nil {
 		return nil

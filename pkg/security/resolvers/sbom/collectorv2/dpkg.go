@@ -20,9 +20,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	sbomtypes "github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom/types"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
-	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
-	"github.com/aquasecurity/trivy/pkg/types"
 )
 
 type dpkgScanner struct {
@@ -32,28 +31,31 @@ func (s *dpkgScanner) Name() string {
 	return "dpkg"
 }
 
-func (s *dpkgScanner) ListPackages(_ context.Context, root *os.Root) (types.Result, error) {
+func (s *dpkgScanner) ListPackages(_ context.Context, root *os.Root) ([]sbomtypes.PackageWithInstalledFiles, error) {
 	pkgs, err := s.listInstalledPkgs(root)
 	if err != nil {
-		return types.Result{}, err
+		return nil, err
 	}
 
 	installedFiles, err := s.listInstalledFiles(root)
 	if err != nil {
-		return types.Result{}, err
+		return nil, err
 	}
 
-	pkgsWithFiles := make([]ftypes.Package, 0, len(pkgs))
+	pkgsWithFiles := make([]sbomtypes.PackageWithInstalledFiles, 0, len(pkgs))
 	for _, pkg := range pkgs {
-		if files, ok := installedFiles[pkg.Name]; ok {
-			pkg.InstalledFiles = files
+		pkg := sbomtypes.PackageWithInstalledFiles{
+			Package: sbomtypes.Package{
+				Name:       pkg.Name,
+				Version:    pkg.Version,
+				SrcVersion: pkg.SrcVersion,
+			},
+			InstalledFiles: installedFiles[pkg.Name],
 		}
 		pkgsWithFiles = append(pkgsWithFiles, pkg)
 	}
 
-	return types.Result{
-		Packages: pkgsWithFiles,
-	}, nil
+	return pkgsWithFiles, nil
 }
 
 const statusPath = "var/lib/dpkg/status"
@@ -62,7 +64,7 @@ const infoPath = "var/lib/dpkg/info/"
 const readDirBatchSize = 32
 const md5sumsSuffix = ".md5sums"
 
-func (s *dpkgScanner) listInstalledPkgs(root *os.Root) ([]ftypes.Package, error) {
+func (s *dpkgScanner) listInstalledPkgs(root *os.Root) ([]sbomtypes.Package, error) {
 	pkgs, err := s.parseStatusFile(root, statusPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse dpkg status file (%s): %w", statusPath, err)
@@ -187,7 +189,7 @@ func (s *dpkgScanner) parseInfoFile(root *os.Root, path string) ([]string, error
 	return installedFiles, nil
 }
 
-func (s *dpkgScanner) parseStatusFile(root *os.Root, path string) ([]ftypes.Package, error) {
+func (s *dpkgScanner) parseStatusFile(root *os.Root, path string) ([]sbomtypes.Package, error) {
 	f, err := root.Open(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -197,7 +199,7 @@ func (s *dpkgScanner) parseStatusFile(root *os.Root, path string) ([]ftypes.Pack
 	}
 	defer f.Close()
 
-	var pkgs []ftypes.Package
+	var pkgs []sbomtypes.Package
 
 	scanner := newDPKGStatusScanner(f)
 	for scanner.Scan() {
@@ -211,7 +213,7 @@ func (s *dpkgScanner) parseStatusFile(root *os.Root, path string) ([]ftypes.Pack
 			continue
 		}
 
-		pkg := ftypes.Package{
+		pkg := sbomtypes.Package{
 			Name:    header.Get("Package"),
 			Version: header.Get("Version"),
 		}

@@ -14,8 +14,7 @@ import (
 	"os"
 	"path/filepath"
 
-	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
-	"github.com/aquasecurity/trivy/pkg/types"
+	sbomtypes "github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom/types"
 	rpmdb "github.com/knqyf263/go-rpmdb/pkg"
 )
 
@@ -40,7 +39,7 @@ func (s *rpmScanner) Name() string {
 	return "rpm"
 }
 
-func (s *rpmScanner) ListPackages(_ context.Context, root *os.Root) (types.Result, error) {
+func (s *rpmScanner) ListPackages(_ context.Context, root *os.Root) ([]sbomtypes.PackageWithInstalledFiles, error) {
 	for _, rpmdbPath := range rpmdbPaths {
 		if _, err := root.Stat(rpmdbPath); err != nil {
 			continue
@@ -50,35 +49,37 @@ func (s *rpmScanner) ListPackages(_ context.Context, root *os.Root) (types.Resul
 		rpmdbFullPath := filepath.Join(root.Name(), rpmdbPath)
 		db, err := rpmdb.Open(rpmdbFullPath)
 		if err != nil {
-			return types.Result{}, fmt.Errorf("failed to open rpmdb at path %s: %w", rpmdbPath, err)
+			return nil, fmt.Errorf("failed to open rpmdb at path %s: %w", rpmdbPath, err)
 		}
 		defer db.Close()
 
 		pkgs, err := db.ListPackages()
 		if err != nil {
-			return types.Result{}, fmt.Errorf("failed to list packages in rpmdb at path %s: %w", rpmdbPath, err)
+			return nil, fmt.Errorf("failed to list packages in rpmdb at path %s: %w", rpmdbPath, err)
 		}
 
-		packages := make([]ftypes.Package, 0, len(pkgs))
+		packages := make([]sbomtypes.PackageWithInstalledFiles, 0, len(pkgs))
 		for _, pkg := range pkgs {
 			files, err := pkg.InstalledFileNames()
 			if err != nil {
-				return types.Result{}, fmt.Errorf("unable to get installed files: %w", err)
+				return nil, fmt.Errorf("unable to get installed files: %w", err)
 			}
 
 			for i, file := range files {
 				files[i] = filepath.ToSlash(file)
 			}
 
-			packages = append(packages, ftypes.Package{
-				Name:           pkg.Name,
-				Version:        pkg.Version,
-				SrcVersion:     pkg.Version,
+			packages = append(packages, sbomtypes.PackageWithInstalledFiles{
+				Package: sbomtypes.Package{
+					Name:       pkg.Name,
+					Version:    pkg.Version,
+					SrcVersion: pkg.Version,
+				},
 				InstalledFiles: files,
 			})
 		}
-		return types.Result{Packages: packages}, nil
+		return packages, nil
 	}
 
-	return types.Result{}, fmt.Errorf("no rpmdb found in any of the known paths: %w", os.ErrNotExist)
+	return nil, fmt.Errorf("no rpmdb found in any of the known paths: %w", os.ErrNotExist)
 }
