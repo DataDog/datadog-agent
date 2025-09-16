@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	rc "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	tracecfg "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
@@ -45,7 +46,7 @@ func runAgentSidekicks(ag component) error {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
-	if pkgconfigsetup.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) {
+	if configUtils.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) {
 		cf, err := newConfigFetcher(ag.ipc)
 		if err != nil {
 			ag.telemetryCollector.SendStartupError(telemetry.CantCreateRCCLient, err)

@@ -20,7 +20,7 @@ import (
 // StartRCService creates a service for reading config from the remote configuration backend
 func StartRCService(functionARN string) *remoteconfig.CoreAgentService {
 	config := pkgconfigsetup.Datadog()
-	if pkgconfigsetup.IsRemoteConfigEnabled(config) {
+	if configUtils.IsRemoteConfigEnabled(config) {
 		config.Set("run_path", "/tmp/datadog-agent", model.SourceAgentRuntime)
 		apiKey := config.GetString("api_key")
 		if config.IsSet("remote_configuration.api_key") {

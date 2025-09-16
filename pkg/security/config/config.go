@@ -680,7 +680,7 @@ func isRemoteConfigEnabled() bool {
 		return false
 	}
 
-	if pkgconfigsetup.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) {
+	if configUtils.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) {
 		return true
 	}
 

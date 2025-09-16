@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/telemetry"
 	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 
 type patchProvider interface {
@@ -21,7 +22,7 @@ type patchProvider interface {
 }
 
 func newPatchProvider(rcClient *rcclient.Client, isLeaderFunc func() bool, leadershipStateNotif <-chan struct{}, telemetryCollector telemetry.TelemetryCollector, clusterName string) (patchProvider, error) {
-	if pkgconfigsetup.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) {
+	if configUtils.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) {
 		return newRemoteConfigProvider(rcClient, isLeaderFunc, leadershipStateNotif, telemetryCollector, clusterName)
 	}
 	if pkgconfigsetup.Datadog().GetBool("admission_controller.auto_instrumentation.patcher.fallback_to_file_provider") {
