@@ -164,25 +164,25 @@ variables:
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to
-  CI_IMAGE_BTF_GEN: v76124889-5d86b9fb
+  CI_IMAGE_BTF_GEN: v76200931-ab3026c3
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v76124889-5d86b9fb
+  CI_IMAGE_DOCKER_X64: v76200931-ab3026c3
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v76124889-5d86b9fb
+  CI_IMAGE_DOCKER_ARM64: v76200931-ab3026c3
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v76124889-5d86b9fb
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v76200931-ab3026c3
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX: v76124889-5d86b9fb
+  CI_IMAGE_LINUX: v76200931-ab3026c3
   CI_IMAGE_LINUX_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v76124889-5d86b9fb
+  CI_IMAGE_RPM_X64: v76200931-ab3026c3
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v76124889-5d86b9fb
+  CI_IMAGE_RPM_ARM64: v76200931-ab3026c3
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v76124889-5d86b9fb
+  CI_IMAGE_RPM_ARMHF: v76200931-ab3026c3
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v75408132-f104634c
+  CI_IMAGE_WIN_LTSC2022_X64: v76200931-ab3026c3
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2025_X64: v75597353-a31dec83
+  CI_IMAGE_WIN_LTSC2025_X64: v76200931-ab3026c3
   CI_IMAGE_WIN_LTSC2025_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -902,7 +902,10 @@ workflow:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
+        - cmd/system-probe/modules/traceroute.go
         - pkg/collector/corechecks/networkpath/**/*
+        - pkg/networkpath/**/*
+        - comp/networkpath/**/*
         - test/new-e2e/tests/netpath/**/*
         - test/new-e2e/go.mod
       compare_to: $COMPARE_TO_BRANCH
