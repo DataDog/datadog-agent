@@ -35,7 +35,8 @@
 
 """Agent specific BUILD file for zlib."""
 
-load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
@@ -153,9 +154,15 @@ alias(
     visibility = ["//visibility:public"],
 )
 
+cc_shared_library(
+    name = "zlib_so",
+    shared_lib_name = "zlib.so",
+    deps = [":z"],
+)
+
 pkg_files(
     name = "lib_files",
-    srcs = [":z"],
+    srcs = [":zlib_so"],
     prefix = "lib",
 )
 
