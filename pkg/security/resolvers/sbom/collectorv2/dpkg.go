@@ -1,0 +1,287 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux && trivy
+
+// Package collectorv2 holds sbom related files
+package collectorv2
+
+import (
+	"bufio"
+	"bytes"
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"net/textproto"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
+	"github.com/aquasecurity/trivy/pkg/types"
+)
+
+type dpkgScanner struct {
+}
+
+func (s *dpkgScanner) Name() string {
+	return "dpkg"
+}
+
+func (s *dpkgScanner) ListPackages(_ context.Context, root *os.Root) (types.Result, error) {
+	pkgs, err := s.listInstalledPkgs(root)
+	if err != nil {
+		return types.Result{}, err
+	}
+
+	installedFiles, err := s.listInstalledFiles(root)
+	if err != nil {
+		return types.Result{}, err
+	}
+
+	pkgsWithFiles := make([]ftypes.Package, 0, len(pkgs))
+	for _, pkg := range pkgs {
+		if files, ok := installedFiles[pkg.Name]; ok {
+			pkg.InstalledFiles = files
+		}
+		pkgsWithFiles = append(pkgsWithFiles, pkg)
+	}
+
+	return types.Result{
+		Packages: pkgsWithFiles,
+	}, nil
+}
+
+const statusPath = "var/lib/dpkg/status"
+const statusDPath = "var/lib/dpkg/status.d/"
+const infoPath = "var/lib/dpkg/info/"
+const readDirBatchSize = 32
+const md5sumsSuffix = ".md5sums"
+
+func (s *dpkgScanner) listInstalledPkgs(root *os.Root) ([]ftypes.Package, error) {
+	pkgs, err := s.parseStatusFile(root, statusPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse dpkg status file (%s): %w", statusPath, err)
+	}
+
+	statusDDir, err := root.Open(statusDPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return pkgs, nil
+		}
+		return nil, fmt.Errorf("failed to open dpkg status.d directory (%s): %w", statusDPath, err)
+	}
+	defer statusDDir.Close()
+
+	for {
+		statusFiles, err := statusDDir.Readdir(readDirBatchSize)
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			return nil, fmt.Errorf("failed to read dpkg status.d directory (%s): %w", statusDPath, err)
+		}
+
+		for _, statusFile := range statusFiles {
+			fullPath := filepath.Join(statusDPath, statusFile.Name())
+			pkg, err := s.parseStatusFile(root, fullPath)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse dpkg status file (%s): %w", fullPath, err)
+			}
+			pkgs = append(pkgs, pkg...)
+		}
+	}
+
+	return pkgs, nil
+}
+
+func (s *dpkgScanner) listInstalledFiles(root *os.Root) (map[string][]string, error) {
+	// first with the main info dir
+	installedFilesInfo, err := s.listInstalledFilesFromDir(root, infoPath)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return nil, err
+	}
+	// then with the status.d dir for distroless
+	installedFilesStatus, err := s.listInstalledFilesFromDir(root, statusDPath)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return nil, err
+	}
+
+	// merge both maps, info dir has priority
+	res := make(map[string][]string, len(installedFilesInfo)+len(installedFilesStatus))
+	for k, v := range installedFilesStatus {
+		res[k] = v
+	}
+	for k, v := range installedFilesInfo {
+		res[k] = v
+	}
+	return res, nil
+}
+
+func (s *dpkgScanner) listInstalledFilesFromDir(root *os.Root, baseDir string) (map[string][]string, error) {
+	infoDir, err := root.Open(baseDir)
+	if err != nil {
+		return nil, err
+	}
+	defer infoDir.Close()
+
+	res := make(map[string][]string)
+
+	for {
+		infoFiles, err := infoDir.Readdir(readDirBatchSize)
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			return nil, fmt.Errorf("failed to read dpkg info directory (%s): %w", baseDir, err)
+		}
+
+		for _, infoFile := range infoFiles {
+			fileName := infoFile.Name()
+			if !strings.HasSuffix(fileName, md5sumsSuffix) {
+				continue
+			}
+			pkgName := strings.TrimSuffix(fileName, md5sumsSuffix)
+
+			installedFiles, err := s.parseInfoFile(root, filepath.Join(baseDir, fileName))
+			if err != nil {
+				if !errors.Is(err, os.ErrNotExist) {
+					seclog.Warnf("failed to parse dpkg info file (%s): %v", fileName, err)
+				}
+				continue
+			}
+
+			res[pkgName] = installedFiles
+		}
+	}
+
+	return res, nil
+}
+
+func (s *dpkgScanner) parseInfoFile(root *os.Root, path string) ([]string, error) {
+	f, err := root.Open(path)
+	if err != nil {
+
+		return nil, fmt.Errorf("failed to open dpkg info file (%s): %w", path, err)
+	}
+	defer f.Close() // TODO(paulcacheux): defer in a loop
+
+	var installedFiles []string
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		_, installedPath, ok := strings.Cut(scanner.Text(), "  ")
+		if !ok {
+			return nil, fmt.Errorf("failed to parse installed file line, bad format")
+		}
+		installedFiles = append(installedFiles, "/"+installedPath)
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("failed to scan %s: %w", path, err)
+	}
+
+	return installedFiles, nil
+}
+
+func (s *dpkgScanner) parseStatusFile(root *os.Root, path string) ([]ftypes.Package, error) {
+	f, err := root.Open(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	defer f.Close()
+
+	var pkgs []ftypes.Package
+
+	scanner := newDPKGStatusScanner(f)
+	for scanner.Scan() {
+		header, err := scanner.Header()
+		if !errors.Is(err, io.EOF) && err != nil {
+			seclog.Warnf("Parse error, filepath=%s: %v", path, err)
+			continue
+		}
+
+		if !isInstalledFromStatus(header.Get("Status")) {
+			continue
+		}
+
+		pkg := ftypes.Package{
+			Name:    header.Get("Package"),
+			Version: header.Get("Version"),
+		}
+		if pkg.Name == "" || pkg.Version == "" {
+			continue
+		}
+		pkg.SrcVersion = pkg.Version // TODO(paulcacheux): parse source
+
+		pkgs = append(pkgs, pkg)
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("failed to scan %s: %w", path, err)
+	}
+
+	return pkgs, nil
+}
+
+type dpkgStatusScanner struct {
+	*bufio.Scanner
+}
+
+// newDPKGStatusScanner returns a new scanner that splits on empty lines.
+func newDPKGStatusScanner(r io.Reader) *dpkgStatusScanner {
+	s := bufio.NewScanner(r)
+	// Package data may exceed default buffer size
+	// Increase the buffer default size by 2 times
+	buf := make([]byte, 0, 128*1024)
+	s.Buffer(buf, 128*1024)
+
+	s.Split(emptyLineSplit)
+	return &dpkgStatusScanner{Scanner: s}
+}
+
+// Scan advances the scanner to the next token.
+func (s *dpkgStatusScanner) Scan() bool {
+	return s.Scanner.Scan()
+}
+
+// Header returns the MIME header of the current scan.
+func (s *dpkgStatusScanner) Header() (textproto.MIMEHeader, error) {
+	b := s.Bytes()
+	reader := textproto.NewReader(bufio.NewReader(bytes.NewReader(b)))
+	return reader.ReadMIMEHeader()
+}
+
+// emptyLineSplit is a bufio.SplitFunc that splits on empty lines.
+func emptyLineSplit(data []byte, atEOF bool) (advance int, token []byte, err error) {
+	if atEOF && len(data) == 0 {
+		return 0, nil, nil
+	}
+
+	if i := bytes.Index(data, []byte("\n\n")); i >= 0 {
+		// We have a full empty line terminated block.
+		return i + 2, data[0:i], nil
+	}
+
+	if atEOF {
+		// Return the rest of the data if we're at EOF.
+		return len(data), data, nil
+	}
+
+	return
+}
+
+func isInstalledFromStatus(status string) bool {
+	for ss := range strings.FieldsSeq(status) {
+		if ss == "deinstall" || ss == "purge" {
+			return false
+		}
+	}
+	return true
+}
