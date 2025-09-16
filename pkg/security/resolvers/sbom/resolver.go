@@ -26,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom/collectorv2"
 	sbomtypes "github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom/types"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
@@ -143,15 +142,9 @@ type sbomCollector interface {
 
 // NewSBOMResolver returns a new instance of Resolver
 func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInterface) (*Resolver, error) {
-	var sbomCollector sbomCollector
-	if c.SBOMResolverUseV2Collector {
-		sbomCollector = collectorv2.NewOSScanner()
-	} else {
-		c, err := newTrivyCollector(c)
-		if err != nil {
-			return nil, err
-		}
-		sbomCollector = c
+	sbomCollector, err := selectCollector(c)
+	if err != nil {
+		return nil, err
 	}
 
 	dataCache, err := simplelru.NewLRU[workloadKey, *Data](c.SBOMResolverWorkloadsCacheSize, nil)
