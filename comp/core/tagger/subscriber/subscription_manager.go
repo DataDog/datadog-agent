@@ -49,6 +49,9 @@ func (sm *subscriptionManager) Subscribe(id string, filter *types.Filter, events
 	// periodically pull changes.
 	ch := make(chan []types.EntityEvent, bufferSize)
 
+	sm.Lock()
+	defer sm.Unlock()
+
 	if _, found := sm.subscribers[id]; found {
 		return nil, fmt.Errorf("duplicate subscription id error: subscription id %s is already in use", id)
 	}
@@ -60,15 +63,12 @@ func (sm *subscriptionManager) Subscribe(id string, filter *types.Filter, events
 		manager: sm,
 	}
 
-	sm.Lock()
 	sm.subscribers[id] = subscriber
 	sm.telemetryStore.Subscribers.Inc()
 
 	for prefix := range subscriber.filter.GetPrefixes() {
 		sm.prefixToSub[prefix] = append(sm.prefixToSub[prefix], subscriber)
 	}
-
-	sm.Unlock()
 
 	if len(events) > 0 {
 		sm.notify(ch, events, subscriber.filter.GetCardinality())
