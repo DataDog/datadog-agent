@@ -6,12 +6,7 @@
 package sharedlibrary
 
 /*
-#include <stdlib.h>
-#include <stdio.h>
-#include <stdbool.h>
-#include <string.h>
-
-#include "shared_library_types.h"
+#include "shared_library.h"
 
 void SubmitMetricSo(char *, metric_type_t, char *, double, char **, char *, bool);
 void SubmitServiceCheckSo(char *, char *, int, char **, char *, char *);
@@ -19,33 +14,17 @@ void SubmitEventSo(char *, event_t *);
 void SubmitHistogramBucketSo(char *, char *, long long, float, float, int, char *, char **, bool);
 void SubmitEventPlatformEventSo(char *, char *, int, char *);
 
-static const aggregator_t aggregator = {
-	SubmitMetricSo,
-	SubmitServiceCheckSo,
-	SubmitEventSo,
-	SubmitHistogramBucketSo,
-	SubmitEventPlatformEventSo,
+static aggregator_t get_aggregator() {
+	aggregator_t aggregator = {
+		SubmitMetricSo,
+		SubmitServiceCheckSo,
+		SubmitEventSo,
+		SubmitHistogramBucketSo,
+		SubmitEventPlatformEventSo,
+	};
+
+	return aggregator;
 };
-
-void run_shared_library(char *instance, handles_t *lib_handles, const char **error) {
-	// verify pointers
-    if (!lib_handles->run) {
-        *error = strdup("pointer to shared library run function is null");
-		return;
-    }
-
-	if (!lib_handles->free) {
-        *error = strdup("pointer to shared library free function is null");
-		return;
-    }
-
-    // run the shared library check and verify if an error has occurred
-    char *run_error = (lib_handles->run)(instance, &aggregator);
-	if (run_error) {
-		*error = strdup(run_error);
-		(lib_handles->free)(run_error);
-	}
-}
 */
 import "C"
 
@@ -108,8 +87,10 @@ func (c *SharedLibraryCheck) Run() error {
 	cInstance := C.CString(string(jsonInstance))
 	defer C.free(unsafe.Pointer(cInstance))
 
+	cAggregator := C.get_aggregator()
+
 	// execute the check with the symbol retrieved earlier
-	C.run_shared_library(cInstance, &c.libHandles, &cErr)
+	C.run_shared_library(&c.libHandles, cInstance, &cAggregator, &cErr)
 	if cErr != nil {
 		defer C.free(unsafe.Pointer(cErr))
 		return fmt.Errorf("Failed to run shared library check %s: %s", c.libName, C.GoString(cErr))
@@ -127,7 +108,7 @@ func (c *SharedLibraryCheck) Run() error {
 // Stop does nothing
 func (c *SharedLibraryCheck) Stop() {}
 
-// Cancel does nothing
+// Cancel unschedules the check and closes the associated shared library
 func (c *SharedLibraryCheck) Cancel() {}
 
 // String representation (for debug and logging)
