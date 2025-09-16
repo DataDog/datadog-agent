@@ -445,10 +445,27 @@ func (cb *CollectorBundle) importBuiltinCollectors() {
 
 // builtinCRDConfig represents the configuration for a built-in custom resource definition.
 type builtinCRDConfig struct {
-	group   string
-	version string
-	kind    string
+	// group is the API group name for the custom resource
+	group string
+	// kind is the resource kind name
+	kind string
+	// enabled indicates whether collection of this CRD is enabled
 	enabled bool
+	// preferredVersion is the preferred API version we want to collect for this custom resource
+	preferredVersion string
+	// fallbackVersions is a list of versions that we can fall back to in order when preferredVersion is unavailable
+	fallbackVersions []string
+}
+
+// newBuiltinCRDConfig creates a new builtinCRDConfig.
+func newBuiltinCRDConfig(group, kind string, enabled bool, preferredVersion string, fallbackVersions ...string) builtinCRDConfig {
+	return builtinCRDConfig{
+		group:            group,
+		preferredVersion: preferredVersion,
+		fallbackVersions: fallbackVersions,
+		kind:             kind,
+		enabled:          enabled,
+	}
 }
 
 // newBuiltinCRDConfigs returns the configuration for all built-in CRDs.
@@ -457,31 +474,22 @@ func newBuiltinCRDConfigs() []builtinCRDConfig {
 	isThirdPartyCRDEnabled := pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.custom_resources.third_party.enabled")
 
 	return []builtinCRDConfig{
-		{
-			group:   datadogAPIGroup,
-			enabled: isDatadogCRDEnabled,
-		},
-		{
-			group:   ArgoAPIGroup,
-			version: "v1alpha1",
-			kind:    "rollouts",
-			enabled: isThirdPartyCRDEnabled,
-		},
-		{
-			group:   KarpenterAPIGroup,
-			version: "v1",
-			enabled: isThirdPartyCRDEnabled,
-		},
-		{
-			group:   KarpenterAWSAPIGroup,
-			version: "v1",
-			enabled: isThirdPartyCRDEnabled,
-		},
-		{
-			group:   KarpenterAzureAPIGroup,
-			version: "v1beta1",
-			enabled: isThirdPartyCRDEnabled,
-		},
+		// Datadog resources
+		newBuiltinCRDConfig(datadogAPIGroup, "datadogslos", isDatadogCRDEnabled, "v1alpha1"),
+		newBuiltinCRDConfig(datadogAPIGroup, "datadogdashboards", isDatadogCRDEnabled, "v1alpha1"),
+		newBuiltinCRDConfig(datadogAPIGroup, "datadogagentprofiles", isDatadogCRDEnabled, "v1alpha1"),
+		newBuiltinCRDConfig(datadogAPIGroup, "datadogmonitors", isDatadogCRDEnabled, "v1alpha1"),
+		newBuiltinCRDConfig(datadogAPIGroup, "datadogmetrics", isDatadogCRDEnabled, "v1alpha1"),
+		newBuiltinCRDConfig(datadogAPIGroup, "datadogpodautoscalers", isDatadogCRDEnabled, "v1alpha2"),
+		newBuiltinCRDConfig(datadogAPIGroup, "datadogagents", isDatadogCRDEnabled, "v2alpha1"),
+
+		// Argo resources
+		newBuiltinCRDConfig(ArgoAPIGroup, "rollouts", isThirdPartyCRDEnabled, "v1alpha1"),
+
+		// Karpenter resources (empty kind = all resources in group)
+		newBuiltinCRDConfig(KarpenterAPIGroup, "", isThirdPartyCRDEnabled, "v1"),
+		newBuiltinCRDConfig(KarpenterAWSAPIGroup, "", isThirdPartyCRDEnabled, "v1"),
+		newBuiltinCRDConfig(KarpenterAzureAPIGroup, "", isThirdPartyCRDEnabled, "v1beta1"),
 	}
 }
 
@@ -506,12 +514,19 @@ func (cb *CollectorBundle) collectorsForBuiltinCRD(builtinCustomResource builtin
 		return nil
 	}
 
+	version, ok := cb.collectorDiscovery.OptimalVersion(builtinCustomResource.group, builtinCustomResource.preferredVersion, builtinCustomResource.fallbackVersions)
+	if !ok {
+		log.Infof("Skipping built-in CR collector: no supported version found for %s/%s (preferred: %s, fallback: %s)",
+			builtinCustomResource.group, builtinCustomResource.kind, builtinCustomResource.preferredVersion, builtinCustomResource.fallbackVersions)
+		return nil
+	}
+
 	crCollectors := make([]collectors.K8sCollector, 0, 10)
-	crs := cb.collectorDiscovery.List(builtinCustomResource.group, builtinCustomResource.version, builtinCustomResource.kind)
+	crs := cb.collectorDiscovery.List(builtinCustomResource.group, version, builtinCustomResource.kind)
 	for _, c := range crs {
 		collector, err := cb.collectorDiscovery.VerifyForCRDInventory(c.Kind, c.GroupVersion)
 		if err != nil {
-			_ = cb.check.Warnf("Unsupported collector: %s/%s: %s", c.GroupVersion, c.Kind, err)
+			log.Infof("Unsupported built-in CR collector: %s/%s: %s", c.GroupVersion, c.Kind, err)
 			continue
 		}
 
