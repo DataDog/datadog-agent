@@ -170,7 +170,7 @@ func (s *dpkgScanner) parseInfoFile(root *os.Root, path string) ([]string, error
 
 		return nil, fmt.Errorf("failed to open dpkg info file (%s): %w", path, err)
 	}
-	defer f.Close() // TODO(paulcacheux): defer in a loop
+	defer f.Close()
 
 	var installedFiles []string
 
