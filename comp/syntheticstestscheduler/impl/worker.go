@@ -24,7 +24,7 @@ import (
 )
 
 // runWorkers starts the configured number of worker goroutines and waits for them.
-func (s *SyntheticsTestScheduler) runWorkers(ctx context.Context) {
+func (s *syntheticsTestScheduler) runWorkers(ctx context.Context) {
 	s.log.Debugf("starting workers (%d)", s.workers)
 
 	var wg sync.WaitGroup
@@ -41,7 +41,7 @@ func (s *SyntheticsTestScheduler) runWorkers(ctx context.Context) {
 }
 
 // flushLoop periodically enqueues tests that are due.
-func (s *SyntheticsTestScheduler) flushLoop(ctx context.Context) {
+func (s *syntheticsTestScheduler) flushLoop(ctx context.Context) {
 	s.log.Debugf("starting flush loop")
 	defer close(s.flushLoopDone)
 
@@ -57,7 +57,7 @@ func (s *SyntheticsTestScheduler) flushLoop(ctx context.Context) {
 }
 
 // flush enqueues tests whose nextRun is due.
-func (s *SyntheticsTestScheduler) flush(flushTime time.Time) {
+func (s *syntheticsTestScheduler) flush(flushTime time.Time) {
 	for id, rt := range s.state.tests {
 		if flushTime.After(rt.nextRun) || flushTime.Equal(rt.nextRun) {
 			s.log.Debugf("enqueuing test %s", id)
@@ -73,7 +73,7 @@ func (s *SyntheticsTestScheduler) flush(flushTime time.Time) {
 }
 
 // runWorker is the main loop for a single worker.
-func (s *SyntheticsTestScheduler) runWorker(ctx context.Context, workerID int) {
+func (s *syntheticsTestScheduler) runWorker(ctx context.Context, workerID int) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -216,7 +216,7 @@ type SyntheticsTestCtx struct {
 }
 
 // updateTestState updates lastRun and nextRun for a running test.
-func (s *SyntheticsTestScheduler) updateTestState(rt *runningTestState) error {
+func (s *syntheticsTestScheduler) updateTestState(rt *runningTestState) error {
 	s.state.mu.Lock()
 	defer s.state.mu.Unlock()
 	rt.lastRun = rt.nextRun
@@ -225,7 +225,7 @@ func (s *SyntheticsTestScheduler) updateTestState(rt *runningTestState) error {
 }
 
 // sendSyntheticsTestResult marshals the WorkerResult and forwards it via the epForwarder.
-func (s *SyntheticsTestScheduler) sendSyntheticsTestResult(w *WorkerResult) error {
+func (s *syntheticsTestScheduler) sendSyntheticsTestResult(w *WorkerResult) error {
 	res, err := s.networkPathToTestResult(w)
 	if err != nil {
 		return err
@@ -255,7 +255,7 @@ func runTraceroute(ctx context.Context, cfg config.Config, telemetry telemetry.C
 }
 
 // networkPathToTestResult converts a WorkerResult into the public TestResult structure.
-func (s *SyntheticsTestScheduler) networkPathToTestResult(w *WorkerResult) (*common.TestResult, error) {
+func (s *syntheticsTestScheduler) networkPathToTestResult(w *WorkerResult) (*common.TestResult, error) {
 	t := common.Test{
 		InternalID: w.testCfg.cfg.PublicID,
 		ID:         w.testCfg.cfg.PublicID,

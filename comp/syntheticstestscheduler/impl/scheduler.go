@@ -27,8 +27,8 @@ import (
 
 const cacheKey = "synthetics-tests-scheduler"
 
-// SyntheticsTestScheduler is responsible for scheduling and executing synthetics tests.
-type SyntheticsTestScheduler struct {
+// syntheticsTestScheduler is responsible for scheduling and executing synthetics tests.
+type syntheticsTestScheduler struct {
 	log                          log.Component
 	state                        runningState
 	cancel                       context.CancelFunc
@@ -50,8 +50,8 @@ type SyntheticsTestScheduler struct {
 }
 
 // newSyntheticsTestScheduler creates a scheduler and initializes its state.
-func newSyntheticsTestScheduler(configs *schedulerConfigs, forwarder defaultforwarder.Component, logger log.Component, hostNameService hostname.Component, timeFunc func() time.Time, cancel context.CancelFunc) (*SyntheticsTestScheduler, error) {
-	scheduler := &SyntheticsTestScheduler{
+func newSyntheticsTestScheduler(configs *schedulerConfigs, forwarder defaultforwarder.Component, logger log.Component, hostNameService hostname.Component, timeFunc func() time.Time, cancel context.CancelFunc) (*syntheticsTestScheduler, error) {
+	scheduler := &syntheticsTestScheduler{
 		forwarder:                    forwarder,
 		log:                          logger,
 		hostNameService:              hostNameService,
@@ -92,7 +92,7 @@ type runningState struct {
 }
 
 // onConfigUpdate handles remote-config updates for synthetics tests.
-func (s *SyntheticsTestScheduler) onConfigUpdate(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
+func (s *syntheticsTestScheduler) onConfigUpdate(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	s.log.Debugf("Updates received: count=%d", len(updates))
 
 	newConfig := map[string]common.SyntheticsTestConfig{}
@@ -125,7 +125,7 @@ func (s *SyntheticsTestScheduler) onConfigUpdate(updates map[string]state.RawCon
 }
 
 // updateRunningState synchronizes in-memory runtime state with a new configuration.
-func (s *SyntheticsTestScheduler) updateRunningState(newConfig map[string]common.SyntheticsTestConfig) error {
+func (s *syntheticsTestScheduler) updateRunningState(newConfig map[string]common.SyntheticsTestConfig) error {
 	s.state.mu.Lock()
 	defer s.state.mu.Unlock()
 
@@ -155,7 +155,7 @@ func (s *SyntheticsTestScheduler) updateRunningState(newConfig map[string]common
 }
 
 // persistState writes the state to persistent cache.
-func (s *SyntheticsTestScheduler) persistState() error {
+func (s *syntheticsTestScheduler) persistState() error {
 	cacheValue, err := json.Marshal(s.state.tests)
 	if err != nil {
 		return err
@@ -167,7 +167,7 @@ func (s *SyntheticsTestScheduler) persistState() error {
 }
 
 // loadConfigsFromCache reads scheduler config from persistent cache and initializes state.
-func (s *SyntheticsTestScheduler) loadConfigsFromCache() error {
+func (s *syntheticsTestScheduler) loadConfigsFromCache() error {
 	s.state.mu.Lock()
 	defer s.state.mu.Unlock()
 	cacheValue, err := persistentcache.Read(cacheKey)
@@ -187,7 +187,7 @@ func (s *SyntheticsTestScheduler) loadConfigsFromCache() error {
 }
 
 // start launches flush loop and workers.
-func (s *SyntheticsTestScheduler) start(ctx context.Context) error {
+func (s *syntheticsTestScheduler) start(ctx context.Context) error {
 	if s.running {
 		return errors.New("server already started")
 	}
@@ -202,7 +202,7 @@ func (s *SyntheticsTestScheduler) start(ctx context.Context) error {
 }
 
 // stop signals all goroutines to stop and waits for them to finish.
-func (s *SyntheticsTestScheduler) stop() {
+func (s *syntheticsTestScheduler) stop() {
 	if !s.running {
 		return
 	}

@@ -509,7 +509,7 @@ func Test_SyntheticsTestScheduler_RunWorker_ProcessesTestCtxAndSendsResult(t *te
 	utillog.SetupLogger(l, "debug")
 	ctx, cancel := context.WithCancel(context.TODO())
 
-	scheduler := &SyntheticsTestScheduler{
+	scheduler := &syntheticsTestScheduler{
 		syntheticsTestProcessingChan: make(chan SyntheticsTestCtx, 1),
 		cancel:                       cancel,
 		TimeNowFn:                    func() time.Time { return time.Unix(1000, 0) },
@@ -584,7 +584,7 @@ func TestFlushEnqueuesDueTests(t *testing.T) {
 	assert.Nil(t, err)
 	utillog.SetupLogger(l, "debug")
 
-	scheduler := &SyntheticsTestScheduler{
+	scheduler := &syntheticsTestScheduler{
 		TimeNowFn:                    func() time.Time { return now },
 		syntheticsTestProcessingChan: make(chan SyntheticsTestCtx, 10),
 		state: runningState{
