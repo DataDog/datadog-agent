@@ -462,7 +462,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/def v0.64.0
 	github.com/DataDog/datadog-agent/comp/otelcol/status/def v0.64.0
 	github.com/DataDog/datadog-agent/comp/otelcol/status/impl v0.64.0
-	github.com/DataDog/datadog-agent/pkg/fleet/installer v0.64.0
+	github.com/DataDog/datadog-agent/pkg/fleet/installer v0.70.0
 	github.com/DataDog/datadog-agent/pkg/util/compression v0.71.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/otel v0.64.0
 	github.com/DataDog/datadog-agent/pkg/util/prometheus v0.64.0
@@ -552,7 +552,9 @@ require (
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/DataDog/agent-payload/v5 v5.0.164
-	github.com/DataDog/datadog-agent/comp/api/api/def v0.68.3
+	github.com/DataDog/datadog-agent/comp/api/api/def v0.70.0
+	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def v0.0.0
+	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/config v0.71.0-rc.1
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.71.0-rc.1
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.64.0-rc.3
@@ -561,7 +563,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/log/impl v0.61.0
 	github.com/DataDog/datadog-agent/comp/core/log/impl-trace v0.59.0
 	github.com/DataDog/datadog-agent/comp/core/log/mock v0.70.0
-	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.71.0-rc.1
+	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.72.0-devel.0.20250908171439-89bb030fb558
 	github.com/DataDog/datadog-agent/comp/core/secrets/fx v0.70.0-rc.6
 	github.com/DataDog/datadog-agent/comp/core/secrets/mock v0.70.0
 	github.com/DataDog/datadog-agent/comp/core/status v0.71.0-rc.1
@@ -633,7 +635,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.71.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/template v0.71.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/backoff v0.71.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/cache v0.61.0
+	github.com/DataDog/datadog-agent/pkg/util/cache v0.69.4
 	github.com/DataDog/datadog-agent/pkg/util/common v0.71.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/containers/image v0.56.2
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.71.0-rc.1
@@ -641,17 +643,19 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/flavor v0.71.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.71.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/grpc v0.60.0
+	github.com/DataDog/datadog-agent/pkg/util/hostinfo v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.71.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/http v0.71.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/json v0.71.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.62.2
+	github.com/DataDog/datadog-agent/pkg/util/jsonquery v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.70.0
 	github.com/DataDog/datadog-agent/pkg/util/option v0.71.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/quantile v0.71.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/sort v0.71.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/startstop v0.70.0
 	github.com/DataDog/datadog-agent/pkg/util/system v0.71.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/testutil v0.71.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/uuid v0.59.0
+	github.com/DataDog/datadog-agent/pkg/util/uuid v0.69.4
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.71.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/version v0.71.0-rc.1
 	github.com/DataDog/go-libddwaf/v4 v4.3.0
@@ -724,6 +728,7 @@ require (
 )
 
 require (
+	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/impl v0.0.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/impl v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/utils v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata v0.71.0-rc.1 // indirect

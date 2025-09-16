@@ -43,7 +43,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/fips v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/gohai v0.69.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/logs/types v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/types v0.71.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/cache v0.69.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.70.0 // indirect
@@ -87,9 +87,9 @@ require (
 	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4 // indirect
 	github.com/spf13/afero v1.14.0 // indirect
 	github.com/spf13/cast v1.9.2 // indirect
-	github.com/spf13/cobra v1.9.1 // indirect
+	github.com/spf13/cobra v1.10.1 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
-	github.com/spf13/pflag v1.0.7 // indirect
+	github.com/spf13/pflag v1.0.9 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/tklauser/go-sysconf v0.3.15 // indirect
 	github.com/tklauser/numcpus v0.10.0 // indirect
