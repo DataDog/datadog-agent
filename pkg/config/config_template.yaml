@@ -1009,8 +1009,9 @@ api_key:
 
 #   # @param logs_dd_url - string - optional
 #   # @env DD_LOGS_CONFIG_LOGS_DD_URL - string - optional
-#   # Define the endpoint and port to hit when using a proxy for logs. The logs are forwarded in TCP
-#   # therefore the proxy must be able to handle TCP connections.
+#   # Define the endpoint and port to hit when using a proxy for logs. 
+#   # As of agent version 7.70.0, proxy paths are supported. To forward logs to a 
+#   # specific proxy path, the URL scheme must be specified: https://proxy.example.com:443/logs
 #
 #   logs_dd_url: <ENDPOINT>:<PORT>
 

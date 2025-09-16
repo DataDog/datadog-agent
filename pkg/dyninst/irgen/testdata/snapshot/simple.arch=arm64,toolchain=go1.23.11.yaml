@@ -4,10 +4,7 @@ Probes:
       version: 0
       type: LOG_PROBE
       where: {methodName: main.PointerChainArg}
-      capture:
-        maxReferenceDepth: 3
-        maxFieldCount: 0
-        maxCollectionSize: 0
+      capture: {maxReferenceDepth: 3}
       template: ""
       segments: []
       captureSnapshot: true
@@ -21,10 +18,7 @@ Probes:
       version: 0
       type: LOG_PROBE
       where: {methodName: main.PointerSmallChainArg}
-      capture:
-        maxReferenceDepth: 5
-        maxFieldCount: 0
-        maxCollectionSize: 0
+      capture: {maxReferenceDepth: 5}
       template: ""
       segments: []
       captureSnapshot: true
@@ -905,12 +899,14 @@ Types:
     - __kind: GoSliceDataType
       ID: 132
       Name: '[]bucket<string,int>.array'
-      ByteSize: 2048
+      DynamicSizeClass: hashmap
+      ByteSize: 208
       Element: 108 GoHMapBucketType bucket<string,int>
     - __kind: GoSliceDataType
       ID: 136
       Name: '[]bucket<string,main.bigStruct>.array'
-      ByteSize: 2048
+      DynamicSizeClass: hashmap
+      ByteSize: 208
       Element: 115 GoHMapBucketType bucket<string,main.bigStruct>
     - __kind: GoSliceHeaderType
       ID: 100
@@ -932,7 +928,8 @@ Types:
     - __kind: GoSliceDataType
       ID: 125
       Name: '[]int.array'
-      ByteSize: 2048
+      DynamicSizeClass: slice
+      ByteSize: 8
       Element: 9 BaseType int
     - __kind: ArrayType
       ID: 130
@@ -965,7 +962,8 @@ Types:
     - __kind: GoSliceDataType
       ID: 127
       Name: '[]string.array'
-      ByteSize: 2048
+      DynamicSizeClass: slice
+      ByteSize: 16
       Element: 10 GoStringHeaderType string
     - __kind: GoSliceHeaderType
       ID: 38
@@ -987,7 +985,8 @@ Types:
     - __kind: GoSliceDataType
       ID: 121
       Name: '[]uint8.array'
-      ByteSize: 2048
+      DynamicSizeClass: slice
+      ByteSize: 1
       Element: 3 BaseType uint8
     - __kind: GoSliceHeaderType
       ID: 43
@@ -1009,7 +1008,8 @@ Types:
     - __kind: GoSliceDataType
       ID: 123
       Name: '[]uintptr.array'
-      ByteSize: 2048
+      DynamicSizeClass: slice
+      ByteSize: 8
       Element: 1 BaseType uintptr
     - __kind: ArrayType
       ID: 131
@@ -2097,7 +2097,8 @@ Types:
     - __kind: GoStringDataType
       ID: 119
       Name: string.str
-      ByteSize: 2048
+      DynamicSizeClass: string
+      ByteSize: 1
     - __kind: BaseType
       ID: 12
       Name: uint
