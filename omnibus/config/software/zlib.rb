@@ -56,5 +56,7 @@ build do
     # On windows, msys make 3.81 doesn't support -j.
     make(*make_args, env: env)
     make("install", *make_args, env: env)
+  else
+    command "bazelisk run -- @zlib//:install --destdir='#{install_dir}/embedded'"
   end
 end
