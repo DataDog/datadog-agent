@@ -55,3 +55,9 @@ func initializeCheckContext(senderManager sender.SenderManager, logReceiver opti
 
 	checkContextMutex.Unlock()
 }
+
+func releaseCheckContext() {
+	checkContextMutex.Lock()
+	checkCtx = nil
+	checkContextMutex.Unlock()
+}
