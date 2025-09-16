@@ -480,6 +480,7 @@
 /pkg/config/setup/system_probe_cws.go           @DataDog/agent-security @DataDog/agent-configuration
 /pkg/config/setup/system_probe_cws_notwin.go    @DataDog/agent-security @DataDog/agent-configuration
 /pkg/config/setup/system_probe_cws_windows.go   @DataDog/windows-products @DataDog/agent-configuration
+/pkg/config/setup/system_probe_usm*.go          @DataDog/universal-service-monitoring @DataDog/agent-configuration
 /pkg/config/setup/security_agent.go             @DataDog/agent-security @DataDog/agent-configuration
 /pkg/config/remote/                     @DataDog/remote-config
 /pkg/config/remote/meta/                @DataDog/remote-config @DataDog/sdlc-security

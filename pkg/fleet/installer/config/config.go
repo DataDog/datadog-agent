@@ -16,9 +16,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/symlink"
 	patch "gopkg.in/evanphx/json-patch.v4"
 	"gopkg.in/yaml.v3"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/symlink"
 )
 
 const (
@@ -98,10 +99,6 @@ func (d *Directories) PromoteExperiment(_ context.Context) error {
 		return err
 	}
 	err = replaceConfigDirectory(d.StablePath, d.ExperimentPath)
-	if err != nil {
-		return err
-	}
-	err = symlink.Set(d.StablePath, d.ExperimentPath)
 	if err != nil {
 		return err
 	}

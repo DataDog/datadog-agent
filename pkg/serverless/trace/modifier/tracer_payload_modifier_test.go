@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-package trace
+package modifier
 
 import (
 	"testing"
@@ -14,8 +14,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 )
 
-// Test that tracerPayloadModifier implements TracerPayloadModifier interface
-var _ agent.TracerPayloadModifier = (*tracerPayloadModifier)(nil)
+// Test that TracerPayloadModifier implements agent.TracerPayloadModifier interface
+var _ agent.TracerPayloadModifier = (*TracerPayloadModifier)(nil)
 
 func TestTracerPayloadModifier_Modify(t *testing.T) {
 	tests := []struct {
@@ -110,9 +110,7 @@ func TestTracerPayloadModifier_Modify(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			modifier := &tracerPayloadModifier{
-				functionTags: tt.functionTags,
-			}
+			modifier := NewTracerPayloadModifier(tt.functionTags)
 
 			payload := &pb.TracerPayload{
 				Tags: tt.inputTags,

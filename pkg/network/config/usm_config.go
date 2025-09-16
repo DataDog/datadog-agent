@@ -49,6 +49,10 @@ type USMConfig struct {
 	// USMDataChannelSize specifies the size of the data channel for USM
 	USMDataChannelSize int
 
+	// DisableMapPreallocation controls whether eBPF maps should disable preallocation (BPF_F_NO_PREALLOC flag).
+	// When true, maps allocate entries on-demand instead of preallocating the full map size, improving memory efficiency.
+	DisableMapPreallocation bool
+
 	// ========================================
 	// HTTP Protocol Configuration
 	// ========================================
@@ -172,6 +176,7 @@ func NewUSMConfig(cfg model.Config) *USMConfig {
 		EnableUSMEventStream:      cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_event_stream")),
 		USMKernelBufferPages:      cfg.GetInt(sysconfig.FullKeyPath(smNS, "kernel_buffer_pages")),
 		USMDataChannelSize:        cfg.GetInt(sysconfig.FullKeyPath(smNS, "data_channel_size")),
+		DisableMapPreallocation:   cfg.GetBool(sysconfig.FullKeyPath(smNS, "disable_map_preallocation")),
 
 		// HTTP Protocol Configuration
 		EnableHTTPMonitoring:      cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_http_monitoring")),
@@ -187,8 +192,8 @@ func NewUSMConfig(cfg model.Config) *USMConfig {
 		HTTP2DynamicTableMapCleanerInterval: time.Duration(cfg.GetInt(sysconfig.FullKeyPath(smNS, "http2_dynamic_table_map_cleaner_interval_seconds"))) * time.Second,
 
 		// Kafka Protocol Configuration
-		EnableKafkaMonitoring: cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_kafka_monitoring")),
-		MaxKafkaStatsBuffered: cfg.GetInt(sysconfig.FullKeyPath(smNS, "max_kafka_stats_buffered")),
+		EnableKafkaMonitoring: cfg.GetBool(sysconfig.FullKeyPath(smNS, "kafka", "enabled")),
+		MaxKafkaStatsBuffered: cfg.GetInt(sysconfig.FullKeyPath(smNS, "kafka", "max_stats_buffered")),
 
 		// Postgres Protocol Configuration
 		EnablePostgresMonitoring:   cfg.GetBool(sysconfig.FullKeyPath(smNS, "postgres", "enabled")),
