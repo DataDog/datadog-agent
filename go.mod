@@ -51,7 +51,9 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/log/mock v0.70.0
 	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.71.0-rc.1
 	github.com/DataDog/datadog-agent/comp/core/secrets/fx v0.70.0-rc.6
+	github.com/DataDog/datadog-agent/comp/core/secrets/mock v0.70.0
 	github.com/DataDog/datadog-agent/comp/core/secrets/mock v0.71.0-devel.0.20250902202452-61c2536752eb
+	github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/status v0.71.0-rc.1
 	github.com/DataDog/datadog-agent/comp/core/status/statusimpl v0.69.4
 	github.com/DataDog/datadog-agent/comp/core/tagger/def v0.71.0-rc.1
@@ -1043,6 +1045,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/secrets/fx => ./comp/core/secrets/fx
 	github.com/DataDog/datadog-agent/comp/core/secrets/impl => ./comp/core/secrets/impl
 	github.com/DataDog/datadog-agent/comp/core/secrets/mock => ./comp/core/secrets/mock
+	github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl => ./comp/core/secrets/noop-impl
 	github.com/DataDog/datadog-agent/comp/core/secrets/utils => ./comp/core/secrets/utils
 	github.com/DataDog/datadog-agent/comp/core/status => ./comp/core/status
 	github.com/DataDog/datadog-agent/comp/core/status/statusimpl => ./comp/core/status/statusimpl

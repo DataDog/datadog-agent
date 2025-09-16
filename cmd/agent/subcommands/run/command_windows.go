@@ -51,6 +51,7 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
@@ -189,10 +190,10 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			// no config file path specification in this situation
 			fx.Supply(core.BundleParams{
 				ConfigParams:         config.NewAgentParams(""),
-				SecretParams:         secrets.NewEnabledParams(),
 				SysprobeConfigParams: sysprobeconfigimpl.NewParams(),
 				LogParams:            log.ForDaemon(command.LoggerName, "log_file", defaultpaths.LogFile),
 			}),
+			secretsfx.Module(),
 			getSharedFxOption(),
 			getPlatformModules(),
 		)

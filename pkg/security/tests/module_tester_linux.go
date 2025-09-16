@@ -730,7 +730,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		testMod.cleanup()
 	}
 
-	emconfig, secconfig, err := genTestConfigs(commonCfgDir, opts.staticOpts)
+	emconfig, secconfig, err := genTestConfigs(t, commonCfgDir, opts.staticOpts)
 	if err != nil {
 		return nil, err
 	}
