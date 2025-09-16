@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux && trivy
+//go:build linux
 
 // Package collectorv2 holds sbom related files
 package collectorv2
@@ -13,8 +13,8 @@ import (
 	"errors"
 	"os"
 
+	sbomtypes "github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom/types"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
-	"github.com/aquasecurity/trivy/pkg/types"
 )
 
 // OSScanner is responsible for scanning the host OS for packages
@@ -24,7 +24,7 @@ type OSScanner struct {
 
 type actualScanner interface {
 	Name() string
-	ListPackages(ctx context.Context, root *os.Root) (types.Result, error)
+	ListPackages(ctx context.Context, root *os.Root) ([]sbomtypes.PackageWithInstalledFiles, error)
 }
 
 // NewOSScanner returns a new OSScanner
@@ -37,15 +37,15 @@ func NewOSScanner() *OSScanner {
 	}
 }
 
-// DirectScanForTrivyReport scans the given rootfs and returns a trivy report
-func (s *OSScanner) DirectScanForTrivyReport(ctx context.Context, root string) (*types.Report, error) {
+// ScanInstalledPackages scans the given rootfs and returns a list of installed packages
+func (s *OSScanner) ScanInstalledPackages(ctx context.Context, root string) ([]sbomtypes.PackageWithInstalledFiles, error) {
 	rootFS, err := os.OpenRoot(root)
 	if err != nil {
 		return nil, err
 	}
 	defer rootFS.Close()
 
-	report := &types.Report{}
+	var pkgs []sbomtypes.PackageWithInstalledFiles
 	for _, scanner := range s.scanners {
 		result, err := scanner.ListPackages(ctx, rootFS)
 		if err != nil {
@@ -54,7 +54,7 @@ func (s *OSScanner) DirectScanForTrivyReport(ctx context.Context, root string) (
 			}
 			continue
 		}
-		report.Results = append(report.Results, result)
+		pkgs = append(pkgs, result...)
 	}
-	return report, nil
+	return pkgs, nil
 }
