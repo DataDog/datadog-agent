@@ -44,7 +44,8 @@ func TestMyEKSSuite(t *testing.T) {
 			awskubernetes.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*compkube.Workload, error) {
 				return nginx.K8sAppDefinition(e, kubeProvider, "nginx", "", false, nil)
 			}),
-		)))
+		)),
+		e2e.WithSkipDeleteOnFailure())
 }
 
 func (v *myEKSSuite) TestClusterAgentInstalled() {
