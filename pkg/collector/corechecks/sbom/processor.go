@@ -94,6 +94,10 @@ func newProcessor(workloadmetaStore workloadmeta.Component, filterStore workload
 				return
 			}
 
+			if err = proto.Unmarshal(encoded, &model.SBOMPayload{}); err != nil { // sanity check
+				panic("Could not decode SBOMPayload we just encoded: " + err.Error())
+			}
+
 			sender.EventPlatformEvent(encoded, eventplatform.EventTypeContainerSBOM)
 			log.Debugf("SBOM event sent with %d entities", len(entities))
 		}),
