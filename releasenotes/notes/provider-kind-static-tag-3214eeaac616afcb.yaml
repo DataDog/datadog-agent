@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    set the tag `provider-kind` at start in the static list of tags.
+    Set the 'provider-kind' tag at the beginning of the static tag list.
