@@ -11,6 +11,7 @@ bazel:build-deps:linux-amd64:
   script:
     - bazel build //deps/...
     - bazel run -- @zlib//:install --destdir='/opt/datadog-agent/embedded'
+    - find /opt/datadog-agent/embedded -type f
 
 bazel:build-deps:linux-arm64:
   extends: [ .bazel:build-deps, .linux_arm64 ]
