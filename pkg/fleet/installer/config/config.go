@@ -154,7 +154,7 @@ type FileOperation struct {
 }
 
 func (a *FileOperation) apply(root *os.Root) error {
-	if !configNameAllowed(a.FilePath) && !(a.FileOperationType == FileOperationDelete && deleteConfigNameAllowed(a.FilePath)) {
+	if !configNameAllowed(a.FilePath) {
 		return fmt.Errorf("modifying config file %s is not allowed", a.FilePath)
 	}
 	path := strings.TrimPrefix(a.FilePath, "/")
@@ -263,16 +263,10 @@ var (
 		"/application_monitoring.yaml",
 		"/conf.d/*.yaml",
 		"/conf.d/*.d/*.yaml",
+		"/managed/*",
 	}
 
 	legacyPathPrefix = filepath.Join("managed", "datadog-agent", "stable")
-
-	deleteAllowedConfigFiles = []string{
-		"/datadog.yaml",
-		"/security-agent.yaml",
-		"/system-probe.yaml",
-		"/application_monitoring.yaml",
-	}
 )
 
 func configNameAllowed(file string) bool {
@@ -288,46 +282,53 @@ func configNameAllowed(file string) bool {
 	return false
 }
 
-func deleteConfigNameAllowed(file string) bool {
-
-	file = strings.TrimPrefix(file, "/")
-	file = strings.TrimPrefix(file, "\\")
-	for _, allowedFile := range deleteAllowedConfigFiles {
-		match, err := filepath.Match(filepath.Join("managed", "datadog-agent", "*", allowedFile), file)
-		if err != nil {
-			return false
-		}
-		if match {
-			return true
-		}
-	}
-	return false
-}
-
 func buildOperationsFromLegacyInstaller(rootPath string) []FileOperation {
 	var allOps []FileOperation
 
-	// Eval legacyPathPrefix symlink from rootPath
-	stableDirPath, err := filepath.EvalSymlinks(filepath.Join(rootPath, legacyPathPrefix))
+	// /etc/datadog-agent/
+	realRootPath, err := filepath.EvalSymlinks(rootPath)
 	if err != nil {
 		return allOps
 	}
 
-	for _, allowedFile := range deleteAllowedConfigFiles {
-		ops, err := buildOperationsFromLegacyConfigFile(allowedFile, stableDirPath)
-		if err == nil {
-			allOps = append(allOps, ops...)
-		}
+	// Eval legacyPathPrefix symlink from rootPath
+	// /etc/datadog-agent/managed/datadog-agent/aaaa-bbbb-cccc
+	stableDirPath, err := filepath.EvalSymlinks(filepath.Join(realRootPath, legacyPathPrefix))
+	if err != nil {
+		return allOps
 	}
+
+	// managed/datadog-agent/aaaa-bbbb-cccc
+	managedDirSubPath, err := filepath.Rel(realRootPath, stableDirPath)
+	if err != nil {
+		return allOps
+	}
+
+	filepath.Walk(stableDirPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
+
+		ops, err := buildOperationsFromLegacyConfigFile(path, realRootPath, managedDirSubPath)
+		if err != nil {
+			return err
+		}
+
+		allOps = append(allOps, ops...)
+		return nil
+	})
+
 	return allOps
 }
 
-func buildOperationsFromLegacyConfigFile(filePath, stableDirPath string) ([]FileOperation, error) {
+func buildOperationsFromLegacyConfigFile(fullFilePath, fullRootPath, managedDirSubPath string) ([]FileOperation, error) {
 	var ops []FileOperation
 
 	// Read the stable config file
-	fullPath := filepath.Join(stableDirPath, filePath)
-	stableDatadogYAML, err := os.ReadFile(fullPath)
+	stableDatadogYAML, err := os.ReadFile(fullFilePath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return ops, nil
@@ -348,26 +349,26 @@ func buildOperationsFromLegacyConfigFile(filePath, stableDirPath string) ([]File
 		return ops, err
 	}
 
+	managedFilePath, err := filepath.Rel(fullRootPath, fullFilePath)
+	if err != nil {
+		return ops, err
+	}
+	fPath, err := filepath.Rel(managedDirSubPath, managedFilePath)
+	if err != nil {
+		return ops, err
+	}
+
 	// Add the merge patch operation
 	ops = append(ops, FileOperation{
 		FileOperationType: FileOperationType(FileOperationMergePatch),
-		FilePath:          filePath,
+		FilePath:          "/" + strings.TrimPrefix(fPath, "/"),
 		Patch:             stableDatadogJSONBytes,
 	})
-
-	managedDir := strings.LastIndex(fullPath, "/managed")
-	if managedDir == -1 {
-		managedDir = strings.LastIndex(fullPath, "\\managed")
-		if managedDir == -1 {
-			return ops, fmt.Errorf("managed directory not found in file path: %s", fullPath)
-		}
-	}
-	fPath := fullPath[managedDir:]
 
 	// Add the delete operation for the old file
 	ops = append(ops, FileOperation{
 		FileOperationType: FileOperationType(FileOperationDelete),
-		FilePath:          fPath,
+		FilePath:          "/" + strings.TrimPrefix(managedFilePath, "/"),
 	})
 
 	return ops, nil

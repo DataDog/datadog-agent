@@ -269,32 +269,9 @@ func TestDirectories_GetState(t *testing.T) {
 	assert.Equal(t, "", state.ExperimentDeploymentID)
 }
 
-func TestDeleteConfigNameAllowed(t *testing.T) {
-	tests := []struct {
-		name     string
-		filePath string
-		expected bool
-	}{
-		{"datadog.yaml", filepath.Join("managed", "datadog-agent", "stable", "datadog.yaml"), true},
-		{"security-agent.yaml", filepath.Join("managed", "datadog-agent", "stable", "security-agent.yaml"), true},
-		{"system-probe.yaml", filepath.Join("managed", "datadog-agent", "stable", "system-probe.yaml"), true},
-		{"application_monitoring.yaml", filepath.Join("managed", "datadog-agent", "stable", "application_monitoring.yaml"), true},
-		{"not in managed/stable", filepath.Join("managed", "datadog-agent", "datadog.yaml"), false},
-		{"disallowed file", filepath.Join("managed", "datadog-agent", "stable", "notallowed.yaml"), false},
-		{"empty path", "", false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := deleteConfigNameAllowed("/" + tt.filePath)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
-
 func TestBuildOperationsFromLegacyConfigFile(t *testing.T) {
 	tmpDir := t.TempDir()
-	managedDir := filepath.Join(tmpDir, "managed", "stable")
+	managedDir := filepath.Join(tmpDir, legacyPathPrefix)
 	err := os.MkdirAll(managedDir, 0755)
 	assert.NoError(t, err)
 
@@ -303,7 +280,7 @@ func TestBuildOperationsFromLegacyConfigFile(t *testing.T) {
 	err = os.WriteFile(filepath.Join(managedDir, "datadog.yaml"), legacyConfig, 0644)
 	assert.NoError(t, err)
 
-	ops, err := buildOperationsFromLegacyConfigFile("/datadog.yaml", managedDir)
+	ops, err := buildOperationsFromLegacyConfigFile(filepath.Join(managedDir, "datadog.yaml"), tmpDir, legacyPathPrefix)
 	assert.NoError(t, err)
 	assert.Len(t, ops, 2)
 
@@ -314,12 +291,12 @@ func TestBuildOperationsFromLegacyConfigFile(t *testing.T) {
 
 	// Check delete operation
 	assert.Equal(t, FileOperationDelete, ops[1].FileOperationType)
-	assert.Equal(t, filepath.Join("managed", "stable", "datadog.yaml"), strings.TrimPrefix(strings.TrimPrefix(ops[1].FilePath, "/"), "\\"))
+	assert.Equal(t, filepath.Join(legacyPathPrefix, "datadog.yaml"), strings.TrimPrefix(strings.TrimPrefix(ops[1].FilePath, "/"), "\\"))
 }
 
 func TestBuildOperationsFromLegacyInstaller(t *testing.T) {
 	tmpDir := t.TempDir()
-	managedDir := filepath.Join(tmpDir, "managed", "datadog-agent", "stable")
+	managedDir := filepath.Join(tmpDir, legacyPathPrefix)
 	err := os.MkdirAll(managedDir, 0755)
 	assert.NoError(t, err)
 
