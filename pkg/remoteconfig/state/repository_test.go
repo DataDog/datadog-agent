@@ -1002,6 +1002,10 @@ func TestUpdateMetadataOnlyWhenHashUnchangedVersionIncreased(t *testing.T) {
 	_, err := r.Update(update)
 	assert.NoError(t, err)
 
+	// Set a non-default ApplyStatus to ensure it is preserved on metadata-only update
+	initialApplyStatus := ApplyStatus{State: ApplyStateError, Error: "initial failure"}
+	r.UpdateApplyStatus(path, initialApplyStatus)
+
 	// Same file contents (same hashes), but bump the metadata version
 	_, hashesV2, _ := addCWSDDFile("test", 2, file, ta.targets)
 	b = signTargets(ta.key, ta.targets)
@@ -1022,12 +1026,15 @@ func TestUpdateMetadataOnlyWhenHashUnchangedVersionIncreased(t *testing.T) {
 	assert.Equal(t, file, storedFile.Config)
 	assert.EqualValues(t, 2, storedFile.Metadata.Version)
 	assertHashesEqual(t, hashesV2, storedFile.Metadata.Hashes)
+	// ApplyStatus should be preserved when only the version changes and hashes remain the same
+	assert.Equal(t, initialApplyStatus, storedFile.Metadata.ApplyStatus)
 
 	state, err := r.CurrentState()
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(state.Configs))
 	assert.Equal(t, 1, len(state.CachedFiles))
 	assert.EqualValues(t, 2, state.Configs[0].Version)
+	assert.Equal(t, initialApplyStatus, state.Configs[0].ApplyStatus)
 
 	// Repeat the same test against the unverified repository
 	r = ta.unverifiedRepository
@@ -1038,6 +1045,10 @@ func TestUpdateMetadataOnlyWhenHashUnchangedVersionIncreased(t *testing.T) {
 		ClientConfigs: []string{path},
 	})
 	assert.NoError(t, err)
+
+	// Set ApplyStatus prior to metadata-only bump and verify preservation afterwards
+	initialApplyStatusUnverified := ApplyStatus{State: ApplyStateAcknowledged, Error: ""}
+	r.UpdateApplyStatus(path, initialApplyStatusUnverified)
 
 	// Bump to version 3 with same content to exercise metadata-only update again
 	_, hashesV3, _ := addCWSDDFile("test", 3, file, ta.targets)
@@ -1056,10 +1067,12 @@ func TestUpdateMetadataOnlyWhenHashUnchangedVersionIncreased(t *testing.T) {
 	assert.Equal(t, file, storedFile.Config)
 	assert.EqualValues(t, 3, storedFile.Metadata.Version)
 	assertHashesEqual(t, hashesV3, storedFile.Metadata.Hashes)
+	assert.Equal(t, initialApplyStatusUnverified, storedFile.Metadata.ApplyStatus)
 
 	state, err = r.CurrentState()
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(state.Configs))
 	assert.Equal(t, 1, len(state.CachedFiles))
 	assert.EqualValues(t, 3, state.Configs[0].Version)
+	assert.Equal(t, initialApplyStatusUnverified, state.Configs[0].ApplyStatus)
 }

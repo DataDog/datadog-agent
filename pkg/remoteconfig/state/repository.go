@@ -220,7 +220,9 @@ func (r *Repository) Update(update Update) ([]string, error) {
 			} else if ok && changed {
 				// The version has changed, even though there are no changes to the file. Since business logic code
 				// only operates on config bodies, we don't want to trigger a callback, but we do want to report the new version
-				// as part of the RC update process so that it is visible in REDAPL.
+				// as part of the RC update process so that it is visible in REDAPL. Since we're not sending this to the
+				// business logic code, we need to preserve the previous apply status.
+				newConfigMetadata.ApplyStatus = m.ApplyStatus
 				result.metadata[path] = newConfigMetadata
 				continue
 			}
