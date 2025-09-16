@@ -46,6 +46,8 @@ modules:
     used_by_otel: true
   comp/core/secrets/impl:
     used_by_otel: true
+  comp/core/secrets/noop-impl:
+    used_by_otel: true
   comp/core/secrets/mock:
     used_by_otel: true
   comp/core/secrets/utils:
