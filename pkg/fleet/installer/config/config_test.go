@@ -314,7 +314,7 @@ func TestBuildOperationsFromLegacyConfigFile(t *testing.T) {
 
 	// Check delete operation
 	assert.Equal(t, FileOperationDelete, ops[1].FileOperationType)
-	assert.Equal(t, filepath.Join("managed", "stable", "datadog.yaml"), strings.TrimPrefix(ops[1].FilePath, "/"))
+	assert.Equal(t, filepath.Join("managed", "stable", "datadog.yaml"), strings.TrimPrefix(strings.TrimPrefix(ops[1].FilePath, "/"), "\\"))
 }
 
 func TestBuildOperationsFromLegacyInstaller(t *testing.T) {
@@ -337,7 +337,7 @@ func TestBuildOperationsFromLegacyInstaller(t *testing.T) {
 	// Check that we have operations for both files
 	filePaths := make(map[string]bool)
 	for _, op := range ops {
-		filePaths[strings.TrimPrefix(op.FilePath, "/")] = true
+		filePaths[strings.TrimPrefix(strings.TrimPrefix(op.FilePath, "/"), "\\")] = true
 	}
 	assert.True(t, filePaths["datadog.yaml"])
 	assert.True(t, filePaths["security-agent.yaml"])
