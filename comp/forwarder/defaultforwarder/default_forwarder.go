@@ -68,6 +68,7 @@ type Forwarder interface {
 	SubmitHostMetadata(payload transaction.BytesPayloads, extra http.Header) error
 	SubmitAgentChecksMetadata(payload transaction.BytesPayloads, extra http.Header) error
 	SubmitMetadata(payload transaction.BytesPayloads, extra http.Header) error
+	SubmitSyntheticsTestResults(payload transaction.BytesPayloads, extra http.Header) error
 	SubmitProcessChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error)
 	SubmitProcessDiscoveryChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error)
 	SubmitProcessEventChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error)
@@ -744,6 +745,12 @@ func (f *DefaultForwarder) SubmitOrchestratorChecks(payload transaction.BytesPay
 func (f *DefaultForwarder) SubmitOrchestratorManifests(payload transaction.BytesPayloads, extra http.Header) (chan Response, error) {
 	transactionsOrchestratorManifest.Add(1)
 	return f.submitProcessLikePayload(endpoints.OrchestratorManifestEndpoint, payload, extra, true)
+}
+
+// SubmitSyntheticsTestResults sends synthetics results
+func (f *DefaultForwarder) SubmitSyntheticsTestResults(payload transaction.BytesPayloads, extra http.Header) error {
+	transactions := f.createHTTPTransactions(endpoints.SyntheticsEndpoint, payload, transaction.SyntheticsResult, extra)
+	return f.sendHTTPTransactions(transactions)
 }
 
 func (f *DefaultForwarder) submitProcessLikePayload(ep transaction.Endpoint, payload transaction.BytesPayloads, extra http.Header, retryable bool) (chan Response, error) {

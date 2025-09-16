@@ -70,6 +70,11 @@ func (f NoopForwarder) SubmitProcessDiscoveryChecks(_ transaction.BytesPayloads,
 	return nil, nil
 }
 
+// SubmitSyntheticsTestResults does nothing
+func (f NoopForwarder) SubmitSyntheticsTestResults(_ transaction.BytesPayloads, _ http.Header) error {
+	return nil
+}
+
 // SubmitProcessEventChecks does nothing
 func (f NoopForwarder) SubmitProcessEventChecks(_ transaction.BytesPayloads, _ http.Header) (chan Response, error) {
 	return nil, nil

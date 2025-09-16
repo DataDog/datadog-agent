@@ -224,18 +224,6 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		// payloads at once, so we need a large input channel size to avoid dropping
 		defaultInputChanSize: 1000,
 	},
-	{
-		eventType:                     eventplatform.EventTypeSynthetics,
-		category:                      "Synthetics",
-		contentType:                   logshttp.JSONContentType,
-		endpointsConfigPrefix:         "synthetics.forwarder.",
-		hostnameEndpointPrefix:        "synthetics-intake.",
-		intakeTrackType:               "synthetics",
-		defaultBatchMaxConcurrentSend: 10,
-		defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
-		defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
-		defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
-	},
 }
 
 type defaultEventPlatformForwarder struct {

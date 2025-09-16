@@ -28,9 +28,6 @@ const (
 	// EventTypeNetworkConfigManagement is the event type for network device configuration management
 	EventTypeNetworkConfigManagement = "ndmconfig"
 
-	// EventTypeSynthetics is the event type for Synthetics test results
-	EventTypeSynthetics = "synthetics"
-
 	// EventTypeContainerLifecycle represents a container lifecycle event
 	EventTypeContainerLifecycle = "container-lifecycle"
 	// EventTypeContainerImages represents a container images event

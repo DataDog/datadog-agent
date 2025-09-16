@@ -17,7 +17,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	rctypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	syntheticstestscheduler "github.com/DataDog/datadog-agent/comp/syntheticstestscheduler/def"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
@@ -26,7 +26,7 @@ import (
 // Requires defines the dependencies for the syntheticstestscheduler component
 type Requires struct {
 	Lifecycle       compdef.Lifecycle
-	EpForwarder     eventplatform.Component
+	Forwarder       defaultforwarder.Component
 	Logger          log.Component
 	Telemetry       telemetry.Component
 	AgentConfig     agentconfig.Component
@@ -51,15 +51,10 @@ func NewComponent(reqs Requires) (Provides, error) {
 		}, nil
 	}
 
-	epForwarder, ok := reqs.EpForwarder.Get()
-	if !ok {
-		return Provides{}, reqs.Logger.Errorf("error getting EpForwarder")
-	}
-
 	ctx, cancel := context.WithCancel(context.Background())
 	scheduler, err := newSyntheticsTestScheduler(
 		configs,
-		epForwarder,
+		reqs.Forwarder,
 		reqs.Logger,
 		reqs.HostnameService,
 		time.Now,
