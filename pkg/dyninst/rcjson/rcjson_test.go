@@ -26,6 +26,10 @@ type testCase struct {
 	validationErr string
 }
 
+func intPtr(v int) *int {
+	return &v
+}
+
 var testCases = []testCase{
 	{
 		name: "log probe with file and lines",
@@ -43,7 +47,7 @@ var testCases = []testCase{
 				"segments": [{"str": "Hello "}, {"dsl": "name", "json": {"ref": "name"}}],
 				"capture": {
 					"maxReferenceDepth": 3,
-					"maxFieldCount": 10,
+					"maxLength": 123,
 					"maxCollectionSize": 100
 				},
 				"sampling": {
@@ -67,9 +71,9 @@ var testCases = []testCase{
 					EvaluateAt: "entry",
 				},
 				Capture: &Capture{
-					MaxReferenceDepth: 3,
-					MaxFieldCount:     10,
-					MaxCollectionSize: 100,
+					MaxReferenceDepth: intPtr(3),
+					MaxLength:         intPtr(123),
+					MaxCollectionSize: intPtr(100),
 				},
 				Sampling: &Sampling{
 					SnapshotsPerSecond: 1.0,
@@ -99,6 +103,7 @@ var testCases = []testCase{
 				"capture": {
 					"maxReferenceDepth": 3,
 					"maxFieldCount": 10,
+					"maxLength": 123,
 					"maxCollectionSize": 100
 				},
 				"sampling": {
@@ -121,9 +126,10 @@ var testCases = []testCase{
 					EvaluateAt: "entry",
 				},
 				Capture: &Capture{
-					MaxReferenceDepth: 3,
-					MaxFieldCount:     10,
-					MaxCollectionSize: 100,
+					MaxReferenceDepth: intPtr(3),
+					MaxFieldCount:     intPtr(10),
+					MaxLength:         intPtr(123),
+					MaxCollectionSize: intPtr(100),
 				},
 				Sampling: &Sampling{
 					SnapshotsPerSecond: 1.0,
