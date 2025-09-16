@@ -138,6 +138,24 @@ func TestRuntimeSettings(t *testing.T) {
 			},
 		},
 		{
+			"GetFullConfig vs GetFullConfigWithoutDefaults - Different Outputs",
+			func(t *testing.T, comp settings.Component) {
+				recorder1 := httptest.NewRecorder()
+				recorder2 := httptest.NewRecorder()
+				request := httptest.NewRequest("GET", "http://agent.host/test/", nil)
+
+				comp.GetFullConfig("")(recorder1, request)
+				comp.GetFullConfigWithoutDefaults("")(recorder2, request)
+
+				body1, _ := io.ReadAll(recorder1.Result().Body)
+				body2, _ := io.ReadAll(recorder2.Result().Body)
+
+				assert.Equal(t, 200, recorder1.Code)
+				assert.Equal(t, 200, recorder2.Code)
+				assert.NotEqual(t, string(body1), string(body2))
+			},
+		},
+		{
 			"GetFullConfigBySource",
 			func(t *testing.T, comp settings.Component) {
 				responseRecorder := httptest.NewRecorder()
