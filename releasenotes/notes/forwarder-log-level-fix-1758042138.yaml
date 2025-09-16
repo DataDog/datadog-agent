@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Changed log level from ERROR to WARNING for "Too many errors for endpoint" 
+    messages when forwarder circuit breaker blocks requests. This reduces log 
+    noise as these are temporary conditions that resolve automatically.
