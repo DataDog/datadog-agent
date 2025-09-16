@@ -249,3 +249,11 @@ func TracerPayloadWithChunks(chunks []*pb.TraceChunk) *pb.TracerPayload {
 		Chunks: chunks,
 	}
 }
+
+// TracerPayloadV1WithChunk wraps `chunk` with pb.TraceChunk
+func TracerPayloadV1WithChunks(chunks []*idx.InternalTraceChunk) *idx.InternalTracerPayload {
+	return &idx.InternalTracerPayload{
+		Strings: chunks[0].Strings,
+		Chunks:  chunks,
+	}
+}

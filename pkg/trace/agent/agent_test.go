@@ -717,6 +717,37 @@ func TestProcess(t *testing.T) {
 		// and expecting it to result in 3 payloads
 		assert.Len(t, payloads, 3)
 	})
+
+	t.Run("chunkingV1", func(t *testing.T) {
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test"
+		ctx, cancel := context.WithCancel(context.Background())
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+		defer cancel()
+
+		strings := idx.NewStringTable() // strings shared across whole payload
+		chunk1 := testutil.TraceChunkV1WithSpanAndPriority(testutil.GetTestSpanV1(strings), 2)
+		chunk2 := testutil.TraceChunkV1WithSpanAndPriority(testutil.GetTestSpanV1(strings), 2)
+		chunk3 := testutil.TraceChunkV1WithSpanAndPriority(testutil.GetTestSpanV1(strings), 2)
+		// we are sending 3 traces
+		tp := testutil.TracerPayloadV1WithChunks([]*idx.InternalTraceChunk{
+			chunk1,
+			chunk2,
+			chunk3,
+		})
+		// setting writer.MaxPayloadSize to the size of 1 trace (+1 byte)
+		defer func(oldSize int) { writer.MaxPayloadSize = oldSize }(writer.MaxPayloadSize)
+		//minChunkSize := int(math.Min(math.Min(float64(tp.Chunks[0].Msgsize()), float64(tp.Chunks[1].Msgsize())), float64(tp.Chunks[2].Msgsize())))
+		writer.MaxPayloadSize = 1
+		agnt.ProcessV1(&api.PayloadV1{
+			TracerPayload: tp,
+			Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+		})
+
+		payloads := agnt.TraceWriterV1.(*mockTraceWriter).payloadsV1
+		// and expecting it to result in 3 payloads
+		assert.Len(t, payloads, 3)
+	})
 }
 
 func spansToChunk(spans ...*pb.Span) *pb.TraceChunk {
