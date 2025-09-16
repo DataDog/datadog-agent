@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom/collectorv2"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -129,7 +130,7 @@ type Resolver struct {
 	pendingScan     []containerutils.ContainerID
 
 	statsdClient   statsd.ClientInterface
-	sbomCollector  *host.Collector
+	sbomCollector  sbomCollector
 	hostRootDevice uint64
 	hostSBOM       *SBOM
 
@@ -139,14 +140,24 @@ type Resolver struct {
 	sbomsCacheMiss        *atomic.Uint64
 }
 
+type sbomCollector interface {
+	DirectScanForTrivyReport(ctx context.Context, root string) (*types.Report, error)
+}
+
 // NewSBOMResolver returns a new instance of Resolver
 func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInterface) (*Resolver, error) {
-	opts := sbom.ScanOptions{
-		Analyzers: c.SBOMResolverAnalyzers,
-	}
-	sbomCollector, err := host.NewCollectorForCWS(pkgconfigsetup.SystemProbe(), opts)
-	if err != nil {
-		return nil, err
+	var sbomCollector sbomCollector
+	if c.SBOMResolverUseV2Collector {
+		sbomCollector = collectorv2.NewOSScanner()
+	} else {
+		opts := sbom.ScanOptions{
+			Analyzers: c.SBOMResolverAnalyzers,
+		}
+		c, err := host.NewCollectorForCWS(pkgconfigsetup.SystemProbe(), opts)
+		if err != nil {
+			return nil, err
+		}
+		sbomCollector = c
 	}
 
 	dataCache, err := simplelru.NewLRU[workloadKey, *Data](c.SBOMResolverWorkloadsCacheSize, nil)

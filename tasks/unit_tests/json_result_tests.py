@@ -140,10 +140,9 @@ class TestJSONResult(TestCase):
         file = str(Path(__file__).parent / "testdata" / "test_output_with_invalid.json")
         res = ResultJson.from_file(file)
         self.assertGreater(p.call_count, 0, f"Expected at least one warning for invalid lines in {file}")
-        last_print_call = p.call_args_list[-1]
         self.assertIn(
-            "WARNING: Invalid line in result json file, skipping:",
-            last_print_call[0][0],
+            "WARNING: Invalid line in result json file, skipping",
+            p.call_args_list[0][0][0],
             f"Expected a warning about the invalid line in {file}",
         )
 
