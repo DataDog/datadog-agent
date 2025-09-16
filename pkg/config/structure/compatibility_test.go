@@ -46,6 +46,8 @@ func constructBothConfigs(content string, dynamicSchema bool, setupFunc func(mod
 }
 
 func TestCompareWrongType(t *testing.T) {
+	// NOTE: network_devices.autodiscovery.works should be an int, this config
+	// file contains the wrong type
 	dataYaml := `
 network_devices:
   autodiscovery:
@@ -72,7 +74,13 @@ network_devices:
 	num = ntmConf.GetInt("network_devices.autodiscovery.workers")
 	assert.Equal(t, 0, num)
 
+	// no error from UnmarshalKey because the shape mismatch is below the top-level setting
 	err := viperConf.UnmarshalKey("network_devices.autodiscovery", &cfg)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, cfg.Workers)
+
+	// same behavior using reflection based UnmarshalKey
+	err = unmarshalKeyReflection(viperConf, "network_devices.autodiscovery", &cfg)
 	assert.NoError(t, err)
 	assert.Equal(t, 0, cfg.Workers)
 

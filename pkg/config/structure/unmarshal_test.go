@@ -1557,3 +1557,24 @@ feature_flags:
 	assert.Equal(t, false, *flags.Disabled)
 	assert.Equal(t, false, *flags.Missing)
 }
+
+func TestUnmarshalKeyToInterfaceSlice(t *testing.T) {
+	confYaml := `
+network_devices:
+  snmp_traps:
+    enabled: true
+    port: 1234
+    community_strings: ["a","b","c"]
+`
+	mockConfig := newConfigFromYaml(t, confYaml)
+
+	var communityStrings []interface{}
+	err := unmarshalKeyReflection(mockConfig, "network_devices.snmp_traps.community_strings", &communityStrings)
+	assert.NoError(t, err)
+	assert.Equal(t, []interface{}{"a", "b", "c"}, communityStrings)
+
+	var actualStrings []string
+	err = unmarshalKeyReflection(mockConfig, "network_devices.snmp_traps.community_strings", &actualStrings)
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"a", "b", "c"}, actualStrings)
+}
