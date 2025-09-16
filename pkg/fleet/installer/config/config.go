@@ -265,7 +265,7 @@ var (
 		"/conf.d/*.d/*.yaml",
 	}
 
-	legacyPathPrefix = "/" + filepath.Join("managed", "datadog-agent", "stable")
+	legacyPathPrefix = filepath.Join("managed", "datadog-agent", "stable")
 
 	deleteAllowedConfigFiles = []string{
 		"/datadog.yaml",
@@ -289,8 +289,11 @@ func configNameAllowed(file string) bool {
 }
 
 func deleteConfigNameAllowed(file string) bool {
+
+	file = strings.TrimPrefix(file, "/")
+	file = strings.TrimPrefix(file, "\\")
 	for _, allowedFile := range deleteAllowedConfigFiles {
-		match, err := filepath.Match(fmt.Sprintf("/managed/datadog-agent/*%s", allowedFile), file)
+		match, err := filepath.Match(filepath.Join("managed", "datadog-agent", "*", allowedFile), file)
 		if err != nil {
 			return false
 		}
