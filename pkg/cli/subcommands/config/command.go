@@ -33,6 +33,9 @@ type cliParams struct {
 	// source enables detailed information about each source and its value
 	source bool
 
+	// all enables displaying all settings including defaults
+	all bool
+
 	// args are the positional command line args
 	args []string
 }
@@ -78,6 +81,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 		Long:  ``,
 		RunE:  oneShotRunE(showRuntimeConfiguration),
 	}
+	cmd.Flags().BoolVarP(&cliParams.all, "all", "a", false, "display all settings including defaults")
 
 	listRuntimeCmd := &cobra.Command{
 		Use:   "list-runtime",
@@ -121,7 +125,12 @@ func showRuntimeConfiguration(_ log.Component, client ipc.HTTPClient, cliParams 
 		return err
 	}
 
-	runtimeConfig, err := c.FullConfig()
+	var runtimeConfig string
+	if cliParams.all {
+		runtimeConfig, err = c.FullConfig()
+	} else {
+		runtimeConfig, err = c.FullConfigWithoutDefaults()
+	}
 	if err != nil {
 		return err
 	}
