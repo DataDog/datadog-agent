@@ -174,6 +174,9 @@
 
 # The windows-v2 runner is currently only used in container_build jobs needed to do authenticated push. It should not replace the basic windows runner, unless agreeded first with #ci-infra team
 .windows_docker_2025:
+  # The windows 2025 runners are expeimental and cannot be in the critical path
+  # This should not be changed without approval from #ci-infra team
+  allow_failure: true
   tags: ["windows-v2:2025"]
   variables:
     # Full image name for Agent windows build image, for use in docker run command
