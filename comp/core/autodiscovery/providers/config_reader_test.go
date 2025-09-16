@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
@@ -99,6 +100,14 @@ func TestGetIntegrationConfig(t *testing.T) {
 		},
 		config.AdvancedADIdentifiers,
 	)
+
+	// advanced autodiscovery: cel_selector
+	config, err = GetIntegrationConfigFromFile("foo", "tests/cel_selector.yaml")
+	require.Nil(t, err)
+	assert.Equal(t, "file:tests/cel_selector.yaml", config.Source)
+	expectedRules := workloadfilter.Rules{Containers: []string{"ctn1.rule1", "ctn2.rule2"}}
+	assert.Equal(t, expectedRules, config.CELSelector)
+	assert.Len(t, config.ADIdentifiers, 0)
 
 	// autodiscovery: check if we correctly refuse to load if a 'docker_images' section is present
 	config, err = GetIntegrationConfigFromFile("foo", "tests/ad_deprecated.yaml")

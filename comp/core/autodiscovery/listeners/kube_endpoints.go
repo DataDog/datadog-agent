@@ -13,7 +13,7 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
@@ -54,6 +54,7 @@ type KubeEndpointsListener struct {
 // KubeEndpointService represents an endpoint in a Kubernetes Endpoints
 type KubeEndpointService struct {
 	entity          string
+	metadata        *workloadfilter.Endpoint
 	tags            []string
 	hosts           map[string]string
 	ports           []ContainerPort
@@ -332,13 +333,9 @@ func (l *KubeEndpointsListener) createService(kep *v1.Endpoints, checkServiceAnn
 func processEndpoints(kep *v1.Endpoints, tags []string, filterStore workloadfilter.Component) []*KubeEndpointService {
 	var eps []*KubeEndpointService
 
-	metricsExcluded := false
-	globalExcluded := false
-	if filterStore != nil {
-		filterableEndpoint := workloadfilter.CreateEndpoint(kep.Name, kep.Namespace, kep.GetAnnotations())
-		metricsExcluded = filterStore.GetEndpointAutodiscoveryFilters(workloadfilter.MetricsFilter).IsExcluded(filterableEndpoint)
-		globalExcluded = filterStore.GetEndpointAutodiscoveryFilters(workloadfilter.GlobalFilter).IsExcluded(filterableEndpoint)
-	}
+	filterableEndpoint := workloadfilter.CreateEndpoint(kep.Name, kep.Namespace, kep.GetAnnotations())
+	metricsExcluded := filterStore.GetEndpointAutodiscoveryFilters(workloadfilter.MetricsFilter).IsExcluded(filterableEndpoint)
+	globalExcluded := filterStore.GetEndpointAutodiscoveryFilters(workloadfilter.GlobalFilter).IsExcluded(filterableEndpoint)
 
 	for i := range kep.Subsets {
 		ports := []ContainerPort{}
@@ -350,9 +347,10 @@ func processEndpoints(kep *v1.Endpoints, tags []string, filterStore workloadfilt
 		for _, host := range kep.Subsets[i].Addresses {
 			// create a separate AD service per host
 			ep := &KubeEndpointService{
-				entity: apiserver.EntityForEndpoints(kep.Namespace, kep.Name, host.IP),
-				hosts:  map[string]string{"endpoint": host.IP},
-				ports:  ports,
+				entity:   apiserver.EntityForEndpoints(kep.Namespace, kep.Name, host.IP),
+				metadata: filterableEndpoint,
+				hosts:    map[string]string{"endpoint": host.IP},
+				ports:    ports,
 				tags: []string{
 					fmt.Sprintf("kube_service:%s", kep.Name),
 					fmt.Sprintf("kube_namespace:%s", kep.Namespace),
@@ -438,7 +436,7 @@ func (s *KubeEndpointService) GetServiceID() string {
 
 // GetADIdentifiers returns the service AD identifiers
 func (s *KubeEndpointService) GetADIdentifiers() []string {
-	return []string{s.entity}
+	return []string{s.entity, adtypes.CelEndpointIdentifier}
 }
 
 // GetHosts returns the pod hosts
@@ -503,6 +501,12 @@ func (s *KubeEndpointService) GetExtraConfig(_ string) (string, error) {
 	return "", ErrNotSupported
 }
 
-// FilterTemplates does nothing.
-func (s *KubeEndpointService) FilterTemplates(map[string]integration.Config) {
+// FilterTemplates filters the given configs based on the service's CEL selector.
+func (s *KubeEndpointService) FilterTemplates(configs map[string]adtypes.InternalConfig) {
+	filterTemplatesCELSelector(s, configs)
+}
+
+// GetFilterableEntity returns the filterable entity of the service
+func (s *KubeEndpointService) GetFilterableEntity() workloadfilter.Filterable {
+	return s.metadata
 }

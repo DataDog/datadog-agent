@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
+	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
@@ -487,7 +488,7 @@ type ReconcilingConfigManagerSuite struct {
 // A service's filtering determines which templates are resolved and scheduled.
 func (suite *ReconcilingConfigManagerSuite) TestServiceTemplateFiltering() {
 	filterSvc := &dummyService{ID: "filter", ADIdentifiers: []string{"filter"}}
-	filterSvc.filterTemplates = func(configs map[string]integration.Config) {
+	filterSvc.filterTemplates = func(configs map[string]adtypes.InternalConfig) {
 		for digest, config := range configs {
 			if !strings.HasSuffix(config.Name, "-keep") {
 				delete(configs, digest)

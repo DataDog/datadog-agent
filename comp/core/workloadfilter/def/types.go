@@ -9,6 +9,21 @@ import (
 	typedef "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def/proto"
 )
 
+// ProductRules defines the rules for filtering a group of products
+type ProductRules struct {
+	Products []string
+	Rules    Rules
+}
+
+// Rules defines the rules for filtering different resource types.
+type Rules struct {
+	Containers    []string `yaml:"containers" json:"containers"`
+	Processes     []string `yaml:"processes" json:"processes"`
+	Pods          []string `yaml:"pods" json:"pods"`
+	KubeServices  []string `yaml:"kube_services" json:"kube_services"`
+	KubeEndpoints []string `yaml:"kube_endpoints" json:"kube_endpoints"`
+}
+
 // Scope defines the scope of the filters.
 type Scope string
 

@@ -8,7 +8,7 @@ package listeners
 import (
 	"errors"
 
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
@@ -47,7 +47,7 @@ type Service interface {
 	// with the full set of templates matching this service.  It must not rely
 	// on any non-static information except the given configs, and it must not
 	// modify the configs in the map.
-	FilterTemplates(map[string]integration.Config)
+	FilterTemplates(configs map[string]adtypes.InternalConfig)
 }
 
 // ServiceListener monitors running services and triggers check (un)scheduling
