@@ -784,9 +784,3 @@ Package snmpscan is a light component that can be used to perform a scan or a wa
 
 Package syntheticstestscheduler defines a synthetics scheduler component to run
 network tests based on remote config.
-
-### [comp/syntheticstestscheduler/impl](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/syntheticstestscheduler/impl)
-
-*Datadog Team*: synthetics-executing
-
-Package syntheticstestschedulerimpl implements synthetics test scheduler.
