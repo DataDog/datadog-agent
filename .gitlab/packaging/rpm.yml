@@ -9,9 +9,6 @@ include:
   before_script:
   script:
     - !reference [.cache_omnibus_ruby_deps, setup]
-    - printf -- "$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $RPM_GPG_KEY)" | gpg --import --batch
-    - EXIT="${PIPESTATUS[0]}"; if [ $EXIT -ne 0 ]; then echo "Unable to locate credentials needs gitlab runner restart"; exit $EXIT; fi
-    - RPM_SIGNING_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $RPM_SIGNING_PASSPHRASE) || exit $?; export RPM_SIGNING_PASSPHRASE
     - dda inv -- -e omnibus.build --base-dir $OMNIBUS_BASE_DIR --skip-deps --target-project=${DD_PROJECT} ${OMNIBUS_EXTRA_ARGS}
     - ls -la $OMNIBUS_PACKAGE_DIR/
     - !reference [.create_signature_and_lint_linux_packages]
@@ -34,7 +31,7 @@ include:
 
 .package_rpm_x86:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/rpm_x64$CI_IMAGE_RPM_X64_SUFFIX:$CI_IMAGE_RPM_X64
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   variables:
     DD_PKG_ARCH: x86_64
     PACKAGE_ARCH: amd64
@@ -42,7 +39,7 @@ include:
 
 .package_rpm_arm64:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/rpm_arm64$CI_IMAGE_RPM_ARM64_SUFFIX:$CI_IMAGE_RPM_ARM64
-  tags: ["arch:arm64"]
+  tags: ["arch:arm64", "specific:true"]
   variables:
     PACKAGE_ARCH: arm64
     DD_PKG_ARCH: arm64
@@ -52,7 +49,7 @@ include:
   extends: .package_rpm_common
   script:
     - !reference [.package_rpm_common, script]
-    - mkdir -p $OMNIBUS_PACKAGE_DIR_SUSE && mv $OMNIBUS_PACKAGE_DIR/*.rpm $OMNIBUS_PACKAGE_DIR_SUSE/
+    - mkdir -p $OMNIBUS_PACKAGE_DIR_SUSE && mv $OMNIBUS_PACKAGE_DIR/* $OMNIBUS_PACKAGE_DIR_SUSE/
   artifacts:
     expire_in: 2 weeks
     paths:
@@ -63,7 +60,7 @@ include:
 
 agent_rpm-x64-a7:
   extends: [.package_rpm_common, .package_rpm_x86]
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   needs: ["datadog-agent-7-x64"]
   variables:
     DD_PROJECT: agent
@@ -103,7 +100,7 @@ installer_rpm-amd64:
 
 agent_rpm-x64-a7-fips:
   extends: [.package_rpm_common, .package_rpm_x86]
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   needs: ["datadog-agent-7-x64-fips"]
   variables:
     OMNIBUS_EXTRA_ARGS: "--flavor fips"
@@ -202,9 +199,6 @@ installer_suse_rpm-arm64:
     - when: on_success
   script:
     - !reference [.cache_omnibus_ruby_deps, setup]
-    - printf -- "$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $RPM_GPG_KEY)" | gpg --import --batch
-    - EXIT="${PIPESTATUS[0]}"; if [ $EXIT -ne 0 ]; then echo "Unable to locate credentials needs gitlab runner restart"; exit $EXIT; fi
-    - RPM_SIGNING_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $RPM_SIGNING_PASSPHRASE) || exit $?; export RPM_SIGNING_PASSPHRASE
     - dda inv -- -e omnibus.build --base-dir $OMNIBUS_BASE_DIR --skip-deps --flavor=iot ${OMNIBUS_EXTRA_ARGS}
     - ls -la $OMNIBUS_PACKAGE_DIR/
     - !reference [.create_signature_and_lint_linux_packages]
@@ -245,7 +239,7 @@ iot_agent_rpm-armhf:
   extends: .package_iot_rpm_common
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/rpm_armhf$CI_IMAGE_RPM_ARMHF_SUFFIX:$CI_IMAGE_RPM_ARMHF
   # Run with platform:arm64 since no platform:armhf exists and arm64 should be backwards compatible
-  tags: ["arch:arm64"]
+  tags: ["arch:arm64", "specific:true"]
   needs: ["iot-agent-armhf"]
   variables:
     PACKAGE_ARCH: armhf

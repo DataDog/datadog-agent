@@ -389,7 +389,6 @@ func (t *Tailer) forwardMessages() {
 
 		// Preserve ParsingExtra information from decoder output (including IsTruncated flag)
 		msg := message.NewMessageWithParsingExtra(output.GetContent(), origin, output.Status, output.IngestionTimestamp, output.ParsingExtra)
-
 		// Make the write to the output chan cancellable to be able to stop the tailer
 		// after a file rotation when it is stuck on it.
 		// We don't return directly to keep the same shutdown sequence that in the
@@ -436,17 +435,17 @@ func (t *Tailer) Source() *sources.LogSource {
 	return t.file.Source.UnderlyingSource()
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
-func (t *Tailer) GetId() string {
+// GetID returns the tailer's unique identifier
+func (t *Tailer) GetID() string {
 	return t.file.GetScanKey()
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
+// GetType returns the tailer type
 func (t *Tailer) GetType() string {
 	return "file"
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
+// GetInfo returns the tailer's status info registry
 func (t *Tailer) GetInfo() *status.InfoRegistry {
 	return t.info
 }

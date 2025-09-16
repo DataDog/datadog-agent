@@ -6,6 +6,7 @@
 package model
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -14,14 +15,12 @@ import (
 	"github.com/mitchellh/mapstructure"
 )
 
-// ConfigFileNotFoundError wrapper error for when a config file is not found
-type ConfigFileNotFoundError struct {
-	Err error
-}
+// ErrConfigFileNotFound is an error for when the config file is not found
+var ErrConfigFileNotFound = errors.New("Config File Not Found")
 
-// Error returns the error message
-func (e ConfigFileNotFoundError) Error() string {
-	return fmt.Sprintf("Config File Not Found %v", e.Err.Error())
+// NewConfigFileNotFoundError returns a well known error for the config file missing
+func NewConfigFileNotFoundError(err error) error {
+	return fmt.Errorf("%w: %w", ErrConfigFileNotFound, err)
 }
 
 // Source stores what edits a setting as a string
@@ -125,16 +124,6 @@ type Proxy struct {
 // configuration will call each NotificationReceiver registered through the 'OnUpdate' method, therefore
 // 'NotificationReceiver' should not be blocking.
 type NotificationReceiver func(setting string, source Source, oldValue, newValue any, sequenceID uint64)
-
-// ConfigChangeNotification stores the information about a change in the configuration and is sent to the listeners.
-type ConfigChangeNotification struct {
-	Key           string
-	Source        Source
-	PreviousValue interface{}
-	NewValue      interface{}
-	SequenceID    uint64
-	Receivers     []NotificationReceiver
-}
 
 // Reader is a subset of Config that only allows reading of configuration
 type Reader interface {

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
+	"github.com/DataDog/datadog-agent/pkg/version"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
@@ -361,8 +362,13 @@ func installAgentPackage(ctx context.Context, env *env.Env, target string, args 
 	// and we need to reinstall it with the same configuration
 	// and we wipe out our registry keys containing the configuration
 	// that the next install would have used
-	dataDir := fmt.Sprintf(`APPLICATIONDATADIRECTORY="%s"`, env.MsiParams.ApplicationDataDirectory)
-	projectLocation := fmt.Sprintf(`PROJECTLOCATION="%s"`, env.MsiParams.ProjectLocation)
+	props := map[string]string{
+		"FLEET_INSTALL":     "1",
+		"SKIP_INSTALL_INFO": "1",
+		// carry over directories directly
+		"APPLICATIONDATADIRECTORY": env.MsiParams.ApplicationDataDirectory,
+		"PROJECTLOCATION":          env.MsiParams.ProjectLocation,
+	}
 
 	opts := []msi.MsiexecOption{
 		msi.Install(),
@@ -375,11 +381,10 @@ func installAgentPackage(ctx context.Context, env *env.Env, target string, args 
 	if env.MsiParams.AgentUserPassword != "" {
 		opts = append(opts, msi.WithDdAgentUserPassword(env.MsiParams.AgentUserPassword))
 	}
-	additionalArgs := []string{"FLEET_INSTALL=1", "SKIP_INSTALL_INFO=1", dataDir, projectLocation}
-
+	opts = append(opts, msi.WithProperties(props))
 	// append input args last so they can take precedence
-	additionalArgs = append(additionalArgs, args...)
-	opts = append(opts, msi.WithAdditionalArgs(additionalArgs))
+	opts = append(opts, msi.WithAdditionalArgs(args))
+
 	cmd, err := msi.Cmd(opts...)
 	if err != nil {
 		return fmt.Errorf("failed to create MSI command: %w", err)
@@ -408,7 +413,7 @@ func removeProductIfInstalled(ctx context.Context, product string) (err error) {
 			span.Finish(err)
 		}()
 		err := msi.RemoveProduct(ctx, product,
-			msi.WithAdditionalArgs([]string{"FLEET_INSTALL=1"}),
+			msi.WithProperties(map[string]string{"FLEET_INSTALL": "1"}),
 		)
 		if err != nil {
 			return err
@@ -778,6 +783,23 @@ func postPromoteConfigExperimentDatadogAgentBackground(ctx context.Context) erro
 	return nil
 }
 
+// updateRegistryInstallSource updates the install source and package name to the current stable MSI.
+//
+// Called from the MSI to ensure the install source is our copy of the MSI and not the path run by the user.
+// This helps ensure the MSI is available even when the original path is a temp dir, which is common
+// with remote deployment scripts, or the Windows installer cache was removed for some reason.
+func updateRegistryInstallSource() error {
+	msiName := fmt.Sprintf("datadog-agent-%s-x86_64.msi", version.AgentPackageVersion)
+
+	stablePath := filepath.Join(paths.PackagesPath, "datadog-agent", "stable")
+	err := msi.SetSourceList("Datadog Agent", stablePath, msiName)
+	if err != nil {
+		return fmt.Errorf("failed to update MSI source list: %w", err)
+	}
+
+	return nil
+}
+
 // runDatadogAgentPackageCommand maps the package specific command names to their corresponding functions.
 func runDatadogAgentPackageCommand(ctx context.Context, command string) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, command)
@@ -794,6 +816,8 @@ func runDatadogAgentPackageCommand(ctx context.Context, command string) (err err
 		return preStopConfigExperimentDatadogAgentBackground(ctx)
 	case "postPromoteConfigExperimentBackground":
 		return postPromoteConfigExperimentDatadogAgentBackground(ctx)
+	case "updateRegistryInstallSource":
+		return updateRegistryInstallSource()
 	default:
 		return fmt.Errorf("unknown command: %s", command)
 	}

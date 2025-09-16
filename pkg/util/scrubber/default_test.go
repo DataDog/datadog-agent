@@ -619,6 +619,53 @@ func TestAuthorization(t *testing.T) {
 		`  authorization: "********"`)
 }
 
+func TestOAuthCredentials(t *testing.T) {
+	// Test consumer_key
+	assertClean(t,
+		`consumer_key: my_consumer_key_123`,
+		`consumer_key: "********"`)
+	assertClean(t,
+		`  consumer_key: "my_consumer_key_123"`,
+		`  consumer_key: "********"`)
+
+	// Test consumer_secret
+	assertClean(t,
+		`consumer_secret: my_consumer_secret_456`,
+		`consumer_secret: "********"`)
+	assertClean(t,
+		`  consumer_secret: 'my_consumer_secret_456'`,
+		`  consumer_secret: "********"`)
+
+	// Test token_id
+	assertClean(t,
+		`token_id: my_token_id_789`,
+		`token_id: "********"`)
+	assertClean(t,
+		`  token_id: "my_token_id_789"`,
+		`  token_id: "********"`)
+
+	// Test token_secret
+	assertClean(t,
+		`token_secret: my_token_secret_abc`,
+		`token_secret: "********"`)
+	assertClean(t,
+		`  token_secret: 'my_token_secret_abc'`,
+		`  token_secret: "********"`)
+
+	// Test mixed OAuth configuration
+	assertClean(t,
+		`oauth_config:
+  consumer_key: my_consumer_key
+  consumer_secret: my_consumer_secret
+  token_id: my_token_id
+  token_secret: my_token_secret`,
+		`oauth_config:
+  consumer_key: "********"
+  consumer_secret: "********"
+  token_id: "********"
+  token_secret: "********"`)
+}
+
 func TestScrubCommandsEnv(t *testing.T) {
 	testCases := []struct {
 		name     string
@@ -649,6 +696,116 @@ func TestScrubCommandsEnv(t *testing.T) {
 	}
 }
 
+func TestSecretConfigurationVariablesNotScrubbed(t *testing.T) {
+	// Test that secret-related configuration variables are NOT scrubbed
+	// These should remain unchanged in the output
+	secretConfigTests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			"secret_name",
+			`secret_name: "my-secret-name"`,
+			`secret_name: "my-secret-name"`,
+		},
+		{
+			"secret_audit_file_max_size",
+			`secret_audit_file_max_size: 1048576`,
+			`secret_audit_file_max_size: 1048576`,
+		},
+		{
+			"secret_backend_arguments",
+			`secret_backend_arguments: ["arg1", "arg2"]`,
+			`secret_backend_arguments: ["arg1", "arg2"]`,
+		},
+		{
+			"secret_backend_command",
+			`secret_backend_command: "/usr/local/bin/secret-helper"`,
+			`secret_backend_command: "/usr/local/bin/secret-helper"`,
+		},
+		{
+			"secret_backend_command_allow_group_exec_perm",
+			`secret_backend_command_allow_group_exec_perm: true`,
+			`secret_backend_command_allow_group_exec_perm: true`,
+		},
+		{
+			"secret_backend_config",
+			`secret_backend_config: {"key": "value"}`,
+			`secret_backend_config: {"key": "value"}`,
+		},
+		{
+			"secret_backend_output_max_size",
+			`secret_backend_output_max_size: 1024`,
+			`secret_backend_output_max_size: 1024`,
+		},
+		{
+			"secret_backend_remove_trailing_line_break",
+			`secret_backend_remove_trailing_line_break: false`,
+			`secret_backend_remove_trailing_line_break: false`,
+		},
+		{
+			"secret_backend_skip_checks",
+			`secret_backend_skip_checks: true`,
+			`secret_backend_skip_checks: true`,
+		},
+		{
+			"secret_backend_timeout",
+			`secret_backend_timeout: 30`,
+			`secret_backend_timeout: 30`,
+		},
+		{
+			"secret_backend_type",
+			`secret_backend_type: "vault"`,
+			`secret_backend_type: "vault"`,
+		},
+		{
+			"secret_refresh_interval",
+			`secret_refresh_interval: 3600`,
+			`secret_refresh_interval: 3600`,
+		},
+		{
+			"secret_refresh_scatter",
+			`secret_refresh_scatter: true`,
+			`secret_refresh_scatter: true`,
+		},
+		{
+			"admission_controller.certificate.secret_name",
+			`admission_controller:
+  certificate:
+    secret_name: "webhook-certificate"`,
+			`admission_controller:
+  certificate:
+    secret_name: "webhook-certificate"`,
+		},
+		{
+			"mixed secret configuration with sensitive data",
+			`secret_backend_type: "vault"
+secret_backend_command: "/usr/local/bin/vault-helper"
+secret_backend_arguments: ["--config", "/etc/vault.conf"]
+secret_backend_timeout: 30
+secret_refresh_interval: 3600
+api_key: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+password: "sensitive_password"
+other_config: "not_secret"`,
+			`secret_backend_type: "vault"
+secret_backend_command: "/usr/local/bin/vault-helper"
+secret_backend_arguments: ["--config", "/etc/vault.conf"]
+secret_backend_timeout: 30
+secret_refresh_interval: 3600
+api_key: "***************************aaaaa"
+password: "********"
+other_config: "not_secret"`,
+		},
+	}
+
+	for _, tc := range secretConfigTests {
+		t.Run(tc.name, func(t *testing.T) {
+			assertClean(t, tc.input, tc.expected)
+		})
+	}
+}
+
 func TestConfigFile(t *testing.T) {
 	cleanedConfigFile := `dd_url: https://app.datadoghq.com
 
@@ -674,4 +831,82 @@ log_level: info
 	cleanedString := string(cleaned)
 
 	assert.Equal(t, cleanedConfigFile, cleanedString)
+}
+
+func TestNewHTTPHeaderAndExactKeys(t *testing.T) {
+	// Test HTTP header-style API keys with "key" suffix
+	assertClean(t,
+		`x-api-key: abc123def456`,
+		`x-api-key: "********"`)
+	assertClean(t,
+		`x-dreamfactory-api-key: secret123`,
+		`x-dreamfactory-api-key: "********"`)
+	assertClean(t,
+		`x-functions-key: mykey456`,
+		`x-functions-key: "********"`)
+	assertClean(t,
+		`x-lz-api-key: lzkey789`,
+		`x-lz-api-key: "********"`)
+	assertClean(t,
+		`x-octopus-apikey: octopuskey`,
+		`x-octopus-apikey: "********"`)
+	assertClean(t,
+		`x-pm-partner-key: partnerkey123`,
+		`x-pm-partner-key: "********"`)
+	assertClean(t,
+		`x-rapidapi-key: rapidkey456`,
+		`x-rapidapi-key: "********"`)
+	assertClean(t,
+		`x-sungard-idp-api-key: sungardkey`,
+		`x-sungard-idp-api-key: "********"`)
+	assertClean(t,
+		`x-vtex-api-appkey: vtexkey789`,
+		`x-vtex-api-appkey: "********"`)
+
+	// Test HTTP header-style API keys with "token" suffix
+	assertClean(t,
+		`x-auth-token: authtoken123`,
+		`x-auth-token: "********"`)
+	assertClean(t,
+		`x-rundeck-auth-token: rundecktoken`,
+		`x-rundeck-auth-token: "********"`)
+
+	// Test HTTP header-style API keys with "auth" suffix
+	assertClean(t,
+		`x-auth: authvalue123`,
+		`x-auth: "********"`)
+	assertClean(t,
+		`x-stratum-auth: stratumauth`,
+		`x-stratum-auth: "********"`)
+
+	// Test exact key matches
+	assertClean(t,
+		`auth-tenantid: tenant123`,
+		`auth-tenantid: "********"`)
+	assertClean(t,
+		`authority: auth123`,
+		`authority: "********"`)
+	assertClean(t,
+		`cainzapp-api-key: cainzkey456`,
+		`cainzapp-api-key: "********"`)
+	assertClean(t,
+		`cms-svc-api-key: cmskey789`,
+		`cms-svc-api-key: "********"`)
+	assertClean(t,
+		`lodauth: lodauth123`,
+		`lodauth: "********"`)
+	assertClean(t,
+		`sec-websocket-key: websocketkey`,
+		`sec-websocket-key: "********"`)
+	assertClean(t,
+		`statuskey: status123`,
+		`statuskey: "********"`)
+
+	// Test that non-matching keys are not scrubbed
+	assertClean(t,
+		`regular_key: should_not_be_scrubbed`,
+		`regular_key: should_not_be_scrubbed`)
+	assertClean(t,
+		`some-other-key: also_not_scrubbed`,
+		`some-other-key: also_not_scrubbed`)
 }

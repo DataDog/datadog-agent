@@ -6,7 +6,7 @@
       "name": "",
       "method": "main.testEsotericStack",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {
@@ -63,11 +63,22 @@
                   },
                   "val": {
                     "type": "interface {}",
-                    "notCapturedReason": "unimplemented"
+                    "fields": {
+                      "data": {
+                        "type": "int",
+                        "value": "42"
+                      }
+                    }
                   },
                   "work": {
                     "type": "main.something",
-                    "notCapturedReason": "unimplemented"
+                    "fields": {
+                      "data": {
+                        "type": "*main.somethingImpl",
+                        "address": "[addr]",
+                        "fields": {}
+                      }
+                    }
                   },
                   "foo": {
                     "type": "func()",

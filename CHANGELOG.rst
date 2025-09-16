@@ -2,6 +2,313 @@
 Release Notes
 =============
 
+.. _Release Notes_7.70.2:
+
+7.70.2
+======
+
+.. _Release Notes_7.70.2_Prelude:
+
+Prelude
+-------
+
+Release on: 2025-09-15
+
+- Please refer to the `7.70.2 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7702>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.70.2_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Add new scrubbers for API keys and auth tokens in HTTP headers and YAML files.
+  keys added:
+    - authority
+    - cms-svc-api-key
+    - sec-websocket-key
+    - x-api-key
+    - x-auth
+    - x-auth-token
+    - x-dreamfactory-api-key
+    - x-lz-api-key
+    - x-rundeck-auth-token
+    - x-stratum-auth
+    - x-sungard-idp-api-key
+    - auth-tenantid
+    - x-vtex-api-appkey
+    - x-octopus-apikey
+    - cainzapp-api-key
+    - x-pm-partner-key
+    - x-rapidapi-key
+    - lodauth
+    - statuskey
+    - x-functions-key
+
+
+.. _Release Notes_7.70.1:
+
+7.70.1
+======
+
+.. _Release Notes_7.70.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2025-09-10
+
+- Please refer to the `7.70.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7701>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.70.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- gpum: fix patching of SystemD device permissions
+
+
+.. _Release Notes_7.70.0:
+
+7.70.0
+======
+
+.. _Release Notes_7.70.0_Prelude:
+
+Prelude
+-------
+
+Release on: 2025-09-03
+
+- Please refer to the `7.70.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7700>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.70.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- GPUM: GPU workload metadata and autodiscovery are now enabled by default. If you want to disable this functionality, add "nvml" to the ``autoconfig_exclude_features`` configuration flag in your datadog.yaml file.
+
+- Upgraded the WDK version used by ddnpm.
+
+- Upgrade ddprocmon to version 1.3.0. This version contains minor cosmetic changes to the ABI.
+
+- None. This change is backward-compatible and does not modify behavior unless users explicitly set new environment variables.
+
+
+.. _Release Notes_7.70.0_New Features:
+
+New Features
+------------
+
+- Windows: Add certificate chain validation to Windows Certificate Store integration.
+
+- Added `agent remote-config reset` command to reset the remote configuration state which can be useful in troubleshooting issues related to remote configuration.
+
+- GPUM: Add new configuration flag ``gpu.enabled`` to agent config to control the GPU Core-Check component, disabled by default.
+
+- Adds Cisco IPsec VPN tunnel metrics and options data collection to SNMP. This can be enabled and disabled using the `collect_vpn` config.
+
+- Support Cloud Run Jobs in serverless-init.
+
+- The Windows Agent install script (`Install-Datadog.ps1`) now supports setting host tags and enabling logs collection at install time via the `DD_TAGS` and `DD_LOGS_ENABLED` environment variables. This allows users to configure tags and logs without post-install edits to `datadog.yaml`.
+
+
+.. _Release Notes_7.70.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Add `cluster_arn`, `service_arn`, and `task_arn` tags to the ECS tasks.
+
+- Add `container_instance_arn` as a host tag when running on ECS EC2.
+
+- Add a script to manage IIS .NET APM instrumentation on Windows
+
+- Add macOS build for AArch64/ARM64.
+
+- Added garbage collection of the tmp directory to the datadog-installer.
+
+- The Datadog autoscaler now can apply vertical scaling recommendations to sidecar init containers.
+
+- Agents are now built with Go ``1.24.6``.
+
+- Expose additional cgroup memory metrics: active_anon, inactive_anon, active_file, inactive_file, unevictable, shmem,
+  file_mapped, file_dirty, file_writeback, page_tables, refault_anon, refault_file.
+  Metrics are disbaled be default.
+  To enable them please modify conf.d/container.d/conf.yaml and flip extended_memory_metrics to true.
+
+- Add enhanced metrics for task started, ended, and duration for Cloud Run Jobs.
+
+- gpu: Renamed `gpu.core.usage` and `gpu.memory.usage` to `gpu.process.core/memory.usage`
+
+- If a path is specified in the URL in `logs_config.logs_dd_url`, use it as a prefix.
+
+- Add the ``datadog.snmp.requests`` metric, which tracks the number of SNMP requests sent by the Agent to devices.
+
+- Added detection and replacement of `tags:` blocks in `datadog.yaml` to ensure only top-level, uncommented, and non-nested tags are modified during install.
+
+- Add thumbprints and serial numbers as tags for certificates and CRLs to the Windows certificate store integration.
+
+- Remote Agent management on Windows now automatically retries when the MSI
+  returns error 1601 (``ERROR_INSTALL_SERVICE_FAILURE``).
+
+- Remote Agent Management on Windows now automatically retries when an MSI
+  custom action returns error 1601 (``ERROR_INSTALL_SERVICE_FAILURE``) and
+  causes ``Error 1719. The Windows Installer Service could not be accessed``.
+
+
+.. _Release Notes_7.70.0_Deprecation Notes:
+
+Deprecation Notes
+-----------------
+
+- Remove deprecated serializer options.
+  
+  * ``enable_stream_payload_serialization``
+  * ``enable_service_checks_stream_payload_serialization``
+  * ``enable_events_stream_payload_serialization``
+  * ``enable_sketch_stream_payload_serialization``
+
+
+.. _Release Notes_7.70.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix a panic in Docker file log parsing when received messages are null equivalent.
+
+- When the Autodiscovery scheduler gets blocked, it triggers a health check
+  failure (reported in the `agent health` command).
+
+- When the ``prometheus_scrape.enabled`` option is set to true and the pod has
+  a ``prometheus.io/port`` annotation, containers must expose that port in
+  their spec in order for the Agent to schedule ``openmetrics`` checks.
+
+- Fixes an issue where pending ECS tasks would temporarily remove
+  the global tags `ecs_cluster_name` and `cluster_arn`.
+
+- Fix bug causing integrations configured via docker labels or K8s
+  annotations to be overwritten in the agent so logs from integrations
+  now work when configured using via docker labels or K8s annotations.
+
+- Fix noisy error logs when scrubbing large pod container commands.
+
+- Remote updates on Windows now quotes and escapes MSI property values.
+  This fixes an issue that caused remote updates to fail when the Agent username
+  contains whitespace, for example ``DDAGENTUSER_NAME=NT AUTHORITY\SYSTEM``.
+
+- Remote Agent updates on Windows now handle
+  computer name updates done after the initial
+  install of the Agent. This allows the use
+  of golden images to deploy remotely updatable hosts.
+
+- gpu: Java programs using deeplearning4j are now properly detected and monitored
+
+- gpu: fix container-to-device assignment for Docker containers
+
+- Data Streams Messages: Fix Unscheduling of kafka_consumer integrations that was leading to duplicate integrations running in parallel.
+
+- The Kafka messages feature is not working in some cases when using K8s labels because config is translated to yaml.
+
+- Load check tags onto the orchestrator check configured
+  to be dispatched and run as a cluster check
+
+- APM: Fix issue where the probabilistic sampler would drop all OTLP traffic.
+
+- Kubernetes logs source timestamps are now validated. Invalid timestamps will not be passed.
+
+- The Agent no longer logs an error each time it fails to connect to
+  system-probe through ``\\.\pipe\dd_system_probe``. This log message
+  was added in Agent 7.63.0.
+  The error is still logged if it persists long enough,
+  see [#35790](https://github.com/DataDog/datadog-agent/pull/35790).
+  Each failed connection attempt still logs the error at debug level to aid troubleshooting.
+
+- Fixed an issue where `DD_TAGS` and `DD_LOGS_ENABLED` were silently ignored during install, requiring manual configuration edits.
+
+- Fixed an issue where metrics in the Windows certificate store integration are merged when multiple certificates have the same subject.
+
+- Fixed an issue where the Windows Event Log tailer could lose historical events (the 'amnesia bug') when it started with no prior bookmark and no events were processed immediately. The Agent now correctly seeds an initial bookmark from the most recent event upon startup, ensuring no events are missed on subsequent runs.
+
+
+.. _Release Notes_7.70.0_Other Notes:
+
+Other Notes
+-----------
+
+- Add handling for dbm-health events in the event platform forwarder.
+  These events are used by Database Monitoring integrations to
+  report on Agent status.
+
+- Add a new metric counter to the Agent telemetry for transactions.errors.
+  This will help to monitor the rate of empty or rejected sketch payloads sent to the backend.
+
+
+.. _Release Notes_7.69.4:
+
+7.69.4
+======
+
+.. _Release Notes_7.69.4_Prelude:
+
+Prelude
+-------
+
+Release on: 2025-08-27
+
+- Please refer to the `7.69.4 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7694>`_ for the list of changes on the Core Checks
+
+.. _Release Notes_7.69.4_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- Upgrade sqllite to 3.50.4.
+
+.. _Release Notes_7.69.3:
+
+7.69.3
+======
+
+.. _Release Notes_7.69.3_Prelude:
+
+Prelude
+-------
+
+Release on: 2025-08-26
+
+- Please refer to the `7.69.3 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7693>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.69.3_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Agents are now built with Go ``1.24.6``.
+
+
+.. _Release Notes_7.69.3_Security Notes:
+
+Security Notes
+--------------
+
+- JMXFetch upgrade to `0.50.0 <https://github.com/DataDog/jmxfetch/releases/0.50.0>` to mitigate against CVE-2025-52999.
+
+
+.. _Release Notes_7.69.3_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes a bug in the Trace Agent that prevented DDOT from shutting down gracefully.
+
+- Fixed truncation telemetry so it records service and source values correctly, by moving metrics recording to the tailer layer.
+
+
 .. _Release Notes_7.69.2:
 
 7.69.2
@@ -48,7 +355,7 @@ Bug Fixes
 - Remote Agent updates on Windows now checks if the custom Agent password
   is available before updating the Agent. This prevents the update from
   failing later and leaving the host without an Agent installed.
-  
+
   This is only applicable to domain-joined hosts using a custom Agent
   username and password. See
   [Agent 7.66.0 upgrade notes](https://github.com/DataDog/datadog-agent/releases/tag/7.66.0)

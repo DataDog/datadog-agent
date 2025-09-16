@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	kubeletfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/kubelet"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
@@ -42,10 +43,12 @@ var includeContainerStateReason = map[string][]string{
 }
 
 const kubeNamespaceTag = tags.KubeNamespace
+const kubePodConditionResizePending = "PodResizePending"
 
 // Provider provides the metrics related to data collected from the `/pods` Kubelet endpoint
 type Provider struct {
 	filterStore workloadfilter.Component
+	store       workloadmeta.Component
 	config      *common.KubeletConfig
 	podUtils    *common.PodUtils
 	tagger      tagger.Component
@@ -54,9 +57,11 @@ type Provider struct {
 }
 
 // NewProvider returns a new Provider
-func NewProvider(filterStore workloadfilter.Component, config *common.KubeletConfig, podUtils *common.PodUtils, tagger tagger.Component) *Provider {
+func NewProvider(filterStore workloadfilter.Component, store workloadmeta.Component, config *common.KubeletConfig,
+	podUtils *common.PodUtils, tagger tagger.Component) *Provider {
 	return &Provider{
 		filterStore: filterStore,
+		store:       store,
 		config:      config,
 		podUtils:    podUtils,
 		tagger:      tagger,
@@ -112,7 +117,7 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 
 			// don't exclude filtered containers from aggregation, but filter them out from other reported metrics
 			filterableContainer := kubeletfilter.CreateContainer(cStatus, kubeletfilter.CreatePod(pod))
-			selectedFilters := workloadfilter.GetContainerSharedMetricFilters()
+			selectedFilters := p.filterStore.GetContainerSharedMetricFilters()
 			if p.filterStore.IsContainerExcluded(filterableContainer, selectedFilters) {
 				continue
 			}
@@ -122,6 +127,7 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 		}
 
 		p.generatePodTerminationMetric(sender, pod)
+		p.generatePodResizeMetric(sender, pod)
 
 		runningAggregator.recordPod(p, pod)
 	}
@@ -147,6 +153,9 @@ func (p *Provider) generateContainerSpecMetrics(sender sender.Sender, pod *kubel
 	tagList = utils.ConcatenateTags(tagList, p.config.Tags)
 
 	if container.Resources != nil { // Ephemeral containers do not have resources defined
+
+		tagList = common.AppendKubeStaticCPUsTag(p.store, pod.Status.QOSClass, containerID, tagList)
+
 		for r, value := range container.Resources.Requests {
 			sender.Gauge(common.KubeletMetricsPrefix+string(r)+".requests", value.AsApproximateFloat64(), "", tagList)
 		}
@@ -207,6 +216,37 @@ func (p *Provider) generatePodTerminationMetric(sender sender.Sender, pod *kubel
 	tagList = utils.ConcatenateTags(tagList, p.config.Tags)
 
 	sender.Gauge(common.KubeletMetricsPrefix+"pod.terminating.duration", float64(dur.Seconds()), "", tagList)
+}
+
+func (p *Provider) generatePodResizeMetric(sender sender.Sender, pod *kubelet.Pod) {
+
+	var cond *kubelet.Conditions
+	for _, c := range pod.Status.Conditions {
+		if c.Type == kubePodConditionResizePending {
+			cond = &c
+			break
+		}
+	}
+
+	if cond == nil {
+		// nothing to report if condition is not on the pod
+		return
+	}
+
+	podID := pod.Metadata.UID
+	if podID == "" {
+		log.Debug("skipping pod with no uid for pod resize metric")
+		return
+	}
+	entityID := types.NewEntityID(types.KubernetesPodUID, podID)
+	tagList, _ := p.tagger.Tag(entityID, types.HighCardinality)
+	tagList = utils.ConcatenateTags(tagList, p.config.Tags)
+
+	// reason could be Infeasible or Deferred
+	// See: https://kubernetes.io/docs/tasks/configure-pod-container/resize-container-resources/#pod-resize-status
+	tagList = utils.ConcatenateStringTags(tagList, "reason:"+strings.ToLower(cond.Reason))
+
+	sender.Gauge(common.KubeletMetricsPrefix+"pod.resize.pending", 1.0, "", tagList)
 }
 
 type runningAggregator struct {

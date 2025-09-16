@@ -51,8 +51,9 @@ func testEmptyString(x string) {}
 
 //nolint:all
 func executeStringFuncs() {
-	testSingleString("abc")
-	testThreeStrings("abc", "def", "ghi")
+	abc := "abc"
+	testSingleString(abc)
+	testThreeStrings(abc, "def", "ghi")
 	testThreeStringsInStruct(threeStringStruct{a: "abc", b: "def", c: "ghi"})
 	testThreeStringsInStructPointer(&threeStringStruct{a: "abc", b: "def", c: "ghi"})
 	testOneStringInStructPointer(&oneStringStruct{a: "omg"})
@@ -61,6 +62,7 @@ func executeStringFuncs() {
 	var uninitializedString string
 	testUnitializedString(uninitializedString)
 	testEmptyString("")
+	testEmptyString(abc[:0])
 }
 
 var x = strings.Repeat("x", 100000)

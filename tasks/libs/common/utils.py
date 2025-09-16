@@ -246,6 +246,10 @@ def get_build_flags(
 
     rtloader_lib, rtloader_headers, rtloader_common_headers = get_rtloader_paths(embedded_path, rtloader_root)
 
+    # setting the install path, allowing the agent to be installed in a custom location
+    if sys.platform.startswith('linux') and install_path:
+        ldflags += f"-X {REPO_PATH}/pkg/config/setup.InstallPath={install_path} "
+
     # setting the run path
     if sys.platform.startswith('linux') and run_path:
         ldflags += f"-X {REPO_PATH}/pkg/config/setup.defaultRunPath={run_path} "
@@ -253,9 +257,6 @@ def get_build_flags(
     # setting python homes in the code
     if python_home_3:
         ldflags += f"-X {REPO_PATH}/pkg/collector/python.pythonHome3={python_home_3} "
-
-    ldflags += f"-X {REPO_PATH}/pkg/config/setup.ForceDefaultPython=true "
-    ldflags += f"-X {REPO_PATH}/pkg/config/setup.DefaultPython=3 "
 
     # adding rtloader libs and headers to the env
     if rtloader_lib:

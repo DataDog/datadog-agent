@@ -133,7 +133,7 @@ const (
 
 	// DefaultMaxMessageSizeBytes is the default value for max_message_size_bytes
 	// If a log message is larger than this byte limit, the overflow bytes will be truncated.
-	DefaultMaxMessageSizeBytes = 256 * 1000
+	DefaultMaxMessageSizeBytes = 900 * 1000
 
 	// DefaultNetworkPathTimeout defines the default timeout for a network path test
 	DefaultNetworkPathTimeout = 1000
@@ -173,16 +173,6 @@ func SetSystemProbe(cfg pkgconfigmodel.BuildableConfig) {
 	defer systemProbeMutex.Unlock()
 	systemProbe = cfg
 }
-
-// Variables to initialize at build time
-var (
-	DefaultPython string
-
-	// ForceDefaultPython has its value set to true at compile time if we should ignore
-	// the Python version set in the configuration and use `DefaultPython` instead.
-	// We use this to force Python 3 in the Agent 7 as it's the only one available.
-	ForceDefaultPython string
-)
 
 // Variables to initialize at start time
 var (
@@ -285,6 +275,7 @@ func init() {
 	initConfig()
 
 	datadog.(pkgconfigmodel.BuildableConfig).BuildSchema()
+	systemProbe.(pkgconfigmodel.BuildableConfig).BuildSchema()
 }
 
 // initCommonWithServerless initializes configs that are common to all agents, in particular serverless.
@@ -369,6 +360,11 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// hostname resolution.
 	// (Linux only)
 	config.BindEnvAndSetDefault("hostname_trust_uts_namespace", false)
+
+	// Internal hostname drift detection configuration
+	// These options are not exposed to customers and are used for testing purposes
+	config.BindEnvAndSetDefault("hostname_drift_initial_delay", 20*time.Minute)
+	config.BindEnvAndSetDefault("hostname_drift_recurring_interval", 6*time.Hour)
 
 	config.BindEnvAndSetDefault("cluster_name", "")
 	config.BindEnvAndSetDefault("disable_cluster_name_tag_key", false)
@@ -596,8 +592,14 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("cluster_agent.kube_metadata_collection.resources", []string{})
 	config.BindEnvAndSetDefault("cluster_agent.kube_metadata_collection.resource_annotations_exclude", []string{})
 	config.BindEnvAndSetDefault("cluster_agent.cluster_tagger.grpc_max_message_size", 4<<20) // 4 MB
-	// Enable TLS verification for Agent cross-node communications (NodeAgent->DCA / CLC->DCA / DCA->CLC).
-	config.BindEnvAndSetDefault("cluster_agent.enable_tls_verification", false)
+
+	// Check that the trust chain is valid for Agent cross-node communications (NodeAgent->DCA / CLC->DCA / DCA->CLC).
+	config.BindEnvAndSetDefault("cluster_trust_chain.enable_tls_verification", false)
+	// Path to the cluster CA certificate file.
+	config.BindEnvAndSetDefault("cluster_trust_chain.ca_cert_file_path", "")
+	// Path to the cluster CA key file.
+	config.BindEnvAndSetDefault("cluster_trust_chain.ca_key_file_path", "")
+
 	// the entity id, typically set by dca admisson controller config mutator, used for external origin detection
 	config.SetKnown("entity_id")
 
@@ -852,6 +854,11 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.enabled", true)
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.endpoint", "/injectlib")
 	config.BindEnv("admission_controller.auto_instrumentation.container_registry")
+	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.default_dd_registries", map[string]any{
+		"gcr.io/datadoghq":       struct{}{},
+		"docker.io/datadog":      struct{}{},
+		"public.ecr.aws/datadog": struct{}{},
+	})
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.enabled", false)
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.fallback_to_file_provider", false)                                // to be enabled only in e2e tests
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.file_provider_path", "/etc/datadog-agent/patch/auto-instru.json") // to be used only in e2e tests
@@ -919,8 +926,10 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.enabled", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.buffer_manifest", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.buffer_flush_interval", 20*time.Second)
-	config.BindEnvAndSetDefault("orchestrator_explorer.terminated_resources.enabled", false)
-	config.BindEnvAndSetDefault("orchestrator_explorer.terminated_pods.enabled", false)
+	config.BindEnvAndSetDefault("orchestrator_explorer.terminated_resources.enabled", true)
+	config.BindEnvAndSetDefault("orchestrator_explorer.terminated_pods.enabled", true)
+	config.BindEnvAndSetDefault("orchestrator_explorer.custom_resources.datadog.enabled", false)
+	config.BindEnvAndSetDefault("orchestrator_explorer.custom_resources.third_party.enabled", false)
 
 	// Container lifecycle configuration
 	config.BindEnvAndSetDefault("container_lifecycle.enabled", true)
@@ -959,6 +968,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("sbom.container_image.exclude_pause_container", true)
 	config.BindEnvAndSetDefault("sbom.container_image.allow_missing_repodigest", false)
 	config.BindEnvAndSetDefault("sbom.container_image.additional_directories", []string{})
+	config.BindEnvAndSetDefault("sbom.container_image.use_spread_refresher", false)
 
 	// Container file system SBOM configuration
 	config.BindEnvAndSetDefault("sbom.container.enabled", false)
@@ -1056,7 +1066,6 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	} else {
 		config.BindEnvAndSetDefault("runtime_security_config.socket", filepath.Join(InstallPath, "run/runtime-security.sock"))
 	}
-	config.BindEnvAndSetDefault("runtime_security_config.log_profiled_workloads", false)
 	config.BindEnvAndSetDefault("runtime_security_config.use_secruntime_track", true)
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.endpoints.")
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.activity_dump.remote_storage.endpoints.")
@@ -1152,7 +1161,9 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("remote_agent_registry.idle_timeout", time.Duration(30*time.Second))
 	config.BindEnvAndSetDefault("remote_agent_registry.query_timeout", time.Duration(3*time.Second))
 	config.BindEnvAndSetDefault("remote_agent_registry.recommended_refresh_interval", time.Duration(10*time.Second))
-	config.BindEnvAndSetDefault("remote_agent_registry.config_stream_retry_interval", time.Duration(1*time.Second))
+
+	// Config Stream
+	config.BindEnvAndSetDefault("config_stream.sleep_interval", 3*time.Second)
 }
 
 func agent(config pkgconfigmodel.Setup) {
@@ -1228,7 +1239,6 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnv("bind_host")
 	config.BindEnvAndSetDefault("health_port", int64(0))
 	config.BindEnvAndSetDefault("disable_py3_validation", false)
-	config.BindEnvAndSetDefault("python_version", DefaultPython)
 	config.BindEnvAndSetDefault("win_skip_com_init", false)
 	config.BindEnvAndSetDefault("allow_arbitrary_tags", false)
 	config.BindEnvAndSetDefault("use_proxy_for_cloud_metadata", false)
@@ -1873,6 +1883,11 @@ func kubernetes(config pkgconfigmodel.Setup) {
 		defaultPodresourcesSocket = `\\.\pipe\kubelet-pod-resources`
 	}
 	config.BindEnvAndSetDefault("kubernetes_kubelet_podresources_socket", defaultPodresourcesSocket)
+
+	// Temporary option. When enabled, workloadmeta uses the Kubelet pod watcher
+	// to fetch pod information (old behavior). Useful as a fallback if the new
+	// behavior causes issues. This option will be removed.
+	config.BindEnvAndSetDefault("kubelet_use_pod_watcher", false)
 }
 
 func podman(config pkgconfigmodel.Setup) {
@@ -1880,7 +1895,7 @@ func podman(config pkgconfigmodel.Setup) {
 }
 
 // LoadProxyFromEnv overrides the proxy settings with environment variables
-func LoadProxyFromEnv(config pkgconfigmodel.Config) {
+func LoadProxyFromEnv(config pkgconfigmodel.ReaderWriter) {
 	// Viper doesn't handle mixing nested variables from files and set
 	// manually.  If we manually set one of the sub value for "proxy" all
 	// other values from the conf file will be shadowed when using
@@ -2208,21 +2223,8 @@ func LoadDatadogCustom(config pkgconfigmodel.Config, origin string, secretResolv
 		return warnings, err
 	}
 
-	// If this variable is set to true, we'll use DefaultPython for the Python version,
-	// ignoring the python_version configuration value.
-	if ForceDefaultPython == "true" && config.IsKnown("python_version") {
-		pv := config.GetString("python_version")
-		if pv != DefaultPython {
-			log.Warnf("Python version has been forced to %s", DefaultPython)
-		}
-
-		pkgconfigmodel.AddOverride("python_version", DefaultPython)
-	}
-
 	sanitizeAPIKeyConfig(config, "api_key")
 	sanitizeAPIKeyConfig(config, "logs_config.api_key")
-	// setTracemallocEnabled *must* be called before setNumWorkers
-	warnings.TraceMallocEnabledWithPy2 = setTracemallocEnabled(config)
 	setNumWorkers(config)
 
 	flareStrippedKeys := config.GetStringSlice("flare_stripped_keys")
@@ -2666,27 +2668,6 @@ func IsCloudProviderEnabled(cloudProviderName string, config pkgconfigmodel.Read
 func pathExists(path string) bool {
 	_, err := os.Stat(path)
 	return !os.IsNotExist(err)
-}
-
-// setTracemallocEnabled is a helper to get the effective tracemalloc
-// configuration.
-func setTracemallocEnabled(config pkgconfigmodel.Config) bool {
-	if !config.IsKnown("tracemalloc_debug") {
-		return false
-	}
-
-	pyVersion := config.GetString("python_version")
-	wTracemalloc := config.GetBool("tracemalloc_debug")
-	traceMallocEnabledWithPy2 := false
-	if pyVersion == "2" && wTracemalloc {
-		log.Warnf("Tracemalloc was enabled but unavailable with python version %q, disabling.", pyVersion)
-		traceMallocEnabledWithPy2 = true
-
-		// update config with the actual effective tracemalloc
-		config.Set("tracemalloc_debug", false, pkgconfigmodel.SourceAgentRuntime)
-	}
-
-	return traceMallocEnabledWithPy2
 }
 
 // setNumWorkers is a helper to set the effective number of workers for

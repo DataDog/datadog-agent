@@ -980,6 +980,52 @@ func TestProcessLogProviderAgentExclude(t *testing.T) {
 	assert.Equal(t, getIntegrationName(notAgentLogPath), changes.Schedule[0].Name)
 }
 
+func TestProcessLogProviderGetSource(t *testing.T) {
+	tests := []struct {
+		generatedName       string
+		generatedNameSource string
+		expectedSource      string
+	}{
+		{
+			generatedName:  "apache2",
+			expectedSource: "apache",
+		},
+		{
+			generatedName:  "postgres",
+			expectedSource: "postgresql",
+		},
+		{
+			generatedName:  "org.elasticsearch.bootstrap.elasticsearch",
+			expectedSource: "elasticsearch",
+		},
+		{
+			generatedName:  "org.sonar.server.app.webserver",
+			expectedSource: "sonarqube",
+		},
+		{
+			generatedName:       "myapp",
+			generatedNameSource: "gunicorn",
+			expectedSource:      "gunicorn",
+		},
+		{
+			generatedName:  "unknown",
+			expectedSource: "unknown",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.expectedSource, func(t *testing.T) {
+			service := &workloadmeta.Service{
+				GeneratedName:       tt.generatedName,
+				GeneratedNameSource: tt.generatedNameSource,
+			}
+
+			result := getSource(service)
+			assert.Equal(t, tt.expectedSource, result)
+		})
+	}
+}
+
 func TestProcessLogProviderIsAgentProcess(t *testing.T) {
 	tests := []struct {
 		name     string

@@ -239,6 +239,14 @@ func getConfiguredEVPRequestTimeoutDuration(conf *config.AgentConfig) time.Durat
 	return timeout
 }
 
+func getConfiguredProfilingRequestTimeoutDuration(conf *config.AgentConfig) time.Duration {
+	timeout := 5 * time.Second
+	if conf.ProfilingProxy.ReceiverTimeout > 0 {
+		timeout = time.Duration(conf.ProfilingProxy.ReceiverTimeout) * time.Second
+	}
+	return timeout
+}
+
 // Start starts doing the HTTP server and is ready to receive traces
 func (r *HTTPReceiver) Start() {
 	r.telemetryForwarder.start()
@@ -541,9 +549,9 @@ func (r *HTTPReceiver) replyOK(req *http.Request, v Version, w http.ResponseWrit
 
 // StatsProcessor implementations are able to process incoming client stats.
 type StatsProcessor interface {
-	// ProcessStats takes a stats payload and consumes it. It is considered to be originating
-	// from the given lang.
-	ProcessStats(p *pb.ClientStatsPayload, lang, tracerVersion, containerID, obfuscationVersion string)
+	// ProcessStats takes a stats payload and consumes it. It is considered to be originating from the given lang.
+	// Context should be used to control processing timeouts, allowing the receiver to return the error response.
+	ProcessStats(ctx context.Context, p *pb.ClientStatsPayload, lang, tracerVersion, containerID, obfuscationVersion string) error
 }
 
 // handleStats handles incoming stats payloads.
@@ -555,6 +563,8 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 	in := &pb.ClientStatsPayload{}
 	if err := msgp.Decode(rd, in); err != nil {
 		log.Errorf("Error decoding pb.ClientStatsPayload: %v", err)
+		tags := append(r.tagStats(V06, req.Header, "").AsTags(), "reason:decode")
+		_ = r.statsd.Count("datadog.trace_agent.receiver.stats_payload_rejected", 1, tags, 1)
 		httpDecodingError(err, []string{"handler:stats", "codec:msgpack", "v:v0.6"}, w, r.statsd)
 		return
 	}
@@ -576,7 +586,16 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 	tracerVersion := req.Header.Get(header.TracerVersion)
 	obfuscationVersion := req.Header.Get(header.TracerObfuscationVersion)
 	containerID := r.containerIDProvider.GetContainerID(req.Context(), req.Header)
-	r.statsProcessor.ProcessStats(in, lang, tracerVersion, containerID, obfuscationVersion)
+
+	timeout := getConfiguredRequestTimeoutDuration(r.conf)
+	ctx, cancel := context.WithTimeout(req.Context(), timeout)
+	defer cancel()
+	if err := r.statsProcessor.ProcessStats(ctx, in, lang, tracerVersion, containerID, obfuscationVersion); err != nil {
+		log.Errorf("Error processing pb.ClientStatsPayload: %v", err)
+		tags := append(ts.AsTags(), "reason:timeout")
+		_ = r.statsd.Count("datadog.trace_agent.receiver.stats_payload_rejected", 1, tags, 1)
+		httpDecodingError(err, []string{"handler:stats", "codec:msgpack", "v:v0.6"}, w, r.statsd)
+	}
 }
 
 // handleTraces knows how to handle a bunch of traces

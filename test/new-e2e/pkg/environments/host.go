@@ -6,7 +6,6 @@
 package environments
 
 import (
-	"errors"
 	"fmt"
 	"path/filepath"
 	"regexp"
@@ -46,7 +45,7 @@ func (e *Host) Diagnose(outputDir string) (string, error) {
 	// add Agent diagnose
 	if e.Agent != nil {
 		diagnoses = append(diagnoses, "==== Agent ====")
-		dstPath, err := e.generateAndDownloadAgentFlare(outputDir)
+		dstPath, err := generateAndDownloadAgentFlare(e.Agent, e.RemoteHost, outputDir)
 		if err != nil {
 			return "", fmt.Errorf("failed to generate and download agent flare: %w", err)
 		}
@@ -57,8 +56,8 @@ func (e *Host) Diagnose(outputDir string) (string, error) {
 	return strings.Join(diagnoses, "\n"), nil
 }
 
-func (e *Host) generateAndDownloadAgentFlare(outputDir string) (string, error) {
-	if e.Agent == nil || e.RemoteHost == nil {
+func generateAndDownloadAgentFlare(agent *components.RemoteHostAgent, host *components.RemoteHost, outputDir string) (string, error) {
+	if agent == nil || host == nil {
 		return "", fmt.Errorf("Agent or RemoteHost component is not initialized, cannot generate flare")
 	}
 	// generate a local flare
@@ -66,7 +65,7 @@ func (e *Host) generateAndDownloadAgentFlare(outputDir string) (string, error) {
 	// to redirect stdin to null, on linux adding `</dev/null`
 	// on windows prepending command with `@() |`, pre-piping with an empty array
 	// discard error, flare command might return error if there is no intake, but it the archive is still generated
-	flareCommandOutput, err := e.Agent.Client.FlareWithError(agentclient.WithArgs([]string{"--email", "e2e-tests@datadog-agent", "--send", "--local"}))
+	flareCommandOutput, err := agent.Client.FlareWithError(agentclient.WithArgs([]string{"--email", "e2e-tests@datadog-agent", "--send", "--local"}))
 
 	lines := []string{flareCommandOutput}
 	if err != nil {
@@ -83,17 +82,17 @@ func (e *Host) generateAndDownloadAgentFlare(outputDir string) (string, error) {
 		return "", fmt.Errorf("output does not contain the path to the flare archive, output: %s", flareCommandOutput)
 	}
 	flarePath := matches[1]
-	flareFileInfo, err := e.RemoteHost.Lstat(flarePath)
+	flareFileInfo, err := host.Lstat(flarePath)
 	if err != nil {
 		return "", fmt.Errorf("failed to stat flare archive: %w", err)
 	}
 	dstPath := filepath.Join(outputDir, flareFileInfo.Name())
 
-	err = e.RemoteHost.EnsureFileIsReadable(flarePath)
+	err = host.EnsureFileIsReadable(flarePath)
 	if err != nil {
 		return "", fmt.Errorf("failed to ensure flare archive is readable: %w", err)
 	}
-	err = e.RemoteHost.GetFile(flarePath, dstPath)
+	err = host.GetFile(flarePath, dstPath)
 	if err != nil {
 		return "", fmt.Errorf("failed to download flare archive: %w", err)
 	}
@@ -124,41 +123,36 @@ func (e *Host) getAgentCoverageCommands(family os.Family) (map[string]string, er
 }
 
 // Coverage runs the coverage command for each agent and downloads the coverage folders to the output directory
-func (e *Host) Coverage(outputDir string) error {
-	coverageFolders := map[string]bool{} // Used as a set to avoid duplicates
-	failedCoverageAgents := map[string]error{}
+func (e *Host) Coverage(outputDir string) (string, error) {
+
+	outStr := []string{}
+	outStr = append(outStr, "===== Coverage =====")
 	commandCoverages, err := e.getAgentCoverageCommands(e.RemoteHost.OSFamily)
 	if err != nil {
-		return err
+		return "", err
 	}
 	for agent, command := range commandCoverages {
+		outStr = append(outStr, fmt.Sprintf("==== %s ====", agent))
 		output, err := e.RemoteHost.Execute(command)
 		if err != nil {
-			failedCoverageAgents[agent] = err
+			outStr = append(outStr, fmt.Sprintf("%s: %v", agent, err))
 			continue
 		}
 		// find coverage folder in command output
 		re := regexp.MustCompile(`(?m)Coverage written to (.+)$`)
 		matches := re.FindStringSubmatch(output)
 		if len(matches) < 2 {
-			failedCoverageAgents[agent] = fmt.Errorf("output does not contain the path to the coverage folder, output: %s", output)
+			outStr = append(outStr, fmt.Sprintf("%s: output does not contain the path to the coverage folder, output: %s", agent, output))
 			continue
 		}
-		coverageFolders[matches[1]] = true
-	}
-	errorStr := ""
-
-	for folder := range coverageFolders {
-		err := e.RemoteHost.GetFolder(folder, filepath.Join(outputDir, filepath.Base(folder)))
+		outStr = append(outStr, fmt.Sprintf("Coverage folder: %s", matches[1]))
+		err = e.RemoteHost.GetFolder(matches[1], filepath.Join(outputDir, filepath.Base(matches[1])))
 		if err != nil {
-			errorStr += fmt.Sprintf("%s: error while getting folder:%v\n", folder, err)
+			outStr = append(outStr, fmt.Sprintf("%s: error while getting folder:%v", agent, err))
+			continue
 		}
+		outStr = append(outStr, fmt.Sprintf("Downloaded coverage folder: %s", matches[1]))
 	}
-	for agent, err := range failedCoverageAgents {
-		errorStr += fmt.Sprintf("%s: %v\n", agent, err)
-	}
-	if errorStr != "" {
-		return errors.New(errorStr)
-	}
-	return nil
+
+	return strings.Join(outStr, "\n"), nil
 }

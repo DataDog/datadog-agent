@@ -6,7 +6,7 @@
       "name": "",
       "method": "main.testBigStruct",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {
@@ -23,7 +23,7 @@
           {
             "function": "main.executeComplexFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
-            "lineNumber": 110
+            "lineNumber": 217
           },
           {
             "function": "main.main",
@@ -70,7 +70,12 @@
                   },
                   "writer": {
                     "type": "io.Writer",
-                    "notCapturedReason": "unimplemented"
+                    "fields": {
+                      "data": {
+                        "type": "io.discard",
+                        "fields": {}
+                      }
+                    }
                   }
                 }
               }
