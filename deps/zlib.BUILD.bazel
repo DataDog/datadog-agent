@@ -100,6 +100,7 @@ cc_library(
     hdrs = _ZLIB_PUBLIC_HEADERS,
     copts = [
         "-I.",
+        "-O3",
         "-Wall",
         "-fPIC",
     ] + select({
@@ -123,7 +124,7 @@ cc_library(
             "-Wno-implicit-function-declaration",
         ],
     }),
-    includes = ["zlib/include/"],
+    includes = ["zlib/include"],
     local_defines = select({
         "@platforms//os:windows": ["_CRT_NONSTDC_NO_WARNINGS"],
         "//conditions:default": [],
@@ -143,6 +144,12 @@ cc_shared_library(
     deps = [":z"],
 )
 
+# Maybe? TODO: Window resource file?
+#RC = $(PREFIX)windres
+#RCFLAGS = --define GCC_WINDRES
+#zlibrc.o: win32/zlib1.rc
+#	$(RC) $(RCFLAGS) -o $@ win32/zlib1.rc
+
 # buildifier: disable=no-effect
 """
 TODO: Add pkg install to copy to /lib
@@ -157,8 +164,14 @@ build do
     env = with_standard_compiler_flags(with_embedded_path, bfd_flags: true)
 
     patch <<THIS
-+IMAGE_BASE = 0x63300000
-+
+ IMAGE_BASE = 0x63300000
+
+ LD = $(CC)
+ LDFLAGS = $(LOC)
+
+ AR = $(PREFIX)ar
+ ARFLAGS = rcs
+
  STRIP = $(PREFIX)strip
 
  CP = cp -fp
