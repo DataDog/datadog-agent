@@ -9,14 +9,20 @@
 package orchestrator
 
 import (
+	"context"
 	"expvar"
 	"strings"
 	"sync"
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/inventory"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/discovery"
 	utilTypes "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -497,6 +503,9 @@ func (cb *CollectorBundle) getBuiltinCustomResourceCollectors() []collectors.K8s
 	for _, builtinCustomResource := range newBuiltinCRDConfigs() {
 		crCollectors = append(crCollectors, cb.collectorsForBuiltinCRD(builtinCustomResource)...)
 	}
+
+	crCollectors = filterCRCollectorsByPermission(crCollectors, cb.isForbidden)
+
 	return crCollectors
 }
 
@@ -555,4 +564,25 @@ func (cb *CollectorBundle) getTerminatedPodCollector() collectors.K8sCollector {
 		}
 	}
 	return nil
+}
+
+// isForbidden runs a single List request to check if cluster agent is forbidden to list the given resource
+func (cb *CollectorBundle) isForbidden(gvr schema.GroupVersionResource) bool {
+	_, err := cb.runCfg.APIClient.DynamicCl.Resource(gvr).List(context.Background(), metav1.ListOptions{})
+	return errors.IsForbidden(err)
+}
+
+// filterCRCollectorsByPermission filters collectors based on permissions, keeping only those with sufficient access.
+func filterCRCollectorsByPermission(crCollectors []collectors.K8sCollector, isForbidden func(gvr schema.GroupVersionResource) bool) []collectors.K8sCollector {
+	filteredCollectors := make([]collectors.K8sCollector, 0, len(crCollectors))
+	for _, c := range crCollectors {
+		if cr, ok := c.(*k8s.CRCollector); ok {
+			if isForbidden(cr.GetGRV()) {
+				log.Infof("Skipping built-in collector due to insufficient permissions: %s", cr.GetGRV().String())
+				continue
+			}
+			filteredCollectors = append(filteredCollectors, c)
+		}
+	}
+	return filteredCollectors
 }
