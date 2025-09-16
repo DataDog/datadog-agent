@@ -61,12 +61,12 @@ func probeConfigsWithMaxReferenceDepth(
 		case *rcjson.LogProbe:
 			if cfg.Capture == nil {
 				cfg.Capture = new(rcjson.Capture)
-				cfg.Capture.MaxReferenceDepth = limit
+				cfg.Capture.MaxReferenceDepth = &limit
 			}
 		case *rcjson.SnapshotProbe:
 			if cfg.Capture == nil {
 				cfg.Capture = new(rcjson.Capture)
-				cfg.Capture.MaxReferenceDepth = limit
+				cfg.Capture.MaxReferenceDepth = &limit
 			}
 		}
 	}

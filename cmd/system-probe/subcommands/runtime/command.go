@@ -34,6 +34,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/security/clihelpers"
+	"github.com/DataDog/datadog-agent/pkg/security/proto/api/transform"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -379,7 +380,7 @@ func checkPoliciesLoaded(client secagent.SecurityModuleClientWrapper, writer io.
 	}
 
 	// extract and report the filters
-	transformedOutput := output.GetRuleSetReportMessage().GetFilters().FromProtoToFilterReport()
+	transformedOutput := transform.FromProtoToFilterReport(output.GetRuleSetReportMessage().GetFilters())
 
 	content, _ := json.MarshalIndent(transformedOutput, "", "\t")
 	_, err = fmt.Fprintf(writer, "%s\n", string(content))
