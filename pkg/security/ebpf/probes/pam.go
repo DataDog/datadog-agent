@@ -9,20 +9,222 @@
 package probes
 
 import (
+	"bufio"
 	"bytes"
 	"context"
+	"debug/elf"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	manager "github.com/DataDog/ebpf-manager"
 )
+
+// === DEBUG ADDITIONS BEGIN ===
+var pamDebug = true
+
+func debugf(format string, a ...any) {
+	if pamDebug {
+		fmt.Fprintf(os.Stderr, "[pam-debug] "+format+"\n", a...)
+	}
+}
+
+func readFileTrim(p string) string {
+	b, err := os.ReadFile(p)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(b))
+}
+
+func runCmd(timeout time.Duration, name string, args ...string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, name, args...)
+	var out bytes.Buffer
+	var errb bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &errb
+	err := cmd.Run()
+	if err != nil {
+		return "", fmt.Errorf("%s %v failed: %w (stderr: %s)", name, args, err, errb.String())
+	}
+	return out.String(), nil
+}
+
+func dumpSystemContext() {
+	if !pamDebug {
+		return
+	}
+	debugf("=== system context ===")
+	if out, err := runCmd(2*time.Second, "uname", "-a"); err == nil {
+		debugf("uname: %s", strings.TrimSpace(out))
+	} else {
+		debugf("uname error: %v", err)
+	}
+	debugf("perf_event_paranoid: %s", readFileTrim("/proc/sys/kernel/perf_event_paranoid"))
+	debugf("kptr_restrict: %s", readFileTrim("/proc/sys/kernel/kptr_restrict"))
+	// Secure Boot/Lockdown hints
+	// On Ubuntu, lockdown state might appear here:
+	if s := readFileTrim("/sys/kernel/security/lockdown"); s != "" {
+		debugf("lockdown: %s", s)
+	}
+	// simple SB hint: efivars present?
+	if _, err := os.Stat("/sys/firmware/efi/efivars"); err == nil {
+		debugf("EFI vars present (Secure Boot possibly enabled)")
+	}
+}
+
+func dumpLdconfigPamLines() {
+	if !pamDebug {
+		return
+	}
+	out, err := runCmd(2*time.Second, "ldconfig", "-p")
+	if err != nil {
+		debugf("ldconfig -p error: %v", err)
+		return
+	}
+	lines := []string{}
+	for _, l := range strings.Split(out, "\n") {
+		if strings.Contains(l, "libpam.so") {
+			lines = append(lines, l)
+		}
+	}
+	debugf("ldconfig -p (filtered libpam):\n%s", strings.Join(lines, "\n"))
+}
+
+func elfInfoAndSymbols(path string, syms ...string) {
+	if !pamDebug || path == "" {
+		return
+	}
+	f, err := elf.Open(path)
+	if err != nil {
+		debugf("ELF open error for %s: %v", path, err)
+		return
+	}
+	defer f.Close()
+	debugf("ELF: %s, Class=%v, Data=%v, OSABI=%v, Type=%v, Machine=%v",
+		path, f.FileHeader.Class, f.FileHeader.Data, f.FileHeader.OSABI, f.FileHeader.Type, f.FileHeader.Machine)
+
+	// Prepare symbol matcher (accept versioned names like pam_start@@LIBPAM_1.0)
+	match := func(name, target string) bool {
+		return name == target || strings.HasPrefix(name, target+"@@") || strings.HasPrefix(name, target+"@")
+	}
+
+	checkTable := func(table string, get func() ([]elf.Symbol, error)) {
+		symsList, err := get()
+		if err != nil {
+			debugf("%s symbols error: %v", table, err)
+			return
+		}
+		for _, want := range syms {
+			var hits []string
+			for _, s := range symsList {
+				if match(s.Name, want) && s.Info == elf.ST_INFO(elf.STB_GLOBAL, elf.STT_FUNC) {
+					hits = append(hits, fmt.Sprintf("%s=0x%x", s.Name, s.Value))
+				}
+			}
+			if len(hits) > 0 {
+				debugf("%s: found %s -> %s", table, want, strings.Join(hits, ", "))
+			} else {
+				debugf("%s: NOT found %s", table, want)
+			}
+		}
+	}
+
+	if f.Section(".dynsym") != nil {
+		checkTable(".dynsym", f.DynamicSymbols)
+	} else {
+		debugf(".dynsym: not present")
+	}
+	if f.Section(".symtab") != nil {
+		checkTable(".symtab", f.Symbols)
+	} else {
+		debugf(".symtab: not present")
+	}
+}
+
+func scanProcForPam(maxPIDs int) []string {
+	if !pamDebug {
+		return nil
+	}
+	entries, _ := os.ReadDir("/proc")
+	var ret []string
+	count := 0
+	for _, e := range entries {
+		if count >= maxPIDs {
+			break
+		}
+		pid, err := strconv.Atoi(e.Name())
+		if err != nil || pid <= 0 {
+			continue
+		}
+		maps := fmt.Sprintf("/proc/%d/maps", pid)
+		f, err := os.Open(maps)
+		if err != nil {
+			continue
+		}
+		sc := bufio.NewScanner(f)
+		for sc.Scan() {
+			line := sc.Text()
+			// look for any absolute path ending with libpam.so*
+			if i := strings.LastIndex(line, "/"); i >= 0 {
+				path := line[i:]
+				if strings.Contains(path, "libpam.so") {
+					// extract path token (last column)
+					fields := strings.Fields(line)
+					if len(fields) >= 6 {
+						p := fields[len(fields)-1]
+						if filepath.IsAbs(p) && strings.Contains(filepath.Base(p), "libpam.so") {
+							ret = append(ret, fmt.Sprintf("pid=%d -> %s", pid, p))
+							count++
+							break
+						}
+					}
+				}
+			}
+		}
+		f.Close()
+	}
+	return ret
+}
+
+func explainIfSuspicious(path string) {
+	if !pamDebug {
+		return
+	}
+	if path == "" {
+		debugf("No libpam path resolved. On Ubuntu 24.10, ensure libpam is installed: `apt-cache policy libpam0g`.")
+		return
+	}
+	st, err := os.Stat(path)
+	if err != nil {
+		debugf("stat(%s) error: %v", path, err)
+		return
+	}
+	if st.Mode()&os.ModeSymlink != 0 {
+		if real, err := filepath.EvalSymlinks(path); err == nil {
+			debugf("%s is a symlink -> %s", path, real)
+		}
+	}
+	// inode
+	if stat, ok := st.Sys().(*syscall.Stat_t); ok {
+		debugf("file inode: dev=%d ino=%d mode=%#o size=%d", stat.Dev, stat.Ino, st.Mode().Perm(), st.Size())
+	}
+	// hint about mismatched inode:
+	debugf("If the probe attaches but never fires, verify the *same inode* as mapped by target process (/proc/<pid>/maps).")
+}
+
+// === DEBUG ADDITIONS END ===
 
 // getPamLibPath returns the absolute path to the PAM shared library by
 // parsing the system linker cache (ldconfig -p). It prefers the SONAME
@@ -47,6 +249,8 @@ func pamFromLdconfig() (string, error) {
 
 	out, err := exec.CommandContext(ctx, "ldconfig", "-p").Output()
 	if err != nil {
+		// === DEBUG ADDITIONS ===
+		debugf("ldconfig -p failed: %v", err)
 		return "", err
 	}
 
@@ -73,6 +277,8 @@ func pamFromLdconfig() (string, error) {
 	}
 
 	if len(cands) == 0 {
+		// === DEBUG ADDITIONS ===
+		debugf("no libpam found in ldconfig output")
 		return "", errors.New("no libpam in ldconfig cache")
 	}
 
@@ -91,6 +297,9 @@ func pamFromLdconfig() (string, error) {
 		}
 		return cands[i].path > cands[j].path
 	})
+
+	// === DEBUG ADDITIONS ===
+	debugf("ldconfig candidates: %v", cands)
 
 	return cands[0].path, nil
 }
@@ -156,6 +365,8 @@ func pamFromCommonDirs() string {
 	}
 
 	if len(cands) == 0 {
+		// === DEBUG ADDITIONS ===
+		debugf("no libpam in common dirs")
 		return ""
 	}
 
@@ -178,12 +389,47 @@ func pamFromCommonDirs() string {
 		return cands[i] > cands[j]
 	})
 
+	// === DEBUG ADDITIONS ===
+	debugf("common dir candidates: %v", cands)
+
 	return cands[0]
 }
 
 var libPamPath = getPamLibPath()
 
+// === DEBUG ADDITIONS BEGIN ===
+// Call this once early (e.g., from init or before starting the manager) to see context.
+func init() {
+	if pamDebug {
+		dumpSystemContext()
+		// show ldconfig filtered lines
+		dumpLdconfigPamLines()
+	}
+	if libPamPath == "" && pamDebug {
+		debugf("libPamPath is empty – probes will not attach")
+	} else if pamDebug {
+		debugf("libPamPath selected: %s", libPamPath)
+		explainIfSuspicious(libPamPath)
+		elfInfoAndSymbols(libPamPath, "pam_start", "pam_set_item")
+		// sample a few PIDs to see which libpam inode is mapped (helps detect inode mismatch)
+		if rows := scanProcForPam(5); len(rows) > 0 {
+			debugf("sampled /proc/*/maps entries with libpam:\n%s", strings.Join(rows, "\n"))
+		} else {
+			debugf("no running process currently mapping libpam (that's OK if you're testing locally).")
+		}
+	}
+}
+
+// === DEBUG ADDITIONS END ===
+
 func getPamProbes() []*manager.Probe {
+	// === DEBUG ADDITIONS ===
+	if pamDebug {
+		debugf("building PAM probes with BinaryPath=%q", libPamPath)
+		if libPamPath == "" {
+			debugf("WARNING: empty BinaryPath – returning probes but attach will fail")
+		}
+	}
 
 	var pamProbes = []*manager.Probe{
 		{
@@ -210,4 +456,19 @@ func getPamProbes() []*manager.Probe {
 	}
 
 	return pamProbes
+}
+
+// OPTIONAL: helper you can call where you start the manager to dump attach errors if ebpf-manager exposes them.
+// If your attach logic is elsewhere, ignore this.
+func LogProbeAttachErrors(w io.Writer, probes []*manager.Probe, errs map[string]error) {
+	if !pamDebug || len(errs) == 0 {
+		return
+	}
+	fmt.Fprintln(w, "[pam-debug] === probe attach errors ===")
+	for _, p := range probes {
+		key := fmt.Sprintf("%s:%s", p.ProbeIdentificationPair.UID, p.ProbeIdentificationPair.EBPFFuncName)
+		if err, ok := errs[key]; ok && err != nil {
+			fmt.Fprintf(w, "[pam-debug] %s path=%s -> %v\n", key, p.BinaryPath, err)
+		}
+	}
 }
