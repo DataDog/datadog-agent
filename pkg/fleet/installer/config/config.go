@@ -354,7 +354,7 @@ func buildOperationsFromLegacyConfigFile(filePath, stableDirPath string) ([]File
 
 	managedDir := strings.LastIndex(fullPath, "/managed")
 	if managedDir == -1 {
-		return ops, fmt.Errorf("managed directory not found in file path: %s", filePath)
+		return ops, fmt.Errorf("managed directory not found in file path: %s", fullPath)
 	}
 	fPath := fullPath[managedDir:]
 
