@@ -257,18 +257,14 @@ func fieldNameToKey(field reflect.StructField) (string, specifierSet) {
 		tagtext = val
 	}
 
-	// skip any additional specifiers such as ",omitempty" or ",squash"
-	// TODO: support multiple specifiers
-	var specifiers map[string]struct{}
-	if commaPos := strings.IndexRune(tagtext, ','); commaPos != -1 {
-		specifiers = make(map[string]struct{})
-		val := tagtext[:commaPos]
-		specifiers[tagtext[commaPos+1:]] = struct{}{}
-		if val != "" {
+	// extract specifier tags such as ",omitempty" or ",squash"
+	specifiers := make(map[string]struct{})
+	for i, val := range strings.Split(tagtext, ",") {
+		if i == 0 && val != "" {
 			name = val
+			continue
 		}
-	} else if tagtext != "" {
-		name = tagtext
+		specifiers[val] = struct{}{}
 	}
 	return strings.ToLower(name), specifiers
 }
@@ -434,18 +430,28 @@ func copyLeaf(target reflect.Value, input nodetreemodel.LeafNode, _ *featureSet)
 		return nil
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32:
 		v, err := cast.ToUintE(inVal)
-		if err != nil {
-			return err
+		if err == nil {
+			target.SetUint(uint64(v))
+			return nil
 		}
-		target.SetUint(uint64(v))
-		return nil
+		// If input is a negative int, cast.ToUint won't work, force a conversion
+		// by wrapping around the value
+		if num, converts := inVal.(int); converts {
+			target.SetUint(uint64(num))
+			return nil
+		}
+		return err
 	case reflect.Uint64:
 		v, err := cast.ToUint64E(inVal)
-		if err != nil {
-			return err
+		if err == nil {
+			target.SetUint(uint64(v))
+			return nil
 		}
-		target.SetUint(uint64(v))
-		return nil
+		if num, converts := inVal.(int); converts {
+			target.SetUint(uint64(num))
+			return nil
+		}
+		return err
 	case reflect.Float32, reflect.Float64:
 		v, err := cast.ToFloat64E(inVal)
 		if err != nil {
