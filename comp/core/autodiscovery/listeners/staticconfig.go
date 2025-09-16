@@ -6,7 +6,7 @@
 package listeners
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	filter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
@@ -124,5 +124,5 @@ func (s *StaticConfigService) GetExtraConfig(_ string) (string, error) {
 }
 
 // FilterTemplates does nothing.
-func (s *StaticConfigService) FilterTemplates(_ map[string]integration.Config) {
+func (s *StaticConfigService) FilterTemplates(_ map[string]adtypes.InternalConfig) {
 }

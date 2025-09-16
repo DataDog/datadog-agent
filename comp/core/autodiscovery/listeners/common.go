@@ -14,6 +14,8 @@ import (
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
+	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
@@ -28,6 +30,23 @@ const (
 	tagKeyVersion = "version"
 	tagKeyService = "service"
 )
+
+// FilterableService is an interface for a subset of services that can use advanced filtering
+type FilterableService interface {
+	GetFilterableEntity() workloadfilter.Filterable
+}
+
+// filterTemplatesCELSelector returns true if the given service matches the CEL program of the config.
+func filterTemplatesCELSelector(svc FilterableService, configs map[string]adtypes.InternalConfig) {
+	filterableEntity := svc.GetFilterableEntity()
+	if filterableEntity != nil {
+		for digest, config := range configs {
+			if !config.IsMatched(filterableEntity) {
+				delete(configs, digest)
+			}
+		}
+	}
+}
 
 // getStandardTags extract standard tags from labels of kubernetes services
 func getStandardTags(labels map[string]string) []string {

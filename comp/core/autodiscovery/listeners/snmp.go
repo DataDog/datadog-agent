@@ -17,7 +17,7 @@ import (
 
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	filter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/snmp"
@@ -706,7 +706,7 @@ func (s *SNMPService) GetExtraConfig(key string) (string, error) {
 }
 
 // FilterTemplates does nothing.
-func (s *SNMPService) FilterTemplates(_ map[string]integration.Config) {
+func (s *SNMPService) FilterTemplates(_ map[string]adtypes.InternalConfig) {
 }
 
 func convertToCommaSepTags(tags []string) string {

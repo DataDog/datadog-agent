@@ -73,6 +73,9 @@ type Config struct {
 	// see ADIdentifiers.  (optional)
 	AdvancedADIdentifiers []AdvancedADIdentifier `json:"advanced_ad_identifiers"` // (include in digest: false)
 
+	// CELSelector is the list of CEL-based selectors for this integration. (optional)
+	CELSelector workloadfilter.Rules `json:"cel_selector"`
+
 	// Provider is the name of the config provider that issued the config.  If
 	// this is "", then the config is a service config, representing a service
 	// discovered by a listener.
@@ -167,6 +170,8 @@ func (c *Config) String() string {
 	var logsConfig interface{}
 
 	rawConfig["check_name"] = c.Name
+
+	rawConfig["cel_selector"] = c.CELSelector
 
 	yaml.Unmarshal(c.InitConfig, &initConfig) //nolint:errcheck
 	rawConfig["init_config"] = initConfig

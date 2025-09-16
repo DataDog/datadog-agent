@@ -12,6 +12,7 @@ import (
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -19,6 +20,7 @@ const (
 	instancePath            = "instances"
 	checkNamePath           = "check_names"
 	initConfigPath          = "init_configs"
+	celSelectorPath         = "cel_selector"
 	ignoreAutodiscoveryTags = "ignore_autodiscovery_tags"
 	logsConfigPath          = "logs"
 	checksPath              = "checks"
@@ -80,7 +82,12 @@ func extractCheckTemplatesFromMap(key string, input map[string]string, prefix st
 
 	cardinality := input[prefix+checkTagCardinality]
 
-	return BuildTemplates(key, checkNames, initConfigs, instances, ignoreAdTags, cardinality), nil
+	celSelectors, err := ParseCELSelectors(input[prefix+celSelectorPath])
+	if err != nil {
+		return []integration.Config{}, fmt.Errorf("in %s: %s", celSelectorPath, err)
+	}
+
+	return BuildTemplates(key, celSelectors, checkNames, initConfigs, instances, ignoreAdTags, cardinality), nil
 }
 
 // extractLogsTemplatesFromMap returns the logs configuration from a given map,
@@ -124,6 +131,29 @@ func ParseCheckNames(names string) (res []string, err error) {
 	}
 
 	return res, nil
+}
+
+// ParseCELSelectors returns a slice of workloadfilter.Rules parsed from a JSON string
+func ParseCELSelectors(input string) ([]workloadfilter.Rules, error) {
+	if input == "" {
+		return nil, nil
+	}
+
+	// First try to parse as an array
+	var selectors []workloadfilter.Rules
+	err := json.Unmarshal([]byte(input), &selectors)
+	if err == nil {
+		return selectors, nil
+	}
+
+	// If that fails, try to parse as a single object // TODO CHECK THIS
+	var singleSelector workloadfilter.Rules
+	err = json.Unmarshal([]byte(input), &singleSelector)
+	if err != nil {
+		return []workloadfilter.Rules{}, err
+	}
+
+	return []workloadfilter.Rules{singleSelector}, nil
 }
 
 // ParseJSONValue returns a slice of slice of ConfigData parsed from the JSON
@@ -171,14 +201,19 @@ func ParseJSONValue(value string) ([][]integration.Data, error) {
 // BuildTemplates returns check configurations configured according to the
 // passed in AD identifier, check names, init, instance configs and their
 // `ignoreAutoDiscoveryTags`, `CheckTagCardinality` fields.
-func BuildTemplates(adID string, checkNames []string, initConfigs, instances [][]integration.Data, ignoreAutodiscoveryTags bool, checkCard string) []integration.Config {
+func BuildTemplates(adID string, celSelectors []workloadfilter.Rules, checkNames []string, initConfigs, instances [][]integration.Data, ignoreAutodiscoveryTags bool, checkCard string) []integration.Config {
 	templates := make([]integration.Config, 0)
 
+	// Standardize optional celSelector length to match checkNames length
+	if len(celSelectors) == 0 {
+		celSelectors = make([]workloadfilter.Rules, len(checkNames))
+	}
+
 	// sanity checks
-	if len(checkNames) != len(initConfigs) || len(checkNames) != len(instances) {
+	if len(checkNames) != len(initConfigs) || len(checkNames) != len(instances) || len(checkNames) != len(celSelectors) {
 		log.Errorf("Template entries in entity with ID %q don't all have the same length. "+
-			"checkNames: %d, initConfigs: %d, instances: %d. Not using them.",
-			adID, len(checkNames), len(initConfigs), len(instances))
+			"checkNames: %d, initConfigs: %d, instances: %d, celSelectors: %d. Not using them.",
+			adID, len(checkNames), len(initConfigs), len(instances), len(celSelectors))
 		return templates
 	}
 	for idx := range initConfigs {
@@ -193,6 +228,7 @@ func BuildTemplates(adID string, checkNames []string, initConfigs, instances [][
 			templates = append(templates, integration.Config{
 				Name:                    checkNames[idx],
 				InitConfig:              initConfigs[idx][0],
+				CELSelector:             celSelectors[idx],
 				Instances:               []integration.Data{instance},
 				ADIdentifiers:           []string{adID},
 				IgnoreAutodiscoveryTags: ignoreAutodiscoveryTags,
