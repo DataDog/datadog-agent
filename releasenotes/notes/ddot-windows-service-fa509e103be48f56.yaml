@@ -9,7 +9,6 @@
 features:
   - |
     Added Datadog OTEL agent as Windows service
-other:
-  - |
+
     This is part of the effort to add Datadog OpenTelemetry agent as a
     Windows service. 

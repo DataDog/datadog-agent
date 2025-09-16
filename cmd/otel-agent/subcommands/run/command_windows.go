@@ -31,6 +31,5 @@ func MakeCommand(globalConfGetter func() *subcommands.GlobalParams) *cobra.Comma
 			return runOTelAgentCommand(context.Background(), params)
 		},
 	}
-	cmd.Flags().StringVarP(&params.pidfilePath, "pidfile", "p", "", "path to the pidfile")
 	return cmd
 }

@@ -14,7 +14,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/windows/controlsvc"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // Commands returns a slice of subcommands for the 'otel-agent' command.
@@ -35,7 +34,7 @@ func Commands(_ *subcommands.GlobalParams) []*cobra.Command {
 			Short:   "stops the otel-agent within the service control manager",
 			Long:    ``,
 			RunE: func(_ *cobra.Command, _ []string) error {
-				return fxutil.OneShot(controlsvc.StopService)
+				return controlsvc.StopService()
 			},
 		},
 		{
@@ -44,7 +43,7 @@ func Commands(_ *subcommands.GlobalParams) []*cobra.Command {
 			Short:   "restarts the otel-agent within the service control manager",
 			Long:    ``,
 			RunE: func(_ *cobra.Command, _ []string) error {
-				return fxutil.OneShot(controlsvc.RestartService)
+				return controlsvc.RestartService()
 			},
 		},
 	}
