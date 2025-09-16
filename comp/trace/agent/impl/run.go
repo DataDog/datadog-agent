@@ -45,13 +45,16 @@ func runAgentSidekicks(ag component) error {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
-	if pkgconfigsetup.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) {
+	isRemoteConfigEnabled := pkgconfigsetup.IsRemoteConfigEnabled(pkgconfigsetup.Datadog())
+	log.Warnf("Remote config is enabled: %v", isRemoteConfigEnabled)
+	if isRemoteConfigEnabled {
 		cf, err := newConfigFetcher(ag.ipc)
 		if err != nil {
 			ag.telemetryCollector.SendStartupError(telemetry.CantCreateRCCLient, err)
 			return fmt.Errorf("could not instantiate the tracer remote config client: %v", err)
 		}
 
+		remotecfg.ConfigureExportHandler(cf, tracecfg, ag.Statsd, ag.Timing)
 		api.AttachEndpoint(api.Endpoint{
 			Pattern: "/v0.7/config",
 			Handler: func(r *api.HTTPReceiver) http.Handler {

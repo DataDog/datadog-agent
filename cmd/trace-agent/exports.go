@@ -55,6 +55,7 @@ import "C"
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync/atomic"
 	"unsafe"
 
@@ -84,6 +85,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
+
+	remotecfg "github.com/DataDog/datadog-agent/cmd/trace-agent/config/remote"
 )
 
 type (
@@ -172,6 +175,47 @@ func submit_traces(payload C.traces_payload) C.bool {
 
 	fmt.Println("Trace Agent receiver is not a BypassReceiver")
 	return toBool(false)
+}
+
+//export submit_config
+func submit_config(payload C.traces_payload) C.traces_payload {
+	if !initialized.Load() {
+		fmt.Println("Trace Agent shared library not initialized")
+		return C.traces_payload{}
+	}
+
+	if traceReceiver == nil {
+		fmt.Println("Trace Agent receiver is nil")
+		return C.traces_payload{}
+	}
+
+	fmt.Println("Converting request headers for the config request")
+	g_requestHeaders := map[string][]string{}
+	for i := C.size_t(0); i < payload.headers.len; i++ {
+		kvp := *(*C.key_value_pair)(unsafe.Add(unsafe.Pointer(payload.headers.data), i*key_value_pair_size))
+		key := C.GoString(kvp.key)
+		value := C.GoString(kvp.value)
+		g_requestHeaders[key] = strings.Split(value, ",")
+	}
+
+	fmt.Println("Converting request body for the config request")
+	g_requestBody := C.GoBytes(unsafe.Pointer(payload.data), C.int(payload.len))
+
+	fmt.Println("Calling the export handler")
+	handler := remotecfg.GetExportHandler()
+	g_responseBody := handler(g_requestHeaders, g_requestBody)
+
+	fmt.Println("Preparing returned value")
+	responseHeaders := C.key_value_pair_array{
+		len: 0,
+	}
+	responsePayload := C.traces_payload{
+		headers: responseHeaders,
+		data:    (*C.byte)(C.CBytes(g_responseBody)),
+		len:     C.size_t(len(g_responseBody)),
+	}
+
+	return responsePayload
 }
 
 // initializeFx initializes the fx app in a goroutine and returns the channels

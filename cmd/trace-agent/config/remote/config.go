@@ -8,6 +8,7 @@ package remote
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -39,6 +40,71 @@ func getBuffer() *bytes.Buffer {
 
 func putBuffer(buffer *bytes.Buffer) {
 	bufferPool.Put(buffer)
+}
+
+type funcHandler func(requestHeader map[string][]string, requestBody []byte) (responseBody []byte)
+
+var exportHandler funcHandler = func(requestHeader map[string][]string, requestBody []byte) (responseBody []byte) {
+	fmt.Println("Handler not set")
+	return []byte("Handler not set")
+}
+
+func GetExportHandler() funcHandler {
+	return exportHandler
+}
+
+func ConfigureExportHandler(cf rcclient.ConfigFetcher, cfg *config.AgentConfig, statsd statsd.ClientInterface, timing timing.Reporter) {
+	cidProvider := api.NewIDProvider(cfg.ContainerProcRoot, cfg.ContainerIDFromOriginInfo)
+
+	exportHandler = func(requestHeader map[string][]string, requestBody []byte) (responseBody []byte) {
+		defer timing.Since("datadog.trace_agent.receiver.config_process_ms", time.Now())
+		// tags := r.TagStats(api.V07, requestHeader, "").AsTags()
+		tags := []string{}
+		statusCode := http.StatusOK
+		defer func() {
+			tags = append(tags, fmt.Sprintf("status_code:%d", statusCode))
+			_ = statsd.Count("datadog.trace_agent.receiver.config_request", 1, tags, 1)
+		}()
+
+		var configsRequest pbgo.ClientGetConfigsRequest
+		err := json.Unmarshal(requestBody, &configsRequest)
+		if err != nil {
+			fmt.Println("Error unmarshalling json request:", err)
+			statusCode = http.StatusBadRequest
+			return []byte(err.Error())
+		}
+
+		if configsRequest.GetClient().GetClientTracer() != nil {
+			fmt.Println("Preparing the config request with the client tracer information")
+			normalize(&configsRequest)
+			configsRequest.Client.ClientTracer.ContainerTags = getContainerTagsFromHeader(requestHeader, cfg, cidProvider)
+		}
+		cfgResponse, err := cf.ClientGetConfigs(context.Background(), &configsRequest)
+		if err != nil {
+			fmt.Println("Error getting the configuration response:", err)
+			statusCode = http.StatusInternalServerError
+			if e, ok := status.FromError(err); ok {
+				switch e.Code() {
+				case codes.Unimplemented, codes.NotFound:
+					statusCode = http.StatusNotFound
+				}
+			}
+			return []byte(err.Error())
+		}
+		if cfgResponse == nil {
+			fmt.Println("Response is null")
+			return []byte{}
+		}
+
+		content, err := json.Marshal(cfgResponse)
+		if err != nil {
+			fmt.Println("Marshalling the json response")
+			statusCode = http.StatusInternalServerError
+			return []byte(err.Error())
+		}
+
+		return content
+	}
 }
 
 // ConfigHandler is the HTTP handler for configs
@@ -104,6 +170,20 @@ func getContainerTags(req *http.Request, cfg *config.AgentConfig, provider api.I
 		return nil
 	}
 	if cid := provider.GetContainerID(req.Context(), req.Header); cid != "" {
+		containerTags, err := cfg.ContainerTags(cid)
+		if err != nil {
+			_ = log.Error("Failed getting container tags", err)
+		}
+		return containerTags
+	}
+	return nil
+}
+
+func getContainerTagsFromHeader(requestHeader map[string][]string, cfg *config.AgentConfig, provider api.IDProvider) []string {
+	if cfg == nil || cfg.ContainerTags == nil {
+		return nil
+	}
+	if cid := provider.GetContainerID(context.Background(), requestHeader); cid != "" {
 		containerTags, err := cfg.ContainerTags(cid)
 		if err != nil {
 			_ = log.Error("Failed getting container tags", err)
