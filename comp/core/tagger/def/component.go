@@ -29,4 +29,5 @@ type Component interface {
 	AgentTags(cardinality types.TagCardinality) ([]string, error)
 	GlobalTags(cardinality types.TagCardinality) ([]string, error)
 	EnrichTags(tb tagset.TagsAccumulator, originInfo taggertypes.OriginInfo)
+	ProcessTagInfo([]*types.TagInfo)
 }
