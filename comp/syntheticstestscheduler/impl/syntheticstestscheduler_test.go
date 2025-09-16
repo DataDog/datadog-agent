@@ -12,6 +12,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
+	"math/big"
 	"net"
 	"strings"
 	"testing"
@@ -106,13 +108,13 @@ func Test_SyntheticsTestScheduler_OnConfigUpdate(t *testing.T) {
 		updateJSON: map[string]string{"datadog/2/SYNTHETICS_TEST/config-1/aaa111": `{
 					"version": 1,
 					"type": "network",
-					"subtype": "tcp",
+					"subtype": "TCP",
 					"config": {
 						"assertions": [],
 						"request": {
 							"host": "example.com",
 							"port": 443,
-							"tcp_method": "syn",
+							"tcp_method": "SYN",
 							"probe_count": 3,
 							"traceroute_count": 1,
 							"max_ttl": 30,
@@ -130,7 +132,7 @@ func Test_SyntheticsTestScheduler_OnConfigUpdate(t *testing.T) {
 		updateJSON: map[string]string{"datadog/2/SYNTHETICS_TEST/config-2/bbb222": `{
 					"version": 1,
 					"type": "network",
-					"subtype": "udp",
+					"subtype": "UDP",
 					"config": {
 						"assertions": [],
 						"request": {
@@ -151,13 +153,13 @@ func Test_SyntheticsTestScheduler_OnConfigUpdate(t *testing.T) {
 			"datadog/2/SYNTHETICS_TEST/config-1/aaa111": `{
 					"version": 1,
 					"type": "network",
-					"subtype": "tcp",
+					"subtype": "TCP",
 					"config": {
 						"assertions": [],
 						"request": {
 							"host": "example.com",
 							"port": 443,
-							"tcp_method": "syn",
+							"tcp_method": "SYN",
 							"probe_count": 3,
 							"traceroute_count": 1,
 							"max_ttl": 30,
@@ -176,13 +178,13 @@ func Test_SyntheticsTestScheduler_OnConfigUpdate(t *testing.T) {
 		updateJSON: map[string]string{"datadog/2/SYNTHETICS_TEST/config-1/aaa111": `{
 					"version": 1,
 					"type": "network",
-					"subtype": "tcp",
+					"subtype": "TCP",
 					"config": {
 						"assertions": [],
 						"request": {
 							"host": "example.com",
 							"port": 443,
-							"tcp_method": "syn",
+							"tcp_method": "SYN",
 							"probe_count": 3,
 							"traceroute_count": 1,
 							"max_ttl": 30,
@@ -198,13 +200,13 @@ func Test_SyntheticsTestScheduler_OnConfigUpdate(t *testing.T) {
 		previousJSON: map[string]string{"datadog/2/SYNTHETICS_TEST/config-1/aaa111": `{
 					"version": 1,
 					"type": "network",
-					"subtype": "tcp",
+					"subtype": "TCP",
 					"config": {
 						"assertions": [],
 						"request": {
 							"host": "example.com",
 							"port": 443,
-							"tcp_method": "sack",
+							"tcp_method": "SACK",
 							"probe_count": 3,
 							"traceroute_count": 3,
 							"max_ttl": 30,
@@ -222,7 +224,7 @@ func Test_SyntheticsTestScheduler_OnConfigUpdate(t *testing.T) {
 		updateJSON: map[string]string{"datadog/2/SYNTHETICS_TEST/config-2/bbb222": `{
 					"version": 1,
 					"type": "network",
-					"subtype": "udp",
+					"subtype": "UDP",
 					"config": {
 						"assertions": [],
 						"request": {
@@ -243,13 +245,13 @@ func Test_SyntheticsTestScheduler_OnConfigUpdate(t *testing.T) {
 			"datadog/2/SYNTHETICS_TEST/config-1/aaa111": `{
 					"version": 1,
 					"type": "network",
-					"subtype": "tcp",
+					"subtype": "TCP",
 					"config": {
 						"assertions": [],
 						"request": {
 							"host": "example.com",
 							"port": 443,
-							"tcp_method": "syn",
+							"tcp_method": "SYN",
 							"probe_count": 3,
 							"traceroute_count": 1,
 							"max_ttl": 30,
@@ -265,13 +267,13 @@ func Test_SyntheticsTestScheduler_OnConfigUpdate(t *testing.T) {
 		previousJSON: map[string]string{"datadog/2/SYNTHETICS_TEST/config-1/aaa111": `{
 					"version": 1,
 					"type": "network",
-					"subtype": "tcp",
+					"subtype": "TCP",
 					"config": {
 						"assertions": [],
 						"request": {
 							"host": "example.com",
 							"port": 443,
-							"tcp_method": "sack",
+							"tcp_method": "SACK",
 							"probe_count": 3,
 							"traceroute_count": 3,
 							"max_ttl": 30,
@@ -290,13 +292,13 @@ func Test_SyntheticsTestScheduler_OnConfigUpdate(t *testing.T) {
 		previousJSON: map[string]string{"datadog/2/SYNTHETICS_TEST/config-1/aaa111": `{
 				"version": 1,
 				"type": "network",
-				"subtype": "tcp",
+				"subtype": "TCP",
 				"config": {
 					"assertions": [],
 					"request": {
 						"host": "example.com",
 						"port": 443,
-						"tcp_method": "sack",
+						"tcp_method": "SACK",
 						"probe_count": 3,
 						"traceroute_count": 3,
 						"max_ttl": 30,
@@ -384,11 +386,11 @@ func Test_SyntheticsTestScheduler_Processing(t *testing.T) {
 		{
 			name: "one test provided",
 			updateJSON: map[string]string{"datadog/2/SYNTHETICS_TEST/config-1/aaa111": `{
-					"version":1,"type":"network","subtype":"tcp",
-					"config":{"assertions":[],"request":{"host":"example.com","port":443,"tcp_method":"syn","probe_count":3,"traceroute_count":1,"max_ttl":30,"timeout":5,"source_service":"frontend","destination_service":"backend"}},
+					"version":1,"type":"network","subtype":"TCP",
+					"config":{"assertions":[],"request":{"host":"example.com","port":443,"tcp_method":"SYN","probe_count":3,"traceroute_count":1,"max_ttl":30,"timeout":5,"source_service":"frontend","destination_service":"backend"}},
 					"orgID":12345,"mainDC":"us1.staging.dog","publicID":"puf-9fm-c89"
 				}`},
-			expectedEventJSON: `{"_dd":{},"result":{"id":"4907739274636687553","initialId":"4907739274636687553","testFinishedAt":1756901488592,"testStartedAt":1756901488591,"testTriggeredAt":1756901488590,"assertions":null,"failure":null,"duration":1,"request":{"host":"example.com","port":443,"maxTtl":30,"timeout":5000},"netstats":{"packetsSent":0,"packetsReceived":0,"packetLossPercentage":0,"jitter":0,"latency":{"avg":0,"min":0,"max":0},"hops":{"avg":0,"min":0,"max":0}},"netpath":{"timestamp":0,"agent_version":"","namespace":"","test_config_id":"puf-9fm-c89","test_result_id":"4907739274636687553","pathtrace_id":"pathtrace-id-111-example.com","origin":"synthetics","protocol":"TCP","source":{"name":"test-hostname","display_name":"test-hostname","hostname":"test-hostname"},"destination":{"hostname":"example.com","port":443},"traceroute":{"runs":[{"run_id":"1","source":{"ip_address":"","port":0},"destination":{"ip_address":"","port":0},"hops":[{"ttl":0,"ip_address":"1.1.1.1","reachable":false},{"ttl":0,"ip_address":"1.1.1.2","reachable":false}]}],"hop_count":{"avg":0,"min":0,"max":0}},"e2e_probe":{"rtts":null,"packets_sent":0,"packets_received":0,"packet_loss_percentage":0,"jitter":0,"rtt":{"avg":0,"min":0,"max":0}}},"status":"passed"},"test":{"_internalId":"puf-9fm-c89","id":"puf-9fm-c89","subType":"tcp","type":"network","version":1},"v":1}`,
+			expectedEventJSON: `{"_dd":{},"result":{"id":"4907739274636687553","initialId":"4907739274636687553","testFinishedAt":1756901488592,"testStartedAt":1756901488591,"testTriggeredAt":1756901488590,"assertions":null,"failure":null,"duration":1,"request":{"host":"example.com","port":443,"maxTtl":30,"timeout":5000},"netstats":{"packetsSent":0,"packetsReceived":0,"packetLossPercentage":0,"jitter":0,"latency":{"avg":0,"min":0,"max":0},"hops":{"avg":0,"min":0,"max":0}},"netpath":{"timestamp":0,"agent_version":"","namespace":"","test_config_id":"puf-9fm-c89","test_result_id":"4907739274636687553","pathtrace_id":"pathtrace-id-111-example.com","origin":"synthetics","protocol":"TCP","source":{"name":"test-hostname","display_name":"test-hostname","hostname":"test-hostname"},"destination":{"hostname":"example.com","port":443},"traceroute":{"runs":[{"run_id":"1","source":{"ip_address":"","port":0},"destination":{"ip_address":"","port":0},"hops":[{"ttl":0,"ip_address":"1.1.1.1","reachable":false},{"ttl":0,"ip_address":"1.1.1.2","reachable":false}]}],"hop_count":{"avg":0,"min":0,"max":0}},"e2e_probe":{"rtts":null,"packets_sent":0,"packets_received":0,"packet_loss_percentage":0,"jitter":0,"rtt":{"avg":0,"min":0,"max":0}}},"status":"passed"},"test":{"_internalId":"puf-9fm-c89","id":"puf-9fm-c89","subType":"TCP","type":"network","version":1},"v":1}`,
 			expectedRunTraceroute: func(_ context.Context, cfg config.Config, _ telemetry.Component) (payload.NetworkPath, error) {
 				return payload.NetworkPath{
 					PathtraceID: "pathtrace-id-111-" + cfg.DestHostname,
@@ -458,7 +460,9 @@ func Test_SyntheticsTestScheduler_Processing(t *testing.T) {
 			tickCh <- scheduler.TimeNowFn()
 
 			scheduler.runTraceroute = tc.expectedRunTraceroute
-			scheduler.generateTestResultID = func() (string, error) { return "4907739274636687553", nil }
+			scheduler.generateTestResultID = func(func(rand io.Reader, max *big.Int) (n *big.Int, err error)) (string, error) {
+				return "4907739274636687553", nil
+			}
 
 			var compactJSON bytes.Buffer
 			assert.Nil(t, json.Compact(&compactJSON, []byte(tc.expectedEventJSON)))
@@ -532,7 +536,7 @@ func Test_SyntheticsTestScheduler_RunWorker_ProcessesTestCtxAndSendsResult(t *te
 	testCfg := common.SyntheticsTestConfig{
 		Version:  1,
 		Type:     "network",
-		Subtype:  string(common.SubTypeTCP),
+		Subtype:  string(payload.ProtocolTCP),
 		PublicID: "abc123",
 		Interval: 60,
 		Config: struct {
@@ -542,7 +546,7 @@ func Test_SyntheticsTestScheduler_RunWorker_ProcessesTestCtxAndSendsResult(t *te
 			Request: common.TCPConfigRequest{
 				Host:      "dst",
 				Port:      ptr(443),
-				TCPMethod: common.TCPMethodSYN,
+				TCPMethod: payload.TCPConfigSYN,
 			},
 		},
 	}
