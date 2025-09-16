@@ -69,7 +69,7 @@ jobs:
           stale-pr-label: 'stale'
 
           # Exemptions
-          exempt-issue-labels: 'kind/bug,kind/feature,kind/security,category/bugfix,category/feature,category/security'
+          exempt-issue-labels: 'kind/bug,kind/feature,kind/security,category/bugfix,category/feature,category/security,pending'
           exempt-pr-labels: 'do-not-merge/WIP,do-not-merge/hold'
 
           # Additional configuration
