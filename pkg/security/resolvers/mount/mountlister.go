@@ -23,9 +23,6 @@ import (
 
 // Adjust for your arch/kernel if needed (these match your current file)
 const (
-	SysStatmount = 457
-	SysListmount = 458
-
 	LSMTRoot = ^uint64(0)
 
 	StatmountSbBasic       = 0x00000001
@@ -127,7 +124,7 @@ func listmount(req *mntIDReq, ids []uint64) (int, error) {
 		return 0, nil
 	}
 	r1, _, e := unix.RawSyscall6(
-		SysListmount,
+		unix.SYS_LISTMOUNT,
 		uintptr(unsafe.Pointer(req)),
 		uintptr(unsafe.Pointer(&ids[0])),
 		uintptr(len(ids)),
@@ -141,7 +138,7 @@ func listmount(req *mntIDReq, ids []uint64) (int, error) {
 
 func statmount(req *mntIDReq, buf []byte) error {
 	_, _, e := unix.RawSyscall6(
-		SysStatmount,
+		unix.SYS_STATMOUNT,
 		uintptr(unsafe.Pointer(req)),
 		uintptr(unsafe.Pointer(&buf[0])),
 		uintptr(len(buf)),
