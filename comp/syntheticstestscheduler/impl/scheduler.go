@@ -9,6 +9,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
+	"math/big"
 	"sync"
 	"time"
 
@@ -39,7 +41,7 @@ type SyntheticsTestScheduler struct {
 	flushLoopDone                chan struct{}
 	epForwarder                  eventplatform.Forwarder
 	telemetry                    telemetry.Component
-	generateTestResultID         func() (string, error)
+	generateTestResultID         func(func(rand io.Reader, max *big.Int) (n *big.Int, err error)) (string, error)
 	ticker                       *time.Ticker
 	tickerC                      <-chan time.Time
 	runTraceroute                func(ctx context.Context, cfg config.Config, telemetry telemetry.Component) (payload.NetworkPath, error)

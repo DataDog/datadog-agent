@@ -9,35 +9,13 @@ package common
 import (
 	"encoding/json"
 	"fmt"
-)
 
-// SubType represents the network type of network test.
-type SubType string
-
-const (
-	// SubTypeUDP represents a udp network test.
-	SubTypeUDP SubType = "udp"
-	// SubTypeTCP represents a tcp network test.
-	SubTypeTCP SubType = "tcp"
-	// SubTypeICMP represents a icmp network test.
-	SubTypeICMP SubType = "icmp"
-)
-
-// TCPMethod represents the type of tcp network to establish.
-type TCPMethod string
-
-const (
-	// TCPMethodPreferSACK represents a preference to sack tcp method if available for network test.
-	TCPMethodPreferSACK TCPMethod = "prefer_sack"
-	// TCPMethodSYN represents a syn tcp method for network test.
-	TCPMethodSYN TCPMethod = "syn"
-	// TCPMethodSACK represents a sack tcp method for network test.
-	TCPMethodSACK TCPMethod = "sack"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
 
 // ConfigRequest represents the type configuration for a network test.
 type ConfigRequest interface {
-	GetSubType() SubType
+	GetSubType() payload.Protocol
 }
 
 // NetworkConfigRequest represents the generic part of the network test configuration.
@@ -58,21 +36,21 @@ type UDPConfigRequest struct {
 }
 
 // GetSubType returns the udp subtype.
-func (u UDPConfigRequest) GetSubType() SubType {
-	return SubTypeUDP
+func (u UDPConfigRequest) GetSubType() payload.Protocol {
+	return payload.ProtocolUDP
 }
 
 // TCPConfigRequest represents a tcp network test configuration.
 type TCPConfigRequest struct {
-	Host      string    `json:"host"`
-	Port      *int      `json:"port,omitempty"`
-	TCPMethod TCPMethod `json:"tcp_method"` // "prefer_sack" | "syn" | "sack"
+	Host      string            `json:"host"`
+	Port      *int              `json:"port,omitempty"`
+	TCPMethod payload.TCPMethod `json:"tcp_method"` // "prefer_sack" | "syn" | "sack"
 	NetworkConfigRequest
 }
 
 // GetSubType returns the tcp subtype.
-func (t TCPConfigRequest) GetSubType() SubType {
-	return SubTypeTCP
+func (t TCPConfigRequest) GetSubType() payload.Protocol {
+	return payload.ProtocolTCP
 }
 
 // ICMPConfigRequest represents a icmp network test configuration.
@@ -82,8 +60,8 @@ type ICMPConfigRequest struct {
 }
 
 // GetSubType returns the icmp subtype.
-func (i ICMPConfigRequest) GetSubType() SubType {
-	return SubTypeICMP
+func (i ICMPConfigRequest) GetSubType() payload.Protocol {
+	return payload.ProtocolICMP
 }
 
 // SyntheticsTestConfig represents the whole config of a network test.
@@ -133,20 +111,20 @@ func (c *SyntheticsTestConfig) UnmarshalJSON(data []byte) error {
 	c.PublicID = tmp.PublicID
 	c.Config.Assertions = tmp.Config.Assertions
 
-	switch SubType(tmp.Subtype) {
-	case SubTypeUDP:
+	switch payload.Protocol(tmp.Subtype) {
+	case payload.ProtocolUDP:
 		var req UDPConfigRequest
 		if err := json.Unmarshal(tmp.Config.Request, &req); err != nil {
 			return err
 		}
 		c.Config.Request = req
-	case SubTypeTCP:
+	case payload.ProtocolTCP:
 		var req TCPConfigRequest
 		if err := json.Unmarshal(tmp.Config.Request, &req); err != nil {
 			return err
 		}
 		c.Config.Request = req
-	case SubTypeICMP:
+	case payload.ProtocolICMP:
 		var req ICMPConfigRequest
 		if err := json.Unmarshal(tmp.Config.Request, &req); err != nil {
 			return err

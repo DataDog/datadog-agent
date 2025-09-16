@@ -10,6 +10,7 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math/big"
 	"sync"
 	"time"
@@ -135,8 +136,8 @@ type WorkerResult struct {
 func toNetpathConfig(c common.SyntheticsTestConfig) (config.Config, error) {
 	var cfg config.Config
 
-	switch common.SubType(c.Subtype) {
-	case common.SubTypeUDP:
+	switch payload.Protocol(c.Subtype) {
+	case payload.ProtocolUDP:
 		req, ok := c.Config.Request.(common.UDPConfigRequest)
 		if !ok {
 			return config.Config{}, fmt.Errorf("invalid UDP request type")
@@ -159,7 +160,7 @@ func toNetpathConfig(c common.SyntheticsTestConfig) (config.Config, error) {
 			cfg.DestinationService = *req.DestinationService
 		}
 
-	case common.SubTypeTCP:
+	case payload.ProtocolTCP:
 		req, ok := c.Config.Request.(common.TCPConfigRequest)
 		if !ok {
 			return config.Config{}, fmt.Errorf("invalid TCP request type")
@@ -182,8 +183,7 @@ func toNetpathConfig(c common.SyntheticsTestConfig) (config.Config, error) {
 		if req.DestinationService != nil {
 			cfg.DestinationService = *req.DestinationService
 		}
-
-	case common.SubTypeICMP:
+	case payload.ProtocolICMP:
 		req, ok := c.Config.Request.(common.ICMPConfigRequest)
 		if !ok {
 			return config.Config{}, fmt.Errorf("invalid ICMP request type")
@@ -264,7 +264,7 @@ func (s *SyntheticsTestScheduler) networkPathToTestResult(w *WorkerResult) (*com
 		Version:    w.testCfg.cfg.Version,
 	}
 
-	testResultID, err := s.generateTestResultID()
+	testResultID, err := s.generateTestResultID(rand.Int)
 	if err != nil {
 		return nil, err
 	}
@@ -318,9 +318,9 @@ func (s *SyntheticsTestScheduler) networkPathToTestResult(w *WorkerResult) (*com
 }
 
 // generateRandomStringUInt63 returns a cryptographically random uint63 as decimal string.
-func generateRandomStringUInt63() (string, error) {
+func generateRandomStringUInt63(randIntFn func(rand io.Reader, max *big.Int) (n *big.Int, err error)) (string, error) {
 	maxi := new(big.Int).Lsh(big.NewInt(1), 63) // 2^63
-	n, err := rand.Int(rand.Reader, maxi)       // 0 <= n < 2^63
+	n, err := randIntFn(rand.Reader, maxi)      // 0 <= n < 2^63
 	if err != nil {
 		return "", err
 	}
