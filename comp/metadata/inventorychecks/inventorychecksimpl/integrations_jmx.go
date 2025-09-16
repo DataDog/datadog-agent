@@ -42,8 +42,8 @@ func (ic *inventorychecksImpl) getJMXChecksMetadata() (jmxMetadata map[string][]
 			scrubbedInitConfigYaml, err := scrubber.ScrubYaml(initConfigYaml)
 			if err != nil {
 				ic.log.Warnf("could not scrub JMX init_config for %s: %v", jmxName, err)
-				// Continue with unscubbed data if scrubbing fails
-				scrubbedInitConfigYaml = initConfigYaml
+				// Return early if scrubbing fails to avoid sending unscrubbed data
+				return
 			}
 
 			instances := jmxIntegration["instances"].([]integration.JSONMap)
@@ -60,8 +60,8 @@ func (ic *inventorychecksImpl) getJMXChecksMetadata() (jmxMetadata map[string][]
 				scrubbedInstanceYaml, err := scrubber.ScrubYaml(instanceYaml)
 				if err != nil {
 					ic.log.Warnf("could not scrub JMX instance config for %s: %v", jmxName, err)
-					// Continue with unscubbed data if scrubbing fails
-					scrubbedInstanceYaml = instanceYaml
+					// Return early if scrubbing fails to avoid sending unscrubbed data
+					return
 				}
 
 				if instance["name"] != nil {
