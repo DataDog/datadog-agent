@@ -82,6 +82,10 @@ type localTagger struct {
 	cancel                     context.CancelFunc
 }
 
+func (t *localTagger) ProcessTagInfo(tagInfo []*types.TagInfo) {
+	t.tagStore.ProcessTagInfo(tagInfo)
+}
+
 // Requires defines the dependencies of the tagger component.
 type Requires struct {
 	compdef.In
