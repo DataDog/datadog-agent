@@ -15,24 +15,24 @@ import (
 	"io"
 	"math/big"
 	"net"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/comp/syntheticstestscheduler/common"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	utillog "github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
 func Test_SyntheticsTestScheduler_StartAndStop(t *testing.T) {
@@ -427,9 +427,7 @@ func Test_SyntheticsTestScheduler_Processing(t *testing.T) {
 			assert.Nil(t, err)
 			utillog.SetupLogger(l, "debug")
 
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-			mockEpForwarder := eventplatformimpl.NewMockEventPlatformForwarder(ctrl)
+			mockForwarder := &forwarder.MockedForwarder{}
 
 			fixedBase := time.UnixMilli(1756901488589)
 			step := 0
@@ -440,7 +438,7 @@ func Test_SyntheticsTestScheduler_Processing(t *testing.T) {
 			}
 
 			ctx, cancel := context.WithCancel(context.TODO())
-			scheduler, err := newSyntheticsTestScheduler(configs, mockEpForwarder, l, &mockHostname{}, timeNowFn, cancel)
+			scheduler, err := newSyntheticsTestScheduler(configs, mockForwarder, l, &mockHostname{}, timeNowFn, cancel)
 			assert.Nil(t, err)
 			assert.False(t, scheduler.running)
 
@@ -467,20 +465,23 @@ func Test_SyntheticsTestScheduler_Processing(t *testing.T) {
 			var compactJSON bytes.Buffer
 			assert.Nil(t, json.Compact(&compactJSON, []byte(tc.expectedEventJSON)))
 
+			compactBytes := compactJSON.Bytes()
+			payloads := []*[]byte{&compactBytes}
 			done := make(chan struct{})
-			mockEpForwarder.EXPECT().
-				SendEventPlatformEventBlocking(message.NewMessage(compactJSON.Bytes(), nil, "", 0), eventplatform.EventTypeSynthetics).
-				Do(func(_, _ interface{}) { close(done) }).
-				Return(nil).Times(1)
+			mockForwarder.On("SubmitSyntheticsTestResults", transaction.NewBytesPayloadsWithoutMetaData(payloads), http.Header(nil)).Run(func(mock.Arguments) {
+				close(done)
+			}).Return(nil).Times(1)
 
 			assert.Nil(t, scheduler.start(ctx))
 
 			select {
 			case <-done:
+				mockForwarder.AssertExpectations(t)
 			case <-time.After(3 * time.Second):
 				t.Fatal("mock was never called")
 			}
 			scheduler.stop()
+
 		})
 	}
 }

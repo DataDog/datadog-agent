@@ -54,4 +54,6 @@ var (
 	OrchestratorEndpoint = transaction.Endpoint{Route: "/api/v2/orch", Name: "orchestrator"}
 	// OrchestratorManifestEndpoint is a v2 endpoint used to send orchestrator manifests
 	OrchestratorManifestEndpoint = transaction.Endpoint{Route: "/api/v2/orchmanif", Name: "orchmanifest"}
+	// SyntheticsEndpoint is a v1 endpoint used to send synthetics results
+	SyntheticsEndpoint = transaction.Endpoint{Route: "/api/v1/synthetics/agents/results", Name: "synthetics"}
 )
