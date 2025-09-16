@@ -24,7 +24,7 @@ end
 source url: "https://zlib.net/fossils/zlib-#{version}.tar.gz",
        extract: :seven_zip
 
-relative_path "zlib-#{version}"
+# relative_path "zlib-#{version}"
 
 build do
   license "Zlib"
