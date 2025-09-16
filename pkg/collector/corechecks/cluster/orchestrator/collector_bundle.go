@@ -476,26 +476,25 @@ func newBuiltinCRDConfig(group, kind string, enabled bool, preferredVersion stri
 
 // newBuiltinCRDConfigs returns the configuration for all built-in CRDs.
 func newBuiltinCRDConfigs() []builtinCRDConfig {
-	isDatadogCRDEnabled := pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.custom_resources.datadog.enabled")
-	isThirdPartyCRDEnabled := pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.custom_resources.third_party.enabled")
+	isOOTBCRDEnabled := pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.custom_resources.ootb.enabled")
 
 	return []builtinCRDConfig{
 		// Datadog resources
-		newBuiltinCRDConfig(datadogAPIGroup, "datadogslos", isDatadogCRDEnabled, "v1alpha1"),
-		newBuiltinCRDConfig(datadogAPIGroup, "datadogdashboards", isDatadogCRDEnabled, "v1alpha1"),
-		newBuiltinCRDConfig(datadogAPIGroup, "datadogagentprofiles", isDatadogCRDEnabled, "v1alpha1"),
-		newBuiltinCRDConfig(datadogAPIGroup, "datadogmonitors", isDatadogCRDEnabled, "v1alpha1"),
-		newBuiltinCRDConfig(datadogAPIGroup, "datadogmetrics", isDatadogCRDEnabled, "v1alpha1"),
-		newBuiltinCRDConfig(datadogAPIGroup, "datadogpodautoscalers", isDatadogCRDEnabled, "v1alpha2"),
-		newBuiltinCRDConfig(datadogAPIGroup, "datadogagents", isDatadogCRDEnabled, "v2alpha1"),
+		newBuiltinCRDConfig(datadogAPIGroup, "datadogslos", isOOTBCRDEnabled, "v1alpha1"),
+		newBuiltinCRDConfig(datadogAPIGroup, "datadogdashboards", isOOTBCRDEnabled, "v1alpha1"),
+		newBuiltinCRDConfig(datadogAPIGroup, "datadogagentprofiles", isOOTBCRDEnabled, "v1alpha1"),
+		newBuiltinCRDConfig(datadogAPIGroup, "datadogmonitors", isOOTBCRDEnabled, "v1alpha1"),
+		newBuiltinCRDConfig(datadogAPIGroup, "datadogmetrics", isOOTBCRDEnabled, "v1alpha1"),
+		newBuiltinCRDConfig(datadogAPIGroup, "datadogpodautoscalers", isOOTBCRDEnabled, "v1alpha2"),
+		newBuiltinCRDConfig(datadogAPIGroup, "datadogagents", isOOTBCRDEnabled, "v2alpha1"),
 
 		// Argo resources
-		newBuiltinCRDConfig(ArgoAPIGroup, "rollouts", isThirdPartyCRDEnabled, "v1alpha1"),
+		newBuiltinCRDConfig(ArgoAPIGroup, "rollouts", isOOTBCRDEnabled, "v1alpha1"),
 
 		// Karpenter resources (empty kind = all resources in group)
-		newBuiltinCRDConfig(KarpenterAPIGroup, "", isThirdPartyCRDEnabled, "v1"),
-		newBuiltinCRDConfig(KarpenterAWSAPIGroup, "", isThirdPartyCRDEnabled, "v1"),
-		newBuiltinCRDConfig(KarpenterAzureAPIGroup, "", isThirdPartyCRDEnabled, "v1beta1"),
+		newBuiltinCRDConfig(KarpenterAPIGroup, "", isOOTBCRDEnabled, "v1"),
+		newBuiltinCRDConfig(KarpenterAWSAPIGroup, "", isOOTBCRDEnabled, "v1"),
+		newBuiltinCRDConfig(KarpenterAzureAPIGroup, "", isOOTBCRDEnabled, "v1beta1"),
 	}
 }
 
