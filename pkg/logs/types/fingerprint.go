@@ -33,6 +33,7 @@ func (f *Fingerprint) Equals(other *Fingerprint) bool {
 
 // ValidFingerprint returns true if the fingerprint is valid (non-zero value and non-nil config)
 func (f *Fingerprint) ValidFingerprint() bool {
+	// TODO maybe we want another case for partial tail? 
 	return f.Value != InvalidFingerprintValue && f.Config != nil
 }
 

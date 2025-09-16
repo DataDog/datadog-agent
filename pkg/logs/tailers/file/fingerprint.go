@@ -30,7 +30,7 @@ var defaultLinesConfig = &types.FingerprintConfig{
 	Count:               1,
 	CountToSkip:         0,
 	MaxBytes:            10000,
-}
+} // TODO update to do bytes by default
 
 // Fingerprinter is a struct that contains the fingerprinting configuration
 type Fingerprinter struct {
@@ -189,6 +189,7 @@ func computeFingerPrintByBytes(fpFile *os.File, filePath string, fingerprintConf
 
 	// Check if we have enough bytes to create a meaningful fingerprint
 	if bytesRead == 0 || bytesRead < maxBytes {
+		// TODO update to allow invalid fingerprints for partial tail ; so maybe we want a different type of fingerprint / not just an invalid?
 		log.Debugf("No bytes available for fingerprinting file %q", filePath)
 		return newInvalidFingerprint(fingerprintConfig), nil
 	}
