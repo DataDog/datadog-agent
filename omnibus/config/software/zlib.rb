@@ -57,6 +57,6 @@ build do
     make(*make_args, env: env)
     make("install", *make_args, env: env)
   else
-    bazelisk run -- @zlib//:install --destdir="/"
+    command "bazelisk run -- @zlib//:install --destdir='/'"
   end
 end
