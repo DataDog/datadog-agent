@@ -688,24 +688,24 @@ feature:
 			name: "underflow int config map",
 			conf: `
 feature:
-  uint8:  123
-  uint16: 1234
-  uint32: 1234
-  uint64: 1234
-  int8:  123
-  int16: 1234
-  int32: 1234
-  int64: 1234
+  uint8:  -123
+  uint16: -1234
+  uint32: -1234
+  uint64: -1234
+  int8:  -123
+  int16: -1234
+  int32: -1234
+  int64: -1234
 `,
 			want: uintConfig{
-				Fielduint8:  123,
-				Fielduint16: 1234,
-				Fielduint32: 1234,
-				Fielduint64: 1234,
-				Fieldint8:   123,
-				Fieldint16:  1234,
-				Fieldint32:  1234,
-				Fieldint64:  1234,
+				Fielduint8:  133, // negative underflows and wraps around
+				Fielduint16: 64302,
+				Fielduint32: 4294966062,
+				Fielduint64: 18446744073709550382,
+				Fieldint8:   -123,
+				Fieldint16:  -1234,
+				Fieldint32:  -1234,
+				Fieldint64:  -1234,
 			},
 		},
 	}
