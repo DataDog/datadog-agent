@@ -512,8 +512,15 @@ func TestKnownDistributionsQuantile(t *testing.T) {
 	fN := float64(N)
 
 	// acceptableRelativeError for quantile estimation.
-	// Right now it is set to 4%. Anything below 5% is acceptable based on the SDK defaults.
-	// The relative error depends on the scale as well as the range of the distribution.
+	//
+	// We want to guarantee a 4% relative error for distributions with this range.
+	//
+	// This percentage is inspired by the percentage the OTel SDK defaults aim for, which is 5% under some
+	// assumptions on what the distribution looks like:
+	// https://opentelemetry.io/docs/specs/otel/metrics/sdk/#base2-exponential-bucket-histogram-aggregation
+	//
+	// This is no guarantee on the actual relative error for distributions found in the wild.
+	// The relative error depends on the bucket widths of the distribution.
 	const acceptableRelativeError = 0.04
 
 	ctx := context.Background()

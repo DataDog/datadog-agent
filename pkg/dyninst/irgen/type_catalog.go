@@ -13,6 +13,7 @@ import (
 	"math"
 	"reflect"
 
+	"github.com/DataDog/datadog-agent/pkg/dyninst/gotype"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 )
 
@@ -28,29 +29,24 @@ func (a *idAllocator[I]) next() I {
 }
 
 type typeCatalog struct {
-	maxDynamicTypeSize uint32
-	maxHashBucketsSize uint32
-	ptrSize            uint8
-	dwarf              *dwarf.Data
-	idAlloc            idAllocator[ir.TypeID]
-	typesByDwarfType   map[dwarf.Offset]ir.TypeID
-	typesByID          map[ir.TypeID]ir.Type
+	ptrSize              uint8
+	dwarf                *dwarf.Data
+	idAlloc              idAllocator[ir.TypeID]
+	typesByDwarfType     map[dwarf.Offset]ir.TypeID
+	typesByID            map[ir.TypeID]ir.Type
+	typesByGoRuntimeType map[gotype.TypeID]ir.TypeID
 }
 
 func newTypeCatalog(
 	dwarfData *dwarf.Data,
 	ptrSize uint8,
-	maxDynamicTypeSize uint32,
-	maxHashBucketsSize uint32,
 ) *typeCatalog {
 	return &typeCatalog{
-		maxDynamicTypeSize: maxDynamicTypeSize,
-		maxHashBucketsSize: maxHashBucketsSize,
-		ptrSize:            ptrSize,
-		dwarf:              dwarfData,
-		idAlloc:            idAllocator[ir.TypeID]{},
-		typesByDwarfType:   make(map[dwarf.Offset]ir.TypeID),
-		typesByID:          make(map[ir.TypeID]ir.Type),
+		ptrSize:          ptrSize,
+		dwarf:            dwarfData,
+		idAlloc:          idAllocator[ir.TypeID]{},
+		typesByDwarfType: make(map[dwarf.Offset]ir.TypeID),
+		typesByID:        make(map[ir.TypeID]ir.Type),
 	}
 }
 
@@ -295,6 +291,14 @@ func (c *typeCatalog) buildType(
 				}
 				if id, ok := c.typesByDwarfType[underlyingTypeOffset]; ok {
 					pointee = c.typesByID[id]
+					r.Seek(underlyingTypeOffset)
+					pointeeEntry, err = r.Next()
+					if err != nil {
+						return nil, err
+					}
+					if pointeeEntry == nil {
+						return nil, fmt.Errorf("unexpected EOF while reading pointee type")
+					}
 				} else {
 					haveUnderlyingType = true
 				}
@@ -302,9 +306,14 @@ func (c *typeCatalog) buildType(
 			// If there was no type found, we need to allocate a new placeholder
 			// type.
 			if pointee == nil {
+				attributes, err := getGoTypeAttributes(pointeeEntry)
+				if err != nil {
+					return nil, err
+				}
 				pt := &pointeePlaceholderType{
-					id:     c.idAlloc.next(),
-					offset: pointeeOffset,
+					id:               c.idAlloc.next(),
+					offset:           pointeeOffset,
+					GoTypeAttributes: attributes,
 				}
 				pointee = pt
 				c.typesByID[pt.id] = pt
@@ -402,7 +411,7 @@ func (c *typeCatalog) buildType(
 			case *ir.GoSwissMapHeaderType:
 			default:
 				return nil, fmt.Errorf(
-					"underlying type for map is not a structure type: %T",
+					"unexpected underlying type for map header: %T",
 					pointee,
 				)
 			}
@@ -702,9 +711,15 @@ func (t *placeHolderType) GetID() ir.TypeID {
 }
 
 type pointeePlaceholderType struct {
-	ir.Type
-	id     ir.TypeID
+	id ir.TypeID
+	ir.GoTypeAttributes
 	offset dwarf.Offset
+
+	innerPlaceholderType
+}
+
+type innerPlaceholderType struct {
+	ir.Type
 }
 
 func (t *pointeePlaceholderType) GetID() ir.TypeID {

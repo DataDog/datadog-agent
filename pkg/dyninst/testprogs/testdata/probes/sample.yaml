@@ -133,6 +133,15 @@ probes:
   where:
     methodName: main.testMassiveString
   captureSnapshot: true
+- id: testMassiveStringWithSizeLimit
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testMassiveString
+  captureSnapshot: true
+  capture:
+    maxLength: 11
 - id: testEmptyString
   type: LOG_PROBE
   tags:
@@ -140,6 +149,8 @@ probes:
   where:
     methodName: main.testEmptyString
   captureSnapshot: true
+  sampling:
+    snapshotsPerSecond: 10
 - id: testThreeStrings
   type: LOG_PROBE
   tags:
@@ -292,7 +303,7 @@ probes:
   tags:
     - "foo:bar"
   where:
-     methodName: main.testArrayOfArraysOfArrays
+    methodName: main.testArrayOfArraysOfArrays
   captureSnapshot: true
 # - id: testArrayOfStructs
 #   type: LOG_PROBE
@@ -313,6 +324,15 @@ probes:
   where:
     methodName: main.testVeryLargeSlice
   captureSnapshot: true
+- id: testVeryLargeSliceWithSizeLimit
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testVeryLargeSlice
+  captureSnapshot: true
+  capture:
+    collectionSizeLimit: 12
 - id: testVeryLargeArray
   type: LOG_PROBE
   tags:
@@ -558,6 +578,15 @@ probes:
   where:
     methodName: main.testMapMassive
   captureSnapshot: true
+- id: testMapMassiveWithSizeLimit
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testMapMassive
+  captureSnapshot: true
+  capture:
+    collectionSizeLimit: 3
 - id: testMapEmbeddedMaps
   type: LOG_PROBE
   tags:
@@ -790,6 +819,25 @@ probes:
   type: LOG_PROBE
   where:
     methodName: main.testStringType2
+  captureSnapshot: true
+  capture:
+    maxReferenceDepth: 1
+- id: testEmptyStructPointer
+  type: LOG_PROBE
+  where:
+    methodName: main.testEmptyStructPointer
+  captureSnapshot: true
+- id: testAnyPtr
+  type: LOG_PROBE
+  where:
+    methodName: main.testAnyPtr
+  captureSnapshot: true
+  sampling:
+    snapshotsPerSecond: 10
+- id: testStructWithAny
+  type: LOG_PROBE
+  where:
+    methodName: main.testStructWithAny
   captureSnapshot: true
   capture:
     maxReferenceDepth: 1

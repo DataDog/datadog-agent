@@ -27,6 +27,7 @@ import (
 	"debug/dwarf"
 	"errors"
 	"fmt"
+	"io"
 	"iter"
 	"maps"
 	"math"
@@ -42,6 +43,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dwarf/dwarfutil"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dwarf/loclist"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/gotype"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -135,12 +137,43 @@ func generateIR(
 	// Build the initial set of interests from the provided probe definitions.
 	interests, issues := makeInterests(probeDefs)
 
+	cleanupCloser := func(c io.Closer, name string) func() {
+		return func() {
+			err := c.Close()
+			if err == nil {
+				return
+			}
+			err = fmt.Errorf("failed to close %s: %w", name, err)
+			if retErr != nil {
+				retErr = errors.Join(retErr, err)
+			} else {
+				retErr = err
+			}
+		}
+	}
+
 	// Prepare the main DWARF visitor that will gather all the information we
 	// need from the binary.
 	arch := objFile.Architecture()
 	ptrSize := uint8(arch.PointerSize())
 	d := objFile.DwarfData()
-	processed, err := processDwarf(interests, d, arch)
+
+	typeTab, err := gotype.NewTable(objFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create type table: %w", err)
+	}
+	defer cleanupCloser(typeTab, "gotype.Table")()
+	typeTabSize := typeTab.DataByteSize()
+
+	typeIndexBuilder, err := cfg.typeIndexFactory.newGoTypeToOffsetIndexBuilder(
+		programID, typeTabSize,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create type index builder: %w", err)
+	}
+	defer cleanupCloser(typeIndexBuilder, "type index builder")()
+
+	processed, err := processDwarf(interests, d, arch, typeIndexBuilder)
 	if err != nil {
 		return nil, err
 	}
@@ -168,13 +201,29 @@ func generateIR(
 		return nil, err
 	}
 
-	typeCatalog := newTypeCatalog(
-		d, ptrSize, cfg.maxDynamicTypeSize, cfg.maxHashBucketsSize,
-	)
+	typeCatalog := newTypeCatalog(d, ptrSize)
+	var commonTypes ir.CommonTypes
 	for _, offset := range processed.interestingTypes {
-		if _, err := typeCatalog.addType(offset); err != nil {
+		t, err := typeCatalog.addType(offset)
+		if err != nil {
 			return nil, fmt.Errorf("failed to add type at offset %#x: %w", offset, err)
 		}
+		ok := true
+		switch t.GetName() {
+		case "runtime.g":
+			commonTypes.G, ok = t.(*ir.StructureType)
+		case "runtime.m":
+			commonTypes.M, ok = t.(*ir.StructureType)
+		}
+		if !ok {
+			return nil, fmt.Errorf("expected structure type for %q, got %T", t.GetName(), t)
+		}
+	}
+	if commonTypes.G == nil {
+		return nil, fmt.Errorf("runtime.g not found")
+	}
+	if commonTypes.M == nil {
+		return nil, fmt.Errorf("runtime.m not found")
 	}
 
 	// Materialize before creating probes so IR subprograms and vars exist.
@@ -185,6 +234,40 @@ func generateIR(
 		return nil, err
 	}
 
+	typeIndex, err := typeIndexBuilder.build()
+	if err != nil {
+		return nil, fmt.Errorf("failed to build type index: %w", err)
+	}
+	defer cleanupCloser(typeIndex, "type index")()
+
+	ib, err := cfg.typeIndexFactory.newMethodToGoTypeIndexBuilder(programID, typeTabSize)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create method index builder: %w", err)
+	}
+	defer cleanupCloser(ib, "method index builder")()
+
+	var methodBuf []gotype.Method
+	for tid := range typeIndex.allGoTypes() {
+		goType, err := typeTab.ParseGoType(tid)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse go type: %w", err)
+		}
+		methodBuf, err = goType.Methods(methodBuf[:0])
+		if err != nil {
+			return nil, fmt.Errorf("failed to get methods: %w", err)
+		}
+		for _, m := range methodBuf {
+			if err := ib.addMethod(m, tid); err != nil {
+				return nil, fmt.Errorf("failed to add method implementation: %w", err)
+			}
+		}
+	}
+	methodIndex, err := ib.build()
+	if err != nil {
+		return nil, fmt.Errorf("failed to build method index: %w", err)
+	}
+	defer cleanupCloser(methodIndex, "method index")()
+
 	// Resolve placeholder types by a unified, budgeted expansion from
 	// subprogram parameter roots. Container internals are zero-cost.
 	{
@@ -193,7 +276,9 @@ func generateIR(
 		if err := completeGoTypes(typeCatalog, 1, typeCatalog.idAlloc.alloc); err != nil {
 			return nil, err
 		}
-		if err := expandTypesWithBudgets(typeCatalog, materializedSubprograms, budgets); err != nil {
+		if err := expandTypesWithBudgets(
+			typeCatalog, typeTab, methodIndex, typeIndex, materializedSubprograms, budgets,
+		); err != nil {
 			return nil, err
 		}
 	}
@@ -241,6 +326,7 @@ func generateIR(
 		MaxTypeID:        typeCatalog.idAlloc.alloc,
 		Issues:           issues,
 		GoModuledataInfo: processed.goModuledataInfo,
+		CommonTypes:      commonTypes,
 	}, nil
 }
 
@@ -315,6 +401,9 @@ func newTypeQueue() *typeQueue {
 // ensure correct container specialization.
 func expandTypesWithBudgets(
 	tc *typeCatalog,
+	goTypes *gotype.Table,
+	methodIndex methodToGoTypeIndex,
+	gotypeTypeIndex goTypeToOffsetIndex,
 	subprograms []*ir.Subprogram,
 	budgets map[ir.SubprogramID]uint32,
 ) error {
@@ -356,6 +445,8 @@ func expandTypesWithBudgets(
 		return completeGoTypes(tc, id, id)
 	}
 
+	var methodBuf []gotype.IMethod
+	ii := makeImplementorIterator(methodIndex)
 	for q.Len() > 0 {
 		wi := q.pop()
 		if r, ok := processedBest[wi.id]; ok && wi.remaining <= r {
@@ -368,9 +459,6 @@ func expandTypesWithBudgets(
 		}
 
 		t := tc.typesByID[wi.id]
-		if t == nil {
-			continue
-		}
 
 		switch tt := t.(type) {
 
@@ -379,11 +467,70 @@ func expandTypesWithBudgets(
 			*ir.EventRootType,
 			*ir.GoChannelType,
 			*ir.GoEmptyInterfaceType,
-			*ir.GoInterfaceType,
 			*ir.GoStringDataType,
 			*ir.GoSubroutineType,
 			*ir.UnresolvedPointeeType,
 			*ir.VoidPointerType:
+
+		case *ir.GoInterfaceType:
+			if wi.remaining <= 0 {
+				break
+			}
+			// Now we need to iterate through the implementations of the
+			// interface.
+			grtID, ok := tt.GetGoRuntimeType()
+			if !ok {
+				break
+			}
+			grt, err := goTypes.ParseGoType(gotype.TypeID(grtID))
+			if err != nil {
+				return fmt.Errorf("failed to parse go type for interface %q: %w", tt.GetName(), err)
+			}
+			iface, ok := grt.Interface()
+			if !ok {
+				return fmt.Errorf("go type for interface %q is not an interface: %v", tt.GetName(), grt.Kind())
+			}
+			methods, err := iface.Methods(methodBuf[:0])
+			if err != nil {
+				return fmt.Errorf("failed to get methods for interface %q: %w", tt.GetName(), err)
+			}
+			for ii.seek(methods); ii.valid(); ii.next() {
+				impl := ii.cur()
+				var t ir.Type
+				if tid, ok := tc.typesByGoRuntimeType[impl]; ok {
+					t = tc.typesByID[tid]
+				} else {
+					implOffset, ok := gotypeTypeIndex.resolveDwarfOffset(impl)
+					if !ok {
+						// This is suspicious, but not obviously worth failing out
+						// over.
+						continue
+					}
+					if tid, ok := tc.typesByDwarfType[implOffset]; ok {
+						t = tc.typesByID[tid]
+					} else {
+						var err error
+						t, err = tc.addType(implOffset)
+						if err != nil {
+							return fmt.Errorf("failed to add type for implementation of %q: %w", tt.GetName(), err)
+						}
+						if err := ensureCompleted(t.GetID()); err != nil {
+							return fmt.Errorf("failed to complete type for implementation of %q: %w", tt.GetName(), err)
+						}
+					}
+				}
+				if ppt, ok := t.(*pointeePlaceholderType); ok {
+					var err error
+					t, err = tc.addType(ppt.offset)
+					if err != nil {
+						return fmt.Errorf("failed to add type for implementation of %q: %w", tt.GetName(), err)
+					}
+					if err := ensureCompleted(t.GetID()); err != nil {
+						return fmt.Errorf("failed to complete type for implementation of %q: %w", tt.GetName(), err)
+					}
+				}
+				push(t, wi.remaining-1)
+			}
 
 		// Zero-cost neighbors (do not dereference pointers here).
 		case *ir.StructureType:
@@ -415,7 +562,7 @@ func expandTypesWithBudgets(
 
 		// Depth-cost step: pointer dereference.
 		case *ir.PointerType:
-			if wi.remaining == 0 {
+			if wi.remaining <= 0 {
 				break
 			}
 			if placeholder, ok := tt.Pointee.(*pointeePlaceholderType); ok {
@@ -704,6 +851,7 @@ func processDwarf(
 	interests interests,
 	d *dwarf.Data,
 	arch object.Architecture,
+	typeIndexBuilder goTypeToOffsetIndexBuilder,
 ) (processedDwarf, error) {
 	v := &rootVisitor{
 		interests:           interests,
@@ -712,6 +860,7 @@ func processDwarf(
 		abstractSubprograms: make(map[dwarf.Offset]*abstractSubprogram),
 		inlinedSubprograms:  make(map[*dwarf.Entry][]*inlinedSubprogram),
 		pointerSize:         uint8(arch.PointerSize()),
+		typeIndexBuilder:    typeIndexBuilder,
 	}
 
 	// Visit the entire DWARF tree.
@@ -885,7 +1034,9 @@ func completeGoMapType(tc *typeCatalog, t *ir.GoMapType) error {
 			t.Name, headerType, headerStructureType,
 		)
 	}
-
+	// Convert the header type from a structure type to the appropriate
+	// Go-specific type.
+	//
 	// Use the type name to determine whether this is an hmap or a swiss map.
 	// We could alternatively use the go version or the structure field layout.
 	// This works for now.
@@ -984,9 +1135,10 @@ func completeSwissMapHeaderType(tc *typeCatalog, st *ir.StructureType) error {
 
 	tablePtrSliceDataType := &ir.GoSliceDataType{
 		TypeCommon: ir.TypeCommon{
-			ID:       tc.idAlloc.next(),
-			Name:     fmt.Sprintf("[]%s.array", tablePtrType.GetName()),
-			ByteSize: tc.maxHashBucketsSize,
+			ID:               tc.idAlloc.next(),
+			Name:             fmt.Sprintf("[]%s.array", tablePtrType.GetName()),
+			DynamicSizeClass: ir.DynamicSizeHashmap,
+			ByteSize:         tablePtrType.GetByteSize(),
 		},
 		Element: tablePtrType,
 	}
@@ -994,9 +1146,10 @@ func completeSwissMapHeaderType(tc *typeCatalog, st *ir.StructureType) error {
 
 	groupSliceType := &ir.GoSliceDataType{
 		TypeCommon: ir.TypeCommon{
-			ID:       tc.idAlloc.next(),
-			Name:     fmt.Sprintf("[]%s.array", groupType.GetName()),
-			ByteSize: uint32(tc.maxDynamicTypeSize),
+			ID:               tc.idAlloc.next(),
+			Name:             fmt.Sprintf("[]%s.array", groupType.GetName()),
+			DynamicSizeClass: ir.DynamicSizeSlice,
+			ByteSize:         groupType.GetByteSize(),
 		},
 		Element: groupType,
 	}
@@ -1044,9 +1197,10 @@ func completeHMapHeaderType(tc *typeCatalog, st *ir.StructureType) error {
 	}
 	bucketsSliceDataType := &ir.GoSliceDataType{
 		TypeCommon: ir.TypeCommon{
-			ID:       tc.idAlloc.next(),
-			Name:     fmt.Sprintf("[]%s.array", bucketsType.GetName()),
-			ByteSize: tc.maxDynamicTypeSize,
+			ID:               tc.idAlloc.next(),
+			Name:             fmt.Sprintf("[]%s.array", bucketsType.GetName()),
+			DynamicSizeClass: ir.DynamicSizeHashmap,
+			ByteSize:         bucketsType.GetByteSize(),
 		},
 		Element: bucketsType,
 	}
@@ -1068,9 +1222,10 @@ func completeGoStringType(tc *typeCatalog, st *ir.StructureType) error {
 	}
 	strDataType := &ir.GoStringDataType{
 		TypeCommon: ir.TypeCommon{
-			ID:       tc.idAlloc.next(),
-			Name:     fmt.Sprintf("%s.str", st.Name),
-			ByteSize: tc.maxDynamicTypeSize,
+			ID:               tc.idAlloc.next(),
+			Name:             fmt.Sprintf("%s.str", st.Name),
+			DynamicSizeClass: ir.DynamicSizeString,
+			ByteSize:         1,
 		},
 	}
 	tc.typesByID[strDataType.ID] = strDataType
@@ -1103,9 +1258,10 @@ func completeGoSliceType(tc *typeCatalog, st *ir.StructureType) error {
 	}
 	arrayDataType := &ir.GoSliceDataType{
 		TypeCommon: ir.TypeCommon{
-			ID:       tc.idAlloc.next(),
-			Name:     fmt.Sprintf("%s.array", st.Name),
-			ByteSize: tc.maxDynamicTypeSize,
+			ID:               tc.idAlloc.next(),
+			Name:             fmt.Sprintf("%s.array", st.Name),
+			DynamicSizeClass: ir.DynamicSizeSlice,
+			ByteSize:         elementType.GetByteSize(),
 		},
 		Element: elementType,
 	}
@@ -1219,6 +1375,7 @@ type rootVisitor struct {
 	// InlinedSubprograms grouped by the compilation unit entry.
 	inlinedSubprograms map[*dwarf.Entry][]*inlinedSubprogram
 	interestingTypes   []dwarf.Offset
+	typeIndexBuilder   goTypeToOffsetIndexBuilder
 
 	goRuntimeInformation ir.GoModuledataInfo
 
@@ -1371,11 +1528,31 @@ func (v *unitChildVisitor) push(
 		if err != nil || !ok {
 			return nil, err
 		}
-		nameWithoutStar := name
-		if entry.Tag == dwarf.TagPointerType {
-			nameWithoutStar = name[1:]
+
+		goAttrs, err := getGoTypeAttributes(entry)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get go type attributes: %w", err)
 		}
-		if primitiveTypeNameRegexp.MatchString(nameWithoutStar) {
+		if gt, ok := goAttrs.GetGoRuntimeType(); ok {
+			if err := v.root.typeIndexBuilder.addType(
+				gotype.TypeID(gt), entry.Offset,
+			); err != nil {
+				return nil, fmt.Errorf("failed to add type %q: %w", name, err)
+			}
+		}
+
+		interesting := false
+		if entry.Tag != dwarf.TagTypedef && (name == "runtime.g" || name == "runtime.m") {
+			interesting = true
+		}
+		if !interesting {
+			nameWithoutStar := name
+			if entry.Tag == dwarf.TagPointerType {
+				nameWithoutStar = name[1:]
+			}
+			interesting = primitiveTypeNameRegexp.MatchString(nameWithoutStar)
+		}
+		if interesting {
 			v.root.interestingTypes = append(v.root.interestingTypes, entry.Offset)
 		}
 		return nil, nil

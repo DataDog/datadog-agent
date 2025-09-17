@@ -45,7 +45,7 @@ func ParseSbomPayload(payload api.Payload) ([]*SBOMPayload, error) {
 
 	msg := agentmodel.SBOMPayload{}
 	if err := proto.Unmarshal(inflated, &msg); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error parsing SBOM payload: data_len=%d, inflated_len=%d, encoding=%s, first_few_data_bytes=%v: %w", len(payload.Data), len(inflated), payload.Encoding, payload.Data[:min(20, len(payload.Data))], err)
 	}
 
 	payloads := make([]*SBOMPayload, len(msg.Entities))

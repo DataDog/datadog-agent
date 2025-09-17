@@ -10,7 +10,6 @@ package module_test
 import (
 	"encoding/json"
 	"errors"
-	"io"
 	"maps"
 	"net/url"
 	"slices"
@@ -24,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/module"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcscrape"
@@ -95,18 +95,14 @@ type fakeDecoder struct {
 type decodeCall struct {
 	event        decode.Event
 	symbolicator symbol.Symbolicator
-	out          io.Writer
+	out          []byte
 }
 
 func (f *fakeDecoder) Decode(
-	event decode.Event, symbolicator symbol.Symbolicator, out io.Writer,
-) (ir.ProbeDefinition, error) {
+	event decode.Event, symbolicator symbol.Symbolicator, out []byte,
+) ([]byte, ir.ProbeDefinition, error) {
 	f.decodeCalls = append(f.decodeCalls, decodeCall{event, symbolicator, out})
-	if f.output != "" {
-		_, err := io.WriteString(out, f.output)
-		return f.probe, err
-	}
-	return f.probe, f.err
+	return []byte(f.output), f.probe, f.err
 }
 
 type fakeDiagnosticsUploader struct {
@@ -203,7 +199,8 @@ func TestController_HappyPathEndToEnd(t *testing.T) {
 	scraper.updates = []rcscrape.ProcessUpdate{processUpdate}
 
 	controller := module.NewController(
-		a, logUploaderFactory, diagUploader, symdbURL, scraper, decoderFactory,
+		a, logUploaderFactory, diagUploader, symdbURL,
+		object.NewInMemoryLoader(), scraper, decoderFactory,
 		irgen.NewGenerator(),
 	)
 	require.NotNil(t, controller)
@@ -235,6 +232,16 @@ func TestController_ProgramLifecycleFlow(t *testing.T) {
 	diagUploader := &fakeDiagnosticsUploader{}
 	logUploaderFactory := &fakeLogsUploaderFactory{}
 
+	collectDiagnosticVersions := func(status uploader.Status) map[string]int {
+		versionsMap := make(map[string]int)
+		for _, msg := range diagUploader.messages {
+			if msg.Debugger.Diagnostic.Status == status {
+				versionsMap[msg.Debugger.Diagnostic.ProbeID] = msg.Debugger.Diagnostic.ProbeVersion
+			}
+		}
+		return versionsMap
+	}
+
 	processUpdate := createTestProcessUpdate()
 	processUpdate.Container = procmon.ContainerInfo{
 		ContainerID: "container-123",
@@ -250,7 +257,8 @@ func TestController_ProgramLifecycleFlow(t *testing.T) {
 	scraper.updates = []rcscrape.ProcessUpdate{processUpdate}
 
 	controller := module.NewController(
-		a, logUploaderFactory, diagUploader, symdbURL, scraper, decoderFactory,
+		a, logUploaderFactory, diagUploader, symdbURL,
+		object.NewInMemoryLoader(), scraper, decoderFactory,
 		irgen.NewGenerator(),
 	)
 	require.NotNil(t, controller)
@@ -258,16 +266,9 @@ func TestController_ProgramLifecycleFlow(t *testing.T) {
 	require.NotNil(t, a.tenant.reporter)
 
 	controller.CheckForUpdates()
-
-	a.tenant.reporter.ReportAttached(procID, program)
-
-	installedCount := 0
-	for _, msg := range diagUploader.messages {
-		if msg.Debugger.Diagnostic.Status == uploader.StatusInstalled {
-			installedCount++
-		}
-	}
-	assert.Equal(t, 2, installedCount)
+	initialProbeVersions := map[string]int{"probe-1": 1, "probe-2": 1}
+	require.Equal(t, initialProbeVersions, collectDiagnosticVersions(uploader.StatusReceived))
+	require.Empty(t, collectDiagnosticVersions(uploader.StatusInstalled))
 
 	sink, err := a.tenant.reporter.ReportLoaded(procID, processUpdate.Executable, program)
 	require.NoError(t, err)
@@ -281,6 +282,40 @@ func TestController_ProgramLifecycleFlow(t *testing.T) {
 			ContainerID: "container-123",
 		}},
 	)
+
+	a.tenant.reporter.ReportAttached(procID, program)
+	require.Equal(t, initialProbeVersions, collectDiagnosticVersions(uploader.StatusReceived))
+	require.Equal(t, initialProbeVersions, collectDiagnosticVersions(uploader.StatusInstalled))
+
+	// Decode an event and check that the emitting diagnostic is reported.
+	require.Empty(t, collectDiagnosticVersions(uploader.StatusEmitting))
+	decoder.probe = processUpdate.Probes[0]
+	require.NoError(t, sink.HandleEvent(nil))
+	initialEmittedVersions := map[string]int{"probe-1": 1}
+	require.Equal(t, initialEmittedVersions, collectDiagnosticVersions(uploader.StatusEmitting))
+
+	// Report a process update that adds a new probe version, and ensure that
+	// we get new diagnostics for the new probe version.
+	processUpdate.Probes[0].(*rcjson.LogProbe).Version++
+	scraper.updates = []rcscrape.ProcessUpdate{processUpdate}
+	controller.CheckForUpdates()
+	updatedProbeVersions := map[string]int{"probe-1": 2, "probe-2": 1}
+	require.Equal(t, updatedProbeVersions, collectDiagnosticVersions(uploader.StatusReceived))
+	require.Equal(t, initialProbeVersions, collectDiagnosticVersions(uploader.StatusInstalled))
+
+	// Make sure that post attachment, the new probe version is reported.
+	program.Probes[0].ProbeDefinition = processUpdate.Probes[0]
+	program.ID++
+	a.tenant.reporter.ReportAttached(procID, program)
+	sink, err = a.tenant.reporter.ReportLoaded(procID, processUpdate.Executable, program)
+	require.NoError(t, err)
+	require.NotNil(t, sink)
+	require.Equal(t, updatedProbeVersions, collectDiagnosticVersions(uploader.StatusInstalled))
+	require.Equal(t, initialEmittedVersions, collectDiagnosticVersions(uploader.StatusEmitting))
+
+	updatedEmittedVersions := map[string]int{"probe-1": 2}
+	require.NoError(t, sink.HandleEvent(nil))
+	require.Equal(t, updatedEmittedVersions, collectDiagnosticVersions(uploader.StatusEmitting))
 }
 
 // TestController_IRGenerationFailure verifies that IR generation failures
@@ -300,7 +335,8 @@ func TestController_IRGenerationFailure(t *testing.T) {
 
 	irGenerator := irgen.NewGenerator()
 	controller := module.NewController(
-		a, logUploaderFactory, diagUploader, symdbURL, scraper, decoderFactory, irGenerator,
+		a, logUploaderFactory, diagUploader, symdbURL,
+		object.NewInMemoryLoader(), scraper, decoderFactory, irGenerator,
 	)
 	require.NotNil(t, controller)
 	require.NotNil(t, a.tenant)
@@ -341,7 +377,8 @@ func TestController_AttachmentFailure(t *testing.T) {
 
 	irGenerator := irgen.NewGenerator()
 	controller := module.NewController(
-		a, logUploaderFactory, diagUploader, symdbURL, scraper, decoderFactory, irGenerator,
+		a, logUploaderFactory, diagUploader, symdbURL,
+		object.NewInMemoryLoader(), scraper, decoderFactory, irGenerator,
 	)
 
 	controller.CheckForUpdates()
@@ -385,7 +422,8 @@ func TestController_LoadingFailure(t *testing.T) {
 
 	irGenerator := irgen.NewGenerator()
 	controller := module.NewController(
-		a, logUploaderFactory, diagUploader, symdbURL, scraper, decoderFactory, irGenerator,
+		a, logUploaderFactory, diagUploader, symdbURL,
+		object.NewInMemoryLoader(), scraper, decoderFactory, irGenerator,
 	)
 
 	controller.CheckForUpdates()
@@ -428,7 +466,8 @@ func TestController_DecoderCreationFailure(t *testing.T) {
 
 	irGenerator := irgen.NewGenerator()
 	controller := module.NewController(
-		a, logUploaderFactory, diagUploader, symdbURL, scraper, decoderFactory, irGenerator,
+		a, logUploaderFactory, diagUploader, symdbURL,
+		object.NewInMemoryLoader(), scraper, decoderFactory, irGenerator,
 	)
 	controller.CheckForUpdates()
 
@@ -457,7 +496,8 @@ func TestController_EventDecodingSuccess(t *testing.T) {
 
 	irGenerator := irgen.NewGenerator()
 	controller := module.NewController(
-		a, logUploaderFactory, diagUploader, symdbURL, scraper, decoderFactory, irGenerator,
+		a, logUploaderFactory, diagUploader, symdbURL,
+		object.NewInMemoryLoader(), scraper, decoderFactory, irGenerator,
 	)
 
 	controller.CheckForUpdates()
@@ -511,7 +551,8 @@ func TestController_EventDecodingFailure(t *testing.T) {
 
 	irGenerator := irgen.NewGenerator()
 	controller := module.NewController(
-		a, logUploaderFactory, diagUploader, symdbURL, scraper, decoderFactory, irGenerator,
+		a, logUploaderFactory, diagUploader, symdbURL,
+		object.NewInMemoryLoader(), scraper, decoderFactory, irGenerator,
 	)
 
 	controller.CheckForUpdates()
@@ -551,7 +592,8 @@ func TestController_ProcessRemoval(t *testing.T) {
 
 	irGenerator := irgen.NewGenerator()
 	controller := module.NewController(
-		a, logUploaderFactory, diagUploader, symdbURL, scraper, decoderFactory, irGenerator,
+		a, logUploaderFactory, diagUploader, symdbURL,
+		object.NewInMemoryLoader(), scraper, decoderFactory, irGenerator,
 	)
 	at := a.tenant
 
@@ -607,7 +649,8 @@ func TestController_MultipleProcesses(t *testing.T) {
 
 	irGenerator := irgen.NewGenerator()
 	controller := module.NewController(
-		actuator, logUploaderFactory, diagUploader, symdbURL, scraper, decoderFactory, irGenerator,
+		actuator, logUploaderFactory, diagUploader, symdbURL,
+		object.NewInMemoryLoader(), scraper, decoderFactory, irGenerator,
 	)
 
 	controller.CheckForUpdates()
@@ -656,7 +699,8 @@ func TestController_ProbeIssueReporting(t *testing.T) {
 
 	irGenerator := irgen.NewGenerator()
 	controller := module.NewController(
-		a, logUploaderFactory, diagUploader, symdbURL, scraper, decoderFactory, irGenerator,
+		a, logUploaderFactory, diagUploader, symdbURL,
+		object.NewInMemoryLoader(), scraper, decoderFactory, irGenerator,
 	)
 
 	controller.CheckForUpdates()
@@ -702,7 +746,8 @@ func TestController_NoSuccessfulProbesError(t *testing.T) {
 
 	irGenerator := irgen.NewGenerator()
 	controller := module.NewController(
-		a, logUploaderFactory, diagUploader, symdbURL, scraper, decoderFactory, irGenerator,
+		a, logUploaderFactory, diagUploader, symdbURL,
+		object.NewInMemoryLoader(), scraper, decoderFactory, irGenerator,
 	)
 
 	controller.CheckForUpdates()

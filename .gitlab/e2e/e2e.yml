@@ -4,7 +4,7 @@
 .new_e2e_template:
   stage: e2e
   image: registry.ddbuild.io/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   needs:
     - !reference [.needs_new_e2e_template]
   before_script:
@@ -119,7 +119,7 @@
 go_e2e_test_binaries:
   stage: binary_build
   image: registry.ddbuild.io/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   needs:
     - go_e2e_deps
   variables:
@@ -130,7 +130,7 @@ go_e2e_test_binaries:
     - !reference [.retrieve_linux_go_e2e_deps]
   script:
     - pushd test/new-e2e
-    - go install github.com/DataDog/orchestrion@v1.4.0
+    - go install github.com/DataDog/orchestrion
     - popd
     - dda inv -- -e new-e2e-tests.build-binaries --output-dir test-binaries -p $KUBERNETES_CPU_REQUEST --manifest-file-path manifest.json
     - tar czf test-binaries.tar.gz test-binaries
@@ -678,6 +678,7 @@ new-e2e-installer-windows:
       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestUpgradeWithHostNameChange$"
       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestRunAgentMSIAfterExperiment$"
       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestUpgradeWithAgentUser$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestDowngradeWithMissingInstallSource$"
       - EXTRA_PARAMS: --run "TestAgentUpgradesOnDC$/TestUpgradeMSI$"
       - EXTRA_PARAMS: --run "TestAgentUpgradesOnDC$/TestUpgradeAgentPackage$"
       - EXTRA_PARAMS: --run "TestAgentUpgradesAfterDCPromotion$/TestUpgradeAfterDCPromotion$"
@@ -696,6 +697,7 @@ new-e2e-installer-windows:
       - EXTRA_PARAMS: --run "TestAgentConfig$/TestManagedConfigActiveAfterUpgrade$"
       # install-exe
       - EXTRA_PARAMS: --run "TestInstallExe$/TestInstallAgentPackage$"
+      - EXTRA_PARAMS: --run "TestInstallExeWithProxy$/TestInstallAgentPackageWithProxy$"
       # install-script
       - EXTRA_PARAMS: --run "TestInstallScript$/TestInstallAgentPackage$"
       - EXTRA_PARAMS: --run "TestInstallScript$/TestInstallFromOldInstaller$"
@@ -983,7 +985,7 @@ generate-flakes-finder-pipeline:
     - qa_agent
     - qa_agent_full
     - tests_windows_sysprobe_x64
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   script:
     - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
     - dda inv -- -e testwasher.generate-flake-finder-pipeline
@@ -1041,7 +1043,7 @@ generate-fips-e2e-pipeline:
     - qa_agent_fips
     - qa_agent_fips_jmx
     - tests_windows_sysprobe_x64
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   script:
     - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
     - dda inv -- -e fips.generate-fips-e2e-pipeline
@@ -1069,7 +1071,7 @@ trigger-fips-e2e:
 
 new-e2e-cleanup-on-failure:
   image: registry.ddbuild.io/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   stage: e2e_cleanup
   dependencies: [go_e2e_deps]
   script:
