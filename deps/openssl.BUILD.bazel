@@ -32,24 +32,20 @@ configure_make(
     }),
     configure_options = select({
         "@platforms//os:windows": [
-            *DEFAULT_CONFIGURE_OPTIONS,
             "no-zlib",
             "no-uplink",
-        ],
+        ] + DEFAULT_CONFIGURE_OPTIONS,
         "@//:macos_arm64": [
             "darwin64-arm64-cc",
-            *DEFAULT_CONFIGURE_OPTIONS,
             "zlib",
-        ],
+        ] + DEFAULT_CONFIGURE_OPTIONS,
         "@//:macos_x86_64": [
             "darwin64-x86_64-cc",
-            *DEFAULT_CONFIGURE_OPTIONS,
             "zlib",
-        ],
+        ] + DEFAULT_CONFIGURE_OPTIONS,
         "//conditions:default": [
-            *DEFAULT_CONFIGURE_OPTIONS,
             "zlib",
-        ],
+        ] + DEFAULT_CONFIGURE_OPTIONS,
     }),
     env = select({
         "@platforms//os:macos": {
