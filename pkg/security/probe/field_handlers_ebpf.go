@@ -487,12 +487,44 @@ func (fh *EBPFFieldHandlers) ResolvePackageVersion(ev *model.Event, f *model.Fil
 	return f.PkgVersion
 }
 
+// ResolvePackageEpoch resolves the epoch of the package providing this file
+func (fh *EBPFFieldHandlers) ResolvePackageEpoch(ev *model.Event, f *model.FileEvent) int {
+	if f.PkgEpoch == 0 {
+		fh.resolveSBOMFields(ev, f)
+	}
+	return f.PkgEpoch
+}
+
+// ResolvePackageRelease resolves the release of the package providing this file
+func (fh *EBPFFieldHandlers) ResolvePackageRelease(ev *model.Event, f *model.FileEvent) string {
+	if f.PkgRelease == "" {
+		fh.resolveSBOMFields(ev, f)
+	}
+	return f.PkgRelease
+}
+
 // ResolvePackageSourceVersion resolves the version of the source package of the package providing this file
 func (fh *EBPFFieldHandlers) ResolvePackageSourceVersion(ev *model.Event, f *model.FileEvent) string {
 	if f.PkgSrcVersion == "" {
 		fh.resolveSBOMFields(ev, f)
 	}
 	return f.PkgSrcVersion
+}
+
+// ResolvePackageSourceEpoch resolves the epoch of the source package of the package providing this file
+func (fh *EBPFFieldHandlers) ResolvePackageSourceEpoch(ev *model.Event, f *model.FileEvent) int {
+	if f.PkgSrcEpoch == 0 {
+		fh.resolveSBOMFields(ev, f)
+	}
+	return f.PkgSrcEpoch
+}
+
+// ResolvePackageSourceRelease resolves the release of the source package of the package providing this file
+func (fh *EBPFFieldHandlers) ResolvePackageSourceRelease(ev *model.Event, f *model.FileEvent) string {
+	if f.PkgSrcRelease == "" {
+		fh.resolveSBOMFields(ev, f)
+	}
+	return f.PkgSrcRelease
 }
 
 // ResolveModuleArgv resolves the unscrubbed args of the module as an array. Use with caution.
