@@ -8,6 +8,7 @@ package common
 import (
 	"fmt"
 	"reflect"
+	"strconv"
 )
 
 // NetpathSource represents the source host of a network path.
@@ -83,29 +84,34 @@ type AssertionResult struct {
 	Failure  APIFailure       `json:"failure"`
 }
 
-// Compare runs the assertion logic
 func (a *AssertionResult) Compare() error {
-	expectedVal := reflect.ValueOf(a.Expected)
-	actualVal := reflect.ValueOf(a.Actual)
+	// Special case: Is / IsNot
+	if a.Operator == OperatorIs || a.Operator == OperatorIsNot {
+		// Try numeric comparison first
+		expNum, expErr := parseToFloat(a.Expected)
+		actNum, actErr := parseToFloat(a.Actual)
 
-	// Convert both to float64 if possible (so we can handle both int & float)
-	var exp, act float64
-	switch expectedVal.Kind() {
-	case reflect.Int, reflect.Int64:
-		exp = float64(expectedVal.Int())
-	case reflect.Float32, reflect.Float64:
-		exp = expectedVal.Float()
-	default:
-		return fmt.Errorf("expected must be int or float")
+		if expErr == nil && actErr == nil {
+			// Both numeric → compare as numbers
+			a.Valid = (actNum == expNum)
+		} else {
+			// Otherwise → compare as raw values
+			a.Valid = reflect.DeepEqual(a.Actual, a.Expected)
+		}
+		if a.Operator == OperatorIsNot {
+			a.Valid = !a.Valid
+		}
+		return nil
 	}
 
-	switch actualVal.Kind() {
-	case reflect.Int, reflect.Int64:
-		act = float64(actualVal.Int())
-	case reflect.Float32, reflect.Float64:
-		act = actualVal.Float()
-	default:
-		return fmt.Errorf("actual must be int or float")
+	// For numeric operators (<, <=, >, >=)
+	exp, err := parseToFloat(a.Expected)
+	if err != nil {
+		return fmt.Errorf("expected parse error: %w", err)
+	}
+	act, err := parseToFloat(a.Actual)
+	if err != nil {
+		return fmt.Errorf("actual parse error: %w", err)
 	}
 
 	switch a.Operator {
@@ -117,15 +123,28 @@ func (a *AssertionResult) Compare() error {
 		a.Valid = act > exp
 	case OperatorMoreThanOrEquals:
 		a.Valid = act >= exp
-	case OperatorIs:
-		a.Valid = act == exp
-	case OperatorIsNot:
-		a.Valid = act != exp
 	default:
-		return fmt.Errorf("unsupported operator")
+		return fmt.Errorf("unsupported operator %v", a.Operator)
 	}
 
 	return nil
+}
+
+func parseToFloat(v interface{}) (float64, error) {
+	switch x := v.(type) {
+	case string:
+		if i, err := strconv.ParseInt(x, 10, 64); err == nil {
+			return float64(i), nil
+		}
+		if f, err := strconv.ParseFloat(x, 64); err == nil {
+			return f, nil
+		}
+		return 0, fmt.Errorf("value must be numeric string, got: %q", x)
+	case int, int64, float32, float64:
+		return reflect.ValueOf(v).Convert(reflect.TypeOf(float64(0))).Float(), nil
+	default:
+		return 0, fmt.Errorf("unsupported type: %T", v)
+	}
 }
 
 // Request represents the network request.

@@ -24,7 +24,7 @@ func (s *SyntheticsTestScheduler) runAssertions(cfg common.SyntheticsTestConfig,
 }
 
 func (s *SyntheticsTestScheduler) runAssertion(assertion common.Assertion, stats common.NetStats) common.AssertionResult {
-	var actual interface{}
+	var actual float64
 
 	switch assertion.Type {
 	case common.AssertionTypePacketLoss:
@@ -56,9 +56,9 @@ func (s *SyntheticsTestScheduler) runAssertion(assertion common.Assertion, stats
 		case common.AssertionSubTypeAverage:
 			actual = stats.Hops.Avg
 		case common.AssertionSubTypeMin:
-			actual = stats.Hops.Min
+			actual = float64(stats.Hops.Min)
 		case common.AssertionSubTypeMax:
-			actual = stats.Hops.Max
+			actual = float64(stats.Hops.Max)
 		default:
 			return common.AssertionResult{
 				Operator: assertion.Operator,

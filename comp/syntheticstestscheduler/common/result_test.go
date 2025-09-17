@@ -34,10 +34,11 @@ func TestAssertionResult_Compare(t *testing.T) {
 			{"float equal", 5.5, 5.5, true, false},
 		},
 		OperatorIs: {
-			{"equal ints", 10, 10, true, false},
-			{"not equal", 10, 20, false, false},
-			{"invalid type expected", "oops", 10, false, true},
-			{"invalid type actual", 10, "oops", false, true},
+			{"equal ints", "10", "10", true, false},
+			{"not equal", "10", "20", false, false},
+			{"equal numeric different format", "100.0", "100", true, false},
+			{"string equal", "foo", "foo", true, false},
+			{"string not equal", "foo", "bar", false, false},
 		},
 		OperatorIsNot: {
 			{"not equal", 10, 20, true, false},

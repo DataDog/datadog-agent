@@ -134,7 +134,7 @@ const (
 type Assertion struct {
 	Operator Operator         `json:"operator"`
 	Property AssertionSubType `json:"property"`
-	Target   interface{}      `json:"target"`
+	Target   string           `json:"target"`
 	Type     AssertionType    `json:"type"`
 }
 
