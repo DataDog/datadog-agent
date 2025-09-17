@@ -147,8 +147,8 @@ type Event struct {
 	Type *EventRootType
 	// The PC values at which the event should be injected.
 	InjectionPoints []InjectionPoint
-	// The condition that must be met for the event to be injected.
-	Condition *Expression
+	// The condition that must be met for the event to be emitted.
+	Condition *CompiledCondition
 }
 
 // InjectionPoint is a point at which an event should be injected.
@@ -157,4 +157,12 @@ type InjectionPoint struct {
 	PC uint64
 	// Whether the function at that PC is frameless.
 	Frameless bool
+}
+
+// CompiledCondition is compiled eBPF bytecode for condition evaluation
+type CompiledCondition struct {
+	// Bytecode is the eBPF bytecode for condition evaluation
+	Bytecode []byte
+	// Referenced expressions needed for condition
+	RequiredExpressions []*RootExpression
 }
