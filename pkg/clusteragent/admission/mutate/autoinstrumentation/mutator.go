@@ -13,14 +13,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// NewMutatorWithFilter handles the dependency injection for the mutator. If a targets list is defined, it will return
-// a target mutator, otherwise it will return a namespace mutator.
+// NewMutatorWithFilter returns a NamespaceMutator when autoinstrumentation is disabled to ensure annotation-based injection still works.
+// Otherwise returns a TargetMutator for target-based workload selection.
 func NewMutatorWithFilter(c *Config, wmeta workloadmeta.Component, imageResolver ImageResolver) (mutatecommon.MutatorWithFilter, error) {
-	if len(c.Instrumentation.Targets) > 0 {
-		log.Debug("Using target mutator")
-		return NewTargetMutator(c, wmeta, imageResolver)
+	if !c.Instrumentation.Enabled {
+		log.Debug("Using namespace mutator")
+		return NewNamespaceMutator(c, wmeta, imageResolver)
 	}
-
-	log.Debug("Using namespace mutator")
-	return NewNamespaceMutator(c, wmeta, imageResolver)
+	log.Debug("Using target mutator")
+	return NewTargetMutator(c, wmeta, imageResolver)
 }
