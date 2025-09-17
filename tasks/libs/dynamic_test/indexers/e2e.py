@@ -89,7 +89,7 @@ class CoverageDynTestIndexer(DynTestIndexer):
         # Build path starting from after github.com/DataDog/datadog-agent, i.e., join from index 3
         return "/".join(segments[3:])
 
-    def parse_coverage_line(self, line: str) -> tuple[str, str, bool]:
+    def parse_coverage_line(self, line: str) -> tuple[str, str, int]:
         """Parse a single coverage line and determine if it has coverage.
 
         Args:
@@ -97,19 +97,19 @@ class CoverageDynTestIndexer(DynTestIndexer):
             github.com/DataDog/datadog-agent/pkg/collector/corechecks/check.go:24.13,25.2 2 1
 
         Returns:
-            tuple[str, bool]: (file_path, range, has_coverage)
+            tuple[str, bool]: (file_path, range, n_covered)
         """
         if not line or line.startswith("mode:"):
-            return "", "", False
+            return "", "", 0
         parts = line.strip().split()
         if len(parts) < 3:
-            return "", "", False
+            return "", "", 0
         file_with_range = parts[0].split(":")
         if len(file_with_range) < 2:
-            return "", "", False
+            return "", "", 0
         file_path, range = file_with_range[0], file_with_range[1]
-        has_coverage = int(parts[2]) > 0
-        return file_path, range, has_coverage
+        n_covered = int(parts[2])
+        return file_path, range, n_covered
 
     def convert_coverage_to_text(self, ctx: Context, coverage_dir: Path) -> Path:
         """Convert coverage data to text format using 'go tool covdata'.
@@ -175,7 +175,7 @@ class FileCoverageDynTestIndexer(CoverageDynTestIndexer):
                 for line in f:
                     file_path, range, has_coverage = self.parse_coverage_line(line)
 
-                    if not has_coverage or not file_path:
+                    if has_coverage == 0 or not file_path:
                         continue
 
                     metadata = self.read_metadata(suite)
@@ -238,8 +238,8 @@ class PackageCoverageDynTestIndexer(CoverageDynTestIndexer):
             coverage_txt = self.convert_coverage_to_text(ctx, coverage_dir)
             with open(coverage_txt, encoding="utf-8") as f:
                 for line in f:
-                    file_path, range, has_coverage = self.parse_coverage_line(line)
-                    if not has_coverage or not file_path:
+                    file_path, range, n_covered = self.parse_coverage_line(line)
+                    if n_covered == 0 or not file_path:
                         continue
                     metadata = self.read_metadata(suite)
                     job_name = metadata.get("job_name", suite.name)
@@ -312,13 +312,14 @@ class DiffedPackageCoverageDynTestIndexer(CoverageDynTestIndexer):
             coverage_txt = self.convert_coverage_to_text(ctx, coverage_dir)
             with open(coverage_txt, encoding="utf-8") as f:
                 for line in f:
-                    file_path, range, has_coverage = self.parse_coverage_line(line)
-                    if not has_coverage or not file_path:
+                    file_path, range, n_covered = self.parse_coverage_line(line)
+                    if n_covered == 0 or not file_path:
                         continue
                     if (
                         not self.is_baseline_job
                         and file_path in baseline_covered
                         and range in baseline_covered[file_path]
+                        and baseline_covered[file_path][range] == n_covered
                     ):
                         continue
                     metadata = self.read_metadata(suite)
@@ -329,12 +330,12 @@ class DiffedPackageCoverageDynTestIndexer(CoverageDynTestIndexer):
                     index.add_tests(job_name, package_path, [test_name])
         return index
 
-    def _parse_baseline_coverage(self, baseline_covered_txt: Path) -> dict[str, set[str]]:
-        baseline_covered = defaultdict(set)  # file_path -> set of ranges covered in the baseline
+    def _parse_baseline_coverage(self, baseline_covered_txt: Path) -> dict[str, dict[str, int]]:
+        baseline_covered = defaultdict(defaultdict(int))  # file_path -> set of ranges covered in the baseline
         with open(baseline_covered_txt, encoding="utf-8") as f:
             for line in f:
-                file_path, range, has_coverage = self.parse_coverage_line(line)
-                if not has_coverage or not file_path:
+                file_path, range, n_covered = self.parse_coverage_line(line)
+                if n_covered == 0 or not file_path:
                     continue
-                baseline_covered[file_path].add(range)
+                baseline_covered[file_path][range] = n_covered
         return baseline_covered
