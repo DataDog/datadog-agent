@@ -35,7 +35,7 @@ golang_deps_commenter:
     - GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_GITHUB_APP key_b64) || exit $?; export GITHUB_KEY_B64
     - GITHUB_APP_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_GITHUB_APP app_id) || exit $?; export GITHUB_APP_ID
     - if [ ! -s deps-report.md ]; then
-        dda inv -- -e github.pr-commenter --title="Go Package Import Differences" --delete ;
+        dda inv -- -e github.pr-commenter --title="Go Package Import Differences" --force-delete ;
       else
         dda inv -- -e github.pr-commenter --title="Go Package Import Differences" --body-file=deps-report.md ;
       fi
