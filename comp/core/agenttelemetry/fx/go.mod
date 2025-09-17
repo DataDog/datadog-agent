@@ -147,3 +147,21 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../../pkg/util/winutil
 	github.com/DataDog/datadog-agent/pkg/version => ../../../../pkg/version
 )
+
+replace github.com/DataDog/datadog-agent/pkg/config/viperconfig => ../../../../pkg/config/viperconfig
+
+replace github.com/DataDog/datadog-agent/pkg/util/cache => ../../../../pkg/util/cache
+
+replace github.com/DataDog/datadog-agent/pkg/util/defaultpaths => ../../../../pkg/util/defaultpaths
+
+replace github.com/DataDog/datadog-agent/pkg/util/executable => ../../../../pkg/util/executable
+
+replace github.com/DataDog/datadog-agent/pkg/util/filesystem => ../../../../pkg/util/filesystem
+
+replace github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../../../pkg/util/fxutil
+
+replace github.com/DataDog/datadog-agent/pkg/util/http => ../../../../pkg/util/http
+
+replace github.com/DataDog/datadog-agent/pkg/util/option => ../../../../pkg/util/option
+
+replace github.com/DataDog/datadog-agent/pkg/util/pointer => ../../../../pkg/util/pointer
