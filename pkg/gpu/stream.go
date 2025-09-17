@@ -70,10 +70,10 @@ type streamSpans struct {
 // releaseSpans releases the spans back to the pool
 func (s *streamSpans) releaseSpans() {
 	for _, kernel := range s.kernels {
-		kernelSpanPool.Put(kernel)
+		memPools.kernelSpanPool.Put(kernel)
 	}
 	for _, allocation := range s.allocations {
-		memorySpanPool.Put(allocation)
+		memPools.memorySpanPool.Put(allocation)
 	}
 }
 
@@ -144,17 +144,22 @@ type enrichedKernelLaunch struct {
 
 var errFatbinParsingDisabled = errors.New("fatbin parsing is disabled")
 
-var enrichedKernelLaunchPool ddsync.Pool[enrichedKernelLaunch]
-var kernelSpanPool ddsync.Pool[kernelSpan]
-var memorySpanPool ddsync.Pool[memorySpan]
+// memoryPools is a struct that contains the pools for commonly allocated
+// objects, to avoid constant reallocation in high throughput pipelines.
+type memoryPools struct {
+	enrichedKernelLaunchPool ddsync.Pool[enrichedKernelLaunch]
+	kernelSpanPool           ddsync.Pool[kernelSpan]
+	memorySpanPool           ddsync.Pool[memorySpan]
+	initOnce                 sync.Once
+}
 
-var initPoolsOnce sync.Once
+var memPools memoryPools
 
-func ensureInitPools(tm telemetry.Component) {
-	initPoolsOnce.Do(func() {
-		enrichedKernelLaunchPool = ddsync.NewDefaultTypedPoolWithTelemetry[enrichedKernelLaunch](tm, "gpu", "enrichedKernelLaunch")
-		kernelSpanPool = ddsync.NewDefaultTypedPoolWithTelemetry[kernelSpan](tm, "gpu", "kernelSpan")
-		memorySpanPool = ddsync.NewDefaultTypedPoolWithTelemetry[memorySpan](tm, "gpu", "memorySpan")
+func (m *memoryPools) ensureInitPools(tm telemetry.Component) {
+	m.initOnce.Do(func() {
+		m.enrichedKernelLaunchPool = ddsync.NewDefaultTypedPoolWithTelemetry[enrichedKernelLaunch](tm, "gpu", "enrichedKernelLaunch")
+		m.kernelSpanPool = ddsync.NewDefaultTypedPoolWithTelemetry[kernelSpan](tm, "gpu", "kernelSpan")
+		m.memorySpanPool = ddsync.NewDefaultTypedPoolWithTelemetry[memorySpan](tm, "gpu", "memorySpan")
 	})
 }
 
@@ -199,7 +204,7 @@ func newStreamHandler(metadata streamMetadata, sysCtx *systemContext, config con
 func (sh *StreamHandler) handleKernelLaunch(event *gpuebpf.CudaKernelLaunch) {
 	sh.lastEventKtimeNs = event.Header.Ktime_ns
 
-	enrichedLaunch := enrichedKernelLaunchPool.Get()
+	enrichedLaunch := memPools.enrichedKernelLaunchPool.Get()
 	enrichedLaunch.CudaKernelLaunch = *event // Copy events, as the memory can be overwritten in the ring buffer after the function returns
 	enrichedLaunch.stream = sh
 
@@ -255,14 +260,14 @@ func (sh *StreamHandler) handleMemEvent(event *gpuebpf.CudaMemEvent) {
 		return
 	}
 
-	data := memorySpanPool.Get()
+	data := memPools.memorySpanPool.Get()
 	data.startKtime = alloc.Header.Ktime_ns
 	data.endKtime = event.Header.Ktime_ns
 	data.size = alloc.Size
 	data.allocType = globalMemAlloc
 	data.isLeaked = false
 
-	trySendSpan(sh, sh.pendingMemorySpans, data, memorySpanPool)
+	trySendSpan(sh, sh.pendingMemorySpans, data, memPools.memorySpanPool)
 	sh.memAllocEvents.Remove(event.Addr)
 }
 
@@ -272,9 +277,9 @@ func (sh *StreamHandler) markSynchronization(ts uint64) {
 		return
 	}
 
-	trySendSpan(sh, sh.pendingKernelSpans, span, kernelSpanPool)
+	trySendSpan(sh, sh.pendingKernelSpans, span, memPools.kernelSpanPool)
 	for _, alloc := range getAssociatedAllocations(span) {
-		trySendSpan(sh, sh.pendingMemorySpans, alloc, memorySpanPool)
+		trySendSpan(sh, sh.pendingMemorySpans, alloc, memPools.memorySpanPool)
 	}
 
 	remainingLaunches := []*enrichedKernelLaunch{}
@@ -282,7 +287,7 @@ func (sh *StreamHandler) markSynchronization(ts uint64) {
 		if launch.Header.Ktime_ns >= ts {
 			remainingLaunches = append(remainingLaunches, launch)
 		} else {
-			enrichedKernelLaunchPool.Put(launch)
+			memPools.enrichedKernelLaunchPool.Put(launch)
 		}
 	}
 	sh.kernelLaunches = remainingLaunches
@@ -296,7 +301,7 @@ func (sh *StreamHandler) handleSync(event *gpuebpf.CudaSync) {
 }
 
 func (sh *StreamHandler) getCurrentKernelSpan(maxTime uint64) *kernelSpan {
-	span := kernelSpanPool.Get()
+	span := memPools.kernelSpanPool.Get()
 	span.startKtime = math.MaxUint64
 	span.endKtime = maxTime
 	span.numKernels = 0
@@ -361,7 +366,7 @@ func getAssociatedAllocations(span *kernelSpan) []*memorySpan {
 			continue
 		}
 
-		alloc := memorySpanPool.Get()
+		alloc := memPools.memorySpanPool.Get()
 		alloc.startKtime = span.startKtime
 		alloc.endKtime = span.endKtime
 		alloc.size = size
@@ -424,7 +429,7 @@ func (sh *StreamHandler) getCurrentData(now uint64) *streamSpans {
 	}
 
 	for alloc := range sh.memAllocEvents.ValuesIter() {
-		span := memorySpanPool.Get()
+		span := memPools.memorySpanPool.Get()
 		span.startKtime = alloc.Header.Ktime_ns
 		span.endKtime = 0
 		span.size = alloc.Size
@@ -449,13 +454,13 @@ func (sh *StreamHandler) markEnd() error {
 
 	// Close all allocations. Treat them as leaks, as they weren't freed properly
 	for alloc := range sh.memAllocEvents.ValuesIter() {
-		data := memorySpanPool.Get()
+		data := memPools.memorySpanPool.Get()
 		data.startKtime = alloc.Header.Ktime_ns
 		data.endKtime = uint64(nowTs)
 		data.size = alloc.Size
 		data.allocType = globalMemAlloc
 		data.isLeaked = true
-		trySendSpan(sh, sh.pendingMemorySpans, data, memorySpanPool)
+		trySendSpan(sh, sh.pendingMemorySpans, data, memPools.memorySpanPool)
 	}
 
 	sh.sysCtx.removeProcess(int(sh.metadata.pid))

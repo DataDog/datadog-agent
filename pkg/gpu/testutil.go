@@ -11,7 +11,6 @@
 package gpu
 
 import (
-	"fmt"
 	"sync"
 	"testing"
 
@@ -20,25 +19,28 @@ import (
 )
 
 // ensureInitPoolsNoTelemetry ensures that the pools are initialized without telemetry, useful for testing
-func ensureInitPoolsNoTelemetry() {
-	fmt.Println("ensureInitPoolsNoTelemetry")
-	initPoolsOnce.Do(func() {
-		enrichedKernelLaunchPool = ddsync.NewDefaultTypedPool[enrichedKernelLaunch]()
-		kernelSpanPool = ddsync.NewDefaultTypedPool[kernelSpan]()
-		memorySpanPool = ddsync.NewDefaultTypedPool[memorySpan]()
+func (m *memoryPools) ensureInitPoolsNoTelemetry() {
+	m.initOnce.Do(func() {
+		m.enrichedKernelLaunchPool = ddsync.NewDefaultTypedPool[enrichedKernelLaunch]()
+		m.kernelSpanPool = ddsync.NewDefaultTypedPool[kernelSpan]()
+		m.memorySpanPool = ddsync.NewDefaultTypedPool[memorySpan]()
 	})
+}
+
+func (m *memoryPools) reset() {
+	m.initOnce = sync.Once{}
 }
 
 func withTelemetryEnabledPools(t *testing.T, tm telemetry.Component) {
 	// reset the sync.Once for the pools
-	initPoolsOnce = sync.Once{}
+	memPools.reset()
 
 	// so that now we can call ensureInitPools with the telemetry component
-	ensureInitPools(tm)
+	memPools.ensureInitPools(tm)
 
 	// after the current test is finished, reset the sync.Once and restore to non-telemetry enabled pools
 	t.Cleanup(func() {
-		initPoolsOnce = sync.Once{}
-		ensureInitPoolsNoTelemetry()
+		memPools.reset()
+		memPools.ensureInitPoolsNoTelemetry()
 	})
 }
