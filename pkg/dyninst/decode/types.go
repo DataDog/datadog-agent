@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"unsafe"
 
+	"github.com/dustin/go-humanize"
 	"github.com/go-json-experiment/json/jsontext"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/gotype"
@@ -1008,18 +1009,20 @@ func (s *goSliceHeaderType) encodeValueFields(
 	}
 	sliceLength := int(len(sliceData)) / elementSize
 	elementByteSize := int(s.Data.Element.GetByteSize())
-	var notCaptured = false
+	elementName := s.Data.Element.GetName()
+	elementID := s.Data.Element.GetID()
 	for i := range int(sliceLength) {
 		elementData := sliceData[i*elementByteSize : (i+1)*elementByteSize]
-		if err := d.encodeValue(enc,
-			s.Data.Element.GetID(),
-			elementData,
-			s.Data.Element.GetName(),
+		if err := d.encodeValue(
+			enc, elementID, elementData, elementName,
 		); err != nil {
-			notCaptured = true
-			break
+			return fmt.Errorf(
+				"could not encode %s slice element of %s: %w",
+				humanize.Ordinal(i+1), elementName, err,
+			)
 		}
 	}
+
 	if err := writeTokens(enc, jsontext.EndArray); err != nil {
 		return err
 	}
@@ -1027,11 +1030,6 @@ func (s *goSliceHeaderType) encodeValueFields(
 		return writeTokens(enc,
 			tokenNotCapturedReason,
 			tokenNotCapturedReasonCollectionSize,
-		)
-	} else if notCaptured {
-		return writeTokens(enc,
-			tokenNotCapturedReason,
-			tokenNotCapturedReasonPruned,
 		)
 	}
 	return nil
