@@ -11,10 +11,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/opencontainers/go-digest"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
@@ -166,26 +167,10 @@ func isDatadoghqRegistry(registry string, datadoghqRegistries map[string]any) bo
 	return exists
 }
 
-// isValidDigest validates that a digest string follows the OCI image specification format.
-// Per OCI spec: algorithm ":" encoded where algorithm is [a-z0-9]+ and encoded is [a-zA-Z0-9=_-]+
-// For standard algorithms: sha256 (64 hex chars), sha512 (128 hex chars), blake3 (64 hex chars)
-func isValidDigest(digest string) bool {
-	// OCI digest format: algorithm:encoded
-	// Check for standard recommended algorithms first
-	if matched, _ := regexp.MatchString(`^sha256:[a-f0-9]{64}$`, digest); matched {
-		return true
-	}
-	if matched, _ := regexp.MatchString(`^sha512:[a-f0-9]{128}$`, digest); matched {
-		return true
-	}
-	if matched, _ := regexp.MatchString(`^blake3:[a-f0-9]{64}$`, digest); matched {
-		return true
-	}
-
-	// Fall back to general OCI grammar: [a-z0-9]+:[a-zA-Z0-9=_-]+
-	// Require minimum reasonable length for security
-	generalPattern := regexp.MustCompile(`^[a-z0-9]+:[a-zA-Z0-9=_-]{32,}$`)
-	return generalPattern.MatchString(digest)
+// isValidDigest validates that a digest string follows the OCI image specification format
+func isValidDigest(digestStr string) bool {
+	_, err := digest.Parse(digestStr)
+	return err == nil
 }
 
 // updateCache processes configuration data and updates the image mappings cache.
