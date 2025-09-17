@@ -27,7 +27,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/avast/retry-go/v4"
+	retry "github.com/avast/retry-go/v4"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/hashicorp/go-multierror"
 	"github.com/oliveagle/jsonpath"
@@ -148,6 +148,7 @@ runtime_security_config:
     {{if .ActivityDumpLoadControllerTimeout }}
     min_timeout: {{ .ActivityDumpLoadControllerTimeout }}
     {{end}}
+    trace_systemd_cgroups: {{ .TraceSystemdCgroups }}
     traced_cgroups_count: {{ .ActivityDumpTracedCgroupsCount }}
     cgroup_differentiate_args: {{ .ActivityDumpCgroupDifferentiateArgs }}
     auto_suppression:
@@ -1402,6 +1403,59 @@ func (tm *testModule) StartADockerGetDump() (*dockerCmdWrapper, *activityDumpIde
 		return nil, nil, err
 	}
 	return dockerInstance, dump, nil
+}
+
+func (tm *testModule) StartSystemdServiceGetDump(serviceName string, reloadCmd string) (*systemdCmdWrapper, *activityDumpIdentifier, error) {
+	systemd, err := newSystemdCmdWrapper(serviceName, reloadCmd)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	_, err = systemd.start()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	time.Sleep(1 * time.Second) // a quick sleep to ensure the dump has started
+
+	var dump *activityDumpIdentifier
+	if err := retry.Do(func() error {
+		dumps, err := tm.ListActivityDumps()
+		if err != nil {
+			return err
+		}
+
+		// Look for a dump with matching cgroup ID
+		for _, d := range dumps {
+			if string(d.CGroupID) == systemd.cgroupID {
+				dump = d
+				return nil
+			}
+		}
+		return errors.New("CGroupID not found on activity dump list")
+	}, retry.Delay(time.Second*1), retry.Attempts(15)); err != nil {
+		_, _ = systemd.stop()
+		return nil, nil, err
+	}
+
+	return systemd, dump, nil
+}
+
+func isSystemdAvailable() bool {
+	// Check if systemd is available and we have the necessary permissions
+	if _, err := exec.LookPath("systemctl"); err != nil {
+		return false
+	}
+
+	// Check if we can access systemd and it's in a usable state
+	// Accept both "running" and "degraded" states as valid for testing
+	cmd := exec.Command("systemctl", "is-system-running")
+	output, err := cmd.Output()
+	if err != nil {
+		state := strings.TrimSpace(string(output))
+		return state == "running" || state == "degraded"
+	}
+	return true
 }
 
 //nolint:deadcode,unused
