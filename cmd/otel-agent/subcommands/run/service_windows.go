@@ -9,11 +9,8 @@ package run
 
 import (
 	"context"
-	"path/filepath"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/servicemain"
 )
 
@@ -33,20 +30,6 @@ func (s *service) Run(ctx context.Context) error {
 	if params == nil {
 		params = &cliParams{GlobalParams: &subcommands.GlobalParams{}}
 	}
-	// Fallback defaults only if necessary path is not provided
-	if len(params.ConfPaths) == 0 || params.CoreConfPath == "" {
-		pd, _ := winutil.GetProgramDataDir()
-		ddRoot := strings.TrimRight(pd, "\\/")
-		if !strings.EqualFold(filepath.Base(ddRoot), "Datadog") {
-			ddRoot = filepath.Join(ddRoot, "Datadog")
-		}
-		if len(params.ConfPaths) == 0 {
-			cfg := filepath.Join(ddRoot, "otel-config.yaml")
-			params.ConfPaths = []string{"file:" + filepath.ToSlash(cfg)}
-		}
-		if params.CoreConfPath == "" {
-			params.CoreConfPath = filepath.Join(ddRoot, "datadog.yaml")
-		}
-	}
+	TryToGetDefaultParamsIfMissing(params)
 	return runOTelAgentCommand(ctx, params)
 }

@@ -9,11 +9,32 @@ package run
 
 import (
 	"context"
+	"path/filepath"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/servicemain"
 	"github.com/spf13/cobra"
 )
+
+func TryToGetDefaultParamsIfMissing(p *cliParams) {
+	// Fallbacks if a path is missing/not provided
+	if len(p.ConfPaths) == 0 || p.CoreConfPath == "" {
+		pd, _ := winutil.GetProgramDataDir()
+		root := strings.TrimRight(pd, "\\/")
+		if !strings.EqualFold(filepath.Base(root), "Datadog") {
+			root = filepath.Join(root, "Datadog")
+		}
+		if len(p.ConfPaths) == 0 {
+			cfg := filepath.Join(root, "otel-config.yaml")
+			p.ConfPaths = []string{"file:" + filepath.ToSlash(cfg)}
+		}
+		if p.CoreConfPath == "" {
+			p.CoreConfPath = filepath.Join(root, "datadog.yaml")
+		}
+	}
+}
 
 // MakeCommand creates the 'run' command on Windows
 func MakeCommand(globalConfGetter func() *subcommands.GlobalParams) *cobra.Command {
@@ -28,6 +49,7 @@ func MakeCommand(globalConfGetter func() *subcommands.GlobalParams) *cobra.Comma
 				servicemain.Run(&service{cliParams: params})
 				return nil
 			}
+			TryToGetDefaultParamsIfMissing(params)
 			return runOTelAgentCommand(context.Background(), params)
 		},
 	}
