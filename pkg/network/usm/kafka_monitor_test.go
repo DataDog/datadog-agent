@@ -1148,9 +1148,6 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 		}
 
 		t.Run(tt.name, func(t *testing.T) {
-			t.Cleanup(func() {
-				cleanProtocolMaps(t, "kafka", monitor.ebpfProgram.Manager.Manager)
-			})
 			req := generateFetchRequest(apiVersion, tt.topic)
 			resp := tt.buildResponse(tt.topic)
 			var msgs []Message
@@ -1187,6 +1184,9 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 			}
 
 			assert.Equal(t, int64(expectedCaptured), eventsCaptured)
+
+			// Clean up maps after validation is complete to avoid race conditions
+			cleanProtocolMaps(t, "kafka", monitor.ebpfProgram.Manager.Manager)
 		})
 
 		// Test with buildMessages have custom splitters
@@ -1204,10 +1204,6 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 		for groupIdx, group := range groups {
 			name := fmt.Sprintf("split/%s/group%d", tt.name, groupIdx)
 			t.Run(name, func(t *testing.T) {
-				t.Cleanup(func() {
-					cleanProtocolMaps(t, "kafka", monitor.ebpfProgram.Manager.Manager)
-				})
-
 				can.runClient(group.msgs)
 
 				if tt.produceFetchValidationWithErrorCode != nil {
@@ -1227,6 +1223,9 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 						tlsEnabled:                    tls,
 					}, tt.errorCode)
 				}
+
+				// Clean up maps after validation is complete to avoid race conditions
+				cleanProtocolMaps(t, "kafka", monitor.ebpfProgram.Manager.Manager)
 			})
 		}
 	}
@@ -1370,9 +1369,6 @@ func testKafkaProduceRaw(t *testing.T, tls bool, apiVersion int) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Cleanup(func() {
-				cleanProtocolMaps(t, "kafka", monitor.ebpfProgram.Manager.Manager)
-			})
 			req := tt.buildRequest(tt.topic)
 			var msgs []Message
 			resp := tt.buildResponse(tt.topic)
@@ -1385,6 +1381,9 @@ func testKafkaProduceRaw(t *testing.T, tls bool, apiVersion int) {
 				expectedAPIVersionProduce:       apiVersion,
 				tlsEnabled:                      tls,
 			}, tt.errorCode)
+
+			// Clean up maps after validation is complete to avoid race conditions
+			cleanProtocolMaps(t, "kafka", monitor.ebpfProgram.Manager.Manager)
 		})
 
 		req := tt.buildRequest(tt.topic)
@@ -1396,10 +1395,6 @@ func testKafkaProduceRaw(t *testing.T, tls bool, apiVersion int) {
 		for groupIdx, group := range groups {
 			name := fmt.Sprintf("split/%s/group%d", tt.name, groupIdx)
 			t.Run(name, func(t *testing.T) {
-				t.Cleanup(func() {
-					cleanProtocolMaps(t, "kafka", monitor.ebpfProgram.Manager.Manager)
-				})
-
 				can.runClient(group.msgs)
 
 				getAndValidateKafkaStats(t, monitor, 1, tt.topic, kafkaParsingValidation{
@@ -1407,6 +1402,9 @@ func testKafkaProduceRaw(t *testing.T, tls bool, apiVersion int) {
 					expectedAPIVersionProduce:       apiVersion,
 					tlsEnabled:                      tls,
 				}, tt.errorCode)
+
+				// Clean up maps after validation is complete to avoid race conditions
+				cleanProtocolMaps(t, "kafka", monitor.ebpfProgram.Manager.Manager)
 			})
 		}
 	}
