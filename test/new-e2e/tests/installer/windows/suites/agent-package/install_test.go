@@ -61,7 +61,7 @@ func (s *testAgentInstallSuite) installAgent() {
 }
 
 func (s *testAgentInstallSuite) installAgentViaSetupScript() {
-	installExe := installerwindows.NewDatadogInstallExe(s.Env())
+	installExe := installerwindows.NewDatadogInstallExe(s.Env().RemoteHost)
 
 	// Act - This calls the same path as Fleet Automation setup script: installer.exe setup --flavor default
 	output, err := installExe.Run()
