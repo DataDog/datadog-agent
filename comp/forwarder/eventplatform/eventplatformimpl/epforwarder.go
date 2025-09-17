@@ -67,8 +67,8 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 		// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
 		defaultInputChanSize:  500,
-		forceCompressionKind:  config.GzipCompressionKind,
-		forceCompressionLevel: config.GzipCompressionLevel,
+		forceCompressionKind:  config.ZstdCompressionKind,
+		forceCompressionLevel: config.ZstdCompressionLevel,
 	},
 	{
 		eventType:              eventTypeDBMMetrics,
@@ -83,8 +83,8 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 		// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
 		defaultInputChanSize:  500,
-		forceCompressionKind:  config.GzipCompressionKind,
-		forceCompressionLevel: config.GzipCompressionLevel,
+		forceCompressionKind:  config.ZstdCompressionKind,
+		forceCompressionLevel: config.ZstdCompressionLevel,
 	},
 	{
 		eventType:   eventTypeDBMMetadata,
@@ -102,8 +102,8 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 		// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
 		defaultInputChanSize:  500,
-		forceCompressionKind:  config.GzipCompressionKind,
-		forceCompressionLevel: config.GzipCompressionLevel,
+		forceCompressionKind:  config.ZstdCompressionKind,
+		forceCompressionLevel: config.ZstdCompressionLevel,
 	},
 	{
 		eventType:              eventTypeDBMActivity,
@@ -118,8 +118,8 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 		// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
 		defaultInputChanSize:  500,
-		forceCompressionKind:  config.GzipCompressionKind,
-		forceCompressionLevel: config.GzipCompressionLevel,
+		forceCompressionKind:  config.ZstdCompressionKind,
+		forceCompressionLevel: config.ZstdCompressionLevel,
 	},
 	{
 		eventType:   eventTypeDBMHealth,
@@ -135,8 +135,8 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 		// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
 		defaultInputChanSize:  500,
-		forceCompressionKind:  config.GzipCompressionKind,
-		forceCompressionLevel: config.GzipCompressionLevel,
+		forceCompressionKind:  config.ZstdCompressionKind,
+		forceCompressionLevel: config.ZstdCompressionLevel,
 	}, {
 		eventType:                     eventplatform.EventTypeNetworkDevicesMetadata,
 		category:                      "NDM",
