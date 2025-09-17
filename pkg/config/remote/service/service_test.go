@@ -1546,3 +1546,46 @@ func TestWithOrgStatusPollingIntervalConfigPassed(t *testing.T) {
 	assert.NotNil(t, service)
 	service.Stop()
 }
+func TestFlushCacheResponseEmptyTargetsMeta(t *testing.T) {
+	uptaneClient := &mockCoreAgentUptane{}
+	
+	// Mock UnsafeTargetsMeta to return the specific error
+	uptaneClient.On("UnsafeTargetsMeta").Return([]byte{}, errors.New("empty targets meta in director local store"))
+	
+	service := &CoreAgentService{
+		uptane: uptaneClient,
+	}
+	
+	response, err := service.flushCacheResponse()
+	
+	// Should not return error, should handle gracefully
+	assert.NoError(t, err)
+	assert.NotNil(t, response)
+	assert.Equal(t, pbgo.ConfigStatus_CONFIG_STATUS_EXPIRED, response.ConfigStatus)
+	
+	// Should return valid empty targets JSON
+	expectedTargets := `{"signed":{"_type":"targets","spec_version":"1.0.0","version":1,"expires":"2099-01-01T00:00:00Z","targets":{}},"signatures":[]}`
+	assert.Equal(t, expectedTargets, string(response.Targets))
+	
+	uptaneClient.AssertExpectations(t)
+}
+
+func TestFlushCacheResponseOtherError(t *testing.T) {
+	uptaneClient := &mockCoreAgentUptane{}
+	
+	// Mock UnsafeTargetsMeta to return a different error
+	uptaneClient.On("UnsafeTargetsMeta").Return([]byte{}, errors.New("some other error"))
+	
+	service := &CoreAgentService{
+		uptane: uptaneClient,
+	}
+	
+	response, err := service.flushCacheResponse()
+	
+	// Should return the error for non-empty targets meta errors
+	assert.Error(t, err)
+	assert.Nil(t, response)
+	assert.Contains(t, err.Error(), "some other error")
+	
+	uptaneClient.AssertExpectations(t)
+}

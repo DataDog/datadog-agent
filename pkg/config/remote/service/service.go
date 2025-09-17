@@ -21,6 +21,7 @@ import (
 	"net/url"
 	"path"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -854,7 +855,13 @@ func (s *CoreAgentService) getRefreshInterval() (time.Duration, error) {
 func (s *CoreAgentService) flushCacheResponse() (*pbgo.ClientGetConfigsResponse, error) {
 	targets, err := s.uptane.UnsafeTargetsMeta()
 	if err != nil {
-		return nil, err
+		// Handle empty targets meta gracefully during initial state
+		if strings.Contains(err.Error(), "empty targets meta in director local store") {
+			// Return empty targets for initial state
+			targets = []byte(`{"signed":{"_type":"targets","spec_version":"1.0.0","version":1,"expires":"2099-01-01T00:00:00Z","targets":{}},"signatures":[]}`)
+		} else {
+			return nil, err
+		}
 	}
 	return &pbgo.ClientGetConfigsResponse{
 		Roots:         nil,
