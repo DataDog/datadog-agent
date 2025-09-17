@@ -358,7 +358,7 @@ func BenchmarkProbeEventProcessing(b *testing.B) {
 		StartWaitTimeSec: 2,
 		SelectedDevice:   0,
 		CallsPerSecond:   50000,
-		ExecutionTimeSec: 60,
+		ExecutionTimeSec: 50,
 	}
 
 	b.ResetTimer()
