@@ -72,7 +72,7 @@ func (t *TypedPool[K]) Put(x *K) {
 
 // typedPoolWithTelemetry is a TypedPool with telemetry counters
 type typedPoolWithTelemetry[K any] struct {
-	p  *TypedPool[K]
+	*TypedPool[K]
 	tm *poolTelemetrySimple
 }
 
@@ -114,15 +114,15 @@ var globalPoolTelemetry = funcs.MemoizeArgNoError(newPoolTelemetry)
 // module and name are used to identify the pool in the telemetry
 func NewDefaultTypedPoolWithTelemetry[K any](tm telemetry.Component, module string, name string) Pool[K] {
 	return &typedPoolWithTelemetry[K]{
-		p:  NewDefaultTypedPool[K](),
-		tm: globalPoolTelemetry(tm).getSimpleCounters(module, name),
+		TypedPool: NewDefaultTypedPool[K](),
+		tm:        globalPoolTelemetry(tm).getSimpleCounters(module, name),
 	}
 }
 
 func (t *typedPoolWithTelemetry[K]) Get() *K {
 	t.tm.get.Inc()
 	t.tm.active.Inc()
-	return t.p.Get()
+	return t.TypedPool.Get()
 }
 
 func (t *typedPoolWithTelemetry[K]) Put(x *K) {
