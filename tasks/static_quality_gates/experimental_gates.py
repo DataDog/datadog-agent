@@ -1133,33 +1133,41 @@ def measure_image_local(
         print(color_message("💾 Saving measurement report...", "cyan"))
         measurer.save_report_to_yaml(report, output_path)
 
-        # Display summary
-        print(color_message("✅ Measurement completed successfully!", "green"))
-        print("📊 Results:")
-        print(f"   • Wire size: {report.on_wire_size:,} bytes ({report.on_wire_size / 1024 / 1024:.2f} MiB)")
-        print(f"   • Disk size: {report.on_disk_size:,} bytes ({report.on_disk_size / 1024 / 1024:.2f} MiB)")
-        print(f"   • Files inventoried: {len(report.file_inventory):,}")
-        print(f"   • Report saved to: {output_path}")
-
         # Show size comparison with limits
         wire_limit_mb = report.max_on_wire_size / 1024 / 1024
         disk_limit_mb = report.max_on_disk_size / 1024 / 1024
         wire_usage_pct = (report.on_wire_size / report.max_on_wire_size) * 100
         disk_usage_pct = (report.on_disk_size / report.max_on_disk_size) * 100
 
-        print("📏 Size Limits:")
-        print(f"   • Wire limit: {wire_limit_mb:.2f} MiB (using {wire_usage_pct:.1f}%)")
-        print(f"   • Disk limit: {disk_limit_mb:.2f} MiB (using {disk_usage_pct:.1f}%)")
+        # Display summary
+        print(color_message("✅ Measurement completed successfully!", "green"))
+        print("📊 Results:")
+        print(f"   • Wire size: {report.on_wire_size:,} bytes ({report.on_wire_size / 1024 / 1024:.2f} MiB)")
+        print(f"   • Disk size: {report.on_disk_size:,} bytes ({report.on_disk_size / 1024 / 1024:.2f} MiB)")
+        print(color_message(f"   • Wire limit: {wire_limit_mb:.2f} MiB (using {wire_usage_pct:.1f}%)", "cyan"))
+        print(color_message(f"   • Disk limit: {disk_limit_mb:.2f} MiB (using {disk_usage_pct:.1f}%)", "cyan"))
         print("   • Note: Disk size is the uncompressed filesystem size of all files")
+        print(f"   • Files inventoried: {len(report.file_inventory):,}")
+        print(f"   • Report saved to: {output_path}")
 
         if wire_usage_pct > 100 or disk_usage_pct > 100:
             print(color_message("⚠️  WARNING: Image exceeds size limits!", "red"))
             if disk_usage_pct > 100:
-                excess_mb = (report.on_disk_size - report.max_on_disk_size) / 1024 / 1024
-                print(color_message(f"   • Disk size exceeds limit by {excess_mb:.2f} MiB", "red"))
+                excess_bytes = report.on_disk_size - report.max_on_disk_size
+                print(
+                    color_message(
+                        f"   • Disk size exceeds limit by {excess_bytes:.2f} bytes ({excess_bytes / 1024 / 1024:.2f} MiB)",
+                        "red",
+                    )
+                )
             if wire_usage_pct > 100:
-                excess_mb = (report.on_wire_size - report.max_on_wire_size) / 1024 / 1024
-                print(color_message(f"   • Wire size exceeds limit by {excess_mb:.2f} MiB", "red"))
+                excess_bytes = report.on_wire_size - report.max_on_wire_size
+                print(
+                    color_message(
+                        f"   • Wire size exceeds limit by {excess_bytes:.2f} bytes ({excess_bytes / 1024 / 1024:.2f} MiB)",
+                        "red",
+                    )
+                )
         else:
             print(color_message("✅ Image within size limits", "green"))
 
