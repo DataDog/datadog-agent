@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -165,6 +166,28 @@ func isDatadoghqRegistry(registry string, datadoghqRegistries map[string]any) bo
 	return exists
 }
 
+// isValidDigest validates that a digest string follows the OCI image specification format.
+// Per OCI spec: algorithm ":" encoded where algorithm is [a-z0-9]+ and encoded is [a-zA-Z0-9=_-]+
+// For standard algorithms: sha256 (64 hex chars), sha512 (128 hex chars), blake3 (64 hex chars)
+func isValidDigest(digest string) bool {
+	// OCI digest format: algorithm:encoded
+	// Check for standard recommended algorithms first
+	if matched, _ := regexp.MatchString(`^sha256:[a-f0-9]{64}$`, digest); matched {
+		return true
+	}
+	if matched, _ := regexp.MatchString(`^sha512:[a-f0-9]{128}$`, digest); matched {
+		return true
+	}
+	if matched, _ := regexp.MatchString(`^blake3:[a-f0-9]{64}$`, digest); matched {
+		return true
+	}
+
+	// Fall back to general OCI grammar: [a-z0-9]+:[a-zA-Z0-9=_-]+
+	// Require minimum reasonable length for security
+	generalPattern := regexp.MustCompile(`^[a-z0-9]+:[a-zA-Z0-9=_-]{32,}$`)
+	return generalPattern.MatchString(digest)
+}
+
 // updateCache processes configuration data and updates the image mappings cache.
 // This is the core logic shared by both initialization and remote config updates.
 func (r *remoteConfigImageResolver) updateCache(configs map[string]state.RawConfig) {
@@ -204,6 +227,11 @@ func (r *remoteConfigImageResolver) updateCacheFromParsedConfigs(validConfigs ma
 		for _, imageInfo := range repo.Images {
 			if imageInfo.Tag == "" || imageInfo.Digest == "" {
 				log.Warnf("Skipping invalid image entry (missing tag or digest) in %s", repo.RepositoryName)
+				continue
+			}
+
+			if !isValidDigest(imageInfo.Digest) {
+				log.Warnf("Skipping invalid image entry (invalid digest format: %s) in %s", imageInfo.Digest, repo.RepositoryName)
 				continue
 			}
 
