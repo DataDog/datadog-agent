@@ -164,7 +164,7 @@ func (s *packageBaseSuite) SetupSuite() {
 	defer s.CleanupOnSetupFailure()
 
 	// TODO(celian): Remove this after #incident-43183
-	if s.os.Flavor == e2eos.Suse {
+	if strings.Contains(s.T().Name(), "ddot_suse_15_sp4") && strings.Contains(s.T().Name(), "install_script") {
 		flake.Mark(s.T())
 	}
 
