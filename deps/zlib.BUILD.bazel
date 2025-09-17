@@ -140,14 +140,14 @@ alias(
 )
 
 cc_shared_library(
-    name = "zlib_so",
-    shared_lib_name = "zlib.so",
+    name = "libz_so",
+    shared_lib_name = "libz.so",
     deps = [":z"],
 )
 
 pkg_files(
     name = "lib_files",
-    srcs = [":zlib_so"],
+    srcs = [":libz_so"],
     prefix = "lib",
 )
 
