@@ -99,10 +99,8 @@ var (
 		{cert: "rsa", cipher: "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA", want: false},
 		{cert: "rsa", cipher: "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA", want: false},
 		{cert: "rsa", cipher: "TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA", want: false},
-		// TODO: the below are approved for TLS 1.3 but not supported by our fips-server yet
-		//   see https://github.com/DataDog/test-infra-definitions/blob/221bbc806266eb15b90cb875deb79180e7591fbc/components/datadog/apps/fips/images/fips-server/src/tls.go#L48-L58
-		// {cert: "rsa", cipher: "TLS_AES_128_GCM_SHA256", tlsMax: "1.3", want: true},
-		// {cert: "rsa", cipher: "TLS_AES_256_GCM_SHA384", tlsMax: "1.3", want: true},
+		{cert: "rsa", cipher: "TLS_AES_128_GCM_SHA256", tlsMax: "1.3", want: true},
+		{cert: "rsa", cipher: "TLS_AES_256_GCM_SHA384", tlsMax: "1.3", want: true},
 	}
 	//go:embed fixtures/e2e_fips_test.py
 	fipsTestCheck string
