@@ -206,7 +206,6 @@ func TestCreateContainerService(t *testing.T) {
 			expectedServices: map[string]wlmListenerSvc{
 				"container://foobarquux": {
 					service: &WorkloadService{
-						tagger: taggerComponent,
 						entity: basicContainer,
 						adIdentifiers: []string{
 							"docker://foobarquux",
@@ -243,7 +242,6 @@ func TestCreateContainerService(t *testing.T) {
 			expectedServices: map[string]wlmListenerSvc{
 				"container://foobarquux": {
 					service: &WorkloadService{
-						tagger: taggerComponent,
 						entity: runningContainerWithFinishedAtTime,
 						adIdentifiers: []string{
 							"docker://foobarquux",
@@ -263,7 +261,6 @@ func TestCreateContainerService(t *testing.T) {
 			expectedServices: map[string]wlmListenerSvc{
 				"container://foobarquux": {
 					service: &WorkloadService{
-						tagger: taggerComponent,
 						entity: multiplePortsContainer,
 						adIdentifiers: []string{
 							"docker://foobarquux",
@@ -292,7 +289,6 @@ func TestCreateContainerService(t *testing.T) {
 			expectedServices: map[string]wlmListenerSvc{
 				"container://foo": {
 					service: &WorkloadService{
-						tagger: taggerComponent,
 						entity: kubernetesContainer,
 						adIdentifiers: []string{
 							"docker://foo",
@@ -313,7 +309,6 @@ func TestCreateContainerService(t *testing.T) {
 			expectedServices: map[string]wlmListenerSvc{
 				"container://foo": {
 					service: &WorkloadService{
-						tagger: taggerComponent,
 						entity: kubernetesContainer,
 						adIdentifiers: []string{
 							"docker://foo",
@@ -345,7 +340,6 @@ func TestCreateContainerService(t *testing.T) {
 			expectedServices: map[string]wlmListenerSvc{
 				"container://foo": {
 					service: &WorkloadService{
-						tagger: taggerComponent,
 						entity: kubernetesContainer,
 						adIdentifiers: []string{
 							"docker://foo",
@@ -389,7 +383,6 @@ func TestCreateContainerService(t *testing.T) {
 			expectedServices: map[string]wlmListenerSvc{
 				"container://foo": {
 					service: &WorkloadService{
-						tagger: taggerComponent,
 						entity: kubernetesContainer,
 						adIdentifiers: []string{
 							"docker://foo",

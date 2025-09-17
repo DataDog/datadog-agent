@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/pkg/databasemonitoring/aurora"
 	"github.com/DataDog/datadog-agent/pkg/databasemonitoring/aws"
@@ -259,5 +259,5 @@ func (d *DBMAuroraService) GetExtraConfig(key string) (string, error) {
 }
 
 // FilterTemplates does nothing.
-func (d *DBMAuroraService) FilterTemplates(_ map[string]adtypes.InternalConfig) {
+func (d *DBMAuroraService) FilterTemplates(_ map[string]integration.Config) {
 }

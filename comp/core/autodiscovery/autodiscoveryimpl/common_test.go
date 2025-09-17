@@ -8,7 +8,7 @@ package autodiscoveryimpl
 import (
 	"reflect"
 
-	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 )
@@ -20,7 +20,7 @@ type dummyService struct {
 	Ports           []listeners.ContainerPort
 	Pid             int
 	Hostname        string
-	filterTemplates func(map[string]adtypes.InternalConfig)
+	filterTemplates func(map[string]integration.Config)
 }
 
 // Equal returns whether the two dummyService are equal
@@ -84,7 +84,7 @@ func (s *dummyService) GetExtraConfig(_ string) (string, error) {
 }
 
 // FilterTemplates calls filterTemplates, if not nil
-func (s *dummyService) FilterTemplates(configs map[string]adtypes.InternalConfig) {
+func (s *dummyService) FilterTemplates(configs map[string]integration.Config) {
 	if s.filterTemplates != nil {
 		(s.filterTemplates)(configs)
 	}
