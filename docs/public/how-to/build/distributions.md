@@ -130,3 +130,11 @@ You can fine tune an Omnibus run by passing more options, see `dda inv -- omnibu
 You can chose to generate an installable package in the form of a `deb`/`rpm` artifact by providing a `OMNIBUS_FORCE_PACKAGES` environment variable during the build.
 > On macOS, a `dmg` artifact will always be generated.
 ///
+
+## Building for MacOS
+
+We do not currently support MacOS development environments or any container build image. You will therefore need to follow the [host-based build instructions](#building-on-the-host).
+
+## Building for Windows
+
+This can only be done in a containerized environment. Please see [the relevant folder in `datadog-agent-buildimages`](https://github.com/DataDog/datadog-agent-buildimages/tree/main/windows) for more details and instructions.
