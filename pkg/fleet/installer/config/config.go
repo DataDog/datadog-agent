@@ -316,6 +316,11 @@ func buildOperationsFromLegacyInstaller(rootPath string) []FileOperation {
 			return nil
 		}
 
+		// Ignore application_monitoring.yaml as we need to keep it in the managed directory
+		if strings.HasSuffix(path, "application_monitoring.yaml") {
+			return nil
+		}
+
 		ops, err := buildOperationsFromLegacyConfigFile(path, realRootPath, managedDirSubPath)
 		if err != nil {
 			return err
