@@ -80,7 +80,7 @@ func enforcesBudget(t *testing.T, busyloopPath string) {
 	defer cleanup()
 	defer func() {
 		sampleProc.Process.Kill()
-		sampleProc.Process.Wait()
+		sampleProc.Wait()
 	}()
 	sampleStdin.Write([]byte("\n"))
 
@@ -135,7 +135,7 @@ func refreshesBudget(t *testing.T, busyloopPath string) {
 	defer cleanup()
 	defer func() {
 		sampleProc.Process.Kill()
-		sampleProc.Process.Wait()
+		sampleProc.Wait()
 	}()
 	sampleStdin.Write([]byte("\n"))
 

@@ -68,6 +68,7 @@ func TestDecoderErrorHandling(t *testing.T) {
 	loader, err := loader.NewLoader()
 	require.NoError(t, err)
 	actuator := actuator.NewActuator(loader)
+	t.Cleanup(func() { require.NoError(t, actuator.Shutdown()) })
 	scraper := &mockScraper{}
 	logsURL, err := url.Parse(backendServer.URL + "/logs")
 	require.NoError(t, err)
@@ -76,10 +77,15 @@ func TestDecoderErrorHandling(t *testing.T) {
 
 	symdbURL, err := url.Parse("http://dummy-symdb-url")
 	require.NoError(t, err)
+	logsUploaderFactory := uploader.NewLogsUploaderFactory(uploader.WithURL(logsURL))
+	t.Cleanup(logsUploaderFactory.Stop)
+	diagUploader := uploader.NewDiagnosticsUploader(uploader.WithURL(diagURL))
+	t.Cleanup(diagUploader.Stop)
+
 	c := module.NewController(
 		actuator,
-		uploader.NewLogsUploaderFactory(uploader.WithURL(logsURL)),
-		uploader.NewDiagnosticsUploader(uploader.WithURL(diagURL)),
+		logsUploaderFactory,
+		diagUploader,
 		symdbURL,
 		object.NewInMemoryLoader(),
 		scraper,
@@ -88,6 +94,7 @@ func TestDecoderErrorHandling(t *testing.T) {
 		},
 		irgen.NewGenerator(),
 	)
+	t.Cleanup(c.TestingStopSymdbManager)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	var wg sync.WaitGroup

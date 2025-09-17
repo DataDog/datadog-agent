@@ -204,6 +204,7 @@ func TestController_HappyPathEndToEnd(t *testing.T) {
 		irgen.NewGenerator(),
 	)
 	require.NotNil(t, controller)
+	t.Cleanup(controller.TestingStopSymdbManager)
 
 	controller.CheckForUpdates()
 
@@ -264,6 +265,7 @@ func TestController_ProgramLifecycleFlow(t *testing.T) {
 	require.NotNil(t, controller)
 	require.NotNil(t, a.tenant)
 	require.NotNil(t, a.tenant.reporter)
+	t.Cleanup(controller.TestingStopSymdbManager)
 
 	controller.CheckForUpdates()
 	initialProbeVersions := map[string]int{"probe-1": 1, "probe-2": 1}
@@ -341,6 +343,7 @@ func TestController_IRGenerationFailure(t *testing.T) {
 	require.NotNil(t, controller)
 	require.NotNil(t, a.tenant)
 	require.NotNil(t, a.tenant.reporter)
+	t.Cleanup(controller.TestingStopSymdbManager)
 
 	reporter := a.tenant.reporter
 
@@ -380,6 +383,7 @@ func TestController_AttachmentFailure(t *testing.T) {
 		a, logUploaderFactory, diagUploader, symdbURL,
 		object.NewInMemoryLoader(), scraper, decoderFactory, irGenerator,
 	)
+	t.Cleanup(controller.TestingStopSymdbManager)
 
 	controller.CheckForUpdates()
 
@@ -425,6 +429,7 @@ func TestController_LoadingFailure(t *testing.T) {
 		a, logUploaderFactory, diagUploader, symdbURL,
 		object.NewInMemoryLoader(), scraper, decoderFactory, irGenerator,
 	)
+	t.Cleanup(controller.TestingStopSymdbManager)
 
 	controller.CheckForUpdates()
 
@@ -469,6 +474,7 @@ func TestController_DecoderCreationFailure(t *testing.T) {
 		a, logUploaderFactory, diagUploader, symdbURL,
 		object.NewInMemoryLoader(), scraper, decoderFactory, irGenerator,
 	)
+	t.Cleanup(controller.TestingStopSymdbManager)
 	controller.CheckForUpdates()
 
 	sink, err := a.tenant.reporter.ReportLoaded(procID, processUpdate.Executable, program)
@@ -499,6 +505,7 @@ func TestController_EventDecodingSuccess(t *testing.T) {
 		a, logUploaderFactory, diagUploader, symdbURL,
 		object.NewInMemoryLoader(), scraper, decoderFactory, irGenerator,
 	)
+	t.Cleanup(controller.TestingStopSymdbManager)
 
 	controller.CheckForUpdates()
 
@@ -554,6 +561,7 @@ func TestController_EventDecodingFailure(t *testing.T) {
 		a, logUploaderFactory, diagUploader, symdbURL,
 		object.NewInMemoryLoader(), scraper, decoderFactory, irGenerator,
 	)
+	t.Cleanup(controller.TestingStopSymdbManager)
 
 	controller.CheckForUpdates()
 
@@ -595,6 +603,7 @@ func TestController_ProcessRemoval(t *testing.T) {
 		a, logUploaderFactory, diagUploader, symdbURL,
 		object.NewInMemoryLoader(), scraper, decoderFactory, irGenerator,
 	)
+	t.Cleanup(controller.TestingStopSymdbManager)
 	at := a.tenant
 
 	controller.CheckForUpdates()
@@ -652,7 +661,7 @@ func TestController_MultipleProcesses(t *testing.T) {
 		actuator, logUploaderFactory, diagUploader, symdbURL,
 		object.NewInMemoryLoader(), scraper, decoderFactory, irGenerator,
 	)
-
+	t.Cleanup(controller.TestingStopSymdbManager)
 	controller.CheckForUpdates()
 
 	require.Len(t, actuator.tenant.updates, 1)
@@ -702,7 +711,7 @@ func TestController_ProbeIssueReporting(t *testing.T) {
 		a, logUploaderFactory, diagUploader, symdbURL,
 		object.NewInMemoryLoader(), scraper, decoderFactory, irGenerator,
 	)
-
+	t.Cleanup(controller.TestingStopSymdbManager)
 	controller.CheckForUpdates()
 
 	sink, err := a.tenant.reporter.ReportLoaded(procID, processUpdate.Executable, program)
@@ -749,7 +758,7 @@ func TestController_NoSuccessfulProbesError(t *testing.T) {
 		a, logUploaderFactory, diagUploader, symdbURL,
 		object.NewInMemoryLoader(), scraper, decoderFactory, irGenerator,
 	)
-
+	t.Cleanup(controller.TestingStopSymdbManager)
 	controller.CheckForUpdates()
 
 	require.Len(t, diagUploader.messages, 2)
