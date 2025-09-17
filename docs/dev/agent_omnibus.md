@@ -1,48 +1,5 @@
 # Build the Agent packages
 
-## Building on your system (Linux and Mac)
-
-The project will be built locally and provide a .tar.xz tarball (in the omnibus/pkg folder)
-with the resulting artifacts by default on linux.
-This artifact is the expected source when building a container image.
-You can chose to generate an installable package in the form of a deb/rpm artifact by
-providing a `OMNIBUS_FORCE_PACKAGES` environment variable during the build.
-On macOS, a dmg artifact will always be generated.
-Most of the files will be copied or created under the same installation path of
-the final package, `/opt/datadog-agent`, but if you run Omnibus from Linux, some
-files will be copied into `/etc`. This means two things:
-
- * If you already have a Datadog Agent installed, you might need to move it to a
-   different location before operating Omnibus.
- * You need root privileges to build the packages (Linux only).
-
-For these reasons, if you're running Linux we strongly suggest to use a dedicated
-virtual machine or a Docker container where Omnibus can safely move things around
-the filesystem without disrupting anything.
-
-To run Omnibus and build the package, make the `/opt` folder world readable and run:
-
-```
-dda inv -- omnibus.build --base-dir=$HOME/.omnibus
-```
-
-On Mac, you might want to skip the signing step by running:
-
-```
-dda inv -- omnibus.build --base-dir=$HOME/.omnibus --skip-sign
-```
-
-The path you pass with the `--base-dir` option will contain the sources
-downloaded by Omnibus in the `src` folder, the binaries cached after building
-those sources in the `cache` folder and the final deb/rpm/dmg artifacts in the
-`pkg` folder. You can fine tune an Omnibus run passing more options, see
-`dda inv -- omnibus.build --help` for the list of all the available options.
-
-**Note:** it's strongly advised to pass `--base-dir` and point to a directory
-outside the Agent repo. By default Omnibus stores packages in the project folder
-itself: running the task multiple times would recursively add those artifacts to
-the source files for the `datadog-agent` software definition.
-
 ## Windows Docker image (Windows host only, recommended)
 
 ### Prerequisites

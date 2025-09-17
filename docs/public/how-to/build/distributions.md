@@ -78,3 +78,55 @@ If the build image crashes when running it on a modern Linux distribution, you m
 affected by [this bug](https://github.com/moby/moby/issues/28705).
 ///
 
+### Building on the host
+
+/// danger
+Building on the host is _not recommended_, and this section of the guide will be maintained on a best-effort basis.
+
+Running Omnibus builds locally may affect the global state of your machine, and in particular the installation of the Agent already present on your laptop.
+
+Please use the [containerized build](#containerized-build-recommended) instead.
+///
+
+Running an Omnibus build will both create and install an Agent distribution package.
+
+* The project will be built locally into a `.tar.xz` archive under `omnibus/pkg`.
+* The project will be installed under `/opt/datadog-agent`. This is the same path where the Agent is installed on customer machines.
+
+/// warning
+If you already have a Datadog Agent installed, you will need to move it to a different location before operating Omnibus - otherwise it will get overwritten by the build.
+> As a Datadog employee, an Agent is installed on your machine during IT's onboarding session.
+///
+
+??? note "Linux-specific requirements"
+    * On Linux, you will need root privileges, as you need permission to write into `/opt`
+    * On Linux, some configuration files will also be dropped under `/etc`.
+
+1. Follow the [general local setup instructions](../../../setup/manual)
+1. Make `/opt` world-readable
+1. Run the following command:
+```
+dda inv -- omnibus.build --base-dir=$HOME/.omnibus
+```
+> On MacOS, you might want to skip the signing step by adding the `--skip-sign` flag.
+
+The path you pass with the `--base-dir` option will be used as a working directory for the Omnibus build. Once the build completes, it will contain:
+
+| Directory | Contents                                         |
+| --------- | ------------------------------------------------ |
+| `src`     | The sources downloaded by Omnibus                |
+| `cache`   | The binaries cached after building those sources |
+| `pkg`     | The final `deb`/`rpm`/`pkg` artifacts            |
+
+??? note "Make sure to pass a `--base-dir` !"
+    It is strongly advised to pass a `--base-dir`, and point it to a directory **outside of the Agent repo.**
+
+    By default Omnibus stores packages in the project folder itself: running the task multiple times would recursively add those artifacts to the source files for the `datadog-agent` software definition.
+
+
+/// tip
+You can fine tune an Omnibus run by passing more options, see `dda inv -- omnibus.build --help` for the list of all the available options.
+
+You can chose to generate an installable package in the form of a `deb`/`rpm` artifact by providing a `OMNIBUS_FORCE_PACKAGES` environment variable during the build.
+> On macOS, a `dmg` artifact will always be generated.
+///
