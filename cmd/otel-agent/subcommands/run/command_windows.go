@@ -18,6 +18,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// TryToGetDefaultParamsIfMissing fills missing config paths with ProgramData defaults on Windows.
+// It does not override values already provided via flags or environment.
 func TryToGetDefaultParamsIfMissing(p *cliParams) {
 	// Fallbacks if a path is missing/not provided
 	if len(p.ConfPaths) == 0 || p.CoreConfPath == "" {
