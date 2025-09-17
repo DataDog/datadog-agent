@@ -14,13 +14,13 @@ import (
 	"fmt"
 	"iter"
 	"math"
-	"runtime/debug"
 	"slices"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/go-delve/delve/pkg/dwarf/godwarf"
+	"golang.org/x/time/rate"
 
 	dwarf2 "github.com/DataDog/datadog-agent/pkg/dyninst/dwarf"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dwarf/dwarfutil"
@@ -31,18 +31,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+var loclistErrorLogLimiter = rate.NewLimiter(rate.Every(1*time.Minute), 1)
+
 // PackagesIterator returns an iterator over the packages in the binary.
 //
 // PackagesIterator can only be used if the packagesIterator was configured with
 // ExtractOptions.IncludeInlinedFunctions=false (i.e. if we're ignoring inlined
 // functions), since inlined functions can appear in different compile units
 // than their package.
-func PackagesIterator(binaryPath string, opt ExtractOptions) (iter.Seq2[Package, error], error) {
+func PackagesIterator(binaryPath string, loader object.Loader, opt ExtractOptions) (iter.Seq2[Package, error], error) {
 	if opt.IncludeInlinedFunctions {
 		return nil, fmt.Errorf("cannot overate over packages when IncludeInlinedFunctions is set")
 	}
 
-	bin, err := openBinary(binaryPath, opt)
+	bin, err := openBinary(binaryPath, loader, opt)
 	if err != nil {
 		return nil, err
 	}
@@ -53,8 +55,8 @@ func PackagesIterator(binaryPath string, opt ExtractOptions) (iter.Seq2[Package,
 
 // ExtractSymbols walks the DWARF data and accumulates the symbols to send to
 // SymDB.
-func ExtractSymbols(binaryPath string, opt ExtractOptions) (Symbols, error) {
-	bin, err := openBinary(binaryPath, opt)
+func ExtractSymbols(binaryPath string, loader object.Loader, opt ExtractOptions) (Symbols, error) {
+	bin, err := openBinary(binaryPath, loader, opt)
 	if err != nil {
 		return Symbols{}, err
 	}
@@ -145,46 +147,27 @@ type PackageStats struct {
 	// collected symbols.
 	NumTypes int
 	// NumFunctions is the number of functions in this package represented in
-	// the collected symbols.
+	// the collected symbols. This includes methods.
 	NumFunctions int
-	// NumSourceFiles is the number of source files that contain functions in
-	// this package.
-	NumSourceFiles int
 }
 
 func (s PackageStats) String() string {
-	return fmt.Sprintf("Types: %d, Functions: %d, Source files: %d",
-		s.NumTypes, s.NumFunctions, s.NumSourceFiles)
+	return fmt.Sprintf("Types: %d, Functions: %d", s.NumTypes, s.NumFunctions)
 }
 
 // Stats computes statistics about the package's symbols.
 //
-// sourceFiles will be populated with files encoutered while going through this
+// sourceFiles will be populated with files encountered while going through this
 // package's compile unit. Nil can be passed if the caller is not interested.
 // Note that it's possible for multiple compile units to reference the same file
 // due to inlined functions; in such cases, the file will arbitrarily count
 // towards the stats of the first package that adds it to the map.
-func (p Package) Stats(sourceFiles map[string]struct{}) PackageStats {
+func (p Package) Stats() PackageStats {
 	var res PackageStats
-	if sourceFiles == nil {
-		sourceFiles = make(map[string]struct{})
-	}
 	res.NumTypes += len(p.Types)
 	res.NumFunctions += len(p.Functions)
-	recordFile := func(file string) {
-		if _, ok := sourceFiles[file]; !ok {
-			sourceFiles[file] = struct{}{}
-			res.NumSourceFiles++
-		}
-	}
 	for _, t := range p.Types {
 		res.NumFunctions += len(t.Methods)
-		for _, f := range t.Methods {
-			recordFile(f.File)
-		}
-	}
-	for _, f := range p.Functions {
-		recordFile(f.File)
 	}
 	return res
 }
@@ -390,7 +373,6 @@ const mainPackageName = "main"
 
 // packagesIterator walks the DWARF data for a binary, extracting symbols in the
 // SymDB format.
-// nolint:revive  // ignore stutter rule
 type packagesIterator struct {
 	// The DWARF data to extract symbols from.
 	dwarfData *dwarf.Data
@@ -696,7 +678,7 @@ func newPackagesIterator(bin binaryInfo, opt ExtractOptions) *packagesIterator {
 		dwarfData:           bin.obj.DwarfData(),
 		sym:                 bin.symTable,
 		loclistReader:       bin.obj.LoclistReader(),
-		pointerSize:         int(bin.obj.PointerSize()),
+		pointerSize:         int(bin.obj.Architecture().PointerSize()),
 		options:             opt,
 		mainModule:          bin.mainModule,
 		firstPartyPkgPrefix: bin.firstPartyPkgPrefix,
@@ -716,7 +698,7 @@ func newPackagesIterator(bin binaryInfo, opt ExtractOptions) *packagesIterator {
 }
 
 type binaryInfo struct {
-	obj                 *object.ElfFileWithDwarf
+	obj                 object.FileWithDwarf
 	mainModule          string
 	goDebugSections     *object.GoDebugSections
 	symTable            *gosym.GoSymbolTable
@@ -724,8 +706,8 @@ type binaryInfo struct {
 	filesFilter         []string
 }
 
-func openBinary(binaryPath string, opt ExtractOptions) (binaryInfo, error) {
-	obj, err := object.OpenElfFileWithDwarf(binaryPath)
+func openBinary(binaryPath string, loader object.Loader, opt ExtractOptions) (binaryInfo, error) {
+	obj, err := loader.Load(binaryPath)
 	if err != nil {
 		return binaryInfo{}, fmt.Errorf("failed to open file: %w", err)
 	}
@@ -737,32 +719,7 @@ func openBinary(binaryPath string, opt ExtractOptions) (binaryInfo, error) {
 	}
 	mainModule := binfo.Main.Path
 
-	moduledata, err := object.ParseModuleData(obj)
-	if err != nil {
-		return binaryInfo{}, err
-	}
-	goVersion, err := object.ReadGoVersion(obj)
-	if err != nil {
-		return binaryInfo{}, err
-	}
-
-	goDebugSections, err := moduledata.GoDebugSections(obj)
-	if err != nil {
-		return binaryInfo{}, err
-	}
-
-	// goDebugSections cannot be Close()'ed while symTable is in use. Ownership of
-	// goDebugSections is transferred to the SymDBBuilder.
-
-	symTable, err := gosym.ParseGoSymbolTable(
-		goDebugSections.PcLnTab.Data(),
-		goDebugSections.GoFunc.Data(),
-		moduledata.Text,
-		moduledata.EText,
-		moduledata.MinPC,
-		moduledata.MaxPC,
-		goVersion,
-	)
+	symTable, err := object.ParseGoSymbolTable(obj)
 	if err != nil {
 		return binaryInfo{}, err
 	}
@@ -792,8 +749,8 @@ func openBinary(binaryPath string, opt ExtractOptions) (binaryInfo, error) {
 	return binaryInfo{
 		obj:                 obj,
 		mainModule:          mainModule,
-		goDebugSections:     goDebugSections,
-		symTable:            symTable,
+		goDebugSections:     &symTable.GoDebugSections,
+		symTable:            &symTable.GoSymbolTable,
 		firstPartyPkgPrefix: firstPartyPkgPrefix,
 		filesFilter:         filesFilter,
 	}, nil
@@ -1095,7 +1052,7 @@ func (b *packagesIterator) exploreCompileUnit(
 	}
 	duration := time.Since(start)
 	if duration > 5*time.Second {
-		log.Warnf("Processing package %s took %s: %s", name, duration, res.Stats(nil))
+		log.Warnf("Processing package %s took %s: %s", name, duration, res.Stats())
 	}
 
 	return res, nil
@@ -1302,17 +1259,11 @@ func (b *packagesIterator) exploreInlinedInstance(
 	af, ok := b.abstractFunctions[origin]
 	if !ok {
 		var err error
-		af, err = b.parseAbstractFunction(reader, origin)
+		af, err = b.parseAbstractFunction(origin)
 		if err != nil {
 			return err
 		}
 		b.abstractFunctions[origin] = af
-		// Reset the reader.
-		reader.Seek(entry.Offset)
-		_, err = reader.Next()
-		if err != nil {
-			return err
-		}
 	}
 	if !af.interesting {
 		return earlyExit()
@@ -1520,7 +1471,13 @@ func (b *packagesIterator) parseFunctionName(entry *dwarf.Entry) (
 	return
 }
 
-func (b *packagesIterator) parseAbstractFunction(reader *dwarf.Reader, offset dwarf.Offset) (*abstractFunction, error) {
+func (b *packagesIterator) parseAbstractFunction(offset dwarf.Offset) (*abstractFunction, error) {
+	// TODO: once we switch to Go 1.25, instead of constructing a new Reader, we
+	// should take one in and Seek() to the desired offset; that would be more
+	// efficient when seeking within the same compilation unit as the one we're
+	// already in. Unfortunately, seeking across compilation units is broken
+	// until Go 1.25 (see https://go-review.googlesource.com/c/go/+/655976).
+	reader := b.dwarfData.Reader()
 	reader.Seek(offset)
 	entry, err := reader.Next()
 	if err != nil {
@@ -1585,7 +1542,6 @@ func (b *packagesIterator) parseAbstractFunction(reader *dwarf.Reader, offset dw
 func (b *packagesIterator) parseAbstractVariable(entry *dwarf.Entry) (Variable, typeInfo, error) {
 	name, ok := entry.Val(dwarf.AttrName).(string)
 	if !ok {
-		debug.PrintStack()
 		return Variable{}, typeInfo{}, fmt.Errorf("variable without name at 0x%x", entry.Offset)
 	}
 	declLine, ok := entry.Val(dwarf.AttrDeclLine).(int64)
@@ -1636,7 +1592,7 @@ func (b *packagesIterator) parseVariableLocations(
 	if locField == nil {
 		return out, nil
 	}
-	pcRanges, err := b.processLocations(unit, block, locField, typeSize)
+	pcRanges, err := b.processLocations(unit, block, entry.Offset, locField, typeSize)
 	if err != nil {
 		return nil, fmt.Errorf(
 			"error processing locations for variable at 0x%x: %w", entry.Offset, err,
@@ -1684,6 +1640,7 @@ func coalesceLineRanges(ranges []LineRange) []LineRange {
 func (b *packagesIterator) processLocations(
 	unit *dwarf.Entry,
 	block codeBlock,
+	entryOffset dwarf.Offset,
 	locField *dwarf.Field,
 	totalSize uint32,
 ) ([]dwarfutil.PCRange, error) {
@@ -1696,7 +1653,13 @@ func (b *packagesIterator) processLocations(
 	}
 	loclists, err := dwarfutil.ProcessLocations(locField, unit, b.loclistReader, pcRanges, totalSize, uint8(b.pointerSize))
 	if err != nil {
-		return nil, err
+		// Do not fail hard, just pretend the variable is not available.
+		if loclistErrorLogLimiter.Allow() {
+			log.Warnf(
+				"ignoring locations for variable at 0x%x: %v", entryOffset, err,
+			)
+		}
+		return nil, nil
 	}
 	loclists = dwarfutil.FilterIncompleteLocationLists(loclists)
 	res := make([]dwarfutil.PCRange, len(loclists))

@@ -36,7 +36,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/decode"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/gosym"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/gotype"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
@@ -59,6 +58,7 @@ func TestDyninst(t *testing.T) {
 	var integrationTestPrograms = map[string]struct{}{
 		"simple": {},
 		"sample": {},
+		"fault":  {},
 	}
 
 	sem := dyninsttest.MakeSemaphore()
@@ -86,13 +86,16 @@ func TestDyninst(t *testing.T) {
 		})
 	}
 	rewrite, _ := strconv.ParseBool(os.Getenv("REWRITE"))
+
 	for _, svc := range programs {
 		if _, ok := integrationTestPrograms[svc]; !ok {
 			t.Logf("%s is not used in integration tests", svc)
 			continue
 		}
 		t.Run(svc, func(t *testing.T) {
-			runIntegrationTestSuite(t, svc, rewrite, sem, cfgs...)
+			runIntegrationTestSuite(
+				t, svc, rewrite, sem, cfgs...,
+			)
 		})
 	}
 }
@@ -238,27 +241,11 @@ func testDyninst(
 	require.NoError(t, err)
 	defer func() { require.NoError(t, obj.Close()) }()
 
-	moduledata, err := object.ParseModuleData(obj)
+	symbolTable, err := object.ParseGoSymbolTable(obj)
 	require.NoError(t, err)
-
-	goVersion, err := object.ReadGoVersion(obj)
+	defer func() { require.NoError(t, symbolTable.Close()) }()
 	require.NoError(t, err)
-
-	goDebugSections, err := moduledata.GoDebugSections(obj)
-	require.NoError(t, err)
-	defer func() { require.NoError(t, goDebugSections.Close()) }()
-
-	symbolTable, err := gosym.ParseGoSymbolTable(
-		goDebugSections.PcLnTab.Data(),
-		goDebugSections.GoFunc.Data(),
-		moduledata.Text,
-		moduledata.EText,
-		moduledata.MinPC,
-		moduledata.MaxPC,
-		goVersion,
-	)
-	require.NoError(t, err)
-	symbolicator := symbol.NewGoSymbolicator(symbolTable)
+	symbolicator := symbol.NewGoSymbolicator(&symbolTable.GoSymbolTable)
 	require.NotNil(t, symbolicator)
 
 	cachingSymbolicator, err := symbol.NewCachingSymbolicator(symbolicator, 10000)
@@ -271,6 +258,7 @@ func testDyninst(
 
 	decoder, err := decode.NewDecoder(
 		sink.irp, (*decode.GoTypeNameResolver)(gotypeTable),
+		time.Now(),
 	)
 	require.NoError(t, err)
 
@@ -287,13 +275,13 @@ func testDyninst(
 			Event:       ev,
 			ServiceName: service,
 		}
-		var decodeOut bytes.Buffer
-		probe, err := decoder.Decode(event, cachingSymbolicator, &decodeOut)
+		decodeOut := []byte{}
+		decodeOut, probe, err := decoder.Decode(event, cachingSymbolicator, decodeOut)
 		require.NoError(t, err)
 		if os.Getenv("DEBUG") != "" {
-			t.Logf("Output: %s", decodeOut.String())
+			t.Logf("Output: %s", string(decodeOut))
 		}
-		redacted := redactJSON(t, "", decodeOut.Bytes(), defaultRedactors)
+		redacted := redactJSON(t, "", decodeOut, defaultRedactors)
 		if os.Getenv("DEBUG") != "" {
 			t.Logf("Sorted and redacted: %s", redacted)
 		}
@@ -357,7 +345,8 @@ func runIntegrationTestSuite(
 				runTest := func(t *testing.T, probeSlice []ir.ProbeDefinition) {
 					t.Parallel()
 					actual := testDyninst(
-						t, service, bin, probeSlice, rewrite, expectedOutput, debug, sem,
+						t, service, bin, probeSlice, rewrite, expectedOutput,
+						debug, sem,
 					)
 					if t.Failed() {
 						return

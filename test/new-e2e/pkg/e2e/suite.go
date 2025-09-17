@@ -332,18 +332,14 @@ func (bs *BaseSuite[Env]) init(options []SuiteOption, self Suite[Env]) {
 		bs.params.skipDeleteOnFailure, _ = runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.SkipDeleteOnFailure, false)
 	}
 
-	coverage, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.CoveragePipeline, false)
-	if err == nil {
-		bs.coverage = coverage
-	}
-
-	coverageOutDir, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.CoverageOutDir, "")
-	if err == nil && coverageOutDir != "" {
-		bs.coverageOutDir = coverageOutDir
-	} else {
-		bs.coverage = false
+	coverage, _ := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.CoveragePipeline, false)
+	coverageOutDir, _ := runner.GetProfile().ParamStore().GetWithDefault(parameters.CoverageOutDir, "")
+	if coverage && coverageOutDir == "" {
 		fmt.Println("WARNING: Coverage pipeline is enabled but coverage out dir is not set, skipping coverage")
+		coverage = false
 	}
+	bs.coverage = coverage
+	bs.coverageOutDir = coverageOutDir
 
 	stackNameSuffix, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.StackNameSuffix, "")
 	if err != nil {
@@ -661,12 +657,14 @@ func (bs *BaseSuite[Env]) AfterTest(suiteName, testName string) {
 			// run environment diagnose if the test failed
 			if diagnosableEnv, ok := any(bs.env).(common.Diagnosable); ok && diagnosableEnv != nil {
 				// at least one test failed, diagnose the environment
+				bs.T().Logf("========= Some tests failed, diagnosing environment ==========")
 				diagnose, diagnoseErr := diagnosableEnv.Diagnose(testOutputDir)
 				if diagnoseErr != nil {
 					bs.T().Logf("unable to diagnose environment: %v", diagnoseErr)
 				} else {
 					bs.T().Logf("Diagnose result:\n\n%s", diagnose)
 				}
+				bs.T().Logf("========= Environment diagnosed ==========")
 			}
 		}
 	}
@@ -732,7 +730,8 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 			bs.T().Logf("Remote stack cleaning enabled for stack %s", fullStackName)
 
 			// If we are within CI, we let the stack be destroyed by the stackcleaner-worker service
-			cmd := exec.Command("dda", "inv", "agent-ci-api", "stackcleaner/stack", "--env", "prod", "--ty", "stackcleaner_workflow_request", "--attrs", fmt.Sprintf("stack_name=%s,job_name=%s,job_id=%s,pipeline_id=%s,ref=%s,ignore_lock=bool:true,ignore_not_found=bool:false", fullStackName, os.Getenv("CI_JOB_NAME"), os.Getenv("CI_JOB_ID"), os.Getenv("CI_PIPELINE_ID"), os.Getenv("CI_COMMIT_REF_NAME")))
+			// After 10s, the API will time out without an error, this can happen on high workload but the stack will still be created from the agent-ci-api
+			cmd := exec.Command("dda", "inv", "agent-ci-api", "stackcleaner/stack", "--env", "prod", "--ty", "stackcleaner_workflow_request", "--attrs", fmt.Sprintf("stack_name=%s,job_name=%s,job_id=%s,pipeline_id=%s,ref=%s,ignore_lock=bool:true,ignore_not_found=bool:false", fullStackName, os.Getenv("CI_JOB_NAME"), os.Getenv("CI_JOB_ID"), os.Getenv("CI_PIPELINE_ID"), os.Getenv("CI_COMMIT_REF_NAME")), "--timeout", "10", "--ignore-timeout-error")
 			out, err := cmd.CombinedOutput()
 			if err != nil {
 				bs.T().Errorf("Unable to destroy stack %s: %s", stackName, out)
@@ -763,10 +762,11 @@ func (bs *BaseSuite[Env]) SaveCoverage(coverageDir string) {
 				bs.T().Logf("WARNING: Unable to create coverage folder: %v", err)
 			}
 		}
-		err := coverageEnv.Coverage(coverageFolder)
+		result, err := coverageEnv.Coverage(coverageFolder)
 		if err != nil {
 			bs.T().Logf("WARNING: Coverage failed: %v", err)
 		}
+		bs.T().Logf("Coverage result: %s", result)
 	} else {
 		bs.T().Logf("WARNING: Coverage is enabled but the environment does not implement the Coverageable interface")
 		return

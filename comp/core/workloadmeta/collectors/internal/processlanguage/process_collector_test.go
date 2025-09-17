@@ -21,8 +21,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -52,8 +53,10 @@ type collectorTest struct {
 
 func setUpCollectorTest(t *testing.T, configOverrides map[string]interface{}) collectorTest {
 	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-		core.MockBundle(),
-		fx.Replace(config.MockParams{Overrides: configOverrides}),
+		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
+		fx.Provide(func(t testing.TB) config.Component {
+			return config.NewMockWithOverrides(t, configOverrides)
+		}),
 		workloadmetafxmock.MockModule(workloadmeta.Params{
 			AgentType: workloadmeta.NodeAgent,
 		}),
@@ -90,6 +93,7 @@ func TestProcessCollector(t *testing.T) {
 		"language_detection.enabled":                true,
 		"process_config.process_collection.enabled": true,
 		"process_config.run_in_core_agent.enabled":  true,
+		"process_config.process_collection.use_wlm": false,
 	}
 
 	c := setUpCollectorTest(t, configOverrides)
@@ -254,6 +258,7 @@ func TestProcessCollectorWithoutProcessCheck(t *testing.T) {
 		"language_detection.enabled":                true,
 		"process_config.process_collection.enabled": false,
 		"process_config.run_in_core_agent.enabled":  true,
+		"process_config.process_collection.use_wlm": false,
 	}
 
 	c := setUpCollectorTest(t, configOverrides)
@@ -283,8 +288,8 @@ func TestProcessCollectorWithoutProcessCheck(t *testing.T) {
 
 	assert.EventuallyWithT(t, func(cT *assert.CollectT) {
 		proc, err := c.mockStore.GetProcess(1)
-		assert.NoError(cT, err)
-		assert.NotNil(cT, proc)
+		require.NoError(cT, err)
+		require.NotNil(cT, proc)
 		assert.Equal(cT, expectedCid, proc.ContainerID)
 	}, 1*time.Second, time.Millisecond*100)
 }
