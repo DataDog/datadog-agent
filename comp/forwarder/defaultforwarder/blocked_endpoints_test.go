@@ -314,3 +314,37 @@ func TestIsblockUnknown(t *testing.T) {
 
 	assert.False(t, e.isBlock("test"))
 }
+
+func TestIsblockAutoRecovery(t *testing.T) {
+	mockConfig := mock.New(t)
+	log := logmock.New(t)
+	e := newBlockedEndpoints(mockConfig, log)
+
+	// Block an endpoint with multiple errors
+	e.close("test")
+	e.close("test")
+	e.close("test")
+	
+	// Verify it's blocked
+	assert.True(t, e.isBlock("test"))
+	
+	// Set the block time to the past to simulate time passing
+	e.errorPerEndpoint["test"].until = time.Now().Add(-1 * time.Second)
+	
+	// isBlock should now return false and automatically recover
+	assert.False(t, e.isBlock("test"))
+	
+	// Error count should be decremented
+	block := e.errorPerEndpoint["test"]
+	assert.True(t, block.nbError < 3, "Error count should be decremented after auto-recovery")
+	
+	// If error count reaches 0, endpoint should be removed
+	for e.errorPerEndpoint["test"] != nil && e.errorPerEndpoint["test"].nbError > 0 {
+		e.errorPerEndpoint["test"].until = time.Now().Add(-1 * time.Second)
+		e.isBlock("test")
+	}
+	
+	// Endpoint should be completely removed when error count reaches 0
+	_, exists := e.errorPerEndpoint["test"]
+	assert.False(t, exists, "Endpoint should be removed when error count reaches 0")
+}

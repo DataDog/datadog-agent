@@ -94,11 +94,20 @@ func (e *blockedEndpoints) recover(endpoint string) {
 }
 
 func (e *blockedEndpoints) isBlock(endpoint string) bool {
-	e.m.RLock()
-	defer e.m.RUnlock()
+	e.m.Lock()
+	defer e.m.Unlock()
 
-	if b, ok := e.errorPerEndpoint[endpoint]; ok && time.Now().Before(b.until) {
-		return true
+	if b, ok := e.errorPerEndpoint[endpoint]; ok {
+		if time.Now().Before(b.until) {
+			return true
+		}
+		// Time has passed, automatically recover the endpoint
+		b.nbError = e.backoffPolicy.DecError(b.nbError)
+		if b.nbError <= 0 {
+			delete(e.errorPerEndpoint, endpoint)
+		} else {
+			b.until = time.Now().Add(e.getBackoffDuration(b.nbError))
+		}
 	}
 	return false
 }
