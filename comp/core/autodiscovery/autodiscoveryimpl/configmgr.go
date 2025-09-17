@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"sync"
 
-	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/configresolver"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
@@ -75,7 +74,7 @@ type reconcilingConfigManager struct {
 	// activeConfigs contains an entry for each config from the config
 	// providers, keyed by its digest.  This is the "base truth" of configs --
 	// the set of new configs processed net deleted configs.
-	activeConfigs map[string]adtypes.InternalConfig
+	activeConfigs map[string]integration.Config
 
 	// activeServices contains an entry for each service from the listeners,
 	// keyed by its serviceID and with its AD identifiers stored separately.
@@ -109,7 +108,7 @@ var _ configManager = &reconcilingConfigManager{}
 // newReconcilingConfigManager creates a new, empty reconcilingConfigManager.
 func newReconcilingConfigManager(secretResolver secrets.Component) configManager {
 	return &reconcilingConfigManager{
-		activeConfigs:      map[string]adtypes.InternalConfig{},
+		activeConfigs:      map[string]integration.Config{},
 		activeServices:     map[string]serviceAndADIDs{},
 		templatesByADID:    newMultimap(),
 		servicesByADID:     newMultimap(),
@@ -182,33 +181,34 @@ func (cm *reconcilingConfigManager) processDelService(svc listeners.Service) int
 }
 
 // processNewConfig implements configManager#processNewConfig.
-func (cm *reconcilingConfigManager) processNewConfig(externalConfig integration.Config) (integration.ConfigChanges, map[checkid.ID]checkid.ID) {
+func (cm *reconcilingConfigManager) processNewConfig(config integration.Config) (integration.ConfigChanges, map[checkid.ID]checkid.ID) {
 	cm.m.Lock()
 	defer cm.m.Unlock()
 
 	changedIDsOfSecretsWithConfigs := make(map[checkid.ID]checkid.ID)
 
-	digest := externalConfig.Digest()
+	digest := config.Digest()
 	if _, found := cm.activeConfigs[digest]; found {
-		log.Debugf("Config %s (digest %s) is already tracked by autodiscovery", externalConfig.Name, externalConfig.Digest())
+		log.Debugf("Config %s (digest %s) is already tracked by autodiscovery", config.Name, config.Digest())
 		return integration.ConfigChanges{}, changedIDsOfSecretsWithConfigs
 	}
-	internalConfig, err := adtypes.CreateAdvancedConfig(externalConfig)
+	prg, err := createMatchingProgram(config.CELSelector)
 	if err != nil {
-		log.Warnf("Config %s (source %s) could not initialize: %v", externalConfig.Name, externalConfig.Source, err)
+		log.Warnf("Config %s (source %s) could not initialize: %v", config.Name, config.Source, err)
 		return integration.ConfigChanges{}, changedIDsOfSecretsWithConfigs
 	}
+	config.SetMatchingProgram(prg)
 
 	// Execute the steps outlined in the comment on reconcilingConfigManager:
 	//
 	//  1. update activeConfigs / activeServices
-	cm.activeConfigs[digest] = internalConfig
+	cm.activeConfigs[digest] = config
 
 	var changes integration.ConfigChanges
-	if internalConfig.IsTemplate() {
+	if config.IsTemplate() {
 		//  2. update templatesByADID or servicesByADID to match
 		matchingServices := map[string]struct{}{}
-		for _, adID := range internalConfig.ADIdentifiers {
+		for _, adID := range config.ADIdentifiers {
 			cm.templatesByADID.insert(adID, digest)
 			for _, svcID := range cm.servicesByADID.get(adID) {
 				matchingServices[svcID] = struct{}{}
@@ -220,9 +220,9 @@ func (cm *reconcilingConfigManager) processNewConfig(externalConfig integration.
 		}
 	} else {
 		// Secrets always need to be resolved (done in reconcileService if template)
-		decryptedConfig, err := decryptConfig(internalConfig.Config, cm.secretResolver)
+		decryptedConfig, err := decryptConfig(config, cm.secretResolver)
 		if err != nil {
-			log.Errorf("Unable to resolve secrets for config '%s', dropping check configuration, err: %s", internalConfig.Name, err.Error())
+			log.Errorf("Unable to resolve secrets for config '%s', dropping check configuration, err: %s", config.Name, err.Error())
 		}
 
 		// Instances of the decrypted config change their ID when secrets are
@@ -232,8 +232,8 @@ func (cm *reconcilingConfigManager) processNewConfig(externalConfig integration.
 		// Cluster Agent when it does not decrypt secrets (config option
 		// secret_backend_skip_checks set to true) and the Runner when it
 		// decrypts secrets.
-		if internalConfig.Provider == names.ClusterChecks {
-			changedIDsOfSecretsWithConfigs = changedCheckIDs(internalConfig.Config, decryptedConfig)
+		if config.Provider == names.ClusterChecks {
+			changedIDsOfSecretsWithConfigs = changedCheckIDs(config, decryptedConfig)
 		}
 
 		changes.ScheduleConfig(decryptedConfig)
@@ -280,7 +280,7 @@ func (cm *reconcilingConfigManager) processDelConfigs(externalConfigs []integrat
 		} else {
 			// Secrets need to be resolved before being unscheduled as otherwise
 			// the computed hashes can be different from the ones computed at schedule time.
-			decryptedConfig, err := decryptConfig(internalConfig.Config, cm.secretResolver)
+			decryptedConfig, err := decryptConfig(internalConfig, cm.secretResolver)
 			if err != nil {
 				log.Errorf("Unable to resolve secrets for config '%s', check may not be unscheduled properly, err: %s", internalConfig.Name, err.Error())
 			}
@@ -308,7 +308,7 @@ func (cm *reconcilingConfigManager) getActiveConfigs() map[string]integration.Co
 
 	res := make(map[string]integration.Config, len(cm.activeConfigs))
 	for k, v := range cm.activeConfigs {
-		res[k] = v.Config
+		res[k] = v
 	}
 	return res
 }
@@ -336,7 +336,7 @@ func (cm *reconcilingConfigManager) reconcileService(svcID string) integration.C
 
 	// determine the matching templates by template digest.  If the service
 	// has been removed, then this slice is empty.
-	expectedResolutions := map[string]adtypes.InternalConfig{}
+	expectedResolutions := map[string]integration.Config{}
 	for _, adID := range adIDs {
 		digests := cm.templatesByADID.get(adID)
 		for _, digest := range digests {
@@ -364,7 +364,7 @@ func (cm *reconcilingConfigManager) reconcileService(svcID string) integration.C
 		if _, found := existingResolutions[digest]; !found {
 			// at this point, there was at least one expected resolution, so
 			// svc must not be nil.
-			resolved, ok := cm.resolveTemplateForService(config.Config, svc)
+			resolved, ok := cm.resolveTemplateForService(config, svc)
 			if !ok {
 				continue
 			}

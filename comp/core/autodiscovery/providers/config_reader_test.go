@@ -127,7 +127,7 @@ func TestReadConfigFiles(t *testing.T) {
 
 	configs, errors, err := ReadConfigFiles(GetAll)
 	require.Nil(t, err)
-	require.Equal(t, 20, len(configs))
+	require.Equal(t, 21, len(configs))
 	require.Equal(t, 4, len(errors))
 
 	for _, c := range configs {
@@ -138,7 +138,7 @@ func TestReadConfigFiles(t *testing.T) {
 
 	configs, _, err = ReadConfigFiles(WithoutAdvancedAD)
 	require.Nil(t, err)
-	require.Equal(t, 18, len(configs))
+	require.Equal(t, 19, len(configs))
 
 	expectedConfig1 := integration.Config{
 		Name: "advanced_ad",
@@ -180,32 +180,33 @@ func TestReadConfigFiles(t *testing.T) {
 	require.Equal(t, 2, len(configs))
 
 	// Ignore the Source field for comparison because varies by OS
-	ignoreSource := cmpopts.IgnoreFields(integration.Config{}, "Source")
+	// Ignore the matchingProgram field for comparison since it's not relevant for the test
+	ignoreFields := cmpopts.IgnoreFields(integration.Config{}, "Source", "matchingProgram")
 
 	// Check if expectedConfig1 is in the configs slice
 	found := false
 	for _, config := range configs {
-		if cmp.Equal(config, expectedConfig1, ignoreSource) {
+		if cmp.Equal(config, expectedConfig1, ignoreFields) {
 			found = true
 			break
 		}
 	}
 	if !found {
 		t.Errorf("expectedConfig not found in configs.\nExpected: %+v\nActual configs: %+v\nDiff: %s",
-			expectedConfig1, configs, cmp.Diff(expectedConfig1, configs, ignoreSource))
+			expectedConfig1, configs, cmp.Diff(expectedConfig1, configs, ignoreFields))
 	}
 
 	// Check if expectedConfig2 is in the configs slice
 	found = false
 	for _, config := range configs {
-		if cmp.Equal(config, expectedConfig2, ignoreSource) {
+		if cmp.Equal(config, expectedConfig2, ignoreFields) {
 			found = true
 			break
 		}
 	}
 	if !found {
 		t.Errorf("expectedConfig not found in configs.\nExpected: %+v\nActual configs: %+v\nDiff: %s",
-			expectedConfig2, configs, cmp.Diff(expectedConfig2, configs, ignoreSource))
+			expectedConfig2, configs, cmp.Diff(expectedConfig2, configs, ignoreFields))
 	}
 
 	configs, _, err = ReadConfigFiles(func(c integration.Config) bool { return c.Name == "baz" })
