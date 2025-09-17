@@ -36,7 +36,7 @@ type Sample struct {
 }
 
 // CudaSample is a binary that calls all the CUDA functions we probe for
-var CudaSample Sample = Sample{
+var CudaSample = Sample{
 	Name:            "cudasample",
 	StartPattern:    regexp.MustCompile("Starting CudaSample program"),
 	FinishedPattern: regexp.MustCompile("CUDA calls made."),
@@ -44,7 +44,7 @@ var CudaSample Sample = Sample{
 }
 
 // RateSample is a binary that calls the CUDA rate sample, allowing to launch CUDA calls at a given rate
-var RateSample Sample = Sample{
+var RateSample = Sample{
 	Name:            "cudarate",
 	StartPattern:    regexp.MustCompile("Starting CudaRateSample program"),
 	FinishedPattern: regexp.MustCompile("CUDA calls made."),
@@ -65,7 +65,7 @@ type SampleArgs interface {
 	CLIArgs() []string
 }
 
-// SampleArgs holds arguments for the sample binary
+// CudaSampleArgs holds arguments for the sample binary
 type CudaSampleArgs struct {
 	// StartWaitTimeSec represents the time in seconds to wait before the binary starting the CUDA calls
 	StartWaitTimeSec int
