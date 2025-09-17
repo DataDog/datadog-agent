@@ -69,7 +69,7 @@ config_setting(
 )
 
 cc_library(
-    name = "z",
+    name = "zlib",
     srcs = [
         "adler32.c",
         "compress.c",
@@ -133,16 +133,16 @@ cc_library(
     visibility = ["//visibility:public"],
 )
 
-alias(
-    name = "zlib",
-    actual = ":z",
-    visibility = ["//visibility:public"],
-)
+#alias(
+#    name = "zlib",
+#    actual = ":zlib",
+#    visibility = ["//visibility:public"],
+#)
 
 cc_shared_library(
     name = "libz_so",
-    shared_lib_name = "libz.so",
-    deps = [":z"],
+    shared_lib_name = "libz.1.so",
+    deps = [":zlib"],
 )
 
 pkg_files(

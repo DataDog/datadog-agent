@@ -59,6 +59,6 @@ build do
     make("install", *make_args, env: env)
   else
     # TODO: Once can build on windows, make this the relative path.
-    command "cd #{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent && /bin/pwd && ls && bazelisk run -- @zlib//:install --destdir='#{install_dir}/embedded' && ls #{install_dir}/embedded"
+    command "cd #{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent && bazelisk run -- @zlib//:install --destdir='#{install_dir}/embedded' && ls #{install_dir}/embedded"
   end
 end
