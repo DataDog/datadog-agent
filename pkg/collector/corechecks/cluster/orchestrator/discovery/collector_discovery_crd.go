@@ -204,3 +204,41 @@ func (d *DiscoveryCollector) List(group, version, kind string) []CollectorVersio
 
 	return result
 }
+
+// OptimalVersion returns the best available version for a given group.
+func (d *DiscoveryCollector) OptimalVersion(groupName, preferredVersion string, fallbackVersions []string) (string, bool) {
+	supportedVersions := d.getSupportedVersions(groupName)
+	if len(supportedVersions) == 0 {
+		return "", false
+	}
+
+	// Try preferred version first
+	if preferredVersion != "" && supportedVersions[preferredVersion] {
+		return preferredVersion, true
+	}
+
+	// Try fallback versions in order
+	for _, version := range fallbackVersions {
+		if version != "" && supportedVersions[version] {
+			return version, true
+		}
+	}
+
+	return "", false
+}
+
+// getSupportedVersions returns a map of supported versions for the given group.
+func (d *DiscoveryCollector) getSupportedVersions(groupName string) map[string]bool {
+	for _, group := range d.cache.Groups {
+		if group.Name == groupName {
+			supportedVersions := make(map[string]bool, len(group.Versions))
+			for _, version := range group.Versions {
+				if version.Version != "" {
+					supportedVersions[version.Version] = true
+				}
+			}
+			return supportedVersions
+		}
+	}
+	return nil
+}

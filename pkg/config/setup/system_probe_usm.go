@@ -84,6 +84,11 @@ func initUSMSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// ========================================
 	// HTTP/2 Protocol Configuration
 	// ========================================
+	// Tree structure
+	cfg.BindEnvAndSetDefault(join(smNS, "http2", "enabled"), false)
+	cfg.BindEnvAndSetDefault(join(smNS, "http2", "dynamic_table_map_cleaner_interval_seconds"), 30)
+
+	// Legacy bindings for backward compatibility (deprecated)
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_http2_monitoring"), false)
 	cfg.BindEnvAndSetDefault(join(smNS, "http2_dynamic_table_map_cleaner_interval_seconds"), 30)
 
