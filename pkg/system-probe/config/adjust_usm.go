@@ -37,8 +37,14 @@ func adjustUSM(cfg model.Config) {
 	// shorten the allowed path, but not lengthen it.
 	applyDefault(cfg, smNS("http_max_request_fragment"), maxHTTPFrag)
 	applyDefault(cfg, smNS("max_concurrent_requests"), cfg.GetInt(spNS("max_tracked_connections")))
+	deprecateBool(cfg, smNS("enable_kafka_monitoring"), smNS("kafka", "enabled"))
+	deprecateInt(cfg, smNS("max_kafka_stats_buffered"), smNS("kafka", "max_stats_buffered"))
 	deprecateBool(cfg, smNS("process_service_inference", "enabled"), spNS("process_service_inference", "enabled"))
 	deprecateBool(cfg, smNS("process_service_inference", "use_windows_service_name"), spNS("process_service_inference", "use_windows_service_name"))
+
+	// HTTP/2 configuration migration
+	deprecateBool(cfg, smNS("enable_http2_monitoring"), smNS("http2", "enabled"))
+	deprecateInt(cfg, smNS("http2_dynamic_table_map_cleaner_interval_seconds"), smNS("http2", "dynamic_table_map_cleaner_interval_seconds"))
 
 	// Similar to the checkin in adjustNPM(). The process event data stream and USM have the same
 	// minimum kernel version requirement, but USM's check for that is done

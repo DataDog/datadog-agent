@@ -88,13 +88,23 @@ func initUSMSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// ========================================
 	// HTTP/2 Protocol Configuration
 	// ========================================
+	// Tree structure
+	cfg.BindEnvAndSetDefault(join(smNS, "http2", "enabled"), false)
+	cfg.BindEnvAndSetDefault(join(smNS, "http2", "dynamic_table_map_cleaner_interval_seconds"), 30)
+
+	// Legacy bindings for backward compatibility (deprecated)
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_http2_monitoring"), false)
 	cfg.BindEnvAndSetDefault(join(smNS, "http2_dynamic_table_map_cleaner_interval_seconds"), 30)
 
 	// ========================================
 	// Kafka Protocol Configuration
 	// ========================================
+	cfg.BindEnvAndSetDefault(join(smNS, "kafka", "enabled"), false)
+	// For backward compatibility
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_kafka_monitoring"), false)
+
+	cfg.BindEnvAndSetDefault(join(smNS, "kafka", "max_stats_buffered"), 100000)
+	// For backward compatibility
 	cfg.BindEnvAndSetDefault(join(smNS, "max_kafka_stats_buffered"), 100000)
 
 	// ========================================

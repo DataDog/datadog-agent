@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/security/utils/lru/simplelru"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/args"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -38,7 +39,11 @@ type EBPFFieldHandlers struct {
 	*BaseFieldHandlers
 	resolvers *resolvers.EBPFResolvers
 	onDemand  *OnDemandProbesManager
+
+	cgroupIDcache *simplelru.LRU[containerutils.CGroupID, containerutils.ContainerID]
 }
+
+const cgroupIDCacheSize = 256
 
 // NewEBPFFieldHandlers returns a new EBPFFieldHandlers
 func NewEBPFFieldHandlers(config *config.Config, resolvers *resolvers.EBPFResolvers, hostname string, onDemand *OnDemandProbesManager) (*EBPFFieldHandlers, error) {
@@ -47,10 +52,16 @@ func NewEBPFFieldHandlers(config *config.Config, resolvers *resolvers.EBPFResolv
 		return nil, err
 	}
 
+	cgroupIDcache, err := simplelru.NewLRU[containerutils.CGroupID, containerutils.ContainerID](cgroupIDCacheSize, nil)
+	if err != nil {
+		return nil, err
+	}
+
 	return &EBPFFieldHandlers{
 		BaseFieldHandlers: bfh,
 		resolvers:         resolvers,
 		onDemand:          onDemand,
+		cgroupIDcache:     cgroupIDcache,
 	}, nil
 }
 
@@ -207,6 +218,16 @@ func (fh *EBPFFieldHandlers) ResolveMountRootPath(ev *model.Event, e *model.Moun
 	return e.MountRootPath
 }
 
+func (fh *EBPFFieldHandlers) containerIDFromCgroupID(cgroupID containerutils.CGroupID) containerutils.ContainerID {
+	if containerID, ok := fh.cgroupIDcache.Get(cgroupID); ok {
+		return containerID
+	}
+
+	cid := containerutils.FindContainerID(cgroupID)
+	fh.cgroupIDcache.Add(cgroupID, cid)
+	return cid
+}
+
 // ResolveContainerContext queries the cgroup resolver to retrieve the ContainerContext of the event
 func (fh *EBPFFieldHandlers) ResolveContainerContext(ev *model.Event) (*model.ContainerContext, bool) {
 	if ev.ContainerContext.Resolved {
@@ -214,7 +235,7 @@ func (fh *EBPFFieldHandlers) ResolveContainerContext(ev *model.Event) (*model.Co
 	}
 
 	if ev.ContainerContext.ContainerID == "" {
-		ev.ContainerContext.ContainerID = containerutils.FindContainerID(ev.CGroupContext.CGroupID)
+		ev.ContainerContext.ContainerID = fh.containerIDFromCgroupID(ev.CGroupContext.CGroupID)
 	}
 
 	if ev.ContainerContext.ContainerID != "" {

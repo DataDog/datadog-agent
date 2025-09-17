@@ -25,6 +25,7 @@ import (
 	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	logstcp "github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 func getLogsEndpoints(useTCP bool) (*logsConfig.Endpoints, error) {
@@ -204,8 +205,10 @@ func sendHTTPRequestToEndpoint(ctx context.Context, client *http.Client, domain 
 	url := createEndpointURL(domain, endpointInfo)
 
 	headers := map[string]string{
-		"Content-Type": endpointInfo.ContentType,
-		"DD-API-KEY":   apiKey,
+		"Content-Type":     endpointInfo.ContentType,
+		"DD-API-KEY":       apiKey,
+		"DD-Agent-Version": version.AgentVersion,
+		"User-Agent":       fmt.Sprintf("datadog-agent/%s", version.AgentVersion),
 	}
 
 	return sendRequest(ctx, client, url, endpointInfo.Method, endpointInfo.Payload, headers)
