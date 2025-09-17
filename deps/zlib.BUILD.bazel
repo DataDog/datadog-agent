@@ -107,6 +107,7 @@ cc_library(
             "/wd4127",  # conditional expression is constant
             "/wd4242",  # possible loss of data
             "/wd4244",  # possible loss of data
+            "/wd4711",  # it inlined a function
             "/wd5045",  # padding bytes inserted
         ],
         "@platforms//os:macos": [
