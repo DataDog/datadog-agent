@@ -736,6 +736,7 @@ type EventSerializer struct {
 	*ModuleEventSerializer        `json:"module,omitempty"`
 	*SignalEventSerializer        `json:"signal,omitempty"`
 	*SpliceEventSerializer        `json:"splice,omitempty"`
+	*FailedDNSEventSerializer     `json:"failed_dns,omitempty"`
 	*DNSEventSerializer           `json:"dns,omitempty"`
 	*IMDSEventSerializer          `json:"imds,omitempty"`
 	*AcceptEventSerializer        `json:"accept,omitempty"`
@@ -1704,6 +1705,8 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule) *EventSerializer {
 	case model.DNSEventType:
 		s.EventContextSerializer.Outcome = serializeOutcome(0)
 		s.DNSEventSerializer = newDNSEventSerializer(&event.DNS)
+	case model.FailedDNSEventType:
+		s.FailedDNSEventSerializer = newFailedDNSEventSerializer(&event.FailedDNS)
 	case model.IMDSEventType:
 		s.EventContextSerializer.Outcome = serializeOutcome(0)
 		s.IMDSEventSerializer = newIMDSEventSerializer(&event.IMDS)
