@@ -55,6 +55,7 @@ func (s *StringTable) Msgsize() int {
 	return size
 }
 
+// Clone creates a deep copy of the string table.
 func (s *StringTable) Clone() *StringTable {
 	clone := &StringTable{
 		strings: append([]string{}, s.strings...),
@@ -920,6 +921,7 @@ func (s *InternalSpan) MapAttributesAsStrings(f func(k, v string) string) {
 	}
 }
 
+// MapStringAttributesFunc is a function that maps over all string attributes and applies the given function to each attribute
 type MapStringAttributesFunc func(k, v string) (newK string, newV string, shouldReplace bool)
 
 // MapStringAttributes maps over all string attributes and applies the given function to each attribute

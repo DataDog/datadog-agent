@@ -235,7 +235,7 @@ func TracerPayloadWithChunk(chunk *pb.TraceChunk) *pb.TracerPayload {
 	}
 }
 
-// TracerPayloadV1WithChunk wraps `chunk` with pb.TraceChunk
+// TracerPayloadV1WithChunk wraps `chunk` with idx.InternalTracerPayload
 func TracerPayloadV1WithChunk(chunk *idx.InternalTraceChunk) *idx.InternalTracerPayload {
 	return &idx.InternalTracerPayload{
 		Strings: chunk.Strings,
@@ -250,7 +250,7 @@ func TracerPayloadWithChunks(chunks []*pb.TraceChunk) *pb.TracerPayload {
 	}
 }
 
-// TracerPayloadV1WithChunk wraps `chunk` with pb.TraceChunk
+// TracerPayloadV1WithChunks wraps `chunks` with idx.InternalTracerPayload
 func TracerPayloadV1WithChunks(chunks []*idx.InternalTraceChunk) *idx.InternalTracerPayload {
 	return &idx.InternalTracerPayload{
 		Strings: chunks[0].Strings,
