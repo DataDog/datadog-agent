@@ -263,13 +263,17 @@ var (
 		"/application_monitoring.yaml",
 		"/conf.d/*.yaml",
 		"/conf.d/*.d/*.yaml",
-		"/managed/*",
 	}
 
 	legacyPathPrefix = filepath.Join("managed", "datadog-agent", "stable")
 )
 
 func configNameAllowed(file string) bool {
+	// Matching everything under the legacy /managed directory
+	if strings.HasPrefix(file, "/managed") {
+		return true
+	}
+
 	for _, allowedFile := range allowedConfigFiles {
 		match, err := filepath.Match(allowedFile, file)
 		if err != nil {
