@@ -9,7 +9,7 @@
 // versions, installation dates, and other relevant details for inventory tracking.
 package softwareinventory
 
-// team: windows-agent
+// team: windows-products
 
 // Component is the interface for the inventory software component.
 // This component is responsible for collecting software inventory data from the host system

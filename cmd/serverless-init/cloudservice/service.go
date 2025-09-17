@@ -17,6 +17,10 @@ type CloudService interface {
 	// the logs, traces, and metrics.
 	GetTags() map[string]string
 
+	// GetDefaultLogsSource returns the value that will be used for the logs source
+	// if `DD_SOURCE` is not set by the user.
+	GetDefaultLogsSource() string
+
 	// GetOrigin returns the value that will be used for the `origin` attribute for
 	// all logs, traces, and metrics.
 	GetOrigin() string
@@ -35,6 +39,14 @@ type CloudService interface {
 
 	// GetShutdownMetricName returns the metric name for shutdown events
 	GetShutdownMetricName() string
+
+	// ShouldForceFlushAllOnForceFlushToSerializer is used for the
+	// forceFlushAll parameter on the call to forceFlushToSerializer in the
+	// pkg/aggregator/demultiplexer_serverless.ServerlessDemultiplexer.ForceFlushToSerializer
+	// method. This is currently necessary to support Cloud Run Jobs where the
+	// shutdown flow is more abrupt than other environments. We may want to
+	// unravel this thread in a cleaner way in the future.
+	ShouldForceFlushAllOnForceFlushToSerializer() bool
 }
 
 //nolint:revive // TODO(SERV) Fix revive linter
@@ -45,6 +57,11 @@ const defaultPrefix = "datadog.serverless_agent"
 // GetTags is a default implementation that returns a local empty tag set
 func (l *LocalService) GetTags() map[string]string {
 	return map[string]string{}
+}
+
+// GetDefaultLogsSource is a default implementation that returns an empty logs source
+func (l *LocalService) GetDefaultLogsSource() string {
+	return "unknown"
 }
 
 // GetOrigin is a default implementation that returns a local empty origin
@@ -73,6 +90,11 @@ func (l *LocalService) GetStartMetricName() string {
 // GetShutdownMetricName returns the metric name for container shutdown events
 func (l *LocalService) GetShutdownMetricName() string {
 	return fmt.Sprintf("%s.enhanced.shutdown", defaultPrefix)
+}
+
+// ShouldForceFlushAllOnForceFlushToSerializer is false usually.
+func (l *LocalService) ShouldForceFlushAllOnForceFlushToSerializer() bool {
+	return false
 }
 
 // GetCloudServiceType TODO: Refactor to avoid leaking individual service implementation details into the interface layer

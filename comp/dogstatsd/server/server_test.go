@@ -55,7 +55,7 @@ func TestHistogramMetricNamesFilter(t *testing.T) {
 		"count",
 	}
 
-	filtered := s.createHistogramsBlocklist(bl)
+	filtered := s.createHistogramsFilterList(bl)
 	require.ElementsMatch(filtered, []string{"foo.avg", "foo.max", "baz.73percentile", "bar.22percentile"})
 }
 

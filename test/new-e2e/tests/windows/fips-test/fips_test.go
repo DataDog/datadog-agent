@@ -111,7 +111,7 @@ func (s *fipsAgentSuite) TestOpenSSLPaths() {
 		"MODULESDIR": fmt.Sprintf(`%sembedded3\lib\ossl-modules`, s.installPath),
 	}
 	// TODO: How to configure the version of OpenSSL?
-	opensslVersion := "3.4"
+	opensslVersion := "3.5"
 	keyPath := fmt.Sprintf(`HKLM:\SOFTWARE\Wow6432Node\OpenSSL-%s-datadog-fips-agent`, opensslVersion)
 	exists, err := windowsCommon.RegistryKeyExists(host, keyPath)
 	require.NoError(s.T(), err)

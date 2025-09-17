@@ -20,9 +20,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	kubeletfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/kubelet"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -41,22 +43,29 @@ var includeContainerStateReason = map[string][]string{
 }
 
 const kubeNamespaceTag = tags.KubeNamespace
+const kubePodConditionResizePending = "PodResizePending"
 
 // Provider provides the metrics related to data collected from the `/pods` Kubelet endpoint
 type Provider struct {
-	filter   *containers.Filter
-	config   *common.KubeletConfig
-	podUtils *common.PodUtils
-	tagger   tagger.Component
+	filterStore workloadfilter.Component
+	store       workloadmeta.Component
+	config      *common.KubeletConfig
+	podUtils    *common.PodUtils
+	tagger      tagger.Component
+	// now timer func is used to mock time in tests
+	now func() time.Time
 }
 
 // NewProvider returns a new Provider
-func NewProvider(filter *containers.Filter, config *common.KubeletConfig, podUtils *common.PodUtils, tagger tagger.Component) *Provider {
+func NewProvider(filterStore workloadfilter.Component, store workloadmeta.Component, config *common.KubeletConfig,
+	podUtils *common.PodUtils, tagger tagger.Component) *Provider {
 	return &Provider{
-		filter:   filter,
-		config:   config,
-		podUtils: podUtils,
-		tagger:   tagger,
+		filterStore: filterStore,
+		store:       store,
+		config:      config,
+		podUtils:    podUtils,
+		tagger:      tagger,
+		now:         time.Now,
 	}
 }
 
@@ -107,13 +116,19 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 			runningAggregator.recordContainer(p, pod, &cStatus, cID)
 
 			// don't exclude filtered containers from aggregation, but filter them out from other reported metrics
-			if p.filter.IsExcluded(pod.Metadata.Annotations, cStatus.Name, cStatus.Image, pod.Metadata.Namespace) {
+			filterableContainer := kubeletfilter.CreateContainer(cStatus, kubeletfilter.CreatePod(pod))
+			selectedFilters := p.filterStore.GetContainerSharedMetricFilters()
+			if p.filterStore.IsContainerExcluded(filterableContainer, selectedFilters) {
 				continue
 			}
 
 			p.generateContainerSpecMetrics(sender, pod, &container, &cStatus, cID)
 			p.generateContainerStatusMetrics(sender, pod, &container, &cStatus, cID)
 		}
+
+		p.generatePodTerminationMetric(sender, pod)
+		p.generatePodResizeMetric(sender, pod)
+
 		runningAggregator.recordPod(p, pod)
 	}
 	runningAggregator.generateRunningAggregatorMetrics(sender)
@@ -138,6 +153,9 @@ func (p *Provider) generateContainerSpecMetrics(sender sender.Sender, pod *kubel
 	tagList = utils.ConcatenateTags(tagList, p.config.Tags)
 
 	if container.Resources != nil { // Ephemeral containers do not have resources defined
+
+		tagList = common.AppendKubeStaticCPUsTag(p.store, pod.Status.QOSClass, containerID, tagList)
+
 		for r, value := range container.Resources.Requests {
 			sender.Gauge(common.KubeletMetricsPrefix+string(r)+".requests", value.AsApproximateFloat64(), "", tagList)
 		}
@@ -172,6 +190,63 @@ func (p *Provider) generateContainerStatusMetrics(sender sender.Sender, pod *kub
 			sender.Gauge(common.KubeletMetricsPrefix+"containers."+key+".waiting", 1, "", waitTags)
 		}
 	}
+}
+
+func (p *Provider) generatePodTerminationMetric(sender sender.Sender, pod *kubelet.Pod) {
+	// This field is set by the server when a graceful deletion is requested by the user, and is not directly settable by a client.
+	// If there is no DeletionTimestamp then POD is not in Termination and no metric is needed.
+	if pod.Metadata.DeletionTimestamp == nil {
+		return
+	}
+
+	dur := p.now().Sub(*pod.Metadata.DeletionTimestamp)
+
+	// While DeletionTimestamp is in the future metric is not emitted.
+	if dur < 0 {
+		return
+	}
+
+	podID := pod.Metadata.UID
+	if podID == "" {
+		log.Debug("skipping pod with no uid for termination metric, duration: %f", dur.Seconds())
+		return
+	}
+	entityID := types.NewEntityID(types.KubernetesPodUID, podID)
+	tagList, _ := p.tagger.Tag(entityID, types.LowCardinality)
+	tagList = utils.ConcatenateTags(tagList, p.config.Tags)
+
+	sender.Gauge(common.KubeletMetricsPrefix+"pod.terminating.duration", float64(dur.Seconds()), "", tagList)
+}
+
+func (p *Provider) generatePodResizeMetric(sender sender.Sender, pod *kubelet.Pod) {
+
+	var cond *kubelet.Conditions
+	for _, c := range pod.Status.Conditions {
+		if c.Type == kubePodConditionResizePending {
+			cond = &c
+			break
+		}
+	}
+
+	if cond == nil {
+		// nothing to report if condition is not on the pod
+		return
+	}
+
+	podID := pod.Metadata.UID
+	if podID == "" {
+		log.Debug("skipping pod with no uid for pod resize metric")
+		return
+	}
+	entityID := types.NewEntityID(types.KubernetesPodUID, podID)
+	tagList, _ := p.tagger.Tag(entityID, types.HighCardinality)
+	tagList = utils.ConcatenateTags(tagList, p.config.Tags)
+
+	// reason could be Infeasible or Deferred
+	// See: https://kubernetes.io/docs/tasks/configure-pod-container/resize-container-resources/#pod-resize-status
+	tagList = utils.ConcatenateStringTags(tagList, "reason:"+strings.ToLower(cond.Reason))
+
+	sender.Gauge(common.KubeletMetricsPrefix+"pod.resize.pending", 1.0, "", tagList)
 }
 
 type runningAggregator struct {

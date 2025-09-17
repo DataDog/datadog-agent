@@ -248,6 +248,27 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "object",
             "description": "CGroupWriteEventSerializer serializes a cgroup_write event"
         },
+        "CapabilitiesEvent": {
+            "properties": {
+                "caps_attempted": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "Capabilities that the process attempted to use since it started running"
+                },
+                "caps_used": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "Capabilities that the process successfully used since it started running"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "description": "CapabilitiesEventSerializer serializes a capabilities usage event"
+        },
         "ConnectEvent": {
             "properties": {
                 "addr": {
@@ -1115,6 +1136,10 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "network_direction": {
                     "type": "string",
                     "description": "network_direction indicates if the packet was captured on ingress or egress"
+                },
+                "type": {
+                    "type": "string",
+                    "description": "type is the type of the protocol of the network event"
                 }
             },
             "additionalProperties": false,
@@ -1124,8 +1149,7 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "l4_protocol",
                 "source",
                 "destination",
-                "size",
-                "network_direction"
+                "size"
             ],
             "description": "NetworkContextSerializer serializes the network context to JSON"
         },
@@ -1209,6 +1233,28 @@ Workload Protection events for Linux systems have the following JSON schema:
             ],
             "description": "PTraceEventSerializer serializes a mmap event to JSON"
         },
+        "PrCtlEvent": {
+            "properties": {
+                "option": {
+                    "type": "string",
+                    "description": "PrCtl Option"
+                },
+                "new_name": {
+                    "type": "string",
+                    "description": "New name of the process"
+                },
+                "is_name_truncated": {
+                    "type": "boolean",
+                    "description": "Name truncated"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "option"
+            ],
+            "description": "PrCtlEventSerializer serializes a prctl event"
+        },
         "Process": {
             "properties": {
                 "pid": {
@@ -1269,6 +1315,20 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "credentials": {
                     "$ref": "#/$defs/ProcessCredentials",
                     "description": "Credentials associated with the process"
+                },
+                "caps_attempted": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "CapsAttempted lists the capabilities that this process tried to use"
+                },
+                "caps_used": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "CapsUsed lists the capabilities that this process effectively made use of"
                 },
                 "user_session": {
                     "$ref": "#/$defs/UserSessionContext",
@@ -1412,6 +1472,20 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "credentials": {
                     "$ref": "#/$defs/ProcessCredentials",
                     "description": "Credentials associated with the process"
+                },
+                "caps_attempted": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "CapsAttempted lists the capabilities that this process tried to use"
+                },
+                "caps_used": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "CapsUsed lists the capabilities that this process effectively made use of"
                 },
                 "user_session": {
                     "$ref": "#/$defs/UserSessionContext",
@@ -1631,8 +1705,15 @@ Workload Protection events for Linux systems have the following JSON schema:
                     "type": "string",
                     "description": "network_direction indicates if the packet was captured on ingress or egress"
                 },
+                "type": {
+                    "type": "string",
+                    "description": "type is the type of the protocol of the network event"
+                },
                 "tls": {
                     "$ref": "#/$defs/TLSContext"
+                },
+                "dropped": {
+                    "type": "boolean"
                 }
             },
             "additionalProperties": false,
@@ -1642,8 +1723,7 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "l4_protocol",
                 "source",
                 "destination",
-                "size",
-                "network_direction"
+                "size"
             ],
             "description": "RawPacketSerializer defines a raw packet serializer"
         },
@@ -1989,6 +2069,9 @@ Workload Protection events for Linux systems have the following JSON schema:
                 },
                 "setsockopt": {
                     "$ref": "#/$defs/SyscallArgs"
+                },
+                "prctl": {
+                    "$ref": "#/$defs/SyscallArgs"
                 }
             },
             "additionalProperties": false,
@@ -2175,6 +2258,12 @@ Workload Protection events for Linux systems have the following JSON schema:
         },
         "cgroup_write": {
             "$ref": "#/$defs/CGroupWriteEvent"
+        },
+        "capabilities": {
+            "$ref": "#/$defs/CapabilitiesEvent"
+        },
+        "prctl": {
+            "$ref": "#/$defs/PrCtlEvent"
         }
     },
     "additionalProperties": false,
@@ -2223,6 +2312,8 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `sysctl` | $ref | Please see [SysCtlEvent](#sysctlevent) |
 | `setsockopt` | $ref | Please see [SetSockOptEvent](#setsockoptevent) |
 | `cgroup_write` | $ref | Please see [CGroupWriteEvent](#cgroupwriteevent) |
+| `capabilities` | $ref | Please see [CapabilitiesEvent](#capabilitiesevent) |
+| `prctl` | $ref | Please see [PrCtlEvent](#prctlevent) |
 
 ## `AWSIMDSEvent`
 
@@ -2609,6 +2700,40 @@ Workload Protection events for Linux systems have the following JSON schema:
 | References |
 | ---------- |
 | [File](#file) |
+
+## `CapabilitiesEvent`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "caps_attempted": {
+            "items": {
+                "type": "string"
+            },
+            "type": "array",
+            "description": "Capabilities that the process attempted to use since it started running"
+        },
+        "caps_used": {
+            "items": {
+                "type": "string"
+            },
+            "type": "array",
+            "description": "Capabilities that the process successfully used since it started running"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "description": "CapabilitiesEventSerializer serializes a capabilities usage event"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `caps_attempted` | Capabilities that the process attempted to use since it started running |
+| `caps_used` | Capabilities that the process successfully used since it started running |
+
 
 ## `ConnectEvent`
 
@@ -3868,6 +3993,10 @@ Workload Protection events for Linux systems have the following JSON schema:
         "network_direction": {
             "type": "string",
             "description": "network_direction indicates if the packet was captured on ingress or egress"
+        },
+        "type": {
+            "type": "string",
+            "description": "type is the type of the protocol of the network event"
         }
     },
     "additionalProperties": false,
@@ -3877,8 +4006,7 @@ Workload Protection events for Linux systems have the following JSON schema:
         "l4_protocol",
         "source",
         "destination",
-        "size",
-        "network_direction"
+        "size"
     ],
     "description": "NetworkContextSerializer serializes the network context to JSON"
 }
@@ -3894,6 +4022,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `destination` | destination is the receiver of the network event |
 | `size` | size is the size in bytes of the network event |
 | `network_direction` | network_direction indicates if the packet was captured on ingress or egress |
+| `type` | type is the type of the protocol of the network event |
 
 | References |
 | ---------- |
@@ -4040,6 +4169,42 @@ Workload Protection events for Linux systems have the following JSON schema:
 | ---------- |
 | [ProcessContext](#processcontext) |
 
+## `PrCtlEvent`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "option": {
+            "type": "string",
+            "description": "PrCtl Option"
+        },
+        "new_name": {
+            "type": "string",
+            "description": "New name of the process"
+        },
+        "is_name_truncated": {
+            "type": "boolean",
+            "description": "Name truncated"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+        "option"
+    ],
+    "description": "PrCtlEventSerializer serializes a prctl event"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `option` | PrCtl Option |
+| `new_name` | New name of the process |
+| `is_name_truncated` | Name truncated |
+
+
 ## `Process`
 
 
@@ -4104,6 +4269,20 @@ Workload Protection events for Linux systems have the following JSON schema:
         "credentials": {
             "$ref": "#/$defs/ProcessCredentials",
             "description": "Credentials associated with the process"
+        },
+        "caps_attempted": {
+            "items": {
+                "type": "string"
+            },
+            "type": "array",
+            "description": "CapsAttempted lists the capabilities that this process tried to use"
+        },
+        "caps_used": {
+            "items": {
+                "type": "string"
+            },
+            "type": "array",
+            "description": "CapsUsed lists the capabilities that this process effectively made use of"
         },
         "user_session": {
             "$ref": "#/$defs/UserSessionContext",
@@ -4206,6 +4385,8 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `exec_time` | Exec time of the process |
 | `exit_time` | Exit time of the process |
 | `credentials` | Credentials associated with the process |
+| `caps_attempted` | CapsAttempted lists the capabilities that this process tried to use |
+| `caps_used` | CapsUsed lists the capabilities that this process effectively made use of |
 | `user_session` | Context of the user session for this event |
 | `executable` | File information of the executable |
 | `interpreter` | File information of the interpreter |
@@ -4296,6 +4477,20 @@ Workload Protection events for Linux systems have the following JSON schema:
         "credentials": {
             "$ref": "#/$defs/ProcessCredentials",
             "description": "Credentials associated with the process"
+        },
+        "caps_attempted": {
+            "items": {
+                "type": "string"
+            },
+            "type": "array",
+            "description": "CapsAttempted lists the capabilities that this process tried to use"
+        },
+        "caps_used": {
+            "items": {
+                "type": "string"
+            },
+            "type": "array",
+            "description": "CapsUsed lists the capabilities that this process effectively made use of"
         },
         "user_session": {
             "$ref": "#/$defs/UserSessionContext",
@@ -4417,6 +4612,8 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `exec_time` | Exec time of the process |
 | `exit_time` | Exit time of the process |
 | `credentials` | Credentials associated with the process |
+| `caps_attempted` | CapsAttempted lists the capabilities that this process tried to use |
+| `caps_used` | CapsUsed lists the capabilities that this process effectively made use of |
 | `user_session` | Context of the user session for this event |
 | `executable` | File information of the executable |
 | `interpreter` | File information of the interpreter |
@@ -4597,8 +4794,15 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "string",
             "description": "network_direction indicates if the packet was captured on ingress or egress"
         },
+        "type": {
+            "type": "string",
+            "description": "type is the type of the protocol of the network event"
+        },
         "tls": {
             "$ref": "#/$defs/TLSContext"
+        },
+        "dropped": {
+            "type": "boolean"
         }
     },
     "additionalProperties": false,
@@ -4608,8 +4812,7 @@ Workload Protection events for Linux systems have the following JSON schema:
         "l4_protocol",
         "source",
         "destination",
-        "size",
-        "network_direction"
+        "size"
     ],
     "description": "RawPacketSerializer defines a raw packet serializer"
 }
@@ -4625,6 +4828,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `destination` | destination is the receiver of the network event |
 | `size` | size is the size in bytes of the network event |
 | `network_direction` | network_direction indicates if the packet was captured on ingress or egress |
+| `type` | type is the type of the protocol of the network event |
 
 | References |
 | ---------- |
@@ -5160,6 +5364,9 @@ Workload Protection events for Linux systems have the following JSON schema:
             "$ref": "#/$defs/SyscallArgs"
         },
         "setsockopt": {
+            "$ref": "#/$defs/SyscallArgs"
+        },
+        "prctl": {
             "$ref": "#/$defs/SyscallArgs"
         }
     },

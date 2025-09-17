@@ -101,6 +101,11 @@ func (c *ContainerApp) GetTags() map[string]string {
 	return tags
 }
 
+// GetDefaultLogsSource returns the default logs source if `DD_SOURCE` is not set
+func (c *ContainerApp) GetDefaultLogsSource() string {
+	return ContainerAppOrigin
+}
+
 // GetOrigin returns the `origin` attribute type for the given
 // cloud service.
 func (c *ContainerApp) GetOrigin() string {
@@ -153,6 +158,11 @@ func (c *ContainerApp) GetStartMetricName() string {
 // GetShutdownMetricName returns the metric name for container shutdown events
 func (c *ContainerApp) GetShutdownMetricName() string {
 	return fmt.Sprintf("%s.enhanced.shutdown", containerAppPrefix)
+}
+
+// ShouldForceFlushAllOnForceFlushToSerializer is false usually.
+func (c *ContainerApp) ShouldForceFlushAllOnForceFlushToSerializer() bool {
+	return false
 }
 
 func isContainerAppService() bool {

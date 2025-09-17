@@ -42,8 +42,15 @@ type Module struct {
 	AllFields  map[string]*StructField
 	Iterators  map[string]*StructField
 	EventTypes map[string]*EventTypeMetadata
+	FileFields []FileField
 	Mock       bool
 	Getters    []string
+}
+
+// FileField represents a file field used for `{Get,Validate}FileField` generation
+type FileField struct {
+	Name        string
+	StructField string
 }
 
 // StructField represents a structure field for which an accessor will be generated
@@ -64,7 +71,7 @@ type StructField struct {
 	Iterator         *StructField
 	Weight           int64
 	CommentText      string
-	OpOverrides      string
+	OpOverrides      []string
 	Check            string
 	SetHandler       string
 	Alias            string

@@ -25,11 +25,9 @@ func (ev *Event) resolveFields(forADs bool) {
 	eventType := ev.GetEventType().String()
 	// resolve context fields that are not related to any event type
 	_ = ev.FieldHandlers.ResolveCGroupID(ev, ev.CGroupContext)
-	_ = ev.FieldHandlers.ResolveCGroupManager(ev, ev.CGroupContext)
 	_ = ev.FieldHandlers.ResolveCGroupVersion(ev, ev.CGroupContext)
 	_ = ev.FieldHandlers.ResolveContainerCreatedAt(ev, ev.BaseEvent.ContainerContext)
 	_ = ev.FieldHandlers.ResolveContainerID(ev, ev.BaseEvent.ContainerContext)
-	_ = ev.FieldHandlers.ResolveContainerRuntime(ev, ev.BaseEvent.ContainerContext)
 	if !forADs {
 		_ = ev.FieldHandlers.ResolveContainerTags(ev, ev.BaseEvent.ContainerContext)
 	}
@@ -38,14 +36,15 @@ func (ev *Event) resolveFields(forADs bool) {
 	if !forADs {
 		_ = ev.FieldHandlers.ResolveService(ev, &ev.BaseEvent)
 	}
+	_ = ev.FieldHandlers.ResolveSource(ev, &ev.BaseEvent)
 	_ = ev.FieldHandlers.ResolveEventTimestamp(ev, &ev.BaseEvent)
-	if !forADs && (eventType == "dns" || eventType == "imds") {
+	if !forADs && (eventType == "dns" || eventType == "imds" || eventType == "packet") {
 		_ = ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.NetworkContext.Destination)
 	}
-	if eventType == "dns" || eventType == "imds" {
+	if eventType == "dns" || eventType == "imds" || eventType == "packet" {
 		_ = ev.FieldHandlers.ResolveNetworkDeviceIfName(ev, &ev.NetworkContext.Device)
 	}
-	if !forADs && (eventType == "dns" || eventType == "imds") {
+	if !forADs && (eventType == "dns" || eventType == "imds" || eventType == "packet") {
 		_ = ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.NetworkContext.Source)
 	}
 	if !forADs {
@@ -55,7 +54,6 @@ func (ev *Event) resolveFields(forADs bool) {
 	_ = ev.FieldHandlers.ResolveProcessArgv(ev, &ev.BaseEvent.ProcessContext.Process)
 	_ = ev.FieldHandlers.ResolveProcessArgv0(ev, &ev.BaseEvent.ProcessContext.Process)
 	_ = ev.FieldHandlers.ResolveCGroupID(ev, &ev.BaseEvent.ProcessContext.Process.CGroup)
-	_ = ev.FieldHandlers.ResolveCGroupManager(ev, &ev.BaseEvent.ProcessContext.Process.CGroup)
 	_ = ev.FieldHandlers.ResolveCGroupVersion(ev, &ev.BaseEvent.ProcessContext.Process.CGroup)
 	_ = ev.FieldHandlers.ResolveProcessContainerID(ev, &ev.BaseEvent.ProcessContext.Process)
 	_ = ev.FieldHandlers.ResolveProcessCreatedAt(ev, &ev.BaseEvent.ProcessContext.Process)
@@ -143,9 +141,6 @@ func (ev *Event) resolveFields(forADs bool) {
 	}
 	if ev.BaseEvent.ProcessContext.HasParent() {
 		_ = ev.FieldHandlers.ResolveCGroupID(ev, &ev.BaseEvent.ProcessContext.Parent.CGroup)
-	}
-	if ev.BaseEvent.ProcessContext.HasParent() {
-		_ = ev.FieldHandlers.ResolveCGroupManager(ev, &ev.BaseEvent.ProcessContext.Parent.CGroup)
 	}
 	if ev.BaseEvent.ProcessContext.HasParent() {
 		_ = ev.FieldHandlers.ResolveCGroupVersion(ev, &ev.BaseEvent.ProcessContext.Parent.CGroup)
@@ -260,6 +255,9 @@ func (ev *Event) resolveFields(forADs bool) {
 			_ = ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Bind.Addr)
 		}
 	case "bpf":
+	case "capabilities":
+		_ = ev.FieldHandlers.ResolveCapabilitiesAttempted(ev, &ev.CapabilitiesUsage)
+		_ = ev.FieldHandlers.ResolveCapabilitiesUsed(ev, &ev.CapabilitiesUsage)
 	case "capset":
 	case "cgroup_write":
 		_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.CgroupWrite.File.FileFields)
@@ -380,7 +378,6 @@ func (ev *Event) resolveFields(forADs bool) {
 			_ = ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Exec.Process.FileEvent)
 		}
 		_ = ev.FieldHandlers.ResolveCGroupID(ev, &ev.Exec.Process.CGroup)
-		_ = ev.FieldHandlers.ResolveCGroupManager(ev, &ev.Exec.Process.CGroup)
 		_ = ev.FieldHandlers.ResolveCGroupVersion(ev, &ev.Exec.Process.CGroup)
 		_ = ev.FieldHandlers.ResolveProcessContainerID(ev, ev.Exec.Process)
 		if ev.Exec.Process.HasInterpreter() {
@@ -492,7 +489,6 @@ func (ev *Event) resolveFields(forADs bool) {
 			_ = ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Exit.Process.FileEvent)
 		}
 		_ = ev.FieldHandlers.ResolveCGroupID(ev, &ev.Exit.Process.CGroup)
-		_ = ev.FieldHandlers.ResolveCGroupManager(ev, &ev.Exit.Process.CGroup)
 		_ = ev.FieldHandlers.ResolveCGroupVersion(ev, &ev.Exit.Process.CGroup)
 		_ = ev.FieldHandlers.ResolveProcessContainerID(ev, ev.Exit.Process)
 		if ev.Exit.Process.HasInterpreter() {
@@ -687,6 +683,7 @@ func (ev *Event) resolveFields(forADs bool) {
 		if !forADs {
 			_ = ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.RawPacket.NetworkContext.Destination)
 		}
+	case "prctl":
 	case "ptrace":
 		if ev.PTrace.Tracee.Process.IsNotKworker() {
 			_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.PTrace.Tracee.Process.FileEvent.FileFields)
@@ -722,7 +719,6 @@ func (ev *Event) resolveFields(forADs bool) {
 			_ = ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.PTrace.Tracee.Process.FileEvent)
 		}
 		_ = ev.FieldHandlers.ResolveCGroupID(ev, &ev.PTrace.Tracee.Process.CGroup)
-		_ = ev.FieldHandlers.ResolveCGroupManager(ev, &ev.PTrace.Tracee.Process.CGroup)
 		_ = ev.FieldHandlers.ResolveCGroupVersion(ev, &ev.PTrace.Tracee.Process.CGroup)
 		_ = ev.FieldHandlers.ResolveProcessContainerID(ev, &ev.PTrace.Tracee.Process)
 		if ev.PTrace.Tracee.Process.HasInterpreter() {
@@ -807,9 +803,6 @@ func (ev *Event) resolveFields(forADs bool) {
 		}
 		if ev.PTrace.Tracee.HasParent() {
 			_ = ev.FieldHandlers.ResolveCGroupID(ev, &ev.PTrace.Tracee.Parent.CGroup)
-		}
-		if ev.PTrace.Tracee.HasParent() {
-			_ = ev.FieldHandlers.ResolveCGroupManager(ev, &ev.PTrace.Tracee.Parent.CGroup)
 		}
 		if ev.PTrace.Tracee.HasParent() {
 			_ = ev.FieldHandlers.ResolveCGroupVersion(ev, &ev.PTrace.Tracee.Parent.CGroup)
@@ -993,7 +986,6 @@ func (ev *Event) resolveFields(forADs bool) {
 			_ = ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Setrlimit.Target.Process.FileEvent)
 		}
 		_ = ev.FieldHandlers.ResolveCGroupID(ev, &ev.Setrlimit.Target.Process.CGroup)
-		_ = ev.FieldHandlers.ResolveCGroupManager(ev, &ev.Setrlimit.Target.Process.CGroup)
 		_ = ev.FieldHandlers.ResolveCGroupVersion(ev, &ev.Setrlimit.Target.Process.CGroup)
 		_ = ev.FieldHandlers.ResolveProcessContainerID(ev, &ev.Setrlimit.Target.Process)
 		if ev.Setrlimit.Target.Process.HasInterpreter() {
@@ -1078,9 +1070,6 @@ func (ev *Event) resolveFields(forADs bool) {
 		}
 		if ev.Setrlimit.Target.HasParent() {
 			_ = ev.FieldHandlers.ResolveCGroupID(ev, &ev.Setrlimit.Target.Parent.CGroup)
-		}
-		if ev.Setrlimit.Target.HasParent() {
-			_ = ev.FieldHandlers.ResolveCGroupManager(ev, &ev.Setrlimit.Target.Parent.CGroup)
 		}
 		if ev.Setrlimit.Target.HasParent() {
 			_ = ev.FieldHandlers.ResolveCGroupVersion(ev, &ev.Setrlimit.Target.Parent.CGroup)
@@ -1216,7 +1205,6 @@ func (ev *Event) resolveFields(forADs bool) {
 			_ = ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Signal.Target.Process.FileEvent)
 		}
 		_ = ev.FieldHandlers.ResolveCGroupID(ev, &ev.Signal.Target.Process.CGroup)
-		_ = ev.FieldHandlers.ResolveCGroupManager(ev, &ev.Signal.Target.Process.CGroup)
 		_ = ev.FieldHandlers.ResolveCGroupVersion(ev, &ev.Signal.Target.Process.CGroup)
 		_ = ev.FieldHandlers.ResolveProcessContainerID(ev, &ev.Signal.Target.Process)
 		if ev.Signal.Target.Process.HasInterpreter() {
@@ -1301,9 +1289,6 @@ func (ev *Event) resolveFields(forADs bool) {
 		}
 		if ev.Signal.Target.HasParent() {
 			_ = ev.FieldHandlers.ResolveCGroupID(ev, &ev.Signal.Target.Parent.CGroup)
-		}
-		if ev.Signal.Target.HasParent() {
-			_ = ev.FieldHandlers.ResolveCGroupManager(ev, &ev.Signal.Target.Parent.CGroup)
 		}
 		if ev.Signal.Target.HasParent() {
 			_ = ev.FieldHandlers.ResolveCGroupVersion(ev, &ev.Signal.Target.Parent.CGroup)
@@ -1443,14 +1428,14 @@ type FieldHandlers interface {
 	ResolveAcceptHostnames(ev *Event, e *AcceptEvent) []string
 	ResolveAsync(ev *Event) bool
 	ResolveCGroupID(ev *Event, e *CGroupContext) string
-	ResolveCGroupManager(ev *Event, e *CGroupContext) string
 	ResolveCGroupVersion(ev *Event, e *CGroupContext) int
+	ResolveCapabilitiesAttempted(ev *Event, e *CapabilitiesEvent) int
+	ResolveCapabilitiesUsed(ev *Event, e *CapabilitiesEvent) int
 	ResolveChownGID(ev *Event, e *ChownEvent) string
 	ResolveChownUID(ev *Event, e *ChownEvent) string
 	ResolveConnectHostnames(ev *Event, e *ConnectEvent) []string
 	ResolveContainerCreatedAt(ev *Event, e *ContainerContext) int
 	ResolveContainerID(ev *Event, e *ContainerContext) string
-	ResolveContainerRuntime(ev *Event, e *ContainerContext) string
 	ResolveContainerTags(ev *Event, e *ContainerContext) []string
 	ResolveEventTime(ev *Event, e *BaseEvent) time.Time
 	ResolveEventTimestamp(ev *Event, e *BaseEvent) int
@@ -1524,6 +1509,7 @@ type FieldHandlers interface {
 	ResolveSetuidEUser(ev *Event, e *SetuidEvent) string
 	ResolveSetuidFSUser(ev *Event, e *SetuidEvent) string
 	ResolveSetuidUser(ev *Event, e *SetuidEvent) string
+	ResolveSource(ev *Event, e *BaseEvent) string
 	ResolveSyscallCtxArgsInt1(ev *Event, e *SyscallContext) int
 	ResolveSyscallCtxArgsInt2(ev *Event, e *SyscallContext) int
 	ResolveSyscallCtxArgsInt3(ev *Event, e *SyscallContext) int
@@ -1544,11 +1530,14 @@ func (dfh *FakeFieldHandlers) ResolveAsync(ev *Event) bool { return bool(ev.Asyn
 func (dfh *FakeFieldHandlers) ResolveCGroupID(ev *Event, e *CGroupContext) string {
 	return string(e.CGroupID)
 }
-func (dfh *FakeFieldHandlers) ResolveCGroupManager(ev *Event, e *CGroupContext) string {
-	return string(e.CGroupManager)
-}
 func (dfh *FakeFieldHandlers) ResolveCGroupVersion(ev *Event, e *CGroupContext) int {
 	return int(e.CGroupVersion)
+}
+func (dfh *FakeFieldHandlers) ResolveCapabilitiesAttempted(ev *Event, e *CapabilitiesEvent) int {
+	return int(e.Attempted)
+}
+func (dfh *FakeFieldHandlers) ResolveCapabilitiesUsed(ev *Event, e *CapabilitiesEvent) int {
+	return int(e.Used)
 }
 func (dfh *FakeFieldHandlers) ResolveChownGID(ev *Event, e *ChownEvent) string {
 	return string(e.Group)
@@ -1562,9 +1551,6 @@ func (dfh *FakeFieldHandlers) ResolveContainerCreatedAt(ev *Event, e *ContainerC
 }
 func (dfh *FakeFieldHandlers) ResolveContainerID(ev *Event, e *ContainerContext) string {
 	return string(e.ContainerID)
-}
-func (dfh *FakeFieldHandlers) ResolveContainerRuntime(ev *Event, e *ContainerContext) string {
-	return string(e.Runtime)
 }
 func (dfh *FakeFieldHandlers) ResolveContainerTags(ev *Event, e *ContainerContext) []string {
 	return []string(e.Tags)
@@ -1785,6 +1771,7 @@ func (dfh *FakeFieldHandlers) ResolveSetuidFSUser(ev *Event, e *SetuidEvent) str
 func (dfh *FakeFieldHandlers) ResolveSetuidUser(ev *Event, e *SetuidEvent) string {
 	return string(e.User)
 }
+func (dfh *FakeFieldHandlers) ResolveSource(ev *Event, e *BaseEvent) string { return string(e.Source) }
 func (dfh *FakeFieldHandlers) ResolveSyscallCtxArgsInt1(ev *Event, e *SyscallContext) int {
 	return int(e.IntArg1)
 }

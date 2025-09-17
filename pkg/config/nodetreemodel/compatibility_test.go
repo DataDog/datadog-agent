@@ -8,6 +8,7 @@ package nodetreemodel
 
 import (
 	"bytes"
+	"encoding/json"
 	"maps"
 	"os"
 	"path/filepath"
@@ -24,7 +25,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func constructBothConfigs(content string, dynamicSchema bool, setupFunc func(model.Setup)) (model.Config, model.Config) {
+func constructBothConfigs(content string, dynamicSchema bool, setupFunc func(model.Setup)) (model.BuildableConfig, model.BuildableConfig) {
 	viperConf := viperconfig.NewViperConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 	ntmConf := NewNodeTreeConfig("datadog", "DD", strings.NewReplacer(".", "_"))            // nolint: forbidigo // legit use case
 
@@ -545,4 +546,29 @@ func TestReadInConfigResetsPreviousConfig(t *testing.T) {
 	// "host" should now be available
 	assert.Equal(t, "localhost", viperConf.GetString("host"))
 	assert.Equal(t, "localhost", ntmConf.GetString("host"))
+}
+
+func TestCompareEnvVarsSubfields(t *testing.T) {
+	t.Run("Subsettings are merged with env vars", func(t *testing.T) {
+		data, _ := json.Marshal(map[string]string{"a": "apple"})
+		t.Setenv("TEST_MY_FEATURE_INFO_TARGETS", string(data))
+
+		configData := `
+my_feature:
+  info:
+    enabled: true
+`
+		viperConf, ntmConf := constructBothConfigs(configData, false, func(cfg model.Setup) {
+			cfg.BindEnvAndSetDefault("my_feature.info.name", "feat")
+			cfg.BindEnvAndSetDefault("my_feature.info.enabled", false)
+			cfg.BindEnvAndSetDefault("my_feature.info.version", "v2")
+			cfg.BindEnv("my_feature.info.targets", "TEST_MY_FEATURE_INFO_TARGETS")
+		})
+
+		fields := viperConf.GetSubfields("my_feature.info")
+		assert.Equal(t, []string{"enabled", "name", "targets", "version"}, fields)
+
+		fields = ntmConf.GetSubfields("my_feature.info")
+		assert.Equal(t, []string{"enabled", "name", "targets", "version"}, fields)
+	})
 }

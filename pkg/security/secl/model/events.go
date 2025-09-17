@@ -5,6 +5,12 @@
 
 package model
 
+import (
+	"fmt"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+)
+
 // EventType describes the type of an event sent from the kernel
 type EventType uint32
 
@@ -87,6 +93,8 @@ const (
 	NetDeviceEventType
 	// VethPairEventType is sent when a new veth pair is created
 	VethPairEventType
+	// VethPairNsEventType is sent when a veth pair is moved to a new network namespace
+	VethPairNsEventType
 	// AcceptEventType Accept event
 	AcceptEventType
 	// BindEventType Bind event
@@ -105,10 +113,12 @@ const (
 	LoginUIDWriteEventType
 	// CgroupWriteEventType is sent when a new cgroup was created
 	CgroupWriteEventType
-	// RawPacketEventType raw packet event
-	RawPacketEventType
+	// RawPacketFilterEventType raw packet filter event
+	RawPacketFilterEventType
 	// NetworkFlowMonitorEventType is sent to monitor network activity
 	NetworkFlowMonitorEventType
+	// PrCtlEventType is sent when a prctl event is captured
+	PrCtlEventType
 	// StatEventType stat event (used kernel side only)
 	StatEventType
 	// SysCtlEventType sysctl event
@@ -121,6 +131,10 @@ const (
 	FileFsmountEventType
 	// FileOpenTreeEventType Open Tree event
 	FileOpenTreeEventType
+	// RawPacketActionEventType raw packet action event
+	RawPacketActionEventType
+	// CapabilitiesEventType is used to track capabilities usage
+	CapabilitiesEventType
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
 	MaxKernelEventType
 
@@ -237,6 +251,8 @@ func (t EventType) String() string {
 		return "net_device"
 	case VethPairEventType:
 		return "veth_pair"
+	case VethPairNsEventType:
+		return "veth_pair_ns"
 	case BindEventType:
 		return "bind"
 	case AcceptEventType:
@@ -251,8 +267,10 @@ func (t EventType) String() string {
 		return "imds"
 	case OnDemandEventType:
 		return "ondemand"
-	case RawPacketEventType:
+	case RawPacketFilterEventType:
 		return "packet"
+	case RawPacketActionEventType:
+		return "packet_action"
 	case NetworkFlowMonitorEventType:
 		return "network_flow_monitor"
 	case StatEventType:
@@ -287,7 +305,23 @@ func (t EventType) String() string {
 		return "dns_response"
 	case SetSockOptEventType:
 		return "setsockopt"
+	case CapabilitiesEventType:
+		return "capabilities"
+	case PrCtlEventType:
+		return "prctl"
 	default:
 		return "unknown"
 	}
+}
+
+// ParseEvalEventType convert a eval.EventType (string) to its uint64 representation
+// the current algorithm is not efficient but allows us to reduce the number of conversion functions
+func ParseEvalEventType(eventType eval.EventType) (EventType, error) {
+	for i := uint64(0); i != uint64(MaxAllEventType); i++ {
+		if EventType(i).String() == eventType {
+			return EventType(i), nil
+		}
+	}
+
+	return UnknownEventType, fmt.Errorf("unknown event type '%s'", eventType)
 }

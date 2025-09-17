@@ -332,9 +332,11 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 }
 
 func (c *Controller) handleScaling(ctx context.Context, podAutoscaler *datadoghq.DatadogPodAutoscaler, podAutoscalerInternal *model.PodAutoscalerInternal, targetGVK schema.GroupVersionKind, target NamespacedPodOwner) (autoscaling.ProcessResult, error) {
+	currentTime := c.clock.Now()
+
 	// Update the scaling values based on the staleness of recommendations
-	desiredHorizontalScalingSource, desiredVerticalScalingSource := getActiveScalingSources(c.clock.Now(), podAutoscalerInternal)
-	podAutoscalerInternal.MergeScalingValues(desiredHorizontalScalingSource, desiredVerticalScalingSource)
+	desiredHorizontalScalingSource, desiredVerticalScalingSource := getActiveScalingSources(currentTime, podAutoscalerInternal)
+	podAutoscalerInternal.SetActiveScalingValues(currentTime, desiredHorizontalScalingSource, desiredVerticalScalingSource)
 	c.updateLocalFallbackEnabled(podAutoscalerInternal, desiredHorizontalScalingSource)
 
 	// TODO: While horizontal scaling is in progress we should not start vertical scaling
@@ -452,10 +454,13 @@ func (c *Controller) validateAutoscaler(podAutoscalerInternal model.PodAutoscale
 
 	var resourceName string
 	switch owner := podAutoscalerInternal.Spec().TargetRef.Kind; owner {
-	case "Deployment":
+	case kubernetes.DeploymentKind:
 		resourceName = kubernetes.ParseDeploymentForPodName(clusterAgentPodName)
-	case "ReplicaSet":
+	case kubernetes.ReplicaSetKind:
 		resourceName = kubernetes.ParseReplicaSetForPodName(clusterAgentPodName)
+	default:
+		// We don't support other ways to deploy the Cluster Agent
+		return nil
 	}
 
 	clusterAgentNs := common.GetMyNamespace()

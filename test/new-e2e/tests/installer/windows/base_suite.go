@@ -47,6 +47,7 @@ type BaseSuite struct {
 	stableAgent        *AgentVersionManager
 	CreateCurrentAgent func() (*AgentVersionManager, error)
 	CreateStableAgent  func() (*AgentVersionManager, error)
+	dumpFolder         string
 }
 
 // Installer The Datadog Installer for testing.
@@ -108,6 +109,17 @@ func (s *BaseSuite) SetupSuite() {
 	s.T().Logf("current agent version: %s", s.CurrentAgentVersion())
 	s.createStableAgent()
 	s.T().Logf("stable agent version: %s", s.StableAgentVersion())
+
+	// Enable crash dumps
+	host := s.Env().RemoteHost
+	s.dumpFolder = `C:\dumps`
+	err := windowscommon.EnableWERGlobalDumps(host, s.dumpFolder)
+	s.Require().NoError(err, "should enable WER dumps")
+	// Set the environment variable at the machine level.
+	// The tests will be re-installing services so the per-service environment
+	// won't be persisted.
+	_, err = host.Execute(`[Environment]::SetEnvironmentVariable("GOTRACEBACK", "wer", "Machine")`)
+	s.Require().NoError(err, "should set GOTRACEBACK environment variable")
 }
 
 // createCurrentAgent sets the current agent version for the test suite.
@@ -263,6 +275,16 @@ func (s *BaseSuite) AfterTest(suiteName, testName string) {
 		afterTest.AfterTest(suiteName, testName)
 	}
 
+	// look for and download crashdumps
+	dumps, err := windowscommon.DownloadAllWERDumps(s.Env().RemoteHost, s.dumpFolder, s.SessionOutputDir())
+	s.Assert().NoError(err, "should download crash dumps")
+	if !s.Assert().Empty(dumps, "should not have crash dumps") {
+		s.T().Logf("Found crash dumps:")
+		for _, dump := range dumps {
+			s.T().Logf("  %s", dump)
+		}
+	}
+
 	if s.T().Failed() {
 		// If the test failed, export the event logs for debugging
 		vm := s.Env().RemoteHost
@@ -353,8 +375,7 @@ func (s *BaseSuite) MustStartExperimentPreviousVersion() {
 
 	// Assert
 	// have to wait for experiment to finish installing
-	err := s.WaitForInstallerService("Running")
-	s.Require().NoError(err)
+	s.Require().NoError(s.WaitForInstallerService("Running"))
 
 	s.Require().Host(s.Env().RemoteHost).
 		HasDatadogInstaller().
@@ -385,8 +406,7 @@ func (s *BaseSuite) MustStartExperimentCurrentVersion() {
 
 	// Assert
 	// have to wait for experiment to finish installing
-	err := s.WaitForInstallerService("Running")
-	s.Require().NoError(err)
+	s.Require().NoError(s.WaitForInstallerService("Running"))
 
 	// sanity check: make sure we did indeed install the current version
 	s.Require().Host(s.Env().RemoteHost).
@@ -493,6 +513,11 @@ func (s *BaseSuite) AssertSuccessfulConfigStopExperiment() {
 // WaitForDaemonToStop waits for the daemon service PID to change after the function is called.
 func (s *BaseSuite) WaitForDaemonToStop(f func(), b backoff.BackOff) {
 	s.T().Helper()
+
+	// service must be running before we can get the PID
+	// might be redundant in some cases but we keep forgetting to ensure it
+	// in others and it keeps causing flakes.
+	s.Require().NoError(s.WaitForInstallerService("Running"))
 
 	originalPID, err := windowscommon.GetServicePID(s.Env().RemoteHost, consts.ServiceName)
 	s.Require().NoError(err)

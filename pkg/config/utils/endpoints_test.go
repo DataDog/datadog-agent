@@ -498,3 +498,77 @@ func TestAddAgentVersionToDomain(t *testing.T) {
 		}
 	}
 }
+
+func TestGetMultipleEndpointsPreaggregationSameURL(t *testing.T) {
+	datadogYaml := `
+dd_url: "https://app.datadoghq.com"
+api_key: fakeapikey
+
+preaggregation:
+  enabled: true
+  dd_url: "https://app.datadoghq.com"
+  api_key: preaggr_key
+`
+
+	testConfig := mock.NewFromYAML(t, datadogYaml)
+
+	_, err := GetMultipleEndpoints(testConfig)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "preaggregation.dd_url must not match primary URL")
+}
+
+func TestGetMultipleEndpointsPreaggregationSameURLAdditionalEndpoint(t *testing.T) {
+	datadogYaml := `
+dd_url: "https://app.datadoghq.com"
+api_key: fakeapikey
+
+additional_endpoints:
+  "https://foo.datadoghq.com":
+  - fakeapikey
+
+preaggregation:
+  enabled: true
+  dd_url: "https://foo.datadoghq.com"
+  api_key: preaggr_key
+`
+
+	testConfig := mock.NewFromYAML(t, datadogYaml)
+
+	_, err := GetMultipleEndpoints(testConfig)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "preaggregation.dd_url must not match any additional endpoints")
+}
+
+func TestGetMultipleEndpointsPreaggregationNoURL(t *testing.T) {
+	datadogYaml := `
+dd_url: "https://app.datadoghq.com"
+api_key: fakeapikey
+
+preaggregation:
+  enabled: true
+  api_key: preaggr_key
+`
+
+	testConfig := mock.NewFromYAML(t, datadogYaml)
+
+	_, err := GetMultipleEndpoints(testConfig)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "preaggregation.dd_url is required when preaggregation.enabled is true")
+}
+
+func TestGetMultipleEndpointsPreaggregationNoAPIKey(t *testing.T) {
+	datadogYaml := `
+dd_url: "https://app.datadoghq.com"
+api_key: fakeapikey
+
+preaggregation:
+  enabled: true
+  dd_url: "https://telemetry-intake.datadoghq.com"
+`
+
+	testConfig := mock.NewFromYAML(t, datadogYaml)
+
+	_, err := GetMultipleEndpoints(testConfig)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "preaggregation.api_key is required when preaggregation.enabled is true")
+}

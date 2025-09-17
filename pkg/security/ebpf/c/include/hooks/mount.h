@@ -167,7 +167,7 @@ int __attribute__((always_inline)) send_detached_event(void *ctx, struct syscall
 
     fill_mount_fields(syscall, &event.mountfields);
     struct proc_cache_t *entry = fill_process_context(&event.process);
-    fill_container_context(entry, &event.container);
+    fill_cgroup_context(entry, &event.cgroup);
     fill_span_context(&event.span);
 
     send_event(ctx, EVENT_MOUNT, event);
@@ -180,13 +180,13 @@ void __attribute__((always_inline)) handle_new_mount(void *ctx, struct syscall_c
     struct dentry *root_dentry = get_vfsmount_dentry(get_mount_vfsmount(syscall->mount.newmnt));
     syscall->mount.root_key.mount_id = get_mount_mount_id(syscall->mount.newmnt);
     syscall->mount.root_key.ino = get_dentry_ino(root_dentry);
-    update_path_id(&syscall->mount.root_key, 0);
+    update_path_id(&syscall->mount.root_key, 0, 0);
 
     if(!detached) {
         // populate the mountpoint dentry key
         syscall->mount.mountpoint_key.mount_id = get_mount_mount_id(syscall->mount.parent);
         syscall->mount.mountpoint_key.ino = get_dentry_ino(syscall->mount.mountpoint_dentry);
-        update_path_id(&syscall->mount.mountpoint_key, 0);
+        update_path_id(&syscall->mount.mountpoint_key, 0, 0);
     }
 
     // populate the device of the new mount
@@ -264,7 +264,7 @@ int __attribute__((always_inline)) dr_mount_stage_two_callback(void *ctx) {
 
         fill_mount_fields(syscall, &event.mountfields);
         struct proc_cache_t *entry = fill_process_context(&event.process);
-        fill_container_context(entry, &event.container);
+        fill_cgroup_context(entry, &event.cgroup);
         fill_span_context(&event.span);
         if (syscall->type != EVENT_OPEN_TREE) {
             // Only the first mount of a detached copy is detached from the VFS

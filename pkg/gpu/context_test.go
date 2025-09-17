@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
@@ -23,18 +22,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
-func getTestSystemContext(t *testing.T, extraOpts ...systemContextOption) *systemContext {
+func getTestSystemContext(tb testing.TB, extraOpts ...systemContextOption) *systemContext {
 	opts := []systemContextOption{
 		withProcRoot(kernel.ProcFSRoot()),
-		withWorkloadMeta(testutil.GetWorkloadMetaMock(t)),
-		withTelemetry(testutil.GetTelemetryMock(t)),
+		withWorkloadMeta(testutil.GetWorkloadMetaMock(tb)),
+		withTelemetry(testutil.GetTelemetryMock(tb)),
 	}
 
 	opts = append(opts, extraOpts...) // Allow overriding the default options
 
 	sysCtx, err := getSystemContext(opts...)
-	require.NoError(t, err)
-	require.NotNil(t, sysCtx)
+	require.NoError(tb, err)
+	require.NotNil(tb, sysCtx)
 	return sysCtx
 }
 
@@ -160,7 +159,7 @@ func TestGetCurrentActiveGpuDevice(t *testing.T) {
 	}
 	envVisibleDevicesValue := strings.Join(envVisibleDevicesStr, ",")
 
-	procFs := uprobes.CreateFakeProcFS(t, []uprobes.FakeProcFSEntry{
+	procFs := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{
 		{Pid: uint32(pidNoContainer)},
 		{Pid: uint32(pidContainer)},
 		{Pid: uint32(pidContainerAndEnv), Env: map[string]string{"CUDA_VISIBLE_DEVICES": envVisibleDevicesValue}},

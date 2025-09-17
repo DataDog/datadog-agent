@@ -8,8 +8,10 @@
 package compiler
 
 import (
+	"cmp"
 	"fmt"
 	"math"
+	"slices"
 	"time"
 
 	"github.com/pkg/errors"
@@ -31,10 +33,12 @@ type Throttler struct {
 
 // Program represents stack machine program.
 type Program struct {
-	ID         uint32
-	Functions  []Function
-	Types      []ir.Type
-	Throttlers []Throttler
+	ID               uint32
+	Functions        []Function
+	Types            []ir.Type
+	Throttlers       []Throttler
+	GoModuledataInfo ir.GoModuledataInfo
+	CommonTypes      ir.CommonTypes
 }
 
 type generator struct {
@@ -76,7 +80,7 @@ func GenerateProgram(program *ir.Program) (Program, error) {
 				err := g.addEventHandler(
 					injectionPoint,
 					len(throttlers),
-					probe.GetCaptureConfig().GetMaxReferenceDepth(),
+					probe.GetCaptureConfig(),
 					event.Type,
 				)
 				if err != nil {
@@ -93,6 +97,17 @@ func GenerateProgram(program *ir.Program) (Program, error) {
 			})
 		}
 	}
+	// Add all the types for which we know the Go runtime type to the
+	// queue for processing.
+	for _, t := range program.Types {
+		if _, ok := t.GetGoRuntimeType(); ok {
+			g.typeQueue = append(g.typeQueue, t)
+		}
+	}
+	// Sort the queue to make sure we process types in a deterministic order.
+	slices.SortFunc(g.typeQueue, func(a, b ir.Type) int {
+		return cmp.Compare(a.GetID(), b.GetID())
+	})
 	for len(g.typeQueue) > 0 {
 		_, _, err := g.addTypeHandler(g.typeQueue[0])
 		if err != nil {
@@ -104,11 +119,31 @@ func GenerateProgram(program *ir.Program) (Program, error) {
 	for _, t := range program.Types {
 		types = append(types, t)
 	}
+	slices.SortStableFunc(g.functions, func(a, b Function) int {
+		at, aOk := a.ID.(ProcessType)
+		bt, bOk := b.ID.(ProcessType)
+		switch {
+		case !aOk && !bOk:
+			return 0
+		case !aOk:
+			return -1
+		case !bOk:
+			return 1
+		default:
+			return cmp.Or(
+				cmp.Compare(at.Type.GetName(), bt.Type.GetName()),
+				cmp.Compare(at.Type.GetID(), bt.Type.GetID()),
+			)
+
+		}
+	})
 	return Program{
-		ID:         uint32(program.ID),
-		Functions:  g.functions,
-		Types:      types,
-		Throttlers: throttlers,
+		ID:               uint32(program.ID),
+		Functions:        g.functions,
+		Types:            types,
+		Throttlers:       throttlers,
+		GoModuledataInfo: program.GoModuledataInfo,
+		CommonTypes:      program.CommonTypes,
 	}, nil
 }
 
@@ -118,13 +153,15 @@ func GenerateProgram(program *ir.Program) (Program, error) {
 func (g *generator) addEventHandler(
 	injectionPoint ir.InjectionPoint,
 	throttlerIdx int,
-	pointerChasingLimit uint32,
+	captureConfig ir.CaptureConfig,
 	rootType *ir.EventRootType,
 ) error {
 	id := ProcessEvent{
 		InjectionPC:         injectionPoint.PC,
 		ThrottlerIdx:        throttlerIdx,
-		PointerChasingLimit: pointerChasingLimit,
+		PointerChasingLimit: captureConfig.GetMaxReferenceDepth(),
+		CollectionSizeLimit: captureConfig.GetMaxCollectionSize(),
+		StringSizeLimit:     captureConfig.GetMaxLength(),
 		Frameless:           injectionPoint.Frameless,
 		EventRootType:       rootType,
 	}
@@ -223,16 +260,12 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool, error) {
 	needed := false
 	offsetShift := uint32(0)
 	var ops []Op
-	switch t := t.(type) {
-	case *ir.BaseType:
-		// Nothing to process.
-
-	case *ir.StructureType:
+	structureTypeHandler := func(t *ir.StructureType) error {
 		ops = make([]Op, 0, 2*len(t.RawFields))
 		for field := range t.Fields() {
 			elemFunc, elemNeeded, err := g.addTypeHandler(field.Type)
 			if err != nil {
-				return nil, false, err
+				return err
 			}
 			if !elemNeeded {
 				continue
@@ -245,9 +278,22 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool, error) {
 			offsetShift = field.Offset + g.typeFuncMetadata[field.Type.GetID()].offsetShift
 		}
 		ops = append(ops, ReturnOp{})
+		return nil
+	}
+	switch t := t.(type) {
+	case *ir.BaseType:
+		// Nothing to process.
+
+	case *ir.GoHMapBucketType:
+		if err := structureTypeHandler(t.StructureType); err != nil {
+			return fid, needed, err
+		}
+	case *ir.StructureType:
+		if err := structureTypeHandler(t); err != nil {
+			return fid, needed, err
+		}
 
 	// Sequential containers
-
 	case *ir.ArrayType:
 		elemFunc, elemNeeded, err := g.addTypeHandler(t.Element)
 		if err != nil {
@@ -294,6 +340,9 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool, error) {
 	case *ir.VoidPointerType:
 		// Nothing to process. We don't know what the pointee is.
 
+	case *ir.UnresolvedPointeeType:
+		// Nothing to process.
+
 	case *ir.PointerType:
 		g.typeQueue = append(g.typeQueue, t.Pointee)
 		needed = true
@@ -326,8 +375,20 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool, error) {
 		}
 
 	case *ir.GoEmptyInterfaceType:
+		needed = true
+		offsetShift = 0
+		ops = []Op{
+			ProcessGoEmptyInterfaceOp{},
+			ReturnOp{},
+		}
+
 	case *ir.GoInterfaceType:
-		// TODO: support Go interfaces
+		needed = true
+		offsetShift = 0
+		ops = []Op{
+			ProcessGoInterfaceOp{},
+			ReturnOp{},
+		}
 
 	case *ir.GoMapType:
 		g.typeQueue = append(g.typeQueue, t.HeaderType)
@@ -347,24 +408,52 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool, error) {
 
 	// Map containers
 	case *ir.GoHMapHeaderType:
-	case *ir.GoHMapBucketType:
-	case *ir.GoSwissMapGroupsType:
-		dataOffset, err := offsetOf(t.RawFields, "data")
+		needed = true
+		flagsOffset, err := offsetOfUint8(t.RawFields, "flags")
 		if err != nil {
 			return nil, false, err
 		}
-		lengthMaskOffset, err := offsetOf(t.RawFields, "lengthMask")
+		bOffset, err := offsetOfUint8(t.RawFields, "B")
+		if err != nil {
+			return nil, false, err
+		}
+		bucketsOffset, err := offsetOfUint8(t.RawFields, "buckets")
+		if err != nil {
+			return nil, false, err
+		}
+		oldBucketsOffset, err := offsetOfUint8(t.RawFields, "oldbuckets")
+		if err != nil {
+			return nil, false, err
+		}
+		ops = []Op{
+			ProcessGoHmapOp{
+				BucketsType:      t.BucketsType,
+				BucketType:       t.BucketType,
+				FlagsOffset:      flagsOffset,
+				BOffset:          bOffset,
+				BucketsOffset:    bucketsOffset,
+				OldBucketsOffset: oldBucketsOffset,
+			},
+			ReturnOp{},
+		}
+		g.typeQueue = append(
+			g.typeQueue,
+			t.BucketsType,
+			t.BucketType,
+			t.BucketType.KeyType,
+			t.BucketType.ValueType,
+		)
+	case *ir.GoSwissMapGroupsType:
+		dataOffset, err := offsetOfUint8(t.RawFields, "data")
+		if err != nil {
+			return nil, false, err
+		}
+		lengthMaskOffset, err := offsetOfUint8(t.RawFields, "lengthMask")
 		if err != nil {
 			return nil, false, err
 		}
 		needed = true
 		offsetShift = 0
-		if dataOffset > math.MaxUint8 {
-			return nil, false, errors.New("dataOffset is too large")
-		}
-		if lengthMaskOffset > math.MaxUint8 {
-			return nil, false, errors.New("lengthMaskOffset is too large")
-		}
 		ops = []Op{
 			ProcessGoSwissMapGroupsOp{
 				DataOffset:       uint8(dataOffset),
@@ -376,22 +465,16 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool, error) {
 		}
 		g.typeQueue = append(g.typeQueue, t.GroupSliceType, t.GroupType)
 	case *ir.GoSwissMapHeaderType:
-		directoryPtrOffset, err := offsetOf(t.RawFields, "dirPtr")
+		directoryPtrOffset, err := offsetOfUint8(t.RawFields, "dirPtr")
 		if err != nil {
 			return nil, false, err
 		}
-		directoryLenOffset, err := offsetOf(t.RawFields, "dirLen")
+		directoryLenOffset, err := offsetOfUint8(t.RawFields, "dirLen")
 		if err != nil {
 			return nil, false, err
 		}
 		needed = true
 		offsetShift = 0
-		if directoryPtrOffset > math.MaxUint8 {
-			return nil, false, errors.New("directoryPtrOffset is too large")
-		}
-		if directoryLenOffset > math.MaxUint8 {
-			return nil, false, errors.New("directoryLenOffset is too large")
-		}
 		ops = []Op{
 			ProcessGoSwissMapOp{
 				TablePtrSlice: t.TablePtrSliceType,
@@ -436,15 +519,20 @@ type memoryLayoutPiece struct {
 func (g *generator) typeMemoryLayout(t ir.Type) ([]memoryLayoutPiece, error) {
 	var pieces []memoryLayoutPiece
 	var collectPieces func(t ir.Type, offset uint32) error
+	collectFields := func(fields []ir.Field, offset uint32) error {
+		for _, field := range fields {
+			if err := collectPieces(field.Type, offset+field.Offset); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
 	collectPieces = func(t ir.Type, offset uint32) error {
 		var err error
 		switch t := t.(type) {
 		case *ir.StructureType:
-			for _, field := range t.RawFields {
-				err = collectPieces(field.Type, offset+field.Offset)
-				if err != nil {
-					return err
-				}
+			if err := collectFields(t.RawFields, offset); err != nil {
+				return err
 			}
 
 		case *ir.ArrayType:
@@ -464,13 +552,13 @@ func (g *generator) typeMemoryLayout(t ir.Type) ([]memoryLayoutPiece, error) {
 
 		// Structure-like types.
 		case *ir.GoEmptyInterfaceType:
-			err = collectPieces(t.UnderlyingStructure, offset)
+			err = collectFields(t.RawFields, offset)
 		case *ir.GoHMapBucketType:
 			err = collectPieces(t.StructureType, offset)
 		case *ir.GoHMapHeaderType:
 			err = collectPieces(t.StructureType, offset)
 		case *ir.GoInterfaceType:
-			err = collectPieces(t.UnderlyingStructure, offset)
+			err = collectFields(t.RawFields, offset)
 		case *ir.GoSliceHeaderType:
 			err = collectPieces(t.StructureType, offset)
 		case *ir.GoStringHeaderType:
@@ -506,6 +594,17 @@ func offsetOf(fields []ir.Field, name string) (uint32, error) {
 		}
 	}
 	return 0, errors.Errorf("internal: field `%s` not found", name)
+}
+
+func offsetOfUint8(fields []ir.Field, name string) (uint8, error) {
+	offset, err := offsetOf(fields, name)
+	if err != nil {
+		return 0, err
+	}
+	if offset > math.MaxUint8 {
+		return 0, errors.Errorf("offset of %s overflows uint8: %d", name, offset)
+	}
+	return uint8(offset), nil
 }
 
 // `ops` is used as an output buffer for the encoded instructions.

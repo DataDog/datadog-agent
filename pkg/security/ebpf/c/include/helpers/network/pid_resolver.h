@@ -11,14 +11,14 @@ __attribute__((always_inline)) s64 get_flow_pid(struct pid_route_t *key) {
         key->addr[1] = 0;
         value = bpf_map_lookup_elem(&flow_pid, key);
         if (!value) {
-            return -1;
+            return 0;
         }
     }
 
     return value->pid;
 }
 
-__attribute__((always_inline)) void resolve_pid(struct packet_t *pkt) {
+__attribute__((always_inline)) void resolve_pid_from_flow_pid(struct packet_t *pkt) {
     struct pid_route_t pid_route = {};
 
     // resolve pid
@@ -26,23 +26,45 @@ __attribute__((always_inline)) void resolve_pid(struct packet_t *pkt) {
     case EGRESS: {
         pid_route.addr[0] = pkt->translated_ns_flow.flow.saddr[0];
         pid_route.addr[1] = pkt->translated_ns_flow.flow.saddr[1];
-        pid_route.port = pkt->translated_ns_flow.flow.sport;
+        pid_route.port = pkt->translated_ns_flow.flow.tcp_udp.sport;
         pid_route.netns = pkt->translated_ns_flow.netns;
         break;
     }
     case INGRESS: {
         pid_route.addr[0] = pkt->translated_ns_flow.flow.daddr[0];
         pid_route.addr[1] = pkt->translated_ns_flow.flow.daddr[1];
-        pid_route.port = pkt->translated_ns_flow.flow.dport;
+        pid_route.port = pkt->translated_ns_flow.flow.tcp_udp.dport;
         pid_route.netns = pkt->translated_ns_flow.netns;
         break;
     }
     }
 
-    // TODO: l4_protocol should be used to uniquely identify the PID - wait for implementation on security_socket_bind
-    // pid_route.l4_protocol = pkt->translated_ns_flow.flow.l4_protocol;
-
+    pid_route.l4_protocol = pkt->translated_ns_flow.flow.l4_protocol;
     pkt->pid = get_flow_pid(&pid_route);
+}
+
+__attribute__((always_inline)) void resolve_pid(struct __sk_buff *skb, struct packet_t *pkt) {
+    // pid from socket cookie
+    u64 cookie = bpf_get_socket_cookie(skb);
+    u32 *pid = bpf_map_lookup_elem(&sock_cookie_pid, &cookie);
+    if (pid) {
+        pkt->pid = *pid;
+    }
+
+    // pid from sched_cls
+    if (pkt->pid == 0) {
+        u64 sched_cls_has_current_pid_tgid_helper = 0;
+        LOAD_CONSTANT("sched_cls_has_current_pid_tgid_helper", sched_cls_has_current_pid_tgid_helper);
+        if (sched_cls_has_current_pid_tgid_helper) {
+            u64 pid_tgid = bpf_get_current_pid_tgid();
+            pkt->pid = pid_tgid >> 32;
+        }
+    }
+
+    // pid from flow pid
+    if (pkt->pid == 0) {
+        resolve_pid_from_flow_pid(pkt);
+    }
 }
 
 #endif

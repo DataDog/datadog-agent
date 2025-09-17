@@ -16,8 +16,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcscrape"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/uploader"
@@ -25,12 +26,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"golang.org/x/sys/unix"
 )
 
 // Module is the dynamic instrumentation system probe module
 type Module struct {
 	procMon       *procmon.ProcessMonitor
-	actuator      *actuator.Actuator
+	actuator      Actuator[ActuatorTenant]
 	controller    *Controller
 	cancel        context.CancelFunc
 	logUploader   *uploader.LogsUploaderFactory
@@ -67,15 +69,53 @@ func NewModule(
 	}
 	diagsUploader := uploader.NewDiagnosticsUploader(uploader.WithURL(diagsUploaderURL))
 
+	var symdbUploaderURL *url.URL
+	if config.SymDBUploadEnabled {
+		symdbUploaderURL, err = url.Parse(config.SymDBUploaderURL)
+		if err != nil {
+			return nil, fmt.Errorf("error parsing SymDB uploader URL: %w", err)
+		}
+	}
+
 	loader, err := loader.NewLoader()
 	if err != nil {
 		return nil, fmt.Errorf("error creating loader: %w", err)
 	}
+	var objectLoader object.Loader
+	var irgenOptions []irgen.Option
+	if config.DiskCacheEnabled {
+		diskCache, err := object.NewDiskCache(config.DiskCacheConfig)
+		if err != nil {
+			return nil, fmt.Errorf("error creating disk cache: %w", err)
+		}
+		objectLoader = diskCache
+		irgenOptions = append(irgenOptions,
+			irgen.WithOnDiskGoTypeIndexFactory(diskCache),
+			irgen.WithObjectLoader(diskCache),
+		)
 
-	actuator := actuator.NewActuator(loader)
+	} else {
+		objectLoader = object.NewInMemoryLoader()
+		irgenOptions = append(irgenOptions, irgen.WithObjectLoader(objectLoader))
+	}
+
+	actuator := config.actuatorConstructor(loader)
 	rcScraper := rcscrape.NewScraper(actuator)
+	irGenerator := irgen.NewGenerator(irgenOptions...)
+	var ts unix.Timespec
+	if err = unix.ClockGettime(unix.CLOCK_MONOTONIC, &ts); err != nil {
+		return nil, fmt.Errorf("error getting monotonic time: %w", err)
+	}
+	approximateBootTime := time.Now().Add(time.Duration(-ts.Nano()))
 	controller := NewController(
-		actuator, logUploader, diagsUploader, rcScraper, DefaultDecoderFactory{},
+		actuator,
+		logUploader,
+		diagsUploader,
+		symdbUploaderURL,
+		objectLoader,
+		rcScraper,
+		DefaultDecoderFactory{approximateBootTime: approximateBootTime},
+		irGenerator,
 	)
 	procMon := procmon.NewProcessMonitor(&processHandler{
 		scraperHandler: rcScraper.AsProcMonHandler(),
@@ -152,5 +192,6 @@ func (m *Module) Close() {
 		if err := m.actuator.Shutdown(); err != nil {
 			log.Errorf("error shutting down actuator: %v", err)
 		}
+		m.controller.symdb.stop()
 	})
 }

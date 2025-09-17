@@ -131,6 +131,11 @@ func (c *CloudRun) getFunctionTags(tags map[string]string) map[string]string {
 	return tags
 }
 
+// GetDefaultLogsSource returns the default logs source if `DD_SOURCE` is not set
+func (c *CloudRun) GetDefaultLogsSource() string {
+	return CloudRunOrigin
+}
+
 // GetOrigin returns the `origin` attribute type for the given
 // cloud service.
 func (c *CloudRun) GetOrigin() string {
@@ -158,6 +163,11 @@ func (c *CloudRun) GetStartMetricName() string {
 // GetShutdownMetricName returns the metric name for container shutdown events
 func (c *CloudRun) GetShutdownMetricName() string {
 	return fmt.Sprintf("%s.enhanced.shutdown", cloudRunPrefix)
+}
+
+// ShouldForceFlushAllOnForceFlushToSerializer is false usually.
+func (c *CloudRun) ShouldForceFlushAllOnForceFlushToSerializer() bool {
+	return false
 }
 
 func isCloudRunService() bool {

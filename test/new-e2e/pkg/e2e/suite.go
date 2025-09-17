@@ -143,12 +143,14 @@ package e2e
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -330,18 +332,14 @@ func (bs *BaseSuite[Env]) init(options []SuiteOption, self Suite[Env]) {
 		bs.params.skipDeleteOnFailure, _ = runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.SkipDeleteOnFailure, false)
 	}
 
-	coverage, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.CoveragePipeline, false)
-	if err == nil {
-		bs.coverage = coverage
-	}
-
-	coverageOutDir, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.CoverageOutDir, "")
-	if err == nil && coverageOutDir != "" {
-		bs.coverageOutDir = coverageOutDir
-	} else {
-		bs.coverage = false
+	coverage, _ := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.CoveragePipeline, false)
+	coverageOutDir, _ := runner.GetProfile().ParamStore().GetWithDefault(parameters.CoverageOutDir, "")
+	if coverage && coverageOutDir == "" {
 		fmt.Println("WARNING: Coverage pipeline is enabled but coverage out dir is not set, skipping coverage")
+		coverage = false
 	}
+	bs.coverage = coverage
+	bs.coverageOutDir = coverageOutDir
 
 	stackNameSuffix, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.StackNameSuffix, "")
 	if err != nil {
@@ -659,12 +657,14 @@ func (bs *BaseSuite[Env]) AfterTest(suiteName, testName string) {
 			// run environment diagnose if the test failed
 			if diagnosableEnv, ok := any(bs.env).(common.Diagnosable); ok && diagnosableEnv != nil {
 				// at least one test failed, diagnose the environment
+				bs.T().Logf("========= Some tests failed, diagnosing environment ==========")
 				diagnose, diagnoseErr := diagnosableEnv.Diagnose(testOutputDir)
 				if diagnoseErr != nil {
 					bs.T().Logf("unable to diagnose environment: %v", diagnoseErr)
 				} else {
 					bs.T().Logf("Diagnose result:\n\n%s", diagnose)
 				}
+				bs.T().Logf("========= Environment diagnosed ==========")
 			}
 		}
 	}
@@ -693,11 +693,10 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 		return
 	}
 
-	if coverageEnv, ok := any(bs.env).(common.Coverageable); ok && bs.coverage {
-		err := coverageEnv.Coverage(bs.coverageOutDir)
-		if err != nil {
-			bs.T().Logf("WARNING: Coverage failed: %v", err)
-		}
+	if bs.coverage {
+		bs.SaveCoverage(bs.coverageOutDir)
+
+		bs.attachMetadataToCoverage(bs.coverageOutDir)
 	}
 
 	if bs.firstFailTest != "" && bs.params.skipDeleteOnFailure {
@@ -731,7 +730,8 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 			bs.T().Logf("Remote stack cleaning enabled for stack %s", fullStackName)
 
 			// If we are within CI, we let the stack be destroyed by the stackcleaner-worker service
-			cmd := exec.Command("dda", "inv", "agent-ci-api", "stackcleaner/stack", "--env", "prod", "--ty", "stackcleaner_workflow_request", "--attrs", fmt.Sprintf("stack_name=%s,job_name=%s,job_id=%s,pipeline_id=%s,ref=%s,ignore_lock=bool:true,ignore_not_found=bool:false", fullStackName, os.Getenv("CI_JOB_NAME"), os.Getenv("CI_JOB_ID"), os.Getenv("CI_PIPELINE_ID"), os.Getenv("CI_COMMIT_REF_NAME")))
+			// After 10s, the API will time out without an error, this can happen on high workload but the stack will still be created from the agent-ci-api
+			cmd := exec.Command("dda", "inv", "agent-ci-api", "stackcleaner/stack", "--env", "prod", "--ty", "stackcleaner_workflow_request", "--attrs", fmt.Sprintf("stack_name=%s,job_name=%s,job_id=%s,pipeline_id=%s,ref=%s,ignore_lock=bool:true,ignore_not_found=bool:false", fullStackName, os.Getenv("CI_JOB_NAME"), os.Getenv("CI_JOB_ID"), os.Getenv("CI_PIPELINE_ID"), os.Getenv("CI_COMMIT_REF_NAME")), "--timeout", "10", "--ignore-timeout-error")
 			out, err := cmd.CombinedOutput()
 			if err != nil {
 				bs.T().Errorf("Unable to destroy stack %s: %s", stackName, out)
@@ -744,6 +744,58 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 				bs.T().Errorf("unable to delete stack: %s, provisioner %s, err: %v", bs.params.stackName, id, err)
 			}
 		}
+	}
+}
+
+// SaveCoverage saves the coverage of the environment to the given directory.
+// It is called by TearDownSuite if the coverage is enabled.
+// It can be manually called by the test suite if needed.
+// If a test is explicitly restarting the agent the coverage should be saved first otherwise the counters are reset after restart.
+func (bs *BaseSuite[Env]) SaveCoverage(coverageDir string) {
+	if coverageEnv, ok := any(bs.env).(common.Coverageable); ok {
+		// Create coverage folder if it doesn't exist
+		rootTestName := strings.ToLower(strings.Split(bs.T().Name(), "/")[0])
+		coverageFolder := filepath.Join(coverageDir, rootTestName)
+		if _, err := os.Stat(coverageFolder); os.IsNotExist(err) {
+			err := os.MkdirAll(coverageFolder, 0755)
+			if err != nil {
+				bs.T().Logf("WARNING: Unable to create coverage folder: %v", err)
+			}
+		}
+		result, err := coverageEnv.Coverage(coverageFolder)
+		if err != nil {
+			bs.T().Logf("WARNING: Coverage failed: %v", err)
+		}
+		bs.T().Logf("Coverage result: %s", result)
+	} else {
+		bs.T().Logf("WARNING: Coverage is enabled but the environment does not implement the Coverageable interface")
+		return
+	}
+}
+
+func (bs *BaseSuite[Env]) attachMetadataToCoverage(coverageDir string) {
+
+	rootTestName := strings.Split(bs.T().Name(), "/")[0]
+	if _, err := os.Stat(filepath.Join(coverageDir, strings.ToLower(rootTestName))); os.IsNotExist(err) {
+		bs.T().Logf("WARNING: Coverage folder %s does not exist", filepath.Join(coverageDir, strings.ToLower(rootTestName)))
+		return
+	}
+
+	metadata := map[string]string{
+		"job_name": os.Getenv("CI_JOB_NAME"),
+		"test":     rootTestName,
+	}
+
+	metadataFilePath := filepath.Join(coverageDir, strings.ToLower(rootTestName), "metadata.json")
+	metadataFile, err := os.Create(metadataFilePath)
+	if err != nil {
+		bs.T().Logf("WARNING: Unable to create metadata file: %v", err)
+		return
+	}
+	defer metadataFile.Close()
+	err = json.NewEncoder(metadataFile).Encode(metadata)
+	if err != nil {
+		bs.T().Logf("WARNING: Unable to encode metadata: %v", err)
 	}
 }
 

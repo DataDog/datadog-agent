@@ -55,7 +55,7 @@ func recreate(path string, agentVersion string, apiKeyHash string, url string) (
 	if err == nil {
 		err := os.Remove(path)
 		if err != nil {
-			return nil, fmt.Errorf("could not remote existing rc db (%s): %v", path, err)
+			return nil, fmt.Errorf("could not remove existing rc db (%s): %v", path, err)
 		}
 	}
 	err = os.MkdirAll(filepath.Dir(path), 0700)
