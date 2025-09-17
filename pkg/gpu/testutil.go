@@ -18,8 +18,8 @@ import (
 	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
-// ensureInitPoolsNoTelemetry ensures that the pools are initialized without telemetry, useful for testing
-func (m *memoryPools) ensureInitPoolsNoTelemetry() {
+// ensureInitNoTelemetry ensures that the pools are initialized without telemetry, useful for testing
+func (m *memoryPools) ensureInitNoTelemetry() {
 	m.initOnce.Do(func() {
 		m.enrichedKernelLaunchPool = ddsync.NewDefaultTypedPool[enrichedKernelLaunch]()
 		m.kernelSpanPool = ddsync.NewDefaultTypedPool[kernelSpan]()
@@ -35,12 +35,12 @@ func withTelemetryEnabledPools(t *testing.T, tm telemetry.Component) {
 	// reset the sync.Once for the pools
 	memPools.reset()
 
-	// so that now we can call ensureInitPools with the telemetry component
-	memPools.ensureInitPools(tm)
+	// so that now we can call ensureInit with the telemetry component
+	memPools.ensureInit(tm)
 
 	// after the current test is finished, reset the sync.Once and restore to non-telemetry enabled pools
 	t.Cleanup(func() {
 		memPools.reset()
-		memPools.ensureInitPoolsNoTelemetry()
+		memPools.ensureInitNoTelemetry()
 	})
 }

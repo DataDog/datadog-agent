@@ -155,7 +155,7 @@ type memoryPools struct {
 
 var memPools memoryPools
 
-func (m *memoryPools) ensureInitPools(tm telemetry.Component) {
+func (m *memoryPools) ensureInit(tm telemetry.Component) {
 	m.initOnce.Do(func() {
 		m.enrichedKernelLaunchPool = ddsync.NewDefaultTypedPoolWithTelemetry[enrichedKernelLaunch](tm, "gpu", "enrichedKernelLaunch")
 		m.kernelSpanPool = ddsync.NewDefaultTypedPoolWithTelemetry[kernelSpan](tm, "gpu", "kernelSpan")

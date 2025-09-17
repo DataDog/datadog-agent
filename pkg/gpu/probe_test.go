@@ -28,7 +28,7 @@ import (
 
 // TestMain defined to run initialization before any test is run
 func TestMain(m *testing.M) {
-	ensureInitPoolsNoTelemetry()
+	memPools.ensureInitNoTelemetry()
 	os.Exit(m.Run())
 }
 
