@@ -31,16 +31,25 @@ func (c *ddConverter) enhanceConfig(conf *confmap.Conf) {
 	if c.coreConfig != nil {
 		enabledFeatures = c.coreConfig.GetStringSlice("otelcollector.converter.features")
 	} else {
-		enabledFeatures = []string{"infraattributes", "prometheus", "pprof", "zpages", "health_check", "ddflare", "datadog"}
+		enabledFeatures = []string{"infraattributes", "prometheus", "pprof", "zpages", "health_check", "ddflare"}
 	}
 
 	// extensions (pprof, zpages, health_check, ddflare/datadog)
-	extensions := createExtensions(c.coreConfig)
+	extensions := createExtensions()
 	for _, extension := range extensions {
 		if !slices.Contains(enabledFeatures, extension.Name) || extensionIsInServicePipeline(conf, extension) {
 			continue
 		}
-
+		if extension.Name == datadogName {
+			if c.coreConfig == nil || c.coreConfig.GetString("api_key") == "" {
+				continue
+			}
+			extension.Config = map[string]any{
+				"api": map[string]any{
+					"key": c.coreConfig.GetString("api_key"),
+				},
+			}
+		}
 		addComponentToConfig(conf, extension)
 		addExtensionToPipeline(conf, extension)
 	}

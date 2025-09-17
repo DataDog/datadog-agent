@@ -1,4 +1,3 @@
-api_key: ggggg77777
 otelcollector:
   gateway:
     enabled: true

@@ -12,6 +12,8 @@ extensions:
   zpages/dd-autoconfigured:
     endpoint: "localhost:55679"
   datadog/dd-autoconfigured:
+    api:
+      key: ggggg77777
 
 service:
   extensions:

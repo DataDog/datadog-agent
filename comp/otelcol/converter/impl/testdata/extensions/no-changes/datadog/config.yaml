@@ -10,6 +10,8 @@ extensions:
   zpages/user-defined:
     endpoint: "localhost:55679"
   datadog/user-defined:
+    api:
+      key: ggggg77777
 
 service:
   extensions:

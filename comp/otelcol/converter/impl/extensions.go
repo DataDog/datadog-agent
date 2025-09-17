@@ -7,7 +7,6 @@
 package converterimpl
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	"go.opentelemetry.io/collector/confmap"
 )
 
@@ -70,19 +69,14 @@ var (
 	}
 )
 
-func createExtensions(coreConfig config.Component) []component {
-	extensions := []component{
+func createExtensions() []component {
+	return []component{
 		pProfComponent,
 		zpagesComponent,
 		healthCheckComponent,
+		ddflareComponent,
+		datadogComponent,
 	}
-
-	if coreConfig != nil && coreConfig.GetBool("otelcollector.gateway.enabled") {
-		extensions = append(extensions, datadogComponent)
-		return extensions
-	}
-	extensions = append(extensions, ddflareComponent)
-	return extensions
 }
 
 func extensionIsInServicePipeline(conf *confmap.Conf, comp component) bool {
