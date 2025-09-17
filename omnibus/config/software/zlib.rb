@@ -24,7 +24,8 @@ end
 source url: "https://zlib.net/fossils/zlib-#{version}.tar.gz",
        extract: :seven_zip
 
-# relative_path "zlib-#{version}"
+# TODO: Eventually all bazel commands should be from the source tree at 'src/github.com/DataDog/datadog-agent'
+relative_path "zlib-#{version}"
 
 build do
   license "Zlib"
@@ -57,6 +58,7 @@ build do
     make(*make_args, env: env)
     make("install", *make_args, env: env)
   else
-    command "echo where am i vs #{project_dir} ; /bin/pwd; cd #{project_dir} ; /bin/pwd ; bazelisk run -- @zlib//:install --destdir='#{install_dir}/embedded'"
+    # TODO: Once can build on windows, make this the relative path.
+    command "cd #{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent ; /bin/pwd ; ls ; bazelisk run -- @zlib//:install --destdir='#{install_dir}/embedded' ; ls #{install_dir}/embedded"
   end
 end
