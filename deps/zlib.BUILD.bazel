@@ -141,6 +141,7 @@ alias(
 cc_shared_library(
     name = "zlib_so",
     shared_lib_name = "zlib.so",
+    win_def_file = "win32/zlib.def",
     deps = [":z"],
 )
 
@@ -166,15 +167,11 @@ build do
     patch <<THIS
  IMAGE_BASE = 0x63300000
 
- LD = $(CC)
  LDFLAGS = $(LOC)
 
  AR = $(PREFIX)ar
  ARFLAGS = rcs
 
- STRIP = $(PREFIX)strip
-
- CP = cp -fp
 @@ -93,7 +95,7 @@
  $(IMPLIB): $(SHAREDLIB)
 
