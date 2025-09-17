@@ -135,6 +135,8 @@ const (
 	RawPacketActionEventType
 	// CapabilitiesEventType is used to track capabilities usage
 	CapabilitiesEventType
+	// FileMoveMountEventType Move Mount even
+	FileMoveMountEventType
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
 	MaxKernelEventType
 
@@ -309,6 +311,8 @@ func (t EventType) String() string {
 		return "capabilities"
 	case PrCtlEventType:
 		return "prctl"
+	case FileMoveMountEventType:
+		return "move_mount"
 	default:
 		return "unknown"
 	}
