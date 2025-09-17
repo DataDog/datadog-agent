@@ -29,20 +29,21 @@ type FilterAddress struct {
 }
 
 type FilterDefinition struct {
-	FilterVersion  uint64
-	Size           uint64
-	FilterLayer    uint64
-	Af             uint64
-	LocalAddress   FilterAddress
-	RemoteAddress  FilterAddress
-	LocalPort      uint64
-	RemotePort     uint64
-	Protocol       uint64
-	Direction      uint64
-	InterfaceIndex uint64
+        FilterVersion  uint64
+        Size           uint64
+        FilterLayer    uint64
+        Af             uint64
+        LocalAddress   FilterAddress
+        RemoteAddress  FilterAddress
+        LocalPort      uint64
+        RemotePort     uint64
+        Protocol       uint64
+        Direction      uint64
+        InterfaceIndex uint64
+        Discard        uint64
 }
 
-const FilterDefinitionSize = 0x98
+const FilterDefinitionSize = 0xa0
 
 type FilterPacketHeader struct {
 	FilterVersion    uint64
