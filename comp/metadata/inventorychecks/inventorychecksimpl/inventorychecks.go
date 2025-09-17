@@ -56,7 +56,7 @@ type Payload struct {
 	Timestamp    int64                    `json:"timestamp"`
 	Metadata     map[string][]metadata    `json:"check_metadata"`
 	LogsMetadata map[string][]metadata    `json:"logs_metadata"`
-	CheckStats   []map[string]interface{} `json:"check_stats"`
+	CheckResults []map[string]interface{} `json:"check_results"`
 	UUID         string                   `json:"uuid"`
 }
 
@@ -282,7 +282,7 @@ func (ic *inventorychecksImpl) getPayload(withConfigs bool) marshaler.JSONMarsha
 		Timestamp:    time.Now().UnixNano(),
 		Metadata:     payloadData,
 		LogsMetadata: logsMetadata,
-		CheckStats:   checkStats,
+		CheckResults: checkStats,
 		UUID:         uuid.GetUUID(),
 	}
 }
