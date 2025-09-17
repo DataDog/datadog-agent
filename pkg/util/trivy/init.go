@@ -15,5 +15,5 @@ import (
 func init() {
 	// by default trivy stores all logs until InitLogger is called
 	// we call it as soon as possible, asking to disable trivy logs
-	trivylog.InitLogger(false, true)
+	trivylog.InitLogger(true, false)
 }
