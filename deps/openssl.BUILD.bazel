@@ -7,6 +7,16 @@ filegroup(
     srcs = glob(["**"]),
 )
 
+DEFAULT_CONFIGURE_OPTIONS = [
+    "--libdir=lib",
+    "no-idea",
+    "no-mdc2",
+    "no-rc5",
+    "shared",
+    "no-ssl3",
+    "no-gost",
+]
+
 configure_make(
     name = "openssl",
     # TODO(team:agent-build): Find a better way to utilize more than 1 core
@@ -21,24 +31,26 @@ configure_make(
         "@platforms//os:windows": "perl.exe ./Configure",
     }),
     configure_options = select({
+        "@platforms//os:windows": [
+            *DEFAULT_CONFIGURE_OPTIONS,
+            "no-zlib",
+            "no-uplink",
+        ],
         "@//:macos_arm64": [
             "darwin64-arm64-cc",
+            *DEFAULT_CONFIGURE_OPTIONS,
+            "zlib",
         ],
         "@//:macos_x86_64": [
             "darwin64-x86_64-cc",
+            *DEFAULT_CONFIGURE_OPTIONS,
+            "zlib",
         ],
-        "//conditions:default": [],
-    }) + [
-        "no-idea",
-        "no-mdc2",
-        "no-rc5",
-        "shared",
-        "no-ssl3",
-        "no-gost",
-        # Probably not needed if bazel can copy the file wherever it is
-        "--libdir=lib",
-        "zlib",
-    ],
+        "//conditions:default": [
+            *DEFAULT_CONFIGURE_OPTIONS,
+            "zlib",
+        ],
+    }),
     env = select({
         "@platforms//os:macos": {
             # For some reason AR is set to libtool on macos
@@ -60,6 +72,12 @@ configure_make(
             "libssl.3.dylib",
             "libcrypto.dylib",
             "libcrypto.3.dylib",
+        ],
+        "@platforms//os:windows": [
+            "libssl.dll",
+            "libssl-3.dll",
+            "libcrypto.dll",
+            "libcrypto-3.dll",
         ],
         "//conditions:default": [],
     }),
