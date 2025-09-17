@@ -1,8 +1,9 @@
 #![allow(dead_code)]
 
-use super::aggregator::{Instance, Aggregator, MetricType, Event};
+use super::aggregator::{Config, Aggregator, MetricType, Event};
 
 use std::error::Error;
+use std::ffi::{c_char, CStr};
 
 #[repr(i32)]
 pub enum ServiceCheckStatus {
@@ -13,19 +14,27 @@ pub enum ServiceCheckStatus {
 }
 
 pub struct AgentCheck {
-    check_id: String,
-    aggregator: Aggregator, // submit callbacks
-
-    // the field is public to match Python checks' syntax for getting Instance parameters
-    pub instance: Instance, // used to get specific check parameters
+    check_id: String,           // corresponding id in the Agent
+    aggregator: Aggregator,     // submit callbacks
+    // these fields are made public to mimic the way configurations are used in Python checks
+    pub init_config: Config,    // common check configuration
+    pub instance: Config,       // instance specific configuration
 }
 
 impl AgentCheck {
-    pub fn new(instance: Instance, aggregator: Aggregator) -> Result<Self, Box<dyn Error>> {
-        // required parameters for every check
-        let check_id = instance.get("check_id")?;
+    pub fn new(check_id_str: *const c_char, init_config_str: *const c_char, instance_config_str: *const c_char, aggregator_ptr: *const Aggregator) -> Result<Self, Box<dyn Error>> {
+        let check_id = unsafe { CStr::from_ptr(check_id_str) }
+            .to_str()?
+            .to_string();
+        
+        // parse configuration strings
+        let init_config = Config::from_str(init_config_str)?;
+        let instance = Config::from_str(instance_config_str)?;
+        
+        // gather callbacks in a struct
+        let aggregator = Aggregator::from_raw(aggregator_ptr);
 
-        Ok(Self { check_id, aggregator, instance })
+        Ok(Self { check_id, aggregator, init_config, instance })
     }
 
     /// Send Gauge metric

@@ -1,10 +1,12 @@
+#![allow(dead_code)]
+
 use super::cstring::*;
 
 use std::collections::HashMap;
 use std::ffi::{c_char, c_double, c_float, c_int, c_long, c_longlong, CStr};
 use std::error::Error;
 
-use serde_json::Value;
+use serde_yaml::Value;
 use serde::de::DeserializeOwned;
 
 /// Replica of the Agent metric type enum
@@ -85,17 +87,21 @@ type SubmitEventPlatformEvent = extern "C" fn(
 /// 
 /// It stores every parameter in a map using `Serde` and provide a method for retrieving the values
 #[repr(C)]
-pub struct Instance {
+pub struct Config {
     map: HashMap<String, Value>,
 }
 
-impl Instance {
+impl Config {
     pub fn from_str(cstr: *const c_char) -> Result<Self, Box<dyn Error>> {
         // read string
-        let str = unsafe { CStr::from_ptr(cstr) }.to_str()?;
+        let str = unsafe { CStr::from_ptr(cstr) }.to_str().unwrap_or("");
 
         // create map of parameters from the string
-        let map: HashMap<String, Value> = serde_json::from_str(str)?;
+        let map: HashMap<String, Value> = match serde_yaml::from_str(str) {
+            Ok(map) => map,
+            Err(_) => HashMap::new(),
+        };
+
         Ok(Self { map })
     }
 
@@ -105,7 +111,7 @@ impl Instance {
     {
         match self.map.get(key) {
             Some(serde_value) => {
-                let value = serde_json::from_value(serde_value.clone())?;
+                let value = serde_yaml::from_value(serde_value.clone())?;
                 Ok(value)
             },
             None => Err(format!("key '{key}' not found in the instance").into()),
@@ -128,7 +134,7 @@ pub struct Aggregator {
 
 impl Aggregator {
     pub fn from_raw(aggregator_ptr: *const Aggregator) -> Self {
-        unsafe { *aggregator_ptr }.clone()
+        unsafe { *aggregator_ptr }
     }
 
     // TODO: optional arguements should use Option

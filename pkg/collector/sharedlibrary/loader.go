@@ -13,7 +13,6 @@ import "C"
 import (
 	"errors"
 	"fmt"
-	"sync"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -23,8 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
-
-var sharedlibraryOnce sync.Once
 
 // SharedLibraryCheckLoaderName is the name of the Shared Library loader
 const SharedLibraryCheckLoaderName string = "sharedlibrary"

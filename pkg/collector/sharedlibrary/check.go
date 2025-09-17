@@ -14,22 +14,22 @@ void SubmitEventSo(char *, event_t *);
 void SubmitHistogramBucketSo(char *, char *, long long, float, float, int, char *, char **, bool);
 void SubmitEventPlatformEventSo(char *, char *, int, char *);
 
-static aggregator_t get_aggregator() {
-	aggregator_t aggregator = {
-		SubmitMetricSo,
-		SubmitServiceCheckSo,
-		SubmitEventSo,
-		SubmitHistogramBucketSo,
-		SubmitEventPlatformEventSo,
-	};
-
-	return aggregator;
+// the callbacks are aggregated in this file as it's the only one which uses it
+static const aggregator_t aggregator = {
+	SubmitMetricSo,
+	SubmitServiceCheckSo,
+	SubmitEventSo,
+	SubmitHistogramBucketSo,
+	SubmitEventPlatformEventSo,
 };
+
+static const aggregator_t *get_aggregator() {
+	return &aggregator;
+}
 */
 import "C"
 
 import (
-	"encoding/json"
 	"fmt"
 	"time"
 	"unsafe"
@@ -52,14 +52,13 @@ type SharedLibraryCheck struct {
 	senderManager  sender.SenderManager
 	id             checkid.ID
 	version        string
-	instance       map[string]any
 	interval       time.Duration
 	libName        string
 	libHandles     C.handles_t // store library file and symbols pointers
 	source         string
-	telemetry      bool // whether or not the telemetry is enabled for this check
-	initConfig     string
-	instanceConfig string
+	telemetry      bool   // whether or not the telemetry is enabled for this check
+	initConfig     string // json string of check common config
+	instanceConfig string // json string of specific instance config
 }
 
 // NewSharedLibraryCheck conveniently creates a SharedLibraryCheck instance
@@ -76,21 +75,20 @@ func NewSharedLibraryCheck(senderManager sender.SenderManager, name string, libH
 
 // Run a shared library check
 func (c *SharedLibraryCheck) Run() error {
-	var cErr *C.char
+	cID := C.CString(string(c.id))
+	defer C.free(unsafe.Pointer(cID))
 
-	// aggregate check parameters into a json
-	jsonInstance, err := json.Marshal(c.instance)
-	if err != nil {
-		return err
-	}
+	cInitConfig := C.CString(c.initConfig)
+	defer C.free(unsafe.Pointer(cInitConfig))
 
-	cInstance := C.CString(string(jsonInstance))
-	defer C.free(unsafe.Pointer(cInstance))
+	cInstanceConfig := C.CString(c.instanceConfig)
+	defer C.free(unsafe.Pointer(cInstanceConfig))
 
+	// retrieve callbacks
 	cAggregator := C.get_aggregator()
 
-	// execute the check with the symbol retrieved earlier
-	C.run_shared_library(&c.libHandles, cInstance, &cAggregator, &cErr)
+	// run check implementation with the symbol stored in the check struct
+	cErr := C.run_shared_library(&c.libHandles, cID, cInitConfig, cInstanceConfig, cAggregator)
 	if cErr != nil {
 		defer C.free(unsafe.Pointer(cErr))
 		return fmt.Errorf("Failed to run shared library check %s: %s", c.libName, C.GoString(cErr))
@@ -152,11 +150,11 @@ func (c *SharedLibraryCheck) GetWarnings() []error {
 }
 
 // Configure the shared library check from YAML data
-func (c *SharedLibraryCheck) Configure(_senderManager sender.SenderManager, integrationConfigDigest uint64, instance integration.Data, initConfig integration.Data, source string) error {
-	c.id = checkid.BuildID(c.String(), integrationConfigDigest, instance, initConfig)
+func (c *SharedLibraryCheck) Configure(_senderManager sender.SenderManager, integrationConfigDigest uint64, instanceConfig integration.Data, initConfig integration.Data, source string) error {
+	c.id = checkid.BuildID(c.String(), integrationConfigDigest, instanceConfig, initConfig)
 
 	commonOptions := integration.CommonInstanceConfig{}
-	if err := yaml.Unmarshal(instance, &commonOptions); err != nil {
+	if err := yaml.Unmarshal(instanceConfig, &commonOptions); err != nil {
 		log.Errorf("invalid instance section for check %s: %s", string(c.id), err)
 		return err
 	}
@@ -166,22 +164,11 @@ func (c *SharedLibraryCheck) Configure(_senderManager sender.SenderManager, inte
 		c.interval = time.Duration(commonOptions.MinCollectionInterval) * time.Second
 	}
 
-	if err := yaml.Unmarshal(instance, &c.instance); err != nil {
-		log.Errorf("invalid instance section for check %s: %s", string(c.id), err)
-		return err
-	}
-
-	// common check parameters
-	c.instance["check_id"] = c.id
-	if _, ok := c.instance["tags"]; !ok { // check if there's no `tags` key
-		// create empty list in case that there's no tags field
-		c.instance["tags"] = make([]string, 0)
-	}
-
-	// configuration info
+	// configurations
 	c.source = source
+
 	c.initConfig = string(initConfig)
-	c.instanceConfig = string(instance)
+	c.instanceConfig = string(instanceConfig)
 
 	return nil
 }

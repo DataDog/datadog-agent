@@ -84,8 +84,8 @@ typedef struct aggregator_s {
 } aggregator_t;
 
 // run function callback, entrypoint of checks
-// (instance string, callbacks)
-typedef char *(run_function_t)(char *, const aggregator_t *);
+// (check_id, init_config, instance_config, callbacks)
+typedef char *(run_function_t)(char *, char*, char*, const aggregator_t *);
 
 // free function callback, deallocate a string
 // (string to free)
@@ -206,23 +206,18 @@ static void close_shared_library(void *lib_handle) {
 }
 #endif
 
-static void run_shared_library(handles_t *lib_handles, char *instance, aggregator_t *aggregator, const char **error) {
+static char *run_shared_library(handles_t *lib_handles, char *check_id, char *init_config, char *instance_config, aggregator_t *aggregator) {
 	// verify pointers
     if (!lib_handles->run) {
-        *error = strdup("pointer to shared library 'Run' function is null");
-		return;
+        return strdup("pointer to shared library 'Run' function is NULL");
     }
 
-	if (!lib_handles->free) {
-        *error = strdup("pointer to shared library 'Free' function is null");
-		return;
+    // run the shared library check and return any error has occurred
+    char *error = (lib_handles->run)(check_id, init_config, instance_config, aggregator);
+    if (error) {
+        return strdup(error);
     }
 
-    // run the shared library check and verify if an error has occurred
-    char *run_error = (lib_handles->run)(instance, aggregator);
-	if (run_error) {
-		*error = strdup(run_error);
-		(lib_handles->free)(run_error);
-	}
+    return NULL;
 }
 #endif
