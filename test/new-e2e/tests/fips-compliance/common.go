@@ -24,6 +24,7 @@ import (
 type cipherTestCase struct {
 	cert   string
 	cipher string
+	tlsMin string
 	tlsMax string
 	want   bool
 }
