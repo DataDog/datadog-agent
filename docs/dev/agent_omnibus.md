@@ -1,47 +1,5 @@
 # Build the Agent packages
 
-Agent packages for all the supported platforms are built using
-[Omnibus](https://github.com/chef/omnibus), which can be run through [deva](https://datadoghq.dev/datadog-agent/setup/#tooling) commands.
-
-Omnibus creates a package for your operating system, so you'll get a DEB
-package on Debian-based distros, an RPM package on distros that use RPM, an MSI
-installer on Windows, or a `.pkg` package bundled in a DMG archive on Mac.
-
-For Linux, we provide Docker images (one to build DEB packages and one for RPM),
-with the build dependencies installed, so you don't have to install them on your system.
-
-## Linux Docker image (Linux host only, recommended)
-
-Use the provided Docker images to build a DEB or RPM
-package for Linux. You need to have Docker already running on your machine.
-
-From the `datadog-agent` source folder, use the following command to run the
-`omnibus.build` task in a Docker container:
-
-```
-docker run -v "$PWD:/go/src/github.com/DataDog/datadog-agent" -v "/tmp/omnibus:/omnibus" -v "/tmp/opt/datadog-agent:/opt/datadog-agent" -v"/tmp/gems:/gems" --workdir=/go/src/github.com/DataDog/datadog-agent datadog/agent-buildimages-linux-glibc-2-17-x64 dda inv -- -e omnibus.build --base-dir=/omnibus --gem-path=/gems
-```
-
-For `arm64`, use this image instead: `datadog/agent-buildimages-linux-glibc-2-23-arm64`
-
-The container will share 3 volumes with the host to avoid starting from scratch
-at each Omnibus run:
-
- * `/tmp/omnibus`, containing the Omnibus base dir
- * `/tmp/opt/datadog-agent`, containing the Omnibus installation dir
- * `/tmp/gems`, containing all the ruby gems installed with Bundler
-
-If you want to find the Dockerfiles for these images, they are available in the
-[datadog-agent-buildimages](https://github.com/DataDog/datadog-agent-buildimages) git repo.
-To build them from scratch, you can do so like this:
-
-```
-docker build -t datadog-agent-buildimages:deb_x64 -f deb-x64/Dockerfile .
-```
-
-If the build images crash when you run them on modern Linux distributions, you might be
-affected by [this bug](https://github.com/moby/moby/issues/28705).
-
 ## Building on your system (Linux and Mac)
 
 The project will be built locally and provide a .tar.xz tarball (in the omnibus/pkg folder)
