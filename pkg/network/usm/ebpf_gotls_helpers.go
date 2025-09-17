@@ -35,15 +35,11 @@ var paramLookupFunctions = map[string]bininspect.ParameterLookupFunction{
 }
 
 var structFieldsLookupFunctions = map[bininspect.FieldIdentifier]bininspect.StructLookupFunction{
-	bininspect.StructOffsetTLSConn:                  lookup.GetTLSConnInnerConnOffset,
-	bininspect.StructOffsetTCPConn:                  lookup.GetTCPConnInnerConnOffset,
-	bininspect.StructOffsetNetConnFd:                lookup.GetConnFDOffset,
-	bininspect.StructOffsetLimitListenerConnNetConn: lookup.GetLimitListenerConn_NetConnOffset,
-	bininspect.StructOffsetFamilyInNetFD:            lookup.GetNetFD_FamilyInNetFDOffset,
-	bininspect.StructOffsetLaddrInNetFD:             lookup.GetNetFD_LaddrInNetFDOffset,
-	bininspect.StructOffsetRaddrInNetFD:             lookup.GetNetFD_RaddrInNetFDOffset,
-	bininspect.StructOffsetPortInTCPAddr:            lookup.GetTCPAddr_PortInTCPAddrOffset,
-	bininspect.StructOffsetIPInTCPAddr:              lookup.GetTCPAddr_IPInTCPAddrOffset,
+	bininspect.StructOffsetTLSConn:     lookup.GetTLSConnInnerConnOffset,
+	bininspect.StructOffsetTCPConn:     lookup.GetTCPConnInnerConnOffset,
+	bininspect.StructOffsetNetConnFd:   lookup.GetConnFDOffset,
+	bininspect.StructOffsetNetFdPfd:    lookup.GetNetFD_PFDOffset,
+	bininspect.StructOffsetPollFdSysfd: lookup.GetFD_SysfdOffset,
 }
 
 // goTLSBinaryInspector is a BinaryInspector that inspects Go binaries, dealing with the specifics of Go binaries
@@ -213,11 +209,8 @@ func inspectionResultToProbeData(result *bininspect.Result) (gotls.TlsOffsetsDat
 			Tcp_conn_inner_conn_offset:     result.StructOffsets[bininspect.StructOffsetTCPConn],
 			Limited_conn_inner_conn_offset: result.StructOffsets[bininspect.StructOffsetLimitListenerConnNetConn],
 			Conn_fd_offset:                 result.StructOffsets[bininspect.StructOffsetNetConnFd],
-			Conn_fd_family_offset:          result.StructOffsets[bininspect.StructOffsetFamilyInNetFD],
-			Conn_fd_laddr_offset:           result.StructOffsets[bininspect.StructOffsetLaddrInNetFD],
-			Conn_fd_raddr_offset:           result.StructOffsets[bininspect.StructOffsetRaddrInNetFD],
-			Tcp_addr_port_offset:           result.StructOffsets[bininspect.StructOffsetPortInTCPAddr],
-			Tcp_addr_ip_offset:             result.StructOffsets[bininspect.StructOffsetIPInTCPAddr],
+			Net_fd_pfd_offset:              result.StructOffsets[bininspect.StructOffsetNetFdPfd],
+			Fd_sysfd_offset:                result.StructOffsets[bininspect.StructOffsetPollFdSysfd],
 		},
 		Read_conn_pointer:  readConnPointer,
 		Read_buffer:        readBufferLocation,
