@@ -158,8 +158,13 @@ func TestRuntimeSettings(t *testing.T) {
 				comp.GetFullConfig("")(recorder1, request)
 				comp.GetFullConfigWithoutDefaults("")(recorder2, request)
 
-				body1, _ := io.ReadAll(recorder1.Result().Body)
-				body2, _ := io.ReadAll(recorder2.Result().Body)
+				resp1 := recorder1.Result()
+				defer resp1.Body.Close()
+				body1, _ := io.ReadAll(resp1.Body)
+
+				resp2 := recorder2.Result()
+				defer resp2.Body.Close()
+				body2, _ := io.ReadAll(resp2.Body)
 
 				assert.Equal(t, 200, recorder1.Code)
 				assert.Equal(t, 200, recorder2.Code)
