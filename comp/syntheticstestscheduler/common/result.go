@@ -52,11 +52,10 @@ type Result struct {
 
 // Test represents the definition of a test including metadata and version.
 type Test struct {
-	InternalID string `json:"_internalId"`
-	ID         string `json:"id"`
-	SubType    string `json:"subType"`
-	Type       string `json:"type"`
-	Version    int    `json:"version"`
+	ID      string `json:"id"`
+	SubType string `json:"subType"`
+	Type    string `json:"type"`
+	Version int    `json:"version"`
 }
 
 // TestResult represents the full test execution result including metadata.
