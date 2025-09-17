@@ -2,7 +2,6 @@
 Invoke task to handle dynamic tests.
 """
 
-import json
 import os
 from time import sleep
 
@@ -62,43 +61,16 @@ def consolidate_index_in_s3(_: Context, bucket_uri: str, commit_sha: str):
 def evaluate_index(ctx: Context, bucket_uri: str, commit_sha: str, pipeline_id: str):
     uploader = S3Backend(bucket_uri)
     executor = DynTestExecutor(ctx, uploader, IndexKind.PACKAGE, commit_sha)
-    evaluator = DatadogDynTestEvaluator(ctx, IndexKind.PACKAGE, executor, pipeline_id)
-    if not evaluator.initialize():
-        print(color_message("WARNING: Failed to initialize index for package coverage", Color.ORANGE))
-        return
-    changes = get_modified_files(ctx)
-    print("Detected changes:", changes)
-    results = evaluator.evaluate([os.path.dirname(change) for change in changes])
-    evaluator.print_summary(results)
-    evaluator.send_stats_to_datadog(results)
 
-    sleep(10)  # small sleep to avoid rate limiting
+    for kind in [IndexKind.PACKAGE, IndexKind.FILE, IndexKind.DIFFED_PACKAGE]:
+        evaluator = DatadogDynTestEvaluator(ctx, kind, executor, pipeline_id)
+        if not evaluator.initialize():
+            print(color_message(f"WARNING: Failed to initialize index for {kind.value} coverage", Color.ORANGE))
+            return
+        changes = get_modified_files(ctx)
+        print("Detected changes:", changes)
+        results = evaluator.evaluate([os.path.dirname(change) for change in changes])
+        evaluator.print_summary(results)
+        evaluator.send_stats_to_datadog(results)
 
-    # File coverage indexer
-    executor = DynTestExecutor(ctx, uploader, IndexKind.FILE, commit_sha)
-    evaluator = DatadogDynTestEvaluator(ctx, IndexKind.FILE, executor, pipeline_id)
-    if not evaluator.initialize():
-        print(color_message("WARNING:Failed to initialize index for file coverage", Color.ORANGE))
-        return
-    results = evaluator.evaluate(changes)
-    evaluator.print_summary(results)
-    evaluator.send_stats_to_datadog(results)
-
-    sleep(10)  # small sleep to avoid rate limiting
-
-    # Diffed package coverage indexer
-    executor = DynTestExecutor(ctx, uploader, IndexKind.DIFFED_PACKAGE, commit_sha)
-    evaluator = DatadogDynTestEvaluator(ctx, IndexKind.DIFFED_PACKAGE, executor, pipeline_id)
-    if not evaluator.initialize():
-        print(color_message("WARNING: Failed to initialize index for diffed package coverage", Color.ORANGE))
-        return
-    results = evaluator.evaluate(changes)
-    evaluator.print_summary(results)
-    evaluator.send_stats_to_datadog(results)
-
-
-@task
-def test(ctx: Context):
-    indexer = DiffedPackageCoverageDynTestIndexer("./coverage-dir", "./coverage-dir/testagentbaselinesuite")
-    with open("index_diffed.json", "w") as f:
-        json.dump(indexer.compute_index(ctx).to_dict(), f)
+        sleep(10)  # small sleep to avoid rate limiting

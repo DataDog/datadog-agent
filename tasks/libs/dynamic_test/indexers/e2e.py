@@ -103,10 +103,10 @@ class CoverageDynTestIndexer(DynTestIndexer):
             return "", "", 0
         parts = line.strip().split()
         if len(parts) < 3:
-            return "", "", 0
+            raise ValueError(f"Invalid coverage line: {line}")
         file_with_range = parts[0].split(":")
         if len(file_with_range) < 2:
-            return "", "", 0
+            raise ValueError(f"Invalid coverage line: {line}")
         file_path, range = file_with_range[0], file_with_range[1]
         n_covered = int(parts[2])
         return file_path, range, n_covered
