@@ -36,6 +36,6 @@ bazel:build-deps:windows-amd64:
     ARCH: x64
     SCRIPT: |-
       echo "🟡 TODO(regis): compilation errors remain - limiting to a working subset for the time being"
-      set BAZEL_SH=C:/tools/msys64/usr/bin/bash.exe
+      $Env:BAZEL_SH = "C:/tools/msys64/usr/bin/bash.exe"
       bazel build @zlib//... @openssl//...
       # bazel build @bzip2//...
