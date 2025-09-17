@@ -1097,15 +1097,6 @@ workflow:
         - tasks/**/*
       compare_to: $COMPARE_TO_BRANCH
 
-.on_powershell_module_or_e2e_changes_or_manual:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - test/new-e2e/tests/windows/powershell-module-test/*
-      compare_to: $COMPARE_TO_BRANCH
-  - when: manual
-    allow_failure: true
-
 .on_gpu_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
