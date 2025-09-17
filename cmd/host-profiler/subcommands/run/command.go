@@ -11,11 +11,12 @@ import (
 	"context"
 
 	"github.com/spf13/cobra"
+	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/host-profiler/globalparams"
+	hostprofiler "github.com/DataDog/datadog-agent/comp/host-profiler"
+	collector "github.com/DataDog/datadog-agent/comp/host-profiler/collector/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-
-	"go.uber.org/fx"
 )
 
 type cliParams struct {
@@ -40,12 +41,9 @@ func MakeCommand(globalConfGetter func() *globalparams.GlobalParams) []*cobra.Co
 
 func runHostProfilerCommand(ctx context.Context, params *cliParams) error {
 	return fxutil.Run(
-		fx.Invoke(func() {
-			runHostProfiler(ctx, params)
+		hostprofiler.Bundle,
+		fx.Invoke(func(collector collector.Component) error {
+			return collector.Run()
 		}),
 	)
-}
-
-func runHostProfiler(ctx context.Context, params *cliParams) error {
-	return nil
 }
