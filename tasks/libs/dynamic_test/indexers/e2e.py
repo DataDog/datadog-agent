@@ -331,7 +331,7 @@ class DiffedPackageCoverageDynTestIndexer(CoverageDynTestIndexer):
         return index
 
     def _parse_baseline_coverage(self, baseline_covered_txt: Path) -> dict[str, dict[str, int]]:
-        baseline_covered = defaultdict(defaultdict(int))  # file_path -> set of ranges covered in the baseline
+        baseline_covered = defaultdict(lambda: defaultdict(int))  # file_path -> set of ranges covered in the baseline
         with open(baseline_covered_txt, encoding="utf-8") as f:
             for line in f:
                 file_path, range, n_covered = self.parse_coverage_line(line)
