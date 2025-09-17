@@ -9,27 +9,106 @@
 package collectorimpl
 
 import (
+	"context"
+
 	collector "github.com/DataDog/datadog-agent/comp/host-profiler/collector/def"
+	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/confmap"
+	"go.opentelemetry.io/collector/confmap/provider/envprovider"
+	"go.opentelemetry.io/collector/confmap/provider/fileprovider"
+	"go.opentelemetry.io/collector/exporter/debugexporter"
+	"go.opentelemetry.io/collector/exporter/otlphttpexporter"
+	"go.opentelemetry.io/collector/featuregate"
+	"go.opentelemetry.io/collector/otelcol"
+	ebpfcollector "go.opentelemetry.io/ebpf-profiler/collector"
 )
 
+type Params struct {
+	uri string
+}
+
+func NewParams(uri string) Params {
+	return Params{
+		uri: uri,
+	}
+}
+
 // Requires defines the dependencies for the collector component
-type Requires struct{}
+type Requires struct {
+	Params Params
+}
 
 // Provides defines the output of the collector component.
 type Provides struct {
 	Comp collector.Component
 }
 
-type collectorImpl struct{}
+type collectorImpl struct {
+	collector *otelcol.Collector
+}
 
 // NewComponent creates a new collector component
 func NewComponent(reqs Requires) (Provides, error) {
+	// Enable profiles support (disabled by default)
+	featuregate.GlobalRegistry().Set("service.profilesSupport", true)
+
+	settings, err := newCollectorSettings(reqs.Params.uri)
+	if err != nil {
+		return Provides{}, err
+	}
+	collector, err := otelcol.NewCollector(settings)
+	if err != nil {
+		return Provides{}, err
+	}
+
 	provides := Provides{
-		Comp: &collectorImpl{},
+		Comp: &collectorImpl{
+			collector: collector,
+		},
 	}
 	return provides, nil
 }
 
 func (c *collectorImpl) Run() error {
-	return nil
+	return c.collector.Run(context.Background())
+}
+
+func newCollectorSettings(uri string) (otelcol.CollectorSettings, error) {
+	// Set service name using buildInfo.
+	buildInfo := component.NewDefaultBuildInfo()
+	buildInfo.Command = "full-host-profiler"
+
+	return otelcol.CollectorSettings{
+		BuildInfo: buildInfo,
+		Factories: createFactories,
+		ConfigProviderSettings: otelcol.ConfigProviderSettings{
+			ResolverSettings: confmap.ResolverSettings{
+				URIs: []string{uri},
+				ProviderFactories: []confmap.ProviderFactory{
+					envprovider.NewFactory(),
+					fileprovider.NewFactory(),
+				},
+			},
+		},
+	}, nil
+}
+
+func createFactories() (otelcol.Factories, error) {
+	recvMap, err := otelcol.MakeFactoryMap(ebpfcollector.NewFactory())
+	if err != nil {
+		return otelcol.Factories{}, err
+	}
+
+	expMap, err := otelcol.MakeFactoryMap(
+		debugexporter.NewFactory(),
+		otlphttpexporter.NewFactory(),
+	)
+	if err != nil {
+		return otelcol.Factories{}, err
+	}
+
+	return otelcol.Factories{
+		Receivers: recvMap,
+		Exporters: expMap,
+	}, nil
 }

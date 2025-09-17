@@ -10,6 +10,7 @@ package hostprofiler
 import (
 	"testing"
 
+	collectorimpl "github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -18,5 +19,5 @@ import (
 // This test ensures that all dependencies in the host profiler bundle are
 // properly configured and can be resolved by the dependency injection container.
 func TestBundleDependencies(t *testing.T) {
-	fxutil.TestBundle(t, Bundle)
+	fxutil.TestBundle(t, Bundle(collectorimpl.NewParams("")))
 }

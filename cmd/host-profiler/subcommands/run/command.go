@@ -10,6 +10,8 @@ package run
 import (
 	"context"
 
+	collectorimpl "github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl"
+
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
@@ -39,9 +41,9 @@ func MakeCommand(globalConfGetter func() *globalparams.GlobalParams) []*cobra.Co
 	return []*cobra.Command{cmd}
 }
 
-func runHostProfilerCommand(ctx context.Context, params *cliParams) error {
+func runHostProfilerCommand(ctx context.Context, cliParams *cliParams) error {
 	return fxutil.Run(
-		hostprofiler.Bundle,
+		hostprofiler.Bundle(collectorimpl.NewParams(cliParams.GlobalParams.ConfFilePath)),
 		fx.Invoke(func(collector collector.Component) error {
 			return collector.Run()
 		}),

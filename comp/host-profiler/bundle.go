@@ -10,12 +10,15 @@ package hostprofiler
 
 import (
 	collectorfx "github.com/DataDog/datadog-agent/comp/host-profiler/collector/fx"
+	collectorimpl "github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // team: opentelemetry-agent
 
 // Bundle defines the fx options for this bundle.
-var Bundle = fxutil.Bundle(
-	collectorfx.Module(), // This is the main component for the host profiler
-)
+func Bundle(params collectorimpl.Params) fxutil.BundleOptions {
+	return fxutil.Bundle(
+		collectorfx.Module(params), // This is the main component for the host profiler
+	)
+}

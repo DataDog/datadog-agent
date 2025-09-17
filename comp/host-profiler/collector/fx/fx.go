@@ -15,14 +15,16 @@ import (
 	collector "github.com/DataDog/datadog-agent/comp/host-profiler/collector/def"
 	collectorimpl "github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"go.uber.org/fx"
 )
 
 // Module defines the fx options for this component
-func Module() fxutil.Module {
+func Module(params collectorimpl.Params) fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(
 			collectorimpl.NewComponent,
 		),
+		fx.Supply(params),
 		fxutil.ProvideOptional[collector.Component](),
 	)
 }
