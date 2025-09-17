@@ -235,7 +235,10 @@ func (s *batchStrategy) sendMessages(messagesMetadata []*message.MessageMetadata
 		// Increment the wait group so the flush doesn't finish until all payloads are sent to all destinations
 		// The lock is needed to ensure that the wait group is not incremented while the flush is in progress
 		s.serverlessMeta.Lock()
-		s.serverlessMeta.WaitGroup().Add(1)
+		// Only add to WaitGroup if not currently flushing to prevent race condition
+		if !s.serverlessMeta.IsFlushing() {
+			s.serverlessMeta.WaitGroup().Add(1)
+		}
 		s.serverlessMeta.Unlock()
 	}
 

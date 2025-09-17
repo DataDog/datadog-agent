@@ -72,6 +72,7 @@ type MockServerlessMeta struct {
 	wg        *sync.WaitGroup
 	doneChan  chan *sync.WaitGroup
 	isEnabled bool
+	flushing  bool
 }
 
 // IsEnabled returns true if the serverless mode is enabled.
@@ -95,4 +96,14 @@ func (s *MockServerlessMeta) WaitGroup() *sync.WaitGroup {
 // SenderDoneChan returns the channel is used to transfer wait groups from the sync_destination to the sender.
 func (s *MockServerlessMeta) SenderDoneChan() chan *sync.WaitGroup {
 	return s.doneChan
+}
+
+// IsFlushing returns true if a flush operation is currently in progress.
+func (s *MockServerlessMeta) IsFlushing() bool {
+	return s.flushing
+}
+
+// SetFlushing sets the flushing state.
+func (s *MockServerlessMeta) SetFlushing(flushing bool) {
+	s.flushing = flushing
 }

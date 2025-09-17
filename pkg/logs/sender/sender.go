@@ -70,12 +70,14 @@ type ServerlessMeta interface {
 	WaitGroup() *sync.WaitGroup
 	SenderDoneChan() chan *sync.WaitGroup
 	IsEnabled() bool
+	IsFlushing() bool
+	SetFlushing(bool)
 }
 
 // NewServerlessMeta creates a new ServerlessMeta instance.
 func NewServerlessMeta(isEnabled bool) ServerlessMeta {
 	if isEnabled {
-		return &serverlessMetaImpl{sync.Mutex{}, sync.WaitGroup{}, make(chan *sync.WaitGroup), isEnabled}
+		return &serverlessMetaImpl{sync.Mutex{}, sync.WaitGroup{}, make(chan *sync.WaitGroup), isEnabled, false}
 	}
 	return &serverlessMetaImpl{}
 }
@@ -86,6 +88,7 @@ type serverlessMetaImpl struct {
 	wg             sync.WaitGroup
 	senderDoneChan chan *sync.WaitGroup
 	enabled        bool
+	flushing       bool
 }
 
 // WaitGroup returns the wait group for the serverless mode, used to block the pipeline flush until all payloads are sent.
@@ -105,6 +108,16 @@ func (s *serverlessMetaImpl) IsEnabled() bool {
 		return false
 	}
 	return s.enabled
+}
+
+// IsFlushing returns true if a flush operation is currently in progress.
+func (s *serverlessMetaImpl) IsFlushing() bool {
+	return s.flushing
+}
+
+// SetFlushing sets the flushing state.
+func (s *serverlessMetaImpl) SetFlushing(flushing bool) {
+	s.flushing = flushing
 }
 
 // DestinationFactory used to generate client destinations on each call.

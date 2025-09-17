@@ -1,0 +1,7 @@
+# Fix for WaitGroup race condition in serverless logs pipeline
+---
+fixes:
+  - |
+    Fixed a race condition that caused ``panic: sync: WaitGroup is reused before previous Wait has returned`` 
+    in serverless environments. The panic occurred when log flushing operations ran concurrently with new 
+    log processing, causing Lambda functions to crash unexpectedly.
