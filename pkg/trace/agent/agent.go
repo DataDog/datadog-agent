@@ -93,9 +93,9 @@ type Concentrator interface {
 	Start()
 	// Stop stops the Concentrator and attempts to flush whatever is left in the buffers
 	Stop()
-	// Add a stats Input to be concentrated and flushed
+	// Add a stats Input to be concentrated and flushed. After this function returns it is safe to modify the input but those changes will not be in the stats.
 	Add(t stats.Input)
-	// AddV1 a stats InputV1 to be concentrated and flushed
+	// AddV1 a stats InputV1 to be concentrated and flushed. After this function returns it is safe to modify the input but those changes will not be reflected in the stats.
 	AddV1(t stats.InputV1)
 }
 
