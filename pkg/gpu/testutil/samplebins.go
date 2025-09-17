@@ -43,6 +43,7 @@ var CudaSample Sample = Sample{
 	DefaultArgs:     defaultCudaSampleArgs(),
 }
 
+// RateSample is a binary that calls the CUDA rate sample, allowing to launch CUDA calls at a given rate
 var RateSample Sample = Sample{
 	Name:            "cudarate",
 	StartPattern:    regexp.MustCompile("Starting CudaRateSample program"),
@@ -58,6 +59,7 @@ const (
 	MinimalDockerImage dockerImage = dockerutils.MinimalDockerImage
 )
 
+// SampleArgs is an interface that represents the arguments for the sample binary
 type SampleArgs interface {
 	Env() []string
 	CLIArgs() []string
@@ -75,6 +77,7 @@ type CudaSampleArgs struct {
 	SelectedDevice int
 }
 
+// Env returns the environment variables for the CUDA sample binary
 func (a *CudaSampleArgs) Env() []string {
 	if a.CudaVisibleDevicesEnv != "" {
 		return []string{fmt.Sprintf("CUDA_VISIBLE_DEVICES=%s", a.CudaVisibleDevicesEnv)}
@@ -82,6 +85,7 @@ func (a *CudaSampleArgs) Env() []string {
 	return nil
 }
 
+// CLIArgs returns the command line arguments for the CUDA sample binary
 func (a *CudaSampleArgs) CLIArgs() []string {
 	return []string{
 		strconv.Itoa(a.StartWaitTimeSec),
@@ -98,6 +102,7 @@ func defaultCudaSampleArgs() *CudaSampleArgs {
 	}
 }
 
+// RateSampleArgs is an interface that represents the arguments for the CUDA rate sample binary
 type RateSampleArgs struct {
 	// StartWaitTimeSec represents the time in seconds to wait before the binary starting the CUDA calls
 	StartWaitTimeSec int
@@ -109,10 +114,12 @@ type RateSampleArgs struct {
 	ExecutionTimeSec int
 }
 
+// Env returns the environment variables for the CUDA rate sample binary
 func (a *RateSampleArgs) Env() []string {
 	return nil
 }
 
+// CLIArgs returns the command line arguments for the CUDA rate sample binary
 func (a *RateSampleArgs) CLIArgs() []string {
 	return []string{strconv.Itoa(a.StartWaitTimeSec), strconv.Itoa(a.SelectedDevice), strconv.Itoa(a.CallsPerSecond), strconv.Itoa(a.ExecutionTimeSec)}
 }
