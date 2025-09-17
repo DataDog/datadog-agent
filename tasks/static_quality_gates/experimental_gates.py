@@ -1144,8 +1144,18 @@ def measure_image_local(
         print("📊 Results:")
         print(f"   • Wire size: {report.on_wire_size:,} bytes ({report.on_wire_size / 1024 / 1024:.2f} MiB)")
         print(f"   • Disk size: {report.on_disk_size:,} bytes ({report.on_disk_size / 1024 / 1024:.2f} MiB)")
-        print(color_message(f"   • Wire limit: {wire_limit_mb:.2f} MiB (using {wire_usage_pct:.1f}%)", "cyan"))
-        print(color_message(f"   • Disk limit: {disk_limit_mb:.2f} MiB (using {disk_usage_pct:.1f}%)", "cyan"))
+        print(
+            color_message(
+                f"   • Wire limit: {wire_limit_mb * 1024 * 1024:,} bytes ({wire_limit_mb:.2f} MiB (using {wire_usage_pct:.1f}%)",
+                "cyan",
+            )
+        )
+        print(
+            color_message(
+                f"   • Disk limit: {disk_limit_mb * 1024 * 1024:,} bytes ({disk_limit_mb:.2f} MiB (using {disk_usage_pct:.1f}%)",
+                "cyan",
+            )
+        )
         print("   • Note: Disk size is the uncompressed filesystem size of all files")
         print(f"   • Files inventoried: {len(report.file_inventory):,}")
         print(f"   • Report saved to: {output_path}")
