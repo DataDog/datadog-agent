@@ -1,4 +1,4 @@
-use super::check::AgentCheck;
+use super::agent_check::AgentCheck;
 use super::aggregator::{Instance, Aggregator};
 use super::cstring::free_cstring;
 

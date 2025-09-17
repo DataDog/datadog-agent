@@ -1,7 +1,7 @@
 #![allow(unused_imports)]
 
 mod core;
-use core::check::{AgentCheck, ServiceCheckStatus};
+use core::agent_check::{AgentCheck, ServiceCheckStatus};
 
 use std::error::Error;
 

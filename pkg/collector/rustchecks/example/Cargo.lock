@@ -3,7 +3,7 @@
 version = 4
 
 [[package]]
-name = "datadog-agent-helloworld"
+name = "datadog-agent-example"
 version = "0.1.0"
 dependencies = [
  "serde",
