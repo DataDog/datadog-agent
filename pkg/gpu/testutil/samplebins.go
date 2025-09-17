@@ -172,16 +172,6 @@ func runCommandAndPipeOutput(t testing.TB, command []string, sample Sample, args
 		return nil, err
 	}
 
-	// Calculate timeout based on sample arguments
-	timeout := dockerutils.DefaultTimeout
-	if rateArgs, ok := args.(*RateSampleArgs); ok {
-		// For rate sample, timeout should be start wait + execution time + buffer
-		sampleTimeout := time.Duration(rateArgs.StartWaitTimeSec+rateArgs.ExecutionTimeSec+10) * time.Second
-		if sampleTimeout > timeout {
-			timeout = sampleTimeout
-		}
-	}
-
 	for {
 		select {
 		case <-ctx.Done():
@@ -191,9 +181,9 @@ func runCommandAndPipeOutput(t testing.TB, command []string, sample Sample, args
 		case <-scanner.DoneChan:
 			t.Logf("%s command succeeded", command)
 			return cmd, nil
-		case <-time.After(timeout):
+		case <-time.After(dockerutils.DefaultTimeout):
 			//setting the error explicitly to trigger the defer function
-			err = fmt.Errorf("%s execution attempt reached timeout %v ", sample.Name, timeout)
+			err = fmt.Errorf("%s execution attempt reached timeout %v ", sample.Name, dockerutils.DefaultTimeout)
 			return nil, err
 		}
 	}
