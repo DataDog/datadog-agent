@@ -15,6 +15,7 @@ tool(
     visibility = ["//visibility:public"],
 )
 
+# This is from the original multitool. Bring it back if needed
 #cwd(
 #    name = "cwd",
 #    tool = ":{name}",
