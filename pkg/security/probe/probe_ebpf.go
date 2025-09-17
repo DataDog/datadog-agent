@@ -162,7 +162,7 @@ type EBPFProbe struct {
 	processKiller         *ProcessKiller
 
 	isRuntimeDiscarded bool
-	constantOffsets    map[string]uint64
+	constantOffsets    *constantfetch.ConstantFetcherStatus
 	runtimeCompiled    bool
 	useSyscallWrapper  bool
 	useFentry          bool
@@ -877,8 +877,25 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 
 	// handle anomaly detections
 	if event.IsAnomalyDetectionEvent() {
-		imageTag := utils.GetTagValue("image_tag", event.ContainerContext.Tags)
-		p.profileManager.FillProfileContextFromContainerID(event.FieldHandlers.ResolveContainerID(event, event.ContainerContext), &event.SecurityProfileContext, imageTag)
+		var workloadID containerutils.WorkloadID
+		var imageTag string
+		if containerID := event.FieldHandlers.ResolveContainerID(event, event.ContainerContext); containerID != "" {
+			workloadID = containerID
+			imageTag = utils.GetTagValue("image_tag", event.ContainerContext.Tags)
+		} else if cgroupID := event.FieldHandlers.ResolveCGroupID(event, event.CGroupContext); cgroupID != "" {
+			workloadID = containerutils.CGroupID(cgroupID)
+			tags, err := p.Resolvers.TagsResolver.ResolveWithErr(workloadID)
+			if err != nil {
+				seclog.Errorf("failed to resolve tags for cgroup %s: %v", workloadID, err)
+				return
+			}
+			imageTag = utils.GetTagValue("version", tags)
+		}
+
+		if workloadID != nil {
+			p.profileManager.FillProfileContextFromWorkloadID(workloadID, &event.SecurityProfileContext, imageTag)
+		}
+
 		if p.config.RuntimeSecurity.AnomalyDetectionEnabled {
 			p.sendAnomalyDetection(event)
 		}
@@ -2832,7 +2849,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, ipc ipc.Component, opts O
 		return nil, fmt.Errorf("failed to parse CPU count: %w", err)
 	}
 
-	p.constantOffsets, err = p.GetOffsetConstants()
+	p.constantOffsets, err = p.getOffsetConstants()
 	if err != nil {
 		seclog.Warnf("constant fetcher failed: %v", err)
 		return nil, err
@@ -3037,18 +3054,16 @@ func getCGroupWriteConstants() manager.ConstantEditor {
 	}
 }
 
-// GetOffsetConstants returns the offsets and struct sizes constants
-func (p *EBPFProbe) GetOffsetConstants() (map[string]uint64, error) {
-	constantFetcher := constantfetch.ComposeConstantFetchers(constantfetch.GetAvailableConstantFetchers(p.config.Probe, p.kernelVersion))
-	AppendProbeRequestsToFetcher(constantFetcher, p.kernelVersion)
-	return constantFetcher.FinishAndGetResults()
-}
-
-// GetConstantFetcherStatus returns the status of the constant fetcher associated with this probe
-func (p *EBPFProbe) GetConstantFetcherStatus() (*constantfetch.ConstantFetcherStatus, error) {
+// getOffsetConstants returns the offsets and struct sizes constants
+func (p *EBPFProbe) getOffsetConstants() (*constantfetch.ConstantFetcherStatus, error) {
 	constantFetcher := constantfetch.ComposeConstantFetchers(constantfetch.GetAvailableConstantFetchers(p.config.Probe, p.kernelVersion))
 	AppendProbeRequestsToFetcher(constantFetcher, p.kernelVersion)
 	return constantFetcher.FinishAndGetStatus()
+}
+
+// GetConstantFetcherStatus returns the status of the constant fetcher associated with this probe
+func (p *EBPFProbe) GetConstantFetcherStatus() *constantfetch.ConstantFetcherStatus {
+	return p.constantOffsets
 }
 
 // AppendProbeRequestsToFetcher returns the offsets and struct sizes constants, from a constant fetcher

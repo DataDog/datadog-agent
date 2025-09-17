@@ -38,6 +38,7 @@ type Program struct {
 	Types            []ir.Type
 	Throttlers       []Throttler
 	GoModuledataInfo ir.GoModuledataInfo
+	CommonTypes      ir.CommonTypes
 }
 
 type generator struct {
@@ -79,7 +80,7 @@ func GenerateProgram(program *ir.Program) (Program, error) {
 				err := g.addEventHandler(
 					injectionPoint,
 					len(throttlers),
-					probe.GetCaptureConfig().GetMaxReferenceDepth(),
+					probe.GetCaptureConfig(),
 					event.Type,
 				)
 				if err != nil {
@@ -142,6 +143,7 @@ func GenerateProgram(program *ir.Program) (Program, error) {
 		Types:            types,
 		Throttlers:       throttlers,
 		GoModuledataInfo: program.GoModuledataInfo,
+		CommonTypes:      program.CommonTypes,
 	}, nil
 }
 
@@ -151,13 +153,15 @@ func GenerateProgram(program *ir.Program) (Program, error) {
 func (g *generator) addEventHandler(
 	injectionPoint ir.InjectionPoint,
 	throttlerIdx int,
-	pointerChasingLimit uint32,
+	captureConfig ir.CaptureConfig,
 	rootType *ir.EventRootType,
 ) error {
 	id := ProcessEvent{
 		InjectionPC:         injectionPoint.PC,
 		ThrottlerIdx:        throttlerIdx,
-		PointerChasingLimit: pointerChasingLimit,
+		PointerChasingLimit: captureConfig.GetMaxReferenceDepth(),
+		CollectionSizeLimit: captureConfig.GetMaxCollectionSize(),
+		StringSizeLimit:     captureConfig.GetMaxLength(),
 		Frameless:           injectionPoint.Frameless,
 		EventRootType:       rootType,
 	}
