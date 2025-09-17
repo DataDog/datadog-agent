@@ -33,6 +33,7 @@ func TestIrGenFailed(t *testing.T) {
 	loader, err := loader.NewLoader()
 	require.NoError(t, err)
 	a := actuator.NewActuator(loader)
+	t.Cleanup(func() { require.NoError(t, a.Shutdown()) })
 
 	reporter := &irGenErrorReporter{
 		t:  t,
@@ -86,6 +87,7 @@ func testNoSuccessfulProbesError(t *testing.T, cfg testprogs.Config) {
 	loader, err := loader.NewLoader()
 	require.NoError(t, err)
 	a := actuator.NewActuator(loader)
+	t.Cleanup(func() { require.NoError(t, a.Shutdown()) })
 
 	cmd := exec.Command(prog)
 	stdin, err := cmd.StdinPipe()

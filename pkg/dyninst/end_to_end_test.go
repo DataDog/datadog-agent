@@ -37,6 +37,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
@@ -96,6 +97,7 @@ var expectations embed.FS
 func TestEndToEnd(t *testing.T) {
 	t.Parallel()
 	dyninsttest.SkipIfKernelNotSupported(t)
+	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
 	cfgs := testprogs.MustGetCommonConfigs(t)
 	idx := slices.IndexFunc(cfgs, func(c testprogs.Config) bool {
 		return c.GOARCH == runtime.GOARCH
@@ -628,6 +630,7 @@ func (ts *testState) initializeModule(t *testing.T) {
 	const processSyncEnabled = false
 	ts.module, err = di_module.NewModule(cfg, ts.subscriber, processSyncEnabled)
 	require.NoError(t, err)
+	t.Cleanup(ts.module.Close)
 }
 
 func sendTestRequests(t *testing.T, serverPort int, numRequests int) {

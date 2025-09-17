@@ -104,6 +104,11 @@ func (c *Controller) Run(ctx context.Context, interval time.Duration) {
 	}
 }
 
+// TestingStopSymdbManager stops the symdb manager for testing purposes.
+func (c *Controller) TestingStopSymdbManager() {
+	c.symdb.stop()
+}
+
 func (c *Controller) handleRemovals(removals []procmon.ProcessID) {
 	c.store.remove(removals, c.diagnostics)
 	if len(removals) > 0 {

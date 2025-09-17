@@ -29,6 +29,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 
 	"github.com/DataDog/ebpf-manager/tracefs"
 
@@ -53,6 +54,8 @@ var testdataFS embed.FS
 
 func TestDyninst(t *testing.T) {
 	dyninsttest.SkipIfKernelNotSupported(t)
+	current := goleak.IgnoreCurrent()
+	t.Cleanup(func() { goleak.VerifyNone(t, current) })
 	cfgs := testprogs.MustGetCommonConfigs(t)
 	programs := testprogs.MustGetPrograms(t)
 	var integrationTestPrograms = map[string]struct{}{

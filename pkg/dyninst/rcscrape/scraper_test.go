@@ -26,6 +26,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
@@ -40,7 +41,7 @@ import (
 
 func TestMain(m *testing.M) {
 	dyninsttest.SetupLogging()
-	os.Exit(m.Run())
+	goleak.VerifyTestMain(m, goleak.IgnoreCurrent())
 }
 
 // TestScrapeRemoteConfig tests that the scraper can scrape remote config
@@ -129,6 +130,7 @@ func runScrapeRemoteConfigTest(
 	loader, err := loader.NewLoader()
 	require.NoError(t, err)
 	a := actuator.NewActuator(loader)
+	t.Cleanup(func() { require.NoError(t, a.Shutdown()) })
 	rcScraper := rcscrape.NewScraper(a)
 
 	procMon := procmon.NewProcessMonitor(rcScraper.AsProcMonHandler())
@@ -280,6 +282,7 @@ func testNoDdTraceGo(t *testing.T, cfg testprogs.Config) {
 	loader, err := loader.NewLoader()
 	require.NoError(t, err)
 	a := actuator.NewActuator(loader)
+	t.Cleanup(func() { require.NoError(t, a.Shutdown()) })
 	irGenFailureCh := make(chan irGenFailedMessage)
 	rcScraper := rcscrape.NewScraper(&wrappedActuator{
 		inner:          a,
