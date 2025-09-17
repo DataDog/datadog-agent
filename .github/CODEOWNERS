@@ -261,6 +261,7 @@
 /cmd/systray/                           @DataDog/windows-products
 /cmd/security-agent/                    @DataDog/agent-security
 /cmd/installer/                         @DataDog/fleet @DataDog/windows-products
+/cmd/host-profiler/                     @DataDog/opentelemetry-agent
 
 /dev/                                   @DataDog/agent-devx
 /devenv/                                @DataDog/agent-devx
@@ -312,6 +313,7 @@
 /comp/core @DataDog/agent-runtimes
 /comp/dogstatsd @DataDog/agent-metric-pipelines
 /comp/forwarder @DataDog/agent-metric-pipelines
+/comp/host-profiler @DataDog/opentelemetry-agent
 /comp/logs @DataDog/agent-log-pipelines
 /comp/metadata @DataDog/agent-configuration
 /comp/ndmtmp @DataDog/ndm-core
