@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
@@ -54,6 +53,8 @@ var (
 		{t: testDDOT, skippedInstallationMethods: []InstallMethodOption{InstallMethodAnsible}},
 		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9, e2eos.FedoraDefault, e2eos.AmazonLinux2}, skippedInstallationMethods: []InstallMethodOption{InstallMethodAnsible}},
 		{t: testUpgradeScenario},
+		// TODO(celian): Remove this after #incident-43183
+		{t: testDDOT, skippedFlavors: []e2eos.Descriptor{e2eos.Suse15}},
 	}
 )
 
@@ -162,11 +163,6 @@ func (s *packageBaseSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
 	// SetupSuite needs to defer s.CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
 	defer s.CleanupOnSetupFailure()
-
-	// TODO(celian): Remove this after #incident-43183
-	if strings.Contains(s.T().Name(), "ddot_suse_15_sp4") && strings.Contains(s.T().Name(), "install_script") {
-		flake.Mark(s.T())
-	}
 
 	s.setupFakeIntake()
 	s.host = host.New(s.T, s.Env().RemoteHost, s.os, s.arch)
