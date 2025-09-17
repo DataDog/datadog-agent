@@ -526,3 +526,147 @@ replace github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def => .
 
 // Pin github.com/stretchr/testify to v1.10.0 while waiting for https://github.com/DataDog/datadog-agent/pull/40182
 replace github.com/stretchr/testify => github.com/stretchr/testify v1.10.0
+
+replace github.com/DataDog/datadog-agent/comp/core/config => ../../../core/config
+
+replace github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../core/flare/builder
+
+replace github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../core/flare/types
+
+replace github.com/DataDog/datadog-agent/comp/core/log/def => ../../../core/log/def
+
+replace github.com/DataDog/datadog-agent/comp/core/log/mock => ../../../core/log/mock
+
+replace github.com/DataDog/datadog-agent/comp/core/secrets/def => ../../../core/secrets/def
+
+replace github.com/DataDog/datadog-agent/comp/core/secrets/mock => ../../../core/secrets/mock
+
+replace github.com/DataDog/datadog-agent/comp/core/secrets/utils => ../../../core/secrets/utils
+
+replace github.com/DataDog/datadog-agent/comp/core/status => ../../../core/status
+
+replace github.com/DataDog/datadog-agent/comp/core/tagger/origindetection => ../../../core/tagger/origindetection
+
+replace github.com/DataDog/datadog-agent/comp/core/tagger/types => ../../../core/tagger/types
+
+replace github.com/DataDog/datadog-agent/comp/core/tagger/utils => ../../../core/tagger/utils
+
+replace github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../core/telemetry
+
+replace github.com/DataDog/datadog-agent/comp/def => ../../../def
+
+replace github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder => ../../../forwarder/defaultforwarder
+
+replace github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface => ../../../forwarder/orchestrator/orchestratorinterface
+
+replace github.com/DataDog/datadog-agent/comp/logs/agent/config => ../../../logs/agent/config
+
+replace github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil => ../../otlp/testutil
+
+replace github.com/DataDog/datadog-agent/comp/serializer/metricscompression => ../../../serializer/metricscompression
+
+replace github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ../../../../pkg/aggregator/ckey
+
+replace github.com/DataDog/datadog-agent/pkg/api => ../../../../pkg/api
+
+replace github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../../pkg/collector/check/defaults
+
+replace github.com/DataDog/datadog-agent/pkg/config/create => ../../../../pkg/config/create
+
+replace github.com/DataDog/datadog-agent/pkg/config/env => ../../../../pkg/config/env
+
+replace github.com/DataDog/datadog-agent/pkg/config/mock => ../../../../pkg/config/mock
+
+replace github.com/DataDog/datadog-agent/pkg/config/model => ../../../../pkg/config/model
+
+replace github.com/DataDog/datadog-agent/pkg/config/nodetreemodel => ../../../../pkg/config/nodetreemodel
+
+replace github.com/DataDog/datadog-agent/pkg/config/setup => ../../../../pkg/config/setup
+
+replace github.com/DataDog/datadog-agent/pkg/config/structure => ../../../../pkg/config/structure
+
+replace github.com/DataDog/datadog-agent/pkg/config/teeconfig => ../../../../pkg/config/teeconfig
+
+replace github.com/DataDog/datadog-agent/pkg/config/utils => ../../../../pkg/config/utils
+
+replace github.com/DataDog/datadog-agent/pkg/config/viperconfig => ../../../../pkg/config/viperconfig
+
+replace github.com/DataDog/datadog-agent/pkg/fips => ../../../../pkg/fips
+
+replace github.com/DataDog/datadog-agent/pkg/logs/types => ../../../../pkg/logs/types
+
+replace github.com/DataDog/datadog-agent/pkg/metrics => ../../../../pkg/metrics
+
+replace github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata => ../../../../pkg/opentelemetry-mapping-go/inframetadata
+
+replace github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes => ../../../../pkg/opentelemetry-mapping-go/otlp/attributes
+
+replace github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics => ../../../../pkg/opentelemetry-mapping-go/otlp/metrics
+
+replace github.com/DataDog/datadog-agent/pkg/orchestrator/model => ../../../../pkg/orchestrator/model
+
+replace github.com/DataDog/datadog-agent/pkg/process/util/api => ../../../../pkg/process/util/api
+
+replace github.com/DataDog/datadog-agent/pkg/proto => ../../../../pkg/proto
+
+replace github.com/DataDog/datadog-agent/pkg/serializer => ../../../../pkg/serializer
+
+replace github.com/DataDog/datadog-agent/pkg/status/health => ../../../../pkg/status/health
+
+replace github.com/DataDog/datadog-agent/pkg/tagger/types => ../../../../pkg/tagger/types
+
+replace github.com/DataDog/datadog-agent/pkg/tagset => ../../../../pkg/tagset
+
+replace github.com/DataDog/datadog-agent/pkg/telemetry => ../../../../pkg/telemetry
+
+replace github.com/DataDog/datadog-agent/pkg/template => ../../../../pkg/template
+
+replace github.com/DataDog/datadog-agent/pkg/trace => ../../../../pkg/trace
+
+replace github.com/DataDog/datadog-agent/pkg/util/backoff => ../../../../pkg/util/backoff
+
+replace github.com/DataDog/datadog-agent/pkg/util/buf => ../../../../pkg/util/buf
+
+replace github.com/DataDog/datadog-agent/pkg/util/common => ../../../../pkg/util/common
+
+replace github.com/DataDog/datadog-agent/pkg/util/compression => ../../../../pkg/util/compression
+
+replace github.com/DataDog/datadog-agent/pkg/util/defaultpaths => ../../../../pkg/util/defaultpaths
+
+replace github.com/DataDog/datadog-agent/pkg/util/executable => ../../../../pkg/util/executable
+
+replace github.com/DataDog/datadog-agent/pkg/util/filesystem => ../../../../pkg/util/filesystem
+
+replace github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../../../pkg/util/fxutil
+
+replace github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../../../../pkg/util/hostname/validate
+
+replace github.com/DataDog/datadog-agent/pkg/util/http => ../../../../pkg/util/http
+
+replace github.com/DataDog/datadog-agent/pkg/util/json => ../../../../pkg/util/json
+
+replace github.com/DataDog/datadog-agent/pkg/util/log => ../../../../pkg/util/log
+
+replace github.com/DataDog/datadog-agent/pkg/util/log/setup => ../../../../pkg/util/log/setup
+
+replace github.com/DataDog/datadog-agent/pkg/util/option => ../../../../pkg/util/option
+
+replace github.com/DataDog/datadog-agent/pkg/util/pointer => ../../../../pkg/util/pointer
+
+replace github.com/DataDog/datadog-agent/pkg/util/quantile => ../../../../pkg/util/quantile
+
+replace github.com/DataDog/datadog-agent/pkg/util/quantile/sketchtest => ../../../../pkg/util/quantile/sketchtest
+
+replace github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../../../pkg/util/scrubber
+
+replace github.com/DataDog/datadog-agent/pkg/util/sort => ../../../../pkg/util/sort
+
+replace github.com/DataDog/datadog-agent/pkg/util/system => ../../../../pkg/util/system
+
+replace github.com/DataDog/datadog-agent/pkg/util/system/socket => ../../../../pkg/util/system/socket
+
+replace github.com/DataDog/datadog-agent/pkg/util/testutil => ../../../../pkg/util/testutil
+
+replace github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../../pkg/util/winutil
+
+replace github.com/DataDog/datadog-agent/pkg/version => ../../../../pkg/version
