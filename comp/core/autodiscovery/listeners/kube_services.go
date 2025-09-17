@@ -20,8 +20,8 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
-	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/utils"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
@@ -328,7 +328,7 @@ func (s *KubeServiceService) GetServiceID() string {
 // GetADIdentifiers returns the service AD identifiers
 func (s *KubeServiceService) GetADIdentifiers() []string {
 	// Only the entity for now, to match on annotation
-	return []string{s.entity, adtypes.CelServiceIdentifier}
+	return []string{s.entity, types.CelServiceIdentifier}
 }
 
 // GetHosts returns the pod hosts
@@ -385,7 +385,7 @@ func (s *KubeServiceService) GetExtraConfig(_ string) (string, error) {
 }
 
 // FilterTemplates filters the given configs based on the service's CEL selector.
-func (s *KubeServiceService) FilterTemplates(configs map[string]adtypes.InternalConfig) {
+func (s *KubeServiceService) FilterTemplates(configs map[string]integration.Config) {
 	filterTemplatesCELSelector(s, configs)
 }
 

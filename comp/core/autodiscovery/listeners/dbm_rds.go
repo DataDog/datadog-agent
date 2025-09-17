@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/pkg/databasemonitoring/aws"
 	"github.com/DataDog/datadog-agent/pkg/databasemonitoring/rds"
@@ -250,5 +250,5 @@ func (d *DBMRdsService) GetExtraConfig(key string) (string, error) {
 }
 
 // FilterTemplates does nothing.
-func (d *DBMRdsService) FilterTemplates(_ map[string]adtypes.InternalConfig) {
+func (d *DBMRdsService) FilterTemplates(_ map[string]integration.Config) {
 }

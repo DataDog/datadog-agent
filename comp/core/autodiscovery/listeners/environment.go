@@ -6,7 +6,7 @@
 package listeners
 
 import (
-	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -136,5 +136,5 @@ func (s *EnvironmentService) GetExtraConfig(_ string) (string, error) {
 }
 
 // FilterTemplates does nothing.
-func (s *EnvironmentService) FilterTemplates(_ map[string]adtypes.InternalConfig) {
+func (s *EnvironmentService) FilterTemplates(_ map[string]integration.Config) {
 }

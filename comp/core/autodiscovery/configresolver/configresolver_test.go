@@ -13,7 +13,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
@@ -95,7 +94,7 @@ func (s *dummyService) GetExtraConfig(key string) (string, error) {
 }
 
 // FilterConfigs does nothing.
-func (s *dummyService) FilterTemplates(_ map[string]adtypes.InternalConfig) {
+func (s *dummyService) FilterTemplates(_ map[string]integration.Config) {
 }
 
 func TestGetFallbackHost(t *testing.T) {

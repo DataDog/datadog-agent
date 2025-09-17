@@ -10,6 +10,7 @@ import (
 	"reflect"
 
 	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	taggercommon "github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -141,7 +142,7 @@ func (s *WorkloadService) HasFilter(fs workloadfilter.Scope) bool {
 }
 
 // FilterTemplates implements Service#FilterTemplates.
-func (s *WorkloadService) FilterTemplates(configs map[string]adtypes.InternalConfig) {
+func (s *WorkloadService) FilterTemplates(configs map[string]integration.Config) {
 	// These two overrides are handled in
 	// comp/core/autodiscovery/configresolver/configresolver.go
 	s.filterTemplatesEmptyOverrides(configs)
@@ -150,6 +151,7 @@ func (s *WorkloadService) FilterTemplates(configs map[string]adtypes.InternalCon
 	filterTemplatesCELSelector(s, configs)
 }
 
+// GetFilterableEntity returns the filterable entity of the service
 func (s *WorkloadService) GetFilterableEntity() workloadfilter.Filterable {
 	switch e := s.entity.(type) {
 	case *workloadmeta.Container:
@@ -167,7 +169,7 @@ func (s *WorkloadService) GetFilterableEntity() workloadfilter.Filterable {
 
 // filterTemplatesEmptyOverrides drops file-based templates if this service is a container
 // or pod and has an empty check_names label/annotation.
-func (s *WorkloadService) filterTemplatesEmptyOverrides(configs map[string]adtypes.InternalConfig) {
+func (s *WorkloadService) filterTemplatesEmptyOverrides(configs map[string]integration.Config) {
 	// Empty check names on k8s annotations or container labels override the check config from file
 	// Used to deactivate unneeded OOTB autodiscovery checks defined in files
 	// The checkNames slice is considered empty also if it contains one single empty string
@@ -186,7 +188,7 @@ func (s *WorkloadService) filterTemplatesEmptyOverrides(configs map[string]adtyp
 
 // filterTemplatesOverriddenChecks drops file-based templates if this service's
 // labels/annotations specify a check of the same name.
-func (s *WorkloadService) filterTemplatesOverriddenChecks(configs map[string]adtypes.InternalConfig) {
+func (s *WorkloadService) filterTemplatesOverriddenChecks(configs map[string]integration.Config) {
 	for digest, config := range configs {
 		if config.Provider != names.File {
 			continue // only override file configs
@@ -207,7 +209,7 @@ func (s *WorkloadService) filterTemplatesOverriddenChecks(configs map[string]adt
 // filterTemplatesContainerCollectAll drops the container-collect-all template
 // added by the config provider (AddContainerCollectAllConfigs) if the service
 // has any other templates containing logs config.
-func (s *WorkloadService) filterTemplatesContainerCollectAll(configs map[string]adtypes.InternalConfig) {
+func (s *WorkloadService) filterTemplatesContainerCollectAll(configs map[string]integration.Config) {
 	if !pkgconfigsetup.Datadog().GetBool("logs_config.container_collect_all") {
 		return
 	}
