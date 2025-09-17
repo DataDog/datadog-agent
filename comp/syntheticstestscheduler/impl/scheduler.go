@@ -138,7 +138,7 @@ func (s *syntheticsTestScheduler) updateRunningState(newConfig map[string]common
 			s.state.tests[pubID] = &runningTestState{
 				cfg:     newTestConfig,
 				lastRun: time.Time{},
-				nextRun: s.TimeNowFn().Add(time.Duration(newTestConfig.Interval) * time.Second),
+				nextRun: s.TimeNowFn().UTC().Add(time.Duration(newTestConfig.Interval) * time.Second),
 			}
 		} else {
 			current.cfg = newTestConfig

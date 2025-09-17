@@ -81,7 +81,7 @@ func (s *syntheticsTestScheduler) runWorker(ctx context.Context, workerID int) {
 			return
 		case syntheticsTestCtx := <-s.syntheticsTestProcessingChan:
 			triggeredAt := syntheticsTestCtx.nextRun
-			startedAt := s.TimeNowFn()
+			startedAt := s.TimeNowFn().UTC()
 
 			tracerouteCfg, err := toNetpathConfig(syntheticsTestCtx.cfg)
 			if err != nil {
@@ -98,7 +98,7 @@ func (s *syntheticsTestScheduler) runWorker(ctx context.Context, workerID int) {
 				s.log.Debugf("[worker%d] Error running traceroute: %s", workerID, err)
 			}
 
-			finishedAt := s.TimeNowFn()
+			finishedAt := s.TimeNowFn().UTC()
 			duration := finishedAt.Sub(startedAt)
 
 			if err = s.sendResult(&WorkerResult{
@@ -257,11 +257,10 @@ func runTraceroute(ctx context.Context, cfg config.Config, telemetry telemetry.C
 // networkPathToTestResult converts a WorkerResult into the public TestResult structure.
 func (s *syntheticsTestScheduler) networkPathToTestResult(w *WorkerResult) (*common.TestResult, error) {
 	t := common.Test{
-		InternalID: w.testCfg.cfg.PublicID,
-		ID:         w.testCfg.cfg.PublicID,
-		SubType:    w.testCfg.cfg.Subtype,
-		Type:       w.testCfg.cfg.Type,
-		Version:    w.testCfg.cfg.Version,
+		ID:      w.testCfg.cfg.PublicID,
+		SubType: w.testCfg.cfg.Subtype,
+		Type:    w.testCfg.cfg.Type,
+		Version: w.testCfg.cfg.Version,
 	}
 
 	testResultID, err := s.generateTestResultID(rand.Int)
