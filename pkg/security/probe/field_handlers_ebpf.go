@@ -467,7 +467,11 @@ func (fh *EBPFFieldHandlers) resolveSBOMFields(ev *model.Event, f *model.FileEve
 	if pkg := fh.resolvers.SBOMResolver.ResolvePackage(ev.ContainerContext.ContainerID, f); pkg != nil {
 		f.PkgName = pkg.Name
 		f.PkgVersion = pkg.Version
+		f.PkgEpoch = pkg.Epoch
+		f.PkgRelease = pkg.Release
 		f.PkgSrcVersion = pkg.SrcVersion
+		f.PkgSrcEpoch = pkg.SrcEpoch
+		f.PkgSrcRelease = pkg.SrcRelease
 	}
 }
 
