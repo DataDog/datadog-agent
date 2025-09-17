@@ -9,5 +9,5 @@
 enhancements:
   - |
     The ``agent config`` command now displays only user-configured settings by default,
-    excluding default values to reduce confusion. Use ``agent config --all`` to display
+    excluding default values. Use ``agent config --all`` to display
     all settings including defaults (previous behavior).
