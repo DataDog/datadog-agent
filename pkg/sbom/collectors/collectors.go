@@ -41,8 +41,6 @@ const (
 type Collector interface {
 	// Type returns the scan type of the collector
 	Type() ScanType
-	// CleanCache cleans the collector cache
-	CleanCache() error
 	// Init initializes the collector
 	Init(config.Component, option.Option[workloadmeta.Component]) error
 	// Scan performs a scan
