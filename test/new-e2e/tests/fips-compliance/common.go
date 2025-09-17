@@ -57,6 +57,9 @@ func (s *fipsServer) Start(t *testing.T, tc cipherTestCase) {
 		if tc.tlsMax != "" {
 			envVars["TLS_MAX"] = fmt.Sprintf("--tls-max %s", tc.tlsMax)
 		}
+		if tc.tlsMin != "" {
+			envVars["TLS_MIN"] = fmt.Sprintf("--tls-min %s", tc.tlsMin)
+		}
 
 		cmd := fmt.Sprintf("docker-compose -f %s up --detach --wait --timeout 300", strings.TrimSpace(s.composeFiles))
 		_, err := s.dockerHost.Execute(cmd, client.WithEnvVariables(envVars))
@@ -99,8 +102,8 @@ var (
 		{cert: "rsa", cipher: "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA", want: false},
 		{cert: "rsa", cipher: "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA", want: false},
 		{cert: "rsa", cipher: "TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA", want: false},
-		{cert: "rsa", cipher: "TLS_AES_128_GCM_SHA256", tlsMax: "1.3", want: true},
-		{cert: "rsa", cipher: "TLS_AES_256_GCM_SHA384", tlsMax: "1.3", want: true},
+		{cert: "rsa", cipher: "TLS_AES_128_GCM_SHA256", tlsMin: "1.3", want: true},
+		{cert: "rsa", cipher: "TLS_AES_256_GCM_SHA384", tlsMin: "1.3", want: true},
 	}
 	//go:embed fixtures/e2e_fips_test.py
 	fipsTestCheck string

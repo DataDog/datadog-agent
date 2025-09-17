@@ -128,6 +128,9 @@ func (s *fipsServerClusterAgentSuite) startFIPSServerWithClusterAgentImage(tc ci
 		if tc.tlsMax != "" {
 			envVars["TLS_MAX"] = fmt.Sprintf("--tls-max %s", tc.tlsMax)
 		}
+		if tc.tlsMin != "" {
+			envVars["TLS_MIN"] = fmt.Sprintf("--tls-min %s", tc.tlsMin)
+		}
 
 		cmd := fmt.Sprintf("docker-compose -f %s up --detach --wait --timeout 300", strings.TrimSpace(s.fipsServer.composeFiles))
 		_, err := s.fipsServer.dockerHost.Execute(cmd, client.WithEnvVariables(envVars))
