@@ -904,10 +904,10 @@ func (at *ActivityTree) ExtractPaths(_, fimEnabled, lineageEnabled bool) (map[st
 		if fimEnabled {
 			for _, file := range processNode.Files {
 				at.visitFileNode(file, func(fileNode *FileNode) {
-					path, ok := modifiedPaths[fileNode.File.PathnameStr]
+					path, ok := modifiedPaths[fileNode.File.Path]
 					if !ok {
-						modifiedPaths[fileNode.File.PathnameStr] = pathutils.CheckForPatterns(fileNode.File.PathnameStr)
-						path = modifiedPaths[fileNode.File.PathnameStr]
+						modifiedPaths[fileNode.File.Path] = pathutils.CheckForPatterns(fileNode.File.Path)
+						path = modifiedPaths[fileNode.File.Path]
 					}
 					if len(path) > 0 {
 						fimPaths = append(fimPaths, path)
