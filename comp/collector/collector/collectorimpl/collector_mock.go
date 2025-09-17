@@ -28,7 +28,8 @@ func MockModule() fxutil.Module {
 
 // MockParams defines the parameters for the mock component.
 type MockParams struct {
-	ChecksInfo []check.Info
+	ChecksInfo   []check.Info
+	ChecksResult []map[string]interface{}
 }
 
 type mockDependencies struct {
@@ -40,12 +41,14 @@ type mockDependencies struct {
 type mockimpl struct {
 	collector.Component
 
-	checksInfo []check.Info
+	checksInfo   []check.Info
+	checksResult []map[string]interface{}
 }
 
 func newMock(deps mockDependencies) collector.Component {
 	return &mockimpl{
-		checksInfo: deps.Params.ChecksInfo,
+		checksInfo:   deps.Params.ChecksInfo,
+		checksResult: deps.Params.ChecksResult,
 	}
 }
 
@@ -87,5 +90,5 @@ func (c *mockimpl) AddEventReceiver(_ collector.EventReceiver) {}
 
 // GetChecksResults returns the result from the last run of the check.
 func (c *mockimpl) GetChecksResults() []map[string]interface{} {
-	return []map[string]interface{}{}
+	return c.checksResult
 }

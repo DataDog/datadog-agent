@@ -132,9 +132,31 @@ func TestGetPayload(t *testing.T) {
 			},
 		}
 
+		checksResult := []map[string]interface{}{
+			{
+				"check_name": "check1",
+				"check_id":   "check1_instance1",
+				"status":     "ERROR",
+				"error":      "Error: No such file or directory",
+			},
+			{
+				"check_name": "check1",
+				"check_id":   "check1_instance1",
+				"status":     "OK",
+				"error":      "",
+			},
+			{
+				"check_name": "check2",
+				"check_id":   checkid.ID("check2_instance1"),
+				"status":     "OK",
+				"error":      "",
+			},
+		}
+
 		mockColl := fxutil.Test[collector.Component](t,
 			fx.Replace(collectorimpl.MockParams{
-				ChecksInfo: cInfo,
+				ChecksInfo:   cInfo,
+				ChecksResult: checksResult,
 			}),
 			collectorimpl.MockModule(),
 			core.MockBundle(),
@@ -237,6 +259,10 @@ func TestGetPayload(t *testing.T) {
 
 			// Check that metadata linked to non-existing check were deleted
 			assert.NotContains(t, "non_running_checkid", ic.data)
+
+			assert.Len(t, p.CheckResults, 2)
+			assert.Equal(t, checksResult[0], p.CheckResults[0])
+			assert.Equal(t, checksResult[2], p.CheckResults[1])
 
 			// Check the log sources part of the metadata
 			if invChecksCfgEnabled {
