@@ -260,15 +260,22 @@ func (s *Launcher) scan() {
 		if s.fingerprinter.ShouldFileFingerprint(file) {
 			// Check if this specific file should be fingerprinted
 			fingerprint, err = s.fingerprinter.ComputeFingerprint(file)
-			// TODO update to do bytes by default and allow invalid fingerprints for partial tail
-			// Skip files with invalid fingerprints (Value == 0)
-			if (fingerprint != nil && !fingerprint.ValidFingerprint()) || err != nil {
-				// If fingerprint is invalid, persist the old info back into the map for future attempts
+			// Skip files on error
+			if err != nil {
 				if hasOldInfo {
 					s.oldInfoMap[scanKey] = oldInfo
 				}
 				continue
 			}
+			// Only skip files with true invalid fingerprints (errors), but allow tailing with insufficient data
+			if fingerprint != nil && !fingerprint.ValidFingerprint() && !fingerprint.IsInsufficientData() {
+				log.Debugf("Skipping file %s due to invalid fingerprint (error case)", file.Path)
+				if hasOldInfo {
+					s.oldInfoMap[scanKey] = oldInfo
+				}
+				continue
+			}
+
 		}
 
 		if hasOldInfo {
@@ -347,15 +354,20 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 			tailer.ReplaceSource(source)
 			continue
 		}
-		// TODO update to do bytes by default and allow invalid fingerprints for partial tail
 		var fingerprint *types.Fingerprint
 		// Check if this specific file should be fingerprinted
 		if s.fingerprinter.ShouldFileFingerprint(file) {
 			fingerprint, err = s.fingerprinter.ComputeFingerprint(file)
-			if err != nil || !fingerprint.ValidFingerprint() {
-				// so i dont think we should continue and not make a new tailer. allow new tailer if we're waiting for more data
+			if err != nil {
+				// Skip on errors
 				continue
 			}
+			// Only skip files with true invalid fingerprints (errors), but allow tailing with insufficient data
+			if fingerprint != nil && !fingerprint.ValidFingerprint() && !fingerprint.IsInsufficientData() {
+				log.Debugf("Skipping file %s due to invalid fingerprint (error case)", file.Path)
+				continue
+			}
+			// Allow tailing with invalid fingerprints of type: insufficient data
 		}
 
 		mode, isSet := config.TailingModeFromString(source.Config.TailingMode)

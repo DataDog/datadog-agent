@@ -10,9 +10,11 @@ import (
 	"fmt"
 )
 
-// InvalidFingerprintValue is the value that is returned when a fingerprint cannot be produced
 const (
+	// InvalidFingerprintValue is the value that is returned when a fingerprint cannot be produced due to errors
 	InvalidFingerprintValue = 0
+	// InsufficientDataFingerprintValue is used when not enough data is available yet (file should continue to be tailed)
+	InsufficientDataFingerprintValue = ^uint64(0) // Max uint64 value, very unlikely to collide with real checksums
 )
 
 // Fingerprint struct that stores both the value and config used to derive that value
@@ -33,8 +35,12 @@ func (f *Fingerprint) Equals(other *Fingerprint) bool {
 
 // ValidFingerprint returns true if the fingerprint is valid (non-zero value and non-nil config)
 func (f *Fingerprint) ValidFingerprint() bool {
-	// TODO maybe we want another case for partial tail? 
 	return f.Value != InvalidFingerprintValue && f.Config != nil
+}
+
+// IsInsufficientData returns true if the fingerprint indicates insufficient data (should continue tailing)
+func (f *Fingerprint) IsInsufficientData() bool {
+	return f.Value == InsufficientDataFingerprintValue
 }
 
 // FingerprintConfig defines the options for the fingerprint configuration.
