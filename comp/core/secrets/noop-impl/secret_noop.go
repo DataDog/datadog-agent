@@ -7,7 +7,6 @@
 package secretsimpl
 
 import (
-	_ "embed"
 	"io"
 	"net/http"
 
@@ -69,16 +68,16 @@ func (r *secretNoop) JSON(_ bool, stats map[string]interface{}) error {
 
 // Text renders the text output
 func (r *secretNoop) Text(_ bool, buffer io.Writer) error {
-	buffer.Write(secretDisabled)
-	buffer.Write([]byte("\n"))
+	buffer.Write(secretDisabled) //nolint:errcheck
+	buffer.Write([]byte("\n"))   //nolint:errcheck
 	return nil
 }
 
 // HTML renders the HTML output
 func (r *secretNoop) HTML(_ bool, buffer io.Writer) error {
-	buffer.Write([]byte("<div class=\"stat\"><span class=\"stat_title\">"))
-	buffer.Write(secretDisabled)
-	buffer.Write([]byte("</span></div>"))
+	buffer.Write([]byte("<div class=\"stat\"><span class=\"stat_title\">")) //nolint:errcheck
+	buffer.Write(secretDisabled)                                            //nolint:errcheck
+	buffer.Write([]byte("</span></div>"))                                   //nolint:errcheck
 	return nil
 }
 

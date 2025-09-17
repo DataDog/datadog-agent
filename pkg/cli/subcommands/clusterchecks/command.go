@@ -22,7 +22,7 @@ import (
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
-	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
+	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	clusterAgentFlare "github.com/DataDog/datadog-agent/pkg/flare/clusteragent"
