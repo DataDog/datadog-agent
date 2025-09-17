@@ -36,6 +36,15 @@ http_archive(
     url = "https://www.openssl.org/source/openssl-3.5.2.tar.gz",
 )
 
+# buildifier: disable=no-effect
+'''
+http_archive(
+    name = "openssl_fips",
+    build_file = "//deps:openssl_fips.BUILD.bazel",
+    ...
+)
+'''
+
 bazel_dep(name = "gcc_toolchain")
 git_override(
     module_name = "gcc_toolchain",
