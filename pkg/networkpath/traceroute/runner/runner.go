@@ -15,6 +15,12 @@ import (
 	"strings"
 	"time"
 
+	trcommon "github.com/DataDog/datadog-traceroute/common"
+	tracerlog "github.com/DataDog/datadog-traceroute/log"
+	"github.com/DataDog/datadog-traceroute/result"
+	"github.com/DataDog/datadog-traceroute/runner"
+	"github.com/DataDog/datadog-traceroute/traceroute"
+
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -26,11 +32,6 @@ import (
 	cloudprovidersnetwork "github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	trcommon "github.com/DataDog/datadog-traceroute/common"
-	tracerlog "github.com/DataDog/datadog-traceroute/log"
-	"github.com/DataDog/datadog-traceroute/result"
-	"github.com/DataDog/datadog-traceroute/runner"
-	"github.com/DataDog/datadog-traceroute/traceroute"
 )
 
 const (
@@ -125,6 +126,17 @@ func (r *Runner) RunTraceroute(ctx context.Context, cfg config.Config) (payload.
 		return payload.NetworkPath{}, err
 	}
 
+	// Set default values if not configured
+	tracerouteQueries := cfg.TracerouteQueries
+	if tracerouteQueries == 0 {
+		tracerouteQueries = setup.DefaultNetworkPathTracerouteQueries
+	}
+
+	e2eQueries := cfg.E2eQueries
+	if e2eQueries == 0 {
+		e2eQueries = setup.DefaultNetworkPathE2eQueries
+	}
+
 	params := runner.TracerouteParams{
 		Hostname:   cfg.DestHostname,
 		Port:       int(cfg.DestPort),
@@ -137,10 +149,8 @@ func (r *Runner) RunTraceroute(ctx context.Context, cfg config.Config) (payload.
 		WantV6:     false,
 		ReverseDns: cfg.ReverseDNS,
 
-		// TODO: Using TracerouteQueries = 1 for now since this PR is only about migrating the data model.
-		//       A separate PR will 1/ make traceroute_queries configurable, 2/ use 3x as default.
-		TracerouteQueries: 3,
-		E2eQueries:        50,
+		TracerouteQueries: tracerouteQueries,
+		E2eQueries:        e2eQueries,
 	}
 
 	results, err := runner.RunTraceroute(ctx, params)

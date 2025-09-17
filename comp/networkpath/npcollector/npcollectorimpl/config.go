@@ -31,6 +31,8 @@ type collectorConfigs struct {
 	tcpMethod                    payload.TCPMethod
 	icmpMode                     payload.ICMPMode
 	tcpSynParisTracerouteMode    bool
+	tracerouteQueries            int
+	e2eQueries                   int
 }
 
 func newConfig(agentConfig config.Component) *collectorConfigs {
@@ -57,6 +59,8 @@ func newConfig(agentConfig config.Component) *collectorConfigs {
 		tcpMethod:                 payload.MakeTCPMethod(agentConfig.GetString("network_path.collector.tcp_method")),
 		icmpMode:                  payload.MakeICMPMode(agentConfig.GetString("network_path.collector.icmp_mode")),
 		tcpSynParisTracerouteMode: agentConfig.GetBool("network_path.collector.tcp_syn_paris_traceroute_mode"),
+		tracerouteQueries:         agentConfig.GetInt("network_path.collector.traceroute_queries"),
+		e2eQueries:                agentConfig.GetInt("network_path.collector.e2e_queries"),
 		networkDevicesNamespace:   agentConfig.GetString("network_devices.namespace"),
 	}
 }
