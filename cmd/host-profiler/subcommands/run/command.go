@@ -1,0 +1,51 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build hostprofiler
+
+package run
+
+import (
+	"context"
+
+	"github.com/spf13/cobra"
+
+	"github.com/DataDog/datadog-agent/cmd/host-profiler/globalparams"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+
+	"go.uber.org/fx"
+)
+
+type cliParams struct {
+	*globalparams.GlobalParams
+}
+
+// MakeCommand creates the `run` command
+func MakeCommand(globalConfGetter func() *globalparams.GlobalParams) []*cobra.Command {
+	params := &cliParams{}
+
+	cmd := &cobra.Command{
+		Use:   "run",
+		Short: "Start Host Profiler",
+		Long:  `Runs the Host Profiler to collect host profiling data and send it to Datadog.`,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			params.GlobalParams = globalConfGetter()
+			return runHostProfilerCommand(context.Background(), params)
+		},
+	}
+	return []*cobra.Command{cmd}
+}
+
+func runHostProfilerCommand(ctx context.Context, params *cliParams) error {
+	return fxutil.Run(
+		fx.Invoke(func() {
+			runHostProfiler(ctx, params)
+		}),
+	)
+}
+
+func runHostProfiler(ctx context.Context, params *cliParams) error {
+	return nil
+}
