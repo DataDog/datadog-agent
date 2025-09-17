@@ -79,37 +79,30 @@ func (e *blockedEndpoints) close(endpoint string) {
 func (e *blockedEndpoints) recover(endpoint string) {
 	e.m.Lock()
 	defer e.m.Unlock()
-
-	var b *block
-	if knownBlock, ok := e.errorPerEndpoint[endpoint]; ok {
-		b = knownBlock
-	} else {
-		b = &block{}
-	}
-
-	b.nbError = e.backoffPolicy.DecError(b.nbError)
-	b.until = time.Now().Add(e.getBackoffDuration(b.nbError))
-
-	e.errorPerEndpoint[endpoint] = b
+	delete(e.errorPerEndpoint, endpoint)
 }
 
 func (e *blockedEndpoints) isBlock(endpoint string) bool {
+	e.m.RLock()
+	defer e.m.RUnlock()
+
+	if b, ok := e.errorPerEndpoint[endpoint]; ok && time.Now().Before(b.until) {
+		return true
+	}
+	return false
+}
+
+func (e *blockedEndpoints) tryRecoverExpiredEndpoints() {
 	e.m.Lock()
 	defer e.m.Unlock()
 
-	if b, ok := e.errorPerEndpoint[endpoint]; ok {
-		if time.Now().Before(b.until) {
-			return true
-		}
-		// Time has passed, automatically recover the endpoint
-		b.nbError = e.backoffPolicy.DecError(b.nbError)
-		if b.nbError <= 0 {
+	now := time.Now()
+	for endpoint, b := range e.errorPerEndpoint {
+		if !now.Before(b.until) {
+			// Time has passed — unblock without mutating nbError/backoff policy
 			delete(e.errorPerEndpoint, endpoint)
-		} else {
-			b.until = time.Now().Add(e.getBackoffDuration(b.nbError))
 		}
 	}
-	return false
 }
 
 func (e *blockedEndpoints) getBackoffDuration(numErrors int) time.Duration {

@@ -329,22 +329,22 @@ func TestIsblockAutoRecovery(t *testing.T) {
 	assert.True(t, e.isBlock("test"))
 	
 	// Set the block time to the past to simulate time passing
+	e.m.Lock()
 	e.errorPerEndpoint["test"].until = time.Now().Add(-1 * time.Second)
+	e.m.Unlock()
 	
-	// isBlock should now return false and automatically recover
+	// isBlock should still return false since time has passed
 	assert.False(t, e.isBlock("test"))
 	
-	// Error count should be decremented
-	block := e.errorPerEndpoint["test"]
-	assert.True(t, block.nbError < 3, "Error count should be decremented after auto-recovery")
+	// Call recovery function to unblock expired endpoints
+	e.tryRecoverExpiredEndpoints()
 	
-	// If error count reaches 0, endpoint should be removed
-	for e.errorPerEndpoint["test"] != nil && e.errorPerEndpoint["test"].nbError > 0 {
-		e.errorPerEndpoint["test"].until = time.Now().Add(-1 * time.Second)
-		e.isBlock("test")
-	}
-	
-	// Endpoint should be completely removed when error count reaches 0
+	// Endpoint should be completely removed (unblocked)
+	e.m.RLock()
 	_, exists := e.errorPerEndpoint["test"]
-	assert.False(t, exists, "Endpoint should be removed when error count reaches 0")
+	e.m.RUnlock()
+	assert.False(t, exists, "Endpoint should be unblocked when time expires")
+	
+	// Verify it's no longer blocked
+	assert.False(t, e.isBlock("test"))
 }

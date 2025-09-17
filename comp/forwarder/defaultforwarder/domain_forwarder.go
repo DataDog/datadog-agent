@@ -104,6 +104,9 @@ func (f *domainForwarder) retryTransactions(_ time.Time) {
 
 	f.transactionPrioritySorter.Sort(transactions)
 
+	// Try to recover any expired blocked endpoints before processing transactions
+	f.blockedList.tryRecoverExpiredEndpoints()
+
 	for _, t := range transactions {
 		transactionEndpointName := t.GetEndpointName()
 		if !f.blockedList.isBlock(t.GetTarget()) {
