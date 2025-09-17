@@ -10,7 +10,11 @@ package types
 type Package struct {
 	Name       string
 	Version    string
+	Epoch      int
+	Release    string
 	SrcVersion string
+	SrcEpoch   int
+	SrcRelease string
 }
 
 // PackageWithInstalledFiles describes a system package with its installed files
