@@ -9,6 +9,7 @@ package awskubernetes
 import (
 	"context"
 	"fmt"
+
 	"github.com/DataDog/test-infra-definitions/common/config"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/apps/etcd"
@@ -97,18 +98,13 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 	}
 	// Resolve "latest" to actual version early to prevent semver parsing errors in components
 	resolvedKubeVersion := awsEnv.KubernetesVersion()
-	_ = ctx.Log.Info(fmt.Sprintf("CONTINT-4708: Initial kubernetesVersion from awsEnv: %s", resolvedKubeVersion), nil)
 
 	if resolvedKubeVersion == "latest" {
-		_ = ctx.Log.Info("CONTINT-4708: Detected kubernetesVersion=latest, resolving to actual version", nil)
 		kindConfig, err := kubeComp.GetKindVersionConfig("latest")
 		if err != nil {
 			return fmt.Errorf("failed to resolve latest Kubernetes version: %v", err)
 		}
 		resolvedKubeVersion = kindConfig.KubeVersion
-		_ = ctx.Log.Info(fmt.Sprintf("CONTINT-4708: Resolved kubernetesVersion=latest to %s (Kind version: %s, NodeImage: %s)", resolvedKubeVersion, kindConfig.KindVersion, kindConfig.NodeImageVersion), nil)
-	} else {
-		_ = ctx.Log.Info(fmt.Sprintf("CONTINT-4708: Using static kubernetesVersion: %s", resolvedKubeVersion), nil)
 	}
 
 	host, err := ec2.NewVM(awsEnv, params.name, params.vmOptions...)
