@@ -736,7 +736,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector v0.135.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension v0.135.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/datadog v0.135.0 // indirect
-	github.com/shirou/gopsutil/v3 v3.24.4 // indirect
+	github.com/shirou/gopsutil/v3 v3.24.5 // indirect
 	github.com/shoenig/go-m1cpu v0.1.6 // indirect
 	github.com/vektah/gqlparser/v2 v2.5.30 // indirect
 	go.opentelemetry.io/collector/config/configmiddleware v1.41.0 // indirect
