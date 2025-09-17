@@ -9,7 +9,6 @@ package secretsimpl
 import (
 	"bytes"
 	"embed"
-	_ "embed"
 	"encoding/json"
 	"fmt"
 	"io"
