@@ -30,6 +30,7 @@
   retry: 0
   variables:
     GIT_DEPTH: 2
+    BAZEL_SH: "C:/tools/msys64/usr/bin/bash.exe"
   script:
     - |-
       $FailFast = @'
@@ -46,6 +47,7 @@
       --env=BAZEL_REPO_CONTENTS_CACHE
       --env=CI_PROJECT_DIR
       --env=RUNNER_TEMP_PROJECT_DIR
+      --env=BAZEL_SH
       --interactive
       --rm
       --volume="${CI_PROJECT_DIR}:$CI_PROJECT_DIR"
