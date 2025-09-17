@@ -21,11 +21,17 @@ multitool.hub(lockfile = "//bazel:prebuilt_jq.json")
 use_repo(multitool, "multitool")
 
 #########################
-## Compiliers          ##
+## Compilers          ##
 #########################
 
 bazel_dep(name = "rules_cc", version = "0.2.8")
 bazel_dep(name = "rules_python", version = "1.6.1")
+bazel_dep(name = "rules_shell", version = "0.6.1")
+
+sh_configure = use_extension("//shell/private/extensions:sh_configure.bzl", "sh_configure")
+use_repo(sh_configure, "local_config_shell")
+
+register_toolchains("@local_config_shell//:all")
 
 #########################
 ## Native dependencies ##
