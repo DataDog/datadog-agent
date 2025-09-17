@@ -9,50 +9,49 @@
 #include <stdint.h>
 #include <unistd.h>
 #include <time.h>
+#include "common_functions.h"
 
-typedef struct {
-    uint32_t x, y, z;
-} dim3;
-
-typedef int cudaError_t;
-typedef uint64_t cudaStream_t;
-typedef uint64_t cudaEvent_t;
-
-cudaError_t cudaLaunchKernel(const void *func, dim3 gridDim, dim3 blockDim, void **args, size_t sharedMem, cudaStream_t stream) {
-    return 0;
-}
-
-cudaError_t cudaSetDevice(int device) {
+int setenv(const char *__name, const char *__value, int __replace) {
+    (void)__name;
+    (void)__value;
+    (void)__replace;
     return 0;
 }
 
 int main(int argc, char **argv) {
     cudaStream_t stream = 30;
 
-    if (argc != 4) {
-        fprintf(stderr, "Usage: %s <wait-to-start-sec> <device-index> <calls-per-second>\n", argv[0]);
+    if (argc != 5) {
+        fprintf(stderr, "Usage: %s <wait-to-start-sec> <device-index> <calls-per-second> <execution-time-sec>\n", argv[0]);
         return 1;
     }
 
     int waitStart = atoi(argv[1]);
     int device = atoi(argv[2]);
     int callsPerSecond = atoi(argv[3]);
+    int executionTimeSec = atoi(argv[4]);
 
     if (callsPerSecond <= 0) {
         fprintf(stderr, "Error: calls-per-second must be positive\n");
         return 1;
     }
 
+    if (executionTimeSec <= 0) {
+        fprintf(stderr, "Error: execution-time-sec must be positive\n");
+        return 1;
+    }
+
     // This string is used by PatternScanner to validate a proper start of this sample program inside the container
     fprintf(stderr, "Starting CudaRateSample program\n");
     fprintf(stderr, "Waiting for %d seconds before starting\n", waitStart);
-    fprintf(stderr, "Will make %d cudaLaunchKernel calls per second\n", callsPerSecond);
+    fprintf(stderr, "Will make %d cudaLaunchKernel calls per second for %d seconds\n", callsPerSecond, executionTimeSec);
 
     // Give time for the eBPF program to load
     sleep(waitStart);
 
     fprintf(stderr, "Starting calls, will use device index %d\n", device);
 
+    // Call all
     cudaSetDevice(device);
 
     // Calculate interval between calls in nanoseconds for better precision
@@ -64,11 +63,18 @@ int main(int argc, char **argv) {
 
     long call_count = 0;
     long next_call_time_ns = 0;
+    long execution_time_ns = (long)executionTimeSec * 1000000000L; // Convert to nanoseconds
 
     while (1) {
         clock_gettime(CLOCK_MONOTONIC, &current_time);
         long current_time_ns = (current_time.tv_sec - start_time.tv_sec) * 1000000000L +
                                (current_time.tv_nsec - start_time.tv_nsec);
+
+        // Exit if execution time has been reached
+        if (current_time_ns >= execution_time_ns) {
+            fprintf(stderr, "Execution time of %d seconds reached\n", executionTimeSec);
+            break;
+        }
 
         if (current_time_ns >= next_call_time_ns) {
             cudaLaunchKernel((void *)0x1234, (dim3){ 1, 2, 3 }, (dim3){ 4, 5, 6 }, NULL, 10, stream);

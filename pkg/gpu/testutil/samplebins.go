@@ -99,9 +99,14 @@ func defaultCudaSampleArgs() *CudaSampleArgs {
 }
 
 type RateSampleArgs struct {
+	// StartWaitTimeSec represents the time in seconds to wait before the binary starting the CUDA calls
 	StartWaitTimeSec int
-	SelectedDevice   int
-	CallsPerSecond   int
+	// SelectedDevice represents the device that the CUDA rate sample will select
+	SelectedDevice int
+	// CallsPerSecond represents the rate of CUDA calls per second
+	CallsPerSecond int
+	// ExecutionTimeSec represents the time in seconds to run the rate sample before exiting
+	ExecutionTimeSec int
 }
 
 func (a *RateSampleArgs) Env() []string {
@@ -109,7 +114,7 @@ func (a *RateSampleArgs) Env() []string {
 }
 
 func (a *RateSampleArgs) CLIArgs() []string {
-	return []string{strconv.Itoa(a.StartWaitTimeSec), strconv.Itoa(a.SelectedDevice), strconv.Itoa(a.CallsPerSecond)}
+	return []string{strconv.Itoa(a.StartWaitTimeSec), strconv.Itoa(a.SelectedDevice), strconv.Itoa(a.CallsPerSecond), strconv.Itoa(a.ExecutionTimeSec)}
 }
 
 // defaultRateSampleArgs returns the default arguments for the CUDA rate sample binary
@@ -118,11 +123,12 @@ func defaultRateSampleArgs() *RateSampleArgs {
 		StartWaitTimeSec: 5,
 		SelectedDevice:   0,
 		CallsPerSecond:   1000,
+		ExecutionTimeSec: 5,
 	}
 }
 
 // RunSampleWithArgs executes the sample binary and returns the command. Cleanup is configured automatically
-func getBuiltSamplePath(t *testing.T, sample Sample) string {
+func getBuiltSamplePath(t testing.TB, sample Sample) string {
 	curDir, err := testutil.CurDir()
 	require.NoError(t, err)
 
@@ -135,7 +141,7 @@ func getBuiltSamplePath(t *testing.T, sample Sample) string {
 	return builtBin
 }
 
-func runCommandAndPipeOutput(t *testing.T, command []string, sample Sample, args SampleArgs) (cmd *exec.Cmd, err error) {
+func runCommandAndPipeOutput(t testing.TB, command []string, sample Sample, args SampleArgs) (cmd *exec.Cmd, err error) {
 	command = append(command, args.CLIArgs()...)
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -166,6 +172,16 @@ func runCommandAndPipeOutput(t *testing.T, command []string, sample Sample, args
 		return nil, err
 	}
 
+	// Calculate timeout based on sample arguments
+	timeout := dockerutils.DefaultTimeout
+	if rateArgs, ok := args.(*RateSampleArgs); ok {
+		// For rate sample, timeout should be start wait + execution time + buffer
+		sampleTimeout := time.Duration(rateArgs.StartWaitTimeSec+rateArgs.ExecutionTimeSec+10) * time.Second
+		if sampleTimeout > timeout {
+			timeout = sampleTimeout
+		}
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -175,32 +191,32 @@ func runCommandAndPipeOutput(t *testing.T, command []string, sample Sample, args
 		case <-scanner.DoneChan:
 			t.Logf("%s command succeeded", command)
 			return cmd, nil
-		case <-time.After(dockerutils.DefaultTimeout):
+		case <-time.After(timeout):
 			//setting the error explicitly to trigger the defer function
-			err = fmt.Errorf("%s execution attempt reached timeout %v ", CudaSample, dockerutils.DefaultTimeout)
+			err = fmt.Errorf("%s execution attempt reached timeout %v ", sample.Name, timeout)
 			return nil, err
 		}
 	}
 }
 
 // RunSample executes the sample binary and returns the command. Cleanup is configured automatically
-func RunSample(t *testing.T, sample Sample) (*exec.Cmd, error) {
+func RunSample(t testing.TB, sample Sample) (*exec.Cmd, error) {
 	return RunSampleWithArgs(t, sample, sample.DefaultArgs)
 }
 
 // RunSampleWithArgs executes the sample binary with args and returns the command. Cleanup is configured automatically
-func RunSampleWithArgs(t *testing.T, sample Sample, args SampleArgs) (*exec.Cmd, error) {
+func RunSampleWithArgs(t testing.TB, sample Sample, args SampleArgs) (*exec.Cmd, error) {
 	builtBin := getBuiltSamplePath(t, sample)
 	return runCommandAndPipeOutput(t, []string{builtBin}, sample, args)
 }
 
 // RunSampleInDocker executes the sample binary in a Docker container and returns the PID of the main container process, and the container ID
-func RunSampleInDocker(t *testing.T, sample Sample, image dockerImage) (int, string) {
+func RunSampleInDocker(t testing.TB, sample Sample, image dockerImage) (int, string) {
 	return RunSampleInDockerWithArgs(t, sample, image, sample.DefaultArgs)
 }
 
 // RunSampleInDockerWithArgs executes the sample binary in a Docker container and returns the PID of the main container process, and the container ID
-func RunSampleInDockerWithArgs(t *testing.T, sample Sample, image dockerImage, args SampleArgs) (int, string) {
+func RunSampleInDockerWithArgs(t testing.TB, sample Sample, image dockerImage, args SampleArgs) (int, string) {
 	builtBin := getBuiltSamplePath(t, sample)
 	containerName := fmt.Sprintf("gpu-testutil-%s", utils.RandString(10))
 	scanner, err := procutil.NewScanner(sample.StartPattern, sample.FinishedPattern)

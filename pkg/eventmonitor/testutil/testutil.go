@@ -22,10 +22,10 @@ import (
 )
 
 // PreStartCallback is a callback to register clients to the event monitor before starting it
-type PreStartCallback func(t *testing.T, evm *eventmonitor.EventMonitor)
+type PreStartCallback func(t testing.TB, evm *eventmonitor.EventMonitor)
 
 // StartEventMonitor creates and starts an event monitor for use in tests
-func StartEventMonitor(t *testing.T, callback PreStartCallback) {
+func StartEventMonitor(t testing.TB, callback PreStartCallback) {
 	if !sysconfig.ProcessEventDataStreamSupported() {
 		t.Skip("Process event data stream not supported on this kernel")
 	}
