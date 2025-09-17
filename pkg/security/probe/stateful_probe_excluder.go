@@ -67,7 +67,7 @@ func (af *availableFunctionsBasedExcluder) ShouldExcludeFunction(name string, pr
 		return false
 	}
 
-	if strings.HasPrefix(prog.SectionName, "uprobe") || strings.HasPrefix(prog.SectionName, "uretprobe") {
+	if strings.HasPrefix(prog.SectionName, "uprobe/") || strings.HasPrefix(prog.SectionName, "uretprobe/") {
 		return false
 	}
 
