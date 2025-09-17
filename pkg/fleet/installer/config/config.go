@@ -304,7 +304,7 @@ func buildOperationsFromLegacyInstaller(rootPath string) []FileOperation {
 		return allOps
 	}
 
-	filepath.Walk(stableDirPath, func(path string, info os.FileInfo, err error) error {
+	err = filepath.Walk(stableDirPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -320,6 +320,9 @@ func buildOperationsFromLegacyInstaller(rootPath string) []FileOperation {
 		allOps = append(allOps, ops...)
 		return nil
 	})
+	if err != nil {
+		return []FileOperation{}
+	}
 
 	return allOps
 }
