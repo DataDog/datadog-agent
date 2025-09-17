@@ -8,7 +8,6 @@
 ---
 fixes:
   - |
-    Fix forwarder not recovering from "Too many errors for endpoint" state.
-    The forwarder now automatically recovers blocked endpoints when the backoff
-    time expires, preventing the need for manual agent restarts after temporary
+    Endpoints now automatically recover from the "Too many errors for endpoint" state after the backoff
+    time expires, preventing unnecessary manual Agent restarts after temporary
     network issues.
