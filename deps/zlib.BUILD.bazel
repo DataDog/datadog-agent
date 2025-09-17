@@ -146,12 +146,6 @@ cc_shared_library(
     deps = [":z"],
 )
 
-# Maybe? TODO: Window resource file?
-#RC = $(PREFIX)windres
-#RCFLAGS = --define GCC_WINDRES
-#zlibrc.o: win32/zlib1.rc
-#	$(RC) $(RCFLAGS) -o $@ win32/zlib1.rc
-
 # buildifier: disable=no-effect
 """
 TODO: Add pkg install to copy to /lib
@@ -167,15 +161,9 @@ build do
 
     patch <<THIS
  IMAGE_BASE = 0x63300000
-
  LDFLAGS = $(LOC)
 
- AR = $(PREFIX)ar
- ARFLAGS = rcs
-
 @@ -93,7 +95,7 @@
- $(IMPLIB): $(SHAREDLIB)
-
  $(SHAREDLIB): win32/zlib.def $(OBJS) $(OBJA) zlibrc.o
 -       $(CC) -shared -Wl,--out-implib,$(IMPLIB) $(LDFLAGS) \
 +       $(CC) -shared -Wl,--out-implib,$(IMPLIB),--image-base,$(IMAGE_BASE) $(LDFLAGS) \
