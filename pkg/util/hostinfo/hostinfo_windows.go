@@ -27,7 +27,6 @@ import (
 	"github.com/shirou/w32"
 	"golang.org/x/sys/windows"
 
-	"github.com/DataDog/datadog-agent/pkg/gohai/cpu"
 	"github.com/DataDog/datadog-agent/pkg/gohai/platform"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
