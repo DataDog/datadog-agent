@@ -976,6 +976,18 @@ func (c *ntmConfig) ConfigFileUsed() string {
 	return c.configFile
 }
 
+// GetSubfields returns the names of child fields of this setting
+func (c *ntmConfig) GetSubfields(key string) []string {
+	n, err := c.GetNode(key)
+	if err != nil {
+		return nil
+	}
+	if inner, ok := n.(*innerNode); ok {
+		return inner.ChildrenKeys()
+	}
+	return nil
+}
+
 // BindEnvAndSetDefault binds an environment variable and sets a default for the given key
 func (c *ntmConfig) BindEnvAndSetDefault(key string, val interface{}, envvars ...string) {
 	c.BindEnv(key, envvars...) //nolint:errcheck
