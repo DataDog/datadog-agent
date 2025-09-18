@@ -27,7 +27,13 @@ http2 is supported only from kernel 5.2, therefore it does not have the kprobe v
 
 SEC("tracepoint/net/netif_receive_skb")
 int tracepoint__net__netif_receive_skb_http(void *ctx) {
-    http_batch_flush_with_telemetry(ctx);
+    __u64 use_direct_consumer = 0;
+    LOAD_CONSTANT("use_direct_consumer", use_direct_consumer);
+    
+    if (!use_direct_consumer) {
+        // Only flush when using BatchConsumer (kernel < 5.8)
+        http_batch_flush_with_telemetry(ctx);
+    }
     return 0;
 }
 

@@ -10,6 +10,7 @@ package events
 import (
 	"errors"
 	"fmt"
+	"golang.org/x/sys/unix"
 	"sync"
 	"unsafe"
 
@@ -17,6 +18,8 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/perf"
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -30,8 +33,130 @@ const (
 
 var errInvalidPerfEvent = errors.New("invalid perf event")
 
-// Consumer provides a standardized abstraction for consuming (batched) events from eBPF
-type Consumer[V any] struct {
+// Consumer is an interface for event consumers
+type Consumer[V any] interface {
+	Start()
+	Sync()
+	Stop()
+}
+
+// DirectConsumer processes individual events directly from eBPF programs.
+type DirectConsumer[V any] struct {
+	perf.EventHandler
+	proto    string
+	callback func(*V)
+
+	// telemetry
+	metricGroup       *telemetry.MetricGroup
+	eventsCount       *telemetry.Counter
+	invalidEventCount *telemetry.Counter
+}
+
+// NewDirectConsumer creates a new DirectConsumer for the specified protocol.
+func NewDirectConsumer[V any](proto string, callback func(*V), config *config.Config) (*DirectConsumer[V], error) {
+	if callback == nil {
+		return nil, errors.New("callback function is required")
+	}
+
+	// setup telemetry
+	metricGroup := telemetry.NewMetricGroup(
+		fmt.Sprintf("usm.%s", proto),
+		telemetry.OptStatsd,
+	)
+	eventsCount := metricGroup.NewCounter("events_captured")
+	invalidEventCount := metricGroup.NewCounter("invalid_event_count")
+
+	consumer := &DirectConsumer[V]{
+		proto:             proto,
+		callback:          callback,
+		metricGroup:       metricGroup,
+		eventsCount:       eventsCount,
+		invalidEventCount: invalidEventCount,
+	}
+
+	// Create handler function that processes individual events
+	handler := func(data []byte) {
+		if len(data) < int(unsafe.Sizeof(*new(V))) {
+			consumer.invalidEventCount.Add(1)
+			log.Debugf("DirectConsumer %s: received data too small for event type, size: %d, expected: %d",
+				proto, len(data), int(unsafe.Sizeof(*new(V))))
+			return
+		}
+
+		consumer.eventsCount.Add(1)
+
+		// Convert raw bytes to typed event
+		event := (*V)(unsafe.Pointer(&data[0]))
+		consumer.callback(event)
+	}
+
+	// Set up perf mode and channel size similar to initClosedConnEventHandler
+	// For DirectConsumer, we want kernel-level batching for performance
+	// but individual event processing in userspace (unlike BatchConsumer)
+	perfMode := perf.WakeupEvents(config.USMDirectBufferWakeupCount) // Wait for N events before wakeup
+	// For direct events, we still want sufficient channel buffering for batched events
+	chanSize := config.USMDirectChannelSize * config.USMDirectBufferWakeupCount
+
+	// Note: Unlike NPM's CustomBatchingEnabled, DirectConsumer doesn't switch to Watermark(1)
+	// because we want kernel-level batching but individual event processing in userspace
+
+	// Set up mode selection similar to initClosedConnEventHandler
+	mode := perf.UsePerfBuffers(config.USMDirectPerfBufferSize, chanSize, perfMode)
+	// Always try to upgrade to ring buffers for direct events if supported
+	if config.RingBufferSupportedUSM() {
+		mode = perf.UpgradePerfBuffers(config.USMDirectPerfBufferSize, chanSize, perfMode, config.USMDirectRingBufferSize)
+	}
+
+	// Calculate the size of the single event that will be written via bpf_ringbuf_output
+	eventSize := int(unsafe.Sizeof(*new(V)))
+
+	// Create EventHandler following the same pattern as initClosedConnEventHandler
+	mapName := proto + eventsMapSuffix
+	eventHandler, err := perf.NewEventHandler(
+		mapName,
+		handler,
+		mode,
+		perf.SendTelemetry(config.InternalTelemetryEnabled),
+		perf.RingBufferEnabledConstantName("ringbuffers_enabled"),
+		perf.RingBufferWakeupSize("ringbuffer_wakeup_size",
+			uint64(config.USMDirectBufferWakeupCount*(eventSize+unix.BPF_RINGBUF_HDR_SZ))),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create event handler for protocol %s: %w", proto, err)
+	}
+
+	consumer.EventHandler = *eventHandler
+	return consumer, nil
+}
+
+// Start implements the Consumer interface
+// Note: The embedded EventHandler must be passed to the eBPF manager during initialization
+// The manager will call PreStart() to start the read loop automatically
+func (c *DirectConsumer[V]) Start() {
+	// The eBPF manager will call the EventHandler's PreStart method
+	// when the manager starts. This happens automatically through the modifier interface.
+	log.Debugf("DirectConsumer: starting for protocol %s", c.proto)
+}
+
+// Sync implements Consumer interface
+func (c *DirectConsumer[V]) Sync() {
+	// Flush any pending data from the ring buffer
+	if log.ShouldLog(log.DebugLvl) {
+		log.Debugf("DirectConsumer: syncing for protocol %s", c.proto)
+		log.Debugf("usm events summary: name=%q %s", c.proto, c.metricGroup.Summary())
+	}
+	c.Flush()
+}
+
+// Stop implements Consumer interface
+func (c *DirectConsumer[V]) Stop() {
+	// The EventHandler's AfterStop method handles cleanup
+	// This would typically be called by the ebpf-manager during shutdown
+	log.Debugf("DirectConsumer: stopping for protocol %s", c.proto)
+}
+
+// BatchConsumer processes batches of events from eBPF maps.
+type BatchConsumer[V any] struct {
 	mux         sync.Mutex
 	proto       string
 	syncRequest chan (chan struct{})
@@ -53,11 +178,11 @@ type Consumer[V any] struct {
 	invalidBatchCount                                  *telemetry.Counter
 }
 
-// NewConsumer instantiates a new event Consumer
+// NewBatchConsumer instantiates a new event BatchConsumer
 // `callback` is executed once for every "event" generated on eBPF and must:
 // 1) copy the data it wishes to hold since the underlying byte array is reclaimed;
 // 2) be thread-safe, as the callback may be executed concurrently from multiple go-routines;
-func NewConsumer[V any](proto string, ebpf *manager.Manager, callback func([]V)) (*Consumer[V], error) {
+func NewBatchConsumer[V any](proto string, ebpf *manager.Manager, callback func([]V)) (*BatchConsumer[V], error) {
 	batchMapName := proto + batchMapSuffix
 	batchMap, err := maps.GetMap[batchKey, Batch](ebpf, batchMapName)
 	if err != nil {
@@ -107,7 +232,7 @@ func NewConsumer[V any](proto string, ebpf *manager.Manager, callback func([]V))
 	// `kernel_dropped_events`.
 	failedFlushesCount := metricGroup.NewCounter("failed_flushes")
 
-	return &Consumer[V]{
+	return &BatchConsumer[V]{
 		proto:       proto,
 		callback:    callback,
 		syncRequest: make(chan chan struct{}),
@@ -127,7 +252,7 @@ func NewConsumer[V any](proto string, ebpf *manager.Manager, callback func([]V))
 }
 
 // Start consumption of eBPF events
-func (c *Consumer[V]) Start() {
+func (c *BatchConsumer[V]) Start() {
 	c.eventLoopWG.Add(1)
 	go func() {
 		defer c.eventLoopWG.Done()
@@ -178,7 +303,7 @@ func (c *Consumer[V]) Start() {
 
 // Sync userpace with kernelspace by fetching all buffered data on eBPF
 // Calling this will block until all eBPF map data has been fetched and processed
-func (c *Consumer[V]) Sync() {
+func (c *BatchConsumer[V]) Sync() {
 	c.mux.Lock()
 	if c.stopped {
 		c.mux.Unlock()
@@ -194,7 +319,7 @@ func (c *Consumer[V]) Sync() {
 }
 
 // Stop consuming data from eBPF
-func (c *Consumer[V]) Stop() {
+func (c *BatchConsumer[V]) Stop() {
 	c.mux.Lock()
 	defer c.mux.Unlock()
 
@@ -209,7 +334,7 @@ func (c *Consumer[V]) Stop() {
 	close(c.syncRequest)
 }
 
-func (c *Consumer[V]) process(b *Batch, syncing bool) {
+func (c *BatchConsumer[V]) process(b *Batch, syncing bool) {
 	cpu := int(b.Cpu)
 
 	// Determine the subset of data we're interested in as we might have read
@@ -266,4 +391,24 @@ func batchFromEventData(data []byte) (*Batch, error) {
 func pointerToElement[V any](b *Batch, elementIdx int) *V {
 	offset := elementIdx * int(b.Event_size)
 	return (*V)(unsafe.Pointer(uintptr(unsafe.Pointer(&b.Data[0])) + uintptr(offset)))
+}
+
+// KernelAdaptiveConsumer wraps either DirectConsumer or BatchConsumer based on kernel version
+// and provides both Consumer interface and Modifier interface in a single struct
+type KernelAdaptiveConsumer[V any] struct {
+	Consumer[V]                   // Embedded interface for Start/Sync/Stop
+	modifiers   []ddebpf.Modifier // Modifiers for eBPF manager
+}
+
+// Modifiers implements the ModifierProvider interface
+func (k *KernelAdaptiveConsumer[V]) Modifiers() []ddebpf.Modifier {
+	return k.modifiers
+}
+
+// NewKernelAdaptiveConsumer creates a new KernelAdaptiveConsumer with the given consumer and modifiers
+func NewKernelAdaptiveConsumer[V any](consumer Consumer[V], modifiers []ddebpf.Modifier) *KernelAdaptiveConsumer[V] {
+	return &KernelAdaptiveConsumer[V]{
+		Consumer:  consumer,
+		modifiers: modifiers,
+	}
 }
