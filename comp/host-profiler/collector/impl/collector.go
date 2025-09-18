@@ -73,11 +73,7 @@ func (c *collectorImpl) Run() error {
 	return c.collector.Run(context.Background())
 }
 
-func newCollectorSettings(uri string) (otelcol.CollectorSettings, error) {
-	// Set service name using buildInfo.
-	buildInfo := component.NewDefaultBuildInfo()
-	buildInfo.Command = "full-host-profiler"
-
+func newCollectorSettings(uri string) (otelcol.CollectorSettings, error) {	
 	return otelcol.CollectorSettings{
 		BuildInfo: buildInfo,
 		Factories: createFactories,
