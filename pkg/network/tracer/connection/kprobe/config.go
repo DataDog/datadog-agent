@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	ssluprobes "github.com/DataDog/datadog-agent/pkg/network/tracer/connection/ssl-uprobes"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -40,14 +41,18 @@ func HasTCPSendPage(kv kernel.Version) bool {
 	return kv < kv650
 }
 
-func enableProbe(enabled map[probes.ProbeFuncName]struct{}, name probes.ProbeFuncName) {
-	enabled[name] = struct{}{}
+func enableProbe(enabled map[manager.ProbeIdentificationPair]struct{}, name probes.ProbeFuncName) {
+	probeIdentifier := manager.ProbeIdentificationPair{
+		EBPFFuncName: name,
+		UID:          probeUID,
+	}
+	enabled[probeIdentifier] = struct{}{}
 }
 
 // enabledProbes returns a map of probes that are enabled per config settings.
 // This map does not include the probes used exclusively in the offset guessing process.
-func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes.ProbeFuncName]struct{}, error) {
-	enabled := make(map[probes.ProbeFuncName]struct{}, 0)
+func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[manager.ProbeIdentificationPair]struct{}, error) {
+	enabled := make(map[manager.ProbeIdentificationPair]struct{}, 0)
 
 	kv410 := kernel.VersionCode(4, 1, 0)
 	kv470 := kernel.VersionCode(4, 7, 0)
@@ -176,6 +181,11 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 		}
 	}
 
+	if c.EnableCertCollection {
+		// SSL uprobes use a separate UID
+		enabled[ssluprobes.IDPairFromFuncName(probes.RawTracepointSchedProcessExit)] = struct{}{}
+	}
+
 	return enabled, nil
 }
 
@@ -235,7 +245,7 @@ func protocolClassificationTailCalls(cfg *config.Config) []manager.TailCallRoute
 	return tcs
 }
 
-func enableAdvancedUDP(enabled map[probes.ProbeFuncName]struct{}) error {
+func enableAdvancedUDP(enabled map[manager.ProbeIdentificationPair]struct{}) error {
 	missing, err := ebpf.VerifyKernelFuncs("skb_consume_udp", "__skb_free_datagram_locked", "skb_free_datagram_locked")
 	if err != nil {
 		return fmt.Errorf("error verifying kernel function presence: %s", err)

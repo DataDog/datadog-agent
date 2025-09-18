@@ -123,6 +123,10 @@ func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionS
 		staticTags |= encoderStaticTags
 		dynamicTags = mergeDynamicTags(dynamicTags, encoderDynamicTags)
 	}
+	if conn.HasCertInfo() {
+		certInfo := conn.CertInfo.Value()
+		dynamicTags = mergeDynamicTags(dynamicTags, certInfo.GetDynamicTags())
+	}
 
 	conn.StaticTags |= staticTags
 	tags, tagChecksum := formatTags(conn, tagsSet, dynamicTags)
