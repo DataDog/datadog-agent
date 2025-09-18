@@ -1,0 +1,15 @@
+receivers:
+  profiling:
+exporters:
+  debug: {}
+  otlphttp:
+    endpoint: https://intake.profile.datad0g.com/api/v2/profotlp
+    headers:
+      dd-api-key: ${env:DD_API_KEY}
+    profiles_endpoint: https://intake.profile.datad0g.com/api/v2/profotlp
+service:
+  pipelines:
+    profiles:
+      receivers: [profiling]
+      exporters: [otlphttp, debug]   
+ 
