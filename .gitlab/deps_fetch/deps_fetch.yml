@@ -18,7 +18,7 @@
 .cache:
   stage: deps_fetch
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$CI_IMAGE_DEB_X64_SUFFIX:$CI_IMAGE_DEB_X64
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   needs: ["setup_agent_version"]
   variables:
     KUBERNETES_CPU_REQUEST: 16
@@ -109,7 +109,7 @@ go_e2e_deps:
 
 fetch_openjdk:
   needs: []
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   rules:
     - !reference [.manual]
   stage: deps_fetch
