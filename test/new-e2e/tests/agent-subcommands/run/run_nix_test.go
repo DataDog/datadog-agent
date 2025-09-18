@@ -8,6 +8,7 @@ package status
 import (
 	"context"
 	"fmt"
+	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -17,8 +18,6 @@ import (
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/process"
-
-	"testing"
 )
 
 type linuxRunSuite struct {
@@ -91,9 +90,8 @@ func (s *linuxRunSuite) TestRunAgentCtrlC() {
 	s.Require().NoError(err)
 	s.T().Log(pids)
 
-	// should be two the sudo command and the subproces
-	s.Require().Len(pids, 2)
-	pid := pids[1]
+	s.Require().Len(pids, 1)
+	pid := pids[0]
 
 	// send ctrl+c to the agent
 	_, err = host.Execute(fmt.Sprintf(`sudo kill -INT %d`, pid))
