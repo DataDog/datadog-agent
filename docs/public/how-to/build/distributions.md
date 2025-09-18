@@ -11,7 +11,7 @@ By "distribution package", we mean an artifact used by end users to install the 
 | ------- | ------------------------------------------- |
 | Linux   | `.deb` (Debian-based) / `.rpm` (RHEL-based) |
 | Windows | `.msi`                                      |
-| macOS   | `.pkg`                                      |
+| macOS   | `.dmg`                                      |
 
 
 These distribution packages contain [a binary of the Agent](standalone.md), along with any supporting libraries needed for the agent to function properly.
@@ -140,7 +140,7 @@ The path you pass with the `--base-dir` option will be used as a working directo
 | --------- | ------------------------------------------------ |
 | `src`     | The sources downloaded by Omnibus                |
 | `cache`   | The binaries cached after building those sources |
-| `pkg`     | The final `deb`/`rpm`/`pkg` artifacts            |
+| `pkg`     | The final `deb`/`rpm`/`dmg` artifacts            |
 
 ??? note "Make sure to pass a `--base-dir` !"
     It is strongly advised to pass a `--base-dir`, and point it to a directory **outside of the Agent repo.**
