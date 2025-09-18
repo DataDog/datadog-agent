@@ -36,5 +36,5 @@ bazel:build-deps:windows-amd64:
     ARCH: x64
     SCRIPT: |-
       echo "🟡 TODO(regis): compilation errors remain - limiting to a working subset for the time being"
-      bazel build @zlib//... @openssl//...
+      bazel build @zlib//... @openssl//... --copt="-v"
       # bazel build @bzip2//...
