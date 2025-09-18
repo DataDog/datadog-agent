@@ -10,20 +10,12 @@
 package utils
 
 import (
-	"fmt"
-	"os"
 	"runtime"
-	"time"
-
-	"github.com/shirou/w32"
-	"golang.org/x/sys/windows"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/gohai/cpu"
-	"github.com/DataDog/datadog-agent/pkg/gohai/platform"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
-	"github.com/DataDog/datadog-agent/pkg/util/uuid"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil"
+	hostinfoutils "github.com/DataDog/datadog-agent/pkg/util/hostinfo"
 )
 
 // Set the OS to "win32" instead of the runtime.GOOS of "windows" for the in app icon
@@ -51,7 +43,7 @@ func getSystemStats() *systemStats {
 				Pythonv:   python.GetPythonVersion(),
 			}
 
-			hostInfo := GetInformation()
+			hostInfo := hostinfoutils.GetInformation()
 
 			// osVersion is a legacy representation of OS version dating back to agent V5 which was in
 			// Python2. In V5 the content of this list changed based on the OS:
