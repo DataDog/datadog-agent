@@ -10,6 +10,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
@@ -31,14 +32,17 @@ type MutatorConfig struct {
 	localServiceName         string
 	traceAgentHostSocket     string
 	dogStatsDAgentHostSocket string
-	traceAgentSocket         string
-	dogStatsDSocket          string
+	apmSocketFile            string
+	dsdSocketFile            string
 	socketPath               string
 	typeSocketVolumes        bool
 	csiDriver                string
-	dsdSuffix                string
-	apmSuffix                string
 }
+
+const (
+	apmSubdir = "apm"
+	dsdSubdir = "dsd"
+)
 
 // NewMutatorConfig instantiates the required settings for the mutator from the datadog config.
 func NewMutatorConfig(datadogConfig config.Component) *MutatorConfig {
@@ -48,13 +52,11 @@ func NewMutatorConfig(datadogConfig config.Component) *MutatorConfig {
 		localServiceName:         datadogConfig.GetString("admission_controller.inject_config.local_service_name"),
 		traceAgentHostSocket:     datadogConfig.GetString("admission_controller.inject_config.trace_agent_host_socket_path"),
 		dogStatsDAgentHostSocket: datadogConfig.GetString("admission_controller.inject_config.dogstatsd_agent_host_socket_path"),
-		traceAgentSocket:         datadogConfig.GetString("admission_controller.inject_config.trace_agent_socket"),
-		dogStatsDSocket:          datadogConfig.GetString("admission_controller.inject_config.dogstatsd_socket"),
+		apmSocketFile:            datadogConfig.GetString("admission_controller.inject_config.trace_agent_socket_filename"),
+		dsdSocketFile:            datadogConfig.GetString("admission_controller.inject_config.dogstatsd_agent_socket_filename"),
 		socketPath:               datadogConfig.GetString("admission_controller.inject_config.socket_path"),
 		typeSocketVolumes:        datadogConfig.GetBool("admission_controller.inject_config.type_socket_volumes"),
 		csiDriver:                datadogConfig.GetString("csi.driver"),
-		dsdSuffix:                "/dsd",
-		apmSuffix:                "/apm",
 	}
 }
 
@@ -132,25 +134,19 @@ func (i *Mutator) MutatePod(pod *corev1.Pod, _ string, _ dynamic.Interface) (boo
 	case socket, csi:
 		useCSI := (mode == csi)
 		injectedVolumesOrVolumeMounts := i.injectSocketVolumes(pod, useCSI)
-		if shouldUseSocketVolumeType(pod, i.config.typeSocketVolumes) {
+		isSocketVol := shouldUseSocketVolumeType(pod, i.config.typeSocketVolumes)
 
-			traceURLSocketEnvVar.Value = i.config.traceAgentSocket
-			dogstatsdURLSocketEnvVar.Value = i.config.dogStatsDSocket
+		apmMountBase := i.config.socketPath
+		dsdMountBase := i.config.socketPath
 
-		} else {
-
-			apmMountBase := i.config.socketPath
-			dsdMountBase := i.config.socketPath
-
-			if useCSI || (i.config.dogStatsDAgentHostSocket != i.config.traceAgentHostSocket) {
-				apmMountBase = i.config.socketPath + i.config.apmSuffix
-				dsdMountBase = i.config.socketPath + i.config.dsdSuffix
-			}
-
-			traceURLSocketEnvVar.Value = "unix://" + apmMountBase + "/apm.socket"
-			dogstatsdURLSocketEnvVar.Value = "unix://" + dsdMountBase + "/dsd.socket"
+		if (i.config.dogStatsDAgentHostSocket != i.config.traceAgentHostSocket) || isSocketVol || useCSI {
+			apmMountBase = filepath.Join(i.config.socketPath, apmSubdir)
+			dsdMountBase = filepath.Join(i.config.socketPath, dsdSubdir)
 		}
 
+		traceURLSocketEnvVar.Value = "unix://" + filepath.Join(apmMountBase, i.config.apmSocketFile)
+		dogstatsdURLSocketEnvVar.Value = "unix://" + filepath.Join(dsdMountBase, i.config.dsdSocketFile)
+		fmt.Println("My logs->", i.config.apmSocketFile, i.config.dsdSocketFile, "dasd")
 		injectedEnv := mutatecommon.InjectEnv(pod, traceURLSocketEnvVar)
 		injectedEnv = mutatecommon.InjectEnv(pod, dogstatsdURLSocketEnvVar) || injectedEnv
 		injectedConfig = injectedVolumesOrVolumeMounts || injectedEnv
@@ -190,18 +186,14 @@ func (i *Mutator) injectSocketVolumes(pod *corev1.Pod, withCSI bool) bool {
 			hostsocketpath string
 		}{
 			DogstatsdSocketVolumeName: {
-				socketpath: strings.TrimPrefix(
-					i.config.dogStatsDSocket, "unix://",
-				),
+				socketpath:     filepath.Join(i.config.socketPath, dsdSubdir, i.config.dsdSocketFile),
 				csiVolumeType:  csiDSDSocket,
-				hostsocketpath: i.config.dogStatsDAgentHostSocket + i.config.dsdSuffix + ".socket",
+				hostsocketpath: filepath.Join(i.config.dogStatsDAgentHostSocket, i.config.dsdSocketFile),
 			},
 			TraceAgentSocketVolumeName: {
-				socketpath: strings.TrimPrefix(
-					i.config.traceAgentSocket, "unix://",
-				),
+				socketpath:     filepath.Join(i.config.socketPath, apmSubdir, i.config.apmSocketFile),
 				csiVolumeType:  csiAPMSocket,
-				hostsocketpath: i.config.traceAgentHostSocket + i.config.apmSuffix + ".socket",
+				hostsocketpath: filepath.Join(i.config.traceAgentHostSocket, i.config.apmSocketFile),
 			},
 		}
 
@@ -237,13 +229,13 @@ func (i *Mutator) injectSocketVolumes(pod *corev1.Pod, withCSI bool) bool {
 				subdir  string
 				csiType csiInjectionType
 			}{
-				{DatadogVolumeName + "-dsd", i.config.dsdSuffix, csiDSDSocketDirectory},
-				{DatadogVolumeName + "-apm", i.config.apmSuffix, csiAPMSocketDirectory},
+				{DatadogVolumeName + "-dsd", dsdSubdir, csiDSDSocketDirectory},
+				{DatadogVolumeName + "-apm", apmSubdir, csiAPMSocketDirectory},
 			}
 			for _, entry := range entries {
 				volume, volumeMount := buildCSIVolume(
 					entry.name,
-					i.config.socketPath+entry.subdir,
+					filepath.Join(i.config.socketPath, entry.subdir),
 					entry.csiType,
 					true,
 					i.config.csiDriver,
@@ -277,14 +269,14 @@ func (i *Mutator) injectSocketVolumes(pod *corev1.Pod, withCSI bool) bool {
 					host   string
 					subdir string
 				}{
-					{DatadogVolumeName + "-dsd", i.config.dogStatsDAgentHostSocket, i.config.dsdSuffix},
-					{DatadogVolumeName + "-apm", i.config.traceAgentHostSocket, i.config.apmSuffix},
+					{DatadogVolumeName + "-dsd", i.config.dogStatsDAgentHostSocket, dsdSubdir},
+					{DatadogVolumeName + "-apm", i.config.traceAgentHostSocket, apmSubdir},
 				}
 				for _, entry := range entries {
 					volume, volumeMount := buildHostPathVolume(
 						entry.name,
 						entry.host,
-						i.config.socketPath+entry.subdir,
+						filepath.Join(i.config.socketPath, entry.subdir),
 						corev1.HostPathDirectoryOrCreate,
 						true,
 					)

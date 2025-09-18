@@ -333,15 +333,19 @@ func TestInjectSocket(t *testing.T) {
 		withCSIDriver           bool
 		TraceHostSocketPath     string
 		DogStatsDHostSocketPath string
+		apmSocketFile           string
+		dsdSocketFile           string
 		expectedVolumeMounts    []corev1.VolumeMount
 		expectedVolumes         []corev1.Volume
 		expectedEnvs            []corev1.EnvVar
 	}{
 		{
-			name:                    "no csi driver",
+			name:                    "no csi driver (diff host dir)",
 			withCSIDriver:           false,
 			TraceHostSocketPath:     "/var/run/datadog-apm",
 			DogStatsDHostSocketPath: "/var/run/datadog-dsd",
+			apmSocketFile:           "apm.sock",
+			dsdSocketFile:           "dsd.socket",
 			expectedVolumes: []corev1.Volume{
 				{
 					Name: "datadog-apm",
@@ -375,13 +379,45 @@ func TestInjectSocket(t *testing.T) {
 				},
 			},
 			expectedEnvs: []corev1.EnvVar{
-				mutatecommon.FakeEnvWithValue("DD_TRACE_AGENT_URL", "unix:///var/run/datadog/apm/apm.socket"),
+				mutatecommon.FakeEnvWithValue("DD_TRACE_AGENT_URL", "unix:///var/run/datadog/apm/apm.sock"),
 				mutatecommon.FakeEnvWithValue("DD_DOGSTATSD_URL", "unix:///var/run/datadog/dsd/dsd.socket"),
+			},
+		},
+		{
+			name:                    "no csi driver (same host dir)",
+			withCSIDriver:           false,
+			TraceHostSocketPath:     "/var/run/datadog",
+			DogStatsDHostSocketPath: "/var/run/datadog",
+			apmSocketFile:           "apm.sock",
+			dsdSocketFile:           "dsd.socket",
+			expectedVolumes: []corev1.Volume{
+				{
+					Name: "datadog",
+					VolumeSource: corev1.VolumeSource{
+						HostPath: &corev1.HostPathVolumeSource{
+							Path: "/var/run/datadog",
+							Type: pointer.Ptr(corev1.HostPathDirectoryOrCreate),
+						},
+					},
+				},
+			},
+			expectedVolumeMounts: []corev1.VolumeMount{
+				{
+					Name:      "datadog",
+					MountPath: "/var/run/datadog",
+					ReadOnly:  true,
+				},
+			},
+			expectedEnvs: []corev1.EnvVar{
+				mutatecommon.FakeEnvWithValue("DD_TRACE_AGENT_URL", "unix:///var/run/datadog/apm.sock"),
+				mutatecommon.FakeEnvWithValue("DD_DOGSTATSD_URL", "unix:///var/run/datadog/dsd.socket"),
 			},
 		},
 		{
 			name:          "with csi driver",
 			withCSIDriver: true,
+			apmSocketFile: "apm.sock",
+			dsdSocketFile: "dsd.socket",
 			expectedVolumes: []corev1.Volume{
 				{
 					Name: "datadog-dsd",
@@ -423,7 +459,7 @@ func TestInjectSocket(t *testing.T) {
 				},
 			},
 			expectedEnvs: []corev1.EnvVar{
-				mutatecommon.FakeEnvWithValue("DD_TRACE_AGENT_URL", "unix:///var/run/datadog/apm/apm.socket"),
+				mutatecommon.FakeEnvWithValue("DD_TRACE_AGENT_URL", "unix:///var/run/datadog/apm/apm.sock"),
 				mutatecommon.FakeEnvWithValue("DD_DOGSTATSD_URL", "unix:///var/run/datadog/dsd/dsd.socket"),
 			},
 		},
@@ -444,6 +480,8 @@ func TestInjectSocket(t *testing.T) {
 					"csi.enabled": test.withCSIDriver,
 					"admission_controller.inject_config.trace_agent_host_socket_path":     test.TraceHostSocketPath,
 					"admission_controller.inject_config.dogstatsd_agent_host_socket_path": test.DogStatsDHostSocketPath,
+					"admission_controller.inject_config.trace_agent_socket_filename":      test.apmSocketFile,
+					"admission_controller.inject_config.dogstatsd_agent_socket_filename":  test.dsdSocketFile,
 				},
 			}))
 			filter, err := NewFilter(datadogConfig)
@@ -482,6 +520,8 @@ func TestInjectSocket_VolumeTypeSocket(t *testing.T) {
 		withCSIDriver             bool
 		TraceHostSocketPath       string
 		DogStatsDHostSocketPath   string
+		apmSocketFile             string
+		dsdSocketFile             string
 		expectedVolumeMounts      []corev1.VolumeMount
 		expectedVolumes           []corev1.Volume
 		globalTypeSocketVolumes   bool
@@ -493,6 +533,8 @@ func TestInjectSocket_VolumeTypeSocket(t *testing.T) {
 			withCSIDriver:           false,
 			DogStatsDHostSocketPath: "/var/run/datadog-dsd",
 			TraceHostSocketPath:     "/var/run/datadog-apm",
+			apmSocketFile:           "apm.sock",
+			dsdSocketFile:           "dsd.socket",
 			globalTypeSocketVolumes: true,
 			expectedVolumes: []corev1.Volume{
 				{
@@ -508,7 +550,7 @@ func TestInjectSocket_VolumeTypeSocket(t *testing.T) {
 					Name: "datadog-trace-agent",
 					VolumeSource: corev1.VolumeSource{
 						HostPath: &corev1.HostPathVolumeSource{
-							Path: "/var/run/datadog-apm/apm.socket",
+							Path: "/var/run/datadog-apm/apm.sock",
 							Type: pointer.Ptr(corev1.HostPathSocket),
 						},
 					},
@@ -517,18 +559,18 @@ func TestInjectSocket_VolumeTypeSocket(t *testing.T) {
 			expectedVolumeMounts: []corev1.VolumeMount{
 				{
 					Name:      "datadog-dogstatsd",
-					MountPath: "/var/run/datadog/dsd.socket",
+					MountPath: "/var/run/datadog/dsd/dsd.socket",
 					ReadOnly:  true,
 				},
 				{
 					Name:      "datadog-trace-agent",
-					MountPath: "/var/run/datadog/apm.socket",
+					MountPath: "/var/run/datadog/apm/apm.sock",
 					ReadOnly:  true,
 				},
 			},
 			expectedEnvs: []corev1.EnvVar{
-				mutatecommon.FakeEnvWithValue("DD_TRACE_AGENT_URL", "unix:///var/run/datadog/apm.socket"),
-				mutatecommon.FakeEnvWithValue("DD_DOGSTATSD_URL", "unix:///var/run/datadog/dsd.socket"),
+				mutatecommon.FakeEnvWithValue("DD_TRACE_AGENT_URL", "unix:///var/run/datadog/apm/apm.sock"),
+				mutatecommon.FakeEnvWithValue("DD_DOGSTATSD_URL", "unix:///var/run/datadog/dsd/dsd.socket"),
 			},
 		},
 		{
@@ -536,6 +578,8 @@ func TestInjectSocket_VolumeTypeSocket(t *testing.T) {
 			withCSIDriver:             false,
 			DogStatsDHostSocketPath:   "/var/run/datadog-dsd",
 			TraceHostSocketPath:       "/var/run/datadog-apm",
+			apmSocketFile:             "apm.sock",
+			dsdSocketFile:             "dsd.socket",
 			globalTypeSocketVolumes:   false,
 			typeSocketVolumesPodLabel: true,
 			expectedVolumes: []corev1.Volume{
@@ -552,7 +596,7 @@ func TestInjectSocket_VolumeTypeSocket(t *testing.T) {
 					Name: "datadog-trace-agent",
 					VolumeSource: corev1.VolumeSource{
 						HostPath: &corev1.HostPathVolumeSource{
-							Path: "/var/run/datadog-apm/apm.socket",
+							Path: "/var/run/datadog-apm/apm.sock",
 							Type: pointer.Ptr(corev1.HostPathSocket),
 						},
 					},
@@ -561,24 +605,26 @@ func TestInjectSocket_VolumeTypeSocket(t *testing.T) {
 			expectedVolumeMounts: []corev1.VolumeMount{
 				{
 					Name:      "datadog-dogstatsd",
-					MountPath: "/var/run/datadog/dsd.socket",
+					MountPath: "/var/run/datadog/dsd/dsd.socket",
 					ReadOnly:  true,
 				},
 				{
 					Name:      "datadog-trace-agent",
-					MountPath: "/var/run/datadog/apm.socket",
+					MountPath: "/var/run/datadog/apm/apm.sock",
 					ReadOnly:  true,
 				},
 			},
 			expectedEnvs: []corev1.EnvVar{
-				mutatecommon.FakeEnvWithValue("DD_TRACE_AGENT_URL", "unix:///var/run/datadog/apm.socket"),
-				mutatecommon.FakeEnvWithValue("DD_DOGSTATSD_URL", "unix:///var/run/datadog/dsd.socket"),
+				mutatecommon.FakeEnvWithValue("DD_TRACE_AGENT_URL", "unix:///var/run/datadog/apm/apm.sock"),
+				mutatecommon.FakeEnvWithValue("DD_DOGSTATSD_URL", "unix:///var/run/datadog/dsd/dsd.socket"),
 			},
 		},
 		{
 			name:                    "with csi driver",
 			withCSIDriver:           true,
 			globalTypeSocketVolumes: true,
+			apmSocketFile:           "apm.sock",
+			dsdSocketFile:           "dsd.socket",
 			expectedVolumes: []corev1.Volume{
 				{
 					Name: "datadog-dogstatsd",
@@ -609,18 +655,18 @@ func TestInjectSocket_VolumeTypeSocket(t *testing.T) {
 			expectedVolumeMounts: []corev1.VolumeMount{
 				{
 					Name:      "datadog-dogstatsd",
-					MountPath: "/var/run/datadog/dsd.socket",
+					MountPath: "/var/run/datadog/dsd/dsd.socket",
 					ReadOnly:  true,
 				},
 				{
 					Name:      "datadog-trace-agent",
-					MountPath: "/var/run/datadog/apm.socket",
+					MountPath: "/var/run/datadog/apm/apm.sock",
 					ReadOnly:  true,
 				},
 			},
 			expectedEnvs: []corev1.EnvVar{
-				mutatecommon.FakeEnvWithValue("DD_TRACE_AGENT_URL", "unix:///var/run/datadog/apm.socket"),
-				mutatecommon.FakeEnvWithValue("DD_DOGSTATSD_URL", "unix:///var/run/datadog/dsd.socket"),
+				mutatecommon.FakeEnvWithValue("DD_TRACE_AGENT_URL", "unix:///var/run/datadog/apm/apm.sock"),
+				mutatecommon.FakeEnvWithValue("DD_DOGSTATSD_URL", "unix:///var/run/datadog/dsd/dsd.socket"),
 			},
 		},
 	}
@@ -654,6 +700,8 @@ func TestInjectSocket_VolumeTypeSocket(t *testing.T) {
 					"admission_controller.inject_config.csi.enabled":                      test.withCSIDriver,
 					"admission_controller.inject_config.dogstatsd_agent_host_socket_path": test.DogStatsDHostSocketPath,
 					"admission_controller.inject_config.trace_agent_host_socket_path":     test.TraceHostSocketPath,
+					"admission_controller.inject_config.trace_agent_socket_filename":      test.apmSocketFile,
+					"admission_controller.inject_config.dogstatsd_agent_socket_filename":  test.dsdSocketFile,
 				},
 			}))
 			filter, err := NewFilter(datadogConfig)
