@@ -356,6 +356,11 @@ func (p *EBPFProbe) sanityChecks() error {
 		p.config.Probe.NetworkRawPacketEnabled = false
 	}
 
+	if p.config.Probe.NetworkRawPacketEnabled && !p.config.Probe.NetworkEnabled {
+		seclog.Warnf("the raw packet feature of CWS requires event_monitoring_config.network.enabled to be true, setting event_monitoring_config.network.raw_packet.enabled to false")
+		p.config.Probe.NetworkRawPacketEnabled = false
+	}
+
 	if p.config.Probe.NetworkFlowMonitorEnabled && !p.config.Probe.NetworkEnabled {
 		seclog.Warnf("The network flow monitor feature of CWS requires event_monitoring_config.network.enabled to be true, setting event_monitoring_config.network.flow_monitor.enabled to false")
 		p.config.Probe.NetworkFlowMonitorEnabled = false
@@ -1859,15 +1864,17 @@ func (p *EBPFProbe) isNeededForSecurityProfile(eventType eval.EventType) bool {
 
 func (p *EBPFProbe) validEventTypeForConfig(eventType string) bool {
 	switch eventType {
-	case "dns":
+	case model.DNSEventType.String():
 		return p.probe.IsNetworkEnabled()
-	case "imds":
+	case model.IMDSEventType.String():
 		return p.probe.IsNetworkEnabled()
-	case "packet":
+	case model.RawPacketFilterEventType.String():
 		return p.probe.IsNetworkRawPacketEnabled()
-	case "network_flow_monitor":
+	case model.RawPacketActionEventType.String():
+		return p.probe.IsNetworkRawPacketEnabled()
+	case model.NetworkFlowMonitorEventType.String():
 		return p.probe.IsNetworkFlowMonitorEnabled()
-	case "sysctl":
+	case model.SyscallsEventType.String():
 		return p.probe.IsSysctlEventEnabled()
 	}
 	return true
@@ -1899,7 +1906,10 @@ func (p *EBPFProbe) updateProbes(ruleSetEventTypes []eval.EventType, needRawSysc
 
 	// extract probe to activate per the event types
 	for eventType, selectors := range probes.GetSelectorsPerEventType(p.useFentry, p.kernelVersion.HasBpfGetSocketCookieForCgroupSocket()) {
-		if (eventType == "*" || slices.Contains(requestedEventTypes, eventType) || p.isNeededForActivityDump(eventType) || p.isNeededForSecurityProfile(eventType) || p.config.Probe.EnableAllProbes) && p.validEventTypeForConfig(eventType) {
+		if (eventType == "*" || slices.Contains(requestedEventTypes, eventType) ||
+			p.isNeededForActivityDump(eventType) ||
+			p.isNeededForSecurityProfile(eventType) ||
+			p.config.Probe.EnableAllProbes) && p.validEventTypeForConfig(eventType) {
 			activatedProbes = append(activatedProbes, selectors...)
 
 			// to ensure the `enabled_events` map is correctly set with events that are enabled because of ADs
@@ -2369,8 +2379,8 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, err
 
 	// check if there is a network packet action
 	if isRawPacketActionPresent(rs) && p.config.RuntimeSecurity.EnforcementEnabled {
-		if !slices.Contains(eventTypes, model.RawPacketActionEventType.String()) {
-			eventTypes = append(eventTypes, model.RawPacketActionEventType.String())
+		if !slices.Contains(eventTypes, model.RawPacketFilterEventType.String()) {
+			eventTypes = append(eventTypes, model.RawPacketFilterEventType.String())
 		}
 	}
 
