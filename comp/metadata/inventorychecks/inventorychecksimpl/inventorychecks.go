@@ -52,12 +52,12 @@ type checksMetadata map[string][]metadata
 
 // Payload handles the JSON unmarshalling of the metadata payload
 type Payload struct {
-	Hostname     string                   `json:"hostname"`
-	Timestamp    int64                    `json:"timestamp"`
-	Metadata     map[string][]metadata    `json:"check_metadata"`
-	LogsMetadata map[string][]metadata    `json:"logs_metadata"`
-	CheckResults []map[string]interface{} `json:"check_results"`
-	UUID         string                   `json:"uuid"`
+	Hostname     string                `json:"hostname"`
+	Timestamp    int64                 `json:"timestamp"`
+	Metadata     map[string][]metadata `json:"check_metadata"`
+	LogsMetadata map[string][]metadata `json:"logs_metadata"`
+	CheckResults map[string][]metadata `json:"check_results"`
+	UUID         string                `json:"uuid"`
 }
 
 // MarshalJSON serialization a Payload to JSON
@@ -201,7 +201,7 @@ func (ic *inventorychecksImpl) getPayload(withConfigs bool) marshaler.JSONMarsha
 	defer ic.m.Unlock()
 
 	payloadData := make(checksMetadata)
-	checkStats := make([]map[string]interface{}, 0)
+	checkResults := make(map[string][]metadata)
 	invChecksEnabled := ic.conf.GetBool("inventories_checks_configuration_enabled")
 	withConfigs = withConfigs && invChecksEnabled
 
@@ -232,7 +232,25 @@ func (ic *inventorychecksImpl) getPayload(withConfigs bool) marshaler.JSONMarsha
 			}
 		}
 
-		checkStats = coll.GetChecksResults()
+		cr := coll.GetChecksResults()
+		for _, c := range cr {
+			checkName := c["check_name"].(string)
+			if _, found := checkResults[checkName]; !found {
+				checkResults[checkName] = []metadata{}
+			}
+			errors := []string{}
+			if errs, ok := c["error"].([]string); ok {
+				errors = errs
+			} else if err, ok := c["error"].(string); ok && err != "" {
+				ic.log.Debugf("error is a string: %v", err)
+				errors = []string{err}
+			}
+			checkResults[checkName] = append(checkResults[checkName], metadata{
+				"config.id": fmt.Sprintf("%v", c["check_id"]),
+				"status":    c["status"],
+				"errors":    errors,
+			})
+		}
 	}
 
 	logsMetadata := make(map[string][]metadata)
@@ -283,7 +301,7 @@ func (ic *inventorychecksImpl) getPayload(withConfigs bool) marshaler.JSONMarsha
 		Timestamp:    time.Now().UnixNano(),
 		Metadata:     payloadData,
 		LogsMetadata: logsMetadata,
-		CheckResults: checkStats,
+		CheckResults: checkResults,
 		UUID:         uuid.GetUUID(),
 	}
 }
