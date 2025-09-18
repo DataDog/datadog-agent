@@ -42,6 +42,12 @@ The payload is a JSON dict with the following fields
     - `service` - **string**: the service name of the log source.
     - `source` - **string**: the log source name.
     - `tags` - **list of string**: a list of tags attached to the log source.
+- `check_results` - **dict of string to list**: dictionary with check names as keys; values are checks execution process result,
+  Each instance is composed of:
+    - `config.id` - **string**: the instance ID for this instance (may be generic in case of initialization errors).
+    - `status` - **string**: the status of the check process (OK, WARNING or ERROR).
+    - `errors` - **list of string**: the list of associated errors.
+
 
 ("scrubbed" indicates that secrets are removed from the field value just as they are in logs)
 
