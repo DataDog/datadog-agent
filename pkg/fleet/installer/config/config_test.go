@@ -321,3 +321,18 @@ func TestBuildOperationsFromLegacyInstaller(t *testing.T) {
 	assert.True(t, filePaths[filepath.Join("managed", "datadog-agent", "stable", "datadog.yaml")])
 	assert.True(t, filePaths[filepath.Join("managed", "datadog-agent", "stable", "security-agent.yaml")])
 }
+
+func TestBuildOperationsFromLegacyConfigFileKeepApplicationMonitoring(t *testing.T) {
+	tmpDir := t.TempDir()
+	managedDir := filepath.Join(tmpDir, legacyPathPrefix)
+	err := os.MkdirAll(managedDir, 0755)
+	assert.NoError(t, err)
+
+	// Create a legacy config file
+	legacyConfig := []byte("{\"bar\":123,\"foo\":\"legacy_value\"}")
+	err = os.WriteFile(filepath.Join(managedDir, "application_monitoring.yaml"), legacyConfig, 0644)
+	assert.NoError(t, err)
+
+	ops := buildOperationsFromLegacyInstaller(tmpDir)
+	assert.Len(t, ops, 0)
+}
