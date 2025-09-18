@@ -21,7 +21,7 @@ dda inv agent.build --build-exclude=systemd,python
 
 This is the complete list of the available components:
 
-* `apm`: make the APM agent execution available. For information on building the trace agent, see [the trace agent README](../trace-agent/README.md).
+* `apm`: make the APM agent execution available. For information on building the trace agent, see [the trace agent section](#trace-agent).
 * `consul`: enable consul as a configuration store
 * `python`: embed the Python interpreter.
 * `docker`: add Docker support (required by AutoDiscovery).
@@ -43,9 +43,19 @@ This is the complete list of the available components:
 * `kubeapiserver`: enable interaction with Kubernetes API server (required by the cluster Agent)
 
 Please note you might need to provide some extra dependencies in your dev
-environment to build certain bits (see [development environment][dev-env]).
+environment to build certain bits (see [manual setup](https://datadoghq.dev/datadog-agent/setup/manual/)).
 
-Also note that the trace agent needs to be built and run separately. For more information, see [the trace agent README](../trace-agent/README.md).
+Also note that the trace agent needs to be built and run separately. For more information, see [below](#trace-agent).
+
+## Trace agent
+
+The [official documentation](https://docs.datadoghq.com/tracing/trace_collection/) is available on the Datadog website.
+To build the trace agent, run:
+
+```
+dda inv trace-agent.build
+```
+To run the trace agent, with the Datadog Agent already running, run `./bin/trace-agent/trace-agent`. If needed, pass your configuration file with `-config <path-to-yaml-file>`.
 
 ## Additional details
 
@@ -94,5 +104,3 @@ For this to work properly, two things are important:
 - You need to run the invoke task with the proper embedded path `dda inv -e agent.build -e /opt/datadog-agent/embedded`.
 
 **Note**: This makes `invoke` install the build's artifacts in the `/opt/datadog-agent/embedded` folder. Make sure the folder exists and the current user has write permissions.
-
-[dev-env]: agent_dev_env.md

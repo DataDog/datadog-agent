@@ -93,7 +93,7 @@ def _get_env(ctx, major_version='7', flavor=None):
     # Used for installation directories registry keys
     # https://github.com/openssl/openssl/blob/master/NOTES-WINDOWS.md#installation-directories
     # TODO: How best to configure the OpenSSL version?
-    env['AGENT_OPENSSL_VERSION'] = "3.4"
+    env['AGENT_OPENSSL_VERSION'] = "3.5"
 
     return env
 
@@ -420,7 +420,7 @@ def test(ctx, vstudio_root=None, arch="x64", major_version='7', debug=False):
 
     # Generate the config file
     if not ctx.run(
-        f'dda inv -- -e agent.generate-config --build-type="agent-py2py3" --output-file="{build_outdir}\\datadog.yaml"',
+        f'dda inv -- -e agent.generate-config --build-type="agent-py3" --output-file="{build_outdir}\\datadog.yaml"',
         warn=True,
         env=env,
     ):

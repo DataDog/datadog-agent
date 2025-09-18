@@ -5,6 +5,8 @@
 
 //go:build kubelet || docker
 
+// Package tailerfactory implements the logic required to determine which kind
+// of tailer to use for a container-related LogSource, and to create that tailer.
 package tailerfactory
 
 // This file handles creating docker tailers which access the container runtime
@@ -131,6 +133,7 @@ func (tf *factory) makeDockerFileSource(source *sources.LogSource) (*sources.Log
 		Source:                      sourceName,
 		Tags:                        source.Config.Tags,
 		ProcessingRules:             source.Config.ProcessingRules,
+		FingerprintConfig:           source.Config.FingerprintConfig,
 		AutoMultiLine:               source.Config.AutoMultiLine,
 		AutoMultiLineSampleSize:     source.Config.AutoMultiLineSampleSize,
 		AutoMultiLineMatchThreshold: source.Config.AutoMultiLineMatchThreshold,
@@ -240,6 +243,7 @@ func (tf *factory) makeK8sFileSource(source *sources.LogSource) (*sources.LogSou
 			Source:                      sourceName,
 			Tags:                        source.Config.Tags,
 			ProcessingRules:             source.Config.ProcessingRules,
+			FingerprintConfig:           source.Config.FingerprintConfig,
 			AutoMultiLine:               source.Config.AutoMultiLine,
 			AutoMultiLineSampleSize:     source.Config.AutoMultiLineSampleSize,
 			AutoMultiLineMatchThreshold: source.Config.AutoMultiLineMatchThreshold,

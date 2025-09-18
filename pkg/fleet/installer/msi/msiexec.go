@@ -22,13 +22,15 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/cenkalti/backoff/v5"
 	"golang.org/x/sys/windows"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 )
 
 // MsiexecError provides the processed log file content and the underlying error.
@@ -163,7 +165,28 @@ func WithLogFile(logFile string) MsiexecOption {
 	}
 }
 
-// WithAdditionalArgs specifies additional arguments for msiexec
+// WithProperties specifies additional MSI properties as Key=Value entries.
+// In the final command line, values are always quoted and any embedded quotes are escaped by doubling them.
+// Properties are appended in sorted key order to ensure deterministic command line construction.
+func WithProperties(props map[string]string) MsiexecOption {
+	return func(a *msiexecArgs) error {
+		if len(props) == 0 {
+			return nil
+		}
+		keys := make([]string, 0, len(props))
+		for k := range props {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			a.additionalArgs = append(a.additionalArgs, formatPropertyArg(k, props[k]))
+		}
+		return nil
+	}
+}
+
+// WithAdditionalArgs specifies raw additional arguments for msiexec, e.g. []string{"PROP=VALUE", "WIXUI_DONTVALIDATEPATH=1"}
+// These are appended as-is without additional quoting. Use WithProperties for MSI properties to ensure they are properly quoted.
 func WithAdditionalArgs(additionalArgs []string) MsiexecOption {
 	return func(a *msiexecArgs) error {
 		a.additionalArgs = append(a.additionalArgs, additionalArgs...)
@@ -190,10 +213,7 @@ func WithDdAgentUserPassword(ddagentUserPassword string) MsiexecOption {
 // HideControlPanelEntry passes a flag to msiexec so that the installed program
 // does not show in the Control Panel "Add/Remove Software"
 func HideControlPanelEntry() MsiexecOption {
-	return func(a *msiexecArgs) error {
-		a.additionalArgs = append(a.additionalArgs, "ARPSYSTEMCOMPONENT=1")
-		return nil
-	}
+	return WithProperties(map[string]string{"ARPSYSTEMCOMPONENT": "1"})
 }
 
 // withCmdRunner overrides how msiexec commands are executed.
@@ -328,6 +348,8 @@ func (m *Msiexec) processLogFile(logFile fs.File) ([]byte, error) {
 }
 
 // isRetryableExitCode returns true if the exit code indicates the msiexec operation should be retried
+//
+// https://learn.microsoft.com/en-us/windows/win32/msi/error-codes
 func isRetryableExitCode(err error) bool {
 	if err == nil {
 		return false
@@ -341,6 +363,30 @@ func isRetryableExitCode(err error) bool {
 		} else if exitError.ExitCode() == int(windows.ERROR_INSTALL_SERVICE_FAILURE) {
 			// could not connect to msiserver service.
 			// it should auto start when the MSI is run, but maybe it failed or was too slow to start.
+			return true
+		}
+	}
+
+	return false
+}
+
+// isSuccessExitCode returns true if the exit code indicates the msiexec operation was successful
+//
+// https://learn.microsoft.com/en-us/windows/win32/msi/error-codes
+func isSuccessExitCode(err error) bool {
+	if err == nil {
+		// no error means success
+		return true
+	}
+
+	var exitError exitCodeError
+	if errors.As(err, &exitError) {
+		if exitError.ExitCode() == int(windows.ERROR_SUCCESS_REBOOT_REQUIRED) {
+			// 3010 - success but requires reboot
+			return true
+		} else if exitError.ExitCode() == int(windows.ERROR_SUCCESS_REBOOT_INITIATED) {
+			// 1641 - success but Windows will reboot the host
+			// this is unexpected now that we pass /norestart, msiexec should return 3010 instead
 			return true
 		}
 	}
@@ -389,6 +435,15 @@ func (m *Msiexec) Run(ctx context.Context) error {
 				var msiError *MsiexecError
 				if errors.As(err, &msiError) {
 					span.SetTag("log", msiError.ProcessedLog)
+					// Check if logfile is empty
+					logFileInfo, logFileStatErr := os.Stat(m.args.logFile)
+					var isLogEmpty bool
+					if logFileStatErr != nil {
+						isLogEmpty = true
+					} else {
+						isLogEmpty = logFileInfo.Size() == 0
+					}
+					span.SetTag("is_log_empty", isLogEmpty)
 				}
 			}
 			span.Finish(err)
@@ -433,6 +488,13 @@ func (m *Msiexec) Run(ctx context.Context) error {
 		p()
 	}
 
+	// Check for success exit codes outside of the retry loop
+	// This means we will still get msiexec traces with for the "reboot" exit codes
+	// which will be nice to track, ideally we shouldn't get these exit codes at all.
+	if isSuccessExitCode(err) {
+		return nil
+	}
+
 	return err
 }
 
@@ -460,14 +522,23 @@ func Cmd(options ...MsiexecOption) (*Msiexec, error) {
 			_ = os.RemoveAll(tempDir)
 		})
 	}
+
+	// Add MSI properties to the command line
+	properties := map[string]string{}
 	if a.ddagentUserName != "" {
-		a.additionalArgs = append(a.additionalArgs, fmt.Sprintf("DDAGENTUSER_NAME=%s", a.ddagentUserName))
+		properties["DDAGENTUSER_NAME"] = a.ddagentUserName
 	}
 	if a.ddagentUserPassword != "" {
-		a.additionalArgs = append(a.additionalArgs, fmt.Sprintf("DDAGENTUSER_PASSWORD=%s", a.ddagentUserPassword))
+		properties["DDAGENTUSER_PASSWORD"] = a.ddagentUserPassword
 	}
 	if a.msiAction == "/i" {
-		a.additionalArgs = append(a.additionalArgs, "MSIFASTINSTALL=7")
+		properties["MSIFASTINSTALL"] = "7"
+	}
+	if len(properties) > 0 {
+		err := WithProperties(properties)(a)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	cmd.logFile = a.logFile
@@ -481,6 +552,10 @@ func Cmd(options ...MsiexecOption) (*Msiexec, error) {
 		a.msiAction,
 		fmt.Sprintf(`"%s"`, a.target),
 		"/qn",
+		// Prevent Windows from automatically restarting the machine after the installation is complete.
+		// https://learn.microsoft.com/en-us/windows/win32/msi/standard-installer-command-line-options#norestart
+		// https://learn.microsoft.com/en-us/windows/win32/msi/reboot
+		"/norestart",
 		"/log", fmt.Sprintf(`"%s"`, a.logFile),
 	}, a.additionalArgs...)
 
@@ -510,4 +585,13 @@ func Cmd(options ...MsiexecOption) (*Msiexec, error) {
 	}
 
 	return cmd, nil
+}
+
+// formatPropertyArg returns an MSI property formatted as: Key="Value" with
+// any embedded quotes in Value doubled per MSI escaping requirements.
+func formatPropertyArg(key, value string) string {
+	// Escape embedded quotes by doubling them
+	// https://learn.microsoft.com/en-us/windows/win32/msi/command-line-options
+	escaped := strings.ReplaceAll(value, `"`, `""`)
+	return fmt.Sprintf(`%s="%s"`, key, escaped)
 }

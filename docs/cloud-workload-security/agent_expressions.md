@@ -32,30 +32,30 @@ open.file.path == "/etc/shadow" && process.file.path not in ["/usr/sbin/vipw"]
 ## Operators
 SECL operators are used to combine event attributes together into a full expression. The following operators are available:
 
-| SECL Operator         | Types            |  Definition                              | Agent Version |
-|-----------------------|------------------|------------------------------------------|---------------|
-| `==`                  | Process          | Equal                                    | 7.27          |
-| `!=`                  | File             | Not equal                                | 7.27          |
-| `>`                   | File             | Greater                                  | 7.27          |
-| `>=`                  | File             | Greater or equal                         | 7.27          |
-| `<`                   | File             | Lesser                                   | 7.27          |
-| `<=`                  | File             | Lesser or equal                          | 7.27          |
-| `!` or `not`          | File             | Not                                      | 7.27          |
-| `^`                   | File             | Binary not                               | 7.27          |
-| `in [elem1, ...]`     | File             | Element is contained in list             | 7.27          |
-| `not in [elem1, ...]` | File             | Element is not contained in list         | 7.27          |
-| `=~`                  | File             | String matching                          | 7.27          |
-| `!~`                  | File             | String not matching                      | 7.27          |
-| `&`                   | File             | Binary and                               | 7.27          |
-| `\|`                  | File             | Binary or                                | 7.27          |
-| `&&` or `and`         | File             | Logical and                              | 7.27          |
-| `\|\|` or `or`        | File             | Logical or                               | 7.27          |
-| `in CIDR`             | Network          | Element is in the IP range               | 7.37          |
-| `not in CIDR`         | Network          | Element is not in the IP range           | 7.37          |
-| `allin CIDR`          | Network          | All the elements are in the IP range     | 7.37          |
-| `in [CIDR1, ...]`     | Network          | Element is in the IP ranges              | 7.37          |
-| `not in [CIDR1, ...]` | Network          | Element is not in the IP ranges          | 7.37          |
-| `allin [CIDR1, ...]`  | Network          | All the elements are in the IP ranges    | 7.37          |
+| SECL Operator         |  Definition                              | Agent Version |
+|-----------------------|------------------------------------------|---------------|
+| `==`                  | Equal                                    | 7.27          |
+| `!=`                  | Not equal                                | 7.27          |
+| `>`                   | Greater                                  | 7.27          |
+| `>=`                  | Greater or equal                         | 7.27          |
+| `<`                   | Lesser                                   | 7.27          |
+| `<=`                  | Lesser or equal                          | 7.27          |
+| `!` or `not`          | Not                                      | 7.27          |
+| `^`                   | Binary not                               | 7.27          |
+| `in [elem1, ...]`     | Element is contained in list             | 7.27          |
+| `not in [elem1, ...]` | Element is not contained in list         | 7.27          |
+| `=~`                  | String matching                          | 7.27          |
+| `!~`                  | String not matching                      | 7.27          |
+| `&`                   | Binary and                               | 7.27          |
+| `\|`                  | Binary or                                | 7.27          |
+| `&&` or `and`         | Logical and                              | 7.27          |
+| `\|\|` or `or`        | Logical or                               | 7.27          |
+| `in CIDR`             | Element is in the IP range               | 7.37          |
+| `not in CIDR`         | Element is not in the IP range           | 7.37          |
+| `allin CIDR`          | All the elements are in the IP range     | 7.37          |
+| `in [CIDR1, ...]`     | Element is in the IP ranges              | 7.37          |
+| `not in [CIDR1, ...]` | Element is not in the IP ranges          | 7.37          |
+| `allin [CIDR1, ...]`  | All the elements are in the IP ranges    | 7.37          |
 
 ## Patterns and regular expressions
 Patterns or regular expressions can be used in SECL expressions. They can be used with the `in`, `not in`, `=~`, and `!~` operators.

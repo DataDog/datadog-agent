@@ -32,6 +32,8 @@ import (
 	compression "github.com/DataDog/datadog-agent/comp/trace/compression/def"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	agentrt "github.com/DataDog/datadog-agent/pkg/runtime"
@@ -44,8 +46,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
 )
 
 const messageAgentDisabled = `trace-agent not enabled. Set the environment variable
@@ -61,15 +61,16 @@ type dependencies struct {
 	Lc         fx.Lifecycle
 	Shutdowner fx.Shutdowner
 
-	Config             config.Component
-	Secrets            option.Option[secrets.Component]
-	Context            context.Context
-	Params             *Params
-	TelemetryCollector telemetry.TelemetryCollector
-	Statsd             statsd.Component
-	Tagger             tagger.Component
-	Compressor         compression.Component
-	IPC                ipc.Component
+	Config                config.Component
+	Secrets               option.Option[secrets.Component]
+	Context               context.Context
+	Params                *Params
+	TelemetryCollector    telemetry.TelemetryCollector
+	Statsd                statsd.Component
+	Tagger                tagger.Component
+	Compressor            compression.Component
+	IPC                   ipc.Component
+	TracerPayloadModifier pkgagent.TracerPayloadModifier
 }
 
 var _ traceagent.Component = (*component)(nil)
@@ -144,6 +145,7 @@ func NewAgent(deps dependencies) (traceagent.Component, error) {
 		statsdCl,
 		deps.Compressor,
 	)
+	c.Agent.TracerPayloadModifier = deps.TracerPayloadModifier
 
 	c.config.OnUpdateAPIKey(c.UpdateAPIKey)
 

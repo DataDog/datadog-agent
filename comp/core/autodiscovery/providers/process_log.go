@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"sync"
 	"unicode/utf8"
 
@@ -288,11 +289,25 @@ func (p *processLogConfigProvider) processEventsInner(evBundle workloadmeta.Even
 
 // getServiceName returns the name of the service to be used in the log config.
 func getServiceName(service *workloadmeta.Service) string {
-	if service.DDService != "" {
-		return service.DDService
+	if service.UST.Service != "" {
+		return service.UST.Service
 	}
 
 	return service.GeneratedName
+}
+
+var generatedNameToSource = map[string]string{
+	"apache2":           "apache",
+	"catalina":          "tomcat",
+	"clickhouse-server": "clickhouse",
+	"cockroach":         "cockroachdb",
+	"kafka.Kafka":       "kafka",
+	"postgres":          "postgresql",
+	"mongod":            "mongodb",
+	"mysqld":            "mysql",
+	"redis-server":      "redis",
+	"slapd":             "openldap",
+	"tailscaled":        "tailscale",
 }
 
 // getSource returns the source to be used in the log config. This needs to
@@ -300,25 +315,23 @@ func getServiceName(service *workloadmeta.Service) string {
 // https://app.datadoghq.com/logs/pipelines/pipeline/library. For now, this has
 // some handling for some common cases, until a better solution is available.
 func getSource(service *workloadmeta.Service) string {
-	source := service.GeneratedName
+	generatedName := service.GeneratedName
 
-	// Binary name differs from the integration name
-	if source == "apache2" {
-		return "apache"
+	if replacement, ok := generatedNameToSource[generatedName]; ok {
+		return replacement
 	}
-	if source == "postgres" {
-		return "postgresql"
+	if strings.HasPrefix(generatedName, "org.elasticsearch.") {
+		return "elasticsearch"
 	}
-	if source == "catalina" {
-		return "tomcat"
+	if strings.HasPrefix(generatedName, "org.sonar.") {
+		return "sonarqube"
 	}
-
 	// The generated name may be the WSGI application name
 	if service.GeneratedNameSource == "gunicorn" {
 		return "gunicorn"
 	}
 
-	return source
+	return generatedName
 }
 
 func getIntegrationName(logFile string) string {

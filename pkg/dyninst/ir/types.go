@@ -8,6 +8,7 @@
 package ir
 
 import (
+	"fmt"
 	"iter"
 	"reflect"
 )
@@ -20,7 +21,10 @@ type Type interface {
 	GetID() TypeID
 	// GetName returns the name of the type.
 	GetName() string
-	// GetByteSize returns the size of the type in bytes.
+	// GetDynamicSizeClass returns the class of the dynamic size of the type.
+	GetDynamicSizeClass() DynamicSizeClass
+	// GetByteSize returns either the size of the type in bytes, for statically
+	// sized types, or the size of a single element for dynamically sized types.
 	GetByteSize() uint32
 	// GetGoRuntimeType returns the runtime type of the type, if it is associated
 	// with a Go type.
@@ -56,6 +60,7 @@ func (t *GoTypeAttributes) GetGoKind() (reflect.Kind, bool) {
 var (
 	_ Type = (*BaseType)(nil)
 	_ Type = (*PointerType)(nil)
+	_ Type = (*UnresolvedPointeeType)(nil)
 	_ Type = (*StructureType)(nil)
 	_ Type = (*ArrayType)(nil)
 
@@ -87,10 +92,31 @@ func (t *TypeCommon) GetName() string {
 	return t.Name
 }
 
+// GetDynamicSizeClass returns the class of the dynamic size of the type.
+func (t *TypeCommon) GetDynamicSizeClass() DynamicSizeClass {
+	return t.DynamicSizeClass
+}
+
 // GetByteSize returns the size of the type in bytes.
 func (t *TypeCommon) GetByteSize() uint32 {
 	return t.ByteSize
 }
+
+// DynamicSizeClass is the class of the dynamic size of the type.
+type DynamicSizeClass uint8
+
+// Note these enum must match the ebpf/types.h:dynamic_size_class enum.
+const (
+	// StaticSize corresponds to statically sized types.
+	StaticSize DynamicSizeClass = iota
+	// DynamicSizeSlice corresponds to slices.
+	DynamicSizeSlice
+	// DynamicSizeString corresponds to strings.
+	DynamicSizeString
+	// DynamicSizeHashmap corresponds to bucket slice types of hashmaps.
+	// These are given extra space due to expected fraction of empty slots.
+	DynamicSizeHashmap
+)
 
 // TypeCommon has common fields for all types.
 type TypeCommon struct {
@@ -98,6 +124,8 @@ type TypeCommon struct {
 	ID TypeID
 	// Name is the name of the type.
 	Name string
+	// DynamicSize is true if the type is dynamically sized.
+	DynamicSizeClass DynamicSizeClass
 	// ByteSize is the size of the type in bytes.
 	ByteSize uint32
 }
@@ -158,6 +186,16 @@ func (t *StructureType) Fields() iter.Seq[Field] {
 	}
 }
 
+// FieldOffsetByName returns the offset of the field with the given name.
+func (t *StructureType) FieldOffsetByName(name string) (uint32, error) {
+	for _, f := range t.RawFields {
+		if f.Name == name {
+			return f.Offset, nil
+		}
+	}
+	return 0, fmt.Errorf("no field %s in struct %s", name, t.Name)
+}
+
 // Field is a field in a structure.
 type Field struct {
 	// Name is the name of the field.
@@ -190,7 +228,7 @@ type GoEmptyInterfaceType struct {
 
 	// UnderlyingStructure is the structure that is the underlying type of the
 	// runtime.eface.
-	UnderlyingStructure *StructureType
+	RawFields []Field
 }
 
 func (t *GoEmptyInterfaceType) irType() {}
@@ -202,7 +240,7 @@ type GoInterfaceType struct {
 
 	// UnderlyingStructure is the structure that is the underlying type of the
 	// runtime.iface.
-	UnderlyingStructure *StructureType
+	RawFields []Field
 }
 
 func (t *GoInterfaceType) irType() {}
@@ -360,3 +398,12 @@ type RootExpression struct {
 	// value of the event.
 	Expression Expression
 }
+
+// UnresolvedPointeeType is a placeholder type that represents an unresolved
+// pointee type.
+type UnresolvedPointeeType struct {
+	TypeCommon
+	syntheticType
+}
+
+func (UnresolvedPointeeType) irType() {}
