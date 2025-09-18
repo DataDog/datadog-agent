@@ -18,7 +18,10 @@ def _impl(ctx):
         MINGW_PATH = "C:/tools/msys64/mingw64"
 
     # MINGW Compiler Version (e.g: "10.3.0")
-    GCC_VERSION = ctx.var.get("GCC_VERSION")
+    if ctx.var.get("GCC_VERSION"):
+        GCC_VERSION = ctx.var.get("GCC_VERSION")
+    else:
+        GCC_VERSION = "12.2.0"
 
     gpp_tool = tool(
         path = MINGW_PATH + "/bin/g++",
