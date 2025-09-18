@@ -12,7 +12,7 @@ build:linux --strategy=sandboxed
 build:macos --strategy=sandboxed
 build:windows --strategy=standalone # Valid values are: [dynamic_worker, standalone, dynamic, remote, worker, local]
 
-build:windows --sandbox_add_mount_pair=C:\Temp
+build:windows --sandbox_add_mount_pair="C:\Users\ContainerAdministrator\AppData\Local\Temp\"
 
 # Remote cache: opt in by adding `common --config=cache` to either `user.bazelrc` (workspace) or `~/.bazelrc` (home)
 common:cache --remote_instance_name=remote-caching
