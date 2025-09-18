@@ -15,6 +15,8 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/time/rate"
+
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
@@ -220,7 +222,26 @@ type scraperSink struct {
 	decoder    *decoder
 }
 
-func (s *scraperSink) HandleEvent(ev output.Event) error {
+var sinkErrLogLimiter = rate.NewLimiter(rate.Every(10*time.Minute), 10)
+
+func (s *scraperSink) HandleEvent(ev output.Event) (retErr error) {
+	// We don't want to fail out the actuator if we can't decode an event.
+	// Instead, we log the error and continue, but we'll make sure to clear
+	// the debouncer state for the process.
+	defer func() {
+		if retErr == nil {
+			return
+		}
+		if sinkErrLogLimiter.Allow() {
+			log.Errorf("rcscrape: error in HandleEvent: %v", retErr)
+		} else {
+			log.Debugf("rcscrape: error in HandleEvent: %v", retErr)
+		}
+		retErr = nil
+		s.scraper.mu.Lock()
+		defer s.scraper.mu.Unlock()
+		s.scraper.mu.debouncer.clear(s.processID)
+	}()
 	now := time.Now()
 	d, err := s.decoder.getEventDecoder(ev)
 	if err != nil {

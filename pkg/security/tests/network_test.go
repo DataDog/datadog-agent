@@ -15,6 +15,7 @@ import (
 	"net"
 	"net/netip"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -122,12 +123,18 @@ func TestRawPacket(t *testing.T) {
 		}
 	}()
 
-	rule := &rules.RuleDefinition{
-		ID:         "test_rule_raw_packet_udp4",
-		Expression: fmt.Sprintf(`packet.filter == "ip dst %s and udp dst port %d" && process.file.name == "%s"`, testDestIP, testUDPDestPort, filepath.Base(executable)),
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_rule_raw_packet_udp4",
+			Expression: fmt.Sprintf(`packet.filter == "ip dst %s and udp dst port %d" && process.file.name == "%s"`, testDestIP, testUDPDestPort, filepath.Base(executable)),
+		},
+		{
+			ID:         "test_rule_raw_packet_icmp",
+			Expression: `packet.filter == "icmp and icmp[icmptype] == icmp-echo and ip dst 8.8.8.8"`,
+		},
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(testOpts{networkRawPacketEnabled: true}))
+	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{networkRawPacketEnabled: true}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -154,6 +161,44 @@ func TestRawPacket(t *testing.T) {
 			assertFieldEqual(t, event, "packet.destination.ip", *expectedIPNet)
 			assertFieldEqual(t, event, "packet.l4_protocol", int(model.IPProtoUDP))
 			assertFieldEqual(t, event, "packet.destination.port", int(testUDPDestPort))
+		})
+	})
+
+	t.Run("icmp", func(t *testing.T) {
+		if _, err := whichNonFatal("docker"); err != nil {
+			t.Skip("Skip test where docker is unavailable")
+		}
+
+		wrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "busybox", "")
+		if err != nil {
+			t.Fatalf("failed to start docker wrapper: %v", err)
+		}
+
+		waitSignal := test.WaitSignalWithoutProcessContext
+
+		kv, err := kernel.NewKernelVersion()
+		if err != nil {
+			t.Errorf("failed to get kernel version: %s", err)
+			return
+		}
+
+		if !kv.HasBpfGetSocketCookieForCgroupSocket() || kv.Code < kernel.Kernel5_15 {
+			waitSignal = test.WaitSignalWithoutProcessContext
+		}
+
+		wrapper.Run(t, "ping", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+			waitSignal(t, func() error {
+				cmd := cmdFunc("/bin/ping", []string{"-c", "1", "8.8.8.8"}, nil)
+				if out, err := cmd.CombinedOutput(); err != nil {
+					return fmt.Errorf("%s: %w", out, err)
+				}
+				return nil
+			}, func(event *model.Event, rule *rules.Rule) {
+				assert.Equal(t, "test_rule_raw_packet_icmp", rule.ID, "wrong rule triggered")
+				assert.Equal(t, "8.8.8.8/32", event.NetworkContext.Destination.IPNet.String(), "wrong destination IP")
+				assert.Equal(t, uint16(model.IPProtoICMP), event.RawPacket.L4Protocol)
+				assert.Equal(t, uint32(model.ICMPTypeEchoRequest), event.RawPacket.NetworkContext.Type)
+			})
 		})
 	})
 }
@@ -230,7 +275,7 @@ func TestRawPacketAction(t *testing.T) {
 		time.Sleep(5 * time.Second)
 
 		cmd = cmdWrapper.Command("nslookup", []string{"microsoft.com"}, []string{})
-		if err := cmd.Run(); err == nil {
+		if err = cmd.Run(); err == nil {
 			t.Error("should return an error")
 		}
 

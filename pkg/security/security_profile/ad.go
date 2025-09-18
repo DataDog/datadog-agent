@@ -116,8 +116,7 @@ func (m *Manager) cleanup() {
 		if !ad.Profile.IsEmpty() && ad.Profile.GetWorkloadSelector() != nil {
 			if err := m.persist(ad.Profile, m.configuredStorageRequests); err != nil {
 				seclog.Errorf("couldn't persist dump [%s]: %v", ad.GetSelectorStr(), err)
-			} else if m.config.RuntimeSecurity.SecurityProfileEnabled && ad.Profile.Metadata.ContainerID != "" {
-				// TODO: remove the IsContainer check once we start handling profiles for non-containerized workloads
+			} else if m.config.RuntimeSecurity.SecurityProfileEnabled {
 				select {
 				case m.newProfiles <- ad.Profile:
 				default:
@@ -205,7 +204,7 @@ func (m *Manager) resolveTags(ad *dump.ActivityDump) error {
 		return nil
 	}
 
-	var workloadID interface{}
+	var workloadID containerutils.WorkloadID
 	if len(ad.Profile.Metadata.ContainerID) > 0 {
 		workloadID = containerutils.ContainerID(ad.Profile.Metadata.ContainerID)
 	} else if len(ad.Profile.Metadata.CGroupContext.CGroupID) > 0 {
@@ -590,9 +589,11 @@ func (m *Manager) SnapshotTracedCgroups() {
 		cgroupContext, _, err := m.resolvers.ResolveCGroupContext(cgroupFile)
 		if err != nil {
 			seclog.Warnf("couldn't resolve cgroup context for (%v): %v", cgroupFile, err)
+			_ = m.tracedCgroupsMap.Delete(cgroupFile)
 			continue
 		}
 		event.CGroupContext = *cgroupContext
+		event.ContainerContext.ContainerID = containerutils.FindContainerID(event.CGroupContext.CGroupID)
 
 		m.HandleCGroupTracingEvent(&event)
 	}

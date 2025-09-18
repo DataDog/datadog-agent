@@ -21,9 +21,10 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
-	"github.com/DataDog/datadog-agent/comp/core"
-	compcfg "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -82,17 +83,17 @@ func setUpCollectorTest(t *testing.T) *collectorTest {
 	port, err := testutil.FindTCPPort()
 	require.NoError(t, err)
 
-	overrides := map[string]interface{}{
-		"process_config.language_detection.grpc_port":              port,
-		"workloadmeta.remote_process_collector.enabled":            true,
-		"workloadmeta.local_process_collector.collection_interval": 15 * time.Second,
-	}
-
 	ipcMock := ipcmock.New(t)
 
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-		core.MockBundle(),
-		fx.Replace(compcfg.MockParams{Overrides: overrides}),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component {
+			return config.NewMockWithOverrides(t, map[string]interface{}{
+				"process_config.language_detection.grpc_port":              port,
+				"workloadmeta.remote_process_collector.enabled":            true,
+				"workloadmeta.local_process_collector.collection_interval": 15 * time.Second,
+			})
+		}),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))

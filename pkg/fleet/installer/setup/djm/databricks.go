@@ -20,10 +20,9 @@ import (
 )
 
 const (
-	databricksInjectorVersion   = "0.43.1-1"
-	databricksJavaTracerVersion = "1.51.1-1"
-	databricksAgentVersion      = "7.68.2-1"
-	fetchTimeoutDuration        = 5 * time.Second
+	databricksInjectorVersion   = "0.45.0-1"
+	databricksJavaTracerVersion = "1.53.0-1"
+	databricksAgentVersion      = "7.70.2-1"
 	gpuIntegrationRestartDelay  = 60 * time.Second
 	restartLogFile              = "/var/log/datadog-gpu-restart"
 )
@@ -153,6 +152,8 @@ func setupCommonHostTags(s *common.Setup) {
 		v = strings.Trim(v, "\"'")
 		return workspaceNameRegex.ReplaceAllString(v, "_")
 	})
+	// No need to normalize workspace url:  metrics tags normalization allows the :/-, usually found in such url
+	setIfExists(s, "WORKSPACE_URL", "workspace_url", nil)
 
 	setClearIfExists(s, "DB_CLUSTER_ID", "cluster_id", nil)
 	setIfExists(s, "DB_CLUSTER_NAME", "cluster_name", func(v string) string {
@@ -238,6 +239,7 @@ func setupGPUIntegration(s *common.Setup) {
 
 	s.Config.DatadogYAML.CollectGPUTags = true
 	s.Config.DatadogYAML.GPUCheck.Enabled = true
+	s.Config.DatadogYAML.EnableNvmlDetection = true
 
 	if s.Config.SystemProbeYAML == nil {
 		s.Config.SystemProbeYAML = &config.SystemProbeConfig{}
