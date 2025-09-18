@@ -29,7 +29,7 @@ Omnibus creates a package **for the operating system it runs on**, so you'll get
 There is currently no way to "cross-build" packages for a platform different than the host's.
 ///
 
-Omnibus is best called indirectly, via [dda](../../../setup/required/#tooling) commands.
+Omnibus is best called indirectly, via [dda](../../setup/required.md/#tooling) commands.
 The main entrypoint is the `omnibus.build` invoke task, which you can run like this:
 ```bash
 dda inv omnibus.build
@@ -102,7 +102,7 @@ If you already have a Datadog Agent installed, you will need to move it to a dif
     * On Linux, you will need root privileges, as you need permission to write into `/opt`
     * On Linux, some configuration files will also be dropped under `/etc`.
 
-1. Follow the [general local setup instructions](../../../setup/manual)
+1. Follow the [general local setup instructions](../../setup/manual.md)
 1. Make `/opt` world-readable
 1. Run the following command:
 ```
