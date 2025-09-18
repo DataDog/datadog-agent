@@ -1,9 +1,9 @@
 load(
     "@bazel_tools//tools/cpp:cc_toolchain_config_lib.bzl",
-    "artifact_name_pattern",
     "action_config",
-    "tool_path",
+    "artifact_name_pattern",
     "tool",
+    "tool_path",
 )
 load("@rules_cc//cc:action_names.bzl", "ACTION_NAMES")
 
