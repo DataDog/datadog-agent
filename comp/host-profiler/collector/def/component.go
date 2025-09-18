@@ -12,7 +12,7 @@
 // host profiler agent.
 package collector
 
-// team: opentelemetry-agent
+// team: opentelemetry-agent profiling-full-host
 
 // Component is the component type for the host profiler collector.
 //

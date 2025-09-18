@@ -302,7 +302,7 @@ Package orchestratorinterface defines the interface for the orchestrator forward
 
 ## [comp/host-profiler](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/host-profiler) (Component Bundle)
 
-*Datadog Team*: opentelemetry-agent
+*Datadog Team*: opentelemetry-agent profiling-full-host
 
 Package hostprofiler implements the "host-profiler" bundle,
 

@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// team: opentelemetry-agent
+// team: opentelemetry-agent profiling-full-host
 
 // Bundle defines the fx options for this bundle.
 func Bundle(params collectorimpl.Params) fxutil.BundleOptions {
