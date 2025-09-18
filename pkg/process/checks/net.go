@@ -19,7 +19,6 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -35,6 +34,7 @@ import (
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	hostinfoutils "github.com/DataDog/datadog-agent/pkg/util/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -528,7 +528,7 @@ func batchConnections(
 		}
 
 		// Add OS telemetry
-		if hostInfo := hostMetadataUtils.GetInformation(); hostInfo != nil {
+		if hostInfo := hostinfoutils.GetInformation(); hostInfo != nil {
 			cc.KernelVersion = hostInfo.KernelVersion
 			cc.Architecture = hostInfo.KernelArch
 			cc.Platform = hostInfo.Platform
