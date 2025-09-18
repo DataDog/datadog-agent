@@ -25,6 +25,7 @@ import (
 	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	logstcp "github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const requestWithHeader = "datadog-agent-diagnose"
