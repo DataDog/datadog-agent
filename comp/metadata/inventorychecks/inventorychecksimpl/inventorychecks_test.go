@@ -140,12 +140,6 @@ func TestGetPayload(t *testing.T) {
 				"error":      "Error: No such file or directory",
 			},
 			{
-				"check_name": "check1",
-				"check_id":   "check1_instance1",
-				"status":     "OK",
-				"error":      "",
-			},
-			{
 				"check_name": "check2",
 				"check_id":   checkid.ID("check2_instance1"),
 				"status":     "OK",
@@ -262,7 +256,7 @@ func TestGetPayload(t *testing.T) {
 
 			assert.Len(t, p.CheckResults, 2)
 			assert.Equal(t, checksResult[0], p.CheckResults[0])
-			assert.Equal(t, checksResult[2], p.CheckResults[1])
+			assert.Equal(t, checksResult[1], p.CheckResults[1])
 
 			// Check the log sources part of the metadata
 			if invChecksCfgEnabled {
