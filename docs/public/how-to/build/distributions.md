@@ -37,11 +37,38 @@ dda inv omnibus.build
 > This will probably not work out of the box though - see instructions below for more information.
 
 
-## Building for Linux: `deb` and `rpm`
-### Containerized build (recommended)
-#### `deb` packages
+## Building for Linux: `deb`
+### Using the `dev env`
 
-We provide a [Docker image](../../reference/images/builders.md#linux) containing all the build dependencies required for building `deb` packages via Omnibus: [`datadog/agent-buildimages-linux`](https://hub.docker.com/r/datadog/agent-buildimages-linux).
+The [developer environments](../../reference/images/dev.md) we provide contain all the dependencies required for building Omnibus packages, along with extra tools and features that make local development easier.
+We recommend that you use them for all your development needs.
+
+To build distribution packages in a developer environment:
+
+1. Follow the [`dev env` tutorial](../../tutorials/dev/env.md) to install the required tools and familiarize yourself with the dev environments.
+1. Make sure Docker is running on your system.
+1. Start a developer environment, which will automatically pull the latest version of the container image: `dda env dev start`
+1. Either:
+
+    * Connect to a shell inside the dev container: `dda env dev shell`
+    * Open an IDE window inside the container: `dda env dev code`
+    * Run a single command inside the container: prefix the command in the next step with `dda env dev run`
+
+1. Run the following command:
+```
+dda inv -- -e omnibus.build
+```
+
+Once the process completes, the built artifacts will be available _in the container_ under `/omnibus/pkg`.
+??? tip "Moving the artifacts back to the host"
+    The `datadog-agent` local repo clone is bind-mounted into the dev env container. You can use this to access your artifacts from the host, by copying them from `/omnibus/pkg` to `/root/repos/datadog-agent`:
+    ```bash
+    mv /omnibus/pkg /root/repos/datadog-agent/bin
+    ```
+
+### Using the build image
+
+We provide a [Docker image](../../reference/images/builders.md#linux) containing all the build dependencies required for building `deb` packages via Omnibus: [`datadog/agent-buildimages-linux`](https://hub.docker.com/r/datadog/agent-buildimages-linux).This image is the one used by CI, and as such it is quite bare-bones. The developer environments mentioned in [the section above](#using-the-dev-env) are based on this image.
 
 ??? tip "Building the image locally"
     The Dockerfile for this image is available in the [datadog-agent-buildimages](https://github.com/DataDog/datadog-agent-buildimages) repository.
@@ -74,25 +101,16 @@ at each Omnibus run:
  * `/tmp/gems`, containing all the ruby gems installed with Bundler
 ///
 
-#### `rpm` packages
+Once the process completes, the built artifacts will be available on your host under `/tmp/omnibus/pkg`.
 
-Some extra dependencies are required for building `rpm` packages that are not yet included in the main `datadog/agent-buildimages-linux` build image.
-
-A separate docker image containing these special dependencies is also available. This image, contrary to the main `datadog/agent-buildimages-linux` image, is not multi-arch - thus there are two flavors depending on the CPU architecture of the host machine:
-
-- For `x86_64`/`amd64`: [`datadog/agent-buildimages-rpm_x64`](https://hub.docker.com/r/datadog/agent-buildimages-rpm_x64)
-- For `arm64`/`aarch64`: [`datadog/agent-buildimages-rpm_arm64`](https://hub.docker.com/r/datadog/agent-buildimages-rpm_arm64)
-
-To build using these images, follow the same instructions as [for `deb` packages](#deb-packages), but replace `datadog/agent-buildimages-linux` with the appropriate flavor of the `rpm` image for your CPU platform.
-
-### Building on the host
+### Building on the host (discouraged)
 
 /// danger
 Building on the host is _not recommended_, and this section of the guide will be maintained on a best-effort basis.
 
 Running Omnibus builds locally may affect the global state of your machine, and in particular the installation of the Agent already present on your laptop.
 
-Please use the [containerized build](#containerized-build-recommended) instead.
+Please use one of the [containerized build options](#using-the-build-image) instead.
 ///
 
 Running an Omnibus build will both create and install an Agent distribution package.
@@ -137,9 +155,21 @@ You can chose to generate an installable package in the form of a `deb`/`rpm` ar
 > On macOS, a `dmg` artifact will always be generated.
 ///
 
+## Building for Linux: `rpm`
+
+Some extra dependencies are required for building `rpm` packages that are not yet included in the main `datadog/agent-buildimages-linux` build image.
+
+A separate docker image containing these special dependencies is also available. This image, contrary to the main `datadog/agent-buildimages-linux` image, is not multi-arch - thus there are two flavors depending on the CPU architecture of the host machine:
+
+- For `x86_64`/`amd64`: [`datadog/agent-buildimages-rpm_x64`](https://hub.docker.com/r/datadog/agent-buildimages-rpm_x64)
+- For `arm64`/`aarch64`: [`datadog/agent-buildimages-rpm_arm64`](https://hub.docker.com/r/datadog/agent-buildimages-rpm_arm64)
+
+To build using these images, follow the same instructions as [for `deb` packages](#using-the-build-image), but replace `datadog/agent-buildimages-linux` with the appropriate flavor of the `rpm` image for your CPU platform.
+You can also attempt a [host-based build](#building-on-the-host-discouraged), although this is heavily discouraged.
+
 ## Building for MacOS
 
-We do not currently support MacOS development environments or any container build image. You will therefore need to follow the [host-based build instructions](#building-on-the-host).
+We do not currently support MacOS development environments or any container build image. You will therefore need to follow the [host-based build instructions](#building-on-the-host-discouraged).
 
 When running the build command, you might want to skip the signing step by adding the `--skip-sign` flag.
 
