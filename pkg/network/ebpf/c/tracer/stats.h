@@ -18,6 +18,7 @@
 #include "skb.h"
 #include "pid_tgid.h"
 #include "timestamp_ms.h"
+#include "protocols/tls/tls-certs.h"
 
 #ifdef COMPILE_PREBUILT
 static __always_inline __u64 offset_rtt();
@@ -207,6 +208,8 @@ static __always_inline void update_conn_stats(conn_tuple_t *t, size_t sent_bytes
     if (!val) {
         return;
     }
+
+    SSL_report_cert(val);
 
     if (is_protocol_classification_supported()) {
         update_protocol_classification_information(t, val);
