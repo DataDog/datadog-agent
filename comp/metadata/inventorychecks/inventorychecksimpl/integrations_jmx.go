@@ -83,7 +83,7 @@ func (ic *inventorychecksImpl) getJMXChecksMetadata() (jmxMetadata map[string][]
 					metadataEntry["jmxfetch.version"] = jmxFetchVersion
 				}
 				if javaRuntimeVersion != "" {
-					metadataEntry["java.runtime_version"] = javaRuntimeVersion
+					metadataEntry["java.version"] = javaRuntimeVersion
 				}
 
 				jmxMetadata[jmxName] = append(jmxMetadata[jmxName], metadataEntry)

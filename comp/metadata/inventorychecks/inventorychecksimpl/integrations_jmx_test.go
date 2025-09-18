@@ -57,6 +57,6 @@ func Test_inventorychecksImpl_getJMXChecksMetadata(t *testing.T) {
 		"1.0.1", jCheck[0]["jmxfetch.version"],
 		"Could not get JMXFetch version", jCheck[0])
 	assert.Equal(t,
-		"1.2.3", jCheck[0]["java.runtime_version"],
+		"1.2.3", jCheck[0]["java.version"],
 		"Could not get Java version", jCheck[0])
 }
