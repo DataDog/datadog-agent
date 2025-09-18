@@ -592,16 +592,15 @@ func GetSelectorsPerEventType(hasFentry bool, hasCgroupSocket bool) map[eval.Eve
 
 	// Add probes required to track network interfaces and map network flows to processes
 	// networkEventTypes: dns, imds, packet, network_monitor
-	// add packet_action as not exposed through SECL thus not repoted by GetEventTypePerCategory
 	networkEventTypes := model.GetEventTypePerCategory(model.NetworkCategory)[model.NetworkCategory]
-	networkEventTypes = append(networkEventTypes, model.RawPacketActionEventType.String())
-
 	for _, networkEventType := range networkEventTypes {
-		selectorsPerEventTypeStore[networkEventType] = []manager.ProbesSelector{
-			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				&manager.AllOf{Selectors: NetworkSelectors(hasCgroupSocket)},
-				&manager.AllOf{Selectors: NetworkVethSelectors()},
-			}},
+		if model.EventTypeDependsOnInterfaceTracking(networkEventType) {
+			selectorsPerEventTypeStore[networkEventType] = []manager.ProbesSelector{
+				&manager.AllOf{Selectors: []manager.ProbesSelector{
+					&manager.AllOf{Selectors: NetworkSelectors(hasCgroupSocket)},
+					&manager.AllOf{Selectors: NetworkVethSelectors()},
+				}},
+			}
 		}
 	}
 
@@ -610,7 +609,9 @@ func GetSelectorsPerEventType(hasFentry bool, hasCgroupSocket bool) map[eval.Eve
 	if err == nil {
 		if _, ok := loadedModules["nf_nat"]; ok {
 			for _, networkEventType := range networkEventTypes {
-				selectorsPerEventTypeStore[networkEventType] = append(selectorsPerEventTypeStore[networkEventType], NetworkNFNatSelectors()...)
+				if model.EventTypeDependsOnInterfaceTracking(networkEventType) {
+					selectorsPerEventTypeStore[networkEventType] = append(selectorsPerEventTypeStore[networkEventType], NetworkNFNatSelectors()...)
+				}
 			}
 		}
 	}
