@@ -4,10 +4,7 @@ Probes:
       version: 0
       type: LOG_PROBE
       where: {methodName: main.HandleHTTP}
-      capture:
-        maxReferenceDepth: 1
-        maxFieldCount: 0
-        maxCollectionSize: 0
+      capture: {maxReferenceDepth: 1}
       template: ""
       segments: []
       captureSnapshot: true
@@ -21,10 +18,7 @@ Probes:
       version: 0
       type: LOG_PROBE
       where: {methodName: main.LookAtTheRequest}
-      capture:
-        maxReferenceDepth: 1
-        maxFieldCount: 0
-        maxCollectionSize: 0
+      capture: {maxReferenceDepth: 1}
       template: ""
       segments: []
       captureSnapshot: true
@@ -678,12 +672,14 @@ Types:
     - __kind: GoSliceDataType
       ID: 188
       Name: '[]bucket<string,[]string>.array'
-      ByteSize: 2048
+      DynamicSizeClass: hashmap
+      ByteSize: 336
       Element: 163 GoHMapBucketType bucket<string,[]string>
     - __kind: GoSliceDataType
       ID: 192
       Name: '[]bucket<string,string>.array'
-      ByteSize: 2048
+      DynamicSizeClass: hashmap
+      ByteSize: 272
       Element: 184 GoHMapBucketType bucket<string,string>
     - __kind: ArrayType
       ID: 186
@@ -716,7 +712,8 @@ Types:
     - __kind: GoSliceDataType
       ID: 189
       Name: '[]string.array'
-      ByteSize: 2048
+      DynamicSizeClass: slice
+      ByteSize: 16
       Element: 11 GoStringHeaderType string
     - __kind: GoSliceHeaderType
       ID: 38
@@ -738,7 +735,8 @@ Types:
     - __kind: GoSliceDataType
       ID: 112
       Name: '[]uint8.array'
-      ByteSize: 2048
+      DynamicSizeClass: slice
+      ByteSize: 1
       Element: 3 BaseType uint8
     - __kind: GoSliceHeaderType
       ID: 43
@@ -760,7 +758,8 @@ Types:
     - __kind: GoSliceDataType
       ID: 114
       Name: '[]uintptr.array'
-      ByteSize: 2048
+      DynamicSizeClass: slice
+      ByteSize: 8
       Element: 1 BaseType uintptr
     - __kind: ArrayType
       ID: 187
@@ -2083,7 +2082,8 @@ Types:
     - __kind: GoStringDataType
       ID: 110
       Name: string.str
-      ByteSize: 2048
+      DynamicSizeClass: string
+      ByteSize: 1
     - __kind: StructureType
       ID: 123
       Name: struct { gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter = gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.monitoredResponseWriter·1; net/http.CloseNotifier }
