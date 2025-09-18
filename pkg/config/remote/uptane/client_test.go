@@ -333,9 +333,10 @@ func TestRollbackRejected(t *testing.T) {
 
 	testRepository1 := newTestRepository(2, 1, configTargets, directorTargets, targetFiles)
 	cfg := newTestConfig(t, testRepository1)
-	db := getTestDB(t)
 
-	client1, err := newTestClient(db, cfg)
+	ts := getTestTransactionalStore(t)
+
+	client1, err := newTestClient(ts, cfg)
 	assert.NoError(t, err)
 	err = client1.Update(testRepository1.toUpdate())
 	assert.NoError(t, err)
@@ -379,9 +380,10 @@ func TestKeyRotationRollback(t *testing.T) {
 
 	testRepository1 := newTestRepository(2, 10, configTargets, directorTargets, targetFiles)
 	cfg := newTestConfig(t, testRepository1)
-	db := getTestDB(t)
+	ts := getTestTransactionalStore(t)
 
-	client1, err := newTestClient(db, cfg)
+	client1, err := newTestClient(ts, cfg)
+
 	assert.NoError(t, err)
 	err = client1.Update(testRepository1.toUpdate())
 	assert.NoError(t, err)
