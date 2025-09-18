@@ -609,30 +609,31 @@ new-e2e-installer-script:
     MAX_RETRIES_FLAG: "--max-retries=3"
     REMOTE_STACK_CLEANING: "true"
 
-# new-e2e-installer:
-#   extends: .new_e2e_template
-#   rules:
-#     - !reference [.on_installer_or_e2e_changes]
-#     - !reference [.manual]
-#   needs:
-#     - !reference [.needs_new_e2e_template]
-#     - deploy_deb_testing-a7_arm64
-#     - deploy_deb_testing-a7_x64
-#     - deploy_rpm_testing-a7_arm64
-#     - deploy_rpm_testing-a7_x64
-#     - deploy_suse_rpm_testing_arm64-a7
-#     - deploy_suse_rpm_testing_x64-a7
-#     - deploy_installer_oci
-#     - deploy_agent_oci
-#     - qa_installer_script_linux
-#   variables:
-#     TARGETS: ./tests/installer/unix
-#     TEAM: fleet
-#     FLEET_INSTALL_METHOD: "install_script"
-#     E2E_LOGS_PROCESSING_TEST_DEPTH: 2
-#     E2E_USE_AWS_PROFILE: "false"
-#     MAX_RETRIES_FLAG: "--max-retries=3"
-#     REMOTE_STACK_CLEANING: "true"
+new-e2e-installer:
+  allow_failure: true
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_installer_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_deb_testing-a7_arm64
+    - deploy_deb_testing-a7_x64
+    - deploy_rpm_testing-a7_arm64
+    - deploy_rpm_testing-a7_x64
+    - deploy_suse_rpm_testing_arm64-a7
+    - deploy_suse_rpm_testing_x64-a7
+    - deploy_installer_oci
+    - deploy_agent_oci
+    - qa_installer_script_linux
+  variables:
+    TARGETS: ./tests/installer/unix
+    TEAM: fleet
+    FLEET_INSTALL_METHOD: "install_script"
+    E2E_LOGS_PROCESSING_TEST_DEPTH: 2
+    E2E_USE_AWS_PROFILE: "false"
+    MAX_RETRIES_FLAG: "--max-retries=3"
+    REMOTE_STACK_CLEANING: "true"
 
 new-e2e-installer-windows:
   extends: .new_e2e_template
