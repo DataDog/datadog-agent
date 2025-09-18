@@ -122,6 +122,17 @@ func formatText(c *probe.WinCrashStatus) string {
 	baseString := `A system crash was detected.
 	The crash occurred at %s.
 	The offending moudule is %s.
-	The bugcheck code is %s`
-	return fmt.Sprintf(baseString, c.DateString, c.Offender, c.BugCheck)
+	The bugcheck code is %s.
+	The bugcheck arguments are (%s, %s, %s, %s).
+	The callstack is [%s].`
+	return fmt.Sprintf(
+		baseString,
+		c.DateString,
+		c.Offender,
+		c.BugCheck,
+		c.BugCheckArg1,
+		c.BugCheckArg2,
+		c.BugCheckArg3,
+		c.BugCheckArg4,
+		c.Callstack)
 }
