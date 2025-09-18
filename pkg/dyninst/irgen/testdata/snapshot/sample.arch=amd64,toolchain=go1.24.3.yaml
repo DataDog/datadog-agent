@@ -321,7 +321,7 @@ Probes:
       events:
         - ID: 111
           Type: 1252 EventRootType Probe[main.testEmptyStruct]
-          InjectionPoints: [{PC: "0xcd95a0", Frameless: true}]
+          InjectionPoints: [{PC: "0xcd95e0", Frameless: true}]
           Condition: null
     - id: testEmptyStructPointer
       version: 0
@@ -334,7 +334,7 @@ Probes:
       events:
         - ID: 112
           Type: 1253 EventRootType Probe[main.testEmptyStructPointer]
-          InjectionPoints: [{PC: "0xcd95c0", Frameless: true}]
+          InjectionPoints: [{PC: "0xcd9600", Frameless: true}]
           Condition: null
     - id: testError
       version: 0
@@ -1401,7 +1401,7 @@ Probes:
       events:
         - ID: 110
           Type: 1251 EventRootType Probe[main.testStruct]
-          InjectionPoints: [{PC: "0xcd9420", Frameless: true}]
+          InjectionPoints: [{PC: "0xcd9460", Frameless: true}]
           Condition: null
     - id: testStructSlice
       version: 0
@@ -3297,13 +3297,13 @@ Subprograms:
           IsReturn: false
     - ID: 107
       Name: main.testStruct
-      OutOfLinePCRanges: [0xcd9420..0xcd9443]
+      OutOfLinePCRanges: [0xcd9460..0xcd9483]
       InlinePCRanges: []
       Variables:
         - Name: x
           Type: 242 StructureType main.aStruct
           Locations:
-            - Range: 0xcd9420..0xcd9443
+            - Range: 0xcd9460..0xcd9483
               Pieces:
                 - Size: 1
                   Op: {RegNo: 0, Shift: 0}
@@ -3323,23 +3323,23 @@ Subprograms:
           IsReturn: false
     - ID: 108
       Name: main.testEmptyStruct
-      OutOfLinePCRanges: [0xcd95a0..0xcd95a1]
+      OutOfLinePCRanges: [0xcd95e0..0xcd95e1]
       InlinePCRanges: []
       Variables:
         - Name: e
           Type: 244 StructureType main.emptyStruct
-          Locations: [{Range: 0xcd95a0..0xcd95a1, Pieces: []}]
+          Locations: [{Range: 0xcd95e0..0xcd95e1, Pieces: []}]
           IsParameter: true
           IsReturn: false
     - ID: 109
       Name: main.testEmptyStructPointer
-      OutOfLinePCRanges: [0xcd95c0..0xcd95c1]
+      OutOfLinePCRanges: [0xcd9600..0xcd9601]
       InlinePCRanges: []
       Variables:
         - Name: e
           Type: 245 PointerType *main.emptyStruct
           Locations:
-            - Range: 0xcd95c0..0xcd95c1
+            - Range: 0xcd9600..0xcd9601
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           IsParameter: true
           IsReturn: false
@@ -15306,7 +15306,7 @@ Types:
       GoKind: 5
 MaxTypeID: 1259
 Issues: []
-GoModuledataInfo: {FirstModuledataAddr: "0x17fa3a0", TypesOffset: 296}
+GoModuledataInfo: {FirstModuledataAddr: "0x17fb3a0", TypesOffset: 296}
 CommonTypes:
     G: 22 StructureType runtime.g
     M: 29 StructureType runtime.m
