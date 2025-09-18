@@ -1010,50 +1010,6 @@ func TestComputeStatsBySpanKindEnv(t *testing.T) {
 	require.True(t, testConfig.GetBool("apm_config.compute_stats_by_span_kind"))
 }
 
-func TestIsRemoteConfigEnabled(t *testing.T) {
-	// If Remote Config is explicitly enabled, it should be enabled
-	testConfig := newTestConf(t)
-	testConfig.SetWithoutSource("remote_configuration.enabled", true)
-	require.True(t, IsRemoteConfigEnabled(testConfig))
-
-	// If remote config is explicitly disabled, it should be disabled
-	testConfig = newTestConf(t)
-	testConfig.SetWithoutSource("remote_configuration.enabled", false)
-	require.False(t, IsRemoteConfigEnabled(testConfig))
-
-	// If we are running a gov flavor, and remote config is not explicitly enabled, it should be disabled.
-	t.Setenv("DD_FIPS_ENABLED", "true")
-	testConfig = newTestConf(t)
-	require.False(t, IsRemoteConfigEnabled(testConfig))
-
-	t.Setenv("DD_SITE", "ddog-gov.com")
-	testConfig = newTestConf(t)
-	require.False(t, IsRemoteConfigEnabled(testConfig))
-
-	// If we are running a gov flavor, and remote config is explicitly enabled, it should be enabled
-	t.Setenv("DD_FIPS_ENABLED", "true")
-	testConfig = newTestConf(t)
-	testConfig.SetWithoutSource("remote_configuration.enabled", true)
-	require.True(t, IsRemoteConfigEnabled(testConfig))
-
-	t.Setenv("DD_SITE", "ddog-gov.com")
-	testConfig = newTestConf(t)
-	testConfig.SetWithoutSource("remote_configuration.enabled", true)
-	require.True(t, IsRemoteConfigEnabled(testConfig))
-
-	// If we are running a gov flavor, and remote config is explicitly disabled, it should be disabled
-	t.Setenv("DD_FIPS_ENABLED", "true")
-	testConfig = newTestConf(t)
-	testConfig.SetWithoutSource("remote_configuration.enabled", false)
-	require.False(t, IsRemoteConfigEnabled(testConfig))
-
-	t.Setenv("DD_SITE", "ddog-gov.com")
-	testConfig = newTestConf(t)
-	testConfig.SetWithoutSource("remote_configuration.enabled", false)
-	require.False(t, IsRemoteConfigEnabled(testConfig))
-
-}
-
 func TestGetRemoteConfigurationAllowedIntegrations(t *testing.T) {
 	// EMPTY configuration
 	testConfig := newTestConf(t)
