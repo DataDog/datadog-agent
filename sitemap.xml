@@ -121,6 +121,10 @@
          <lastmod>2020-02-02</lastmod>
     </url>
     <url>
+         <loc>https://datadoghq.dev/datadog-agent/how-to/go/config/</loc>
+         <lastmod>2020-02-02</lastmod>
+    </url>
+    <url>
          <loc>https://datadoghq.dev/datadog-agent/how-to/memory-profiling/c%2B%2B/</loc>
          <lastmod>2020-02-02</lastmod>
     </url>
