@@ -191,10 +191,10 @@ func (c *safeConfig) mergeViperInstances(key string) {
 }
 
 // SetKnown adds a key to the set of known valid config keys
-func (c *safeConfig) SetKnown(key string) {
+func (c *safeConfig) SetKnown(key string) { //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	c.Lock()
 	defer c.Unlock()
-	c.Viper.SetKnown(key) //nolint:forbidigo
+	c.Viper.SetKnown(key) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 }
 
 // IsKnown returns whether a key is known
@@ -553,7 +553,7 @@ func (c *safeConfig) mergeWithEnvPrefix(key string) string {
 }
 
 // BindEnv wraps Viper for concurrent access, and adds tracking of the configurable env vars
-func (c *safeConfig) BindEnv(key string, envvars ...string) {
+func (c *safeConfig) BindEnv(key string, envvars ...string) { //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	c.Lock()
 	defer c.Unlock()
 	var envKeys []string
@@ -588,8 +588,8 @@ func (c *safeConfig) BindEnv(key string, envvars ...string) {
 	}
 
 	newKeys := append([]string{key}, envvars...)
-	_ = c.configSources[model.SourceEnvVar].BindEnv(newKeys...) //nolint:forbidigo
-	_ = c.Viper.BindEnv(newKeys...)                             //nolint:forbidigo
+	_ = c.configSources[model.SourceEnvVar].BindEnv(newKeys...) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	_ = c.Viper.BindEnv(newKeys...)                             //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 }
 
 // SetEnvKeyReplacer wraps Viper for concurrent access
@@ -879,7 +879,7 @@ func (c *safeConfig) GetEnvVars() []string {
 // BindEnvAndSetDefault implements the Config interface
 func (c *safeConfig) BindEnvAndSetDefault(key string, val interface{}, envvars ...string) {
 	c.SetDefault(key, val)
-	c.BindEnv(key, envvars...) //nolint:errcheck,forbidigo
+	c.BindEnv(key, envvars...) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' //nolint:errcheck
 }
 
 func (c *safeConfig) Warnings() *model.Warnings {

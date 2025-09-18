@@ -17,9 +17,9 @@ func initUSMSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// General USM Configuration
 	// ========================================
 	cfg.BindEnvAndSetDefault(join(smNS, "enabled"), false, "DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED")
-	cfg.BindEnv(join(smNS, "max_concurrent_requests"))  //nolint:forbidigo
-	cfg.BindEnv(join(smNS, "enable_quantization"))      //nolint:forbidigo
-	cfg.BindEnv(join(smNS, "enable_connection_rollup")) //nolint:forbidigo
+	cfg.BindEnv(join(smNS, "max_concurrent_requests"))  //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	cfg.BindEnv(join(smNS, "enable_quantization"))      //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	cfg.BindEnv(join(smNS, "enable_connection_rollup")) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_ring_buffers"), true)
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_event_stream"), true)
 	// kernel_buffer_pages determines the number of pages allocated *per CPU*
@@ -36,38 +36,38 @@ func initUSMSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// ========================================
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_http_monitoring"), true)
 	// For backward compatibility
-	cfg.BindEnv(join(netNS, "enable_http_monitoring"), "DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING") //nolint:forbidigo
+	cfg.BindEnv(join(netNS, "enable_http_monitoring"), "DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 
 	cfg.BindEnvAndSetDefault(join(smNS, "max_http_stats_buffered"), 100000)
 	// For backward compatibility
-	cfg.BindEnv(join(netNS, "max_http_stats_buffered"), "DD_SYSTEM_PROBE_NETWORK_MAX_HTTP_STATS_BUFFERED") //nolint:forbidigo
+	cfg.BindEnv(join(netNS, "max_http_stats_buffered"), "DD_SYSTEM_PROBE_NETWORK_MAX_HTTP_STATS_BUFFERED") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 
 	cfg.BindEnvAndSetDefault(join(smNS, "max_tracked_http_connections"), 1024)
 	// For backward compatibility
-	cfg.BindEnv(join(netNS, "max_tracked_http_connections")) //nolint:forbidigo
+	cfg.BindEnv(join(netNS, "max_tracked_http_connections")) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 
 	cfg.BindEnvAndSetDefault(join(smNS, "http_notification_threshold"), 512)
 	// For backward compatibility
-	cfg.BindEnv(join(netNS, "http_notification_threshold")) //nolint:forbidigo
+	cfg.BindEnv(join(netNS, "http_notification_threshold")) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 
 	// Default value (512) is set in `adjustUSM`, to avoid having "deprecation warning", due to the default value.
-	cfg.BindEnv(join(smNS, "http_max_request_fragment")) //nolint:forbidigo
+	cfg.BindEnv(join(smNS, "http_max_request_fragment")) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	// For backward compatibility
-	cfg.BindEnv(join(netNS, "http_max_request_fragment")) //nolint:forbidigo
+	cfg.BindEnv(join(netNS, "http_max_request_fragment")) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 
 	cfg.BindEnvAndSetDefault(join(smNS, "http_map_cleaner_interval_in_s"), 300)
 	// For backward compatibility
-	cfg.BindEnv(join(spNS, "http_map_cleaner_interval_in_s")) //nolint:forbidigo
+	cfg.BindEnv(join(spNS, "http_map_cleaner_interval_in_s")) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 
 	cfg.BindEnvAndSetDefault(join(smNS, "http_idle_connection_ttl_in_s"), 30)
 	// For backward compatibility
-	cfg.BindEnv(join(spNS, "http_idle_connection_ttl_in_s")) //nolint:forbidigo
+	cfg.BindEnv(join(spNS, "http_idle_connection_ttl_in_s")) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 
 	oldHTTPRules := join(netNS, "http_replace_rules")
 	newHTTPRules := join(smNS, "http_replace_rules")
-	cfg.BindEnv(newHTTPRules) //nolint:forbidigo
+	cfg.BindEnv(newHTTPRules) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	// For backward compatibility
-	cfg.BindEnv(oldHTTPRules, "DD_SYSTEM_PROBE_NETWORK_HTTP_REPLACE_RULES") //nolint:forbidigo
+	cfg.BindEnv(oldHTTPRules, "DD_SYSTEM_PROBE_NETWORK_HTTP_REPLACE_RULES") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 
 	httpRulesTransformer := func(key string) transformerFunction {
 		return func(in string) []map[string]string {
@@ -122,14 +122,14 @@ func initUSMSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// ========================================
 	cfg.BindEnvAndSetDefault(join(smNS, "tls", "native", "enabled"), true)
 	// For backward compatibility
-	cfg.BindEnv(join(netNS, "enable_https_monitoring"), "DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTPS_MONITORING") //nolint:forbidigo
+	cfg.BindEnv(join(netNS, "enable_https_monitoring"), "DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTPS_MONITORING") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 
 	// ========================================
 	// Go TLS Configuration
 	// ========================================
 	cfg.BindEnvAndSetDefault(join(smNS, "tls", "go", "enabled"), true)
 	// For backward compatibility
-	cfg.BindEnv(join(smNS, "enable_go_tls_support")) //nolint:forbidigo
+	cfg.BindEnv(join(smNS, "enable_go_tls_support")) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	cfg.BindEnvAndSetDefault(join(smNS, "tls", "go", "exclude_self"), true)
 
 	// ========================================
@@ -141,5 +141,5 @@ func initUSMSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// ========================================
 	// Node.js TLS Configuration
 	// ========================================
-	cfg.BindEnv(join(smNS, "tls", "nodejs", "enabled")) //nolint:forbidigo
+	cfg.BindEnv(join(smNS, "tls", "nodejs", "enabled")) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 }

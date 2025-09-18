@@ -399,7 +399,7 @@ func (c *ntmConfig) addToKnownKeys(key string) {
 //
 // Important: this doesn't add the key to the schema. The "known keys" are a legacy feature we inherited from our Viper
 // wrapper. Once all settings have a default we'll be able to remove this concept entirely.
-func (c *ntmConfig) SetKnown(key string) {
+func (c *ntmConfig) SetKnown(key string) { //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	c.Lock()
 	defer c.Unlock()
 	if c.isReady() && !c.allowDynamicSchema.Load() {
@@ -751,7 +751,7 @@ func (c *ntmConfig) mergeWithEnvPrefix(key string) string {
 }
 
 // BindEnv binds one or more environment variables to the given key
-func (c *ntmConfig) BindEnv(key string, envvars ...string) {
+func (c *ntmConfig) BindEnv(key string, envvars ...string) { //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	c.Lock()
 	defer c.Unlock()
 
@@ -990,7 +990,7 @@ func (c *ntmConfig) GetSubfields(key string) []string {
 
 // BindEnvAndSetDefault binds an environment variable and sets a default for the given key
 func (c *ntmConfig) BindEnvAndSetDefault(key string, val interface{}, envvars ...string) {
-	c.BindEnv(key, envvars...) //nolint:errcheck,forbidigo
+	c.BindEnv(key, envvars...) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' //nolint:errcheck
 	c.SetDefault(key, val)
 }
 

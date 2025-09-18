@@ -86,9 +86,9 @@ func (t *teeConfig) UnsetForSource(key string, source model.Source) {
 }
 
 // SetKnown adds a key to the set of known valid config keys
-func (t *teeConfig) SetKnown(key string) {
-	t.baseline.SetKnown(key) //nolint:forbidigo
-	t.compare.SetKnown(key)  //nolint:forbidigo
+func (t *teeConfig) SetKnown(key string) { //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	t.baseline.SetKnown(key) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	t.compare.SetKnown(key)  //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 }
 
 // IsKnown returns whether a key is known
@@ -344,9 +344,9 @@ func (t *teeConfig) SetEnvPrefix(in string) {
 }
 
 // BindEnv wraps Viper for concurrent access, and adds tracking of the configurable env vars
-func (t *teeConfig) BindEnv(key string, envvars ...string) {
-	t.baseline.BindEnv(key, envvars...) //nolint:forbidigo
-	t.compare.BindEnv(key, envvars...)  //nolint:forbidigo
+func (t *teeConfig) BindEnv(key string, envvars ...string) { //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	t.baseline.BindEnv(key, envvars...) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	t.compare.BindEnv(key, envvars...)  //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 }
 
 // SetEnvKeyReplacer wraps Viper for concurrent access
