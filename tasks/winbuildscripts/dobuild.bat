@@ -49,6 +49,19 @@ if "%GO_VERSION_CHECK%" == "true" (
     inv -e check-go-version || exit /b 104
 )
 
+@echo "Install the latest codesign version"
+set codesign_version=0.3.5
+set codesign_sha=b2ba5127a5c5141e04d42444ca115af4c95cc053a743caaa9b33c68dd6b13f68
+set codesign_base=windows_code_signer-%codesign_version%-py3-none-any.whl
+set codesign_wheel=https://s3.amazonaws.com/dd-agent-omnibus/windows-code-signer/%codesign_base%
+set codesign_wheel_target=c:\devtools\%codesign_base%
+powershell -Command "(New-Object System.Net.WebClient).DownloadFile('%codesign_wheel%', '%codesign_wheel_target%')"
+
+powershell -Command "$dlhash = (Get-FileHash -Algorithm SHA256 '%codesign_wheel_target%').hash.ToLower(); if ($dlhash -ne '%codesign_sha%') { throw 'Invalid checksum for %codesign_wheel_target%. Expected: %codesign_sha%. Actual: ' + $dlhash }"
+
+python -m pip install %codesign_wheel_target% || exit /b 107
+
+
 @echo "inv -e %OMNIBUS_BUILD% %OMNIBUS_ARGS% --skip-deps --major-version %MAJOR_VERSION%"
 inv -e %OMNIBUS_BUILD% %OMNIBUS_ARGS% --skip-deps --major-version %MAJOR_VERSION% || exit /b 105
 
