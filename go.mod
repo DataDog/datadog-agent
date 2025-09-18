@@ -312,9 +312,9 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10
 	github.com/prometheus-community/pro-bing v0.4.1
-	github.com/prometheus/client_golang v1.23.0
+	github.com/prometheus/client_golang v1.23.2
 	github.com/prometheus/client_model v0.6.2
-	github.com/prometheus/common v0.65.0
+	github.com/prometheus/common v0.66.1
 	github.com/prometheus/procfs v0.17.0
 	github.com/redis/go-redis/v9 v9.8.0
 	github.com/rickar/props v1.0.0
