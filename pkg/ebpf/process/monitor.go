@@ -9,15 +9,12 @@
 package process
 
 import (
-	"context"
 	"fmt"
 	"maps"
 	"sync"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Subscriber is an interface that allows subscribing to process start and exit events
@@ -52,26 +49,11 @@ type Monitor struct {
 	mtx       sync.RWMutex
 	knownPIDs map[uint32]struct{}
 	thisPID   int
-
-	ctx          context.Context
-	syncInterval time.Duration
-}
-
-// MonitorOption is an option for [Monitor]
-type MonitorOption func(*Monitor)
-
-// SyncInterval configures how often processes are synchronized with procfs.
-// The context provided must be cancellable and controls when the sync loop stops.
-func SyncInterval(ctx context.Context, interval time.Duration) MonitorOption {
-	return func(monitor *Monitor) {
-		monitor.ctx = ctx
-		monitor.syncInterval = interval
-	}
 }
 
 // NewMonitor creates a process monitor that tracks real-time process events.
 // It also supports a configurable sync of processes from procfs to ensure no processes are missed.
-func NewMonitor(consumer *consumers.ProcessConsumer, opts ...MonitorOption) (*Monitor, error) {
+func NewMonitor(consumer *consumers.ProcessConsumer) (*Monitor, error) {
 	thisPID, err := kernel.RootNSPID()
 	if err != nil {
 		return nil, fmt.Errorf("kernel root ns pid: %w", err)
@@ -83,13 +65,6 @@ func NewMonitor(consumer *consumers.ProcessConsumer, opts ...MonitorOption) (*Mo
 		exitCallbacks: newCallbackMap(),
 		knownPIDs:     make(map[uint32]struct{}),
 		thisPID:       thisPID,
-		syncInterval:  0,
-	}
-	for _, opt := range opts {
-		opt(m)
-	}
-	if m.syncInterval != 0 && m.ctx != nil {
-		go m.loop(m.ctx)
 	}
 	return m, nil
 }
@@ -141,21 +116,6 @@ func (m *Monitor) Sync() error {
 		m.execCallbacks.call(pid)
 	}
 	return nil
-}
-
-func (m *Monitor) loop(ctx context.Context) {
-	ticker := time.NewTicker(m.syncInterval)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			if err := m.Sync(); err != nil {
-				log.Errorf("sync process monitor error: %v", err)
-			}
-		}
-	}
 }
 
 func (m *Monitor) processStart(pid uint32) {
