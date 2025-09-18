@@ -1013,7 +1013,7 @@ func (suite *FingerprintTestSuite) TestErrorVsInsufficientDataBehavior() {
 	suite.Equal(types.InsufficientDataFingerprintValue, emptyFileFingerprint.Value, "Should use insufficient data value")
 
 	// file with partial data (less than required bytes) should return insufficient data
-	_, err = suite.testFile.WriteString("partial")  // 7 bytes; less than required 100
+	_, err = suite.testFile.WriteString("partial") // 7 bytes; less than required 100
 	suite.Nil(err)
 	suite.testFile.Sync()
 
