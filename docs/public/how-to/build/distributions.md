@@ -39,8 +39,9 @@ dda inv omnibus.build
 
 ## Building for Linux: `deb` and `rpm`
 ### Containerized build (recommended)
+#### `deb` packages
 
-We provide a Docker image containing all the build dependencies required for building Omnibus Linux packages: [`datadog/agent-buildimages-linux`](https://hub.docker.com/r/datadog/agent-buildimages-linux)
+We provide a [Docker image](../../reference/images/builders.md#linux) containing all the build dependencies required for building `deb` packages via Omnibus: [`datadog/agent-buildimages-linux`](https://hub.docker.com/r/datadog/agent-buildimages-linux).
 
 ??? tip "Building the image locally"
     The Dockerfile for this image is available in the [datadog-agent-buildimages](https://github.com/DataDog/datadog-agent-buildimages) repository.
@@ -73,6 +74,17 @@ at each Omnibus run:
  * `/tmp/gems`, containing all the ruby gems installed with Bundler
 ///
 
+#### `rpm` packages
+
+Some extra dependencies are required for building `rpm` packages that are not yet included in the main `datadog/agent-buildimages-linux` build image.
+
+A separate docker image containing these special dependencies is also available. This image, contrary to the main `datadog/agent-buildimages-linux` image, is not multi-arch - thus there are two flavors depending on the CPU architecture of the host machine:
+
+- For `x86_64`/`amd64`: [`datadog/agent-buildimages-rpm_x64`](https://hub.docker.com/r/datadog/agent-buildimages-rpm_x64)
+- For `arm64`/`aarch64`: [`datadog/agent-buildimages-rpm_arm64`](https://hub.docker.com/r/datadog/agent-buildimages-rpm_arm64)
+
+To build using these images, follow the same instructions as [for `deb` packages](#deb-packages), but replace `datadog/agent-buildimages-linux` with the appropriate flavor of the `rpm` image for your CPU platform.
+
 ### Building on the host
 
 /// danger
@@ -103,7 +115,6 @@ If you already have a Datadog Agent installed, you will need to move it to a dif
 ```
 dda inv -- omnibus.build --base-dir=$HOME/.omnibus
 ```
-> On MacOS, you might want to skip the signing step by adding the `--skip-sign` flag.
 
 The path you pass with the `--base-dir` option will be used as a working directory for the Omnibus build. Once the build completes, it will contain:
 
