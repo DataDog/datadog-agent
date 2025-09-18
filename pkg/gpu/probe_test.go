@@ -61,6 +61,9 @@ func (s *probeTestSuite) getProbe() *Probe {
 	// Enable fatbin parsing in tests so we can validate it runs
 	cfg.EnableFatbinParsing = true
 
+	// Disable ring buffer wakeup threshold so that every event is processed.
+	cfg.RingBufferWakeupSize = 0
+
 	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	deps := ProbeDependencies{
 		ProcessMonitor: consumerstestutil.NewTestProcessConsumer(t),
