@@ -546,12 +546,23 @@ func (s *Launcher) createTailer(file *tailer.File, outputChan chan *message.Mess
 		Fingerprint:     fingerprint,
 	}
 
+	if fingerprint != nil {
+		log.Debugf("Creating new tailer for %s with fingerprint 0x%x", file.Path, fingerprint.Value)
+	} else {
+		log.Debugf("Creating new tailer for %s with no fingerprint", file.Path)
+	}
+
 	return tailer.NewTailer(tailerOptions)
 }
 
 func (s *Launcher) createRotatedTailer(t *tailer.Tailer, file *tailer.File, pattern *regexp.Regexp, fingerprint *types.Fingerprint) *tailer.Tailer {
 	tailerInfo := t.GetInfo()
 	channel, monitor := s.pipelineProvider.NextPipelineChanWithMonitor()
+	if fingerprint != nil {
+		log.Debugf("Creating new tailer for %s with fingerprint 0x%x", file.Path, fingerprint.Value)
+	} else {
+		log.Debugf("Creating new tailer for %s with no fingerprint", file.Path)
+	}
 	return t.NewRotatedTailer(file, channel, monitor, decoder.NewDecoderFromSourceWithPattern(file.Source, pattern, tailerInfo), tailerInfo, s.tagger, fingerprint, s.registry)
 }
 
