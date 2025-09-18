@@ -12,7 +12,6 @@ import (
 	"context"
 
 	collector "github.com/DataDog/datadog-agent/comp/host-profiler/collector/def"
-	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/confmap/provider/envprovider"
 	"go.opentelemetry.io/collector/confmap/provider/fileprovider"
@@ -73,9 +72,8 @@ func (c *collectorImpl) Run() error {
 	return c.collector.Run(context.Background())
 }
 
-func newCollectorSettings(uri string) (otelcol.CollectorSettings, error) {	
+func newCollectorSettings(uri string) (otelcol.CollectorSettings, error) {
 	return otelcol.CollectorSettings{
-		BuildInfo: buildInfo,
 		Factories: createFactories,
 		ConfigProviderSettings: otelcol.ConfigProviderSettings{
 			ResolverSettings: confmap.ResolverSettings{
