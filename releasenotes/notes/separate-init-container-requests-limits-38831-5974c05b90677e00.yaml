@@ -1,0 +1,22 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    Add support for separate CPU/Memory requests and limits for auto-instrumentation init containers.
+    New environment variables allow independent configuration of requests and limits:
+    
+    * ``DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_INIT_REQUESTS_CPU``
+    * ``DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_INIT_REQUESTS_MEMORY``
+    * ``DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_INIT_LIMITS_CPU``
+    * ``DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_INIT_LIMITS_MEMORY``
+    
+    This resolves OOMKilled issues while maintaining scheduling efficiency by allowing
+    low requests for scheduling and higher limits for initialization spikes.
+    Existing ``DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_INIT_RESOURCES_*`` 
+    environment variables continue to work for backward compatibility.

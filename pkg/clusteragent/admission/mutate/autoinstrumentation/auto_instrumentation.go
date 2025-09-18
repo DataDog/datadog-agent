@@ -397,38 +397,42 @@ func initContainerResourceRequirements(pod *corev1.Pod, conf initResourceRequire
 	}
 	podRequirements := podSumRessourceRequirements(pod)
 	insufficientResourcesMessage := "The overall pod's containers limit is too low"
+	
 	for _, k := range [2]corev1.ResourceName{corev1.ResourceCPU, corev1.ResourceMemory} {
-		if q, ok := conf[k]; ok {
-			requirements.Limits[k] = q
-			requirements.Requests[k] = q
-		} else {
-			if maxPodLim, ok := podRequirements.Limits[k]; ok {
-				// If the pod before adding instrumentation init containers would have had a limits smaller than
-				// a certain amount, we just don't do anything, for two reasons:
-				// 1. The init containers need quite a lot of memory/CPU in order to not OOM or initialize in reasonnable time
-				// 2. The APM libraries themselves will increase footprint of the container by a
-				//   non trivial amount, and we don't want to cause issues for constrained apps
-				switch k {
-				case corev1.ResourceMemory:
-					if minimumMemoryLimit.Cmp(maxPodLim) == 1 {
-						decision.skipInjection = true
-						insufficientResourcesMessage += fmt.Sprintf(", %v pod_limit=%v needed=%v", k, maxPodLim.String(), minimumMemoryLimit.String())
+		// Check if explicit requests/limits are configured
+		if req, hasReq := conf.requests[k]; hasReq {
+			requirements.Requests[k] = req
+		}
+		if lim, hasLim := conf.limits[k]; hasLim {
+			requirements.Limits[k] = lim
+		}
+		
+		// If neither requests nor limits are configured, use auto-calculation
+		if _, hasReq := conf.requests[k]; !hasReq {
+			if _, hasLim := conf.limits[k]; !hasLim {
+				if maxPodLim, ok := podRequirements.Limits[k]; ok {
+					// Check minimum requirements
+					switch k {
+					case corev1.ResourceMemory:
+						if minimumMemoryLimit.Cmp(maxPodLim) == 1 {
+							decision.skipInjection = true
+							insufficientResourcesMessage += fmt.Sprintf(", %v pod_limit=%v needed=%v", k, maxPodLim.String(), minimumMemoryLimit.String())
+						}
+					case corev1.ResourceCPU:
+						if minimumCPULimit.Cmp(maxPodLim) == 1 {
+							decision.skipInjection = true
+							insufficientResourcesMessage += fmt.Sprintf(", %v pod_limit=%v needed=%v", k, maxPodLim.String(), minimumCPULimit.String())
+						}
 					}
-				case corev1.ResourceCPU:
-					if minimumCPULimit.Cmp(maxPodLim) == 1 {
-						decision.skipInjection = true
-						insufficientResourcesMessage += fmt.Sprintf(", %v pod_limit=%v needed=%v", k, maxPodLim.String(), minimumCPULimit.String())
-					}
-				default:
-					// We don't support other resources
+					requirements.Limits[k] = maxPodLim
 				}
-				requirements.Limits[k] = maxPodLim
-			}
-			if maxPodReq, ok := podRequirements.Requests[k]; ok {
-				requirements.Requests[k] = maxPodReq
+				if maxPodReq, ok := podRequirements.Requests[k]; ok {
+					requirements.Requests[k] = maxPodReq
+				}
 			}
 		}
 	}
+	
 	if decision.skipInjection {
 		log.Debug(insufficientResourcesMessage)
 		decision.message = insufficientResourcesMessage

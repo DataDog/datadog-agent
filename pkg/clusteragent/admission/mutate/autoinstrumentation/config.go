@@ -360,7 +360,10 @@ var (
 	minimumMemoryLimit resource.Quantity = resource.MustParse("100Mi") // 100 MB (recommended minimum by Alpine)
 )
 
-type initResourceRequirementConfiguration map[corev1.ResourceName]resource.Quantity
+type initResourceRequirementConfiguration struct {
+	requests map[corev1.ResourceName]resource.Quantity
+	limits   map[corev1.ResourceName]resource.Quantity
+}
 
 // getOptionalBoolValue returns a pointer to a bool corresponding to the config value if the key is set in the config
 func getOptionalBoolValue(datadogConfig config.Component, key string) *bool {
@@ -421,27 +424,79 @@ func getPinnedLibraries(libVersions map[string]string, registry string, checkDef
 }
 
 func initDefaultResources(datadogConfig config.Component) (initResourceRequirementConfiguration, error) {
-	conf := initResourceRequirementConfiguration{}
+	conf := initResourceRequirementConfiguration{
+		requests: make(map[corev1.ResourceName]resource.Quantity),
+		limits:   make(map[corev1.ResourceName]resource.Quantity),
+	}
 
+	// Handle new separate requests/limits configuration
+	if datadogConfig.IsSet("admission_controller.auto_instrumentation.init_requests.cpu") {
+		quantity, err := resource.ParseQuantity(datadogConfig.GetString("admission_controller.auto_instrumentation.init_requests.cpu"))
+		if err != nil {
+			return conf, err
+		}
+		conf.requests[corev1.ResourceCPU] = quantity
+	}
+
+	if datadogConfig.IsSet("admission_controller.auto_instrumentation.init_requests.memory") {
+		quantity, err := resource.ParseQuantity(datadogConfig.GetString("admission_controller.auto_instrumentation.init_requests.memory"))
+		if err != nil {
+			return conf, err
+		}
+		conf.requests[corev1.ResourceMemory] = quantity
+	}
+
+	if datadogConfig.IsSet("admission_controller.auto_instrumentation.init_limits.cpu") {
+		quantity, err := resource.ParseQuantity(datadogConfig.GetString("admission_controller.auto_instrumentation.init_limits.cpu"))
+		if err != nil {
+			return conf, err
+		}
+		conf.limits[corev1.ResourceCPU] = quantity
+	}
+
+	if datadogConfig.IsSet("admission_controller.auto_instrumentation.init_limits.memory") {
+		quantity, err := resource.ParseQuantity(datadogConfig.GetString("admission_controller.auto_instrumentation.init_limits.memory"))
+		if err != nil {
+			return conf, err
+		}
+		conf.limits[corev1.ResourceMemory] = quantity
+	}
+
+	// Handle legacy configuration (requests = limits)
 	if datadogConfig.IsSet("admission_controller.auto_instrumentation.init_resources.cpu") {
 		quantity, err := resource.ParseQuantity(datadogConfig.GetString("admission_controller.auto_instrumentation.init_resources.cpu"))
 		if err != nil {
 			return conf, err
 		}
-		conf[corev1.ResourceCPU] = quantity
-	} /* else {
-		conf[corev1.ResourceCPU] = *resource.NewMilliQuantity(minimumCPULimit, resource.DecimalSI)
-	}*/
+		if _, exists := conf.requests[corev1.ResourceCPU]; !exists {
+			conf.requests[corev1.ResourceCPU] = quantity
+		}
+		if _, exists := conf.limits[corev1.ResourceCPU]; !exists {
+			conf.limits[corev1.ResourceCPU] = quantity
+		}
+	}
 
 	if datadogConfig.IsSet("admission_controller.auto_instrumentation.init_resources.memory") {
 		quantity, err := resource.ParseQuantity(datadogConfig.GetString("admission_controller.auto_instrumentation.init_resources.memory"))
 		if err != nil {
 			return conf, err
 		}
-		conf[corev1.ResourceMemory] = quantity
-	} /*else {
-		conf[corev1.ResourceCPU] = *resource.NewMilliQuantity(minimumMemoryLimit, resource.DecimalSI)
-	}*/
+		if _, exists := conf.requests[corev1.ResourceMemory]; !exists {
+			conf.requests[corev1.ResourceMemory] = quantity
+		}
+		if _, exists := conf.limits[corev1.ResourceMemory]; !exists {
+			conf.limits[corev1.ResourceMemory] = quantity
+		}
+	}
+
+	// Validate limits >= requests
+	for resource, limit := range conf.limits {
+		if request, exists := conf.requests[resource]; exists {
+			if limit.Cmp(request) < 0 {
+				return conf, fmt.Errorf("init container %s limit (%s) must be greater than or equal to request (%s)", resource, limit.String(), request.String())
+			}
+		}
+	}
 
 	return conf, nil
 }
