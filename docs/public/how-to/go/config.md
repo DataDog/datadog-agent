@@ -31,8 +31,8 @@ There are multiple places a config can be defined:
   [`config.go`].
 
 
-[`config.go`]: https://github.com/DataDog/datadog-agent/blob/main/pkg/config/setup/config.go
-[`system_probe.go`]: https://github.com/DataDog/datadog-agent/blob/main/pkg/config/setup/system_probe.go
+[`config.go`]: https://github.com/DataDog/datadog-agent/blob/7a12f1ccad639e79a0c09f8eaa8c92cd08ce1ae1/pkg/config/setup/config.go
+[`system_probe.go`]: https://github.com/DataDog/datadog-agent/blob/7a12f1ccad639e79a0c09f8eaa8c92cd08ce1ae1/pkg/config/setup/system_probe.go
 
 ## 2. Add to Template
 
@@ -43,7 +43,7 @@ If you want your config to appear in the sample config file, add it to the
 [config template].
 
 
-[config template]: https://github.com/DataDog/datadog-agent/blob/main/pkg/config/config_template.yaml
+[config template]: https://github.com/DataDog/datadog-agent/blob/7a12f1ccad639e79a0c09f8eaa8c92cd08ce1ae1/pkg/config/config_template.yaml
 
 
 ## 3. Use Your Config
