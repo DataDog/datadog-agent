@@ -159,33 +159,24 @@ func (m *Monitor) loop(ctx context.Context) {
 }
 
 func (m *Monitor) processStart(pid uint32) {
-	m.mtx.RLock()
-	_, known := m.knownPIDs[pid]
-	m.mtx.RUnlock()
-	if known {
-		return
-	}
-
+	defer m.execCallbacks.call(pid)
 	m.mtx.Lock()
+	defer m.mtx.Unlock()
 	m.knownPIDs[pid] = struct{}{}
-	m.mtx.Unlock()
-
-	m.execCallbacks.call(pid)
 }
 
 func (m *Monitor) processExit(pid uint32) {
-	m.mtx.RLock()
-	_, known := m.knownPIDs[pid]
-	m.mtx.RUnlock()
-	if !known {
-		return
+	var known bool
+	func() {
+		m.mtx.Lock()
+		defer m.mtx.Unlock()
+		if _, known = m.knownPIDs[pid]; known {
+			delete(m.knownPIDs, pid)
+		}
+	}()
+	if known {
+		m.exitCallbacks.call(pid)
 	}
-
-	m.mtx.Lock()
-	delete(m.knownPIDs, pid)
-	m.mtx.Unlock()
-
-	m.exitCallbacks.call(pid)
 }
 
 // SubscribeExec wraps SubscribeExec from [consumers.ProcessConsumer]
