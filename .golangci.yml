@@ -627,8 +627,10 @@ linters-settings:
         pkg: ^github.com/DataDog/datadog-agent/pkg/config/setup$
         msg: use pkg/config/mock instead for tests or the config component
       - p: ^.*\.BindEnv$
+        pkg: ^github.com/DataDog/datadog-agent/pkg/config/model$
         msg: use BindEnvAndSetDefault instead of BindEnv to ensure proper defaults are set
       - p: ^.*\.SetKnown$
+        pkg: ^github.com/DataDog/datadog-agent/pkg/config/model$
         msg: usage of SetKnown is discouraged
       - p: RevertFinishedBackToBuilder
         msg: RevertFinishedBackToBuilder is typically not needed, so using it is discouraged. Only existing OTel usage is allowed.

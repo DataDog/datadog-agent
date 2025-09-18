@@ -1163,7 +1163,7 @@ feature:
 `
 
 	mockConfig := newConfigFromYaml(t, confYaml)
-	mockConfig.SetKnown("feature")
+	mockConfig.SetKnown("feature") //nolint: forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 
 	feature := struct {
 		Enabled uint

@@ -20,9 +20,10 @@ import (
 
 	"gopkg.in/yaml.v2"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/viperconfig"
-	"github.com/stretchr/testify/assert"
 )
 
 func constructBothConfigs(content string, dynamicSchema bool, setupFunc func(model.Setup)) (model.BuildableConfig, model.BuildableConfig) {
@@ -562,7 +563,7 @@ my_feature:
 			cfg.BindEnvAndSetDefault("my_feature.info.name", "feat")
 			cfg.BindEnvAndSetDefault("my_feature.info.enabled", false)
 			cfg.BindEnvAndSetDefault("my_feature.info.version", "v2")
-			cfg.BindEnv("my_feature.info.targets", "TEST_MY_FEATURE_INFO_TARGETS")
+			cfg.BindEnv("my_feature.info.targets", "TEST_MY_FEATURE_INFO_TARGETS") //nolint: forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 		})
 
 		fields := viperConf.GetSubfields("my_feature.info")
