@@ -58,6 +58,7 @@ require (
 require (
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
 	github.com/pierrec/lz4/v4 v4.1.22 // indirect
+	github.com/twmb/murmur3 v1.1.8 // indirect
 	go.opentelemetry.io/collector/consumer/consumererror v0.135.0 // indirect
 	go.opentelemetry.io/collector/pdata/pprofile v0.135.0 // indirect
 )
