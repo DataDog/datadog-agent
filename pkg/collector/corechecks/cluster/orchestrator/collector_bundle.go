@@ -9,14 +9,20 @@
 package orchestrator
 
 import (
+	"context"
 	"expvar"
 	"strings"
 	"sync"
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/inventory"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/discovery"
 	utilTypes "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -445,43 +451,50 @@ func (cb *CollectorBundle) importBuiltinCollectors() {
 
 // builtinCRDConfig represents the configuration for a built-in custom resource definition.
 type builtinCRDConfig struct {
-	group   string
-	version string
-	kind    string
+	// group is the API group name for the custom resource
+	group string
+	// kind is the resource kind name
+	kind string
+	// enabled indicates whether collection of this CRD is enabled
 	enabled bool
+	// preferredVersion is the preferred API version we want to collect for this custom resource
+	preferredVersion string
+	// fallbackVersions is a list of versions that we can fall back to in order when preferredVersion is unavailable
+	fallbackVersions []string
+}
+
+// newBuiltinCRDConfig creates a new builtinCRDConfig.
+func newBuiltinCRDConfig(group, kind string, enabled bool, preferredVersion string, fallbackVersions ...string) builtinCRDConfig {
+	return builtinCRDConfig{
+		group:            group,
+		preferredVersion: preferredVersion,
+		fallbackVersions: fallbackVersions,
+		kind:             kind,
+		enabled:          enabled,
+	}
 }
 
 // newBuiltinCRDConfigs returns the configuration for all built-in CRDs.
 func newBuiltinCRDConfigs() []builtinCRDConfig {
-	isDatadogCRDEnabled := pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.custom_resources.datadog.enabled")
-	isThirdPartyCRDEnabled := pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.custom_resources.third_party.enabled")
+	isOOTBCRDEnabled := pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.custom_resources.ootb.enabled")
 
 	return []builtinCRDConfig{
-		{
-			group:   datadogAPIGroup,
-			enabled: isDatadogCRDEnabled,
-		},
-		{
-			group:   ArgoAPIGroup,
-			version: "v1alpha1",
-			kind:    "rollouts",
-			enabled: isThirdPartyCRDEnabled,
-		},
-		{
-			group:   KarpenterAPIGroup,
-			version: "v1",
-			enabled: isThirdPartyCRDEnabled,
-		},
-		{
-			group:   KarpenterAWSAPIGroup,
-			version: "v1",
-			enabled: isThirdPartyCRDEnabled,
-		},
-		{
-			group:   KarpenterAzureAPIGroup,
-			version: "v1beta1",
-			enabled: isThirdPartyCRDEnabled,
-		},
+		// Datadog resources
+		newBuiltinCRDConfig(datadogAPIGroup, "datadogslos", isOOTBCRDEnabled, "v1alpha1"),
+		newBuiltinCRDConfig(datadogAPIGroup, "datadogdashboards", isOOTBCRDEnabled, "v1alpha1"),
+		newBuiltinCRDConfig(datadogAPIGroup, "datadogagentprofiles", isOOTBCRDEnabled, "v1alpha1"),
+		newBuiltinCRDConfig(datadogAPIGroup, "datadogmonitors", isOOTBCRDEnabled, "v1alpha1"),
+		newBuiltinCRDConfig(datadogAPIGroup, "datadogmetrics", isOOTBCRDEnabled, "v1alpha1"),
+		newBuiltinCRDConfig(datadogAPIGroup, "datadogpodautoscalers", isOOTBCRDEnabled, "v1alpha2"),
+		newBuiltinCRDConfig(datadogAPIGroup, "datadogagents", isOOTBCRDEnabled, "v2alpha1"),
+
+		// Argo resources
+		newBuiltinCRDConfig(ArgoAPIGroup, "rollouts", isOOTBCRDEnabled, "v1alpha1"),
+
+		// Karpenter resources (empty kind = all resources in group)
+		newBuiltinCRDConfig(KarpenterAPIGroup, "", isOOTBCRDEnabled, "v1"),
+		newBuiltinCRDConfig(KarpenterAWSAPIGroup, "", isOOTBCRDEnabled, "v1"),
+		newBuiltinCRDConfig(KarpenterAzureAPIGroup, "", isOOTBCRDEnabled, "v1beta1"),
 	}
 }
 
@@ -497,6 +510,9 @@ func (cb *CollectorBundle) getBuiltinCustomResourceCollectors() []collectors.K8s
 	for _, builtinCustomResource := range newBuiltinCRDConfigs() {
 		crCollectors = append(crCollectors, cb.collectorsForBuiltinCRD(builtinCustomResource)...)
 	}
+
+	crCollectors = filterCRCollectorsByPermission(crCollectors, cb.isForbidden)
+
 	return crCollectors
 }
 
@@ -506,12 +522,19 @@ func (cb *CollectorBundle) collectorsForBuiltinCRD(builtinCustomResource builtin
 		return nil
 	}
 
+	version, ok := cb.collectorDiscovery.OptimalVersion(builtinCustomResource.group, builtinCustomResource.preferredVersion, builtinCustomResource.fallbackVersions)
+	if !ok {
+		log.Infof("Skipping built-in CR collector: no supported version found for %s/%s (preferred: %s, fallback: %s)",
+			builtinCustomResource.group, builtinCustomResource.kind, builtinCustomResource.preferredVersion, builtinCustomResource.fallbackVersions)
+		return nil
+	}
+
 	crCollectors := make([]collectors.K8sCollector, 0, 10)
-	crs := cb.collectorDiscovery.List(builtinCustomResource.group, builtinCustomResource.version, builtinCustomResource.kind)
+	crs := cb.collectorDiscovery.List(builtinCustomResource.group, version, builtinCustomResource.kind)
 	for _, c := range crs {
 		collector, err := cb.collectorDiscovery.VerifyForCRDInventory(c.Kind, c.GroupVersion)
 		if err != nil {
-			_ = cb.check.Warnf("Unsupported collector: %s/%s: %s", c.GroupVersion, c.Kind, err)
+			log.Infof("Unsupported built-in CR collector: %s/%s: %s", c.GroupVersion, c.Kind, err)
 			continue
 		}
 
@@ -555,4 +578,25 @@ func (cb *CollectorBundle) getTerminatedPodCollector() collectors.K8sCollector {
 		}
 	}
 	return nil
+}
+
+// isForbidden runs a single List request to check if cluster agent is forbidden to list the given resource
+func (cb *CollectorBundle) isForbidden(gvr schema.GroupVersionResource) bool {
+	_, err := cb.runCfg.APIClient.DynamicCl.Resource(gvr).List(context.Background(), metav1.ListOptions{})
+	return errors.IsForbidden(err)
+}
+
+// filterCRCollectorsByPermission filters collectors based on permissions, keeping only those with sufficient access.
+func filterCRCollectorsByPermission(crCollectors []collectors.K8sCollector, isForbidden func(gvr schema.GroupVersionResource) bool) []collectors.K8sCollector {
+	filteredCollectors := make([]collectors.K8sCollector, 0, len(crCollectors))
+	for _, c := range crCollectors {
+		if cr, ok := c.(*k8s.CRCollector); ok {
+			if isForbidden(cr.GetGRV()) {
+				log.Infof("Skipping built-in collector due to insufficient permissions: %s", cr.GetGRV().String())
+				continue
+			}
+			filteredCollectors = append(filteredCollectors, c)
+		}
+	}
+	return filteredCollectors
 }

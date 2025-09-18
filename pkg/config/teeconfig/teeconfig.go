@@ -498,6 +498,14 @@ func (t *teeConfig) ConfigFileUsed() string {
 
 }
 
+// GetSubfields returns the subfields from viper
+func (t *teeConfig) GetSubfields(key string) []string {
+	base := t.baseline.GetSubfields(key)
+	compare := t.compare.GetSubfields(key)
+	t.compareResult("", "GetSubfields", base, compare)
+	return base
+}
+
 // GetEnvVars implements the Config interface
 func (t *teeConfig) GetEnvVars() []string {
 	base := t.baseline.GetEnvVars()

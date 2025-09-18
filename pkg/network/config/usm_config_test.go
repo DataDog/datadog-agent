@@ -926,7 +926,7 @@ func TestHTTPMaxRequestFragmentLimit(t *testing.T) {
 func TestEnableHTTP2Monitoring(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.enable_http2_monitoring", true)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.http2.enabled", true)
 		cfg := New()
 
 		assert.True(t, cfg.EnableHTTP2Monitoring)
@@ -957,7 +957,7 @@ func TestDefaultDisabledHTTP2Support(t *testing.T) {
 func TestHTTP2DynamicTableMapCleanerInterval(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.http2_dynamic_table_map_cleaner_interval_seconds", 1025)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.http2.dynamic_table_map_cleaner_interval_seconds", 1025)
 		cfg := New()
 
 		require.Equal(t, cfg.HTTP2DynamicTableMapCleanerInterval, 1025*time.Second)
@@ -1509,5 +1509,58 @@ func TestEnvoyPathConfig(t *testing.T) {
 		cfg := New()
 
 		assert.EqualValues(t, "/test/envoy", cfg.EnvoyPath)
+	})
+}
+
+func TestHTTP2ConfigMigration(t *testing.T) {
+	t.Run("new tree structure config", func(t *testing.T) {
+		mockSystemProbe := mock.NewSystemProbe(t)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.http2.enabled", true)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.http2.dynamic_table_map_cleaner_interval_seconds", 45)
+		cfg := New()
+
+		assert.True(t, cfg.EnableHTTP2Monitoring)
+		assert.Equal(t, 45*time.Second, cfg.HTTP2DynamicTableMapCleanerInterval)
+	})
+
+	t.Run("backward compatibility with old flat keys", func(t *testing.T) {
+		mockSystemProbe := mock.NewSystemProbe(t)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.enable_http2_monitoring", true)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.http2_dynamic_table_map_cleaner_interval_seconds", 60)
+		cfg := New()
+
+		assert.True(t, cfg.EnableHTTP2Monitoring)
+		assert.Equal(t, 60*time.Second, cfg.HTTP2DynamicTableMapCleanerInterval)
+	})
+
+	t.Run("new tree structure takes precedence", func(t *testing.T) {
+		mockSystemProbe := mock.NewSystemProbe(t)
+		// Set both old and new
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.enable_http2_monitoring", false)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.http2.enabled", true)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.http2_dynamic_table_map_cleaner_interval_seconds", 30)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.http2.dynamic_table_map_cleaner_interval_seconds", 90)
+		cfg := New()
+
+		assert.True(t, cfg.EnableHTTP2Monitoring)                                // new tree structure wins
+		assert.Equal(t, 90*time.Second, cfg.HTTP2DynamicTableMapCleanerInterval) // new tree structure wins
+	})
+
+	t.Run("environment variables work", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP2_ENABLED", "true")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP2_DYNAMIC_TABLE_MAP_CLEANER_INTERVAL_SECONDS", "120")
+		cfg := New()
+
+		assert.True(t, cfg.EnableHTTP2Monitoring)
+		assert.Equal(t, 120*time.Second, cfg.HTTP2DynamicTableMapCleanerInterval)
+	})
+
+	t.Run("defaults work correctly", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		cfg := New()
+
+		assert.False(t, cfg.EnableHTTP2Monitoring)
+		assert.Equal(t, 30*time.Second, cfg.HTTP2DynamicTableMapCleanerInterval)
 	})
 }

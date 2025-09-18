@@ -14,7 +14,6 @@ import (
 	"path/filepath"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
-	"github.com/spf13/cobra"
 	"go.opentelemetry.io/collector/confmap"
 
 	agentConfig "github.com/DataDog/datadog-agent/cmd/otel-agent/config"
@@ -78,24 +77,6 @@ type cliParams struct {
 
 	// pidfilePath contains the value of the --pidfile flag.
 	pidfilePath string
-}
-
-// MakeCommand creates the `run` command
-func MakeCommand(globalConfGetter func() *subcommands.GlobalParams) *cobra.Command {
-	params := &cliParams{}
-
-	cmd := &cobra.Command{
-		Use:   "run",
-		Short: "Starting OpenTelemetry Collector",
-		RunE: func(_ *cobra.Command, _ []string) error {
-			globalParams := globalConfGetter()
-			params.GlobalParams = globalParams
-			return runOTelAgentCommand(context.Background(), params)
-		},
-	}
-	cmd.Flags().StringVarP(&params.pidfilePath, "pidfile", "p", "", "path to the pidfile")
-
-	return cmd
 }
 
 type orchestratorinterfaceimpl struct {

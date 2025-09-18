@@ -10,7 +10,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"unicode/utf8"
 
+	"golang.org/x/text/encoding/unicode"
 	"gopkg.in/yaml.v3"
 )
 
@@ -34,16 +36,13 @@ func writeConfig(path string, config any, perms os.FileMode, merge bool) error {
 	var originalBytes []byte
 	if merge {
 		// Read the original YAML (for preserving comments)
-		originalBytes, err = os.ReadFile(path)
+		originalBytes, err = readConfig(path)
 		if err != nil && !os.IsNotExist(err) {
 			return err
 		}
-		// Remove CR (\r) from originalBytes
-		// TODO: There seems to be an issue with how the yaml package handles CRLF
-		originalBytes = bytes.ReplaceAll(originalBytes, []byte("\r"), []byte(""))
 	}
 	var root yaml.Node
-	if err := yaml.Unmarshal([]byte(originalBytes), &root); err != nil {
+	if err := yaml.Unmarshal(originalBytes, &root); err != nil {
 		return err
 	}
 
@@ -158,4 +157,86 @@ func copyNodeComments(dst *yaml.Node, src *yaml.Node) {
 	if src.FootComment != "" && dst.FootComment == "" {
 		dst.FootComment = src.FootComment
 	}
+}
+
+// readConfig returns the Agent config bytes from path and performs the following normalizations:
+//   - Converts from UTF-16 to UTF-8
+//   - Removes CR (\r) bytes
+//
+// the yaml package does its own decoding, but since we're stripping out CR (\r) bytes we need
+// to decode the config, too.
+func readConfig(path string) ([]byte, error) {
+	originalBytes, err := os.ReadFile(path)
+	if err != nil && !os.IsNotExist(err) {
+		return nil, err
+	}
+
+	if len(originalBytes) == 0 {
+		return originalBytes, nil
+	}
+
+	// Normalize encoding to UTF-8 if needed
+	if originalBytes, err = ensureUTF8(originalBytes); err != nil {
+		return nil, fmt.Errorf("%s is not valid UTF-8: %w", path, err)
+	}
+
+	// Remove CR (\r) from originalBytes after decoding
+	// TODO: There seems to be an issue with how the yaml package handles CRLF
+	originalBytes = bytes.ReplaceAll(originalBytes, []byte("\r"), []byte(""))
+
+	return originalBytes, nil
+}
+
+// ensureUTF8 converts input bytes to UTF-8 if they are encoded as UTF-16 with BOM.
+//
+// Files created/edited on Windows are often written as UTF-16
+//
+// It also strips a UTF-8 BOM if present. If no BOM is found, the input is returned unchanged.
+func ensureUTF8(input []byte) ([]byte, error) {
+	// fast paths, check for BOMs
+
+	// UTF-8 BOM: EF BB BF
+	if len(input) >= 3 && input[0] == 0xEF && input[1] == 0xBB && input[2] == 0xBF {
+		return input[3:], nil
+	}
+
+	// UTF-16 LE BOM: FF FE
+	if len(input) >= 2 && input[0] == 0xFF && input[1] == 0xFE {
+		utf16 := unicode.UTF16(unicode.LittleEndian, unicode.UseBOM)
+		utf8, err := utf16.NewDecoder().Bytes(input)
+		if err != nil {
+			return nil, fmt.Errorf("file has UTF-16 BOM, but failed to convert to UTF-8: %w", err)
+		}
+		return utf8, nil
+	}
+
+	// UTF-16 BE BOM: FE FF
+	if len(input) >= 2 && input[0] == 0xFE && input[1] == 0xFF {
+		utf16 := unicode.UTF16(unicode.BigEndian, unicode.UseBOM)
+		utf8, err := utf16.NewDecoder().Bytes(input)
+		if err != nil {
+			return nil, fmt.Errorf("has UTF-16 BOM, but failed to convert to UTF-8: %w", err)
+		}
+		return utf8, nil
+	}
+
+	// no BOM or unknown BOM
+
+	// if contains null bytes, try to utf16 decode (assume LE)
+	// UTF-8 text should not contain NUL bytes
+	if bytes.Contains(input, []byte{0x00}) {
+		utf16 := unicode.UTF16(unicode.LittleEndian, unicode.UseBOM)
+		utf8, err := utf16.NewDecoder().Bytes(input)
+		if err != nil {
+			return nil, fmt.Errorf("contains null bytes, but failed to convert from UTF-16 to UTF-8: %w", err)
+		}
+		return utf8, nil
+	}
+
+	// Ensure already UTF-8
+	if !utf8.Valid(input) {
+		return nil, fmt.Errorf("contains bytes that are not valid UTF-8")
+	}
+
+	return input, nil
 }

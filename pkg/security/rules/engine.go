@@ -588,17 +588,19 @@ func (e *RuleEngine) getEventTypeEnabled() map[eval.EventType]bool {
 		}
 	}
 
-	if e.probe.IsNetworkEnabled() {
-		if eventTypes, exists := categories[model.NetworkCategory]; exists {
-			for _, eventType := range eventTypes {
-				switch eventType {
-				case model.RawPacketFilterEventType.String():
-					enabled[eventType] = e.probe.IsNetworkRawPacketEnabled()
-				case model.RawPacketActionEventType.String():
-					enabled[eventType] = e.probe.IsNetworkRawPacketEnabled()
-				case model.NetworkFlowMonitorEventType.String():
-					enabled[eventType] = e.probe.IsNetworkFlowMonitorEnabled()
-				default:
+	if eventTypes, exists := categories[model.NetworkCategory]; exists {
+		for _, eventType := range eventTypes {
+			switch eventType {
+			case model.RawPacketFilterEventType.String():
+				enabled[eventType] = e.probe.IsNetworkRawPacketEnabled()
+			case model.RawPacketActionEventType.String():
+				enabled[eventType] = e.probe.IsNetworkRawPacketEnabled()
+			case model.NetworkFlowMonitorEventType.String():
+				enabled[eventType] = e.probe.IsNetworkFlowMonitorEnabled()
+			default:
+				if model.EventTypeDependsOnInterfaceTracking(eventType) {
+					enabled[eventType] = e.probe.IsNetworkEnabled()
+				} else {
 					enabled[eventType] = true
 				}
 			}

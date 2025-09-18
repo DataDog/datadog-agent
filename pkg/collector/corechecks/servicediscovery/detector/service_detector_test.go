@@ -15,17 +15,15 @@ import (
 )
 
 func TestFixup(t *testing.T) {
-	meta := fixupMetadata(usm.ServiceMetadata{Name: "fOo", DDService: "BAR"}, language.Go)
+	// Test that generated name gets normalized
+	meta := fixupMetadata(usm.ServiceMetadata{Name: "fOo"}, language.Go)
 	assert.Equal(t, meta.Name, "foo")
-	assert.Equal(t, meta.DDService, "bar")
 
 	meta = fixupMetadata(usm.ServiceMetadata{Name: ""}, language.Go)
 	assert.Equal(t, meta.Name, "unnamed-go-service")
-	assert.Equal(t, meta.DDService, "")
 
 	meta = fixupMetadata(usm.ServiceMetadata{Name: ""}, language.Unknown)
 	assert.Equal(t, meta.Name, "unnamed-service")
-	assert.Equal(t, meta.DDService, "")
 
 	meta = fixupMetadata(usm.ServiceMetadata{Name: "foo", AdditionalNames: []string{"bAr", "  ", "*", "baz", "a"}}, language.Go)
 	assert.Equal(t, "foo", meta.Name)

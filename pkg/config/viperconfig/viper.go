@@ -17,6 +17,7 @@ import (
 	"reflect"
 	"runtime"
 	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -54,6 +55,9 @@ type safeConfig struct {
 	// configEnvVars is the set of env vars that are consulted for
 	// configuration values.
 	configEnvVars map[string]struct{}
+
+	// tree of env vars, lets us properly build parent-child linking
+	envVarTree map[string]interface{}
 
 	// keys that have been used but are unknown
 	// used to warn (a single time) on use
@@ -562,12 +566,25 @@ func (c *safeConfig) BindEnv(key string, envvars ...string) {
 		envKeys = envvars
 	}
 
-	for _, key := range envKeys {
+	for _, envname := range envKeys {
 		// apply EnvKeyReplacer to each key
 		if c.envKeyReplacer != nil {
-			key = c.envKeyReplacer.Replace(key)
+			envname = c.envKeyReplacer.Replace(envname)
 		}
-		c.configEnvVars[key] = struct{}{}
+		c.configEnvVars[envname] = struct{}{}
+	}
+
+	// Add the env var into a tree, so we know which setting has children that use env vars
+	currTree := c.envVarTree
+	parts := strings.Split(key, ".")
+	for _, part := range parts {
+		if elem, found := currTree[part].(map[string]interface{}); found {
+			currTree = elem
+		} else {
+			alloc := make(map[string]interface{})
+			currTree[part] = alloc
+			currTree = alloc
+		}
 	}
 
 	newKeys := append([]string{key}, envvars...)
@@ -802,6 +819,43 @@ func (c *safeConfig) ConfigFileUsed() string {
 	return c.Viper.ConfigFileUsed()
 }
 
+// GetSubfields returns the names of additional settings under the given key
+func (c *safeConfig) GetSubfields(key string) []string {
+	c.Lock()
+	defer c.Unlock()
+
+	res := []string{}
+	for _, s := range model.Sources {
+		if s == model.SourceEnvVar {
+			// Viper doesn't store env vars in the actual configSource layer, instead
+			// use the envVarTree built by this wrapper to lookup which env vars exist
+			currTree := c.envVarTree
+			parts := strings.Split(key, ".")
+			for _, part := range parts {
+				if elem, found := currTree[part].(map[string]interface{}); found {
+					currTree = elem
+				} else {
+					currTree = nil
+					break
+				}
+			}
+			for k := range currTree {
+				res = append(res, k)
+			}
+			continue
+		}
+		if layer, ok := c.configSources[s].Get(key).(map[string]interface{}); ok {
+			for k := range layer {
+				res = append(res, k)
+			}
+		}
+	}
+
+	sort.Strings(res)
+	res = slices.Compact(res)
+	return res
+}
+
 func (c *safeConfig) SetTypeByDefaultValue(in bool) {
 	c.Lock()
 	defer c.Unlock()
@@ -849,6 +903,7 @@ func NewViperConfig(name string, envPrefix string, envKeyReplacer *strings.Repla
 		configSources:        map[model.Source]*viper.Viper{},
 		sequenceID:           0,
 		ready:                atomic.NewBool(false),
+		envVarTree:           make(map[string]interface{}),
 		configEnvVars:        map[string]struct{}{},
 		unknownKeys:          map[string]struct{}{},
 		existingTransformers: make(map[string]bool),

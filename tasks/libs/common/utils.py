@@ -322,6 +322,9 @@ def get_build_flags(
                 ),
                 file=sys.stderr,
             )
+    elif sys.platform.startswith('linux'):
+        # Use lazy symbol resolution to fix NVML issues on distributions with --enable-host-bind-now
+        extldflags += "-Wl,-z,lazy "
 
     if os.getenv("DD_CC"):
         env["CC"] = os.getenv("DD_CC")

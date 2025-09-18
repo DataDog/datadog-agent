@@ -80,7 +80,7 @@ The payload is a JSON dict with the following fields
   - `feature_networks_https_enabled` - **bool**: True if HTTPS monitoring is enabled for Universal Service Monitoring (see: `service_monitoring_config.tls.native.enabled` config option in `system-probe.yaml`).
   - `feature_remote_configuration_enabled` - **bool**: True if Remote Configuration is enabled (see: `remote_configuration.enabled` config option).
   - `feature_usm_enabled` - **bool**: True if Universal Service Monitoring is enabled (see: `service_monitoring_config.enabled` config option in `system-probe.yaml`)
-  - `feature_usm_http2_enabled` - **bool**: True if HTTP2 monitoring is enabled for Universal Service Monitoring (see: `service_monitoring_config.enable_http2_monitoring` config option in `system-probe.yaml`).
+  - `feature_usm_http2_enabled` - **bool**: True if HTTP2 monitoring is enabled for Universal Service Monitoring (see: `service_monitoring_config.http2.enabled` config option in `system-probe.yaml`).
   - `feature_usm_kafka_enabled` - **bool**: True if Kafka monitoring is enabled for Universal Service Monitoring (see: `service_monitoring_config.enable_kafka_monitoring` config option in `system-probe.yaml`)
   - `feature_usm_postgres_enabled` - **bool**: True if Postgres monitoring is enabled for Universal Service Monitoring (see: `service_monitoring_config.postgres.enabled` config option in `system-probe.yaml`)
   - `feature_usm_redis_enabled` - **bool**: True if Redis monitoring is enabled for Universal Service Monitoring (see: `service_monitoring_config.enable_redis_monitoring` config option in `system-probe.yaml`)
