@@ -14,6 +14,8 @@ import (
 	"io"
 	"sync"
 	"time"
+	"unique"
+	"unsafe"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/DataDog/ebpf-manager/tracefs"
@@ -33,9 +35,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/fentry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
+	ssluprobes "github.com/DataDog/datadog-agent/pkg/network/tracer/connection/ssl-uprobes"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/encoding"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
@@ -70,6 +72,7 @@ var EbpfTracerTelemetry = struct {
 	PidCollisions               *telemetry.StatCounterWrapper
 	iterationDups               telemetry.Counter
 	iterationAborts             telemetry.Counter
+	sslCertMissed               telemetry.Counter
 
 	LastTCPSentMiscounts  *atomic.Int64
 	lastUnbatchedTCPClose *atomic.Int64
@@ -107,6 +110,7 @@ var EbpfTracerTelemetry = struct {
 	telemetry.NewStatCounterWrapper(connTracerModuleName, "pid_collisions", []string{}, "Counter measuring number of process collisions"),
 	telemetry.NewCounter(connTracerModuleName, "iteration_dups", []string{}, "Counter measuring the number of connections iterated more than once"),
 	telemetry.NewCounter(connTracerModuleName, "iteration_aborts", []string{}, "Counter measuring how many times ebpf iteration of connection map was aborted"),
+	telemetry.NewCounter(connTracerModuleName, "__ssl_cert_missed", []string{}, "Counter measuring the number of times the agent tried to fetch cert that was already evicted from the LRU map"),
 	atomic.NewInt64(0),
 	atomic.NewInt64(0),
 	atomic.NewInt64(0),
@@ -126,11 +130,14 @@ var EbpfTracerTelemetry = struct {
 type ebpfTracer struct {
 	m *ddebpf.Manager
 
+	sslProgram *ssluprobes.SSLCertsProgram
+
 	conns                   *maps.GenericMap[netebpf.ConnTuple, netebpf.ConnStats]
 	tcpStats                *maps.GenericMap[netebpf.ConnTuple, netebpf.TCPStats]
 	tcpRetransmits          *maps.GenericMap[netebpf.ConnTuple, uint32]
 	ebpfTelemetryMap        *maps.GenericMap[uint32, netebpf.Telemetry]
 	tcpFailuresTelemetryMap *maps.GenericMap[int32, uint64]
+	sslCertInfoMap          *maps.GenericMap[uint32, netebpf.CertItem]
 	config                  *config.Config
 
 	// tcp_close events
@@ -181,6 +188,18 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 		BypassEnabled:          config.BypassEnabled,
 	}
 
+	if config.EnableCertCollection {
+		if err := ssluprobes.ValidateSupported(); err != nil {
+			log.Warn("TLS certificate collection is not supported on this kernel. Disabling. Details: %w", err)
+			config.EnableCertCollection = false
+		}
+	}
+
+	err := ssluprobes.ConfigureOptions(&mgrOptions, config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to configure ssluprobes options: %w", err)
+	}
+
 	begin, end := network.EphemeralRange()
 	mgrOptions.ConstantEditors = append(mgrOptions.ConstantEditors,
 		manager.ConstantEditor{Name: "ephemeral_range_begin", Value: uint64(begin)},
@@ -208,7 +227,7 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 		lastTCPFailureTelemetry: make(map[int32]uint64),
 	}
 
-	connCloseEventHandler, err := initClosedConnEventHandler(config, tr.closedPerfCallback, connPool, extractor)
+	connCloseEventHandler, err := initClosedConnEventHandler(config, tr.getSSLCertInfo, tr.closedPerfCallback, connPool, extractor)
 	if err != nil {
 		return nil, err
 	}
@@ -244,12 +263,26 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 	}
 	tr.closeConsumer = newTCPCloseConsumer(flusher, connPool)
 
-	// Failed connections are not supported on prebuilt
 	if tracerType == TracerTypeKProbePrebuilt {
+		// Failed connections are not supported on prebuilt
 		if config.TCPFailedConnectionsEnabled {
 			log.Warn("Failed TCP connections are not supported with the prebuilt kprobe tracer. Disabling.")
 		}
 		config.TCPFailedConnectionsEnabled = false
+
+		// TLS certificate collection is not supported on prebuilt
+		if config.EnableCertCollection {
+			log.Warn("TLS certificate collection is not supported with the prebuilt kprobe tracer. Disabling.")
+			config.EnableCertCollection = false
+		}
+	}
+
+	if config.EnableCertCollection {
+		program, err := ssluprobes.NewSSLCertsProgram(m.Manager, config)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create SSL uprobe attacher: %w", err)
+		}
+		tr.sslProgram = program
 	}
 
 	tr.m = m
@@ -286,24 +319,39 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 		log.Warnf("error retrieving tcp failure telemetry map: %s", err)
 	}
 
+	tr.sslCertInfoMap, err = maps.GetMap[uint32, netebpf.CertItem](m.Manager, probes.SSLCertInfoMap)
+	if err != nil {
+		log.Warnf("error retrieving ssl cert info map: %s", err)
+	}
+
 	return tr, nil
 }
 
-func initClosedConnEventHandler(config *config.Config, closedCallback func(*network.ConnectionStats), pool ddsync.Pool[network.ConnectionStats], extractor *batchExtractor) (*perf.EventHandler, error) {
+type lookupCertCb = func(certID uint32) unique.Handle[ssluprobes.CertInfo]
+
+func initClosedConnEventHandler(config *config.Config, lookupCert lookupCertCb, closedCallback func(*network.ConnectionStats), pool ddsync.Pool[network.ConnectionStats], extractor *batchExtractor) (*perf.EventHandler, error) {
 	connHasher := newCookieHasher()
-	singleConnHandler := encoding.BinaryUnmarshalCallback(pool.Get, func(b *network.ConnectionStats, err error) {
-		if err != nil {
-			if b != nil {
-				pool.Put(b)
-			}
-			log.Debug(err.Error())
+
+	singleConnHandler := func(buf []byte) {
+		if len(buf) == 0 {
+			closedCallback(nil)
 			return
 		}
-		if b != nil {
-			connHasher.Hash(b)
+		c := pool.Get()
+
+		if len(buf) < netebpf.SizeofConn {
+			log.Debugf("'Conn' binary data too small, received %d but expected %d bytes", len(buf), netebpf.SizeofConn)
+			pool.Put(c)
+			return
 		}
-		closedCallback(b)
-	})
+
+		ct := (*netebpf.Conn)(unsafe.Pointer(&buf[0]))
+		c.FromConn(ct)
+
+		c.CertInfo = lookupCert(ct.Conn_stats.Cert_id)
+		connHasher.Hash(c)
+		closedCallback(c)
+	}
 
 	handler := singleConnHandler
 	perfMode := perf.WakeupEvents(config.ClosedBufferWakeupCount)
@@ -380,6 +428,13 @@ func (t *ebpfTracer) Start(callback func(*network.ConnectionStats)) (err error) 
 		t.closeConsumer.Stop()
 		return fmt.Errorf("could not start ebpf manager: %s", err)
 	}
+	if t.sslProgram != nil {
+		err := t.sslProgram.Start()
+		if err != nil {
+			t.closeConsumer.Stop()
+			return fmt.Errorf("could not start sslProgram: %w", err)
+		}
+	}
 
 	ddebpf.AddProbeFDMappings(t.m.Manager)
 
@@ -407,6 +462,9 @@ func (t *ebpfTracer) Stop() {
 	t.stopOnce.Do(func() {
 		ddebpf.RemoveNameMappings(t.m.Manager)
 		ebpftelemetry.UnregisterTelemetry(t.m.Manager)
+		if t.sslProgram != nil {
+			t.sslProgram.Stop()
+		}
 		_ = t.m.Stop(manager.CleanAll)
 		t.closeConsumer.Stop()
 		t.ongoingConnectCleaner.Stop()
@@ -480,6 +538,7 @@ func (t *ebpfTracer) GetConnections(buffer *network.ConnectionBuffer, filter fun
 		if retrans, ok := t.getTCPRetransmits(key, seen); ok && conn.Type == network.TCP {
 			conn.Monotonic.Retransmits = retrans
 		}
+		conn.CertInfo = t.getSSLCertInfo(stats.Cert_id)
 
 		*buffer.Next() = *conn
 	}
@@ -754,6 +813,33 @@ func (t *ebpfTracer) getTCPRetransmits(tuple *netebpf.ConnTuple, seen map[netebp
 
 	tuple.Pid = pid
 	return retransmits, true
+}
+
+func (t *ebpfTracer) getSSLCertInfo(certID uint32) unique.Handle[ssluprobes.CertInfo] {
+	if t.sslCertInfoMap == nil {
+		return unique.Handle[ssluprobes.CertInfo]{}
+	}
+	if certID == 0 {
+		return unique.Handle[ssluprobes.CertInfo]{}
+	}
+	var certItem netebpf.CertItem
+
+	if err := t.sslCertInfoMap.Lookup(&certID, &certItem); err != nil {
+		if err == ebpf.ErrKeyNotExist {
+			EbpfTracerTelemetry.sslCertMissed.Inc()
+			return unique.Handle[ssluprobes.CertInfo]{}
+		}
+
+		if log.ShouldLog(log.TraceLvl) {
+			log.Tracef("error retrieving certItem: %s", err)
+		}
+		return unique.Handle[ssluprobes.CertInfo]{}
+	}
+
+	var certInfo ssluprobes.CertInfo
+	certInfo.FromCertItem(&certItem)
+
+	return unique.Make(certInfo)
 }
 
 // getTCPStats reads tcp related stats for the given ConnTuple
