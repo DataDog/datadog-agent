@@ -47,25 +47,14 @@
             "arguments": {
               "m": {
                 "type": "map[string]int",
-                "size": "1",
-                "entries": [
-                  [
-                    {
-                      "type": "string",
-                      "value": "a"
-                    },
-                    {
-                      "type": "int",
-                      "value": "1"
-                    }
-                  ]
-                ]
+                "notCapturedReason": "depth"
               }
             }
           }
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": ""
   }
 ]

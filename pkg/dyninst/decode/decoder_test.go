@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 	"unsafe"
@@ -155,7 +156,7 @@ var simpleStringArgExpected = map[string]any{
 
 func simpleStringArgEvent(t testing.TB, irProg *ir.Program) []byte {
 	probe := slices.IndexFunc(irProg.Probes, func(p *ir.Probe) bool {
-		return p.GetID() == "stringArg"
+		return p.GetID() == "stringArg" || strings.HasPrefix(p.GetID(), "testTemplate")
 	})
 	require.NotEqual(t, -1, probe)
 	events := irProg.Probes[probe].Events
@@ -844,4 +845,67 @@ func TestDecoderFailsOnEvaluationErrorAndRetainsPassedBuffer(t *testing.T) {
 	require.Contains(t, string(out), "no decoder type found")
 	require.Equal(t, buf, []byte{1, 2, 3, 4, 5})
 
+}
+
+func TestDecoderWithTemplate(t *testing.T) {
+	testCases := []struct {
+		name             string
+		expectedInOutput string
+		expectedError    error
+		probeNames       []string
+		eventGenerator   func(testing.TB, *ir.Program) []byte
+	}{
+		{
+			name:             "testTemplateStringSegment",
+			expectedInOutput: "hello",
+			probeNames:       []string{"simple", "testTemplateStringSegment"},
+			eventGenerator:   simpleStringArgEvent,
+		},
+		{
+			name:             "testTemplateMultipleStringSegments",
+			expectedInOutput: "hello world!",
+			probeNames:       []string{"simple", "testTemplateMultipleStringSegments"},
+			eventGenerator:   simpleStringArgEvent,
+		},
+		{
+			name:             "testTemplateStringAndDSLSegment",
+			expectedInOutput: "hello abcdefghijklmnop",
+			probeNames:       []string{"simple", "testTemplateStringAndDSLSegment"},
+			eventGenerator:   simpleStringArgEvent,
+		},
+		{
+			name:             "testTemplateMultipleDSLSegment",
+			expectedInOutput: "abcdefghijklmnopabcdefghijklmnopabcdefghijklmnopabcdefghijklmnop",
+			probeNames:       []string{"simple", "testTemplateMultipleDSLSegment"},
+			eventGenerator:   simpleStringArgEvent,
+		},
+		{
+			name:             "testTemplateDSLAndStringSegments",
+			expectedInOutput: "hello abcdefghijklmnop, and hello to abcdefghijklmnop",
+			probeNames:       []string{"simple", "testTemplateDSLAndStringSegments"},
+			eventGenerator:   simpleStringArgEvent,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var irProg *ir.Program
+			if len(tc.probeNames) < 1 {
+				t.Fatalf("invalid number of probe names: %d", len(tc.probeNames))
+			}
+			irProg = generateIrForProbes(t, tc.probeNames[0], tc.probeNames[1:]...)
+			decoder, err := NewDecoder(irProg, &noopTypeNameResolver{}, time.Now())
+			require.NoError(t, err)
+			input := tc.eventGenerator(t, irProg)
+			output, _, err := decoder.Decode(Event{
+				Event:       output.Event(input),
+				ServiceName: "foo"},
+				&noopSymbolicator{},
+				[]byte{},
+			)
+			fmt.Println(string(output))
+			require.Equal(t, tc.expectedError, err)
+			require.Contains(t, string(output), tc.expectedInOutput)
+		})
+	}
 }

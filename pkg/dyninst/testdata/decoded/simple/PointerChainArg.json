@@ -26,6 +26,11 @@
             "lineNumber": 37
           },
           {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
+            "lineNumber": 35
+          },
+          {
             "function": "runtime.main",
             "fileName": "runtime/proc.go",
             "lineNumber": "[lineNumber]"
@@ -54,6 +59,7 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": ""
   }
 ]
