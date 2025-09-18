@@ -113,6 +113,37 @@
 .needs_new_e2e_template:
   - go_e2e_deps
   - go_e2e_test_binaries
+  - job: new-e2e-base-coverage
+    optional: true
+
+new-e2e-base-coverage:
+  extends: .new_e2e_template
+  needs:
+    - go_e2e_deps
+    - go_e2e_test_binaries
+    - agent_deb-x64-a7
+  rules:
+    - !reference [.except_mergequeue]
+    - !reference [.on_coverage_pipeline]
+  variables:
+    TARGETS: ./tests/agent-devx
+    TEAM: agent-devx
+    EXTRA_PARAMS: --run TestAgentBaselineSuite
+
+new-e2e-base:
+  extends: .new_e2e_template
+  needs:
+    - go_e2e_deps
+    - go_e2e_test_binaries
+    - agent_deb-x64-a7
+  rules:
+    - !reference [.except_mergequeue]
+    - !reference [.except_coverage_pipeline]
+    - when: on_success
+  variables:
+    TARGETS: ./tests/agent-devx
+    TEAM: agent-devx
+    EXTRA_PARAMS: --run TestAgentBaselineSuite
 
 # Build test binaries job that creates pre-compiled test binaries
 # This job runs early in the pipeline and creates artifacts that can be reused by test jobs
