@@ -159,6 +159,8 @@ func (c *ntmConfig) addToSchema(key string, source model.Source) {
 
 func (c *ntmConfig) getTreeBySource(source model.Source) (InnerNode, error) {
 	switch source {
+	case "root":
+		return c.root, nil
 	case model.SourceDefault:
 		return c.defaults, nil
 	case model.SourceUnknown:
@@ -196,15 +198,12 @@ func (c *ntmConfig) RevertFinishedBackToBuilder() model.BuildableConfig {
 
 // Set assigns the newValue to the given key and marks it as originating from the given source
 func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
+	c.Lock()
+	defer c.Unlock()
+
 	c.maybeRebuild()
 
-	tree, err := c.getTreeBySource(source)
-	if err != nil {
-		log.Errorf("Set invalid source: %s", source)
-		return
-	}
-
-	if !c.IsKnown(key) {
+	if !c.isKnownKey(key) {
 		if c.allowDynamicSchema.Load() {
 			log.Errorf("set value for unknown key '%s'", key)
 		} else {
@@ -215,26 +214,18 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	// convert the key to lower case for the logs line and the notification
 	key = strings.ToLower(key)
 
-	c.Lock()
-	defer c.Unlock()
 	previousValue := c.leafAtPathFromNode(key, c.root).Get()
 
-	parts := splitKey(key)
-
-	_, err = tree.SetAt(parts, newValue, source)
-	if err != nil {
-		log.Errorf("could not set '%s' invalid key: %s", key, err)
-	}
-
-	updated, err := c.root.SetAt(parts, newValue, source)
-	if err != nil {
-		log.Errorf("could not set '%s' invalid key: %s", key, err)
+	newTree, _ := c.insertValueIntoTree(key, newValue, source)
+	if newTree != nil {
+		// a new node was allocated, merge it into root
+		c.root, _ = c.root.Merge(newTree.(InnerNode))
 	}
 
 	receivers := slices.Clone(c.notificationReceivers)
 
 	// if no value has changed we don't notify
-	if !updated || reflect.DeepEqual(previousValue, newValue) {
+	if reflect.DeepEqual(previousValue, newValue) {
 		return
 	}
 
@@ -244,7 +235,18 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	for _, receiver := range receivers {
 		receiver(key, source, previousValue, newValue, c.sequenceID)
 	}
+}
 
+func (c *ntmConfig) insertValueIntoTree(key string, value interface{}, source model.Source) (Node, error) {
+	tree, err := c.getTreeBySource(source)
+	if err != nil {
+		log.Errorf("Set invalid source: %s", source)
+		return nil, fmt.Errorf("invalid source: %s", source)
+	}
+
+	parts := splitKey(key)
+	_, err = tree.SetAt(parts, value, source)
+	return tree, err
 }
 
 // SetWithoutSource assigns the value to the given key using source Unknown, may only be called from tests
@@ -468,15 +470,16 @@ func (c *ntmConfig) mergeAllLayers() error {
 		c.cli,
 	}
 
-	root := newInnerNode(nil)
+	var merged InnerNode = newInnerNode(nil)
 	for _, tree := range treeList {
-		err := root.Merge(tree)
+		next, err := merged.Merge(tree)
 		if err != nil {
 			return err
 		}
+		merged = next
 	}
 
-	c.root = root
+	c.root = merged
 	// recompile allSettings now that we have the full config
 	c.allSettings = c.computeAllSettings("")
 	return nil
@@ -625,10 +628,10 @@ func (c *ntmConfig) ParseEnvAsSlice(key string, fn func(string) []interface{}) {
 
 // IsSet checks if a key is set in the config
 func (c *ntmConfig) IsSet(key string) bool {
-	c.maybeRebuild()
-
 	c.RLock()
 	defer c.RUnlock()
+
+	c.maybeRebuild()
 
 	if !c.isReady() && !c.allowDynamicSchema.Load() {
 		log.Errorf("attempt to read key before config is constructed: %s", key)
@@ -814,7 +817,12 @@ func (c *ntmConfig) MergeConfig(in io.Reader) error {
 		return err
 	}
 
-	return c.root.Merge(other)
+	merged, err := c.root.Merge(other)
+	if err != nil {
+		return err
+	}
+	c.root = merged
+	return nil
 }
 
 // MergeFleetPolicy merges the configuration from the reader given with an existing config
@@ -849,7 +857,12 @@ func (c *ntmConfig) MergeFleetPolicy(configPath string) error {
 		return err
 	}
 
-	return c.root.Merge(other)
+	merged, err := c.root.Merge(other)
+	if err != nil {
+		return err
+	}
+	c.root = merged
+	return nil
 }
 
 // AllSettings returns all settings from the config

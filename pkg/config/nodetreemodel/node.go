@@ -122,7 +122,7 @@ type InnerNode interface {
 	Node
 	HasChild(string) bool
 	ChildrenKeys() []string
-	Merge(InnerNode) error
+	Merge(InnerNode) (InnerNode, error)
 	SetAt([]string, interface{}, model.Source) (bool, error)
 	InsertChildNode(string, Node)
 	RemoveChild(string)
@@ -133,6 +133,7 @@ type InnerNode interface {
 type LeafNode interface {
 	Node
 	Get() interface{}
+	ReplaceValue(v interface{}) error
 	Source() model.Source
 	SourceGreaterThan(model.Source) bool
 }

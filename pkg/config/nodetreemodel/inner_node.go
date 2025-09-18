@@ -6,11 +6,12 @@
 package nodetreemodel
 
 import (
-	"fmt"
+	"errors"
 	"slices"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"golang.org/x/exp/maps"
 )
 
@@ -55,41 +56,64 @@ func (n *innerNode) HasChild(key string) bool {
 	return ok
 }
 
-// Merge mergs src node within current tree
-func (n *innerNode) Merge(src InnerNode) error {
-	for _, name := range src.ChildrenKeys() {
-		srcChild, _ := src.GetChild(name)
+// Merge merges this node with that and returns the merged result
+func (n *innerNode) Merge(that InnerNode) (InnerNode, error) {
+	newChildren := map[string]Node{}
 
-		if !n.HasChild(name) {
-			n.children[name] = srcChild.Clone()
+	// iterate our keys
+	for _, name := range n.ChildrenKeys() {
+		ourChild, _ := n.GetChild(name)
+
+		if !that.HasChild(name) {
+			// if their tree doesn't have the node, use our node
+			newChildren[name] = ourChild
+			continue
+		}
+
+		theirChild, _ := that.GetChild(name)
+		ourLeaf, ourIsLeaf := ourChild.(LeafNode)
+		theirLeaf, theirIsLeaf := theirChild.(LeafNode)
+
+		if ourIsLeaf != theirIsLeaf {
+			// shape of the trees don't match, just keep ours
+			// TODO: Improve error handling in a follow-up PR. We should collect errors
+			// and log.Error them, but not break functionality in doing so
+			newChildren[name] = ourChild
+			continue
+		}
+
+		if ourIsLeaf && theirIsLeaf {
+			// both are leafs, check the priority by source
+			if ourLeaf.Source() == theirLeaf.Source() || theirLeaf.SourceGreaterThan(ourLeaf.Source()) {
+				newChildren[name] = theirChild
+			} else {
+				newChildren[name] = ourChild
+			}
+			continue
 		} else {
-			// We alredy have child with the same name
+			// both are inner nodes, recursively merge
+			ourInner := ourChild.(InnerNode)
+			theirInner := theirChild.(InnerNode)
 
-			dstChild, _ := n.GetChild(name)
-
-			dstLeaf, dstIsLeaf := dstChild.(LeafNode)
-			srcLeaf, srcIsLeaf := srcChild.(LeafNode)
-			if srcIsLeaf != dstIsLeaf {
-				// Ignore the source (incoming) node and keep the destination (current) node
-				// TODO: Improve error handling in a follow-up PR. We should collect errors
-				// and log.Error them, but not break functionality in doing so
+			result, err := ourInner.Merge(theirInner)
+			if err != nil {
+				log.Errorf("merging config tree: %v\n", err)
 				continue
 			}
-
-			if srcIsLeaf {
-				if srcLeaf.Source() == dstLeaf.Source() || srcLeaf.SourceGreaterThan(dstLeaf.Source()) {
-					n.children[name] = srcLeaf.Clone()
-				}
-			} else {
-				dstInner, _ := dstChild.(InnerNode)
-				childInner, _ := srcChild.(InnerNode)
-				if err := dstInner.Merge(childInner); err != nil {
-					return err
-				}
-			}
+			newChildren[name] = result
+			continue
 		}
 	}
-	return nil
+
+	// iterate their keys
+	for _, name := range that.ChildrenKeys() {
+		if !n.HasChild(name) {
+			newChildren[name], _ = that.GetChild(name)
+		}
+	}
+
+	// construct and return a new node with the merged children
+	return newInnerNode(newChildren), nil
 }
 
 // ChildrenKeys returns the list of keys of the children of the given node, if it is a map
@@ -104,44 +128,59 @@ func (n *innerNode) ChildrenKeys() []string {
 // the existing one. The function returns true if an update was done or false if nothing was changed.
 //
 // The key parts should already be lowercased.
+//
+// This method should only be called on the root of a tree, not on an inner node with parents.
+// TODO: Consider adding a RootNode type, move this method to that.
 func (n *innerNode) SetAt(key []string, value interface{}, source model.Source) (bool, error) {
-	keyLen := len(key)
-	if keyLen == 0 {
-		return false, fmt.Errorf("empty key given to Set")
+	if len(key) == 0 {
+		return false, errors.New("empty key given to Set")
 	}
+	newNode, updated, err := setNodeAtPath(n, key, value, source)
+	if inner, ok := newNode.(*innerNode); ok {
+		n.children = inner.children
+	}
+	return updated, err
+}
 
-	part := key[0]
-	if keyLen == 1 {
-		node, ok := n.children[part]
-		if !ok {
-			n.children[part] = newLeafNode(value, source)
-			return true, nil
-		}
+// setNodeAtPath allocates a new branch, ending in a leaf at the given path of fields, with the
+// given value, and returns the root of that branch. If a leaf already exists at that path,
+// instead it is modified and no branch is allocated and this returns nil
+func setNodeAtPath(n *innerNode, fields []string, value interface{}, source model.Source) (Node, bool, error) {
+	if len(fields) == 0 {
+		return newLeafNode(value, source), true, nil
+	}
+	f := fields[0]
 
-		if leaf, ok := node.(LeafNode); ok {
-			if source == leaf.Source() || source.IsGreaterThan(leaf.Source()) {
-				n.children[part] = newLeafNode(value, source)
-				return true, nil
+	// Locate the next node down in the tree (or nil if it doesn't exist)
+	var next *innerNode
+	if n != nil {
+		if child, _ := n.GetChild(f); child != nil {
+			if innerNode, ok := child.(*innerNode); ok {
+				next = innerNode
+			} else if leafNode, ok := child.(LeafNode); ok {
+				// If we find a leaf, simply replace its value, and return nil for
+				// the first return value because no node was created
+				leafNode.ReplaceValue(value)
+				return nil, true, nil
 			}
-			return false, nil
 		}
-		return false, fmt.Errorf("can't overrides inner node with a leaf node")
 	}
 
-	// new node case
-	if _, ok := n.children[part]; !ok {
-		newNode := newInnerNode(nil)
-		n.children[part] = newNode
-		return newNode.SetAt(key[1:keyLen], value, source)
+	// Recursively set the node at the remaining part of the path
+	createdNode, updated, err := setNodeAtPath(next, fields[1:], value, source)
+	if err != nil || createdNode == nil {
+		return nil, updated, err
 	}
 
-	// update node case
-	child, err := n.GetChild(part)
-	node, ok := child.(InnerNode)
-	if err != nil || !ok {
-		return false, fmt.Errorf("can't update a leaf node into a inner node")
+	// Create a new inner node using the modified list of child nodes
+	var copyChildren map[string]Node
+	if n != nil {
+		copyChildren = maps.Clone(n.children)
+	} else {
+		copyChildren = make(map[string]Node)
 	}
-	return node.SetAt(key[1:keyLen], value, source)
+	copyChildren[f] = createdNode
+	return newInnerNode(copyChildren), true, nil
 }
 
 // InsertChildNode sets a node in the current node

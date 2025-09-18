@@ -26,6 +26,10 @@ func (m *missingLeafImpl) Get() interface{} {
 	return nil
 }
 
+func (m *missingLeafImpl) ReplaceValue(interface{}) error {
+	return fmt.Errorf("Replacevalue(): missing")
+}
+
 func (m *missingLeafImpl) SetWithSource(interface{}, model.Source) error {
 	return fmt.Errorf("SetWithSource(): missing")
 }
