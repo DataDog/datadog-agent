@@ -191,7 +191,7 @@ func (c *safeConfig) mergeViperInstances(key string) {
 }
 
 // SetKnown adds a key to the set of known valid config keys
-func (c *safeConfig) SetKnown(key string) { //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+func (c *safeConfig) SetKnown(key string) {
 	c.Lock()
 	defer c.Unlock()
 	c.Viper.SetKnown(key) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
@@ -553,7 +553,7 @@ func (c *safeConfig) mergeWithEnvPrefix(key string) string {
 }
 
 // BindEnv wraps Viper for concurrent access, and adds tracking of the configurable env vars
-func (c *safeConfig) BindEnv(key string, envvars ...string) { //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+func (c *safeConfig) BindEnv(key string, envvars ...string) {
 	c.Lock()
 	defer c.Unlock()
 	var envKeys []string
