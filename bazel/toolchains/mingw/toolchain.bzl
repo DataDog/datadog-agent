@@ -21,7 +21,7 @@ def _impl(ctx):
     if ctx.var.get("GCC_VERSION"):
         GCC_VERSION = ctx.var.get("GCC_VERSION")
     else:
-        GCC_VERSION = "12.2.0"
+        GCC_VERSION = "14.2.0"
 
     gpp_tool = tool(
         path = MINGW_PATH + "/bin/g++",
