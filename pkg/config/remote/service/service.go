@@ -453,7 +453,13 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 	if options.databaseFilePath != "" {
 		databaseFilePath = options.databaseFilePath
 	}
-	dbPath := path.Join(databaseFilePath, options.databaseFileName)
+
+	dbMetadata := &uptane.Metadata{
+		Path:         path.Join(databaseFilePath, options.databaseFileName),
+		AgentVersion: agentVersion,
+		ApiKey:       authKeys.apiKey,
+		Url:          baseURL.String(),
+	}
 
 	configRoot := options.configRootOverride
 	directorRoot := options.directorRootOverride
@@ -465,7 +471,7 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 		opt = append(opt, uptane.WithOrgIDCheck(authKeys.rcKey.OrgID))
 	}
 	uptaneClient, err := uptane.NewCoreAgentClienWithNewTransactionalStore(
-		dbPath, agentVersion, authKeys.apiKey, baseURL.String(),
+		dbMetadata,
 		newRCBackendOrgUUIDProvider(http),
 		opt...,
 	)
@@ -1086,7 +1092,7 @@ func (s *CoreAgentService) ConfigResetState() (*pbgo.ResetStateConfigResponse, e
 		uptane.WithDirectorRootOverride(s.site, s.directorRoot),
 	}
 	uptaneClient, err := uptane.NewCoreAgentClienWithRecreatedTransactionalStore(
-		metadata.Path, metadata.AgentVersion, metadata.ApiKey, metadata.Url,
+		metadata,
 		newRCBackendOrgUUIDProvider(s.api),
 		opt...,
 	)
@@ -1214,9 +1220,14 @@ type HTTPClient struct {
 // It uses a local db to cache the fetched configurations. Only one HTTPClient should be created per agent.
 // An HTTPClient must be closed via HTTPClient.Close() before creating a new one.
 func NewHTTPClient(runPath, site, apiKey, agentVersion string) (*HTTPClient, error) {
-	dbPath := path.Join(runPath, "remote-config-cdn.db")
+	dbMetadata := &uptane.Metadata{
+		Path:         path.Join(runPath, "remote-config-cdn.db"),
+		AgentVersion: agentVersion,
+		ApiKey:       apiKey,
+		Url:          site,
+	}
 
-	uptaneCDNClient, err := uptane.NewCDNClient(dbPath, agentVersion, apiKey, site)
+	uptaneCDNClient, err := uptane.NewCDNClient(dbMetadata)
 	if err != nil {
 		return nil, err
 	}

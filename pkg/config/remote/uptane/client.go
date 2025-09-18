@@ -131,8 +131,8 @@ func newCoreAgentClient(transactionalStore *transactionalStore, orgUUIDProvider 
 }
 
 // NewCoreAgentClienWithNewTransactionalStore creates a new uptane client with a new transactional store
-func NewCoreAgentClienWithNewTransactionalStore(dbPath, agentVersion, apiKey, url string, orgUUIDProvider OrgUUIDProvider, options ...ClientOption) (c *CoreAgentClient, err error) {
-	transactionalStore, err := NewTransactionalStore(dbPath, agentVersion, apiKey, url)
+func NewCoreAgentClienWithNewTransactionalStore(dbMetadata *Metadata, orgUUIDProvider OrgUUIDProvider, options ...ClientOption) (c *CoreAgentClient, err error) {
+	transactionalStore, err := NewTransactionalStore(dbMetadata)
 	if err != nil {
 		return nil, err
 	}
@@ -141,8 +141,8 @@ func NewCoreAgentClienWithNewTransactionalStore(dbPath, agentVersion, apiKey, ur
 }
 
 // NewCoreAgentClienWithRecreatedTransactionalStore creates a new uptane client with a recreated transactional store
-func NewCoreAgentClienWithRecreatedTransactionalStore(dbPath, agentVersion, apiKey, url string, orgUUIDProvider OrgUUIDProvider, options ...ClientOption) (c *CoreAgentClient, err error) {
-	transactionalStore, err := RecreateTransactionalStore(dbPath, agentVersion, apiKey, url)
+func NewCoreAgentClienWithRecreatedTransactionalStore(dbMetadata *Metadata, orgUUIDProvider OrgUUIDProvider, options ...ClientOption) (c *CoreAgentClient, err error) {
+	transactionalStore, err := RecreateTransactionalStore(dbMetadata)
 	if err != nil {
 		return nil, err
 	}
@@ -204,8 +204,8 @@ func (c *CoreAgentClient) updateRepos(response *pbgo.LatestConfigsResponse) erro
 }
 
 // NewCDNClient creates a new uptane client that will fetch the latest configs from the server over HTTP(s)
-func NewCDNClient(dbPath, agentVersion, apiKey, site string, options ...ClientOption) (c *CDNClient, err error) {
-	transactionalStore, err := NewTransactionalStore(dbPath, agentVersion, apiKey, site)
+func NewCDNClient(dbMetadata *Metadata, options ...ClientOption) (c *CDNClient, err error) {
+	transactionalStore, err := NewTransactionalStore(dbMetadata)
 	if err != nil {
 		return nil, err
 	}
@@ -215,10 +215,10 @@ func NewCDNClient(dbPath, agentVersion, apiKey, site string, options ...ClientOp
 	httpClient := &http.Client{}
 
 	c = &CDNClient{
-		configRemoteStore:   newCDNRemoteConfigStore(httpClient, site, apiKey),
-		directorRemoteStore: newCDNRemoteDirectorStore(httpClient, site, apiKey),
+		configRemoteStore:   newCDNRemoteConfigStore(httpClient, dbMetadata.Url, dbMetadata.ApiKey),
+		directorRemoteStore: newCDNRemoteDirectorStore(httpClient, dbMetadata.Url, dbMetadata.ApiKey),
 		Client: &Client{
-			site:                   site,
+			site:                   dbMetadata.Url,
 			targetStore:            targetStore,
 			transactionalStore:     transactionalStore,
 			orgStore:               orgStore,
@@ -232,11 +232,11 @@ func NewCDNClient(dbPath, agentVersion, apiKey, site string, options ...ClientOp
 		o(c.Client)
 	}
 
-	if c.configLocalStore, err = newLocalStoreConfig(transactionalStore, site, c.configRootOverride); err != nil {
+	if c.configLocalStore, err = newLocalStoreConfig(transactionalStore, dbMetadata.Url, c.configRootOverride); err != nil {
 		return nil, err
 	}
 
-	if c.directorLocalStore, err = newLocalStoreDirector(transactionalStore, site, c.directorRootOverride); err != nil {
+	if c.directorLocalStore, err = newLocalStoreDirector(transactionalStore, dbMetadata.Url, c.directorRootOverride); err != nil {
 		return nil, err
 	}
 
