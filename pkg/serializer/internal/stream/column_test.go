@@ -6,6 +6,7 @@
 package stream
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -80,4 +81,38 @@ func TestColumn(t *testing.T) {
 
 	err = cc.Close()
 	assert.NoError(t, err)
+
+	var combined []byte
+	for i := 0; i < len(cc.columns); i++ {
+		if cc.Len(i) > 0 {
+			col, err := cs.Decompress(cc.Bytes(i))
+			assert.NoError(t, err)
+			combined = append(combined, col...)
+		}
+
+		if i > 0 && i <= 3 {
+			assert.Equal(t, cc.Len(i), 18)
+		} else {
+			assert.Equal(t, cc.Len(i), 0)
+		}
+	}
+
+	assert.Equal(t, slices.Repeat([]byte{255, 255, 3}, 6*3), combined)
+
+	cc.Reset()
+	txn.Reset()
+	txn.Uint64(1, 1)
+
+	err = cc.AddItem(txn)
+	assert.NoError(t, err)
+
+	cc.Close()
+
+	for i := 0; i < len(cc.columns); i++ {
+		if i == 1 {
+			assert.Equal(t, cc.Len(i), 1)
+		} else {
+			assert.Equal(t, cc.Len(i), 0)
+		}
+	}
 }
