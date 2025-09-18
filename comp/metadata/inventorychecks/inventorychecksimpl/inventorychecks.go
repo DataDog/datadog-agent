@@ -232,15 +232,7 @@ func (ic *inventorychecksImpl) getPayload(withConfigs bool) marshaler.JSONMarsha
 			}
 		}
 
-		addedChecks := make(map[string]bool, 0)
-		checkStats = make([]map[string]interface{}, 0)
-		for _, c := range coll.GetChecksResults() {
-			checkID := fmt.Sprintf("%v", c["check_id"])
-			if _, found := addedChecks[checkID]; !found {
-				addedChecks[checkID] = true
-				checkStats = append(checkStats, c)
-			}
-		}
+		checkStats = coll.GetChecksResults()
 	}
 
 	logsMetadata := make(map[string][]metadata)
