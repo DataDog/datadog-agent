@@ -673,3 +673,5 @@ replace github.com/DataDog/datadog-agent/pkg/util/testutil => ../../../../pkg/ut
 replace github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../../pkg/util/winutil
 
 replace github.com/DataDog/datadog-agent/pkg/version => ../../../../pkg/version
+
+replace github.com/DataDog/datadog-agent/comp/core/tagger/def => ../../../core/tagger/def
