@@ -344,9 +344,11 @@ func (s *Serializer) getPreaggregationAllowlist() (bool, map[string]struct{}) {
 	var allowlist map[string]struct{}
 	if preaggregationEnabled && s.config.IsConfigured("preaggregation.metric_allowlist") {
 		rawList := s.config.GetStringSlice("preaggregation.metric_allowlist")
-		allowlist = make(map[string]struct{}, len(rawList))
-		for _, allowed := range rawList {
-			allowlist[allowed] = struct{}{}
+		if len(rawList) > 0 {
+			allowlist = make(map[string]struct{}, len(rawList))
+			for _, allowed := range rawList {
+				allowlist[allowed] = struct{}{}
+			}
 		}
 	}
 	return preaggregationEnabled, allowlist
