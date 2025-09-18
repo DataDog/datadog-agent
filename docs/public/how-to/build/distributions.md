@@ -60,7 +60,7 @@ docker run
     -v "/tmp/opt/datadog-agent:/opt/datadog-agent"
     -v"/tmp/gems:/gems"
     --workdir=/go/src/github.com/DataDog/datadog-agent
-    datadog/agent-buildimages-linux-glibc-2-17-x64
+    datadog/agent-buildimages-linux
     dda inv -- -e omnibus.build --base-dir=/omnibus --gem-path=/gems
 ```
 
@@ -71,11 +71,6 @@ at each Omnibus run:
  * `/tmp/omnibus`, containing the Omnibus base directory
  * `/tmp/opt/datadog-agent`, containing the Omnibus installation directory
  * `/tmp/gems`, containing all the ruby gems installed with Bundler
-///
-
-///bug
-If the build image crashes when running it on a modern Linux distribution, you might be
-affected by [this bug](https://github.com/moby/moby/issues/28705).
 ///
 
 ### Building on the host
@@ -134,6 +129,8 @@ You can chose to generate an installable package in the form of a `deb`/`rpm` ar
 ## Building for MacOS
 
 We do not currently support MacOS development environments or any container build image. You will therefore need to follow the [host-based build instructions](#building-on-the-host).
+
+When running the build command, you might want to skip the signing step by adding the `--skip-sign` flag.
 
 ## Building for Windows
 
