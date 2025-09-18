@@ -12,7 +12,10 @@ def _impl(ctx):
     ctx.actions.write(out, "executable")
 
     # path to external MINGW Compiler (e.g: "C:/toolchains/TDM-GCC-64")
-    MINGW_PATH = ctx.var.get("MINGW_PATH")
+    if ctx.var.get("MINGW_PATH"):
+        MINGW_PATH = ctx.var.get("MINGW_PATH")
+    else:
+        MINGW_PATH = "C:/tools/msys64/mingw64"
 
     # MINGW Compiler Version (e.g: "10.3.0")
     GCC_VERSION = ctx.var.get("GCC_VERSION")
