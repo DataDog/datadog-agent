@@ -105,6 +105,8 @@ agents:
       env:
         - name: HOST_PROC
           value: "/host/root/proc"
+		- name: DD_GPU_MONITORING_RINGBUFFER_WAKEUP_SIZE
+		  value: "0" 
     agent:
       env:
         - name: DD_GPU_ENABLED
