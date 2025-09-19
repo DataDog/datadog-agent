@@ -46,7 +46,7 @@ func TestToNetpathConfig(t *testing.T) {
 			input: common.SyntheticsTestConfig{
 				Subtype: "UDP",
 				Config: struct {
-					Assertions []interface{}        `json:"assertions"`
+					Assertions []common.Assertion   `json:"assertions"`
 					Request    common.ConfigRequest `json:"request"`
 				}{
 					Request: common.UDPConfigRequest{
@@ -77,7 +77,7 @@ func TestToNetpathConfig(t *testing.T) {
 			input: common.SyntheticsTestConfig{
 				Subtype: "TCP",
 				Config: struct {
-					Assertions []interface{}        `json:"assertions"`
+					Assertions []common.Assertion   `json:"assertions"`
 					Request    common.ConfigRequest `json:"request"`
 				}{
 					Request: common.TCPConfigRequest{
@@ -110,7 +110,7 @@ func TestToNetpathConfig(t *testing.T) {
 			input: common.SyntheticsTestConfig{
 				Subtype: "ICMP",
 				Config: struct {
-					Assertions []interface{}        `json:"assertions"`
+					Assertions []common.Assertion   `json:"assertions"`
 					Request    common.ConfigRequest `json:"request"`
 				}{
 					Request: common.ICMPConfigRequest{
@@ -139,7 +139,7 @@ func TestToNetpathConfig(t *testing.T) {
 			input: common.SyntheticsTestConfig{
 				Subtype: "foobar",
 				Config: struct {
-					Assertions []interface{}        `json:"assertions"`
+					Assertions []common.Assertion   `json:"assertions"`
 					Request    common.ConfigRequest `json:"request"`
 				}{},
 			},
@@ -150,7 +150,7 @@ func TestToNetpathConfig(t *testing.T) {
 			input: common.SyntheticsTestConfig{
 				Subtype: "UDP",
 				Config: struct {
-					Assertions []interface{}        `json:"assertions"`
+					Assertions []common.Assertion   `json:"assertions"`
 					Request    common.ConfigRequest `json:"request"`
 				}{
 					// wrong type, should be UDPConfigRequest
@@ -187,13 +187,13 @@ func TestNetworkPathToTestResult(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		worker      WorkerResult
+		worker      workerResult
 		expectFail  bool
 		expectError bool
 	}{
 		{
 			name: "success case",
-			worker: WorkerResult{
+			worker: workerResult{
 				tracerouteResult: payload.NetworkPath{
 					E2eProbe: payload.E2eProbe{
 						PacketsSent:          10,
@@ -228,7 +228,7 @@ func TestNetworkPathToTestResult(t *testing.T) {
 		},
 		{
 			name: "failure case",
-			worker: WorkerResult{
+			worker: workerResult{
 				tracerouteResult: payload.NetworkPath{},
 				tracerouteError:  fmt.Errorf("connection timeout"),
 				tracerouteCfg:    trCfg,

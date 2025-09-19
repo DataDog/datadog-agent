@@ -71,7 +71,7 @@ type SyntheticsTestConfig struct {
 	Subtype string `json:"subtype"`
 
 	Config struct {
-		Assertions []interface{} `json:"assertions"`
+		Assertions []Assertion   `json:"assertions"`
 		Request    ConfigRequest `json:"request"`
 	} `json:"config"`
 
@@ -79,6 +79,41 @@ type SyntheticsTestConfig struct {
 	OrgID    int    `json:"orgID"`
 	MainDC   string `json:"mainDC"`
 	PublicID string `json:"publicID"`
+}
+
+type Operator string
+
+const (
+	OperatorIs               = "is"
+	OperatorIsNot            = "isNot"
+	OperatorMoreThan         = "moreThan"
+	OperatorMoreThanOrEquals = "moreThanOrEquals"
+	OperatorLessThan         = "lessThan"
+	OperatorLessThanOrEquals = "lessThanOrEquals"
+)
+
+type AssertionType string
+
+const (
+	AssertionTypeNetworkHops  AssertionType = "networkHops"
+	AssertionTypeLatency      AssertionType = "latency"
+	AssertionTypePacketLoss   AssertionType = "packetLossPercentage"
+	AssertionTypePacketJitter AssertionType = "jitter"
+)
+
+type AssertionSubType string
+
+const (
+	AssertionSubTypeAverage AssertionSubType = "avg"
+	AssertionSubTypeMin     AssertionSubType = "min"
+	AssertionSubTypeMax     AssertionSubType = "max"
+)
+
+type Assertion struct {
+	Operator Operator         `json:"operator"`
+	Property AssertionSubType `json:"property"`
+	Target   string           `json:"target"`
+	Type     AssertionType    `json:"type"`
 }
 
 // UnmarshalJSON is a Custom unmarshal for SyntheticsTestConfig
@@ -89,7 +124,7 @@ func (c *SyntheticsTestConfig) UnmarshalJSON(data []byte) error {
 		Subtype string `json:"subtype"`
 
 		Config struct {
-			Assertions []interface{}   `json:"assertions"`
+			Assertions []Assertion     `json:"assertions"`
 			Request    json.RawMessage `json:"request"`
 		} `json:"config"`
 
