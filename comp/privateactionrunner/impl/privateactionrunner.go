@@ -50,6 +50,7 @@ type runnerImpl struct {
 	keysManager    remoteconfig.KeysManager
 	TaskVerifier   *taskverifier.TaskVerifier
 	WorkflowRunner *runners.WorkflowRunner
+	runnerID       string
 }
 
 // NewComponent creates a new privateactionrunner component
@@ -59,8 +60,9 @@ func NewComponent(reqs Requires) (Provides, error) {
 	if !enabled {
 		// Return a no-op component when disabled
 		runner := &runnerImpl{
-			log:    reqs.Logger,
-			config: reqs.Config,
+			log:      reqs.Logger,
+			config:   reqs.Config,
+			runnerID: "", // No runner ID when disabled
 		}
 		return Provides{
 			Comp: runner,
@@ -82,6 +84,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		keysManager:    keysManager,
 		TaskVerifier:   verifier,
 		WorkflowRunner: runners.NewWorkflowRunner(cfg, keysManager, verifier, opmsClient),
+		runnerID:       cfg.RunnerID,
 	}
 
 	reqs.Lifecycle.Append(compdef.Hook{
@@ -195,6 +198,11 @@ func (r *runnerImpl) Stop(ctx context.Context) error {
 	r.log.Info("Stopping private action runner")
 	r.WorkflowRunner.Close(ctx)
 	return nil
+}
+
+// GetRunnerID returns the runner ID if available, empty string if not configured
+func (r *runnerImpl) GetRunnerID() string {
+	return r.runnerID
 }
 
 // parseURN parses a URN in the format urn:dd:apps:on-prem-runner:{region}:{org_id}:{runner_id}
