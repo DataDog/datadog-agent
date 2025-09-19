@@ -4,12 +4,12 @@ upgrade:
     The PowerShell install script ``Install-Datadog.ps1`` now executes a different
     ``datadog-installer-x86_64.exe`` subcommand.
 
-    If you always download a fresh ``Install-Datadog.ps1`` then no changes are needed.
+    If you always download a fresh ``Install-Datadog.ps1``, then no changes are needed.
 
-    If you have a cached or modified copy of ``Install-Datadog.ps1`` then you must merge
-    the latest changes or migrate to use the executable setup instead, see the features section for more information.
+    If you have a cached or modified copy of ``Install-Datadog.ps1``, then you must merge
+    the latest changes, or migrate to use the executable setup instead. See the features section for more information.
 
-    ``Install-Datadog.ps1`` is now a light wrapper for downloading and executing ``datadog-installer-86_64.exe``, the rest of
+    ``Install-Datadog.ps1`` is now a light wrapper for downloading and executing ``datadog-installer-86_64.exe``. The rest of
     the setup responsibility has been moved into the executable.
 features:
   - |
