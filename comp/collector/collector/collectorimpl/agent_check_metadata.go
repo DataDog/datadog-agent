@@ -52,38 +52,34 @@ func (p *Payload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error) {
 	return nil, fmt.Errorf("AgentChecks Payload splitting is not implemented")
 }
 
-// GetPayload builds a payload of all the agentchecks metadata
-func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
-	hostnameData, _ := c.hostname.Get(ctx)
-
-	meta := hostMetadataUtils.GetMetaFromCache(ctx, c.config, c.hostname)
-	meta.Hostname = hostnameData
-
-	cp := hostMetadataUtils.GetCommonPayload(hostnameData, c.config)
-	payload := &Payload{
-		CommonPayload:    *cp,
-		Meta:             *meta,
-		ExternalhostTags: *externalhost.GetPayload(),
-	}
-
+func (c *collectorImpl) GetChecksResults() []map[string]interface{} {
+	cr := make([]map[string]interface{}, 0)
 	checkStats := expvars.GetCheckStats()
 	for _, stats := range checkStats {
 		for _, s := range stats {
-			var status []interface{}
 			if s.LastError != "" {
-				status = []interface{}{
-					s.CheckName, s.CheckName, s.CheckID, "ERROR", s.LastError, "",
-				}
+				cr = append(cr, map[string]interface{}{
+					"check_name": s.CheckName,
+					"check_id":   s.CheckID,
+					"status":     "ERROR",
+					"error":      s.LastError,
+				})
 			} else if len(s.LastWarnings) != 0 {
-				status = []interface{}{
-					s.CheckName, s.CheckName, s.CheckID, "WARNING", s.LastWarnings, "",
-				}
+				cr = append(cr, map[string]interface{}{
+					"check_name": s.CheckName,
+					"check_id":   s.CheckID,
+					"status":     "WARNING",
+					"error":      s.LastWarnings,
+				})
 			} else {
-				status = []interface{}{
-					s.CheckName, s.CheckName, s.CheckID, "OK", "", "",
-				}
+				cr = append(cr, map[string]interface{}{
+					"check_name": s.CheckName,
+					"check_id":   s.CheckID,
+					"status":     "OK",
+					"error":      "",
+				})
 			}
-			payload.AgentChecks = append(payload.AgentChecks, status)
+
 		}
 	}
 
@@ -93,26 +89,32 @@ func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
 		if err != nil {
 			log.Warnf("Error formatting loader error from check %s: %v", check, err)
 		}
-		status := []interface{}{
-			check, check, "initialization", "ERROR", string(jsonErrs),
-		}
-		payload.AgentChecks = append(payload.AgentChecks, status)
+		cr = append(cr, map[string]interface{}{
+			"check_name": check,
+			"check_id":   "initialization",
+			"status":     "ERROR",
+			"error":      string(jsonErrs),
+		})
 	}
 
 	configErrors := autodiscoveryimpl.GetConfigErrors()
 	for check, e := range configErrors {
-		status := []interface{}{
-			check, check, "initialization", "ERROR", e,
-		}
-		payload.AgentChecks = append(payload.AgentChecks, status)
+		cr = append(cr, map[string]interface{}{
+			"check_name": check,
+			"check_id":   "initialization",
+			"status":     "ERROR",
+			"error":      e,
+		})
 	}
 
 	jmxStartupError := jmxStatus.GetStartupError()
 	if jmxStartupError.LastError != "" {
-		status := []interface{}{
-			"jmx", "jmx", "initialization", "ERROR", jmxStartupError.LastError,
-		}
-		payload.AgentChecks = append(payload.AgentChecks, status)
+		cr = append(cr, map[string]interface{}{
+			"check_name": "jmx",
+			"check_id":   "initialization",
+			"status":     "ERROR",
+			"error":      jmxStartupError.LastError,
+		})
 	}
 
 	stats := map[string]interface{}{}
@@ -144,14 +146,41 @@ func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
 					if !ok {
 						checkError = ""
 					}
-					status := []interface{}{
-						checkName, checkName, checkID, checkStatus, checkError,
-					}
-					payload.AgentChecks = append(payload.AgentChecks, status)
+					cr = append(cr, map[string]interface{}{
+						"check_name": checkName,
+						"check_id":   checkID,
+						"status":     checkStatus,
+						"error":      checkError,
+					})
 				}
 			}
 		}
 	}
+
+	return cr
+}
+
+// GetPayload builds a payload of all the agentchecks metadata
+func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
+	hostnameData, _ := c.hostname.Get(ctx)
+
+	meta := hostMetadataUtils.GetMetaFromCache(ctx, c.config, c.hostname)
+	meta.Hostname = hostnameData
+
+	cp := hostMetadataUtils.GetCommonPayload(hostnameData, c.config)
+	payload := &Payload{
+		CommonPayload:    *cp,
+		Meta:             *meta,
+		ExternalhostTags: *externalhost.GetPayload(),
+	}
+
+	cr := c.GetChecksResults()
+	for _, c := range cr {
+		payload.AgentChecks = append(payload.AgentChecks, []interface{}{
+			c["check_name"], c["check_name"], c["check_id"], c["status"], c["error"], "",
+		})
+	}
+
 	return payload
 }
 
