@@ -6,9 +6,6 @@ import (
 
 	"github.com/hashicorp/go-retryablehttp"
 	gitlab "gitlab.com/gitlab-org/api/client-go"
-
-	credssupport "github.com/DataDog/dd-source/domains/actionplatform/apps/private-runner/src/bundle-support/credentials"
-	runtimepb "github.com/DataDog/dd-source/domains/actionplatform/proto/runtime"
 )
 
 const (
@@ -34,11 +31,12 @@ func (n Number) Int64() (int64, error) {
 	return strconv.ParseInt(string(n), 10, 64)
 }
 
-func NewGitlabClient(credential *runtimepb.Credential) (*gitlab.Client, error) {
-	credentialTokens, err := credssupport.ToTokensMap(credential)
-	if err != nil {
-		return nil, err
-	}
+func NewGitlabClient(credential interface{},
+) (*gitlab.Client, error) {
+	credentialTokens /*, err*/ := make(map[string]string) // FIXME credssupport.ToTokensMap(credential)
+	//if err != nil {
+	//	return nil, err
+	//}
 	apiToken := credentialTokens[apiTokenName]
 	baseURL := credentialTokens[urlTokenName]
 	if baseURL == "" {

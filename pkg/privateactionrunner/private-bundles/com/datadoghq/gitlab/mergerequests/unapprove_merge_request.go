@@ -3,9 +3,8 @@ package com_datadoghq_gitlab_merge_requests
 import (
 	"context"
 
-	"github.com/DataDog/dd-source/domains/actionplatform/apps/private-runner/src/private-bundles/com/datadoghq/gitlab/lib"
-	"github.com/DataDog/dd-source/domains/actionplatform/apps/private-runner/src/types"
-	runtimepb "github.com/DataDog/dd-source/domains/actionplatform/proto/runtime"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/private-bundles/com/datadoghq/gitlab/lib"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
 type UnapproveMergeRequestHandler struct{}
@@ -23,8 +22,8 @@ type UnapproveMergeRequestOutputs struct{}
 
 func (h *UnapproveMergeRequestHandler) Run(
 	ctx context.Context,
-	task *types.Task,
-	credential *runtimepb.Credential,
+	task *types.Task, credential interface{},
+
 ) (any, error) {
 	inputs, err := types.ExtractInputs[UnapproveMergeRequestInputs](task)
 	if err != nil {

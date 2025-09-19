@@ -37,6 +37,8 @@ overrides:
   "github.com/GoogleCloudPlatform/grpc-gcp-go": Apache-2.0
   # https://github.com/bhmj/xpression/blob/master/LICENCE
   "github.com/bhmj/xpression": MIT
+  # https://gitlab.com/gitlab-org/api/client-go/-/blob/main/LICENSE
+  "gitlab.com/gitlab-org/api": Apache-2.0
 
 exceptions:
   - "golang.org/x/mobile/..."
@@ -44,6 +46,7 @@ exceptions:
   - "golang.org/x/mod/..."
   - "golang.org/x/xerrors/..."
   - "github.com/stretchr/testify"
+  - "gitlab.com/gitlab-org/api/client-go/..."
 
 additional:
   # list here paths to additional licenses

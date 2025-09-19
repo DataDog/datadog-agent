@@ -5,9 +5,8 @@ import (
 
 	gitlab "gitlab.com/gitlab-org/api/client-go"
 
-	"github.com/DataDog/dd-source/domains/actionplatform/apps/private-runner/src/private-bundles/com/datadoghq/gitlab/lib"
-	"github.com/DataDog/dd-source/domains/actionplatform/apps/private-runner/src/types"
-	runtimepb "github.com/DataDog/dd-source/domains/actionplatform/proto/runtime"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/private-bundles/com/datadoghq/gitlab/lib"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
 type RetryPipelineBuildHandler struct{}
@@ -27,8 +26,8 @@ type RetryPipelineBuildOutputs struct {
 
 func (h *RetryPipelineBuildHandler) Run(
 	ctx context.Context,
-	task *types.Task,
-	credential *runtimepb.Credential,
+	task *types.Task, credential interface{},
+
 ) (any, error) {
 	inputs, err := types.ExtractInputs[RetryPipelineBuildInputs](task)
 	if err != nil {

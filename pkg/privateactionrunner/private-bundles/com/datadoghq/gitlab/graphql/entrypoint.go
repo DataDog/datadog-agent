@@ -1,7 +1,7 @@
 package com_datadoghq_gitlab_graphql
 
 import (
-	"github.com/DataDog/dd-source/domains/actionplatform/apps/private-runner/src/types"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
 type GitlabGraphqlBundle struct {
