@@ -10,6 +10,8 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -55,18 +57,21 @@ func ExtractTemplatesFromAnnotations(entityName string, annotations map[string]s
 // (ad.datadoghq.com/redis.checks) JSON string into []integration.Config.
 func parseChecksJSON(adIdentifier string, checksJSON string) ([]integration.Config, error) {
 	var namedChecks map[string]struct {
-		Name                    string          `json:"name"`
-		InitConfig              json.RawMessage `json:"init_config"`
-		Instances               []interface{}   `json:"instances"`
-		Logs                    json.RawMessage `json:"logs"`
-		IgnoreAutodiscoveryTags bool            `json:"ignore_autodiscovery_tags"`
-		CheckTagCardinality     string          `json:"check_tag_cardinality"`
+		Name                    string               `json:"name"`
+		InitConfig              json.RawMessage      `json:"init_config"`
+		Instances               []interface{}        `json:"instances"`
+		Logs                    json.RawMessage      `json:"logs"`
+		IgnoreAutodiscoveryTags bool                 `json:"ignore_autodiscovery_tags"`
+		CheckTagCardinality     string               `json:"check_tag_cardinality"`
+		CELSelector             workloadfilter.Rules `json:"cel_selector"`
 	}
 
+	log.Errorf("Gabe: (IN) Parsing checks JSON: %s", checksJSON)
 	err := json.Unmarshal([]byte(checksJSON), &namedChecks)
 	if err != nil {
 		return nil, fmt.Errorf("cannot parse check configuration: %w", err)
 	}
+	log.Errorf("Gabe: (OUT) Parsed named checks: %+v", namedChecks)
 
 	checks := make([]integration.Config, 0, len(namedChecks))
 	for name, config := range namedChecks {
@@ -83,9 +88,9 @@ func parseChecksJSON(adIdentifier string, checksJSON string) ([]integration.Conf
 			InitConfig:              integration.Data(config.InitConfig),
 			ADIdentifiers:           []string{adIdentifier},
 			IgnoreAutodiscoveryTags: config.IgnoreAutodiscoveryTags,
+			CELSelector:             config.CELSelector,
+			CheckTagCardinality:     config.CheckTagCardinality,
 		}
-
-		c.CheckTagCardinality = config.CheckTagCardinality
 
 		if len(config.Logs) > 0 {
 			c.LogsConfig = integration.Data(config.Logs)

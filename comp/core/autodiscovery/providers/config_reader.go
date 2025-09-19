@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/configresolver"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
@@ -29,6 +30,7 @@ import (
 type configFormat struct {
 	ADIdentifiers           []string                           `yaml:"ad_identifiers"`
 	AdvancedADIdentifiers   []integration.AdvancedADIdentifier `yaml:"advanced_ad_identifiers"`
+	CELSelector             workloadfilter.Rules               `yaml:"cel_selector"`
 	ClusterCheck            bool                               `yaml:"cluster_check"`
 	InitConfig              interface{}                        `yaml:"init_config"`
 	MetricConfig            interface{}                        `yaml:"jmx_metrics"`
@@ -425,6 +427,9 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, error
 	// Copy auto discovery identifiers
 	conf.ADIdentifiers = cf.ADIdentifiers
 	conf.AdvancedADIdentifiers = cf.AdvancedADIdentifiers
+
+	// Copy CEL selectors
+	conf.CELSelector = cf.CELSelector
 
 	// Copy cluster_check status
 	conf.ClusterCheck = cf.ClusterCheck

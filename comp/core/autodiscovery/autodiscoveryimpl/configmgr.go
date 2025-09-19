@@ -192,10 +192,16 @@ func (cm *reconcilingConfigManager) processNewConfig(config integration.Config) 
 		log.Debugf("Config %s (digest %s) is already tracked by autodiscovery", config.Name, config.Digest())
 		return integration.ConfigChanges{}, changedIDsOfSecretsWithConfigs
 	}
+	prg, err := createMatchingProgram(config.CELSelector)
+	if err != nil {
+		log.Warnf("Config %s (source %s) could not initialize: %v", config.Name, config.Source, err)
+		return integration.ConfigChanges{}, changedIDsOfSecretsWithConfigs
+	}
+	config.SetMatchingProgram(prg)
 
 	// Execute the steps outlined in the comment on reconcilingConfigManager:
 	//
-	//  1. update orctiveConfigs / activeServices
+	//  1. update activeConfigs / activeServices
 	cm.activeConfigs[digest] = config
 
 	var changes integration.ConfigChanges
@@ -208,7 +214,6 @@ func (cm *reconcilingConfigManager) processNewConfig(config integration.Config) 
 				matchingServices[svcID] = struct{}{}
 			}
 		}
-
 		//  3. update serviceResolutions, generating changes
 		for svcID := range matchingServices {
 			changes.Merge(cm.reconcileService(svcID))
@@ -239,15 +244,16 @@ func (cm *reconcilingConfigManager) processNewConfig(config integration.Config) 
 }
 
 // processDelConfigs implements configManager#processDelConfigs.
-func (cm *reconcilingConfigManager) processDelConfigs(configs []integration.Config) integration.ConfigChanges {
+func (cm *reconcilingConfigManager) processDelConfigs(externalConfigs []integration.Config) integration.ConfigChanges {
 	cm.m.Lock()
 	defer cm.m.Unlock()
 
 	var allChanges integration.ConfigChanges
-	for _, config := range configs {
-		digest := config.Digest()
-		if _, found := cm.activeConfigs[digest]; !found {
-			log.Debug("Config %v is not tracked by autodiscovery", config.Name)
+	for _, externalConfig := range externalConfigs {
+		digest := externalConfig.Digest()
+		internalConfig, found := cm.activeConfigs[digest]
+		if !found {
+			log.Debug("Config %v is not tracked by autodiscovery", externalConfig.Name)
 			continue
 		}
 
@@ -257,10 +263,10 @@ func (cm *reconcilingConfigManager) processDelConfigs(configs []integration.Conf
 		delete(cm.activeConfigs, digest)
 
 		var changes integration.ConfigChanges
-		if config.IsTemplate() {
+		if internalConfig.IsTemplate() {
 			//  2. update templatesByADID or servicesByADID to match
 			matchingServices := map[string]struct{}{}
-			for _, adID := range config.ADIdentifiers {
+			for _, adID := range internalConfig.ADIdentifiers {
 				cm.templatesByADID.remove(adID, digest)
 				for _, svcID := range cm.servicesByADID.get(adID) {
 					matchingServices[svcID] = struct{}{}
@@ -274,12 +280,12 @@ func (cm *reconcilingConfigManager) processDelConfigs(configs []integration.Conf
 		} else {
 			// Secrets need to be resolved before being unscheduled as otherwise
 			// the computed hashes can be different from the ones computed at schedule time.
-			config, err := decryptConfig(config, cm.secretResolver)
+			decryptedConfig, err := decryptConfig(internalConfig, cm.secretResolver)
 			if err != nil {
-				log.Errorf("Unable to resolve secrets for config '%s', check may not be unscheduled properly, err: %s", config.Name, err.Error())
+				log.Errorf("Unable to resolve secrets for config '%s', check may not be unscheduled properly, err: %s", internalConfig.Name, err.Error())
 			}
 
-			changes.UnscheduleConfig(config)
+			changes.UnscheduleConfig(decryptedConfig)
 		}
 
 		//  4. update scheduledConfigs

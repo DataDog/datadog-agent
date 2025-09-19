@@ -22,6 +22,7 @@ import (
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
@@ -441,7 +442,18 @@ func (ac *AutoConfig) processNewConfig(config integration.Config) integration.Co
 			log.Infof("Unable to add default metrics to collect to %s check: %s", config.Name, err)
 		}
 	}
-
+	// add cel identifiers if no ad identifiers present
+	if len(config.ADIdentifiers) == 0 {
+		if len(config.CELSelector.Containers) > 0 {
+			config.ADIdentifiers = append(config.ADIdentifiers, adtypes.CelContainerIdentifier)
+		} else if len(config.CELSelector.Pods) > 0 {
+			config.ADIdentifiers = append(config.ADIdentifiers, adtypes.CelPodIdentifier)
+		} else if len(config.CELSelector.KubeServices) > 0 {
+			config.ADIdentifiers = append(config.ADIdentifiers, adtypes.CelServiceIdentifier)
+		} else if len(config.CELSelector.KubeEndpoints) > 0 {
+			config.ADIdentifiers = append(config.ADIdentifiers, adtypes.CelEndpointIdentifier)
+		}
+	}
 	changes, changedIDsOfSecretsWithConfigs := ac.cfgMgr.processNewConfig(config)
 	ac.store.setIDsOfChecksWithSecrets(changedIDsOfSecretsWithConfigs)
 	return changes
