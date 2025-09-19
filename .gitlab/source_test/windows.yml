@@ -10,6 +10,7 @@
     - .windows_docker_default
   script:
     - $ErrorActionPreference = "Stop"
+    - powershell.exe -c ". tasks\winbuildscripts\common.ps1; Disable-WindowsDefender"
     # we pass in CI_JOB_URL and CI_JOB_NAME so that they can be added to additional tags
     # inside JUNIT_TAR and then later used by datadog-ci
     - !reference [.docker_pull_winbuildimage_instrumented]

@@ -5,6 +5,7 @@
   needs: ["go_deps"]
   script:
     - $ErrorActionPreference = 'Stop'
+    - powershell.exe -c ". tasks\winbuildscripts\common.ps1; Disable-WindowsDefender"
     - if (Test-Path omnibus\pkg) { remove-item -recurse -force omnibus\pkg }
     - mkdir omnibus\pkg
     - >
