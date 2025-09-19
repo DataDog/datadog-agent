@@ -209,8 +209,3 @@ func (tf *MockedForwarder) SubmitOrchestratorChecks(payload transaction.BytesPay
 func (tf *MockedForwarder) SubmitOrchestratorManifests(payload transaction.BytesPayloads, extra http.Header) (chan Response, error) {
 	return nil, tf.Called(payload, extra).Error(0)
 }
-
-// SubmitSyntheticsTestResults mock
-func (tf *MockedForwarder) SubmitSyntheticsTestResults(payload transaction.BytesPayloads, extra http.Header) error {
-	return tf.Called(payload, extra).Error(0)
-}

@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/syntheticstestscheduler/common"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
@@ -39,7 +39,7 @@ type syntheticsTestScheduler struct {
 	syntheticsTestProcessingChan chan SyntheticsTestCtx
 	flushInterval                time.Duration
 	flushLoopDone                chan struct{}
-	forwarder                    defaultforwarder.Component
+	epForwarder                  eventplatform.Forwarder
 	telemetry                    telemetry.Component
 	generateTestResultID         func(func(rand io.Reader, max *big.Int) (n *big.Int, err error)) (string, error)
 	ticker                       *time.Ticker
@@ -50,9 +50,9 @@ type syntheticsTestScheduler struct {
 }
 
 // newSyntheticsTestScheduler creates a scheduler and initializes its state.
-func newSyntheticsTestScheduler(configs *schedulerConfigs, forwarder defaultforwarder.Component, logger log.Component, hostNameService hostname.Component, timeFunc func() time.Time, cancel context.CancelFunc) (*syntheticsTestScheduler, error) {
+func newSyntheticsTestScheduler(configs *schedulerConfigs, forwarder eventplatform.Forwarder, logger log.Component, hostNameService hostname.Component, timeFunc func() time.Time, cancel context.CancelFunc) (*syntheticsTestScheduler, error) {
 	scheduler := &syntheticsTestScheduler{
-		forwarder:                    forwarder,
+		epForwarder:                  forwarder,
 		log:                          logger,
 		hostNameService:              hostNameService,
 		state:                        runningState{tests: map[string]*runningTestState{}},
