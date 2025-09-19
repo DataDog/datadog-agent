@@ -404,6 +404,7 @@ func TestTargetEnvVar(t *testing.T) {
 }
 
 func TestGetPinnedLibraries(t *testing.T) {
+
 	tests := []struct {
 		name          string
 		libVersions   map[string]string
@@ -522,7 +523,7 @@ func TestGetPinnedLibraries(t *testing.T) {
 				libs: []libInfo{
 					defaultLibInfo(java),
 					defaultLibInfo(python),
-					js.libInfo("", "registry/dd-lib-js-init:v3"),
+					defaultLibInfoWithVersion(js, "v3"),
 					defaultLibInfo(dotnet),
 					defaultLibInfo(ruby),
 				},

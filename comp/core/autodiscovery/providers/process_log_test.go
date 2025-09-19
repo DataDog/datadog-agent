@@ -58,7 +58,9 @@ func TestProcessLogProviderEvents(t *testing.T) {
 		},
 		Pid: 123,
 		Service: &workloadmeta.Service{
-			DDService:     "test-service",
+			UST: workloadmeta.UST{
+				Service: "test-service",
+			},
 			GeneratedName: "test-service-gen",
 			LogFiles:      []string{logPath},
 		},
@@ -120,7 +122,9 @@ func TestProcessLogProviderNoLogFile(t *testing.T) {
 		},
 		Pid: 123,
 		Service: &workloadmeta.Service{
-			DDService:     "test-service",
+			UST: workloadmeta.UST{
+				Service: "test-service",
+			},
 			GeneratedName: "test-service-gen",
 			LogFiles:      []string{},
 		},
@@ -156,7 +160,9 @@ func TestProcessLogProviderMultipleLogSources(t *testing.T) {
 		},
 		Pid: 123,
 		Service: &workloadmeta.Service{
-			DDService:     "test-service",
+			UST: workloadmeta.UST{
+				Service: "test-service",
+			},
 			GeneratedName: "test-service-gen",
 			LogFiles:      []string{logPath1, logPath2},
 		},
@@ -204,7 +210,9 @@ func TestProcessLogProviderMultipleProcesses(t *testing.T) {
 		},
 		Pid: 123,
 		Service: &workloadmeta.Service{
-			DDService:     "test-service",
+			UST: workloadmeta.UST{
+				Service: "test-service",
+			},
 			GeneratedName: "test-service-gen",
 			LogFiles:      []string{logPath1},
 		},
@@ -216,7 +224,9 @@ func TestProcessLogProviderMultipleProcesses(t *testing.T) {
 		},
 		Pid: 456,
 		Service: &workloadmeta.Service{
-			DDService:     "test-service-2",
+			UST: workloadmeta.UST{
+				Service: "test-service-2",
+			},
 			GeneratedName: "test-service-2-gen",
 			LogFiles:      []string{logPath2},
 		},
@@ -292,7 +302,9 @@ func TestProcessLogProviderReferenceCounting(t *testing.T) {
 		},
 		Pid: 123,
 		Service: &workloadmeta.Service{
-			DDService:     "test-service",
+			UST: workloadmeta.UST{
+				Service: "test-service",
+			},
 			GeneratedName: "test-service-gen",
 			LogFiles:      []string{logPath},
 		},
@@ -305,7 +317,9 @@ func TestProcessLogProviderReferenceCounting(t *testing.T) {
 		},
 		Pid: 456,
 		Service: &workloadmeta.Service{
-			DDService:     "test-service",
+			UST: workloadmeta.UST{
+				Service: "test-service",
+			},
 			GeneratedName: "test-service-gen",
 			LogFiles:      []string{logPath},
 		},
@@ -399,7 +413,9 @@ func TestProcessLogProviderUnscheduleNonExistent(t *testing.T) {
 		},
 		Pid: 123,
 		Service: &workloadmeta.Service{
-			DDService:     "test-service",
+			UST: workloadmeta.UST{
+				Service: "test-service",
+			},
 			GeneratedName: "test-service-gen",
 			LogFiles:      []string{logPath},
 		},
@@ -435,7 +451,9 @@ func TestProcessLogProviderOneProcessMultipleLogFiles(t *testing.T) {
 		},
 		Pid: 123,
 		Service: &workloadmeta.Service{
-			DDService:     "test-service",
+			UST: workloadmeta.UST{
+				Service: "test-service",
+			},
 			GeneratedName: "test-service-gen",
 			LogFiles:      []string{logPath1, logPath2},
 		},
@@ -498,7 +516,9 @@ func TestProcessLogProviderProcessLogFilesChange(t *testing.T) {
 		},
 		Pid: 123,
 		Service: &workloadmeta.Service{
-			DDService:     "test-service",
+			UST: workloadmeta.UST{
+				Service: "test-service",
+			},
 			GeneratedName: "test-service-gen",
 			LogFiles:      []string{logPath1},
 		},
@@ -527,7 +547,9 @@ func TestProcessLogProviderProcessLogFilesChange(t *testing.T) {
 		},
 		Pid: 123,
 		Service: &workloadmeta.Service{
-			DDService:     "test-service",
+			UST: workloadmeta.UST{
+				Service: "test-service",
+			},
 			GeneratedName: "test-service-gen",
 			LogFiles:      []string{logPath2, logPath3}, // Different log files
 		},
@@ -587,7 +609,9 @@ func TestProcessLogProviderProcessLogFilesChange(t *testing.T) {
 		},
 		Pid: 123,
 		Service: &workloadmeta.Service{
-			DDService:     "test-service",
+			UST: workloadmeta.UST{
+				Service: "test-service",
+			},
 			GeneratedName: "test-service-gen",
 			LogFiles:      []string{}, // No log files
 		},
@@ -649,7 +673,9 @@ func TestProcessLogProviderFileReadabilityVerification(t *testing.T) {
 		},
 		Pid: 123,
 		Service: &workloadmeta.Service{
-			DDService:     "test-service",
+			UST: workloadmeta.UST{
+				Service: "test-service",
+			},
 			GeneratedName: "test-service-gen",
 			LogFiles:      []string{readableFile.Name(), nonReadableFile},
 		},
@@ -744,7 +770,9 @@ func TestProcessLogProviderFileReadabilityWithPermissionDenied(t *testing.T) {
 		},
 		Pid: 123,
 		Service: &workloadmeta.Service{
-			DDService:     "test-service",
+			UST: workloadmeta.UST{
+				Service: "test-service",
+			},
 			GeneratedName: "test-service-gen",
 			LogFiles:      []string{tempFile.Name()},
 		},
@@ -882,7 +910,9 @@ func TestProcessLogProviderServiceName(t *testing.T) {
 			name: "returns TracerMetadata ServiceName if present",
 			service: workloadmeta.Service{
 				GeneratedName: "foo",
-				DDService:     "bar",
+				UST: workloadmeta.UST{
+					Service: "bar",
+				},
 				TracerMetadata: []tracermetadata.TracerMetadata{
 					{ServiceName: "tracer-service"},
 				},
@@ -893,7 +923,9 @@ func TestProcessLogProviderServiceName(t *testing.T) {
 			name: "returns DDService if TracerMetadata is empty and DDService is set",
 			service: workloadmeta.Service{
 				GeneratedName: "foo",
-				DDService:     "bar",
+				UST: workloadmeta.UST{
+					Service: "bar",
+				},
 			},
 			want: "bar",
 		},
@@ -935,8 +967,10 @@ func TestProcessLogProviderAgentExclude(t *testing.T) {
 					Pid:  123,
 					Name: "agent",
 					Service: &workloadmeta.Service{
-						DDService: "agent",
-						LogFiles:  []string{agentLogPath},
+						UST: workloadmeta.UST{
+							Service: "agent",
+						},
+						LogFiles: []string{agentLogPath},
 					},
 				},
 			},
@@ -950,8 +984,10 @@ func TestProcessLogProviderAgentExclude(t *testing.T) {
 					Pid:  456,
 					Name: "not-agent",
 					Service: &workloadmeta.Service{
-						DDService: "not-agent",
-						LogFiles:  []string{notAgentLogPath},
+						UST: workloadmeta.UST{
+							Service: "not-agent",
+						},
+						LogFiles: []string{notAgentLogPath},
 					},
 				},
 			},
@@ -978,6 +1014,52 @@ func TestProcessLogProviderAgentExclude(t *testing.T) {
 	changes = p.processEventsNoVerifyReadable(setBundle)
 	require.Len(t, changes.Schedule, 1)
 	assert.Equal(t, getIntegrationName(notAgentLogPath), changes.Schedule[0].Name)
+}
+
+func TestProcessLogProviderGetSource(t *testing.T) {
+	tests := []struct {
+		generatedName       string
+		generatedNameSource string
+		expectedSource      string
+	}{
+		{
+			generatedName:  "apache2",
+			expectedSource: "apache",
+		},
+		{
+			generatedName:  "postgres",
+			expectedSource: "postgresql",
+		},
+		{
+			generatedName:  "org.elasticsearch.bootstrap.elasticsearch",
+			expectedSource: "elasticsearch",
+		},
+		{
+			generatedName:  "org.sonar.server.app.webserver",
+			expectedSource: "sonarqube",
+		},
+		{
+			generatedName:       "myapp",
+			generatedNameSource: "gunicorn",
+			expectedSource:      "gunicorn",
+		},
+		{
+			generatedName:  "unknown",
+			expectedSource: "unknown",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.expectedSource, func(t *testing.T) {
+			service := &workloadmeta.Service{
+				GeneratedName:       tt.generatedName,
+				GeneratedNameSource: tt.generatedNameSource,
+			}
+
+			result := getSource(service)
+			assert.Equal(t, tt.expectedSource, result)
+		})
+	}
 }
 
 func TestProcessLogProviderIsAgentProcess(t *testing.T) {

@@ -1,12 +1,12 @@
 module github.com/DataDog/datadog-agent/pkg/config/create
 
-go 1.23.0
+go 1.24.0
 
 require (
 	github.com/DataDog/datadog-agent/pkg/config/model v0.64.1
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.64.1
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.64.1
-	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.64.1
+	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.70.0
 )
 
 require (
@@ -24,7 +24,7 @@ require (
 	github.com/spf13/afero v1.14.0 // indirect
 	github.com/spf13/cast v1.9.2 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
-	github.com/spf13/pflag v1.0.7 // indirect
+	github.com/spf13/pflag v1.0.9 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	golang.org/x/exp v0.0.0-20250808145144-a408d31f581a // indirect
 	golang.org/x/sys v0.35.0 // indirect

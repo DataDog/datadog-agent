@@ -15,10 +15,9 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
-
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
+	ddattributes "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
@@ -80,7 +79,7 @@ type OTLP struct {
 	ProbabilisticSampling float64
 
 	// AttributesTranslator specifies an OTLP to Datadog attributes translator.
-	AttributesTranslator *attributes.Translator `mapstructure:"-"`
+	AttributesTranslator *ddattributes.Translator `mapstructure:"-"`
 
 	// IgnoreMissingDatadogFields specifies whether we should recompute DD span fields if the corresponding "datadog."
 	// namespaced span attributes are missing. If it is false (default), we will use the incoming "datadog." namespaced
@@ -173,15 +172,35 @@ func (o *ObfuscationConfig) Export(conf *AgentConfig) obfuscate.Config {
 		Valkey:               o.Valkey,
 		Memcached:            o.Memcached,
 		CreditCard:           o.CreditCards,
-		Logger:               new(debugLogger),
+		FullLogger:           new(logger),
 		Cache:                o.Cache,
 	}
 }
 
-type debugLogger struct{}
+type logger struct{}
 
-func (debugLogger) Debugf(format string, params ...interface{}) {
+func (logger) Tracef(format string, params ...interface{}) {
+	log.Tracef(format, params...)
+}
+
+func (logger) Debugf(format string, params ...interface{}) {
 	log.Debugf(format, params...)
+}
+
+func (logger) Infof(format string, params ...interface{}) {
+	log.Infof(format, params...)
+}
+
+func (logger) Warnf(format string, params ...interface{}) {
+	log.Warnf(format, params...)
+}
+
+func (logger) Errorf(format string, params ...interface{}) {
+	log.Errorf(format, params...)
+}
+
+func (logger) Criticalf(format string, params ...interface{}) {
+	log.Criticalf(format, params...)
 }
 
 // Enablable can represent any option that has an "enabled" boolean sub-field.
@@ -515,9 +534,9 @@ type AgentConfig struct {
 	// Lambda function name
 	LambdaFunctionName string
 
-	// Azure container apps tags, in the form of a comma-separated list of
+	// Azure serverless apps tags, in the form of a comma-separated list of
 	// key-value pairs, starting with a comma
-	AzureContainerAppTags string
+	AzureServerlessTags string
 
 	// AuthToken is the auth token for the agent
 	AuthToken string `json:"-"`

@@ -61,7 +61,10 @@ func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir str
 	downloader := oci.NewDownloader(env, env.HTTPClient())
 	downloadedPackage, err := downloader.Download(ctx, url)
 	if err != nil {
-		return nil, fmt.Errorf("failed to download installer package: %w", err)
+		return nil, installerErrors.Wrap(
+			installerErrors.ErrDownloadFailed,
+			fmt.Errorf("could not download package: %w", err),
+		)
 	}
 	if downloadedPackage.Name != AgentPackage {
 		// Only the Agent package uses the new installer each update, others use
@@ -91,7 +94,10 @@ func downloadInstallerOld(ctx context.Context, env *env.Env, url string, tmpDir 
 	downloader := oci.NewDownloader(env, env.HTTPClient())
 	downloadedPackage, err := downloader.Download(ctx, url)
 	if err != nil {
-		return nil, fmt.Errorf("failed to download installer package: %w", err)
+		return nil, installerErrors.Wrap(
+			installerErrors.ErrDownloadFailed,
+			fmt.Errorf("could not download package: %w", err),
+		)
 	}
 	if downloadedPackage.Name != AgentPackage {
 		return getLocalInstaller(env)

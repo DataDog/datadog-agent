@@ -41,7 +41,7 @@ func newProcessStore() *processStore {
 	}
 }
 
-func (ps *processStore) remove(removals []procmon.ProcessID) {
+func (ps *processStore) remove(removals []procmon.ProcessID, dm *diagnosticsManager) {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
 	for _, pid := range removals {
@@ -52,6 +52,7 @@ func (ps *processStore) remove(removals []procmon.ProcessID) {
 				}
 			}
 			delete(ps.processes, pid)
+			dm.remove(state.procRuntimeID.runtimeID)
 		}
 	}
 }
@@ -63,9 +64,11 @@ func (ps *processStore) ensureExists(update *rcscrape.ProcessUpdate) procRuntime
 	if !ok {
 		proc = &processState{
 			procRuntimeID: procRuntimeID{
-				ProcessID: update.ProcessID,
-				runtimeID: update.RuntimeID,
-				service:   update.Service,
+				ProcessID:   update.ProcessID,
+				runtimeID:   update.RuntimeID,
+				service:     update.Service,
+				version:     update.Version,
+				environment: update.Environment,
 			},
 			executable: update.Executable,
 			gitInfo:    update.GitInfo,

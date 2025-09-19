@@ -52,8 +52,8 @@ func NewMutatorConfig(datadogConfig config.Component) *MutatorConfig {
 		localServiceName:         datadogConfig.GetString("admission_controller.inject_config.local_service_name"),
 		traceAgentHostSocket:     datadogConfig.GetString("admission_controller.inject_config.trace_agent_host_socket_path"),
 		dogStatsDAgentHostSocket: datadogConfig.GetString("admission_controller.inject_config.dogstatsd_agent_host_socket_path"),
-		apmSocketFile:            datadogConfig.GetString("admission_controller.inject_config.trace_agent_socket_filename"),
-		dsdSocketFile:            datadogConfig.GetString("admission_controller.inject_config.dogstatsd_agent_socket_filename"),
+		apmSocketFile:            filepath.Base(datadogConfig.GetString("apm_config.receiver_socket")),
+		dsdSocketFile:            filepath.Base(datadogConfig.GetString("dogstatsd_socket")),
 		socketPath:               datadogConfig.GetString("admission_controller.inject_config.socket_path"),
 		typeSocketVolumes:        datadogConfig.GetBool("admission_controller.inject_config.type_socket_volumes"),
 		csiDriver:                datadogConfig.GetString("csi.driver"),
@@ -140,13 +140,13 @@ func (i *Mutator) MutatePod(pod *corev1.Pod, _ string, _ dynamic.Interface) (boo
 		dsdMountBase := i.config.socketPath
 
 		if (i.config.dogStatsDAgentHostSocket != i.config.traceAgentHostSocket) || isSocketVol || useCSI {
-			apmMountBase = filepath.Join(i.config.socketPath, apmSubdir)
-			dsdMountBase = filepath.Join(i.config.socketPath, dsdSubdir)
+			apmMountBase = filepath.Join(apmMountBase, apmSubdir)
+			dsdMountBase = filepath.Join(dsdMountBase, dsdSubdir)
 		}
 
 		traceURLSocketEnvVar.Value = "unix://" + filepath.Join(apmMountBase, i.config.apmSocketFile)
 		dogstatsdURLSocketEnvVar.Value = "unix://" + filepath.Join(dsdMountBase, i.config.dsdSocketFile)
-		fmt.Println("My logs->", i.config.apmSocketFile, i.config.dsdSocketFile, "dasd")
+
 		injectedEnv := mutatecommon.InjectEnv(pod, traceURLSocketEnvVar)
 		injectedEnv = mutatecommon.InjectEnv(pod, dogstatsdURLSocketEnvVar) || injectedEnv
 		injectedConfig = injectedVolumesOrVolumeMounts || injectedEnv
@@ -213,13 +213,17 @@ func (i *Mutator) injectSocketVolumes(pod *corev1.Pod, withCSI bool) bool {
 			}
 		}
 	} else {
+		const (
+			DogstatsdDirVolumeName = DatadogVolumeName + "-dsd"
+			APMDirVolumeName       = DatadogVolumeName + "-apm"
+		)
 		// Directory mode: plan 1 or 2 mounts, then inject once.
 		type plannedMount struct {
 			name        string
 			volume      corev1.Volume
 			volumeMount corev1.VolumeMount
 		}
-		var plans []plannedMount
+		var mounts []plannedMount
 
 		if withCSI {
 
@@ -229,8 +233,8 @@ func (i *Mutator) injectSocketVolumes(pod *corev1.Pod, withCSI bool) bool {
 				subdir  string
 				csiType csiInjectionType
 			}{
-				{DatadogVolumeName + "-dsd", dsdSubdir, csiDSDSocketDirectory},
-				{DatadogVolumeName + "-apm", apmSubdir, csiAPMSocketDirectory},
+				{DogstatsdDirVolumeName, dsdSubdir, csiDSDSocketDirectory},
+				{APMDirVolumeName, apmSubdir, csiAPMSocketDirectory},
 			}
 			for _, entry := range entries {
 				volume, volumeMount := buildCSIVolume(
@@ -240,7 +244,7 @@ func (i *Mutator) injectSocketVolumes(pod *corev1.Pod, withCSI bool) bool {
 					true,
 					i.config.csiDriver,
 				)
-				plans = append(plans, plannedMount{
+				mounts = append(mounts, plannedMount{
 					name:        entry.name,
 					volume:      volume,
 					volumeMount: volumeMount,
@@ -257,7 +261,7 @@ func (i *Mutator) injectSocketVolumes(pod *corev1.Pod, withCSI bool) bool {
 					corev1.HostPathDirectoryOrCreate,
 					true,
 				)
-				plans = append(plans, plannedMount{
+				mounts = append(mounts, plannedMount{
 					name:        DatadogVolumeName,
 					volume:      volume,
 					volumeMount: volumeMount,
@@ -269,8 +273,8 @@ func (i *Mutator) injectSocketVolumes(pod *corev1.Pod, withCSI bool) bool {
 					host   string
 					subdir string
 				}{
-					{DatadogVolumeName + "-dsd", i.config.dogStatsDAgentHostSocket, dsdSubdir},
-					{DatadogVolumeName + "-apm", i.config.traceAgentHostSocket, apmSubdir},
+					{DogstatsdDirVolumeName, i.config.dogStatsDAgentHostSocket, dsdSubdir},
+					{APMDirVolumeName, i.config.traceAgentHostSocket, apmSubdir},
 				}
 				for _, entry := range entries {
 					volume, volumeMount := buildHostPathVolume(
@@ -280,7 +284,7 @@ func (i *Mutator) injectSocketVolumes(pod *corev1.Pod, withCSI bool) bool {
 						corev1.HostPathDirectoryOrCreate,
 						true,
 					)
-					plans = append(plans, plannedMount{
+					mounts = append(mounts, plannedMount{
 						name:        entry.name,
 						volume:      volume,
 						volumeMount: volumeMount,
@@ -290,7 +294,7 @@ func (i *Mutator) injectSocketVolumes(pod *corev1.Pod, withCSI bool) bool {
 		}
 
 		// Inject all planned volumes once.
-		for _, p := range plans {
+		for _, p := range mounts {
 			injected, mountAdded := mutatecommon.InjectVolume(pod, p.volume, p.volumeMount)
 			if injected {
 				injectedVolNames = append(injectedVolNames, p.name)
