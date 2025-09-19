@@ -17,7 +17,7 @@ import (
 /*
 #include <stdbool.h>
 
-#include "shared_library_types.h"
+#include "shared_library.h"
 */
 import "C"
 

@@ -28,6 +28,6 @@ func init() {
 
 		loaders.RegisterLoader(factory)
 	} else {
-		log.Info("Shared Library checks are disabled.")
+		log.Info("Shared libraries checks are disabled.")
 	}
 }

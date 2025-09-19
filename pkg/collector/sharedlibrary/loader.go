@@ -6,132 +6,13 @@
 package sharedlibrary
 
 /*
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-
-#ifdef _WIN32
-#    include <Windows.h>
-#else
-#    include <dlfcn.h>
-#endif
-
-#include "shared_library_types.h"
-
-#if __linux__
-#    define LIB_EXTENSION ".so"
-#elif __APPLE__
-#    define LIB_EXTENSION ".dylib"
-#elif __FreeBSD__
-#    define LIB_EXTENSION ".so"
-#elif _WIN32
-#    define LIB_EXTENSION ".dll"
-#else
-#    error Platform not supported
-#endif
-
-#ifdef _WIN32
-
-shared_library_handles_t load_shared_library(const char *lib_name, const char **error) {
-	shared_library_handles_t lib_handles = { NULL, NULL };
-
-	// resolve the library full name
-    char* lib_full_name = malloc(strlen(lib_name) + strlen(LIB_EXTENSION) + 1);
-	if (!lib_full_name) {
-		*error = strdup("memory allocation for library name failed");
-		goto done;
-	}
-	sprintf(lib_full_name, "%s%s", lib_name, LIB_EXTENSION);
-
-    // load the library
-    void *lib_handle = LoadLibraryA(lib_full_name);
-    if (!lib_handle) {
-		*error = strdup("unable to open shared library");
-		goto done;
-    }
-
-    // get symbol pointers of 'Run' and 'Free' functions
-    run_function_t *run_callback = (run_function_t *)GetProcAddress(lib_handle, "Run");
-    if (!run_callback) {
-		FreeLibrary(lib_handle);
-		*error = strdup("unable to get shared library 'Run' symbol");
-		goto done;
-    }
-
-	free_function_t *free_callback = (free_function_t *)GetProcAddress(lib_handle, "Free");
-    if (!free_callback) {
-		FreeLibrary(lib_handle);
-		*error = strdup("unable to get shared library 'Free' symbol");
-		goto done;
-    }
-
-	// setup handles if loading was successful
-	lib_handles.lib = lib_handle;
-	lib_handles.run = run_callback;
-	lib_handles.free = free_callback;
-
-done:
-	free(lib_full_name);
-	return lib_handles;
-}
-
-#else
-
-shared_library_handles_t load_shared_library(const char *lib_name, const char **error) {
-	shared_library_handles_t lib_handles = { NULL, NULL };
-
-    // resolve the library full name
-    char* lib_full_name = malloc(strlen(lib_name) + strlen(LIB_EXTENSION) + 1);
-	if (!lib_full_name) {
-		*error = strdup("memory allocation for library name failed");
-		goto done;
-	}
-	sprintf(lib_full_name, "%s%s", lib_name, LIB_EXTENSION);
-
-    // load the library
-    void *lib_handle = dlopen(lib_full_name, RTLD_LAZY | RTLD_GLOBAL);
-    if (!lib_handle) {
-		*error = strdup("unable to open shared library");
-		goto done;
-    }
-
-    const char *dlsym_error = NULL;
-
-    // get symbol pointers of 'Run' and 'Free' functions
-    run_function_t *run_callback = (run_function_t *)dlsym(lib_handle, "Run");
-    dlsym_error = dlerror();
-    if (dlsym_error) {
-		dlclose(lib_handle);
-		*error = strdup(dlsym_error);
-		goto done;
-    }
-
-	free_function_t *free_callback = (free_function_t *)dlsym(lib_handle, "Free");
-    dlsym_error = dlerror();
-    if (dlsym_error) {
-		dlclose(lib_handle);
-		*error = strdup(dlsym_error);
-		goto done;
-    }
-
-	// setup handles if loading was successful
-	lib_handles.lib = lib_handle;
-	lib_handles.run = run_callback;
-	lib_handles.free = free_callback;
-
-done:
-	free(lib_full_name);
-	return lib_handles;
-}
-
-#endif
+#include "shared_library.h"
 */
 import "C"
 
 import (
 	"errors"
 	"fmt"
-	"sync"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -141,8 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
-
-var sharedlibraryOnce sync.Once
 
 // SharedLibraryCheckLoaderName is the name of the Shared Library loader
 const SharedLibraryCheckLoaderName string = "sharedlibrary"
@@ -176,19 +55,18 @@ func (sl *SharedLibraryCheckLoader) Load(senderManager sender.SenderManager, con
 	var cErr *C.char
 
 	// the prefix "libdatadog-agent-" is required to avoid possible name conflicts with other shared libraries in the include path
-	file := "libdatadog-agent-" + config.Name
+	name := "libdatadog-agent-" + config.Name
 
-	cFile := C.CString("/opt/datadog-agent/embedded/lib/" + file)
-	defer C.free(unsafe.Pointer(cFile))
+	cName := C.CString(name)
+	defer C.free(unsafe.Pointer(cName))
 
 	// Get the shared library handles
-	// TODO: free libHandles
-	libHandles := C.load_shared_library(cFile, &cErr)
+	libHandles := C.load_shared_library(cName, &cErr)
 	if cErr != nil {
+		err := C.GoString(cErr)
 		defer C.free(unsafe.Pointer(cErr))
 
-		// error message should not be too verbose, to keep the logs clean
-		errMsg := fmt.Sprintf("failed to find shared library %q", file)
+		errMsg := fmt.Sprintf("failed to load shared library %q: %s", name, err)
 		return nil, errors.New(errMsg)
 	}
 
