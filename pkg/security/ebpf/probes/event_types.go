@@ -52,11 +52,14 @@ func NetworkSelectors(hasCgroupSocket bool) []manager.ProbesSelector {
 			hookFunc("hook_inet_shutdown"),
 			hookFunc("hook_inet_bind"),
 			hookFunc("rethook_inet_bind"),
-			hookFunc("hook_inet6_bind"),
-			hookFunc("rethook_inet6_bind"),
 			hookFunc("hook_sk_common_release"),
 			hookFunc("hook_path_get"),
 			hookFunc("hook_proc_fd_link"),
+		}},
+
+		&manager.BestEffort{Selectors: []manager.ProbesSelector{
+			hookFunc("hook_inet6_bind"),
+			hookFunc("rethook_inet6_bind"),
 		}},
 
 		// network device probes
