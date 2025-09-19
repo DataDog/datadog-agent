@@ -189,6 +189,8 @@ func (cc *ColumnCompressor) pack() error {
 
 // Reset clears compressor state and prepares it to build a new payload.
 func (cc *ColumnCompressor) Reset() {
+	cc.totalLength = 0
+
 	for i := range cc.columns {
 		cc.columns[i].reset()
 	}

@@ -103,6 +103,8 @@ func TestColumn(t *testing.T) {
 	txn.Reset()
 	txn.Uint64(1, 1)
 
+	assert.Equal(t, 0, cc.totalLength)
+
 	err = cc.AddItem(txn)
 	assert.NoError(t, err)
 
