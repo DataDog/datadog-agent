@@ -104,6 +104,7 @@ type secretResolver struct {
 
 	// can be overridden for testing purposes
 	commandHookFunc func(string) ([]byte, error)
+	versionHookFunc func() (string, error)
 	fetchHookFunc   func([]string) (map[string]string, error)
 	scrubHookFunc   func([]string)
 
@@ -143,8 +144,7 @@ func NewComponent(deps Requires) Provides {
 // fillFlare add the inventory payload to flares.
 func (r *secretResolver) fillFlare(fb flaretypes.FlareBuilder) error {
 	var buffer bytes.Buffer
-	status := secretsStatus{resolver: r}
-	err := status.Text(false, &buffer)
+	err := status.RenderText(templatesFS, "info.tmpl", &buffer, r.getDebugInfo(true))
 	if err != nil {
 		return fmt.Errorf("error rendering secrets debug info: %w", err)
 	}
@@ -154,8 +154,7 @@ func (r *secretResolver) fillFlare(fb flaretypes.FlareBuilder) error {
 }
 
 func (r *secretResolver) writeDebugInfo(w http.ResponseWriter, _ *http.Request) {
-	status := secretsStatus{resolver: r}
-	err := status.Text(false, w)
+	err := status.RenderText(templatesFS, "info.tmpl", w, r.getDebugInfo(true))
 	if err != nil {
 		// bad request
 		setJSONError(w, err, 400)
@@ -649,7 +648,7 @@ type handlePlace struct {
 var secretRefreshTmpl string
 
 // getDebugInfo exposes debug informations about secrets to be included in a flare
-func (r *secretResolver) getDebugInfo() map[string]interface{} {
+func (r *secretResolver) getDebugInfo(includeVersion bool) map[string]interface{} {
 	stats := make(map[string]interface{})
 	if !r.enabled {
 		stats["enabled"] = false
@@ -667,6 +666,15 @@ func (r *secretResolver) getDebugInfo() map[string]interface{} {
 
 	stats["backendCommandSet"] = true
 	stats["executable"] = r.backendCommand
+
+	// Add backend secret version information
+	if includeVersion {
+		if version, err := r.fetchSecretBackendVersion(); err == nil {
+			stats["executableVersion"] = strings.TrimSpace(version)
+		} else {
+			stats["executableVersion"] = "version info not found"
+		}
+	}
 
 	// Handle permissions
 	permissions := "OK, the executable has the correct permissions"
