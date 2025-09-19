@@ -1,32 +1,5 @@
 # Building the Agent
 
-## Be modular
-
-You can decide at build time which components of the Agent you want to find in
-the final artifact. By default, all the components are picked up, so if you want
-to replicate the same configuration of the Agent distributed via system packages,
-all you have to do is `dda inv agent.build`.
-
-To pick only certain components you have to invoke the task like this:
-
-```
-dda inv agent.build --build-include=zstd,etcd,python
-```
-
-Conversely, if you want to exclude something:
-
-```
-dda inv agent.build --build-exclude=systemd,python
-```
-
-## Trace agent
-
-
-```
-dda inv trace-agent.build
-```
-To run the trace agent, with the Datadog Agent already running, run `./bin/trace-agent/trace-agent`. If needed, pass your configuration file with `-config <path-to-yaml-file>`.
-
 ## Additional details
 
 We use `pkg-config` to make compilers and linkers aware of Python. The required .pc files are
