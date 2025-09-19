@@ -1454,6 +1454,13 @@ func serializer(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("serializer_max_series_uncompressed_payload_size", 5242880)
 	config.BindEnvAndSetDefault("serializer_compressor_kind", DefaultCompressorKind)
 	config.BindEnvAndSetDefault("serializer_zstd_compressor_level", DefaultZstdCompressionLevel)
+	config.BindEnvAndSetDefault("serializer_zstd_strategy", 0)
+	config.BindEnvAndSetDefault("serializer_zstd_chain", 0)
+	config.BindEnvAndSetDefault("serializer_zstd_window", 0)
+	config.BindEnvAndSetDefault("serializer_zstd_hash", 0)
+	config.BindEnvAndSetDefault("serializer_zstd_searchlog", 0)
+	config.BindEnvAndSetDefault("serializer_zstd_minmatch", 0)
+
 	config.BindEnvAndSetDefault("serializer_use_events_marshaler_v2", true)
 
 	config.BindEnvAndSetDefault("use_v2_api.series", true)
