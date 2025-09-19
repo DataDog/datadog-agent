@@ -27,6 +27,7 @@ func FromConfig(cfg config.Reader) common.Compressor {
 		hash := cfg.GetInt("serializer_zstd_hash")
 		searchlog := cfg.GetInt("serializer_zstd_searchlog")
 		minmatch := cfg.GetInt("serializer_zstd_minmatch")
+		numworkers := cfg.GetInt("serializer_zstd_numworkers")
 
 		return NewTunedCompressor(
 			kind,
@@ -37,6 +38,7 @@ func FromConfig(cfg config.Reader) common.Compressor {
 			hash,
 			searchlog,
 			minmatch,
+			numworkers,
 		)
 	case common.GzipKind:
 		// There is no configuration option for gzip compression level when set via this method.

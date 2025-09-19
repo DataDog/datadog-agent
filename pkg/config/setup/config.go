@@ -1460,6 +1460,7 @@ func serializer(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("serializer_zstd_hash", 0)
 	config.BindEnvAndSetDefault("serializer_zstd_searchlog", 0)
 	config.BindEnvAndSetDefault("serializer_zstd_minmatch", 0)
+	config.BindEnvAndSetDefault("serializer_zstd_numworkers", 1)
 
 	config.BindEnvAndSetDefault("serializer_use_events_marshaler_v2", true)
 

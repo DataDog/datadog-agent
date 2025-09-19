@@ -18,42 +18,44 @@ import (
 type Requires struct {
 	Level compression.ZstdCompressionLevel
 
-	Strategy  int
-	Chain     int
-	Window    int
-	Hash      int
-	Searchlog int
-	Minmatch  int
+	Strategy   int
+	Chain      int
+	Window     int
+	Hash       int
+	Searchlog  int
+	Minmatch   int
+	NumWorkers int
 }
 
 // ZstdStrategy is the strategy for when serializer_compressor_kind is zstd
 type ZstdStrategy struct {
 	level int
 
-	strategy  int
-	chain     int
-	window    int
-	hash      int
-	searchlog int
-	minmatch  int
+	strategy   int
+	chain      int
+	window     int
+	hash       int
+	searchlog  int
+	minmatch   int
+	numworkers int
 }
 
 // New returns a new ZstdStrategy
 func New(reqs Requires) compression.Compressor {
 	if reqs.Strategy > 0 {
 		return &ZstdStrategy{
-			strategy:  reqs.Strategy,
-			chain:     reqs.Chain,
-			window:    reqs.Window,
-			hash:      reqs.Hash,
-			searchlog: reqs.Searchlog,
-			minmatch:  reqs.Minmatch,
+			strategy:   reqs.Strategy,
+			chain:      reqs.Chain,
+			window:     reqs.Window,
+			hash:       reqs.Hash,
+			searchlog:  reqs.Searchlog,
+			minmatch:   reqs.Minmatch,
+			numworkers: reqs.NumWorkers,
 		}
-	} else {
-		return &ZstdStrategy{
-			level: int(reqs.Level),
-		}
+	}
 
+	return &ZstdStrategy{
+		level: int(reqs.Level),
 	}
 }
 
@@ -63,13 +65,33 @@ func (s *ZstdStrategy) Compress(src []byte) ([]byte, error) {
 		return zstd.CompressLevel(nil, src, s.level)
 	}
 
+	var err error
 	ctx := zstd.NewCtx()
-	ctx.SetParameter(zstd.CParamStrategy, s.strategy)
-	ctx.SetParameter(zstd.CParamChainLog, s.chain)
-	ctx.SetParameter(zstd.CParamWindowLog, s.window)
-	ctx.SetParameter(zstd.CParamHashLog, s.hash)
-	ctx.SetParameter(zstd.CParamSearchLog, s.searchlog)
-	ctx.SetParameter(zstd.CParamMinMatch, s.minmatch)
+	err = ctx.SetParameter(zstd.CParamStrategy, s.strategy)
+	if err != nil {
+		return nil, err
+	}
+	err = ctx.SetParameter(zstd.CParamChainLog, s.chain)
+	if err != nil {
+		return nil, err
+	}
+	err = ctx.SetParameter(zstd.CParamWindowLog, s.window)
+	if err != nil {
+		return nil, err
+	}
+	err = ctx.SetParameter(zstd.CParamHashLog, s.hash)
+	if err != nil {
+		return nil, err
+	}
+	err = ctx.SetParameter(zstd.CParamSearchLog, s.searchlog)
+	if err != nil {
+		return nil, err
+	}
+	err = ctx.SetParameter(zstd.CParamMinMatch, s.minmatch)
+	if err != nil {
+		return nil, err
+	}
+
 	return ctx.Compress2(nil, src)
 
 }
@@ -102,5 +124,6 @@ func (s *ZstdStrategy) NewStreamCompressor(output *bytes.Buffer) compression.Str
 		set(zstd.CParamHashLog, s.hash)
 		set(zstd.CParamSearchLog, s.searchlog)
 		set(zstd.CParamMinMatch, s.minmatch)
+		set(zstd.CParamNbWorkers, s.numworkers)
 	})
 }

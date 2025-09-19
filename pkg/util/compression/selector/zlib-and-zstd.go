@@ -39,6 +39,7 @@ func NewCompressor(kind string, level int) common.Compressor {
 	}
 }
 
+// NewTunedCompressor creates a new Compressor that can be tuned
 func NewTunedCompressor(
 	kind string,
 	level int,
@@ -48,19 +49,21 @@ func NewTunedCompressor(
 	hash int,
 	searchlog int,
 	minmatch int,
+	numworkers int,
 ) common.Compressor {
 	switch kind {
 	case common.ZlibKind:
 		return implzlib.New()
 	case common.ZstdKind:
 		return implzstd.New(implzstd.Requires{
-			Level:     common.ZstdCompressionLevel(level),
-			Strategy:  strategy,
-			Chain:     chain,
-			Window:    window,
-			Hash:      hash,
-			Searchlog: searchlog,
-			Minmatch:  minmatch,
+			Level:      common.ZstdCompressionLevel(level),
+			Strategy:   strategy,
+			Chain:      chain,
+			Window:     window,
+			Hash:       hash,
+			Searchlog:  searchlog,
+			Minmatch:   minmatch,
+			NumWorkers: numworkers,
 		})
 	case common.GzipKind:
 		return implgzip.New(implgzip.Requires{
