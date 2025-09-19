@@ -107,7 +107,7 @@ func SnapshotSelectors(fentry bool) []manager.ProbesSelector {
 
 		// required to stat /proc/.../exe
 		hookFunc("hook_security_inode_getattr"),
-		&manager.AllOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "newfstatat", fentry, EntryAndExit)},
+		&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "newfstatat", fentry, EntryAndExit)},
 	}
 }
 
