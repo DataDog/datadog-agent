@@ -91,6 +91,8 @@ const (
 	setenvProbe                  probeFuncName = "uprobe__setenv"
 )
 
+const ringbufferWakeupSizeConstantName = "ringbuffer_wakeup_size"
+
 // ProbeDependencies holds the dependencies for the probe
 type ProbeDependencies struct {
 	// Telemetry is the telemetry component
@@ -349,6 +351,11 @@ func (p *Probe) setupSharedBuffer(o *manager.Options) {
 		ValueSize:  0,
 		EditorFlag: manager.EditType | manager.EditMaxEntries | manager.EditKeyValue,
 	}
+
+	o.ConstantEditors = append(o.ConstantEditors, manager.ConstantEditor{
+		Name:  ringbufferWakeupSizeConstantName,
+		Value: uint64(p.cfg.RingBufferWakeupSize),
+	})
 
 	p.m.Manager.RingBuffers = append(p.m.Manager.RingBuffers, rb)
 	p.eventHandler = rbHandler
