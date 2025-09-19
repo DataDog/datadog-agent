@@ -44,6 +44,8 @@ require (
 	github.com/DataDog/datadog-operator/api v0.0.0-20250909133746-a88261a5540c
 	github.com/DataDog/datadog-traceroute v0.1.5-hotfix2
 	github.com/DataDog/ebpf-manager v0.7.14
+	github.com/DataDog/go-libddwaf/v4 v4.3.0
+	github.com/DataDog/go-sqllexer v0.1.8
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.12
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.32.1-0.20250821132738-c5054d91ff21 // indirect
@@ -655,8 +657,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/uuid v0.71.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.71.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/version v0.71.0-rc.5
-	github.com/DataDog/go-libddwaf/v4 v4.3.0
-	github.com/DataDog/go-sqllexer v0.1.6
 	github.com/aquasecurity/trivy v0.49.2-0.20240227072422-e1ea02c7b80d
 	github.com/aws/aws-sdk-go-v2/service/kms v1.44.2
 	github.com/aws/aws-sdk-go-v2/service/rds v1.103.3
