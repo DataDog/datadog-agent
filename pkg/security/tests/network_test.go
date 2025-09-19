@@ -165,10 +165,13 @@ func TestRawPacket(t *testing.T) {
 	})
 
 	t.Run("icmp", func(t *testing.T) {
+		if _, err := whichNonFatal("docker"); err != nil {
+			t.Skip("Skip test where docker is unavailable")
+		}
+
 		wrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "busybox", "")
 		if err != nil {
-			t.Skip("docker not available")
-			return
+			t.Fatalf("failed to start docker wrapper: %v", err)
 		}
 
 		waitSignal := test.WaitSignalWithoutProcessContext
@@ -272,7 +275,7 @@ func TestRawPacketAction(t *testing.T) {
 		time.Sleep(5 * time.Second)
 
 		cmd = cmdWrapper.Command("nslookup", []string{"microsoft.com"}, []string{})
-		if err := cmd.Run(); err == nil {
+		if err = cmd.Run(); err == nil {
 			t.Error("should return an error")
 		}
 

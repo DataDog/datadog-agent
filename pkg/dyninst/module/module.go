@@ -16,13 +16,14 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/sys/unix"
+
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcscrape"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/uploader"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/process"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -47,7 +48,8 @@ type Module struct {
 // NewModule creates a new dynamic instrumentation module
 func NewModule(
 	config *Config,
-	subscriber process.Subscriber,
+	subscriber ProcessSubscriber,
+	processSyncEnabled bool,
 ) (_ *Module, retErr error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer func() {
@@ -101,8 +103,20 @@ func NewModule(
 	actuator := config.actuatorConstructor(loader)
 	rcScraper := rcscrape.NewScraper(actuator)
 	irGenerator := irgen.NewGenerator(irgenOptions...)
+	var ts unix.Timespec
+	if err = unix.ClockGettime(unix.CLOCK_MONOTONIC, &ts); err != nil {
+		return nil, fmt.Errorf("error getting monotonic time: %w", err)
+	}
+	approximateBootTime := time.Now().Add(time.Duration(-ts.Nano()))
 	controller := NewController(
-		actuator, logUploader, diagsUploader, symdbUploaderURL, objectLoader, rcScraper, DefaultDecoderFactory{}, irGenerator,
+		actuator,
+		logUploader,
+		diagsUploader,
+		symdbUploaderURL,
+		objectLoader,
+		rcScraper,
+		DefaultDecoderFactory{approximateBootTime: approximateBootTime},
+		irGenerator,
 	)
 	procMon := procmon.NewProcessMonitor(&processHandler{
 		scraperHandler: rcScraper.AsProcMonHandler(),
@@ -121,6 +135,9 @@ func NewModule(
 	m.close.unsubscribeExit = subscriber.SubscribeExit(procMon.NotifyExit)
 	const syncInterval = 30 * time.Second
 	go func() {
+		if !processSyncEnabled {
+			return
+		}
 		timer := time.NewTimer(0) // sync immediately on startup
 		defer timer.Stop()
 		for {
@@ -129,8 +146,8 @@ func NewModule(
 			case <-ctx.Done():
 				return
 			}
-			if err := subscriber.Sync(); err != nil {
-				log.Errorf("error syncing process monitor: %v", err)
+			if err := procMon.Sync(); err != nil {
+				log.Errorf("error syncing procmon: %v", err)
 			}
 			timer.Reset(jitter(syncInterval, 0.2))
 		}

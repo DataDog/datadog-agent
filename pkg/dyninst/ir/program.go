@@ -42,6 +42,8 @@ type Program struct {
 	Issues []ProbeIssue
 	// GoModuledataInfo is used to resolve types from interfaces.
 	GoModuledataInfo GoModuledataInfo
+	// CommonTypes store references to common types.
+	CommonTypes CommonTypes
 }
 
 // GoModuledataInfo is information about the runtime-internal structure used to
@@ -59,6 +61,14 @@ type GoModuledataInfo struct {
 	//
 	// See https://github.com/golang/go/blob/5a56d884/src/runtime/symtab.go#L414
 	TypesOffset uint32
+}
+
+// CommonTypes stores references to common types.
+type CommonTypes struct {
+	// G corresponds to runtime.g, non-nil
+	G *StructureType
+	// M corresponds to runtime.m, non-nil
+	M *StructureType
 }
 
 // InlinePCRanges represent the pc ranges for a single instance of an inlined subprogram.

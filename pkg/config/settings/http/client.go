@@ -147,6 +147,14 @@ func (rc *runtimeSettingsClient) FullConfig() (string, error) {
 	return string(r), nil
 }
 
+func (rc *runtimeSettingsClient) FullConfigWithoutDefaults() (string, error) {
+	r, err := rc.doGet(fmt.Sprintf("%s/without-defaults", rc.baseURL), true)
+	if err != nil {
+		return "", err
+	}
+	return string(r), nil
+}
+
 func (rc *runtimeSettingsClient) FullConfigBySource() (string, error) {
 	r, err := rc.doGet(fmt.Sprintf("%s/by-source", rc.baseURL), true)
 	if err != nil {
