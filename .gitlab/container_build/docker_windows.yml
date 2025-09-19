@@ -9,7 +9,7 @@
       `$ErrorActionPreference = "Stop"
       # ECR Login
       `$AWS_ECR_PASSWORD = aws ecr get-login-password --region us-east-1
-      docker login --username AWS --password "`${AWS_ECR_PASSWORD}" 486234852809.dkr.ecr.us-east-1.amazonaws.com
+      docker login --username AWS --password "`${AWS_ECR_PASSWORD}" registry.ddbuild.io
       If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
       # DockerHub login
       `$DOCKER_REGISTRY_LOGIN = aws ssm get-parameter --region us-east-1 --name $DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text
@@ -28,7 +28,7 @@
     CI_IDENTITY_GITLAB_JWT:
       aud: https://vault.us1.ddbuild.io
   variables:
-    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    IMAGE: registry.ddbuild.io/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     CI_IDENTITY_ROLE_NAME_OVERRIDE: windows-ci-tmp-gitlab-id-token-datadog-agent-all-refs
   script:
