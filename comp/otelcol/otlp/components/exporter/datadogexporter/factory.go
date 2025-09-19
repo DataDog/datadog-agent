@@ -19,13 +19,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	tracepb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/otel"
 
-	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
-	otlpmetrics "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
 	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configretry"
@@ -98,20 +97,6 @@ func newFactoryWithRegistry(
 		exporter.WithTraces(f.createTracesExporter, TracesStability),
 		exporter.WithLogs(f.createLogsExporter, LogsStability),
 	)
-}
-
-type tagEnricher struct{}
-
-func (t *tagEnricher) SetCardinality(_ string) (err error) {
-	return nil
-}
-
-// Enrich of a given dimension.
-func (t *tagEnricher) Enrich(_ context.Context, extraTags []string, dimensions *otlpmetrics.Dimensions) []string {
-	enrichedTags := make([]string, 0, len(extraTags)+len(dimensions.Tags()))
-	enrichedTags = append(enrichedTags, extraTags...)
-	enrichedTags = append(enrichedTags, dimensions.Tags()...)
-	return enrichedTags
 }
 
 // NewFactory creates a Datadog exporter factory
@@ -228,7 +213,7 @@ func (f *factory) createMetricsExporter(
 	ctx, cancel := context.WithCancel(ctx) // cancel() runs on shutdown
 	f.consumeStatsPayload(ctx, &wg, statsIn, statsv, fmt.Sprintf("datadogexporter-%s-%s", set.BuildInfo.Command, set.BuildInfo.Version), set.Logger)
 
-	sf := serializerexporter.NewFactoryForOTelAgent(f.s, &tagEnricher{}, f.h, statsIn, f.gatewayUsage, f.store, f.reporter)
+	sf := serializerexporter.NewFactoryForOTelAgent(f.s, f.h, statsIn, f.gatewayUsage, f.store, f.reporter)
 	ex := &serializerexporter.ExporterConfig{
 		Metrics: serializerexporter.MetricsConfig{
 			Metrics: cfg.Metrics,

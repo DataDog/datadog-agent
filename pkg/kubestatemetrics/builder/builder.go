@@ -28,6 +28,7 @@ import (
 	ksmbuild "k8s.io/kube-state-metrics/v2/pkg/builder"
 	ksmtypes "k8s.io/kube-state-metrics/v2/pkg/builder/types"
 	"k8s.io/kube-state-metrics/v2/pkg/customresource"
+	"k8s.io/kube-state-metrics/v2/pkg/metric"
 	generator "k8s.io/kube-state-metrics/v2/pkg/metric_generator"
 	metricsstore "k8s.io/kube-state-metrics/v2/pkg/metrics_store"
 	"k8s.io/kube-state-metrics/v2/pkg/options"
@@ -215,7 +216,7 @@ func GenerateStores[T any](
 	}
 
 	if b.namespaces.IsAllNamespaces() {
-		store := store.NewMetricsStore(composedMetricGenFuncs, reflect.TypeOf(expectedType).String())
+		store := createStoreForType(composedMetricGenFuncs, expectedType)
 
 		if isPod {
 			// Pods are handled differently because depending on the configuration
@@ -231,7 +232,7 @@ func GenerateStores[T any](
 
 	stores := make([]cache.Store, 0, len(b.namespaces))
 	for _, ns := range b.namespaces {
-		store := store.NewMetricsStore(composedMetricGenFuncs, reflect.TypeOf(expectedType).String())
+		store := createStoreForType(composedMetricGenFuncs, expectedType)
 		if isPod {
 			// Pods are handled differently because depending on the configuration
 			// they're collected from the API server or the Kubelet.
@@ -452,5 +453,22 @@ func createConfigMapListWatch(metadataClient metadata.Interface, gvr schema.Grou
 				return event, true
 			}), nil
 		},
+	}
+}
+
+// Added this because we aren't receiving events for when a deployment or replica set is deleted
+// in the MetricFamilyGenerators.
+func createStoreForType(composedMetricGenFuncs func(interface{}) []metric.FamilyInterface, expectedType interface{}) cache.Store {
+	typeName := reflect.TypeOf(expectedType).String()
+
+	// Use rollout-aware stores for deployments and replica sets
+	switch typeName {
+	case "*v1.Deployment":
+		return store.NewRolloutMetricsStore(composedMetricGenFuncs, typeName, "deployments")
+	case "*v1.ReplicaSet":
+		return store.NewRolloutMetricsStore(composedMetricGenFuncs, typeName, "replicasets")
+	default:
+		// Use regular store for other types
+		return store.NewMetricsStore(composedMetricGenFuncs, typeName)
 	}
 }

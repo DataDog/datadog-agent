@@ -32,6 +32,7 @@ type KubeUtilInterface interface {
 	GetRawLocalPodList(ctx context.Context) ([]*v1.Pod, error)
 	GetLocalStatsSummary(ctx context.Context) (*kubeletv1alpha1.Summary, error)
 	StreamLogs(ctx context.Context, podNamespace, podName, containerName string, logOptions *StreamLogOptions) (io.ReadCloser, error)
+	GetConfig(ctx context.Context) ([]byte, *ConfigDocument, error)
 }
 
 // GetRawLocalPodList returns the unfiltered pod list from the kubelet

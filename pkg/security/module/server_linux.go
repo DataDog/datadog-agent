@@ -185,25 +185,10 @@ func (a *APIServer) SaveSecurityProfile(_ context.Context, params *api.SecurityP
 	return nil, fmt.Errorf("monitor not configured")
 }
 
-// GetStatus returns the status of the module
-func (a *APIServer) GetStatus(_ context.Context, _ *api.GetStatusParams) (*api.Status, error) {
-	var apiStatus api.Status
-	if a.selfTester != nil {
-		apiStatus.SelfTests = a.selfTester.GetStatus()
-	}
-	apiStatus.PoliciesStatus = a.policiesStatus
-
-	seclVariables := a.GetSECLVariables()
-	for _, seclVariable := range seclVariables {
-		apiStatus.SECLVariables = append(apiStatus.SECLVariables, seclVariable)
-	}
-
+func (a *APIServer) fillStatusPlatform(apiStatus *api.Status) error {
 	p, ok := a.probe.PlatformProbe.(*probe.EBPFProbe)
 	if ok {
-		status, err := p.GetConstantFetcherStatus()
-		if err != nil {
-			return nil, err
-		}
+		status := p.GetConstantFetcherStatus()
 
 		constants := make([]*api.ConstantValueAndSource, 0, len(status.Values))
 		for _, v := range status.Values {
@@ -233,8 +218,7 @@ func (a *APIServer) GetStatus(_ context.Context, _ *api.GetStatusParams) (*api.S
 			}
 		}
 	}
-
-	return &apiStatus, nil
+	return nil
 }
 
 // DumpNetworkNamespace handles network namespace cache dump requests

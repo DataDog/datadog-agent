@@ -56,15 +56,20 @@ var (
 
 // NewGRPCServer creates a new instance of a GRPCServer
 func NewGRPCServer(config pkgconfigmodel.Reader, extractor *WorkloadMetaExtractor, tlsConfig *tls.Config) *GRPCServer {
+	opts := []grpc.ServerOption{
+		grpc.Creds(credentials.NewTLS(tlsConfig)),
+		grpc.KeepaliveParams(keepalive.ServerParameters{
+			Time: keepaliveInterval,
+		}),
+	}
+
+	// Add gRPC metrics interceptors
+	opts = grpcutil.ServerOptionsWithMetrics(opts...)
+
 	l := &GRPCServer{
-		config:    config,
-		extractor: extractor,
-		server: grpc.NewServer(
-			grpc.Creds(credentials.NewTLS(tlsConfig)),
-			grpc.KeepaliveParams(keepalive.ServerParameters{
-				Time: keepaliveInterval,
-			}),
-		),
+		config:      config,
+		extractor:   extractor,
+		server:      grpc.NewServer(opts...),
 		streamMutex: &sync.Mutex{},
 	}
 

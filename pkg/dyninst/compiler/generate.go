@@ -38,6 +38,7 @@ type Program struct {
 	Types            []ir.Type
 	Throttlers       []Throttler
 	GoModuledataInfo ir.GoModuledataInfo
+	CommonTypes      ir.CommonTypes
 }
 
 type generator struct {
@@ -79,7 +80,7 @@ func GenerateProgram(program *ir.Program) (Program, error) {
 				err := g.addEventHandler(
 					injectionPoint,
 					len(throttlers),
-					probe.GetCaptureConfig().GetMaxReferenceDepth(),
+					probe.GetCaptureConfig(),
 					event.Type,
 				)
 				if err != nil {
@@ -118,12 +119,31 @@ func GenerateProgram(program *ir.Program) (Program, error) {
 	for _, t := range program.Types {
 		types = append(types, t)
 	}
+	slices.SortStableFunc(g.functions, func(a, b Function) int {
+		at, aOk := a.ID.(ProcessType)
+		bt, bOk := b.ID.(ProcessType)
+		switch {
+		case !aOk && !bOk:
+			return 0
+		case !aOk:
+			return -1
+		case !bOk:
+			return 1
+		default:
+			return cmp.Or(
+				cmp.Compare(at.Type.GetName(), bt.Type.GetName()),
+				cmp.Compare(at.Type.GetID(), bt.Type.GetID()),
+			)
+
+		}
+	})
 	return Program{
 		ID:               uint32(program.ID),
 		Functions:        g.functions,
 		Types:            types,
 		Throttlers:       throttlers,
 		GoModuledataInfo: program.GoModuledataInfo,
+		CommonTypes:      program.CommonTypes,
 	}, nil
 }
 
@@ -133,13 +153,15 @@ func GenerateProgram(program *ir.Program) (Program, error) {
 func (g *generator) addEventHandler(
 	injectionPoint ir.InjectionPoint,
 	throttlerIdx int,
-	pointerChasingLimit uint32,
+	captureConfig ir.CaptureConfig,
 	rootType *ir.EventRootType,
 ) error {
 	id := ProcessEvent{
 		InjectionPC:         injectionPoint.PC,
 		ThrottlerIdx:        throttlerIdx,
-		PointerChasingLimit: pointerChasingLimit,
+		PointerChasingLimit: captureConfig.GetMaxReferenceDepth(),
+		CollectionSizeLimit: captureConfig.GetMaxCollectionSize(),
+		StringSizeLimit:     captureConfig.GetMaxLength(),
 		Frameless:           injectionPoint.Frameless,
 		EventRootType:       rootType,
 	}
@@ -317,6 +339,9 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool, error) {
 
 	case *ir.VoidPointerType:
 		// Nothing to process. We don't know what the pointee is.
+
+	case *ir.UnresolvedPointeeType:
+		// Nothing to process.
 
 	case *ir.PointerType:
 		g.typeQueue = append(g.typeQueue, t.Pointee)

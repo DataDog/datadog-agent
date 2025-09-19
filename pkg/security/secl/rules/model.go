@@ -118,6 +118,7 @@ const (
 type ActionDefinitionInterface interface {
 	PreCheck(opts PolicyLoaderOpts) error
 	PostCheck(rule *eval.Rule) error
+	IsActionSupported(eventTypeEnabled map[eval.EventType]bool) error
 }
 
 // ActionDefinition describes a rule action section
@@ -204,6 +205,20 @@ func (a *ActionDefinition) PostCheck(rule *eval.Rule) error {
 	return nil
 }
 
+// IsActionSupported returns true if the action is supported given a list of enabled event type
+func (a *ActionDefinition) IsActionSupported(eventTypeEnabled map[eval.EventType]bool) error {
+	candidateActions := a.getCandidateActions()
+
+	for _, action := range candidateActions {
+		if !reflect.ValueOf(action).IsNil() {
+			if err := action.IsActionSupported(eventTypeEnabled); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 // Scope describes the scope variables
 type Scope string
 
@@ -220,6 +235,11 @@ func (a *DefaultActionDefinition) PostCheck(_ *eval.Rule) error {
 	return nil
 }
 
+// IsActionSupported returns true if the action is supported with the provided set of enabled event types
+func (a *DefaultActionDefinition) IsActionSupported(_ map[eval.EventType]bool) error {
+	return nil
+}
+
 // SetDefinition describes the 'set' section of a rule action
 type SetDefinition struct {
 	DefaultActionDefinition
@@ -227,7 +247,7 @@ type SetDefinition struct {
 	Value        interface{}            `yaml:"value" json:"value,omitempty" jsonschema:"oneof_required=SetWithValue,oneof_type=string;integer;boolean;array"`
 	DefaultValue interface{}            `yaml:"default_value" json:"default_value,omitempty" jsonschema:"oneof_type=string;integer;boolean;array"`
 	Field        string                 `yaml:"field" json:"field,omitempty" jsonschema:"oneof_required=SetWithField"`
-	Expression   string                 `yaml:"expression" json:"expression,omitempty"`
+	Expression   string                 `yaml:"expression" json:"expression,omitempty" jsonschema:"oneof_required=SetWithExpression"`
 	Append       bool                   `yaml:"append" json:"append,omitempty"`
 	Scope        Scope                  `yaml:"scope" json:"scope,omitempty" jsonschema:"enum=process,enum=container,enum=cgroup"`
 	ScopeField   string                 `yaml:"scope_field" json:"scope_field,omitempty"`
@@ -383,6 +403,14 @@ func (n *NetworkFilterDefinition) PreCheck(_ PolicyLoaderOpts) error {
 	return nil
 }
 
+// IsActionSupported returns true if the action is supported with the provided set of enabled event types
+func (n *NetworkFilterDefinition) IsActionSupported(eventTypeEnabled map[eval.EventType]bool) error {
+	if !eventTypeEnabled[model.RawPacketFilterEventType.String()] {
+		return fmt.Errorf("network_filter action requires %s event type", model.RawPacketActionEventType)
+	}
+	return nil
+}
+
 // OnDemandHookPoint represents a hook point definition
 type OnDemandHookPoint struct {
 	Name      string
@@ -398,9 +426,10 @@ type HookPointArg struct {
 
 // PolicyDef represents a policy file definition
 type PolicyDef struct {
-	Version string             `yaml:"version,omitempty" json:"version"`
-	Macros  []*MacroDefinition `yaml:"macros,omitempty" json:"macros,omitempty"`
-	Rules   []*RuleDefinition  `yaml:"rules" json:"rules"`
+	Version         string             `yaml:"version,omitempty" json:"version"`
+	ReplacePolicyID string             `yaml:"replace_policy_id,omitempty" json:"replace_policy_id,omitempty"`
+	Macros          []*MacroDefinition `yaml:"macros,omitempty" json:"macros,omitempty"`
+	Rules           []*RuleDefinition  `yaml:"rules" json:"rules"`
 }
 
 // HumanReadableDuration represents a duration that can unmarshalled from YAML from a human readable format (like `10m`)

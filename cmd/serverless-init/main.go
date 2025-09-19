@@ -133,17 +133,16 @@ func setup(_ mode.Conf, tagger tagger.Component, compression logscompression.Com
 	// and exit right away.
 	_ = cloudService.Init()
 
-	configuredTags := configUtils.GetConfiguredTags(pkgconfigsetup.Datadog(), false)
-
 	tags := serverlessInitTag.GetBaseTagsMapWithMetadata(
 		serverlessTag.MergeWithOverwrite(
-			serverlessTag.ArrayToMap(configuredTags),
+			serverlessTag.ArrayToMap(
+				configUtils.GetConfiguredTags(pkgconfigsetup.Datadog(), false),
+			),
 			cloudService.GetTags()),
 		modeConf.TagVersionMode)
 
-	origin := cloudService.GetOrigin()
-
-	agentLogConfig := serverlessInitLog.CreateConfig(origin)
+	defaultSource := cloudService.GetDefaultLogsSource()
+	agentLogConfig := serverlessInitLog.CreateConfig(defaultSource)
 
 	// The datadog-agent requires Load to be called or it could
 	// panic down the line.
@@ -152,9 +151,10 @@ func setup(_ mode.Conf, tagger tagger.Component, compression logscompression.Com
 		log.Debugf("Error loading config: %v\n", err)
 	}
 
+	origin := cloudService.GetOrigin()
 	logsAgent := serverlessInitLog.SetupLogAgent(agentLogConfig, tags, tagger, compression, hostname, origin)
 
-	functionTags := strings.Join(configuredTags, ",")
+	functionTags := serverlessTag.GetFunctionTags(pkgconfigsetup.Datadog())
 	traceAgent := setupTraceAgent(tags, functionTags, tagger)
 
 	metricAgent := setupMetricAgent(tags, tagger, cloudService.ShouldForceFlushAllOnForceFlushToSerializer())
@@ -167,7 +167,7 @@ func setup(_ mode.Conf, tagger tagger.Component, compression logscompression.Com
 	return cloudService, agentLogConfig, traceAgent, metricAgent, logsAgent
 }
 
-var azureContainerAppTags = []string{
+var azureServerlessTags = []string{
 	"subscription_id",
 	"resource_group",
 	"resource_id",
@@ -176,21 +176,24 @@ var azureContainerAppTags = []string{
 	"aca.resource.group",
 	"aca.resource.id",
 	"aca.replica.name",
+	"aas.subscription.id",
+	"aas.resource.group",
+	"aas.resource.id",
 }
 
 func setupTraceAgent(tags map[string]string, functionTags string, tagger tagger.Component) trace.ServerlessTraceAgent {
 	var azureTags strings.Builder
-	for _, azureContainerAppTag := range azureContainerAppTags {
-		if value, ok := tags[azureContainerAppTag]; ok {
-			azureTags.WriteString(fmt.Sprintf(",%s:%s", azureContainerAppTag, value))
+	for _, azureServerlessTag := range azureServerlessTags {
+		if value, ok := tags[azureServerlessTag]; ok {
+			azureTags.WriteString(fmt.Sprintf(",%s:%s", azureServerlessTag, value))
 		}
 	}
 	traceAgent := trace.StartServerlessTraceAgent(trace.StartServerlessTraceAgentArgs{
-		Enabled:               pkgconfigsetup.Datadog().GetBool("apm_config.enabled"),
-		LoadConfig:            &trace.LoadConfig{Path: datadogConfigPath, Tagger: tagger},
-		ColdStartSpanID:       random.Random.Uint64(),
-		AzureContainerAppTags: azureTags.String(),
-		FunctionTags:          functionTags,
+		Enabled:             pkgconfigsetup.Datadog().GetBool("apm_config.enabled"),
+		LoadConfig:          &trace.LoadConfig{Path: datadogConfigPath, Tagger: tagger},
+		ColdStartSpanID:     random.Random.Uint64(),
+		AzureServerlessTags: azureTags.String(),
+		FunctionTags:        functionTags,
 	})
 	traceAgent.SetTags(tags)
 	go func() {

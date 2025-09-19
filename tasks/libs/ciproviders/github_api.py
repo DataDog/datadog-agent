@@ -548,9 +548,9 @@ class GithubAPI:
             # retrieve it, given the other credentials (app id + key).
             integration = GithubIntegration(auth=appAuth)
             installations = integration.get_installations()
-            if len(installations) == 0:
+            if installations.totalCount == 0:
                 raise Exit(message='No usable installation found', code=1)
-            installation_id = installations[0]
+            installation_id = installations[0].id
         return appAuth.get_installation_auth(int(installation_id))
 
     @staticmethod
@@ -792,7 +792,14 @@ def generate_local_github_token(ctx):
     try:
         token = ctx.run('ddtool auth github token', hide=True).stdout.strip()
 
+        assert (
+            token.startswith('gh') and ' ' not in token
+        ), "`ddtool auth github token` returned an invalid token, it might be due to ddtool outdated. Please run `brew update && brew upgrade ddtool`."
+
         return token
+    except AssertionError:
+        # No retry on asserts
+        raise
     except Exception:
         # Try to login and then get a token
         ctx.run('ddtool auth github login')
