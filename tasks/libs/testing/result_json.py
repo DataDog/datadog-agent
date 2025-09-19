@@ -58,6 +58,7 @@ class ResultJson:
     def from_file(cls, file: str) -> "ResultJson":
         """Load a ResultJson from a file."""
         res = []
+        warning_logged = False
         with open(file) as f:
             for line in f:
                 data = json.loads(line)
@@ -65,7 +66,10 @@ class ResultJson:
                     res.append(ResultJsonLine.from_dict(data))
                 except ValueError:
                     # TODO(@agent-devx): Use a proper logging mechanism instead of print
-                    print(f"WARNING: Invalid line in result json file, skipping: {line.strip()}")
+                    if not warning_logged:
+                        print("WARNING: Invalid line in result json file, skipping")
+                        warning_logged = True
+                    print(data.get("Output", line).strip())
         return cls(res)
 
     def _sort_into_packages_and_tests(self) -> dict[str, dict[str, list[ResultJsonLine]]]:

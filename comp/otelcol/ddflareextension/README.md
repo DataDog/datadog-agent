@@ -14,14 +14,13 @@ The datadogextension will be added automatically by the [converter component](..
 ```
 extensions:
  ddflare:
-   port: 7777
+   endpoint: localhost:7777
 ```
 
 *Agent Config:*
 ```
-otel-agent:
- enabled: true
- flare_port: 7777
+otelcollector:
+  enabled: true
 ```
 
 The port is the location in which the otel-agent will expose the data required to build the flare. The core agent then fetches the data from this port.

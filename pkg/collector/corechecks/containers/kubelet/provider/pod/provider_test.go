@@ -350,3 +350,16 @@ func (suite *ProviderTestSuite) TestPodMetricsIfDurationIsPositive() {
 	// ensure that metrics are not emitted when there are no kubelet tags
 	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"pod.terminating.duration", 86400, "", config.Tags)
 }
+
+func (suite *ProviderTestSuite) TestPodResizeMetrics() {
+	err := suite.dummyKubelet.loadPodList("../../testdata/pods_pending.json")
+	require.Nil(suite.T(), err)
+	config := suite.provider.config
+
+	err = suite.provider.Provide(suite.kubeUtil, suite.mockSender)
+	require.Nil(suite.T(), err)
+
+	// ensure that metrics are not emitted when there are no kubelet tags
+	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"pod.resize.pending", append(config.Tags, "reason:infeasible"))
+	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"pod.resize.pending", append(config.Tags, "reason:deferred"))
+}
