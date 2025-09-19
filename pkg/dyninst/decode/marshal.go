@@ -33,8 +33,6 @@ type debuggerData struct {
 }
 
 type snapshotData struct {
-	decoder *Decoder
-
 	// static fields:
 	ID        uuid.UUID `json:"id"`
 	Timestamp int       `json:"timestamp"`
@@ -104,23 +102,6 @@ func setSkipped(bitset []byte, index int) {
 	if idx < len(bitset) {
 		bitset[idx] |= 1 << byte(bit)
 	}
-}
-
-func (c *captureData) MarshalJSONTo(enc *jsontext.Encoder) error {
-	if err := writeTokens(enc, jsontext.BeginObject); err != nil {
-		return err
-	}
-	if err := writeTokens(enc,
-		jsontext.String("entry"),
-		jsontext.BeginObject,
-		jsontext.String("arguments"),
-	); err != nil {
-		return err
-	}
-	if err := c.Entry.Arguments.MarshalJSONTo(enc); err != nil {
-		return err
-	}
-	return writeTokens(enc, jsontext.EndObject, jsontext.EndObject)
 }
 
 var errEvaluation = errors.New("evaluation error")
