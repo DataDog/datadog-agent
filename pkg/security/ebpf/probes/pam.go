@@ -181,10 +181,8 @@ func pamFromCommonDirs() string {
 	return cands[0]
 }
 
-var libPamPath = getPamLibPath()
-
 func getPamProbes() []*manager.Probe {
-
+	libPamPath := getPamLibPath()
 	var pamProbes = []*manager.Probe{
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
