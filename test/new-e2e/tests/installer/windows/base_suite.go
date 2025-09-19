@@ -418,7 +418,6 @@ func (s *BaseSuite) collectxperf() {
 
 	// collect xperf if the test failed
 	if s.T().Failed() {
-		s.collectxperf()
 		outDir := s.SessionOutputDir()
 		err = host.GetFile(outputPath, filepath.Join(outDir, "full_host_profiles.etl"))
 		s.Require().NoError(err)
