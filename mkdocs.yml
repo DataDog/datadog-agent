@@ -95,6 +95,7 @@ nav:
   #     - TODO workloadmeta: components/shared_features/workloadmeta.md
   #     - TODO more ?: TMP
   # - Fx overview: components/fx.md
+  # - JMXFetch overview: components/jmxfetch.md
   # - FAQ: components/faq.md
 - Architecture:
   - DogStatsD:
@@ -103,6 +104,8 @@ nav:
   - Images:
     - Developer environment: reference/images/dev.md
     - Builders: reference/images/builders.md
+  - Buildable targets:
+    - Agent components: reference/builds/components.md
 
 watch:
 - .go-version
