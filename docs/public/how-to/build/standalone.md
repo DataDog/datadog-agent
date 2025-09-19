@@ -36,7 +36,7 @@ You can find the full list of buildable agent-related binaries [here](../../refe
 
 ### Including or excluding Agent features
 
-Different features of the Agent can be included / excluded at build time, by leveraging [Go build constraints](https://pkg.go.dev/cmd/go#hdr-Build_constraints). This can be done by passing the `--build-include` or `--build-exclude` flags to the build commands. A (non-exhaustive) list of available features can be found [here](../../reference/builds/components.md#agent-features)
+Different features of the Agent can be included / excluded at build time, by leveraging [Go build constraints](https://pkg.go.dev/cmd/go#hdr-Build_constraints). This can be done by passing the `--build-include` or `--build-exclude` flags to the build commands. A (non-exhaustive) list of available features can be found [here](../../reference/builds/components.md#agent-features).
 
 The set of features enabled by default (i.e. with no flag) depends on the build context: which binary you are trying to build, which flavor of the agent, which platform you are building on etc.
 
@@ -59,7 +59,7 @@ If you want to replicate the same configuration of the Agent as the one distribu
     dda inv print-default-build-tags -f fips
     > bundle_installer,consul,datadog.no_waf,ec2,etcd,fargateprocess,goexperiment.systemcrypto,grpcnotrace,jmx,kubeapiserver,kubelet,ncm,oracle,orchestrator,otlp,python,requirefips,trivy_no_javadb,zk,zlib,zstd
     ```
-    Run `dda inv print-default-build-tags --help` for more details
+    Run `dda inv print-default-build-tags --help` for more details.
 
 /// example
 To include the `zstd`, `etcd` and `python` features:

@@ -1,7 +1,7 @@
 # JMXFetch
 [JMXFetch](https://github.com/DataDog/jmxfetch/) is the component of the Agent which is responsible for collecting metrics from Java applications.
 
-For more details on JMXFetch or developer documentation, please visit the project documentation on the [JMXFetch GitHub repo](https://github.com/DataDog/jmxfetch/)
+For more details on JMXFetch or developer documentation, please visit the project documentation on the [JMXFetch GitHub repo](https://github.com/DataDog/jmxfetch/).
 
 ## Running checks requiring JMXFetch
 If your goal is to run a JMX-based check:

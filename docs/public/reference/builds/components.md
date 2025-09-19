@@ -30,25 +30,25 @@ Here is a list of usable "tags" that you can pass during the build process to cu
 <!-- Special div needed to enable annotations in lists -->
 <div class="annotate" markdown>
 * `apm`: make the APM agent execution available. (1)
-* `consul`: enable consul as a configuration store
+* `consul`: enable consul as a configuration store.
 * `python`: embed the Python interpreter.
 * `docker`: add Docker support (required by AutoDiscovery).
 * `ec2`: enable EC2 hostname detection and metadata collection.
 * `etcd`: enable Etcd as a configuration store.
 * `gce`: enable GCE hostname detection and metadata collection.
 * `jmx`: enable the JMX-fetch bridge.
-* `kubelet`: enable kubelet tag collection
-* `log`: enable the log agent
-* `process`: enable the process agent
+* `kubelet`: enable kubelet tag collection.
+* `log`: enable the log agent.
+* `process`: enable the process agent.
 * `zk`: enable Zookeeper as a configuration store.
 * `zstd`: use Zstandard instead of Zlib.
-* `systemd`: enable systemd journal log collection
-* `netcgo`: force the use of the CGO resolver. This will also have the effect of making the binary non-static
-* `secrets`: enable secrets support in configuration files (see documentation [here](https://docs.datadoghq.com/agent/guide/secrets-management))
-* `clusterchecks`: enable cluster-level checks
-* `cri` : add support for the CRI integration
-* `containerd`: add support for the containerd integration
-* `kubeapiserver`: enable interaction with Kubernetes API server (required by the cluster Agent)
+* `systemd`: enable systemd journal log collection.
+* `netcgo`: force the use of the CGO resolver. _This will also have the effect of making the binary non-static._
+* `secrets`: enable secrets support in configuration files (see documentation [here](https://docs.datadoghq.com/agent/guide/secrets-management)).
+* `clusterchecks`: enable cluster-level checks.
+* `cri` : add support for the CRI integration.
+* `containerd`: add support for the containerd integration.
+* `kubeapiserver`: enable interaction with Kubernetes API server (required by the cluster Agent).
 </div>
 
 1. Note that the trace agent needs to be built separately. For more information on the trace agent, see [the official docs](https://docs.datadoghq.com/tracing/trace_collection/).
