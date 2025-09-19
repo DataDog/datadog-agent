@@ -350,6 +350,11 @@ func (pb *payloadsBuilderV3) writeSerie(serie *metrics.Serie) error {
 			continue
 		case stream.ErrItemTooBig:
 			tlmItemTooBig.Inc()
+			tlmSplitReason.Inc("item_too_big")
+			err = pb.finishPayload()
+			if err != nil {
+				return err
+			}
 			return nil
 		case nil:
 			pb.pointsThisPayload += len(serie.Points)
