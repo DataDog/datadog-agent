@@ -172,7 +172,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/uuid v0.59.0
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.71.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/version v0.71.0-rc.1
-	github.com/DataDog/datadog-go/v5 v5.6.0
+	github.com/DataDog/datadog-go/v5 v5.7.1
 	// TODO: pin to an operator released version once there is a release that includes the api module
 	github.com/DataDog/datadog-operator/api v0.0.0-20250909133746-a88261a5540c
 	github.com/DataDog/datadog-traceroute v0.1.21
