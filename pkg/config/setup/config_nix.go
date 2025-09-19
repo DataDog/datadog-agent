@@ -63,6 +63,7 @@ func osinit() {
 	_here, err := executable.Folder()
 	if err != nil {
 		log.Errorf("Failed to get executable path: %v", err)
+		return
 	}
 	InstallPath = getInstallPathFromExecutable(_here)
 
