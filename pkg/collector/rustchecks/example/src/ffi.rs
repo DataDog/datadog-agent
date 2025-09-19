@@ -1,6 +1,7 @@
-use super::agent_check::AgentCheck;
-use super::aggregator::{Config, Aggregator};
-use super::cstring::free_cstring;
+// FFI for running checks
+
+use datadog_agent_core::{AgentCheck, Aggregator};
+use crate::CheckImplementation;
 
 use std::error::Error;
 use std::ffi::{c_char, CString};
@@ -21,10 +22,4 @@ fn create_and_run_check(check_id_str: *const c_char, init_config_str: *const c_c
 
     // run the custom implementation
     check.check()
-}
-
-/// Free the error string
-#[unsafe(no_mangle)]
-pub extern "C" fn Free(run_error: *mut c_char) {
-    free_cstring(run_error);
 }

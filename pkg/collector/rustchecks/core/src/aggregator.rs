@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use super::cstring::*;
+use crate::cstring::*;
 
 use std::collections::HashMap;
 use std::ffi::{c_char, c_double, c_float, c_int, c_long, c_longlong, CStr};

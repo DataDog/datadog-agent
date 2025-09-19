@@ -1,13 +1,17 @@
 #![allow(unused_imports)]
 
-mod core;
-use core::agent_check::{AgentCheck, ServiceCheckStatus};
+mod ffi;
+use datadog_agent_core::{AgentCheck, ServiceCheckStatus};
 
 use std::error::Error;
 
-impl AgentCheck {
+pub trait CheckImplementation {
+    fn check(self) -> Result<(), Box<dyn Error>>;
+}
+
+impl CheckImplementation for AgentCheck {
     /// Check implementation
-    pub fn check(self) -> Result<(), Box<dyn Error>> {
+    fn check(self) -> Result<(), Box<dyn Error>> {
         self.gauge("hello.world", 1.0, &vec![], "", false);
 
         Ok(())

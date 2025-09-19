@@ -87,8 +87,8 @@ func (c *SharedLibraryCheck) Run() error {
 	// retrieve callbacks
 	cAggregator := C.get_aggregator()
 
-	// run check implementation with the symbol stored in the check struct
-	cErr := C.run_shared_library(&c.libHandles, cID, cInitConfig, cInstanceConfig, cAggregator)
+	// run check implementation by using the symbol handle
+	cErr := C.run_shared_library(c.libHandles.run, cID, cInitConfig, cInstanceConfig, cAggregator)
 	if cErr != nil {
 		defer C.free(unsafe.Pointer(cErr))
 		return fmt.Errorf("Failed to run shared library check %s: %s", c.libName, C.GoString(cErr))

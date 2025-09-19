@@ -63,10 +63,10 @@ func (sl *SharedLibraryCheckLoader) Load(senderManager sender.SenderManager, con
 	// Get the shared library handles
 	libHandles := C.load_shared_library(cName, &cErr)
 	if cErr != nil {
+		err := C.GoString(cErr)
 		defer C.free(unsafe.Pointer(cErr))
 
-		// error message should not be too verbose, to keep the logs clean
-		errMsg := fmt.Sprintf("failed to find shared library %q", name)
+		errMsg := fmt.Sprintf("failed to load shared library %q: %s", name, err)
 		return nil, errors.New(errMsg)
 	}
 

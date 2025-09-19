@@ -74,7 +74,7 @@ typedef void (*cb_submit_histogram_bucket_t)(char *, char *, long long, float, f
 // (id, event, event_type)
 typedef void (*cb_submit_event_platform_event_t)(char *, char *, int, char *);
 
-// aggregator stores every callback used by shared libraries checks
+// aggregator_t stores every callback used by shared libraries checks
 typedef struct aggregator_s {
     cb_submit_metric_t cb_submit_metric;
     cb_submit_service_check_t cb_submit_service_check;
@@ -85,17 +85,12 @@ typedef struct aggregator_s {
 
 // run function callback, entrypoint of checks
 // (check_id, init_config, instance_config, callbacks)
-typedef char *(run_function_t)(char *, char*, char*, const aggregator_t *);
+typedef char *(run_function_t)(char *, char *, char *, const aggregator_t *);
 
-// free function callback, deallocate a string
-// (string to free)
-typedef void(free_function_t)(char *);
-
-// pointers to library file and its symbols
+// handles_t contains pointers to shared library and its Run symbol
 typedef struct handles_s {
-    void *lib; // handle to the shared library
-    run_function_t *run; // handle to the run function symbol
-    free_function_t *free; // handle to the free function symbol
+    void *lib;              // handle to the shared library
+    run_function_t *run;    // handle to the run function symbol
 } handles_t;
 
 #ifdef _WIN32
@@ -131,15 +126,6 @@ static handles_t load_shared_library(const char *lib_name, const char **error) {
 		goto done;
     }
 
-	lib_handles.free = (free_function_t *)GetProcAddress(lib_handles.lib, "Free");
-    if (!lib_handles.free) {
-		char error_msg[256];
-        int error_code = GetLastError();
-        snprintf(error_msg, sizeof(error_msg), "unable to get shared library 'Free' symbol, error code: %d", error_code);
-		*error = strdup(error_msg);
-		goto done;
-    }
-
 done:
 	free(lib_full_name);
 	return lib_handles;
@@ -169,21 +155,14 @@ static handles_t load_shared_library(const char *lib_name, const char **error) {
 
     // load the library
     lib_handles.lib = dlopen(lib_full_name, RTLD_LAZY | RTLD_GLOBAL);
-    if (!lib_handles.lib) {
-		*error = strdup("unable to open shared library");
+    dlsym_error = dlerror();
+    if (dlsym_error) {
+		*error = strdup(dlsym_error);
 		goto done;
     }
 
     // get symbol pointers of 'Run' and 'Free' functions
     lib_handles.run = (run_function_t *)dlsym(lib_handles.lib, "Run");
-    dlsym_error = dlerror();
-    if (dlsym_error) {
-		dlclose(lib_handles.lib);
-		*error = strdup(dlsym_error);
-		goto done;
-    }
-
-	lib_handles.free = (free_function_t *)dlsym(lib_handles.lib, "Free");
     dlsym_error = dlerror();
     if (dlsym_error) {
 		dlclose(lib_handles.lib);
@@ -206,14 +185,14 @@ static void close_shared_library(void *lib_handle) {
 }
 #endif
 
-static char *run_shared_library(handles_t *lib_handles, char *check_id, char *init_config, char *instance_config, aggregator_t *aggregator) {
+static char *run_shared_library(run_function_t *run_handle, char *check_id, char *init_config, char *instance_config, aggregator_t *aggregator) {
 	// verify pointers
-    if (!lib_handles->run) {
+    if (!run_handle) {
         return strdup("pointer to shared library 'Run' function is NULL");
     }
 
     // run the shared library check and return any error has occurred
-    char *error = (lib_handles->run)(check_id, init_config, instance_config, aggregator);
+    char *error = (run_handle)(check_id, init_config, instance_config, aggregator);
     if (error) {
         return strdup(error);
     }

@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use super::aggregator::{Config, Aggregator, MetricType, Event};
+use crate::aggregator::{Config, Aggregator, MetricType, Event};
 
 use std::error::Error;
 use std::ffi::{c_char, CStr};

@@ -1,7 +1,7 @@
 #![allow(unused_imports)]
 
-mod core;
-use core::agent_check::{AgentCheck, ServiceCheckStatus};
+mod ffi;
+use datadog_agent_core::{AgentCheck, ServiceCheckStatus};
 
 use std::error::Error;
 
@@ -15,9 +15,13 @@ use rustls::pki_types::CertificateDer;
 use webpki_roots::TLS_SERVER_ROOTS;
 use x509_parser::parse_x509_certificate;
 
-impl AgentCheck {
+pub trait CheckImplementation {
+    fn check(self) -> Result<(), Box<dyn Error>>;
+}
+
+impl CheckImplementation for AgentCheck {
     /// Check implementation
-    pub fn check(self) -> Result<(), Box<dyn Error>> {
+    fn check(self) -> Result<(), Box<dyn Error>> {
         // references for certificate expiration
         const DEFAULT_EXPIRE_DAYS_WARNING: i32 = 14;
         const DEFAULT_EXPIRE_DAYS_CRITICAL: i32 = 7;
