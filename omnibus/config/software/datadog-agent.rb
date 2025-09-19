@@ -147,7 +147,7 @@ build do
   end
 
   unless windows_target?
-    command "cd cmd/loader && go build -tags otlp -o loader && mv loader #{install_dir}/embedded/bin/trace-loader"
+    command "cd cmd/loader && dda inv -- -e loader.build && mv loader #{install_dir}/embedded/bin/trace-loader"
   end
 
   if windows_target?

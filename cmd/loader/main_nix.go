@@ -32,7 +32,7 @@ import (
 )
 
 // The agent loader starts the trace-agent process when required,
-// in particular only when data is received on the receivers.
+// in particular only when connections are established on its sockets.
 // If anything goes wrong, the trace-agent is started directly.
 
 // os.Args[1] is the path to the configuration file
@@ -94,7 +94,7 @@ func main() {
 	env := os.Environ()
 	var pollfds []unix.PollFd
 	for varname, fd := range listeners {
-		log.Infof("%s file descriptor is %d", varname, fd)
+		log.Debugf("%s file descriptor is %d", varname, fd)
 		env = append(env, fmt.Sprintf("%s=%d", varname, fd))
 		pollfds = append(pollfds, unix.PollFd{
 			Fd:     int32(fd),
@@ -109,7 +109,7 @@ func main() {
 	if err != nil {
 		log.Warnf("error while polling: %v", err)
 	} else {
-		log.Infof("Data received on %d sockets", n)
+		log.Debugf("Data received on %d sockets", n)
 		for _, pfd := range pollfds {
 			log.Infof("Socket %d has events %d", pfd.Fd, pfd.Revents)
 		}
@@ -190,7 +190,7 @@ func getListeners(cfg model.Reader) (map[string]uintptr, error) {
 
 		listeners["DD_APM_NET_RECEIVER_FD"] = fd
 	} else {
-		log.Info("Tracer-agent TCP receiver is disabled")
+		log.Info("Trace-agent TCP receiver is disabled")
 	}
 
 	if path := traceCfgReceiverSocket; path != "" {
@@ -213,7 +213,7 @@ func getListeners(cfg model.Reader) (map[string]uintptr, error) {
 			log.Errorf("Could not start UDS listener: socket directory does not exist: %s", path)
 		}
 	} else {
-		log.Info("Trace unix receiver is disabled")
+		log.Info("Trace-agent unix receiver is disabled")
 	}
 
 	if configcheck.IsEnabled(cfg) {
@@ -232,7 +232,7 @@ func getListeners(cfg model.Reader) (map[string]uintptr, error) {
 
 		listeners["DD_OTLP_CONFIG_GRPC_FD"] = fd
 	} else {
-		log.Info("OTLP trace receiver is disabled")
+		log.Info("Trace-agent OTLP receiver is disabled")
 	}
 
 	return listeners, nil
