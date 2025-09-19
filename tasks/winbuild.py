@@ -39,10 +39,6 @@ def agent_package(
     # Package Agent into MSI
     build_agent_msi(ctx, build_upgrade=build_upgrade)
 
-    # Package MSI into OCI
-    if AgentFlavor[flavor] == AgentFlavor.base:
-        ctx.run('powershell -C "./tasks/winbuildscripts/Generate-OCIPackage.ps1 -package datadog-agent"')
-
 
 @task
 def installer_package(
@@ -58,9 +54,6 @@ def installer_package(
 
     # Package Insaller into MSI
     build_installer_msi(ctx)
-
-    # Package MSI into OCI
-    ctx.run('powershell -C "./tasks/winbuildscripts/Generate-OCIPackage.ps1 -package datadog-installer"')
 
     # Copy installer.exe to the output dir so it can be deployed as the bootstrapper
     agent_version = get_version(
