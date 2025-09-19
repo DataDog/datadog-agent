@@ -19,38 +19,8 @@ Conversely, if you want to exclude something:
 dda inv agent.build --build-exclude=systemd,python
 ```
 
-This is the complete list of the available components:
-
-* `apm`: make the APM agent execution available. For information on building the trace agent, see [the trace agent section](#trace-agent).
-* `consul`: enable consul as a configuration store
-* `python`: embed the Python interpreter.
-* `docker`: add Docker support (required by AutoDiscovery).
-* `ec2`: enable EC2 hostname detection and metadata collection.
-* `etcd`: enable Etcd as a configuration store.
-* `gce`: enable GCE hostname detection and metadata collection.
-* `jmx`: enable the JMX-fetch bridge.
-* `kubelet`: enable kubelet tag collection
-* `log`: enable the log agent
-* `process`: enable the process agent
-* `zk`: enable Zookeeper as a configuration store.
-* `zstd`: use Zstandard instead of Zlib.
-* `systemd`: enable systemd journal log collection
-* `netcgo`: force the use of the CGO resolver. This will also have the effect of making the binary non-static
-* `secrets`: enable secrets support in configuration files (see documentation [here](https://docs.datadoghq.com/agent/guide/secrets-management))
-* `clusterchecks`: enable cluster-level checks
-* `cri` : add support for the CRI integration
-* `containerd`: add support for the containerd integration
-* `kubeapiserver`: enable interaction with Kubernetes API server (required by the cluster Agent)
-
-Please note you might need to provide some extra dependencies in your dev
-environment to build certain bits (see [manual setup](https://datadoghq.dev/datadog-agent/setup/manual/)).
-
-Also note that the trace agent needs to be built and run separately. For more information, see [below](#trace-agent).
-
 ## Trace agent
 
-The [official documentation](https://docs.datadoghq.com/tracing/trace_collection/) is available on the Datadog website.
-To build the trace agent, run:
 
 ```
 dda inv trace-agent.build
