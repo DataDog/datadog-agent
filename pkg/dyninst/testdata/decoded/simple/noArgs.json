@@ -4,7 +4,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.PointerChainArg",
+      "method": "main.noArgs",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -16,14 +16,14 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.PointerChainArg",
+            "function": "main.noArgs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 112
+            "lineNumber": 120
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 37
+            "lineNumber": 39
           },
           {
             "function": "runtime.main",
@@ -37,19 +37,14 @@
           }
         ],
         "probe": {
-          "id": "PointerChainArg",
+          "id": "noArgs",
           "location": {
-            "method": "main.PointerChainArg"
+            "method": "main.noArgs"
           }
         },
         "captures": {
           "entry": {
-            "arguments": {
-              "ptr": {
-                "type": "*****int",
-                "notCapturedReason": "depth"
-              }
-            }
+            "arguments": {}
           }
         }
       }
