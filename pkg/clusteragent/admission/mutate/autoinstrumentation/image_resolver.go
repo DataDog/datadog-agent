@@ -195,8 +195,8 @@ func parseAndValidateConfigs(configs map[string]state.RawConfig) (map[string]Rep
 			continue
 		}
 
-		if repo.RepositoryName == "" || repo.RepositoryURL == "" {
-			errors[configKey] = fmt.Errorf("missing repository_name or repository_url in config %s", configKey)
+		if repo.RepositoryName == "" {
+			errors[configKey] = fmt.Errorf("missing repository_name in config %s", configKey)
 			continue
 		}
 		validConfigs[configKey] = repo
@@ -262,12 +262,10 @@ func (r *remoteConfigImageResolver) processUpdate(update map[string]state.RawCon
 type ImageInfo struct {
 	Tag              string `json:"tag"`
 	Digest           string `json:"digest"`
-	CanonicalVersion string `json:"canonical_version"`
 }
 
 // RepositoryConfig represents a repository configuration from remote config.
 type RepositoryConfig struct {
-	RepositoryURL  string      `json:"repository_url"`
 	RepositoryName string      `json:"repository_name"`
 	Images         []ImageInfo `json:"images"`
 }
