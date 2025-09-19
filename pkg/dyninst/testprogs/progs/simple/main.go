@@ -36,6 +36,7 @@ func main() {
 	ptr5 := &ptr4
 	PointerChainArg(ptr5)
 	PointerSmallChainArg(ptr2)
+	usesMapsOfMapsThatDoNotAppearAsArguments()
 }
 
 //go:noinline
@@ -113,4 +114,27 @@ func PointerChainArg(ptr *****int) {
 
 func PointerSmallChainArg(ptr **int) {
 	fmt.Println(ptr)
+}
+
+type aStructNotUsedAsAnArgument struct {
+	a int
+}
+
+// This test tickles a bug where we didn't explore variable types when we
+// but we were adding them. At that point we violated an invariant regarding
+// the completion of internals of map types. This test reproduced that bug.
+//
+//go:noinline
+func usesMapsOfMapsThatDoNotAppearAsArguments() map[byte]map[int]aStructNotUsedAsAnArgument {
+	// The bug required a map of maps. We make a new type here to ensure
+	// that it's not a map type that could possibly exist elsewhere.
+	m := map[string]map[int]aStructNotUsedAsAnArgument{
+		"a": {0: aStructNotUsedAsAnArgument{a: 1}},
+	}
+	if m["b"] != nil {
+		m["b"][0] = aStructNotUsedAsAnArgument{a: 2}
+	}
+	return map[byte]map[int]aStructNotUsedAsAnArgument{
+		'a': m["a"],
+	}
 }
