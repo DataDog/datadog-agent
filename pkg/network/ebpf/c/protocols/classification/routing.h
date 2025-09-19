@@ -2,6 +2,7 @@
 #define __PROTOCOL_ROUTING_H
 
 #include "ktypes.h"
+#include "defs.h"
 #include "protocols/classification/defs.h"
 #include "protocols/classification/stack-helpers.h"
 #include "protocols/classification/routing-helpers.h"
@@ -39,11 +40,11 @@ static __always_inline classification_prog_t __get_next_program(classification_c
 static __always_inline void classification_next_program(struct __sk_buff *skb, classification_context_t *classification_ctx) {
     classification_prog_t next_program = __get_next_program(classification_ctx);
     if (next_program == CLASSIFICATION_PROG_UNKNOWN || next_program == CLASSIFICATION_PROG_MAX) {
-        log_debug("classification tail-call: skb=%p tail-end", skb);
+        log_verbose("classification tail-call: skb=%p tail-end", skb);
         return;
     }
 
-    log_debug("classification tail-call: skb=%p from=%d to=%d", skb, classification_ctx->routing_current_program, next_program);
+    log_verbose("classification tail-call: skb=%p from=%d to=%d", skb, classification_ctx->routing_current_program, next_program);
     classification_ctx->routing_current_program = next_program;
     bpf_tail_call_compat(skb, &classification_progs, next_program);
 }
