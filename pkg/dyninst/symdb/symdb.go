@@ -14,7 +14,6 @@ import (
 	"fmt"
 	"iter"
 	"math"
-	"runtime/debug"
 	"slices"
 	"sort"
 	"strings"
@@ -374,7 +373,6 @@ const mainPackageName = "main"
 
 // packagesIterator walks the DWARF data for a binary, extracting symbols in the
 // SymDB format.
-// nolint:revive  // ignore stutter rule
 type packagesIterator struct {
 	// The DWARF data to extract symbols from.
 	dwarfData *dwarf.Data
@@ -1544,7 +1542,6 @@ func (b *packagesIterator) parseAbstractFunction(offset dwarf.Offset) (*abstract
 func (b *packagesIterator) parseAbstractVariable(entry *dwarf.Entry) (Variable, typeInfo, error) {
 	name, ok := entry.Val(dwarf.AttrName).(string)
 	if !ok {
-		debug.PrintStack()
 		return Variable{}, typeInfo{}, fmt.Errorf("variable without name at 0x%x", entry.Offset)
 	}
 	declLine, ok := entry.Val(dwarf.AttrDeclLine).(int64)

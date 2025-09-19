@@ -64,7 +64,7 @@ func (s *StatsKeeper) Process(event *EventWrapper) {
 			s.telemetry.dropped.Add(1)
 			return
 		}
-		requestStats = NewRequestStats()
+		requestStats = requestStatsPool.Get()
 		s.stats[key] = requestStats
 	}
 	count := 1 // We process one event at a time
@@ -73,8 +73,8 @@ func (s *StatsKeeper) Process(event *EventWrapper) {
 
 // GetAndResetAllStats returns all the records and resets the statskeeper
 func (s *StatsKeeper) GetAndResetAllStats() map[Key]*RequestStats {
-	s.statsMutex.RLock()
-	defer s.statsMutex.RUnlock()
+	s.statsMutex.Lock()
+	defer s.statsMutex.Unlock()
 
 	ret := s.stats
 	s.resetNoLock()

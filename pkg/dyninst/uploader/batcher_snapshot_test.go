@@ -96,7 +96,7 @@ func runSnapshotFile(t *testing.T, file string, envRewrite bool) {
 	events, err := parseBatcherEvents(eventsNode.Content)
 	require.NoError(t, err)
 
-	state := newBatcherState(cfg)
+	state := newBatcherState("test", cfg)
 	virtualNow := time.Duration(0)
 
 	var outputs [][]byte
@@ -211,7 +211,8 @@ func (s *batcherState) handleEvent(e event, now time.Time, eff effects) error {
 	case timerFiredEvent:
 		return s.handleTimerFiredEvent(eff)
 	case batchOutcomeEvent:
-		return s.handleBatchOutcomeEvent(sendResult(ev), eff)
+		_, err := s.handleBatchOutcomeEvent(sendResult(ev), eff)
+		return err
 	case stopEvent:
 		s.handleStopEvent(eff)
 		return nil
