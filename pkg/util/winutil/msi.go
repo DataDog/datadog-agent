@@ -19,6 +19,8 @@ var (
 	procMsiSourceListAddSourceExW = msi.NewProc("MsiSourceListAddSourceExW")
 	procMsiSourceListSetInfoW     = msi.NewProc("MsiSourceListSetInfoW")
 	procMsiSourceListForceResExW  = msi.NewProc("MsiSourceListForceResolutionExW")
+	procMsiEnumProductsExW        = msi.NewProc("MsiEnumProductsExW")
+	procMsiGetProductInfoW        = msi.NewProc("MsiGetProductInfoW")
 )
 
 // MsiSourceListAddSourceEx adds or reorders the set of sources of a patch or product in a specified context.
@@ -63,4 +65,35 @@ func MsiSourceListForceResolutionEx(productCode *uint16, context uint32, options
 		uintptr(options), // dwOptions
 	)
 	return windows.Errno(r1)
+}
+
+// MsiEnumProductsEx  enumerates through one or all the instances of products that are
+// currently advertised or installed in the specified contexts.
+//
+// https://learn.microsoft.com/en-us/windows/win32/api/msi/nf-msi-msienumproductsexw
+func MsiEnumProductsEx(szProductCode *uint16, szUserSid *uint16, dwContext uint32, index uint32, productCodeBuf *uint16, pdwInstalledContext *uint32, sidBuf *uint16, sidLen *uint32) windows.Errno {
+	ret, _, _ := procMsiEnumProductsExW.Call(
+		uintptr(unsafe.Pointer(szProductCode)), // szProductCode = NULL
+		uintptr(unsafe.Pointer(szUserSid)),     // szUserSid = NULL
+		uintptr(dwContext),
+		uintptr(index),
+		uintptr(unsafe.Pointer(productCodeBuf)),
+		uintptr(unsafe.Pointer(pdwInstalledContext)), // context
+		uintptr(unsafe.Pointer(sidBuf)),
+		uintptr(unsafe.Pointer(sidLen)),
+	)
+	return windows.Errno(ret)
+}
+
+// MsiGetProductInfo returns product information for advertised and installed products.
+//
+// https://learn.microsoft.com/en-us/windows/win32/api/msi/nf-msi-msigetproductinfoexw
+func MsiGetProductInfo(productCode *uint16, propName *uint16, buf *uint16, bufLen *uint32) windows.Errno {
+	ret, _, _ := procMsiGetProductInfoW.Call(
+		uintptr(unsafe.Pointer(productCode)),
+		uintptr(unsafe.Pointer(propName)),
+		uintptr(unsafe.Pointer(buf)),
+		uintptr(unsafe.Pointer(bufLen)),
+	)
+	return windows.Errno(ret)
 }

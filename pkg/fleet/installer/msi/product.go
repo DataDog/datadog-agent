@@ -12,7 +12,10 @@ import (
 	"errors"
 	"fmt"
 
+	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
+
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
 // Product represents a software from the Windows Registry
@@ -97,4 +100,59 @@ func processKey(rootPath, key, name string) (*Product, error) {
 	}
 
 	return nil, nil
+}
+
+// FindAllProductCodesViaMsiAPI looks for all products with the given productName using the Windows Installer API
+// This is more efficient than parsing the registry as it uses the native MSI API
+func FindAllProductCodesViaMsiAPI(productName string) ([]string, error) {
+	var index uint32
+	var productCodes []string
+
+	for {
+		var productCodeBuf [39]uint16
+		var context uint32
+		var sidBuf [256]uint16
+		sidLen := uint32(len(sidBuf))
+
+		ret := winutil.MsiEnumProductsEx(nil, nil, msiInstallContextMachine, index, &productCodeBuf[0], &context, &sidBuf[0], &sidLen)
+
+		if errors.Is(ret, windows.ERROR_NO_MORE_ITEMS) {
+			break
+		}
+		if !errors.Is(ret, windows.ERROR_SUCCESS) {
+			return nil, fmt.Errorf("error enumerating products at index %d: %w", index, ret)
+		}
+
+		productCode := windows.UTF16ToString(productCodeBuf[:])
+		productNamePtr, err := windows.UTF16PtrFromString("ProductName")
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert product name to UTF16: %w", err)
+		}
+		var displayNameLen uint32
+
+		// Get the product name to check if it matches
+		ret = winutil.MsiGetProductInfo(&productCodeBuf[0], productNamePtr, nil, &displayNameLen)
+		if !errors.Is(ret, windows.ERROR_SUCCESS) {
+			return nil, fmt.Errorf("error getting product info buffer size: %w", ret)
+		}
+
+		displayNameLen++
+		displayNameBuf := make([]uint16, displayNameLen)
+		ret = winutil.MsiGetProductInfo(&productCodeBuf[0], productNamePtr, &displayNameBuf[0], &displayNameLen)
+		if !errors.Is(ret, windows.ERROR_SUCCESS) {
+			return nil, fmt.Errorf("error getting product info: %w", ret)
+		}
+
+		if windows.UTF16ToString(displayNameBuf[:]) == productName {
+			productCodes = append(productCodes, productCode)
+		}
+
+		index++
+	}
+
+	if len(productCodes) == 0 {
+		return nil, fmt.Errorf("no products found")
+	}
+
+	return productCodes, nil
 }

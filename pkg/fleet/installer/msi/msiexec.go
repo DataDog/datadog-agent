@@ -444,6 +444,18 @@ func (m *Msiexec) Run(ctx context.Context) error {
 						isLogEmpty = logFileInfo.Size() == 0
 					}
 					span.SetTag("is_log_empty", isLogEmpty)
+
+					// Check if the error is msi error 1605
+					if strings.Contains(msiError.err.Error(), "1605") {
+						// Get all product codes associated with "Datadog Agent" display name
+						productCodes, err := FindAllProductCodesViaMsiAPI("Datadog Agent")
+						if err != nil {
+							span.SetTag("product_codes", fmt.Sprintf("error getting product codes: %v", err))
+						} else {
+							productCodesStr := strings.Join(productCodes, ";")
+							span.SetTag("product_codes", productCodesStr)
+						}
+					}
 				}
 			}
 			span.Finish(err)
