@@ -8,10 +8,10 @@ Probes:
       template: ""
       segments: []
       captureSnapshot: true
-      subprogram: {subprogram: 11}
+      subprogram: {subprogram: 12}
       events:
-        - ID: 11
-          Type: 162 EventRootType Probe[main.PointerChainArg]
+        - ID: 12
+          Type: 163 EventRootType Probe[main.PointerChainArg]
           InjectionPoints: [{PC: "0xb51cc", Frameless: false}]
           Condition: null
     - id: PointerSmallChainArg
@@ -22,10 +22,10 @@ Probes:
       template: ""
       segments: []
       captureSnapshot: true
-      subprogram: {subprogram: 12}
+      subprogram: {subprogram: 13}
       events:
-        - ID: 12
-          Type: 163 EventRootType Probe[main.PointerSmallChainArg]
+        - ID: 13
+          Type: 164 EventRootType Probe[main.PointerSmallChainArg]
           InjectionPoints: [{PC: "0xb5204", Frameless: false}]
           Condition: null
     - id: bigMapArg
@@ -49,10 +49,10 @@ Probes:
       template: ""
       segments: []
       captureSnapshot: true
-      subprogram: {subprogram: 10}
+      subprogram: {subprogram: 11}
       events:
-        - ID: 10
-          Type: 161 EventRootType Probe[main.inlined]
+        - ID: 11
+          Type: 162 EventRootType Probe[main.inlined]
           InjectionPoints:
             - PC: "0xb555c"
               Frameless: true
@@ -123,6 +123,19 @@ Probes:
         - ID: 8
           Type: 159 EventRootType Probe[main.mapArg]
           InjectionPoints: [{PC: "0xb561c", Frameless: true}]
+          Condition: null
+    - id: noArgs
+      version: 0
+      type: LOG_PROBE
+      where: {methodName: main.noArgs}
+      template: ""
+      segments: []
+      captureSnapshot: true
+      subprogram: {subprogram: 10}
+      events:
+        - ID: 10
+          Type: 161 EventRootType Probe[main.noArgs]
+          InjectionPoints: [{PC: "0xb574c", Frameless: true}]
           Condition: null
     - id: stringArg
       version: 0
@@ -291,6 +304,11 @@ Subprograms:
           IsParameter: true
           IsReturn: false
     - ID: 10
+      Name: main.noArgs
+      OutOfLinePCRanges: [0xb5740..0xb57b0]
+      InlinePCRanges: []
+      Variables: []
+    - ID: 11
       Name: main.inlined
       OutOfLinePCRanges: [0xb5550..0xb55c0]
       InlinePCRanges:
@@ -306,7 +324,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           IsParameter: true
           IsReturn: false
-    - ID: 11
+    - ID: 12
       Name: main.PointerChainArg
       OutOfLinePCRanges: []
       InlinePCRanges:
@@ -320,7 +338,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           IsParameter: true
           IsReturn: false
-    - ID: 12
+    - ID: 13
       Name: main.PointerSmallChainArg
       OutOfLinePCRanges: []
       InlinePCRanges:
@@ -611,7 +629,7 @@ Types:
       GoKind: 22
       Pointee: 1 BaseType uintptr
     - __kind: EventRootType
-      ID: 162
+      ID: 163
       Name: Probe[main.PointerChainArg]
       ByteSize: 9
       PresenceBitsetSize: 1
@@ -622,11 +640,11 @@ Types:
             Type: 119 PointerType *****int
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 11, index: 0, name: ptr}
+                  Variable: {subprogram: 12, index: 0, name: ptr}
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 163
+      ID: 164
       Name: Probe[main.PointerSmallChainArg]
       ByteSize: 9
       PresenceBitsetSize: 1
@@ -637,7 +655,7 @@ Types:
             Type: 121 PointerType **int
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 12, index: 0, name: ptr}
+                  Variable: {subprogram: 13, index: 0, name: ptr}
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
@@ -656,7 +674,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 161
+      ID: 162
       Name: Probe[main.inlined]
       ByteSize: 9
       PresenceBitsetSize: 1
@@ -667,7 +685,7 @@ Types:
             Type: 7 BaseType int
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 10, index: 0, name: x}
+                  Variable: {subprogram: 11, index: 0, name: x}
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
@@ -730,6 +748,9 @@ Types:
                   Variable: {subprogram: 8, index: 0, name: m}
                   Offset: 0
                   ByteSize: 8
+    - __kind: EventRootType
+      ID: 161
+      Name: Probe[main.noArgs]
     - __kind: EventRootType
       ID: 153
       Name: Probe[main.stringArg]
@@ -2297,7 +2318,7 @@ Types:
       ByteSize: 8
       GoRuntimeType: 42432
       GoKind: 26
-MaxTypeID: 163
+MaxTypeID: 164
 Issues: []
 GoModuledataInfo: {FirstModuledataAddr: "0x191340", TypesOffset: 296}
 CommonTypes:
