@@ -1183,12 +1183,11 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			if err := p.dnsLayer.DecodeFromBytes(data[offset:], gopacket.NilDecodeFeedback); err != nil {
 				seclog.Warnf("failed to decode the short DNS response: %s", err)
 				event.FailedDNS = model.FailedDNSEvent{
-					Payload: string(data[offset:]),
+					Payload: append([]byte(nil), data[offset:]...),
 				}
-				return
+			} else {
+				p.addToDNSResolver(p.dnsLayer)
 			}
-
-			p.addToDNSResolver(p.dnsLayer)
 		}
 		return
 	}
@@ -1536,16 +1535,16 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		if _, err = event.DNS.UnmarshalBinary(data[offset:]); err != nil {
 			if errors.Is(err, model.ErrDNSNameMalformatted) {
 				seclog.Debugf("failed to validate DNS event: %s", event.DNS.Question.Name)
+				return
 			} else if errors.Is(err, model.ErrDNSNamePointerNotSupported) {
 				seclog.Tracef("failed to decode DNS event: %s (offset %d, len %d, data %s)", err, offset, len(data), string(data[offset:]))
+				return
 			} else {
 				seclog.Warnf("failed to decode DNS request: %s", err)
 				event.FailedDNS = model.FailedDNSEvent{
-					Payload: string(data[offset:]),
+					Payload: append([]byte(nil), data[offset:]...),
 				}
-				return
 			}
-			return
 		}
 
 	case model.FullDNSResponseEventType:
@@ -1558,27 +1557,25 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 
 			if err := p.dnsLayer.DecodeFromBytes(data[offset:], gopacket.NilDecodeFeedback); err != nil {
 				seclog.Warnf("failed to decode the full DNS response: %s", err)
-				event.Type = uint32(model.FailedDNSEventType)
-				event.FailedDNS = model.FailedDNSEvent{
-					Payload: string(data[offset:]),
+				event.Error = model.ErrFailedDnsPacketDecoding
+				event.FailedDNS.Payload = append([]byte(nil), data[offset:]...)
+				fmt.Println("Failed to decode DNS Packet")
+			} else {
+				p.addToDNSResolver(p.dnsLayer)
+				event.Type = uint32(model.DNSEventType) // remap to regular DNS event type
+				event.DNS = model.DNSEvent{
+					ID: p.dnsLayer.ID,
+					Response: &model.DNSResponse{
+						ResponseCode: uint8(p.dnsLayer.ResponseCode),
+					},
 				}
-				return
-			}
-
-			p.addToDNSResolver(p.dnsLayer)
-			event.Type = uint32(model.DNSEventType) // remap to regular DNS event type
-			event.DNS = model.DNSEvent{
-				ID: p.dnsLayer.ID,
-				Response: &model.DNSResponse{
-					ResponseCode: uint8(p.dnsLayer.ResponseCode),
-				},
-			}
-			if len(p.dnsLayer.Questions) != 0 {
-				event.DNS.Question = model.DNSQuestion{
-					Name:  string(p.dnsLayer.Questions[0].Name),
-					Class: uint16(p.dnsLayer.Questions[0].Class),
-					Type:  uint16(p.dnsLayer.Questions[0].Type),
-					Size:  uint16(len(data[offset:])),
+				if len(p.dnsLayer.Questions) != 0 {
+					event.DNS.Question = model.DNSQuestion{
+						Name:  string(p.dnsLayer.Questions[0].Name),
+						Class: uint16(p.dnsLayer.Questions[0].Class),
+						Type:  uint16(p.dnsLayer.Questions[0].Type),
+						Size:  uint16(len(data[offset:])),
+					}
 				}
 			}
 		}

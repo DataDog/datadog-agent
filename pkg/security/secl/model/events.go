@@ -135,6 +135,8 @@ const (
 	RawPacketActionEventType
 	// CapabilitiesEventType is used to track capabilities usage
 	CapabilitiesEventType
+	// FailedDNSEventType Failed DNS
+	FailedDNSEventType
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
 	MaxKernelEventType
 
@@ -172,8 +174,6 @@ const (
 	DeleteRegistryKeyEventType
 	// ChangePermissionEventType event
 	ChangePermissionEventType
-	// FailedDNSEventType Failed DNS
-	FailedDNSEventType
 
 	// MaxAllEventType is used internally to get the maximum number of events.
 	MaxAllEventType
