@@ -203,7 +203,6 @@ func (s *snapshotMessage) init(
 	s.Service = event.ServiceName
 	s.Debugger = debuggerData{
 		Snapshot: snapshotData{
-			decoder:  decoder,
 			ID:       uuid.New(),
 			Language: "go",
 		},

@@ -23,6 +23,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/uploader"
 )
 
+// ProcessSubscriber is an interface that can be used to subscribe to process
+// events.
+type ProcessSubscriber interface {
+	SubscribeExec(func(pid uint32)) (cleanup func())
+	SubscribeExit(func(pid uint32)) (cleanup func())
+}
+
 // Scraper is an interface that enables the Controller to get updates from the
 // scraper and to set the probe status to emitting.
 type Scraper interface {
