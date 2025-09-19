@@ -81,10 +81,6 @@ BINARIES: dict[str, dict] = {
         "entrypoint": "cmd/otel-agent",
         "platforms": ["linux/x64", "linux/arm64"],
     },
-    "loader": {
-        "entrypoint": "cmd/loader",
-        "platforms": ["linux/x64", "linux/arm64", "darwin/x64", "darwin/arm64"],
-    },
 }
 
 METRIC_GO_DEPS_DIFF = "datadog.agent.go_dependencies.difference"
