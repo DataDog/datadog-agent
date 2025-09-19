@@ -605,7 +605,8 @@ network_config:
   enable_root_netns: true
 
 service_monitoring_config:
-  enable_http_monitoring: true
+  http:
+    enabled: true
   tls:
     native:
       enabled: true
