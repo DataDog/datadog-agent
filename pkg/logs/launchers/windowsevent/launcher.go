@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
+	publishermetadatacache "github.com/DataDog/datadog-agent/comp/publishermetadatacache/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -29,18 +30,20 @@ type tailer interface {
 
 // Launcher is in charge of starting and stopping windows event logs tailers
 type Launcher struct {
-	sources          chan *sources.LogSource
-	pipelineProvider pipeline.Provider
-	registry         auditor.Registry
-	tailers          map[string]tailer
-	stop             chan struct{}
+	sources                chan *sources.LogSource
+	pipelineProvider       pipeline.Provider
+	registry               auditor.Registry
+	tailers                map[string]tailer
+	stop                   chan struct{}
+	publisherMetadataCache publishermetadatacache.Component
 }
 
 // NewLauncher returns a new Launcher.
-func NewLauncher() *Launcher {
+func NewLauncher(publisherMetadataCache publishermetadatacache.Component) *Launcher {
 	return &Launcher{
-		tailers: make(map[string]tailer),
-		stop:    make(chan struct{}),
+		tailers:                make(map[string]tailer),
+		stop:                   make(chan struct{}),
+		publisherMetadataCache: publisherMetadataCache,
 	}
 }
 
@@ -112,7 +115,7 @@ func (l *Launcher) setupTailer(source *sources.LogSource) (tailer, error) {
 		Query:             sanitizedConfig.Query,
 		ProcessRawMessage: sanitizedConfig.ProcessRawMessage,
 	}
-	t := windowsevent.NewTailer(nil, source, config, l.pipelineProvider.NextPipelineChan(), l.registry)
+	t := windowsevent.NewTailer(nil, source, config, l.pipelineProvider.NextPipelineChan(), l.registry, l.publisherMetadataCache)
 	bookmark := l.registry.GetOffset(t.Identifier())
 	t.Start(bookmark)
 	return t, nil
