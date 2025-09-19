@@ -25,8 +25,8 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.39.0
 	github.com/aws/aws-sdk-go-v2/config v1.31.8
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.253.0
-	github.com/aws/aws-sdk-go-v2/service/eks v1.72.0
-	github.com/aws/aws-sdk-go-v2/service/ssm v1.63.2
+	github.com/aws/aws-sdk-go-v2/service/eks v1.73.3
+	github.com/aws/aws-sdk-go-v2/service/ssm v1.64.4
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/docker/cli v27.5.0+incompatible
 	github.com/docker/docker v28.3.3+incompatible
@@ -77,13 +77,13 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.7 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.7 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.3 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.6 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.7 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.45.1 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ecs v1.63.2
+	github.com/aws/aws-sdk-go-v2/service/ecs v1.64.0
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.1 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.8.6 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.8.7 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.7 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.6 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.7 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.29.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.34.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.38.4 // indirect
@@ -243,7 +243,7 @@ require (
 	github.com/DataDog/datadog-go/v5 v5.6.0
 	github.com/DataDog/dd-trace-go/v2 v2.2.0
 	github.com/DataDog/orchestrion v1.4.0
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.87.3
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.88.1
 	github.com/aws/session-manager-plugin v0.0.0-20241119210807-82dc72922492
 	github.com/digitalocean/go-libvirt v0.0.0-20240812180835-9c6c0a310c6c
 	github.com/hairyhenderson/go-codeowners v0.7.0
