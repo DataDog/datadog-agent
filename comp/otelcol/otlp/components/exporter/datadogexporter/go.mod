@@ -155,7 +155,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.71.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.71.0-rc.5 // indirect
 	github.com/DataDog/datadog-api-client-go/v2 v2.44.0 // indirect
-	github.com/DataDog/go-sqllexer v0.1.6 // indirect
+	github.com/DataDog/go-sqllexer v0.1.8 // indirect
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.32.1-0.20250821132738-c5054d91ff21 // indirect

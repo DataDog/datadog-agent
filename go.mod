@@ -44,6 +44,8 @@ require (
 	github.com/DataDog/datadog-operator/api v0.0.0-20250909133746-a88261a5540c
 	github.com/DataDog/datadog-traceroute v0.1.5-hotfix2
 	github.com/DataDog/ebpf-manager v0.7.14
+	github.com/DataDog/go-libddwaf/v4 v4.3.0
+	github.com/DataDog/go-sqllexer v0.1.8
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.12
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.32.1-0.20250821132738-c5054d91ff21 // indirect
