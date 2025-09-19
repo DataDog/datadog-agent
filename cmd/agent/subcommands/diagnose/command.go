@@ -37,6 +37,7 @@ import (
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	dualTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-dual"
 	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
@@ -107,6 +108,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					LogParams:    log.ForOneShot("CORE", cliParams.logLevelDefaultOff.Value(), true),
 				}),
 				core.Bundle(),
+				secretnoopfx.Module(),
 				// workloadmeta setup
 				wmcatalog.GetCatalog(),
 				workloadmetafx.Module(workloadmeta.Params{
@@ -170,6 +172,7 @@ This command print the V5 metadata payload for the Agent. This payload is used t
 				fx.Supply(payloadName("v5")),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
+				secretnoopfx.Module(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
@@ -185,6 +188,7 @@ This command prints the gohai data sent by the Agent, including current processe
 				fx.Supply(payloadName("gohai")),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
+				secretnoopfx.Module(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
@@ -200,6 +204,7 @@ This command print the inventory-agent metadata payload. This payload is used by
 				fx.Supply(payloadName("inventory-agent")),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
+				secretnoopfx.Module(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
@@ -215,6 +220,7 @@ This command print the host-gpu metadata payload. This payload is used by the 'h
 				fx.Supply(payloadName("host-gpu")),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
+				secretnoopfx.Module(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
@@ -230,6 +236,7 @@ This command print the inventory-host metadata payload. This payload is used by 
 				fx.Supply(payloadName("inventory-host")),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
+				secretnoopfx.Module(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
@@ -245,6 +252,7 @@ This command print the inventory-otel metadata payload. This payload is used by 
 				fx.Supply(payloadName("inventory-otel")),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
+				secretnoopfx.Module(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
@@ -260,6 +268,7 @@ This command print the ha-agent metadata payload. This payload is used by the 'H
 				fx.Supply(payloadName("ha-agent")),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
+				secretnoopfx.Module(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
@@ -275,6 +284,7 @@ This command print the inventory-checks metadata payload. This payload is used b
 				fx.Supply(payloadName("inventory-checks")),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
+				secretnoopfx.Module(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
@@ -290,6 +300,7 @@ This command print the package-signing metadata payload. This payload is used by
 				fx.Supply(payloadName("package-signing")),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
+				secretnoopfx.Module(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
@@ -305,6 +316,7 @@ This command print the system-probe metadata payload. This payload is used by th
 				fx.Supply(payloadName("system-probe")),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
+				secretnoopfx.Module(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
@@ -320,6 +332,7 @@ This command print the security-agent metadata payload. This payload is used by 
 				fx.Supply(payloadName("security-agent")),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
+				secretnoopfx.Module(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
@@ -334,6 +347,7 @@ This command print the security-agent metadata payload. This payload is used by 
 				fx.Supply(payloadName("agent-telemetry")),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
+				secretnoopfx.Module(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
@@ -347,6 +361,7 @@ This command print the security-agent metadata payload. This payload is used by 
 			return fxutil.OneShot(printAgentFullTelemetry,
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
+				secretnoopfx.Module(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},

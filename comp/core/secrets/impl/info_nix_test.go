@@ -85,9 +85,9 @@ func TestDebugInfo(t *testing.T) {
 	_, err = resolver.Resolve(testConfInfo, "test2")
 	require.NoError(t, err)
 
-	debugInfo := resolver.getDebugInfo(false)
+	stats := make(map[string]interface{})
+	debugInfo := resolver.getDebugInfo(stats, false)
 
-	assert.True(t, debugInfo["enabled"].(bool))
 	assert.True(t, debugInfo["backendCommandSet"].(bool))
 	assert.Equal(t, resolver.backendCommand, debugInfo["executable"].(string))
 	assert.Equal(t, "OK, the executable has the correct permissions", debugInfo["executablePermissions"].(string))
@@ -115,8 +115,7 @@ func TestDebugInfo(t *testing.T) {
 	assert.Equal(t, []string{"test2", "instances/0/password"}, handles["pass3"][0])
 
 	var buffer bytes.Buffer
-	secretStatus := secretsStatus{resolver: resolver}
-	err = secretStatus.Text(false, &buffer)
+	err = resolver.Text(false, &buffer)
 	require.NoError(t, err)
 
 	output := buffer.String()
@@ -145,9 +144,9 @@ func TestDebugInfoError(t *testing.T) {
 	_, err = resolver.Resolve(testConfInfo, "test2")
 	require.NoError(t, err)
 
-	debugInfo := resolver.getDebugInfo(false)
+	stats := make(map[string]interface{})
+	debugInfo := resolver.getDebugInfo(stats, false)
 
-	assert.True(t, debugInfo["enabled"].(bool))
 	assert.True(t, debugInfo["backendCommandSet"].(bool))
 	assert.Equal(t, "some_command", debugInfo["executable"].(string))
 	assert.Equal(t, "error: the executable does not have the correct permissions", debugInfo["executablePermissions"].(string))
@@ -159,8 +158,7 @@ func TestDebugInfoError(t *testing.T) {
 	assert.Len(t, handles, 3)
 
 	var buffer bytes.Buffer
-	secretStatus := secretsStatus{resolver: resolver}
-	err = secretStatus.Text(false, &buffer)
+	err = resolver.Text(false, &buffer)
 	require.NoError(t, err)
 
 	output := buffer.String()

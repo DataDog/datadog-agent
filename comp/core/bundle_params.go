@@ -8,7 +8,6 @@ package core
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 )
 
@@ -20,16 +19,12 @@ import (
 // must be called.
 type BundleParams struct {
 	ConfigParams
-	SecretParams
 	SysprobeConfigParams
 	LogParams
 }
 
 // ConfigParams defines the parameters of the config component
 type ConfigParams = config.Params
-
-// SecretParams defines the parameters of the secrets component
-type SecretParams = secrets.Params
 
 // LogParams defines the parameters of the log component
 type LogParams = log.Params

@@ -19,11 +19,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 
-	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
@@ -475,7 +473,7 @@ func TestProxy(t *testing.T) {
 				c.setup(t, config)
 			}
 
-			_, err := LoadDatadogCustom(config, "unit_test", option.New[secrets.Component](resolver), nil)
+			_, err := LoadDatadogCustom(config, "unit_test", resolver, nil)
 			require.NoError(t, err)
 
 			c.tests(t, config)
@@ -586,7 +584,7 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 				c.setup(t, config)
 			}
 
-			_, err := LoadDatadogCustom(config, "unit_test", option.New[secrets.Component](resolver), nil)
+			_, err := LoadDatadogCustom(config, "unit_test", resolver, nil)
 			require.NoError(t, err)
 
 			c.tests(t, config)
@@ -1132,7 +1130,7 @@ func TestProxyLoadedFromEnvVars(t *testing.T) {
 	t.Setenv("DD_PROXY_HTTP", proxyHTTP)
 	t.Setenv("DD_PROXY_HTTPS", proxyHTTPS)
 
-	LoadWithoutSecret(conf, []string{})
+	LoadWithSecret(conf, secretsmock.New(t), []string{})
 
 	proxyHTTPConfig := conf.GetString("proxy.http")
 	proxyHTTPSConfig := conf.GetString("proxy.https")
@@ -1152,7 +1150,7 @@ func TestProxyLoadedFromConfigFile(t *testing.T) {
 	os.WriteFile(configTest, []byte("proxy:\n  http: \"http://localhost:1234\"\n  https: \"https://localhost:1234\""), 0o644)
 
 	conf.AddConfigPath(tempDir)
-	LoadWithoutSecret(conf, []string{})
+	LoadWithSecret(conf, secretsmock.New(t), []string{})
 
 	proxyHTTPConfig := conf.GetString("proxy.http")
 	proxyHTTPSConfig := conf.GetString("proxy.https")
@@ -1175,7 +1173,7 @@ func TestProxyLoadedFromConfigFileAndEnvVars(t *testing.T) {
 	os.WriteFile(configTest, []byte("proxy:\n  http: \"http://localhost:5678\"\n  https: \"http://localhost:5678\""), 0o644)
 
 	conf.AddConfigPath(tempDir)
-	LoadWithoutSecret(conf, []string{})
+	LoadWithSecret(conf, secretsmock.New(t), []string{})
 
 	proxyHTTPConfig := conf.GetString("proxy.http")
 	proxyHTTPSConfig := conf.GetString("proxy.https")
@@ -1569,7 +1567,7 @@ flare_stripped_keys:
 	require.NoError(t, err)
 	cfg.SetConfigFile(configPath)
 
-	_, err = LoadDatadogCustom(cfg, "test", option.None[secrets.Component](), []string{})
+	_, err = LoadDatadogCustom(cfg, "test", secretsmock.New(t), []string{})
 	require.NoError(t, err)
 
 	stringToScrub := `api_key: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
