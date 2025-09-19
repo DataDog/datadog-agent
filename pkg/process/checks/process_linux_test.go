@@ -458,7 +458,9 @@ func wlmProcessWithServiceDiscovery(pid int32, spaceSeparatedCmdline string, cre
 				ServiceName: "some-tracer-service",
 			},
 		},
-		DDService:          "dd service name",
+		UST: wmdef.UST{
+			Service: "dd service name",
+		},
 		TCPPorts:           []uint16{6400, 5200},
 		APMInstrumentation: string(apm.Provided),
 	}

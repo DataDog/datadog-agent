@@ -201,9 +201,7 @@ func generateIR(
 		return nil, err
 	}
 
-	typeCatalog := newTypeCatalog(
-		d, ptrSize, cfg.maxDynamicTypeSize, cfg.maxHashBucketsSize,
-	)
+	typeCatalog := newTypeCatalog(d, ptrSize)
 	var commonTypes ir.CommonTypes
 	for _, offset := range processed.interestingTypes {
 		t, err := typeCatalog.addType(offset)
@@ -1055,18 +1053,20 @@ func completeGoMapType(tc *typeCatalog, t *ir.GoMapType) error {
 	}
 }
 
-func field(st *ir.StructureType, name string) (*ir.Field, error) {
+func field(tc *typeCatalog, st *ir.StructureType, name string) (*ir.Field, error) {
 	offset := slices.IndexFunc(st.RawFields, func(f ir.Field) bool {
 		return f.Name == name
 	})
 	if offset == -1 {
 		return nil, fmt.Errorf("type %q has no %s field", st.Name, name)
 	}
+	f := &st.RawFields[offset]
+	f.Type = tc.typesByID[f.Type.GetID()]
 	return &st.RawFields[offset], nil
 }
 
-func fieldType[T ir.Type](st *ir.StructureType, name string) (T, error) {
-	f, err := field(st, name)
+func fieldType[T ir.Type](tc *typeCatalog, st *ir.StructureType, name string) (T, error) {
+	f, err := field(tc, st, name)
 	if err != nil {
 		return *new(T), err
 	}
@@ -1087,6 +1087,7 @@ func resolvePointeeType[T ir.Type](tc *typeCatalog, t ir.Type) (T, error) {
 	if !ok {
 		return *new(T), fmt.Errorf("type %q is not a pointer type, got %T", t.GetName(), t)
 	}
+	ptrType.Pointee = tc.typesByID[ptrType.Pointee.GetID()]
 	if ppt, ok := ptrType.Pointee.(*pointeePlaceholderType); ok {
 		pointee, err := tc.addType(ppt.offset)
 		if err != nil {
@@ -1109,7 +1110,7 @@ func completeSwissMapHeaderType(tc *typeCatalog, st *ir.StructureType) error {
 	var groupReferenceType *ir.StructureType
 	var groupType *ir.StructureType
 	{
-		dirPtrType, err := fieldType[*ir.PointerType](st, "dirPtr")
+		dirPtrType, err := fieldType[*ir.PointerType](tc, st, "dirPtr")
 		if err != nil {
 			return err
 		}
@@ -1121,11 +1122,11 @@ func completeSwissMapHeaderType(tc *typeCatalog, st *ir.StructureType) error {
 		if err != nil {
 			return err
 		}
-		groupReferenceType, err = fieldType[*ir.StructureType](tableType, "groups")
+		groupReferenceType, err = fieldType[*ir.StructureType](tc, tableType, "groups")
 		if err != nil {
 			return err
 		}
-		groupPtrType, err := fieldType[*ir.PointerType](groupReferenceType, "data")
+		groupPtrType, err := fieldType[*ir.PointerType](tc, groupReferenceType, "data")
 		if err != nil {
 			return err
 		}
@@ -1137,9 +1138,10 @@ func completeSwissMapHeaderType(tc *typeCatalog, st *ir.StructureType) error {
 
 	tablePtrSliceDataType := &ir.GoSliceDataType{
 		TypeCommon: ir.TypeCommon{
-			ID:       tc.idAlloc.next(),
-			Name:     fmt.Sprintf("[]%s.array", tablePtrType.GetName()),
-			ByteSize: tc.maxHashBucketsSize,
+			ID:               tc.idAlloc.next(),
+			Name:             fmt.Sprintf("[]%s.array", tablePtrType.GetName()),
+			DynamicSizeClass: ir.DynamicSizeHashmap,
+			ByteSize:         tablePtrType.GetByteSize(),
 		},
 		Element: tablePtrType,
 	}
@@ -1147,9 +1149,10 @@ func completeSwissMapHeaderType(tc *typeCatalog, st *ir.StructureType) error {
 
 	groupSliceType := &ir.GoSliceDataType{
 		TypeCommon: ir.TypeCommon{
-			ID:       tc.idAlloc.next(),
-			Name:     fmt.Sprintf("[]%s.array", groupType.GetName()),
-			ByteSize: uint32(tc.maxDynamicTypeSize),
+			ID:               tc.idAlloc.next(),
+			Name:             fmt.Sprintf("[]%s.array", groupType.GetName()),
+			DynamicSizeClass: ir.DynamicSizeSlice,
+			ByteSize:         groupType.GetByteSize(),
 		},
 		Element: groupType,
 	}
@@ -1172,7 +1175,7 @@ func completeSwissMapHeaderType(tc *typeCatalog, st *ir.StructureType) error {
 }
 
 func completeHMapHeaderType(tc *typeCatalog, st *ir.StructureType) error {
-	bucketsField, err := field(st, "buckets")
+	bucketsField, err := field(tc, st, "buckets")
 	if err != nil {
 		return err
 	}
@@ -1180,12 +1183,12 @@ func completeHMapHeaderType(tc *typeCatalog, st *ir.StructureType) error {
 	if err != nil {
 		return err
 	}
-	keysArrayType, err := fieldType[*ir.ArrayType](bucketsStructType, "keys")
+	keysArrayType, err := fieldType[*ir.ArrayType](tc, bucketsStructType, "keys")
 	if err != nil {
 		return err
 	}
 	keyType := keysArrayType.Element
-	valuesArrayType, err := fieldType[*ir.ArrayType](bucketsStructType, "values")
+	valuesArrayType, err := fieldType[*ir.ArrayType](tc, bucketsStructType, "values")
 	if err != nil {
 		return err
 	}
@@ -1197,9 +1200,10 @@ func completeHMapHeaderType(tc *typeCatalog, st *ir.StructureType) error {
 	}
 	bucketsSliceDataType := &ir.GoSliceDataType{
 		TypeCommon: ir.TypeCommon{
-			ID:       tc.idAlloc.next(),
-			Name:     fmt.Sprintf("[]%s.array", bucketsType.GetName()),
-			ByteSize: tc.maxDynamicTypeSize,
+			ID:               tc.idAlloc.next(),
+			Name:             fmt.Sprintf("[]%s.array", bucketsType.GetName()),
+			DynamicSizeClass: ir.DynamicSizeHashmap,
+			ByteSize:         bucketsType.GetByteSize(),
 		},
 		Element: bucketsType,
 	}
@@ -1215,15 +1219,16 @@ func completeHMapHeaderType(tc *typeCatalog, st *ir.StructureType) error {
 }
 
 func completeGoStringType(tc *typeCatalog, st *ir.StructureType) error {
-	strField, err := field(st, "str")
+	strField, err := field(tc, st, "str")
 	if err != nil {
 		return err
 	}
 	strDataType := &ir.GoStringDataType{
 		TypeCommon: ir.TypeCommon{
-			ID:       tc.idAlloc.next(),
-			Name:     fmt.Sprintf("%s.str", st.Name),
-			ByteSize: tc.maxDynamicTypeSize,
+			ID:               tc.idAlloc.next(),
+			Name:             fmt.Sprintf("%s.str", st.Name),
+			DynamicSizeClass: ir.DynamicSizeString,
+			ByteSize:         1,
 		},
 	}
 	tc.typesByID[strDataType.ID] = strDataType
@@ -1246,7 +1251,7 @@ func completeGoStringType(tc *typeCatalog, st *ir.StructureType) error {
 }
 
 func completeGoSliceType(tc *typeCatalog, st *ir.StructureType) error {
-	arrayField, err := field(st, "array")
+	arrayField, err := field(tc, st, "array")
 	if err != nil {
 		return err
 	}
@@ -1256,9 +1261,10 @@ func completeGoSliceType(tc *typeCatalog, st *ir.StructureType) error {
 	}
 	arrayDataType := &ir.GoSliceDataType{
 		TypeCommon: ir.TypeCommon{
-			ID:       tc.idAlloc.next(),
-			Name:     fmt.Sprintf("%s.array", st.Name),
-			ByteSize: tc.maxDynamicTypeSize,
+			ID:               tc.idAlloc.next(),
+			Name:             fmt.Sprintf("%s.array", st.Name),
+			DynamicSizeClass: ir.DynamicSizeSlice,
+			ByteSize:         elementType.GetByteSize(),
 		},
 		Element: elementType,
 	}

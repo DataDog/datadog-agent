@@ -65,16 +65,6 @@
       - E2E_MSI_TEST: TestNPMUpgradeFromBeta
       - E2E_MSI_TEST: TestUpgradeFromV6
 
-new-e2e_windows_powershell_module_test:
-  extends: .new_e2e_template
-  rules:
-    !reference [ .on_powershell_module_or_e2e_changes_or_manual ]
-  variables:
-    TARGETS: ./tests/windows/powershell-module-test
-    TEAM: windows-products
-  needs:
-    - !reference [.needs_new_e2e_template]
-
 # Agent 7
 .new-e2e_windows_a7_x86_64:
   extends:
@@ -148,3 +138,89 @@ new-e2e-windows-agent-msi-upgrade-windows-server-a7-x86_64:
     - !reference [.except_deploy]
   variables:
     E2E_MSI_TEST: TestUpgrade
+
+new-e2e-installer-windows:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_installer_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_windows_testing-a7
+    - deploy_installer_oci
+    - deploy_agent_oci
+    - qa_installer_script_windows
+  before_script:
+    # CURRENT_AGENT_VERSION is used to verify the installed agent version
+    # Must run before new_e2e_template changes the aws profile
+    # Note: this is similar to the WINDOWS_AGENT_VERSION in new-e2e_windows_msi but this job is running cross platforms
+    # Note 2: new_e2e_template does not define AGENT_MAJOR_VERSION, so define it as 7 below.
+    - CURRENT_AGENT_VERSION=$(dda inv agent.version) || exit $?; export CURRENT_AGENT_VERSION
+    - CURRENT_AGENT_VERSION_PACKAGE=$(dda inv agent.version --url-safe)-1 || exit $?; export CURRENT_AGENT_VERSION_PACKAGE
+    - !reference [.new_e2e_template, before_script]
+  variables:
+    TARGETS: ./tests/installer/windows
+    TEAM: windows-products
+    FLEET_INSTALL_METHOD: "windows"
+    E2E_USE_AWS_PROFILE: "false"
+    MAX_RETRIES_FLAG: "--max-retries=3"
+  parallel:
+    matrix:
+      # agent-package
+      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestUpgradeMSI$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestUpgradeAgentPackage$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestUpgradeAgentPackageWithAltDir$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestUpgradeAgentPackageAfterRollback$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestDowngradeAgentPackage$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestStopExperiment$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestExperimentForNonExistingPackageFails$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestExperimentCurrentVersionFails$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestStopWithoutExperiment$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestRevertsExperimentWhenServiceDies$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestRevertsExperimentWhenTimeout$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestExperimentMSIRollbackMaintainsCustomUserAndAltDir$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestRevertsExperimentWhenServiceDiesMaintainsCustomUserAndAltDir$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestUpgradeWithHostNameChange$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestRunAgentMSIAfterExperiment$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestUpgradeWithAgentUser$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestDowngradeWithMissingInstallSource$"
+      - EXTRA_PARAMS: --run "TestAgentUpgradesOnDC$/TestUpgradeMSI$"
+      - EXTRA_PARAMS: --run "TestAgentUpgradesOnDC$/TestUpgradeAgentPackage$"
+      - EXTRA_PARAMS: --run "TestAgentUpgradesAfterDCPromotion$/TestUpgradeAfterDCPromotion$"
+      - EXTRA_PARAMS: --run "TestAgentUpgradesOnDCWithGMSA$/TestUpgradeMSI$"
+      - EXTRA_PARAMS: --run "TestAgentUpgradesOnDCWithGMSA$/TestUpgradeAgentPackage$"
+      - EXTRA_PARAMS: --run "TestAgentUpgradesFromGA$/TestUpgradeAgentPackage$"
+      - EXTRA_PARAMS: --run "TestAgentUpgradesFromGA$/TestUpgradeAgentPackageAfterRollback$"
+      - EXTRA_PARAMS: --run "TestAgentInstalls$/TestSetupScriptInstallInfo$"
+      - EXTRA_PARAMS: --run "TestUpgradeWithMissingPassword$/TestUpgradeWithMissingPassword$"
+      # agent config experiment
+      - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigUpgradeSuccessful$"
+      - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigUpgradeFailure$"
+      - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigUpgradeNewAgents$"
+      - EXTRA_PARAMS: --run "TestAgentConfig$/TestRevertsConfigExperimentWhenServiceDies$"
+      - EXTRA_PARAMS: --run "TestAgentConfig$/TestRevertsConfigExperimentWhenTimeout$"
+      - EXTRA_PARAMS: --run "TestAgentConfig$/TestManagedConfigActiveAfterUpgrade$"
+      # install-exe
+      - EXTRA_PARAMS: --run "TestInstallExe$/TestInstallAgentPackage$"
+      - EXTRA_PARAMS: --run "TestInstallExeWithProxy$/TestInstallAgentPackageWithProxy$"
+      # install-script
+      - EXTRA_PARAMS: --run "TestInstallScript$/TestInstallAgentPackage$"
+      - EXTRA_PARAMS: --run "TestInstallScript$/TestInstallFromOldInstaller$"
+      - EXTRA_PARAMS: --run "TestInstallScript$/TestFailedUnsupportedVersion$"
+      - EXTRA_PARAMS: --run "TestInstallScriptWithAgentUser$"
+      - EXTRA_PARAMS: --run "TestInstallScriptWithAgentUserOnDC$"
+      # installer-package
+      - EXTRA_PARAMS: --run "TestInstaller$"
+      # TODO: disabling tests during MSI merge, should be covered by regular Agent MSI tests
+      # - EXTRA_PARAMS: --run "TestInstallerRollback$"
+      # apm-library-dotnet
+      - EXTRA_PARAMS: --run "TestDotnetLibraryInstalls$"
+      - EXTRA_PARAMS: --run "TestDotnetLibraryInstallsWithoutIIS/TestInstallDotnetLibraryPackageWithoutIIS$"
+      - EXTRA_PARAMS: --run "TestDotnetLibraryInstallsWithoutIIS/TestMSIInstallDotnetLibraryFailsWithoutIIS$"
+      - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestInstallFromMSI$"
+      - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestMSIThenRemoteUpgrade$"
+      - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestUpgradeWithMSI$"
+      - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestMSIRollbackRemovesLibrary$"
+      - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestMSISkipRollbackIfInstalled$"
+      - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestUninstallKeepsLibrary$"
+      - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestUninstallScript$"
