@@ -135,7 +135,7 @@ func newRemoteConfigClient(deps dependencies) (rcclient.Component, error) {
 		isSystemProbe:     deps.Params.IsSystemProbe,
 	}
 
-	if configUtils.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) {
+	if configUtils.IsRemoteConfigEnabled(deps.Config) {
 		deps.Lc.Append(fx.Hook{
 			OnStart: func(context.Context) error {
 				rc.start()
