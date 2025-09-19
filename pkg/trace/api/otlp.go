@@ -116,7 +116,7 @@ func (o *OTLPReceiver) Start() {
 				log.Errorf("Error creating OTLP listener from file descriptor %s: %v", grpcFDStr, err)
 			}
 		}
-		if err != nil {
+		if ln == nil {
 			// if the fd was not provided, or we failed to get a listener from it, listen on the given address
 			ln, err = loader.GetTCPListener(fmt.Sprintf("%s:%d", cfg.BindHost, cfg.GRPCPort))
 		}

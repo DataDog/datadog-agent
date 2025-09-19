@@ -305,7 +305,7 @@ func (r *HTTPReceiver) Start() {
 				log.Errorf("Error creating TCP listener from file descriptor %s: %v", tcpFDStr, err)
 			}
 		}
-		if err != nil {
+		if ln == nil {
 			// if the fd was not provided, or we failed to get a listener from it, listen on the given address
 			ln, err = loader.GetTCPListener(addr)
 		}
@@ -342,7 +342,7 @@ func (r *HTTPReceiver) Start() {
 					log.Errorf("Error creating UDS listener from file descriptor %s: %v", unixFDStr, err)
 				}
 			}
-			if err != nil {
+			if ln == nil {
 				ln, err = loader.GetUnixListener(path)
 			}
 
