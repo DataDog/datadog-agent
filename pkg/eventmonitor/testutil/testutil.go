@@ -22,27 +22,27 @@ import (
 )
 
 // PreStartCallback is a callback to register clients to the event monitor before starting it
-type PreStartCallback func(tb testing.TB, evm *eventmonitor.EventMonitor)
+type PreStartCallback func(t *testing.T, evm *eventmonitor.EventMonitor)
 
 // StartEventMonitor creates and starts an event monitor for use in tests
-func StartEventMonitor(tb testing.TB, callback PreStartCallback) {
+func StartEventMonitor(t *testing.T, callback PreStartCallback) {
 	if !sysconfig.ProcessEventDataStreamSupported() {
-		tb.Skip("Process event data stream not supported on this kernel")
+		t.Skip("Process event data stream not supported on this kernel")
 	}
 	emconfig := emconfig.NewConfig()
 	secconfig, err := secconfig.NewConfig()
-	require.NoError(tb, err)
+	require.NoError(t, err)
 
 	// Needed for the socket creation to work
-	require.NoError(tb, os.MkdirAll("/opt/datadog-agent/run/", 0755))
+	require.NoError(t, os.MkdirAll("/opt/datadog-agent/run/", 0755))
 
-	ipcComp := ipcmock.New(tb)
+	ipcComp := ipcmock.New(t)
 
 	opts := eventmonitor.Opts{}
 	evm, err := eventmonitor.NewEventMonitor(emconfig, secconfig, ipcComp, opts)
-	require.NoError(tb, err)
-	require.NoError(tb, evm.Init())
-	callback(tb, evm)
-	require.NoError(tb, evm.Start())
-	tb.Cleanup(evm.Close)
+	require.NoError(t, err)
+	require.NoError(t, evm.Init())
+	callback(t, evm)
+	require.NoError(t, evm.Start())
+	t.Cleanup(evm.Close)
 }
