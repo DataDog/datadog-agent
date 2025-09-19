@@ -1,4 +1,5 @@
 #include "ktypes.h"
+#include "defs.h"
 #ifndef COMPILE_CORE
 #include "kconfig.h"
 #endif

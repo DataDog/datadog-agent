@@ -2,6 +2,7 @@
 #define __PROTOCOL_ROUTING_H
 
 #include "ktypes.h"
+#include "defs.h"
 #include "protocols/classification/defs.h"
 #include "protocols/classification/stack-helpers.h"
 #include "protocols/classification/routing-helpers.h"

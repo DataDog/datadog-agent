@@ -1,6 +1,7 @@
 #ifndef __TCP_RECV_H
 #define __TCP_RECV_H
 
+#include "defs.h"
 #include "bpf_helpers.h"
 #include "bpf_telemetry.h"
 #include "bpf_bypass.h"
