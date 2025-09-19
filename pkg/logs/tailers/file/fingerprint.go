@@ -60,7 +60,6 @@ func (f *Fingerprinter) ShouldFileFingerprint(file *File) bool {
 	// Check per-source config first (takes precedence over global config)
 	if fileFingerprintConfig != nil {
 		if fileFingerprintConfig.FingerprintStrategy == types.FingerprintStrategyDisabled {
-			log.Debugf("Fingerprinting disabled for source %s, skipping file %s", file.Source.Config().Source, file.Path)
 			return false
 		}
 		if fileFingerprintConfig.FingerprintStrategy != "" {
@@ -75,7 +74,6 @@ func (f *Fingerprinter) ShouldFileFingerprint(file *File) bool {
 	}
 
 	if globalConfig.FingerprintStrategy == types.FingerprintStrategyDisabled {
-		log.Debugf("Fingerprinting disabled for file %s based on global config, skipping file %s", file.Path, file.Path)
 		return false
 	}
 
@@ -102,7 +100,6 @@ func (f *Fingerprinter) ComputeFingerprint(file *File) (*types.Fingerprint, erro
 	// Check per-source config first (takes precedence over global config)
 	if fileFingerprintConfig != nil && fileFingerprintConfig.FingerprintStrategy != "" {
 		if fileFingerprintConfig.FingerprintStrategy == types.FingerprintStrategyDisabled {
-			log.Debugf("Fingerprinting disabled for source %s, returning invalid fingerprint", file.Source.Config().Source)
 			return newInvalidFingerprint(nil), nil
 		}
 
