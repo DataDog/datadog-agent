@@ -306,7 +306,7 @@ func GetSelectorsPerEventType(hasFentry bool, hasCgroupSocket bool) map[eval.Eve
 
 			// ioctl probes
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				hookFunc("hook_do_vfs_ioctl"),
+				hookFunc("hook_security_file_ioctl"),
 			}},
 
 			// Link
