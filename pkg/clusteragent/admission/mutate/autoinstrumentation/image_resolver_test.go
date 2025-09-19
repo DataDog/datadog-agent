@@ -386,6 +386,41 @@ func TestRemoteConfigImageResolver_ErrorHandling(t *testing.T) {
 	}
 }
 
+func TestRemoteConfigImageResolver_InvalidDigestValidation(t *testing.T) {
+	testConfigs, err := loadTestConfigFile("invalid_digest_test.json")
+	require.NoError(t, err)
+
+	resolver := &remoteConfigImageResolver{
+		imageMappings: make(map[string]map[string]ImageInfo),
+	}
+
+	resolver.updateCache(testConfigs)
+
+	t.Run("cache_contains_only_valid_digests", func(t *testing.T) {
+		resolver.mu.RLock()
+		defer resolver.mu.RUnlock()
+
+		repoCache, exists := resolver.imageMappings["dd-lib-test-digest-validation"]
+		require.True(t, exists, "Repository should exist in cache after processing")
+
+		assert.Len(t, repoCache, 1, "Cache should contain exactly 1 image with valid digest")
+
+		for tag, imageInfo := range repoCache {
+			assert.True(t, isValidDigest(imageInfo.Digest),
+				"Image %s should have valid digest format, got: %s", tag, imageInfo.Digest)
+		}
+
+		assert.Contains(t, repoCache, "latest", "Should contain image with valid digest")
+
+		// Verify specific invalid digest formats are NOT in cache
+		assert.NotContains(t, repoCache, "invalid-short", "Should not contain image with short digest")
+		assert.NotContains(t, repoCache, "missing-prefix", "Should not contain image missing sha256: prefix")
+		assert.NotContains(t, repoCache, "invalid-algorithm", "Should not contain image with unsupported algorithm")
+		assert.NotContains(t, repoCache, "malformed", "Should not contain image with malformed digest")
+		assert.NotContains(t, repoCache, "empty", "Should not contain image with empty digest")
+	})
+}
+
 func TestRemoteConfigImageResolver_ConcurrentAccess(t *testing.T) {
 	datadoghqRegistries := config.NewMock(t).GetStringMap("admission_controller.auto_instrumentation.default_dd_registries")
 	resolver := newRemoteConfigImageResolver(newMockRCClient("image_resolver_multi_repo.json"), datadoghqRegistries).(*remoteConfigImageResolver)
