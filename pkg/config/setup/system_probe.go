@@ -31,6 +31,7 @@ const (
 	tracerouteNS                 = "traceroute"
 	discoveryNS                  = "discovery"
 	gpuNS                        = "gpu_monitoring"
+	privilegedLogsNS             = "privileged_logs"
 	swNS                         = "software_inventory"
 	defaultConnsMessageBatchSize = 600
 
@@ -366,7 +367,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault(join(discoveryNS, "ignored_command_names"), []string{"chronyd", "cilium-agent", "containerd", "dhclient", "dockerd", "kubelet", "livenessprobe", "local-volume-pr", "sshd", "systemd"})
 
 	// Privileged Logs config
-	cfg.BindEnvAndSetDefault(join("privileged_logs", "enabled"), false)
+	cfg.BindEnvAndSetDefault(join(privilegedLogsNS, "enabled"), false)
 
 	// Fleet policies
 	cfg.BindEnv("fleet_policies_dir")
