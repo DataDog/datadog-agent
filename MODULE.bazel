@@ -1,4 +1,6 @@
-# Foundation packages
+#############################
+## Foundational packages   ##
+#############################
 
 bazel_dep(name = "platforms", version = "1.0.0")
 bazel_dep(name = "package_metadata", version = "0.0.5")
@@ -13,12 +15,17 @@ bazel_dep(name = "rules_pkg", version = "1.1.0")
 
 bazel_dep(name = "buildifier_prebuilt", version = "8.2.0.2", dev_dependency = True)
 
-bazel_dep(name = "rules_multitool", version = "1.9.0")
-
-multitool = use_extension("@rules_multitool//multitool:extension.bzl", "multitool")
+#######################
+## Prebuilt binaries ##
+#######################
+multitool = use_extension("//bazel/multitool:extension.bzl", "multitool")
 multitool.hub(lockfile = "//bazel:prebuilt_buildtools.json")
 multitool.hub(lockfile = "//bazel:prebuilt_jq.json")
 use_repo(multitool, "multitool")
+
+register_toolchains("@multitool//toolchains:all")
+
+bazel_dep(name = "buildifier_prebuilt", version = "8.2.0.2", dev_dependency = True)
 
 #########################
 ## Compiliers          ##
