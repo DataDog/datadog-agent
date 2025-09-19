@@ -40,7 +40,7 @@ import (
 // os.Args[3:] are the arguments to the trace-agent command
 
 func main() {
-	cfg := pkgconfigsetup.Datadog()
+	cfg := pkgconfigsetup.GlobalConfigBuilder()
 	cfg.SetConfigFile(os.Args[1])
 	_, err := pkgconfigsetup.LoadDatadogCustom(cfg, "datadog.yaml", option.None[secrets.Component](), nil)
 	if err != nil {
