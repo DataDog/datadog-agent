@@ -657,8 +657,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/uuid v0.71.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.71.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/version v0.71.0-rc.5
-	github.com/DataDog/go-libddwaf/v4 v4.3.0
-	github.com/DataDog/go-sqllexer v0.1.6
 	github.com/aquasecurity/trivy v0.49.2-0.20240227072422-e1ea02c7b80d
 	github.com/aws/aws-sdk-go-v2/service/kms v1.44.2
 	github.com/aws/aws-sdk-go-v2/service/rds v1.103.3
