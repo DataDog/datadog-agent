@@ -244,7 +244,7 @@ func TestRemoteConfigImageResolver_Resolve(t *testing.T) {
 			registry:       "gcr.io/datadoghq",
 			repository:     "dd-lib-python-init",
 			tag:            "latest",
-			expectedResult: "gcr.io/datadoghq/dd-lib-python-init@sha256:abc123",
+			expectedResult: "gcr.io/datadoghq/dd-lib-python-init@sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
 			expectedOK:     true,
 		},
 		{
@@ -252,7 +252,7 @@ func TestRemoteConfigImageResolver_Resolve(t *testing.T) {
 			registry:       "gcr.io/datadoghq",
 			repository:     "dd-lib-python-init",
 			tag:            "3",
-			expectedResult: "gcr.io/datadoghq/dd-lib-python-init@sha256:def456",
+			expectedResult: "gcr.io/datadoghq/dd-lib-python-init@sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
 			expectedOK:     true,
 		},
 		{
@@ -274,7 +274,7 @@ func TestRemoteConfigImageResolver_Resolve(t *testing.T) {
 			registry:       "gcr.io/datadoghq",
 			repository:     "dd-lib-python-init",
 			tag:            "v3",
-			expectedResult: "gcr.io/datadoghq/dd-lib-python-init@sha256:def456",
+			expectedResult: "gcr.io/datadoghq/dd-lib-python-init@sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
 			expectedOK:     true,
 		},
 		{
