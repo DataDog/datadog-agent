@@ -192,7 +192,6 @@ message Service {
   string generatedNameSource = 2;
   repeated string additionalGeneratedNames = 4;
   repeated TracerMetadata tracerMetadata = 5;
-  string ddService = 6;
   repeated int32 tcpPorts = 7;
   repeated int32 udpPorts = 8;
   string apmInstrumentation = 9;
