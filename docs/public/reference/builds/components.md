@@ -11,6 +11,7 @@ These binaries have a good amount of code shared between them, but are all build
 * `cluster-agent`
 * `security-agent`
 * `system-probe`
+* [`jmxfetch`](../../components/jmxfetch.md)
 <!-- NOTE: Are we missing `dogstatsd`, `JMXFetch`, `otel-agent`, `cluster-agent-cloufoundry` here ? Maybe also `cws-instrumentation`, `installer`, `ddtray`. -->
 
 /// info
