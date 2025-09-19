@@ -1,0 +1,477 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testStructWithCyclicSlices",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.testStructWithCyclicSlices",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go",
+            "lineNumber": 31
+          },
+          {
+            "function": "main.executeStructFuncs",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go",
+            "lineNumber": 215
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 32
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "testStructWithCyclicSlices",
+          "location": {
+            "method": "main.testStructWithCyclicSlices"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "a": {
+                "type": "main.structWithCyclicSlices",
+                "fields": {
+                  "s1": {
+                    "type": "[]main.structWithCyclicSlices",
+                    "size": "1",
+                    "elements": [
+                      {
+                        "type": "main.structWithCyclicSlices",
+                        "fields": {
+                          "s1": {
+                            "type": "[]main.structWithCyclicSlices",
+                            "isNull": true
+                          },
+                          "s2": {
+                            "type": "[][]main.structWithCyclicSlices",
+                            "isNull": true
+                          },
+                          "s3": {
+                            "type": "[][][]main.structWithCyclicSlices",
+                            "isNull": true
+                          },
+                          "s4": {
+                            "type": "[][][][]main.structWithCyclicSlices",
+                            "isNull": true
+                          },
+                          "s5": {
+                            "type": "[][][][][]main.structWithCyclicSlices",
+                            "isNull": true
+                          },
+                          "s6": {
+                            "type": "[][][][][][]main.structWithCyclicSlices",
+                            "isNull": true
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  "s2": {
+                    "type": "[][]main.structWithCyclicSlices",
+                    "size": "2",
+                    "elements": [
+                      {
+                        "type": "[]main.structWithCyclicSlices",
+                        "elements": []
+                      },
+                      {
+                        "type": "[]main.structWithCyclicSlices",
+                        "size": "1",
+                        "elements": [
+                          {
+                            "type": "main.structWithCyclicSlices",
+                            "fields": {
+                              "s1": {
+                                "type": "[]main.structWithCyclicSlices",
+                                "isNull": true
+                              },
+                              "s2": {
+                                "type": "[][]main.structWithCyclicSlices",
+                                "isNull": true
+                              },
+                              "s3": {
+                                "type": "[][][]main.structWithCyclicSlices",
+                                "isNull": true
+                              },
+                              "s4": {
+                                "type": "[][][][]main.structWithCyclicSlices",
+                                "isNull": true
+                              },
+                              "s5": {
+                                "type": "[][][][][]main.structWithCyclicSlices",
+                                "isNull": true
+                              },
+                              "s6": {
+                                "type": "[][][][][][]main.structWithCyclicSlices",
+                                "isNull": true
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  "s3": {
+                    "type": "[][][]main.structWithCyclicSlices",
+                    "size": "3",
+                    "elements": [
+                      {
+                        "type": "[][]main.structWithCyclicSlices",
+                        "elements": []
+                      },
+                      {
+                        "type": "[][]main.structWithCyclicSlices",
+                        "size": "1",
+                        "elements": [
+                          {
+                            "type": "[]main.structWithCyclicSlices",
+                            "elements": []
+                          }
+                        ]
+                      },
+                      {
+                        "type": "[][]main.structWithCyclicSlices",
+                        "size": "1",
+                        "elements": [
+                          {
+                            "type": "[]main.structWithCyclicSlices",
+                            "size": "1",
+                            "elements": [
+                              {
+                                "type": "main.structWithCyclicSlices",
+                                "fields": {
+                                  "s1": {
+                                    "type": "[]main.structWithCyclicSlices",
+                                    "isNull": true
+                                  },
+                                  "s2": {
+                                    "type": "[][]main.structWithCyclicSlices",
+                                    "isNull": true
+                                  },
+                                  "s3": {
+                                    "type": "[][][]main.structWithCyclicSlices",
+                                    "isNull": true
+                                  },
+                                  "s4": {
+                                    "type": "[][][][]main.structWithCyclicSlices",
+                                    "isNull": true
+                                  },
+                                  "s5": {
+                                    "type": "[][][][][]main.structWithCyclicSlices",
+                                    "isNull": true
+                                  },
+                                  "s6": {
+                                    "type": "[][][][][][]main.structWithCyclicSlices",
+                                    "isNull": true
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  "s4": {
+                    "type": "[][][][]main.structWithCyclicSlices",
+                    "size": "4",
+                    "elements": [
+                      {
+                        "type": "[][][]main.structWithCyclicSlices",
+                        "elements": []
+                      },
+                      {
+                        "type": "[][][]main.structWithCyclicSlices",
+                        "size": "1",
+                        "elements": [
+                          {
+                            "type": "[][]main.structWithCyclicSlices",
+                            "elements": []
+                          }
+                        ]
+                      },
+                      {
+                        "type": "[][][]main.structWithCyclicSlices",
+                        "size": "1",
+                        "elements": [
+                          {
+                            "type": "[][]main.structWithCyclicSlices",
+                            "size": "1",
+                            "elements": [
+                              {
+                                "type": "[]main.structWithCyclicSlices",
+                                "elements": []
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "type": "[][][]main.structWithCyclicSlices",
+                        "size": "1",
+                        "elements": [
+                          {
+                            "type": "[][]main.structWithCyclicSlices",
+                            "size": "1",
+                            "elements": [
+                              {
+                                "type": "[]main.structWithCyclicSlices",
+                                "size": "1",
+                                "elements": [
+                                  {
+                                    "type": "main.structWithCyclicSlices",
+                                    "fields": {
+                                      "s1": {
+                                        "type": "[]main.structWithCyclicSlices",
+                                        "isNull": true
+                                      },
+                                      "s2": {
+                                        "type": "[][]main.structWithCyclicSlices",
+                                        "isNull": true
+                                      },
+                                      "s3": {
+                                        "type": "[][][]main.structWithCyclicSlices",
+                                        "isNull": true
+                                      },
+                                      "s4": {
+                                        "type": "[][][][]main.structWithCyclicSlices",
+                                        "isNull": true
+                                      },
+                                      "s5": {
+                                        "type": "[][][][][]main.structWithCyclicSlices",
+                                        "isNull": true
+                                      },
+                                      "s6": {
+                                        "type": "[][][][][][]main.structWithCyclicSlices",
+                                        "isNull": true
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  "s5": {
+                    "type": "[][][][][]main.structWithCyclicSlices",
+                    "size": "5",
+                    "elements": [
+                      {
+                        "type": "[][][][]main.structWithCyclicSlices",
+                        "elements": []
+                      },
+                      {
+                        "type": "[][][][]main.structWithCyclicSlices",
+                        "size": "1",
+                        "elements": [
+                          {
+                            "type": "[][][]main.structWithCyclicSlices",
+                            "elements": []
+                          }
+                        ]
+                      },
+                      {
+                        "type": "[][][][]main.structWithCyclicSlices",
+                        "size": "1",
+                        "elements": [
+                          {
+                            "type": "[][][]main.structWithCyclicSlices",
+                            "size": "1",
+                            "elements": [
+                              {
+                                "type": "[][]main.structWithCyclicSlices",
+                                "elements": []
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "type": "[][][][]main.structWithCyclicSlices",
+                        "size": "1",
+                        "elements": [
+                          {
+                            "type": "[][][]main.structWithCyclicSlices",
+                            "size": "1",
+                            "elements": [
+                              {
+                                "type": "[][]main.structWithCyclicSlices",
+                                "size": "1",
+                                "elements": [
+                                  {
+                                    "type": "[]main.structWithCyclicSlices",
+                                    "elements": []
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "type": "[][][][]main.structWithCyclicSlices",
+                        "size": "1",
+                        "elements": [
+                          {
+                            "type": "[][][]main.structWithCyclicSlices",
+                            "size": "1",
+                            "elements": [
+                              {
+                                "type": "[][]main.structWithCyclicSlices",
+                                "size": "1",
+                                "elements": [
+                                  {
+                                    "type": "[]main.structWithCyclicSlices",
+                                    "elements": []
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  "s6": {
+                    "type": "[][][][][][]main.structWithCyclicSlices",
+                    "size": "6",
+                    "elements": [
+                      {
+                        "type": "[][][][][]main.structWithCyclicSlices",
+                        "elements": []
+                      },
+                      {
+                        "type": "[][][][][]main.structWithCyclicSlices",
+                        "size": "1",
+                        "elements": [
+                          {
+                            "type": "[][][][]main.structWithCyclicSlices",
+                            "elements": []
+                          }
+                        ]
+                      },
+                      {
+                        "type": "[][][][][]main.structWithCyclicSlices",
+                        "size": "1",
+                        "elements": [
+                          {
+                            "type": "[][][][]main.structWithCyclicSlices",
+                            "size": "1",
+                            "elements": [
+                              {
+                                "type": "[][][]main.structWithCyclicSlices",
+                                "elements": []
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "type": "[][][][][]main.structWithCyclicSlices",
+                        "size": "1",
+                        "elements": [
+                          {
+                            "type": "[][][][]main.structWithCyclicSlices",
+                            "size": "1",
+                            "elements": [
+                              {
+                                "type": "[][][]main.structWithCyclicSlices",
+                                "size": "1",
+                                "elements": [
+                                  {
+                                    "type": "[][]main.structWithCyclicSlices",
+                                    "elements": []
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "type": "[][][][][]main.structWithCyclicSlices",
+                        "size": "1",
+                        "elements": [
+                          {
+                            "type": "[][][][]main.structWithCyclicSlices",
+                            "size": "1",
+                            "elements": [
+                              {
+                                "type": "[][][]main.structWithCyclicSlices",
+                                "size": "1",
+                                "elements": [
+                                  {
+                                    "type": "[][]main.structWithCyclicSlices",
+                                    "elements": []
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "type": "[][][][][]main.structWithCyclicSlices",
+                        "size": "1",
+                        "elements": [
+                          {
+                            "type": "[][][][]main.structWithCyclicSlices",
+                            "size": "1",
+                            "elements": [
+                              {
+                                "type": "[][][]main.structWithCyclicSlices",
+                                "size": "1",
+                                "elements": [
+                                  {
+                                    "type": "[][]main.structWithCyclicSlices",
+                                    "size": "1",
+                                    "elements": [
+                                      {
+                                        "type": "[]main.structWithCyclicSlices",
+                                        "elements": []
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]"
+  }
+]

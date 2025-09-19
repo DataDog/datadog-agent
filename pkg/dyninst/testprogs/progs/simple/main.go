@@ -36,6 +36,7 @@ func main() {
 	ptr5 := &ptr4
 	PointerChainArg(ptr5)
 	PointerSmallChainArg(ptr2)
+	noArgs()
 }
 
 //go:noinline
@@ -113,4 +114,9 @@ func PointerChainArg(ptr *****int) {
 
 func PointerSmallChainArg(ptr **int) {
 	fmt.Println(ptr)
+}
+
+//go:noinline
+func noArgs() {
+	fmt.Println("noArgs")
 }

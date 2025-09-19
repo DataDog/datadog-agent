@@ -21,7 +21,7 @@ import (
 )
 
 type ttlCache struct {
-	cache *gocache.Cache
+	cache keyHashCache
 }
 
 // numberCounter keeps the value of a number
@@ -34,7 +34,7 @@ type numberCounter struct {
 
 func newTTLCache(sweepInterval int64, deltaTTL int64) *ttlCache {
 	cache := gocache.New(time.Duration(deltaTTL)*time.Second, time.Duration(sweepInterval)*time.Second)
-	return &ttlCache{cache}
+	return &ttlCache{cache: newKeyHashCache(cache)}
 }
 
 // Diff submits a new value for a given non-monotonic metric and returns the difference with the
@@ -86,8 +86,8 @@ func (t *ttlCache) putAndGetMonotonic(
 	// assume it's first point before cache check.
 	firstPoint = true
 
-	key := dimensions.String()
-	if c, found := t.cache.Get(key); found {
+	key := t.cache.computeKey(dimensions.String())
+	if c, found := t.cache.get(key); found {
 		cnt := c.(numberCounter)
 		if cnt.ts >= ts {
 			// We were given a point with a timestamp older or equal to the one in the cache. This point
@@ -102,7 +102,7 @@ func (t *ttlCache) putAndGetMonotonic(
 		firstPoint = !isNotFirstPoint(startTs, ts, cnt.startTs) || dx < 0
 	}
 
-	t.cache.Set(
+	t.cache.set(
 		key,
 		numberCounter{
 			startTs: startTs,
@@ -121,8 +121,8 @@ func (t *ttlCache) putAndGetDiff(
 	startTs, ts uint64,
 	val float64,
 ) (dx float64, ok bool) {
-	key := dimensions.String()
-	if c, found := t.cache.Get(key); found {
+	key := t.cache.computeKey(dimensions.String())
+	if c, found := t.cache.get(key); found {
 		cnt := c.(numberCounter)
 		if cnt.ts > ts {
 			// We were given a point older than the one in memory so we drop it
@@ -133,7 +133,7 @@ func (t *ttlCache) putAndGetDiff(
 		ok = isNotFirstPoint(startTs, ts, cnt.startTs)
 	}
 
-	t.cache.Set(
+	t.cache.set(
 		key,
 		numberCounter{
 			startTs: startTs,
@@ -159,8 +159,8 @@ func (t *ttlCache) putAndCheckExtrema(
 	curExtrema float64,
 	min bool,
 ) (assumeFromLastWindow bool) {
-	key := dimensions.String()
-	if c, found := t.cache.Get(key); found {
+	key := t.cache.computeKey(dimensions.String())
+	if c, found := t.cache.get(key); found {
 		cnt := c.(extrema)
 		if cnt.ts > ts {
 			// We were given a point older than the one in memory so we drop it
@@ -182,7 +182,7 @@ func (t *ttlCache) putAndCheckExtrema(
 
 	}
 
-	t.cache.Set(key,
+	t.cache.set(key,
 		extrema{
 			startTs:       startTs,
 			ts:            ts,

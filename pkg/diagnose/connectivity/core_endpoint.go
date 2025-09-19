@@ -28,6 +28,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
+const requestWithHeader = "datadog-agent-diagnose"
+
 func getLogsEndpoints(useTCP bool) (*logsConfig.Endpoints, error) {
 	datadogConfig := pkgconfigsetup.Datadog()
 	logsConfigKey := logsConfig.NewLogsConfigKeys("logs_config.", datadogConfig)
@@ -209,6 +211,7 @@ func sendHTTPRequestToEndpoint(ctx context.Context, client *http.Client, domain 
 		"DD-API-KEY":       apiKey,
 		"DD-Agent-Version": version.AgentVersion,
 		"User-Agent":       fmt.Sprintf("datadog-agent/%s", version.AgentVersion),
+		"X-Requested-With": requestWithHeader,
 	}
 
 	return sendRequest(ctx, client, url, endpointInfo.Method, endpointInfo.Payload, headers)

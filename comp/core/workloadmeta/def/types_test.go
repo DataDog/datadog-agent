@@ -219,7 +219,6 @@ Gids: [1002 1003]
 					GeneratedNameSource:      "binary_name",
 					AdditionalGeneratedNames: []string{"java", "app"},
 					TracerMetadata:           []tracermetadata.TracerMetadata{},
-					DDService:                "java-app",
 					TCPPorts:                 []uint16{8080, 8081},
 					UDPPorts:                 []uint16{8082, 8083},
 					APMInstrumentation:       "enabled",
@@ -272,7 +271,6 @@ Service Generated Name: java-app
 					GeneratedNameSource:      "binary_name",
 					AdditionalGeneratedNames: []string{"java", "app"},
 					TracerMetadata:           []tracermetadata.TracerMetadata{},
-					DDService:                "java-app",
 					UST: UST{
 						Service: "java-app",
 						Env:     "production",
@@ -307,7 +305,6 @@ Service Generated Name: java-app
 Service Generated Name Source: binary_name
 Service Additional Generated Names: [java app]
 Service Tracer Metadata: []
-Service DD Service: java-app
 Service TCP Ports: [8080 8081]
 Service UDP Ports: [8082 8083]
 Service APM Instrumentation: enabled

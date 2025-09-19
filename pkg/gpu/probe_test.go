@@ -8,6 +8,7 @@
 package gpu
 
 import (
+	"os"
 	"testing"
 	"time"
 
@@ -24,6 +25,12 @@ import (
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 )
+
+// TestMain defined to run initialization before any test is run
+func TestMain(m *testing.M) {
+	memPools.ensureInitNoTelemetry()
+	os.Exit(m.Run())
+}
 
 type probeTestSuite struct {
 	suite.Suite
