@@ -15,7 +15,10 @@ These binaries have a good amount of code shared between them, but are all build
 
 ## Agent "features"
 
-The Agent codebase makes heavy use of [Go build constraints](https://pkg.go.dev/cmd/go#hdr-Build_constraints) to dynamically include or exclude some parts of the source code during the build process. Here is the list of usable "tags" that you can pass during the build process to customize your build:
+The Agent codebase makes heavy use of [Go build constraints](https://pkg.go.dev/cmd/go#hdr-Build_constraints) to dynamically include or exclude some parts of the source code during the build process.
+
+Here is a list of usable "tags" that you can pass during the build process to customize your build. **This list is _not_ exhaustive !**
+<!-- Should we make it exhaustive ? -->
 
 <!-- Special div needed to enable annotations in lists -->
 <div class="annotate" markdown>
