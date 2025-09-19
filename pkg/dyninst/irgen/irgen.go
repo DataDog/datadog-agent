@@ -427,6 +427,32 @@ func expandTypesWithBudgets(
 	processedBest := make(map[ir.TypeID]uint32)
 
 	q := newTypeQueue()
+
+	// Initialize the type queue with all types with a depth budget of 0 to make
+	// sure we properly explore every type. In general there's an invariant that
+	// every non-placeholder type be explored, and this ensures that.
+	for id, t := range tc.typesByID {
+		if _, ok := t.(*pointeePlaceholderType); ok {
+			continue
+		}
+		q.pos[id] = uint32(len(q.items))
+		q.items = append(q.items, typeQueueEntry{id: id, remaining: 0})
+	}
+
+	// Update the budgets from the subprogram variables to that of the
+	// corresponding subprogram.
+	for _, sp := range subprograms {
+		budget := budgets[sp.ID]
+		for _, v := range sp.Variables {
+			pos := q.pos[v.Type.GetID()]
+			item := &q.items[pos]
+			item.remaining = max(item.remaining, budget)
+		}
+	}
+
+	// Initialize the heap now that everything has been updated.
+	heap.Init(q)
+
 	// push enqueues (or improves) only if strictly better than any
 	// already processed or enqueued remaining budget.
 	push := func(t ir.Type, remaining uint32) {
@@ -443,17 +469,6 @@ func expandTypesWithBudgets(
 			return
 		}
 		q.push(typeQueueEntry{id: id, remaining: remaining})
-	}
-
-	// Seed from all parameter variables of all subprograms.
-	for _, sp := range subprograms {
-		budget := budgets[sp.ID]
-		for _, v := range sp.Variables {
-			if !v.IsParameter || v.IsReturn || v.Type == nil {
-				continue
-			}
-			push(v.Type, budget)
-		}
 	}
 
 	// Local helper to complete a just-added type ID.
