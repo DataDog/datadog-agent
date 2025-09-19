@@ -509,17 +509,17 @@ func (rs *RuleSet) WithExcludedRuleFromDiscarders(excludedRuleFromDiscarders map
 }
 
 // AddRule creates the rule evaluator and adds it to the bucket of its events
-func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, pRule *PolicyRule) (model.EventCategoryUserFacing, error) {
+func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, pRule *PolicyRule) (model.EventCategory, error) {
 	if pRule.Def.Disabled {
-		return "", nil
+		return model.UnknownCategory, nil
 	}
 
 	if slices.Contains(rs.opts.ReservedRuleIDs, pRule.Def.ID) {
-		return "", &ErrRuleLoad{Rule: pRule, Err: ErrInternalIDConflict}
+		return model.UnknownCategory, &ErrRuleLoad{Rule: pRule, Err: ErrInternalIDConflict}
 	}
 
 	if _, exists := rs.rules[pRule.Def.ID]; exists {
-		return "", nil
+		return model.UnknownCategory, nil
 	}
 
 	var tags []string
@@ -530,25 +530,25 @@ func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, pRule *PolicyRule
 
 	expandedRules := expandFim(pRule.Def.ID, pRule.Def.GroupID, pRule.Def.Expression)
 
-	categories := make([]model.EventCategoryUserFacing, 0)
+	categories := make([]model.EventCategory, 0)
 	for _, er := range expandedRules {
 		category, err := rs.innerAddExpandedRule(parsingContext, pRule, er, tags)
 		if err != nil {
-			return "", err
+			return model.UnknownCategory, err
 		}
 		categories = append(categories, category)
 	}
 	categories = slices.Compact(categories)
 	if len(categories) != 1 {
-		return "", &ErrRuleLoad{Rule: pRule, Err: ErrMultipleEventCategories}
+		return model.UnknownCategory, &ErrRuleLoad{Rule: pRule, Err: ErrMultipleEventCategories}
 	}
 	return categories[0], nil
 }
 
-func (rs *RuleSet) innerAddExpandedRule(parsingContext *ast.ParsingContext, pRule *PolicyRule, exRule expandedRule, tags []string) (model.EventCategoryUserFacing, error) {
+func (rs *RuleSet) innerAddExpandedRule(parsingContext *ast.ParsingContext, pRule *PolicyRule, exRule expandedRule, tags []string) (model.EventCategory, error) {
 	evalRule, err := eval.NewRule(exRule.id, exRule.expr, parsingContext, rs.evalOpts, tags...)
 	if err != nil {
-		return "", &ErrRuleLoad{Rule: pRule, Err: &ErrRuleSyntax{Err: err}}
+		return model.UnknownCategory, &ErrRuleLoad{Rule: pRule, Err: &ErrRuleSyntax{Err: err}}
 	}
 
 	rule := &Rule{
@@ -557,26 +557,31 @@ func (rs *RuleSet) innerAddExpandedRule(parsingContext *ast.ParsingContext, pRul
 	}
 
 	if err := rule.GenEvaluator(rs.model); err != nil {
-		return "", &ErrRuleLoad{Rule: pRule, Err: err}
+		return model.UnknownCategory, &ErrRuleLoad{Rule: pRule, Err: err}
 	}
 
 	eventType, err := GetRuleEventType(rule.Rule)
 	if err != nil {
-		return "", &ErrRuleLoad{Rule: pRule, Err: err}
+		return model.UnknownCategory, &ErrRuleLoad{Rule: pRule, Err: err}
 	}
 
 	// validate event context against event type
 	for _, field := range rule.GetFields() {
 		restrictions := rs.model.GetFieldRestrictions(field)
 		if len(restrictions) > 0 && !slices.Contains(restrictions, eventType) {
-			return "", &ErrRuleLoad{Rule: pRule, Err: &ErrFieldNotAvailable{Field: field, EventType: eventType, RestrictedTo: restrictions}}
+			return model.UnknownCategory, &ErrRuleLoad{Rule: pRule, Err: &ErrFieldNotAvailable{Field: field, EventType: eventType, RestrictedTo: restrictions}}
 		}
 	}
 
 	// ignore event types not supported
 	if _, exists := rs.opts.EventTypeEnabled["*"]; !exists {
 		if enabled, exists := rs.opts.EventTypeEnabled[eventType]; !exists || !enabled {
-			return "", &ErrRuleLoad{Rule: pRule, Err: ErrEventTypeNotEnabled}
+			return model.UnknownCategory, &ErrRuleLoad{Rule: pRule, Err: ErrEventTypeNotEnabled}
+		}
+
+		// ignore rules requiring an unsupported event type to execute their action
+		if err = pRule.AreActionsSupported(rs.opts.EventTypeEnabled); err != nil {
+			return model.UnknownCategory, &ErrRuleLoad{Rule: pRule, Err: err}
 		}
 	}
 
@@ -584,7 +589,7 @@ func (rs *RuleSet) innerAddExpandedRule(parsingContext *ast.ParsingContext, pRul
 		if action.Def.Filter != nil {
 			// compile action filter
 			if err := action.CompileFilter(parsingContext, rs.model, rs.evalOpts); err != nil {
-				return "", &ErrRuleLoad{Rule: pRule, Err: err}
+				return model.UnknownCategory, &ErrRuleLoad{Rule: pRule, Err: err}
 			}
 		}
 
@@ -594,7 +599,7 @@ func (rs *RuleSet) innerAddExpandedRule(parsingContext *ast.ParsingContext, pRul
 			// compile scope field
 			if len(action.Def.Set.ScopeField) > 0 {
 				if err := action.CompileScopeField(rs.model); err != nil {
-					return "", &ErrRuleLoad{Rule: pRule, Err: err}
+					return model.UnknownCategory, &ErrRuleLoad{Rule: pRule, Err: err}
 				}
 			}
 
@@ -602,26 +607,26 @@ func (rs *RuleSet) innerAddExpandedRule(parsingContext *ast.ParsingContext, pRul
 				if _, found := rs.fieldEvaluators[field]; !found {
 					evaluator, err := rs.model.GetEvaluator(field, "", 0)
 					if err != nil {
-						return "", err
+						return model.UnknownCategory, err
 					}
 					rs.fieldEvaluators[field] = evaluator
 				}
 			} else if expression := action.Def.Set.Expression; expression != "" {
 				astRule, err := parsingContext.ParseExpression(expression)
 				if err != nil {
-					return "", fmt.Errorf("failed to parse action expression: %w", err)
+					return model.UnknownCategory, fmt.Errorf("failed to parse action expression: %w", err)
 				}
 
 				evaluator, _, err := eval.NodeToEvaluator(astRule, rs.evalOpts, eval.NewState(rs.model, "", rs.evalOpts.MacroStore))
 				if err != nil {
-					return "", fmt.Errorf("failed to compile action expression: %w", err)
+					return model.UnknownCategory, fmt.Errorf("failed to compile action expression: %w", err)
 				}
 				rs.fieldEvaluators[expression] = evaluator.(eval.Evaluator)
 			}
 
 		case action.Def.Hash != nil:
 			if err := action.Def.Hash.PostCheck(evalRule); err != nil {
-				return "", &ErrRuleLoad{Rule: pRule, Err: err}
+				return model.UnknownCategory, &ErrRuleLoad{Rule: pRule, Err: err}
 			}
 		}
 	}
@@ -633,7 +638,7 @@ func (rs *RuleSet) innerAddExpandedRule(parsingContext *ast.ParsingContext, pRul
 	}
 
 	if err := bucket.AddRule(rule); err != nil {
-		return "", err
+		return model.UnknownCategory, err
 	}
 
 	// Merge the fields of the new rule with the existing list of fields of the ruleset
@@ -641,7 +646,7 @@ func (rs *RuleSet) innerAddExpandedRule(parsingContext *ast.ParsingContext, pRul
 
 	rs.rules[pRule.Def.ID] = rule
 
-	return model.GetEventTypeCategoryUserFacing(eventType), nil
+	return model.GetEventTypeCategory(eventType), nil
 }
 
 // NotifyRuleMatch notifies all the ruleset listeners that an event matched a rule
