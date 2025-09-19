@@ -1404,7 +1404,7 @@ func TestRebalance(t *testing.T) {
 			}()
 
 			fakeTagger := taggerfxmock.SetupFakeTagger(t)
-			dispatcher := newDispatcher(fakeTagger)
+			dispatcher := newDispatcher(fakeTagger, nil)
 
 			// Create a mock CLC runner client to avoid nil pointer errors
 			mockClient := &rebalanceTestClcRunnerClient{
@@ -1471,7 +1471,7 @@ func TestMoveCheck(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("case %d", i), func(t *testing.T) {
 			fakeTagger := taggerfxmock.SetupFakeTagger(t)
-			dispatcher := newDispatcher(fakeTagger)
+			dispatcher := newDispatcher(fakeTagger, nil)
 
 			// setup check id
 			id := checkid.BuildID(tc.check.config.Name, tc.check.config.FastDigest(), tc.check.config.Instances[0], tc.check.config.InitConfig)
@@ -1516,7 +1516,7 @@ func TestCalculateAvg(t *testing.T) {
 	}()
 
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	testDispatcher := newDispatcher(fakeTagger)
+	testDispatcher := newDispatcher(fakeTagger, nil)
 
 	// The busyness of this node is 3 (1 + 2)
 	testDispatcher.store.nodes["node1"] = newNodeStore("node1", "")
@@ -1558,7 +1558,7 @@ func TestRebalanceUsingUtilization(t *testing.T) {
 	//   complex scenarios.
 
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	testDispatcher := newDispatcher(fakeTagger)
+	testDispatcher := newDispatcher(fakeTagger, nil)
 
 	// Create a mock CLC runner client to avoid nil pointer errors
 	mockClient := &rebalanceTestClcRunnerClient{

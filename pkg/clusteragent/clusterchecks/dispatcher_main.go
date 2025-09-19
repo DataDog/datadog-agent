@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	cctypes "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -40,11 +41,16 @@ type dispatcher struct {
 	excludedChecksFromDispatching    map[string]struct{}
 	rebalancingPeriod                time.Duration
 	ksmSharding                      *KSMShardingManager
+	wmeta                            workloadmeta.Component
+	ksmShardedConfig                 integration.Config // Base KSM config when sharded
+	namespaceUpdateCh                chan struct{}      // Channel to trigger namespace updates
 }
 
-func newDispatcher(tagger tagger.Component) *dispatcher {
+func newDispatcher(tagger tagger.Component, wmeta workloadmeta.Component) *dispatcher {
 	d := &dispatcher{
-		store: newClusterStore(),
+		store:             newClusterStore(),
+		wmeta:             wmeta,
+		namespaceUpdateCh: make(chan struct{}, 1),
 	}
 	d.nodeExpirationSeconds = pkgconfigsetup.Datadog().GetInt64("cluster_checks.node_expiration_timeout")
 	d.unscheduledCheckThresholdSeconds = pkgconfigsetup.Datadog().GetInt64("cluster_checks.unscheduled_check_threshold")

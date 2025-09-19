@@ -3,18 +3,17 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build clusterchecks && kubeapiserver
+//go:build clusterchecks
 
 package clusterchecks
 
 import (
-	"context"
+	"fmt"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // scheduleKSMCheck handles the special case of KSM checks with sharding
@@ -37,10 +36,23 @@ func (d *dispatcher) scheduleKSMCheck(config integration.Config) bool {
 		return false
 	}
 
-	// Get list of namespaces
+	// Check if this config was already sharded (to avoid re-sharding on every Schedule call)
+	if d.isAlreadySharded(config) {
+		log.Debugf("KSM config %s already sharded, skipping re-sharding", config.Digest())
+		return false // Let normal scheduling handle the already-sharded configs
+	}
+
+	// Get list of namespaces (if available)
+	// If workloadmeta is not ready yet, we'll fall back to normal scheduling
 	namespaces, err := d.getNamespaces()
 	if err != nil {
-		log.Warnf("Failed to get namespaces for KSM sharding: %v, falling back to normal scheduling", err)
+		log.Infof("Workloadmeta not ready for KSM sharding: %v, falling back to normal scheduling", err)
+		return false
+	}
+
+	// If we have no namespaces yet, fall back to normal scheduling
+	if len(namespaces) == 0 {
+		log.Debugf("No namespaces found for KSM sharding, falling back to normal scheduling")
 		return false
 	}
 
@@ -52,11 +64,16 @@ func (d *dispatcher) scheduleKSMCheck(config integration.Config) bool {
 	}
 
 	// Create sharded configs
+	// If namespaces is empty, this will create fixed bucket configs
+	log.Infof("Creating sharded KSM configs for %d namespaces across %d CLC runners",
+		len(namespaces), len(runners))
 	shardedConfigs, clusterConfig, err := d.ksmSharding.CreateShardedKSMConfigs(config, namespaces)
 	if err != nil {
 		log.Warnf("Failed to create sharded KSM configs: %v, falling back to normal scheduling", err)
 		return false
 	}
+
+	log.Infof("Created %d sharded configs from bucketing", len(shardedConfigs))
 
 	// Schedule cluster-wide config if present
 	if clusterConfig.Name != "" {
@@ -65,44 +82,83 @@ func (d *dispatcher) scheduleKSMCheck(config integration.Config) bool {
 	}
 
 	// Schedule namespace-sharded configs using dispatcher's logic
-	// Advanced dispatching will automatically distribute to least busy nodes
+	// Advanced dispatching will distribute based on its algorithm
 	totalSharded := 0
-	for _, cfg := range shardedConfigs {
-		// Use d.add() which uses getNodeToScheduleCheck() internally
-		// This respects advanced dispatching if enabled
+	assignmentMap := make(map[string]int) // Track which runner gets how many configs
+
+	for i, cfg := range shardedConfigs {
+		// Get the target node before adding
+		targetNode := d.getNodeToScheduleCheck()
+		log.Infof("Assigning sharded KSM config %d/%d (digest: %s) to node: %s",
+			i+1, len(shardedConfigs), cfg.Digest(), targetNode)
+
+		// Use d.add() which respects advanced dispatching settings
 		if d.add(cfg) {
 			totalSharded++
+			if targetNode != "" {
+				assignmentMap[targetNode]++
+			}
 		}
 	}
 
 	if totalSharded > 0 {
-		log.Infof("Successfully sharded KSM check into %d namespace-scoped checks distributed across runners",
-			totalSharded)
+		log.Infof("Successfully sharded KSM check into %d namespace-scoped checks", totalSharded)
+
+		// Log distribution details
+		log.Infof("Distribution across %d runners:", len(assignmentMap))
+		for runner, count := range assignmentMap {
+			log.Infof("  Runner %s: %d configs", runner, count)
+		}
+
 		if d.advancedDispatching {
-			log.Infof("Using advanced dispatching for optimal load distribution")
+			log.Infof("Using advanced dispatching (will rebalance periodically)")
 		}
 	} else {
 		log.Warnf("KSM sharding enabled but no checks were distributed - check runner availability")
 	}
 
+	// Store that we've sharded this config to avoid re-sharding
+	d.markAsSharded(config)
+
 	return true
 }
 
-// getNamespaces retrieves all namespaces from the Kubernetes API
+// isAlreadySharded checks if a KSM config was already sharded
+func (d *dispatcher) isAlreadySharded(config integration.Config) bool {
+	if d.ksmShardedConfig.Name != "" && d.ksmShardedConfig.Digest() == config.Digest() {
+		return true
+	}
+	return false
+}
+
+// markAsSharded marks a KSM config as having been sharded
+func (d *dispatcher) markAsSharded(config integration.Config) {
+	d.ksmShardedConfig = config
+}
+
+// getNamespaces retrieves all namespaces from workloadmeta
 func (d *dispatcher) getNamespaces() ([]string, error) {
-	apiClient, err := apiserver.GetAPIClient()
-	if err != nil {
-		return nil, err
+	if d.wmeta == nil {
+		return nil, fmt.Errorf("workloadmeta is not available")
 	}
 
-	namespaceList, err := apiClient.Cl.CoreV1().Namespaces().List(context.TODO(), v1.ListOptions{})
-	if err != nil {
-		return nil, err
+	// Create a filter for namespace resources
+	namespaceFilter := func(metadata *workloadmeta.KubernetesMetadata) bool {
+		return metadata.GVR != nil && metadata.GVR.Group == "" && metadata.GVR.Resource == "namespaces"
 	}
 
-	namespaces := make([]string, 0, len(namespaceList.Items))
-	for _, ns := range namespaceList.Items {
-		namespaces = append(namespaces, ns.Name)
+	// List all Kubernetes namespaces from workloadmeta
+	namespaceMetadata := d.wmeta.ListKubernetesMetadata(namespaceFilter)
+
+	namespaces := make([]string, 0, len(namespaceMetadata))
+	for _, metadata := range namespaceMetadata {
+		// The namespace name is in the Name field of the metadata
+		// For namespace resources, the EntityID.ID is in format: /namespaces//{namespaceName}
+		namespaces = append(namespaces, metadata.Name)
+	}
+
+	if len(namespaces) == 0 {
+		log.Warnf("No namespaces found in workloadmeta, KSM sharding may not work correctly")
 	}
 
 	return namespaces, nil

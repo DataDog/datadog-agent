@@ -122,6 +122,11 @@ func resourcesWithRequiredMetadataCollection(cfg config.Reader) []string {
 		}
 	}
 
+	// Add namespaces if KSM sharding is enabled
+	if cfg.GetBool("cluster_checks.ksm_sharding.enabled") {
+		res = append(res, "namespaces")
+	}
+
 	return res
 }
 

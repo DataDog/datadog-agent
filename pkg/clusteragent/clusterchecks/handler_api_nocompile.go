@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 )
 
@@ -32,7 +33,7 @@ func (h *Handler) GetState(scrub bool) (types.StateResponse, error) {
 }
 
 // NewHandler not implemented
-func NewHandler(_ autodiscovery.Component, _ tagger.Component) (*Handler, error) {
+func NewHandler(_ autodiscovery.Component, _ tagger.Component, _ workloadmeta.Component) (*Handler, error) {
 	return nil, ErrNotCompiled
 }
 
