@@ -4,7 +4,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.testStruct",
+      "method": "main.testStructWithCyclicMaps",
       "version": 0,
       "thread_id": 0,
       "thread_name": ""
@@ -16,14 +16,14 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.testStruct",
+            "function": "main.testStructWithCyclicMaps",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go",
-            "lineNumber": 84
+            "lineNumber": 44
           },
           {
             "function": "main.executeStructFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go",
-            "lineNumber": 143
+            "lineNumber": 235
           },
           {
             "function": "main.main",
@@ -42,41 +42,40 @@
           }
         ],
         "probe": {
-          "id": "testStruct",
+          "id": "testStructWithCyclicMaps",
           "location": {
-            "method": "main.testStruct"
+            "method": "main.testStructWithCyclicMaps"
           }
         },
         "captures": {
           "entry": {
             "arguments": {
-              "x": {
-                "type": "main.aStruct",
+              "a": {
+                "type": "main.structWithCyclicMaps",
                 "fields": {
-                  "aBool": {
-                    "type": "bool",
-                    "value": "true"
+                  "m1": {
+                    "type": "map[struct {}]main.structWithCyclicMaps",
+                    "isNull": true
                   },
-                  "aString": {
-                    "type": "string",
-                    "value": "one"
+                  "m2": {
+                    "type": "map[struct {}]map[struct {}]main.structWithCyclicMaps",
+                    "isNull": true
                   },
-                  "aNumber": {
-                    "type": "int",
-                    "value": "2"
+                  "m3": {
+                    "type": "map[struct {}]map[struct {}]map[struct {}]main.structWithCyclicMaps",
+                    "isNull": true
                   },
-                  "nested": {
-                    "type": "main.nestedStruct",
-                    "fields": {
-                      "anotherInt": {
-                        "type": "int",
-                        "value": "3"
-                      },
-                      "anotherString": {
-                        "type": "string",
-                        "value": "four"
-                      }
-                    }
+                  "m4": {
+                    "type": "map[struct {}]map[struct {}]map[struct {}]map[struct {}]main.structWithCyclicMaps",
+                    "isNull": true
+                  },
+                  "m5": {
+                    "type": "map[struct {}]map[struct {}]map[struct {}]map[struct {}]map[struct {}]main.structWithCyclicMaps",
+                    "isNull": true
+                  },
+                  "m6": {
+                    "type": "map[struct {}]map[struct {}]map[struct {}]map[struct {}]map[struct {}]map[struct {}]main.structWithCyclicMaps",
+                    "isNull": true
                   }
                 }
               }
