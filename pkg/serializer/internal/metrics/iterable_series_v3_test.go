@@ -176,6 +176,41 @@ func TestPayloadBuilderV3_Split(t *testing.T) {
 	r.NotContains("foo", payloads[2].GetContent())
 }
 
+func TestPayloadBuilderV3_SplitTooBig(t *testing.T) {
+	// Test that payload contains all necessary data info after an item was dropped.
+
+	r := assert.New(t)
+	const ts = 1756737057.1
+	tags := tagset.NewCompositeTags([]string{"foo", "bar"}, []string{"ook", "eek"})
+	series := metrics.Series{
+		&metrics.Serie{
+			Name:           "serie1",
+			Tags:           tags,
+			SourceTypeName: "System",
+			Points:         slices.Repeat([]metrics.Point{{Ts: ts, Value: 0}}, 10000),
+		},
+		&metrics.Serie{
+			Name:           "serie1",
+			Tags:           tags,
+			SourceTypeName: "System",
+			Points:         []metrics.Point{{Ts: ts, Value: 2}},
+		},
+	}
+
+	pb, err := newPayloadsBuilderV3(180, 10000, 1000_0000, true, noopimpl.New())
+	require.NoError(t, err)
+
+	r.NoError(pb.writeSerie(series[0]))
+	r.NoError(pb.writeSerie(series[1]))
+	pb.finishPayload()
+	payloads := pb.transactionPayloads()
+	r.Len(payloads, 1)
+
+	r.Equal(1, payloads[0].GetPointCount())
+	r.Contains(string(payloads[0].GetContent()), "serie1")
+	r.Contains(string(payloads[0].GetContent()), "foo")
+}
+
 func TestPayloadBuilderV3_pointsLimit(t *testing.T) {
 	r := assert.New(t)
 	const ts = 1756737057.1

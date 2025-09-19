@@ -335,9 +335,29 @@ func (pb *payloadsBuilderV3) writeSerie(serie *metrics.Serie) error {
 
 	serie.PopulateDeviceField()
 	serie.PopulateResources()
-	pb.writeSerieToTxn(serie)
 
-	return pb.commit(serie)
+	for {
+		pb.writeSerieToTxn(serie)
+
+		err := pb.compressor.AddItem(pb.txn)
+		switch err {
+		case stream.ErrPayloadFull:
+			tlmSplitReason.Inc("payload_full")
+			err = pb.finishPayload()
+			if err != nil {
+				return err
+			}
+			continue
+		case stream.ErrItemTooBig:
+			tlmItemTooBig.Inc()
+			return nil
+		case nil:
+			pb.pointsThisPayload += len(serie.Points)
+			return nil
+		default:
+			return err
+		}
+	}
 }
 
 func (pb *payloadsBuilderV3) writeSerieToTxn(serie *metrics.Serie) {
@@ -391,29 +411,6 @@ func (pb *payloadsBuilderV3) writeSerieToTxn(serie *metrics.Serie) {
 		case valueFloat64:
 			pb.stats.valuesFloat64++
 			pb.txn.Float64(columnValueFloat64, pnt.Value)
-		}
-	}
-}
-
-func (pb *payloadsBuilderV3) commit(serie *metrics.Serie) error {
-	for {
-		err := pb.compressor.AddItem(pb.txn)
-		switch err {
-		case stream.ErrPayloadFull:
-			tlmSplitReason.Inc("payload_full")
-			err = pb.finishPayload()
-			if err != nil {
-				return err
-			}
-			continue
-		case stream.ErrItemTooBig:
-			tlmItemTooBig.Inc()
-			return nil
-		case nil:
-			pb.pointsThisPayload += len(serie.Points)
-			return nil
-		default:
-			return err
 		}
 	}
 }
