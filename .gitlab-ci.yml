@@ -177,7 +177,7 @@ variables:
   TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX: ""
   # Make sure to update test-infra-definitions version in go.mod as well
   TEST_INFRA_DEFINITIONS_BUILDIMAGES: f9c444a17bdc
-  DATADOG_AGENT_BUILDERS: v28719426-b6a4fd9
+  DATADOG_AGENT_BUILDERS: v76124889-5d86b9fb
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
   DEB_GPG_KEY_ID: c0962c7d
