@@ -8,6 +8,7 @@
 package serializers
 
 import (
+	"encoding/base64"
 	"fmt"
 	"slices"
 	"strings"
@@ -353,7 +354,7 @@ func newMatchedRulesSerializer(r *model.MatchedRule) MatchedRuleSerializer {
 
 func newFailedDNSEventSerializer(d *model.FailedDNSEvent) *FailedDNSEventSerializer {
 	return &FailedDNSEventSerializer{
-		Payload: string(d.Payload),
+		Payload: base64.StdEncoding.EncodeToString(d.Payload),
 	}
 }
 

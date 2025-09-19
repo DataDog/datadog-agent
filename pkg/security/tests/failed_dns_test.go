@@ -10,11 +10,16 @@ package tests
 
 // Package tests holds tests related files
 import (
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/stretchr/testify/assert"
 	"testing"
+	"time"
 )
 
 func TestFailedDNS(t *testing.T) {
@@ -23,7 +28,7 @@ func TestFailedDNS(t *testing.T) {
 
 	ruleDefs := []*rules.RuleDefinition{{
 		ID:         "failed_dns_rule",
-		Expression: fmt.Sprintf(`failed_dns.payload == failed_dns.payload`),
+		Expression: `dns.response.code != NXDOMAIN`,
 	}}
 
 	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
@@ -39,19 +44,40 @@ func TestFailedDNS(t *testing.T) {
 
 	defer test.Close()
 
-	// Injects garbage DNS responses and check the expected event was emitted
-	t.Run("failed_dns_response", func(t *testing.T) {
-		payload := "DEADBEEF"
-		test.WaitSignal(t, func() error {
-			fmt.Println("Injecting payload")
-			err = injectHexDump("lo", payload)
-			return nil
-		}, func(event *model.Event, rule *rules.Rule) {
+	payload := "0000000000000000000000000800450000a41fbd400001115b567f0000357f0000010035d7140090fed7deadb0ef11111111111111111111111111706c6503636f6d0000010001c00c00010001000000ea0004600780c6c00c00010001000000ea000417c0e454c00c00010001000000ea000417d7008ac00c00010001000000ea000417d70088c00c00010001000000ea000417c0e450c00c00010001000000ea0004600780af000029ffd6000000000000"
+	err = test.GetCustomEventSent(t, func() error {
+		err = injectHexDump("lo", payload)
+		return nil
+	}, func(r *rules.Rule, customEvent *events.CustomEvent) bool {
+		if r.Rule.ID == "failed_dns" {
+			b, _ := customEvent.MarshalJSON()
+			if err != nil {
+				t.Fatal(err)
+			}
 
-			fmt.Println("Received_injection")
-			assertTriggeredRule(t, rule, "failed_dns_rule")
+			var m map[string]json.RawMessage
+			if err := json.Unmarshal(b, &m); err != nil {
+				t.Fatal(err)
+			}
 
-			//test.validateAcceptSchema(t, event)
-		})
-	})
+			var payloadB64 string
+			if err := json.Unmarshal(m["payload"], &payloadB64); err != nil {
+				t.Fatal(err)
+			}
+
+			decoded, err := base64.StdEncoding.DecodeString(payloadB64)
+			if err != nil {
+				t.Fatal(err)
+			}
+			decodedStr := fmt.Sprintf("%x", decoded)
+
+			assert.Equal(t, decodedStr, payload[len(payload)-len(decodedStr):])
+			return true
+		}
+		return false
+	}, 3*time.Second, model.CustomEventType, events.FailedDNSRuleID)
+
+	if err != nil {
+		t.Fatal(err)
+	}
 }
