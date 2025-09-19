@@ -1,6 +1,7 @@
 import os
 import re
 import shutil
+import sys
 
 from invoke import task
 from invoke.exceptions import Exit
@@ -8,6 +9,7 @@ from invoke.exceptions import Exit
 from tasks.build_tags import get_default_build_tags
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_version_ldflags
+from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 BIN_NAME = "otel-agent"
 CFG_NAME = "otel-config.yaml"
@@ -57,6 +59,21 @@ def build(ctx, byoc=False):
         gcflags = "all=-N -l"
     else:
         gcflags = ""
+
+    # generate windows resources
+    # Shall we not hardcode the major_version? Options could be:
+    # - try to get major version from env vars such as DD_AGENT_MAJOR_VERSION or MAJOR_VERSION
+    # - try to resolve major version from git tag (git describe). which is similar to how
+    #   datadog agent does it.
+    if sys.platform == 'win32':
+        build_messagetable(ctx)
+        vars = versioninfo_vars(ctx, major_version='7')
+        build_rc(
+            ctx,
+            "cmd/otel-agent/windows_resources/otel-agent.rc",
+            vars=vars,
+            out="cmd/otel-agent/rsrc.syso",
+        )
 
     go_build(
         ctx,

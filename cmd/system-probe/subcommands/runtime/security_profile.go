@@ -195,7 +195,13 @@ func printSecurityProfileMessage(msg *api.SecurityProfileMessage) {
 	if len(msg.GetInstances()) > 0 {
 		fmt.Printf("%s  instances:\n", prefix)
 		for _, inst := range msg.GetInstances() {
-			fmt.Printf("%s    . container_id: %s\n", prefix, inst.GetContainerID())
+			if inst.GetContainerID() != "" {
+				fmt.Printf("%s    . container_id: %s\n", prefix, inst.GetContainerID())
+			} else if inst.GetCGroupID() != "" {
+				fmt.Printf("%s    . cgroup_id: %s\n", prefix, inst.GetCGroupID())
+			} else {
+				fmt.Printf("%s    . workload_id: (unknown)\n", prefix)
+			}
 			fmt.Printf("%s      tags: %v\n", prefix, inst.GetTags())
 		}
 	}

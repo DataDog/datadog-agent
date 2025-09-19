@@ -57,7 +57,7 @@ foreach ($s in $services.Keys) {
 # Since OpenSSL 3.4, the install paths can be retrieved from the registry instead of being hardcoded at build time.
 # https://github.com/openssl/openssl/blob/master/NOTES-WINDOWS.md#installation-directories
 # TODO: How best to configure the OpenSSL version?
-$opensslVersion = "3.4"
+$opensslVersion = "3.5"
 if ($env:WITH_FIPS -eq "true") {
   $opensslctx = "datadog-fips-agent"
 } else {
