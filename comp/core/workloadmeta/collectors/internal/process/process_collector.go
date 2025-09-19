@@ -45,10 +45,9 @@ import (
 )
 
 const (
-	collectorID               = "process-collector"
-	componentName             = "workloadmeta-process"
-	cacheValidityNoRT         = 2 * time.Second
-	serviceCollectionInterval = 60 * time.Second // TODO: this should be made configurable in the future
+	collectorID       = "process-collector"
+	componentName     = "workloadmeta-process"
+	cacheValidityNoRT = 2 * time.Second
 
 	// Service discovery constants
 	maxPortCheckTries = 10
@@ -166,6 +165,10 @@ func (c *collector) isServiceDiscoveryEnabled() bool {
 	return c.systemProbeConfig.GetBool("discovery.enabled")
 }
 
+func (c *collector) getServiceCollectionInterval() time.Duration {
+	return c.systemProbeConfig.GetDuration("discovery.service_collection_interval")
+}
+
 // isLanguageCollectionEnabled returns a boolean indicating if language collection is enabled
 func (c *collector) isLanguageCollectionEnabled() bool {
 	return c.config.GetBool("language_detection.enabled")
@@ -174,6 +177,7 @@ func (c *collector) isLanguageCollectionEnabled() bool {
 // processCollectionIntervalConfig returns the configured collection interval
 func (c *collector) processCollectionIntervalConfig() time.Duration {
 	processCollectionInterval := checks.GetInterval(c.config, checks.ProcessCheckName)
+	serviceCollectionInterval := c.getServiceCollectionInterval()
 	// service discovery data will be incorrect/empty if the process collection interval > service collection interval
 	// therefore, the service collection interval must be the max interval for process collection
 	if processCollectionInterval > serviceCollectionInterval {
@@ -195,7 +199,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 		return errors.NewDisabled(componentName, "wlm process collection disabled")
 	}
 
-	if !c.isProcessCollectionEnabled() && !c.isServiceDiscoveryEnabled() {
+	if !c.isProcessCollectionEnabled() && !c.isServiceDiscoveryEnabled() && !c.isLanguageCollectionEnabled() {
 		return errors.NewDisabled(componentName, "wlm process collection and service discovery are disabled")
 	}
 
@@ -208,11 +212,12 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 	}
 	c.store = store
 
-	if c.isProcessCollectionEnabled() {
+	if c.isProcessCollectionEnabled() || c.isLanguageCollectionEnabled() {
 		go c.collectProcesses(ctx, c.clock.Ticker(c.processCollectionIntervalConfig()))
 	}
 
 	if c.isServiceDiscoveryEnabled() {
+		serviceCollectionInterval := c.getServiceCollectionInterval()
 		// Initialize service discovery metric
 		c.metricDiscoveredServices = telemetry.NewGaugeWithOpts(
 			collectorID,
@@ -222,7 +227,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 			telemetry.DefaultOptions,
 		)
 
-		if c.isProcessCollectionEnabled() {
+		if c.isProcessCollectionEnabled() || c.isLanguageCollectionEnabled() {
 			log.Debug("Starting cached service collection (process collection enabled)")
 			go c.collectServicesCached(ctx, c.clock.Ticker(serviceCollectionInterval))
 		} else {
@@ -826,12 +831,16 @@ func convertModelServiceToService(modelService *model.Service) *workloadmeta.Ser
 		GeneratedNameSource:      modelService.GeneratedNameSource,
 		AdditionalGeneratedNames: modelService.AdditionalGeneratedNames,
 		TracerMetadata:           modelService.TracerMetadata,
-		DDService:                modelService.DDService,
 		TCPPorts:                 modelService.TCPPorts,
 		UDPPorts:                 modelService.UDPPorts,
 		APMInstrumentation:       modelService.APMInstrumentation,
 		Type:                     modelService.Type,
 		LogFiles:                 modelService.LogFiles,
+		UST: workloadmeta.UST{
+			Service: modelService.UST.Service,
+			Env:     modelService.UST.Env,
+			Version: modelService.UST.Version,
+		},
 	}
 }
 
