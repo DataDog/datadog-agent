@@ -84,3 +84,53 @@ You can run the Core Agent directly in the foreground with the following command
 /// note
 The file `bin/agent/dist/datadog.yaml` is copied from `dev/dist/datadog.yaml` by `dda inv agent.build` and must contain a valid API key. If this did not already exist, you can create a file at any path and reference that with the `-c` flag instead.
 ///
+
+## Agent Bundles
+As an option, the Agent can combine functionality from multiple binaries into a single one to reduce the space used on disk. We call this a "bundled agent".
+
+
+### Building an agent bundle
+
+To build a bundled agent, simply use the `--bundle` flag with the `dda inv agent.build` to include the features from other binaries alongside the main `agent` into your final artifacts.
+
+/// example
+To create a binary that contains the features from the main `agent`, as well as the features from `process-agent` and `security-agent`, use:
+```bash
+dda inv agent.build --bundle process-agent --bundle security-agent
+```
+///
+
+??? info "Under the hood"
+    Making a bundle - combining functionality from multiple binaries - just corresponds to building an agent binary including the source code from the others.
+
+    Like other features, this is accomplished through Go build constraints. Under the hood, building with a `--bundle` argument simply corresponds to including a special agent "feature".
+    > Those special features are named in a predictable pattern: `bundle_<binary name>`, ex: `bundle_process_agent`.
+
+    Thus, the following two commands are equivalent:
+    ```bash
+    dda inv agent.build --bundle process-agent --bundle security-agent
+    dda inv agent.build --build-include=bundle_process_agent,bundle_security_agent
+    ```
+
+### Using an agent bundle
+
+The bundled agent binary, when executed, will dynamically determine which binary to act as. This is determined according to:
+
+1. The value of the `DD_BUNDLED_AGENT` environment variable.
+1. If it is not set, the process name is used instead.
+1. As a fallback, the executable will behave as the 'main' Agent.
+
+
+/// example
+```bash
+# Build the agent bundle
+dda inv agent.build --bundle process-agent
+# -- The built artifact is available in bin/agent/agent
+
+# This behaves as the main agent
+./bin/agent/agent
+
+# This behaves as the process-agent
+DD_BUNDLED_AGENT=process-agent ./bin/agent/agent
+```
+///
