@@ -245,6 +245,7 @@ func (p *protocol) GetStats() (*protocols.ProtocolStats, func()) {
 		}, func() {
 			for _, stats := range keysToStats {
 				stats.Close()
+				requestStatsPool.Put(stats)
 			}
 		}
 }

@@ -365,6 +365,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault(join(discoveryNS, "network_stats.enabled"), true)
 	cfg.BindEnvAndSetDefault(join(discoveryNS, "network_stats.period"), "60s")
 	cfg.BindEnvAndSetDefault(join(discoveryNS, "ignored_command_names"), []string{"chronyd", "cilium-agent", "containerd", "dhclient", "dockerd", "kubelet", "livenessprobe", "local-volume-pr", "sshd", "systemd"})
+	cfg.BindEnvAndSetDefault(join(discoveryNS, "service_collection_interval"), "60s")
 
 	// Privileged Logs config
 	cfg.BindEnvAndSetDefault(join(privilegedLogsNS, "enabled"), false)

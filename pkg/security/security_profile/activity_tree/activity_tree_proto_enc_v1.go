@@ -236,7 +236,7 @@ func fileEventToProto(fe *model.FileEvent) *adproto.FileInfo {
 		Filesystem:        escape(fe.Filesystem),
 		PackageName:       fe.PkgName,
 		PackageVersion:    fe.PkgVersion,
-		PackageSrcversion: fe.PkgSrcVersion,
+		PackageSrcVersion: fe.PkgSrcVersion,
 		Hashes:            make([]string, len(fe.Hashes)),
 		HashState:         adproto.HashState(fe.HashState),
 	}
