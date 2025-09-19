@@ -52,6 +52,7 @@ type NetworkDevicesMetadata struct {
 	CollectTimestamp  int64                    `json:"collect_timestamp"`
 }
 
+// CollectorMetadata contains information about the collector (in this case the Agent)
 type CollectorMetadata struct {
 	AgentVersion  string `json:"agent_version"`
 	AgentHostname string `json:"agent_hostname"`
