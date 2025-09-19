@@ -32,6 +32,7 @@ class IndexKind(Enum):
 
     PACKAGE = "package"
     FILE = "file"
+    DIFFED_PACKAGE = "diffed_package"
 
 
 class DynamicTestIndex:
