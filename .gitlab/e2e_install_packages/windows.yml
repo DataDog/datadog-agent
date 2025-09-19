@@ -206,7 +206,8 @@ new-e2e-installer-windows:
       # install-script
       - EXTRA_PARAMS: --run "TestInstallScript$/TestInstallAgentPackage$"
       - EXTRA_PARAMS: --run "TestInstallScript$/TestInstallFromOldInstaller$"
-      - EXTRA_PARAMS: --run "TestInstallScript$/TestFailedUnsupportedVersion$"
+      - EXTRA_PARAMS: --run "TestInstallScript$/TestInstallIgnoreMajorMinor$"
+      - EXTRA_PARAMS: --run "TestInstallScript$/TestInstallCurrentWithOldInstallerScript$"
       - EXTRA_PARAMS: --run "TestInstallScriptWithAgentUser$"
       - EXTRA_PARAMS: --run "TestInstallScriptWithAgentUserOnDC$"
       # installer-package
