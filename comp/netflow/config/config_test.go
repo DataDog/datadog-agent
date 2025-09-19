@@ -41,6 +41,7 @@ network_devices:
     aggregator_port_rollup_disabled: true
     prometheus_listener_enabled: true
     prometheus_listener_address: 127.0.0.1:9099
+    portrollup_use_fixed_size_key: true
     listeners:
       - flow_type: netflow9
         bind_host: 127.0.0.1
@@ -55,6 +56,7 @@ network_devices:
           my-ns2<abc
           zz
     reverse_dns_enrichment_enabled: true
+    aggregation_hash_use_sync_pool: true
 `,
 			expectedConfig: NetflowConfig{
 				Enabled:                                true,
@@ -67,6 +69,7 @@ network_devices:
 				AggregatorPortRollupDisabled:           true,
 				PrometheusListenerEnabled:              true,
 				PrometheusListenerAddress:              "127.0.0.1:9099",
+				PortRollupUseFixedSizeKey:              true,
 				Listeners: []ListenerConfig{
 					{
 						FlowType:  common.TypeNetFlow9,
@@ -84,6 +87,7 @@ network_devices:
 					},
 				},
 				ReverseDNSEnrichmentEnabled: true,
+				AggregationHashUseSyncPool:  true,
 			},
 		},
 		{
