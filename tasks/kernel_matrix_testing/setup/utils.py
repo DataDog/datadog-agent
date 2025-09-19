@@ -10,6 +10,8 @@ import sys
 import tempfile
 from pathlib import Path
 from typing import cast
+import getpass
+
 
 from invoke.context import Context
 from invoke.runners import Result
@@ -345,3 +347,18 @@ class PipPackageManager(_BasePackageManager):
 
     def _install_packages(self, packages: list[str]) -> None:
         self.ctx.run(f"{self.pip_command} install {' '.join(packages)}")
+
+
+def check_user_in_group(ctx: Context, group: str, fix=False) -> RequirementState:
+    res = ctx.run(f"cat /proc/$$/status | grep '^Groups:' | grep $(cat /etc/group | grep '{group}:' | cut -d ':' -f 3)", warn=True)
+    if res is not None and res.ok:
+        return RequirementState(Status.OK, f"User is in group {group}.")
+
+    if not fix:
+        return RequirementState(Status.FAIL, f"User is not in group {group}.", fixable=fix)
+
+    sudo = "sudo " if not is_root() else ""
+    ctx.run(f"{sudo}usermod -aG {group} {getpass.getuser()}")
+    ctx.run(f"{sudo}newgrp {group}")  # Ensure the user is in the group immediately
+
+    return RequirementState(Status.OK, f"User added to group {group}.")

@@ -9,7 +9,7 @@ from tasks.libs.types.arch import Arch
 from ..tool import is_root
 from .common import Docker
 from .requirement import Requirement, RequirementState
-from .utils import UbuntuPackageManager, UbuntuSnapPackageManager
+from .utils import UbuntuPackageManager, UbuntuSnapPackageManager, check_user_in_group
 
 
 def get_requirements() -> list[Requirement]:
@@ -19,18 +19,8 @@ def get_requirements() -> list[Requirement]:
 class UserInDockerGroup(Requirement):
     dependencies: list[type[Requirement]] = [Docker]
 
-    def check(self, ctx: Context, _: bool) -> RequirementState:
-        ret = ctx.run(
-            "cat /proc/$$/status | grep '^Groups:' | grep $(cat /etc/group | grep 'docker:' | cut -d ':' -f 3)",
-            warn=True,
-        )
-        if ret is None or not ret.ok:
-            return RequirementState(
-                Status.FAIL,
-                f"User '{getpass.getuser()}' is not in docker group. Please resolve this https://docs.docker.com/engine/install/linux-postinstall/",
-            )
-
-        return RequirementState(Status.OK, "User is in docker group.")
+    def check(self, ctx: Context, fix: bool) -> RequirementState:
+        return check_user_in_group(ctx, "docker", fix=fix)
 
 
 class LinuxBasePackages(Requirement):

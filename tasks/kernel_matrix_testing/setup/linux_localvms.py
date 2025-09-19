@@ -7,7 +7,7 @@ from tasks.libs.common.status import Status
 
 from ..kmt_os import get_kmt_os
 from .requirement import Requirement, RequirementState
-from .utils import UbuntuPackageManager, check_directories, ensure_options_in_config
+from .utils import UbuntuPackageManager, check_directories, check_user_in_group, ensure_options_in_config
 
 
 def get_requirements() -> list[Requirement]:
@@ -131,3 +131,12 @@ class LinuxLocalVMDirectories(Requirement):
         group = kmt_os.libvirt_group
 
         return check_directories(ctx, dirs, fix, user, group, 0o755)
+
+class LinuxGroups(Requirement):
+    def check(self, ctx: Context, fix: bool) -> list[RequirementState]:
+        groups = ["kvm", "libvirt"]
+        states = []
+        for group in groups:
+            states.append(check_user_in_group(ctx, group, fix=fix))
+
+        return states
