@@ -1,5 +1,4 @@
 #include "ktypes.h"
-#include "defs.h"
 #ifndef COMPILE_CORE
 #include "kconfig.h"
 #endif
@@ -9,6 +8,7 @@
 #include "bpf_endian.h"
 #include "bpf_metadata.h"
 #include "bpf_bypass.h"
+#include "defs.h"
 
 #ifdef COMPILE_PREBUILT
 #include "prebuilt/offsets.h"
