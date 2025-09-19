@@ -1,0 +1,62 @@
+package lib
+
+import (
+	"fmt"
+	"strconv"
+
+	"github.com/hashicorp/go-retryablehttp"
+	gitlab "gitlab.com/gitlab-org/api/client-go"
+
+	credssupport "github.com/DataDog/dd-source/domains/actionplatform/apps/private-runner/src/bundle-support/credentials"
+	runtimepb "github.com/DataDog/dd-source/domains/actionplatform/proto/runtime"
+)
+
+const (
+	urlTokenName = "baseURL"
+	apiTokenName = "gitlabApiToken"
+
+	defaultBaseURL = "https://gitlab.com"
+)
+
+// A Number represents a JSON number literal.
+type Number string
+
+// String returns the literal text of the number.
+func (n Number) String() string { return string(n) }
+
+// Float64 returns the number as a float64.
+func (n Number) Float64() (float64, error) {
+	return strconv.ParseFloat(string(n), 64)
+}
+
+// Int64 returns the number as an int64.
+func (n Number) Int64() (int64, error) {
+	return strconv.ParseInt(string(n), 10, 64)
+}
+
+func NewGitlabClient(credential *runtimepb.Credential) (*gitlab.Client, error) {
+	credentialTokens, err := credssupport.ToTokensMap(credential)
+	if err != nil {
+		return nil, err
+	}
+	apiToken := credentialTokens[apiTokenName]
+	baseURL := credentialTokens[urlTokenName]
+	if baseURL == "" {
+		baseURL = defaultBaseURL
+	}
+	git, err := gitlab.NewClient(apiToken, gitlab.WithBaseURL(baseURL))
+	if err != nil {
+		return nil, fmt.Errorf("could not create the gitlab client: %w", err)
+	}
+	return git, nil
+}
+
+func WithPagination(page, perPage int) gitlab.RequestOptionFunc {
+	return func(req *retryablehttp.Request) error {
+		q := req.URL.Query()
+		q.Add("page", strconv.Itoa(page))
+		q.Add("per_page", strconv.Itoa(perPage))
+		req.URL.RawQuery = q.Encode()
+		return nil
+	}
+}

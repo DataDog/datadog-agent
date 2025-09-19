@@ -1,0 +1,58 @@
+package com_datadoghq_gitlab_projects
+
+import (
+	"context"
+
+	gitlab "gitlab.com/gitlab-org/api/client-go"
+
+	"github.com/DataDog/dd-source/domains/actionplatform/apps/private-runner/src/private-bundles/com/datadoghq/gitlab/lib"
+	"github.com/DataDog/dd-source/domains/actionplatform/apps/private-runner/src/types"
+	runtimepb "github.com/DataDog/dd-source/domains/actionplatform/proto/runtime"
+)
+
+type CreateProjectHandler struct{}
+
+func NewCreateProjectHandler() *CreateProjectHandler {
+	return &CreateProjectHandler{}
+}
+
+type CreateProjectInputs struct {
+	Name          *string                      `json:"name"`
+	Path          *string                      `json:"path"`
+	DefaultBranch *string                      `json:"default_branch"`
+	Description   *string                      `json:"description"`
+	Options       *gitlab.CreateProjectOptions `json:"options"`
+}
+
+type CreateProjectOutputs struct {
+	Project *gitlab.Project `json:"project"`
+}
+
+func (h *CreateProjectHandler) Run(
+	ctx context.Context,
+	task *types.Task,
+	credential *runtimepb.Credential,
+) (any, error) {
+	inputs, err := types.ExtractInputs[CreateProjectInputs](task)
+	if err != nil {
+		return nil, err
+	}
+	git, err := lib.NewGitlabClient(credential)
+	if err != nil {
+		return nil, err
+	}
+
+	opts := &gitlab.CreateProjectOptions{}
+	if inputs.Options != nil {
+		opts = inputs.Options
+	}
+	opts.Name = inputs.Name
+	opts.Path = inputs.Path
+	opts.DefaultBranch = inputs.DefaultBranch
+	opts.Description = inputs.Description
+	project, _, err := git.Projects.CreateProject(opts)
+	if err != nil {
+		return nil, err
+	}
+	return &CreateProjectOutputs{Project: project}, nil
+}
