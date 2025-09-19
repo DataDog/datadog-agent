@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	serverlessmodifier "github.com/DataDog/datadog-agent/pkg/serverless/trace/modifier"
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
@@ -153,7 +154,7 @@ func StartServerlessTraceAgent(args StartServerlessTraceAgentArgs) ServerlessTra
 }
 
 func startTraceAgentConfigEndpoint(rcService *remoteconfig.CoreAgentService, tc *config.AgentConfig) {
-	if pkgconfigsetup.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) && rcService != nil {
+	if configUtils.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) && rcService != nil {
 		statsdNoopClient := &statsd.NoOpClient{}
 		api.AttachEndpoint(api.Endpoint{
 			Pattern: "/v0.7/config",
