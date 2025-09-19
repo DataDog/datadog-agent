@@ -45,6 +45,7 @@ func TestNewSecureClientOptions(t *testing.T) {
 				baseURL:           srv.URL,
 				targetProcessName: "test-process",
 			},
+			shouldTimeout: false,
 		},
 		{
 			name: "with 500ms timeout [should fail]",
