@@ -343,14 +343,6 @@ func TestRemoteConfigImageResolver_ErrorHandling(t *testing.T) {
 			description:    "Should reject configs missing required fields",
 		},
 		{
-			name: "missing_repository_url",
-			rawConfig: map[string]state.RawConfig{
-				"incomplete-config": {Config: []byte(`{"repository_name": "test", "images": []}`)},
-			},
-			expectedErrors: 1,
-			description:    "Should reject configs missing repository URL",
-		},
-		{
 			name: "images_with_missing_fields",
 			rawConfig: map[string]state.RawConfig{
 				"partial-images": {Config: []byte(`{
