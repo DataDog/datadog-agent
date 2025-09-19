@@ -138,3 +138,8 @@ func (s *EnvironmentService) GetExtraConfig(_ string) (string, error) {
 // FilterTemplates does nothing.
 func (s *EnvironmentService) FilterTemplates(_ map[string]integration.Config) {
 }
+
+// GetImageName does nothing
+func (s *EnvironmentService) GetImageName() string {
+	return ""
+}

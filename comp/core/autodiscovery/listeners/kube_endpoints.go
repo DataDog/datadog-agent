@@ -511,3 +511,8 @@ func (s *KubeEndpointService) GetExtraConfig(_ string) (string, error) {
 // FilterTemplates does nothing.
 func (s *KubeEndpointService) FilterTemplates(map[string]integration.Config) {
 }
+
+// GetImageName does nothing
+func (s *KubeEndpointService) GetImageName() string {
+	return ""
+}

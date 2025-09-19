@@ -252,3 +252,8 @@ func (d *DBMRdsService) GetExtraConfig(key string) (string, error) {
 // FilterTemplates does nothing.
 func (d *DBMRdsService) FilterTemplates(map[string]integration.Config) {
 }
+
+// GetImageName does nothing
+func (d *DBMRdsService) GetImageName() string {
+	return ""
+}

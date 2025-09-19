@@ -181,7 +181,8 @@ func (l *KubeletListener) createContainerService(
 			workloadmetafilter.CreateContainerFromOrch(podContainer, workloadmetafilter.CreatePod(pod)),
 			l.filterStore.GetContainerAutodiscoveryFilters(workloadfilter.LogsFilter),
 		),
-		tagger: l.tagger,
+		tagger:    l.tagger,
+		imageName: containerImg.RawName,
 	}
 
 	adIdentifier := containerName
