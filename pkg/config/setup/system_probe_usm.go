@@ -34,40 +34,47 @@ func initUSMSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// ========================================
 	// HTTP Protocol Configuration
 	// ========================================
+	// New tree structure with backward compatibility
+	cfg.BindEnvAndSetDefault(join(smNS, "http", "enabled"), true)
+	// Deprecated flat keys for backward compatibility
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_http_monitoring"), true)
-	// For backward compatibility
-	cfg.BindEnv(join(netNS, "enable_http_monitoring"), "DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	cfg.BindEnvAndSetDefault(join(netNS, "enable_http_monitoring"), true, "DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING")
 
+	cfg.BindEnvAndSetDefault(join(smNS, "http", "max_stats_buffered"), 100000)
+	// Deprecated flat keys for backward compatibility
 	cfg.BindEnvAndSetDefault(join(smNS, "max_http_stats_buffered"), 100000)
-	// For backward compatibility
-	cfg.BindEnv(join(netNS, "max_http_stats_buffered"), "DD_SYSTEM_PROBE_NETWORK_MAX_HTTP_STATS_BUFFERED") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	cfg.BindEnvAndSetDefault(join(netNS, "max_http_stats_buffered"), 100000, "DD_SYSTEM_PROBE_NETWORK_MAX_HTTP_STATS_BUFFERED")
 
+	cfg.BindEnvAndSetDefault(join(smNS, "http", "max_tracked_connections"), 1024)
+	// Deprecated flat keys for backward compatibility
 	cfg.BindEnvAndSetDefault(join(smNS, "max_tracked_http_connections"), 1024)
-	// For backward compatibility
-	cfg.BindEnv(join(netNS, "max_tracked_http_connections")) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	cfg.BindEnvAndSetDefault(join(netNS, "max_tracked_http_connections"), 1024)
 
+	cfg.BindEnvAndSetDefault(join(smNS, "http", "notification_threshold"), 512)
+	// Deprecated flat keys for backward compatibility
 	cfg.BindEnvAndSetDefault(join(smNS, "http_notification_threshold"), 512)
-	// For backward compatibility
-	cfg.BindEnv(join(netNS, "http_notification_threshold")) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	cfg.BindEnvAndSetDefault(join(netNS, "http_notification_threshold"), 512)
 
-	// Default value (512) is set in `adjustUSM`, to avoid having "deprecation warning", due to the default value.
-	cfg.BindEnv(join(smNS, "http_max_request_fragment")) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	// For backward compatibility
-	cfg.BindEnv(join(netNS, "http_max_request_fragment")) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	cfg.BindEnvAndSetDefault(join(smNS, "http", "max_request_fragment"), 512) // matches hard limit currently imposed in NPM driver
+	// Deprecated flat keys for backward compatibility
+	cfg.BindEnvAndSetDefault(join(smNS, "http_max_request_fragment"), 512)
+	cfg.BindEnvAndSetDefault(join(netNS, "http_max_request_fragment"), 512)
 
+	cfg.BindEnvAndSetDefault(join(smNS, "http", "map_cleaner_interval_seconds"), 300)
+	// Deprecated flat keys for backward compatibility
 	cfg.BindEnvAndSetDefault(join(smNS, "http_map_cleaner_interval_in_s"), 300)
-	// For backward compatibility
-	cfg.BindEnv(join(spNS, "http_map_cleaner_interval_in_s")) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	cfg.BindEnvAndSetDefault(join(spNS, "http_map_cleaner_interval_in_s"), 300)
 
+	cfg.BindEnvAndSetDefault(join(smNS, "http", "idle_connection_ttl_seconds"), 30)
+	// Deprecated flat keys for backward compatibility
 	cfg.BindEnvAndSetDefault(join(smNS, "http_idle_connection_ttl_in_s"), 30)
-	// For backward compatibility
-	cfg.BindEnv(join(spNS, "http_idle_connection_ttl_in_s")) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	cfg.BindEnvAndSetDefault(join(spNS, "http_idle_connection_ttl_in_s"), 30)
 
-	oldHTTPRules := join(netNS, "http_replace_rules")
-	newHTTPRules := join(smNS, "http_replace_rules")
-	cfg.BindEnv(newHTTPRules) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	// For backward compatibility
-	cfg.BindEnv(oldHTTPRules, "DD_SYSTEM_PROBE_NETWORK_HTTP_REPLACE_RULES") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	// HTTP replace rules configuration
+	cfg.BindEnvAndSetDefault(join(smNS, "http", "replace_rules"), nil)
+	// Deprecated flat keys for backward compatibility
+	cfg.BindEnvAndSetDefault(join(smNS, "http_replace_rules"), nil)
+	cfg.BindEnvAndSetDefault(join(netNS, "http_replace_rules"), nil, "DD_SYSTEM_PROBE_NETWORK_HTTP_REPLACE_RULES")
 
 	httpRulesTransformer := func(key string) transformerFunction {
 		return func(in string) []map[string]string {
@@ -78,8 +85,14 @@ func initUSMSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 			return out
 		}
 	}
-	cfg.ParseEnvAsSliceMapString(oldHTTPRules, httpRulesTransformer(oldHTTPRules))
-	cfg.ParseEnvAsSliceMapString(newHTTPRules, httpRulesTransformer(newHTTPRules))
+	replaceRules := []string{
+		join(smNS, "http", "replace_rules"),
+		join(smNS, "http_replace_rules"),
+		join(netNS, "http_replace_rules"),
+	}
+	for _, rule := range replaceRules {
+		cfg.ParseEnvAsSliceMapString(rule, httpRulesTransformer(rule))
+	}
 
 	// ========================================
 	// HTTP/2 Protocol Configuration
