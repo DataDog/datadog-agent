@@ -111,8 +111,8 @@ func OpenPrivileged(socketPath string, filePath string) (*os.File, error) {
 	return nil, fmt.Errorf("no file descriptor received")
 }
 
-// Open attemps to open a file, and if it fails due to permissions, it opens the
-// file using system-probe if the privileged logs module is available.
+// Open attempts to open a file, and if it fails due to permissions, it opens
+// the file using system-probe if the privileged logs module is available.
 func Open(path string) (*os.File, error) {
 	file, err := os.Open(path)
 	if err == nil || !errors.Is(err, os.ErrPermission) {
