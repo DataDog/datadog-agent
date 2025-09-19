@@ -21,7 +21,7 @@ import (
 
 func TestIsolateCheckSuccessful(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	testDispatcher := newDispatcher(fakeTagger)
+	testDispatcher := newDispatcher(fakeTagger, nil)
 	testDispatcher.store.nodes["A"] = newNodeStore("A", "")
 	testDispatcher.store.nodes["A"].workers = pkgconfigsetup.DefaultNumWorkers
 	testDispatcher.store.nodes["B"] = newNodeStore("B", "")
@@ -102,7 +102,7 @@ func TestIsolateCheckSuccessful(t *testing.T) {
 
 func TestIsolateNonExistentCheckFails(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	testDispatcher := newDispatcher(fakeTagger)
+	testDispatcher := newDispatcher(fakeTagger, nil)
 	testDispatcher.store.nodes["A"] = newNodeStore("A", "")
 	testDispatcher.store.nodes["A"].workers = pkgconfigsetup.DefaultNumWorkers
 	testDispatcher.store.nodes["B"] = newNodeStore("B", "")
@@ -181,7 +181,7 @@ func TestIsolateNonExistentCheckFails(t *testing.T) {
 
 func TestIsolateCheckOnlyOneRunnerFails(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	testDispatcher := newDispatcher(fakeTagger)
+	testDispatcher := newDispatcher(fakeTagger, nil)
 	testDispatcher.store.nodes["A"] = newNodeStore("A", "")
 	testDispatcher.store.nodes["A"].workers = pkgconfigsetup.DefaultNumWorkers
 

@@ -9,6 +9,8 @@ package clusterchecks
 
 import (
 	"fmt"
+	"hash/fnv"
+	"sort"
 	"strings"
 
 	"gopkg.in/yaml.v2"
@@ -56,13 +58,15 @@ var KnownNamespaceScopedCollectors = map[string]bool{
 
 // KSMShardingManager handles the sharding logic for KSM checks
 type KSMShardingManager struct {
-	enabled bool
+	enabled    bool
+	numBuckets int
 }
 
 // NewKSMShardingManager creates a new KSM sharding manager
 func NewKSMShardingManager(enabled bool) *KSMShardingManager {
 	return &KSMShardingManager{
-		enabled: enabled,
+		enabled:    enabled,
+		numBuckets: 10, // Default to 10 buckets for namespace sharding
 	}
 }
 
@@ -193,15 +197,120 @@ func (m *KSMShardingManager) CreateShardedKSMConfigs(
 		clusterConfig = m.createKSMConfigWithCollectors(baseConfig, clusterCollectors, "", "cluster-wide")
 	}
 
-	// Create namespace-sharded configs
+	// Create namespace-sharded configs using bucketing
 	if len(namespacedCollectors) > 0 {
-		for _, ns := range namespaces {
-			nsConfig := m.createKSMConfigWithCollectors(baseConfig, namespacedCollectors, ns, "namespaced")
-			shardedConfigs = append(shardedConfigs, nsConfig)
+		if len(namespaces) == 0 {
+			// Workloadmeta not ready - don't create any sharded configs
+			// We'll fall back to normal (non-sharded) scheduling
+			// This avoids creating empty buckets that would waste resources
+			log.Infof("No namespaces available yet for KSM sharding, will retry later")
+			return nil, clusterConfig, fmt.Errorf("no namespaces available for sharding")
+		}
+		// Group known namespaces into buckets
+		buckets := m.bucketNamespaces(namespaces)
+
+		// Log bucket distribution
+		log.Infof("Bucketed %d namespaces into %d buckets:", len(namespaces), len(buckets))
+		for bucketID, nsInBucket := range buckets {
+			log.Debugf("  Bucket %d: %d namespaces - %v", bucketID, len(nsInBucket), nsInBucket)
+		}
+
+		// Create a config for each non-empty bucket
+		for bucketID, nsInBucket := range buckets {
+			if len(nsInBucket) > 0 {
+				bucketConfig := m.createKSMConfigWithNamespaces(baseConfig, namespacedCollectors, nsInBucket, "namespaced", bucketID)
+				shardedConfigs = append(shardedConfigs, bucketConfig)
+			}
+		}
+
+		// Log if we skipped any empty buckets
+		if len(shardedConfigs) < m.numBuckets && len(namespaces) >= m.numBuckets {
+			log.Debugf("Created %d bucket configs out of %d possible buckets (skipped empty buckets)", len(shardedConfigs), m.numBuckets)
 		}
 	}
 
 	return shardedConfigs, clusterConfig, nil
+}
+
+// bucketNamespaces groups namespaces into buckets using consistent hashing
+func (m *KSMShardingManager) bucketNamespaces(namespaces []string) map[int][]string {
+	buckets := make(map[int][]string)
+
+	// Always use hash-based bucketing for consistency
+	// This ensures a namespace always goes to the same bucket regardless of total namespace count
+	for _, ns := range namespaces {
+		bucketID := m.hashNamespaceToBucket(ns)
+		buckets[bucketID] = append(buckets[bucketID], ns)
+	}
+
+	return buckets
+}
+
+// hashNamespaceToBucket uses consistent hashing to assign a namespace to a bucket
+func (m *KSMShardingManager) hashNamespaceToBucket(namespace string) int {
+	h := fnv.New32a()
+	h.Write([]byte(namespace))
+	return int(h.Sum32() % uint32(m.numBuckets))
+}
+
+// createKSMConfigWithNamespaces creates a KSM config for multiple namespaces
+func (m *KSMShardingManager) createKSMConfigWithNamespaces(
+	baseConfig integration.Config,
+	collectors []string,
+	namespaces []string,
+	shardType string,
+	_ int, // bucketID - removed from tags but kept for logging
+) integration.Config {
+	// Sort namespaces for consistent ordering
+	sort.Strings(namespaces)
+
+	// Create a new config by copying fields manually
+	config := integration.Config{
+		Name:                    baseConfig.Name,
+		InitConfig:              baseConfig.InitConfig,
+		MetricConfig:            baseConfig.MetricConfig,
+		LogsConfig:              baseConfig.LogsConfig,
+		ADIdentifiers:           baseConfig.ADIdentifiers,
+		AdvancedADIdentifiers:   baseConfig.AdvancedADIdentifiers,
+		Provider:                baseConfig.Provider,
+		ServiceID:               baseConfig.ServiceID,
+		TaggerEntity:            baseConfig.TaggerEntity,
+		ClusterCheck:            baseConfig.ClusterCheck,
+		NodeName:                baseConfig.NodeName,
+		Source:                  baseConfig.Source,
+		IgnoreAutodiscoveryTags: baseConfig.IgnoreAutodiscoveryTags,
+		MetricsExcluded:         baseConfig.MetricsExcluded,
+		LogsExcluded:            baseConfig.LogsExcluded,
+	}
+
+	// Parse existing instance config
+	var instance map[string]interface{}
+	if len(baseConfig.Instances) > 0 {
+		if err := yaml.Unmarshal(baseConfig.Instances[0], &instance); err != nil {
+			log.Warnf("Failed to unmarshal KSM instance config: %v", err)
+			instance = make(map[string]interface{})
+		}
+	} else {
+		instance = make(map[string]interface{})
+	}
+
+	// Set collectors
+	instance["collectors"] = collectors
+
+	// Set namespace filter for the bucket
+	instance["namespaces"] = namespaces
+
+	// Preserve existing tags only - avoid adding new tags to reduce cardinality
+	tags := getExistingTags(instance)
+	// Only add shard type tag for identifying the config type
+	tags = append(tags, fmt.Sprintf("ksm_shard_type:%s", shardType))
+	instance["tags"] = tags
+
+	// Serialize back to YAML
+	data, _ := yaml.Marshal(instance)
+	config.Instances = []integration.Data{integration.Data(data)}
+
+	return config
 }
 
 // createKSMConfigWithCollectors creates a KSM config with specific collectors and namespace

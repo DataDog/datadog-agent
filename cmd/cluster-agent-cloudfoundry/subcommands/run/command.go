@@ -331,7 +331,7 @@ func initializeBBSCache(ctx context.Context) error {
 }
 
 func setupClusterCheck(ctx context.Context, ac autodiscovery.Component, tagger tagger.Component) (*clusterchecks.Handler, error) {
-	handler, err := clusterchecks.NewHandler(ac, tagger)
+	handler, err := clusterchecks.NewHandler(ac, tagger, nil)
 	if err != nil {
 		return nil, err
 	}
