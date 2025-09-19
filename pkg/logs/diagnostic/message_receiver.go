@@ -77,6 +77,10 @@ func (b *BufferedMessageReceiver) SetEnabled(e bool) bool {
 	b.m.Lock()
 	defer b.m.Unlock()
 
+	if b.inputChan == nil {
+		return false
+	}
+
 	if b.enabled == e {
 		return false
 	}

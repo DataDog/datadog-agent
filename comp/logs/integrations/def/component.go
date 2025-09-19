@@ -30,4 +30,7 @@ type Component interface {
 
 	// SendLog allows integrations to send logs to any subscribers.
 	SendLog(log, integrationID string)
+
+	// SetActionCallback sets the callback to be called when integration actions are performed.
+	SetActionCallback(callback func() error)
 }
