@@ -300,12 +300,19 @@ class MacosPackageManager(_BasePackageManager):
 
 
 class UbuntuSnapPackageManager(_BasePackageManager):
+    def __init__(self, ctx: Context, classic: bool = False):
+        super().__init__(ctx)
+        self.classic = classic
+
     def _package_exists(self, package: str) -> bool:
         return cast(Result, self.ctx.run(f"snap list {package}", warn=True)).ok
 
     def _install_packages(self, packages: list[str]) -> None:
         sudo = "sudo " if not is_root() else ""
-        self.ctx.run(f"{sudo}snap install {' '.join(packages)}")
+        cmd = f"{sudo}snap install {' '.join(packages)}"
+        if self.classic:
+            cmd += " --classic"
+        self.ctx.run(cmd)
 
 
 class PipPackageManager(_BasePackageManager):

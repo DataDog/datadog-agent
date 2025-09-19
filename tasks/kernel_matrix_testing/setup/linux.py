@@ -62,7 +62,7 @@ class LinuxBasePackages(Requirement):
             snap_packages.append("aws-cli")
 
         # Not on the default repos, so we have to use snap
-        snap_pkg_state = UbuntuSnapPackageManager(ctx).check(snap_packages, fix)
+        snap_pkg_state = UbuntuSnapPackageManager(ctx, classic=True).check(snap_packages, fix)
         apt_pkg_state = UbuntuPackageManager(ctx).check(apt_packages, fix)
 
         return [snap_pkg_state, apt_pkg_state, self._check_aws_vault(ctx, fix)]
