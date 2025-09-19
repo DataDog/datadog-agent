@@ -132,7 +132,7 @@ func TestServiceStoreLifetimeProcessCollectionDisabled(t *testing.T) {
 	tests := []struct {
 		name               string
 		shouldError        bool
-		httpResponse       *model.ServicesEndpointResponse
+		httpResponse       *model.ServicesResponse
 		ignoredPids        []int32
 		processesToCollect map[int32]*procutil.Process
 		existingProcesses  []*workloadmeta.Process
@@ -145,7 +145,7 @@ func TestServiceStoreLifetimeProcessCollectionDisabled(t *testing.T) {
 			processesToCollect: map[int32]*procutil.Process{
 				pidNewService: makeProcess(pidNewService, baseTime.Add(-2*time.Minute).UnixMilli(), nil),
 			},
-			httpResponse: &model.ServicesEndpointResponse{
+			httpResponse: &model.ServicesResponse{
 				Services: []model.Service{makeModelService(pidNewService, "new-service")},
 			},
 			expectStored: []*workloadmeta.Process{makeProcessEntityWithService(pidNewService, baseTime.Add(-2*time.Minute), languagePython, "new-service")},
@@ -163,7 +163,7 @@ func TestServiceStoreLifetimeProcessCollectionDisabled(t *testing.T) {
 				pidNewService: makeProcess(pidNewService, baseTime.Add(-2*time.Minute).UnixMilli(), nil),
 			},
 			ignoredPids: []int32{pidIgnoredService},
-			httpResponse: &model.ServicesEndpointResponse{
+			httpResponse: &model.ServicesResponse{
 				Services: []model.Service{makeModelService(pidIgnoredService, "ignored-service")},
 			},
 		},
@@ -177,7 +177,7 @@ func TestServiceStoreLifetimeProcessCollectionDisabled(t *testing.T) {
 				pidFreshService: makeProcess(pidFreshService, baseTime.Add(-5*time.Minute).UnixMilli(), nil),
 				pidStaleService: makeProcess(pidStaleService, baseTime.Add(-20*time.Minute).UnixMilli(), nil),
 			},
-			httpResponse: &model.ServicesEndpointResponse{
+			httpResponse: &model.ServicesResponse{
 				Services: []model.Service{
 					makeModelService(pidStaleService, "stale-existing"),
 				},
@@ -199,7 +199,7 @@ func TestServiceStoreLifetimeProcessCollectionDisabled(t *testing.T) {
 				// set its start time to baseTime + 30s so that now - start = 30s when the tick fires.
 				pidRecentService: makeProcess(pidRecentService, baseTime.Add(30*time.Second).UnixMilli(), nil),
 			},
-			httpResponse: &model.ServicesEndpointResponse{
+			httpResponse: &model.ServicesResponse{
 				Services: []model.Service{makeModelService(pidRecentService, "recent-service")},
 			},
 			expectNoEntities: []int32{pidRecentService}, // Process should exist but have no service data
@@ -275,7 +275,7 @@ func TestServiceStoreLifetime(t *testing.T) {
 	tests := []struct {
 		name                string
 		shouldError         bool
-		httpResponse        *model.ServicesEndpointResponse
+		httpResponse        *model.ServicesResponse
 		ignoredPids         []int32
 		existingProcessData []*workloadmeta.Process
 		existingServiceData []*workloadmeta.Process
@@ -288,7 +288,7 @@ func TestServiceStoreLifetime(t *testing.T) {
 			processesToCollect: map[int32]*procutil.Process{
 				pidNewService: makeProcess(pidNewService, baseTime.Add(-2*time.Minute).UnixMilli(), languagePython),
 			},
-			httpResponse: &model.ServicesEndpointResponse{
+			httpResponse: &model.ServicesResponse{
 				Services: []model.Service{makeModelService(pidNewService, "new-service")},
 			},
 			expectStored: []*workloadmeta.Process{makeProcessEntityWithService(pidNewService, baseTime.Add(-2*time.Minute), languagePython, "new-service")},
@@ -308,7 +308,7 @@ func TestServiceStoreLifetime(t *testing.T) {
 				pidIgnoredService: makeProcess(pidIgnoredService, baseTime.Add(-2*time.Minute).UnixMilli(), languagePython),
 			},
 			ignoredPids: []int32{pidIgnoredService},
-			httpResponse: &model.ServicesEndpointResponse{
+			httpResponse: &model.ServicesResponse{
 				Services: []model.Service{makeModelService(pidIgnoredService, "ignored-service")},
 			},
 			// Process should exist but have no service data
@@ -328,7 +328,7 @@ func TestServiceStoreLifetime(t *testing.T) {
 				pidFreshService: makeProcess(pidFreshService, baseTime.Add(-5*time.Minute).UnixMilli(), languagePython),
 				pidStaleService: makeProcess(pidStaleService, baseTime.Add(-20*time.Minute).UnixMilli(), languagePython),
 			},
-			httpResponse: &model.ServicesEndpointResponse{
+			httpResponse: &model.ServicesResponse{
 				Services: []model.Service{
 					makeModelService(pidStaleService, "stale-existing"), // Only stale service should be requested
 				},
@@ -349,7 +349,7 @@ func TestServiceStoreLifetime(t *testing.T) {
 				// 30 seconds ago = 1 minute and 30 seconds from now
 				pidRecentService: makeProcess(pidRecentService, baseTime.Add(time.Minute+30*time.Second).UnixMilli(), languagePython),
 			},
-			httpResponse: &model.ServicesEndpointResponse{
+			httpResponse: &model.ServicesResponse{
 				Services: []model.Service{makeModelService(pidRecentService, "recent-service")},
 			},
 			// Process should exist but have no service data
@@ -476,7 +476,7 @@ func TestProcessDeathRemovesServiceData(t *testing.T) {
 	c.collector.lastCollectedProcesses = make(map[int32]*procutil.Process)
 	c.collector.pidHeartbeats[pidFreshService] = baseTime
 
-	socketPath, _ := startTestServer(t, &model.ServicesEndpointResponse{}, false)
+	socketPath, _ := startTestServer(t, &model.ServicesResponse{}, false)
 	c.collector.sysProbeClient = sysprobeclient.Get(socketPath)
 	c.mockClock.Set(baseTime)
 
@@ -512,7 +512,7 @@ func TestServiceLanguageToWLMLanguageMapping(t *testing.T) {
 }
 
 // startTestServer creates a system-probe test server that returns the specified response or error
-func startTestServer(t *testing.T, response *model.ServicesEndpointResponse, shouldError bool) (string, *httptest.Server) {
+func startTestServer(t *testing.T, response *model.ServicesResponse, shouldError bool) (string, *httptest.Server) {
 	t.Helper()
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -586,8 +586,12 @@ func makeModelService(pid int32, name string) model.Service {
 		Language:           "python",
 		Type:               "database",
 		CommandLine:        []string{"python", "-m", "myservice"},
-		StartTimeMilli:     uint64(baseTime.Add(-1 * time.Minute).UnixMilli()),
 		LogFiles:           []string{"/var/log/" + name + ".log"},
+		UST: model.UST{
+			Service: "dd-model-" + name,
+			Env:     "production",
+			Version: "1.2.3",
+		},
 	}
 }
 
@@ -609,11 +613,15 @@ func makeProcessEntityService(pid int32, name string) *workloadmeta.Process {
 					ServiceName:    name + "-service",
 				},
 			},
-			DDService:          "dd-model-" + name,
 			TCPPorts:           []uint16{3000, 4000},
 			APMInstrumentation: "manual",
 			Type:               "database",
 			LogFiles:           []string{"/var/log/" + name + ".log"},
+			UST: workloadmeta.UST{
+				Service: "dd-model-" + name,
+				Env:     "production",
+				Version: "1.2.3",
+			},
 		},
 	}
 }
@@ -673,8 +681,8 @@ func assertStoredServices(t *testing.T, store workloadmetamock.Mock, expected []
 
 		assert.EventuallyWithT(t, func(collectT *assert.CollectT) {
 			entity, err := store.GetProcess(expectedProcess.Pid)
-			assert.NoError(collectT, err)
-			assert.NotNil(collectT, entity)
+			require.NoError(collectT, err)
+			require.NotNil(collectT, entity)
 			if expectedProcess.Service == nil {
 				assert.Nil(collectT, entity.Service)
 			} else {
@@ -684,12 +692,12 @@ func assertStoredServices(t *testing.T, store workloadmetamock.Mock, expected []
 				assert.Equal(collectT, expectedProcess.Service.GeneratedNameSource, entity.Service.GeneratedNameSource)
 				assert.Equal(collectT, expectedProcess.Service.AdditionalGeneratedNames, entity.Service.AdditionalGeneratedNames)
 				assert.Equal(collectT, expectedProcess.Service.TracerMetadata, entity.Service.TracerMetadata)
-				assert.Equal(collectT, expectedProcess.Service.DDService, entity.Service.DDService)
 				assert.Equal(collectT, expectedProcess.Service.TCPPorts, entity.Service.TCPPorts)
 				assert.Equal(collectT, expectedProcess.Service.UDPPorts, entity.Service.UDPPorts)
 				assert.Equal(collectT, expectedProcess.Service.APMInstrumentation, entity.Service.APMInstrumentation)
 				assert.Equal(collectT, expectedProcess.Service.Type, entity.Service.Type)
 				assert.Equal(collectT, expectedProcess.Service.LogFiles, entity.Service.LogFiles)
+				assert.Equal(collectT, expectedProcess.Service.UST, entity.Service.UST)
 			}
 		}, 2*time.Second, 100*time.Millisecond)
 	}

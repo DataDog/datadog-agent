@@ -26,10 +26,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/cenkalti/backoff/v5"
 	"golang.org/x/sys/windows"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 )
 
 // MsiexecError provides the processed log file content and the underlying error.
@@ -434,6 +435,15 @@ func (m *Msiexec) Run(ctx context.Context) error {
 				var msiError *MsiexecError
 				if errors.As(err, &msiError) {
 					span.SetTag("log", msiError.ProcessedLog)
+					// Check if logfile is empty
+					logFileInfo, logFileStatErr := os.Stat(m.args.logFile)
+					var isLogEmpty bool
+					if logFileStatErr != nil {
+						isLogEmpty = true
+					} else {
+						isLogEmpty = logFileInfo.Size() == 0
+					}
+					span.SetTag("is_log_empty", isLogEmpty)
 				}
 			}
 			span.Finish(err)

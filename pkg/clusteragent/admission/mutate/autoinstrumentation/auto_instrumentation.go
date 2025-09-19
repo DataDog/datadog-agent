@@ -175,10 +175,10 @@ func (l *libInfoLanguageDetection) containerMutator(v version) containerMutator 
 
 // getAllLatestDefaultLibraries returns all supported by APM Instrumentation tracing libraries
 // that should be enabled by default
-func getAllLatestDefaultLibraries(containerRegistry string, imageResolver ImageResolver) []libInfo {
+func getAllLatestDefaultLibraries(containerRegistry string) []libInfo {
 	var libsToInject []libInfo
 	for _, lang := range supportedLanguages {
-		libsToInject = append(libsToInject, lang.defaultLibInfo(containerRegistry, "", imageResolver))
+		libsToInject = append(libsToInject, lang.defaultLibInfo(containerRegistry, ""))
 	}
 
 	return libsToInject

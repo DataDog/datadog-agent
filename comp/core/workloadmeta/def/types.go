@@ -1553,8 +1553,8 @@ type Service struct {
 	// TracerMetadata contains APM tracer metadata
 	TracerMetadata []tracermetadata.TracerMetadata
 
-	// DDService is the value from DD_SERVICE environment variable
-	DDService string
+	// UST contains Unified Service Tagging environment variables
+	UST UST
 
 	// TCPPorts is the list of TCP ports the service is listening on
 	TCPPorts []uint16
@@ -1567,6 +1567,24 @@ type Service struct {
 
 	// Type is the service type (e.g., "web_service")
 	Type string
+}
+
+// UST contains Unified Service Tagging environment variables
+type UST struct {
+	Service string
+	Env     string
+	Version string
+}
+
+// String returns a string representation of UST
+func (u UST) String() string {
+	var sb strings.Builder
+
+	_, _ = fmt.Fprintln(&sb, "Service:", u.Service)
+	_, _ = fmt.Fprintln(&sb, "Env:", u.Env)
+	_, _ = fmt.Fprintln(&sb, "Version:", u.Version)
+
+	return sb.String()
 }
 
 // Process is an Entity that represents a process
@@ -1628,23 +1646,39 @@ func (p Process) String(verbose bool) string {
 
 	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
 	_, _ = fmt.Fprintln(&sb, "PID:", p.EntityID.ID)
+	_, _ = fmt.Fprintln(&sb, "Name:", p.Name)
+	_, _ = fmt.Fprintln(&sb, "Exe:", p.Exe)
+	_, _ = fmt.Fprintln(&sb, "Cmdline:", sliceToString(p.Cmdline))
 	_, _ = fmt.Fprintln(&sb, "Namespace PID:", p.NsPid)
 	_, _ = fmt.Fprintln(&sb, "Container ID:", p.ContainerID)
 	_, _ = fmt.Fprintln(&sb, "Creation time:", p.CreationTime)
 	if p.Language != nil {
 		_, _ = fmt.Fprintln(&sb, "Language:", p.Language.Name)
 	}
+
+	if verbose {
+		_, _ = fmt.Fprintln(&sb, "Comm:", p.Comm)
+		_, _ = fmt.Fprintln(&sb, "Cwd:", p.Cwd)
+		_, _ = fmt.Fprintln(&sb, "Uids:", p.Uids)
+		_, _ = fmt.Fprintln(&sb, "Gids:", p.Gids)
+	}
+
 	if p.Service != nil {
+		_, _ = fmt.Fprintln(&sb, "----------- Service Discovery -----------")
 		_, _ = fmt.Fprintln(&sb, "Service Generated Name:", p.Service.GeneratedName)
 		if verbose {
 			_, _ = fmt.Fprintln(&sb, "Service Generated Name Source:", p.Service.GeneratedNameSource)
 			_, _ = fmt.Fprintln(&sb, "Service Additional Generated Names:", p.Service.AdditionalGeneratedNames)
 			_, _ = fmt.Fprintln(&sb, "Service Tracer Metadata:", p.Service.TracerMetadata)
-			_, _ = fmt.Fprintln(&sb, "Service DD Service:", p.Service.DDService)
 			_, _ = fmt.Fprintln(&sb, "Service TCP Ports:", p.Service.TCPPorts)
 			_, _ = fmt.Fprintln(&sb, "Service UDP Ports:", p.Service.UDPPorts)
 			_, _ = fmt.Fprintln(&sb, "Service APM Instrumentation:", p.Service.APMInstrumentation)
 			_, _ = fmt.Fprintln(&sb, "Service Type:", p.Service.Type)
+
+			if p.Service.UST != (UST{}) {
+				_, _ = fmt.Fprintln(&sb, "---- Unified Service Tagging ----")
+				_, _ = fmt.Fprint(&sb, p.Service.UST)
+			}
 
 			if len(p.Service.LogFiles) > 0 {
 				_, _ = fmt.Fprintln(&sb, "----------- Log Files -----------")

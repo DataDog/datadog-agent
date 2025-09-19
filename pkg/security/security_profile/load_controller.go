@@ -165,8 +165,7 @@ func (m *Manager) triggerLoadController() {
 		if !ad.Profile.IsEmpty() && ad.Profile.GetWorkloadSelector() != nil {
 			if err := m.persist(ad.Profile, m.configuredStorageRequests); err != nil {
 				seclog.Errorf("couldn't persist dump [%s]: %v", ad.GetSelectorStr(), err)
-			} else if m.config.RuntimeSecurity.SecurityProfileEnabled && ad.Profile.Metadata.ContainerID != "" {
-				// TODO: remove the IsContainer check once we start handling profiles for non-containerized workloads
+			} else if m.config.RuntimeSecurity.SecurityProfileEnabled {
 				select {
 				case m.newProfiles <- ad.Profile:
 				default:

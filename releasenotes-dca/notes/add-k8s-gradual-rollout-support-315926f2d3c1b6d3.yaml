@@ -12,6 +12,6 @@ features:
     This feature is enabled if the following conditions are met:
     - ``DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_ENABLED=true`` and/or ``DD_APM_INSTRUMENTATION_ENABLED=true``
     - Remote config is enabled in the organization
-    - Using the `gcr.io/datadoghq` registry
+    - Using a Datadog registry (gcr.io/datadoghq, hub.docker.com/r/datadog, gallery.ecr.aws/datadog)
     This gradually rolls out access to new injector and tracer library releases to subsets of customers, with the ability to pause if issues are detected.
 

@@ -8,41 +8,12 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/yaml.v3"
 )
-
-func TestWriteConfigSymlinks(t *testing.T) {
-	fleetDir := t.TempDir()
-	userDir := t.TempDir()
-	err := os.WriteFile(filepath.Join(userDir, "datadog.yaml"), []byte("user config"), 0644)
-	assert.NoError(t, err)
-	err = os.WriteFile(filepath.Join(fleetDir, "datadog.yaml"), []byte("fleet config"), 0644)
-	assert.NoError(t, err)
-	err = os.MkdirAll(filepath.Join(fleetDir, "conf.d"), 0755)
-	assert.NoError(t, err)
-
-	err = writeConfigSymlinks(userDir, fleetDir)
-	assert.NoError(t, err)
-	assert.FileExists(t, filepath.Join(userDir, "datadog.yaml"))
-	assert.FileExists(t, filepath.Join(userDir, "datadog.yaml.override"))
-	assert.FileExists(t, filepath.Join(userDir, "conf.d.override"))
-	configContent, err := os.ReadFile(filepath.Join(userDir, "datadog.yaml"))
-	assert.NoError(t, err)
-	overrideConfigConent, err := os.ReadFile(filepath.Join(userDir, "datadog.yaml.override"))
-	assert.NoError(t, err)
-	assert.Equal(t, "user config", string(configContent))
-	assert.Equal(t, "fleet config", string(overrideConfigConent))
-
-	fleetDir = t.TempDir()
-	err = writeConfigSymlinks(userDir, fleetDir)
-	assert.NoError(t, err)
-	assert.FileExists(t, filepath.Join(userDir, "datadog.yaml"))
-	assert.NoFileExists(t, filepath.Join(userDir, "datadog.yaml.override"))
-	assert.NoFileExists(t, filepath.Join(userDir, "conf.d.override"))
-}
 
 func TestOperationApply_Patch(t *testing.T) {
 	tmpDir := t.TempDir()
@@ -65,7 +36,7 @@ func TestOperationApply_Patch(t *testing.T) {
 		Patch:             []byte(patchJSON),
 	}
 
-	err = op.Apply(root)
+	err = op.apply(root)
 	assert.NoError(t, err)
 
 	// Check file content
@@ -98,7 +69,7 @@ func TestOperationApply_MergePatch(t *testing.T) {
 		Patch:             []byte(mergePatch),
 	}
 
-	err = op.Apply(root)
+	err = op.apply(root)
 	assert.NoError(t, err)
 
 	updated, err := os.ReadFile(filePath)
@@ -126,7 +97,7 @@ func TestOperationApply_Delete(t *testing.T) {
 		FilePath:          "/datadog.yaml",
 	}
 
-	err = op.Apply(root)
+	err = op.apply(root)
 	assert.NoError(t, err)
 	_, err = os.Stat(filePath)
 	assert.Error(t, err)
@@ -150,7 +121,7 @@ func TestOperationApply_EmptyYAMLFile(t *testing.T) {
 		Patch:             []byte(patchJSON),
 	}
 
-	err = op.Apply(root)
+	err = op.apply(root)
 	assert.NoError(t, err)
 
 	// Check that the file now contains the patched value
@@ -177,7 +148,7 @@ func TestOperationApply_NoFile(t *testing.T) {
 		Patch:             []byte(patchJSON),
 	}
 
-	err = op.Apply(root)
+	err = op.apply(root)
 	assert.NoError(t, err)
 
 	filePath := filepath.Join(tmpDir, "datadog.yaml")
@@ -206,7 +177,7 @@ func TestOperationApply_DisallowedFile(t *testing.T) {
 		Patch:             []byte(patchJSON),
 	}
 
-	err = op.Apply(root)
+	err = op.apply(root)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "not allowed")
 }
@@ -234,7 +205,7 @@ func TestOperationApply_NestedConfigFile(t *testing.T) {
 		Patch:             []byte(patchJSON),
 	}
 
-	err = op.Apply(root)
+	err = op.apply(root)
 	assert.NoError(t, err)
 
 	updated, err := os.ReadFile(filePath)
@@ -245,4 +216,123 @@ func TestOperationApply_NestedConfigFile(t *testing.T) {
 	assert.Equal(t, "newval", updatedMap["foo"])
 	assert.Equal(t, 1, updatedMap["bar"])
 	assert.Equal(t, 42, updatedMap["baz"])
+}
+
+func TestDirectories_GetState(t *testing.T) {
+	tmpDir := t.TempDir()
+	stablePath := filepath.Join(tmpDir, "stable")
+	experimentPath := filepath.Join(tmpDir, "experiment")
+
+	err := os.MkdirAll(stablePath, 0755)
+	assert.NoError(t, err)
+	err = os.MkdirAll(experimentPath, 0755)
+	assert.NoError(t, err)
+
+	dirs := &Directories{
+		StablePath:     stablePath,
+		ExperimentPath: experimentPath,
+	}
+
+	// Test with no deployment IDs
+	state, err := dirs.GetState()
+	assert.NoError(t, err)
+	assert.Equal(t, "", state.StableDeploymentID)
+	assert.Equal(t, "", state.ExperimentDeploymentID)
+
+	// Test with stable deployment ID only
+	err = os.WriteFile(filepath.Join(stablePath, deploymentIDFile), []byte("stable-123"), 0644)
+	assert.NoError(t, err)
+
+	state, err = dirs.GetState()
+	assert.NoError(t, err)
+	assert.Equal(t, "stable-123", state.StableDeploymentID)
+	assert.Equal(t, "", state.ExperimentDeploymentID)
+
+	// Test with both deployment IDs
+	err = os.WriteFile(filepath.Join(experimentPath, deploymentIDFile), []byte("experiment-456"), 0644)
+	assert.NoError(t, err)
+
+	state, err = dirs.GetState()
+	assert.NoError(t, err)
+	assert.Equal(t, "stable-123", state.StableDeploymentID)
+	assert.Equal(t, "experiment-456", state.ExperimentDeploymentID)
+
+	// Test with symlinked experiment (should clear experiment deployment ID)
+	err = os.Remove(filepath.Join(experimentPath, deploymentIDFile))
+	assert.NoError(t, err)
+	err = os.Symlink(filepath.Join(stablePath, deploymentIDFile), filepath.Join(experimentPath, deploymentIDFile))
+	assert.NoError(t, err)
+
+	state, err = dirs.GetState()
+	assert.NoError(t, err)
+	assert.Equal(t, "stable-123", state.StableDeploymentID)
+	assert.Equal(t, "", state.ExperimentDeploymentID)
+}
+
+func TestBuildOperationsFromLegacyConfigFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	managedDir := filepath.Join(tmpDir, legacyPathPrefix)
+	err := os.MkdirAll(managedDir, 0755)
+	assert.NoError(t, err)
+
+	// Create a legacy config file
+	legacyConfig := []byte("{\"bar\":123,\"foo\":\"legacy_value\"}")
+	err = os.WriteFile(filepath.Join(managedDir, "datadog.yaml"), legacyConfig, 0644)
+	assert.NoError(t, err)
+
+	ops, err := buildOperationsFromLegacyConfigFile(filepath.Join(managedDir, "datadog.yaml"), tmpDir, legacyPathPrefix)
+	assert.NoError(t, err)
+	assert.Len(t, ops, 2)
+
+	// Check merge patch operation
+	assert.Equal(t, FileOperationMergePatch, ops[0].FileOperationType)
+	assert.Equal(t, "/datadog.yaml", ops[0].FilePath)
+	assert.Equal(t, string(legacyConfig), string(ops[0].Patch))
+
+	// Check delete operation
+	assert.Equal(t, FileOperationDelete, ops[1].FileOperationType)
+	assert.Equal(t, filepath.Join(legacyPathPrefix, "datadog.yaml"), strings.TrimPrefix(strings.TrimPrefix(ops[1].FilePath, "/"), "\\"))
+}
+
+func TestBuildOperationsFromLegacyInstaller(t *testing.T) {
+	tmpDir := t.TempDir()
+	managedDir := filepath.Join(tmpDir, legacyPathPrefix)
+	err := os.MkdirAll(managedDir, 0755)
+	assert.NoError(t, err)
+
+	// Create legacy config files
+	err = os.WriteFile(filepath.Join(managedDir, "datadog.yaml"), []byte("foo: legacy\n"), 0644)
+	assert.NoError(t, err)
+	err = os.WriteFile(filepath.Join(managedDir, "security-agent.yaml"), []byte("enabled: true\n"), 0644)
+	assert.NoError(t, err)
+
+	ops := buildOperationsFromLegacyInstaller(tmpDir)
+
+	// Should have 4 operations: 2 merge patches + 2 deletes
+	assert.Len(t, ops, 4)
+
+	// Check that we have operations for both files
+	filePaths := make(map[string]bool)
+	for _, op := range ops {
+		filePaths[strings.TrimPrefix(strings.TrimPrefix(op.FilePath, "/"), "\\")] = true
+	}
+	assert.True(t, filePaths["datadog.yaml"])
+	assert.True(t, filePaths["security-agent.yaml"])
+	assert.True(t, filePaths[filepath.Join("managed", "datadog-agent", "stable", "datadog.yaml")])
+	assert.True(t, filePaths[filepath.Join("managed", "datadog-agent", "stable", "security-agent.yaml")])
+}
+
+func TestBuildOperationsFromLegacyConfigFileKeepApplicationMonitoring(t *testing.T) {
+	tmpDir := t.TempDir()
+	managedDir := filepath.Join(tmpDir, legacyPathPrefix)
+	err := os.MkdirAll(managedDir, 0755)
+	assert.NoError(t, err)
+
+	// Create a legacy config file
+	legacyConfig := []byte("{\"bar\":123,\"foo\":\"legacy_value\"}")
+	err = os.WriteFile(filepath.Join(managedDir, "application_monitoring.yaml"), legacyConfig, 0644)
+	assert.NoError(t, err)
+
+	ops := buildOperationsFromLegacyInstaller(tmpDir)
+	assert.Len(t, ops, 0)
 }

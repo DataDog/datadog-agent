@@ -123,10 +123,10 @@ func TestInitData(t *testing.T) {
 		"service_monitoring_config.enable_http_monitoring":     true,
 		"service_monitoring_config.tls.native.enabled":         true,
 		"service_monitoring_config.enabled":                    true,
-		"service_monitoring_config.enable_http2_monitoring":    true,
-		"service_monitoring_config.enable_kafka_monitoring":    true,
-		"service_monitoring_config.enable_postgres_monitoring": true,
-		"service_monitoring_config.enable_redis_monitoring":    true,
+		"service_monitoring_config.http2.enabled":              true,
+		"service_monitoring_config.kafka.enabled":              true,
+		"service_monitoring_config.postgres.enabled":           true,
+		"service_monitoring_config.redis.enabled":              true,
 		"service_monitoring_config.tls.istio.enabled":          true,
 		"service_monitoring_config.tls.go.enabled":             true,
 		"discovery.enabled":                                    true,
@@ -605,7 +605,8 @@ network_config:
   enable_root_netns: true
 
 service_monitoring_config:
-  enable_http_monitoring: true
+  http:
+    enabled: true
   tls:
     native:
       enabled: true
@@ -616,10 +617,14 @@ service_monitoring_config:
     go:
       enabled: true
   enabled: true
-  enable_kafka_monitoring: true
-  enable_postgres_monitoring: true
-  enable_redis_monitoring: true
-  enable_http2_monitoring: true
+  kafka:
+    enabled: true
+  postgres:
+    enabled: true
+  redis:
+    enabled: true
+  http2:
+    enabled: true
   enable_http_stats_by_status_code: true
 
 discovery:

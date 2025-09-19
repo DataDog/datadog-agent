@@ -8,7 +8,7 @@
 package decode
 
 import (
-	"fmt"
+	"errors"
 
 	"github.com/go-json-experiment/json"
 	"github.com/go-json-experiment/json/jsontext"
@@ -28,12 +28,11 @@ type logger struct {
 }
 
 type debuggerData struct {
-	Snapshot snapshotData `json:"snapshot"`
+	Snapshot         snapshotData `json:"snapshot"`
+	EvaluationErrors []string     `json:"evaluationErrors,omitempty"`
 }
 
 type snapshotData struct {
-	decoder *Decoder
-
 	// static fields:
 	ID        uuid.UUID `json:"id"`
 	Timestamp int       `json:"timestamp"`
@@ -66,10 +65,12 @@ type capturePointData struct {
 }
 
 type argumentsData struct {
-	rootData []byte
-	rootType *ir.EventRootType
-	event    Event
-	decoder  *Decoder
+	rootData         []byte
+	rootType         *ir.EventRootType
+	event            Event
+	decoder          *Decoder
+	evaluationErrors *[]string
+	skipIndicies     []byte
 }
 
 var ddDebuggerString = jsontext.String("dd_debugger")
@@ -90,58 +91,90 @@ func expressionIsPresent(bitset []byte, expressionIndex int) bool {
 	return idx < len(bitset) && bitset[idx]&(1<<byte(bit)) != 0
 }
 
+// Helper functions for skipIndicies bitset operations
+func isSkipped(bitset []byte, index int) bool {
+	idx, bit := index/8, index%8
+	return idx < len(bitset) && bitset[idx]&(1<<byte(bit)) != 0
+}
+
+func setSkipped(bitset []byte, index int) {
+	idx, bit := index/8, index%8
+	if idx < len(bitset) {
+		bitset[idx] |= 1 << byte(bit)
+	}
+}
+
+var errEvaluation = errors.New("evaluation error")
+
+// processExpression processes a single expression from the root type expressions
+func (ad *argumentsData) processExpression(
+	enc *jsontext.Encoder,
+	expr *ir.RootExpression,
+	presenceBitSet []byte,
+	expressionIndex int,
+) error {
+	parameterType := expr.Expression.Type
+	parameterSize := parameterType.GetByteSize()
+	ub := expr.Offset + parameterSize
+	if int(ub) > len(ad.rootData) {
+		*ad.evaluationErrors = append(*ad.evaluationErrors, "could not read parameter data from root data, length mismatch")
+		return errEvaluation
+	}
+	parameterData := ad.rootData[expr.Offset:ub]
+	if err := writeTokens(enc, jsontext.String(expr.Name)); err != nil {
+		return err
+	}
+	if !expressionIsPresent(presenceBitSet, expressionIndex) && parameterSize != 0 {
+		// Set not capture reason
+		if err := writeTokens(enc,
+			jsontext.BeginObject,
+			jsontext.String("type"),
+			jsontext.String(parameterType.GetName()),
+			tokenNotCapturedReason,
+			tokenNotCapturedReasonUnavailable,
+			jsontext.EndObject,
+		); err != nil {
+			return err
+		}
+		return nil
+	}
+	err := ad.decoder.encodeValue(enc,
+		parameterType.GetID(),
+		parameterData,
+		parameterType.GetName(),
+	)
+	if err != nil {
+		*ad.evaluationErrors = append(*ad.evaluationErrors, ad.rootType.Name+err.Error())
+		return errEvaluation
+	}
+	return nil
+}
+
 func (ad *argumentsData) MarshalJSONTo(enc *jsontext.Encoder) error {
-	var err error
-	if err = writeTokens(enc, jsontext.BeginObject); err != nil {
+	if err := writeTokens(enc, jsontext.BeginObject); err != nil {
 		return err
 	}
 
 	if ad.rootType.PresenceBitsetSize > uint32(len(ad.rootData)) {
-		return fmt.Errorf("presence bitset is out of bounds: %d > %d",
-			ad.rootType.PresenceBitsetSize, len(ad.rootData),
-		)
+		return errors.New("presence bitset is out of bounds")
 	}
 	presenceBitSet := ad.rootData[:ad.rootType.PresenceBitsetSize]
 	// We iterate over the 'Expressions' of the EventRoot which contains
 	// metadata and raw bytes of the parameters of this function.
 	for i, expr := range ad.rootType.Expressions {
-		parameterType := expr.Expression.Type
-		parameterSize := parameterType.GetByteSize()
-		ub := expr.Offset + parameterSize
-		if int(ub) > len(ad.rootData) {
-			return fmt.Errorf("expression %s is out of bounds", expr.Name)
-		}
-		parameterData := ad.rootData[expr.Offset:ub]
-		if err = writeTokens(enc, jsontext.String(expr.Name)); err != nil {
-			return err
-		}
-		if !expressionIsPresent(presenceBitSet, i) && parameterSize != 0 {
-			// Set not capture reason
-			if err = writeTokens(enc,
-				jsontext.BeginObject,
-				jsontext.String("type"),
-				jsontext.String(parameterType.GetName()),
-				tokenNotCapturedReason,
-				tokenNotCapturedReasonUnavailable,
-				jsontext.EndObject,
-			); err != nil {
-				return err
-			}
+		if isSkipped(ad.skipIndicies, i) {
 			continue
 		}
-		err = ad.decoder.encodeValue(enc,
-			parameterType.GetID(),
-			parameterData,
-			parameterType.GetName(),
-		)
-		if err != nil {
-			return fmt.Errorf(
-				"error parsing data for field %s: %w",
-				ad.rootType.Name, err,
-			)
+		if err := ad.processExpression(enc, expr, presenceBitSet, i); errors.Is(err, errEvaluation) {
+			// This expression resulted in an evaluation error, we mark it to be skipped
+			// and will try again
+			setSkipped(ad.skipIndicies, i)
+			return err
+		} else if err != nil {
+			return err
 		}
 	}
-	if err = writeTokens(enc, jsontext.EndObject); err != nil {
+	if err := writeTokens(enc, jsontext.EndObject); err != nil {
 		return err
 	}
 	return nil
@@ -198,17 +231,13 @@ func (d *Decoder) encodeValue(
 ) error {
 	decoderType, ok := d.decoderTypes[typeID]
 	if !ok {
-		return fmt.Errorf("no decoder type found for type %s", decoderType.irType().GetName())
+		return errors.New("no decoder type found")
 	}
 	if err := writeTokens(enc, jsontext.BeginObject); err != nil {
 		return err
 	}
-	if !decoderType.hasDynamicType() {
-		if err := writeTokens(
-			enc, jsontext.String("type"), jsontext.String(valueType),
-		); err != nil {
-			return err
-		}
+	if err := writeTokens(enc, jsontext.String("type"), jsontext.String(valueType)); err != nil {
+		return err
 	}
 	if err := decoderType.encodeValueFields(d, enc, data); err != nil {
 		return err

@@ -61,12 +61,12 @@ func probeConfigsWithMaxReferenceDepth(
 		case *rcjson.LogProbe:
 			if cfg.Capture == nil {
 				cfg.Capture = new(rcjson.Capture)
-				cfg.Capture.MaxReferenceDepth = limit
+				cfg.Capture.MaxReferenceDepth = &limit
 			}
 		case *rcjson.SnapshotProbe:
 			if cfg.Capture == nil {
 				cfg.Capture = new(rcjson.Capture)
-				cfg.Capture.MaxReferenceDepth = limit
+				cfg.Capture.MaxReferenceDepth = &limit
 			}
 		}
 	}
@@ -79,27 +79,28 @@ func runTest(t *testing.T, cfg testprogs.Config, prog string) {
 	obj, err := object.OpenElfFileWithDwarf(binPath)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, obj.Close()) }()
-	irp, err := irgen.GenerateIR(1, obj, probesCfgs)
-	require.NoError(t, err)
-	require.Empty(t, irp.Issues)
 
-	marshaled, err := irprinter.PrintYAML(irp)
+	// Make sure things work with the default limits, but don't actually
+	// use the results because they might be huge.
+	irWithDefaultLimits, err := irgen.GenerateIR(1, obj, probesCfgs)
 	require.NoError(t, err)
+	require.Empty(t, irWithDefaultLimits.Issues)
+	{
+		_, err := irprinter.PrintYAML(irWithDefaultLimits)
+		require.NoError(t, err)
+	}
 
 	// Make sure that the IR eventually gets to the same set of types as
 	// when we don't have a limit.
+	var irWithLimit1 *ir.Program
 	for i := 1; ; i++ {
 		probesCfgs := testprogs.MustGetProbeDefinitions(t, prog)
 		probesCfgs = probeConfigsWithMaxReferenceDepth(probesCfgs, i)
 		irWithLimit, err := irgen.GenerateIR(1, obj, probesCfgs)
 		require.NoError(t, err)
 		require.Empty(t, irWithLimit.Issues)
-		if len(irWithLimit.Types) < len(irp.Types) {
-			t.Logf(
-				"IR with limit %d has %d types < %d types",
-				i, len(irWithLimit.Types), len(irp.Types),
-			)
-			continue
+		if i == 1 {
+			irWithLimit1 = irWithLimit
 		}
 		typeNames := func(p *ir.Program) []string {
 			var names []string
@@ -109,9 +110,23 @@ func runTest(t *testing.T, cfg testprogs.Config, prog string) {
 			slices.Sort(names)
 			return names
 		}
-		require.Equal(t, typeNames(irp), typeNames(irWithLimit))
-		break
+		if slices.Equal(typeNames(irWithDefaultLimits), typeNames(irWithLimit)) {
+			t.Logf("types converged with limit %d", i)
+			break
+		}
+		require.Less(t, i, 100, "types did not converge in 100 iterations")
+		t.Logf(
+			"limit %d has %d types < %d types",
+			i, len(irWithLimit.Types), len(irWithDefaultLimits.Types),
+		)
 	}
+
+	// Use the default probe definitions so it's less noisy.
+	for i := range irWithLimit1.Probes {
+		irWithLimit1.Probes[i].ProbeDefinition = irWithDefaultLimits.Probes[i].ProbeDefinition
+	}
+	marshaled, err := irprinter.PrintYAML(irWithLimit1)
+	require.NoError(t, err)
 
 	outputFile := path.Join(snapshotDir, prog+"."+cfg.String()+".yaml")
 	if *rewrite {
