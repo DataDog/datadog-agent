@@ -296,6 +296,16 @@ func (s *syntheticsTestScheduler) networkPathToTestResult(w *workerResult) (*com
 			Code:    "UNKNOWN",
 			Message: w.tracerouteError.Error(),
 		}
+	} else {
+		for _, res := range w.assertionResult {
+			if !res.Valid || res.Failure.Code != "" {
+				result.Status = "failed"
+				result.Failure = common.APIError{
+					Code:    incorrectAssertion,
+					Message: w.tracerouteError.Error(),
+				}
+			}
+		}
 	}
 
 	return &common.TestResult{
