@@ -192,8 +192,6 @@ const (
 	Metadata
 	// Process is the transaction type for live-process monitoring payloads
 	Process
-	// SyntheticsResult is the transaction type for synthetics result
-	SyntheticsResult
 )
 
 // Destination indicates which regions the transaction should be sent to

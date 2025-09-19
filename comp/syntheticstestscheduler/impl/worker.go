@@ -16,8 +16,9 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/syntheticstestscheduler/common"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
@@ -237,8 +238,8 @@ func (s *syntheticsTestScheduler) sendSyntheticsTestResult(w *WorkerResult) erro
 
 	s.log.Debugf("synthetics network path test event: %s", string(payloadBytes))
 
-	payloads := []*[]byte{&payloadBytes}
-	return s.forwarder.SubmitSyntheticsTestResults(transaction.NewBytesPayloadsWithoutMetaData(payloads), nil)
+	m := message.NewMessage(payloadBytes, nil, "", 0)
+	return s.epForwarder.SendEventPlatformEventBlocking(m, eventplatform.EventTypeSynthetics)
 }
 
 // runTraceroute is the default traceroute execution using the traceroute package.

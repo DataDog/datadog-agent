@@ -166,8 +166,3 @@ func (f *SyncForwarder) SubmitOrchestratorChecks(payload transaction.BytesPayloa
 func (f *SyncForwarder) SubmitOrchestratorManifests(payload transaction.BytesPayloads, extra http.Header) (chan Response, error) {
 	return f.defaultForwarder.SubmitOrchestratorManifests(payload, extra)
 }
-
-// SubmitSyntheticsTestResults does nothing
-func (f *SyncForwarder) SubmitSyntheticsTestResults(payload transaction.BytesPayloads, extra http.Header) error {
-	return f.defaultForwarder.SubmitSyntheticsTestResults(payload, extra)
-}
