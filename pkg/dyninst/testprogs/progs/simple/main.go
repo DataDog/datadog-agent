@@ -131,7 +131,7 @@ type aStructNotUsedAsAnArgument struct {
 // the completion of internals of map types. This test reproduced that bug.
 //
 //go:noinline
-func usesMapsOfMapsThatDoNotAppearAsArguments() {
+func usesMapsOfMapsThatDoNotAppearAsArguments() map[byte]map[int]aStructNotUsedAsAnArgument {
 	// The bug required a map of maps. We make a new type here to ensure
 	// that it's not a map type that could possibly exist elsewhere.
 	m := map[string]map[int]aStructNotUsedAsAnArgument{
@@ -139,5 +139,8 @@ func usesMapsOfMapsThatDoNotAppearAsArguments() {
 	}
 	if m["b"] != nil {
 		m["b"][0] = aStructNotUsedAsAnArgument{a: 2}
+	}
+	return map[byte]map[int]aStructNotUsedAsAnArgument{
+		'a': m["a"],
 	}
 }
