@@ -247,6 +247,26 @@ func getConfiguredProfilingRequestTimeoutDuration(conf *config.AgentConfig) time
 	return timeout
 }
 
+func getListenerFromFD(fdStr string, name string) (net.Listener, error) {
+	fd, err := strconv.Atoi(fdStr)
+	if err != nil {
+		return nil, fmt.Errorf("could not parse file descriptor %v: %v", fdStr, err)
+	}
+
+	f := os.NewFile(uintptr(fd), name)
+	if f == nil {
+		return nil, fmt.Errorf("invalid file descriptor %v", fdStr)
+	}
+
+	defer f.Close()
+
+	listener, flerr := net.FileListener(f)
+	if flerr != nil {
+		return nil, fmt.Errorf("could not create file listener for %v: %v", fdStr, flerr)
+	}
+	return listener, nil
+}
+
 // Start starts doing the HTTP server and is ready to receive traces
 func (r *HTTPReceiver) Start() {
 	r.telemetryForwarder.start()
@@ -278,19 +298,19 @@ func (r *HTTPReceiver) Start() {
 		var ln net.Listener
 		var err error
 		if tcpFDStr, ok := os.LookupEnv("DD_APM_NET_RECEIVER_FD"); ok {
-			//TODO handle error properly
-			unixFD, _ := strconv.Atoi(tcpFDStr)
-			log.Infof("TCP listener: using provided file descriptor %d", unixFD)
-			f := os.NewFile(uintptr(unixFD), "tcp_conn")
-			//TODO: handle f.Close()
-			//TODO handle error properly
-			listener, flerr := net.FileListener(f)
-			if flerr != nil {
-				log.Warnf("file listener: %v", flerr)
+			ln, err = getListenerFromFD(tcpFDStr, "tcp_conn")
+			if err == nil {
+				log.Debugf("Using TCP listener from file descriptor %s", tcpFDStr)
+			} else {
+				log.Errorf("Error creating TCP listener from file descriptor %s: %v", tcpFDStr, err)
 			}
-			ln, err = r.listenTCPListener(listener)
-		} else {
-			ln, err = r.listenTCP(addr)
+		}
+		if err != nil {
+			// if the fd was not provided, or we failed to get a listener from it, listen on the given address
+			ln, err = loader.GetTCPListener(addr)
+		}
+		if err == nil {
+			ln, err = r.listenTCPListener(ln)
 		}
 
 		if err != nil {
@@ -315,22 +335,23 @@ func (r *HTTPReceiver) Start() {
 			var ln net.Listener
 			var err error
 			if unixFDStr, ok := os.LookupEnv("DD_APM_UNIX_RECEIVER_FD"); ok {
-				//TODO handle error properly
-				unixFD, _ := strconv.Atoi(unixFDStr)
-				log.Infof("UDS listener: using provided file descriptor %d", unixFD)
-				f := os.NewFile(uintptr(unixFD), "unix_conn")
-				//TODO: handle f.Close()
-				//TODO: handle error properly
-				listener, _ := net.FileListener(f)
-				ln, err = r.listenUnixListener(path, listener)
-			} else {
-				ln, err = r.listenUnix(path)
+				ln, err = getListenerFromFD(unixFDStr, "unix_conn")
+				if err == nil {
+					log.Debugf("Using UDS listener from file descriptor %s", unixFDStr)
+				} else {
+					log.Errorf("Error creating UDS listener from file descriptor %s: %v", unixFDStr, err)
+				}
+			}
+			if err != nil {
+				ln, err = loader.GetUnixListener(path)
 			}
 
 			if err != nil {
 				log.Errorf("Error creating UDS listener: %v", err)
 				r.telemetryCollector.SendStartupError(telemetry.CantStartUdsServer, err)
 			} else {
+				ln = NewMeasuredListener(ln, "uds_connections", r.conf.MaxConnections, r.statsd)
+
 				go func() {
 					defer watchdog.LogOnPanic(r.statsd)
 					if err := r.server.Serve(ln); err != nil && err != http.ErrServerClosed {
@@ -368,27 +389,6 @@ func (r *HTTPReceiver) Start() {
 		defer watchdog.LogOnPanic(r.statsd)
 		r.loop()
 	}()
-}
-
-// listenUnix returns a net.Listener listening on the given "unix" socket path.
-func (r *HTTPReceiver) listenUnix(path string) (net.Listener, error) {
-	ln, err := loader.GetUnixListener(path)
-	if err != nil {
-		return nil, err
-	}
-	return r.listenUnixListener(path, ln)
-}
-
-func (r *HTTPReceiver) listenUnixListener(_path string, ln net.Listener) (net.Listener, error) {
-	return NewMeasuredListener(ln, "uds_connections", r.conf.MaxConnections, r.statsd), nil
-}
-
-func (r *HTTPReceiver) listenTCP(addr string) (net.Listener, error) {
-	tcpln, err := loader.GetTCPListener(addr)
-	if err != nil {
-		return nil, err
-	}
-	return r.listenTCPListener(tcpln)
 }
 
 // listenTCP creates a new net.Listener on the provided TCP address.

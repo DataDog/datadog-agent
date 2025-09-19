@@ -109,13 +109,15 @@ func (o *OTLPReceiver) Start() {
 		var ln net.Listener
 		var err error
 		if grpcFDStr, ok := os.LookupEnv("DD_OTLP_CONFIG_GRPC_FD"); ok {
-			//TODO handle error properly
-			grpcFD, _ := strconv.Atoi(grpcFDStr)
-			log.Infof("OTLP listener: using provided file descriptor %d", grpcFD)
-			f := os.NewFile(uintptr(grpcFD), "otlp_conn")
-			//TODO: handle f.Close()
-			ln, err = net.FileListener(f)
-		} else {
+			ln, err = getListenerFromFD(grpcFDStr, "otlp_conn")
+			if err == nil {
+				log.Debugf("Using OTLP listener from file descriptor %s", grpcFDStr)
+			} else {
+				log.Errorf("Error creating OTLP listener from file descriptor %s: %v", grpcFDStr, err)
+			}
+		}
+		if err != nil {
+			// if the fd was not provided, or we failed to get a listener from it, listen on the given address
 			ln, err = loader.GetTCPListener(fmt.Sprintf("%s:%d", cfg.BindHost, cfg.GRPCPort))
 		}
 
