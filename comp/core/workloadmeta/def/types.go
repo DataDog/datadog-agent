@@ -1553,15 +1553,6 @@ type Service struct {
 	// TracerMetadata contains APM tracer metadata
 	TracerMetadata []tracermetadata.TracerMetadata
 
-	// DDService is a service name currently based on either the DD_SERVICE
-	// environment variable, the DD_TAGS environment variable, or other
-	// parsing of framework-specific tracer configuration of service names, such
-	// as Java tracer properties on the command line.
-	//
-	// The UST.Service field on the other hand contains the raw value of the
-	// DD_SERVICE environment variable.
-	DDService string
-
 	// UST contains Unified Service Tagging environment variables
 	UST UST
 
@@ -1679,7 +1670,6 @@ func (p Process) String(verbose bool) string {
 			_, _ = fmt.Fprintln(&sb, "Service Generated Name Source:", p.Service.GeneratedNameSource)
 			_, _ = fmt.Fprintln(&sb, "Service Additional Generated Names:", p.Service.AdditionalGeneratedNames)
 			_, _ = fmt.Fprintln(&sb, "Service Tracer Metadata:", p.Service.TracerMetadata)
-			_, _ = fmt.Fprintln(&sb, "Service DD Service:", p.Service.DDService)
 			_, _ = fmt.Fprintln(&sb, "Service TCP Ports:", p.Service.TCPPorts)
 			_, _ = fmt.Fprintln(&sb, "Service UDP Ports:", p.Service.UDPPorts)
 			_, _ = fmt.Fprintln(&sb, "Service APM Instrumentation:", p.Service.APMInstrumentation)
