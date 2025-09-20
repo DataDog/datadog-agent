@@ -10,6 +10,7 @@ package jmxfetch
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -385,7 +386,7 @@ func (j *JMXFetch) Start(manage bool) error {
 		for in.Scan() {
 			j.Output(in.Text())
 		}
-		if in.Err() == bufio.ErrTooLong {
+		if errors.Is(in.Err(), bufio.ErrTooLong) {
 			goto scan
 		}
 	}()
@@ -401,7 +402,7 @@ func (j *JMXFetch) Start(manage bool) error {
 		for in.Scan() {
 			_ = j.logger.JMXError(in.Text())
 		}
-		if in.Err() == bufio.ErrTooLong {
+		if errors.Is(in.Err(), bufio.ErrTooLong) {
 			goto scan
 		}
 	}()
