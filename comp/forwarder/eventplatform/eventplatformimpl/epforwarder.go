@@ -234,6 +234,18 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		// payloads at once, so we need a large input channel size to avoid dropping
 		defaultInputChanSize: 1000,
 	},
+	{
+		eventType:                     eventplatform.EventTypeSoftwareInventory,
+		category:                      "EUDM",
+		contentType:                   logshttp.JSONContentType,
+		endpointsConfigPrefix:         "software_inventory.forwarder.",
+		hostnameEndpointPrefix:        "event-platform-intake.",
+		intakeTrackType:               "softinv",
+		defaultBatchMaxConcurrentSend: 10,
+		defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
+		defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
+		defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+	},
 }
 
 type defaultEventPlatformForwarder struct {

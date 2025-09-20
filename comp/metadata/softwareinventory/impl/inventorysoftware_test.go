@@ -7,11 +7,10 @@ package softwareinventoryimpl
 
 import (
 	"encoding/json"
-	"fmt"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx/fxtest"
 	"net/http"
 	"net/http/httptest"
-	"path"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -23,8 +22,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func newSoftwareInventory(t *testing.T, enabled bool) (*softwareInventory, *mockSysProbeClient) {
+func newSoftwareInventory(t *testing.T, enabled bool, mockData []software.Entry) (*softwareInventory, *mockSysProbeClient) {
 	sp := &mockSysProbeClient{}
+
+	sp.On("GetCheck", sysconfig.SoftwareInventoryModule).Return(mockData, nil)
 
 	// Create dependencies manually for the test
 	logComp := logmock.New(t)
@@ -39,6 +40,7 @@ func newSoftwareInventory(t *testing.T, enabled bool) (*softwareInventory, *mock
 		Config:     configComp,
 		Serializer: serializermock.NewMetricSerializer(t),
 		Hostname:   hostnameComp,
+		Lc:         fxtest.NewLifecycle(t),
 	}
 
 	// Call the constructor directly with the mock client
@@ -48,47 +50,8 @@ func newSoftwareInventory(t *testing.T, enabled bool) (*softwareInventory, *mock
 	return provides.Comp.(*softwareInventory), sp
 }
 
-func TestRefreshCachedValues(t *testing.T) {
-	mockData := []software.Entry{{DisplayName: "FooApp", ProductCode: "foo"}, {DisplayName: "BarApp", ProductCode: "bar"}}
-	is, sp := newSoftwareInventory(t, true)
-	sp.On("GetCheck", sysconfig.SoftwareInventoryModule).Return(mockData, nil)
-
-	err := is.refreshCachedValues()
-
-	// Assert that the cached values were refreshed
-	assert.NoError(t, err)
-	assert.Len(t, is.cachedInventory, 2)
-	assert.Equal(t, "foo", is.cachedInventory[0].ProductCode)
-	assert.Equal(t, "FooApp", is.cachedInventory[0].DisplayName)
-	assert.Equal(t, "bar", is.cachedInventory[1].ProductCode)
-	assert.Equal(t, "BarApp", is.cachedInventory[1].DisplayName)
-	sp.AssertNumberOfCalls(t, "GetCheck", 1)
-}
-
-func TestRefreshCachedValuesWithError(t *testing.T) {
-	is, sp := newSoftwareInventory(t, true)
-	sp.On("GetCheck", sysconfig.SoftwareInventoryModule).Return([]software.Entry{}, fmt.Errorf("error"))
-
-	// Assert that we attempted to refresh the cached values but
-	// system probe returned an error
-	assert.Error(t, is.refreshCachedValues())
-	assert.Len(t, is.cachedInventory, 0)
-	sp.AssertNumberOfCalls(t, "GetCheck", 1)
-}
-
-func TestRefreshCachedValuesWithEmptyInventory(t *testing.T) {
-	is, sp := newSoftwareInventory(t, true)
-	sp.On("GetCheck", sysconfig.SoftwareInventoryModule).Return([]software.Entry{}, nil)
-
-	err := is.refreshCachedValues()
-	assert.NoError(t, err)
-	assert.Empty(t, is.cachedInventory)
-}
-
 func TestFlareProviderOutputDisabled(t *testing.T) {
-	mockData := []software.Entry{{DisplayName: "TestApp"}}
-	is, sp := newSoftwareInventory(t, false)
-	sp.On("GetCheck", sysconfig.SoftwareInventoryModule).Return(mockData, nil)
+	is, _ := newSoftwareInventory(t, false, []software.Entry{{DisplayName: "TestApp"}})
 
 	flareProvider := is.FlareProvider()
 	assert.NotNil(t, flareProvider)
@@ -100,14 +63,12 @@ func TestFlareProviderOutputDisabled(t *testing.T) {
 	err := flareProvider.FlareFiller.Callback(mockBuilder)
 	assert.NoError(t, err)
 
-	// Verify that the file does not exists since the module is disabled.
-	mockBuilder.AssertNoFileExists(path.Join("metadata", "inventory", flareFileName))
+	// Verify that the file does not exist since the module is disabled.
+	mockBuilder.AssertNoFileExists(flareFileName)
 }
 
 func TestFlareProviderOutput(t *testing.T) {
-	mockData := []software.Entry{{DisplayName: "TestApp"}}
-	is, sp := newSoftwareInventory(t, true)
-	sp.On("GetCheck", sysconfig.SoftwareInventoryModule).Return(mockData, nil)
+	is, _ := newSoftwareInventory(t, true, []software.Entry{{DisplayName: "TestApp"}})
 
 	flareProvider := is.FlareProvider()
 	assert.NotNil(t, flareProvider)
@@ -120,13 +81,11 @@ func TestFlareProviderOutput(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Verify the mock builder was called with the expected file
-	mockBuilder.AssertFileExists(path.Join("metadata", "inventory", flareFileName))
+	mockBuilder.AssertFileExists(flareFileName)
 }
 
 func TestWritePayloadAsJSON(t *testing.T) {
-	mockData := []software.Entry{{DisplayName: "TestApp"}}
-	is, sp := newSoftwareInventory(t, true)
-	sp.On("GetCheck", sysconfig.SoftwareInventoryModule).Return(mockData, nil)
+	is, _ := newSoftwareInventory(t, true, []software.Entry{{DisplayName: "TestApp"}})
 
 	w := httptest.NewRecorder()
 	is.writePayloadAsJSON(w, nil)
@@ -139,9 +98,7 @@ func TestWritePayloadAsJSON(t *testing.T) {
 }
 
 func TestGetPayload(t *testing.T) {
-	mockData := []software.Entry{{DisplayName: "TestApp", ProductCode: "test"}}
-	is, sp := newSoftwareInventory(t, true)
-	sp.On("GetCheck", sysconfig.SoftwareInventoryModule).Return(mockData, nil)
+	is, _ := newSoftwareInventory(t, true, []software.Entry{{DisplayName: "TestApp", ProductCode: "test"}})
 
 	payload := is.getPayload()
 	assert.NotNil(t, payload)
@@ -152,17 +109,11 @@ func TestGetPayload(t *testing.T) {
 	assert.Equal(t, "TestApp", p.Metadata.Software[0].DisplayName)
 
 	// Test error case
-	is, sp = newSoftwareInventory(t, true)
-	sp.On("GetCheck", sysconfig.SoftwareInventoryModule).Return([]software.Entry{}, fmt.Errorf("error"))
+	is, _ = newSoftwareInventory(t, true, []software.Entry{})
 
 	payload = is.getPayload()
-	assert.Nil(t, payload)
-}
-
-func TestComponentRefresh(t *testing.T) {
-	is, _ := newSoftwareInventory(t, true)
-	// Refresh should not panic
-	assert.NotPanics(t, func() {
-		is.Refresh()
-	})
+	assert.NotNil(t, payload)
+	p, ok = payload.(*Payload)
+	assert.True(t, ok)
+	assert.Len(t, p.Metadata.Software, 0)
 }
