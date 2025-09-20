@@ -146,6 +146,10 @@ build do
       move "#{install_dir}/bin/installer/installer", "#{install_dir}/embedded/bin"
   end
 
+  unless windows_target?
+    command "cd cmd/loader && dda inv -- -e loader.build && mv loader #{install_dir}/embedded/bin/trace-loader"
+  end
+
   if windows_target?
     copy 'bin/trace-agent/trace-agent.exe', "#{install_dir}/bin/agent"
   else
