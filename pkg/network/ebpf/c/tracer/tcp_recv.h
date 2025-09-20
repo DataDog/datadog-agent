@@ -1,6 +1,7 @@
 #ifndef __TCP_RECV_H
 #define __TCP_RECV_H
 
+#include "defs.h"
 #include "bpf_helpers.h"
 #include "bpf_telemetry.h"
 #include "bpf_bypass.h"
@@ -48,7 +49,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_recvmsg__pre_5_19_0) {
 SEC("kprobe/tcp_recvmsg")
 int BPF_BYPASSABLE_KPROBE(kprobe__tcp_recvmsg__pre_4_1_0) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("kprobe/tcp_recvmsg: pid_tgid: %llu", pid_tgid);
+    log_verbose("kprobe/tcp_recvmsg: pid_tgid: %llu", pid_tgid);
     int flags = (int)PT_REGS_PARM6(ctx);
     if (flags & MSG_PEEK) {
         return 0;
