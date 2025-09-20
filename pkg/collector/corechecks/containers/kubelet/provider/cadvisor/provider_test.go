@@ -267,7 +267,7 @@ func (suite *ProviderTestSuite) TestIgnoreMetrics() {
 		ignoreMetrics = oldIgnore
 	})
 	// since we updated ignoreMetrics, we need to recreate the provider
-	suite.provider, _ = NewProvider(suite.provider.filterStore, suite.provider.Config, suite.provider.store, suite.provider.podUtils, suite.tagger)
+	suite.provider, _ = NewProvider(workloadfilterfxmock.SetupMockFilter(suite.T()), suite.provider.Config, suite.provider.store, suite.provider.podUtils, suite.tagger)
 
 	response := commontesting.NewEndpointResponse(
 		"../../testdata/cadvisor_metrics_pre_1_16.txt", 200, nil)
