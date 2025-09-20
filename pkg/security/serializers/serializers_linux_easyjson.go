@@ -4212,6 +4212,7 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers27(
 	out.ModuleEventSerializer = new(ModuleEventSerializer)
 	out.SignalEventSerializer = new(SignalEventSerializer)
 	out.SpliceEventSerializer = new(SpliceEventSerializer)
+	out.FailedDNSEventSerializer = new(FailedDNSEventSerializer)
 	out.DNSEventSerializer = new(DNSEventSerializer)
 	out.IMDSEventSerializer = new(IMDSEventSerializer)
 	out.AcceptEventSerializer = new(AcceptEventSerializer)
@@ -4357,6 +4358,16 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers27(
 					out.SpliceEventSerializer = new(SpliceEventSerializer)
 				}
 				(*out.SpliceEventSerializer).UnmarshalEasyJSON(in)
+			}
+		case "failed_dns":
+			if in.IsNull() {
+				in.Skip()
+				out.FailedDNSEventSerializer = nil
+			} else {
+				if out.FailedDNSEventSerializer == nil {
+					out.FailedDNSEventSerializer = new(FailedDNSEventSerializer)
+				}
+				(*out.FailedDNSEventSerializer).UnmarshalEasyJSON(in)
 			}
 		case "dns":
 			if in.IsNull() {
@@ -4714,6 +4725,16 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers27(
 			out.RawString(prefix)
 		}
 		(*in.SpliceEventSerializer).MarshalEasyJSON(out)
+	}
+	if in.FailedDNSEventSerializer != nil {
+		const prefix string = ",\"failed_dns\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		(*in.FailedDNSEventSerializer).MarshalEasyJSON(out)
 	}
 	if in.DNSEventSerializer != nil {
 		const prefix string = ",\"dns\":"

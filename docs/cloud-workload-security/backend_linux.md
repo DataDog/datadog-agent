@@ -462,6 +462,20 @@ Workload Protection events for Linux systems have the following JSON schema:
             ],
             "description": "ExitEventSerializer serializes an exit event to JSON"
         },
+        "FailedDNSEvent": {
+            "properties": {
+                "payload": {
+                    "type": "string",
+                    "description": "Payload represents the payload that failed to get decoded"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "payload"
+            ],
+            "description": "FailedDNSEventSerializer serializes an event indicating a failure decoding a DNS packet to JSON"
+        },
         "File": {
             "properties": {
                 "path": {
@@ -2217,6 +2231,9 @@ Workload Protection events for Linux systems have the following JSON schema:
         "splice": {
             "$ref": "#/$defs/SpliceEvent"
         },
+        "failed_dns": {
+            "$ref": "#/$defs/FailedDNSEvent"
+        },
         "dns": {
             "$ref": "#/$defs/DNSEvent"
         },
@@ -2298,6 +2315,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `module` | $ref | Please see [ModuleEvent](#moduleevent) |
 | `signal` | $ref | Please see [SignalEvent](#signalevent) |
 | `splice` | $ref | Please see [SpliceEvent](#spliceevent) |
+| `failed_dns` | $ref | Please see [FailedDNSEvent](#faileddnsevent) |
 | `dns` | $ref | Please see [DNSEvent](#dnsevent) |
 | `imds` | $ref | Please see [IMDSEvent](#imdsevent) |
 | `accept` | $ref | Please see [AcceptEvent](#acceptevent) |
@@ -3050,6 +3068,32 @@ Workload Protection events for Linux systems have the following JSON schema:
 | ----- | ----------- |
 | `cause` | Cause of the process termination (one of EXITED, SIGNALED, COREDUMPED) |
 | `code` | Exit code of the process or number of the signal that caused the process to terminate |
+
+
+## `FailedDNSEvent`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "payload": {
+            "type": "string",
+            "description": "Payload represents the payload that failed to get decoded"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+        "payload"
+    ],
+    "description": "FailedDNSEventSerializer serializes an event indicating a failure decoding a DNS packet to JSON"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `payload` | Payload represents the payload that failed to get decoded |
 
 
 ## `File`
