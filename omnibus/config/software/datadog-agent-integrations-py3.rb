@@ -286,6 +286,18 @@ build do
         shellout! "patchelf --replace-needed #{File.basename(libcrypto_match)} libcrypto.so.3 #{so_to_patch}"
         shellout! "patchelf --add-rpath #{install_dir}/embedded/lib #{so_to_patch}"
         FileUtils.rm([libssl_match, libcrypto_match])
+
+        # Same for psycopg
+        psycopg_folder = "#{site_packages_path}/psycopg_c"
+        libssl_match = Dir.glob("#{psycopg_folder}.libs/libssl-*.so.3")[0]
+        libcrypto_match = Dir.glob("#{psycopg_folder}.libs/libcrypto-*.so.3")[0]
+        sos_to_patch = Dir.glob("#{psycopg_folder}/*.so*") + Dir.glob("#{psycopg_folder}.libs/*.so*")
+        sos_to_patch.each do |so_to_patch|
+          shellout! "patchelf --replace-needed #{File.basename(libssl_match)} libssl.so.3 #{so_to_patch}"
+          shellout! "patchelf --replace-needed #{File.basename(libcrypto_match)} libcrypto.so.3 #{so_to_patch}"
+          shellout! "patchelf --add-rpath #{install_dir}/embedded/lib #{so_to_patch}"
+        end
+        FileUtils.rm([libssl_match, libcrypto_match])
       end
     elsif windows_target?
       # Build the cryptography library in this case so that it gets linked to Agent's OpenSSL
