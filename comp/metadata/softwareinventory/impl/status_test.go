@@ -11,23 +11,20 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/inventory/software"
-	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestStatusFundamentals(t *testing.T) {
-	is, _ := newSoftwareInventory(t, true)
+	is, _ := newSoftwareInventory(t, true, nil)
 	assert.Equal(t, "Software Inventory Metadata", is.Name())
 	assert.Equal(t, 4, is.Index())
 }
 
 func TestGetPayloadRefreshesCachedValues(t *testing.T) {
-	mockData := []software.Entry{
+	is, sp := newSoftwareInventory(t, true, []software.Entry{
 		{DisplayName: "FooApp", ProductCode: "foo"},
 		{DisplayName: "BarApp", ProductCode: "bar"},
-	}
-	is, sp := newSoftwareInventory(t, true)
-	sp.On("GetCheck", sysconfig.SoftwareInventoryModule).Return(mockData, nil)
+	})
 
 	// Status JSON should trigger a refresh of cached values
 	stats := make(map[string]interface{})
@@ -107,8 +104,7 @@ func TestStatusTemplates(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			is, sp := newSoftwareInventory(t, true)
-			sp.On("GetCheck", sysconfig.SoftwareInventoryModule).Return(tt.mockData, nil)
+			is, sp := newSoftwareInventory(t, true, tt.mockData)
 
 			// Test Text template
 			var buf bytes.Buffer
@@ -132,8 +128,7 @@ func TestStatusTemplates(t *testing.T) {
 }
 
 func TestStatusTemplateWithNoSoftwareInventoryMetadata(t *testing.T) {
-	is, sp := newSoftwareInventory(t, true)
-	sp.On("GetCheck", sysconfig.SoftwareInventoryModule).Return([]software.Entry{}, nil)
+	is, sp := newSoftwareInventory(t, true, []software.Entry{})
 
 	// Test Text template
 	var buf bytes.Buffer
