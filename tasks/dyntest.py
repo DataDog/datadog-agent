@@ -23,19 +23,26 @@ from tasks.libs.dynamic_test.indexers.e2e import (
 @task
 def compute_and_upload_job_index(ctx: Context, bucket_uri: str, coverage_folder: str, commit_sha: str, job_id: str):
     uploader = S3Backend(bucket_uri)
+    run_all_paths = [
+        "test/new-e2e/pkg/*",  # Modification to the framework should trigger all tests
+    ]
+    for target in os.getenv("TARGETS").split(","):
+        run_all_paths.append(os.path.normpath(os.path.join("test/new-e2e", target) + "/*"))
 
     # Package coverage indexer
-    indexer = PackageCoverageDynTestIndexer(coverage_folder)
+    indexer = PackageCoverageDynTestIndexer(coverage_folder, run_all_paths)
     index_package = indexer.compute_index(ctx)
     uploader.upload_index(index_package, IndexKind.PACKAGE, f"{commit_sha}/{job_id}")
 
     # File coverage indexer
-    indexer = FileCoverageDynTestIndexer(coverage_folder)
+    indexer = FileCoverageDynTestIndexer(coverage_folder, run_all_paths)
     index_file = indexer.compute_index(ctx)
     uploader.upload_index(index_file, IndexKind.FILE, f"{commit_sha}/{job_id}")
 
     # Diffed package coverage indexer
-    indexer = DiffedPackageCoverageDynTestIndexer(coverage_folder, f"{coverage_folder}/testagentbaselinesuite")
+    indexer = DiffedPackageCoverageDynTestIndexer(
+        coverage_folder, f"{coverage_folder}/testagentbaselinesuite", run_all_paths
+    )
     index_diffed = indexer.compute_index(ctx)
     uploader.upload_index(index_diffed, IndexKind.DIFFED_PACKAGE, f"{commit_sha}/{job_id}")
 

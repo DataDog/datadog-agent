@@ -42,16 +42,26 @@ class CoverageDynTestIndexer(DynTestIndexer):
     - Deduplication across multiple test suites
     """
 
-    def __init__(self, coverage_root: str) -> None:
+    def __init__(self, coverage_root: str, run_all_changes_paths: list[str] | None = None) -> None:
         """Initialize the coverage-based indexer.
 
         Args:
             coverage_root: Path to the root directory containing coverage output folders
         """
         self.coverage_root = coverage_root
+        self.run_all_changes_paths = []
+        if run_all_changes_paths is not None:
+            self.run_all_changes_paths = run_all_changes_paths
+
+    def compute_index(self, ctx: Context) -> DynamicTestIndex:
+        index = self._compute_index(ctx)
+        for pattern in self.run_all_changes_paths:
+            for job in index.get_jobs():
+                index.add_tests(job, pattern, ["*"])
+        return index
 
     @abstractmethod
-    def compute_index(self, ctx: Context) -> DynamicTestIndex:
+    def _compute_index(self, ctx: Context) -> DynamicTestIndex:
         raise NotImplementedError
 
     def read_metadata(self, suite_folder: Path) -> dict[str, str]:
@@ -153,7 +163,7 @@ class FileCoverageDynTestIndexer(CoverageDynTestIndexer):
     - Deduplication across multiple test suites
     """
 
-    def compute_index(self, ctx: Context) -> DynamicTestIndex:
+    def _compute_index(self, ctx: Context) -> DynamicTestIndex:
         """Compute the dynamic test index from file coverage data.
 
         Args:
@@ -218,7 +228,7 @@ class PackageCoverageDynTestIndexer(CoverageDynTestIndexer):
     - Deduplication across multiple test suites
     """
 
-    def compute_index(self, ctx: Context) -> DynamicTestIndex:
+    def _compute_index(self, ctx: Context) -> DynamicTestIndex:
         """Compute the dynamic test index from package coverage data.
 
         Args:
@@ -281,7 +291,7 @@ class DiffedPackageCoverageDynTestIndexer(CoverageDynTestIndexer):
         if os.getenv("CI_JOB_NAME") == "new-e2e-base-coverage":
             self.is_baseline_job = True
 
-    def compute_index(self, ctx: Context) -> DynamicTestIndex:
+    def _compute_index(self, ctx: Context) -> DynamicTestIndex:
         """Compute the dynamic test index from differential package coverage data.
 
         Args:
@@ -319,7 +329,8 @@ class DiffedPackageCoverageDynTestIndexer(CoverageDynTestIndexer):
                         not self.is_baseline_job
                         and file_path in baseline_covered
                         and range in baseline_covered[file_path]
-                        and baseline_covered[file_path][range] == n_covered
+                        and baseline_covered[file_path][range]
+                        > 0  # We consider it is covered by baseline test so not specific to the current test
                     ):
                         continue
                     metadata = self.read_metadata(suite)
