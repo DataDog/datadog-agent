@@ -378,6 +378,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault(join(gpuNS, "enable_fatbin_parsing"), false)
 	cfg.BindEnvAndSetDefault(join(gpuNS, "fatbin_request_queue_size"), 100)
 	cfg.BindEnvAndSetDefault(join(gpuNS, "ring_buffer_pages_per_device"), 32) // 32 pages = 128KB by default per device
+	cfg.BindEnvAndSetDefault(join(gpuNS, "ringbuffer_wakeup_size"), 3000)     // 3000 bytes is about ~10-20 events depending on the specific type
 	cfg.BindEnvAndSetDefault(join(gpuNS, "attacher_detailed_logs"), false)
 
 	// gpu - stream config
