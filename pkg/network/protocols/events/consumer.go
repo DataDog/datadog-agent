@@ -189,15 +189,12 @@ func (c *DirectConsumer[V]) Stop() {
 
 // flushCoordinator coordinates synchronous flushes based on tcp_close_consumer pattern
 func (c *DirectConsumer[V]) flushCoordinator() {
-	for {
-		select {
-		case request := <-c.flushRequests:
-			// Send the completion channel to flushChannel for callback coordination
-			c.flushChannel <- request
-			// Call the underlying EventHandler.Flush() to force ring buffer flush
-			// This will cause the callback to eventually receive a sentinel record
-			c.EventHandler.Flush()
-		}
+	for request := range c.flushRequests {
+		// Send the completion channel to flushChannel for callback coordination
+		c.flushChannel <- request
+		// Call the underlying EventHandler.Flush() to force ring buffer flush
+		// This will cause the callback to eventually receive a sentinel record
+		c.EventHandler.Flush()
 	}
 }
 
