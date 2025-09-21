@@ -84,7 +84,6 @@ func (v *linuxSecretSuite) TestAgentConfigRefresh() {
 secret_backend_arguments:
   - /tmp
 api_key: ENC[api_key]
-apm_config.socket_activation.enabled: false
 `
 
 	secretClient := secretsutils.NewClient(v.T(), v.Env().RemoteHost, "/tmp")

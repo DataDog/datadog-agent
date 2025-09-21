@@ -40,7 +40,6 @@ func (v *linuxAPIKeyRefreshSuite) TestIntakeRefreshAPIKey() {
 secret_backend_arguments:
   - /tmp
 api_key: ENC[api_key]
-apm_config.socket_activation.enabled: false
 `
 	secretClient := secrets.NewClient(v.T(), v.Env().RemoteHost, "/tmp")
 	// Set the real api key in the secret backend
