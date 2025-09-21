@@ -46,6 +46,11 @@ type DirectConsumer[V any] struct {
 	proto    string
 	callback func(*V)
 
+	// flush coordination
+	flushRequests    chan chan struct{}
+	flushChannel     chan chan struct{}
+	originalCallback func(*V)
+
 	// telemetry
 	metricGroup       *telemetry.MetricGroup
 	eventsCount       *telemetry.Counter
@@ -69,13 +74,27 @@ func NewDirectConsumer[V any](proto string, callback func(*V), config *config.Co
 	consumer := &DirectConsumer[V]{
 		proto:             proto,
 		callback:          callback,
+		originalCallback:  callback,
+		flushRequests:     make(chan chan struct{}),
+		flushChannel:      make(chan chan struct{}, 1),
 		metricGroup:       metricGroup,
 		eventsCount:       eventsCount,
 		invalidEventCount: invalidEventCount,
 	}
 
-	// Create handler function that processes individual events
+	// Create handler function that processes individual events and handles flush coordination
 	handler := func(data []byte) {
+		// Handle sentinel flush record (empty data indicates flush completion)
+		if len(data) == 0 {
+			select {
+			case request := <-consumer.flushChannel:
+				close(request) // Signal flush completion
+			default:
+				// No pending flush request, ignore sentinel
+			}
+			return
+		}
+
 		if len(data) < int(unsafe.Sizeof(*new(V))) {
 			consumer.invalidEventCount.Add(1)
 			log.Debugf("DirectConsumer %s: received data too small for event type, size: %d, expected: %d",
@@ -126,6 +145,10 @@ func NewDirectConsumer[V any](proto string, callback func(*V), config *config.Co
 	}
 
 	consumer.EventHandler = *eventHandler
+
+	// Start flush coordination goroutine
+	go consumer.flushCoordinator()
+
 	return consumer, nil
 }
 
@@ -140,12 +163,21 @@ func (c *DirectConsumer[V]) Start() {
 
 // Sync implements Consumer interface
 func (c *DirectConsumer[V]) Sync() {
-	// Flush any pending data from the ring buffer
+	// Flush any pending data from the ring buffer using synchronous flush coordination
 	if log.ShouldLog(log.DebugLvl) {
 		log.Debugf("DirectConsumer: syncing for protocol %s", c.proto)
 		log.Debugf("usm events summary: name=%q %s", c.proto, c.metricGroup.Summary())
 	}
-	c.Flush()
+
+	// Create completion channel and send flush request
+	wait := make(chan struct{})
+	select {
+	case c.flushRequests <- wait:
+		// Wait for flush completion
+		<-wait
+	default:
+		// If flush channel is full, skip (already flushing)
+	}
 }
 
 // Stop implements Consumer interface
@@ -153,6 +185,20 @@ func (c *DirectConsumer[V]) Stop() {
 	// The EventHandler's AfterStop method handles cleanup
 	// This would typically be called by the ebpf-manager during shutdown
 	log.Debugf("DirectConsumer: stopping for protocol %s", c.proto)
+}
+
+// flushCoordinator coordinates synchronous flushes based on tcp_close_consumer pattern
+func (c *DirectConsumer[V]) flushCoordinator() {
+	for {
+		select {
+		case request := <-c.flushRequests:
+			// Send the completion channel to flushChannel for callback coordination
+			c.flushChannel <- request
+			// Call the underlying EventHandler.Flush() to force ring buffer flush
+			// This will cause the callback to eventually receive a sentinel record
+			c.EventHandler.Flush()
+		}
+	}
 }
 
 // BatchConsumer processes batches of events from eBPF maps.
