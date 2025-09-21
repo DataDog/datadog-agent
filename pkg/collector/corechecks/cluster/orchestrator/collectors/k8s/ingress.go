@@ -41,11 +41,9 @@ type IngressCollector struct {
 // resource.
 func NewIngressCollector(metadataAsTags utils.MetadataAsTags) *IngressCollector {
 	resourceType := utilTypes.GetResourceType(utilTypes.IngressName, utilTypes.IngressVersion)
-	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
-	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
 
 	return &IngressCollector{
-		metadata: &collectors.CollectorMetadata{
+		metadata: (&collectors.CollectorMetadata{
 			IsDefaultVersion:                     true,
 			IsStable:                             true,
 			IsMetadataProducer:                   true,
@@ -55,10 +53,8 @@ func NewIngressCollector(metadataAsTags utils.MetadataAsTags) *IngressCollector 
 			Kind:                                 kubernetes.IngressKind,
 			NodeType:                             orchestrator.K8sIngress,
 			Version:                              utilTypes.IngressVersion,
-			LabelsAsTags:                         labelsAsTags,
-			AnnotationsAsTags:                    annotationsAsTags,
 			SupportsTerminatedResourceCollection: true,
-		},
+		}).WithMetadataAsTags(metadataAsTags, resourceType),
 		processor: processors.NewProcessor(new(k8sProcessors.IngressHandlers)),
 	}
 }
