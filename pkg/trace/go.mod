@@ -59,7 +59,7 @@ require (
 require go.opentelemetry.io/collector/processor v1.41.0 // indirect
 
 require (
-	github.com/prometheus/client_golang v1.23.0 // indirect
+	github.com/prometheus/client_golang v1.23.2 // indirect
 	go.opentelemetry.io/contrib/otelconf v0.17.0 // indirect
 )
 

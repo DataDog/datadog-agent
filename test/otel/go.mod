@@ -61,6 +61,7 @@ require (
 	github.com/twmb/murmur3 v1.1.8 // indirect
 	go.opentelemetry.io/collector/consumer/consumererror v0.135.0 // indirect
 	go.opentelemetry.io/collector/pdata/pprofile v0.135.0 // indirect
+	go.yaml.in/yaml/v2 v2.4.2 // indirect
 )
 
 require (
@@ -177,9 +178,9 @@ require (
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
-	github.com/prometheus/client_golang v1.23.0 // indirect
+	github.com/prometheus/client_golang v1.23.2 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
-	github.com/prometheus/common v0.65.0 // indirect
+	github.com/prometheus/common v0.66.1 // indirect
 	github.com/prometheus/procfs v0.17.0 // indirect
 	github.com/rs/cors v1.11.1 // indirect
 	github.com/secure-systems-lab/go-securesystemslib v0.9.0 // indirect
