@@ -28,6 +28,12 @@
 #define HTTP2_MAX_TAIL_CALLS_FOR_FRAMES_FILTER 1
 #define HTTP2_MAX_FRAMES_TO_FILTER 240
 
+// The flag which will be sent in the PRIORITY field.
+#define HTTP2_PRIORITY_FLAG 0x20
+
+// 5-byte priority section at the start of a HEADERS frame when the PRIORITY flag is set.
+#define HTTP2_PRIORITY_BUFFER_LEN 5
+
 // Represents the maximum number octets we will process in the dynamic table update size.
 #define HTTP2_MAX_DYNAMIC_TABLE_UPDATE_ITERATIONS 5
 

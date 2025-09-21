@@ -931,9 +931,17 @@ static __always_inline void headers_parser(pktbuf_t pkt, void *map_key, conn_tup
         current_stream->tags = tags;
         pktbuf_set_offset(pkt, current_frame.offset);
 
-        // Count priority flags in HEADERS frames
-        if ((current_frame.frame.flags & HTTP2_PRIORITY_FLAG) == HTTP2_PRIORITY_FLAG) {
+        // If PRIORITY flag (0x20) set, skip 5-byte priority fields.
+        // See: https://datatracker.ietf.org/doc/html/rfc7540#section-6.2
+        if (current_frame.frame.flags & HTTP2_PRIORITY_FLAG) {
+            // Count priority flags in HEADERS frames
             __sync_fetch_and_add(&http2_tel->priority_flags_seen, 1);
+            pktbuf_advance(pkt, HTTP2_PRIORITY_BUFFER_LEN);
+            if (current_frame.frame.length > HTTP2_PRIORITY_BUFFER_LEN) {
+                current_frame.frame.length -= HTTP2_PRIORITY_BUFFER_LEN;
+            } else {
+                continue;
+            }
         }
 
 
