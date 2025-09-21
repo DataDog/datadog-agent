@@ -268,19 +268,24 @@ func CheckApmEnabled(t *testing.T, client *TestClient) {
 		var boundPort boundport.BoundPort
 		if !assert.EventuallyWithT(tt, func(c *assert.CollectT) {
 			if client.Host.OSFamily == componentos.LinuxFamily {
-				out := client.Host.MustExecute("pgrep -fl trace")
-				t.Logf("trace processes: %s", out)
+				out, err := client.Host.Execute("pgrep -fl trace|datadog")
+				if err == nil {
+					t.Logf("processes: %s", out)
+				} else {
+					t.Log("Couldn't get processes")
+				}
 			}
 
 			boundPort, _ = AssertPortBoundByService(c, client, 8126, "trace-agent", apmProcessName)
 		}, 1*time.Minute, 500*time.Millisecond) {
 			err := fmt.Errorf("port 8126 should be bound when APM is enabled")
-			if err != nil && client.Host.OSFamily == componentos.LinuxFamily {
-				err = fmt.Errorf("%w\n%s", err, ReadJournalCtl(t, client, "trace-agent\\|datadog-agent-trace"))
+			if client.Host.OSFamily == componentos.LinuxFamily {
+				err = fmt.Errorf("%w\n%s", err, ReadJournalCtl(t, client, "trace-loader\\|trace-agent\\|datadog-agent-trace"))
 			}
 			t.Fatalf("%s", err.Error())
 		}
 
+		require.NotNil(t, boundPort)
 		require.EqualValues(t, "127.0.0.1", boundPort.LocalAddress(), "trace-agent should only be listening locally")
 	})
 }
