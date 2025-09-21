@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
+	"github.com/DataDog/datadog-agent/pkg/util/common"
 )
 
 func requestLatency(responseLastSeen uint64, requestStarted uint64) float64 {
@@ -102,44 +103,44 @@ func (tx *WinHttpTransaction) StaticTags() uint64 {
 	return 0
 }
 
-// Dynamic Tags are not part of windows driver http transactions
-//
-//nolint:revive // TODO(WKIT) Fix revive linter
-func (tx *WinHttpTransaction) DynamicTags() []string {
-	tags := make([]string, 0, 6)
+// OsSpecific returns dynamic tags for the transaction.
+func (tx *WinHttpTransaction) OsSpecific() *RequestStatOSSpecific {
+	res := &RequestStatOSSpecific{
+		DynamicTags: make(common.StringSet, 6),
+	}
 
 	if len(tx.AppPool) != 0 || len(tx.SiteName) != 0 {
-		tags = append(tags, fmt.Sprintf("http.iis.site:%v", tx.SiteID))
+		res.DynamicTags.Add(fmt.Sprintf("http.iis.site:%v", tx.SiteID))
 		if (len(tx.AppPool)) > 0 {
-			tags = append(tags, fmt.Sprintf("http.iis.app_pool:%v", tx.AppPool))
+			res.DynamicTags.Add(fmt.Sprintf("http.iis.app_pool:%v", tx.AppPool))
 		}
 		if (len(tx.SiteName)) > 0 {
-			tags = append(tags, fmt.Sprintf("http.iis.sitename:%v", tx.SiteName))
+			res.DynamicTags.Add(fmt.Sprintf("http.iis.sitename:%v", tx.SiteName))
 		}
 	}
 
 	// tag precedence is web.config -> datadog.json
 	if (len(tx.TagsFromConfig.DDEnv)) > 0 {
-		tags = append(tags, fmt.Sprintf("env:%v", tx.TagsFromConfig.DDEnv))
+		res.DynamicTags.Add(fmt.Sprintf("env:%v", tx.TagsFromConfig.DDEnv))
 	} else if (len(tx.TagsFromJson.DDEnv)) > 0 {
-		tags = append(tags, fmt.Sprintf("env:%v", tx.TagsFromJson.DDEnv))
+		res.DynamicTags.Add(fmt.Sprintf("env:%v", tx.TagsFromJson.DDEnv))
 	}
 
 	if (len(tx.TagsFromConfig.DDService)) > 0 {
-		tags = append(tags, fmt.Sprintf("service:%v", tx.TagsFromConfig.DDService))
+		res.DynamicTags.Add(fmt.Sprintf("service:%v", tx.TagsFromConfig.DDService))
 	} else if (len(tx.TagsFromJson.DDService)) > 0 {
-		tags = append(tags, fmt.Sprintf("service:%v", tx.TagsFromJson.DDService))
+		res.DynamicTags.Add(fmt.Sprintf("service:%v", tx.TagsFromJson.DDService))
 	}
 
 	if (len(tx.TagsFromConfig.DDVersion)) > 0 {
-		tags = append(tags, fmt.Sprintf("version:%v", tx.TagsFromConfig.DDVersion))
+		res.DynamicTags.Add(fmt.Sprintf("version:%v", tx.TagsFromConfig.DDVersion))
 	} else if (len(tx.TagsFromJson.DDVersion)) > 0 {
-		tags = append(tags, fmt.Sprintf("version:%v", tx.TagsFromJson.DDVersion))
+		res.DynamicTags.Add(fmt.Sprintf("version:%v", tx.TagsFromJson.DDVersion))
 	}
-	if len(tags) == 0 {
+	if len(res.DynamicTags) == 0 {
 		return nil
 	}
-	return tags
+	return res
 }
 
 //nolint:revive // TODO(WKIT) Fix revive linter
@@ -160,7 +161,7 @@ func (tx *WinHttpTransaction) String() string {
 	output.WriteString("\n LocalAddr: " + lap.String() + " RemoteAddr: " + rap.String())
 	output.WriteString("\n  Method: '" + tx.Method().String() + "', ")
 	output.WriteString("\n  MaxRequest: '" + strconv.Itoa(int(tx.Txn.MaxRequestFragment)) + "', ")
-	//output.WriteString("Fragment: '" + hex.EncodeToString(tx.RequestFragment[:]) + "', ")
+	// output.WriteString("Fragment: '" + hex.EncodeToString(tx.RequestFragment[:]) + "', ")
 	output.WriteString("\n  Fragment: '" + string(tx.RequestFragment[:]) + "', ")
 	output.WriteString("}")
 	return output.String()

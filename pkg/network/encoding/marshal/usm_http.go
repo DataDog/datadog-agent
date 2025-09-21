@@ -10,6 +10,7 @@ package marshal
 import (
 	"bytes"
 	"io"
+	"runtime"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -58,7 +59,7 @@ func (e *httpEncoder) EncodeConnection(c network.ConnectionStats, builder *model
 
 func (e *httpEncoder) encodeData(connectionData *USMConnectionData[http.Key, *http.RequestStats], w io.Writer) (uint64, map[string]struct{}) {
 	var staticTags uint64
-	dynamicTags := make(map[string]struct{})
+	var dynamicTags map[string]struct{}
 	e.httpAggregationsBuilder.Reset(w)
 
 	for _, kvPair := range connectionData.Data {
@@ -87,8 +88,11 @@ func (e *httpEncoder) encodeData(connectionData *USMConnectionData[http.Key, *ht
 				})
 
 				staticTags |= stats.StaticTags
-				for dynamicTag := range stats.DynamicTags {
-					dynamicTags[dynamicTag] = struct{}{}
+
+				if runtime.GOOS == "windows" {
+					for dynamicTag := range stats.GetDynamicTags() {
+						dynamicTags[dynamicTag] = struct{}{}
+					}
 				}
 			}
 		})
