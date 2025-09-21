@@ -931,6 +931,12 @@ static __always_inline void headers_parser(pktbuf_t pkt, void *map_key, conn_tup
         current_stream->tags = tags;
         pktbuf_set_offset(pkt, current_frame.offset);
 
+        // Count priority flags in HEADERS frames
+        if ((current_frame.frame.flags & HTTP2_PRIORITY_FLAG) == HTTP2_PRIORITY_FLAG) {
+            __sync_fetch_and_add(&http2_tel->priority_flags_seen, 1);
+        }
+
+
         interesting_headers = pktbuf_filter_relevant_headers(pkt, global_dynamic_counter, &http2_ctx->dynamic_index, headers_to_process, current_frame.frame.length, http2_tel);
         pktbuf_process_headers(pkt, &http2_ctx->dynamic_index, current_stream, headers_to_process, interesting_headers, http2_tel);
     }

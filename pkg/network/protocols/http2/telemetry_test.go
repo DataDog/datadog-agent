@@ -47,6 +47,7 @@ func testKernelTelemetryUpdate(t *testing.T, isTLS bool) {
 		Exceeding_max_interesting_frames: 30,
 		Exceeding_max_frames_to_filter:   40,
 		Continuation_frames:              5,
+		Priority_flags_seen:              3,
 		Path_size_bucket:                 [8]uint64{1, 2, 3, 4, 5, 6, 7, 8},
 	}
 	kernelTelemetryGroup.update(http2Telemetry, isTLS)
@@ -63,6 +64,7 @@ func testKernelTelemetryUpdate(t *testing.T, isTLS bool) {
 	http2Telemetry.Exceeding_max_interesting_frames = 32
 	http2Telemetry.Exceeding_max_frames_to_filter = 42
 	http2Telemetry.Continuation_frames = 6
+	http2Telemetry.Priority_flags_seen = 7
 	http2Telemetry.Path_size_bucket = [8]uint64{2, 3, 4, 5, 6, 7, 8, 9}
 	kernelTelemetryGroup.update(http2Telemetry, isTLS)
 	assertTelemetryEquality(t, http2Telemetry, kernelTelemetryGroup, isTLS)
@@ -77,6 +79,7 @@ func assertTelemetryEquality(t *testing.T, http2Telemetry *HTTP2Telemetry, kerne
 	assert.Equal(t, http2Telemetry.Exceeding_max_interesting_frames, uint64(kernelTelemetryGroup.exceedingMaxInterestingFrames.Get(isTLS)))
 	assert.Equal(t, http2Telemetry.Exceeding_max_frames_to_filter, uint64(kernelTelemetryGroup.exceedingMaxFramesToFilter.Get(isTLS)))
 	assert.Equal(t, http2Telemetry.Continuation_frames, uint64(kernelTelemetryGroup.continuationFramesCount.Get(isTLS)))
+	assert.Equal(t, http2Telemetry.Priority_flags_seen, uint64(kernelTelemetryGroup.priorityFlagsSeen.Get(isTLS)))
 
 	for i, bucket := range kernelTelemetryGroup.pathSizeBucket {
 		assert.Equal(t, http2Telemetry.Path_size_bucket[i], uint64(bucket.Get(isTLS)))
