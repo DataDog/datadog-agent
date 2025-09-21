@@ -245,6 +245,37 @@ func fileEventToProto(fe *model.FileEvent) *adproto.FileInfo {
 	return fi
 }
 
+func fileInfoToProto(fi *FileInfo) *adproto.FileInfo {
+	if fi == nil {
+		return nil
+	}
+
+	protoFi := adproto.FileInfoFromVTPool()
+	*protoFi = adproto.FileInfo{
+		Uid:               fi.UID,
+		User:              fi.User,
+		Gid:               fi.GID,
+		Group:             fi.Group,
+		Mode:              fi.Mode,
+		Ctime:             fi.Ctime,
+		Mtime:             fi.Mtime,
+		MountId:           fi.MountID,
+		Inode:             fi.Inode,
+		InUpperLayer:      fi.InUpperLayer,
+		Path:              escape(fi.Path),
+		Basename:          escape(fi.Basename),
+		Filesystem:        escape(fi.Filesystem),
+		PackageName:       fi.PackageName,
+		PackageVersion:    fi.PackageVersion,
+		PackageSrcversion: fi.PackageSrcversion,
+		Hashes:            make([]string, len(fi.Hashes)),
+		HashState:         adproto.HashState(fi.HashState),
+	}
+	copy(protoFi.Hashes, fi.Hashes)
+
+	return protoFi
+}
+
 func fileActivityNodeToProto(fan *FileNode) *adproto.FileActivityNode {
 	if fan == nil {
 		return nil
@@ -254,7 +285,7 @@ func fileActivityNodeToProto(fan *FileNode) *adproto.FileActivityNode {
 	*pfan = adproto.FileActivityNode{
 		MatchedRules:   make([]*adproto.MatchedRule, 0, len(fan.MatchedRules)),
 		Name:           escape(fan.Name),
-		File:           fileEventToProto(fan.File),
+		File:           fileInfoToProto(fan.File),
 		GenerationType: adproto.GenerationType(fan.GenerationType),
 		Open:           openNodeToProto(fan.Open),
 		Children:       make([]*adproto.FileActivityNode, 0, len(fan.Children)),

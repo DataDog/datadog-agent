@@ -26,7 +26,7 @@ type FileNode struct {
 	MatchedRules   []*model.MatchedRule
 	Name           string
 	IsPattern      bool
-	File           *model.FileEvent
+	File           *FileInfo
 	GenerationType NodeGenerationType
 	Open           *OpenNode
 
@@ -58,10 +58,7 @@ func NewFileNode(fileEvent *model.FileEvent, event *model.Event, name string, im
 		fan.AppendImageTag(imageTag, event.ResolveEventTime())
 	}
 	if fileEvent != nil {
-		fileEventTmp := *fileEvent
-		fan.File = &fileEventTmp
-		fan.File.PathnameStr = reducedFilePath
-		fan.File.BasenameStr = name
+		fan.File = fileEventToFileInfo(fileEvent, reducedFilePath, name)
 	}
 	fan.enrichFromEvent(event)
 	return fan
@@ -92,8 +89,8 @@ func (fn *FileNode) buildNodeRow(prefix string) string {
 	var out string
 	if fn.Open != nil && fn.File != nil {
 		var pkg string
-		if len(fn.File.PkgName) != 0 {
-			pkg = fmt.Sprintf("%s:%s", fn.File.PkgName, fn.File.PkgVersion)
+		if len(fn.File.PackageName) != 0 {
+			pkg = fmt.Sprintf("%s:%s", fn.File.PackageName, fn.File.PackageVersion)
 		}
 		out += "<TR>"
 		out += "<TD>open</TD>"
@@ -207,4 +204,54 @@ func (fn *FileNode) evictImageTag(imageTag string) bool {
 		}
 	}
 	return false
+}
+
+// FileInfo contains file metadata and security attributes.
+type FileInfo struct {
+	UID               uint32
+	User              string
+	GID               uint32
+	Group             string
+	Mode              uint32 // TODO: check conversion with uint16
+	Ctime             uint64
+	Mtime             uint64
+	MountID           uint32
+	Inode             uint64
+	InUpperLayer      bool
+	Path              string
+	Basename          string
+	Filesystem        string
+	PackageName       string
+	PackageVersion    string
+	PackageSrcversion string
+	Hashes            []string
+	HashState         model.HashState
+}
+
+// fileEventToFileInfo converts a model.FileEvent to FileInfo
+func fileEventToFileInfo(fileEvent *model.FileEvent, reducedFilePath, basename string) *FileInfo {
+	if fileEvent == nil {
+		return nil
+	}
+
+	return &FileInfo{
+		UID:               fileEvent.UID,
+		User:              fileEvent.User,
+		GID:               fileEvent.GID,
+		Group:             fileEvent.Group,
+		Mode:              uint32(fileEvent.Mode),
+		Ctime:             fileEvent.CTime,
+		Mtime:             fileEvent.MTime,
+		MountID:           fileEvent.MountID,
+		Inode:             fileEvent.Inode,
+		InUpperLayer:      fileEvent.InUpperLayer,
+		Path:              reducedFilePath,
+		Basename:          basename,
+		Filesystem:        fileEvent.Filesystem,
+		PackageName:       fileEvent.PkgName,
+		PackageVersion:    fileEvent.PkgVersion,
+		PackageSrcversion: fileEvent.PkgSrcVersion,
+		Hashes:            fileEvent.Hashes,
+		HashState:         fileEvent.HashState,
+	}
 }
