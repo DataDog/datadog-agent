@@ -10,9 +10,10 @@ package events
 import (
 	"errors"
 	"fmt"
-	"golang.org/x/sys/unix"
 	"sync"
 	"unsafe"
+
+	"golang.org/x/sys/unix"
 
 	manager "github.com/DataDog/ebpf-manager"
 
@@ -46,6 +47,10 @@ type DirectConsumer[V any] struct {
 	proto    string
 	callback func(*V)
 
+	// lifecycle management
+	once   sync.Once
+	closed chan struct{}
+
 	// flush coordination
 	flushRequests    chan chan struct{}
 	flushChannel     chan chan struct{}
@@ -72,9 +77,12 @@ func NewDirectConsumer[V any](proto string, callback func(*V), config *config.Co
 	invalidEventCount := metricGroup.NewCounter("invalid_event_count")
 
 	consumer := &DirectConsumer[V]{
-		proto:             proto,
-		callback:          callback,
-		originalCallback:  callback,
+		proto:            proto,
+		callback:         callback,
+		originalCallback: callback,
+		// lifecycle management
+		closed: make(chan struct{}),
+		// flush coordination
 		flushRequests:     make(chan chan struct{}),
 		flushChannel:      make(chan chan struct{}, 1),
 		metricGroup:       metricGroup,
@@ -146,9 +154,6 @@ func NewDirectConsumer[V any](proto string, callback func(*V), config *config.Co
 
 	consumer.EventHandler = *eventHandler
 
-	// Start flush coordination goroutine
-	go consumer.flushCoordinator()
-
 	return consumer, nil
 }
 
@@ -156,6 +161,12 @@ func NewDirectConsumer[V any](proto string, callback func(*V), config *config.Co
 // Note: The embedded EventHandler must be passed to the eBPF manager during initialization
 // The manager will call PreStart() to start the read loop automatically
 func (c *DirectConsumer[V]) Start() {
+	if c == nil {
+		return
+	}
+	// Start flush coordination goroutine
+	go c.flushCoordinator()
+
 	// The eBPF manager will call the EventHandler's PreStart method
 	// when the manager starts. This happens automatically through the modifier interface.
 	log.Debugf("DirectConsumer: starting for protocol %s", c.proto)
@@ -163,15 +174,22 @@ func (c *DirectConsumer[V]) Start() {
 
 // Sync implements Consumer interface
 func (c *DirectConsumer[V]) Sync() {
-	// Flush any pending data from the ring buffer using synchronous flush coordination
-	if log.ShouldLog(log.DebugLvl) {
-		log.Debugf("DirectConsumer: syncing for protocol %s", c.proto)
-		log.Debugf("usm events summary: name=%q %s", c.proto, c.metricGroup.Summary())
+	if c == nil {
+		return
+	}
+
+	// Check if already closed
+	select {
+	case <-c.closed:
+		return
+	default:
 	}
 
 	// Create completion channel and send flush request
 	wait := make(chan struct{})
 	select {
+	case <-c.closed:
+		return
 	case c.flushRequests <- wait:
 		// Wait for flush completion
 		<-wait
@@ -182,6 +200,12 @@ func (c *DirectConsumer[V]) Sync() {
 
 // Stop implements Consumer interface
 func (c *DirectConsumer[V]) Stop() {
+	if c == nil {
+		return
+	}
+	c.once.Do(func() {
+		close(c.closed)
+	})
 	// The EventHandler's AfterStop method handles cleanup
 	// This would typically be called by the ebpf-manager during shutdown
 	log.Debugf("DirectConsumer: stopping for protocol %s", c.proto)
@@ -189,12 +213,17 @@ func (c *DirectConsumer[V]) Stop() {
 
 // flushCoordinator coordinates synchronous flushes based on tcp_close_consumer pattern
 func (c *DirectConsumer[V]) flushCoordinator() {
-	for request := range c.flushRequests {
-		// Send the completion channel to flushChannel for callback coordination
-		c.flushChannel <- request
-		// Call the underlying EventHandler.Flush() to force ring buffer flush
-		// This will cause the callback to eventually receive a sentinel record
-		c.EventHandler.Flush()
+	for {
+		select {
+		case <-c.closed:
+			return
+		case request := <-c.flushRequests:
+			// Send the completion channel to flushChannel for callback coordination
+			c.flushChannel <- request
+			// Call the underlying EventHandler.Flush() to force ring buffer flush
+			// This will cause the callback to eventually receive a sentinel record
+			c.EventHandler.Flush()
+		}
 	}
 }
 
