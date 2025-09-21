@@ -2,4 +2,4 @@
 
 foreground { /initlog.sh "starting trace-agent" }
 backtick -n TRACE_AGENT_PATH { which trace-agent }
-trace-loader /etc/datadog-agent/datadog.yaml "$TRACE_AGENT_PATH" --config=/etc/datadog-agent/datadog.yaml
+trace-loader /etc/datadog-agent/datadog.yaml "${TRACE_AGENT_PATH}" --config=/etc/datadog-agent/datadog.yaml
