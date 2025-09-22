@@ -41,5 +41,5 @@ func newSettingsClient(client ipc.HTTPClient) (settings.Client, error) {
 		"https://localhost:%v/config",
 		pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"),
 	)
-	return settingshttp.NewHTTPSClient(client, apiConfigURL, "datadog-cluster-agent", ipchttp.WithLeaveConnectionOpen), nil
+	return settingshttp.NewSecureClient(client, apiConfigURL, "datadog-cluster-agent", ipchttp.WithLeaveConnectionOpen), nil
 }
