@@ -668,6 +668,7 @@ func (c Container) String(verbose bool) string {
 		_, _ = fmt.Fprintln(&sb, "Network IPs:", mapToString(c.NetworkIPs))
 		_, _ = fmt.Fprintln(&sb, "PID:", c.PID)
 		_, _ = fmt.Fprintln(&sb, "Cgroup path:", c.CgroupPath)
+		_, _ = fmt.Fprint(&sb, c.ResizePolicy.String())
 	}
 
 	if len(c.Ports) > 0 && verbose {
