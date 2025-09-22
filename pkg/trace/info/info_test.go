@@ -16,7 +16,9 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"os/exec"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -56,6 +58,7 @@ func (h *testServerHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.t.Logf("serving fake (static) info data for %s", r.URL.Path)
 		_, err := w.Write(json)
 		if err != nil {
+			dumpDebugState(h.t, err)
 			h.t.Errorf("error serving %s: %v", r.URL.Path, err)
 		}
 	default:
@@ -88,6 +91,7 @@ func (h *testServerWarningHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 		h.t.Logf("serving fake (static) info data for %s", r.URL.Path)
 		_, err := w.Write(json)
 		if err != nil {
+			dumpDebugState(h.t, err)
 			h.t.Errorf("error serving %s: %v", r.URL.Path, err)
 		}
 	default:
@@ -113,6 +117,7 @@ func (h *testServerErrorHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 		h.t.Logf("serving fake (static) info data for %s", r.URL.Path)
 		_, err := w.Write([]byte(`this is *NOT* a valid JSON, no way...`))
 		if err != nil {
+			dumpDebugState(h.t, err)
 			h.t.Errorf("error serving %s: %v", r.URL.Path, err)
 		}
 	default:
@@ -627,4 +632,37 @@ func TestScrubCreds(t *testing.T) {
 
 	assert.EqualValues(got.EVPProxy.AdditionalEndpoints, scrubbedAddEp)
 	assert.EqualValues(got.ProfilingProxy.AdditionalEndpoints, scrubbedAddEp)
+}
+
+// dumpDebugState dumps raw output of relevant commands when errors occur
+// This is a temporary debug log intended to reveal the cause of flaky tests
+// on macos runners.
+func dumpDebugState(t *testing.T, err error) {
+	// we are only interested on macos failure dumps
+	if runtime.GOOS != "darwin" {
+		return
+	}
+
+	t.Logf("=== DEBUG STATE DUMP ===")
+	t.Logf("Error: %v", err)
+
+	t.Logf("--- netstat -m ---")
+	if cmd := exec.Command("netstat", "-m"); cmd != nil {
+		if output, err := cmd.Output(); err == nil {
+			t.Logf("%s", string(output))
+		} else {
+			t.Logf("netstat -m failed: %v", err)
+		}
+	}
+
+	t.Logf("--- sysctl -a ---")
+	if cmd := exec.Command("sysctl", "-a"); cmd != nil {
+		if output, err := cmd.Output(); err == nil {
+			t.Logf("%s", string(output))
+		} else {
+			t.Logf("sysctl -a failed: %v", err)
+		}
+	}
+
+	t.Logf("=== END DEBUG STATE DUMP ===")
 }

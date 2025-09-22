@@ -100,8 +100,7 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	// Get the global agent config, build on top of it some more
 	// NOTE: This pattern should not be used by other callsites, it is needed here
 	// specifically because of the unique requirements of OTel's configuration.
-	pkgconfig := pkgconfigsetup.Datadog().RevertFinishedBackToBuilder()
-
+	pkgconfig := pkgconfigsetup.Datadog().RevertFinishedBackToBuilder() //nolint:forbidigo // legitimate use for OTel configuration
 	pkgconfig.SetConfigName("OTel")
 	pkgconfig.SetEnvPrefix("DD")
 	pkgconfig.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))

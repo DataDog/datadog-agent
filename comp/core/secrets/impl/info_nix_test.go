@@ -85,7 +85,7 @@ func TestDebugInfo(t *testing.T) {
 	_, err = resolver.Resolve(testConfInfo, "test2")
 	require.NoError(t, err)
 
-	debugInfo := resolver.getDebugInfo()
+	debugInfo := resolver.getDebugInfo(false)
 
 	assert.True(t, debugInfo["enabled"].(bool))
 	assert.True(t, debugInfo["backendCommandSet"].(bool))
@@ -145,7 +145,7 @@ func TestDebugInfoError(t *testing.T) {
 	_, err = resolver.Resolve(testConfInfo, "test2")
 	require.NoError(t, err)
 
-	debugInfo := resolver.getDebugInfo()
+	debugInfo := resolver.getDebugInfo(false)
 
 	assert.True(t, debugInfo["enabled"].(bool))
 	assert.True(t, debugInfo["backendCommandSet"].(bool))

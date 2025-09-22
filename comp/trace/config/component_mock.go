@@ -15,7 +15,6 @@
 // It also overwrites the pkg/config.Datadog for the duration of the test.
 
 //go:build test
-// +build test
 
 package config
 

@@ -20,10 +20,13 @@ const (
 var (
 	globalTracer  *tracer
 	samplingRates = map[string]float64{
-		"cdn":             0.1,
-		"garbage_collect": 0.05,
-		"HTTPClient":      0.05,
-		"agent.startup":   0.0,
+		"cdn":                       0.1,
+		"installer.garbage_collect": 0.05,
+		"garbage_collect":           0.05,
+		"HTTPClient":                0.05,
+		"agent.startup":             0.0,
+		"get_states":                0.01,
+		"installer.get_states":      0.01,
 	}
 )
 

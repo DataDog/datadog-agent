@@ -63,6 +63,7 @@ func (w *FSWalker) Walk(ctx context.Context, rootPath string, opt walker.Option,
 	if err != nil {
 		return xerrors.Errorf("failed to open root %s: %w", rootPath, err)
 	}
+	defer root.Close()
 
 	walkDirFunc := w.walkDirFunc(ctx, root, fn, opt)
 	walkDirFunc = w.onError(walkDirFunc, opt)

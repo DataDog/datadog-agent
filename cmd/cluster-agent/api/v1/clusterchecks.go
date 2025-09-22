@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/api"
 	cctypes "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	dcautil "github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -59,7 +58,7 @@ func postCheckStatus(sc clusteragent.ServerContext) func(w http.ResponseWriter, 
 			return
 		}
 
-		clientIP, err := validateClientIP(r.Header.Get(dcautil.RealIPHeader))
+		clientIP, err := validateClientIP(r.Header.Get(dcautil.RealIPHeader), sc.ClusterCheckHandler.IsAdvancedDispatchingEnabled())
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -189,13 +188,13 @@ func clusterChecksDisabledHandler(w http.ResponseWriter, r *http.Request) {
 // validateClientIP validates the http client IP retrieved from the request's header.
 // Empty IPs are considered valid for backward compatibility with old clc runner versions
 // that don't set the realIPHeader header field.
-func validateClientIP(addr string) (string, error) {
+func validateClientIP(addr string, advancedDispatchingActive bool) (string, error) {
 	if addr != "" && net.ParseIP(addr) == nil {
 		log.Debugf("Error while parsing CLC runner address %s", addr)
 		return "", fmt.Errorf("cannot parse CLC runner address: %s", addr)
 	}
 
-	if addr == "" && pkgconfigsetup.Datadog().GetBool("cluster_checks.advanced_dispatching_enabled") {
+	if addr == "" && advancedDispatchingActive {
 		log.Warn("Cluster check dispatching error: cannot get runner IP from http headers. advanced_dispatching_enabled requires agent 6.17 or above.")
 	}
 

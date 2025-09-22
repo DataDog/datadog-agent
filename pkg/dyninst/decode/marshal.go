@@ -33,8 +33,6 @@ type debuggerData struct {
 }
 
 type snapshotData struct {
-	decoder *Decoder
-
 	// static fields:
 	ID        uuid.UUID `json:"id"`
 	Timestamp int       `json:"timestamp"`
@@ -72,7 +70,7 @@ type argumentsData struct {
 	event            Event
 	decoder          *Decoder
 	evaluationErrors *[]string
-	skipIndicies     []byte
+	skippedIndices   *bitset
 }
 
 var ddDebuggerString = jsontext.String("dd_debugger")
@@ -83,53 +81,13 @@ func (ddDebuggerSource) MarshalJSONTo(enc *jsontext.Encoder) error {
 	return enc.WriteToken(ddDebuggerString)
 }
 
-// In the root data item, before the expressions, there is a bitset
-// which conveys if expression values are present in the data.
-// The rootType.PresenceBitsetSize conveys the size of the bitset in
-// bytes, and presence bits in the bitset correspond with index of
-// the expression in the root ir.
-func expressionIsPresent(bitset []byte, expressionIndex int) bool {
-	idx, bit := expressionIndex/8, expressionIndex%8
-	return idx < len(bitset) && bitset[idx]&(1<<byte(bit)) != 0
-}
-
-// Helper functions for skipIndicies bitset operations
-func isSkipped(bitset []byte, index int) bool {
-	idx, bit := index/8, index%8
-	return idx < len(bitset) && bitset[idx]&(1<<byte(bit)) != 0
-}
-
-func setSkipped(bitset []byte, index int) {
-	idx, bit := index/8, index%8
-	if idx < len(bitset) {
-		bitset[idx] |= 1 << byte(bit)
-	}
-}
-
-func (c *captureData) MarshalJSONTo(enc *jsontext.Encoder) error {
-	if err := writeTokens(enc, jsontext.BeginObject); err != nil {
-		return err
-	}
-	if err := writeTokens(enc,
-		jsontext.String("entry"),
-		jsontext.BeginObject,
-		jsontext.String("arguments"),
-	); err != nil {
-		return err
-	}
-	if err := c.Entry.Arguments.MarshalJSONTo(enc); err != nil {
-		return err
-	}
-	return writeTokens(enc, jsontext.EndObject, jsontext.EndObject)
-}
-
 var errEvaluation = errors.New("evaluation error")
 
 // processExpression processes a single expression from the root type expressions
 func (ad *argumentsData) processExpression(
 	enc *jsontext.Encoder,
 	expr *ir.RootExpression,
-	presenceBitSet []byte,
+	presenceBitSet bitset,
 	expressionIndex int,
 ) error {
 	parameterType := expr.Expression.Type
@@ -143,7 +101,7 @@ func (ad *argumentsData) processExpression(
 	if err := writeTokens(enc, jsontext.String(expr.Name)); err != nil {
 		return err
 	}
-	if !expressionIsPresent(presenceBitSet, expressionIndex) && parameterSize != 0 {
+	if !presenceBitSet.get(expressionIndex) && parameterSize != 0 {
 		// Set not capture reason
 		if err := writeTokens(enc,
 			jsontext.BeginObject,
@@ -181,13 +139,13 @@ func (ad *argumentsData) MarshalJSONTo(enc *jsontext.Encoder) error {
 	// We iterate over the 'Expressions' of the EventRoot which contains
 	// metadata and raw bytes of the parameters of this function.
 	for i, expr := range ad.rootType.Expressions {
-		if isSkipped(ad.skipIndicies, i) {
+		if ad.skippedIndices.get(i) {
 			continue
 		}
 		if err := ad.processExpression(enc, expr, presenceBitSet, i); errors.Is(err, errEvaluation) {
 			// This expression resulted in an evaluation error, we mark it to be skipped
 			// and will try again
-			setSkipped(ad.skipIndicies, i)
+			ad.skippedIndices.set(i)
 			return err
 		} else if err != nil {
 			return err

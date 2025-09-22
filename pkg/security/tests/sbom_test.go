@@ -22,6 +22,16 @@ import (
 )
 
 func TestSBOM(t *testing.T) {
+	t.Run("with v1 collector", func(t *testing.T) {
+		testSBOMWithCollector(t, false)
+	})
+
+	t.Run("with v2 collector", func(t *testing.T) {
+		testSBOMWithCollector(t, true)
+	})
+}
+
+func testSBOMWithCollector(t *testing.T, useV2collector bool) {
 	SkipIfNotAvailable(t)
 
 	if _, err := whichNonFatal("docker"); err != nil {
@@ -44,7 +54,7 @@ func TestSBOM(t *testing.T) {
 				`&& process.file.path != "" && process.file.package.name == "coreutils"`,
 		},
 	}
-	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{enableSBOM: true, enableHostSBOM: true}))
+	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{enableSBOM: true, enableHostSBOM: true, sbomUseV2Collector: useV2collector}))
 	if err != nil {
 		t.Fatal(err)
 	}

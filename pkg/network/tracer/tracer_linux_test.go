@@ -2593,7 +2593,8 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 		}
 		sfd, err := syscall.Socket(syscall.AF_INET, flags, syscall.IPPROTO_TCP)
 		require.NoError(t, err)
-		defer syscall.Close(sfd)
+		f := os.NewFile(uintptr(sfd), "")
+		defer f.Close()
 
 		//syscall.TCP_USER_TIMEOUT is 18 but not defined in our linter. Set it to 500ms
 		err = syscall.SetsockoptInt(sfd, syscall.IPPROTO_TCP, 18, 500)
@@ -2608,7 +2609,6 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 			}
 		}
 
-		f := os.NewFile(uintptr(sfd), "")
 		c, err := net.FileConn(f)
 		require.NoError(t, err)
 		t.Cleanup(func() { c.Close() })

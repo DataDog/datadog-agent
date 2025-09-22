@@ -56,7 +56,8 @@ static uint64_t read_goid(uint64_t g_ptr) {
   return goid;
 }
 
-SEC("uprobe") int probe_run_with_cookie(struct pt_regs* regs) {
+SEC("uprobe")
+int probe_run_with_cookie(struct pt_regs* regs) {
   uint64_t start_ns = bpf_ktime_get_ns();
 
   const uint64_t cookie = bpf_get_attach_cookie(regs);
@@ -77,7 +78,7 @@ SEC("uprobe") int probe_run_with_cookie(struct pt_regs* regs) {
     return 0;
   }
   global_ctx_t global_ctx;
-  global_ctx.stack_machine = stack_machine_ctx_load(params->pointer_chasing_limit);
+  global_ctx.stack_machine = stack_machine_ctx_load(params);
   if (!global_ctx.stack_machine) {
     return 0;
   }
@@ -107,11 +108,11 @@ SEC("uprobe") int probe_run_with_cookie(struct pt_regs* regs) {
       .prog_id = prog_id,
   };
 #if defined(bpf_target_x86)
-  header->goid = read_goid(regs->DWARF_REGISTER_14);  
+  header->goid = read_goid(regs->DWARF_REGISTER_14);
 #elif defined(bpf_target_arm64)
   header->goid = read_goid(regs->DWARF_REGISTER(28));
 #else
-  #error "Unsupported architecture"
+#error "Unsupported architecture"
 #endif
 
   __maybe_unused int process_steps = 0;
@@ -140,7 +141,7 @@ SEC("uprobe") int probe_run_with_cookie(struct pt_regs* regs) {
     global_ctx.stack_walk->idx_shift = 1;
   }
 #else
-  #error "Unsupported architecture"
+#error "Unsupported architecture"
 #endif
   global_ctx.stack_walk->stack.pcs.len =
       bpf_loop(STACK_DEPTH, populate_stack_frame, &global_ctx.stack_walk, 0) +
@@ -164,7 +165,7 @@ SEC("uprobe") int probe_run_with_cookie(struct pt_regs* regs) {
   }
   global_ctx.regs = &global_ctx.stack_walk->regs;
   frame_data_t frame_data = {
-    .stack_idx = 0,
+      .stack_idx = 0,
   };
   frame_data.cfa = calculate_cfa(global_ctx.regs, params->frameless);
   if (params->stack_machine_pc != 0) {

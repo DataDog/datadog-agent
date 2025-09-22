@@ -95,7 +95,6 @@ installer_oci:
     [
       "installer-arm64-oci",
       "installer-amd64-oci",
-      "windows-installer-amd64",
       "go_tools_deps",
     ]
   variables:

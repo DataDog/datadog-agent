@@ -133,6 +133,15 @@ probes:
   where:
     methodName: main.testMassiveString
   captureSnapshot: true
+- id: testMassiveStringWithSizeLimit
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testMassiveString
+  captureSnapshot: true
+  capture:
+    maxLength: 11
 - id: testEmptyString
   type: LOG_PROBE
   tags:
@@ -294,7 +303,7 @@ probes:
   tags:
     - "foo:bar"
   where:
-     methodName: main.testArrayOfArraysOfArrays
+    methodName: main.testArrayOfArraysOfArrays
   captureSnapshot: true
 # - id: testArrayOfStructs
 #   type: LOG_PROBE
@@ -315,6 +324,15 @@ probes:
   where:
     methodName: main.testVeryLargeSlice
   captureSnapshot: true
+- id: testVeryLargeSliceWithSizeLimit
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testVeryLargeSlice
+  captureSnapshot: true
+  capture:
+    collectionSizeLimit: 12
 - id: testVeryLargeArray
   type: LOG_PROBE
   tags:
@@ -560,6 +578,15 @@ probes:
   where:
     methodName: main.testMapMassive
   captureSnapshot: true
+- id: testMapMassiveWithSizeLimit
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testMapMassive
+  captureSnapshot: true
+  capture:
+    collectionSizeLimit: 3
 - id: testMapEmbeddedMaps
   type: LOG_PROBE
   tags:
@@ -814,3 +841,13 @@ probes:
   captureSnapshot: true
   capture:
     maxReferenceDepth: 1
+- id: testStructWithCyclicSlices
+  type: LOG_PROBE
+  where:
+    methodName: main.testStructWithCyclicSlices
+  captureSnapshot: true
+- id: testStructWithCyclicMaps
+  type: LOG_PROBE
+  where:
+    methodName: main.testStructWithCyclicMaps
+  captureSnapshot: true
