@@ -83,4 +83,12 @@ func adjustUSM(cfg model.Config) {
 	})
 
 	limitMaxInt64(cfg, smNS("http", "max_request_fragment"), maxHTTPFrag)
+
+	if cfg.GetBool(smNS("disable_map_preallocation")) && !eBPFMapPreallocationSupported() {
+		if flavor.GetFlavor() == flavor.SystemProbe {
+			// Only log in system-probe, as we cannot reliably know this in the agent
+			log.Warn("using preallocaed eBPF map for USM as it is supported for this kernel version")
+		}
+		cfg.Set(smNS("disable_map_preallocation"), false, model.SourceAgentRuntime)
+	}
 }
