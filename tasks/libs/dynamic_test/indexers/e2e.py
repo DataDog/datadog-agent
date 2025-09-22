@@ -1,5 +1,7 @@
 import json
+import os
 from abc import abstractmethod
+from collections import defaultdict
 from pathlib import Path
 
 from invoke import Context
@@ -40,69 +42,29 @@ class CoverageDynTestIndexer(DynTestIndexer):
     - Deduplication across multiple test suites
     """
 
-    def __init__(self, coverage_root: str) -> None:
+    def __init__(self, coverage_root: str, run_all_changes_paths: list[str] | None = None) -> None:
         """Initialize the coverage-based indexer.
 
         Args:
             coverage_root: Path to the root directory containing coverage output folders
         """
         self.coverage_root = coverage_root
+        self.run_all_changes_paths = []
+        if run_all_changes_paths is not None:
+            self.run_all_changes_paths = run_all_changes_paths
 
     def compute_index(self, ctx: Context) -> DynamicTestIndex:
-        """Compute the dynamic test index from coverage data.
-
-        Args:
-            ctx: Invoke context for running shell commands
-
-        Returns:
-            DynamicTestIndex: Index mapping coverage items to tests per job
-        """
-        root = Path(self.coverage_root)
-        if not root.exists() or not root.is_dir():
-            raise FileNotFoundError(f"Coverage root not found or not a directory: {self.coverage_root}")
-
-        job_to_item_tests: dict[str, dict[str, list[str]]] = {}
-
-        for entry in sorted(root.iterdir()):
-            if not entry.is_dir():
-                continue
-
-            suite_folder = entry
-            metadata = self._read_metadata(suite_folder)
-            job_name = metadata.get("job_name", suite_folder.name)
-            test_name = metadata.get("test", suite_folder.name)
-
-            coverage_dir = suite_folder / "coverage"
-            if not coverage_dir.exists() or not coverage_dir.is_dir():
-                print(color_message(f"No coverage/ folder in {suite_folder}", Color.ORANGE))
-                continue
-
-            coverage_txt = suite_folder / "coverage.txt"
-            # Convert to textfmt using go tool covdata
-            ctx.run(
-                f"go tool covdata textfmt -i={coverage_dir} -o={coverage_txt}",
-                echo=False,
-                warn=True,
-            )
-
-            if not coverage_txt.exists():
-                print(color_message(f"Failed to generate {coverage_txt}", Color.ORANGE))
-                continue
-
-            covered_items = self._parse_coverage_file(coverage_txt)
-            if not covered_items:
-                continue
-
-            job_entry = job_to_item_tests.setdefault(job_name, {})
-            for item in covered_items:
-                tests = job_entry.setdefault(item, [])
-                if test_name not in tests:
-                    tests.append(test_name)
-
-        index = DynamicTestIndex(job_to_item_tests)
+        index = self._compute_index(ctx)
+        for pattern in self.run_all_changes_paths:
+            for job in index.get_jobs():
+                index.add_tests(job, pattern, ["*"])
         return index
 
-    def _read_metadata(self, suite_folder: Path) -> dict[str, str]:
+    @abstractmethod
+    def _compute_index(self, ctx: Context) -> DynamicTestIndex:
+        raise NotImplementedError
+
+    def read_metadata(self, suite_folder: Path) -> dict[str, str]:
         """Read metadata.json file from a test suite folder.
 
         Args:
@@ -121,7 +83,7 @@ class CoverageDynTestIndexer(DynTestIndexer):
             print(color_message(f"Error reading {metadata_path}: {e}", Color.ORANGE))
             return {}
 
-    def _extract_relative_path(self, file_path: str) -> str:
+    def extract_relative_path(self, file_path: str) -> str:
         """Extract relative path from full Go module path.
 
         Args:
@@ -137,52 +99,37 @@ class CoverageDynTestIndexer(DynTestIndexer):
         # Build path starting from after github.com/DataDog/datadog-agent, i.e., join from index 3
         return "/".join(segments[3:])
 
-    def _parse_coverage_line(self, line: str) -> tuple[str, bool]:
+    def parse_coverage_line(self, line: str) -> tuple[str, str, int]:
         """Parse a single coverage line and determine if it has coverage.
 
         Args:
             line: Coverage line in format "file_path:ranges statements count"
+            github.com/DataDog/datadog-agent/pkg/collector/corechecks/check.go:24.13,25.2 2 1
 
         Returns:
-            tuple[str, bool]: (file_path, has_coverage)
+            tuple[str, bool]: (file_path, range, n_covered)
         """
         if not line or line.startswith("mode:"):
-            return "", False
+            return "", "", 0
+        parts = line.strip().split()
+        if len(parts) < 3:
+            raise ValueError(f"Invalid coverage line: {line}")
+        file_with_range = parts[0].split(":")
+        if len(file_with_range) < 2:
+            raise ValueError(f"Invalid coverage line: {line}")
+        file_path, range = file_with_range[0], file_with_range[1]
+        n_covered = int(parts[2])
+        return file_path, range, n_covered
 
-        # Split at ':' first time to separate file path from the rest
-        parts = line.strip().split(":", 1)
-        if len(parts) < 2:
-            return "", False
-        file_path, rest = parts[0], parts[1]
-
-        # Determine if the line indicates any coverage > 0
-        # The rest contains positions and two integers, e.g. "24.13,25.2 2 1"
-        try:
-            tail_numbers = rest.strip().split()
-            if not tail_numbers:
-                return "", False
-            covered_count = int(tail_numbers[-1])
-            has_coverage = covered_count > 0
-        except Exception:
-            # If parsing fails, skip the line
-            return "", False
-
-        return file_path, has_coverage
-
-    @abstractmethod
-    def _parse_coverage_file(self, coverage_txt: Path) -> set[str]:
-        """Parse Go coverage text file and extract covered items.
-
-        This method must be implemented by subclasses to define the granularity
-        of coverage analysis (files, packages, etc.).
+    def convert_coverage_to_text(self, ctx: Context, coverage_dir: Path) -> Path:
+        """Convert coverage data to text format using 'go tool covdata'.
 
         Args:
-            coverage_txt: Path to the coverage text file
-
-        Returns:
-            set[str]: Set of covered items (files, packages, etc.)
+            ctx: Invoke context for running shell commands
+            coverage_dir: Path to the coverage directory
         """
-        pass
+        ctx.run(f"go tool covdata textfmt -i={coverage_dir} -o={coverage_dir}/coverage.txt", echo=False, warn=True)
+        return coverage_dir / "coverage.txt"
 
 
 class FileCoverageDynTestIndexer(CoverageDynTestIndexer):
@@ -216,40 +163,38 @@ class FileCoverageDynTestIndexer(CoverageDynTestIndexer):
     - Deduplication across multiple test suites
     """
 
-    def _parse_coverage_file(self, coverage_txt: Path) -> set[str]:
-        """Parse Go coverage text file and extract covered files.
-
-        Processes Go coverage text format to identify which files were exercised
-        during test execution. Only considers lines with non-zero coverage counts.
-
-        Coverage line format:
-            github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe.go:24.13,25.2 2 1
-            - File path, line ranges, statement count, execution count
-            - We consider a file covered when execution count (last number) > 0
+    def _compute_index(self, ctx: Context) -> DynamicTestIndex:
+        """Compute the dynamic test index from file coverage data.
 
         Args:
-            coverage_txt: Path to the coverage text file
+            ctx: Invoke context for running shell commands
 
         Returns:
-            set[str]: Set of file paths that have coverage, relative to module root
-                     (e.g., "pkg/collector/corechecks/ebpf/probe.go", "pkg/util/log/logger.go")
+            DynamicTestIndex: Index mapping files to tests per job
         """
-        covered: set[str] = set()
-        try:
+        index = DynamicTestIndex()
+        coverage_root = Path(self.coverage_root)
+        for suite in sorted(coverage_root.iterdir()):
+            if not suite.is_dir():
+                continue
+            coverage_dir = suite / "coverage"
+            if not coverage_dir.exists():
+                continue
+            coverage_txt = self.convert_coverage_to_text(ctx, coverage_dir)
             with open(coverage_txt, encoding="utf-8") as f:
                 for line in f:
-                    file_path, has_coverage = self._parse_coverage_line(line)
-                    if not has_coverage or not file_path:
+                    file_path, range, has_coverage = self.parse_coverage_line(line)
+
+                    if has_coverage == 0 or not file_path:
                         continue
 
-                    # Extract relative file path and keep .go extension
-                    relative_file_path = self._extract_relative_path(file_path)
-                    if relative_file_path:
-                        covered.add(relative_file_path)
-        except Exception as e:
-            print(color_message(f"Error parsing coverage file {coverage_txt}: {e}", Color.ORANGE))
-            return set()
-        return covered
+                    metadata = self.read_metadata(suite)
+                    job_name = metadata.get("job_name", suite.name)
+                    test_name = metadata.get("test", suite.name)
+                    file_path = self.extract_relative_path(file_path)
+
+                    index.add_tests(job_name, file_path, [test_name])
+        return index
 
 
 class PackageCoverageDynTestIndexer(CoverageDynTestIndexer):
@@ -283,51 +228,125 @@ class PackageCoverageDynTestIndexer(CoverageDynTestIndexer):
     - Deduplication across multiple test suites
     """
 
-    def _parse_coverage_file(self, coverage_txt: Path) -> set[str]:
-        """Parse Go coverage text file and extract covered packages.
-
-        Processes Go coverage text format to identify which packages were exercised
-        during test execution. Only considers lines with non-zero coverage counts.
-
-        Coverage line format:
-            github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe.go:24.13,25.2 2 1
-            - File path, line ranges, statement count, execution count
-            - We consider a file covered when execution count (last number) > 0
-            - A package is covered if any file in it has coverage > 0
+    def _compute_index(self, ctx: Context) -> DynamicTestIndex:
+        """Compute the dynamic test index from package coverage data.
 
         Args:
-            coverage_txt: Path to the coverage text file
+            ctx: Invoke context for running shell commands
 
         Returns:
-            set[str]: Set of package paths that have coverage, relative to module root
-                     (e.g., "pkg/collector/corechecks", "pkg/util/log")
+            DynamicTestIndex: Index mapping packages to tests per job
         """
-        covered: set[str] = set()
-        try:
+        index = DynamicTestIndex()
+        coverage_root = Path(self.coverage_root)
+        for suite in sorted(coverage_root.iterdir()):
+            if not suite.is_dir():
+                continue
+            coverage_dir = suite / "coverage"
+            if not coverage_dir.exists():
+                continue
+            coverage_txt = self.convert_coverage_to_text(ctx, coverage_dir)
             with open(coverage_txt, encoding="utf-8") as f:
                 for line in f:
-                    file_path, has_coverage = self._parse_coverage_line(line)
-                    if not has_coverage or not file_path:
+                    file_path, range, n_covered = self.parse_coverage_line(line)
+                    if n_covered == 0 or not file_path:
                         continue
+                    metadata = self.read_metadata(suite)
+                    job_name = metadata.get("job_name", suite.name)
+                    test_name = metadata.get("test", suite.name)
+                    file_path = self.extract_relative_path(file_path)
+                    package_path = file_path.rsplit("/", 1)[0]
+                    index.add_tests(job_name, package_path, [test_name])
+        return index
 
-                    # Extract package path from file path
-                    # Remove .go suffix if present and take directory components after module root
-                    if file_path.endswith(".go"):
-                        file_path = file_path[:-3]
 
-                    relative_path = self._extract_relative_path(file_path)
-                    if not relative_path:
+class DiffedPackageCoverageDynTestIndexer(CoverageDynTestIndexer):
+    """Package coverage-based indexer that uses baseline comparison for differential coverage.
+
+    This indexer extends CoverageDynTestIndexer to compute dynamic test indexes based on
+    the difference between current package coverage and a baseline package coverage using
+    'go tool covdata subtract' for precise differential coverage computation.
+
+    Expected Input Structure:
+        coverage_root/ (same as base class)
+        baseline_coverage_root/ (same structure as coverage_root)
+
+    Process:
+    1. For each test suite, uses 'go tool covdata subtract' to compute precise diff
+    2. Converts differential coverage to text format
+    3. Parses differential coverage to extract affected packages
+    4. Builds index only for packages with new/increased coverage
+    """
+
+    def __init__(self, coverage_root: str, baseline_coverage_root: str, is_baseline_job: bool = False) -> None:
+        """Initialize the differential package coverage indexer.
+
+        Args:
+            coverage_root: Path to the current coverage data directory
+            baseline_coverage_root: Path to the baseline coverage data directory
+        """
+        super().__init__(coverage_root)
+        self.baseline_coverage_root = baseline_coverage_root
+        self.is_baseline_job = is_baseline_job
+        if os.getenv("CI_JOB_NAME") == "new-e2e-base-coverage":
+            self.is_baseline_job = True
+
+    def _compute_index(self, ctx: Context) -> DynamicTestIndex:
+        """Compute the dynamic test index from differential package coverage data.
+
+        Args:
+            ctx: Invoke context for running shell commands
+
+        Returns:
+            DynamicTestIndex: Index mapping packages with differential coverage to tests per job
+        """
+        index = DynamicTestIndex()
+        coverage_path = Path(self.coverage_root)
+        baseline_path = Path(self.baseline_coverage_root)
+        baseline_coverage_dir = baseline_path / "coverage"
+        if not baseline_coverage_dir.exists():
+            return index
+
+        baseline_covered_txt = self.convert_coverage_to_text(ctx, baseline_coverage_dir)
+        baseline_covered = self._parse_baseline_coverage(baseline_covered_txt)
+
+        for suite in sorted(coverage_path.iterdir()):
+            if not suite.is_dir():
+                continue
+            coverage_dir = suite / "coverage"
+            if not coverage_dir.exists():
+                continue
+
+            if suite == baseline_path and not self.is_baseline_job:
+                continue
+            coverage_txt = self.convert_coverage_to_text(ctx, coverage_dir)
+            with open(coverage_txt, encoding="utf-8") as f:
+                for line in f:
+                    file_path, range, n_covered = self.parse_coverage_line(line)
+                    if n_covered == 0 or not file_path:
                         continue
+                    if (
+                        not self.is_baseline_job
+                        and file_path in baseline_covered
+                        and range in baseline_covered[file_path]
+                        and baseline_covered[file_path][range]
+                        > 0  # We consider it is covered by baseline test so not specific to the current test
+                    ):
+                        continue
+                    metadata = self.read_metadata(suite)
+                    job_name = metadata.get("job_name", suite.name)
+                    test_name = metadata.get("test", suite.name)
+                    file_path = self.extract_relative_path(file_path)
+                    package_path = file_path.rsplit("/", 1)[0]
+                    index.add_tests(job_name, package_path, [test_name])
+        return index
 
-                    # Convert to package directory (drop filename)
-                    if "/" in relative_path:
-                        package_path = "/".join(relative_path.split("/")[:-1])
-                    else:
-                        package_path = relative_path
-
-                    if package_path:
-                        covered.add(package_path)
-        except Exception as e:
-            print(color_message(f"Error parsing coverage file {coverage_txt}: {e}", Color.ORANGE))
-            return set()
-        return covered
+    def _parse_baseline_coverage(self, baseline_covered_txt: Path) -> dict[str, dict[str, int]]:
+        baseline_covered = defaultdict(lambda: defaultdict(int))  # file_path -> set of ranges covered in the baseline
+        with open(baseline_covered_txt, encoding="utf-8") as f:
+            for line in f:
+                file_path, range, n_covered = self.parse_coverage_line(line)
+                if n_covered == 0 or not file_path:
+                    continue
+                baseline_covered[file_path][range] = n_covered
+        return baseline_covered

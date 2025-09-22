@@ -55,9 +55,6 @@ func fixupMetadata(meta usm.ServiceMetadata, lang language.Language) usm.Service
 		langName = string(lang)
 	}
 	meta.Name, _ = normalize.NormalizeService(meta.Name, langName)
-	if meta.DDService != "" {
-		meta.DDService, _ = normalize.NormalizeService(meta.DDService, langName)
-	}
 
 	return meta
 }
