@@ -13,10 +13,13 @@ import (
 	"os/exec"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/avast/retry-go/v4"
 )
@@ -33,6 +36,11 @@ func TestSBOM(t *testing.T) {
 
 func testSBOMWithCollector(t *testing.T, useV2collector bool) {
 	SkipIfNotAvailable(t)
+
+	kv, err := kernel.NewKernelVersion()
+	if err != nil {
+		t.Fatalf("failed to get kernel version: %s", err)
+	}
 
 	if _, err := whichNonFatal("docker"); err != nil {
 		t.Skip("Skip test where docker is unavailable")
@@ -107,7 +115,54 @@ func testSBOMWithCollector(t *testing.T, useV2collector bool) {
 			assertFieldEqual(t, event, "process.file.package.name", "coreutils")
 			assertFieldEqual(t, event, "container.id", "", "container id should be empty")
 
+			if kv.IsUbuntuKernel() || kv.IsDebianKernel() {
+				checkVersionAgainstApt(t, event, "coreutils")
+			}
+			if kv.IsRH7Kernel() || kv.IsRH8Kernel() || kv.IsRH9Kernel() || kv.IsAmazonLinuxKernel() || kv.IsSuseKernel() {
+				checkVersionAgainstRpm(t, event, "coreutils")
+			}
+
 			test.validateOpenSchema(t, event)
 		})
 	})
+}
+
+func checkVersionAgainstApt(tb testing.TB, event *model.Event, pkgName string) {
+	version, _ := event.GetFieldValue("process.file.package.version")
+	release, _ := event.GetFieldValue("process.file.package.release")
+	epoch, _ := event.GetFieldValue("process.file.package.epoch")
+	v := buildDebianVersion(version.(string), release.(string), epoch.(int))
+
+	out, err := exec.Command("apt-cache", "policy", pkgName).CombinedOutput()
+	require.NoError(tb, err, "failed to get package version: %s", string(out))
+
+	assert.Contains(tb, string(out), fmt.Sprintf("Installed: %s", v), "package version doesn't match")
+}
+
+func buildDebianVersion(version, release string, epoch int) string {
+	v := version + "-" + release
+	if epoch > 0 {
+		v = fmt.Sprintf("%d:%s", epoch, v)
+	}
+	return v
+}
+
+func checkVersionAgainstRpm(tb testing.TB, event *model.Event, pkgName string) {
+	version, _ := event.GetFieldValue("process.file.package.version")
+	release, _ := event.GetFieldValue("process.file.package.release")
+	epoch, _ := event.GetFieldValue("process.file.package.epoch")
+
+	out, err := exec.Command("rpm", "-q", "--queryformat", "%{VERSION}", pkgName).CombinedOutput()
+	require.NoError(tb, err, "failed to get package version: %s", string(out))
+	assert.Equal(tb, string(out), version, "package version doesn't match")
+
+	out, err = exec.Command("rpm", "-q", "--queryformat", "%{RELEASE}", pkgName).CombinedOutput()
+	require.NoError(tb, err, "failed to get package version: %s", string(out))
+	assert.Equal(tb, string(out), release, "package release doesn't match")
+
+	out, err = exec.Command("rpm", "-q", "--queryformat", "%{EPOCH}", pkgName).CombinedOutput()
+	require.NoError(tb, err, "failed to get package version: %s", string(out))
+	if string(out) != "(none)" {
+		assert.Equal(tb, string(out), fmt.Sprintf("%d", epoch), "package epoch doesn't match")
+	}
 }
