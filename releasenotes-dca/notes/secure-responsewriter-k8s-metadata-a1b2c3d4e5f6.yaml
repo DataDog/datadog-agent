@@ -1,0 +1,4 @@
+---
+security:
+  - |
+    Harden Cluster Agent Kubernetes metadata endpoints by replacing fmt.Fprintf on http.ResponseWriter with http.Error for 404 responses, reducing potential XSS vectors in error messages.
