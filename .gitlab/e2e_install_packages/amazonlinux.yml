@@ -11,7 +11,7 @@
   variables:
     E2E_DESCRIPTORS: "amazonlinux/arm64/2-5-10,amazonlinux/arm64/2022-5-15,amazonlinux/arm64/2023"
     E2E_CWS_SUPPORTED_DESCRIPTORS: "amazonlinux/arm64/2-5-10,amazonlinux/arm64/2022-5-15,amazonlinux/arm64/2023"
-    E2E_BRANCH_OSVERS: "amazonlinux/arm64/2023"
+    E2E_BRANCH_DESCRIPTORS: "amazonlinux/arm64/2023"
   needs:
     - !reference [.needs_new_e2e_template]
     - deploy_rpm_testing-a7_arm64
