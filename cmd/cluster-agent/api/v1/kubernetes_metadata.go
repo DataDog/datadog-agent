@@ -99,8 +99,7 @@ func getNodeMetadata(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.
 		w.Write(dataBytes)
 		return
 	}
-	w.WriteHeader(http.StatusNotFound)
-	fmt.Fprintf(w, "Could not find %s on the node: %s", what, nodeName)
+	http.Error(w, fmt.Sprintf("Could not find %s on the node: %s", what, nodeName), http.StatusNotFound)
 }
 
 func getNodeLabels(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Component) {
@@ -154,8 +153,7 @@ func getNamespaceMetadataWithTransformerFunc[T any](w http.ResponseWriter, r *ht
 		w.Write(metadataBytes)
 		return
 	}
-	w.WriteHeader(http.StatusNotFound)
-	fmt.Fprintf(w, "Could not find %s of the namespace: %s", what, nsName)
+	http.Error(w, fmt.Sprintf("Could not find %s of the namespace: %s", what, nsName), http.StatusNotFound)
 }
 
 // getNamespaceLabels is only used when the node agent hits the DCA for the list of labels
@@ -247,8 +245,7 @@ func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 		w.Write(metaBytes)
 		return
 	}
-	w.WriteHeader(http.StatusNotFound)
-	fmt.Fprintf(w, "Could not find associated metadata mapped to the pod: %s on node: %s", podName, nodeName)
+	http.Error(w, fmt.Sprintf("Could not find associated metadata mapped to the pod: %s on node: %s", podName, nodeName), http.StatusNotFound)
 }
 
 // getPodMetadataForNode has the same signature as getAllMetadata, but is only scoped on one node.
