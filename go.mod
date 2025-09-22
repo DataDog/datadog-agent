@@ -299,7 +299,7 @@ require (
 	github.com/moby/sys/mountinfo v0.7.2
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826
 	github.com/netsampler/goflow2 v1.3.3
-	github.com/olekukonko/tablewriter v0.0.5
+	github.com/olekukonko/tablewriter v1.1.0
 	github.com/oliveagle/jsonpath v0.0.0-20180606110733-2e52cf6e6852
 	github.com/open-policy-agent/opa v1.4.2
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.135.0
@@ -963,6 +963,8 @@ require (
 	github.com/klauspost/cpuid/v2 v2.2.8 // indirect
 	github.com/mdlayher/kobject v0.0.0-20200520190114-19ca17470d7d // indirect
 	github.com/minio/sha256-simd v1.0.1 // indirect
+	github.com/olekukonko/errors v1.1.0 // indirect
+	github.com/olekukonko/ll v0.0.9 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension v0.135.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/datadog v0.135.0 // indirect
 	github.com/shirou/gopsutil/v3 v3.24.5 // indirect
