@@ -1,9 +1,6 @@
 [workspace]
 # checks list
-members = [
-    "example", 
-    "httpcheck",
-]
+members = ["core", "checks/*"]
 resolver = "2"
 
 # optimizations to reduce lib sizes by ~45% (from 3.8MB to 2.1MB for `httpcheck`)

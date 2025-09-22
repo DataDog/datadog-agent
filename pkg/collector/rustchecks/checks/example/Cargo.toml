@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-rust-check-core = { path = "../core" }
+rust-check-core = { path = "../../core" }
 
 [lib]
 crate-type = ["cdylib"]
