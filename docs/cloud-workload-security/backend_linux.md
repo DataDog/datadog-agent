@@ -554,6 +554,26 @@ Workload Protection events for Linux systems have the following JSON schema:
                     "type": "string",
                     "description": "System package version"
                 },
+                "package_epoch": {
+                    "type": "integer",
+                    "description": "System package epoch"
+                },
+                "package_release": {
+                    "type": "string",
+                    "description": "System package release"
+                },
+                "package_source_version": {
+                    "type": "string",
+                    "description": "System package source version"
+                },
+                "package_source_epoch": {
+                    "type": "integer",
+                    "description": "System package source epoch"
+                },
+                "package_source_release": {
+                    "type": "string",
+                    "description": "System package source release"
+                },
                 "hashes": {
                     "items": {
                         "type": "string"
@@ -688,6 +708,26 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "package_version": {
                     "type": "string",
                     "description": "System package version"
+                },
+                "package_epoch": {
+                    "type": "integer",
+                    "description": "System package epoch"
+                },
+                "package_release": {
+                    "type": "string",
+                    "description": "System package release"
+                },
+                "package_source_version": {
+                    "type": "string",
+                    "description": "System package source version"
+                },
+                "package_source_epoch": {
+                    "type": "integer",
+                    "description": "System package source epoch"
+                },
+                "package_source_release": {
+                    "type": "string",
+                    "description": "System package source release"
                 },
                 "hashes": {
                     "items": {
@@ -3148,6 +3188,26 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "string",
             "description": "System package version"
         },
+        "package_epoch": {
+            "type": "integer",
+            "description": "System package epoch"
+        },
+        "package_release": {
+            "type": "string",
+            "description": "System package release"
+        },
+        "package_source_version": {
+            "type": "string",
+            "description": "System package source version"
+        },
+        "package_source_epoch": {
+            "type": "integer",
+            "description": "System package source epoch"
+        },
+        "package_source_release": {
+            "type": "string",
+            "description": "System package source release"
+        },
         "hashes": {
             "items": {
                 "type": "string"
@@ -3217,6 +3277,11 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `change_time` | File change time |
 | `package_name` | System package name |
 | `package_version` | System package version |
+| `package_epoch` | System package epoch |
+| `package_release` | System package release |
+| `package_source_version` | System package source version |
+| `package_source_epoch` | System package source epoch |
+| `package_source_release` | System package source release |
 | `hashes` | List of cryptographic hashes of the file |
 | `hash_state` | State of the hashes or reason why they weren't computed |
 | `mount_path` | MountPath path of the mount |
@@ -3325,6 +3390,26 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "string",
             "description": "System package version"
         },
+        "package_epoch": {
+            "type": "integer",
+            "description": "System package epoch"
+        },
+        "package_release": {
+            "type": "string",
+            "description": "System package release"
+        },
+        "package_source_version": {
+            "type": "string",
+            "description": "System package source version"
+        },
+        "package_source_epoch": {
+            "type": "integer",
+            "description": "System package source epoch"
+        },
+        "package_source_release": {
+            "type": "string",
+            "description": "System package source release"
+        },
         "hashes": {
             "items": {
                 "type": "string"
@@ -3410,6 +3495,11 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `change_time` | File change time |
 | `package_name` | System package name |
 | `package_version` | System package version |
+| `package_epoch` | System package epoch |
+| `package_release` | System package release |
+| `package_source_version` | System package source version |
+| `package_source_epoch` | System package source epoch |
+| `package_source_release` | System package source release |
 | `hashes` | List of cryptographic hashes of the file |
 | `hash_state` | State of the hashes or reason why they weren't computed |
 | `mount_path` | MountPath path of the mount |
