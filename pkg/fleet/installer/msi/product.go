@@ -107,7 +107,7 @@ func processKey(rootPath, key, name string) (*Product, error) {
 func FindAllProductCodes(productName string) ([]string, error) {
 	var productCodes []string
 
-	err := winutil.EnumerateMsiProducts(winutil.MSIINSTALLCONTEXT_MACHINE, func(productCode []uint16, context uint32, userSID string) error {
+	err := winutil.EnumerateMsiProducts(winutil.MSIINSTALLCONTEXT_MACHINE, func(productCode []uint16, _ uint32, _ string) error {
 		// Get display name and check if it matches
 		displayName, err := winutil.GetProp("ProductName", productCode)
 		if err != nil {

@@ -77,7 +77,9 @@ func (mc *mSICollector) Collect() ([]*Entry, []*Warning, error) {
 			return nil
 		}
 
-		entry.UserSID = userSID
+		if context == winutil.MSIINSTALLCONTEXT_USERMANAGED || context == winutil.MSIINSTALLCONTEXT_USERUNMANAGED {
+			entry.UserSID = userSID
+		}
 		entry.ProductCode = msiProductCode
 		entries = append(entries, entry)
 		return nil
