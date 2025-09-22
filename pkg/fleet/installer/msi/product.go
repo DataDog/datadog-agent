@@ -105,11 +105,6 @@ func processKey(rootPath, key, name string) (*Product, error) {
 // FindAllProductCodes looks for all products with the given productName using the Windows Installer API
 // It enumerates through all products and checks if the product name matches the given productName.
 func FindAllProductCodes(productName string) ([]string, error) {
-	// When making multiple calls to MsiEnumProducts to enumerate all the products, each call should be made from the same thread.
-	// runtime.LockOSThread()
-	// defer runtime.UnlockOSThread()
-
-	// var index uint32
 	var productCodes []string
 
 	err := winutil.EnumerateMsiProducts(winutil.MSIINSTALLCONTEXT_MACHINE, func(productCode []uint16, context uint32, userSID string) error {

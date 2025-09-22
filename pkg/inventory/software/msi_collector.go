@@ -65,44 +65,8 @@ type mSICollector struct{}
 // The ARPSYSTEMCOMPONENT=1 flag only hides the product from Add/Remove Programs,
 // but does not prevent the creation of registry entries.
 func (mc *mSICollector) Collect() ([]*Entry, []*Warning, error) {
-	// // When making multiple calls to MsiEnumProducts to enumerate all the products, each call should be made from the same thread.
-	// runtime.LockOSThread()
-	// defer runtime.UnlockOSThread()
-
-	// var index uint32
 	var warnings []*Warning
 	var entries []*Entry
-	// for {
-	// 	var productCodeBuf [39]uint16
-	// 	var context uint32
-	// 	var sidBuf [256]uint16
-	// 	sidLen := uint32(len(sidBuf))
-
-	// 	ret := msiEnumProductsEx(index, &productCodeBuf[0], &context, &sidBuf[0], &sidLen)
-
-	// 	if errors.Is(ret, windows.ERROR_NO_MORE_ITEMS) {
-	// 		break
-	// 	}
-	// 	if !errors.Is(ret, windows.ERROR_SUCCESS) {
-	// 		return entries, warnings, fmt.Errorf("error enumerating products at index %d: %d", index, ret)
-	// 	}
-
-	// 	msiProductCode := windows.UTF16ToString(productCodeBuf[:])
-	// 	entry, err := getMsiProductInfo(productCodeBuf[:], msiPropertiesToFetch)
-	// 	if err != nil {
-	// 		// Add warning and continue processing other entries
-	// 		warnings = append(warnings, warnf("error getting product info for %s: %v", msiProductCode, err))
-	// 		index++
-	// 		continue
-	// 	}
-
-	// 	if context == MSIINSTALLCONTEXT_USERMANAGED || context == MSIINSTALLCONTEXT_USERUNMANAGED {
-	// 		entry.UserSID = windows.UTF16ToString(sidBuf[:sidLen])
-	// 	}
-	// 	entry.ProductCode = msiProductCode
-	// 	entries = append(entries, entry)
-	// 	index++
-	// }
 
 	err := winutil.EnumerateMsiProducts(winutil.MSIINSTALLCONTEXT_ALL, func(productCode []uint16, context uint32, userSID string) error {
 		msiProductCode := windows.UTF16ToString(productCode[:])
