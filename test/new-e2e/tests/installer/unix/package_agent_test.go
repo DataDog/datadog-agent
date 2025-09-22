@@ -471,6 +471,18 @@ func (s *packageAgentSuite) TestInstallWithFapolicyd() {
 	s.TestInstall()
 }
 
+func (s *packageAgentSuite) TestNoWorldWritableFiles() {
+	s.RunInstallScript()
+	defer s.Purge()
+
+	state := s.host.State()
+	for _, file := range state.FS {
+		if file.Perms&002 != 0 {
+			s.T().Fatalf("file %v is world writable", file)
+		}
+	}
+}
+
 func (s *packageAgentSuite) purgeAgentDebInstall() {
 	pkgManager := s.host.GetPkgManager()
 	switch pkgManager {
