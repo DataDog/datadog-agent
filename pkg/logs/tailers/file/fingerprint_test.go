@@ -1003,7 +1003,7 @@ func (suite *FingerprintTestSuite) TestErrorVsInsufficientDataBehavior() {
 		CountToSkip:         0,
 	}
 
-	fingerprinter := NewFingerprinter(true, *config)
+	fingerprinter := NewFingerprinter(*config)
 	emptyFileFingerprint, err := fingerprinter.ComputeFingerprint(tailer.file)
 
 	suite.Nil(err, "Empty file should not return an error")
@@ -1059,7 +1059,7 @@ func (suite *FingerprintTestSuite) TestLineBasedInsufficientVsError() {
 		MaxBytes:            1024,
 	}
 
-	fingerprinter := NewFingerprinter(true, *config)
+	fingerprinter := NewFingerprinter(*config)
 	incompleteLineFingerprint, err := fingerprinter.ComputeFingerprint(tailer.file)
 
 	suite.Nil(err, "Incomplete line should not return an error")
