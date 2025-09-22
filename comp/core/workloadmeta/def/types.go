@@ -475,6 +475,18 @@ func (cr ContainerResources) String(bool) string {
 	return sb.String()
 }
 
+// ContainerResizePolicy represents a resize policy for a container
+type ContainerResizePolicy struct {
+	CPURestartPolicy    string
+	MemoryRestartPolicy string
+
+	// Currently, the only supported resourceName values are "cpu" and "memory"
+}
+
+func (crp ContainerResizePolicy) String() string {
+	return fmt.Sprintf("RestartPolicy: CPU: %s, Memory: %s", crp.CPURestartPolicy, crp.MemoryRestartPolicy)
+}
+
 // ContainerAllocatedResource is a resource allocated to a container, consisting of a name and an ID.
 type ContainerAllocatedResource struct {
 	// Name is the name of the resource as defined in the pod spec (e.g. "nvidia.com/gpu").
@@ -588,6 +600,7 @@ type Container struct {
 	SecurityContext *ContainerSecurityContext
 	ReadinessProbe  *ContainerProbe
 	Resources       ContainerResources
+	ResizePolicy    ContainerResizePolicy
 
 	// ResolvedAllocatedResources is the list of resources allocated to this pod. Requires the
 	// PodResources API to query that data.
