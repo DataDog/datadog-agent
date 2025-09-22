@@ -51,7 +51,7 @@ func (o *ChmodSelfTest) GenerateEvent(ctx context.Context) error {
 
 // HandleEvent handles self test events
 func (o *ChmodSelfTest) HandleEvent(event selfTestEvent) {
-	o.isSuccess = event.RuleID == o.ruleID
+	o.isSuccess = event.RuleID == o.ruleID && o.filename == event.Filepath
 }
 
 // IsSuccess return the state of the test
