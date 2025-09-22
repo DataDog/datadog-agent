@@ -248,7 +248,7 @@ variables:
   # GIT_STRATEGY: "s3"
   # TODO
   GIT_STRATEGY: "clone"
-  GIT_DEPTH: 0
+  GIT_DEPTH: 1
 
   # Job stage attempts (see https://docs.gitlab.com/ee/ci/runners/configure_runners.html#job-stages-attempts)
   ARTIFACT_DOWNLOAD_ATTEMPTS: 2
