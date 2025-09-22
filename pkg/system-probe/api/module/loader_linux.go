@@ -46,14 +46,18 @@ func preRegister(_ *sysconfigtypes.Config, moduleFactories []*Factory) error {
 }
 
 func postRegister(cfg *sysconfigtypes.Config, moduleFactories []*Factory) error {
-	if isEBPFRequired(moduleFactories) || isEBPFOptional(moduleFactories) {
-		ebpf.FlushBTF()
-	}
+	needBTFFlush := isEBPFRequired(moduleFactories) || isEBPFOptional(moduleFactories)
+
 	if cfg.TelemetryEnabled && ebpf.ContentionCollector != nil {
+		needBTFFlush = true
 		if err := ebpf.ContentionCollector.Initialize(ebpf.TrackAllEBPFResources); err != nil {
 			// do not prevent system-probe from starting if lock contention collector fails
 			log.Errorf("failed to initialize ebpf lock contention collector: %v", err)
 		}
+	}
+
+	if needBTFFlush {
+		ebpf.FlushBTF()
 	}
 	return nil
 }

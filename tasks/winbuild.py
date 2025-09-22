@@ -6,7 +6,6 @@ from invoke.tasks import task
 from tasks.flavor import AgentFlavor
 from tasks.libs.common.utils import get_version
 from tasks.msi import build as build_agent_msi
-from tasks.msi import build_installer as build_installer_msi
 from tasks.omnibus import build as omnibus_build
 
 # Output directory for package files
@@ -22,6 +21,16 @@ def agent_package(
     skip_deps=False,
     build_upgrade=False,
 ):
+    # Build installer
+    # TODO: merge into agent omnibus build
+    # TODO: must build installer first so the final build-summary.json
+    #       is from the Agent omnibus build
+    omnibus_build(
+        ctx,
+        skip_deps=skip_deps,
+        target_project="installer",
+    )
+
     # Build agent
     omnibus_build(
         ctx,
@@ -29,16 +38,8 @@ def agent_package(
         skip_deps=skip_deps,
     )
 
-    # Build installer
-    omnibus_build(
-        ctx,
-        skip_deps=skip_deps,
-        target_project="installer",
-    )
-
     # Package Agent into MSI
     build_agent_msi(ctx, build_upgrade=build_upgrade)
-
 
 @task
 def installer_package(
