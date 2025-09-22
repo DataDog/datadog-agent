@@ -1,16 +1,46 @@
-#![allow(dead_code)]
+use crate::aggregator::{Aggregator, MetricType, ServiceCheckStatus, Event};
 
-use crate::aggregator::{Config, Aggregator, MetricType, Event};
+use serde_yaml::Value;
+use serde::de::DeserializeOwned;
 
-use std::error::Error;
+use std::collections::HashMap;
 use std::ffi::{c_char, CStr};
+use std::error::Error;
 
-#[repr(i32)]
-pub enum ServiceCheckStatus {
-    OK = 0,
-    WARNING = 1,
-    CRITICAL = 2,
-    UNKNOWN = 3,
+/// Represents the parameters passed by the Agent to the check
+/// 
+/// It stores every parameter in a map using `Serde` and provide a method for retrieving the values
+#[repr(C)]
+pub struct Config {
+    map: HashMap<String, Value>,
+}
+
+impl Config {
+    pub fn from_str(cstr: *const c_char) -> Result<Self, Box<dyn Error>> {
+        // read string
+        let str = unsafe { CStr::from_ptr(cstr) }.to_str().unwrap_or("");
+
+        // create map of parameters from the string
+        let map: HashMap<String, Value> = match serde_yaml::from_str(str) {
+            Ok(map) => map,
+            Err(_) => HashMap::new(),
+        };
+
+        Ok(Self { map })
+    }
+
+    pub fn get<T>(&self, key: &str) -> Result<T, Box<dyn Error>>
+    where 
+        T: DeserializeOwned,
+    {
+        match self.map.get(key) {
+            Some(serde_value) => {
+                let value = serde_yaml::from_value(serde_value.clone())?;
+                Ok(value)
+            },
+            None => Err(format!("key '{key}' not found in the instance").into()),
+        }
+    }
 }
 
 pub struct AgentCheck {

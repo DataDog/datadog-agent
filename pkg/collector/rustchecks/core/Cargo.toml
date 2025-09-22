@@ -1,5 +1,5 @@
 [package]
-name = "datadog-agent-core"
+name = "rust-check-core"
 version = "0.1.0"
 edition = "2024"
 

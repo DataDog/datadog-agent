@@ -1,6 +1,6 @@
 // FFI for running checks
 
-use datadog_agent_core::{AgentCheck, Aggregator};
+use rust_check_core::{AgentCheck, Aggregator};
 use crate::CheckImplementation;
 
 use std::error::Error;

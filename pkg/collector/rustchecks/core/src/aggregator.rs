@@ -1,13 +1,6 @@
-#![allow(dead_code)]
-
 use crate::cstring::*;
 
-use std::collections::HashMap;
-use std::ffi::{c_char, c_double, c_float, c_int, c_long, c_longlong, CStr};
-use std::error::Error;
-
-use serde_yaml::Value;
-use serde::de::DeserializeOwned;
+use std::ffi::{c_char, c_double, c_float, c_int, c_long, c_longlong};
 
 /// Replica of the Agent metric type enum
 #[repr(C)]
@@ -19,6 +12,15 @@ pub enum MetricType {
     Counter = 4,
     Histogram = 5,
     Historate = 6,
+}
+
+/// Replica of the Agent service check status
+#[repr(i32)]
+pub enum ServiceCheckStatus {
+    OK = 0,
+    WARNING = 1,
+    CRITICAL = 2,
+    UNKNOWN = 3,
 }
 
 /// Replica of the Agent event struct
@@ -83,42 +85,6 @@ type SubmitEventPlatformEvent = extern "C" fn(
     *mut c_char, // event type
 );
 
-/// Represents the parameters passed by the Agent to the check
-/// 
-/// It stores every parameter in a map using `Serde` and provide a method for retrieving the values
-#[repr(C)]
-pub struct Config {
-    map: HashMap<String, Value>,
-}
-
-impl Config {
-    pub fn from_str(cstr: *const c_char) -> Result<Self, Box<dyn Error>> {
-        // read string
-        let str = unsafe { CStr::from_ptr(cstr) }.to_str().unwrap_or("");
-
-        // create map of parameters from the string
-        let map: HashMap<String, Value> = match serde_yaml::from_str(str) {
-            Ok(map) => map,
-            Err(_) => HashMap::new(),
-        };
-
-        Ok(Self { map })
-    }
-
-    pub fn get<T>(&self, key: &str) -> Result<T, Box<dyn Error>>
-    where 
-        T: DeserializeOwned,
-    {
-        match self.map.get(key) {
-            Some(serde_value) => {
-                let value = serde_yaml::from_value(serde_value.clone())?;
-                Ok(value)
-            },
-            None => Err(format!("key '{key}' not found in the instance").into()),
-        }
-    }
-}
-
 /// Aggregator stores Go callbacks for submissions
 /// 
 /// The check stores a pointer to the Aggregator structure declared in Cgo
@@ -139,7 +105,7 @@ impl Aggregator {
 
     // TODO: optional arguements should use Option
     pub fn submit_metric(&self, check_id: &str, metric_type: MetricType, name: &str, value: f64, tags: &[String], hostname: &str, flush_first_value: bool) {
-        // convert to C strings
+        // create the C strings
         let cstr_check_id = to_cstring(check_id);
         let cstr_name = to_cstring(name);
         let cstr_tags = to_cstring_array(tags);
@@ -156,7 +122,7 @@ impl Aggregator {
             flush_first_value,
         );
 
-        // free every C string allocated
+        // free every allocated C string
         free_cstring(cstr_check_id);
         free_cstring(cstr_name);
         free_cstring_array(cstr_tags);
@@ -164,7 +130,7 @@ impl Aggregator {
     }
 
     pub fn submit_service_check(&self, check_id: &str, name: &str, status: i32, tags: &[String], hostname: &str, message: &str) {
-        // convert to C strings
+        // create the C strings
         let cstr_check_id = to_cstring(check_id);
         let cstr_name = to_cstring(name);
         let cstr_tags = to_cstring_array(tags);
@@ -181,7 +147,7 @@ impl Aggregator {
             cstr_message,
         );
 
-        // free every C string allocated
+        // free every allocated C string
         free_cstring(cstr_check_id);
         free_cstring(cstr_name);
         free_cstring_array(cstr_tags);
@@ -191,7 +157,7 @@ impl Aggregator {
     }
 
     pub fn submit_event(&self, check_id: &str, event: &Event) {
-        // convert to C strings
+        // create the C strings
         let cstr_check_id = to_cstring(check_id);
 
         // submit the service check
@@ -200,11 +166,11 @@ impl Aggregator {
             event,
         );
 
-        // free every C string allocated
+        // free every allocated C string
         free_cstring(cstr_check_id);
     }
     pub fn submit_histogram_bucket(&self, check_id: &str, metric_name: &str, value: c_longlong, lower_bound: f32, upper_bound: f32, monotonic: c_int, hostname: &str, tags: &[String], flush_first_value: bool) {
-        // convert to C strings
+        // create the C strings
         let cstr_check_id = to_cstring(check_id);
         let cstr_metric_name = to_cstring(metric_name);
         let cstr_hostname = to_cstring(hostname);
@@ -223,7 +189,7 @@ impl Aggregator {
             flush_first_value,
         );
 
-        // free every C string allocated
+        // free every allocated C string
         free_cstring(cstr_check_id);
         free_cstring(cstr_metric_name);
         free_cstring(cstr_hostname);
@@ -231,7 +197,7 @@ impl Aggregator {
     }
 
     pub fn submit_event_platform_event(&self, check_id: &str, raw_event_pointer: &str, raw_event_size: c_int, event_type: &str) {
-        // convert to C strings
+        // create the C strings
         let cstr_check_id = to_cstring(check_id);
         let cstr_raw_event_pointer = to_cstring(raw_event_pointer);
         let cstr_event_type = to_cstring(event_type);
@@ -244,7 +210,7 @@ impl Aggregator {
             cstr_event_type,
         );
 
-        // free every C string allocated
+        // free every allocated C string
         free_cstring(cstr_check_id);
         free_cstring(cstr_raw_event_pointer);
         free_cstring(cstr_event_type);

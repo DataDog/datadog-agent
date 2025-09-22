@@ -1,7 +1,5 @@
-#![allow(unused_imports)]
-
 mod ffi;
-use datadog_agent_core::{AgentCheck, ServiceCheckStatus};
+use rust_check_core::AgentCheck;
 
 use std::error::Error;
 
