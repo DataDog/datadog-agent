@@ -33,6 +33,7 @@ import (
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	integrationsimpl "github.com/DataDog/datadog-agent/comp/logs/integrations/impl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
+	publishermetadatacache "github.com/DataDog/datadog-agent/comp/publishermetadatacache/def"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
@@ -74,16 +75,17 @@ func Module() fxutil.Module {
 type dependencies struct {
 	fx.In
 
-	Lc                 fx.Lifecycle
-	Log                log.Component
-	Config             configComponent.Component
-	InventoryAgent     inventoryagent.Component
-	Hostname           hostname.Component
-	Auditor            auditor.Component
-	WMeta              option.Option[workloadmeta.Component]
-	SchedulerProviders []schedulers.Scheduler `group:"log-agent-scheduler"`
-	Tagger             tagger.Component
-	Compression        logscompression.Component
+	Lc                     fx.Lifecycle
+	Log                    log.Component
+	Config                 configComponent.Component
+	InventoryAgent         inventoryagent.Component
+	Hostname               hostname.Component
+	Auditor                auditor.Component
+	WMeta                  option.Option[workloadmeta.Component]
+	SchedulerProviders     []schedulers.Scheduler `group:"log-agent-scheduler"`
+	Tagger                 tagger.Component
+	Compression            logscompression.Component
+	PublisherMetadataCache publishermetadatacache.Component `optional:"true"`
 }
 
 type provides struct {
@@ -121,6 +123,7 @@ type logAgent struct {
 	schedulerProviders        []schedulers.Scheduler
 	integrationsLogs          integrations.Component
 	compression               logscompression.Component
+	publisherMetadataCache    publishermetadatacache.Component
 
 	// make sure this is done only once, when we're ready
 	prepareSchedulers sync.Once
@@ -138,21 +141,22 @@ func newLogsAgent(deps dependencies) provides {
 		integrationsLogs := integrationsimpl.NewLogsIntegration()
 
 		logsAgent := &logAgent{
-			log:                deps.Log,
-			config:             deps.Config,
-			inventoryAgent:     deps.InventoryAgent,
-			hostname:           deps.Hostname,
-			started:            atomic.NewUint32(status.StatusNotStarted),
-			auditor:            deps.Auditor,
-			sources:            sources.NewLogSources(),
-			services:           service.NewServices(),
-			tracker:            tailers.NewTailerTracker(),
-			flarecontroller:    flareController.NewFlareController(),
-			wmeta:              deps.WMeta,
-			schedulerProviders: deps.SchedulerProviders,
-			integrationsLogs:   integrationsLogs,
-			tagger:             deps.Tagger,
-			compression:        deps.Compression,
+			log:                    deps.Log,
+			config:                 deps.Config,
+			inventoryAgent:         deps.InventoryAgent,
+			hostname:               deps.Hostname,
+			started:                atomic.NewUint32(status.StatusNotStarted),
+			auditor:                deps.Auditor,
+			sources:                sources.NewLogSources(),
+			services:               service.NewServices(),
+			tracker:                tailers.NewTailerTracker(),
+			flarecontroller:        flareController.NewFlareController(),
+			wmeta:                  deps.WMeta,
+			schedulerProviders:     deps.SchedulerProviders,
+			integrationsLogs:       integrationsLogs,
+			tagger:                 deps.Tagger,
+			compression:            deps.Compression,
+			publisherMetadataCache: deps.PublisherMetadataCache,
 		}
 		deps.Lc.Append(fx.Hook{
 			OnStart: logsAgent.start,

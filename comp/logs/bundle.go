@@ -11,6 +11,7 @@ import (
 	auditorfx "github.com/DataDog/datadog-agent/comp/logs/auditor/fx"
 	healthfx "github.com/DataDog/datadog-agent/comp/logs/health/fx"
 	streamlogs "github.com/DataDog/datadog-agent/comp/logs/streamlogs/fx"
+	publishermetadatacachefx "github.com/DataDog/datadog-agent/comp/publishermetadatacache/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -23,5 +24,6 @@ func Bundle() fxutil.BundleOptions {
 		agentimpl.Module(),
 		streamlogs.Module(),
 		auditorfx.Module(),
+		publishermetadatacachefx.Module(),
 	)
 }

@@ -50,7 +50,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/profiler"
 	"github.com/DataDog/datadog-agent/comp/process/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/process/types"
-	publishermetadatacachefx "github.com/DataDog/datadog-agent/comp/publishermetadatacache/fx"
 	rdnsquerierfx "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx"
 	remoteconfig "github.com/DataDog/datadog-agent/comp/remote-config"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
@@ -216,7 +215,6 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		}),
 		settingsimpl.Module(),
 		ipcfx.ModuleReadWrite(),
-		publishermetadatacachefx.Module(),
 	)
 
 	err := app.Start(ctx)
