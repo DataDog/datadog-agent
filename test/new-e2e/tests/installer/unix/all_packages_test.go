@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
@@ -53,8 +54,6 @@ var (
 		{t: testDDOT, skippedInstallationMethods: []InstallMethodOption{InstallMethodAnsible}},
 		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9, e2eos.FedoraDefault, e2eos.AmazonLinux2}, skippedInstallationMethods: []InstallMethodOption{InstallMethodAnsible}},
 		{t: testUpgradeScenario},
-		// TODO(celian): Remove this after #incident-43183
-		{t: testDDOT, skippedFlavors: []e2eos.Descriptor{e2eos.Suse15}, skippedInstallationMethods: []InstallMethodOption{InstallMethodAnsible}},
 	}
 )
 
@@ -104,6 +103,9 @@ func TestPackages(t *testing.T) {
 			// TODO: remove once ansible+suse is fully supported
 			if flavor.Flavor == e2eos.Suse && method == InstallMethodAnsible {
 				continue
+			}
+			if flavor.Flavor == e2eos.Suse {
+				flake.Mark(t) // #incident-43183
 			}
 
 			suite := test.t(flavor, flavor.Architecture, method)
