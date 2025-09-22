@@ -43,25 +43,27 @@ type message struct {
 }
 
 func (m *message) MarshalJSONTo(enc *jsontext.Encoder) error {
-	sb := strings.Builder{}
+	var sb strings.Builder
 
 	// Go through each template segment, if its a string, write it directly to the encoder, if its a json segment, process the expression
 	// and write the result to the encoder.
-	for _, seg := range m.probe.Segments {
-		switch segTyped := seg.(type) {
-		case ir.JSONSegment:
-			// Extract raw value from expression (no JSON encoding)
-			value, err := m.argumentsData.extractExpressionRawValue(segTyped.ExpressionIndex)
-			if err != nil {
-				return err
+	if m.probe.Template != nil {
+		for _, seg := range m.probe.Template.Segments {
+			switch segTyped := seg.(type) {
+			case ir.JSONSegment:
+				// Extract raw value from expression (no JSON encoding)
+				value, err := m.argumentsData.extractExpressionRawValue(segTyped.ExpressionIndex)
+				if err != nil {
+					return err
+				}
+				sb.WriteString(value)
+			case ir.StringSegment:
+				if _, err := sb.WriteString(segTyped.Value); err != nil {
+					return err
+				}
+			default:
+				return fmt.Errorf("unsupported segment type: %T", seg)
 			}
-			sb.WriteString(value)
-		case ir.StringSegment:
-			if _, err := sb.WriteString(segTyped.Value); err != nil {
-				return err
-			}
-		default:
-			return fmt.Errorf("unsupported segment type: %T", seg)
 		}
 	}
 	return enc.WriteToken(jsontext.String(sb.String()))

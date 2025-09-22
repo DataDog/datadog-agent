@@ -232,9 +232,9 @@ Probes:
       type: LOG_PROBE
       where: {methodName: main.stringArg}
       tags: ['foo:bar']
-      message: hello {x}
+      message: hello {s}
       template: ""
-      segments: [{str: 'hello '}, {dsl: {json: null, dsl: x}}]
+      segments: [{str: 'hello '}, {dsl: {json: null, dsl: s}}]
       captureSnapshot: true
       subprogram: {subprogram: 2}
       events:
