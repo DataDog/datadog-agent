@@ -562,6 +562,7 @@ metrics:
 }
 
 func TestProfile(t *testing.T) {
+	setupHostname(t)
 	mockConfig := configmock.New(t)
 	testDir := t.TempDir()
 	mockConfig.SetWithoutSource("run_path", testDir)
@@ -869,6 +870,10 @@ profiles:
   "subnet": "127.0.0.0/30",
   "namespace":"default",
   "integration": "snmp",
+  "collector_metadata": {
+      "agent_version": "%[1]s",
+	  "agent_hostname": "my-hostname"
+  },
   "devices": [
     {
       "id": "default:1.2.3.4",
@@ -878,7 +883,7 @@ profiles:
       ],
       "tags": [
         "agent_host:my-hostname",
-        "agent_version:%s",
+        "agent_version:%[1]s",
         "autodiscovery_subnet:127.0.0.0/30",
 		"device_id:default:1.2.3.4",
 		"device_ip:1.2.3.4",
@@ -1541,6 +1546,10 @@ tags:
   "subnet": "127.0.0.0/30",
   "namespace":"default",
   "integration": "snmp",
+  "collector_metadata": {
+      "agent_version":"%[1]s",
+	  "agent_hostname":"my-hostname"
+  },
   "devices": [
     {
       "id": "default:1.2.3.4",
@@ -1550,7 +1559,7 @@ tags:
       ],
       "tags": [
         "agent_host:my-hostname",
-        "agent_version:%s",
+        "agent_version:%[1]s",
         "autodiscovery_subnet:127.0.0.0/30",
 		"device_id:default:1.2.3.4",
 		"device_ip:1.2.3.4",
@@ -1692,6 +1701,10 @@ tags:
   "subnet": "127.0.0.0/30",
   "namespace":"default",
   "integration": "snmp",
+  "collector_metadata": {
+      "agent_version":"%[1]s",
+	  "agent_hostname":"my-hostname"
+  },
   "devices": [
     {
       "id": "default:1.2.3.5",
@@ -1701,7 +1714,7 @@ tags:
       ],
       "tags": [
         "agent_host:my-hostname",
-        "agent_version:%s",
+        "agent_version:%[1]s",
         "autodiscovery_subnet:127.0.0.0/30",
 		"device_id:default:1.2.3.5",
 		"device_ip:1.2.3.5",
@@ -2011,6 +2024,10 @@ metric_tags:
   "subnet": "10.10.0.0/30",
   "namespace":"default",
   "integration": "snmp",
+  "collector_metadata": {
+      "agent_version": "%[3]s",
+	  "agent_hostname": "my-hostname"
+  },
   "devices": [
     {
       "id": "%s",
@@ -2020,7 +2037,7 @@ metric_tags:
       ],
       "tags": [
         "agent_host:my-hostname",
-        "agent_version:%s",
+        "agent_version:%[3]s",
         "autodiscovery_subnet:10.10.0.0/30",
 		"device_id:%s",
 		"device_ip:%s",
