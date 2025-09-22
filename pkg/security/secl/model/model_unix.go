@@ -453,7 +453,11 @@ type FileEvent struct {
 
 	PkgName       string `field:"package.name,handler:ResolvePackageName"`                    // SECLDoc[package.name] Definition:`[Experimental] Name of the package that provided this file`
 	PkgVersion    string `field:"package.version,handler:ResolvePackageVersion"`              // SECLDoc[package.version] Definition:`[Experimental] Full version of the package that provided this file`
+	PkgEpoch      int    `field:"package.epoch,handler:ResolvePackageEpoch"`                  // SECLDoc[package.epoch] Definition:`[Experimental] Epoch of the package that provided this file`
+	PkgRelease    string `field:"package.release,handler:ResolvePackageRelease"`              // SECLDoc[package.release] Definition:`[Experimental] Release of the package that provided this file`
 	PkgSrcVersion string `field:"package.source_version,handler:ResolvePackageSourceVersion"` // SECLDoc[package.source_version] Definition:`[Experimental] Full version of the source package of the package that provided this file`
+	PkgSrcEpoch   int    `field:"package.source_epoch,handler:ResolvePackageSourceEpoch"`     // SECLDoc[package.source_epoch] Definition:`[Experimental] Epoch of the source package of the package that provided this file`
+	PkgSrcRelease string `field:"package.source_release,handler:ResolvePackageSourceRelease"` // SECLDoc[package.source_release] Definition:`[Experimental] Release of the source package of the package that provided this file`
 
 	HashState HashState `field:"-"`
 	Hashes    []string  `field:"hashes,handler:ResolveHashesFromEvent,opts:skip_ad,weight:999"` // SECLDoc[hashes] Definition:`[Experimental] List of cryptographic hashes computed for this file`

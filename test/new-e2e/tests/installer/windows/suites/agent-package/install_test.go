@@ -26,10 +26,7 @@ type testAgentInstallSuite struct {
 // TestAgentInstalls tests the usage of the Datadog installer to install the Datadog Agent package.
 func TestAgentInstalls(t *testing.T) {
 	e2e.Run(t, &testAgentInstallSuite{},
-		e2e.WithProvisioner(
-			winawshost.ProvisionerNoAgentNoFakeIntake(
-				winawshost.WithInstaller(),
-			)))
+		e2e.WithProvisioner(winawshost.ProvisionerNoAgentNoFakeIntake()))
 }
 
 // TestInstallAgentPackage tests installing and uninstalling the Datadog Agent using the Datadog installer.
