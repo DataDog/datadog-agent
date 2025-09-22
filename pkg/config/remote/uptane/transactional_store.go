@@ -43,13 +43,14 @@ type transaction struct {
 type Metadata struct {
 	Path         string
 	AgentVersion string
-	ApiKey       string
-	Url          string
+	APIKey       string
+	URL          string
 }
 
+// NewTransactionalStore creates a new transactional store comprised of creating the underlying boltDB
 func NewTransactionalStore(metadata *Metadata) (*transactionalStore, error) {
 	// transactional store should be in charge of opening/closing boltDB
-	db, err := openCacheDB(metadata.Path, metadata.AgentVersion, metadata.ApiKey, metadata.Url)
+	db, err := openCacheDB(metadata.Path, metadata.AgentVersion, metadata.APIKey, metadata.URL)
 	if err != nil {
 		db.Close()
 		return nil, err
@@ -63,7 +64,7 @@ func NewTransactionalStore(metadata *Metadata) (*transactionalStore, error) {
 
 // RecreateTransactionalStore uses the metadata & path from the existing TS boltDB to open a new one & clear cachedData
 func RecreateTransactionalStore(metadata *Metadata) (*transactionalStore, error) {
-	db, err := recreate(metadata.Path, metadata.AgentVersion, metadata.ApiKey, metadata.Url)
+	db, err := recreate(metadata.Path, metadata.AgentVersion, metadata.APIKey, metadata.URL)
 	if err != nil {
 		db.Close()
 		return nil, err
@@ -90,8 +91,8 @@ func (ts *transactionalStore) getTSMetadata() (*Metadata, error) {
 	return &Metadata{
 		Path:         ts.db.Path(),
 		AgentVersion: metadata.Version,
-		ApiKey:       metadata.APIKeyHash,
-		Url:          metadata.URL,
+		APIKey:       metadata.APIKeyHash,
+		URL:          metadata.URL,
 	}, nil
 }
 

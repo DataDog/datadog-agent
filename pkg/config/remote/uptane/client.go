@@ -215,10 +215,10 @@ func NewCDNClient(dbMetadata *Metadata, options ...ClientOption) (c *CDNClient, 
 	httpClient := &http.Client{}
 
 	c = &CDNClient{
-		configRemoteStore:   newCDNRemoteConfigStore(httpClient, dbMetadata.Url, dbMetadata.ApiKey),
-		directorRemoteStore: newCDNRemoteDirectorStore(httpClient, dbMetadata.Url, dbMetadata.ApiKey),
+		configRemoteStore:   newCDNRemoteConfigStore(httpClient, dbMetadata.URL, dbMetadata.APIKey),
+		directorRemoteStore: newCDNRemoteDirectorStore(httpClient, dbMetadata.URL, dbMetadata.APIKey),
 		Client: &Client{
-			site:                   dbMetadata.Url,
+			site:                   dbMetadata.URL,
 			targetStore:            targetStore,
 			transactionalStore:     transactionalStore,
 			orgStore:               orgStore,
@@ -232,11 +232,11 @@ func NewCDNClient(dbMetadata *Metadata, options ...ClientOption) (c *CDNClient, 
 		o(c.Client)
 	}
 
-	if c.configLocalStore, err = newLocalStoreConfig(transactionalStore, dbMetadata.Url, c.configRootOverride); err != nil {
+	if c.configLocalStore, err = newLocalStoreConfig(transactionalStore, dbMetadata.URL, c.configRootOverride); err != nil {
 		return nil, err
 	}
 
-	if c.directorLocalStore, err = newLocalStoreDirector(transactionalStore, dbMetadata.Url, c.directorRootOverride); err != nil {
+	if c.directorLocalStore, err = newLocalStoreDirector(transactionalStore, dbMetadata.URL, c.directorRootOverride); err != nil {
 		return nil, err
 	}
 
@@ -245,7 +245,7 @@ func NewCDNClient(dbMetadata *Metadata, options ...ClientOption) (c *CDNClient, 
 	return c, nil
 }
 
-// Closes underlying boltDB
+// Close will close the underlying boltDB
 func (c *Client) Close() error {
 	return c.transactionalStore.Close()
 }
@@ -621,6 +621,7 @@ func configMetasUpdateSummary(metas *pbgo.ConfigMetas) string {
 	return b.String()
 }
 
+// GetTransactionalStoreMetadata returns metadata that creates the underlying boltDB instance
 func (c *Client) GetTransactionalStoreMetadata() (*Metadata, error) {
 	return c.transactionalStore.getTSMetadata()
 }
