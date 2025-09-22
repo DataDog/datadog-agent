@@ -25,33 +25,28 @@
 # doing this.
 name "cacerts"
 
-# We have a synthetic monitor on the latest cacerts file to warn us when the latest
-# cacerts bundle changes.
-# This allows us to always use up-to-date cacerts, without breaking all builds
-# when they change.
+# Omnibus breaks if there is no version on elements. You get an error like
+# Software must specify a `version; to cache it in S3 (cacerts[/go/src/github.com/DataDog/datadog-agent/omnibus/config/software/cacerts.rb])!
+# This is cryptic, and not flagged as an erro.
 default_version "2025-08-12"
-source url: "https://curl.se/ca/cacert-#{version}.pem",
-       sha256: "64dfd5b1026700e0a0a324964749da9adc69ae5e51e899bf16ff47d6fd0e9a5e",
-       target_filename: "cacert.pem"
 
-relative_path "cacerts-#{version}"
+# IMHO, this should be equivalant to a chdir to that directory, but it is not
+relative_path 'src/github.com/DataDog/datadog-agent'
 
 build do
   license "MPL-2.0"
   license_file "https://www.mozilla.org/media/MPL/2.0/index.815ca599c9df.txt"
 
+  command "echo I AM HERE && /bin/pwd"
+  # Dir.chdir "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent" do
+  # Dir.chdir "/go/src/github.com/DataDog/datadog-agent" do
   if windows?
-    mkdir "#{python_3_embedded}/ssl/certs"
-    copy "#{project_dir}/cacert.pem", "#{python_3_embedded}/ssl/certs/cacert.pem"
-    copy "#{project_dir}/cacert.pem", "#{python_3_embedded}/ssl/cert.pem"
-  else
-    mkdir "#{install_dir}/embedded/ssl/certs"
-    copy "#{project_dir}/cacert.pem", "#{install_dir}/embedded/ssl/certs/cacert.pem"
-    block 'set certificate permissions and relative symlink within embedded SSL configuration' do
-      Dir.chdir "#{install_dir}/embedded/ssl" do
-        File.chmod 0644, 'certs/cacert.pem'
-        File.symlink 'certs/cacert.pem', 'cert.pem'
-      end
-    end
+    command "cd #{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent && bazelisk run -- //deps/cacerts:install --destdir='#{python_3_embedded}'"
+    command "dir #{python_3_embedded}/ssl"
+   else
+    command "cd #{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent && bazelisk run -- //deps/cacerts:install --destdir='#{install_dir}/embedded'"
+
+    # For debugging only.
+    command "ls -lR #{install_dir}/embedded"
   end
 end

@@ -1,0 +1,87 @@
+"""cacert provides the list of trusted root SSL signing certificates.
+
+Here be dragons.
+
+This list is used by our python integrations, and possibly other bits.
+It forms the root of the web of trust. From a reliability, and security
+point of view, it is best if our code uses a set that we have veted
+ourselves, rather than relying on what might happen to be on the
+customer's machine.
+"""
+
+load("@rules_license//rules:license.bzl", "license")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+load("@rules_shell//shell:sh_test.bzl", "sh_test")
+
+package(
+    default_applicable_licenses = [":license"],
+    default_visibility = ["//visibility:private"],
+)
+
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:MPL-2.0"],
+    license_text = "MPL-2.0.txt",
+    visibility = ["//visibility:public"],
+)
+
+# There is a cron job that watches for changes to the header for the file.
+# It alerts on the team-agent-build slack channel. When we get the message,
+# update cacert.pem and the alert. There should be no need to rush a new
+# Agent release. New keys are generally phased in, so an old root cert
+# still works for a long period before its replacement is needed.
+# https://app.datadoghq.com/synthetics/details/pya-ptn-xnv
+
+# Last update from upstream: cacert-2025-08-12.pem
+filegroup(
+    name = "cacerts",
+    srcs = ["cacert.pem"],
+    visibility = ["//visibility:public"],
+)
+
+# One might argue that this test is redundant with careful code review.
+# It is included as a speed bump to make it a little harder to accidentally
+# update the certs.
+sh_test(
+    name = "check_sha_test",
+    size = "medium",
+    srcs = ["check_sha_test.sh"],
+    data = [
+        "cacert.pem",
+        "cacert.sha256",
+    ],
+    # sha256sum only exists on linux, and we only need to test on a single
+    # platform anyway.
+    target_compatible_with = [
+        "@platforms//os:linux",
+    ],
+)
+
+# Omnibus glue rules: The rest of this file is temporary until we no longer
+# have Omnibus as the high level controller for the build.
+# These are used only from /omnibus/config/software/cacerts.rb
+
+pkg_files(
+    name = "ssl",
+    srcs = [
+        ":cacert.pem",
+    ],
+    prefix = "ssl",
+)
+
+pkg_files(
+    name = "ssl_certs",
+    srcs = [
+        ":cacert.pem",
+    ],
+    prefix = "ssl/cacerts",
+)
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":ssl",
+        ":ssl_certs",
+    ],
+)
