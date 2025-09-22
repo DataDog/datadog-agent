@@ -10,9 +10,10 @@ import (
 	"fmt"
 	"net/http"
 
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"go.uber.org/fx"
 )
 
 // team: agent-configuration
@@ -56,6 +57,8 @@ type Component interface {
 
 	// GetFullConfig returns the full config
 	GetFullConfig(namespaces ...string) http.HandlerFunc
+	// GetFullConfigWithoutDefaults returns the full config without defaults
+	GetFullConfigWithoutDefaults(namespaces ...string) http.HandlerFunc
 	// GetFullConfigBySource returns the full config by sources (config, default, env vars ...)
 	GetFullConfigBySource() http.HandlerFunc
 	// GetValue allows to retrieve the runtime setting

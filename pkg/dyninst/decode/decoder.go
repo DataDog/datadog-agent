@@ -77,10 +77,13 @@ type Decoder struct {
 	approximateBootTime  time.Time
 
 	// These fields are initialized and reset for each message.
-	snapshotMessage    snapshotMessage
-	dataItems          map[typeAndAddr]output.DataItem
-	currentlyEncoding  map[typeAndAddr]struct{}
-	skipIndiciesBuffer []byte
+	snapshotMessage   snapshotMessage
+	dataItems         map[typeAndAddr]output.DataItem
+	currentlyEncoding map[typeAndAddr]struct{}
+	// skippedArgumentExpressions is a bitset of the indices of the arguments
+	// that should be skipped during encoding because they encountered an
+	// evaluation during a previous attempt.
+	skippedArgumentExpressions bitset
 }
 
 // NewDecoder creates a new Decoder for the given program.
@@ -97,10 +100,11 @@ func NewDecoder(
 		typesByGoRuntimeType: make(map[uint32]ir.TypeID),
 		typeNameResolver:     typeNameResolver,
 		approximateBootTime:  approximateBootTime,
-		snapshotMessage:      snapshotMessage{},
-		dataItems:            make(map[typeAndAddr]output.DataItem),
-		currentlyEncoding:    make(map[typeAndAddr]struct{}),
-		skipIndiciesBuffer:   make([]byte, 1),
+
+		snapshotMessage:            snapshotMessage{},
+		dataItems:                  make(map[typeAndAddr]output.DataItem),
+		currentlyEncoding:          make(map[typeAndAddr]struct{}),
+		skippedArgumentExpressions: nil,
 	}
 	for _, probe := range program.Probes {
 		for _, event := range probe.Events {
@@ -203,7 +207,6 @@ func (s *snapshotMessage) init(
 	s.Service = event.ServiceName
 	s.Debugger = debuggerData{
 		Snapshot: snapshotData{
-			decoder:  decoder,
 			ID:       uuid.New(),
 			Language: "go",
 		},
@@ -289,13 +292,14 @@ func (s *snapshotMessage) init(
 	s.Debugger.Snapshot.Probe.ID = probe.GetID()
 	s.Debugger.Snapshot.Stack.frames = stackFrames
 
+	decoder.skippedArgumentExpressions.reset(len(rootType.Expressions))
 	s.Debugger.Snapshot.Captures.Entry.Arguments = argumentsData{
 		event:            event,
 		rootType:         rootType,
 		rootData:         s.rootData,
 		decoder:          decoder,
 		evaluationErrors: &s.Debugger.EvaluationErrors,
-		skipIndicies:     decoder.getSkipIndiciesBuffer(len(rootType.Expressions)),
+		skippedIndices:   &decoder.skippedArgumentExpressions,
 	}
 	return probe, nil
 }
@@ -313,20 +317,4 @@ func symbolicate(event Event, stackHash uint64, symbolicator symbol.Symbolicator
 		return nil, fmt.Errorf("error symbolicating stack: %w", err)
 	}
 	return stackFrames, nil
-}
-
-// getSkipIndiciesBuffer returns a zeroed byte slice of the required size,
-// reusing the internal buffer when possible to avoid allocations.
-func (d *Decoder) getSkipIndiciesBuffer(numExpressions int) []byte {
-	requiredBytes := (numExpressions + 7) / 8
-	if cap(d.skipIndiciesBuffer) < requiredBytes {
-		d.skipIndiciesBuffer = make([]byte, requiredBytes)
-	} else {
-		// Reuse existing buffer, just resize and clear
-		d.skipIndiciesBuffer = d.skipIndiciesBuffer[:requiredBytes]
-		for i := range d.skipIndiciesBuffer {
-			d.skipIndiciesBuffer[i] = 0
-		}
-	}
-	return d.skipIndiciesBuffer
 }
