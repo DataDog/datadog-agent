@@ -86,6 +86,8 @@ if [ -f "$INSTALL_DIR/embedded/bin/python" ]; then
     fi
 
     if [ -n "$PRE_PYTHON_FILE" ]; then
+        # Remove any existing bytecode files
+        rm -rf "${INSTALL_DIR}/python-scripts/__pycache__"
         # -B prevents writing a cache of the bytecode since this is only run once
         ${INSTALL_DIR}/embedded/bin/python -B "${PRE_PYTHON_FILE}" "${INSTALL_DIR}" || true
     else
