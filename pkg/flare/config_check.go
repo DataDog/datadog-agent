@@ -53,10 +53,10 @@ func PrintConfigCheck(w io.Writer, cr integration.ConfigCheckResponse, withDebug
 		}
 
 		if len(cr.Services) > 0 {
-			fmt.Fprintf(w, "\n=== Services (matched and unmatched) ===\n")
-			for _, service := range cr.Services {
-				fmt.Fprintf(w, "\n%s: %s\n", color.BlueString("Service ID"), color.YellowString(service.ServiceID))
-				fmt.Fprintf(w, "AD Identifiers: \n")
+			fmt.Fprintf(w, "\n=== %s (matched and unmatched) ===\n", color.MagentaString("Services"))
+			for svcID, service := range cr.Services {
+				fmt.Fprintf(w, "\n%s: %s\n", color.BlueString("Service ID"), color.YellowString(svcID))
+				fmt.Fprintf(w, "ADIdentifiers:\n")
 				for _, id := range service.ADIdentifiers {
 					fmt.Fprintf(w, "- %s\n", id)
 				}
@@ -66,13 +66,13 @@ func PrintConfigCheck(w io.Writer, cr integration.ConfigCheckResponse, withDebug
 					fmt.Fprintf(w, "Hostname: %s\n", service.Hostname)
 				}
 				if len(service.Hosts) > 0 {
-					fmt.Fprintf(w, "Host:\n")
+					fmt.Fprintf(w, "Hosts:\n")
 					for key, value := range service.Hosts {
 						fmt.Fprintf(w, "- %s: %s\n", key, value)
 					}
 				}
 				if len(service.Ports) > 0 {
-					fmt.Fprintf(w, "Pods: %s\n", strings.Join(service.Ports, ", "))
+					fmt.Fprintf(w, "Ports: %s\n", strings.Join(service.Ports, ", "))
 				}
 				if service.PID > 0 {
 					fmt.Fprintf(w, "PID: %d\n", service.PID)

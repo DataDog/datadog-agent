@@ -12,7 +12,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"sort"
 	"strconv"
@@ -592,7 +591,7 @@ func (ac *AutoConfig) getActiveServices() map[string]integration.ServiceResponse
 			ac.logs.Debugf("showing empty ports because not supported for service %s: %v", svcID, err)
 		} else {
 			ports = slices.Map(containerPorts, func(port listeners.ContainerPort) string {
-				return fmt.Sprintf(":%s", strconv.Itoa(port.Port))
+				return strconv.Itoa(port.Port)
 			})
 		}
 
