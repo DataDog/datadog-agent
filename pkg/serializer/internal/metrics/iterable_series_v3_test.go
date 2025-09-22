@@ -247,3 +247,19 @@ func TestPayloadBuilderV3_pointsLimit(t *testing.T) {
 	r.Equal(3, payloads[0].GetPointCount())
 	r.Equal(9, payloads[1].GetPointCount())
 }
+
+func TestPaylodsBuilderV3_ReservedSpace(t *testing.T) {
+	const ts = 1756737057.1
+	serie := &metrics.Serie{
+		Name:   "serie1",
+		Tags:   tagset.NewCompositeTags([]string{"foo", "bar"}, []string{"ook", "eek"}),
+		Points: []metrics.Point{{Ts: ts, Value: 3.14}}}
+
+	pb, err := newPayloadsBuilderV3(500, 2_000, 10_000, true, true, noopimpl.New())
+	require.NoError(t, err)
+	for len(pb.payloads) == 0 {
+		require.NoError(t, pb.writeSerie(serie))
+	}
+	require.NoError(t, pb.finishPayload())
+}
+

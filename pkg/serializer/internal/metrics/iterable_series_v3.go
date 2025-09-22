@@ -167,10 +167,9 @@ func newPayloadsBuilderV3(
 	splitTagsets bool,
 	compression compression.Component,
 ) (*payloadsBuilderV3, error) {
-	fieldLenSize := varintLen(maxUncompressedSize)
-	payloadHeaderSize := varintLen(payloadFieldMetricData) + fieldLenSize
+	payloadHeaderSize := fieldHeaderLen(payloadFieldMetricData, maxUncompressedSize)
 	payloadHeaderSizeBound := compression.CompressBound(payloadHeaderSize)
-	columnHeaderSize := varintLen(numberOfColumns-1) + fieldLenSize
+	columnHeaderSize := fieldHeaderLen(numberOfColumns-1, maxUncompressedSize)
 	columnHeaderSizeBound := compression.CompressBound(columnHeaderSize)
 	reservedCompressedSize := payloadHeaderSizeBound + columnHeaderSizeBound*numberOfColumns
 	reservedUncompressedSize := payloadHeaderSize + columnHeaderSize*numberOfColumns
@@ -231,8 +230,7 @@ func (pb *payloadsBuilderV3) finishPayload() error {
 			compressedSize += pb.columnHeaderSizeBound + len(columnData)
 
 			colSize := pb.compressor.Len(i)
-			fieldID := protobufFieldID(i, pbTypeBytes)
-			metricDataSize += varintLen(int(fieldID)) + varintLen(colSize) + colSize
+			metricDataSize += fieldHeaderLen(i, colSize) + colSize
 
 			tlmColumnSize.Add(float64(len(columnData)), columnNames[i], "compressed")
 			tlmColumnSize.Add(float64(columnLen), columnNames[i], "uncompressed")
@@ -703,6 +701,10 @@ func varintLen(v int) int {
 		n++
 	}
 	return int(n)
+}
+
+func fieldHeaderLen(id int, len int) int {
+	return varintLen(id<<3) + varintLen(len)
 }
 
 type protobufType uint64
