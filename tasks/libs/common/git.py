@@ -21,25 +21,6 @@ TAG_BATCH_SIZE = 3
 RE_RELEASE_BRANCH = re.compile(r'(\d+)\.(\d+)\.x')
 
 
-def use_api() -> "GithubAPI" | None:
-    """Whether or not to remotely do git operations when possible.
-
-    This uses Github API under the hood.
-    It is used inside CI to be able to use shallow clones when possible.
-    """
-
-    from tasks.libs.common.utils import running_in_ci
-
-    # TODO
-    # if running_in_ci():
-    if True:
-        from tasks.libs.ciproviders.github_api import GithubAPI
-
-        return GithubAPI()
-
-    return None
-
-
 @contextmanager
 def clone(ctx, repo, branch, options=""):
     """
@@ -199,9 +180,6 @@ def get_common_ancestor(ctx, branch, base=None, try_fetch=True, hide=True) -> st
     Returns:
         The common ancestor between two branches.
     """
-
-    if (gh := use_api()):
-        return gh.repo.compare(base, branch).merge_base_commit.sha
 
     base = base or get_default_branch()
     base = get_full_ref_name(base)
