@@ -892,7 +892,6 @@ func (p *pointerType) encodeLiteralValue(
 	enc *jsontext.Encoder,
 	data []byte,
 ) error {
-	// For literal value, we just want the pointed-to value without address
 	return encodePointer(data, false, (*ir.PointerType)(p).Pointee.GetID(), enc, d)
 }
 

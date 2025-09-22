@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"iter"
 	"math"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
@@ -196,11 +197,11 @@ func (m *MetricProbe) GetKind() ir.ProbeKind { return ir.ProbeKindMetric }
 
 // GetTemplate returns the template of the probe.
 // XXX: Not supported for metric probes.
-func (m *MetricProbe) GetTemplate() string { return "" }
+func (m *MetricProbe) GetTemplate() ir.TemplateDefinition { return nil }
 
 // GetSegments returns the segments of the probe template.
 // XXX: Not supported for metric probes.
-func (m *MetricProbe) GetSegments() []ir.TemplateSegment { return nil }
+func (m *MetricProbe) GetSegments() []ir.TemplateSegmentDefinition { return nil }
 
 // LogProbeCommon groups the configuration fields that are shared between
 // LogProbe and SnapshotProbe.
@@ -224,14 +225,38 @@ type LogProbeCommon struct {
 	Segments SegmentList `json:"segments"`
 }
 
-// Segment is a segment of a probe template.
+// TemplateSegment is a segment of a probe template.
 type TemplateSegment struct {
 	*StringSegment `json:"str,omitempty"`
 	*JSONSegment   `json:"dsl,omitempty"`
 }
 
-// Segment implements the ir.Segment interface.
+// TemplateSegment implements the ir.TemplateSegmentDefinition interface.
 func (s TemplateSegment) TemplateSegment() {}
+
+// GetString implements the ir.TemplateSegmentString interface
+func (s TemplateSegment) GetString() string {
+	if s.StringSegment != nil {
+		return string(*s.StringSegment)
+	}
+	return ""
+}
+
+// GetDSL implements the ir.TemplateSegmentExpression interface
+func (s TemplateSegment) GetDSL() string {
+	if s.JSONSegment != nil {
+		return s.JSONSegment.DSL
+	}
+	return ""
+}
+
+// GetJSON implements the ir.TemplateSegmentExpression interface
+func (s TemplateSegment) GetJSON() json.RawMessage {
+	if s.JSONSegment != nil {
+		return s.JSONSegment.JSON
+	}
+	return nil
+}
 
 // SegmentList is a list of Segments which can each be either a StringSegment or a JSONSegment
 type SegmentList []TemplateSegment
@@ -326,15 +351,11 @@ func (l *LogProbe) GetThrottleConfig() ir.ThrottleConfig {
 func (l *LogProbe) GetKind() ir.ProbeKind { return ir.ProbeKindLog }
 
 // GetTemplate returns the template of the probe.
-func (l *LogProbe) GetTemplate() string { return l.Template }
-
-// GetSegments returns the segments of the probe template.
-func (l *LogProbe) GetSegments() []ir.TemplateSegment {
-	segments := make([]ir.TemplateSegment, len(l.Segments))
-	for i, seg := range l.Segments {
-		segments[i] = seg
+func (l *LogProbe) GetTemplate() ir.TemplateDefinition {
+	if l.Template == "" {
+		return nil
 	}
-	return segments
+	return &logProbeTemplate{template: l.Template, segments: l.Segments}
 }
 
 // SnapshotProbe represents a probe that captures a complete snapshot of the
@@ -367,15 +388,11 @@ func (l *SnapshotProbe) GetThrottleConfig() ir.ThrottleConfig {
 }
 
 // GetTemplate returns the template of the probe.
-func (l *SnapshotProbe) GetTemplate() string { return "" }
-
-// GetSegments returns the segments of the probe template.
-func (l *SnapshotProbe) GetSegments() []ir.TemplateSegment {
-	segments := make([]ir.TemplateSegment, len(l.Segments))
-	for i, seg := range l.Segments {
-		segments[i] = seg
+func (l *SnapshotProbe) GetTemplate() ir.TemplateDefinition {
+	if l.Template == "" && len(l.Segments) == 0 {
+		return nil
 	}
-	return segments
+	return &logProbeTemplate{template: l.Template, segments: l.Segments}
 }
 
 // SpanProbe is a probe that decorates a span.
@@ -401,11 +418,11 @@ func (s *SpanProbe) GetThrottleConfig() ir.ThrottleConfig { return infiniteThrot
 
 // GetTemplate returns the template of the probe.
 // XXX: Not supported for span probes.
-func (s *SpanProbe) GetTemplate() string { return "" }
+func (s *SpanProbe) GetTemplate() ir.TemplateDefinition { return nil }
 
 // GetSegments returns the segments of the probe template.
 // XXX: Not supported for span probes.
-func (s *SpanProbe) GetSegments() []ir.TemplateSegment { return nil }
+func (s *SpanProbe) GetSegments() []ir.TemplateSegmentDefinition { return nil }
 
 // Exists so that we can make accessors infallible. In practice, valid
 // probes won't return this.
@@ -503,6 +520,26 @@ var _ ir.ThrottleConfig = infiniteThrottleConfig{}
 
 func (infiniteThrottleConfig) GetThrottlePeriodMs() uint32 { return 1000 }
 func (infiniteThrottleConfig) GetThrottleBudget() int64    { return math.MaxInt64 }
+
+// logProbeTemplate implements ir.TemplateDefinition for LogProbe
+type logProbeTemplate struct {
+	template string
+	segments []TemplateSegment
+}
+
+func (l *logProbeTemplate) GetTemplateString() string {
+	return l.template
+}
+
+func (l *logProbeTemplate) GetSegments() iter.Seq[ir.TemplateSegmentDefinition] {
+	return func(yield func(ir.TemplateSegmentDefinition) bool) {
+		for _, seg := range l.segments {
+			if !yield(seg) {
+				return
+			}
+		}
+	}
+}
 
 func validateWhere(where *Where) error {
 	if where == nil {

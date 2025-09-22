@@ -106,10 +106,10 @@ probes:
   where:
     methodName: main.stringArg
   captureSnapshot: true
-  message: "hello {x}"
+  message: "hello {s}"
   segments:
     - str: "hello "
-    - dsl: "x"
+    - dsl: "s"
 - id: testTemplateMultipleDSLSegment
   type: LOG_PROBE
   tags:

@@ -8,6 +8,7 @@ package ir
 import (
 	"cmp"
 	"encoding/json"
+	"iter"
 )
 
 // ProbeIDer is an interface that allows for comparison of probe definitions.
@@ -31,10 +32,8 @@ type ProbeDefinition interface {
 	GetCaptureConfig() CaptureConfig
 	// ThrottleConfig returns the throttle configuration of the probe.
 	GetThrottleConfig() ThrottleConfig
-	// GetTemplate returns the template of the probe.
-	GetTemplate() string
-	// GetSegments returns the segments of the probe template.
-	GetSegments() []TemplateSegment
+	// GetTemplate returns the template definition of the probe.
+	GetTemplate() TemplateDefinition
 }
 
 // CompareProbeIDs compares two probe definitions by their ID and version.
@@ -50,31 +49,29 @@ type Where interface {
 	Where() // marker method
 }
 
-// TemplateSegment is a segment of a probe template.
-type TemplateSegment interface {
+// TemplateDefinition represents the configuration-time template definition
+type TemplateDefinition interface {
+	GetTemplateString() string
+	GetSegments() iter.Seq[TemplateSegmentDefinition]
+}
+
+// TemplateSegmentDefinition represents a configuration-time template segment
+type TemplateSegmentDefinition interface {
 	TemplateSegment() // marker method
 }
 
-// StringSegment is a string literal to be used as a segment of a probe template.
-type StringSegment struct {
-	Value string
+// TemplateSegmentString represents a string literal segment in configuration
+type TemplateSegmentString interface {
+	TemplateSegmentDefinition
+	GetString() string
 }
 
-// Segment implements the Segment interface.
-func (s StringSegment) TemplateSegment() {}
-
-// JSONSegment is a JSON object to be used as a segment of a probe template.
-type JSONSegment struct {
-	// JSON is the AST of the DSL segment.
-	JSON json.RawMessage
-	// DSL is the raw expression language segment.
-	DSL string
-	// ExpressionIndex is the index of the root expression that corresponds to this segment.
-	ExpressionIndex int
+// TemplateSegmentExpression represents an expression segment in configuration
+type TemplateSegmentExpression interface {
+	TemplateSegmentDefinition
+	GetDSL() string
+	GetJSON() json.RawMessage
 }
-
-// Segment implements the Segment interface.
-func (s JSONSegment) TemplateSegment() {}
 
 // FunctionWhere is a where clause of a probe that is a function.
 type FunctionWhere interface {
