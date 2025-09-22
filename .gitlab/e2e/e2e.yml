@@ -860,9 +860,9 @@ new-e2e-package-signing-suse-a7-x86_64:
     - .new_e2e_template
     - .new-e2e_package_signing
   variables:
-    E2E_DESCRIPTORS: "suse/x86_64/12,suse/x86_64/15-sp4"
-    E2E_CWS_SUPPORTED_DESCRIPTORS: "suse/x86_64/12,suse/x86_64/15-sp4"
-    E2E_BRANCH_DESCRIPTORS: "suse/x86_64/15-sp4"
+    E2E_DESCRIPTORS: "suse/x86_64/12,suse/x86_64/15-4"
+    E2E_CWS_SUPPORTED_DESCRIPTORS: "suse/x86_64/12,suse/x86_64/15-4"
+    E2E_BRANCH_DESCRIPTORS: "suse/x86_64/15-4"
   needs:
     - !reference [.needs_new_e2e_template]
     - agent_suse-x64-a7
