@@ -1,6 +1,0 @@
----
-features:
-  - |
-    Enable log file fingerprinting by default.
-    This change switches the default fingerprinting strategy to bytes-based checksum computation and enables
-    tailing for files with insufficient data for fingerprint generation.
