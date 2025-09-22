@@ -7,7 +7,6 @@ package winazurehost
 
 import (
 	"fmt"
-	installer "github.com/DataDog/datadog-agent/test/new-e2e/pkg/components/datadog-installer"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/components/defender"
@@ -27,7 +26,6 @@ type ProvisionerParams struct {
 	fakeintakeOptions      []fakeintake.Option
 	activeDirectoryOptions []activedirectory.Option
 	defenderOptions        []defender.Option
-	installerOptions       []installer.Option
 }
 
 // ProvisionerOption is a provisioner option.
@@ -101,15 +99,6 @@ func WithActiveDirectoryOptions(opts ...activedirectory.Option) ProvisionerOptio
 func WithDefenderOptions(opts ...defender.Option) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.defenderOptions = append(params.defenderOptions, opts...)
-		return nil
-	}
-}
-
-// WithInstaller configures Datadog Installer on an EC2 VM.
-func WithInstaller(opts ...installer.Option) ProvisionerOption {
-	return func(params *ProvisionerParams) error {
-		params.installerOptions = []installer.Option{}
-		params.installerOptions = append(params.installerOptions, opts...)
 		return nil
 	}
 }

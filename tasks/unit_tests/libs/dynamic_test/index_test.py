@@ -140,6 +140,67 @@ class TestDynamicTestIndex(unittest.TestCase):
                 loaded = json.load(f)
             self.assertEqual(loaded, idx.to_dict())
 
+    def test_glob_patterns(self):
+        """Test glob pattern matching functionality in DynamicTestIndex."""
+        idx = DynamicTestIndex()
+
+        # Add tests with various glob patterns
+        idx.add_tests("job", "cmd/*", ["TestCmdGlob"])
+        idx.add_tests("job", "pkg/collector/*", ["TestCollectorGlob"])
+        idx.add_tests("job", "pkg/*/system", ["TestSystemGlob"])
+        idx.add_tests("job", "pkg/util/log", ["TestExact"])
+
+        # Test single wildcard patterns
+        impacted = idx.impacted_tests(["cmd/agent"], "job")
+        self.assertIn("TestCmdGlob", impacted)
+
+        impacted = idx.impacted_tests(["pkg/collector/corechecks"], "job")
+        self.assertIn("TestCollectorGlob", impacted)
+
+        # Test middle wildcard patterns
+        impacted = idx.impacted_tests(["pkg/collector/system"], "job")
+        self.assertIn("TestSystemGlob", impacted)
+
+        # Test exact matches still work alongside globs
+        impacted = idx.impacted_tests(["pkg/util/log"], "job")
+        self.assertIn("TestExact", impacted)
+
+        # Test non-matching paths don't match globs
+        impacted = idx.impacted_tests(["different/path"], "job")
+        self.assertEqual(len(impacted), 0)
+
+    def test_star_value_runs_all_indexed_tests(self):
+        """Test that * as a test value returns all indexed tests for a job."""
+        idx = DynamicTestIndex.from_dict(
+            {
+                "job": {
+                    "pkgA": ["t1", "t2"],
+                    "pkgB": ["t3"],
+                    "pkgC": ["*"],  # This package should trigger all tests
+                },
+                "job2": {
+                    "pkgD": ["t4"],
+                    "pkgE": ["*", "t5"],  # Mix of * and regular tests
+                },
+            }
+        )
+
+        # Test that modifying pkgC triggers all tests for job
+        impacted = idx.impacted_tests(["pkgC"], "job")
+        all_tests_job = idx.get_indexed_tests_for_job("job")
+        self.assertEqual(impacted, all_tests_job)
+        self.assertEqual(impacted, {"t1", "t2", "t3"})
+
+        # Test that modifying pkgE triggers all tests for job2
+        impacted = idx.impacted_tests(["pkgE"], "job2")
+        all_tests_job2 = idx.get_indexed_tests_for_job("job2")
+        self.assertEqual(impacted, all_tests_job2)
+        self.assertEqual(impacted, {"t4", "t5"})
+
+        # Test that normal packages still work as expected
+        impacted = idx.impacted_tests(["pkgA"], "job")
+        self.assertEqual(impacted, {"t1", "t2"})
+
 
 if __name__ == "__main__":
     unittest.main()
