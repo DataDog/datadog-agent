@@ -45,7 +45,7 @@ If you want to replicate the same configuration of the Agent as the one distribu
 ///
 
 ??? tip "Determining the default set of features"
-    The default set of features is determined by the [`get_default_build_tags` method](https://github.com/DataDog/datadog-agent/blob/main/ACIX-1018-migrate-build-resource-page/tasks/build_tags.py#L394).
+    The default set of features is determined by the [`get_default_build_tags` method](https://github.com/DataDog/datadog-agent/blob/main/tasks/build_tags.py#L394).
 
     There is a command you can use to print out the default build tags for your build context:
     ```bash
