@@ -192,7 +192,7 @@ var ExecuteCommandWithTimeout = func(s *Setup, command string, args ...string) (
 	if err != nil {
 		span.SetTag("command_error", err.Error())
 		span.Finish(err)
-		return nil, err
+		return nil, fmt.Errorf("failed to execute command (%w): %s", err, output)
 	}
 	return output, nil
 }

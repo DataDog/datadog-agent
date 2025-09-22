@@ -30,21 +30,24 @@ func (s *Setup) restartServices(ctx context.Context, pkgs []packageWithVersion) 
 				// default "service" command instead. It should map to the local process
 				// management tool.
 				// We also ignore the "install only" flag here as it's set by default to
-				// prevent the agent post-inst from starting the agent.
-				_, err := ExecuteCommandWithTimeout(s, "service", "restart", "datadog-agent")
+				// only prevent the agent post-inst from starting the agent.
+				_, err := ExecuteCommandWithTimeout(s, "service", "datadog-agent", "restart")
 				if err != nil {
 					return fmt.Errorf("failed to restart datadog-agent service: %w", err)
 				}
-			} else {
-				if !s.Env.InstallOnly {
-					err := systemd.RestartUnit(ctx, "datadog-agent.service")
-					if err != nil {
-						logs, logsErr := systemd.JournaldLogs(ctx, "datadog-agent.service", t)
-						span.SetTag("journald_logs", logs)
-						span.SetTag("journald_logs_err", logsErr)
-						return fmt.Errorf("failed to restart datadog-agent.service: %w", err)
-					}
-				}
+				continue
+			}
+
+			if s.Env.InstallOnly {
+				continue
+			}
+
+			err := systemd.RestartUnit(ctx, "datadog-agent.service")
+			if err != nil {
+				logs, logsErr := systemd.JournaldLogs(ctx, "datadog-agent.service", t)
+				span.SetTag("journald_logs", logs)
+				span.SetTag("journald_logs_err", logsErr)
+				return fmt.Errorf("failed to restart datadog-agent.service: %w", err)
 			}
 		}
 	}
