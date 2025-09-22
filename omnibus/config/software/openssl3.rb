@@ -23,7 +23,7 @@ skip_transitive_dependency_licensing true
 dependency "zlib" unless windows?
 dependency "cacerts"
 
-default_version "3.4.1"
+default_version "3.5.2"
 
 source url: "https://www.openssl.org/source/openssl-#{version}.tar.gz", extract: :lax_tar
 
@@ -39,11 +39,16 @@ version("3.3.1") { source sha256: "777cd596284c883375a2a7a11bf5d2786fc5413255efa
 version("3.3.2") { source sha256: "2e8a40b01979afe8be0bbfb3de5dc1c6709fedb46d6c89c10da114ab5fc3d281" }
 version("3.4.0") { source sha256: "e15dda82fe2fe8139dc2ac21a36d4ca01d5313c75f99f46c4e8a27709b7294bf" }
 version("3.4.1") { source sha256: "002a2d6b30b58bf4bea46c43bdd96365aaf8daa6c428782aa4feee06da197df3" }
+version("3.5.2") { source sha256: "c53a47e5e441c930c3928cf7bf6fb00e5d129b630e0aa873b08258656e7345ec" }
+
 
 relative_path "openssl-#{version}"
 
 build do
-  patch source: "0001-fix-preprocessor-concatenation.patch"
+  if version != "3.5.2"
+    # Patch is no longer needed in 3.5.2, keeping it in for backwards compatibility
+    patch source: "0001-fix-preprocessor-concatenation.patch"
+  end
 
   env = with_standard_compiler_flags(with_embedded_path)
   if windows?

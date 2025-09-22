@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"unsafe"
 
+	"github.com/dustin/go-humanize"
 	"github.com/go-json-experiment/json/jsontext"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/gotype"
@@ -514,7 +515,11 @@ func (h *goHMapHeaderType) encodeValueFields(
 		return err
 	}
 	encodeBuckets := func(dataItem output.DataItem) (encodedItems int, err error) {
-		data := dataItem.Data()
+		data, ok := dataItem.Data()
+		if !ok {
+			// Should we tell the user about this fault?
+			return 0, nil
+		}
 		numBuckets := len(data) / int(h.bucketByteSize)
 		for i := range numBuckets {
 			bucketOffset := uint32(i) * h.bucketByteSize
@@ -618,8 +623,12 @@ func encodeHMapBucket(
 			irType: uint32(h.bucketTypeID),
 			addr:   overflowAddr,
 		}]
+		var overflowData []byte
 		if ok {
-			overflowItems, err := encodeHMapBucket(d, enc, h, overflowDataItem.Data())
+			overflowData, ok = overflowDataItem.Data()
+		}
+		if ok {
+			overflowItems, err := encodeHMapBucket(d, enc, h, overflowData)
 			if err != nil {
 				return encodedItems, err
 			}
@@ -651,11 +660,6 @@ func (s *goSwissMapHeaderType) encodeValueFields(
 	}
 	dirLen := int64(binary.NativeEndian.Uint64(data[s.dirLenOffset : s.dirLenOffset+uint32(s.dirLenSize)]))
 	dirPtr := binary.NativeEndian.Uint64(data[s.dirPtrOffset : s.dirPtrOffset+uint32(s.dirPtrSize)])
-	if err := writeTokens(
-		enc, jsontext.String("entries"), jsontext.BeginArray,
-	); err != nil {
-		return err
-	}
 	if dirLen == 0 {
 		// This is a 'small' swiss map where there's only one group.
 		// We can collect the data item for the group directly.
@@ -665,12 +669,25 @@ func (s *goSwissMapHeaderType) encodeValueFields(
 		}]
 		if !ok {
 			return writeTokens(enc,
-				jsontext.EndArray,
 				tokenNotCapturedReason,
 				tokenNotCapturedReasonDepth,
 			)
 		}
-		totalElementsEncoded, err := s.encodeSwissMapGroup(d, enc, groupDataItem.Data())
+		groupData, ok := groupDataItem.Data()
+		if !ok {
+			// The attempt to dereference the group data item failed. This can
+			// happen due to paging.
+			return writeTokens(enc,
+				tokenNotCapturedReason,
+				tokenNotCapturedReasonUnavailable,
+			)
+		}
+		if err := writeTokens(
+			enc, jsontext.String("entries"), jsontext.BeginArray,
+		); err != nil {
+			return err
+		}
+		totalElementsEncoded, err := s.encodeSwissMapGroup(d, enc, groupData)
 		if err != nil {
 			return err
 		}
@@ -685,29 +702,29 @@ func (s *goSwissMapHeaderType) encodeValueFields(
 	} else {
 		// This is a 'large' swiss map where there are multiple groups of data/control words
 		// We need to collect the data items for the table pointers first.
-		tablePtrSliceDataItemPtr, ok := d.dataItems[typeAndAddr{
+		tablePtrSliceDataItem, ok := d.dataItems[typeAndAddr{
 			irType: uint32(s.TablePtrSliceType.GetID()),
 			addr:   dirPtr,
 		}]
 		if !ok {
 			return writeTokens(enc,
-				jsontext.EndArray,
 				tokenNotCapturedReason,
 				tokenNotCapturedReasonDepth,
 			)
 		}
-		tablePtrSliceDataItem, ok := d.dataItems[typeAndAddr{
-			irType: tablePtrSliceDataItemPtr.Header().Type,
-			addr:   tablePtrSliceDataItemPtr.Header().Address,
-		}]
+		tablePtrSliceData, ok := tablePtrSliceDataItem.Data()
 		if !ok {
 			return writeTokens(enc,
-				jsontext.EndArray,
 				tokenNotCapturedReason,
-				tokenNotCapturedReasonDepth,
+				tokenNotCapturedReasonUnavailable,
 			)
 		}
-		totalElementsEncoded, err := s.encodeSwissMapTables(d, enc, tablePtrSliceDataItem)
+		if err := writeTokens(
+			enc, jsontext.String("entries"), jsontext.BeginArray,
+		); err != nil {
+			return err
+		}
+		totalElementsEncoded, err := s.encodeSwissMapTables(d, enc, tablePtrSliceData)
 		if err != nil {
 			return err
 		}
@@ -802,7 +819,8 @@ func encodePointer(
 		pointedValue   output.DataItem
 		dataItemExists bool
 	)
-	if pointeeDecoderType.irType().GetByteSize() > 0 {
+	isZeroSized := pointeeDecoderType.irType().GetByteSize() == 0
+	if !isZeroSized {
 		pointedValue, dataItemExists = d.dataItems[pointeeKey]
 	} else {
 		dataItemExists = true
@@ -822,13 +840,20 @@ func encodePointer(
 		}
 	}
 
-	if _, alreadyEncoding := d.currentlyEncoding[pointeeKey]; !alreadyEncoding && dataItemExists {
+	if _, alreadyEncoding := d.currentlyEncoding[pointeeKey]; !alreadyEncoding {
 		d.currentlyEncoding[pointeeKey] = struct{}{}
 		defer delete(d.currentlyEncoding, pointeeKey)
+		var pointedData []byte
+		if !isZeroSized {
+			if pointedData, ok = pointedValue.Data(); !ok {
+				return writeTokens(enc,
+					tokenNotCapturedReason,
+					tokenNotCapturedReasonUnavailable,
+				)
+			}
+		}
 		if err := pointeeDecoderType.encodeValueFields(
-			d,
-			enc,
-			pointedValue.Data(),
+			d, enc, pointedData,
 		); err != nil {
 			return fmt.Errorf("could not encode referenced value: %w", err)
 		}
@@ -975,20 +1000,29 @@ func (s *goSliceHeaderType) encodeValueFields(
 		jsontext.BeginArray); err != nil {
 		return err
 	}
-	sliceLength := int(sliceDataItem.Header().Length) / elementSize
-	sliceData := sliceDataItem.Data()
-	var notCaptured = false
+	sliceData, ok := sliceDataItem.Data()
+	if !ok {
+		return writeTokens(enc,
+			tokenNotCapturedReason,
+			tokenNotCapturedReasonUnavailable,
+		)
+	}
+	sliceLength := int(len(sliceData)) / elementSize
+	elementByteSize := int(s.Data.Element.GetByteSize())
+	elementName := s.Data.Element.GetName()
+	elementID := s.Data.Element.GetID()
 	for i := range int(sliceLength) {
-		elementData := sliceData[i*int(s.Data.Element.GetByteSize()) : (i+1)*int(s.Data.Element.GetByteSize())]
-		if err := d.encodeValue(enc,
-			s.Data.Element.GetID(),
-			elementData,
-			s.Data.Element.GetName(),
+		elementData := sliceData[i*elementByteSize : (i+1)*elementByteSize]
+		if err := d.encodeValue(
+			enc, elementID, elementData, elementName,
 		); err != nil {
-			notCaptured = true
-			break
+			return fmt.Errorf(
+				"could not encode %s slice element of %s: %w",
+				humanize.Ordinal(i+1), elementName, err,
+			)
 		}
 	}
+
 	if err := writeTokens(enc, jsontext.EndArray); err != nil {
 		return err
 	}
@@ -996,11 +1030,6 @@ func (s *goSliceHeaderType) encodeValueFields(
 		return writeTokens(enc,
 			tokenNotCapturedReason,
 			tokenNotCapturedReasonCollectionSize,
-		)
-	} else if notCaptured {
-		return writeTokens(enc,
-			tokenNotCapturedReason,
-			tokenNotCapturedReasonPruned,
 		)
 	}
 	return nil
@@ -1031,8 +1060,9 @@ func (s *goStringHeaderType) encodeValueFields(
 			tokenNotCapturedReasonLength,
 		)
 	}
+	strLen := binary.NativeEndian.Uint64(data[s.lenFieldOffset : s.lenFieldOffset+uint32(s.lenFieldSize)])
 	address := binary.NativeEndian.Uint64(data[s.strFieldOffset : s.strFieldOffset+uint32(s.strFieldSize)])
-	if address == 0 {
+	if address == 0 || strLen == 0 {
 		return writeTokens(enc,
 			jsontext.String("value"),
 			jsontext.String(""),
@@ -1044,18 +1074,28 @@ func (s *goStringHeaderType) encodeValueFields(
 	}]
 	if !ok {
 		return writeTokens(enc,
+			jsontext.String("size"),
+			jsontext.String(strconv.FormatInt(int64(strLen), 10)),
 			tokenNotCapturedReason,
 			tokenNotCapturedReasonDepth,
 		)
 	}
-	stringData := stringValue.Data()
+	stringData, ok := stringValue.Data()
+	if !ok {
+		// The string data was corrupted, report it as unavailable.
+		return writeTokens(enc,
+			jsontext.String("size"),
+			jsontext.String(strconv.FormatInt(int64(strLen), 10)),
+			tokenNotCapturedReason,
+			tokenNotCapturedReasonUnavailable,
+		)
+	}
 	length := stringValue.Header().Length
-	realLength := binary.NativeEndian.Uint64(data[s.lenFieldOffset : s.lenFieldOffset+uint32(s.lenFieldSize)])
-	if realLength > uint64(length) {
+	if strLen > uint64(length) {
 		// We captured partial data for the string, report truncation
 		if err := writeTokens(enc,
 			jsontext.String("size"),
-			jsontext.String(strconv.FormatInt(int64(realLength), 10)),
+			jsontext.String(strconv.FormatInt(int64(strLen), 10)),
 			tokenTruncated,
 			jsontext.Bool(true),
 		); err != nil {

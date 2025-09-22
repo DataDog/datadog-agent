@@ -63,7 +63,7 @@ func (statKeeper *StatKeeper) Process(tx *EbpfTx) {
 			statKeeper.telemetry.dropped.Add(int64(tx.RecordsCount()))
 			return
 		}
-		requestStats = NewRequestStats()
+		requestStats = requestStatsPool.Get()
 		statKeeper.stats[key] = requestStats
 	}
 

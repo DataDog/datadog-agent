@@ -60,6 +60,7 @@ func createEventMonitorModule(sysconfig *sysconfigtypes.Config, deps module.Fact
 			return nil, err
 		}
 		evm.RegisterEventConsumer(cws)
+		evm.SetCWSStatusProvider(cws)
 		log.Info("event monitoring cws consumer initialized")
 	}
 

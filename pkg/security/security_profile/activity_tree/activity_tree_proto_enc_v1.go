@@ -15,6 +15,7 @@ import (
 	"golang.org/x/text/runes"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 // ToProto encodes an activity tree to its protobuf representation
@@ -236,7 +237,11 @@ func fileEventToProto(fe *model.FileEvent) *adproto.FileInfo {
 		Filesystem:        escape(fe.Filesystem),
 		PackageName:       fe.PkgName,
 		PackageVersion:    fe.PkgVersion,
-		PackageSrcversion: fe.PkgSrcVersion,
+		PackageEpoch:      pointer.Ptr(uint32(fe.PkgEpoch)),
+		PackageRelease:    pointer.Ptr(fe.PkgRelease),
+		PackageSrcVersion: fe.PkgSrcVersion,
+		PackageSrcEpoch:   pointer.Ptr(uint32(fe.PkgSrcEpoch)),
+		PackageSrcRelease: pointer.Ptr(fe.PkgSrcRelease),
 		Hashes:            make([]string, len(fe.Hashes)),
 		HashState:         adproto.HashState(fe.HashState),
 	}

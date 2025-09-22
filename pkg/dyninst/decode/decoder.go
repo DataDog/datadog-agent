@@ -74,18 +74,23 @@ type Decoder struct {
 	stackFrames          map[uint64][]symbol.StackFrame
 	typesByGoRuntimeType map[uint32]ir.TypeID
 	typeNameResolver     TypeNameResolver
+	approximateBootTime  time.Time
 
 	// These fields are initialized and reset for each message.
-	snapshotMessage    snapshotMessage
-	dataItems          map[typeAndAddr]output.DataItem
-	currentlyEncoding  map[typeAndAddr]struct{}
-	skipIndiciesBuffer []byte
+	snapshotMessage   snapshotMessage
+	dataItems         map[typeAndAddr]output.DataItem
+	currentlyEncoding map[typeAndAddr]struct{}
+	// skippedArgumentExpressions is a bitset of the indices of the arguments
+	// that should be skipped during encoding because they encountered an
+	// evaluation during a previous attempt.
+	skippedArgumentExpressions bitset
 }
 
 // NewDecoder creates a new Decoder for the given program.
 func NewDecoder(
 	program *ir.Program,
 	typeNameResolver TypeNameResolver,
+	approximateBootTime time.Time,
 ) (*Decoder, error) {
 	decoder := &Decoder{
 		program:              program,
@@ -94,10 +99,12 @@ func NewDecoder(
 		stackFrames:          make(map[uint64][]symbol.StackFrame),
 		typesByGoRuntimeType: make(map[uint32]ir.TypeID),
 		typeNameResolver:     typeNameResolver,
-		snapshotMessage:      snapshotMessage{},
-		dataItems:            make(map[typeAndAddr]output.DataItem),
-		currentlyEncoding:    make(map[typeAndAddr]struct{}),
-		skipIndiciesBuffer:   make([]byte, 1),
+		approximateBootTime:  approximateBootTime,
+
+		snapshotMessage:            snapshotMessage{},
+		dataItems:                  make(map[typeAndAddr]output.DataItem),
+		currentlyEncoding:          make(map[typeAndAddr]struct{}),
+		skippedArgumentExpressions: nil,
 	}
 	for _, probe := range program.Probes {
 		for _, event := range probe.Events {
@@ -200,7 +207,6 @@ func (s *snapshotMessage) init(
 	s.Service = event.ServiceName
 	s.Debugger = debuggerData{
 		Snapshot: snapshotData{
-			decoder:  decoder,
 			ID:       uuid.New(),
 			Language: "go",
 		},
@@ -214,9 +220,13 @@ func (s *snapshotMessage) init(
 			return probe, fmt.Errorf("error getting data items: %w", err)
 		}
 		if rootType == nil {
-			s.rootData = item.Data()
-			rootTypeID := ir.TypeID(item.Header().Type)
 			var ok bool
+			s.rootData, ok = item.Data()
+			if !ok {
+				// This should never happen.
+				return probe, errors.New("root data item marked as a failed read")
+			}
+			rootTypeID := ir.TypeID(item.Type())
 			rootType, ok = decoder.program.Types[rootTypeID].(*ir.EventRootType)
 			if !ok {
 				return nil, errors.New("expected event of type root first")
@@ -236,7 +246,7 @@ func (s *snapshotMessage) init(
 		// If the counter is greater than 1, we know that the data item is a pointer to another data item.
 		// We can then encode the pointer as a string and not as an object.
 		decoder.dataItems[typeAndAddr{
-			irType: uint32(item.Header().Type),
+			irType: uint32(item.Type()),
 			addr:   item.Header().Address,
 		}] = item
 	}
@@ -247,8 +257,7 @@ func (s *snapshotMessage) init(
 	if err != nil {
 		return probe, fmt.Errorf("error getting header %w", err)
 	}
-	// TODO: resolve value from header.Ktime_ns to wall time
-	s.Debugger.Snapshot.Timestamp = int(time.Now().UTC().UnixMilli())
+	s.Debugger.Snapshot.Timestamp = int(decoder.approximateBootTime.Add(time.Duration(header.Ktime_ns)).UnixMilli())
 	s.Timestamp = s.Debugger.Snapshot.Timestamp
 
 	stackFrames, ok := decoder.stackFrames[header.Stack_hash]
@@ -283,13 +292,14 @@ func (s *snapshotMessage) init(
 	s.Debugger.Snapshot.Probe.ID = probe.GetID()
 	s.Debugger.Snapshot.Stack.frames = stackFrames
 
+	decoder.skippedArgumentExpressions.reset(len(rootType.Expressions))
 	s.Debugger.Snapshot.Captures.Entry.Arguments = argumentsData{
 		event:            event,
 		rootType:         rootType,
 		rootData:         s.rootData,
 		decoder:          decoder,
 		evaluationErrors: &s.Debugger.EvaluationErrors,
-		skipIndicies:     decoder.getSkipIndiciesBuffer(len(rootType.Expressions)),
+		skippedIndices:   &decoder.skippedArgumentExpressions,
 	}
 	return probe, nil
 }
@@ -307,20 +317,4 @@ func symbolicate(event Event, stackHash uint64, symbolicator symbol.Symbolicator
 		return nil, fmt.Errorf("error symbolicating stack: %w", err)
 	}
 	return stackFrames, nil
-}
-
-// getSkipIndiciesBuffer returns a zeroed byte slice of the required size,
-// reusing the internal buffer when possible to avoid allocations.
-func (d *Decoder) getSkipIndiciesBuffer(numExpressions int) []byte {
-	requiredBytes := (numExpressions + 7) / 8
-	if cap(d.skipIndiciesBuffer) < requiredBytes {
-		d.skipIndiciesBuffer = make([]byte, requiredBytes)
-	} else {
-		// Reuse existing buffer, just resize and clear
-		d.skipIndiciesBuffer = d.skipIndiciesBuffer[:requiredBytes]
-		for i := range d.skipIndiciesBuffer {
-			d.skipIndiciesBuffer[i] = 0
-		}
-	}
-	return d.skipIndiciesBuffer
 }
