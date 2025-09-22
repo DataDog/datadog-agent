@@ -49,6 +49,9 @@ func TestDockerCheckGenericPart(t *testing.T) {
 		"cID101": mock.GetFullSampleContainerEntry(),
 	}
 
+	fakeTagger.SetTags(types.NewEntityID("container_id", "cID100"), "foo", []string{"container_id:cID100"}, nil, nil, nil)
+	fakeTagger.SetTags(types.NewEntityID("container_id", "cID101"), "foo", []string{"container_id:cID101"}, nil, nil, nil)
+
 	// Inject mock processor in check
 	mockSender, processor, _ := generic.CreateTestProcessor(containersMeta, containersStats, metricsAdapter{}, getProcessorFilter(nil, nil), fakeTagger, false)
 	processor.RegisterExtension("docker-custom-metrics", &dockerCustomMetricsExtension{})
@@ -306,6 +309,10 @@ func TestContainersRunning(t *testing.T) {
 
 func TestProcess_CPUSharesMetric(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+
+	fakeTagger.SetTags(types.NewEntityID("container_id", "cID100"), "foo", []string{"container_id:cID100"}, nil, nil, nil)
+	fakeTagger.SetTags(types.NewEntityID("container_id", "cID101"), "foo", []string{"container_id:cID101"}, nil, nil, nil)
+	fakeTagger.SetTags(types.NewEntityID("container_id", "cID102"), "foo", []string{"container_id:cID102"}, nil, nil, nil)
 
 	containersMeta := []*workloadmeta.Container{
 		generic.CreateContainerMeta("docker", "cID100"),
