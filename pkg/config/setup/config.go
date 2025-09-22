@@ -40,9 +40,6 @@ import (
 
 const (
 
-	// DefaultExperimentalFingerprintingEnabled is a flag to determine whether we want to detect file rotation or truncation using checksum fingerprinting
-	DefaultExperimentalFingerprintingEnabled = false
-
 	// DefaultFingerprintingMaxBytes is the maximum number of bytes that will be used to generate a checksum fingerprint;
 	// used in cases where the line to hash is too large or if the fingerprinting maxLines=0
 	DefaultFingerprintingMaxBytes = 100000
@@ -58,6 +55,7 @@ const (
 	// Options are:
 	// - "line_checksum": compute the fingerprint by lines
 	// - "byte_checksum": compute the fingerprint by bytes
+	// - "disabled": disable fingerprinting
 	DefaultFingerprintStrategy = "byte_checksum"
 
 	// DefaultSite is the default site the Agent sends data to.
@@ -1630,8 +1628,6 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.socks5_proxy_address", "")
 	// disable distributed senders
 	config.BindEnvAndSetDefault("logs_config.disable_distributed_senders", false)
-	// determines fingerprinting strategy to detect rotation and truncation
-	config.BindEnvAndSetDefault("logs_config.fingerprint_enabled_experimental", DefaultExperimentalFingerprintingEnabled)
 	// default fingerprint configuration
 	config.BindEnvAndSetDefault("logs_config.fingerprint_config.count", DefaultFingerprintingMaxLines)
 	config.BindEnvAndSetDefault("logs_config.fingerprint_config.max_bytes", DefaultFingerprintingMaxBytes)
