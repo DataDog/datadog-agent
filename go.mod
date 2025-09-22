@@ -958,7 +958,7 @@ require go.opentelemetry.io/ebpf-profiler v0.0.202536
 
 require (
 	github.com/DataDog/gohai v0.0.0-20230524154621-4316413895ee // indirect
-	github.com/DataDog/test-infra-definitions v0.0.5-0.20250922095719-47abcff0bbf8 // indirect
+	github.com/DataDog/test-infra-definitions v0.0.5-0.20250922111357-591b379d5a1a // indirect
 	github.com/aead/chacha20 v0.0.0-20180709150244-8b13a72661da // indirect
 	github.com/agext/levenshtein v1.2.3 // indirect
 	github.com/alessio/shellescape v1.4.2 // indirect
