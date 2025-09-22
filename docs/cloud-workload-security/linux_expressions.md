@@ -294,6 +294,9 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.ancestors.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
 | [`process.ancestors.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
 | [`process.ancestors.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
+| [`process.ancestors.user_session.ssh_host_ip`](#common-usersessioncontext-ssh_host_ip-doc) | SSH host IP of the user that executed the process |
+| [`process.ancestors.user_session.ssh_hostname`](#common-usersessioncontext-ssh_hostname-doc) | SSH host name of the user that executed the process |
+| [`process.ancestors.user_session.ssh_username`](#common-usersessioncontext-ssh_username-doc) | SSH username of the user that executed the process |
 | [`process.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
 | [`process.args_flags`](#common-process-args_flags-doc) | Flags in the process arguments |
 | [`process.args_options`](#common-process-args_options-doc) | Argument of the process as options |
@@ -479,6 +482,9 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.parent.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
 | [`process.parent.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
 | [`process.parent.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
+| [`process.parent.user_session.ssh_host_ip`](#common-usersessioncontext-ssh_host_ip-doc) | SSH host IP of the user that executed the process |
+| [`process.parent.user_session.ssh_hostname`](#common-usersessioncontext-ssh_hostname-doc) | SSH host name of the user that executed the process |
+| [`process.parent.user_session.ssh_username`](#common-usersessioncontext-ssh_username-doc) | SSH username of the user that executed the process |
 | [`process.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
 | [`process.ppid`](#common-process-ppid-doc) | Parent process ID |
 | [`process.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
@@ -488,6 +494,9 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
 | [`process.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
 | [`process.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
+| [`process.user_session.ssh_host_ip`](#common-usersessioncontext-ssh_host_ip-doc) | SSH host IP of the user that executed the process |
+| [`process.user_session.ssh_hostname`](#common-usersessioncontext-ssh_hostname-doc) | SSH host name of the user that executed the process |
+| [`process.user_session.ssh_username`](#common-usersessioncontext-ssh_username-doc) | SSH username of the user that executed the process |
 
 ### Event `accept`
 
@@ -858,6 +867,9 @@ A process was executed (does not trigger on fork syscalls).
 | [`exec.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
 | [`exec.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
 | [`exec.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
+| [`exec.user_session.ssh_host_ip`](#common-usersessioncontext-ssh_host_ip-doc) | SSH host IP of the user that executed the process |
+| [`exec.user_session.ssh_hostname`](#common-usersessioncontext-ssh_hostname-doc) | SSH host name of the user that executed the process |
+| [`exec.user_session.ssh_username`](#common-usersessioncontext-ssh_username-doc) | SSH username of the user that executed the process |
 
 ### Event `exit`
 
@@ -964,6 +976,9 @@ A process was terminated
 | [`exit.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
 | [`exit.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
 | [`exit.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
+| [`exit.user_session.ssh_host_ip`](#common-usersessioncontext-ssh_host_ip-doc) | SSH host IP of the user that executed the process |
+| [`exit.user_session.ssh_hostname`](#common-usersessioncontext-ssh_hostname-doc) | SSH host name of the user that executed the process |
+| [`exit.user_session.ssh_username`](#common-usersessioncontext-ssh_username-doc) | SSH username of the user that executed the process |
 
 ### Event `imds`
 
@@ -1301,11 +1316,102 @@ A pam event was captured
 
 | Property | Definition |
 | -------- | ------------- |
+| [`pam.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
+| [`pam.args_flags`](#common-process-args_flags-doc) | Flags in the process arguments |
+| [`pam.args_options`](#common-process-args_options-doc) | Argument of the process as options |
+| [`pam.args_truncated`](#common-process-args_truncated-doc) | Indicator of arguments truncation |
+| [`pam.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
+| [`pam.argv0`](#common-process-argv0-doc) | First argument of the process |
+| [`pam.auid`](#common-credentials-auid-doc) | Login UID of the process |
+| [`pam.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
+| [`pam.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`pam.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`pam.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`pam.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`pam.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`pam.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
+| [`pam.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
+| [`pam.comm`](#common-process-comm-doc) | Comm attribute of the process |
+| [`pam.container.id`](#common-process-container-id-doc) | Container ID |
+| [`pam.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
+| [`pam.egid`](#common-credentials-egid-doc) | Effective GID of the process |
+| [`pam.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
+| [`pam.envp`](#common-process-envp-doc) | Environment variables of the process |
+| [`pam.envs`](#common-process-envs-doc) | Environment variable names of the process |
+| [`pam.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
+| [`pam.euid`](#common-credentials-euid-doc) | Effective UID of the process |
+| [`pam.euser`](#common-credentials-euser-doc) | Effective user of the process |
+| [`pam.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`pam.file.extension`](#common-fileevent-extension-doc) | File's extension |
+| [`pam.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`pam.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`pam.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`pam.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
+| [`pam.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`pam.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`pam.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`pam.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`pam.file.mount_detached`](#common-fileevent-mount_detached-doc) | Indicates whether the file's mount is detached from the VFS |
+| [`pam.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`pam.file.mount_visible`](#common-fileevent-mount_visible-doc) | Indicates whether the file's mount is visible in the VFS |
+| [`pam.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`pam.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`pam.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`pam.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
+| [`pam.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
+| [`pam.file.path`](#common-fileevent-path-doc) | File's path |
+| [`pam.file.path.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`pam.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`pam.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`pam.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`pam.fsgid`](#common-credentials-fsgid-doc) | FileSystem-gid of the process |
+| [`pam.fsgroup`](#common-credentials-fsgroup-doc) | FileSystem-group of the process |
+| [`pam.fsuid`](#common-credentials-fsuid-doc) | FileSystem-uid of the process |
+| [`pam.fsuser`](#common-credentials-fsuser-doc) | FileSystem-user of the process |
+| [`pam.gid`](#common-credentials-gid-doc) | GID of the process |
+| [`pam.group`](#common-credentials-group-doc) | Group of the process |
 | [`pam.host_ip`](#pam-host_ip-doc) | IP address of the host |
 | [`pam.hostname`](#pam-hostname-doc) | Hostname |
+| [`pam.interpreter.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`pam.interpreter.file.extension`](#common-fileevent-extension-doc) | File's extension |
+| [`pam.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`pam.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`pam.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`pam.interpreter.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
+| [`pam.interpreter.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`pam.interpreter.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`pam.interpreter.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`pam.interpreter.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`pam.interpreter.file.mount_detached`](#common-fileevent-mount_detached-doc) | Indicates whether the file's mount is detached from the VFS |
+| [`pam.interpreter.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`pam.interpreter.file.mount_visible`](#common-fileevent-mount_visible-doc) | Indicates whether the file's mount is visible in the VFS |
+| [`pam.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`pam.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`pam.interpreter.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`pam.interpreter.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
+| [`pam.interpreter.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
+| [`pam.interpreter.file.path`](#common-fileevent-path-doc) | File's path |
+| [`pam.interpreter.file.path.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`pam.interpreter.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`pam.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`pam.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`pam.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
+| [`pam.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`pam.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
+| [`pam.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
+| [`pam.ppid`](#common-process-ppid-doc) | Parent process ID |
 | [`pam.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
 | [`pam.service`](#pam-service-doc) | Authentication service name |
+| [`pam.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
+| [`pam.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
+| [`pam.uid`](#common-credentials-uid-doc) | UID of the process |
 | [`pam.user`](#pam-user-doc) | User name |
+| [`pam.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
+| [`pam.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
+| [`pam.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
+| [`pam.user_session.ssh_host_ip`](#common-usersessioncontext-ssh_host_ip-doc) | SSH host IP of the user that executed the process |
+| [`pam.user_session.ssh_hostname`](#common-usersessioncontext-ssh_hostname-doc) | SSH host name of the user that executed the process |
+| [`pam.user_session.ssh_username`](#common-usersessioncontext-ssh_username-doc) | SSH username of the user that executed the process |
 
 ### Event `prctl`
 
@@ -1424,6 +1530,9 @@ A ptrace command was executed
 | [`ptrace.tracee.ancestors.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
 | [`ptrace.tracee.ancestors.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
 | [`ptrace.tracee.ancestors.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
+| [`ptrace.tracee.ancestors.user_session.ssh_host_ip`](#common-usersessioncontext-ssh_host_ip-doc) | SSH host IP of the user that executed the process |
+| [`ptrace.tracee.ancestors.user_session.ssh_hostname`](#common-usersessioncontext-ssh_hostname-doc) | SSH host name of the user that executed the process |
+| [`ptrace.tracee.ancestors.user_session.ssh_username`](#common-usersessioncontext-ssh_username-doc) | SSH username of the user that executed the process |
 | [`ptrace.tracee.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
 | [`ptrace.tracee.args_flags`](#common-process-args_flags-doc) | Flags in the process arguments |
 | [`ptrace.tracee.args_options`](#common-process-args_options-doc) | Argument of the process as options |
@@ -1609,6 +1718,9 @@ A ptrace command was executed
 | [`ptrace.tracee.parent.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
 | [`ptrace.tracee.parent.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
 | [`ptrace.tracee.parent.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
+| [`ptrace.tracee.parent.user_session.ssh_host_ip`](#common-usersessioncontext-ssh_host_ip-doc) | SSH host IP of the user that executed the process |
+| [`ptrace.tracee.parent.user_session.ssh_hostname`](#common-usersessioncontext-ssh_hostname-doc) | SSH host name of the user that executed the process |
+| [`ptrace.tracee.parent.user_session.ssh_username`](#common-usersessioncontext-ssh_username-doc) | SSH username of the user that executed the process |
 | [`ptrace.tracee.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
 | [`ptrace.tracee.ppid`](#common-process-ppid-doc) | Parent process ID |
 | [`ptrace.tracee.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
@@ -1618,6 +1730,9 @@ A ptrace command was executed
 | [`ptrace.tracee.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
 | [`ptrace.tracee.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
 | [`ptrace.tracee.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
+| [`ptrace.tracee.user_session.ssh_host_ip`](#common-usersessioncontext-ssh_host_ip-doc) | SSH host IP of the user that executed the process |
+| [`ptrace.tracee.user_session.ssh_hostname`](#common-usersessioncontext-ssh_hostname-doc) | SSH host name of the user that executed the process |
+| [`ptrace.tracee.user_session.ssh_username`](#common-usersessioncontext-ssh_username-doc) | SSH username of the user that executed the process |
 
 ### Event `removexattr`
 
@@ -1888,6 +2003,9 @@ A setrlimit command was executed
 | [`setrlimit.target.ancestors.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
 | [`setrlimit.target.ancestors.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
 | [`setrlimit.target.ancestors.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
+| [`setrlimit.target.ancestors.user_session.ssh_host_ip`](#common-usersessioncontext-ssh_host_ip-doc) | SSH host IP of the user that executed the process |
+| [`setrlimit.target.ancestors.user_session.ssh_hostname`](#common-usersessioncontext-ssh_hostname-doc) | SSH host name of the user that executed the process |
+| [`setrlimit.target.ancestors.user_session.ssh_username`](#common-usersessioncontext-ssh_username-doc) | SSH username of the user that executed the process |
 | [`setrlimit.target.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
 | [`setrlimit.target.args_flags`](#common-process-args_flags-doc) | Flags in the process arguments |
 | [`setrlimit.target.args_options`](#common-process-args_options-doc) | Argument of the process as options |
@@ -2073,6 +2191,9 @@ A setrlimit command was executed
 | [`setrlimit.target.parent.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
 | [`setrlimit.target.parent.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
 | [`setrlimit.target.parent.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
+| [`setrlimit.target.parent.user_session.ssh_host_ip`](#common-usersessioncontext-ssh_host_ip-doc) | SSH host IP of the user that executed the process |
+| [`setrlimit.target.parent.user_session.ssh_hostname`](#common-usersessioncontext-ssh_hostname-doc) | SSH host name of the user that executed the process |
+| [`setrlimit.target.parent.user_session.ssh_username`](#common-usersessioncontext-ssh_username-doc) | SSH username of the user that executed the process |
 | [`setrlimit.target.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
 | [`setrlimit.target.ppid`](#common-process-ppid-doc) | Parent process ID |
 | [`setrlimit.target.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
@@ -2082,6 +2203,9 @@ A setrlimit command was executed
 | [`setrlimit.target.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
 | [`setrlimit.target.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
 | [`setrlimit.target.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
+| [`setrlimit.target.user_session.ssh_host_ip`](#common-usersessioncontext-ssh_host_ip-doc) | SSH host IP of the user that executed the process |
+| [`setrlimit.target.user_session.ssh_hostname`](#common-usersessioncontext-ssh_hostname-doc) | SSH host name of the user that executed the process |
+| [`setrlimit.target.user_session.ssh_username`](#common-usersessioncontext-ssh_username-doc) | SSH username of the user that executed the process |
 
 ### Event `setsockopt`
 
@@ -2257,6 +2381,9 @@ A signal was sent
 | [`signal.target.ancestors.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
 | [`signal.target.ancestors.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
 | [`signal.target.ancestors.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
+| [`signal.target.ancestors.user_session.ssh_host_ip`](#common-usersessioncontext-ssh_host_ip-doc) | SSH host IP of the user that executed the process |
+| [`signal.target.ancestors.user_session.ssh_hostname`](#common-usersessioncontext-ssh_hostname-doc) | SSH host name of the user that executed the process |
+| [`signal.target.ancestors.user_session.ssh_username`](#common-usersessioncontext-ssh_username-doc) | SSH username of the user that executed the process |
 | [`signal.target.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
 | [`signal.target.args_flags`](#common-process-args_flags-doc) | Flags in the process arguments |
 | [`signal.target.args_options`](#common-process-args_options-doc) | Argument of the process as options |
@@ -2442,6 +2569,9 @@ A signal was sent
 | [`signal.target.parent.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
 | [`signal.target.parent.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
 | [`signal.target.parent.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
+| [`signal.target.parent.user_session.ssh_host_ip`](#common-usersessioncontext-ssh_host_ip-doc) | SSH host IP of the user that executed the process |
+| [`signal.target.parent.user_session.ssh_hostname`](#common-usersessioncontext-ssh_hostname-doc) | SSH host name of the user that executed the process |
+| [`signal.target.parent.user_session.ssh_username`](#common-usersessioncontext-ssh_username-doc) | SSH username of the user that executed the process |
 | [`signal.target.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
 | [`signal.target.ppid`](#common-process-ppid-doc) | Parent process ID |
 | [`signal.target.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
@@ -2451,6 +2581,9 @@ A signal was sent
 | [`signal.target.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
 | [`signal.target.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
 | [`signal.target.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
+| [`signal.target.user_session.ssh_host_ip`](#common-usersessioncontext-ssh_host_ip-doc) | SSH host IP of the user that executed the process |
+| [`signal.target.user_session.ssh_hostname`](#common-usersessioncontext-ssh_hostname-doc) | SSH host name of the user that executed the process |
+| [`signal.target.user_session.ssh_username`](#common-usersessioncontext-ssh_username-doc) | SSH username of the user that executed the process |
 | [`signal.type`](#signal-type-doc) | Signal type (ex: SIGHUP, SIGINT, SIGQUIT, etc) |
 
 ### Event `splice`
@@ -2598,8 +2731,8 @@ Type: string
 
 Definition: Arguments of the process (as a string, excluding argv0)
 
-`*.args` has 14 possible prefixes:
-`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+`*.args` has 15 possible prefixes:
+`exec` `exit` `pam` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 
 
@@ -2624,8 +2757,8 @@ Type: string
 
 Definition: Flags in the process arguments
 
-`*.args_flags` has 14 possible prefixes:
-`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+`*.args_flags` has 15 possible prefixes:
+`exec` `exit` `pam` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 
 
@@ -2642,8 +2775,8 @@ Type: string
 
 Definition: Argument of the process as options
 
-`*.args_options` has 14 possible prefixes:
-`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+`*.args_options` has 15 possible prefixes:
+`exec` `exit` `pam` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 
 
@@ -2660,8 +2793,8 @@ Type: bool
 
 Definition: Indicator of arguments truncation
 
-`*.args_truncated` has 14 possible prefixes:
-`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+`*.args_truncated` has 15 possible prefixes:
+`exec` `exit` `pam` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 
 ### `*.argv` {#common-process-argv-doc}
@@ -2669,8 +2802,8 @@ Type: string
 
 Definition: Arguments of the process (as an array, excluding argv0)
 
-`*.argv` has 14 possible prefixes:
-`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+`*.argv` has 15 possible prefixes:
+`exec` `exit` `pam` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 
 
@@ -2687,8 +2820,8 @@ Type: string
 
 Definition: First argument of the process
 
-`*.argv0` has 14 possible prefixes:
-`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+`*.argv0` has 15 possible prefixes:
+`exec` `exit` `pam` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 
 ### `*.auid` {#common-credentials-auid-doc}
@@ -2696,8 +2829,8 @@ Type: int
 
 Definition: Login UID of the process
 
-`*.auid` has 14 possible prefixes:
-`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+`*.auid` has 15 possible prefixes:
+`exec` `exit` `pam` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 
 ### `*.cap_effective` {#common-credentials-cap_effective-doc}
@@ -2705,8 +2838,8 @@ Type: int
 
 Definition: Effective capability set of the process
 
-`*.cap_effective` has 14 possible prefixes:
-`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+`*.cap_effective` has 15 possible prefixes:
+`exec` `exit` `pam` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 Constants: [Kernel Capability constants](#kernel-capability-constants)
 
@@ -2717,8 +2850,8 @@ Type: int
 
 Definition: Permitted capability set of the process
 
-`*.cap_permitted` has 14 possible prefixes:
-`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+`*.cap_permitted` has 15 possible prefixes:
+`exec` `exit` `pam` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 Constants: [Kernel Capability constants](#kernel-capability-constants)
 
@@ -2729,8 +2862,8 @@ Type: int
 
 Definition: Bitmask of the capabilities that the process attempted to use
 
-`*.caps_attempted` has 14 possible prefixes:
-`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+`*.caps_attempted` has 15 possible prefixes:
+`exec` `exit` `pam` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 Constants: [Kernel Capability constants](#kernel-capability-constants)
 
@@ -2741,8 +2874,8 @@ Type: int
 
 Definition: Bitmask of the capabilities that the process successfully used
 
-`*.caps_used` has 14 possible prefixes:
-`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+`*.caps_used` has 15 possible prefixes:
+`exec` `exit` `pam` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 Constants: [Kernel Capability constants](#kernel-capability-constants)
 
@@ -2753,8 +2886,8 @@ Type: int
 
 Definition: Change time (ctime) of the file
 
-`*.change_time` has 46 possible prefixes:
-`cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+`*.change_time` has 48 possible prefixes:
+`cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `pam.file` `pam.interpreter.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
 
 
 ### `*.comm` {#common-process-comm-doc}
@@ -2762,8 +2895,8 @@ Type: string
 
 Definition: Comm attribute of the process
 
-`*.comm` has 14 possible prefixes:
-`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+`*.comm` has 15 possible prefixes:
+`exec` `exit` `pam` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 
 ### `*.container.id` {#common-process-container-id-doc}
@@ -2771,8 +2904,8 @@ Type: string
 
 Definition: Container ID
 
-`*.container.id` has 14 possible prefixes:
-`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+`*.container.id` has 15 possible prefixes:
+`exec` `exit` `pam` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 
 ### `*.created_at` {#common-process-created_at-doc}
@@ -2780,8 +2913,8 @@ Type: int
 
 Definition: Timestamp of the creation of the process
 
-`*.created_at` has 14 possible prefixes:
-`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+`*.created_at` has 15 possible prefixes:
+`exec` `exit` `pam` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 
 ### `*.data_size` {#common-networkstats-data_size-doc}
@@ -2798,8 +2931,8 @@ Type: int
 
 Definition: Effective GID of the process
 
-`*.egid` has 14 possible prefixes:
-`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+`*.egid` has 15 possible prefixes:
+`exec` `exit` `pam` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 
 ### `*.egroup` {#common-credentials-egroup-doc}
@@ -2807,8 +2940,8 @@ Type: string
 
 Definition: Effective group of the process
 
-`*.egroup` has 14 possible prefixes:
-`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+`*.egroup` has 15 possible prefixes:
+`exec` `exit` `pam` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 
 ### `*.envp` {#common-process-envp-doc}
@@ -2816,8 +2949,8 @@ Type: string
 
 Definition: Environment variables of the process
 
-`*.envp` has 14 possible prefixes:
-`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+`*.envp` has 15 possible prefixes:
+`exec` `exit` `pam` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 
 ### `*.envs` {#common-process-envs-doc}
@@ -2825,8 +2958,8 @@ Type: string
 
 Definition: Environment variable names of the process
 
-`*.envs` has 14 possible prefixes:
-`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+`*.envs` has 15 possible prefixes:
+`exec` `exit` `pam` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 
 ### `*.envs_truncated` {#common-process-envs_truncated-doc}
@@ -2834,8 +2967,8 @@ Type: bool
 
 Definition: Indicator of environment variables truncation
 
-`*.envs_truncated` has 14 possible prefixes:
-`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+`*.envs_truncated` has 15 possible prefixes:
+`exec` `exit` `pam` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 
 ### `*.euid` {#common-credentials-euid-doc}
@@ -2843,8 +2976,8 @@ Type: int
 
 Definition: Effective UID of the process
 
-`*.euid` has 14 possible prefixes:
-`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+`*.euid` has 15 possible prefixes:
+`exec` `exit` `pam` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 
 ### `*.euser` {#common-credentials-euser-doc}
@@ -2852,8 +2985,8 @@ Type: string
 
 Definition: Effective user of the process
 
-`*.euser` has 14 possible prefixes:
-`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+`*.euser` has 15 possible prefixes:
+`exec` `exit` `pam` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 
 ### `*.extension` {#common-fileevent-extension-doc}
@@ -2861,8 +2994,8 @@ Type: string
 
 Definition: File's extension
 
-`*.extension` has 46 possible prefixes:
-`cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+`*.extension` has 48 possible prefixes:
+`cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `pam.file` `pam.interpreter.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
 
 
 ### `*.file.destination.name` {#common-setxattrevent-file-destination-name-doc}
@@ -2888,8 +3021,8 @@ Type: string
 
 Definition: File's filesystem
 
-`*.filesystem` has 46 possible prefixes:
-`cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+`*.filesystem` has 48 possible prefixes:
+`cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `pam.file` `pam.interpreter.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
 
 
 ### `*.fsgid` {#common-credentials-fsgid-doc}
@@ -2897,8 +3030,8 @@ Type: int
 
 Definition: FileSystem-gid of the process
 
-`*.fsgid` has 14 possible prefixes:
-`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+`*.fsgid` has 15 possible prefixes:
+`exec` `exit` `pam` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 
 ### `*.fsgroup` {#common-credentials-fsgroup-doc}
@@ -2906,8 +3039,8 @@ Type: string
 
 Definition: FileSystem-group of the process
 
-`*.fsgroup` has 14 possible prefixes:
-`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+`*.fsgroup` has 15 possible prefixes:
+`exec` `exit` `pam` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 
 ### `*.fsuid` {#common-credentials-fsuid-doc}
@@ -2915,8 +3048,8 @@ Type: int
 
 Definition: FileSystem-uid of the process
 
-`*.fsuid` has 14 possible prefixes:
-`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+`*.fsuid` has 15 possible prefixes:
+`exec` `exit` `pam` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 
 ### `*.fsuser` {#common-credentials-fsuser-doc}
@@ -2924,8 +3057,8 @@ Type: string
 
 Definition: FileSystem-user of the process
 
-`*.fsuser` has 14 possible prefixes:
-`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+`*.fsuser` has 15 possible prefixes:
+`exec` `exit` `pam` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 
 ### `*.gid` {#common-credentials-gid-doc}
@@ -2933,8 +3066,8 @@ Type: int
 
 Definition: GID of the process
 
-`*.gid` has 14 possible prefixes:
-`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+`*.gid` has 15 possible prefixes:
+`exec` `exit` `pam` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 
 ### `*.gid` {#common-filefields-gid-doc}
@@ -2942,8 +3075,8 @@ Type: int
 
 Definition: GID of the file's owner
 
-`*.gid` has 46 possible prefixes:
-`cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+`*.gid` has 48 possible prefixes:
+`cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `pam.file` `pam.interpreter.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
 
 
 ### `*.group` {#common-credentials-group-doc}
@@ -2951,8 +3084,8 @@ Type: string
 
 Definition: Group of the process
 
-`*.group` has 14 possible prefixes:
-`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+`*.group` has 15 possible prefixes:
+`exec` `exit` `pam` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 
 ### `*.group` {#common-filefields-group-doc}
@@ -2960,8 +3093,8 @@ Type: string
 
 Definition: Group of the file's owner
 
-`*.group` has 46 possible prefixes:
-`cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+`*.group` has 48 possible prefixes:
+`cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `pam.file` `pam.interpreter.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
 
 
 ### `*.hashes` {#common-fileevent-hashes-doc}
@@ -2969,8 +3102,8 @@ Type: string
 
 Definition: [Experimental] List of cryptographic hashes computed for this file
 
-`*.hashes` has 46 possible prefixes:
-`cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+`*.hashes` has 48 possible prefixes:
+`cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `pam.file` `pam.interpreter.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
 
 
 ### `*.id` {#common-cgroupcontext-id-doc}
@@ -2978,8 +3111,8 @@ Type: string
 
 Definition: ID of the cgroup
 
-`*.id` has 15 possible prefixes:
-`cgroup` `exec.cgroup` `exit.cgroup` `process.ancestors.cgroup` `process.cgroup` `process.parent.cgroup` `ptrace.tracee.ancestors.cgroup` `ptrace.tracee.cgroup` `ptrace.tracee.parent.cgroup` `setrlimit.target.ancestors.cgroup` `setrlimit.target.cgroup` `setrlimit.target.parent.cgroup` `signal.target.ancestors.cgroup` `signal.target.cgroup` `signal.target.parent.cgroup`
+`*.id` has 16 possible prefixes:
+`cgroup` `exec.cgroup` `exit.cgroup` `pam.cgroup` `process.ancestors.cgroup` `process.cgroup` `process.parent.cgroup` `ptrace.tracee.ancestors.cgroup` `ptrace.tracee.cgroup` `ptrace.tracee.parent.cgroup` `setrlimit.target.ancestors.cgroup` `setrlimit.target.cgroup` `setrlimit.target.parent.cgroup` `signal.target.ancestors.cgroup` `signal.target.cgroup` `signal.target.parent.cgroup`
 
 
 ### `*.ifname` {#common-networkdevicecontext-ifname-doc}
@@ -2996,8 +3129,8 @@ Type: bool
 
 Definition: Indicator of the file layer, for example, in an OverlayFS
 
-`*.in_upper_layer` has 46 possible prefixes:
-`cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+`*.in_upper_layer` has 48 possible prefixes:
+`cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `pam.file` `pam.interpreter.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
 
 
 ### `*.inode` {#common-pathkey-inode-doc}
@@ -3005,8 +3138,8 @@ Type: int
 
 Definition: Inode of the file
 
-`*.inode` has 61 possible prefixes:
-`cgroup.file` `cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.cgroup.file` `exec.file` `exec.interpreter.file` `exit.cgroup.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.cgroup.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.cgroup.file` `process.file` `process.interpreter.file` `process.parent.cgroup.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.cgroup.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.cgroup.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.cgroup.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.cgroup.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.cgroup.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.cgroup.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.cgroup.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.cgroup.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.cgroup.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+`*.inode` has 64 possible prefixes:
+`cgroup.file` `cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.cgroup.file` `exec.file` `exec.interpreter.file` `exit.cgroup.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `pam.cgroup.file` `pam.file` `pam.interpreter.file` `process.ancestors.cgroup.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.cgroup.file` `process.file` `process.interpreter.file` `process.parent.cgroup.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.cgroup.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.cgroup.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.cgroup.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.cgroup.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.cgroup.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.cgroup.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.cgroup.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.cgroup.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.cgroup.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
 
 
 ### `*.ip` {#common-ipportcontext-ip-doc}
@@ -3023,8 +3156,8 @@ Type: bool
 
 Definition: Indicates whether the process entry is from a new binary execution
 
-`*.is_exec` has 14 possible prefixes:
-`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+`*.is_exec` has 15 possible prefixes:
+`exec` `exit` `pam` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 
 ### `*.is_kworker` {#common-pidcontext-is_kworker-doc}
@@ -3032,8 +3165,8 @@ Type: bool
 
 Definition: Indicates whether the process is a kworker
 
-`*.is_kworker` has 14 possible prefixes:
-`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+`*.is_kworker` has 15 possible prefixes:
+`exec` `exit` `pam` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 
 ### `*.is_public` {#common-ipportcontext-is_public-doc}
@@ -3050,8 +3183,8 @@ Type: bool
 
 Definition: Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)
 
-`*.is_thread` has 14 possible prefixes:
-`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+`*.is_thread` has 15 possible prefixes:
+`exec` `exit` `pam` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 
 ### `*.k8s_groups` {#common-usersessioncontext-k8s_groups-doc}
@@ -3059,8 +3192,8 @@ Type: string
 
 Definition: Kubernetes groups of the user that executed the process
 
-`*.k8s_groups` has 14 possible prefixes:
-`exec.user_session` `exit.user_session` `process.ancestors.user_session` `process.parent.user_session` `process.user_session` `ptrace.tracee.ancestors.user_session` `ptrace.tracee.parent.user_session` `ptrace.tracee.user_session` `setrlimit.target.ancestors.user_session` `setrlimit.target.parent.user_session` `setrlimit.target.user_session` `signal.target.ancestors.user_session` `signal.target.parent.user_session` `signal.target.user_session`
+`*.k8s_groups` has 15 possible prefixes:
+`exec.user_session` `exit.user_session` `pam.user_session` `process.ancestors.user_session` `process.parent.user_session` `process.user_session` `ptrace.tracee.ancestors.user_session` `ptrace.tracee.parent.user_session` `ptrace.tracee.user_session` `setrlimit.target.ancestors.user_session` `setrlimit.target.parent.user_session` `setrlimit.target.user_session` `signal.target.ancestors.user_session` `signal.target.parent.user_session` `signal.target.user_session`
 
 
 ### `*.k8s_uid` {#common-usersessioncontext-k8s_uid-doc}
@@ -3068,8 +3201,8 @@ Type: string
 
 Definition: Kubernetes UID of the user that executed the process
 
-`*.k8s_uid` has 14 possible prefixes:
-`exec.user_session` `exit.user_session` `process.ancestors.user_session` `process.parent.user_session` `process.user_session` `ptrace.tracee.ancestors.user_session` `ptrace.tracee.parent.user_session` `ptrace.tracee.user_session` `setrlimit.target.ancestors.user_session` `setrlimit.target.parent.user_session` `setrlimit.target.user_session` `signal.target.ancestors.user_session` `signal.target.parent.user_session` `signal.target.user_session`
+`*.k8s_uid` has 15 possible prefixes:
+`exec.user_session` `exit.user_session` `pam.user_session` `process.ancestors.user_session` `process.parent.user_session` `process.user_session` `ptrace.tracee.ancestors.user_session` `ptrace.tracee.parent.user_session` `ptrace.tracee.user_session` `setrlimit.target.ancestors.user_session` `setrlimit.target.parent.user_session` `setrlimit.target.user_session` `signal.target.ancestors.user_session` `signal.target.parent.user_session` `signal.target.user_session`
 
 
 ### `*.k8s_username` {#common-usersessioncontext-k8s_username-doc}
@@ -3077,8 +3210,8 @@ Type: string
 
 Definition: Kubernetes username of the user that executed the process
 
-`*.k8s_username` has 14 possible prefixes:
-`exec.user_session` `exit.user_session` `process.ancestors.user_session` `process.parent.user_session` `process.user_session` `ptrace.tracee.ancestors.user_session` `ptrace.tracee.parent.user_session` `ptrace.tracee.user_session` `setrlimit.target.ancestors.user_session` `setrlimit.target.parent.user_session` `setrlimit.target.user_session` `signal.target.ancestors.user_session` `signal.target.parent.user_session` `signal.target.user_session`
+`*.k8s_username` has 15 possible prefixes:
+`exec.user_session` `exit.user_session` `pam.user_session` `process.ancestors.user_session` `process.parent.user_session` `process.user_session` `ptrace.tracee.ancestors.user_session` `ptrace.tracee.parent.user_session` `ptrace.tracee.user_session` `setrlimit.target.ancestors.user_session` `setrlimit.target.parent.user_session` `setrlimit.target.user_session` `signal.target.ancestors.user_session` `signal.target.parent.user_session` `signal.target.user_session`
 
 
 ### `*.l3_protocol` {#common-networkcontext-l3_protocol-doc}
@@ -3110,8 +3243,8 @@ Type: int
 
 Definition: Length of the corresponding element
 
-`*.length` has 98 possible prefixes:
-`cgroup_write.file.name` `cgroup_write.file.path` `chdir.file.name` `chdir.file.path` `chmod.file.name` `chmod.file.path` `chown.file.name` `chown.file.path` `dns.question.name` `exec.file.name` `exec.file.path` `exec.interpreter.file.name` `exec.interpreter.file.path` `exit.file.name` `exit.file.path` `exit.interpreter.file.name` `exit.interpreter.file.path` `link.file.destination.name` `link.file.destination.path` `link.file.name` `link.file.path` `load_module.file.name` `load_module.file.path` `mkdir.file.name` `mkdir.file.path` `mmap.file.name` `mmap.file.path` `network_flow_monitor.flows` `open.file.name` `open.file.path` `process.ancestors` `process.ancestors.file.name` `process.ancestors.file.path` `process.ancestors.interpreter.file.name` `process.ancestors.interpreter.file.path` `process.file.name` `process.file.path` `process.interpreter.file.name` `process.interpreter.file.path` `process.parent.file.name` `process.parent.file.path` `process.parent.interpreter.file.name` `process.parent.interpreter.file.path` `ptrace.tracee.ancestors` `ptrace.tracee.ancestors.file.name` `ptrace.tracee.ancestors.file.path` `ptrace.tracee.ancestors.interpreter.file.name` `ptrace.tracee.ancestors.interpreter.file.path` `ptrace.tracee.file.name` `ptrace.tracee.file.path` `ptrace.tracee.interpreter.file.name` `ptrace.tracee.interpreter.file.path` `ptrace.tracee.parent.file.name` `ptrace.tracee.parent.file.path` `ptrace.tracee.parent.interpreter.file.name` `ptrace.tracee.parent.interpreter.file.path` `removexattr.file.name` `removexattr.file.path` `rename.file.destination.name` `rename.file.destination.path` `rename.file.name` `rename.file.path` `rmdir.file.name` `rmdir.file.path` `setrlimit.target.ancestors` `setrlimit.target.ancestors.file.name` `setrlimit.target.ancestors.file.path` `setrlimit.target.ancestors.interpreter.file.name` `setrlimit.target.ancestors.interpreter.file.path` `setrlimit.target.file.name` `setrlimit.target.file.path` `setrlimit.target.interpreter.file.name` `setrlimit.target.interpreter.file.path` `setrlimit.target.parent.file.name` `setrlimit.target.parent.file.path` `setrlimit.target.parent.interpreter.file.name` `setrlimit.target.parent.interpreter.file.path` `setxattr.file.name` `setxattr.file.path` `signal.target.ancestors` `signal.target.ancestors.file.name` `signal.target.ancestors.file.path` `signal.target.ancestors.interpreter.file.name` `signal.target.ancestors.interpreter.file.path` `signal.target.file.name` `signal.target.file.path` `signal.target.interpreter.file.name` `signal.target.interpreter.file.path` `signal.target.parent.file.name` `signal.target.parent.file.path` `signal.target.parent.interpreter.file.name` `signal.target.parent.interpreter.file.path` `splice.file.name` `splice.file.path` `unlink.file.name` `unlink.file.path` `utimes.file.name` `utimes.file.path`
+`*.length` has 102 possible prefixes:
+`cgroup_write.file.name` `cgroup_write.file.path` `chdir.file.name` `chdir.file.path` `chmod.file.name` `chmod.file.path` `chown.file.name` `chown.file.path` `dns.question.name` `exec.file.name` `exec.file.path` `exec.interpreter.file.name` `exec.interpreter.file.path` `exit.file.name` `exit.file.path` `exit.interpreter.file.name` `exit.interpreter.file.path` `link.file.destination.name` `link.file.destination.path` `link.file.name` `link.file.path` `load_module.file.name` `load_module.file.path` `mkdir.file.name` `mkdir.file.path` `mmap.file.name` `mmap.file.path` `network_flow_monitor.flows` `open.file.name` `open.file.path` `pam.file.name` `pam.file.path` `pam.interpreter.file.name` `pam.interpreter.file.path` `process.ancestors` `process.ancestors.file.name` `process.ancestors.file.path` `process.ancestors.interpreter.file.name` `process.ancestors.interpreter.file.path` `process.file.name` `process.file.path` `process.interpreter.file.name` `process.interpreter.file.path` `process.parent.file.name` `process.parent.file.path` `process.parent.interpreter.file.name` `process.parent.interpreter.file.path` `ptrace.tracee.ancestors` `ptrace.tracee.ancestors.file.name` `ptrace.tracee.ancestors.file.path` `ptrace.tracee.ancestors.interpreter.file.name` `ptrace.tracee.ancestors.interpreter.file.path` `ptrace.tracee.file.name` `ptrace.tracee.file.path` `ptrace.tracee.interpreter.file.name` `ptrace.tracee.interpreter.file.path` `ptrace.tracee.parent.file.name` `ptrace.tracee.parent.file.path` `ptrace.tracee.parent.interpreter.file.name` `ptrace.tracee.parent.interpreter.file.path` `removexattr.file.name` `removexattr.file.path` `rename.file.destination.name` `rename.file.destination.path` `rename.file.name` `rename.file.path` `rmdir.file.name` `rmdir.file.path` `setrlimit.target.ancestors` `setrlimit.target.ancestors.file.name` `setrlimit.target.ancestors.file.path` `setrlimit.target.ancestors.interpreter.file.name` `setrlimit.target.ancestors.interpreter.file.path` `setrlimit.target.file.name` `setrlimit.target.file.path` `setrlimit.target.interpreter.file.name` `setrlimit.target.interpreter.file.path` `setrlimit.target.parent.file.name` `setrlimit.target.parent.file.path` `setrlimit.target.parent.interpreter.file.name` `setrlimit.target.parent.interpreter.file.path` `setxattr.file.name` `setxattr.file.path` `signal.target.ancestors` `signal.target.ancestors.file.name` `signal.target.ancestors.file.path` `signal.target.ancestors.interpreter.file.name` `signal.target.ancestors.interpreter.file.path` `signal.target.file.name` `signal.target.file.path` `signal.target.interpreter.file.name` `signal.target.interpreter.file.path` `signal.target.parent.file.name` `signal.target.parent.file.path` `signal.target.parent.interpreter.file.name` `signal.target.parent.interpreter.file.path` `splice.file.name` `splice.file.path` `unlink.file.name` `unlink.file.path` `utimes.file.name` `utimes.file.path`
 
 
 ### `*.mode` {#common-filefields-mode-doc}
@@ -3119,8 +3252,8 @@ Type: int
 
 Definition: Mode of the file
 
-`*.mode` has 46 possible prefixes:
-`cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+`*.mode` has 48 possible prefixes:
+`cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `pam.file` `pam.interpreter.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
 
 Constants: [Inode mode constants](#inode-mode-constants)
 
@@ -3131,8 +3264,8 @@ Type: int
 
 Definition: Modification time (mtime) of the file
 
-`*.modification_time` has 46 possible prefixes:
-`cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+`*.modification_time` has 48 possible prefixes:
+`cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `pam.file` `pam.interpreter.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
 
 
 ### `*.mount_detached` {#common-fileevent-mount_detached-doc}
@@ -3140,8 +3273,8 @@ Type: bool
 
 Definition: Indicates whether the file's mount is detached from the VFS
 
-`*.mount_detached` has 46 possible prefixes:
-`cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+`*.mount_detached` has 48 possible prefixes:
+`cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `pam.file` `pam.interpreter.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
 
 
 ### `*.mount_id` {#common-pathkey-mount_id-doc}
@@ -3149,8 +3282,8 @@ Type: int
 
 Definition: Mount ID of the file
 
-`*.mount_id` has 61 possible prefixes:
-`cgroup.file` `cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.cgroup.file` `exec.file` `exec.interpreter.file` `exit.cgroup.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.cgroup.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.cgroup.file` `process.file` `process.interpreter.file` `process.parent.cgroup.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.cgroup.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.cgroup.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.cgroup.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.cgroup.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.cgroup.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.cgroup.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.cgroup.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.cgroup.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.cgroup.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+`*.mount_id` has 64 possible prefixes:
+`cgroup.file` `cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.cgroup.file` `exec.file` `exec.interpreter.file` `exit.cgroup.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `pam.cgroup.file` `pam.file` `pam.interpreter.file` `process.ancestors.cgroup.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.cgroup.file` `process.file` `process.interpreter.file` `process.parent.cgroup.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.cgroup.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.cgroup.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.cgroup.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.cgroup.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.cgroup.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.cgroup.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.cgroup.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.cgroup.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.cgroup.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
 
 
 ### `*.mount_visible` {#common-fileevent-mount_visible-doc}
@@ -3158,8 +3291,8 @@ Type: bool
 
 Definition: Indicates whether the file's mount is visible in the VFS
 
-`*.mount_visible` has 46 possible prefixes:
-`cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+`*.mount_visible` has 48 possible prefixes:
+`cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `pam.file` `pam.interpreter.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
 
 
 ### `*.name` {#common-fileevent-name-doc}
@@ -3167,8 +3300,8 @@ Type: string
 
 Definition: File's basename
 
-`*.name` has 46 possible prefixes:
-`cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+`*.name` has 48 possible prefixes:
+`cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `pam.file` `pam.interpreter.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
 
 
 
@@ -3206,8 +3339,8 @@ Type: string
 
 Definition: [Experimental] Name of the package that provided this file
 
-`*.package.name` has 46 possible prefixes:
-`cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+`*.package.name` has 48 possible prefixes:
+`cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `pam.file` `pam.interpreter.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
 
 
 ### `*.package.release` {#common-fileevent-package-release-doc}
@@ -3242,8 +3375,8 @@ Type: string
 
 Definition: [Experimental] Full version of the source package of the package that provided this file
 
-`*.package.source_version` has 46 possible prefixes:
-`cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+`*.package.source_version` has 48 possible prefixes:
+`cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `pam.file` `pam.interpreter.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
 
 
 ### `*.package.version` {#common-fileevent-package-version-doc}
@@ -3251,8 +3384,8 @@ Type: string
 
 Definition: [Experimental] Full version of the package that provided this file
 
-`*.package.version` has 46 possible prefixes:
-`cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+`*.package.version` has 48 possible prefixes:
+`cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `pam.file` `pam.interpreter.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
 
 
 ### `*.packet_count` {#common-networkstats-packet_count-doc}
@@ -3269,8 +3402,8 @@ Type: string
 
 Definition: File's path
 
-`*.path` has 46 possible prefixes:
-`cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+`*.path` has 48 possible prefixes:
+`cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `pam.file` `pam.interpreter.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
 
 
 
@@ -3295,8 +3428,8 @@ Type: int
 
 Definition: Process ID of the process (also called thread group ID)
 
-`*.pid` has 14 possible prefixes:
-`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+`*.pid` has 15 possible prefixes:
+`exec` `exit` `pam` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 
 ### `*.port` {#common-ipportcontext-port-doc}
@@ -3313,8 +3446,8 @@ Type: int
 
 Definition: Parent process ID
 
-`*.ppid` has 14 possible prefixes:
-`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+`*.ppid` has 15 possible prefixes:
+`exec` `exit` `pam` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 
 ### `*.retval` {#common-syscallevent-retval-doc}
@@ -3334,8 +3467,8 @@ Type: int
 
 Definition: Rights of the file
 
-`*.rights` has 46 possible prefixes:
-`cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+`*.rights` has 48 possible prefixes:
+`cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `pam.file` `pam.interpreter.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
 
 Constants: [File mode constants](#file-mode-constants)
 
@@ -3350,13 +3483,40 @@ Definition: Size in bytes of the network packet
 `network` `packet`
 
 
+### `*.ssh_host_ip` {#common-usersessioncontext-ssh_host_ip-doc}
+Type: string
+
+Definition: SSH host IP of the user that executed the process
+
+`*.ssh_host_ip` has 15 possible prefixes:
+`exec.user_session` `exit.user_session` `pam.user_session` `process.ancestors.user_session` `process.parent.user_session` `process.user_session` `ptrace.tracee.ancestors.user_session` `ptrace.tracee.parent.user_session` `ptrace.tracee.user_session` `setrlimit.target.ancestors.user_session` `setrlimit.target.parent.user_session` `setrlimit.target.user_session` `signal.target.ancestors.user_session` `signal.target.parent.user_session` `signal.target.user_session`
+
+
+### `*.ssh_hostname` {#common-usersessioncontext-ssh_hostname-doc}
+Type: string
+
+Definition: SSH host name of the user that executed the process
+
+`*.ssh_hostname` has 15 possible prefixes:
+`exec.user_session` `exit.user_session` `pam.user_session` `process.ancestors.user_session` `process.parent.user_session` `process.user_session` `ptrace.tracee.ancestors.user_session` `ptrace.tracee.parent.user_session` `ptrace.tracee.user_session` `setrlimit.target.ancestors.user_session` `setrlimit.target.parent.user_session` `setrlimit.target.user_session` `signal.target.ancestors.user_session` `signal.target.parent.user_session` `signal.target.user_session`
+
+
+### `*.ssh_username` {#common-usersessioncontext-ssh_username-doc}
+Type: string
+
+Definition: SSH username of the user that executed the process
+
+`*.ssh_username` has 15 possible prefixes:
+`exec.user_session` `exit.user_session` `pam.user_session` `process.ancestors.user_session` `process.parent.user_session` `process.user_session` `ptrace.tracee.ancestors.user_session` `ptrace.tracee.parent.user_session` `ptrace.tracee.user_session` `setrlimit.target.ancestors.user_session` `setrlimit.target.parent.user_session` `setrlimit.target.user_session` `signal.target.ancestors.user_session` `signal.target.parent.user_session` `signal.target.user_session`
+
+
 ### `*.tid` {#common-pidcontext-tid-doc}
 Type: int
 
 Definition: Thread ID of the thread
 
-`*.tid` has 14 possible prefixes:
-`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+`*.tid` has 15 possible prefixes:
+`exec` `exit` `pam` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 
 ### `*.tty_name` {#common-process-tty_name-doc}
@@ -3364,8 +3524,8 @@ Type: string
 
 Definition: Name of the TTY associated with the process
 
-`*.tty_name` has 14 possible prefixes:
-`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+`*.tty_name` has 15 possible prefixes:
+`exec` `exit` `pam` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 
 ### `*.type` {#common-networkcontext-type-doc}
@@ -3385,8 +3545,8 @@ Type: int
 
 Definition: UID of the process
 
-`*.uid` has 14 possible prefixes:
-`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+`*.uid` has 15 possible prefixes:
+`exec` `exit` `pam` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 
 ### `*.uid` {#common-filefields-uid-doc}
@@ -3394,8 +3554,8 @@ Type: int
 
 Definition: UID of the file's owner
 
-`*.uid` has 46 possible prefixes:
-`cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+`*.uid` has 48 possible prefixes:
+`cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `pam.file` `pam.interpreter.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
 
 
 ### `*.user` {#common-credentials-user-doc}
@@ -3421,8 +3581,8 @@ Type: string
 
 Definition: User of the file's owner
 
-`*.user` has 46 possible prefixes:
-`cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+`*.user` has 48 possible prefixes:
+`cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `pam.file` `pam.interpreter.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
 
 
 ### `*.version` {#common-cgroupcontext-version-doc}
@@ -3430,8 +3590,8 @@ Type: int
 
 Definition: [Experimental] Version of the cgroup API
 
-`*.version` has 15 possible prefixes:
-`cgroup` `exec.cgroup` `exit.cgroup` `process.ancestors.cgroup` `process.cgroup` `process.parent.cgroup` `ptrace.tracee.ancestors.cgroup` `ptrace.tracee.cgroup` `ptrace.tracee.parent.cgroup` `setrlimit.target.ancestors.cgroup` `setrlimit.target.cgroup` `setrlimit.target.parent.cgroup` `signal.target.ancestors.cgroup` `signal.target.cgroup` `signal.target.parent.cgroup`
+`*.version` has 16 possible prefixes:
+`cgroup` `exec.cgroup` `exit.cgroup` `pam.cgroup` `process.ancestors.cgroup` `process.cgroup` `process.parent.cgroup` `ptrace.tracee.ancestors.cgroup` `ptrace.tracee.cgroup` `ptrace.tracee.parent.cgroup` `setrlimit.target.ancestors.cgroup` `setrlimit.target.cgroup` `setrlimit.target.parent.cgroup` `signal.target.ancestors.cgroup` `signal.target.cgroup` `signal.target.parent.cgroup`
 
 
 ### `accept.addr.family` {#accept-addr-family-doc}

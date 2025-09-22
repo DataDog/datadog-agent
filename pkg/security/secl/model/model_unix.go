@@ -1054,6 +1054,7 @@ type PrCtlEvent struct {
 // PamEvent represents a pam event
 type PamEvent struct {
 	SyscallEvent
+	*Process
 	Service  string `field:"service"`  // SECLDoc[service] Definition:`Authentication service name`
 	User     string `field:"user"`     // SECLDoc[user] Definition:`User name`
 	Hostname string `field:"hostname"` // SECLDoc[hostname] Definition:`Hostname`

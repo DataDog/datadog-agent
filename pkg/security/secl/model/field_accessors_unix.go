@@ -253,6 +253,10 @@ func (e *Event) ValidateFileField(field string) error {
 		return nil
 	case "cgroup_write.file":
 		return nil
+	case "pam.file":
+		return nil
+	case "pam.interpreter.file":
+		return nil
 	default:
 		return fmt.Errorf("invalid field %s on event %s", field, e.GetEventType())
 	}
@@ -421,6 +425,16 @@ func (e *Event) GetFileField(field string) (*FileEvent, error) {
 		return &e.LoadModule.File, nil
 	case "cgroup_write.file":
 		return &e.CgroupWrite.File, nil
+	case "pam.file":
+		if !e.Pam.Process.IsNotKworker() {
+			return nil, fmt.Errorf("no file event on this event %s", e.GetEventType())
+		}
+		return &e.Pam.Process.FileEvent, nil
+	case "pam.interpreter.file":
+		if !e.Pam.Process.HasInterpreter() {
+			return nil, fmt.Errorf("no file event on this event %s", e.GetEventType())
+		}
+		return &e.Pam.Process.LinuxBinprm.FileEvent, nil
 	default:
 		return nil, fmt.Errorf("invalid field %s on event %s", field, e.GetEventType())
 	}

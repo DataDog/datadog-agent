@@ -3416,6 +3416,39 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "exec.user_session.ssh_host_ip":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSSHHostIP(ev, &ev.Exec.Process.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exec.user_session.ssh_hostname":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSSHHostname(ev, &ev.Exec.Process.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exec.user_session.ssh_username":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSSHUsername(ev, &ev.Exec.Process.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "exit.args":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -4658,6 +4691,39 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolveK8SUsername(ev, &ev.Exit.Process.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exit.user_session.ssh_host_ip":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSSHHostIP(ev, &ev.Exit.Process.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exit.user_session.ssh_hostname":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSSHHostname(ev, &ev.Exit.Process.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exit.user_session.ssh_username":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSSHUsername(ev, &ev.Exit.Process.UserSession)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -7742,6 +7808,667 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "pam.args":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveProcessArgs(ev, ev.Pam.Process)
+			},
+			Field:  field,
+			Weight: 500 * eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "pam.args_flags":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveProcessArgsFlags(ev, ev.Pam.Process)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "pam.args_options":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveProcessArgsOptions(ev, ev.Pam.Process)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "pam.args_truncated":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveProcessArgsTruncated(ev, ev.Pam.Process)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "pam.argv":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveProcessArgv(ev, ev.Pam.Process)
+			},
+			Field:  field,
+			Weight: 500 * eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "pam.argv0":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveProcessArgv0(ev, ev.Pam.Process)
+			},
+			Field:  field,
+			Weight: 100 * eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "pam.auid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Pam.Process.Credentials.AUID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "pam.cap_effective":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Pam.Process.Credentials.CapEffective)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "pam.cap_permitted":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Pam.Process.Credentials.CapPermitted)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "pam.caps_attempted":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Pam.Process.CapsAttempted)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "pam.caps_used":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Pam.Process.CapsUsed)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "pam.cgroup.file.inode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Pam.Process.CGroup.CGroupFile.Inode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "pam.cgroup.file.mount_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Pam.Process.CGroup.CGroupFile.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "pam.cgroup.id":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveCGroupID(ev, &ev.Pam.Process.CGroup)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "pam.cgroup.version":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveCGroupVersion(ev, &ev.Pam.Process.CGroup)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "pam.comm":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Pam.Process.Comm
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "pam.container.id":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveProcessContainerID(ev, ev.Pam.Process)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "pam.created_at":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.Pam.Process))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "pam.egid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Pam.Process.Credentials.EGID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "pam.egroup":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Pam.Process.Credentials.EGroup
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "pam.envp":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Pam.Process)
+			},
+			Field:  field,
+			Weight: 100 * eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "pam.envs":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Pam.Process)
+			},
+			Field:  field,
+			Weight: 100 * eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "pam.envs_truncated":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, ev.Pam.Process)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "pam.euid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Pam.Process.Credentials.EUID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "pam.euser":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Pam.Process.Credentials.EUser
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "pam.file.change_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Pam.Process.IsNotKworker() {
+					return 0
+				}
+				return int(ev.Pam.Process.FileEvent.FileFields.CTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "pam.file.extension":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Pam.Process.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveFileExtension(ev, &ev.Pam.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "pam.file.filesystem":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Pam.Process.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.Pam.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "pam.file.gid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Pam.Process.IsNotKworker() {
+					return 0
+				}
+				return int(ev.Pam.Process.FileEvent.FileFields.GID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "pam.file.group":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Pam.Process.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Pam.Process.FileEvent.FileFields)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "pam.file.hashes":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Pam.Process.IsNotKworker() {
+					return []string{}
+				}
+				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Pam.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "pam.file.in_upper_layer":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Pam.Process.IsNotKworker() {
+					return false
+				}
+				return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.Pam.Process.FileEvent.FileFields)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "pam.file.inode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Pam.Process.IsNotKworker() {
+					return 0
+				}
+				return int(ev.Pam.Process.FileEvent.FileFields.PathKey.Inode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "pam.file.mode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Pam.Process.IsNotKworker() {
+					return 0
+				}
+				return int(ev.Pam.Process.FileEvent.FileFields.Mode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "pam.file.modification_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Pam.Process.IsNotKworker() {
+					return 0
+				}
+				return int(ev.Pam.Process.FileEvent.FileFields.MTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "pam.file.mount_detached":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Pam.Process.IsNotKworker() {
+					return false
+				}
+				return ev.Pam.Process.FileEvent.MountDetached
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "pam.file.mount_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Pam.Process.IsNotKworker() {
+					return 0
+				}
+				return int(ev.Pam.Process.FileEvent.FileFields.PathKey.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "pam.file.mount_visible":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Pam.Process.IsNotKworker() {
+					return false
+				}
+				return ev.Pam.Process.FileEvent.MountVisible
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "pam.file.name":
+		return &eval.StringEvaluator{
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Pam.Process.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveFileBasename(ev, &ev.Pam.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "pam.file.name.length":
+		return &eval.IntEvaluator{
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return len(ev.FieldHandlers.ResolveFileBasename(ev, &ev.Pam.Process.FileEvent))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "pam.file.package.name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Pam.Process.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageName(ev, &ev.Pam.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "pam.file.package.source_version":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Pam.Process.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.Pam.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "pam.file.package.version":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Pam.Process.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageVersion(ev, &ev.Pam.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "pam.file.path":
+		return &eval.StringEvaluator{
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Pam.Process.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveFilePath(ev, &ev.Pam.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "pam.file.path.length":
+		return &eval.IntEvaluator{
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.Pam.Process.FileEvent))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "pam.file.rights":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Pam.Process.IsNotKworker() {
+					return 0
+				}
+				return int(ev.FieldHandlers.ResolveRights(ev, &ev.Pam.Process.FileEvent.FileFields))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "pam.file.uid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Pam.Process.IsNotKworker() {
+					return 0
+				}
+				return int(ev.Pam.Process.FileEvent.FileFields.UID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "pam.file.user":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Pam.Process.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Pam.Process.FileEvent.FileFields)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "pam.fsgid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Pam.Process.Credentials.FSGID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "pam.fsgroup":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Pam.Process.Credentials.FSGroup
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "pam.fsuid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Pam.Process.Credentials.FSUID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "pam.fsuser":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Pam.Process.Credentials.FSUser
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "pam.gid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Pam.Process.Credentials.GID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "pam.group":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Pam.Process.Credentials.Group
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "pam.host_ip":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -7759,6 +8486,381 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.Pam.Hostname
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "pam.interpreter.file.change_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Pam.Process.HasInterpreter() {
+					return 0
+				}
+				return int(ev.Pam.Process.LinuxBinprm.FileEvent.FileFields.CTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "pam.interpreter.file.extension":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Pam.Process.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveFileExtension(ev, &ev.Pam.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "pam.interpreter.file.filesystem":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Pam.Process.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.Pam.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "pam.interpreter.file.gid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Pam.Process.HasInterpreter() {
+					return 0
+				}
+				return int(ev.Pam.Process.LinuxBinprm.FileEvent.FileFields.GID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "pam.interpreter.file.group":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Pam.Process.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Pam.Process.LinuxBinprm.FileEvent.FileFields)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "pam.interpreter.file.hashes":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Pam.Process.HasInterpreter() {
+					return []string{}
+				}
+				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Pam.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "pam.interpreter.file.in_upper_layer":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Pam.Process.HasInterpreter() {
+					return false
+				}
+				return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.Pam.Process.LinuxBinprm.FileEvent.FileFields)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "pam.interpreter.file.inode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Pam.Process.HasInterpreter() {
+					return 0
+				}
+				return int(ev.Pam.Process.LinuxBinprm.FileEvent.FileFields.PathKey.Inode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "pam.interpreter.file.mode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Pam.Process.HasInterpreter() {
+					return 0
+				}
+				return int(ev.Pam.Process.LinuxBinprm.FileEvent.FileFields.Mode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "pam.interpreter.file.modification_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Pam.Process.HasInterpreter() {
+					return 0
+				}
+				return int(ev.Pam.Process.LinuxBinprm.FileEvent.FileFields.MTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "pam.interpreter.file.mount_detached":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Pam.Process.HasInterpreter() {
+					return false
+				}
+				return ev.Pam.Process.LinuxBinprm.FileEvent.MountDetached
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "pam.interpreter.file.mount_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Pam.Process.HasInterpreter() {
+					return 0
+				}
+				return int(ev.Pam.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "pam.interpreter.file.mount_visible":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Pam.Process.HasInterpreter() {
+					return false
+				}
+				return ev.Pam.Process.LinuxBinprm.FileEvent.MountVisible
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "pam.interpreter.file.name":
+		return &eval.StringEvaluator{
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Pam.Process.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveFileBasename(ev, &ev.Pam.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "pam.interpreter.file.name.length":
+		return &eval.IntEvaluator{
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkBasename},
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return len(ev.FieldHandlers.ResolveFileBasename(ev, &ev.Pam.Process.LinuxBinprm.FileEvent))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "pam.interpreter.file.package.name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Pam.Process.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageName(ev, &ev.Pam.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "pam.interpreter.file.package.source_version":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Pam.Process.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.Pam.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "pam.interpreter.file.package.version":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Pam.Process.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageVersion(ev, &ev.Pam.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "pam.interpreter.file.path":
+		return &eval.StringEvaluator{
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Pam.Process.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveFilePath(ev, &ev.Pam.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "pam.interpreter.file.path.length":
+		return &eval.IntEvaluator{
+			OpOverrides: []*eval.OpOverrides{ProcessSymlinkPathname, OverlayFSPathname},
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.Pam.Process.LinuxBinprm.FileEvent))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "pam.interpreter.file.rights":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Pam.Process.HasInterpreter() {
+					return 0
+				}
+				return int(ev.FieldHandlers.ResolveRights(ev, &ev.Pam.Process.LinuxBinprm.FileEvent.FileFields))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "pam.interpreter.file.uid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Pam.Process.HasInterpreter() {
+					return 0
+				}
+				return int(ev.Pam.Process.LinuxBinprm.FileEvent.FileFields.UID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "pam.interpreter.file.user":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Pam.Process.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Pam.Process.LinuxBinprm.FileEvent.FileFields)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "pam.is_exec":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Pam.Process.IsExec
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "pam.is_kworker":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Pam.Process.PIDContext.IsKworker
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "pam.is_thread":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveProcessIsThread(ev, ev.Pam.Process)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "pam.pid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Pam.Process.PIDContext.Pid)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "pam.ppid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Pam.Process.PPid)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -7786,6 +8888,39 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "pam.tid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Pam.Process.PIDContext.Tid)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "pam.tty_name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Pam.Process.TTYName
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "pam.uid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Pam.Process.Credentials.UID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "pam.user":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -7795,6 +8930,72 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "pam.user_session.k8s_groups":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveK8SGroups(ev, &ev.Pam.Process.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "pam.user_session.k8s_uid":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveK8SUID(ev, &ev.Pam.Process.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "pam.user_session.k8s_username":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveK8SUsername(ev, &ev.Pam.Process.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "pam.user_session.ssh_host_ip":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSSHHostIP(ev, &ev.Pam.Process.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "pam.user_session.ssh_hostname":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSSHHostname(ev, &ev.Pam.Process.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "pam.user_session.ssh_username":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSSHUsername(ev, &ev.Pam.Process.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
 	case "prctl.is_name_truncated":
@@ -10779,6 +11980,87 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "process.ancestors.user_session.ssh_host_ip":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := ev.FieldHandlers.ResolveSSHHostIP(ev, &element.ProcessContext.Process.UserSession)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					return ev.FieldHandlers.ResolveSSHHostIP(ev, &current.ProcessContext.Process.UserSession)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "process.ancestors.user_session.ssh_hostname":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := ev.FieldHandlers.ResolveSSHHostname(ev, &element.ProcessContext.Process.UserSession)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					return ev.FieldHandlers.ResolveSSHHostname(ev, &current.ProcessContext.Process.UserSession)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "process.ancestors.user_session.ssh_username":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := ev.FieldHandlers.ResolveSSHUsername(ev, &element.ProcessContext.Process.UserSession)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					return ev.FieldHandlers.ResolveSSHUsername(ev, &current.ProcessContext.Process.UserSession)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "process.args":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -13409,6 +14691,48 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "process.parent.user_session.ssh_host_ip":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveSSHHostIP(ev, &ev.BaseEvent.ProcessContext.Parent.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "process.parent.user_session.ssh_hostname":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveSSHHostname(ev, &ev.BaseEvent.ProcessContext.Parent.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "process.parent.user_session.ssh_username":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveSSHUsername(ev, &ev.BaseEvent.ProcessContext.Parent.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "process.pid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -13503,6 +14827,39 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolveK8SUsername(ev, &ev.BaseEvent.ProcessContext.Process.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "process.user_session.ssh_host_ip":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSSHHostIP(ev, &ev.BaseEvent.ProcessContext.Process.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "process.user_session.ssh_hostname":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSSHHostname(ev, &ev.BaseEvent.ProcessContext.Process.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "process.user_session.ssh_username":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSSHUsername(ev, &ev.BaseEvent.ProcessContext.Process.UserSession)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -16468,6 +17825,87 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "ptrace.tracee.ancestors.user_session.ssh_host_ip":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.PTrace.Tracee.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := ev.FieldHandlers.ResolveSSHHostIP(ev, &element.ProcessContext.Process.UserSession)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					return ev.FieldHandlers.ResolveSSHHostIP(ev, &current.ProcessContext.Process.UserSession)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.ancestors.user_session.ssh_hostname":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.PTrace.Tracee.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := ev.FieldHandlers.ResolveSSHHostname(ev, &element.ProcessContext.Process.UserSession)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					return ev.FieldHandlers.ResolveSSHHostname(ev, &current.ProcessContext.Process.UserSession)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.ancestors.user_session.ssh_username":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.PTrace.Tracee.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := ev.FieldHandlers.ResolveSSHUsername(ev, &element.ProcessContext.Process.UserSession)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					return ev.FieldHandlers.ResolveSSHUsername(ev, &current.ProcessContext.Process.UserSession)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "ptrace.tracee.args":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -19098,6 +20536,48 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "ptrace.tracee.parent.user_session.ssh_host_ip":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.HasParent() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveSSHHostIP(ev, &ev.PTrace.Tracee.Parent.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.parent.user_session.ssh_hostname":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.HasParent() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveSSHHostname(ev, &ev.PTrace.Tracee.Parent.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.parent.user_session.ssh_username":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.HasParent() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveSSHUsername(ev, &ev.PTrace.Tracee.Parent.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "ptrace.tracee.pid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -19192,6 +20672,39 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolveK8SUsername(ev, &ev.PTrace.Tracee.Process.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.user_session.ssh_host_ip":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSSHHostIP(ev, &ev.PTrace.Tracee.Process.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.user_session.ssh_hostname":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSSHHostname(ev, &ev.PTrace.Tracee.Process.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.user_session.ssh_username":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSSHUsername(ev, &ev.PTrace.Tracee.Process.UserSession)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -23581,6 +25094,87 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "setrlimit.target.ancestors.user_session.ssh_host_ip":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := ev.FieldHandlers.ResolveSSHHostIP(ev, &element.ProcessContext.Process.UserSession)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					return ev.FieldHandlers.ResolveSSHHostIP(ev, &current.ProcessContext.Process.UserSession)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.user_session.ssh_hostname":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := ev.FieldHandlers.ResolveSSHHostname(ev, &element.ProcessContext.Process.UserSession)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					return ev.FieldHandlers.ResolveSSHHostname(ev, &current.ProcessContext.Process.UserSession)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.user_session.ssh_username":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := ev.FieldHandlers.ResolveSSHUsername(ev, &element.ProcessContext.Process.UserSession)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					return ev.FieldHandlers.ResolveSSHUsername(ev, &current.ProcessContext.Process.UserSession)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "setrlimit.target.args":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -26211,6 +27805,48 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "setrlimit.target.parent.user_session.ssh_host_ip":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveSSHHostIP(ev, &ev.Setrlimit.Target.Parent.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.user_session.ssh_hostname":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveSSHHostname(ev, &ev.Setrlimit.Target.Parent.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.user_session.ssh_username":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveSSHUsername(ev, &ev.Setrlimit.Target.Parent.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "setrlimit.target.pid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -26305,6 +27941,39 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolveK8SUsername(ev, &ev.Setrlimit.Target.Process.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.user_session.ssh_host_ip":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSSHHostIP(ev, &ev.Setrlimit.Target.Process.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.user_session.ssh_hostname":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSSHHostname(ev, &ev.Setrlimit.Target.Process.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.user_session.ssh_username":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSSHUsername(ev, &ev.Setrlimit.Target.Process.UserSession)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -29791,6 +31460,87 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "signal.target.ancestors.user_session.ssh_host_ip":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Signal.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := ev.FieldHandlers.ResolveSSHHostIP(ev, &element.ProcessContext.Process.UserSession)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					return ev.FieldHandlers.ResolveSSHHostIP(ev, &current.ProcessContext.Process.UserSession)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.ancestors.user_session.ssh_hostname":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Signal.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := ev.FieldHandlers.ResolveSSHHostname(ev, &element.ProcessContext.Process.UserSession)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					return ev.FieldHandlers.ResolveSSHHostname(ev, &current.ProcessContext.Process.UserSession)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.ancestors.user_session.ssh_username":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Signal.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := ev.FieldHandlers.ResolveSSHUsername(ev, &element.ProcessContext.Process.UserSession)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					return ev.FieldHandlers.ResolveSSHUsername(ev, &current.ProcessContext.Process.UserSession)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "signal.target.args":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -32421,6 +34171,48 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "signal.target.parent.user_session.ssh_host_ip":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.HasParent() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveSSHHostIP(ev, &ev.Signal.Target.Parent.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.parent.user_session.ssh_hostname":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.HasParent() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveSSHHostname(ev, &ev.Signal.Target.Parent.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.parent.user_session.ssh_username":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.HasParent() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveSSHUsername(ev, &ev.Signal.Target.Parent.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "signal.target.pid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -32515,6 +34307,39 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolveK8SUsername(ev, &ev.Signal.Target.Process.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.user_session.ssh_host_ip":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSSHHostIP(ev, &ev.Signal.Target.Process.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.user_session.ssh_hostname":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSSHHostname(ev, &ev.Signal.Target.Process.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.user_session.ssh_username":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSSHUsername(ev, &ev.Signal.Target.Process.UserSession)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -33944,6 +35769,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"exec.user_session.k8s_groups",
 		"exec.user_session.k8s_uid",
 		"exec.user_session.k8s_username",
+		"exec.user_session.ssh_host_ip",
+		"exec.user_session.ssh_hostname",
+		"exec.user_session.ssh_username",
 		"exit.args",
 		"exit.args_flags",
 		"exit.args_options",
@@ -34043,6 +35871,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"exit.user_session.k8s_groups",
 		"exit.user_session.k8s_uid",
 		"exit.user_session.k8s_username",
+		"exit.user_session.ssh_host_ip",
+		"exit.user_session.ssh_hostname",
+		"exit.user_session.ssh_username",
 		"imds.aws.is_imds_v2",
 		"imds.aws.security_credentials.type",
 		"imds.cloud_provider",
@@ -34302,11 +36133,102 @@ func (ev *Event) GetFields() []eval.Field {
 		"packet.source.port",
 		"packet.tls.version",
 		"packet.type",
+		"pam.args",
+		"pam.args_flags",
+		"pam.args_options",
+		"pam.args_truncated",
+		"pam.argv",
+		"pam.argv0",
+		"pam.auid",
+		"pam.cap_effective",
+		"pam.cap_permitted",
+		"pam.caps_attempted",
+		"pam.caps_used",
+		"pam.cgroup.file.inode",
+		"pam.cgroup.file.mount_id",
+		"pam.cgroup.id",
+		"pam.cgroup.version",
+		"pam.comm",
+		"pam.container.id",
+		"pam.created_at",
+		"pam.egid",
+		"pam.egroup",
+		"pam.envp",
+		"pam.envs",
+		"pam.envs_truncated",
+		"pam.euid",
+		"pam.euser",
+		"pam.file.change_time",
+		"pam.file.extension",
+		"pam.file.filesystem",
+		"pam.file.gid",
+		"pam.file.group",
+		"pam.file.hashes",
+		"pam.file.in_upper_layer",
+		"pam.file.inode",
+		"pam.file.mode",
+		"pam.file.modification_time",
+		"pam.file.mount_detached",
+		"pam.file.mount_id",
+		"pam.file.mount_visible",
+		"pam.file.name",
+		"pam.file.name.length",
+		"pam.file.package.name",
+		"pam.file.package.source_version",
+		"pam.file.package.version",
+		"pam.file.path",
+		"pam.file.path.length",
+		"pam.file.rights",
+		"pam.file.uid",
+		"pam.file.user",
+		"pam.fsgid",
+		"pam.fsgroup",
+		"pam.fsuid",
+		"pam.fsuser",
+		"pam.gid",
+		"pam.group",
 		"pam.host_ip",
 		"pam.hostname",
+		"pam.interpreter.file.change_time",
+		"pam.interpreter.file.extension",
+		"pam.interpreter.file.filesystem",
+		"pam.interpreter.file.gid",
+		"pam.interpreter.file.group",
+		"pam.interpreter.file.hashes",
+		"pam.interpreter.file.in_upper_layer",
+		"pam.interpreter.file.inode",
+		"pam.interpreter.file.mode",
+		"pam.interpreter.file.modification_time",
+		"pam.interpreter.file.mount_detached",
+		"pam.interpreter.file.mount_id",
+		"pam.interpreter.file.mount_visible",
+		"pam.interpreter.file.name",
+		"pam.interpreter.file.name.length",
+		"pam.interpreter.file.package.name",
+		"pam.interpreter.file.package.source_version",
+		"pam.interpreter.file.package.version",
+		"pam.interpreter.file.path",
+		"pam.interpreter.file.path.length",
+		"pam.interpreter.file.rights",
+		"pam.interpreter.file.uid",
+		"pam.interpreter.file.user",
+		"pam.is_exec",
+		"pam.is_kworker",
+		"pam.is_thread",
+		"pam.pid",
+		"pam.ppid",
 		"pam.retval",
 		"pam.service",
+		"pam.tid",
+		"pam.tty_name",
+		"pam.uid",
 		"pam.user",
+		"pam.user_session.k8s_groups",
+		"pam.user_session.k8s_uid",
+		"pam.user_session.k8s_username",
+		"pam.user_session.ssh_host_ip",
+		"pam.user_session.ssh_hostname",
+		"pam.user_session.ssh_username",
 		"prctl.is_name_truncated",
 		"prctl.new_name",
 		"prctl.option",
@@ -34409,6 +36331,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.ancestors.user_session.k8s_groups",
 		"process.ancestors.user_session.k8s_uid",
 		"process.ancestors.user_session.k8s_username",
+		"process.ancestors.user_session.ssh_host_ip",
+		"process.ancestors.user_session.ssh_hostname",
+		"process.ancestors.user_session.ssh_username",
 		"process.args",
 		"process.args_flags",
 		"process.args_options",
@@ -34594,6 +36519,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.parent.user_session.k8s_groups",
 		"process.parent.user_session.k8s_uid",
 		"process.parent.user_session.k8s_username",
+		"process.parent.user_session.ssh_host_ip",
+		"process.parent.user_session.ssh_hostname",
+		"process.parent.user_session.ssh_username",
 		"process.pid",
 		"process.ppid",
 		"process.tid",
@@ -34603,6 +36531,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.user_session.k8s_groups",
 		"process.user_session.k8s_uid",
 		"process.user_session.k8s_username",
+		"process.user_session.ssh_host_ip",
+		"process.user_session.ssh_hostname",
+		"process.user_session.ssh_username",
 		"ptrace.request",
 		"ptrace.retval",
 		"ptrace.tracee.ancestors.args",
@@ -34703,6 +36634,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.ancestors.user_session.k8s_groups",
 		"ptrace.tracee.ancestors.user_session.k8s_uid",
 		"ptrace.tracee.ancestors.user_session.k8s_username",
+		"ptrace.tracee.ancestors.user_session.ssh_host_ip",
+		"ptrace.tracee.ancestors.user_session.ssh_hostname",
+		"ptrace.tracee.ancestors.user_session.ssh_username",
 		"ptrace.tracee.args",
 		"ptrace.tracee.args_flags",
 		"ptrace.tracee.args_options",
@@ -34888,6 +36822,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.parent.user_session.k8s_groups",
 		"ptrace.tracee.parent.user_session.k8s_uid",
 		"ptrace.tracee.parent.user_session.k8s_username",
+		"ptrace.tracee.parent.user_session.ssh_host_ip",
+		"ptrace.tracee.parent.user_session.ssh_hostname",
+		"ptrace.tracee.parent.user_session.ssh_username",
 		"ptrace.tracee.pid",
 		"ptrace.tracee.ppid",
 		"ptrace.tracee.tid",
@@ -34897,6 +36834,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.user_session.k8s_groups",
 		"ptrace.tracee.user_session.k8s_uid",
 		"ptrace.tracee.user_session.k8s_username",
+		"ptrace.tracee.user_session.ssh_host_ip",
+		"ptrace.tracee.user_session.ssh_hostname",
+		"ptrace.tracee.user_session.ssh_username",
 		"removexattr.file.change_time",
 		"removexattr.file.destination.name",
 		"removexattr.file.destination.namespace",
@@ -35125,6 +37065,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.ancestors.user_session.k8s_groups",
 		"setrlimit.target.ancestors.user_session.k8s_uid",
 		"setrlimit.target.ancestors.user_session.k8s_username",
+		"setrlimit.target.ancestors.user_session.ssh_host_ip",
+		"setrlimit.target.ancestors.user_session.ssh_hostname",
+		"setrlimit.target.ancestors.user_session.ssh_username",
 		"setrlimit.target.args",
 		"setrlimit.target.args_flags",
 		"setrlimit.target.args_options",
@@ -35310,6 +37253,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.parent.user_session.k8s_groups",
 		"setrlimit.target.parent.user_session.k8s_uid",
 		"setrlimit.target.parent.user_session.k8s_username",
+		"setrlimit.target.parent.user_session.ssh_host_ip",
+		"setrlimit.target.parent.user_session.ssh_hostname",
+		"setrlimit.target.parent.user_session.ssh_username",
 		"setrlimit.target.pid",
 		"setrlimit.target.ppid",
 		"setrlimit.target.tid",
@@ -35319,6 +37265,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.user_session.k8s_groups",
 		"setrlimit.target.user_session.k8s_uid",
 		"setrlimit.target.user_session.k8s_username",
+		"setrlimit.target.user_session.ssh_host_ip",
+		"setrlimit.target.user_session.ssh_hostname",
+		"setrlimit.target.user_session.ssh_username",
 		"setsockopt.filter_hash",
 		"setsockopt.filter_instructions",
 		"setsockopt.filter_len",
@@ -35466,6 +37415,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.ancestors.user_session.k8s_groups",
 		"signal.target.ancestors.user_session.k8s_uid",
 		"signal.target.ancestors.user_session.k8s_username",
+		"signal.target.ancestors.user_session.ssh_host_ip",
+		"signal.target.ancestors.user_session.ssh_hostname",
+		"signal.target.ancestors.user_session.ssh_username",
 		"signal.target.args",
 		"signal.target.args_flags",
 		"signal.target.args_options",
@@ -35651,6 +37603,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.parent.user_session.k8s_groups",
 		"signal.target.parent.user_session.k8s_uid",
 		"signal.target.parent.user_session.k8s_username",
+		"signal.target.parent.user_session.ssh_host_ip",
+		"signal.target.parent.user_session.ssh_hostname",
+		"signal.target.parent.user_session.ssh_username",
 		"signal.target.pid",
 		"signal.target.ppid",
 		"signal.target.tid",
@@ -35660,6 +37615,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.user_session.k8s_groups",
 		"signal.target.user_session.k8s_uid",
 		"signal.target.user_session.k8s_username",
+		"signal.target.user_session.ssh_host_ip",
+		"signal.target.user_session.ssh_hostname",
+		"signal.target.user_session.ssh_username",
 		"signal.type",
 		"splice.file.change_time",
 		"splice.file.extension",
@@ -36336,6 +38294,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "exec", reflect.String, "string", nil
 	case "exec.user_session.k8s_username":
 		return "exec", reflect.String, "string", nil
+	case "exec.user_session.ssh_host_ip":
+		return "exec", reflect.String, "string", nil
+	case "exec.user_session.ssh_hostname":
+		return "exec", reflect.String, "string", nil
+	case "exec.user_session.ssh_username":
+		return "exec", reflect.String, "string", nil
 	case "exit.args":
 		return "exit", reflect.String, "string", nil
 	case "exit.args_flags":
@@ -36533,6 +38497,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "exit.user_session.k8s_uid":
 		return "exit", reflect.String, "string", nil
 	case "exit.user_session.k8s_username":
+		return "exit", reflect.String, "string", nil
+	case "exit.user_session.ssh_host_ip":
+		return "exit", reflect.String, "string", nil
+	case "exit.user_session.ssh_hostname":
+		return "exit", reflect.String, "string", nil
+	case "exit.user_session.ssh_username":
 		return "exit", reflect.String, "string", nil
 	case "imds.aws.is_imds_v2":
 		return "imds", reflect.Bool, "bool", nil
@@ -37052,15 +39022,197 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "packet", reflect.Int, "int", nil
 	case "packet.type":
 		return "packet", reflect.Int, "int", nil
+	case "pam.args":
+		return "pam", reflect.String, "string", nil
+	case "pam.args_flags":
+		return "pam", reflect.String, "string", nil
+	case "pam.args_options":
+		return "pam", reflect.String, "string", nil
+	case "pam.args_truncated":
+		return "pam", reflect.Bool, "bool", nil
+	case "pam.argv":
+		return "pam", reflect.String, "string", nil
+	case "pam.argv0":
+		return "pam", reflect.String, "string", nil
+	case "pam.auid":
+		return "pam", reflect.Int, "int", nil
+	case "pam.cap_effective":
+		return "pam", reflect.Int, "int", nil
+	case "pam.cap_permitted":
+		return "pam", reflect.Int, "int", nil
+	case "pam.caps_attempted":
+		return "pam", reflect.Int, "int", nil
+	case "pam.caps_used":
+		return "pam", reflect.Int, "int", nil
+	case "pam.cgroup.file.inode":
+		return "pam", reflect.Int, "int", nil
+	case "pam.cgroup.file.mount_id":
+		return "pam", reflect.Int, "int", nil
+	case "pam.cgroup.id":
+		return "pam", reflect.String, "string", nil
+	case "pam.cgroup.version":
+		return "pam", reflect.Int, "int", nil
+	case "pam.comm":
+		return "pam", reflect.String, "string", nil
+	case "pam.container.id":
+		return "pam", reflect.String, "string", nil
+	case "pam.created_at":
+		return "pam", reflect.Int, "int", nil
+	case "pam.egid":
+		return "pam", reflect.Int, "int", nil
+	case "pam.egroup":
+		return "pam", reflect.String, "string", nil
+	case "pam.envp":
+		return "pam", reflect.String, "string", nil
+	case "pam.envs":
+		return "pam", reflect.String, "string", nil
+	case "pam.envs_truncated":
+		return "pam", reflect.Bool, "bool", nil
+	case "pam.euid":
+		return "pam", reflect.Int, "int", nil
+	case "pam.euser":
+		return "pam", reflect.String, "string", nil
+	case "pam.file.change_time":
+		return "pam", reflect.Int, "int", nil
+	case "pam.file.extension":
+		return "pam", reflect.String, "string", nil
+	case "pam.file.filesystem":
+		return "pam", reflect.String, "string", nil
+	case "pam.file.gid":
+		return "pam", reflect.Int, "int", nil
+	case "pam.file.group":
+		return "pam", reflect.String, "string", nil
+	case "pam.file.hashes":
+		return "pam", reflect.String, "string", nil
+	case "pam.file.in_upper_layer":
+		return "pam", reflect.Bool, "bool", nil
+	case "pam.file.inode":
+		return "pam", reflect.Int, "int", nil
+	case "pam.file.mode":
+		return "pam", reflect.Int, "int", nil
+	case "pam.file.modification_time":
+		return "pam", reflect.Int, "int", nil
+	case "pam.file.mount_detached":
+		return "pam", reflect.Bool, "bool", nil
+	case "pam.file.mount_id":
+		return "pam", reflect.Int, "int", nil
+	case "pam.file.mount_visible":
+		return "pam", reflect.Bool, "bool", nil
+	case "pam.file.name":
+		return "pam", reflect.String, "string", nil
+	case "pam.file.name.length":
+		return "pam", reflect.Int, "int", nil
+	case "pam.file.package.name":
+		return "pam", reflect.String, "string", nil
+	case "pam.file.package.source_version":
+		return "pam", reflect.String, "string", nil
+	case "pam.file.package.version":
+		return "pam", reflect.String, "string", nil
+	case "pam.file.path":
+		return "pam", reflect.String, "string", nil
+	case "pam.file.path.length":
+		return "pam", reflect.Int, "int", nil
+	case "pam.file.rights":
+		return "pam", reflect.Int, "int", nil
+	case "pam.file.uid":
+		return "pam", reflect.Int, "int", nil
+	case "pam.file.user":
+		return "pam", reflect.String, "string", nil
+	case "pam.fsgid":
+		return "pam", reflect.Int, "int", nil
+	case "pam.fsgroup":
+		return "pam", reflect.String, "string", nil
+	case "pam.fsuid":
+		return "pam", reflect.Int, "int", nil
+	case "pam.fsuser":
+		return "pam", reflect.String, "string", nil
+	case "pam.gid":
+		return "pam", reflect.Int, "int", nil
+	case "pam.group":
+		return "pam", reflect.String, "string", nil
 	case "pam.host_ip":
 		return "pam", reflect.String, "string", nil
 	case "pam.hostname":
 		return "pam", reflect.String, "string", nil
+	case "pam.interpreter.file.change_time":
+		return "pam", reflect.Int, "int", nil
+	case "pam.interpreter.file.extension":
+		return "pam", reflect.String, "string", nil
+	case "pam.interpreter.file.filesystem":
+		return "pam", reflect.String, "string", nil
+	case "pam.interpreter.file.gid":
+		return "pam", reflect.Int, "int", nil
+	case "pam.interpreter.file.group":
+		return "pam", reflect.String, "string", nil
+	case "pam.interpreter.file.hashes":
+		return "pam", reflect.String, "string", nil
+	case "pam.interpreter.file.in_upper_layer":
+		return "pam", reflect.Bool, "bool", nil
+	case "pam.interpreter.file.inode":
+		return "pam", reflect.Int, "int", nil
+	case "pam.interpreter.file.mode":
+		return "pam", reflect.Int, "int", nil
+	case "pam.interpreter.file.modification_time":
+		return "pam", reflect.Int, "int", nil
+	case "pam.interpreter.file.mount_detached":
+		return "pam", reflect.Bool, "bool", nil
+	case "pam.interpreter.file.mount_id":
+		return "pam", reflect.Int, "int", nil
+	case "pam.interpreter.file.mount_visible":
+		return "pam", reflect.Bool, "bool", nil
+	case "pam.interpreter.file.name":
+		return "pam", reflect.String, "string", nil
+	case "pam.interpreter.file.name.length":
+		return "pam", reflect.Int, "int", nil
+	case "pam.interpreter.file.package.name":
+		return "pam", reflect.String, "string", nil
+	case "pam.interpreter.file.package.source_version":
+		return "pam", reflect.String, "string", nil
+	case "pam.interpreter.file.package.version":
+		return "pam", reflect.String, "string", nil
+	case "pam.interpreter.file.path":
+		return "pam", reflect.String, "string", nil
+	case "pam.interpreter.file.path.length":
+		return "pam", reflect.Int, "int", nil
+	case "pam.interpreter.file.rights":
+		return "pam", reflect.Int, "int", nil
+	case "pam.interpreter.file.uid":
+		return "pam", reflect.Int, "int", nil
+	case "pam.interpreter.file.user":
+		return "pam", reflect.String, "string", nil
+	case "pam.is_exec":
+		return "pam", reflect.Bool, "bool", nil
+	case "pam.is_kworker":
+		return "pam", reflect.Bool, "bool", nil
+	case "pam.is_thread":
+		return "pam", reflect.Bool, "bool", nil
+	case "pam.pid":
+		return "pam", reflect.Int, "int", nil
+	case "pam.ppid":
+		return "pam", reflect.Int, "int", nil
 	case "pam.retval":
 		return "pam", reflect.Int, "int", nil
 	case "pam.service":
 		return "pam", reflect.String, "string", nil
+	case "pam.tid":
+		return "pam", reflect.Int, "int", nil
+	case "pam.tty_name":
+		return "pam", reflect.String, "string", nil
+	case "pam.uid":
+		return "pam", reflect.Int, "int", nil
 	case "pam.user":
+		return "pam", reflect.String, "string", nil
+	case "pam.user_session.k8s_groups":
+		return "pam", reflect.String, "string", nil
+	case "pam.user_session.k8s_uid":
+		return "pam", reflect.String, "string", nil
+	case "pam.user_session.k8s_username":
+		return "pam", reflect.String, "string", nil
+	case "pam.user_session.ssh_host_ip":
+		return "pam", reflect.String, "string", nil
+	case "pam.user_session.ssh_hostname":
+		return "pam", reflect.String, "string", nil
+	case "pam.user_session.ssh_username":
 		return "pam", reflect.String, "string", nil
 	case "prctl.is_name_truncated":
 		return "prctl", reflect.Bool, "bool", nil
@@ -37265,6 +39417,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "process.ancestors.user_session.k8s_uid":
 		return "", reflect.String, "string", nil
 	case "process.ancestors.user_session.k8s_username":
+		return "", reflect.String, "string", nil
+	case "process.ancestors.user_session.ssh_host_ip":
+		return "", reflect.String, "string", nil
+	case "process.ancestors.user_session.ssh_hostname":
+		return "", reflect.String, "string", nil
+	case "process.ancestors.user_session.ssh_username":
 		return "", reflect.String, "string", nil
 	case "process.args":
 		return "", reflect.String, "string", nil
@@ -37636,6 +39794,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.String, "string", nil
 	case "process.parent.user_session.k8s_username":
 		return "", reflect.String, "string", nil
+	case "process.parent.user_session.ssh_host_ip":
+		return "", reflect.String, "string", nil
+	case "process.parent.user_session.ssh_hostname":
+		return "", reflect.String, "string", nil
+	case "process.parent.user_session.ssh_username":
+		return "", reflect.String, "string", nil
 	case "process.pid":
 		return "", reflect.Int, "int", nil
 	case "process.ppid":
@@ -37653,6 +39817,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "process.user_session.k8s_uid":
 		return "", reflect.String, "string", nil
 	case "process.user_session.k8s_username":
+		return "", reflect.String, "string", nil
+	case "process.user_session.ssh_host_ip":
+		return "", reflect.String, "string", nil
+	case "process.user_session.ssh_hostname":
+		return "", reflect.String, "string", nil
+	case "process.user_session.ssh_username":
 		return "", reflect.String, "string", nil
 	case "ptrace.request":
 		return "ptrace", reflect.Int, "int", nil
@@ -37853,6 +40023,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "ptrace.tracee.ancestors.user_session.k8s_uid":
 		return "ptrace", reflect.String, "string", nil
 	case "ptrace.tracee.ancestors.user_session.k8s_username":
+		return "ptrace", reflect.String, "string", nil
+	case "ptrace.tracee.ancestors.user_session.ssh_host_ip":
+		return "ptrace", reflect.String, "string", nil
+	case "ptrace.tracee.ancestors.user_session.ssh_hostname":
+		return "ptrace", reflect.String, "string", nil
+	case "ptrace.tracee.ancestors.user_session.ssh_username":
 		return "ptrace", reflect.String, "string", nil
 	case "ptrace.tracee.args":
 		return "ptrace", reflect.String, "string", nil
@@ -38224,6 +40400,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "ptrace", reflect.String, "string", nil
 	case "ptrace.tracee.parent.user_session.k8s_username":
 		return "ptrace", reflect.String, "string", nil
+	case "ptrace.tracee.parent.user_session.ssh_host_ip":
+		return "ptrace", reflect.String, "string", nil
+	case "ptrace.tracee.parent.user_session.ssh_hostname":
+		return "ptrace", reflect.String, "string", nil
+	case "ptrace.tracee.parent.user_session.ssh_username":
+		return "ptrace", reflect.String, "string", nil
 	case "ptrace.tracee.pid":
 		return "ptrace", reflect.Int, "int", nil
 	case "ptrace.tracee.ppid":
@@ -38241,6 +40423,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "ptrace.tracee.user_session.k8s_uid":
 		return "ptrace", reflect.String, "string", nil
 	case "ptrace.tracee.user_session.k8s_username":
+		return "ptrace", reflect.String, "string", nil
+	case "ptrace.tracee.user_session.ssh_host_ip":
+		return "ptrace", reflect.String, "string", nil
+	case "ptrace.tracee.user_session.ssh_hostname":
+		return "ptrace", reflect.String, "string", nil
+	case "ptrace.tracee.user_session.ssh_username":
 		return "ptrace", reflect.String, "string", nil
 	case "removexattr.file.change_time":
 		return "removexattr", reflect.Int, "int", nil
@@ -38698,6 +40886,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setrlimit", reflect.String, "string", nil
 	case "setrlimit.target.ancestors.user_session.k8s_username":
 		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.ancestors.user_session.ssh_host_ip":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.ancestors.user_session.ssh_hostname":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.ancestors.user_session.ssh_username":
+		return "setrlimit", reflect.String, "string", nil
 	case "setrlimit.target.args":
 		return "setrlimit", reflect.String, "string", nil
 	case "setrlimit.target.args_flags":
@@ -39068,6 +41262,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setrlimit", reflect.String, "string", nil
 	case "setrlimit.target.parent.user_session.k8s_username":
 		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.parent.user_session.ssh_host_ip":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.parent.user_session.ssh_hostname":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.parent.user_session.ssh_username":
+		return "setrlimit", reflect.String, "string", nil
 	case "setrlimit.target.pid":
 		return "setrlimit", reflect.Int, "int", nil
 	case "setrlimit.target.ppid":
@@ -39085,6 +41285,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "setrlimit.target.user_session.k8s_uid":
 		return "setrlimit", reflect.String, "string", nil
 	case "setrlimit.target.user_session.k8s_username":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.user_session.ssh_host_ip":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.user_session.ssh_hostname":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.user_session.ssh_username":
 		return "setrlimit", reflect.String, "string", nil
 	case "setsockopt.filter_hash":
 		return "setsockopt", reflect.String, "string", nil
@@ -39379,6 +41585,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "signal.target.ancestors.user_session.k8s_uid":
 		return "signal", reflect.String, "string", nil
 	case "signal.target.ancestors.user_session.k8s_username":
+		return "signal", reflect.String, "string", nil
+	case "signal.target.ancestors.user_session.ssh_host_ip":
+		return "signal", reflect.String, "string", nil
+	case "signal.target.ancestors.user_session.ssh_hostname":
+		return "signal", reflect.String, "string", nil
+	case "signal.target.ancestors.user_session.ssh_username":
 		return "signal", reflect.String, "string", nil
 	case "signal.target.args":
 		return "signal", reflect.String, "string", nil
@@ -39750,6 +41962,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "signal", reflect.String, "string", nil
 	case "signal.target.parent.user_session.k8s_username":
 		return "signal", reflect.String, "string", nil
+	case "signal.target.parent.user_session.ssh_host_ip":
+		return "signal", reflect.String, "string", nil
+	case "signal.target.parent.user_session.ssh_hostname":
+		return "signal", reflect.String, "string", nil
+	case "signal.target.parent.user_session.ssh_username":
+		return "signal", reflect.String, "string", nil
 	case "signal.target.pid":
 		return "signal", reflect.Int, "int", nil
 	case "signal.target.ppid":
@@ -39767,6 +41985,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "signal.target.user_session.k8s_uid":
 		return "signal", reflect.String, "string", nil
 	case "signal.target.user_session.k8s_username":
+		return "signal", reflect.String, "string", nil
+	case "signal.target.user_session.ssh_host_ip":
+		return "signal", reflect.String, "string", nil
+	case "signal.target.user_session.ssh_hostname":
+		return "signal", reflect.String, "string", nil
+	case "signal.target.user_session.ssh_username":
 		return "signal", reflect.String, "string", nil
 	case "signal.type":
 		return "signal", reflect.Int, "int", nil
@@ -40719,6 +42943,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("exec.user_session.k8s_uid", &ev.Exec.Process.UserSession.K8SUID, value)
 	case "exec.user_session.k8s_username":
 		return ev.setStringFieldValue("exec.user_session.k8s_username", &ev.Exec.Process.UserSession.K8SUsername, value)
+	case "exec.user_session.ssh_host_ip":
+		return ev.setStringFieldValue("exec.user_session.ssh_host_ip", &ev.Exec.Process.UserSession.SSHHostIP, value)
+	case "exec.user_session.ssh_hostname":
+		return ev.setStringFieldValue("exec.user_session.ssh_hostname", &ev.Exec.Process.UserSession.SSHHostname, value)
+	case "exec.user_session.ssh_username":
+		return ev.setStringFieldValue("exec.user_session.ssh_username", &ev.Exec.Process.UserSession.SSHUsername, value)
 	case "exit.args":
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
@@ -41318,6 +43548,21 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Exit.Process = &Process{}
 		}
 		return ev.setStringFieldValue("exit.user_session.k8s_username", &ev.Exit.Process.UserSession.K8SUsername, value)
+	case "exit.user_session.ssh_host_ip":
+		if ev.Exit.Process == nil {
+			ev.Exit.Process = &Process{}
+		}
+		return ev.setStringFieldValue("exit.user_session.ssh_host_ip", &ev.Exit.Process.UserSession.SSHHostIP, value)
+	case "exit.user_session.ssh_hostname":
+		if ev.Exit.Process == nil {
+			ev.Exit.Process = &Process{}
+		}
+		return ev.setStringFieldValue("exit.user_session.ssh_hostname", &ev.Exit.Process.UserSession.SSHHostname, value)
+	case "exit.user_session.ssh_username":
+		if ev.Exit.Process == nil {
+			ev.Exit.Process = &Process{}
+		}
+		return ev.setStringFieldValue("exit.user_session.ssh_username", &ev.Exit.Process.UserSession.SSHUsername, value)
 	case "imds.aws.is_imds_v2":
 		return ev.setBoolFieldValue("imds.aws.is_imds_v2", &ev.IMDS.AWS.IsIMDSv2, value)
 	case "imds.aws.security_credentials.type":
@@ -41905,16 +44150,565 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint16FieldValue("packet.tls.version", &ev.RawPacket.TLSContext.Version, value)
 	case "packet.type":
 		return ev.setUint32FieldValue("packet.type", &ev.RawPacket.NetworkContext.Type, value)
+	case "pam.args":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setStringFieldValue("pam.args", &ev.Pam.Process.Args, value)
+	case "pam.args_flags":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setStringArrayFieldValue("pam.args_flags", &ev.Pam.Process.Argv, value)
+	case "pam.args_options":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setStringArrayFieldValue("pam.args_options", &ev.Pam.Process.Argv, value)
+	case "pam.args_truncated":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setBoolFieldValue("pam.args_truncated", &ev.Pam.Process.ArgsTruncated, value)
+	case "pam.argv":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setStringArrayFieldValue("pam.argv", &ev.Pam.Process.Argv, value)
+	case "pam.argv0":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setStringFieldValue("pam.argv0", &ev.Pam.Process.Argv0, value)
+	case "pam.auid":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setUint32FieldValue("pam.auid", &ev.Pam.Process.Credentials.AUID, value)
+	case "pam.cap_effective":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setUint64FieldValue("pam.cap_effective", &ev.Pam.Process.Credentials.CapEffective, value)
+	case "pam.cap_permitted":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setUint64FieldValue("pam.cap_permitted", &ev.Pam.Process.Credentials.CapPermitted, value)
+	case "pam.caps_attempted":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setUint64FieldValue("pam.caps_attempted", &ev.Pam.Process.CapsAttempted, value)
+	case "pam.caps_used":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setUint64FieldValue("pam.caps_used", &ev.Pam.Process.CapsUsed, value)
+	case "pam.cgroup.file.inode":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setUint64FieldValue("pam.cgroup.file.inode", &ev.Pam.Process.CGroup.CGroupFile.Inode, value)
+	case "pam.cgroup.file.mount_id":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setUint32FieldValue("pam.cgroup.file.mount_id", &ev.Pam.Process.CGroup.CGroupFile.MountID, value)
+	case "pam.cgroup.id":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "pam.cgroup.id"}
+		}
+		ev.Pam.Process.CGroup.CGroupID = containerutils.CGroupID(rv)
+		return nil
+	case "pam.cgroup.version":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setIntFieldValue("pam.cgroup.version", &ev.Pam.Process.CGroup.CGroupVersion, value)
+	case "pam.comm":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setStringFieldValue("pam.comm", &ev.Pam.Process.Comm, value)
+	case "pam.container.id":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "pam.container.id"}
+		}
+		ev.Pam.Process.ContainerID = containerutils.ContainerID(rv)
+		return nil
+	case "pam.created_at":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setUint64FieldValue("pam.created_at", &ev.Pam.Process.CreatedAt, value)
+	case "pam.egid":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setUint32FieldValue("pam.egid", &ev.Pam.Process.Credentials.EGID, value)
+	case "pam.egroup":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setStringFieldValue("pam.egroup", &ev.Pam.Process.Credentials.EGroup, value)
+	case "pam.envp":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setStringArrayFieldValue("pam.envp", &ev.Pam.Process.Envp, value)
+	case "pam.envs":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setStringArrayFieldValue("pam.envs", &ev.Pam.Process.Envs, value)
+	case "pam.envs_truncated":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setBoolFieldValue("pam.envs_truncated", &ev.Pam.Process.EnvsTruncated, value)
+	case "pam.euid":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setUint32FieldValue("pam.euid", &ev.Pam.Process.Credentials.EUID, value)
+	case "pam.euser":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setStringFieldValue("pam.euser", &ev.Pam.Process.Credentials.EUser, value)
+	case "pam.file.change_time":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setUint64FieldValue("pam.file.change_time", &ev.Pam.Process.FileEvent.FileFields.CTime, value)
+	case "pam.file.extension":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setStringFieldValue("pam.file.extension", &ev.Pam.Process.FileEvent.Extension, value)
+	case "pam.file.filesystem":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setStringFieldValue("pam.file.filesystem", &ev.Pam.Process.FileEvent.Filesystem, value)
+	case "pam.file.gid":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setUint32FieldValue("pam.file.gid", &ev.Pam.Process.FileEvent.FileFields.GID, value)
+	case "pam.file.group":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setStringFieldValue("pam.file.group", &ev.Pam.Process.FileEvent.FileFields.Group, value)
+	case "pam.file.hashes":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setStringArrayFieldValue("pam.file.hashes", &ev.Pam.Process.FileEvent.Hashes, value)
+	case "pam.file.in_upper_layer":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setBoolFieldValue("pam.file.in_upper_layer", &ev.Pam.Process.FileEvent.FileFields.InUpperLayer, value)
+	case "pam.file.inode":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setUint64FieldValue("pam.file.inode", &ev.Pam.Process.FileEvent.FileFields.PathKey.Inode, value)
+	case "pam.file.mode":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setUint16FieldValue("pam.file.mode", &ev.Pam.Process.FileEvent.FileFields.Mode, value)
+	case "pam.file.modification_time":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setUint64FieldValue("pam.file.modification_time", &ev.Pam.Process.FileEvent.FileFields.MTime, value)
+	case "pam.file.mount_detached":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setBoolFieldValue("pam.file.mount_detached", &ev.Pam.Process.FileEvent.MountDetached, value)
+	case "pam.file.mount_id":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setUint32FieldValue("pam.file.mount_id", &ev.Pam.Process.FileEvent.FileFields.PathKey.MountID, value)
+	case "pam.file.mount_visible":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setBoolFieldValue("pam.file.mount_visible", &ev.Pam.Process.FileEvent.MountVisible, value)
+	case "pam.file.name":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setStringFieldValue("pam.file.name", &ev.Pam.Process.FileEvent.BasenameStr, value)
+	case "pam.file.name.length":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return &eval.ErrFieldReadOnly{Field: "pam.file.name.length"}
+	case "pam.file.package.name":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setStringFieldValue("pam.file.package.name", &ev.Pam.Process.FileEvent.PkgName, value)
+	case "pam.file.package.source_version":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setStringFieldValue("pam.file.package.source_version", &ev.Pam.Process.FileEvent.PkgSrcVersion, value)
+	case "pam.file.package.version":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setStringFieldValue("pam.file.package.version", &ev.Pam.Process.FileEvent.PkgVersion, value)
+	case "pam.file.path":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setStringFieldValue("pam.file.path", &ev.Pam.Process.FileEvent.PathnameStr, value)
+	case "pam.file.path.length":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return &eval.ErrFieldReadOnly{Field: "pam.file.path.length"}
+	case "pam.file.rights":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setUint16FieldValue("pam.file.rights", &ev.Pam.Process.FileEvent.FileFields.Mode, value)
+	case "pam.file.uid":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setUint32FieldValue("pam.file.uid", &ev.Pam.Process.FileEvent.FileFields.UID, value)
+	case "pam.file.user":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setStringFieldValue("pam.file.user", &ev.Pam.Process.FileEvent.FileFields.User, value)
+	case "pam.fsgid":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setUint32FieldValue("pam.fsgid", &ev.Pam.Process.Credentials.FSGID, value)
+	case "pam.fsgroup":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setStringFieldValue("pam.fsgroup", &ev.Pam.Process.Credentials.FSGroup, value)
+	case "pam.fsuid":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setUint32FieldValue("pam.fsuid", &ev.Pam.Process.Credentials.FSUID, value)
+	case "pam.fsuser":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setStringFieldValue("pam.fsuser", &ev.Pam.Process.Credentials.FSUser, value)
+	case "pam.gid":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setUint32FieldValue("pam.gid", &ev.Pam.Process.Credentials.GID, value)
+	case "pam.group":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setStringFieldValue("pam.group", &ev.Pam.Process.Credentials.Group, value)
 	case "pam.host_ip":
 		return ev.setStringFieldValue("pam.host_ip", &ev.Pam.HostIP, value)
 	case "pam.hostname":
 		return ev.setStringFieldValue("pam.hostname", &ev.Pam.Hostname, value)
+	case "pam.interpreter.file.change_time":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Pam.Process.LinuxBinprm, "file.change_time", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setUint64FieldValue("pam.interpreter.file.change_time", &ev.Pam.Process.LinuxBinprm.FileEvent.FileFields.CTime, value)
+	case "pam.interpreter.file.extension":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Pam.Process.LinuxBinprm, "file.extension", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("pam.interpreter.file.extension", &ev.Pam.Process.LinuxBinprm.FileEvent.Extension, value)
+	case "pam.interpreter.file.filesystem":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Pam.Process.LinuxBinprm, "file.filesystem", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("pam.interpreter.file.filesystem", &ev.Pam.Process.LinuxBinprm.FileEvent.Filesystem, value)
+	case "pam.interpreter.file.gid":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Pam.Process.LinuxBinprm, "file.gid", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setUint32FieldValue("pam.interpreter.file.gid", &ev.Pam.Process.LinuxBinprm.FileEvent.FileFields.GID, value)
+	case "pam.interpreter.file.group":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Pam.Process.LinuxBinprm, "file.group", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("pam.interpreter.file.group", &ev.Pam.Process.LinuxBinprm.FileEvent.FileFields.Group, value)
+	case "pam.interpreter.file.hashes":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Pam.Process.LinuxBinprm, "file.hashes", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringArrayFieldValue("pam.interpreter.file.hashes", &ev.Pam.Process.LinuxBinprm.FileEvent.Hashes, value)
+	case "pam.interpreter.file.in_upper_layer":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Pam.Process.LinuxBinprm, "file.in_upper_layer", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setBoolFieldValue("pam.interpreter.file.in_upper_layer", &ev.Pam.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer, value)
+	case "pam.interpreter.file.inode":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Pam.Process.LinuxBinprm, "file.inode", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setUint64FieldValue("pam.interpreter.file.inode", &ev.Pam.Process.LinuxBinprm.FileEvent.FileFields.PathKey.Inode, value)
+	case "pam.interpreter.file.mode":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Pam.Process.LinuxBinprm, "file.mode", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setUint16FieldValue("pam.interpreter.file.mode", &ev.Pam.Process.LinuxBinprm.FileEvent.FileFields.Mode, value)
+	case "pam.interpreter.file.modification_time":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Pam.Process.LinuxBinprm, "file.modification_time", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setUint64FieldValue("pam.interpreter.file.modification_time", &ev.Pam.Process.LinuxBinprm.FileEvent.FileFields.MTime, value)
+	case "pam.interpreter.file.mount_detached":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Pam.Process.LinuxBinprm, "file.mount_detached", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setBoolFieldValue("pam.interpreter.file.mount_detached", &ev.Pam.Process.LinuxBinprm.FileEvent.MountDetached, value)
+	case "pam.interpreter.file.mount_id":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Pam.Process.LinuxBinprm, "file.mount_id", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setUint32FieldValue("pam.interpreter.file.mount_id", &ev.Pam.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID, value)
+	case "pam.interpreter.file.mount_visible":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Pam.Process.LinuxBinprm, "file.mount_visible", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setBoolFieldValue("pam.interpreter.file.mount_visible", &ev.Pam.Process.LinuxBinprm.FileEvent.MountVisible, value)
+	case "pam.interpreter.file.name":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Pam.Process.LinuxBinprm, "file.name", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("pam.interpreter.file.name", &ev.Pam.Process.LinuxBinprm.FileEvent.BasenameStr, value)
+	case "pam.interpreter.file.name.length":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return &eval.ErrFieldReadOnly{Field: "pam.interpreter.file.name.length"}
+	case "pam.interpreter.file.package.name":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Pam.Process.LinuxBinprm, "file.package.name", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("pam.interpreter.file.package.name", &ev.Pam.Process.LinuxBinprm.FileEvent.PkgName, value)
+	case "pam.interpreter.file.package.source_version":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Pam.Process.LinuxBinprm, "file.package.source_version", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("pam.interpreter.file.package.source_version", &ev.Pam.Process.LinuxBinprm.FileEvent.PkgSrcVersion, value)
+	case "pam.interpreter.file.package.version":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Pam.Process.LinuxBinprm, "file.package.version", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("pam.interpreter.file.package.version", &ev.Pam.Process.LinuxBinprm.FileEvent.PkgVersion, value)
+	case "pam.interpreter.file.path":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Pam.Process.LinuxBinprm, "file.path", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("pam.interpreter.file.path", &ev.Pam.Process.LinuxBinprm.FileEvent.PathnameStr, value)
+	case "pam.interpreter.file.path.length":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return &eval.ErrFieldReadOnly{Field: "pam.interpreter.file.path.length"}
+	case "pam.interpreter.file.rights":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Pam.Process.LinuxBinprm, "file.rights", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setUint16FieldValue("pam.interpreter.file.rights", &ev.Pam.Process.LinuxBinprm.FileEvent.FileFields.Mode, value)
+	case "pam.interpreter.file.uid":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Pam.Process.LinuxBinprm, "file.uid", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setUint32FieldValue("pam.interpreter.file.uid", &ev.Pam.Process.LinuxBinprm.FileEvent.FileFields.UID, value)
+	case "pam.interpreter.file.user":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Pam.Process.LinuxBinprm, "file.user", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("pam.interpreter.file.user", &ev.Pam.Process.LinuxBinprm.FileEvent.FileFields.User, value)
+	case "pam.is_exec":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setBoolFieldValue("pam.is_exec", &ev.Pam.Process.IsExec, value)
+	case "pam.is_kworker":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setBoolFieldValue("pam.is_kworker", &ev.Pam.Process.PIDContext.IsKworker, value)
+	case "pam.is_thread":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setBoolFieldValue("pam.is_thread", &ev.Pam.Process.IsThread, value)
+	case "pam.pid":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setUint32FieldValue("pam.pid", &ev.Pam.Process.PIDContext.Pid, value)
+	case "pam.ppid":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setUint32FieldValue("pam.ppid", &ev.Pam.Process.PPid, value)
 	case "pam.retval":
 		return ev.setInt64FieldValue("pam.retval", &ev.Pam.SyscallEvent.Retval, value)
 	case "pam.service":
 		return ev.setStringFieldValue("pam.service", &ev.Pam.Service, value)
+	case "pam.tid":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setUint32FieldValue("pam.tid", &ev.Pam.Process.PIDContext.Tid, value)
+	case "pam.tty_name":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setStringFieldValue("pam.tty_name", &ev.Pam.Process.TTYName, value)
+	case "pam.uid":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setUint32FieldValue("pam.uid", &ev.Pam.Process.Credentials.UID, value)
 	case "pam.user":
 		return ev.setStringFieldValue("pam.user", &ev.Pam.User, value)
+	case "pam.user_session.k8s_groups":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setStringArrayFieldValue("pam.user_session.k8s_groups", &ev.Pam.Process.UserSession.K8SGroups, value)
+	case "pam.user_session.k8s_uid":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setStringFieldValue("pam.user_session.k8s_uid", &ev.Pam.Process.UserSession.K8SUID, value)
+	case "pam.user_session.k8s_username":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setStringFieldValue("pam.user_session.k8s_username", &ev.Pam.Process.UserSession.K8SUsername, value)
+	case "pam.user_session.ssh_host_ip":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setStringFieldValue("pam.user_session.ssh_host_ip", &ev.Pam.Process.UserSession.SSHHostIP, value)
+	case "pam.user_session.ssh_hostname":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setStringFieldValue("pam.user_session.ssh_hostname", &ev.Pam.Process.UserSession.SSHHostname, value)
+	case "pam.user_session.ssh_username":
+		if ev.Pam.Process == nil {
+			ev.Pam.Process = &Process{}
+		}
+		return ev.setStringFieldValue("pam.user_session.ssh_username", &ev.Pam.Process.UserSession.SSHUsername, value)
 	case "prctl.is_name_truncated":
 		return ev.setBoolFieldValue("prctl.is_name_truncated", &ev.PrCtl.IsNameTruncated, value)
 	case "prctl.new_name":
@@ -42229,6 +45023,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("process.ancestors.user_session.k8s_uid", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.UserSession.K8SUID, value)
 	case "process.ancestors.user_session.k8s_username":
 		return ev.setStringFieldValue("process.ancestors.user_session.k8s_username", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.UserSession.K8SUsername, value)
+	case "process.ancestors.user_session.ssh_host_ip":
+		return ev.setStringFieldValue("process.ancestors.user_session.ssh_host_ip", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.UserSession.SSHHostIP, value)
+	case "process.ancestors.user_session.ssh_hostname":
+		return ev.setStringFieldValue("process.ancestors.user_session.ssh_hostname", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.UserSession.SSHHostname, value)
+	case "process.ancestors.user_session.ssh_username":
+		return ev.setStringFieldValue("process.ancestors.user_session.ssh_username", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.UserSession.SSHUsername, value)
 	case "process.args":
 		return ev.setStringFieldValue("process.args", &ev.BaseEvent.ProcessContext.Process.Args, value)
 	case "process.args_flags":
@@ -42819,6 +45619,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("process.parent.user_session.k8s_uid", &ev.BaseEvent.ProcessContext.Parent.UserSession.K8SUID, value)
 	case "process.parent.user_session.k8s_username":
 		return ev.setStringFieldValue("process.parent.user_session.k8s_username", &ev.BaseEvent.ProcessContext.Parent.UserSession.K8SUsername, value)
+	case "process.parent.user_session.ssh_host_ip":
+		return ev.setStringFieldValue("process.parent.user_session.ssh_host_ip", &ev.BaseEvent.ProcessContext.Parent.UserSession.SSHHostIP, value)
+	case "process.parent.user_session.ssh_hostname":
+		return ev.setStringFieldValue("process.parent.user_session.ssh_hostname", &ev.BaseEvent.ProcessContext.Parent.UserSession.SSHHostname, value)
+	case "process.parent.user_session.ssh_username":
+		return ev.setStringFieldValue("process.parent.user_session.ssh_username", &ev.BaseEvent.ProcessContext.Parent.UserSession.SSHUsername, value)
 	case "process.pid":
 		return ev.setUint32FieldValue("process.pid", &ev.BaseEvent.ProcessContext.Process.PIDContext.Pid, value)
 	case "process.ppid":
@@ -42837,6 +45643,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("process.user_session.k8s_uid", &ev.BaseEvent.ProcessContext.Process.UserSession.K8SUID, value)
 	case "process.user_session.k8s_username":
 		return ev.setStringFieldValue("process.user_session.k8s_username", &ev.BaseEvent.ProcessContext.Process.UserSession.K8SUsername, value)
+	case "process.user_session.ssh_host_ip":
+		return ev.setStringFieldValue("process.user_session.ssh_host_ip", &ev.BaseEvent.ProcessContext.Process.UserSession.SSHHostIP, value)
+	case "process.user_session.ssh_hostname":
+		return ev.setStringFieldValue("process.user_session.ssh_hostname", &ev.BaseEvent.ProcessContext.Process.UserSession.SSHHostname, value)
+	case "process.user_session.ssh_username":
+		return ev.setStringFieldValue("process.user_session.ssh_username", &ev.BaseEvent.ProcessContext.Process.UserSession.SSHUsername, value)
 	case "ptrace.request":
 		return ev.setUint32FieldValue("ptrace.request", &ev.PTrace.Request, value)
 	case "ptrace.retval":
@@ -43735,6 +46547,30 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
 		return ev.setStringFieldValue("ptrace.tracee.ancestors.user_session.k8s_username", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.UserSession.K8SUsername, value)
+	case "ptrace.tracee.ancestors.user_session.ssh_host_ip":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Ancestor == nil {
+			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setStringFieldValue("ptrace.tracee.ancestors.user_session.ssh_host_ip", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.UserSession.SSHHostIP, value)
+	case "ptrace.tracee.ancestors.user_session.ssh_hostname":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Ancestor == nil {
+			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setStringFieldValue("ptrace.tracee.ancestors.user_session.ssh_hostname", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.UserSession.SSHHostname, value)
+	case "ptrace.tracee.ancestors.user_session.ssh_username":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Ancestor == nil {
+			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setStringFieldValue("ptrace.tracee.ancestors.user_session.ssh_username", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.UserSession.SSHUsername, value)
 	case "ptrace.tracee.args":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -45171,6 +48007,30 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
 		return ev.setStringFieldValue("ptrace.tracee.parent.user_session.k8s_username", &ev.PTrace.Tracee.Parent.UserSession.K8SUsername, value)
+	case "ptrace.tracee.parent.user_session.ssh_host_ip":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Parent == nil {
+			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		return ev.setStringFieldValue("ptrace.tracee.parent.user_session.ssh_host_ip", &ev.PTrace.Tracee.Parent.UserSession.SSHHostIP, value)
+	case "ptrace.tracee.parent.user_session.ssh_hostname":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Parent == nil {
+			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		return ev.setStringFieldValue("ptrace.tracee.parent.user_session.ssh_hostname", &ev.PTrace.Tracee.Parent.UserSession.SSHHostname, value)
+	case "ptrace.tracee.parent.user_session.ssh_username":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Parent == nil {
+			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		return ev.setStringFieldValue("ptrace.tracee.parent.user_session.ssh_username", &ev.PTrace.Tracee.Parent.UserSession.SSHUsername, value)
 	case "ptrace.tracee.pid":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -45216,6 +48076,21 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.PTrace.Tracee = &ProcessContext{}
 		}
 		return ev.setStringFieldValue("ptrace.tracee.user_session.k8s_username", &ev.PTrace.Tracee.Process.UserSession.K8SUsername, value)
+	case "ptrace.tracee.user_session.ssh_host_ip":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		return ev.setStringFieldValue("ptrace.tracee.user_session.ssh_host_ip", &ev.PTrace.Tracee.Process.UserSession.SSHHostIP, value)
+	case "ptrace.tracee.user_session.ssh_hostname":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		return ev.setStringFieldValue("ptrace.tracee.user_session.ssh_hostname", &ev.PTrace.Tracee.Process.UserSession.SSHHostname, value)
+	case "ptrace.tracee.user_session.ssh_username":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		return ev.setStringFieldValue("ptrace.tracee.user_session.ssh_username", &ev.PTrace.Tracee.Process.UserSession.SSHUsername, value)
 	case "removexattr.file.change_time":
 		return ev.setUint64FieldValue("removexattr.file.change_time", &ev.RemoveXAttr.File.FileFields.CTime, value)
 	case "removexattr.file.destination.name":
@@ -46370,6 +49245,30 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
 		}
 		return ev.setStringFieldValue("setrlimit.target.ancestors.user_session.k8s_username", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.UserSession.K8SUsername, value)
+	case "setrlimit.target.ancestors.user_session.ssh_host_ip":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setStringFieldValue("setrlimit.target.ancestors.user_session.ssh_host_ip", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.UserSession.SSHHostIP, value)
+	case "setrlimit.target.ancestors.user_session.ssh_hostname":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setStringFieldValue("setrlimit.target.ancestors.user_session.ssh_hostname", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.UserSession.SSHHostname, value)
+	case "setrlimit.target.ancestors.user_session.ssh_username":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setStringFieldValue("setrlimit.target.ancestors.user_session.ssh_username", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.UserSession.SSHUsername, value)
 	case "setrlimit.target.args":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -47806,6 +50705,30 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target.Parent = &Process{}
 		}
 		return ev.setStringFieldValue("setrlimit.target.parent.user_session.k8s_username", &ev.Setrlimit.Target.Parent.UserSession.K8SUsername, value)
+	case "setrlimit.target.parent.user_session.ssh_host_ip":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		return ev.setStringFieldValue("setrlimit.target.parent.user_session.ssh_host_ip", &ev.Setrlimit.Target.Parent.UserSession.SSHHostIP, value)
+	case "setrlimit.target.parent.user_session.ssh_hostname":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		return ev.setStringFieldValue("setrlimit.target.parent.user_session.ssh_hostname", &ev.Setrlimit.Target.Parent.UserSession.SSHHostname, value)
+	case "setrlimit.target.parent.user_session.ssh_username":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		return ev.setStringFieldValue("setrlimit.target.parent.user_session.ssh_username", &ev.Setrlimit.Target.Parent.UserSession.SSHUsername, value)
 	case "setrlimit.target.pid":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -47851,6 +50774,21 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target = &ProcessContext{}
 		}
 		return ev.setStringFieldValue("setrlimit.target.user_session.k8s_username", &ev.Setrlimit.Target.Process.UserSession.K8SUsername, value)
+	case "setrlimit.target.user_session.ssh_host_ip":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		return ev.setStringFieldValue("setrlimit.target.user_session.ssh_host_ip", &ev.Setrlimit.Target.Process.UserSession.SSHHostIP, value)
+	case "setrlimit.target.user_session.ssh_hostname":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		return ev.setStringFieldValue("setrlimit.target.user_session.ssh_hostname", &ev.Setrlimit.Target.Process.UserSession.SSHHostname, value)
+	case "setrlimit.target.user_session.ssh_username":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		return ev.setStringFieldValue("setrlimit.target.user_session.ssh_username", &ev.Setrlimit.Target.Process.UserSession.SSHUsername, value)
 	case "setsockopt.filter_hash":
 		return ev.setStringFieldValue("setsockopt.filter_hash", &ev.SetSockOpt.FilterHash, value)
 	case "setsockopt.filter_instructions":
@@ -48853,6 +51791,30 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
 		return ev.setStringFieldValue("signal.target.ancestors.user_session.k8s_username", &ev.Signal.Target.Ancestor.ProcessContext.Process.UserSession.K8SUsername, value)
+	case "signal.target.ancestors.user_session.ssh_host_ip":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Ancestor == nil {
+			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setStringFieldValue("signal.target.ancestors.user_session.ssh_host_ip", &ev.Signal.Target.Ancestor.ProcessContext.Process.UserSession.SSHHostIP, value)
+	case "signal.target.ancestors.user_session.ssh_hostname":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Ancestor == nil {
+			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setStringFieldValue("signal.target.ancestors.user_session.ssh_hostname", &ev.Signal.Target.Ancestor.ProcessContext.Process.UserSession.SSHHostname, value)
+	case "signal.target.ancestors.user_session.ssh_username":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Ancestor == nil {
+			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setStringFieldValue("signal.target.ancestors.user_session.ssh_username", &ev.Signal.Target.Ancestor.ProcessContext.Process.UserSession.SSHUsername, value)
 	case "signal.target.args":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -50289,6 +53251,30 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target.Parent = &Process{}
 		}
 		return ev.setStringFieldValue("signal.target.parent.user_session.k8s_username", &ev.Signal.Target.Parent.UserSession.K8SUsername, value)
+	case "signal.target.parent.user_session.ssh_host_ip":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Parent == nil {
+			ev.Signal.Target.Parent = &Process{}
+		}
+		return ev.setStringFieldValue("signal.target.parent.user_session.ssh_host_ip", &ev.Signal.Target.Parent.UserSession.SSHHostIP, value)
+	case "signal.target.parent.user_session.ssh_hostname":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Parent == nil {
+			ev.Signal.Target.Parent = &Process{}
+		}
+		return ev.setStringFieldValue("signal.target.parent.user_session.ssh_hostname", &ev.Signal.Target.Parent.UserSession.SSHHostname, value)
+	case "signal.target.parent.user_session.ssh_username":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Parent == nil {
+			ev.Signal.Target.Parent = &Process{}
+		}
+		return ev.setStringFieldValue("signal.target.parent.user_session.ssh_username", &ev.Signal.Target.Parent.UserSession.SSHUsername, value)
 	case "signal.target.pid":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -50334,6 +53320,21 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target = &ProcessContext{}
 		}
 		return ev.setStringFieldValue("signal.target.user_session.k8s_username", &ev.Signal.Target.Process.UserSession.K8SUsername, value)
+	case "signal.target.user_session.ssh_host_ip":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		return ev.setStringFieldValue("signal.target.user_session.ssh_host_ip", &ev.Signal.Target.Process.UserSession.SSHHostIP, value)
+	case "signal.target.user_session.ssh_hostname":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		return ev.setStringFieldValue("signal.target.user_session.ssh_hostname", &ev.Signal.Target.Process.UserSession.SSHHostname, value)
+	case "signal.target.user_session.ssh_username":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		return ev.setStringFieldValue("signal.target.user_session.ssh_username", &ev.Signal.Target.Process.UserSession.SSHUsername, value)
 	case "signal.type":
 		return ev.setUint32FieldValue("signal.type", &ev.Signal.Type, value)
 	case "splice.file.change_time":

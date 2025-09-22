@@ -11,6 +11,7 @@ package usersessions
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/cilium/ebpf"
@@ -86,7 +87,6 @@ func (r *Resolver) ResolveUserSession(id uint64) *model.UserSessionContext {
 	if id == 0 {
 		return nil
 	}
-
 	r.Lock()
 	defer r.Unlock()
 
@@ -100,6 +100,7 @@ func (r *Resolver) ResolveUserSession(id uint64) *model.UserSessionContext {
 		ID:     id,
 		Cursor: 1,
 	}
+	fmt.Print("CHECK2\n")
 
 	value := UserSessionData{}
 	err := r.userSessionsMap.Lookup(&key, &value)
@@ -107,6 +108,7 @@ func (r *Resolver) ResolveUserSession(id uint64) *model.UserSessionContext {
 		key.Cursor++
 		err = r.userSessionsMap.Lookup(&key, &value)
 	}
+	fmt.Print("LOOKUP\n")
 	if key.Cursor == 1 && err != nil {
 		// the session doesn't exist, leave now
 		return nil
@@ -116,13 +118,20 @@ func (r *Resolver) ResolveUserSession(id uint64) *model.UserSessionContext {
 		ID:          id,
 		SessionType: value.SessionType,
 	}
-	// parse the content of the user session context
-	err = json.Unmarshal([]byte(value.RawData), ctx)
-	if err != nil {
-		seclog.Debugf("failed to parse user session data: %v", err)
-		return nil
+	if value.SessionType == 1 {
+		// parse the content of the user session context
+		err = json.Unmarshal([]byte(value.RawData), ctx)
+		if err != nil {
+			seclog.Debugf("failed to parse user session data: %v", err)
+			return nil
+		}
 	}
-
+	if value.SessionType == 2 {
+		fmt.Printf("SSH session: %s %s\n", value.RawData[0:32], value.RawData[32:64])
+		ctx.SSHUsername = strings.TrimRight(string(value.RawData[0:32]), "\x00")
+		ctx.SSHHostIP = strings.TrimRight(string(value.RawData[32:48]), "\x00")
+		fmt.Printf("SSH session: %s %s\n", ctx.SSHUsername, ctx.SSHHostIP)
+	}
 	ctx.Resolved = true
 
 	// cache resolved context

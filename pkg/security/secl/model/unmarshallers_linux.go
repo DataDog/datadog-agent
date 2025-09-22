@@ -213,6 +213,7 @@ func (e *Process) UnmarshalProcEntryBinary(data []byte) (int, error) {
 func (e *Process) UnmarshalPidCacheBinary(data []byte) (int, error) {
 	const size = 88
 	if len(data) < size {
+		fmt.Printf("CHECK3 len(data) = %d\n", len(data))
 		return 0, ErrNotEnoughData
 	}
 
@@ -226,10 +227,11 @@ func (e *Process) UnmarshalPidCacheBinary(data []byte) (int, error) {
 	e.PPid = binary.NativeEndian.Uint32(data[8:12])
 
 	// padding
-
 	e.ForkTime = unmarshalTime(data[16:24])
 	e.ExitTime = unmarshalTime(data[24:32])
 	e.UserSession.ID = binary.NativeEndian.Uint64(data[32:40])
+	fmt.Printf("CHECK3 : e.UserSession.ID = %d, e.PID = %d\n", e.UserSession.ID, e.Pid)
+	fmt.Printf("CHECK3 All data = %v\n", data)
 
 	// Unmarshal the credentials contained in pid_cache_t
 	read, err := UnmarshalBinary(data[40:], &e.Credentials)

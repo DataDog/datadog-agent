@@ -307,6 +307,10 @@ type UserSessionContext struct {
 	K8SUID      string              `field:"k8s_uid,handler:ResolveK8SUID" json:"uid,omitempty"`                // SECLDoc[k8s_uid] Definition:`Kubernetes UID of the user that executed the process`
 	K8SGroups   []string            `field:"k8s_groups,handler:ResolveK8SGroups" json:"groups,omitempty"`       // SECLDoc[k8s_groups] Definition:`Kubernetes groups of the user that executed the process`
 	K8SExtra    map[string][]string `json:"extra,omitempty"`
+	// SSH User Session context
+	SSHUsername string `field:"ssh_username,handler:ResolveSSHUsername"` // SECLDoc[ssh_username] Definition:`SSH username of the user that executed the process`
+	SSHHostIP   string `field:"ssh_host_ip,handler:ResolveSSHHostIP"`    // SECLDoc[ssh_host_ip] Definition:`SSH host IP of the user that executed the process`
+	SSHHostname string `field:"ssh_hostname,handler:ResolveSSHHostname"` // SECLDoc[ssh_hostname] Definition:`SSH host name of the user that executed the process`
 }
 
 // MatchedRule contains the identification of one rule that has match

@@ -1034,3 +1034,21 @@ func (fh *EBPFFieldHandlers) ResolveCapabilitiesUsed(evt *model.Event, ce *model
 	}
 	return usedCapabilities
 }
+
+// ResolveSSHUsername resolves the ssh username of the event
+func (fh *EBPFFieldHandlers) ResolveSSHUsername(e *model.Event, evtCtx *model.UserSessionContext) string {
+	fh.ResolveUserSessionContext(evtCtx)
+	return evtCtx.SSHUsername
+}
+
+// ResolveSSHHostIP resolves the ssh username of the event
+func (fh *EBPFFieldHandlers) ResolveSSHHostIP(_ *model.Event, evtCtx *model.UserSessionContext) string {
+	fh.ResolveUserSessionContext(evtCtx)
+	return evtCtx.SSHHostIP
+}
+
+// ResolveSSHHostname resolves the ssh username of the event
+func (fh *EBPFFieldHandlers) ResolveSSHHostname(_ *model.Event, evtCtx *model.UserSessionContext) string {
+	fh.ResolveUserSessionContext(evtCtx)
+	return evtCtx.SSHHostIP
+}

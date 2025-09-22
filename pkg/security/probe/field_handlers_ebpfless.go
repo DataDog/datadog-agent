@@ -620,3 +620,18 @@ func (fh *EBPFLessFieldHandlers) ResolveCapabilitiesAttempted(_ *model.Event, _ 
 func (fh *EBPFLessFieldHandlers) ResolveCapabilitiesUsed(_ *model.Event, _ *model.CapabilitiesEvent) int {
 	return 0 // EBPFLess mode does not support capabilities usage reporting, so we return 0
 }
+
+// ResolveSSHUsername resolves the ssh username of the event
+func (fh *EBPFLessFieldHandlers) ResolveSSHUsername(_ *model.Event, _ *model.UserSessionContext) string {
+	return "" // EBPFLess mode does not support ssh usage reporting, so we return ""
+}
+
+// ResolveSSHHostIP resolves the ssh username of the event
+func (fh *EBPFLessFieldHandlers) ResolveSSHHostIP(_ *model.Event, _ *model.UserSessionContext) string {
+	return "" // EBPFLess mode does not support ssh usage reporting, so we return ""
+}
+
+// ResolveSSHHostname resolves the ssh hostname of the event
+func (fh *EBPFLessFieldHandlers) ResolveSSHHostname(_ *model.Event, _ *model.UserSessionContext) string {
+	return "" // EBPFLess mode does not support ssh usage reporting, so we return ""
+}

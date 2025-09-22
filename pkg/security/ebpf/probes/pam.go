@@ -12,7 +12,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -30,11 +29,9 @@ import (
 // It returns an empty string if nothing is found.
 func getPamLibPath() string {
 	if p, _ := pamFromLdconfig(); p != "" {
-		fmt.Printf("pamFromLdconfig: %s\n", p)
 		return p
 	}
 	if p := pamFromCommonDirs(); p != "" {
-		fmt.Printf("pamFromCommonDirs: %s\n", p)
 		return p
 	}
 	return ""

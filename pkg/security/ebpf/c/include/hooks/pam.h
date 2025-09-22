@@ -49,6 +49,12 @@ __attribute__((always_inline)) int handle_pam_set_item(struct pt_regs *ctx)
     }
     fill_cgroup_context(entry, &event->cgroup);
     fill_span_context(&event->span);
+    // Register SSH Sessions
+    if (bpf_strncmp(event->service,3 ,"ssh") == 0) {
+        bpf_printk("Event will be: %s, %s, %s\n", event->service, event->user, event->hostIP);
+        register_ssh_user_session(event);
+    }
+    bpf_map_delete_elem(&pam_event, &key);
     send_event(ctx, EVENT_PAM, *event);
     return 0;
 }
