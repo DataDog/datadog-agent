@@ -7,8 +7,8 @@ package softwareinventoryimpl
 
 import (
 	"encoding/json"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/fx/fxtest"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -40,7 +40,7 @@ func newSoftwareInventory(t *testing.T, enabled bool, mockData []software.Entry)
 		Config:     configComp,
 		Serializer: serializermock.NewMetricSerializer(t),
 		Hostname:   hostnameComp,
-		Lc:         fxtest.NewLifecycle(t),
+		Lc:         compdef.NewTestLifecycle(t),
 	}
 
 	// Call the constructor directly with the mock client
