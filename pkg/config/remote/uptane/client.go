@@ -132,7 +132,7 @@ func newCoreAgentClient(transactionalStore *transactionalStore, orgUUIDProvider 
 
 // NewCoreAgentClienWithNewTransactionalStore creates a new uptane client with a new transactional store
 func NewCoreAgentClienWithNewTransactionalStore(dbMetadata *Metadata, orgUUIDProvider OrgUUIDProvider, options ...ClientOption) (c *CoreAgentClient, err error) {
-	transactionalStore, err := NewTransactionalStore(dbMetadata)
+	transactionalStore, err := newTransactionalStore(dbMetadata)
 	if err != nil {
 		return nil, err
 	}
@@ -142,7 +142,7 @@ func NewCoreAgentClienWithNewTransactionalStore(dbMetadata *Metadata, orgUUIDPro
 
 // NewCoreAgentClienWithRecreatedTransactionalStore creates a new uptane client with a recreated transactional store
 func NewCoreAgentClienWithRecreatedTransactionalStore(dbMetadata *Metadata, orgUUIDProvider OrgUUIDProvider, options ...ClientOption) (c *CoreAgentClient, err error) {
-	transactionalStore, err := RecreateTransactionalStore(dbMetadata)
+	transactionalStore, err := recreateTransactionalStore(dbMetadata)
 	if err != nil {
 		return nil, err
 	}
@@ -205,7 +205,7 @@ func (c *CoreAgentClient) updateRepos(response *pbgo.LatestConfigsResponse) erro
 
 // NewCDNClient creates a new uptane client that will fetch the latest configs from the server over HTTP(s)
 func NewCDNClient(dbMetadata *Metadata, options ...ClientOption) (c *CDNClient, err error) {
-	transactionalStore, err := NewTransactionalStore(dbMetadata)
+	transactionalStore, err := newTransactionalStore(dbMetadata)
 	if err != nil {
 		return nil, err
 	}

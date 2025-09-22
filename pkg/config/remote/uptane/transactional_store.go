@@ -48,7 +48,7 @@ type Metadata struct {
 }
 
 // NewTransactionalStore creates a new transactional store comprised of creating the underlying boltDB
-func NewTransactionalStore(metadata *Metadata) (*transactionalStore, error) {
+func newTransactionalStore(metadata *Metadata) (*transactionalStore, error) {
 	// transactional store should be in charge of opening/closing boltDB
 	db, err := openCacheDB(metadata.Path, metadata.AgentVersion, metadata.APIKey, metadata.URL)
 	if err != nil {
@@ -63,7 +63,7 @@ func NewTransactionalStore(metadata *Metadata) (*transactionalStore, error) {
 }
 
 // RecreateTransactionalStore uses the metadata & path from the existing TS boltDB to open a new one & clear cachedData
-func RecreateTransactionalStore(metadata *Metadata) (*transactionalStore, error) {
+func recreateTransactionalStore(metadata *Metadata) (*transactionalStore, error) {
 	db, err := recreate(metadata.Path, metadata.AgentVersion, metadata.APIKey, metadata.URL)
 	if err != nil {
 		db.Close()
