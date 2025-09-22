@@ -174,7 +174,6 @@ func computeFingerPrintByBytes(fpFile *os.File, filePath string, fingerprintConf
 	// Check if we have enough bytes to create a meaningful fingerprint
 	if bytesRead == 0 || bytesRead < maxBytes {
 		// Return insufficient data fingerprint for partial files (allows continued tailing)
-		log.Debugf("Insufficient data (%d bytes) for fingerprinting file %q", bytesRead, filePath)
 		return newInsufficientDataFingerprint(fingerprintConfig), nil
 	}
 
@@ -225,7 +224,6 @@ func computeFingerPrintByLines(fpFile *os.File, filePath string, fingerprintConf
 			}
 			// Check if we have enough data for fingerprinting
 			// We need either enough lines OR enough bytes to create a meaningful fingerprint
-			log.Debugf("Not enough data for fingerprinting file %q", filePath)
 			return newInsufficientDataFingerprint(fingerprintConfig), nil
 
 		}
