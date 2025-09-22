@@ -181,6 +181,9 @@ def get_common_ancestor(ctx, branch, base=None, try_fetch=True, hide=True) -> st
         The common ancestor between two branches.
     """
 
+    if (gh := use_api()):
+        return gh.repo.compare(base, branch).merge_base_commit.sha
+
     base = base or get_default_branch()
     base = get_full_ref_name(base)
     branch = get_full_ref_name(branch)
