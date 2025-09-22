@@ -95,6 +95,15 @@ func (c *publisherMetadataCache) flushOldestEntry() {
 	}
 }
 
+func (c *publisherMetadataCache) isMetadataHandleValid(handle evtapi.EventPublisherMetadataHandle) bool {
+	// Guid should be a simple scalar property to check
+	_, err := c.evtapi.EvtGetPublisherMetadataProperty(handle, evtapi.EvtPublisherMetadataPublisherGuid)
+	if err != nil {
+		return false
+	}
+	return true
+}
+
 // Get retrieves a cached EventPublisherMetadataHandle for the given publisher name.
 // If not found in cache, it calls EvtOpenPublisherMetadata and caches the result.
 func (c *publisherMetadataCache) Get(publisherName string, event evtapi.EventRecordHandle) (evtapi.EventPublisherMetadataHandle, error) {
@@ -110,8 +119,7 @@ func (c *publisherMetadataCache) Get(publisherName string, event evtapi.EventRec
 	}
 
 	// Check if the handle is valid, provider metadata could be uninstalled
-	_, err := c.evtapi.EvtFormatMessage(cacheItem.handle, event, 0, nil, evtapi.EvtFormatMessageEvent)
-	if err != nil {
+	if !c.isMetadataHandleValid(cacheItem.handle) {
 		evtapi.EvtClosePublisherMetadata(c.evtapi, cacheItem.handle)
 		delete(c.cache, publisherName)
 		return c.Get(publisherName, event)

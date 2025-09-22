@@ -21,19 +21,20 @@ import (
 var (
 	// New Event Log API
 	// https://learn.microsoft.com/en-us/windows/win32/wes/using-windows-event-log
-	wevtapi                  = windows.NewLazySystemDLL("wevtapi.dll")
-	evtSubscribe             = wevtapi.NewProc("EvtSubscribe")
-	evtClose                 = wevtapi.NewProc("EvtClose")
-	evtNext                  = wevtapi.NewProc("EvtNext")
-	evtQuery                 = wevtapi.NewProc("EvtQuery")
-	evtCreateBookmark        = wevtapi.NewProc("EvtCreateBookmark")
-	evtUpdateBookmark        = wevtapi.NewProc("EvtUpdateBookmark")
-	evtCreateRenderContext   = wevtapi.NewProc("EvtCreateRenderContext")
-	evtRender                = wevtapi.NewProc("EvtRender")
-	evtClearLog              = wevtapi.NewProc("EvtClearLog")
-	evtOpenPublisherMetadata = wevtapi.NewProc("EvtOpenPublisherMetadata")
-	evtFormatMessage         = wevtapi.NewProc("EvtFormatMessage")
-	evtOpenSession           = wevtapi.NewProc("EvtOpenSession")
+	wevtapi                         = windows.NewLazySystemDLL("wevtapi.dll")
+	evtSubscribe                    = wevtapi.NewProc("EvtSubscribe")
+	evtClose                        = wevtapi.NewProc("EvtClose")
+	evtNext                         = wevtapi.NewProc("EvtNext")
+	evtQuery                        = wevtapi.NewProc("EvtQuery")
+	evtCreateBookmark               = wevtapi.NewProc("EvtCreateBookmark")
+	evtUpdateBookmark               = wevtapi.NewProc("EvtUpdateBookmark")
+	evtCreateRenderContext          = wevtapi.NewProc("EvtCreateRenderContext")
+	evtRender                       = wevtapi.NewProc("EvtRender")
+	evtClearLog                     = wevtapi.NewProc("EvtClearLog")
+	evtOpenPublisherMetadata        = wevtapi.NewProc("EvtOpenPublisherMetadata")
+	evtFormatMessage                = wevtapi.NewProc("EvtFormatMessage")
+	evtGetPublisherMetadataProperty = wevtapi.NewProc("EvtGetPublisherMetadataProperty")
+	evtOpenSession                  = wevtapi.NewProc("EvtOpenSession")
 
 	// Legacy Event Logging API
 	// https://learn.microsoft.com/en-us/windows/win32/eventlog/using-event-logging
@@ -510,6 +511,54 @@ func (api *API) EvtFormatMessage(
 	}
 
 	// Trim Buffer to output size (BufferUsed is size in characters)
+	return windows.UTF16ToString(Buffer[:BufferUsed]), nil
+}
+
+// EvtGetPublisherMetadataProperty wrapper
+// https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtgetpublishermetadataproperty
+func (api *API) EvtGetPublisherMetadataProperty(
+	PublisherMetadata evtapi.EventPublisherMetadataHandle,
+	PropertyID uint) (string, error) {
+
+	var BufferUsed uint32
+
+	// Get required buffer size
+	r1, _, lastErr := evtGetPublisherMetadataProperty.Call(
+		uintptr(PublisherMetadata),
+		uintptr(PropertyID),
+		uintptr(0),
+		uintptr(0),
+		uintptr(0),
+		uintptr(unsafe.Pointer(&BufferUsed)),
+	)
+
+	if r1 == 0 {
+		if lastErr != windows.ERROR_INSUFFICIENT_BUFFER {
+			return "", lastErr
+		}
+	} else {
+		return "", nil
+	}
+
+	if BufferUsed == 0 {
+		return "", nil
+	}
+
+	// Allocate buffer space (BufferUsed is size in characters)
+	Buffer := make([]uint16, BufferUsed)
+
+	r1, _, lastErr = evtGetPublisherMetadataProperty.Call(
+		uintptr(PublisherMetadata),
+		uintptr(PropertyID),
+		uintptr(0),
+		uintptr(BufferUsed),
+		uintptr(unsafe.Pointer(unsafe.SliceData(Buffer))),
+		uintptr(unsafe.Pointer(&BufferUsed)))
+
+	if r1 == 0 {
+		return "", lastErr
+	}
+
 	return windows.UTF16ToString(Buffer[:BufferUsed]), nil
 }
 
