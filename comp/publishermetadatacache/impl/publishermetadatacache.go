@@ -9,16 +9,21 @@
 package publishermetadatacacheimpl
 
 import (
+	"context"
 	"time"
 
+	"go.uber.org/fx"
+
 	publishermetadatacache "github.com/DataDog/datadog-agent/comp/publishermetadatacache/def"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 	winevtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api/windows"
 )
 
 // Requires defines the dependencies for the publishermetadatacache component
 type Requires struct {
+	fx.In
+
+	Lc fx.Lifecycle
 }
 
 // Provides defines the output of the publishermetadatacache component
@@ -46,6 +51,13 @@ func NewComponent(reqs Requires) (Provides, error) {
 		maxCacheSize: 50,
 	}
 
+	// Register cleanup hook to close all handles when component shuts down
+	reqs.Lc.Append(fx.Hook{
+		OnStop: func(ctx context.Context) error {
+			return cache.stop()
+		},
+	})
+
 	return Provides{
 		Comp: cache,
 	}, nil
@@ -59,7 +71,6 @@ func (c *publisherMetadataCache) addCacheEntry(publisherName string, handle evta
 		handle:    handle,
 		timestamp: time.Now(),
 	}
-	log.Debugf("Cached publisher metadata handle for provider: %s", publisherName)
 }
 
 func (c *publisherMetadataCache) isCacheFull() bool {
@@ -107,5 +118,15 @@ func (c *publisherMetadataCache) Get(publisherName string, event evtapi.EventRec
 	}
 
 	cacheItem.timestamp = time.Now()
+	c.cache[publisherName] = cacheItem
 	return cacheItem.handle, nil
+}
+
+// stop cleans up all cached handles when the component shuts down
+func (c *publisherMetadataCache) stop() error {
+	for publisherName, cacheItem := range c.cache {
+		evtapi.EvtClosePublisherMetadata(c.evtapi, cacheItem.handle)
+		delete(c.cache, publisherName)
+	}
+	return nil
 }
