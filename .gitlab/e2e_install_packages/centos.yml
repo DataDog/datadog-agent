@@ -1,7 +1,7 @@
 .new-e2e_centos_a7_x86_64:
   variables:
-    E2E_DESCRIPTORS: "centos/x86_64/79,rhel/x86_64/86"
-    E2E_CWS_SUPPORTED_DESCRIPTORS: "centos/x86_64/79,rhel/x86_64/86"
+    E2E_DESCRIPTORS: "centos/x86_64/79,redhat/x86_64/86"
+    E2E_CWS_SUPPORTED_DESCRIPTORS: "centos/x86_64/79,redhat/x86_64/86"
     E2E_BRANCH_DESCRIPTORS: "centos/x86_64/79"
   needs:
     - !reference [.needs_new_e2e_template]
@@ -9,9 +9,9 @@
 
 .new-e2e_centos-fips_a7_x86_64:
   variables:
-    E2E_DESCRIPTORS: "rhel/x86_64/86-fips"
-    E2E_CWS_SUPPORTED_DESCRIPTORS: "rhel/x86_64/86-fips"
-    E2E_BRANCH_DESCRIPTORS: "rhel/x86_64/86-fips"
+    E2E_DESCRIPTORS: "redhat/x86_64/86-fips"
+    E2E_CWS_SUPPORTED_DESCRIPTORS: "redhat/x86_64/86-fips"
+    E2E_BRANCH_DESCRIPTORS: "redhat/x86_64/86-fips"
   needs:
     - !reference [.needs_new_e2e_template]
     - deploy_rpm_testing-a7_x64
