@@ -951,7 +951,10 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.5.0 // indirect
 )
 
-require go.opentelemetry.io/ebpf-profiler v0.0.202539
+require (
+	github.com/google/btree v1.1.3
+	go.opentelemetry.io/ebpf-profiler v0.0.202539
+)
 
 require (
 	github.com/aws/aws-sdk-go-v2/service/lightsail v1.44.0 // indirect

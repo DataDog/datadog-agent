@@ -57,9 +57,19 @@
             "method": "main.stackC"
           }
         },
-        "captures": {}
+        "captures": {
+          "return": {
+            "locals": {
+              "~r0": {
+                "type": "string",
+                "notCapturedReason": "unavailable"
+              }
+            }
+          }
+        }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "duration": "[duration]"
   }
 ]

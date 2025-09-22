@@ -55,10 +55,19 @@
                 "value": "40"
               }
             }
+          },
+          "return": {
+            "locals": {
+              "result": {
+                "type": "int",
+                "notCapturedReason": "unavailable"
+              }
+            }
           }
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "duration": "[duration]"
   }
 ]

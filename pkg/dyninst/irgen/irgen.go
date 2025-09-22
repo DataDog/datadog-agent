@@ -39,6 +39,8 @@ import (
 	"time"
 
 	pkgerrors "github.com/pkg/errors"
+	"golang.org/x/arch/arm64/arm64asm"
+	"golang.org/x/arch/x86/x86asm"
 	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dwarf/loclist"
@@ -46,6 +48,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
 var loclistErrorLogLimiter = rate.NewLimiter(rate.Every(10*time.Minute), 10)
@@ -55,8 +58,6 @@ var invalidGoRuntimeTypeLogLimiter = rate.NewLimiter(rate.Every(10*time.Minute),
 // the number of distinct allocations by using a batched allocation scheme.
 // Such an approach makes sense because we know the lifetimes of all the
 // objects are going to be the same.
-
-// TODO: Handle creating return events.
 
 // Generator is used to generate IR programs from binary files and probe
 // configurations.
@@ -105,6 +106,11 @@ func GenerateIR(
 		option.apply(&cfg)
 	}
 	return generateIR(cfg, programID, objFile, probeDefs)
+}
+
+type section struct {
+	header *safeelf.SectionHeader
+	data   object.SectionData
 }
 
 func generateIR(
@@ -314,9 +320,21 @@ func generateIR(
 	for _, sp := range materializedSubprograms {
 		idToSub[sp.ID] = sp
 	}
+
+	textSection := section{header: objFile.Section(".text")}
+	if textSection.header == nil {
+		return nil, fmt.Errorf("failed to find text section")
+	}
+	textSection.data, err = objFile.SectionData(textSection.header)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load text section: %w", err)
+	}
+	defer textSection.data.Close()
+
 	// Instantiate probes and gather any probe-related issues.
 	probes, subprograms, probeIssues, err := createProbes(
-		arch, processed.pendingSubprograms, lineData, idToSub,
+		arch, processed.pendingSubprograms, lineData, idToSub, &textSection,
+		cfg.skipReturnEvents,
 	)
 	if err != nil {
 		return nil, err
@@ -823,6 +841,8 @@ func createProbes(
 	pending []*pendingSubprogram,
 	lineData map[ir.PCRange]lineData,
 	idToSubprogram map[ir.SubprogramID]*ir.Subprogram,
+	textSection *section,
+	skipReturnEvents bool,
 ) ([]*ir.Probe, []*ir.Subprogram, []ir.ProbeIssue, error) {
 	var (
 		probes       []*ir.Probe
@@ -842,7 +862,10 @@ func createProbes(
 		sp := idToSubprogram[p.id]
 		var haveProbe bool
 		for _, cfg := range p.probesCfgs {
-			probe, iss, err := newProbe(arch, cfg, sp, &eventIDAlloc, lineData)
+			probe, iss, err := newProbe(
+				arch, cfg, sp, &eventIDAlloc, lineData, textSection,
+				skipReturnEvents,
+			)
 			if err != nil {
 				return nil, nil, nil, err
 			}
@@ -1372,14 +1395,26 @@ func populateEventExpressions(
 	id := typeCatalog.idAlloc.next()
 	var expressions []*ir.RootExpression
 	for _, variable := range probe.Subprogram.Variables {
-		if !variable.IsParameter || variable.IsReturn {
-			continue
+		var variableKind ir.RootExpressionKind
+		switch event.Kind {
+		case ir.EventKindEntry:
+			if !variable.IsParameter || variable.IsReturn {
+				continue
+			}
+			variableKind = ir.RootExpressionKindArgument
+		case ir.EventKindReturn:
+			if !variable.IsReturn {
+				continue
+			}
+			variableKind = ir.RootExpressionKindLocal
+		default:
+			panic(fmt.Sprintf("unexpected event kind: %v", event.Kind))
 		}
 		variableSize := variable.Type.GetByteSize()
 		expr := &ir.RootExpression{
 			Name:   variable.Name,
 			Offset: uint32(0),
-			Kind:   ir.RootExpressionKindArgument,
+			Kind:   variableKind,
 			Expression: ir.Expression{
 				Type: variable.Type,
 				Operations: []ir.ExpressionOp{
@@ -1405,10 +1440,14 @@ func populateEventExpressions(
 			Message: fmt.Sprintf("root data type too large: %d bytes", byteSize),
 		}
 	}
+	var eventKind string
+	if event.Kind != ir.EventKindEntry {
+		eventKind = event.Kind.String()
+	}
 	event.Type = &ir.EventRootType{
 		TypeCommon: ir.TypeCommon{
 			ID:       id,
-			Name:     fmt.Sprintf("Probe[%s]", probe.Subprogram.Name),
+			Name:     fmt.Sprintf("Probe[%s]%s", probe.Subprogram.Name, eventKind),
 			ByteSize: uint32(byteSize),
 		},
 		PresenceBitsetSize: presenceBitsetSize,
@@ -1773,6 +1812,8 @@ func newProbe(
 	subprogram *ir.Subprogram,
 	eventIDAlloc *idAllocator[ir.EventID],
 	lineData map[ir.PCRange]lineData,
+	textSection *section,
+	skipReturnEvents bool,
 ) (*ir.Probe, ir.Issue, error) {
 	kind := probeCfg.GetKind()
 	if !kind.IsValid() {
@@ -1789,8 +1830,11 @@ func newProbe(
 			Message: fmt.Sprintf("subprogram %s has no pc ranges", subprogram.Name),
 		}, nil
 	}
+	var returnLocations []ir.InjectionPoint
 	if subprogram.OutOfLinePCRanges != nil {
-		loc, ok := lineData[subprogram.OutOfLinePCRanges[0]]
+		pcRange := subprogram.OutOfLinePCRanges[0]
+		pc := pcRange[0]
+		loc, ok := lineData[pcRange]
 		if !ok {
 			return nil, ir.Issue{}, fmt.Errorf("missing line data for range: [0x%x, 0x%x]",
 				subprogram.OutOfLinePCRanges[0][0], subprogram.OutOfLinePCRanges[0][1])
@@ -1801,23 +1845,47 @@ func newProbe(
 				Message: loc.err.Error(),
 			}, nil
 		}
+		funcByteLen := pcRange[1] - pc
+		data := textSection.data.Data()
+		offset := (pc - textSection.header.Addr)
+		if offset+funcByteLen > uint64(len(data)) {
+			return nil, ir.Issue{
+				Kind:    ir.IssueKindInvalidDWARF,
+				Message: fmt.Sprintf("function body is too large: %d > %d", offset+funcByteLen, len(data)),
+			}, nil
+		}
+		body := data[offset : offset+funcByteLen]
+
+		// Disassemble the function to find return locations and determine
+		// the correct injection point.
+		result, issue := disassembleFunction(
+			arch, subprogram.Name, pc, funcByteLen, body, loc,
+		)
+		if !issue.IsNone() {
+			return nil, issue, nil
+		}
+
+		returnLocations = result.returnLocations
+		injectionPC := result.injectionPC
+		topPCOffset := result.topPCOffset
 		frameless := loc.prologueEnd == 0
-		injectionPC := loc.prologueEnd
-		if injectionPC == 0 {
-			injectionPC = subprogram.OutOfLinePCRanges[0][0]
+
+		// Add a workaround for the fact that single-instruction functions
+		// would have the same entry and exit probes, but the ordering between
+		// them would not be well-defined, so in this extremely uncommon case
+		// the user doesn't get to see the return probe. It's okay because
+		// there literally cannot be a return value.
+		hasAssociatedReturn := !skipReturnEvents
+		if len(returnLocations) == 1 && returnLocations[0].PC == pc {
+			hasAssociatedReturn = false
+			returnLocations = returnLocations[:0]
 		}
-		switch arch {
-		case "amd64":
-			// Do nothing
-		case "arm64":
-			// On arm, the prologue end is marked before the stack allocation.
-			frameless = true
-		default:
-			return nil, ir.Issue{}, fmt.Errorf("unsupported architecture: %s", arch)
-		}
+
 		injectionPoints = append(injectionPoints, ir.InjectionPoint{
-			PC:        injectionPC,
-			Frameless: frameless,
+			PC:                  injectionPC,
+			Frameless:           frameless,
+			HasAssociatedReturn: hasAssociatedReturn,
+			TopPCOffset:         topPCOffset,
 		})
 	}
 	for _, inlined := range subprogram.InlinePCRanges {
@@ -1827,21 +1895,30 @@ func newProbe(
 				inlined.RootRanges[0][0], inlined.RootRanges[0][1])
 		}
 		injectionPoints = append(injectionPoints, ir.InjectionPoint{
-			PC:        inlined.Ranges[0][0],
-			Frameless: loc.prologueEnd == 0,
+			PC:                  inlined.Ranges[0][0],
+			Frameless:           loc.prologueEnd == 0,
+			HasAssociatedReturn: false,
 		})
 	}
 
-	// TODO: Find the return locations and add a return event.
 	events := []*ir.Event{
 		{
 			ID:              eventIDAlloc.next(),
 			InjectionPoints: injectionPoints,
 			Condition:       nil,
+			Kind:            ir.EventKindEntry,
 			// Will be populated after all the types have been resolved
 			// and placeholders have been filled in.
 			Type: nil,
 		},
+	}
+	if len(returnLocations) > 0 && !skipReturnEvents {
+		events = append(events, &ir.Event{
+			ID:              eventIDAlloc.next(),
+			InjectionPoints: returnLocations,
+			Kind:            ir.EventKindReturn,
+			Type:            nil,
+		})
 	}
 	probe := &ir.Probe{
 		ProbeDefinition: probeCfg,
@@ -1849,6 +1926,206 @@ func newProbe(
 		Events:          events,
 	}
 	return probe, ir.Issue{}, nil
+}
+
+// disassemblyResult holds the results of architecture-specific function
+// disassembly including return locations and prologue adjustments.
+type disassemblyResult struct {
+	returnLocations []ir.InjectionPoint
+	injectionPC     uint64
+	topPCOffset     int8
+}
+
+// disassembleFunction analyzes a function body to find return locations and
+// determine the correct injection point, dispatching to architecture-specific
+// implementations.
+func disassembleFunction(
+	arch object.Architecture,
+	subprogramName string,
+	pc uint64,
+	funcByteLen uint64,
+	body []byte,
+	loc lineData,
+) (disassemblyResult, ir.Issue) {
+	switch arch {
+	case "amd64":
+		return disassembleAmd64Function(pc, body, loc)
+	case "arm64":
+		return disassembleArm64Function(subprogramName, pc, funcByteLen, body, loc)
+	default:
+		return disassemblyResult{}, ir.Issue{
+			Kind:    ir.IssueKindDisassemblyFailed,
+			Message: fmt.Sprintf("unsupported architecture: %s", arch),
+		}
+	}
+}
+
+// disassembleAmd64Function analyzes an amd64 function body to find return
+// locations (epilogues).
+func disassembleAmd64Function(
+	pc uint64, body []byte, loc lineData,
+) (disassemblyResult, ir.Issue) {
+	injectionPC := loc.prologueEnd
+	if injectionPC == 0 {
+		injectionPC = pc
+	}
+	frameless := loc.prologueEnd == 0
+	var returnLocations []ir.InjectionPoint
+	var prevInst x86asm.Inst
+	for offset := 0; offset < len(body); {
+		instruction, err := x86asm.Decode(body[offset:], 64)
+		if err != nil {
+			return disassemblyResult{}, ir.Issue{
+				Kind: ir.IssueKindDisassemblyFailed,
+				Message: fmt.Sprintf(
+					"failed to decode x86-64 instruction: at offset %d of %#x %#x: %v",
+					offset, pc+uint64(offset), body[offset:min(offset+15, len(body))], err,
+				),
+			}
+		}
+		if !frameless &&
+			instruction.Op == x86asm.POP && instruction.Args[0] == x86asm.RBP &&
+			prevInst.Op == x86asm.ADD && prevInst.Args[0] == x86asm.RSP {
+
+			epilogueStart := pc + uint64(offset) - uint64(prevInst.Len)
+			maybeRet, err := x86asm.Decode(body[offset+instruction.Len:], 64)
+			if err != nil {
+				offset := offset + instruction.Len
+				return disassemblyResult{}, ir.Issue{
+					Kind: ir.IssueKindDisassemblyFailed,
+					Message: fmt.Sprintf(
+						"failed to decode x86-64 instruction: at offset %d of %#x %#x: %v",
+						offset, pc+uint64(offset), body[offset:min(offset+15, len(body))], err,
+					),
+				}
+			}
+
+			// Sometimes there's nops for inline markers, consume them.
+			var nopLen int
+			for maybeRet.Op == x86asm.NOP {
+				nopLen += maybeRet.Len
+				maybeRet, err = x86asm.Decode(body[offset+instruction.Len+nopLen:], 64)
+				if err != nil {
+					offset := offset + instruction.Len + nopLen
+					return disassemblyResult{}, ir.Issue{
+						Kind: ir.IssueKindDisassemblyFailed,
+						Message: fmt.Sprintf(
+							"failed to decode x86-64 instruction: at offset %d of %#x %#x: %v",
+							offset, pc+uint64(offset), body[offset:min(offset+15, len(body))], err,
+						),
+					}
+				}
+			}
+			if maybeRet.Op == x86asm.RET {
+				returnLocations = append(returnLocations, ir.InjectionPoint{
+					PC:                  epilogueStart,
+					Frameless:           frameless,
+					HasAssociatedReturn: false,
+				})
+				offset += instruction.Len + nopLen
+				instruction = maybeRet
+			}
+
+		}
+		if frameless && instruction.Op == x86asm.RET {
+			returnLocations = append(returnLocations, ir.InjectionPoint{
+				PC:                  pc + uint64(offset),
+				Frameless:           frameless,
+				HasAssociatedReturn: false,
+			})
+		}
+		offset += instruction.Len
+		prevInst = instruction
+	}
+	return disassemblyResult{
+		returnLocations: returnLocations,
+		injectionPC:     injectionPC,
+		topPCOffset:     0,
+	}, ir.Issue{}
+}
+
+// disassembleArm64Function analyzes an ARM64 function body to find return
+// locations and adjust the prologue injection point if needed.
+func disassembleArm64Function(
+	subprogramName string,
+	pc uint64,
+	funcByteLen uint64,
+	body []byte,
+	loc lineData,
+) (disassemblyResult, ir.Issue) {
+	frameless := loc.prologueEnd == 0
+	traceEnabled := log.ShouldLog(log.TraceLvl)
+	if traceEnabled {
+		log.Tracef(
+			"decoding arm64 function: %s %#x-%#x: %#x %v",
+			subprogramName, pc, pc+funcByteLen, pc, frameless,
+		)
+	}
+
+	var returnLocations []ir.InjectionPoint
+	const instLen = 4
+	for offset := 0; offset < len(body); {
+		instruction, err := arm64asm.Decode(body[offset:])
+		if err != nil {
+			offset += instLen
+			if traceEnabled {
+				log.Tracef(
+					"failed to decode arm64 instruction: %v at offset %d of %#x %#x",
+					err, offset, pc+uint64(offset), body[offset:min(offset+4, len(body))],
+				)
+			}
+			continue
+		}
+		if instruction.Op == arm64asm.RET {
+			retPC := pc + uint64(offset)
+			// NB: it's crude to hard-code that the epilogue is two
+			// instructions long but that's what it has been for as long
+			// as I've cared to look, and the change coming down the pipe
+			// to do something about it also intends to keep it that way.
+			//
+			// See https://go-review.googlesource.com/c/go/+/674615
+			const epilogueByteLen = 2 * instLen
+			if !frameless && offset > epilogueByteLen {
+				retPC -= epilogueByteLen
+			}
+			returnLocations = append(returnLocations, ir.InjectionPoint{
+				PC:                  retPC,
+				Frameless:           frameless,
+				HasAssociatedReturn: false,
+			})
+		}
+		offset += 4 // Each instruction is 4 bytes long
+	}
+
+	// This is a heuristics to work around the fact that the prologue end
+	// marker is not placed after the stack frame has been setup.
+	//
+	// Instead we recognize that the line table entry following the entry
+	// marked as prologue end actually represents the end of the prologue.
+	// We also track the topPCOffset to adjust the pc we report in the
+	// stack trace because the line we are actually probing may correspond
+	// to a different source line than the entrypoint.
+	injectionPC := loc.prologueEnd
+	if injectionPC == 0 {
+		injectionPC = pc
+	}
+	var topPCOffset int8
+	if !frameless {
+		idx := slices.IndexFunc(loc.lines, func(line line) bool {
+			return line.pc == loc.prologueEnd
+		})
+		if idx != -1 && idx+1 < len(loc.lines) {
+			nextLine := loc.lines[idx+1]
+			topPCOffset = int8(pc - nextLine.pc)
+			injectionPC = nextLine.pc
+		}
+	}
+
+	return disassemblyResult{
+		returnLocations: returnLocations,
+		injectionPC:     injectionPC,
+		topPCOffset:     topPCOffset,
+	}, ir.Issue{}
 }
 
 func collectLineDataForRange(

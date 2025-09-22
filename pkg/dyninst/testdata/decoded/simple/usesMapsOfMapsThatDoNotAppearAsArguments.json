@@ -42,9 +42,19 @@
             "method": "main.usesMapsOfMapsThatDoNotAppearAsArguments"
           }
         },
-        "captures": {}
+        "captures": {
+          "return": {
+            "locals": {
+              "~r0": {
+                "type": "map[uint8]map[int]main.aStructNotUsedAsAnArgument",
+                "notCapturedReason": "unavailable"
+              }
+            }
+          }
+        }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "duration": "[duration]"
   }
 ]

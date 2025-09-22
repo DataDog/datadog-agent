@@ -77,10 +77,19 @@
                 ]
               }
             }
+          },
+          "return": {
+            "locals": {
+              "~r0": {
+                "type": "int",
+                "notCapturedReason": "unavailable"
+              }
+            }
           }
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "duration": "[duration]"
   }
 ]

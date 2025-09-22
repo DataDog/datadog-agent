@@ -55,11 +55,20 @@
                 "value": "true"
               }
             }
+          },
+          "return": {
+            "locals": {
+              "~r0": {
+                "type": "error",
+                "notCapturedReason": "unavailable"
+              }
+            }
           }
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "duration": "[duration]"
   },
   {
     "service": "sample",
@@ -117,10 +126,19 @@
                 "value": "false"
               }
             }
+          },
+          "return": {
+            "locals": {
+              "~r0": {
+                "type": "error",
+                "notCapturedReason": "unavailable"
+              }
+            }
           }
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "duration": "[duration]"
   }
 ]

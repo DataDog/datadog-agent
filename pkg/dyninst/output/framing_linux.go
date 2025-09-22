@@ -4,14 +4,16 @@
 package output
 
 type EventHeader struct {
-	Data_byte_len  uint32
-	Prog_id        uint32
-	Goid           uint64
-	Stack_offset   uint32
-	Stack_byte_len uint16
-	X__padding     [2]int8
-	Stack_hash     uint64
-	Ktime_ns       uint64
+	Data_byte_len             uint32
+	Prog_id                   uint32
+	Goid                      uint64
+	Stack_byte_depth          uint32
+	Probe_id                  uint32
+	Stack_byte_len            uint16
+	Event_pairing_expectation uint8
+	X__padding                [5]int8
+	Stack_hash                uint64
+	Ktime_ns                  uint64
 }
 type DataItemHeader struct {
 	Type    uint32

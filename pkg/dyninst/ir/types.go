@@ -384,6 +384,8 @@ type EventRootType struct {
 	TypeCommon
 	syntheticType
 
+	// EventKind is the kind of the event.
+	EventKind EventKind
 	// Bitset tracking successful expression evaluation (one bit per
 	// expression).
 	PresenceBitsetSize uint32
