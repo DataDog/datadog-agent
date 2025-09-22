@@ -147,7 +147,7 @@ build do
   end
 
   unless windows_target?
-    command "cd cmd/loader && dda inv -- -e loader.build --install-path=#{install_dir} --major-version #{major_version_arg}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+    command "dda inv -- -e loader.build --install-path=#{install_dir} --major-version #{major_version_arg}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
     copy "bin/trace-loader/trace-loader", "#{install_dir}/embedded/bin"
   end
 
