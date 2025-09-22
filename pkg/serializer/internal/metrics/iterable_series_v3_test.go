@@ -123,6 +123,31 @@ func TestPayloadBuilderV3(t *testing.T) {
 	}, ps[0].GetContent())
 }
 
+func BenchmarkPaylodsBuilderV3(b *testing.B) {
+	const ts = 1756737057.1
+	serie := &metrics.Serie{
+		Name:   "serie1",
+		Tags:   tagset.NewCompositeTags([]string{"foo", "bar"}, []string{"ook", "eek"}),
+		Points: []metrics.Point{{Ts: ts, Value: 3.14}}}
+
+	pb, err := newPayloadsBuilderV3(500_000, 2_000_000, 10_000, true, noopimpl.New())
+	if err != nil {
+		b.Fatalf("new: %v", err)
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		err = pb.writeSerie(serie)
+		pb.payloads = pb.payloads[:]
+	}
+
+	if err != nil {
+		b.Fatalf("writeSerie: %v", err)
+	}
+}
+
 func TestPayloadBuilderV3_Split(t *testing.T) {
 	r := assert.New(t)
 	const ts = 1756737057.1
