@@ -12,7 +12,6 @@ package probe
 
 import (
 	"encoding/base64"
-	"fmt"
 	coretags "github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/events"

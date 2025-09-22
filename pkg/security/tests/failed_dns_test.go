@@ -22,6 +22,29 @@ import (
 	"time"
 )
 
+func getPayloadBytes(customEvent *events.CustomEvent) (string, error) {
+	b, err := customEvent.MarshalJSON()
+	if err != nil {
+		return "", err
+	}
+
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(b, &m); err != nil {
+		return "", err
+	}
+
+	var payloadB64 string
+	if err := json.Unmarshal(m["payload"], &payloadB64); err != nil {
+		return "", err
+	}
+
+	decoded, err := base64.StdEncoding.DecodeString(payloadB64)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%x", decoded), nil
+}
+
 func TestFailedDNS(t *testing.T) {
 	SkipIfNotAvailable(t)
 	checkNetworkCompatibility(t)
@@ -41,43 +64,72 @@ func TestFailedDNS(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
 	defer test.Close()
 
-	payload := "0000000000000000000000000800450000a41fbd400001115b567f0000357f0000010035d7140090fed7deadb0ef11111111111111111111111111706c6503636f6d0000010001c00c00010001000000ea0004600780c6c00c00010001000000ea000417c0e454c00c00010001000000ea000417d7008ac00c00010001000000ea000417d70088c00c00010001000000ea000417c0e450c00c00010001000000ea0004600780af000029ffd6000000000000"
-	err = test.GetCustomEventSent(t, func() error {
-		err = injectHexDump("lo", payload)
-		return nil
-	}, func(r *rules.Rule, customEvent *events.CustomEvent) bool {
-		if r.Rule.ID == "failed_dns" {
-			b, _ := customEvent.MarshalJSON()
-			if err != nil {
-				t.Fatal(err)
-			}
+	t.Run("failed-dns-full-dns-response", func(t *testing.T) {
+		payload := "0000000000000000000000000800450000a41fbd400001115b567f0000357f0000010035d7140090fed7deadb0ef11111111111111111111111111706c6503636f6d0000010001c00c00010001000000ea0004600780c6c00c00010001000000ea000417c0e454c00c00010001000000ea000417d7008ac00c00010001000000ea000417d70088c00c00010001000000ea000417c0e450c00c00010001000000ea0004600780af000029ffd6000000000000"
+		err = test.GetCustomEventSent(t, func() error {
+			err = injectHexDump("lo", payload)
+			return nil
+		}, func(r *rules.Rule, customEvent *events.CustomEvent) bool {
+			if r.Rule.ID == "failed_dns" {
+				decodedStr, err := getPayloadBytes(customEvent)
+				if err != nil {
+					t.Fatal(err)
+				}
 
-			var m map[string]json.RawMessage
-			if err := json.Unmarshal(b, &m); err != nil {
-				t.Fatal(err)
+				assert.Equal(t, decodedStr, payload[len(payload)-len(decodedStr):])
+				return true
 			}
+			return false
+		}, 3*time.Second, model.CustomEventType, events.FailedDNSRuleID)
 
-			var payloadB64 string
-			if err := json.Unmarshal(m["payload"], &payloadB64); err != nil {
-				t.Fatal(err)
-			}
-
-			decoded, err := base64.StdEncoding.DecodeString(payloadB64)
-			if err != nil {
-				t.Fatal(err)
-			}
-			decodedStr := fmt.Sprintf("%x", decoded)
-
-			assert.Equal(t, decodedStr, payload[len(payload)-len(decodedStr):])
-			return true
+		if err != nil {
+			t.Fatal(err)
 		}
-		return false
-	}, 3*time.Second, model.CustomEventType, events.FailedDNSRuleID)
+	})
+}
+func TestFailedDNSRequest(t *testing.T) {
+	SkipIfNotAvailable(t)
+	checkNetworkCompatibility(t)
 
+	ruleDefs := []*rules.RuleDefinition{{
+		ID:         "failed_dns_rule",
+		Expression: `dns.response.code != NXDOMAIN`,
+	}}
+
+	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
+		if out, err := loadModule("veth"); err != nil {
+			t.Fatalf("couldn't load 'veth' module: %s,%v", string(out), err)
+		}
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{networkIngressEnabled: true}))
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer test.Close()
+
+	t.Run("failed-dns-request", func(t *testing.T) {
+		payload := "00000000000000000000000008004500003c853c40004011b7727f0000017f000001b0e100350028fe3b7069636b207570207468652070686f6e6500776861616161617a61616161610a"
+		err = test.GetCustomEventSent(t, func() error {
+			err = injectHexDump("lo", payload)
+			return nil
+		}, func(r *rules.Rule, customEvent *events.CustomEvent) bool {
+			if r.Rule.ID == "failed_dns" {
+				decodedStr, err := getPayloadBytes(customEvent)
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				assert.Equal(t, "6970752068776161200070686f6e6500", decodedStr)
+				return true
+			}
+			return false
+		}, 3*time.Second, model.CustomEventType, events.FailedDNSRuleID)
+
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
 }

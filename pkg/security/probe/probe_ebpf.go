@@ -1182,6 +1182,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		if p.config.Probe.DNSResolutionEnabled {
 			if err := p.dnsLayer.DecodeFromBytes(data[offset:], gopacket.NilDecodeFeedback); err != nil {
 				seclog.Warnf("failed to decode the short DNS response: %s", err)
+				event.Error = model.ErrFailedDnsPacketDecoding
 				event.FailedDNS = model.FailedDNSEvent{
 					Payload: append([]byte(nil), data[offset:]...),
 				}
@@ -1534,13 +1535,14 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 
 		if _, err = event.DNS.UnmarshalBinary(data[offset:]); err != nil {
 			if errors.Is(err, model.ErrDNSNameMalformatted) {
-				seclog.Debugf("failed to validate DNS event: %s", event.DNS.Question.Name)
+				seclog.Debugf("failed to validate DNS request event: %s", event.DNS.Question.Name)
 				return
 			} else if errors.Is(err, model.ErrDNSNamePointerNotSupported) {
-				seclog.Tracef("failed to decode DNS event: %s (offset %d, len %d, data %s)", err, offset, len(data), string(data[offset:]))
+				seclog.Tracef("failed to decode DNS request: %s (offset %d, len %d, data %s)", err, offset, len(data), string(data[offset:]))
 				return
 			} else {
 				seclog.Warnf("failed to decode DNS request: %s", err)
+				event.Error = model.ErrFailedDnsPacketDecoding
 				event.FailedDNS = model.FailedDNSEvent{
 					Payload: append([]byte(nil), data[offset:]...),
 				}
@@ -1559,7 +1561,6 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 				seclog.Warnf("failed to decode the full DNS response: %s", err)
 				event.Error = model.ErrFailedDnsPacketDecoding
 				event.FailedDNS.Payload = append([]byte(nil), data[offset:]...)
-				fmt.Println("Failed to decode DNS Packet")
 			} else {
 				p.addToDNSResolver(p.dnsLayer)
 				event.Type = uint32(model.DNSEventType) // remap to regular DNS event type
@@ -3339,7 +3340,6 @@ func (p *EBPFProbe) newEBPFPooledEventFromPCE(entry *model.ProcessCacheEntry) *m
 
 // newBindEventFromSnapshot returns a new bind event with a process context
 func (p *EBPFProbe) newBindEventFromSnapshot(entry *model.ProcessCacheEntry, snapshottedBind model.SnapshottedBoundSocket) *model.Event {
-
 	event := p.eventPool.Get()
 	event.TimestampRaw = uint64(time.Now().UnixNano())
 	event.Type = uint32(model.BindEventType)
