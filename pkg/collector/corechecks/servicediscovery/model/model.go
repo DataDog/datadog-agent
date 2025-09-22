@@ -21,7 +21,7 @@ type Service struct {
 	DDService                string                          `json:"dd_service"`
 	TCPPorts                 []uint16                        `json:"tcp_ports,omitempty"`
 	UDPPorts                 []uint16                        `json:"udp_ports,omitempty"`
-	APMInstrumentation       string                          `json:"apm_instrumentation"`
+	APMInstrumented          bool                            `json:"apm_instrumented"`
 	Language                 string                          `json:"language"`
 	Type                     string                          `json:"service_type"`
 	CommandLine              []string                        `json:"cmdline"`

@@ -627,7 +627,7 @@ func toProtoService(service *workloadmeta.Service) *pb.Service {
 		DdService:                service.DDService,
 		TcpPorts:                 tcpPorts,
 		UdpPorts:                 udpPorts,
-		ApmInstrumentation:       service.APMInstrumentation,
+		ApmInstrumented:          service.APMInstrumented,
 		Ust:                      toProtoUST(service.UST),
 	}
 }
@@ -1168,7 +1168,7 @@ func toWorkloadmetaService(protoService *pb.Service) *workloadmeta.Service {
 		DDService:                protoService.DdService,
 		TCPPorts:                 tcpPorts,
 		UDPPorts:                 udpPorts,
-		APMInstrumentation:       protoService.ApmInstrumentation,
+		APMInstrumented:          protoService.ApmInstrumented,
 		UST:                      toWorkloadmetaUST(protoService.Ust),
 	}
 }

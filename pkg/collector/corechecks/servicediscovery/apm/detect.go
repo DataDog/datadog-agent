@@ -55,11 +55,8 @@ var (
 
 // Detect attempts to detect the type of APM instrumentation for the given service.
 func Detect(lang language.Language, ctx usm.DetectionContext, tracerMetadata *tracermetadata.TracerMetadata) Instrumentation {
+	// NOTE: Removed DD_INJECTION_ENABLED check since is not visible via /proc/$PID/environ with auto-injector
 	// first check to see if the DD_INJECTION_ENABLED is set to tracer
-	if isInjected(ctx.Envs) {
-		return Injected
-	}
-
 	// if the process has valid tracer's metadata, then the
 	// instrumentation is provided
 	if tracerMetadata != nil {

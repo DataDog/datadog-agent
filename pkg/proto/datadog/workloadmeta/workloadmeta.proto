@@ -195,7 +195,7 @@ message Service {
   string ddService = 6;
   repeated int32 tcpPorts = 7;
   repeated int32 udpPorts = 8;
-  string apmInstrumentation = 9;
+  bool apmInstrumented = 9;
   UST ust = 17;
 }
 
