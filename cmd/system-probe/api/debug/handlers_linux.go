@@ -98,15 +98,13 @@ func parseDmesg(buffer []byte) (string, error) {
 func HandleLinuxDmesg(w http.ResponseWriter, _ *http.Request) {
 	dmesg, err := readAllDmesg()
 	if err != nil {
-		w.WriteHeader(500)
-		fmt.Fprintf(w, "failed to read dmesg: %s", err)
+		http.Error(w, "failed to read dmesg: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	dmesgStr, err := parseDmesg(dmesg)
 	if err != nil {
-		w.WriteHeader(500)
-		fmt.Fprintf(w, "failed to parse dmesg: %s", err)
+		http.Error(w, "failed to parse dmesg: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -125,10 +123,13 @@ func handleCommand(ctx context.Context, w http.ResponseWriter, commandName strin
 
 	if err != nil {
 		// don't 500 for ExitErrors etc, to report "normal" failures to the flare log file
+		msg := "command failed: " + err.Error() + "\n" + string(output)
 		if !errors.As(err, &execError) && !errors.As(err, &exitErr) {
-			w.WriteHeader(500)
+			http.Error(w, msg, http.StatusInternalServerError)
+		} else {
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			io.WriteString(w, msg)
 		}
-		fmt.Fprintf(w, "command failed: %s\n%s", err, output)
 		return
 	}
 
