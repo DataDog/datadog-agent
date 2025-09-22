@@ -12,11 +12,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"sort"
+	"strconv"
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/slices"
 	"github.com/cenkalti/backoff"
 	"go.uber.org/fx"
 
@@ -301,6 +304,8 @@ func (ac *AutoConfig) buildConfigCheckResponse(scrub bool) integration.ConfigChe
 		response.Unresolved = ac.getUnresolvedConfigs()
 	}
 
+	response.Services = ac.getActiveServices()
+
 	return response
 }
 
@@ -565,6 +570,55 @@ func (ac *AutoConfig) processRemovedConfigs(configs []integration.Config) {
 // state.
 func (ac *AutoConfig) getUnresolvedConfigs() map[string]integration.Config {
 	return ac.cfgMgr.getActiveConfigs()
+}
+
+// getActiveServices returns all active services and their metadata.
+func (ac *AutoConfig) getActiveServices() map[string]integration.ServiceResponse {
+	activeSvc := ac.cfgMgr.getActiveServices()
+	serviceResp := make(map[string]integration.ServiceResponse, len(activeSvc))
+	for _, svc := range activeSvc {
+		svcID := svc.GetServiceID()
+
+		hosts, err := svc.GetHosts()
+		if err != nil {
+			ac.logs.Debugf("showing empty hosts because not supported for service %s: %v", svcID, err)
+			hosts = make(map[string]string)
+		}
+
+		containerPorts, err := svc.GetPorts()
+		ports := make([]string, 0)
+
+		if err != nil {
+			ac.logs.Debugf("showing empty ports because not supported for service %s: %v", svcID, err)
+		} else {
+			ports = slices.Map(containerPorts, func(port listeners.ContainerPort) string {
+				return fmt.Sprintf(":%s", strconv.Itoa(port.Port))
+			})
+		}
+
+		pid, err := svc.GetPid()
+		if err != nil {
+			ac.logs.Debugf("showing empty pid because not supported for service %s: %v", svcID, err)
+			pid = 0
+		}
+
+		hostname, err := svc.GetHostname()
+		if err != nil {
+			ac.logs.Debugf("showing empty hostname because not supported for service %s: %v", svcID, err)
+			hostname = ""
+		}
+
+		serviceResp[svcID] = integration.ServiceResponse{
+			ServiceID:     svcID,
+			ADIdentifiers: svc.GetADIdentifiers(),
+			Hosts:         hosts,
+			Ports:         ports,
+			PID:           pid,
+			Hostname:      hostname,
+			IsReady:       svc.IsReady(),
+		}
+	}
+	return serviceResp
 }
 
 // GetIDOfCheckWithEncryptedSecrets returns the ID that a checkID had before
