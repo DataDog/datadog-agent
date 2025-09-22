@@ -210,7 +210,7 @@ func TestDockerCustomPart(t *testing.T) {
 		},
 		eventTransformer: newBundledTransformer("testhostname", []string{}, fakeTagger),
 		dockerHostname:   "testhostname",
-		filterStore:      mockFilterStore,
+		containerFilter:  mockFilterStore.GetContainerSharedMetricFilters(),
 		store:            fxutil.Test[workloadmetamock.Mock](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams())),
 		tagger:           fakeTagger,
 	}
@@ -287,11 +287,11 @@ func TestContainersRunning(t *testing.T) {
 
 	// Create Docker check
 	check := DockerCheck{
-		instance:       &DockerConfig{},
-		dockerHostname: "testhostname",
-		filterStore:    workloadfilterfxmock.SetupMockFilter(t),
-		store:          fxutil.Test[workloadmetamock.Mock](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams())),
-		tagger:         fakeTagger,
+		instance:        &DockerConfig{},
+		dockerHostname:  "testhostname",
+		containerFilter: workloadfilterfxmock.SetupMockFilter(t).GetContainerSharedMetricFilters(),
+		store:           fxutil.Test[workloadmetamock.Mock](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams())),
+		tagger:          fakeTagger,
 	}
 
 	err := check.runDockerCustom(mockSender, &dockerClient, dockerClient.FakeContainerList)
