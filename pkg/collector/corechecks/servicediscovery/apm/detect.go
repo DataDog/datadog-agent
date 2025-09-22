@@ -17,7 +17,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/envs"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
 	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
@@ -71,17 +70,6 @@ func Detect(lang language.Language, ctx usm.DetectionContext, tracerMetadata *tr
 	return None
 }
 
-func isInjected(envs envs.Variables) bool {
-	if val, ok := envs.Get("DD_INJECTION_ENABLED"); ok {
-		parts := strings.Split(val, ",")
-		for _, v := range parts {
-			if v == "tracer" {
-				return true
-			}
-		}
-	}
-	return false
-}
 
 const (
 	// ddTraceGoPrefix(V2) is the prefix of the dd-trace-go symbols. The symbols
