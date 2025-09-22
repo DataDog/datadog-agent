@@ -4,7 +4,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.mapArg",
+      "method": "main.usesMapsOfMapsThatDoNotAppearAsArguments",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -16,14 +16,14 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.mapArg",
+            "function": "main.usesMapsOfMapsThatDoNotAppearAsArguments",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 87
+            "lineNumber": 134
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 29
+            "lineNumber": 40
           },
           {
             "function": "runtime.main",
@@ -37,31 +37,14 @@
           }
         ],
         "probe": {
-          "id": "mapArg",
+          "id": "usesMapsOfMapsThatDoNotAppearAsArguments",
           "location": {
-            "method": "main.mapArg"
+            "method": "main.usesMapsOfMapsThatDoNotAppearAsArguments"
           }
         },
         "captures": {
           "entry": {
-            "arguments": {
-              "m": {
-                "type": "map[string]int",
-                "size": "1",
-                "entries": [
-                  [
-                    {
-                      "type": "string",
-                      "value": "a"
-                    },
-                    {
-                      "type": "int",
-                      "value": "1"
-                    }
-                  ]
-                ]
-              }
-            }
+            "arguments": {}
           }
         }
       }
