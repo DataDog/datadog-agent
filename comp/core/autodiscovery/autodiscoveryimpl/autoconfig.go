@@ -608,13 +608,15 @@ func (ac *AutoConfig) getActiveServices() map[string]integration.ServiceResponse
 		}
 
 		serviceResp[svcID] = integration.ServiceResponse{
-			ServiceID:     svcID,
-			ADIdentifiers: svc.GetADIdentifiers(),
-			Hosts:         hosts,
-			Ports:         ports,
-			PID:           pid,
-			Hostname:      hostname,
-			IsReady:       svc.IsReady(),
+			ServiceID:      svcID,
+			ADIdentifiers:  svc.GetADIdentifiers(),
+			Hosts:          hosts,
+			Ports:          ports,
+			PID:            pid,
+			Hostname:       hostname,
+			IsReady:        svc.IsReady(),
+			FiltersLogs:    svc.HasFilter(workloadfilter.LogsFilter),
+			FiltersMetrics: svc.HasFilter(workloadfilter.MetricsFilter),
 		}
 	}
 	return serviceResp

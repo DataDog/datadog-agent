@@ -53,13 +53,15 @@ func TestPrintConfigCheck(t *testing.T) {
 		},
 		Services: map[string]integration.ServiceResponse{
 			"svc1": {
-				ServiceID:     "svc1",
-				ADIdentifiers: []string{"test-ad-identifier"},
-				Hosts:         map[string]string{"host1": "192.168.1.1"},
-				Ports:         []string{"8080", "9090"},
-				PID:           1234,
-				Hostname:      "test-hostname",
-				IsReady:       true,
+				ServiceID:      "svc1",
+				ADIdentifiers:  []string{"test-ad-identifier"},
+				Hosts:          map[string]string{"host1": "192.168.1.1"},
+				Ports:          []string{"8080", "9090"},
+				PID:            1234,
+				Hostname:       "test-hostname",
+				IsReady:        true,
+				FiltersLogs:    true,
+				FiltersMetrics: false,
 			},
 		},
 	}
@@ -117,6 +119,7 @@ Hosts:
 - host1: 192.168.1.1
 Ports: 8080, 9090
 PID: 1234
+Filters: metrics=false, logs=true
 `,
 		},
 		{
