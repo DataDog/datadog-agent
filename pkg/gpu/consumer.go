@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/perf"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config/consts"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
@@ -45,6 +46,7 @@ type cudaEventConsumer struct {
 	cfg            *config.Config
 	telemetry      *cudaEventConsumerTelemetry
 	debugCollector *eventCollector
+	ringFlusher    perf.Flusher
 }
 
 type cudaEventConsumerTelemetry struct {
@@ -54,7 +56,7 @@ type cudaEventConsumerTelemetry struct {
 }
 
 // newCudaEventConsumer creates a new CUDA event consumer.
-func newCudaEventConsumer(sysCtx *systemContext, streamHandlers *streamCollection, eventHandler ddebpf.EventHandler, cfg *config.Config, telemetry telemetry.Component) *cudaEventConsumer {
+func newCudaEventConsumer(sysCtx *systemContext, streamHandlers *streamCollection, eventHandler ddebpf.EventHandler, ringFlusher perf.Flusher, cfg *config.Config, telemetry telemetry.Component) *cudaEventConsumer {
 	return &cudaEventConsumer{
 		eventHandler:   eventHandler,
 		closed:         make(chan struct{}),
@@ -63,6 +65,7 @@ func newCudaEventConsumer(sysCtx *systemContext, streamHandlers *streamCollectio
 		streamHandlers: streamHandlers,
 		telemetry:      newCudaEventConsumerTelemetry(telemetry),
 		debugCollector: newEventCollector(),
+		ringFlusher:    ringFlusher,
 	}
 }
 
@@ -108,6 +111,7 @@ func (c *cudaEventConsumer) Start() {
 	go func() {
 		c.running.Store(true)
 		processSync := time.NewTicker(c.cfg.ScanProcessesInterval)
+		ringBufferFlush := time.NewTicker(c.cfg.RingBufferFlushInterval)
 
 		defer func() {
 			cleanupExit()
@@ -130,6 +134,8 @@ func (c *cudaEventConsumer) Start() {
 			case <-processSync.C:
 				c.checkClosedProcesses()
 				c.sysCtx.cleanOld()
+			case <-ringBufferFlush.C:
+				c.ringFlusher.Flush()
 			case batchData, ok := <-dataChannel:
 				if !ok {
 					return

@@ -120,6 +120,7 @@ type Probe struct {
 	mapCleanerEvents *ddebpf.MapCleaner[gpuebpf.CudaEventKey, gpuebpf.CudaEventValue]
 	streamHandlers   *streamCollection
 	lastCheck        atomic.Int64
+	ringBuffer       *manager.RingBuffer
 }
 
 type probeTelemetry struct {
@@ -197,7 +198,7 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 
 	memPools.ensureInit(deps.Telemetry)
 	p.streamHandlers = newStreamCollection(sysCtx, deps.Telemetry, cfg)
-	p.consumer = newCudaEventConsumer(sysCtx, p.streamHandlers, p.eventHandler, p.cfg, deps.Telemetry)
+	p.consumer = newCudaEventConsumer(sysCtx, p.streamHandlers, p.eventHandler, p.ringBuffer, p.cfg, deps.Telemetry)
 	p.statsGenerator = newStatsGenerator(sysCtx, p.streamHandlers, deps.Telemetry)
 
 	if err = p.start(); err != nil {
@@ -326,7 +327,7 @@ func (p *Probe) setupManager(buf io.ReaderAt, opts manager.Options) error {
 // it must be called BEFORE the InitWithOptions method of the manager is called
 func (p *Probe) setupSharedBuffer(o *manager.Options) {
 	rbHandler := ddebpf.NewRingBufferHandler(consumerChannelSize)
-	rb := &manager.RingBuffer{
+	p.ringBuffer = &manager.RingBuffer{
 		Map: manager.Map{Name: cudaEventsRingbuf},
 		RingBufferOptions: manager.RingBufferOptions{
 			RecordHandler: rbHandler.RecordHandler,
@@ -357,11 +358,11 @@ func (p *Probe) setupSharedBuffer(o *manager.Options) {
 		Value: uint64(p.cfg.RingBufferWakeupSize),
 	})
 
-	p.m.Manager.RingBuffers = append(p.m.Manager.RingBuffers, rb)
+	p.m.Manager.RingBuffers = append(p.m.Manager.RingBuffers, p.ringBuffer)
 	p.eventHandler = rbHandler
 
-	rb.TelemetryEnabled = true
-	ebpftelemetry.ReportRingBufferTelemetry(rb)
+	p.ringBuffer.TelemetryEnabled = true
+	ebpftelemetry.ReportRingBufferTelemetry(p.ringBuffer)
 }
 
 // CollectConsumedEvents waits until the debug collector stores count events and returns them
