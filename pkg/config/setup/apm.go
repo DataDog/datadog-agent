@@ -162,7 +162,7 @@ func setupAPM(config pkgconfigmodel.Setup) {
 		}
 		return mappings
 	})
-	config.BindEnv("apm_config.receiver_socket", "DD_APM_RECEIVER_SOCKET")
+	config.BindEnv("apm_config.receiver_socket", "/var/run/datadog/apm.socket", "DD_APM_RECEIVER_SOCKET")
 	config.BindEnv("apm_config.windows_pipe_name", "DD_APM_WINDOWS_PIPE_NAME")
 	config.BindEnv("apm_config.sync_flushing", "DD_APM_SYNC_FLUSHING")
 	config.BindEnv("apm_config.filter_tags.require", "DD_APM_FILTER_TAGS_REQUIRE")
