@@ -62,5 +62,6 @@ build do
     Dir.chdir "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent" do
       command "bazelisk run -- @zlib//:install --destdir='#{install_dir}/embedded'"
       command "ls -lR #{install_dir}/embedded"
+    end
   end
 end
