@@ -67,3 +67,8 @@ probes:
     methodName: main.PointerSmallChainArg
   capture:
     maxReferenceDepth: 5
+- id: usesMapsOfMapsThatDoNotAppearAsArguments
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.usesMapsOfMapsThatDoNotAppearAsArguments
