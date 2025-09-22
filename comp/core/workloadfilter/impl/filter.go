@@ -169,28 +169,27 @@ func (f *workloadfilterStore) GetPodSharedMetricFilters() workloadfilter.FilterB
 	return f.GetPodFilters(f.selection.GetPodSharedMetricFilters())
 }
 
-// GetContainerPausedFilters returns the pre-computed container paused filters
-func (f *workloadfilterStore) GetContainerPausedFilters() [][]workloadfilter.ContainerFilter {
-	return f.selection.GetContainerPausedFilters()
-}
-
 // GetContainerSBOMFilters returns the pre-computed container SBOM filters
 func (f *workloadfilterStore) GetContainerSBOMFilters() workloadfilter.FilterBundle {
 	return f.GetContainerFilters(f.selection.GetContainerSBOMFilters())
 }
 
+// GetContainerFilters returns the filter bundle for the given container filters
 func (f *workloadfilterStore) GetContainerFilters(containerFilters [][]workloadfilter.ContainerFilter) workloadfilter.FilterBundle {
 	return getFilterBundle(f, workloadfilter.ContainerType, containerFilters)
 }
 
+// GetPodFilters returns the filter bundle for the given pod filters
 func (f *workloadfilterStore) GetPodFilters(podFilters [][]workloadfilter.PodFilter) workloadfilter.FilterBundle {
 	return getFilterBundle(f, workloadfilter.PodType, podFilters)
 }
 
+// GetServiceFilters returns the filter bundle for the given service filters
 func (f *workloadfilterStore) GetServiceFilters(serviceFilters [][]workloadfilter.ServiceFilter) workloadfilter.FilterBundle {
 	return getFilterBundle(f, workloadfilter.ServiceType, serviceFilters)
 }
 
+// GetEndpointFilters returns the filter bundle for the given endpoint filters
 func (f *workloadfilterStore) GetEndpointFilters(endpointFilters [][]workloadfilter.EndpointFilter) workloadfilter.FilterBundle {
 	return getFilterBundle(f, workloadfilter.EndpointType, endpointFilters)
 }

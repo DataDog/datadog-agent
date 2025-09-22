@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/program"
 )
 
-// filterBundle is the implementation of the filterBundle.
+// filterBundle is the implementation of FilterBundle.
 type filterBundle struct {
 	log        log.Component
 	filterSets [][]program.FilterProgram

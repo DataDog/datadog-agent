@@ -11,7 +11,6 @@ import (
 	"testing"
 
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
-	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/cri"
@@ -40,11 +39,9 @@ func TestCriCheck(t *testing.T) {
 	}
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
-	mockFilterStore := workloadfilterfxmock.SetupMockFilter(t)
-
 	// Inject mock processor in check
 	mockCri := &crimock.MockCRIClient{}
-	mockSender, processor, _ := generic.CreateTestProcessor(containersMeta, containersStats, metricsAdapter{}, getProcessorFilter(mockFilterStore, nil), fakeTagger, false)
+	mockSender, processor, _ := generic.CreateTestProcessor(containersMeta, containersStats, metricsAdapter{}, getProcessorFilter(nil, nil), fakeTagger, false)
 	processor.RegisterExtension("cri-custom-metrics", &criCustomMetricsExtension{criGetter: func() (cri.CRIClient, error) { return mockCri, nil }})
 
 	mockCri.On("ListContainerStats").Return(map[string]*criTypes.ContainerStats{

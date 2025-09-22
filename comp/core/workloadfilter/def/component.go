@@ -16,11 +16,11 @@ package workloadfilter
 type Component interface {
 	// GetContainerFilters retrieves the selected container FilterBundle
 	GetContainerFilters(containerFilters [][]ContainerFilter) FilterBundle
-	// GetPodFilters retrieves the selected container FilterBundle
+	// GetPodFilters retrieves the selected pod FilterBundle
 	GetPodFilters(podFilters [][]PodFilter) FilterBundle
-	// GetServiceFilters retrieves the selected container FilterBundle
+	// GetServiceFilters retrieves the selected service FilterBundle
 	GetServiceFilters(serviceFilters [][]ServiceFilter) FilterBundle
-	// GetEndpointFilters retrieves the selected container FilterBundle
+	// GetEndpointFilters retrieves the selected endpoint FilterBundle
 	GetEndpointFilters(endpointFilters [][]EndpointFilter) FilterBundle
 
 	// GetContainerAutodiscoveryFilters retrieves the container AD FilterBundle

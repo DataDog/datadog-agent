@@ -21,8 +21,11 @@ const (
 
 // FilterBundle represents a bundle of filters for a given resource type.
 type FilterBundle interface {
+	// IsExcluded checks if the given object is excluded by the filter bundle.
 	IsExcluded(obj Filterable) bool
+	// GetResult returns the result of the filter evaluation.
 	GetResult(obj Filterable) Result
+	// GetErrors returns any errors during initialization of the filters.
 	GetErrors() []error
 }
 
