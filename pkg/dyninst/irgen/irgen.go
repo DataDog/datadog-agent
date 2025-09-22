@@ -187,32 +187,6 @@ func generateIR(
 		return nil, err
 	}
 
-	// Collect line information about subprograms. It's important for performance
-	// to batch analysis of each compilation unit, and do it in incremental
-	// pc order for each compilation unit.
-	lineSearchRanges := make([]lineSearchRange, 0, len(processed.pendingSubprograms))
-	for _, sp := range processed.pendingSubprograms {
-		for _, pcRange := range sp.outOfLinePCRanges {
-			lineSearchRanges = append(lineSearchRanges, lineSearchRange{
-				unit:    sp.unit,
-				pcRange: pcRange,
-			})
-		}
-		for _, inlined := range sp.inlinePCRanges {
-			for _, pcRange := range inlined.RootRanges {
-				lineSearchRanges = append(lineSearchRanges, lineSearchRange{
-					unit:    sp.unit,
-					pcRange: pcRange,
-				})
-			}
-		}
-	}
-
-	lineData, err := collectLineData(objFile, lineSearchRanges)
-	if err != nil {
-		return nil, err
-	}
-
 	typeCatalog := newTypeCatalog(d, ptrSize)
 	var commonTypes ir.CommonTypes
 	for _, offset := range processed.interestingTypes {
@@ -308,6 +282,32 @@ func generateIR(
 		); err != nil {
 			return nil, err
 		}
+	}
+
+	// Collect line information about subprograms. It's important for
+	// performance to batch analysis of each compilation unit, and do it in
+	// incremental pc order for each compilation unit.
+	lineSearchRanges := make([]lineSearchRange, 0, len(processed.pendingSubprograms))
+	for _, sp := range processed.pendingSubprograms {
+		for _, pcRange := range sp.outOfLinePCRanges {
+			lineSearchRanges = append(lineSearchRanges, lineSearchRange{
+				unit:    sp.unit,
+				pcRange: pcRange,
+			})
+		}
+		for _, inlined := range sp.inlinePCRanges {
+			for _, pcRange := range inlined.RootRanges {
+				lineSearchRanges = append(lineSearchRanges, lineSearchRange{
+					unit:    sp.unit,
+					pcRange: pcRange,
+				})
+			}
+		}
+	}
+
+	lineData, err := collectLineData(d, lineSearchRanges)
+	if err != nil {
+		return nil, err
 	}
 
 	idToSub := make(map[ir.SubprogramID]*ir.Subprogram, len(materializedSubprograms))
@@ -770,7 +770,7 @@ type lineData struct {
 
 // collectLineData evaluates DWARF line programs to aggregate line data for given ranges.
 func collectLineData(
-	objFile object.Dwarf,
+	dwarfData *dwarf.Data,
 	searchRanges []lineSearchRange,
 ) (map[ir.PCRange]lineData, error) {
 	if len(searchRanges) == 0 {
@@ -805,7 +805,7 @@ func collectLineData(
 	for _, sp := range searchRanges {
 		if prevUnit != sp.unit {
 			prevUnit = sp.unit
-			lr, err := objFile.DwarfData().LineReader(prevUnit)
+			lr, err := dwarfData.LineReader(prevUnit)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get line reader: %w", err)
 			}
