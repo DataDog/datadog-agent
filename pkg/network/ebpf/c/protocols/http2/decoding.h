@@ -940,11 +940,11 @@ static __always_inline void headers_parser(pktbuf_t pkt, void *map_key, conn_tup
         if (current_frame.frame.flags & HTTP2_PRIORITY_FLAG) {
             // Count priority flags in HEADERS frames
             __sync_fetch_and_add(&http2_tel->priority_flags_seen, 1);
-            pktbuf_advance(pkt, HTTP2_PRIORITY_BUFFER_LEN);
             bpf_printk("tasik HTTP2: Found priority flag in HEADERS frame, stream_id=%u, frame_length=%u",
                        current_frame.frame.stream_id, current_frame.frame.length);
             if (current_frame.frame.length > HTTP2_PRIORITY_BUFFER_LEN) {
-                current_frame.frame.length -= HTTP2_PRIORITY_BUFFER_LEN;
+                bpf_printk("tasik HTTP2: Adjusting frame length from %u to %u",
+                           current_frame.frame.length, current_frame.frame.length - HTTP2_PRIORITY_BUFFER_LEN);
             } else {
                 bpf_printk("tasik HTTP2: Priority frame too small (length=%u), processing without priority skip",
                            current_frame.frame.length);
