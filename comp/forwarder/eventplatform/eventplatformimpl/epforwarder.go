@@ -241,7 +241,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		endpointsConfigPrefix:         "software_inventory.forwarder.",
 		hostnameEndpointPrefix:        "event-platform-intake.",
 		intakeTrackType:               "softinv",
-		defaultBatchMaxConcurrentSend: 10,
+		defaultBatchMaxConcurrentSend: pkgconfigsetup.DefaultBatchMaxConcurrentSend,
 		defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
 		defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 		defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
