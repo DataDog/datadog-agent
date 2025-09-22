@@ -457,8 +457,8 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 	dbMetadata := &uptane.Metadata{
 		Path:         path.Join(databaseFilePath, options.databaseFileName),
 		AgentVersion: agentVersion,
-		ApiKey:       authKeys.apiKey,
-		Url:          baseURL.String(),
+		APIKey:       authKeys.apiKey,
+		URL:          baseURL.String(),
 	}
 
 	configRoot := options.configRootOverride
@@ -1223,8 +1223,8 @@ func NewHTTPClient(runPath, site, apiKey, agentVersion string) (*HTTPClient, err
 	dbMetadata := &uptane.Metadata{
 		Path:         path.Join(runPath, "remote-config-cdn.db"),
 		AgentVersion: agentVersion,
-		ApiKey:       apiKey,
-		Url:          site,
+		APIKey:       apiKey,
+		URL:          site,
 	}
 
 	uptaneCDNClient, err := uptane.NewCDNClient(dbMetadata)
