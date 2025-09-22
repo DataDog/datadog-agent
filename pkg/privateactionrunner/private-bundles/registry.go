@@ -28,6 +28,7 @@ import (
 	com_datadoghq_gitlab_repository_files "github.com/DataDog/datadog-agent/pkg/privateactionrunner/private-bundles/com/datadoghq/gitlab/repositoryfiles"
 	com_datadoghq_gitlab_tags "github.com/DataDog/datadog-agent/pkg/privateactionrunner/private-bundles/com/datadoghq/gitlab/tags"
 	com_datadoghq_gitlab_users "github.com/DataDog/datadog-agent/pkg/privateactionrunner/private-bundles/com/datadoghq/gitlab/users"
+	com_datadoghq_jenkins "github.com/DataDog/datadog-agent/pkg/privateactionrunner/private-bundles/com/datadoghq/jenkins"
 	com_datadoghq_kubernetes_core "github.com/DataDog/datadog-agent/pkg/privateactionrunner/private-bundles/com/datadoghq/kubernetes/core"
 	com_datadoghq_script "github.com/DataDog/datadog-agent/pkg/privateactionrunner/private-bundles/com/datadoghq/script"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
@@ -62,6 +63,7 @@ func NewRegistry(_ *config.Config) *Registry {
 			"com.datadoghq.gitlab.repositoryfiles":   com_datadoghq_gitlab_repository_files.NewGitlabRepositoryFiles(),
 			"com.datadoghq.gitlab.tags":              com_datadoghq_gitlab_tags.NewGitlabTags(),
 			"com.datadoghq.gitlab.users":             com_datadoghq_gitlab_users.NewGitlabUsers(),
+			"com.datadoghq.jenkins":                  com_datadoghq_jenkins.NewJenkins(),
 			"com.datadoghq.kubernetes.core":          com_datadoghq_kubernetes_core.NewKubernetesCore(),
 			"com.datadoghq.script":                   com_datadoghq_script.NewScript(),
 		},
