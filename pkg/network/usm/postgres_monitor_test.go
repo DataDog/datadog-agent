@@ -50,7 +50,6 @@ const (
 	alterTableQuery          = "ALTER TABLE dummy ADD test VARCHAR(255);"
 	truncateTableQuery       = "TRUNCATE TABLE dummy"
 	showQuery                = "SHOW search_path"
-	insertValue1Query        = "INSERT INTO dummy (foo) VALUES ('value-1')"
 )
 
 var (
@@ -58,21 +57,12 @@ var (
 	longDropeQuery  = fmt.Sprintf("DROP TABLE IF EXISTS %s", strings.Repeat("table_", repeatCount))
 )
 
-// createInsertQuery builds a parameterized INSERT statement for the provided values.
-// It returns the query and the corresponding args to be used with pg.RunQuery.
-func createInsertQuery(values ...string) (string, []any) {
+// createInsertQuery builds a multi-row INSERT statement without fmt.Sprintf.
+func createInsertQuery(values ...string) string {
 	if len(values) == 0 {
-		return "INSERT INTO dummy (foo) VALUES ()", nil
+		return "INSERT INTO dummy (foo) VALUES ()"
 	}
-	placeholders := make([]string, len(values))
-	args := make([]any, len(values))
-	for i, v := range values {
-		// Build placeholders ($1), ($2), ... without embedding user input in the SQL string
-		placeholders[i] = "($" + strconv.Itoa(i+1) + ")"
-		args[i] = v
-	}
-	query := "INSERT INTO dummy (foo) VALUES " + strings.Join(placeholders, ", ")
-	return query, args
+	return "INSERT INTO dummy (foo) VALUES ('" + strings.Join(values, "'), ('") + "')"
 }
 
 func generateTestValues(startingIndex, count int) []string {
@@ -83,9 +73,9 @@ func generateTestValues(startingIndex, count int) []string {
 	return values
 }
 
-// generateSelectLimitQuery returns a parameterized SELECT with LIMIT clause.
-func generateSelectLimitQuery(limit int) (string, []any) {
-	return "SELECT * FROM dummy limit $1", []any{limit}
+// generateSelectLimitQuery returns a simple SELECT with LIMIT clause without fmt.Sprintf.
+func generateSelectLimitQuery(limit int) string {
+	return "SELECT * FROM dummy limit " + strconv.Itoa(limit)
 }
 
 // pgTestContext shares the context of a given test.
@@ -249,8 +239,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 				// Sending 2 insert queries, each with 5 values.
 				// We want to ensure we're capturing both requests.
 				for i := 0; i < 2; i++ {
-					q, args := createInsertQuery(generateTestValues(5*i, 5*(1+i))...)
-					require.NoError(t, pg.RunQuery(q, args...))
+					require.NoError(t, pg.RunQuery(createInsertQuery(generateTestValues(5*i, 5*(1+i))...)))
 				}
 			},
 			validation: func(t *testing.T, _ pgTestContext, monitor *Monitor) {
@@ -272,8 +261,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 				require.NoError(t, pg.Ping())
 				ctx.extras["pg"] = pg
 				require.NoError(t, pg.RunQuery(createTableQuery))
-				q, args := createInsertQuery("value-1")
-				require.NoError(t, pg.RunQuery(q, args...))
+				require.NoError(t, pg.RunQuery(createInsertQuery("value-1")))
 			},
 			postMonitorSetup: func(t *testing.T, ctx pgTestContext) {
 				pg := ctx.extras["pg"].(*postgres.PGXClient)
@@ -298,8 +286,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 				require.NoError(t, pg.Ping())
 				ctx.extras["pg"] = pg
 				require.NoError(t, pg.RunQuery(createTableQuery))
-				q, args := createInsertQuery("value-1")
-				require.NoError(t, pg.RunQuery(q, args...))
+				require.NoError(t, pg.RunQuery(createInsertQuery("value-1")))
 			},
 			postMonitorSetup: func(t *testing.T, ctx pgTestContext) {
 				pg := ctx.extras["pg"].(*postgres.PGXClient)
@@ -425,11 +412,9 @@ func testDecoding(t *testing.T, isTLS bool) {
 				ctx.extras["pg"] = pg
 				require.NoError(t, pg.RunQuery(createTableQuery))
 				for i := 0; i < 20; i++ {
-					q, args := createInsertQuery(generateTestValues(i*5, 5)...)
-					require.NoError(t, pg.RunQuery(q, args...))
+					require.NoError(t, pg.RunQuery(createInsertQuery(generateTestValues(i*5, 5)...)))
 				}
-				qsl, slargs := generateSelectLimitQuery(50)
-				require.NoError(t, pg.RunQuery(qsl, slargs...))
+				require.NoError(t, pg.RunQuery(generateSelectLimitQuery(50)))
 				require.NoError(t, pg.RunQuery(updateSingleValueQuery))
 			},
 			validation: func(t *testing.T, _ pgTestContext, monitor *Monitor) {
@@ -481,18 +466,15 @@ func testDecoding(t *testing.T, isTLS bool) {
 				require.NoError(t, pg.Ping())
 				ctx.extras["pg"] = pg
 				require.NoError(t, pg.RunQuery(createTableQuery))
-				q, args := createInsertQuery(generateTestValues(0, 100)...)
-				require.NoError(t, pg.RunQuery(q, args...))
+				require.NoError(t, pg.RunQuery(createInsertQuery(generateTestValues(0, 100)...)))
 			},
 			postMonitorSetup: func(t *testing.T, ctx pgTestContext) {
 				pg := ctx.extras["pg"].(*postgres.PGXClient)
 				// Should produce 2 postgres transactions (one for the server and one for the docker proxy)
-				q1, a1 := generateSelectLimitQuery(1)
-				require.NoError(t, pg.RunQuery(q1, a1...))
+				require.NoError(t, pg.RunQuery(generateSelectLimitQuery(1)))
 				require.NoError(t, pg.RunQuery(selectAllQuery))
 				// Should produce 2 postgres transactions (one for the server and one for the docker proxy)
-				q2, a2 := generateSelectLimitQuery(1)
-				require.NoError(t, pg.RunQuery(q2, a2...))
+				require.NoError(t, pg.RunQuery(generateSelectLimitQuery(1)))
 			},
 			validation: func(t *testing.T, _ pgTestContext, monitor *Monitor) {
 				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
@@ -578,8 +560,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 			postMonitorSetup: func(t *testing.T, ctx pgTestContext) {
 				pg := ctx.extras["pg"].(*postgres.PGXClient)
 
-				// SendBatch does not support parameterized args; use a constant safe query for this case.
-				require.NoError(t, pg.SendBatch(insertValue1Query, selectAllQuery))
+				require.NoError(t, pg.SendBatch(createInsertQuery("value-1"), selectAllQuery))
 			},
 			validation: func(t *testing.T, _ pgTestContext, monitor *Monitor) {
 				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
@@ -601,8 +582,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 				require.NoError(t, pg.Ping())
 				ctx.extras["pg"] = pg
 				require.NoError(t, pg.RunQuery(createTableQuery))
-				q, args := createInsertQuery("value-1")
-				require.NoError(t, pg.RunQuery(q, args...))
+				require.NoError(t, pg.RunQuery(createInsertQuery("value-1")))
 			},
 			postMonitorSetup: func(t *testing.T, ctx pgTestContext) {
 				pg := ctx.extras["pg"].(*postgres.PGXClient)
@@ -630,8 +610,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 				ctx.extras["pg"] = pg
 				require.NoError(t, pg.RunQuery(createTableQuery))
 				// We reduce the limit by 2 messages because the protocol adds messages at the beginning of the maximum message response.
-				q, args := createInsertQuery(generateTestValues(1, protocols.PostgresMaxTotalMessages-3)...)
-				require.NoError(t, pg.RunQuery(q, args...))
+				require.NoError(t, pg.RunQuery(createInsertQuery(generateTestValues(1, protocols.PostgresMaxTotalMessages-3)...)))
 				require.NoError(t, pg.RunQuery(selectAllQuery))
 			},
 			validation: func(t *testing.T, _ pgTestContext, monitor *Monitor) {
@@ -662,8 +641,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 				require.NoError(t, pg.Ping())
 				ctx.extras["pg"] = pg
 				require.NoError(t, pg.RunQuery(createTableQuery))
-				q, args := createInsertQuery(generateTestValues(1, protocols.PostgresMaxTotalMessages+1)...)
-				require.NoError(t, pg.RunQuery(q, args...))
+				require.NoError(t, pg.RunQuery(createInsertQuery(generateTestValues(1, protocols.PostgresMaxTotalMessages+1)...)))
 				require.NoError(t, pg.RunQuery(selectAllQuery))
 			},
 			validation: func(t *testing.T, _ pgTestContext, monitor *Monitor) {
@@ -977,12 +955,10 @@ func testKernelMessagesCount(t *testing.T, isTLS bool) {
 			if i == 0 {
 				// first bucket, it counts upto ebpf.MsgCountFirstBucketMax messages
 				// subtract three messages ('bind', 'row description' and 'ready')
-				q, args := generateSelectLimitQuery(ebpf.MsgCountFirstBucket - 3)
-				require.NoError(t, pgClient.RunQuery(q, args...))
+				require.NoError(t, pgClient.RunQuery(generateSelectLimitQuery(ebpf.MsgCountFirstBucket-3)))
 			} else {
 				limitCount := ebpf.MsgCountFirstBucket + i*ebpf.MsgCountBucketSize - 3
-				q, args := generateSelectLimitQuery(limitCount)
-				require.NoError(t, pgClient.RunQuery(q, args...))
+				require.NoError(t, pgClient.RunQuery(generateSelectLimitQuery(limitCount)))
 			}
 			require.NoError(t, monitor.Pause())
 
@@ -999,8 +975,7 @@ func testKernelMessagesCount(t *testing.T, isTLS bool) {
 		cleanProtocolMaps(t, "postgres", monitor.ebpfProgram.Manager.Manager)
 		require.NoError(t, monitor.Resume())
 
-		q, args := generateSelectLimitQuery(ebpf.MsgCountMaxTotal)
-		require.NoError(t, pgClient.RunQuery(q, args...))
+		require.NoError(t, pgClient.RunQuery(generateSelectLimitQuery(ebpf.MsgCountMaxTotal)))
 		require.NoError(t, monitor.Pause())
 
 		validateKernelExceedingMax(t, monitor, isTLS)
@@ -1020,8 +995,7 @@ func setupPGClient(t *testing.T, serverAddress string, isTLS bool) *postgres.PGX
 // createLargeTable runs a postgres query to create a table large enough to retrieve long responses later.
 func createLargeTable(t *testing.T, pg *postgres.PGXClient, tableValuesCount int) {
 	require.NoError(t, pg.RunQuery(createTableQuery))
-	q, args := createInsertQuery(generateTestValues(0, tableValuesCount)...)
-	require.NoError(t, pg.RunQuery(q, args...))
+	require.NoError(t, pg.RunQuery(createInsertQuery(generateTestValues(0, tableValuesCount)...)))
 }
 
 // validateKernel Checking telemetry data received for a postgres query
