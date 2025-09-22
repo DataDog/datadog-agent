@@ -777,7 +777,10 @@ func collectLineData(
 		return make(map[ir.PCRange]lineData), nil
 	}
 	slices.SortFunc(searchRanges, func(a, b lineSearchRange) int {
-		return cmp.Compare(a.pcRange[0], b.pcRange[0])
+		return cmp.Or(
+			cmp.Compare(a.pcRange[0], b.pcRange[0]),
+			cmp.Compare(a.pcRange[1], b.pcRange[1]),
+		)
 	})
 	// Remove duplicates.
 	i := 1
