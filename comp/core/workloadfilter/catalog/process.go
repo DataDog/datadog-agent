@@ -7,6 +7,10 @@
 package catalog
 
 import (
+	"fmt"
+	"strconv"
+	"strings"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
@@ -19,8 +23,9 @@ func LegacyProcessExcludeProgram(config config.Component, logger log.Component) 
 	var initErrors []error
 
 	patterns := config.GetStringSlice("process_config.blacklist_patterns")
-
-	excludeProgram, excludeErr := createProgramFromOldFilters(patterns, workloadfilter.ProcessType)
+	combinedPattern := strings.Join(patterns, "|")
+	celRules := fmt.Sprintf("process_name.matches(%s)", strconv.Quote(combinedPattern))
+	excludeProgram, excludeErr := createCELProgram(celRules, workloadfilter.ProcessType)
 	if excludeErr != nil {
 		initErrors = append(initErrors, excludeErr)
 		logger.Warnf("Error creating exclude program for %s: %v", programName, excludeErr)
