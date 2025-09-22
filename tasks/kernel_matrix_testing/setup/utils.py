@@ -2,6 +2,7 @@
 Utility functions for the setup requirements
 """
 
+import getpass
 import grp
 import io
 import pwd
@@ -10,8 +11,6 @@ import sys
 import tempfile
 from pathlib import Path
 from typing import cast
-import getpass
-
 
 from invoke.context import Context
 from invoke.runners import Result
@@ -350,7 +349,9 @@ class PipPackageManager(_BasePackageManager):
 
 
 def check_user_in_group(ctx: Context, group: str, fix=False) -> RequirementState:
-    res = ctx.run(f"cat /proc/$$/status | grep '^Groups:' | grep $(cat /etc/group | grep '{group}:' | cut -d ':' -f 3)", warn=True)
+    res = ctx.run(
+        f"cat /proc/$$/status | grep '^Groups:' | grep $(cat /etc/group | grep '{group}:' | cut -d ':' -f 3)", warn=True
+    )
     if res is not None and res.ok:
         return RequirementState(Status.OK, f"User is in group {group}.")
 

@@ -1,4 +1,3 @@
-import getpass
 import shutil
 
 from invoke.context import Context

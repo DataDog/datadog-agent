@@ -17,6 +17,7 @@ def get_requirements() -> list[Requirement]:
         LinuxQemuConfig(),
         NFSExport(),
         LinuxLocalVMDirectories(),
+        LinuxGroups(),
     ]
 
 
@@ -131,6 +132,7 @@ class LinuxLocalVMDirectories(Requirement):
         group = kmt_os.libvirt_group
 
         return check_directories(ctx, dirs, fix, user, group, 0o755)
+
 
 class LinuxGroups(Requirement):
     def check(self, ctx: Context, fix: bool) -> list[RequirementState]:
