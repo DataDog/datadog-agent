@@ -7,7 +7,7 @@ replace github.com/cihub/seelog => github.com/cihub/seelog v0.0.0-20151216151435
 require (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.62.3
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
-	github.com/stretchr/testify v1.10.0
+	github.com/stretchr/testify v1.11.1
 	go.uber.org/atomic v1.11.0
 	go.uber.org/zap v1.27.0
 	golang.org/x/time v0.12.0
@@ -20,6 +20,9 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+// Pin github.com/stretchr/testify to v1.10.0 while waiting for https://github.com/DataDog/datadog-agent/pull/40182
+replace github.com/stretchr/testify => github.com/stretchr/testify v1.10.0
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 

@@ -35,6 +35,7 @@ func TestSetupCommonHostTags(t *testing.T) {
 				"DB_CLUSTER_NAME":      "example[,'job]name",
 				"DB_CLUSTER_ID":        "cluster123",
 				"DATABRICKS_WORKSPACE": "example_workspace",
+				"WORKSPACE_URL":        "https://dbc-12345678-a1b2.cloud.databricks.com/",
 			},
 			wantTags: []string{
 				"data_workload_monitoring_trial:true",
@@ -49,6 +50,7 @@ func TestSetupCommonHostTags(t *testing.T) {
 				"databricks_workspace:example_workspace",
 				"workspace:example_workspace",
 				"dd.internal.resource:databricks_cluster:cluster123",
+				"workspace_url:https://dbc-12345678-a1b2.cloud.databricks.com/",
 			},
 		},
 		{
