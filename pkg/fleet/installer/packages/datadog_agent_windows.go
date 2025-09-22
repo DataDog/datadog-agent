@@ -118,13 +118,13 @@ func preStartExperimentDatadogAgent(_ HookContext) error {
 }
 
 // postStartExperimentDatadogAgent stops the watchdog and launches a new process to start the experiment in the background.
-func postStartExperimentDatadogAgent(_ HookContext) error {
+func postStartExperimentDatadogAgent(ctx HookContext) error {
 	// open event that signal the end of the experiment
 	// this will terminate other running instances of the watchdog
 	// this allows for running multiple experiments in sequence
 	_ = setWatchdogStopEvent()
 
-	return launchPackageCommandInBackground(getenv(), "postStartExperimentBackground")
+	return launchPackageCommandInBackground(ctx.Context, getenv(), "postStartExperimentBackground")
 }
 
 // postStartExperimentDatadogAgentBackground uninstalls the Agent, installs the experiment,
@@ -201,13 +201,13 @@ func postStartExperimentDatadogAgentBackground(ctx context.Context) error {
 }
 
 // postStopExperimentDatadogAgent stops the watchdog and launches a new process to stop the experiment.
-func postStopExperimentDatadogAgent(_ HookContext) (err error) {
+func postStopExperimentDatadogAgent(ctx HookContext) (err error) {
 	// set watchdog stop to make sure the watchdog stops
 	// don't care if it fails cause we will proceed with the stop anyway
 	// this will just stop a watchdog that is running
 	_ = setWatchdogStopEvent()
 
-	return launchPackageCommandInBackground(getenv(), "postStopExperimentBackground")
+	return launchPackageCommandInBackground(ctx.Context, getenv(), "postStopExperimentBackground")
 }
 
 // postStopExperimentDatadogAgentBackground uninstalls the Agent and then reinstalls the stable Agent,
@@ -640,7 +640,7 @@ func setFleetPoliciesDir(path string) error {
 
 // postStartConfigExperimentDatadogAgent stops the watchdog, sets the fleet_policies_dir to experiment,
 // and launches a new process to start the experiment in the background.
-func postStartConfigExperimentDatadogAgent(_ HookContext) error {
+func postStartConfigExperimentDatadogAgent(ctx HookContext) error {
 	// open event that signal the end of the experiment
 	// this will terminate other running instances of the watchdog
 	// this allows for running multiple experiments in sequence
@@ -653,7 +653,7 @@ func postStartConfigExperimentDatadogAgent(_ HookContext) error {
 		return err
 	}
 
-	return launchPackageCommandInBackground(getenv(), "postStartConfigExperimentBackground")
+	return launchPackageCommandInBackground(ctx.Context, getenv(), "postStartConfigExperimentBackground")
 }
 
 // postStartConfigExperimentDatadogAgentBackground restarts the Agent services and then
@@ -726,7 +726,7 @@ func restoreStableConfigFromExperiment(ctx context.Context) error {
 
 // preStopConfigExperimentDatadogAgent stops the watchdog, sets the fleet_policies_dir to stable,
 // and launches a new process to stop the experiment in the background.
-func preStopConfigExperimentDatadogAgent(_ HookContext) error {
+func preStopConfigExperimentDatadogAgent(ctx HookContext) error {
 	// set watchdog stop to make sure the watchdog stops
 	// don't care if it fails cause we will proceed with the stop anyway
 	// this will just stop a watchdog that is running
@@ -739,7 +739,7 @@ func preStopConfigExperimentDatadogAgent(_ HookContext) error {
 		return err
 	}
 
-	return launchPackageCommandInBackground(getenv(), "preStopConfigExperimentBackground")
+	return launchPackageCommandInBackground(ctx.Context, getenv(), "preStopConfigExperimentBackground")
 }
 
 // preStopConfigExperimentDatadogAgentBackground restarts the Agent services.
@@ -754,7 +754,7 @@ func preStopConfigExperimentDatadogAgentBackground(ctx context.Context) error {
 
 // postPromoteConfigExperimentDatadogAgent stops the watchdog, sets the fleet_policies_dir to stable,
 // and launches a new process to promote the experiment in the background.
-func postPromoteConfigExperimentDatadogAgent(_ HookContext) error {
+func postPromoteConfigExperimentDatadogAgent(ctx HookContext) error {
 	err := setWatchdogStopEvent()
 	if err != nil {
 		// if we can't set the event it means the watchdog has failed
@@ -770,7 +770,7 @@ func postPromoteConfigExperimentDatadogAgent(_ HookContext) error {
 		return err
 	}
 
-	return launchPackageCommandInBackground(getenv(), "postPromoteConfigExperimentBackground")
+	return launchPackageCommandInBackground(ctx.Context, getenv(), "postPromoteConfigExperimentBackground")
 }
 
 // postPromoteConfigExperimentDatadogAgentBackground restarts the Agent services.
@@ -824,13 +824,13 @@ func runDatadogAgentPackageCommand(ctx context.Context, command string) (err err
 }
 
 // launchPackageCommandInBackground launches a package command in the background using the installer.
-func launchPackageCommandInBackground(env *env.Env, command string) error {
+func launchPackageCommandInBackground(ctx context.Context, env *env.Env, command string) error {
 	installer, err := newInstallerExec(env)
 	if err != nil {
 		return fmt.Errorf("failed to create installer exec: %w", err)
 	}
 
-	err = installer.StartPackageCommandDetached(datadogAgent, command)
+	err = installer.StartPackageCommandDetached(ctx, datadogAgent, command)
 	if err != nil {
 		return fmt.Errorf("failed to start background process: %w", err)
 	}
