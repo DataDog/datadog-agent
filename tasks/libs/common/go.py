@@ -89,14 +89,6 @@ def go_build(
 
 
 def _handle_pipe_to_whydeadcode(ctx: Context, cmd: str, env: dict[str, str] | None = None) -> Result:
-    print("[environ] GOPATH:", os.getenv("GOPATH"))
-    print("[environ] GOROOT:", os.getenv("GOROOT"))
-    print("[environ] PATH:", os.getenv("PATH"))
-
-    print("[env] GOPATH:", (env or {}).get("GOPATH"))
-    print("[env] GOROOT:", (env or {}).get("GOROOT"))
-    print("[env] PATH:", (env or {}).get("PATH"))
-
     # use a custom runner to read stderr in bigger chunks as dumpdep output is huge
     # and invoke is super slow by default when writing to stdout/stderr
     # https://github.com/pyinvoke/invoke/issues/774
@@ -113,14 +105,15 @@ def _handle_pipe_to_whydeadcode(ctx: Context, cmd: str, env: dict[str, str] | No
     # worst case it's already installed and nothing happens
     with ctx.cd("internal/tools"):
         # pass the env to the command so that it can check GOPATH/GOBIN
-        ctx.run("go install -x github.com/aarzilli/whydeadcode", env=env)
+        ctx.run("go install github.com/aarzilli/whydeadcode", env=env)
 
     # whydeadcode prints unexpected input on stderr (eg. build warnings), and
     # dead code call stack on stdout
     # it returns non-zero if non-expected input is passed, and 0 otherwise, even if dead code elimination is disabled
     # so we check whether stdout is empty to know if dead code elimination is disabled
+    whydeadcode_bin = "whydeadcode.exe" if sys.platform == "win32" else "whydeadcode"
     whydeadcoderes = cast(
-        Result, runner.run("whydeadcode", in_stream=CustomReader(result.stderr), warn=True, hide="out", env=env)
+        Result, runner.run(whydeadcode_bin, in_stream=CustomReader(result.stderr), warn=True, hide="out", env=env)
     )
     if whydeadcoderes.stdout:
         print(
