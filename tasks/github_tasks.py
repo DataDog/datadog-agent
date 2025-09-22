@@ -679,3 +679,15 @@ def check_permissions(
     MAX_BLOCKS = 50
     for idx in range(0, len(blocks), MAX_BLOCKS):
         client.chat_postMessage(channel=channel, blocks=blocks[idx : idx + MAX_BLOCKS], text=message)
+
+@task
+def t(ctx):
+    from tasks.libs.common.git import get_common_ancestor
+    merge_base = get_common_ancestor(ctx, "main", "celian/shallow-clone-acix-1058")
+    print(merge_base)
+    # from tasks.libs.ciproviders.github_api import GithubAPI
+    # gh = GithubAPI()
+    # branch = 'celian/shallow-clone-acix-1058'
+    # # Get merge base with main
+    # merge_base = gh.repo.compare("main", branch)
+    # print(merge_base.base_commit.sha)
