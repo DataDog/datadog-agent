@@ -30,6 +30,10 @@ func TestDump(t *testing.T) {
 		Resources: wmdef.ContainerResources{
 			GPUVendorList: []string{"nvidia"},
 		},
+		ResizePolicy: wmdef.ContainerResizePolicy{
+			CPURestartPolicy:    "NotRequired",
+			MemoryRestartPolicy: "RestartContainer",
+		},
 		ResolvedAllocatedResources: []wmdef.ContainerAllocatedResource{
 			{Name: "nvidia.com/gpu", ID: "GPU-1234"},
 		},
@@ -136,6 +140,7 @@ Hostname:
 Network IPs: 
 PID: 0
 Cgroup path: 
+RestartPolicy: CPU: NotRequired, Memory: RestartContainer
 `,
 					"source:source2 id: ctr-id": `----------- Entity ID -----------
 Kind: container ID: ctr-id
@@ -166,6 +171,7 @@ Hostname:
 Network IPs: 
 PID: 1
 Cgroup path: /default/ctr-id
+RestartPolicy: CPU: , Memory: 
 `,
 					"sources(merged):[source1 source2] id: ctr-id": `----------- Entity ID -----------
 Kind: container ID: ctr-id
@@ -198,6 +204,7 @@ Hostname:
 Network IPs: 
 PID: 1
 Cgroup path: /default/ctr-id
+RestartPolicy: CPU: NotRequired, Memory: RestartContainer
 `,
 				},
 			},
