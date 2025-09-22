@@ -468,36 +468,36 @@ func TestObfuscateSql(t *testing.T) {
 		{
 			name: "Test query obfuscation",
 			code: `
-result = json.loads(datadog_agent.obfuscate_sql("select * from table where id = 1"))
-with open(r'` + tmpfile.Name() + `', 'w') as f:
-	f.write(str(result['query']))
+    result = json.loads(datadog_agent.obfuscate_sql("select * from table where id = 1"))
+    with open(r'` + tmpfile.Name() + `', 'w') as f:
+        f.write(str(result['query']))
 `,
 			expected: "select * from table where id = ?",
 		},
 		{
 			name: "Test metadata tables_csv",
 			code: `
-result = json.loads(datadog_agent.obfuscate_sql("select * from table where id = 1"))
-with open(r'` + tmpfile.Name() + `', 'w') as f:
-	f.write(str(result['metadata']['tables_csv']))
+    result = json.loads(datadog_agent.obfuscate_sql("select * from table where id = 1"))
+    with open(r'` + tmpfile.Name() + `', 'w') as f:
+        f.write(str(result['metadata']['tables_csv']))
 `,
 			expected: "table",
 		},
 		{
 			name: "Test metadata commands",
 			code: `
-result = json.loads(datadog_agent.obfuscate_sql("select * from table where id = 1"))
-with open(r'` + tmpfile.Name() + `', 'w') as f:
-	f.write(str(result['metadata']['commands'][0]))
+    result = json.loads(datadog_agent.obfuscate_sql("select * from table where id = 1"))
+    with open(r'` + tmpfile.Name() + `', 'w') as f:
+        f.write(str(result['metadata']['commands'][0]))
 `,
 			expected: "SELECT",
 		},
 		{
 			name: "Test metadata comments",
 			code: `
-result = json.loads(datadog_agent.obfuscate_sql("select * from table where id = 1"))
-with open(r'` + tmpfile.Name() + `', 'w') as f:
-	f.write(str(result['metadata']['comments'][0]))
+    result = json.loads(datadog_agent.obfuscate_sql("select * from table where id = 1"))
+    with open(r'` + tmpfile.Name() + `', 'w') as f:
+        f.write(str(result['metadata']['comments'][0]))
 `,
 			expected: "-- SQL test comment",
 		},
