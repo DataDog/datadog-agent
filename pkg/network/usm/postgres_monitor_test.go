@@ -12,7 +12,6 @@ import (
 	"net"
 	"os"
 	"reflect"
-	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -57,12 +56,8 @@ var (
 	longDropeQuery  = fmt.Sprintf("DROP TABLE IF EXISTS %s", strings.Repeat("table_", repeatCount))
 )
 
-// createInsertQuery builds a multi-row INSERT statement without fmt.Sprintf.
 func createInsertQuery(values ...string) string {
-	if len(values) == 0 {
-		return "INSERT INTO dummy (foo) VALUES ()"
-	}
-	return "INSERT INTO dummy (foo) VALUES ('" + strings.Join(values, "'), ('") + "')"
+	return fmt.Sprintf("INSERT INTO dummy (foo) VALUES ('%s')", strings.Join(values, "'), ('"))
 }
 
 func generateTestValues(startingIndex, count int) []string {
@@ -73,9 +68,8 @@ func generateTestValues(startingIndex, count int) []string {
 	return values
 }
 
-// generateSelectLimitQuery returns a simple SELECT with LIMIT clause without fmt.Sprintf.
 func generateSelectLimitQuery(limit int) string {
-	return "SELECT * FROM dummy limit " + strconv.Itoa(limit)
+	return fmt.Sprintf("SELECT * FROM dummy limit %d", limit)
 }
 
 // pgTestContext shares the context of a given test.
