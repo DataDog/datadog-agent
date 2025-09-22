@@ -343,11 +343,8 @@ func (i *InstallerExec) RunHook(ctx context.Context, hookContext string) (err er
 }
 
 // StartPackageCommandDetached starts a package-specific command for a given package in the background with detached standard IO.
-func (i *InstallerExec) StartPackageCommandDetached(packageName string, command string) (err error) {
-	// NOTE: We very intentionally don't use a caller provided context here.
-	//       exec.Cmd will kill the process if the context is cancelled. We don't want that here since
-	//       it is supposed to be a detached process that may live longer than the current process.
-	cmd := i.newInstallerCmd(context.Background(), "package-command", packageName, command)
+func (i *InstallerExec) StartPackageCommandDetached(ctx context.Context, packageName string, command string) (err error) {
+	cmd := i.newInstallerCmd(ctx, "package-command", packageName, command)
 	defer func() { cmd.span.Finish(err) }()
 	// We're running this process in the background, so we don't intend to collect any output from it.
 	// We set channels to nil here because os/exec waits on these pipes to close even after
