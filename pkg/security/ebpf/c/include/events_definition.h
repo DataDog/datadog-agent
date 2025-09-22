@@ -86,6 +86,7 @@ struct process_event_t {
     u64 envs_id;
     u32 args_truncated;
     u32 envs_truncated;
+    u32 is_through_symlink;
 };
 
 struct exit_event_t {
@@ -492,7 +493,7 @@ struct raw_packet_event_t {
     struct cgroup_context_t cgroup;
     struct network_device_context_t device;
 
-    int len;
+    u32 len;
     char data[256];
 };
 
@@ -551,6 +552,27 @@ struct setsockopt_event_t {
     u32 truncated; 
     int sent_size; 
     char bpf_filters_buffer[MAX_BPF_FILTER_SIZE];
+};
+
+struct capabilities_event_t {
+    struct kevent_t event;
+    struct process_context_t process;
+    struct span_context_t span;
+    struct cgroup_context_t cgroup;
+    struct capabilities_usage_t caps_usage;
+};
+
+struct prctl_event_t {
+    struct kevent_t event;
+    struct process_context_t process;
+    struct span_context_t span;
+    struct cgroup_context_t cgroup;
+    struct syscall_t syscall;
+
+    int option;
+    int sent_size;
+    u32 name_truncated;
+    char name[MAX_PRCTL_NAME_LEN];
 };
 
 #endif

@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	//nolint:revive // TODO(AML) Fix revive linter
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"

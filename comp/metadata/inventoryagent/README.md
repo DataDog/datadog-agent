@@ -76,13 +76,13 @@ The payload is a JSON dict with the following fields
   - `system_probe_protocol_classification_enabled` - **bool**: True if protocol classification is enabled in the System Probe (see: `network_config.enable_protocol_classification` config option in `system-probe.yaml`).
   - `system_probe_gateway_lookup_enabled` - **bool**: True if gateway lookup is enable in the System Probe (see: `network_config.enable_gateway_lookup` config option in `system-probe.yaml`).
   - `system_probe_root_namespace_enabled` - **bool**: True if the System Probe will run in the root namespace of the host (see: `network_config.enable_root_netns` config option in `system-probe.yaml`).
-  - `feature_networks_http_enabled` - **bool**: True if HTTP monitoring is enabled for Network Performance Monitoring (see: `service_monitoring_config.enable_http_monitoring` config option in `system-probe.yaml`).
+  - `feature_networks_http_enabled` - **bool**: True if HTTP monitoring is enabled for Network Performance Monitoring (see: `service_monitoring_config.http.enabled` config option in `system-probe.yaml`).
   - `feature_networks_https_enabled` - **bool**: True if HTTPS monitoring is enabled for Universal Service Monitoring (see: `service_monitoring_config.tls.native.enabled` config option in `system-probe.yaml`).
   - `feature_remote_configuration_enabled` - **bool**: True if Remote Configuration is enabled (see: `remote_configuration.enabled` config option).
   - `feature_usm_enabled` - **bool**: True if Universal Service Monitoring is enabled (see: `service_monitoring_config.enabled` config option in `system-probe.yaml`)
-  - `feature_usm_http2_enabled` - **bool**: True if HTTP2 monitoring is enabled for Universal Service Monitoring (see: `service_monitoring_config.enable_http2_monitoring` config option in `system-probe.yaml`).
+  - `feature_usm_http2_enabled` - **bool**: True if HTTP2 monitoring is enabled for Universal Service Monitoring (see: `service_monitoring_config.http2.enabled` config option in `system-probe.yaml`).
   - `feature_usm_kafka_enabled` - **bool**: True if Kafka monitoring is enabled for Universal Service Monitoring (see: `service_monitoring_config.enable_kafka_monitoring` config option in `system-probe.yaml`)
-  - `feature_usm_postgres_enabled` - **bool**: True if Postgres monitoring is enabled for Universal Service Monitoring (see: `service_monitoring_config.enable_postgres_monitoring` config option in `system-probe.yaml`)
+  - `feature_usm_postgres_enabled` - **bool**: True if Postgres monitoring is enabled for Universal Service Monitoring (see: `service_monitoring_config.postgres.enabled` config option in `system-probe.yaml`)
   - `feature_usm_redis_enabled` - **bool**: True if Redis monitoring is enabled for Universal Service Monitoring (see: `service_monitoring_config.enable_redis_monitoring` config option in `system-probe.yaml`)
   - `feature_usm_go_tls_enabled` - **bool**: True if HTTPS monitoring through GoTLS is enabled for Universal Service Monitoring (see: `service_monitoring_config.tls.go.enabled` config option in `system-probe.yaml`).
   - `feature_discovery_enabled` - **bool**: True if discovery module is enabled (see: `discovery.enabled` config option).
@@ -167,8 +167,8 @@ Here an example of an inventory payload:
         "install_method_tool_version": "",
         "logs_transport": "HTTP",
         "full_configuration": "<entire yaml configuration for the agent>",
-        "provided_configuration": "api_key: \"***************************aaaaa\"\ncheck_runners: 4\ncontainerd_namespace: []\ncontainerd_namespaces: []\npython_version: \"3\"\ntracemalloc_debug: false\nlog_level: \"warn\"",
-        "file_configuration": "check_runners: 4\ncontainerd_namespace: []\ncontainerd_namespaces: []\npython_version: \"3\"\ntracemalloc_debug: false",
+        "provided_configuration": "api_key: \"***************************aaaaa\"\ncheck_runners: 4\ncontainerd_namespace: []\ncontainerd_namespaces: []tracemalloc_debug: false\nlog_level: \"warn\"",
+        "file_configuration": "check_runners: 4\ncontainerd_namespace: []\ncontainerd_namespaces: []tracemalloc_debug: false",
         "agent_runtime_configuration": "runtime_block_profile_rate: 5000",
         "environment_variable_configuration": "api_key: \"***************************aaaaa\"",
         "remote_configuration": "log_level: \"debug\"",

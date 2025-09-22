@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(AML) Fix revive linter
+// Package ad provides autodiscovery-based log scheduling
 package ad
 
 import (
@@ -189,7 +189,7 @@ func configName(config integration.Config) string {
 	return config.Provider
 }
 
-// createsSources creates new sources from an integration config,
+// CreateSources creates new sources from an integration config,
 // returns an error if the parsing failed.
 func CreateSources(config integration.Config) ([]*sourcesPkg.LogSource, error) {
 	var configs []*logsConfig.LogsConfig
@@ -244,16 +244,25 @@ func CreateSources(config integration.Config) ([]*sourcesPkg.LogSource, error) {
 
 	configName := configName(config)
 	var sources []*sourcesPkg.LogSource
-	for _, cfg := range configs {
+	for index, cfg := range configs {
+		// Skip nil configurations
+		if cfg == nil {
+			log.Warnf("Skipping nil log configuration at index %d in config %s", index, configName)
+			continue
+		}
+
 		// if no service is set fall back to the global one
 		if cfg.Service == "" && globalServiceDefined {
 			cfg.Service = commonGlobalOptions.Service
 		}
 
+		cfg.IntegrationSourceIndex = index
+		cfg.IntegrationSource = config.Source
+
 		if service != nil {
 			// a config defined in a container label or a pod annotation does not always contain a type,
 			// override it here to ensure that the config won't be dropped at validation.
-			if (cfg.Type == logsConfig.FileType || cfg.Type == logsConfig.TCPType || cfg.Type == logsConfig.UDPType) && (config.Provider == names.Kubernetes || config.Provider == names.Container || config.Provider == names.KubeContainer || config.Provider == logsConfig.FileType || config.Provider == names.ProcessLog) {
+			if (cfg.Type == logsConfig.FileType || cfg.Type == logsConfig.TCPType || cfg.Type == logsConfig.UDPType || cfg.Type == logsConfig.IntegrationType) && (config.Provider == names.Kubernetes || config.Provider == names.Container || config.Provider == names.KubeContainer || config.Provider == logsConfig.FileType || config.Provider == names.ProcessLog || config.Provider == names.DataStreamsLiveMessages) {
 				// cfg.Type is not overwritten as tailing a file from a Docker or Kubernetes AD configuration
 				// is explicitly supported (other combinations may be supported later)
 				cfg.Identifier = service.Identifier

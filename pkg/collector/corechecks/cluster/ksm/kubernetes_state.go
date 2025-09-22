@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -71,9 +72,11 @@ const (
 )
 
 var extendedCollectors = map[string]string{
-	"jobs":  "batch/v1, Resource=jobs_extended",
-	"nodes": "core/v1, Resource=nodes_extended",
-	"pods":  "core/v1, Resource=pods_extended",
+	"deployments": "apps/v1, Resource=deployments_extended",
+	"replicasets": "apps/v1, Resource=replicasets_extended",
+	"jobs":        "batch/v1, Resource=jobs_extended",
+	"nodes":       "core/v1, Resource=nodes_extended",
+	"pods":        "core/v1, Resource=pods_extended",
 }
 
 // collectorNameReplacement contains a mapping of collector names as they would appear in the KSM config to what
@@ -245,6 +248,7 @@ type KSMCheck struct {
 	metricTransformers   map[string]metricTransformerFunc
 	metadataMetricsRegex *regexp.Regexp
 	initRetry            retry.Retrier
+	workloadmetaStore    workloadmeta.Component
 }
 
 // JoinsConfigWithoutLabelsMapping contains the config parameters for label joins
@@ -535,6 +539,8 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 		customresources.NewExtendedNodeFactory(c),
 		customresources.NewExtendedPodFactory(c),
 		customresources.NewVerticalPodAutoscalerFactory(c),
+		customresources.NewDeploymentRolloutFactory(c),
+		customresources.NewReplicaSetRolloutFactory(c),
 	}
 
 	factories = manageResourcesReplacement(c, factories, resources)
@@ -654,17 +660,35 @@ func (k *KSMCheck) Run() error {
 	labelJoiner := newLabelJoiner(k.instance.labelJoins)
 	for _, stores := range k.allStores {
 		for _, store := range stores {
-			metrics := store.(*ksmstore.MetricsStore).Push(k.familyFilter, k.metricFilter)
-			labelJoiner.insertFamilies(metrics)
+			var metricsStore *ksmstore.MetricsStore
+			if ms, ok := store.(*ksmstore.MetricsStore); ok {
+				metricsStore = ms
+			} else if rolloutStore, ok := store.(*ksmstore.RolloutMetricsStore); ok {
+				metricsStore = rolloutStore.MetricsStore
+			}
+
+			if metricsStore != nil {
+				metrics := metricsStore.Push(k.familyFilter, k.metricFilter)
+				labelJoiner.insertFamilies(metrics)
+			}
 		}
 	}
 
 	currentTime := time.Now()
 	for _, stores := range k.allStores {
 		for _, store := range stores {
-			metrics := store.(*ksmstore.MetricsStore).Push(ksmstore.GetAllFamilies, ksmstore.GetAllMetrics)
-			k.processMetrics(sender, metrics, labelJoiner, currentTime)
-			k.processTelemetry(metrics)
+			var metricsStore *ksmstore.MetricsStore
+			if ms, ok := store.(*ksmstore.MetricsStore); ok {
+				metricsStore = ms
+			} else if rolloutStore, ok := store.(*ksmstore.RolloutMetricsStore); ok {
+				metricsStore = rolloutStore.MetricsStore
+			}
+
+			if metricsStore != nil {
+				metrics := metricsStore.Push(ksmstore.GetAllFamilies, ksmstore.GetAllMetrics)
+				k.processMetrics(sender, metrics, labelJoiner, currentTime)
+				k.processTelemetry(metrics)
+			}
 		}
 	}
 
@@ -975,7 +999,7 @@ func (k *KSMCheck) configurePodCollection(builder *kubestatemetrics.Builder, col
 			// there are more collectors enabled, we need leader election and
 			// pods would only be collected from one of the agents.
 			if len(collectors) == 1 && collectors[0] == "pods" {
-				builder.WithPodCollectionFromKubelet()
+				builder.WithPodCollectionFromWorkloadmeta(k.workloadmetaStore)
 			} else {
 				log.Warnf("pod collection from the Kubelet is enabled but it's only supported when the only collector enabled is pods, " +
 					"so the check will collect pods from the API server instead of the Kubelet")
@@ -1043,13 +1067,13 @@ func (k *KSMCheck) sendTelemetry(s sender.Sender) {
 }
 
 // Factory creates a new check factory
-func Factory(tagger tagger.Component) option.Option[func() check.Check] {
+func Factory(tagger tagger.Component, wmeta workloadmeta.Component) option.Option[func() check.Check] {
 	return option.New(func() check.Check {
-		return newCheck(tagger)
+		return newCheck(tagger, wmeta)
 	})
 }
 
-func newCheck(tagger tagger.Component) check.Check {
+func newCheck(tagger tagger.Component, wmeta workloadmeta.Component) check.Check {
 	return newKSMCheck(
 		core.NewCheckBase(CheckName),
 		&KSMConfig{
@@ -1058,6 +1082,7 @@ func newCheck(tagger tagger.Component) check.Check {
 			Namespaces:   []string{},
 		},
 		tagger,
+		wmeta,
 	)
 }
 
@@ -1071,12 +1096,13 @@ func KubeStateMetricsFactoryWithParam(labelsMapper map[string]string, labelJoins
 			Namespaces:   []string{},
 		},
 		tagger,
+		nil,
 	)
 	check.allStores = allStores
 	return check
 }
 
-func newKSMCheck(base core.CheckBase, instance *KSMConfig, tagger tagger.Component) *KSMCheck {
+func newKSMCheck(base core.CheckBase, instance *KSMConfig, tagger tagger.Component, wmeta workloadmeta.Component) *KSMCheck {
 	return &KSMCheck{
 		CheckBase:            base,
 		instance:             instance,
@@ -1087,6 +1113,7 @@ func newKSMCheck(base core.CheckBase, instance *KSMConfig, tagger tagger.Compone
 		metricNamesMapper:    defaultMetricNamesMapper(),
 		metricAggregators:    defaultMetricAggregators(),
 		metricTransformers:   defaultMetricTransformers(),
+		workloadmetaStore:    wmeta,
 
 		// metadata metrics are useful for label joins
 		// but shouldn't be submitted to Datadog

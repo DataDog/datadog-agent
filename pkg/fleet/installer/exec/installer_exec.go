@@ -17,6 +17,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
@@ -154,18 +155,13 @@ func (i *InstallerExec) PromoteExperiment(ctx context.Context, pkg string) (err 
 
 // InstallConfigExperiment installs an experiment.
 func (i *InstallerExec) InstallConfigExperiment(
-	ctx context.Context, pkg string, version string, rawConfigs [][]byte, _ []string,
+	ctx context.Context, pkg string, operations config.Operations,
 ) (err error) {
-	if len(rawConfigs) == 0 {
-		return fmt.Errorf("no configs provided")
+	operationsBytes, err := json.Marshal(operations)
+	if err != nil {
+		return fmt.Errorf("error marshalling config operations: %w", err)
 	}
-
-	var cmdLineArgs = []string{pkg, version}
-
-	for _, config := range rawConfigs {
-		cmdLineArgs = append(cmdLineArgs, string(config))
-	}
-
+	cmdLineArgs := []string{pkg, string(operationsBytes)}
 	cmd := i.newInstallerCmd(ctx, "install-config-experiment", cmdLineArgs...)
 	defer func() { cmd.span.Finish(err) }()
 	return cmd.Run()

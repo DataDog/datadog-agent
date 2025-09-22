@@ -63,11 +63,9 @@ func TestGetExecutablePermissionsSuccess(t *testing.T) {
 
 	res, err := resolver.getExecutablePermissions()
 	require.NoError(t, err)
-	require.IsType(t, permissionsDetails{}, res)
-	details := res.(permissionsDetails)
-	assert.Equal(t, "100700", details.FileMode)
-	assert.Equal(t, currentUser, details.Owner)
-	assert.Equal(t, currentGroup, details.Group)
+	assert.Equal(t, "100700", res.FileMode)
+	assert.Equal(t, currentUser, res.Owner)
+	assert.Equal(t, currentGroup, res.Group)
 }
 
 func TestDebugInfo(t *testing.T) {
@@ -87,34 +85,47 @@ func TestDebugInfo(t *testing.T) {
 	_, err = resolver.Resolve(testConfInfo, "test2")
 	require.NoError(t, err)
 
+	debugInfo := resolver.getDebugInfo(false)
+
+	assert.True(t, debugInfo["enabled"].(bool))
+	assert.True(t, debugInfo["backendCommandSet"].(bool))
+	assert.Equal(t, resolver.backendCommand, debugInfo["executable"].(string))
+	assert.Equal(t, "OK, the executable has the correct permissions", debugInfo["executablePermissions"].(string))
+	assert.True(t, debugInfo["executablePermissionsOK"].(bool))
+	assert.False(t, debugInfo["refreshIntervalEnabled"].(bool))
+
+	handles := debugInfo["handles"].(map[string][][]string)
+	assert.Len(t, handles, 3)
+
+	assert.Contains(t, handles, "pass1")
+	assert.Contains(t, handles, "pass2")
+	assert.Contains(t, handles, "pass3")
+
+	assert.Len(t, handles["pass1"], 1)
+	assert.Equal(t, []string{"test", "instances/0/password"}, handles["pass1"][0])
+
+	assert.Len(t, handles["pass2"], 2)
+	expectedPass2 := [][]string{
+		{"test", "instances/1/password"},
+		{"test2", "instances/1/password"},
+	}
+	assert.ElementsMatch(t, expectedPass2, handles["pass2"])
+
+	assert.Len(t, handles["pass3"], 1)
+	assert.Equal(t, []string{"test2", "instances/0/password"}, handles["pass3"][0])
+
 	var buffer bytes.Buffer
-	resolver.getDebugInfo(&buffer)
+	secretStatus := secretsStatus{resolver: resolver}
+	err = secretStatus.Text(false, &buffer)
+	require.NoError(t, err)
 
-	expectedResult := `=== Checking executable permissions ===
-Executable path: ` + resolver.backendCommand + `
-Executable permissions: OK, the executable has the correct permissions
-
-Permissions Detail:
-File mode: 100700
-Owner: ` + currentUser + `
-Group: ` + currentGroup + `
-
-=== Secrets stats ===
-Number of secrets resolved: 3
-Secrets handle resolved:
-
-- 'pass1':
-	used in 'test' configuration in entry 'instances/0/password'
-- 'pass2':
-	used in 'test' configuration in entry 'instances/1/password'
-	used in 'test2' configuration in entry 'instances/1/password'
-- 'pass3':
-	used in 'test2' configuration in entry 'instances/0/password'
-
-'secret_refresh_interval' is disabled
-`
-
-	assert.Equal(t, expectedResult, buffer.String())
+	output := buffer.String()
+	assert.Contains(t, output, "Executable path: "+resolver.backendCommand)
+	assert.Contains(t, output, "OK, the executable has the correct permissions")
+	assert.Contains(t, output, "Owner: "+currentUser)
+	assert.Contains(t, output, "Group: "+currentGroup)
+	assert.Contains(t, output, "Number of secrets resolved: 3")
+	assert.Contains(t, output, "'secret_refresh_interval' is disabled")
 }
 
 func TestDebugInfoError(t *testing.T) {
@@ -134,30 +145,28 @@ func TestDebugInfoError(t *testing.T) {
 	_, err = resolver.Resolve(testConfInfo, "test2")
 	require.NoError(t, err)
 
+	debugInfo := resolver.getDebugInfo(false)
+
+	assert.True(t, debugInfo["enabled"].(bool))
+	assert.True(t, debugInfo["backendCommandSet"].(bool))
+	assert.Equal(t, "some_command", debugInfo["executable"].(string))
+	assert.Equal(t, "error: the executable does not have the correct permissions", debugInfo["executablePermissions"].(string))
+	assert.False(t, debugInfo["executablePermissionsOK"].(bool))
+	assert.Contains(t, debugInfo["executablePermissionsDetailsError"].(string), "no such file or directory")
+	assert.False(t, debugInfo["refreshIntervalEnabled"].(bool))
+
+	handles := debugInfo["handles"].(map[string][][]string)
+	assert.Len(t, handles, 3)
+
 	var buffer bytes.Buffer
-	resolver.getDebugInfo(&buffer)
+	secretStatus := secretsStatus{resolver: resolver}
+	err = secretStatus.Text(false, &buffer)
+	require.NoError(t, err)
 
-	expectedResult := `=== Checking executable permissions ===
-Executable path: some_command
-Executable permissions: error: the executable does not have the correct permissions
-
-Permissions Detail:
-Could not stat some_command: no such file or directory
-
-=== Secrets stats ===
-Number of secrets resolved: 3
-Secrets handle resolved:
-
-- 'pass1':
-	used in 'test' configuration in entry 'instances/0/password'
-- 'pass2':
-	used in 'test' configuration in entry 'instances/1/password'
-	used in 'test2' configuration in entry 'instances/1/password'
-- 'pass3':
-	used in 'test2' configuration in entry 'instances/0/password'
-
-'secret_refresh_interval' is disabled
-`
-
-	assert.Equal(t, expectedResult, buffer.String())
+	output := buffer.String()
+	assert.Contains(t, output, "Executable path: some_command")
+	assert.Contains(t, output, "error: the executable does not have the correct permissions")
+	assert.Contains(t, output, "no such file or directory")
+	assert.Contains(t, output, "Number of secrets resolved: 3")
+	assert.Contains(t, output, "'secret_refresh_interval' is disabled")
 }

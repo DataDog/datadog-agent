@@ -10,7 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 )
 
-func initCWSSystemProbeConfig(cfg pkgconfigmodel.Config) {
+func initCWSSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// CWS - general config
 	// the following entries are platform specific
 	// - runtime_security_config.policies.dir
@@ -85,6 +85,7 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.workloads_cache_size", 10)
 	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.host.enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.analyzers", []string{"os"})
+	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.use_v2_collector", false)
 
 	// CWS - Security Profiles
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.enabled", true)

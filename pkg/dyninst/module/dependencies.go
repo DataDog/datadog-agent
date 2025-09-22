@@ -9,15 +9,26 @@ package module
 
 import (
 	"encoding/json"
-	"io"
+	"fmt"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/decode"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/gotype"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcscrape"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symbol"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/uploader"
 )
+
+// ProcessSubscriber is an interface that can be used to subscribe to process
+// events.
+type ProcessSubscriber interface {
+	SubscribeExec(func(pid uint32)) (cleanup func())
+	SubscribeExit(func(pid uint32)) (cleanup func())
+}
 
 // Scraper is an interface that enables the Controller to get updates from the
 // scraper and to set the probe status to emitting.
@@ -28,7 +39,7 @@ type Scraper interface {
 
 // DecoderFactory is a factory for creating decoders.
 type DecoderFactory interface {
-	NewDecoder(*ir.Program) (Decoder, error)
+	NewDecoder(*ir.Program, procmon.Executable) (Decoder, error)
 }
 
 // Decoder is a decoder for a program.
@@ -38,16 +49,46 @@ type Decoder interface {
 	Decode(
 		event decode.Event,
 		symbolicator symbol.Symbolicator,
-		out io.Writer,
-	) (ir.ProbeDefinition, error)
+		out []byte,
+	) ([]byte, ir.ProbeDefinition, error)
 }
 
 // DefaultDecoderFactory is the default decoder factory.
-type DefaultDecoderFactory struct{}
+type DefaultDecoderFactory struct {
+	approximateBootTime time.Time
+}
 
 // NewDecoder creates a new decoder using decode.NewDecoder.
-func (DefaultDecoderFactory) NewDecoder(program *ir.Program) (Decoder, error) {
-	decoder, err := decode.NewDecoder(program)
+func (f DefaultDecoderFactory) NewDecoder(
+	program *ir.Program,
+	executable procmon.Executable,
+) (_ Decoder, retErr error) {
+
+	// It's a bit unfortunate that we have to open the file here, but it's
+	// necessary to get the type information.
+	//
+	// TODO(ajwerner): This decoder construction shouldn't be here; we should
+	// be constructing the decoder as we compile and load the program. Both to
+	// avoid that reparsing of the elf headers but also because it's weird to
+	// have an interface called a Reporter that fallibly constructs a decoder.
+	mm, err := object.OpenMMappingElfFile(executable.Path)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if closeErr := mm.Close(); closeErr != nil {
+			if retErr == nil {
+				retErr = fmt.Errorf("failed to close file: %w", closeErr)
+			} else {
+				retErr = fmt.Errorf("%w: (failed to close file: %w)", retErr, closeErr)
+			}
+		}
+	}()
+	table, err := gotype.NewTable(mm)
+	if err != nil {
+		return nil, err
+	}
+	decoder, err := decode.NewDecoder(program, (*decode.GoTypeNameResolver)(table), f.approximateBootTime)
 	if err != nil {
 		return nil, err
 	}

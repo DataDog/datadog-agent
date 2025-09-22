@@ -65,9 +65,6 @@ issues:
       linters: [staticcheck]
     # Treat this list as a TODO for fixing issues with pkgconfigusage custom linter
     # DO NOT ADD NEW ENTRIES
-    - path: comp/agent/jmxlogger/jmxloggerimpl/jmxlogger.go
-      linters:
-        - pkgconfigusage
     - path: comp/aggregator/demultiplexer/demultiplexerimpl/test_agent_demultiplexer.go
       linters:
         - pkgconfigusage
@@ -629,6 +626,8 @@ linters-settings:
       - p: ^setup.SetSystemProbe.*$
         pkg: ^github.com/DataDog/datadog-agent/pkg/config/setup$
         msg: use pkg/config/mock instead for tests or the config component
+      - p: RevertFinishedBackToBuilder
+        msg: RevertFinishedBackToBuilder is typically not needed, so using it is discouraged. Only existing OTel usage is allowed.
     analyze-types: true
   custom:
     pkgconfigusage:

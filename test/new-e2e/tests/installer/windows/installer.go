@@ -287,7 +287,7 @@ func (d *DatadogInstaller) Install(opts ...MsiOption) error {
 	}
 	msiArgList := params.msiArgs[:]
 	if params.agentUser != "" {
-		msiArgList = append(msiArgList, fmt.Sprintf("DDAGENTUSER_NAME=%s", params.agentUser))
+		msiArgList = append(msiArgList, fmt.Sprintf(`DDAGENTUSER_NAME="%s"`, params.agentUser))
 	}
 	msiArgs := ""
 	if msiArgList != nil {

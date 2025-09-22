@@ -17,8 +17,8 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
-// setupConfig is copied from cmd/agent/common/helpers.go.
-func setupConfig(config pkgconfigmodel.Config, deps configDependencies) (*pkgconfigmodel.Warnings, error) {
+// setupConfig loads additional configuration data from yaml files, fleet policies, and command-line options
+func setupConfig(config pkgconfigmodel.BuildableConfig, deps configDependencies) (*pkgconfigmodel.Warnings, error) {
 	p := deps.getParams()
 
 	confFilePath := p.ConfFilePath
@@ -57,8 +57,7 @@ func setupConfig(config pkgconfigmodel.Config, deps configDependencies) (*pkgcon
 		warnings, err = pkgconfigsetup.LoadWithoutSecret(config, pkgconfigsetup.SystemProbe().GetEnvVars())
 	}
 
-	var e pkgconfigmodel.ConfigFileNotFoundError
-	if err != nil && (!errors.As(err, &e) || confFilePath != "") {
+	if err != nil && (!errors.Is(err, pkgconfigmodel.ErrConfigFileNotFound) || confFilePath != "") {
 		// special-case permission-denied with a clearer error message
 		if errors.Is(err, fs.ErrPermission) {
 			if runtime.GOOS == "windows" {

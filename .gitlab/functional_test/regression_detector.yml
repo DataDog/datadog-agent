@@ -6,7 +6,7 @@ single_machine_performance-regression_detector-merge_base_check:
     - !reference [.on_dev_branches]
     - when: on_success
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   artifacts:
     expire_in: 1 day
     paths:
@@ -32,6 +32,7 @@ single_machine_performance-regression_detector-merge_base_check:
       if [[ ${BASELINE_COMMIT_TIME} -le ${FOUR_DAYS_BEFORE_NOW} ]]
       then
           echo "ERROR: Merge-base of this branch is too old for SMP. Please update your branch by merging an up-to-date main branch into your branch or by rebasing it on an up-to-date main branch."
+          datadog-ci tag --level job --tags smp_merge_base_failure_reason:"branch_too_old"
           exit 1
       fi
     - echo "Commit ${BASELINE_SHA} is recent enough"
@@ -56,6 +57,7 @@ single_machine_performance-regression_detector-merge_base_check:
           if [[ ${BASELINE_COMMIT_TIME} -le ${FOUR_DAYS_BEFORE_NOW} ]]
           then
               echo "ERROR: Merge-base of this branch is too old for SMP. Please update your branch by merging an up-to-date main branch into your branch or by rebasing it on an up-to-date main branch."
+              datadog-ci tag --level job --tags smp_merge_base_failure_reason:"branch_too_old"
               exit 1
           fi
           echo "Commit ${BASELINE_SHA} is recent enough"
@@ -74,7 +76,7 @@ single-machine-performance-regression_detector:
     - !reference [.on_dev_branches]
     - when: on_success
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   needs:
     - job: single_machine_performance-full-amd64-a7
       artifacts: false
@@ -92,33 +94,63 @@ single-machine-performance-regression_detector:
       - outputs/decision_record.md # for posterity, this is appended to final PR comment
     when: always
   variables:
-    SMP_VERSION: 0.23.5
+    SMP_VERSION: 0.24.1
   # See 'decision_record.md' for the determination of whether this job passes or fails.
   allow_failure: false
   retry: !reference [.retry_only_infra_failure, retry]
   script:
     # `datadog-ci` relies on `DATADOG_API_KEY` so we get that here.
     - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
-    # Start by tagging the failure mode as `unknown`. At each smp command we will catch any failure exit codes and update this tag properly.
+    # Start by tagging the failure mode as `timeout`. At each smp command we will catch any failure exit codes and update this tag properly.
     # If we successfully get to the end of the script with no failures we will update the `smp_failure_mode` tag to `none` to convey this.
-    # Note, we cannot apply a tag for timeouts with this approach. In order to identify jobs failed by timing out you can filter by error type or duration.
-    # Note, in situations where the job times out the value of `smp_failure_mode` tag will be `unknown`.
-    - datadog-ci tag --level job --tags smp_failure_mode:"unknown"
+    #
+    # Note, in situations where the job times out, this initial value is visible, hence why it defaults to `timeout`
+    - datadog-ci tag --level job --tags smp_failure_mode:"timeout"
     # Ensure output files exist for artifact downloads step
     - mkdir outputs # Also needed for smp job sync step
     # Setup AWS credentials for single-machine-performance AWS account
     - AWS_NAMED_PROFILE="single-machine-performance"
-    - SMP_ACCOUNT_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT account_id) || exit $?
+    - |
+      SMP_ACCOUNT_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT account_id) || {
+        exit_code=$?
+        datadog-ci tag --level job --tags smp_failure_mode:"setup-secrets"
+        exit $exit_code
+      }
     - SMP_ECR_URL=${SMP_ACCOUNT_ID}.dkr.ecr.us-west-2.amazonaws.com
-    - SMP_AGENT_TEAM_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT agent_team_id) || exit $?
-    - SMP_API=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT api_url) || exit $?
-    - SMP_BOT_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT bot_login) || exit $?
-    - SMP_BOT_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT bot_token) || exit $?
+    - |
+      SMP_AGENT_TEAM_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT agent_team_id) || {
+        exit_code=$?
+        datadog-ci tag --level job --tags smp_failure_mode:"setup-secrets"
+        exit $exit_code
+      }
+    - |
+      SMP_API=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT api_url) || {
+        exit_code=$?
+        datadog-ci tag --level job --tags smp_failure_mode:"setup-secrets"
+        exit $exit_code
+      }
+    - |
+      SMP_BOT_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT bot_login) || {
+        exit_code=$?
+        datadog-ci tag --level job --tags smp_failure_mode:"setup-secrets"
+        exit $exit_code
+      }
+    - |
+      SMP_BOT_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT bot_token) || {
+        exit_code=$?
+        datadog-ci tag --level job --tags smp_failure_mode:"setup-secrets"
+        exit $exit_code
+      }
     - aws configure set aws_access_key_id "$SMP_BOT_ID" --profile ${AWS_NAMED_PROFILE}
     - aws configure set aws_secret_access_key "$SMP_BOT_KEY" --profile ${AWS_NAMED_PROFILE}
     - aws configure set region us-west-2 --profile ${AWS_NAMED_PROFILE}
     # Download smp binary and prepare it for use
-    - aws --profile single-machine-performance s3 cp s3://smp-cli-releases/v${SMP_VERSION}/x86_64-unknown-linux-musl/smp smp
+    - |
+      aws --profile single-machine-performance s3 cp s3://smp-cli-releases/v${SMP_VERSION}/x86_64-unknown-linux-musl/smp smp || {
+        exit_code=$?
+        datadog-ci tag --level job --tags smp_failure_mode:"setup-fetch-cli"
+        exit $exit_code
+      }
     - chmod +x smp
     - source regression_detector.env
     - echo "Baseline SHA is ${BASELINE_SHA}"
@@ -286,9 +318,9 @@ single-machine-performance-regression_detector-pr-comment:
     - !reference [.on_dev_branches]
     - when: always
   image:
-    name: "486234852809.dkr.ecr.us-east-1.amazonaws.com/pr-commenter:3"
+    name: "486234852809.dkr.ecr.us-east-1.amazonaws.com/pr-commenter:3-jammy"
     entrypoint: [""] # disable entrypoint script for the pr-commenter image
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   needs:
     - job: single-machine-performance-regression_detector
   artifacts:

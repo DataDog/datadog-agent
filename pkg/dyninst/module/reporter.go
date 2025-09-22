@@ -68,7 +68,6 @@ func (c *controllerReporter) ReportIRGenFailed(
 	err error,
 	probes []ir.ProbeDefinition,
 ) {
-	log.Errorf("IR generation for process %v failed: %v", procID, err)
 	ctrl := (*Controller)(c)
 	runtimeID, ok := ctrl.store.getRuntimeID(procID)
 	if !ok {
@@ -92,6 +91,8 @@ func (c *controllerReporter) ReportIRGenFailed(
 		}
 		return
 	}
+
+	log.Errorf("IR generation for process %v failed: %v", procID, err)
 	for _, probe := range probes {
 		ctrl.diagnostics.reportError(runtimeID, probe, err, "IRGenFailed")
 	}
@@ -111,7 +112,7 @@ func (c *controllerReporter) ReportLoaded(
 	}
 	ctrl.procRuntimeIDbyProgramID.Store(program.ID, runtimeID)
 
-	decoder, err := ctrl.decoderFactory.NewDecoder(program)
+	decoder, err := ctrl.decoderFactory.NewDecoder(program, executable)
 	if err != nil {
 		return nil, fmt.Errorf("creating decoder: %w", err)
 	}
