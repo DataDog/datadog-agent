@@ -22,9 +22,9 @@ func LegacyProcessExcludeProgram(config config.Component, logger log.Component) 
 	programName := "LegacyProcessExcludeProgram"
 	var initErrors []error
 
-	patterns := config.GetStringSlice("process_config.blacklist_patterns")
-	combinedPattern := strings.Join(patterns, "|")
-	celRules := fmt.Sprintf("process_name.matches(%s)", strconv.Quote(combinedPattern))
+	processPatterns := config.GetStringSlice("process_config.blacklist_patterns")
+	combinedPattern := strings.Join(processPatterns, "|")
+	celRules := fmt.Sprintf("process.cmdline.matches(%s)", strconv.Quote(combinedPattern))
 	excludeProgram, excludeErr := createCELProgram(celRules, workloadfilter.ProcessType)
 	if excludeErr != nil {
 		initErrors = append(initErrors, excludeErr)
