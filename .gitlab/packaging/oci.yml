@@ -78,35 +78,29 @@
 .package_oci_win:
   extends: .package_oci
   script:
-    - set -euo pipefail
+    - set -u pipefail
     - PIPE_DIR="$OMNIBUS_PACKAGE_DIR/pipeline-$CI_PIPELINE_ID"
     - ARTIFACT="$(ls -1 "${PIPE_DIR}"/${WIN_ARTIFACT_PATTERN} | head -n1)"
     - '[ -n "${ARTIFACT}" ]'
+    - '[ -n "${PACKAGE_VERSION:-}" ] || { echo "PACKAGE_VERSION is not set"; exit 1; }'
     - |
+      SRC_DIR="$(mktemp -d)"
+      EXTRA_FLAGS=""
       case "${WIN_SOURCE_TYPE}" in
         msi)
-          STAGING="$(mktemp -d)"; cp "${ARTIFACT}" "${STAGING}/"
-          BASE="$(basename "${ARTIFACT}")"
-          VERSION="$(echo "${BASE}" | sed -E "${WIN_VERSION_SED}")"
-          SRC_DIR="${STAGING}"
-          EXTRA_FLAGS=""
+          cp "${ARTIFACT}" "${SRC_DIR}/"
           ;;
         zip)
-          WIN_INPUT="/tmp/win_oci_input"; mkdir -p "${WIN_INPUT}"
-          unzip -q "${ARTIFACT}" -d "${WIN_INPUT}"
-          ZIP_BASE="$(basename "${ARTIFACT}")"
-          VERSION="$(echo "${ZIP_BASE}" | sed -E "${WIN_VERSION_SED}")"
-          SRC_DIR="${WIN_INPUT}"
-          EXTRA_FLAGS=""
-          if [ -d "${WIN_INPUT}/etc/datadog-agent" ]; then
-            EXTRA_FLAGS="--configs ${WIN_INPUT}/etc/datadog-agent"
+          unzip -q "${ARTIFACT}" -d "${SRC_DIR}"
+          if [ -d "${SRC_DIR}/etc/datadog-agent" ]; then
+            EXTRA_FLAGS="--configs ${SRC_DIR}/etc/datadog-agent"
           fi
           ;;
         *)
           echo "Unknown WIN_SOURCE_TYPE: ${WIN_SOURCE_TYPE}"; exit 1
           ;;
       esac
-    - datadog-package create --version "${VERSION}" --package "${OCI_PRODUCT}" --os windows --arch amd64 --archive --archive-path "${PIPE_DIR}/${OCI_PRODUCT}-${VERSION}-windows-amd64.oci.tar" ${EXTRA_FLAGS} "${SRC_DIR}/"
+    - datadog-package create --version "${PACKAGE_VERSION}" --package "${OCI_PRODUCT}" --os windows --arch amd64 --archive --archive-path "${PIPE_DIR}/${OCI_PRODUCT}-${PACKAGE_VERSION}-windows-amd64.oci.tar" ${EXTRA_FLAGS} "${SRC_DIR}/"
     - ls -l "${PIPE_DIR}"
   artifacts:
     expire_in: 2 weeks
@@ -122,7 +116,6 @@ agent_win_oci:
     OCI_PRODUCT: "datadog-agent"
     WIN_SOURCE_TYPE: "msi"
     WIN_ARTIFACT_PATTERN: "datadog-agent-*x86_64.msi"
-    WIN_VERSION_SED: 's/^datadog-agent-(.+)-x86_64\.msi$/\1/'
 
 agent_oci:
   extends: .package_oci
@@ -160,7 +153,6 @@ ddot_win_oci:
     OCI_PRODUCT: "datadog-agent-ddot"
     WIN_SOURCE_TYPE: "zip"
     WIN_ARTIFACT_PATTERN: "datadog-agent-ddot-*x86_64.zip"
-    WIN_VERSION_SED: 's/^datadog-agent-ddot-(.+)-x86_64\.zip$/\1/'
 
 ddot_oci:
   extends: .package_oci
