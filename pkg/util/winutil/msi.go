@@ -114,6 +114,8 @@ func MsiGetProductInfo(productCode *uint16, propName *uint16, buf *uint16, bufLe
 	return windows.Errno(ret)
 }
 
+// EnumerateMsiProducts enumerates all the products in the specified context.
+// It calls the processor function for each product found to get product information.
 func EnumerateMsiProducts(dwContext uint32, processor func(productCode []uint16, context uint32, userSID string) error) error {
 	// When making multiple calls to MsiEnumProducts to enumerate all the products, each call should be made from the same thread.
 	runtime.LockOSThread()
