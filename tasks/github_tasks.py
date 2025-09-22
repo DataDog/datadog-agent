@@ -683,7 +683,7 @@ def check_permissions(
 @task
 def t(ctx):
     from tasks.libs.common.git import get_common_ancestor
-    merge_base = get_common_ancestor(ctx, "main", "celian/shallow-clone-acix-1058")
+    merge_base = get_common_ancestor(ctx, "celian/shallow-clone-acix-1058", "main")
     print(merge_base)
     # from tasks.libs.ciproviders.github_api import GithubAPI
     # gh = GithubAPI()
