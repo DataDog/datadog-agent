@@ -339,6 +339,18 @@ func (h *HashDefinition) PostCheck(rule *eval.Rule) error {
 		return err
 	}
 
+	// check that the field is compatible with the rule event type
+	fieldPathForMetadata := h.Field + ".path"
+	fieldEventType, _, _, err := ev.GetFieldMetadata(fieldPathForMetadata)
+	if err != nil {
+		return fmt.Errorf("failed to get event type for field '%s': %w", fieldPathForMetadata, err)
+	}
+
+	// if the field has an event type, we check it matches the rule event type
+	if fieldEventType != "" && fieldEventType != ruleEventType {
+		return fmt.Errorf("field '%s' is not compatible with '%s' rules", h.Field, ruleEventType)
+	}
+
 	return nil
 }
 
