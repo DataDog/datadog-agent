@@ -4,15 +4,15 @@ For more details about the implementation of Rust checks, check this [Confluence
 
 ## Structure
 
-There're 2 folders at the root level:
-- `core`: Shared code between every Rust check, it will be statically linked to each when they are built.
+There are 2 folders at the root level:
+- `core`: Shared code between every Rust check. This code is statically linked to every check build.
 - `checks`: Location of every Rust check, each has its own folder.
 
 ## Writing a Rust check
 
 To start writing a new Rust check, you have 2 options:
-- Copy the folder `example`, which is an "Hello world" Rust check.
-- Create a new Rust subproject and copy `ffi.rs` and `lib.rs` from any checks you want to your subproject source.
+- Make a copy of `example` in `checks`, which is an "Hello world" Rust check.
+- Create a new Rust subproject in `checks` and copy `ffi.rs` and `lib.rs` from any checks you want to your subproject source.
 
 Then, follow these steps:
 - Make sure to change the name in the `Cargo.toml`.
