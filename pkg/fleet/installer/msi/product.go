@@ -102,52 +102,29 @@ func processKey(rootPath, key, name string) (*Product, error) {
 	return nil, nil
 }
 
-// FindAllProductCodesViaMsiAPI looks for all products with the given productName using the Windows Installer API
-// This is more efficient than parsing the registry as it uses the native MSI API
-func FindAllProductCodesViaMsiAPI(productName string) ([]string, error) {
-	var index uint32
+// FindAllProductCodes looks for all products with the given productName using the Windows Installer API
+// It enumerates through all products and checks if the product name matches the given productName.
+func FindAllProductCodes(productName string) ([]string, error) {
+	// When making multiple calls to MsiEnumProducts to enumerate all the products, each call should be made from the same thread.
+	// runtime.LockOSThread()
+	// defer runtime.UnlockOSThread()
+
+	// var index uint32
 	var productCodes []string
 
-	for {
-		var productCodeBuf [39]uint16
-		var context uint32
-		var sidBuf [256]uint16
-		sidLen := uint32(len(sidBuf))
-
-		ret := winutil.MsiEnumProductsEx(nil, nil, msiInstallContextMachine, index, &productCodeBuf[0], &context, &sidBuf[0], &sidLen)
-
-		if errors.Is(ret, windows.ERROR_NO_MORE_ITEMS) {
-			break
-		}
-		if !errors.Is(ret, windows.ERROR_SUCCESS) {
-			return nil, fmt.Errorf("error enumerating products at index %d: %w", index, ret)
-		}
-
-		productCode := windows.UTF16ToString(productCodeBuf[:])
-		productNamePtr, err := windows.UTF16PtrFromString("ProductName")
+	err := winutil.EnumerateMsiProducts(winutil.MSIINSTALLCONTEXT_MACHINE, func(productCode []uint16, context uint32, userSID string) error {
+		// Get display name and check if it matches
+		displayName, err := winutil.GetProp("ProductName", productCode)
 		if err != nil {
-			return nil, fmt.Errorf("failed to convert product name to UTF16: %w", err)
+			return err // or continue with warning
 		}
-		var displayNameLen uint32
-
-		// Get the product name to check if it matches
-		ret = winutil.MsiGetProductInfo(&productCodeBuf[0], productNamePtr, nil, &displayNameLen)
-		if !errors.Is(ret, windows.ERROR_SUCCESS) {
-			return nil, fmt.Errorf("error getting product info buffer size: %w", ret)
+		if displayName == productName {
+			productCodes = append(productCodes, windows.UTF16ToString(productCode[:]))
 		}
-
-		displayNameLen++
-		displayNameBuf := make([]uint16, displayNameLen)
-		ret = winutil.MsiGetProductInfo(&productCodeBuf[0], productNamePtr, &displayNameBuf[0], &displayNameLen)
-		if !errors.Is(ret, windows.ERROR_SUCCESS) {
-			return nil, fmt.Errorf("error getting product info: %w", ret)
-		}
-
-		if windows.UTF16ToString(displayNameBuf[:]) == productName {
-			productCodes = append(productCodes, productCode)
-		}
-
-		index++
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	if len(productCodes) == 0 {

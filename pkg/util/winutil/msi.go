@@ -9,9 +9,25 @@
 package winutil
 
 import (
+	"errors"
+	"fmt"
+	"runtime"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
+)
+
+// Installation context flags from Windows SDK (msi.h)
+// See: https://learn.microsoft.com/en-us/windows/win32/msi/product-context
+const (
+	//nolint:revive // Keep these constants in sync with the Windows SDK
+	MSIINSTALLCONTEXT_USERMANAGED = 1
+	//nolint:revive // Keep these constants in sync with the Windows SDK
+	MSIINSTALLCONTEXT_USERUNMANAGED = 2
+	//nolint:revive // Keep these constants in sync with the Windows SDK
+	MSIINSTALLCONTEXT_MACHINE = 4
+	//nolint:revive // Keep these constants in sync with the Windows SDK
+	MSIINSTALLCONTEXT_ALL = 7
 )
 
 var (
@@ -96,4 +112,57 @@ func MsiGetProductInfo(productCode *uint16, propName *uint16, buf *uint16, bufLe
 		uintptr(unsafe.Pointer(bufLen)),
 	)
 	return windows.Errno(ret)
+}
+
+func EnumerateMsiProducts(dwContext uint32, processor func(productCode []uint16, context uint32, userSID string) error) error {
+	// When making multiple calls to MsiEnumProducts to enumerate all the products, each call should be made from the same thread.
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var index uint32
+	for {
+		var productCodeBuf [39]uint16
+		var context uint32
+		var sidBuf [256]uint16
+		sidLen := uint32(len(sidBuf))
+
+		ret := MsiEnumProductsEx(nil, nil, dwContext, index, &productCodeBuf[0], &context, &sidBuf[0], &sidLen)
+
+		if errors.Is(ret, windows.ERROR_NO_MORE_ITEMS) {
+			break
+		}
+		if !errors.Is(ret, windows.ERROR_SUCCESS) {
+			return fmt.Errorf("error enumerating products at index %d: %d", index, ret)
+		}
+
+		userSID := ""
+		if context == MSIINSTALLCONTEXT_USERMANAGED || context == MSIINSTALLCONTEXT_USERUNMANAGED {
+			userSID = windows.UTF16ToString(sidBuf[:sidLen])
+		}
+
+		if err := processor(productCodeBuf[:], context, userSID); err != nil {
+			return err
+		}
+		index++
+	}
+	return nil
+}
+
+// GetProp fetches a property from the MSI database.
+func GetProp(propName string, productCode []uint16) (string, error) {
+	bufLen := uint32(windows.MAX_PATH)
+	ret := windows.ERROR_MORE_DATA
+	for errors.Is(ret, windows.ERROR_MORE_DATA) {
+		buf := make([]uint16, bufLen)
+		propNamePtr, err := windows.UTF16PtrFromString(propName)
+		if err != nil {
+			return "", err
+		}
+		ret = MsiGetProductInfo(&productCode[0], propNamePtr, &buf[0], &bufLen)
+		if errors.Is(ret, windows.ERROR_SUCCESS) {
+			return windows.UTF16ToString(buf[:bufLen]), nil
+		}
+		bufLen++
+	}
+	return "", fmt.Errorf("unexpected return from msiGetProductInfo for %s: %w", propName, ret)
 }
