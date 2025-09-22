@@ -1,34 +1,4 @@
 generator:
-  - container:
-      repository: public.ecr.aws/docker/library/busybox
-      tag: latest
-      args:
-        - sleep
-        - infinity
-      env:
-        - DD_ENV=blank_agent_env
-        - DD_SERVICE=blank_agent_service
-        - DD_VERSION=blank_agent_version
-        - FOO=foo_env
-        - BAR=bar_env
-        - BAZ=baz_env
-        - QUX=qux_env
-        - QUUX=quux_env
-        - CORGE=corge_env
-        - GRAULT=grault_env
-      labels:
-        com.datadoghq.tags.env: blank_agent_env
-        com.datadoghq.tags.service: blank_agent_service
-        com.datadoghq.tags.version: blank_agent_version
-        foo: foo_label
-        bar: bar_label
-        baz: baz_label
-        qux: qux_label
-        quux: quux_label
-        corge: corge_label
-        grault: grault_label
-      network_disabled: true
-      number_of_containers: 200
 
 blackhole:
   - http:
@@ -39,6 +9,8 @@ blackhole:
       binding_addr: "127.0.0.1:9093"
   - http:
       binding_addr: "127.0.0.1:9094"
+  - http:
+      binding_addr: "127.0.0.1:9095"
 
 target_metrics:
   - prometheus: #core agent telemetry
