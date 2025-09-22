@@ -118,6 +118,9 @@ func testSBOMWithCollector(t *testing.T, useV2collector bool) {
 			if kv.IsUbuntuKernel() || kv.IsDebianKernel() {
 				checkVersionAgainstApt(t, event, "coreutils")
 			}
+			if kv.IsRH7Kernel() || kv.IsRH8Kernel() || kv.IsRH9Kernel() || kv.IsAmazonLinuxKernel() || kv.IsSuseKernel() {
+				checkVersionAgainstRpm(t, event, "coreutils")
+			}
 
 			test.validateOpenSchema(t, event)
 		})
@@ -142,4 +145,24 @@ func buildDebianVersion(version, release string, epoch int) string {
 		v = fmt.Sprintf("%d:%s", epoch, v)
 	}
 	return v
+}
+
+func checkVersionAgainstRpm(tb testing.TB, event *model.Event, pkgName string) {
+	version, _ := event.GetFieldValue("process.file.package.version")
+	release, _ := event.GetFieldValue("process.file.package.release")
+	epoch, _ := event.GetFieldValue("process.file.package.epoch")
+
+	out, err := exec.Command("rpm", "-q", "--queryformat", "%{VERSION}", pkgName).CombinedOutput()
+	require.NoError(tb, err, "failed to get package version: %s", string(out))
+	assert.Equal(tb, string(out), version, "package version doesn't match")
+
+	out, err = exec.Command("rpm", "-q", "--queryformat", "%{RELEASE}", pkgName).CombinedOutput()
+	require.NoError(tb, err, "failed to get package version: %s", string(out))
+	assert.Equal(tb, string(out), release, "package release doesn't match")
+
+	out, err = exec.Command("rpm", "-q", "--queryformat", "%{EPOCH}", pkgName).CombinedOutput()
+	require.NoError(tb, err, "failed to get package version: %s", string(out))
+	if string(out) != "(none)" {
+		assert.Equal(tb, string(out), fmt.Sprintf("%d", epoch), "package epoch doesn't match")
+	}
 }
