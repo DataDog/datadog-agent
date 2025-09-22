@@ -12,9 +12,9 @@ import (
 	"context"
 	"fmt"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
-	"go.uber.org/fx"
 	"math/rand"
 	"net/http"
 	"time"
@@ -105,8 +105,8 @@ type Requires struct {
 	Hostname hostnameinterface.Component
 	// EventPlatform provides access to the event platform forwarder
 	EventPlatform eventplatform.Component
-	// Lc provides lifecycle hooks for the component
-	Lc fx.Lifecycle
+	// Provides lifecycle hooks for the component
+	Lc compdef.Lifecycle
 }
 
 // Provides defines the output of the inventory software component.
@@ -170,7 +170,7 @@ func newWithClient(reqs Requires, client sysProbeClient) (Provides, error) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	reqs.Lc.Append(fx.Hook{
+	reqs.Lc.Append(compdef.Hook{
 		OnStop: func(context.Context) error {
 			cancel()
 			return nil
