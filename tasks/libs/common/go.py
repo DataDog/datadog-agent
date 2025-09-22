@@ -89,6 +89,14 @@ def go_build(
 
 
 def _handle_pipe_to_whydeadcode(ctx: Context, cmd: str, env: dict[str, str] | None = None) -> Result:
+    print("[environ] GOPATH:", os.getenv("GOPATH"))
+    print("[environ] GOROOT:", os.getenv("GOROOT"))
+    print("[environ] PATH:", os.getenv("PATH"))
+
+    print("[env] GOPATH:", (env or {}).get("GOPATH"))
+    print("[env] GOROOT:", (env or {}).get("GOROOT"))
+    print("[env] PATH:", (env or {}).get("PATH"))
+
     # use a custom runner to read stderr in bigger chunks as dumpdep output is huge
     # and invoke is super slow by default when writing to stdout/stderr
     # https://github.com/pyinvoke/invoke/issues/774
