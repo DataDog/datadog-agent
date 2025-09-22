@@ -1,28 +1,35 @@
 # Rust checks
 
-Rust-based checks.
+For more details about the implementation of Rust checks, check this [Confluence page](https://datadoghq.atlassian.net/wiki/spaces/ARUN/pages/5479301643/Shared+libraries+checks+v1).
 
 ## Structure
 
-Each check is located in a sub-folder, with the exception of `core` that contains the shared code between every check.
-The `core` folder provides a struct named `AgentCheck` to handle the communication with the Agent. 
+Each check is a sub-folder, with the exception of `core` that isn't a check but rahter contains the shared code between every check.
 
-To add new Rust-based checks, you need to create a sub-project and add its name in the main `Cargo.toml`.
-Be sure to include the following files:
-- `ffi.rs`: Should be included as it is.
-- `lib.rs`: Only the `check()` function should be modified.
+## Writing a Rust check
 
-## Build a Rust-based check
+To start writing a new Rust-based check, you have 2 options:
+- Copy the folder `example`, which is an "Hello world" Rust check.
+- Create a new Rust sub-project and copy `ffi.rs` and `lib.rs` from any checks you want to your sub-project source.
 
-Rust-based checks are meant to be compiled to shared libraries that will be loaded at runtime to execute the check's implementation.
+Then, follow these steps:
+- Make sure to change the name of the package in the `Cargo.toml`.
+- Leave `ffi.rs` as it is.
+- Write any code you want in the `check` function in `lib.rs`, this is the function that contains the check's custom implementation.
 
-To compile a Rust check to a shared library, you can use the following command:
+And you're done! 
+
+## Building a Rust check
+
+Building a Rust check means compiling it into a C shared library.
+
+To compile a Rust check into a shared library, you can use the following command:
 ```
 cargo build --release -p <checkname>
 ```
 
-The shared library will be then located in `target/release`.
+You can then find the shared library in `target/release`.
 
 ## Side notes
 
-This folder could be located somewhere else, like in another repository. The Agent doesn't need to have Rust checks in its repository to run these checks.
+This folder could be located somewhere else, like in another repository. The Agent doesn't need to have Rust checks in its repository to be able to run this type of checks.
