@@ -658,6 +658,11 @@ func (c Container) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "----------- Resources -----------")
 	_, _ = fmt.Fprint(&sb, c.Resources.String(verbose))
 
+	if verbose {
+		_, _ = fmt.Fprintln(&sb, "----------- Resize Policy -----------")
+		_, _ = fmt.Fprintln(&sb, c.ResizePolicy.String())
+	}
+
 	_, _ = fmt.Fprintln(&sb, "----------- Allocated Resources -----------")
 	for _, r := range c.ResolvedAllocatedResources {
 		_, _ = fmt.Fprintln(&sb, r.String())
@@ -668,7 +673,6 @@ func (c Container) String(verbose bool) string {
 		_, _ = fmt.Fprintln(&sb, "Network IPs:", mapToString(c.NetworkIPs))
 		_, _ = fmt.Fprintln(&sb, "PID:", c.PID)
 		_, _ = fmt.Fprintln(&sb, "Cgroup path:", c.CgroupPath)
-		_, _ = fmt.Fprintln(&sb, c.ResizePolicy.String())
 	}
 
 	if len(c.Ports) > 0 && verbose {

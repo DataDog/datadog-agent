@@ -134,13 +134,14 @@ Started At: 0001-01-01 00:00:00 +0000 UTC
 Finished At: 0001-01-01 00:00:00 +0000 UTC
 ----------- Resources -----------
 GPUVendor: [nvidia]
+----------- Resize Policy -----------
+RestartPolicy: CPU: NotRequired, Memory: RestartContainer
 ----------- Allocated Resources -----------
 Name: nvidia.com/gpu, ID: GPU-1234
 Hostname: 
 Network IPs: 
 PID: 0
 Cgroup path: 
-RestartPolicy: CPU: NotRequired, Memory: RestartContainer
 `,
 					"source:source2 id: ctr-id": `----------- Entity ID -----------
 Kind: container ID: ctr-id
@@ -166,12 +167,13 @@ Created At: 0001-01-01 00:00:00 +0000 UTC
 Started At: 0001-01-01 00:00:00 +0000 UTC
 Finished At: 0001-01-01 00:00:00 +0000 UTC
 ----------- Resources -----------
+----------- Resize Policy -----------
+RestartPolicy: CPU: , Memory: 
 ----------- Allocated Resources -----------
 Hostname: 
 Network IPs: 
 PID: 1
 Cgroup path: /default/ctr-id
-RestartPolicy: CPU: , Memory: 
 `,
 					"sources(merged):[source1 source2] id: ctr-id": `----------- Entity ID -----------
 Kind: container ID: ctr-id
@@ -198,13 +200,14 @@ Started At: 0001-01-01 00:00:00 +0000 UTC
 Finished At: 0001-01-01 00:00:00 +0000 UTC
 ----------- Resources -----------
 GPUVendor: [nvidia]
+----------- Resize Policy -----------
+RestartPolicy: CPU: NotRequired, Memory: RestartContainer
 ----------- Allocated Resources -----------
 Name: nvidia.com/gpu, ID: GPU-1234
 Hostname: 
 Network IPs: 
 PID: 1
 Cgroup path: /default/ctr-id
-RestartPolicy: CPU: NotRequired, Memory: RestartContainer
 `,
 				},
 			},
