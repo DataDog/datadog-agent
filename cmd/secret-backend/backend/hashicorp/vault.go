@@ -10,28 +10,35 @@ package hashicorp
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/DataDog/datadog-secret-backend/secret"
 	"github.com/hashicorp/vault/api"
 	"github.com/hashicorp/vault/api/auth/approle"
 	"github.com/hashicorp/vault/api/auth/aws"
+	"github.com/hashicorp/vault/api/auth/kubernetes"
 	"github.com/hashicorp/vault/api/auth/ldap"
 	"github.com/hashicorp/vault/api/auth/userpass"
 	"github.com/mitchellh/mapstructure"
+	"github.com/qri-io/jsonpointer"
 )
 
 // VaultSessionBackendConfig is the configuration for a Hashicorp vault backend
 type VaultSessionBackendConfig struct {
-	VaultRoleID       string `mapstructure:"vault_role_id"`
-	VaultSecretID     string `mapstructure:"vault_secret_id"`
-	VaultUserName     string `mapstructure:"vault_username"`
-	VaultPassword     string `mapstructure:"vault_password"`
-	VaultLDAPUserName string `mapstructure:"vault_ldap_username"`
-	VaultLDAPPassword string `mapstructure:"vault_ldap_password"`
-	VaultAuthType     string `mapstructure:"vault_auth_type"`
-	VaultAWSRole      string `mapstructure:"vault_aws_role"`
-	AWSRegion         string `mapstructure:"aws_region"`
+	VaultRoleID              string `mapstructure:"vault_role_id"`
+	VaultSecretID            string `mapstructure:"vault_secret_id"`
+	VaultUserName            string `mapstructure:"vault_username"`
+	VaultPassword            string `mapstructure:"vault_password"`
+	VaultLDAPUserName        string `mapstructure:"vault_ldap_username"`
+	VaultLDAPPassword        string `mapstructure:"vault_ldap_password"`
+	VaultAuthType            string `mapstructure:"vault_auth_type"`
+	VaultAWSRole             string `mapstructure:"vault_aws_role"`
+	AWSRegion                string `mapstructure:"aws_region"`
+	VaultKubernetesRole      string `mapstructure:"vault_kubernetes_role"`
+	VaultKubernetesJWT       string `mapstructure:"vault_kubernetes_jwt"`
+	VaultKubernetesJWTPath   string `mapstructure:"vault_kubernetes_jwt_path"`
+	VaultKubernetesMountPath string `mapstructure:"vault_kubernetes_mount_path"`
 }
 
 // VaultBackendConfig contains the configuration to connect to Hashicorp vault backend
@@ -58,7 +65,28 @@ type VaultBackend struct {
 	Client *api.Client
 }
 
-// newVaultConfigFromBackendConfig returns a AuthMethod for Hashicorp vault based on the configuration
+func getKubernetesJWTToken(sessionConfig VaultSessionBackendConfig) (string, error) {
+	if sessionConfig.VaultKubernetesJWT != "" {
+		return sessionConfig.VaultKubernetesJWT, nil
+	}
+
+	tokenPath := sessionConfig.VaultKubernetesJWTPath
+	if tokenPath == "" {
+		if envPath := os.Getenv("DD_SECRETS_SA_TOKEN_PATH"); envPath != "" {
+			tokenPath = envPath
+		} else {
+			tokenPath = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+		}
+	}
+
+	tokenBytes, err := os.ReadFile(tokenPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to read JWT token from %s: %w", tokenPath, err)
+	}
+
+	return strings.TrimSpace(string(tokenBytes)), nil
+}
+
 func newVaultConfigFromBackendConfig(sessionConfig VaultSessionBackendConfig) (api.AuthMethod, error) {
 	var auth api.AuthMethod
 	var err error
@@ -103,6 +131,41 @@ func newVaultConfigFromBackendConfig(sessionConfig VaultSessionBackendConfig) (a
 		}
 
 		return aws.NewAWSAuth(opts...)
+	}
+
+	if sessionConfig.VaultAuthType == "kubernetes" {
+		role := sessionConfig.VaultKubernetesRole
+		if role == "" {
+			role = os.Getenv("DD_SECRETS_VAULT_ROLE")
+		}
+		if role == "" {
+			return nil, fmt.Errorf("kubernetes role not specified")
+		}
+
+		jwtToken, err := getKubernetesJWTToken(sessionConfig)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get Kubernetes JWT token: %w", err)
+		}
+
+		opts := []kubernetes.LoginOption{
+			kubernetes.WithServiceAccountToken(jwtToken),
+		}
+
+		if sessionConfig.VaultKubernetesMountPath == "" {
+			if authPath := os.Getenv("DD_SECRETS_VAULT_AUTH_PATH"); authPath != "" {
+				authPath = strings.TrimPrefix(authPath, "auth/")
+				authPath = strings.TrimSuffix(authPath, "/login")
+				sessionConfig.VaultKubernetesMountPath = authPath
+			}
+		}
+		if sessionConfig.VaultKubernetesMountPath != "" {
+			opts = append(opts, kubernetes.WithMountPath(sessionConfig.VaultKubernetesMountPath))
+		}
+
+		auth, err = kubernetes.NewKubernetesAuth(role, opts...)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create Kubernetes auth method: %w", err)
+		}
 	}
 
 	return auth, err
@@ -165,9 +228,123 @@ func NewVaultBackend(bc map[string]interface{}) (*VaultBackend, error) {
 
 // GetSecretOutput returns a the value for a specific secret
 func (b *VaultBackend) GetSecretOutput(secretString string) secret.Output {
+	if strings.HasPrefix(secretString, "vault://") {
+		return b.handleVaultURIFormat(secretString)
+	}
+
+	return b.handleTypicalFormat(secretString)
+}
+
+func (b *VaultBackend) handleVaultURIFormat(secretString string) secret.Output {
+	pathWithKey := strings.TrimPrefix(secretString, "vault://")
+	parts := strings.SplitN(pathWithKey, "#", 2)
+	if len(parts) != 2 {
+		es := "invalid vault:// format, expected 'vault://path#/json/pointer'"
+		return secret.Output{Value: nil, Error: &es}
+	}
+
+	secretPath := parts[0]
+	pointerStr := parts[1]
+
+	if secretPath == "" {
+		es := "secret path cannot be empty"
+		return secret.Output{Value: nil, Error: &es}
+	}
+
+	if pointerStr == "" {
+		es := "invalid JSON pointer"
+		return secret.Output{Value: nil, Error: &es}
+	}
+
+	pointer, err := jsonpointer.Parse(pointerStr)
+	if err != nil {
+		es := fmt.Sprintf("invalid JSON pointer %q: %s", pointerStr, err.Error())
+		return secret.Output{Value: nil, Error: &es}
+	}
+
+	sec, err := b.Client.Logical().Read(secretPath)
+	if err != nil {
+		es := err.Error()
+		return secret.Output{Value: nil, Error: &es}
+	}
+
+	if sec == nil || sec.Data == nil {
+		es := "secret data is nil"
+		return secret.Output{Value: nil, Error: &es}
+	}
+
+	head := pointer.Head()
+	if head == nil {
+		es := "invalid JSON pointer"
+		return secret.Output{Value: nil, Error: &es}
+	}
+
+	var value interface{}
+	switch *head {
+	case "data":
+		// Handle /data or /data/... paths
+		if len(pointer) == 1 {
+			// Just "/data" - return the appropriate data structure
+			if dataField, ok := sec.Data["data"]; ok {
+				// KV v2: return the nested data field
+				value = dataField
+			} else {
+				// KV v1: return the entire data map
+				value = sec.Data
+			}
+		} else {
+			// "/data/something" - need to evaluate the rest
+			tail := pointer.Tail()
+			if tail == nil {
+				es := "invalid JSON pointer structure"
+				return secret.Output{Value: nil, Error: &es}
+			}
+
+			if dataField, ok := sec.Data["data"].(map[string]interface{}); ok {
+				// This is likely KV v2, evaluate the tail against the nested data
+				value, err = tail.Eval(dataField)
+			} else {
+				// This is likely KV v1, evaluate the tail against sec.Data directly
+				value, err = tail.Eval(sec.Data)
+			}
+			if err != nil {
+				es := fmt.Sprintf("no value found for pointer %s", pointer)
+				return secret.Output{Value: nil, Error: &es}
+			}
+		}
+	case "lease_duration":
+		value = sec.LeaseDuration
+	case "lease_id":
+		value = sec.LeaseID
+	case "renewable":
+		value = sec.Renewable
+	case "request_id":
+		value = sec.RequestID
+	case "warnings":
+		value = sec.Warnings
+	default:
+		// For other keys, try to evaluate directly against sec.Data
+		// This handles KV v1 where data is stored directly, not under a "data" key
+		value, err = pointer.Eval(sec.Data)
+		if err != nil {
+			es := fmt.Sprintf("no value found for pointer %s", pointer)
+			return secret.Output{Value: nil, Error: &es}
+		}
+	}
+
+	if value == nil {
+		es := fmt.Sprintf("no value found for pointer %s", pointer)
+		return secret.Output{Value: nil, Error: &es}
+	}
+
+	valueStr := fmt.Sprintf("%v", value)
+	return secret.Output{Value: &valueStr, Error: nil}
+}
+
+func (b *VaultBackend) handleTypicalFormat(secretString string) secret.Output {
 	segments := strings.SplitN(secretString, ";", 2)
 	if len(segments) != 2 {
-		es := "invalid secret format, expected 'secret_id;key'"
+		es := "invalid secret format, expected 'secret_path;key' or 'vault://path#/json/pointer'"
 		return secret.Output{Value: nil, Error: &es}
 	}
 	secretPath := segments[0]
