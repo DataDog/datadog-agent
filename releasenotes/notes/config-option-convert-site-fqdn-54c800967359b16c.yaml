@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Since version 7.67.0 the ``site`` is converted to a FQDN if it is one of Datadog's domains. A configuration option ``convert_dd_site_fqdn.enabled`` has been added to disable this behavior.
+    Since version 7.67.0, the ``site`` is converted to a FQDN if it is one of Datadog's domains. A configuration option ``convert_dd_site_fqdn.enabled`` has been added to allow disabling this behavior.
