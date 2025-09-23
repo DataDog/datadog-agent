@@ -141,7 +141,7 @@ func newWithClient(reqs Requires, client sysProbeClient) (Provides, error) {
 	}
 
 	is := &softwareInventory{
-		enabled:		reqs.Config.GetBool("software_inventory.enabled"),
+		enabled:        reqs.Config.GetBool("software_inventory.enabled"),
 		log:            reqs.Log,
 		sysProbeClient: client,
 		hostname:       hname,

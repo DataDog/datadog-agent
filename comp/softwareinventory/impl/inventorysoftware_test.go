@@ -24,9 +24,9 @@ import (
 )
 
 type testFixture struct {
-	t *testing.T
+	t              *testing.T
 	sysProbeClient *mockSysProbeClient
-	reqs Requires
+	reqs           Requires
 }
 
 func newFixtureWithData(t *testing.T, enabled bool, mockData []software.Entry) *testFixture {
@@ -39,8 +39,8 @@ func newFixtureWithData(t *testing.T, enabled bool, mockData []software.Entry) *
 	configComp := config.NewMock(t)
 	configComp.SetWithoutSource("software_inventory.enabled", enabled)
 
-	return &testFixture {
-		t: t,
+	return &testFixture{
+		t:              t,
 		sysProbeClient: sp,
 		reqs: Requires{
 			Log:        logComp,
