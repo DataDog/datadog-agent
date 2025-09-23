@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	utillog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/golang/mock/gomock"
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -361,9 +362,11 @@ func Test_SyntheticsTestScheduler_OnConfigUpdate(t *testing.T) {
 					nextRun: now,
 				}
 			}
-			val, err := json.Marshal(cfg)
-			assert.Nil(t, err)
-			assert.Equal(t, string(val), scheduler.state.tests)
+
+			opts := []cmp.Option{
+				cmp.AllowUnexported(runningTestState{}),
+			}
+			assert.True(t, cmp.Equal(cfg, scheduler.state.tests, opts...), "Diff: %s", cmp.Diff(cfg, scheduler.state.tests, opts...))
 		})
 	}
 }
