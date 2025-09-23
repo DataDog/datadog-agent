@@ -138,6 +138,12 @@ const (
 
 	// DefaultNetworkPathMaxTTL defines the default maximum TTL for traceroute tests
 	DefaultNetworkPathMaxTTL = 30
+
+	// DefaultNetworkPathStaticPathTracerouteQueries defines the default number of traceroute queries for static path
+	DefaultNetworkPathStaticPathTracerouteQueries = 3
+
+	// DefaultNetworkPathStaticPathE2eQueries defines the default number of end-to-end queries for static path
+	DefaultNetworkPathStaticPathE2eQueries = 50
 )
 
 var (
@@ -517,6 +523,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_path.collector.tcp_method", "")
 	config.BindEnvAndSetDefault("network_path.collector.icmp_mode", "")
 	config.BindEnvAndSetDefault("network_path.collector.tcp_syn_paris_traceroute_mode", false)
+	config.BindEnvAndSetDefault("network_path.collector.traceroute_queries", DefaultNetworkPathStaticPathTracerouteQueries)
+	config.BindEnvAndSetDefault("network_path.collector.e2e_queries", DefaultNetworkPathStaticPathE2eQueries)
 	bindEnvAndSetLogsConfigKeys(config, "network_path.forwarder.")
 
 	// HA Agent

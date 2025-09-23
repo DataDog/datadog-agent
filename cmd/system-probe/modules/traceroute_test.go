@@ -39,16 +39,38 @@ func TestParseParams(t *testing.T) {
 			name: "all config",
 			host: "1.2.3.4",
 			params: map[string]string{
-				"port":    "42",
-				"max_ttl": "35",
-				"timeout": "1000",
+				"port":               "42",
+				"max_ttl":            "35",
+				"timeout":            "1000",
+				"traceroute_queries": "3",
+				"e2e_queries":        "50",
 			},
 			expectedConfig: tracerouteutil.Config{
-				DestHostname: "1.2.3.4",
-				DestPort:     42,
-				MaxTTL:       35,
-				Timeout:      1000,
+				DestHostname:      "1.2.3.4",
+				DestPort:          42,
+				MaxTTL:            35,
+				Timeout:           1000,
+				TracerouteQueries: 3,
+				E2eQueries:        50,
 			},
+		},
+		{
+			name: "invalid traceroute_queries",
+			host: "1.2.3.4",
+			params: map[string]string{
+				"traceroute_queries": "invalid",
+			},
+			expectedConfig: tracerouteutil.Config{},
+			expectedError:  "invalid traceroute_queries: strconv.ParseUint: parsing \"invalid\": invalid syntax",
+		},
+		{
+			name: "invalid e2e_queries",
+			host: "1.2.3.4",
+			params: map[string]string{
+				"e2e_queries": "invalid",
+			},
+			expectedConfig: tracerouteutil.Config{},
+			expectedError:  "invalid e2e_queries: strconv.ParseUint: parsing \"invalid\": invalid syntax",
 		},
 	}
 	for _, tt := range tests {
