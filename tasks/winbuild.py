@@ -6,12 +6,11 @@ from invoke.tasks import task
 from tasks.flavor import AgentFlavor
 from tasks.libs.common.utils import get_version
 from tasks.msi import build as build_agent_msi
-from tasks.msi import build_installer as build_installer_msi
 from tasks.omnibus import build as omnibus_build
 
 # Output directory for package files
 OUTPUT_PATH = os.path.join(os.getcwd(), "omnibus", "pkg")
-# Omnibus stores files here, e.g. C:\opt\datadog-agent, C:\opt\dataog-installer
+# Omnibus stores files here, e.g. C:\opt\datadog-agent, C:\opt\datadog-installer
 OPT_SOURCE_DIR = os.path.join("C:\\", "opt")
 
 
@@ -41,22 +40,6 @@ def agent_package(
 
     # Package Agent into MSI
     build_agent_msi(ctx, build_upgrade=build_upgrade)
-
-
-@task
-def installer_package(
-    ctx,
-    skip_deps=False,
-):
-    # Build installer
-    omnibus_build(
-        ctx,
-        skip_deps=skip_deps,
-        target_project="installer",
-    )
-
-    # Package Insaller into MSI
-    build_installer_msi(ctx)
 
     # Copy installer.exe to the output dir so it can be deployed as the bootstrapper
     agent_version = get_version(
