@@ -48,7 +48,7 @@ func (r Rules) String() string {
 	}
 
 	if len(parts) == 0 {
-		return "{}"
+		return ""
 	}
 
 	return "{" + strings.Join(parts, ", ") + "}"

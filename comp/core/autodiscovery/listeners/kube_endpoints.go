@@ -436,7 +436,7 @@ func (s *KubeEndpointService) GetServiceID() string {
 
 // GetADIdentifiers returns the service AD identifiers
 func (s *KubeEndpointService) GetADIdentifiers() []string {
-	return []string{s.entity, types.CelEndpointIdentifier}
+	return []string{s.entity, string(types.CelEndpointIdentifier)}
 }
 
 // GetHosts returns the pod hosts

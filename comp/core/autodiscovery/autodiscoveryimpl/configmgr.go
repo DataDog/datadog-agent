@@ -247,16 +247,15 @@ func (cm *reconcilingConfigManager) processNewConfig(config integration.Config) 
 }
 
 // processDelConfigs implements configManager#processDelConfigs.
-func (cm *reconcilingConfigManager) processDelConfigs(externalConfigs []integration.Config) integration.ConfigChanges {
+func (cm *reconcilingConfigManager) processDelConfigs(configs []integration.Config) integration.ConfigChanges {
 	cm.m.Lock()
 	defer cm.m.Unlock()
 
 	var allChanges integration.ConfigChanges
-	for _, externalConfig := range externalConfigs {
-		digest := externalConfig.Digest()
-		internalConfig, found := cm.activeConfigs[digest]
-		if !found {
-			log.Debug("Config %v is not tracked by autodiscovery", externalConfig.Name)
+	for _, config := range configs {
+		digest := config.Digest()
+		if _, found := cm.activeConfigs[digest]; !found {
+			log.Debug("Config %v is not tracked by autodiscovery", config.Name)
 			continue
 		}
 
@@ -266,10 +265,10 @@ func (cm *reconcilingConfigManager) processDelConfigs(externalConfigs []integrat
 		delete(cm.activeConfigs, digest)
 
 		var changes integration.ConfigChanges
-		if internalConfig.IsTemplate() {
+		if config.IsTemplate() {
 			//  2. update templatesByADID or servicesByADID to match
 			matchingServices := map[string]struct{}{}
-			for _, adID := range internalConfig.ADIdentifiers {
+			for _, adID := range config.ADIdentifiers {
 				cm.templatesByADID.remove(adID, digest)
 				for _, svcID := range cm.servicesByADID.get(adID) {
 					matchingServices[svcID] = struct{}{}
@@ -283,12 +282,12 @@ func (cm *reconcilingConfigManager) processDelConfigs(externalConfigs []integrat
 		} else {
 			// Secrets need to be resolved before being unscheduled as otherwise
 			// the computed hashes can be different from the ones computed at schedule time.
-			decryptedConfig, err := decryptConfig(internalConfig, cm.secretResolver)
+			config, err := decryptConfig(config, cm.secretResolver)
 			if err != nil {
-				log.Errorf("Unable to resolve secrets for config '%s', check may not be unscheduled properly, err: %s", internalConfig.Name, err.Error())
+				log.Errorf("Unable to resolve secrets for config '%s', check may not be unscheduled properly, err: %s", config.Name, err.Error())
 			}
 
-			changes.UnscheduleConfig(decryptedConfig)
+			changes.UnscheduleConfig(config)
 		}
 
 		//  4. update scheduledConfigs
@@ -362,6 +361,8 @@ func (cm *reconcilingConfigManager) reconcileService(svcID string) integration.C
 	// allow the service to filter those templates, unless we are removing
 	// the service, in which case no resolutions are expected.
 	if svc != nil {
+		// Warning: this must be called with the configs stored in cm.activeConfigs
+		// which contain the compiled matchingProgram for the config template.
 		svc.FilterTemplates(expectedResolutions)
 	}
 

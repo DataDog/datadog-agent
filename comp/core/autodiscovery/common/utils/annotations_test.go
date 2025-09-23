@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 )
 
 func TestExtractTemplatesFromMap(t *testing.T) {
@@ -30,7 +29,6 @@ func TestExtractTemplatesFromMap(t *testing.T) {
 			source: map[string]string{
 				"prefix.check_names":  "[\"apache\",\"http_check\"]",
 				"prefix.init_configs": "[{},{}]",
-				"prefix.cel_selector": "[{\"containers\":[\"container.name.matches(\\\"test\\\")\"]}, {\"pods\":[\"pod.name.matches(\\\"prod\\\")\"]}]",
 				"prefix.instances":    "[{\"apache_status_url\":\"http://%%host%%/server-status?auto\"},{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}]",
 			},
 			adIdentifier: "id",
@@ -41,14 +39,12 @@ func TestExtractTemplatesFromMap(t *testing.T) {
 					Instances:     []integration.Data{integration.Data("{\"apache_status_url\":\"http://%%host%%/server-status?auto\"}")},
 					InitConfig:    integration.Data("{}"),
 					ADIdentifiers: []string{"id"},
-					CELSelector:   workloadfilter.Rules{Containers: []string{`container.name.matches("test")`}},
 				},
 				{
 					Name:          "http_check",
 					Instances:     []integration.Data{integration.Data("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
 					InitConfig:    integration.Data("{}"),
 					ADIdentifiers: []string{"id"},
-					CELSelector:   workloadfilter.Rules{Pods: []string{`pod.name.matches("prod")`}},
 				},
 			},
 		},
@@ -238,7 +234,7 @@ func TestExtractTemplatesFromMap(t *testing.T) {
 		t.Run(fmt.Sprintf("case %d: %s", nb, tc.source), func(t *testing.T) {
 			assert := assert.New(t)
 			configs, errs := ExtractTemplatesFromMap(tc.adIdentifier, tc.source, tc.prefix)
-			assert.EqualValues(configs, tc.output)
+			assert.EqualValues(tc.output, configs)
 
 			if len(tc.errs) == 0 {
 				assert.Equal(0, len(errs))
@@ -472,7 +468,7 @@ func TestBuildTemplates(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expectedConfigs, BuildTemplates(key, nil, tt.inputCheckNames, tt.inputInitConfig, tt.inputInstances, tt.ignoreAdTags, tt.checkTagCardinality))
+			assert.Equal(t, tt.expectedConfigs, BuildTemplates(key, tt.inputCheckNames, tt.inputInitConfig, tt.inputInstances, tt.ignoreAdTags, tt.checkTagCardinality))
 		})
 	}
 }

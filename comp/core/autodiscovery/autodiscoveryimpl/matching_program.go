@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/cel-go/cel"
 
+	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/celprogram"
@@ -18,7 +19,6 @@ import (
 
 type matchingProgram struct {
 	program cel.Program
-	rawRule string
 	target  workloadfilter.ResourceType
 	err     error
 }
@@ -48,38 +48,39 @@ func (m *matchingProgram) GetTargetType() workloadfilter.ResourceType {
 	return m.target
 }
 
-// createMatchingProgram creates a MatchingProgram from the given workloadfilter.Rules.
-// It returns nil if no rules are defined.
-func createMatchingProgram(rules workloadfilter.Rules) (program integration.MatchingProgram, err error) {
+// extractRuleMetadata extracts the rule list, resource type and CEL identifier from the given workloadfilter.Rules.
+// This method is responsible for the priority order of the rules:
+// Containers > Pods > Services > Endpoints.
+func extractRuleMetadata(rules workloadfilter.Rules) (ruleList []string, objectType workloadfilter.ResourceType, celADID adtypes.CelIdentifier) {
 	switch {
 	case len(rules.Containers) > 0:
-		return createProgram(rules.Containers, workloadfilter.ContainerType)
+		return rules.Containers, workloadfilter.ContainerType, adtypes.CelContainerIdentifier
 	case len(rules.Pods) > 0:
-		return createProgram(rules.Pods, workloadfilter.PodType)
+		return rules.Pods, workloadfilter.PodType, adtypes.CelPodIdentifier
 	case len(rules.KubeServices) > 0:
-		return createProgram(rules.KubeServices, workloadfilter.ServiceType)
+		return rules.KubeServices, workloadfilter.ServiceType, adtypes.CelServiceIdentifier
 	case len(rules.KubeEndpoints) > 0:
-		return createProgram(rules.KubeEndpoints, workloadfilter.EndpointType)
+		return rules.KubeEndpoints, workloadfilter.EndpointType, adtypes.CelEndpointIdentifier
 	default:
-		return nil, nil
+		return nil, "", ""
 	}
 }
 
-func createProgram(rules []string, objectType workloadfilter.ResourceType) (program integration.MatchingProgram, err error) {
-	if len(rules) == 0 {
+// createMatchingProgram creates a MatchingProgram from the given workloadfilter.Rules.
+// It returns nil if no rules are defined.
+func createMatchingProgram(rules workloadfilter.Rules) (program integration.MatchingProgram, err error) {
+	ruleList, objectType, _ := extractRuleMetadata(rules)
+	if len(ruleList) == 0 {
 		return nil, nil
 	}
 
-	combinedRule := strings.Join(rules, " || ")
-	celprg, err := celprogram.CreateCELProgram(combinedRule, objectType)
-
+	celprg, err := celprogram.CreateCELProgram(strings.Join(ruleList, " || "), objectType)
 	if err != nil {
 		return nil, err
 	}
 
 	return &matchingProgram{
 		program: celprg,
-		rawRule: combinedRule,
 		target:  objectType,
 		err:     nil,
 	}, nil

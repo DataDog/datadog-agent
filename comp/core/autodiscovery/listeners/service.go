@@ -81,9 +81,9 @@ func (s *WorkloadService) GetServiceID() string {
 func (s *WorkloadService) GetADIdentifiers() []string {
 	switch s.entity.(type) {
 	case *workloadmeta.Container:
-		return append(s.adIdentifiers, adtypes.CelContainerIdentifier)
+		return append(s.adIdentifiers, string(adtypes.CelContainerIdentifier))
 	case *workloadmeta.KubernetesPod:
-		return append(s.adIdentifiers, adtypes.CelPodIdentifier)
+		return append(s.adIdentifiers, string(adtypes.CelPodIdentifier))
 	}
 	return s.adIdentifiers
 }

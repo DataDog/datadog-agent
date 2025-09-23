@@ -184,7 +184,10 @@ func (c *Config) String() string {
 
 	rawConfig["check_name"] = c.Name
 
-	rawConfig["cel_selector"] = c.CELSelector
+	celString := c.CELSelector.String()
+	if celString != "" {
+		rawConfig["cel_selector"] = c.CELSelector
+	}
 
 	yaml.Unmarshal(c.InitConfig, &initConfig) //nolint:errcheck
 	rawConfig["init_config"] = initConfig
@@ -209,7 +212,7 @@ func (c *Config) String() string {
 
 // IsTemplate returns if the config has AD identifiers
 func (c *Config) IsTemplate() bool {
-	return len(c.ADIdentifiers) > 0 || len(c.AdvancedADIdentifiers) > 0 || c.matchingProgram != nil
+	return len(c.ADIdentifiers) > 0 || len(c.AdvancedADIdentifiers) > 0
 }
 
 // IsMatched returns true if the given object matches the filtering program of the config.
