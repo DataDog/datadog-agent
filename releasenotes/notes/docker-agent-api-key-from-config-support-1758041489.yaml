@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    Docker Agent now supports bootstrapping with api_key defined in datadog.yaml,
+    including ENC[...] secret handles for built-in secret backends. This allows
+    containerized Agents to use secret backends for API key management and rotation
+    without requiring DD_API_KEY environment variable.
