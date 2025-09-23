@@ -308,6 +308,40 @@ func TestRunnerStop(t *testing.T) {
 	assertAsyncWorkerCount(t, 0)
 }
 
+func TestRunnerConfigurableValues(t *testing.T) {
+	mockConfig := testSetUp(t)
+
+	// Test custom utilization threshold
+	mockConfig.SetWithoutSource("check_runner_utilization_threshold", 0.85)
+	mockConfig.SetWithoutSource("check_runner_utilization_monitor_interval", "30s")
+	mockConfig.SetWithoutSource("check_runners", "1")
+
+	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent())
+	require.NotNil(t, r)
+	defer r.Stop()
+
+	// Verify that the utilization monitor was created with the custom threshold
+	// We can't directly access the threshold, but we can verify the monitor exists
+	require.NotNil(t, r.utilizationMonitor)
+
+	// Test that the configuration values are being read correctly
+	assert.Equal(t, 0.85, pkgconfigsetup.Datadog().GetFloat64("check_runner_utilization_threshold"))
+	assert.Equal(t, 30*time.Second, pkgconfigsetup.Datadog().GetDuration("check_runner_utilization_monitor_interval"))
+}
+
+func TestRunnerDefaultConfigurableValues(t *testing.T) {
+	mockConfig := testSetUp(t)
+	mockConfig.SetWithoutSource("check_runners", "1")
+
+	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent())
+	require.NotNil(t, r)
+	defer r.Stop()
+
+	// Verify that the default values are used when not explicitly set
+	assert.Equal(t, 0.95, pkgconfigsetup.Datadog().GetFloat64("check_runner_utilization_threshold"))
+	assert.Equal(t, 60*time.Second, pkgconfigsetup.Datadog().GetDuration("check_runner_utilization_monitor_interval"))
+}
+
 func TestRunnerStopWithStuckCheck(t *testing.T) {
 	mockConfig := testSetUp(t)
 

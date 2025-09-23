@@ -67,7 +67,7 @@ func NewRunner(senderManager sender.SenderManager, haAgent haagent.Component) *R
 		isStaticWorkerCount: numWorkers != 0,
 		pendingChecksChan:   make(chan check.Check),
 		checksTracker:       tracker.NewRunningChecksTracker(),
-		utilizationMonitor:  worker.NewUtilizationMonitor(0.95), // TODO make this configurable
+		utilizationMonitor:  worker.NewUtilizationMonitor(pkgconfigsetup.Datadog().GetFloat64("check_runner_utilization_threshold")),
 	}
 
 	if !r.isStaticWorkerCount {
@@ -121,7 +121,7 @@ func (r *Runner) AddWorker() {
 	}
 }
 
-// addWorker adds a new worker running in a separate goroutine
+// newWorker adds a new worker running in a separate goroutine
 func (r *Runner) newWorker() (*worker.Worker, error) {
 	worker, err := worker.NewWorker(
 		r.senderManager,
@@ -307,8 +307,7 @@ func (r *Runner) logWorkerUtilization() {
 }
 
 func (r *Runner) monitorWorkerUtilization() {
-	// TODO make this configurable
-	interval := 60 * time.Second
+	interval := pkgconfigsetup.Datadog().GetDuration("check_runner_utilization_monitor_interval")
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
