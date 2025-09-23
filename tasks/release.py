@@ -1203,7 +1203,6 @@ def chase_for_qa_cards(_, version):
     if not cards:
         print(f"[{color_message('OK', Color.GREEN)}] No QA cards to chase")
         return
-    exit(1)
     grouped_cards = defaultdict(list)
     for card in cards:
         grouped_cards[card["fields"]["project"]["key"]].append(card)

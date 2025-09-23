@@ -7,7 +7,6 @@ on:
         description: 'Full version of the release (e.g. 7.31.0)'
         required: true
         type: string
-  push:
 
 permissions: {}
 
