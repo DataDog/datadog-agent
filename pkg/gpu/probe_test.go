@@ -257,6 +257,10 @@ func (s *probeTestSuite) TestDetectsContainer() {
 
 	pid, cid := testutil.RunSampleInDocker(t, testutil.CudaSample, testutil.MinimalDockerImage)
 
+	require.Eventually(t, func() bool {
+		return probe.streamHandlers.allStreamsCount() > 0
+	}, 3*time.Second, 100*time.Millisecond, "stream handlers count mismatch: expected: 1, got: %d", probe.streamHandlers.allStreamsCount())
+
 	// Check that the stream handlers have the correct container ID assigned
 	for _, handler := range probe.streamHandlers.allStreams() {
 		if handler.metadata.pid == uint32(pid) {
