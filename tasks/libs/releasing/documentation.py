@@ -254,4 +254,7 @@ def list_not_closed_qa_cards(version):
     jql = f'labels in (ddqa) and labels not in (test_ignore) and labels in ({version}-qa)  and status not in ((Done, DONE, "Won\'t Fix", "WON\'T FIX", "In Progress", "Testing/Review", "In review", "✅ Done", "won\'t do", Duplicate, Closed, "NOT DOING", not-do, canceled, QA)) order by created desc'
     response = jira.enhanced_jql(jql)
     print('Got results', dir(response))
+    print('Got results', response.get('results'))
+    print('Got results', response.get('issues'))
+    exit(1)
     return response['results']
