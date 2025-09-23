@@ -107,7 +107,6 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 	var versionResolver func(servicePath string) string
 	if config.RuntimeSecurity.SBOMResolverEnabled && sbomResolver != nil {
 		versionResolver = func(servicePath string) string {
-
 			if pkg := sbomResolver.ResolvePackage("", &model.FileEvent{PathnameStr: servicePath}); pkg != nil {
 				return pkg.Version
 			}

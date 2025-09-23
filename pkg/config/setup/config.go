@@ -40,9 +40,6 @@ import (
 
 const (
 
-	// DefaultExperimentalFingerprintingEnabled is a flag to determine whether we want to detect file rotation or truncation using checksum fingerprinting
-	DefaultExperimentalFingerprintingEnabled = false
-
 	// DefaultFingerprintingMaxBytes is the maximum number of bytes that will be used to generate a checksum fingerprint;
 	// used in cases where the line to hash is too large or if the fingerprinting maxLines=0
 	DefaultFingerprintingMaxBytes = 100000
@@ -58,7 +55,8 @@ const (
 	// Options are:
 	// - "line_checksum": compute the fingerprint by lines
 	// - "byte_checksum": compute the fingerprint by bytes
-	DefaultFingerprintStrategy = "line_checksum"
+	// - "disabled": disable fingerprinting
+	DefaultFingerprintStrategy = "disabled"
 
 	// DefaultSite is the default site the Agent sends data to.
 	DefaultSite = "datadoghq.com"
@@ -854,6 +852,11 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.enabled", true)
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.endpoint", "/injectlib")
 	config.BindEnv("admission_controller.auto_instrumentation.container_registry")
+	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.default_dd_registries", map[string]any{
+		"gcr.io/datadoghq":       struct{}{},
+		"docker.io/datadog":      struct{}{},
+		"public.ecr.aws/datadog": struct{}{},
+	})
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.enabled", false)
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.fallback_to_file_provider", false)                                // to be enabled only in e2e tests
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.file_provider_path", "/etc/datadog-agent/patch/auto-instru.json") // to be used only in e2e tests
@@ -923,8 +926,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.buffer_flush_interval", 20*time.Second)
 	config.BindEnvAndSetDefault("orchestrator_explorer.terminated_resources.enabled", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.terminated_pods.enabled", true)
-	config.BindEnvAndSetDefault("orchestrator_explorer.custom_resources.datadog.enabled", false)
-	config.BindEnvAndSetDefault("orchestrator_explorer.custom_resources.third_party.enabled", false)
+	config.BindEnvAndSetDefault("orchestrator_explorer.custom_resources.ootb.enabled", true)
 
 	// Container lifecycle configuration
 	config.BindEnvAndSetDefault("container_lifecycle.enabled", true)
@@ -1626,8 +1628,6 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.socks5_proxy_address", "")
 	// disable distributed senders
 	config.BindEnvAndSetDefault("logs_config.disable_distributed_senders", false)
-	// determines fingerprinting strategy to detect rotation and truncation
-	config.BindEnvAndSetDefault("logs_config.fingerprint_enabled_experimental", DefaultExperimentalFingerprintingEnabled)
 	// default fingerprint configuration
 	config.BindEnvAndSetDefault("logs_config.fingerprint_config.count", DefaultFingerprintingMaxLines)
 	config.BindEnvAndSetDefault("logs_config.fingerprint_config.max_bytes", DefaultFingerprintingMaxBytes)
