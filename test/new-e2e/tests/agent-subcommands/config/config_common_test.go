@@ -45,7 +45,9 @@ var hiddenConfigs = []string{
 }
 
 func getFullConfig(v *baseConfigSuite) map[interface{}]interface{} {
-	output, err := v.Env().Agent.Client.ConfigWithError()
+	output, err := v.Env().Agent.Client.ConfigWithError(
+		agentclient.WithArgs([]string{"--all"}),
+	)
 	require.NoError(v.T(), err)
 
 	var config map[interface{}]interface{}

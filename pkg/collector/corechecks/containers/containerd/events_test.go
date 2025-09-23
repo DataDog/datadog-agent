@@ -294,10 +294,10 @@ func TestComputeEvents(t *testing.T) {
 	mockConfig.SetWithoutSource("container_exclude_logs", "image:dd-log-exclude") // shouldn't be used
 	fakeFilterStore := workloadfilterfxmock.SetupMockFilter(t)
 	containerdCheck := &ContainerdCheck{
-		instance:    &ContainerdConfig{},
-		CheckBase:   corechecks.NewCheckBase("containerd"),
-		filterStore: fakeFilterStore,
-		tagger:      fakeTagger,
+		instance:        &ContainerdConfig{},
+		CheckBase:       corechecks.NewCheckBase("containerd"),
+		containerFilter: fakeFilterStore.GetContainerSharedMetricFilters(),
+		tagger:          fakeTagger,
 	}
 	mocked := mocksender.NewMockSender(containerdCheck.ID())
 
