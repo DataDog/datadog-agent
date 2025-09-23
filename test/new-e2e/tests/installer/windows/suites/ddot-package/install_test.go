@@ -3,6 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build windows
+// +build windows
+
 // Package ddottests implements a minimal E2E test for installing the DDOT OCI package on Windows.
 package ddottests
 
@@ -26,9 +29,8 @@ type testDDOTInstallSuite struct {
 func TestDDOTInstalls(t *testing.T) {
 	e2e.Run(t, &testDDOTInstallSuite{},
 		e2e.WithProvisioner(
-			winawshost.ProvisionerNoAgentNoFakeIntake(
-				winawshost.WithInstaller(),
-			)))
+			winawshost.ProvisionerNoAgentNoFakeIntake(),
+		))
 }
 
 func (s *testDDOTInstallSuite) TestInstallDDOTPackage() {
