@@ -945,7 +945,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	// Synthetics configuration
 	config.BindEnvAndSetDefault("synthetics.enabled", false)
-	bindEnvAndSetLogsConfigKeys(config, "synthetics.")
+	bindEnvAndSetLogsConfigKeys(config, "synthetics.forwarder.")
 
 	config.BindEnvAndSetDefault("sbom.cache_directory", filepath.Join(defaultRunPath, "sbom-agent"))
 	config.BindEnvAndSetDefault("sbom.clear_cache_on_exit", false)
