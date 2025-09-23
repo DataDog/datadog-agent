@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
-	installer "github.com/DataDog/datadog-agent/test/new-e2e/pkg/components/datadog-installer"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -45,7 +44,6 @@ type ProvisionerParams struct {
 	fakeintakeOptions      []fakeintake.Option
 	activeDirectoryOptions []activedirectory.Option
 	defenderoptions        []defender.Option
-	installerOptions       []installer.Option
 	fipsModeOptions        []fipsmode.Option
 	testsigningOptions     []testsigning.Option
 }
@@ -143,15 +141,6 @@ func WithTestSigningOptions(opts ...testsigning.Option) ProvisionerOption {
 	}
 }
 
-// WithInstaller configures Datadog Installer on an EC2 VM.
-func WithInstaller(opts ...installer.Option) ProvisionerOption {
-	return func(params *ProvisionerParams) error {
-		params.installerOptions = []installer.Option{}
-		params.installerOptions = append(params.installerOptions, opts...)
-		return nil
-	}
-}
-
 // Run deploys a Windows environment given a pulumi.Context
 func Run(ctx *pulumi.Context, env *environments.WindowsHost, awsEnv aws.Environment, params *ProvisionerParams) error {
 	env.Environment = &awsEnv
@@ -245,19 +234,6 @@ func Run(ctx *pulumi.Context, env *environments.WindowsHost, awsEnv aws.Environm
 		env.Agent.ClientOptions = params.agentClientOptions
 	} else {
 		env.Agent = nil
-	}
-
-	if params.installerOptions != nil {
-		installer, err := installer.NewInstaller(&awsEnv, host, params.installerOptions...)
-		if err != nil {
-			return err
-		}
-		err = installer.Export(ctx, &env.Installer.Output)
-		if err != nil {
-			return err
-		}
-	} else {
-		env.Installer = nil
 	}
 
 	if params.fipsModeOptions != nil {
