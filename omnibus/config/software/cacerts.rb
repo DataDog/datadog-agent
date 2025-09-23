@@ -24,26 +24,27 @@
 # dependencies we ship also bundle cacerts so we aren't making things worse by
 # doing this.
 name "cacerts"
-
 # Omnibus breaks if there is no version on elements. You get an error like
 # Software must specify a `version; to cache it in S3 (cacerts[/go/src/github.com/DataDog/datadog-agent/omnibus/config/software/cacerts.rb])!
 # This is cryptic, and not flagged as an erro.
 default_version "2025-08-12"
 
-# IMHO, this should be equivalant to a chdir to that directory, but it is not
+# IMHO, this should be equivalant to a chdir to that directory, but it is not.
+# We need to actually do the CD from within each command clause.
 relative_path 'src/github.com/DataDog/datadog-agent'
 
 build do
   license "MPL-2.0"
   license_file "https://www.mozilla.org/media/MPL/2.0/index.815ca599c9df.txt"
 
-  command "echo I AM HERE && /bin/pwd"
-  # Dir.chdir "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent" do
-  # Dir.chdir "/go/src/github.com/DataDog/datadog-agent" do
   if windows?
-    command "cd #{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent && bazelisk run -- //deps/cacerts:install --destdir='#{python_3_embedded}'"
+    mkdir "#{python_3_embedded}"
+    mkdir "#{python_3_embedded}/ssl"
+    mkdir "#{python_3_embedded}/ssl/cacerts"
+    copy "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/deps/cacerts/cacert.pem '#{python_3_embedded}/ssl'"
+    copy "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/deps/cacerts/cacert.pem '#{python_3_embedded}/cacerts/ssl'"
     command "dir #{python_3_embedded}/ssl"
-   else
+  else
     command "cd #{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent && bazelisk run -- //deps/cacerts:install --destdir='#{install_dir}/embedded'"
 
     # For debugging only.
