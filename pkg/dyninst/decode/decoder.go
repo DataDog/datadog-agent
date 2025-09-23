@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"runtime/debug"
+	"strconv"
 	"time"
 
 	"github.com/go-json-experiment/json"
@@ -286,6 +287,16 @@ func (s *snapshotMessage) init(
 	case ir.FunctionWhere:
 		s.Debugger.Snapshot.Probe.Location.Method = where.Location()
 		s.Logger.Method = where.Location()
+	case ir.LineWhere:
+		function, file, lineStr := where.Line()
+		line, err := strconv.Atoi(lineStr)
+		if err != nil {
+			return probe, fmt.Errorf("invalid line number: %v", lineStr)
+		}
+		s.Debugger.Snapshot.Probe.Location.Method = function
+		s.Debugger.Snapshot.Probe.Location.File = file
+		s.Debugger.Snapshot.Probe.Location.Line = line
+		s.Logger.Method = function
 	default:
 		return probe, fmt.Errorf(
 			"probe %s is not on a supported location: %T",

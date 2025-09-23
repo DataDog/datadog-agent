@@ -77,7 +77,9 @@ type CommonTypes struct {
 // subprogram A, that has been inlined into subprogram B, and subprogram B has been inlined
 // to a subprogram C, and C is not inlined, then these are pc ranges of C.
 type InlinePCRanges struct {
-	Ranges     []PCRange
+	// Non-overlapping and sorted.
+	Ranges []PCRange
+	// Non-overlapping and sorted.
 	RootRanges []PCRange
 }
 

@@ -35,6 +35,7 @@ import (
 	"regexp"
 	"runtime/debug"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -1823,84 +1824,54 @@ func newProbe(
 		}, nil
 	}
 
-	var injectionPoints []ir.InjectionPoint
 	if subprogram.OutOfLinePCRanges == nil && len(subprogram.InlinePCRanges) == 0 {
 		return nil, ir.Issue{
 			Kind:    ir.IssueKindMalformedExecutable,
 			Message: fmt.Sprintf("subprogram %s has no pc ranges", subprogram.Name),
 		}, nil
 	}
-	var returnLocations []ir.InjectionPoint
+	var injectionPoints []ir.InjectionPoint
+	var returnEvent *ir.Event
 	if subprogram.OutOfLinePCRanges != nil {
-		pcRange := subprogram.OutOfLinePCRanges[0]
-		pc := pcRange[0]
-		loc, ok := lineData[pcRange]
-		if !ok {
-			return nil, ir.Issue{}, fmt.Errorf("missing line data for range: [0x%x, 0x%x]",
-				subprogram.OutOfLinePCRanges[0][0], subprogram.OutOfLinePCRanges[0][1])
-		}
-		if loc.err != nil {
-			return nil, ir.Issue{
-				Kind:    ir.IssueKindInvalidDWARF,
-				Message: loc.err.Error(),
-			}, nil
-		}
-		funcByteLen := pcRange[1] - pc
-		data := textSection.data.Data()
-		offset := (pc - textSection.header.Addr)
-		if offset+funcByteLen > uint64(len(data)) {
-			return nil, ir.Issue{
-				Kind:    ir.IssueKindInvalidDWARF,
-				Message: fmt.Sprintf("function body is too large: %d > %d", offset+funcByteLen, len(data)),
-			}, nil
-		}
-		body := data[offset : offset+funcByteLen]
-
-		// Disassemble the function to find return locations and determine
-		// the correct injection point.
-		result, issue := disassembleFunction(
-			arch, subprogram.Name, pc, funcByteLen, body, loc,
+		var issue ir.Issue
+		var err error
+		injectionPoints, returnEvent, issue, err = pickInjectionPoint(
+			eventIDAlloc,
+			subprogram.Name,
+			subprogram.OutOfLinePCRanges,
+			subprogram.OutOfLinePCRanges,
+			false, /* inlined */
+			probeCfg.GetWhere(),
+			arch,
+			lineData,
+			textSection,
+			injectionPoints,
+			skipReturnEvents,
 		)
-		if !issue.IsNone() {
-			return nil, issue, nil
+		if issue != (ir.Issue{}) || err != nil {
+			return nil, issue, err
 		}
-
-		returnLocations = result.returnLocations
-		injectionPC := result.injectionPC
-		topPCOffset := result.topPCOffset
-		frameless := loc.prologueEnd == 0
-
-		// Add a workaround for the fact that single-instruction functions
-		// would have the same entry and exit probes, but the ordering between
-		// them would not be well-defined, so in this extremely uncommon case
-		// the user doesn't get to see the return probe. It's okay because
-		// there literally cannot be a return value.
-		hasAssociatedReturn := !skipReturnEvents
-		if len(returnLocations) == 1 && returnLocations[0].PC == pc {
-			hasAssociatedReturn = false
-			returnLocations = returnLocations[:0]
-		}
-
-		injectionPoints = append(injectionPoints, ir.InjectionPoint{
-			PC:                  injectionPC,
-			Frameless:           frameless,
-			HasAssociatedReturn: hasAssociatedReturn,
-			TopPCOffset:         topPCOffset,
-		})
 	}
 	for _, inlined := range subprogram.InlinePCRanges {
-		loc, ok := lineData[inlined.RootRanges[0]]
-		if !ok {
-			return nil, ir.Issue{}, fmt.Errorf("missing line data for range: [0x%x, 0x%x]",
-				inlined.RootRanges[0][0], inlined.RootRanges[0][1])
+		var issue ir.Issue
+		var err error
+		injectionPoints, _, issue, err = pickInjectionPoint(
+			eventIDAlloc,
+			subprogram.Name,
+			inlined.Ranges,
+			inlined.RootRanges,
+			true, /* inlined */
+			probeCfg.GetWhere(),
+			arch,
+			lineData,
+			textSection,
+			injectionPoints,
+			skipReturnEvents,
+		)
+		if issue != (ir.Issue{}) || err != nil {
+			return nil, issue, err
 		}
-		injectionPoints = append(injectionPoints, ir.InjectionPoint{
-			PC:                  inlined.Ranges[0][0],
-			Frameless:           loc.prologueEnd == 0,
-			HasAssociatedReturn: false,
-		})
 	}
-
 	events := []*ir.Event{
 		{
 			ID:              eventIDAlloc.next(),
@@ -1912,13 +1883,8 @@ func newProbe(
 			Type: nil,
 		},
 	}
-	if len(returnLocations) > 0 && !skipReturnEvents {
-		events = append(events, &ir.Event{
-			ID:              eventIDAlloc.next(),
-			InjectionPoints: returnLocations,
-			Kind:            ir.EventKindReturn,
-			Type:            nil,
-		})
+	if returnEvent != nil {
+		events = append(events, returnEvent)
 	}
 	probe := &ir.Probe{
 		ProbeDefinition: probeCfg,
@@ -1926,6 +1892,161 @@ func newProbe(
 		Events:          events,
 	}
 	return probe, ir.Issue{}, nil
+}
+
+// Returns a list of injection points for a given probe, as well as optional
+// return event, if required.
+func pickInjectionPoint(
+	eventIDAlloc *idAllocator[ir.EventID],
+	subprogramName string,
+	ranges []ir.PCRange,
+	rootRanges []ir.PCRange,
+	inlined bool,
+	where ir.Where,
+	arch object.Architecture,
+	lineData map[ir.PCRange]lineData,
+	textSection *section,
+	buf []ir.InjectionPoint,
+	skipReturnEvents bool,
+) ([]ir.InjectionPoint, *ir.Event, ir.Issue, error) {
+	lines, ok := lineData[rootRanges[0]]
+	if !ok {
+		return buf, nil, ir.Issue{}, fmt.Errorf("missing line data for range: [0x%x, 0x%x)",
+			rootRanges[0][0], rootRanges[0][1])
+	}
+	if lines.err != nil {
+		return buf, nil, ir.Issue{
+			Kind:    ir.IssueKindInvalidDWARF,
+			Message: lines.err.Error(),
+		}, nil
+	}
+	frameless := lines.prologueEnd == 0
+	var returnEvent *ir.Event
+	switch where := where.(type) {
+	case ir.FunctionWhere:
+		if inlined {
+			buf = append(buf, ir.InjectionPoint{
+				PC:                  ranges[0][0],
+				Frameless:           frameless,
+				HasAssociatedReturn: false,
+			})
+		} else {
+			pc := ranges[0][0]
+			funcByteLen := ranges[0][1] - pc
+			data := textSection.data.Data()
+			offset := (pc - textSection.header.Addr)
+			if offset+funcByteLen > uint64(len(data)) {
+				return buf, nil, ir.Issue{
+					Kind:    ir.IssueKindInvalidDWARF,
+					Message: fmt.Sprintf("function body is too large: %d > %d", offset+funcByteLen, len(data)),
+				}, nil
+			}
+			body := data[offset : offset+funcByteLen]
+
+			// Disassemble the function to find return locations and determine
+			// the correct injection point.
+			result, issue := disassembleFunction(
+				arch, subprogramName, pc, funcByteLen, body, lines,
+			)
+			if !issue.IsNone() {
+				return buf, nil, issue, nil
+			}
+
+			returnLocations := result.returnLocations
+			injectionPC := result.injectionPC
+			topPCOffset := result.topPCOffset
+
+			// Add a workaround for the fact that single-instruction functions
+			// would have the same entry and exit probes, but the ordering between
+			// them would not be well-defined, so in this extremely uncommon case
+			// the user doesn't get to see the return probe. It's okay because
+			// there literally cannot be a return value.
+			hasAssociatedReturn := !skipReturnEvents
+			if len(returnLocations) == 1 && returnLocations[0].PC == pc {
+				hasAssociatedReturn = false
+				returnLocations = returnLocations[:0]
+			}
+
+			buf = append(buf, ir.InjectionPoint{
+				PC:                  injectionPC,
+				Frameless:           frameless,
+				HasAssociatedReturn: hasAssociatedReturn,
+				TopPCOffset:         topPCOffset,
+			})
+			if hasAssociatedReturn {
+				returnEvent = &ir.Event{
+					ID:              eventIDAlloc.next(),
+					InjectionPoints: returnLocations,
+					Kind:            ir.EventKindReturn,
+					Type:            nil,
+				}
+			}
+		}
+	case ir.LineWhere:
+		_, _, lineStr := where.Line()
+		line, err := strconv.Atoi(lineStr)
+		if err != nil {
+			return buf, nil, ir.Issue{
+				Kind:    ir.IssueKindInvalidProbeDefinition,
+				Message: fmt.Sprintf("invalid line number: %v", lineStr),
+			}, nil
+		}
+		injectionPC, issue, err := pickLineInjectionPC(line, ranges, rootRanges, lineData)
+		if issue != (ir.Issue{}) || err != nil {
+			return buf, nil, issue, err
+		}
+		buf = append(buf, ir.InjectionPoint{
+			PC:                  injectionPC,
+			Frameless:           frameless,
+			HasAssociatedReturn: false,
+		})
+	}
+	return buf, returnEvent, ir.Issue{}, nil
+}
+
+func pickLineInjectionPC(
+	line int, ranges []ir.PCRange, rootRanges []ir.PCRange, lineData map[ir.PCRange]lineData,
+) (uint64, ir.Issue, error) {
+	nonStmtPc := uint64(0)
+	rootIdx := 0
+	for _, r := range ranges {
+		for rootIdx < len(rootRanges) && rootRanges[rootIdx][1] < r[1] {
+			rootIdx++
+		}
+		if rootIdx >= len(rootRanges) || rootRanges[rootIdx][0] > r[0] {
+			return 0, ir.Issue{}, fmt.Errorf("no root range found for range: [0x%x, 0x%x)",
+				r[0], r[1])
+		}
+		lines, ok := lineData[rootRanges[rootIdx]]
+		if !ok {
+			return 0, ir.Issue{}, fmt.Errorf("missing line data for range: [0x%x, 0x%x)",
+				r[0], r[1])
+		}
+		for _, l := range lines.lines {
+			if l.pc < r[0] {
+				continue
+			}
+			if l.pc >= r[1] {
+				break
+			}
+			if l.line == uint32(line) {
+				if l.isStatement {
+					// Statements are preferred as injection points.
+					return l.pc, ir.Issue{}, nil
+				}
+				if nonStmtPc == 0 {
+					nonStmtPc = l.pc
+				}
+			}
+		}
+	}
+	if nonStmtPc == 0 {
+		return 0, ir.Issue{
+			Kind:    ir.IssueKindInvalidProbeDefinition,
+			Message: fmt.Sprintf("no suitable injection point found for line: %v", line),
+		}, nil
+	}
+	return nonStmtPc, ir.Issue{}, nil
 }
 
 // disassemblyResult holds the results of architecture-specific function
@@ -2204,6 +2325,16 @@ func (v *subprogramChildVisitor) subprogramPCRanges() ([]ir.PCRange, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse pc ranges: %w", err)
 	}
+	slices.SortFunc(ranges, func(a, b ir.PCRange) int {
+		return cmp.Compare(a[0], b[0])
+	})
+	for i := 1; i < len(ranges); i++ {
+		if ranges[i-1][1] > ranges[i][0] {
+			return nil, fmt.Errorf("overlapping pc ranges for subprogram at 0x%x: [0x%x, 0x%x) and [0x%x, 0x%x)",
+				v.subprogramEntry.Offset,
+				ranges[i-1][0], ranges[i-1][1], ranges[i][0], ranges[i][1])
+		}
+	}
 	v.cachedSubprogramPCRanges = ranges
 	return ranges, nil
 }
@@ -2255,6 +2386,16 @@ func processInlinedSubroutineEntry(
 	ranges, err := root.dwarf.Ranges(subroutine)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse pc ranges %w", err)
+	}
+	slices.SortFunc(ranges, func(a, b ir.PCRange) int {
+		return cmp.Compare(a[0], b[0])
+	})
+	for i := 1; i < len(ranges); i++ {
+		if ranges[i-1][1] > ranges[i][0] {
+			return nil, fmt.Errorf("overlapping pc ranges for inlined subroutine at 0x%x: [0x%x, 0x%x) and [0x%x, 0x%x)",
+				subroutine.Offset,
+				ranges[i-1][0], ranges[i-1][1], ranges[i][0], ranges[i][1])
+		}
 	}
 	sp := &inlinedSubprogram{
 		abstractOrigin: abstractOrigin,
@@ -2481,6 +2622,10 @@ func makeInterests(cfg []ir.ProbeDefinition) (interests, []ir.ProbeIssue) {
 		switch where := probe.GetWhere().(type) {
 		case ir.FunctionWhere:
 			methodName := where.Location()
+			i.compileUnits[compileUnitFromName(methodName)] = struct{}{}
+			i.subprograms[methodName] = append(i.subprograms[methodName], probe)
+		case ir.LineWhere:
+			methodName, _, _ := where.Line()
 			i.compileUnits[compileUnitFromName(methodName)] = struct{}{}
 			i.subprograms[methodName] = append(i.subprograms[methodName], probe)
 		default:
