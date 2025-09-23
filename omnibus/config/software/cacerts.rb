@@ -34,13 +34,12 @@ build do
   license_file "https://www.mozilla.org/media/MPL/2.0/index.815ca599c9df.txt"
 
   if windows?
-    # This is a hack around pkg_install failing on windows. The exact error we get is
-    #  FileNotFoundError: [WinError 206] The filename or extension is too long: 'C:\\Users\\ContainerAdministrator\\AppData\\Local\\Temp\\Bazel.runfiles_7ghfo0_s\\runfiles\\rules_python++python+python_3_11_x86_64-pc-windows-msvc\\Lib\\site-packages\\pkg_resources\\tests\\data\\my-test-package_unpacked-egg\\my_test_package-1.0-py3.7.egg\\EGG-INFO'
-    # which has too many things to fix for what is basically a file copy.
+    mkdir "#{python_3_embedded}/embedded/ssl/cacerts"
     copy "#{Omnibus::Config.project_root()}/../deps/cacerts/cacert.pem", "#{python_3_embedded}/embedded/ssl"
     copy "#{Omnibus::Config.project_root()}/../deps/cacerts/cacert.pem", "#{python_3_embedded}/embedded/ssl/cacerts"
   else
-    command "bazelisk run -- //deps/cacerts:install --destdir='#{install_dir}/embedded'", \
-      cwd: "#{Omnibus::Config.project_root()}/.."
+    mkdir "#{install_dir}/embedded/ssl/cacerts"
+    copy "#{Omnibus::Config.project_root()}/../deps/cacerts/cacert.pem", "#{install_dir}/embedded/ssl"
+    copy "#{Omnibus::Config.project_root()}/../deps/cacerts/cacert.pem", "#{install_dir}/embedded/ssl/cacerts"
   end
 end
