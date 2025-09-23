@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/containerd/containerd"
 	containerdevents "github.com/containerd/containerd/events"
 	"go.uber.org/fx"
@@ -26,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -80,12 +80,18 @@ type exitInfo struct {
 	exitTS   time.Time
 }
 
+type dependencies struct {
+	fx.In
+
+	FilterStore workloadfilter.Component
+}
+
 type collector struct {
 	id                     string
 	store                  workloadmeta.Component
 	catalog                workloadmeta.AgentType
 	containerdClient       cutil.ContainerdItf
-	filterPausedContainers *containers.Filter
+	filterPausedContainers workloadfilter.FilterBundle
 	eventsChan             <-chan *containerdevents.Envelope
 	errorsChan             <-chan error
 
@@ -107,13 +113,16 @@ type collector struct {
 }
 
 // NewCollector returns a new containerd collector provider and an error
-func NewCollector() (workloadmeta.CollectorProvider, error) {
+func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
+	filterPausedContainers := deps.FilterStore.GetContainerPausedFilters()
+
 	return workloadmeta.CollectorProvider{
 		Collector: &collector{
-			id:             collectorID,
-			catalog:        workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
-			contToExitInfo: make(map[string]*exitInfo),
-			knownImages:    newKnownImages(),
+			id:                     collectorID,
+			catalog:                workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
+			contToExitInfo:         make(map[string]*exitInfo),
+			knownImages:            newKnownImages(),
+			filterPausedContainers: filterPausedContainers,
 		},
 	}, nil
 }
@@ -137,11 +146,6 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 	}
 
 	if err = c.startSBOMCollection(ctx); err != nil {
-		return err
-	}
-
-	c.filterPausedContainers, err = containers.GetPauseContainerFilter()
-	if err != nil {
 		return err
 	}
 
@@ -397,7 +401,9 @@ func (c *collector) ignoreContainer(namespace string, container containerd.Conta
 	}
 
 	// Only the image name is relevant to exclude paused containers
-	return c.filterPausedContainers.IsExcluded(nil, "", info.Image, ""), nil
+	filterableContainer := workloadfilter.CreateContainerImage(info.Image)
+	excluded := c.filterPausedContainers.IsExcluded(filterableContainer)
+	return excluded, nil
 }
 
 func subscribeFilters() []string {
