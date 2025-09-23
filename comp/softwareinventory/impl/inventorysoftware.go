@@ -13,13 +13,12 @@ import (
 	"fmt"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	softwareinventory "github.com/DataDog/datadog-agent/comp/softwareinventory/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"math/rand"
 	"net/http"
 	"time"
-
-	"github.com/DataDog/datadog-agent/comp/metadata/softwareinventory/def"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
