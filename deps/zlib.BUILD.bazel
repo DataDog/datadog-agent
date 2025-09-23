@@ -164,7 +164,6 @@ pkg_install(
         ":hdr_files",
         ":lib_files",
     ],
-    destdir = "/tmp",
 )
 
 # buildifier: disable=no-effect
