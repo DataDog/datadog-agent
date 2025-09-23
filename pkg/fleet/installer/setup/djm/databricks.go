@@ -114,7 +114,7 @@ func SetupDatabricks(s *common.Setup) error {
 	}
 	s.Span.SetTag("install_method", installMethod)
 
-	if os.Getenv("DD_GPU_MONITORING_ENABLED") == "true" {
+	if os.Getenv("DD_GPU_MONITORING_ENABLED") == "true" || os.Getenv("DD_GPU_ENABLED") == "true" {
 		setupGPUIntegration(s)
 	}
 
