@@ -35,12 +35,7 @@ func executePythonScript(ctx context.Context, installPath, scriptName string, ar
 	}
 
 	pythonCmd := append([]string{scriptPath}, args...)
-	fullCmd := append([]string{pythonPath}, pythonCmd...)
-	// Set umask to 022 before running the command.
-	// This ensures that the files created by the Python script have the correct permissions.
-	bashCmd := "umask 022; " + strings.Join(fullCmd, " ")
-
-	cmd := exec.CommandContext(ctx, "bash", "-c", bashCmd)
+	cmd := exec.CommandContext(ctx, pythonPath, pythonCmd...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 

@@ -64,14 +64,12 @@ func TestMount(t *testing.T) {
 	var mntID uint32
 	t.Run("mount", func(t *testing.T) {
 		err = test.GetProbeEvent(func() error {
-			// Test mount
 			if err := syscall.Mount(mntPath, dstMntPath, "bind", syscall.MS_BIND, ""); err != nil {
 				return fmt.Errorf("could not create bind mount: %w", err)
 			}
 			return nil
 		}, func(event *model.Event) bool {
 			mntID = event.Mount.MountID
-
 			if !assert.Equal(t, "mount", event.GetType(), "wrong event type") {
 				return true
 			}
