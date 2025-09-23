@@ -60,23 +60,31 @@ dda inv -- -e omnibus.build
 ```
 
 Once the process completes, the built artifacts will be available _in the container_ under `/omnibus/pkg`.
-??? tip "Moving the artifacts back to the host"
-    The `datadog-agent` local repo clone is bind-mounted into the dev env container. You can use this to access your artifacts from the host, by copying them from `/omnibus/pkg` to `/root/repos/datadog-agent`:
-    ```bash
-    mv /omnibus/pkg /root/repos/datadog-agent/bin
-    ```
+/// details | Moving the artifacts back to the host
+    open: False
+    type: tip
+
+The `datadog-agent` local repo clone is bind-mounted into the dev env container. You can use this to access your artifacts from the host, by copying them from `/omnibus/pkg` to `/root/repos/datadog-agent`:
+```bash
+mv /omnibus/pkg /root/repos/datadog-agent/bin
+```
+///
 
 ### Using the build image
 
 We provide a [Docker image](../../reference/images/builders.md#linux) containing all the build dependencies required for building `deb` packages via Omnibus: [`datadog/agent-buildimages-linux`](https://hub.docker.com/r/datadog/agent-buildimages-linux).This image is the one used by CI, and as such it is quite bare-bones. The developer environments mentioned in [the section above](#using-the-dev-env) are based on this image.
 
-??? tip "Building the image locally"
-    The Dockerfile for this image is available in the [datadog-agent-buildimages](https://github.com/DataDog/datadog-agent-buildimages) repository.
-    To build it from scratch, you can run the following command from the root of that repo:
+/// details | Building the image locally
+    open: False
+    type: tip
 
-    ```bash
-    docker build -t datadog-agent-buildimages:linux -f linux/Dockerfile .
-    ```
+The Dockerfile for this image is available in the [datadog-agent-buildimages](https://github.com/DataDog/datadog-agent-buildimages) repository.
+To build it from scratch, you can run the following command from the root of that repo:
+
+```bash
+docker build -t datadog-agent-buildimages:linux -f linux/Dockerfile .
+```
+///
 
 1. Make sure Docker is running on your machine.
 1. Navigate to the root folder of a clone of the `datadog-agent` repo.
@@ -123,13 +131,16 @@ If you already have a Datadog Agent installed, you will need to move it to a dif
 > As a Datadog employee, an Agent is installed on your machine during IT's onboarding session.
 ///
 
-??? note "Linux-specific requirements"
-    * On Linux, you will need root privileges, as you need permission to write into `/opt`
-    * On Linux, some configuration files will also be dropped under `/etc`.
+/// details | Linux-specific requirements
+    open: False
+
+  * On Linux, you will need root privileges, as you need permission to write into `/opt`
+  * On Linux, some configuration files will also be dropped under `/etc`.
+///
 
 1. Follow the [general local setup instructions](../../setup/manual.md)
-1. Make `/opt` world-readable
-1. Run the following command:
+2. Make `/opt` world-readable
+3. Run the following command:
 ```
 dda inv -- omnibus.build --base-dir=$HOME/.omnibus
 ```
@@ -142,11 +153,13 @@ The path you pass with the `--base-dir` option will be used as a working directo
 | `cache`   | The binaries cached after building those sources |
 | `pkg`     | The final `deb`/`rpm`/`dmg` artifacts            |
 
-??? note "Make sure to pass a `--base-dir` !"
-    It is strongly advised to pass a `--base-dir`, and point it to a directory **outside of the Agent repo.**
+/// details | Make sure to pass a `--base-dir` !
+    open: False
 
-    By default Omnibus stores packages in the project folder itself: running the task multiple times would recursively add those artifacts to the source files for the `datadog-agent` software definition.
+It is strongly advised to pass a `--base-dir`, and point it to a directory **outside of the Agent repo.**
 
+By default Omnibus stores packages in the project folder itself: running the task multiple times would recursively add those artifacts to the source files for the `datadog-agent` software definition.
+///
 
 /// tip
 You can fine tune an Omnibus run by passing more options, see `dda inv -- omnibus.build --help` for the list of all the available options.
