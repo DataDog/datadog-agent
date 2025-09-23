@@ -9,6 +9,10 @@ import (
 	"encoding/json"
 	"fmt"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	"github.com/DataDog/datadog-agent/pkg/util/compression"
+	"github.com/DataDog/datadog-agent/pkg/util/compression/selector"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/stretchr/testify/require"
 	"net/http"
 	"net/http/httptest"
@@ -17,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/pkg/inventory/software"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
@@ -29,6 +34,12 @@ type testFixture struct {
 	reqs           Requires
 }
 
+type mockCompressorComponent struct{}
+
+func (*mockCompressorComponent) NewCompressor(_ string, _ int) compression.Compressor {
+	return selector.NewNoopCompressor()
+}
+
 func newFixtureWithData(t *testing.T, enabled bool, mockData []software.Entry) *testFixture {
 	sp := &mockSysProbeClient{}
 	sp.On("GetCheck", sysconfig.SoftwareInventoryModule).Return(mockData, nil)
@@ -39,15 +50,19 @@ func newFixtureWithData(t *testing.T, enabled bool, mockData []software.Entry) *
 	configComp := config.NewMock(t)
 	configComp.SetWithoutSource("software_inventory.enabled", enabled)
 
+	// Create a mock event platform component
+	eventPlatformComp := option.NewPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(hostnameComp, &mockCompressorComponent{}))
+
 	return &testFixture{
 		t:              t,
 		sysProbeClient: sp,
 		reqs: Requires{
-			Log:        logComp,
-			Config:     configComp,
-			Serializer: serializermock.NewMetricSerializer(t),
-			Hostname:   hostnameComp,
-			Lc:         compdef.NewTestLifecycle(t),
+			Log:           logComp,
+			Config:        configComp,
+			Serializer:    serializermock.NewMetricSerializer(t),
+			Hostname:      hostnameComp,
+			Lc:            compdef.NewTestLifecycle(t),
+			EventPlatform: eventPlatformComp,
 		},
 	}
 }
