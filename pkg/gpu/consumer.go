@@ -142,6 +142,12 @@ func (c *cudaEventConsumer) Start() {
 				}
 
 				dataLen := len(batchData.Data)
+				if dataLen == 0 {
+					// This was a flush event, with no data to process so we can skip it
+					// with no warning log.
+					continue
+				}
+
 				if dataLen < gpuebpf.SizeofCudaEventHeader {
 					if logLimitProbe.ShouldLog() {
 						log.Warnf("Not enough data to parse header, data size=%d, expecting at least %d", dataLen, gpuebpf.SizeofCudaEventHeader)
