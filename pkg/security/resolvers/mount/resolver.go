@@ -179,7 +179,7 @@ func (mr *Resolver) SyncCacheFromListMount() error {
 	defer mr.lock.Unlock()
 
 	for _, mnt := range mounts {
-		mr.insert(newMountFromStatmount(&mnt), 0)
+		mr.insert(newMountFromStatmount(&mnt), 0, false)
 	}
 
 	return nil
