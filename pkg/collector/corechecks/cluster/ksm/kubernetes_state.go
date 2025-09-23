@@ -48,6 +48,7 @@ import (
 	hostnameUtil "github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/cloudprovider"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -232,23 +233,24 @@ type KSMConfig struct {
 // KSMCheck wraps the config and the metric stores needed to run the check
 type KSMCheck struct {
 	core.CheckBase
-	agentConfig          model.Config
-	instance             *KSMConfig
-	allStores            [][]cache.Store
-	telemetry            *telemetryCache
-	tagger               tagger.Component
-	cancel               context.CancelFunc
-	isCLCRunner          bool
-	isRunningOnNodeAgent bool
-	clusterIDTagValue    string
-	clusterNameTagValue  string
-	clusterNameRFC1123   string
-	metricNamesMapper    map[string]string
-	metricAggregators    map[string]metricAggregator
-	metricTransformers   map[string]metricTransformerFunc
-	metadataMetricsRegex *regexp.Regexp
-	initRetry            retry.Retrier
-	workloadmetaStore    workloadmeta.Component
+	agentConfig           model.Config
+	instance              *KSMConfig
+	allStores             [][]cache.Store
+	telemetry             *telemetryCache
+	tagger                tagger.Component
+	cancel                context.CancelFunc
+	isCLCRunner           bool
+	isRunningOnNodeAgent  bool
+	clusterIDTagValue     string
+	cloudProviderTagValue string
+	clusterNameTagValue   string
+	clusterNameRFC1123    string
+	metricNamesMapper     map[string]string
+	metricAggregators     map[string]metricAggregator
+	metricTransformers    map[string]metricTransformerFunc
+	metadataMetricsRegex  *regexp.Regexp
+	initRetry             retry.Retrier
+	workloadmetaStore     workloadmeta.Component
 }
 
 // JoinsConfigWithoutLabelsMapping contains the config parameters for label joins
@@ -303,6 +305,9 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 
 	// Retrieve the ClusterID from the cluster-agent
 	k.getClusterID()
+
+	// Retrieve the cloud provider name from the cluster-agent
+	k.getCloudProviderName()
 
 	// Initialize global tags and check tags
 	k.initTags()
@@ -975,6 +980,10 @@ func (k *KSMCheck) getClusterID() {
 	k.clusterIDTagValue = clusterID
 }
 
+func (k *KSMCheck) getCloudProviderName() {
+	k.cloudProviderTagValue = cloudprovider.DCAGetName(context.Background())
+}
+
 // initTags avoids keeping a nil Tags field in the check instance
 // Sets the kube_cluster_name tag for all metrics.
 // Sets the orch_cluster_id tag for all metrics.
@@ -986,6 +995,10 @@ func (k *KSMCheck) initTags() {
 
 	if k.clusterIDTagValue != "" {
 		k.instance.Tags = append(k.instance.Tags, tags.OrchClusterID+":"+k.clusterIDTagValue)
+	}
+
+	if k.cloudProviderTagValue != "" {
+		k.instance.Tags = append(k.instance.Tags, tags.KubeCloudProvider+":"+k.cloudProviderTagValue)
 	}
 
 	if !k.instance.DisableGlobalTags {
@@ -1141,7 +1154,7 @@ func mergeLabelsOrAnnotationAsTags(extra, instanceMap map[string]map[string]stri
 	}
 
 	for resource, mapping := range extra {
-		var singularName = resource
+		singularName := resource
 		var err error
 		if shouldTransformResource && !isNodeAgent {
 			// modify the resource name to the singular form of the resource

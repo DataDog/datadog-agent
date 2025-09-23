@@ -74,7 +74,10 @@ func newDispatcher(tagger tagger.Component) *dispatcher {
 		d.extraTags = append(d.extraTags, tags.KubeClusterName+":"+clusterTagValue)
 	}
 
-	clusterIDTagValue, _ := clustername.GetClusterID()
+	clusterIDTagValue, err := clustername.GetClusterID()
+	if err != nil {
+		log.Errorf("Failed to get cluster ID: %v", err)
+	}
 	if clusterIDTagValue != "" {
 		d.extraTags = append(d.extraTags, tags.OrchClusterID+":"+clusterIDTagValue)
 	}

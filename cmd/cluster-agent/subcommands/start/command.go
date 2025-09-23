@@ -101,6 +101,7 @@ import (
 	apicommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/controllers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/cloudprovider"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -335,7 +336,7 @@ func start(log log.Component,
 	// Getting connection to APIServer, it's done before Hostname resolution
 	// as hostname resolution may call APIServer
 	pkglog.Info("Waiting to obtain APIClient connection")
-	apiCl, err := apiserver.WaitForAPIClient(context.Background()) // make sure we can connect to the apiserver
+	apiCl, err := apiserver.WaitForAPIClient(mainCtx) // make sure we can connect to the apiserver
 	if err != nil {
 		return fmt.Errorf("Fatal error: Cannot connect to the apiserver: %v", err)
 	}
@@ -392,7 +393,10 @@ func start(log log.Component,
 		}
 		pkglog.Warn("Failed to auto-detect a Kubernetes cluster name. We recommend you set it manually via the cluster_name config option")
 	}
-	pkglog.Infof("Cluster ID: %s, Cluster Name: %s", clusterID, clusterName)
+	// determine cloud provider for that node.
+	cloudProvider := cloudprovider.DCAGetName(mainCtx)
+
+	pkglog.Infof("Cluster ID: %s, Cluster Name: %s, Kube Cloud Provider: %s", clusterID, clusterName, cloudProvider)
 
 	// Initialize and start remote configuration client
 	var rcClient *rcclient.Client

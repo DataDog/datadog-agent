@@ -7,19 +7,17 @@ package cloudprovider
 
 import (
 	"context"
-	"errors"
 	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
 )
 
-// ErrCloudProviderIndetermined is returned when a function is unable to determine the cloud provider
-var ErrCloudProviderIndetermined = errors.New("node cloud provider indetermined")
-
-// GetName returns the name of the cloud provider for the current node
+// GetName returns the name of the cloud provider for the current node.
+// GetName shouldn't be used on DCA. For DCA please refer to DCAGetName.
 func GetName() (string, error) {
 	cacheKey := cache.BuildAgentKey(constants.NodeCloudProviderKey)
 	if cloudProvider, found := cache.Cache.Get(cacheKey); found {
@@ -33,12 +31,31 @@ func GetName() (string, error) {
 	ctx, cancel := context.WithDeadline(context.TODO(), time.Now().Add(2*time.Second))
 	defer cancel()
 
-	nl, err := ni.GetNodeLabels(ctx)
+	nodeName, err := ni.GetNodeName(ctx)
 	if err != nil {
 		return "", err
 	}
-	cloudProvider := ""
 
+	dcaClient, err := clusteragent.GetClusterAgentClient()
+	if err != nil {
+		return "", err
+	}
+
+	nl, err := dcaClient.GetNodeLabels(nodeName)
+	if err != nil {
+		return "", err
+	}
+
+	cloudProvider := getProvideNameFromNodeLabels(nl)
+
+	cache.Cache.Set(cacheKey, cloudProvider, cache.NoExpiration)
+	return cloudProvider, nil
+}
+
+// getProvideNameFromNodeLabels checks certain node labels to determine the kube cloud provider.
+// Returns an empty string if no provider is determined.
+func getProvideNameFromNodeLabels(nl map[string]string) string {
+	cloudProvider := ""
 out:
 	for labelName, labelValue := range nl {
 		switch labelName {
@@ -63,13 +80,5 @@ out:
 			}
 		}
 	}
-
-	// If somehow node is missing those labels, try to get cloud provider from nodeinfo
-	if cloudProvider == "" {
-		// todo(dp): if this error is hit implement nodeInfo getters
-		return "", ErrCloudProviderIndetermined
-	}
-
-	cache.Cache.Set(cacheKey, cloudProvider, cache.NoExpiration)
-	return cloudProvider, nil
+	return cloudProvider
 }
