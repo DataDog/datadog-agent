@@ -57,7 +57,7 @@ build do
     make(*make_args, env: env)
     make("install", *make_args, env: env)
   else
-    command "bazelisk run -- @zlib//:install --destdir='#{install_dir}/embedded'", \
+    command "bazelisk run --config=cache -- @zlib//:install --destdir='#{install_dir}/embedded'", \
 	cwd: "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent"
   end
 end
