@@ -33,8 +33,14 @@ func executePythonScript(ctx context.Context, installPath, scriptName string, ar
 	if _, err := os.Stat(pythonPath); err != nil {
 		return fmt.Errorf("python not found at %s: %w", pythonPath, err)
 	}
+
 	pythonCmd := append([]string{scriptPath}, args...)
-	cmd := exec.CommandContext(ctx, pythonPath, pythonCmd...)
+	fullCmd := append([]string{pythonPath}, pythonCmd...)
+	// Set umask to 022 before running the command.
+	// This ensures that the files created by the Python script have the correct permissions.
+	bashCmd := "umask 022; " + strings.Join(fullCmd, " ")
+
+	cmd := exec.CommandContext(ctx, "bash", "-c", bashCmd)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
