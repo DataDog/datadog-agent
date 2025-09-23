@@ -587,12 +587,56 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "cgroup_write.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.CgroupWrite.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "cgroup_write.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.CgroupWrite.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.CgroupWrite.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.CgroupWrite.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.CgroupWrite.File)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -855,12 +899,56 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "chdir.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.Chdir.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "chdir.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.Chdir.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "chdir.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.Chdir.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "chdir.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.Chdir.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "chdir.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.Chdir.File)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -1156,12 +1244,56 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "chmod.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.Chmod.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "chmod.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.Chmod.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "chmod.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.Chmod.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "chmod.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.Chmod.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "chmod.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.Chmod.File)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -1490,12 +1622,56 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "chown.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.Chown.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "chown.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.Chown.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "chown.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.Chown.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "chown.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.Chown.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "chown.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.Chown.File)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -2487,6 +2663,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "exec.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Exec.Process.IsNotKworker() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.Exec.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "exec.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -2496,6 +2686,48 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return ""
 				}
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.Exec.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exec.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Exec.Process.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.Exec.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exec.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Exec.Process.IsNotKworker() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.Exec.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exec.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Exec.Process.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.Exec.Process.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -2873,6 +3105,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "exec.interpreter.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Exec.Process.HasInterpreter() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.Exec.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "exec.interpreter.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -2882,6 +3128,48 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return ""
 				}
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.Exec.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exec.interpreter.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Exec.Process.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.Exec.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exec.interpreter.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Exec.Process.HasInterpreter() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.Exec.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exec.interpreter.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Exec.Process.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.Exec.Process.LinuxBinprm.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -3633,6 +3921,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "exit.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Exit.Process.IsNotKworker() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.Exit.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "exit.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -3642,6 +3944,48 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return ""
 				}
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.Exit.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exit.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Exit.Process.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.Exit.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exit.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Exit.Process.IsNotKworker() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.Exit.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exit.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Exit.Process.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.Exit.Process.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -4019,6 +4363,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "exit.interpreter.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Exit.Process.HasInterpreter() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.Exit.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "exit.interpreter.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -4028,6 +4386,48 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return ""
 				}
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.Exit.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exit.interpreter.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Exit.Process.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.Exit.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exit.interpreter.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Exit.Process.HasInterpreter() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.Exit.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exit.interpreter.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Exit.Process.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.Exit.Process.LinuxBinprm.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -4528,12 +4928,56 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "link.file.destination.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.Link.Target)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "link.file.destination.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.Link.Target)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "link.file.destination.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.Link.Target)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "link.file.destination.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.Link.Target)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "link.file.destination.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.Link.Target)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -4774,12 +5218,56 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "link.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.Link.Source)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "link.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.Link.Source)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "link.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.Link.Source)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "link.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.Link.Source)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "link.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.Link.Source)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -5097,12 +5585,56 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "load_module.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.LoadModule.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "load_module.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.LoadModule.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "load_module.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.LoadModule.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "load_module.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.LoadModule.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "load_module.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.LoadModule.File)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -5409,12 +5941,56 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "mkdir.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.Mkdir.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "mkdir.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.Mkdir.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "mkdir.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.Mkdir.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "mkdir.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.Mkdir.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "mkdir.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.Mkdir.File)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -5699,12 +6275,56 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "mmap.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.MMap.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "mmap.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.MMap.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "mmap.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.MMap.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "mmap.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.MMap.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "mmap.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.MMap.File)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -6131,7 +6751,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IPNetCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -6158,7 +6779,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -6185,7 +6807,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -6212,7 +6835,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -6239,7 +6863,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -6266,7 +6891,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -6293,7 +6919,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -6320,7 +6947,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -6347,7 +6975,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -6385,7 +7014,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IPNetCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -6412,7 +7042,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -6439,7 +7070,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -6765,12 +7397,56 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "open.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.Open.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "open.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.Open.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "open.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.Open.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "open.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.Open.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "open.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.Open.File)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -7131,7 +7807,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: 500 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7157,7 +7834,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7183,7 +7861,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7209,7 +7888,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7235,7 +7915,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: 500 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7261,7 +7942,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: 100 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7287,7 +7969,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7313,7 +7996,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7339,7 +8023,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7365,7 +8050,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7391,7 +8077,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7417,7 +8104,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7443,7 +8131,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7469,7 +8158,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7495,7 +8185,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7521,7 +8212,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7547,7 +8239,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7573,7 +8266,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7599,7 +8293,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7625,7 +8320,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7651,7 +8347,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: 100 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7677,7 +8374,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: 100 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7703,7 +8401,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7729,7 +8428,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7755,7 +8455,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7787,7 +8488,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7819,7 +8521,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7851,7 +8554,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7883,7 +8587,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7915,7 +8620,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7947,7 +8653,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: 999 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -7979,7 +8686,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8011,7 +8719,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8043,7 +8752,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8075,7 +8785,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8107,7 +8818,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8139,7 +8851,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8171,7 +8884,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8204,7 +8918,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8231,7 +8946,41 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "process.ancestors.file.package.epoch":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []int{0}
+					}
+					result := int(ev.FieldHandlers.ResolvePackageEpoch(ev, &element.ProcessContext.Process.FileEvent))
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) int {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return 0
+					}
+					return int(ev.FieldHandlers.ResolvePackageEpoch(ev, &current.ProcessContext.Process.FileEvent))
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8263,7 +9012,107 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "process.ancestors.file.package.release":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []string{""}
+					}
+					result := ev.FieldHandlers.ResolvePackageRelease(ev, &element.ProcessContext.Process.FileEvent)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return ""
+					}
+					return ev.FieldHandlers.ResolvePackageRelease(ev, &current.ProcessContext.Process.FileEvent)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "process.ancestors.file.package.source_epoch":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []int{0}
+					}
+					result := int(ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &element.ProcessContext.Process.FileEvent))
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) int {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return 0
+					}
+					return int(ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &current.ProcessContext.Process.FileEvent))
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "process.ancestors.file.package.source_release":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []string{""}
+					}
+					result := ev.FieldHandlers.ResolvePackageSourceRelease(ev, &element.ProcessContext.Process.FileEvent)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return ""
+					}
+					return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &current.ProcessContext.Process.FileEvent)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8295,7 +9144,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8327,7 +9177,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8360,7 +9211,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8387,7 +9239,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8419,7 +9272,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8451,7 +9305,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8483,7 +9338,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8509,7 +9365,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8535,7 +9392,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8561,7 +9419,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8587,7 +9446,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8613,7 +9473,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8639,7 +9500,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8671,7 +9533,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8703,7 +9566,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8735,7 +9599,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8767,7 +9632,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8799,7 +9665,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8831,7 +9698,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: 999 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8863,7 +9731,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8895,7 +9764,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8927,7 +9797,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8959,7 +9830,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -8991,7 +9863,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -9023,7 +9896,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -9055,7 +9929,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -9088,7 +9963,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -9115,7 +9991,41 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "process.ancestors.interpreter.file.package.epoch":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []int{0}
+					}
+					result := int(ev.FieldHandlers.ResolvePackageEpoch(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent))
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) int {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return 0
+					}
+					return int(ev.FieldHandlers.ResolvePackageEpoch(ev, &current.ProcessContext.Process.LinuxBinprm.FileEvent))
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -9147,7 +10057,107 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "process.ancestors.interpreter.file.package.release":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []string{""}
+					}
+					result := ev.FieldHandlers.ResolvePackageRelease(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return ""
+					}
+					return ev.FieldHandlers.ResolvePackageRelease(ev, &current.ProcessContext.Process.LinuxBinprm.FileEvent)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "process.ancestors.interpreter.file.package.source_epoch":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []int{0}
+					}
+					result := int(ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent))
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) int {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return 0
+					}
+					return int(ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &current.ProcessContext.Process.LinuxBinprm.FileEvent))
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "process.ancestors.interpreter.file.package.source_release":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []string{""}
+					}
+					result := ev.FieldHandlers.ResolvePackageSourceRelease(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return ""
+					}
+					return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &current.ProcessContext.Process.LinuxBinprm.FileEvent)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -9179,7 +10189,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -9211,7 +10222,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -9244,7 +10256,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -9271,7 +10284,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -9303,7 +10317,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -9335,7 +10350,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -9367,7 +10383,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -9393,7 +10410,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -9419,7 +10437,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -9445,7 +10464,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -9482,7 +10502,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -9508,7 +10529,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -9534,7 +10556,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -9560,7 +10583,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -9586,7 +10610,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -9612,7 +10637,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -9638,7 +10664,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -9664,7 +10691,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -9690,7 +10718,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -10178,6 +11207,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "process.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "process.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -10187,6 +11230,48 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return ""
 				}
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "process.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "process.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "process.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -10564,6 +11649,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "process.interpreter.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "process.interpreter.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -10573,6 +11672,48 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return ""
 				}
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "process.interpreter.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "process.interpreter.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "process.interpreter.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -11309,6 +12450,23 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "process.parent.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return 0
+				}
+				if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "process.parent.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -11321,6 +12479,57 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return ""
 				}
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "process.parent.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return ""
+				}
+				if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "process.parent.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return 0
+				}
+				if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "process.parent.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return ""
+				}
+				if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -11776,6 +12985,23 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "process.parent.interpreter.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return 0
+				}
+				if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "process.parent.interpreter.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -11788,6 +13014,57 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return ""
 				}
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "process.parent.interpreter.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return ""
+				}
+				if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "process.parent.interpreter.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return 0
+				}
+				if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "process.parent.interpreter.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return ""
+				}
+				if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -12219,7 +13496,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: 500 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -12245,7 +13523,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -12271,7 +13550,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -12297,7 +13577,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -12323,7 +13604,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: 500 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -12349,7 +13631,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: 100 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -12375,7 +13658,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -12401,7 +13685,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -12427,7 +13712,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -12453,7 +13739,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -12479,7 +13766,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -12505,7 +13793,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -12531,7 +13820,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -12557,7 +13847,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -12583,7 +13874,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -12609,7 +13901,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -12635,7 +13928,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -12661,7 +13955,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -12687,7 +13982,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -12713,7 +14009,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -12739,7 +14036,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: 100 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -12765,7 +14063,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: 100 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -12791,7 +14090,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -12817,7 +14117,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -12843,7 +14144,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -12875,7 +14177,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -12907,7 +14210,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -12939,7 +14243,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -12971,7 +14276,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13003,7 +14309,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13035,7 +14342,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: 999 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13067,7 +14375,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13099,7 +14408,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13131,7 +14441,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13163,7 +14474,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13195,7 +14507,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13227,7 +14540,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13259,7 +14573,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13292,7 +14607,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13319,7 +14635,41 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.ancestors.file.package.epoch":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.PTrace.Tracee.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []int{0}
+					}
+					result := int(ev.FieldHandlers.ResolvePackageEpoch(ev, &element.ProcessContext.Process.FileEvent))
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) int {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return 0
+					}
+					return int(ev.FieldHandlers.ResolvePackageEpoch(ev, &current.ProcessContext.Process.FileEvent))
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13351,7 +14701,107 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.ancestors.file.package.release":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.PTrace.Tracee.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []string{""}
+					}
+					result := ev.FieldHandlers.ResolvePackageRelease(ev, &element.ProcessContext.Process.FileEvent)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return ""
+					}
+					return ev.FieldHandlers.ResolvePackageRelease(ev, &current.ProcessContext.Process.FileEvent)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.ancestors.file.package.source_epoch":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.PTrace.Tracee.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []int{0}
+					}
+					result := int(ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &element.ProcessContext.Process.FileEvent))
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) int {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return 0
+					}
+					return int(ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &current.ProcessContext.Process.FileEvent))
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.ancestors.file.package.source_release":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.PTrace.Tracee.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []string{""}
+					}
+					result := ev.FieldHandlers.ResolvePackageSourceRelease(ev, &element.ProcessContext.Process.FileEvent)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return ""
+					}
+					return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &current.ProcessContext.Process.FileEvent)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13383,7 +14833,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13415,7 +14866,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13448,7 +14900,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13475,7 +14928,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13507,7 +14961,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13539,7 +14994,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13571,7 +15027,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13597,7 +15054,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13623,7 +15081,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13649,7 +15108,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13675,7 +15135,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13701,7 +15162,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13727,7 +15189,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13759,7 +15222,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13791,7 +15255,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13823,7 +15288,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13855,7 +15321,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13887,7 +15354,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13919,7 +15387,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: 999 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13951,7 +15420,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -13983,7 +15453,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -14015,7 +15486,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -14047,7 +15519,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -14079,7 +15552,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -14111,7 +15585,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -14143,7 +15618,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -14176,7 +15652,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -14203,7 +15680,41 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.ancestors.interpreter.file.package.epoch":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.PTrace.Tracee.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []int{0}
+					}
+					result := int(ev.FieldHandlers.ResolvePackageEpoch(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent))
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) int {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return 0
+					}
+					return int(ev.FieldHandlers.ResolvePackageEpoch(ev, &current.ProcessContext.Process.LinuxBinprm.FileEvent))
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -14235,7 +15746,107 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.ancestors.interpreter.file.package.release":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.PTrace.Tracee.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []string{""}
+					}
+					result := ev.FieldHandlers.ResolvePackageRelease(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return ""
+					}
+					return ev.FieldHandlers.ResolvePackageRelease(ev, &current.ProcessContext.Process.LinuxBinprm.FileEvent)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.ancestors.interpreter.file.package.source_epoch":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.PTrace.Tracee.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []int{0}
+					}
+					result := int(ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent))
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) int {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return 0
+					}
+					return int(ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &current.ProcessContext.Process.LinuxBinprm.FileEvent))
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.ancestors.interpreter.file.package.source_release":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.PTrace.Tracee.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []string{""}
+					}
+					result := ev.FieldHandlers.ResolvePackageSourceRelease(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return ""
+					}
+					return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &current.ProcessContext.Process.LinuxBinprm.FileEvent)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -14267,7 +15878,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -14299,7 +15911,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -14332,7 +15945,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -14359,7 +15973,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -14391,7 +16006,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -14423,7 +16039,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -14455,7 +16072,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -14481,7 +16099,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -14507,7 +16126,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -14533,7 +16153,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -14570,7 +16191,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -14596,7 +16218,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -14622,7 +16245,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -14648,7 +16272,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -14674,7 +16299,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -14700,7 +16326,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -14726,7 +16353,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -14752,7 +16380,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -14778,7 +16407,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -15266,6 +16896,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "ptrace.tracee.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.Process.IsNotKworker() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.PTrace.Tracee.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "ptrace.tracee.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -15275,6 +16919,48 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return ""
 				}
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.PTrace.Tracee.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.Process.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.PTrace.Tracee.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.Process.IsNotKworker() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.PTrace.Tracee.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.Process.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.PTrace.Tracee.Process.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -15652,6 +17338,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "ptrace.tracee.interpreter.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.Process.HasInterpreter() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "ptrace.tracee.interpreter.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -15661,6 +17361,48 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return ""
 				}
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.interpreter.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.Process.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.interpreter.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.Process.HasInterpreter() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.interpreter.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.Process.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -16397,6 +18139,23 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "ptrace.tracee.parent.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.HasParent() {
+					return 0
+				}
+				if !ev.PTrace.Tracee.Parent.IsNotKworker() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.PTrace.Tracee.Parent.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "ptrace.tracee.parent.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -16409,6 +18168,57 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return ""
 				}
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.PTrace.Tracee.Parent.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.parent.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.HasParent() {
+					return ""
+				}
+				if !ev.PTrace.Tracee.Parent.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.PTrace.Tracee.Parent.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.parent.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.HasParent() {
+					return 0
+				}
+				if !ev.PTrace.Tracee.Parent.IsNotKworker() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.PTrace.Tracee.Parent.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.parent.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.HasParent() {
+					return ""
+				}
+				if !ev.PTrace.Tracee.Parent.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.PTrace.Tracee.Parent.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -16864,6 +18674,23 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "ptrace.tracee.parent.interpreter.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.HasParent() {
+					return 0
+				}
+				if !ev.PTrace.Tracee.Parent.HasInterpreter() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "ptrace.tracee.parent.interpreter.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -16876,6 +18703,57 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return ""
 				}
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.parent.interpreter.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.HasParent() {
+					return ""
+				}
+				if !ev.PTrace.Tracee.Parent.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.parent.interpreter.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.HasParent() {
+					return 0
+				}
+				if !ev.PTrace.Tracee.Parent.HasInterpreter() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.parent.interpreter.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.HasParent() {
+					return ""
+				}
+				if !ev.PTrace.Tracee.Parent.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -17452,12 +19330,56 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "removexattr.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.RemoveXAttr.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "removexattr.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.RemoveXAttr.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "removexattr.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.RemoveXAttr.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "removexattr.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.RemoveXAttr.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "removexattr.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.RemoveXAttr.File)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -17731,12 +19653,56 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "rename.file.destination.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.Rename.New)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "rename.file.destination.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.Rename.New)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "rename.file.destination.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.Rename.New)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "rename.file.destination.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.Rename.New)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "rename.file.destination.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.Rename.New)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -17977,12 +19943,56 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "rename.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.Rename.Old)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "rename.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.Rename.Old)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "rename.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.Rename.Old)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "rename.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.Rename.Old)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "rename.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.Rename.Old)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -18267,12 +20277,56 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "rmdir.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.Rmdir.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "rmdir.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.Rmdir.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "rmdir.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.Rmdir.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "rmdir.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.Rmdir.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "rmdir.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.Rmdir.File)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -18555,7 +20609,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: 500 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -18581,7 +20636,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -18607,7 +20663,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -18633,7 +20690,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -18659,7 +20717,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: 500 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -18685,7 +20744,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: 100 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -18711,7 +20771,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -18737,7 +20798,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -18763,7 +20825,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -18789,7 +20852,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -18815,7 +20879,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -18841,7 +20906,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -18867,7 +20933,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -18893,7 +20960,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -18919,7 +20987,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -18945,7 +21014,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -18971,7 +21041,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -18997,7 +21068,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19023,7 +21095,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19049,7 +21122,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19075,7 +21149,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: 100 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19101,7 +21176,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: 100 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19127,7 +21203,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19153,7 +21230,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19179,7 +21257,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19211,7 +21290,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19243,7 +21323,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19275,7 +21356,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19307,7 +21389,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19339,7 +21422,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19371,7 +21455,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: 999 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19403,7 +21488,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19435,7 +21521,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19467,7 +21554,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19499,7 +21587,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19531,7 +21620,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19563,7 +21653,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19595,7 +21686,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19628,7 +21720,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19655,7 +21748,41 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.file.package.epoch":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []int{0}
+					}
+					result := int(ev.FieldHandlers.ResolvePackageEpoch(ev, &element.ProcessContext.Process.FileEvent))
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) int {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return 0
+					}
+					return int(ev.FieldHandlers.ResolvePackageEpoch(ev, &current.ProcessContext.Process.FileEvent))
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19687,7 +21814,107 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.file.package.release":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []string{""}
+					}
+					result := ev.FieldHandlers.ResolvePackageRelease(ev, &element.ProcessContext.Process.FileEvent)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return ""
+					}
+					return ev.FieldHandlers.ResolvePackageRelease(ev, &current.ProcessContext.Process.FileEvent)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.file.package.source_epoch":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []int{0}
+					}
+					result := int(ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &element.ProcessContext.Process.FileEvent))
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) int {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return 0
+					}
+					return int(ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &current.ProcessContext.Process.FileEvent))
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.file.package.source_release":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []string{""}
+					}
+					result := ev.FieldHandlers.ResolvePackageSourceRelease(ev, &element.ProcessContext.Process.FileEvent)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return ""
+					}
+					return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &current.ProcessContext.Process.FileEvent)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19719,7 +21946,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19751,7 +21979,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19784,7 +22013,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19811,7 +22041,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19843,7 +22074,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19875,7 +22107,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19907,7 +22140,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19933,7 +22167,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19959,7 +22194,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -19985,7 +22221,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20011,7 +22248,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20037,7 +22275,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20063,7 +22302,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20095,7 +22335,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20127,7 +22368,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20159,7 +22401,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20191,7 +22434,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20223,7 +22467,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20255,7 +22500,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: 999 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20287,7 +22533,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20319,7 +22566,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20351,7 +22599,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20383,7 +22632,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20415,7 +22665,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20447,7 +22698,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20479,7 +22731,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20512,7 +22765,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20539,7 +22793,41 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.interpreter.file.package.epoch":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []int{0}
+					}
+					result := int(ev.FieldHandlers.ResolvePackageEpoch(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent))
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) int {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return 0
+					}
+					return int(ev.FieldHandlers.ResolvePackageEpoch(ev, &current.ProcessContext.Process.LinuxBinprm.FileEvent))
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20571,7 +22859,107 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.interpreter.file.package.release":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []string{""}
+					}
+					result := ev.FieldHandlers.ResolvePackageRelease(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return ""
+					}
+					return ev.FieldHandlers.ResolvePackageRelease(ev, &current.ProcessContext.Process.LinuxBinprm.FileEvent)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.interpreter.file.package.source_epoch":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []int{0}
+					}
+					result := int(ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent))
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) int {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return 0
+					}
+					return int(ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &current.ProcessContext.Process.LinuxBinprm.FileEvent))
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.interpreter.file.package.source_release":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []string{""}
+					}
+					result := ev.FieldHandlers.ResolvePackageSourceRelease(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return ""
+					}
+					return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &current.ProcessContext.Process.LinuxBinprm.FileEvent)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20603,7 +22991,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20635,7 +23024,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20668,7 +23058,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20695,7 +23086,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20727,7 +23119,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20759,7 +23152,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20791,7 +23185,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20817,7 +23212,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20843,7 +23239,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20869,7 +23266,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20906,7 +23304,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20932,7 +23331,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20958,7 +23358,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -20984,7 +23385,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -21010,7 +23412,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -21036,7 +23439,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -21062,7 +23466,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -21088,7 +23493,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -21114,7 +23520,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -21602,6 +24009,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "setrlimit.target.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.IsNotKworker() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.Setrlimit.Target.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "setrlimit.target.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -21611,6 +24032,48 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return ""
 				}
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.Setrlimit.Target.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.Setrlimit.Target.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.IsNotKworker() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.Setrlimit.Target.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.Setrlimit.Target.Process.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -21988,6 +24451,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "setrlimit.target.interpreter.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.HasInterpreter() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "setrlimit.target.interpreter.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -21997,6 +24474,48 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return ""
 				}
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.interpreter.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.interpreter.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.HasInterpreter() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.interpreter.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -22733,6 +25252,23 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "setrlimit.target.parent.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return 0
+				}
+				if !ev.Setrlimit.Target.Parent.IsNotKworker() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.Setrlimit.Target.Parent.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "setrlimit.target.parent.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -22745,6 +25281,57 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return ""
 				}
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.Setrlimit.Target.Parent.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return ""
+				}
+				if !ev.Setrlimit.Target.Parent.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.Setrlimit.Target.Parent.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return 0
+				}
+				if !ev.Setrlimit.Target.Parent.IsNotKworker() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.Setrlimit.Target.Parent.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return ""
+				}
+				if !ev.Setrlimit.Target.Parent.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.Setrlimit.Target.Parent.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -23200,6 +25787,23 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "setrlimit.target.parent.interpreter.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return 0
+				}
+				if !ev.Setrlimit.Target.Parent.HasInterpreter() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "setrlimit.target.parent.interpreter.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -23212,6 +25816,57 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return ""
 				}
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.interpreter.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return ""
+				}
+				if !ev.Setrlimit.Target.Parent.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.interpreter.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return 0
+				}
+				if !ev.Setrlimit.Target.Parent.HasInterpreter() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.interpreter.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return ""
+				}
+				if !ev.Setrlimit.Target.Parent.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -23975,12 +26630,56 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "setxattr.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.SetXAttr.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "setxattr.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.SetXAttr.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setxattr.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.SetXAttr.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setxattr.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.SetXAttr.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setxattr.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.SetXAttr.File)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -24120,7 +26819,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: 500 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24146,7 +26846,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24172,7 +26873,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24198,7 +26900,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24224,7 +26927,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: 500 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24250,7 +26954,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: 100 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24276,7 +26981,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24302,7 +27008,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24328,7 +27035,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24354,7 +27062,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24380,7 +27089,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24406,7 +27116,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24432,7 +27143,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24458,7 +27170,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24484,7 +27197,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24510,7 +27224,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24536,7 +27251,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24562,7 +27278,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24588,7 +27305,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24614,7 +27332,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24640,7 +27359,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: 100 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24666,7 +27386,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: 100 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24692,7 +27413,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24718,7 +27440,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24744,7 +27467,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24776,7 +27500,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24808,7 +27533,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24840,7 +27566,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24872,7 +27599,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24904,7 +27632,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24936,7 +27665,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: 999 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -24968,7 +27698,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25000,7 +27731,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25032,7 +27764,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25064,7 +27797,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25096,7 +27830,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25128,7 +27863,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25160,7 +27896,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25193,7 +27930,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25220,7 +27958,41 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.ancestors.file.package.epoch":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Signal.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []int{0}
+					}
+					result := int(ev.FieldHandlers.ResolvePackageEpoch(ev, &element.ProcessContext.Process.FileEvent))
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) int {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return 0
+					}
+					return int(ev.FieldHandlers.ResolvePackageEpoch(ev, &current.ProcessContext.Process.FileEvent))
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25252,7 +28024,107 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.ancestors.file.package.release":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Signal.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []string{""}
+					}
+					result := ev.FieldHandlers.ResolvePackageRelease(ev, &element.ProcessContext.Process.FileEvent)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return ""
+					}
+					return ev.FieldHandlers.ResolvePackageRelease(ev, &current.ProcessContext.Process.FileEvent)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.ancestors.file.package.source_epoch":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Signal.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []int{0}
+					}
+					result := int(ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &element.ProcessContext.Process.FileEvent))
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) int {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return 0
+					}
+					return int(ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &current.ProcessContext.Process.FileEvent))
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.ancestors.file.package.source_release":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Signal.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []string{""}
+					}
+					result := ev.FieldHandlers.ResolvePackageSourceRelease(ev, &element.ProcessContext.Process.FileEvent)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return ""
+					}
+					return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &current.ProcessContext.Process.FileEvent)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25284,7 +28156,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25316,7 +28189,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25349,7 +28223,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25376,7 +28251,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25408,7 +28284,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25440,7 +28317,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25472,7 +28350,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25498,7 +28377,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25524,7 +28404,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25550,7 +28431,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25576,7 +28458,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25602,7 +28485,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25628,7 +28512,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25660,7 +28545,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25692,7 +28578,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25724,7 +28611,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25756,7 +28644,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25788,7 +28677,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25820,7 +28710,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: 999 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25852,7 +28743,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25884,7 +28776,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25916,7 +28809,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25948,7 +28842,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -25980,7 +28875,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -26012,7 +28908,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -26044,7 +28941,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -26077,7 +28975,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -26104,7 +29003,41 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.ancestors.interpreter.file.package.epoch":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Signal.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []int{0}
+					}
+					result := int(ev.FieldHandlers.ResolvePackageEpoch(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent))
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) int {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return 0
+					}
+					return int(ev.FieldHandlers.ResolvePackageEpoch(ev, &current.ProcessContext.Process.LinuxBinprm.FileEvent))
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -26136,7 +29069,107 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.ancestors.interpreter.file.package.release":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Signal.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []string{""}
+					}
+					result := ev.FieldHandlers.ResolvePackageRelease(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return ""
+					}
+					return ev.FieldHandlers.ResolvePackageRelease(ev, &current.ProcessContext.Process.LinuxBinprm.FileEvent)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.ancestors.interpreter.file.package.source_epoch":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Signal.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []int{0}
+					}
+					result := int(ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent))
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) int {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return 0
+					}
+					return int(ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &current.ProcessContext.Process.LinuxBinprm.FileEvent))
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.ancestors.interpreter.file.package.source_release":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Signal.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []string{""}
+					}
+					result := ev.FieldHandlers.ResolvePackageSourceRelease(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return ""
+					}
+					return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &current.ProcessContext.Process.LinuxBinprm.FileEvent)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -26168,7 +29201,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -26200,7 +29234,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -26233,7 +29268,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -26260,7 +29296,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -26292,7 +29329,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -26324,7 +29362,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -26356,7 +29395,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -26382,7 +29422,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -26408,7 +29449,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -26434,7 +29476,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.BoolCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -26471,7 +29514,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -26497,7 +29541,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -26523,7 +29568,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -26549,7 +29595,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -26575,7 +29622,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.IntCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -26601,7 +29649,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -26627,7 +29676,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -26653,7 +29703,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -26679,7 +29730,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				})
 				ctx.StringCache[field] = results
 				return results
-			}, Field: field,
+			},
+			Field:  field,
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
@@ -27167,6 +30219,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "signal.target.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.Process.IsNotKworker() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.Signal.Target.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "signal.target.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -27176,6 +30242,48 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return ""
 				}
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.Signal.Target.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.Process.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.Signal.Target.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.Process.IsNotKworker() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.Signal.Target.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.Process.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.Signal.Target.Process.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -27553,6 +30661,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "signal.target.interpreter.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.Process.HasInterpreter() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.Signal.Target.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "signal.target.interpreter.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -27562,6 +30684,48 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return ""
 				}
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.Signal.Target.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.interpreter.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.Process.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.Signal.Target.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.interpreter.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.Process.HasInterpreter() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.Signal.Target.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.interpreter.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.Process.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.Signal.Target.Process.LinuxBinprm.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -28298,6 +31462,23 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "signal.target.parent.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.HasParent() {
+					return 0
+				}
+				if !ev.Signal.Target.Parent.IsNotKworker() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.Signal.Target.Parent.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "signal.target.parent.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -28310,6 +31491,57 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return ""
 				}
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.Signal.Target.Parent.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.parent.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.HasParent() {
+					return ""
+				}
+				if !ev.Signal.Target.Parent.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.Signal.Target.Parent.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.parent.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.HasParent() {
+					return 0
+				}
+				if !ev.Signal.Target.Parent.IsNotKworker() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.Signal.Target.Parent.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.parent.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.HasParent() {
+					return ""
+				}
+				if !ev.Signal.Target.Parent.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.Signal.Target.Parent.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -28765,6 +31997,23 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "signal.target.parent.interpreter.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.HasParent() {
+					return 0
+				}
+				if !ev.Signal.Target.Parent.HasInterpreter() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.Signal.Target.Parent.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "signal.target.parent.interpreter.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -28777,6 +32026,57 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return ""
 				}
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.Signal.Target.Parent.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.parent.interpreter.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.HasParent() {
+					return ""
+				}
+				if !ev.Signal.Target.Parent.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.Signal.Target.Parent.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.parent.interpreter.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.HasParent() {
+					return 0
+				}
+				if !ev.Signal.Target.Parent.HasInterpreter() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.Signal.Target.Parent.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.parent.interpreter.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.HasParent() {
+					return ""
+				}
+				if !ev.Signal.Target.Parent.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.Signal.Target.Parent.LinuxBinprm.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -29342,12 +32642,56 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "splice.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.Splice.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "splice.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.Splice.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "splice.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.Splice.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "splice.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.Splice.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "splice.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.Splice.File)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -29720,12 +33064,56 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "unlink.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.Unlink.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "unlink.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.Unlink.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "unlink.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.Unlink.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "unlink.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.Unlink.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "unlink.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.Unlink.File)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -30054,12 +33442,56 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "utimes.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.Utimes.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "utimes.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.Utimes.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "utimes.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.Utimes.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "utimes.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.Utimes.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "utimes.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.Utimes.File)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -30215,7 +33647,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"cgroup_write.file.mount_visible",
 		"cgroup_write.file.name",
 		"cgroup_write.file.name.length",
+		"cgroup_write.file.package.epoch",
 		"cgroup_write.file.package.name",
+		"cgroup_write.file.package.release",
+		"cgroup_write.file.package.source_epoch",
+		"cgroup_write.file.package.source_release",
 		"cgroup_write.file.package.source_version",
 		"cgroup_write.file.package.version",
 		"cgroup_write.file.path",
@@ -30239,7 +33675,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"chdir.file.mount_visible",
 		"chdir.file.name",
 		"chdir.file.name.length",
+		"chdir.file.package.epoch",
 		"chdir.file.package.name",
+		"chdir.file.package.release",
+		"chdir.file.package.source_epoch",
+		"chdir.file.package.source_release",
 		"chdir.file.package.source_version",
 		"chdir.file.package.version",
 		"chdir.file.path",
@@ -30266,7 +33706,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"chmod.file.mount_visible",
 		"chmod.file.name",
 		"chmod.file.name.length",
+		"chmod.file.package.epoch",
 		"chmod.file.package.name",
+		"chmod.file.package.release",
+		"chmod.file.package.source_epoch",
+		"chmod.file.package.source_release",
 		"chmod.file.package.source_version",
 		"chmod.file.package.version",
 		"chmod.file.path",
@@ -30296,7 +33740,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"chown.file.mount_visible",
 		"chown.file.name",
 		"chown.file.name.length",
+		"chown.file.package.epoch",
 		"chown.file.package.name",
+		"chown.file.package.release",
+		"chown.file.package.source_epoch",
+		"chown.file.package.source_release",
 		"chown.file.package.source_version",
 		"chown.file.package.version",
 		"chown.file.path",
@@ -30382,7 +33830,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"exec.file.mount_visible",
 		"exec.file.name",
 		"exec.file.name.length",
+		"exec.file.package.epoch",
 		"exec.file.package.name",
+		"exec.file.package.release",
+		"exec.file.package.source_epoch",
+		"exec.file.package.source_release",
 		"exec.file.package.source_version",
 		"exec.file.package.version",
 		"exec.file.path",
@@ -30411,7 +33863,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"exec.interpreter.file.mount_visible",
 		"exec.interpreter.file.name",
 		"exec.interpreter.file.name.length",
+		"exec.interpreter.file.package.epoch",
 		"exec.interpreter.file.package.name",
+		"exec.interpreter.file.package.release",
+		"exec.interpreter.file.package.source_epoch",
+		"exec.interpreter.file.package.source_release",
 		"exec.interpreter.file.package.source_version",
 		"exec.interpreter.file.package.version",
 		"exec.interpreter.file.path",
@@ -30474,7 +33930,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"exit.file.mount_visible",
 		"exit.file.name",
 		"exit.file.name.length",
+		"exit.file.package.epoch",
 		"exit.file.package.name",
+		"exit.file.package.release",
+		"exit.file.package.source_epoch",
+		"exit.file.package.source_release",
 		"exit.file.package.source_version",
 		"exit.file.package.version",
 		"exit.file.path",
@@ -30503,7 +33963,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"exit.interpreter.file.mount_visible",
 		"exit.interpreter.file.name",
 		"exit.interpreter.file.name.length",
+		"exit.interpreter.file.package.epoch",
 		"exit.interpreter.file.package.name",
+		"exit.interpreter.file.package.release",
+		"exit.interpreter.file.package.source_epoch",
+		"exit.interpreter.file.package.source_release",
 		"exit.interpreter.file.package.source_version",
 		"exit.interpreter.file.package.version",
 		"exit.interpreter.file.path",
@@ -30547,7 +34011,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"link.file.destination.mount_visible",
 		"link.file.destination.name",
 		"link.file.destination.name.length",
+		"link.file.destination.package.epoch",
 		"link.file.destination.package.name",
+		"link.file.destination.package.release",
+		"link.file.destination.package.source_epoch",
+		"link.file.destination.package.source_release",
 		"link.file.destination.package.source_version",
 		"link.file.destination.package.version",
 		"link.file.destination.path",
@@ -30569,7 +34037,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"link.file.mount_visible",
 		"link.file.name",
 		"link.file.name.length",
+		"link.file.package.epoch",
 		"link.file.package.name",
+		"link.file.package.release",
+		"link.file.package.source_epoch",
+		"link.file.package.source_release",
 		"link.file.package.source_version",
 		"link.file.package.version",
 		"link.file.path",
@@ -30598,7 +34070,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"load_module.file.mount_visible",
 		"load_module.file.name",
 		"load_module.file.name.length",
+		"load_module.file.package.epoch",
 		"load_module.file.package.name",
+		"load_module.file.package.release",
+		"load_module.file.package.source_epoch",
+		"load_module.file.package.source_release",
 		"load_module.file.package.source_version",
 		"load_module.file.package.version",
 		"load_module.file.path",
@@ -30626,7 +34102,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"mkdir.file.mount_visible",
 		"mkdir.file.name",
 		"mkdir.file.name.length",
+		"mkdir.file.package.epoch",
 		"mkdir.file.package.name",
+		"mkdir.file.package.release",
+		"mkdir.file.package.source_epoch",
+		"mkdir.file.package.source_release",
 		"mkdir.file.package.source_version",
 		"mkdir.file.package.version",
 		"mkdir.file.path",
@@ -30652,7 +34132,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"mmap.file.mount_visible",
 		"mmap.file.name",
 		"mmap.file.name.length",
+		"mmap.file.package.epoch",
 		"mmap.file.package.name",
+		"mmap.file.package.release",
+		"mmap.file.package.source_epoch",
+		"mmap.file.package.source_release",
 		"mmap.file.package.source_version",
 		"mmap.file.package.version",
 		"mmap.file.path",
@@ -30731,7 +34215,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"open.file.mount_visible",
 		"open.file.name",
 		"open.file.name.length",
+		"open.file.package.epoch",
 		"open.file.package.name",
+		"open.file.package.release",
+		"open.file.package.source_epoch",
+		"open.file.package.source_release",
 		"open.file.package.source_version",
 		"open.file.package.version",
 		"open.file.path",
@@ -30802,7 +34290,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.ancestors.file.mount_visible",
 		"process.ancestors.file.name",
 		"process.ancestors.file.name.length",
+		"process.ancestors.file.package.epoch",
 		"process.ancestors.file.package.name",
+		"process.ancestors.file.package.release",
+		"process.ancestors.file.package.source_epoch",
+		"process.ancestors.file.package.source_release",
 		"process.ancestors.file.package.source_version",
 		"process.ancestors.file.package.version",
 		"process.ancestors.file.path",
@@ -30831,7 +34323,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.ancestors.interpreter.file.mount_visible",
 		"process.ancestors.interpreter.file.name",
 		"process.ancestors.interpreter.file.name.length",
+		"process.ancestors.interpreter.file.package.epoch",
 		"process.ancestors.interpreter.file.package.name",
+		"process.ancestors.interpreter.file.package.release",
+		"process.ancestors.interpreter.file.package.source_epoch",
+		"process.ancestors.interpreter.file.package.source_release",
 		"process.ancestors.interpreter.file.package.source_version",
 		"process.ancestors.interpreter.file.package.version",
 		"process.ancestors.interpreter.file.path",
@@ -30892,7 +34388,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.file.mount_visible",
 		"process.file.name",
 		"process.file.name.length",
+		"process.file.package.epoch",
 		"process.file.package.name",
+		"process.file.package.release",
+		"process.file.package.source_epoch",
+		"process.file.package.source_release",
 		"process.file.package.source_version",
 		"process.file.package.version",
 		"process.file.path",
@@ -30921,7 +34421,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.interpreter.file.mount_visible",
 		"process.interpreter.file.name",
 		"process.interpreter.file.name.length",
+		"process.interpreter.file.package.epoch",
 		"process.interpreter.file.package.name",
+		"process.interpreter.file.package.release",
+		"process.interpreter.file.package.source_epoch",
+		"process.interpreter.file.package.source_release",
 		"process.interpreter.file.package.source_version",
 		"process.interpreter.file.package.version",
 		"process.interpreter.file.path",
@@ -30972,7 +34476,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.parent.file.mount_visible",
 		"process.parent.file.name",
 		"process.parent.file.name.length",
+		"process.parent.file.package.epoch",
 		"process.parent.file.package.name",
+		"process.parent.file.package.release",
+		"process.parent.file.package.source_epoch",
+		"process.parent.file.package.source_release",
 		"process.parent.file.package.source_version",
 		"process.parent.file.package.version",
 		"process.parent.file.path",
@@ -31001,7 +34509,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.parent.interpreter.file.mount_visible",
 		"process.parent.interpreter.file.name",
 		"process.parent.interpreter.file.name.length",
+		"process.parent.interpreter.file.package.epoch",
 		"process.parent.interpreter.file.package.name",
+		"process.parent.interpreter.file.package.release",
+		"process.parent.interpreter.file.package.source_epoch",
+		"process.parent.interpreter.file.package.source_release",
 		"process.parent.interpreter.file.package.source_version",
 		"process.parent.interpreter.file.package.version",
 		"process.parent.interpreter.file.path",
@@ -31072,7 +34584,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.ancestors.file.mount_visible",
 		"ptrace.tracee.ancestors.file.name",
 		"ptrace.tracee.ancestors.file.name.length",
+		"ptrace.tracee.ancestors.file.package.epoch",
 		"ptrace.tracee.ancestors.file.package.name",
+		"ptrace.tracee.ancestors.file.package.release",
+		"ptrace.tracee.ancestors.file.package.source_epoch",
+		"ptrace.tracee.ancestors.file.package.source_release",
 		"ptrace.tracee.ancestors.file.package.source_version",
 		"ptrace.tracee.ancestors.file.package.version",
 		"ptrace.tracee.ancestors.file.path",
@@ -31101,7 +34617,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.ancestors.interpreter.file.mount_visible",
 		"ptrace.tracee.ancestors.interpreter.file.name",
 		"ptrace.tracee.ancestors.interpreter.file.name.length",
+		"ptrace.tracee.ancestors.interpreter.file.package.epoch",
 		"ptrace.tracee.ancestors.interpreter.file.package.name",
+		"ptrace.tracee.ancestors.interpreter.file.package.release",
+		"ptrace.tracee.ancestors.interpreter.file.package.source_epoch",
+		"ptrace.tracee.ancestors.interpreter.file.package.source_release",
 		"ptrace.tracee.ancestors.interpreter.file.package.source_version",
 		"ptrace.tracee.ancestors.interpreter.file.package.version",
 		"ptrace.tracee.ancestors.interpreter.file.path",
@@ -31162,7 +34682,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.file.mount_visible",
 		"ptrace.tracee.file.name",
 		"ptrace.tracee.file.name.length",
+		"ptrace.tracee.file.package.epoch",
 		"ptrace.tracee.file.package.name",
+		"ptrace.tracee.file.package.release",
+		"ptrace.tracee.file.package.source_epoch",
+		"ptrace.tracee.file.package.source_release",
 		"ptrace.tracee.file.package.source_version",
 		"ptrace.tracee.file.package.version",
 		"ptrace.tracee.file.path",
@@ -31191,7 +34715,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.interpreter.file.mount_visible",
 		"ptrace.tracee.interpreter.file.name",
 		"ptrace.tracee.interpreter.file.name.length",
+		"ptrace.tracee.interpreter.file.package.epoch",
 		"ptrace.tracee.interpreter.file.package.name",
+		"ptrace.tracee.interpreter.file.package.release",
+		"ptrace.tracee.interpreter.file.package.source_epoch",
+		"ptrace.tracee.interpreter.file.package.source_release",
 		"ptrace.tracee.interpreter.file.package.source_version",
 		"ptrace.tracee.interpreter.file.package.version",
 		"ptrace.tracee.interpreter.file.path",
@@ -31242,7 +34770,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.parent.file.mount_visible",
 		"ptrace.tracee.parent.file.name",
 		"ptrace.tracee.parent.file.name.length",
+		"ptrace.tracee.parent.file.package.epoch",
 		"ptrace.tracee.parent.file.package.name",
+		"ptrace.tracee.parent.file.package.release",
+		"ptrace.tracee.parent.file.package.source_epoch",
+		"ptrace.tracee.parent.file.package.source_release",
 		"ptrace.tracee.parent.file.package.source_version",
 		"ptrace.tracee.parent.file.package.version",
 		"ptrace.tracee.parent.file.path",
@@ -31271,7 +34803,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.parent.interpreter.file.mount_visible",
 		"ptrace.tracee.parent.interpreter.file.name",
 		"ptrace.tracee.parent.interpreter.file.name.length",
+		"ptrace.tracee.parent.interpreter.file.package.epoch",
 		"ptrace.tracee.parent.interpreter.file.package.name",
+		"ptrace.tracee.parent.interpreter.file.package.release",
+		"ptrace.tracee.parent.interpreter.file.package.source_epoch",
+		"ptrace.tracee.parent.interpreter.file.package.source_release",
 		"ptrace.tracee.parent.interpreter.file.package.source_version",
 		"ptrace.tracee.parent.interpreter.file.package.version",
 		"ptrace.tracee.parent.interpreter.file.path",
@@ -31317,7 +34853,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"removexattr.file.mount_visible",
 		"removexattr.file.name",
 		"removexattr.file.name.length",
+		"removexattr.file.package.epoch",
 		"removexattr.file.package.name",
+		"removexattr.file.package.release",
+		"removexattr.file.package.source_epoch",
+		"removexattr.file.package.source_release",
 		"removexattr.file.package.source_version",
 		"removexattr.file.package.version",
 		"removexattr.file.path",
@@ -31342,7 +34882,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"rename.file.destination.mount_visible",
 		"rename.file.destination.name",
 		"rename.file.destination.name.length",
+		"rename.file.destination.package.epoch",
 		"rename.file.destination.package.name",
+		"rename.file.destination.package.release",
+		"rename.file.destination.package.source_epoch",
+		"rename.file.destination.package.source_release",
 		"rename.file.destination.package.source_version",
 		"rename.file.destination.package.version",
 		"rename.file.destination.path",
@@ -31364,7 +34908,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"rename.file.mount_visible",
 		"rename.file.name",
 		"rename.file.name.length",
+		"rename.file.package.epoch",
 		"rename.file.package.name",
+		"rename.file.package.release",
+		"rename.file.package.source_epoch",
+		"rename.file.package.source_release",
 		"rename.file.package.source_version",
 		"rename.file.package.version",
 		"rename.file.path",
@@ -31390,7 +34938,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"rmdir.file.mount_visible",
 		"rmdir.file.name",
 		"rmdir.file.name.length",
+		"rmdir.file.package.epoch",
 		"rmdir.file.package.name",
+		"rmdir.file.package.release",
+		"rmdir.file.package.source_epoch",
+		"rmdir.file.package.source_release",
 		"rmdir.file.package.source_version",
 		"rmdir.file.package.version",
 		"rmdir.file.path",
@@ -31454,7 +35006,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.ancestors.file.mount_visible",
 		"setrlimit.target.ancestors.file.name",
 		"setrlimit.target.ancestors.file.name.length",
+		"setrlimit.target.ancestors.file.package.epoch",
 		"setrlimit.target.ancestors.file.package.name",
+		"setrlimit.target.ancestors.file.package.release",
+		"setrlimit.target.ancestors.file.package.source_epoch",
+		"setrlimit.target.ancestors.file.package.source_release",
 		"setrlimit.target.ancestors.file.package.source_version",
 		"setrlimit.target.ancestors.file.package.version",
 		"setrlimit.target.ancestors.file.path",
@@ -31483,7 +35039,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.ancestors.interpreter.file.mount_visible",
 		"setrlimit.target.ancestors.interpreter.file.name",
 		"setrlimit.target.ancestors.interpreter.file.name.length",
+		"setrlimit.target.ancestors.interpreter.file.package.epoch",
 		"setrlimit.target.ancestors.interpreter.file.package.name",
+		"setrlimit.target.ancestors.interpreter.file.package.release",
+		"setrlimit.target.ancestors.interpreter.file.package.source_epoch",
+		"setrlimit.target.ancestors.interpreter.file.package.source_release",
 		"setrlimit.target.ancestors.interpreter.file.package.source_version",
 		"setrlimit.target.ancestors.interpreter.file.package.version",
 		"setrlimit.target.ancestors.interpreter.file.path",
@@ -31544,7 +35104,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.file.mount_visible",
 		"setrlimit.target.file.name",
 		"setrlimit.target.file.name.length",
+		"setrlimit.target.file.package.epoch",
 		"setrlimit.target.file.package.name",
+		"setrlimit.target.file.package.release",
+		"setrlimit.target.file.package.source_epoch",
+		"setrlimit.target.file.package.source_release",
 		"setrlimit.target.file.package.source_version",
 		"setrlimit.target.file.package.version",
 		"setrlimit.target.file.path",
@@ -31573,7 +35137,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.interpreter.file.mount_visible",
 		"setrlimit.target.interpreter.file.name",
 		"setrlimit.target.interpreter.file.name.length",
+		"setrlimit.target.interpreter.file.package.epoch",
 		"setrlimit.target.interpreter.file.package.name",
+		"setrlimit.target.interpreter.file.package.release",
+		"setrlimit.target.interpreter.file.package.source_epoch",
+		"setrlimit.target.interpreter.file.package.source_release",
 		"setrlimit.target.interpreter.file.package.source_version",
 		"setrlimit.target.interpreter.file.package.version",
 		"setrlimit.target.interpreter.file.path",
@@ -31624,7 +35192,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.parent.file.mount_visible",
 		"setrlimit.target.parent.file.name",
 		"setrlimit.target.parent.file.name.length",
+		"setrlimit.target.parent.file.package.epoch",
 		"setrlimit.target.parent.file.package.name",
+		"setrlimit.target.parent.file.package.release",
+		"setrlimit.target.parent.file.package.source_epoch",
+		"setrlimit.target.parent.file.package.source_release",
 		"setrlimit.target.parent.file.package.source_version",
 		"setrlimit.target.parent.file.package.version",
 		"setrlimit.target.parent.file.path",
@@ -31653,7 +35225,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.parent.interpreter.file.mount_visible",
 		"setrlimit.target.parent.interpreter.file.name",
 		"setrlimit.target.parent.interpreter.file.name.length",
+		"setrlimit.target.parent.interpreter.file.package.epoch",
 		"setrlimit.target.parent.interpreter.file.package.name",
+		"setrlimit.target.parent.interpreter.file.package.release",
+		"setrlimit.target.parent.interpreter.file.package.source_epoch",
+		"setrlimit.target.parent.interpreter.file.package.source_release",
 		"setrlimit.target.parent.interpreter.file.package.source_version",
 		"setrlimit.target.parent.interpreter.file.package.version",
 		"setrlimit.target.parent.interpreter.file.path",
@@ -31716,7 +35292,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"setxattr.file.mount_visible",
 		"setxattr.file.name",
 		"setxattr.file.name.length",
+		"setxattr.file.package.epoch",
 		"setxattr.file.package.name",
+		"setxattr.file.package.release",
+		"setxattr.file.package.source_epoch",
+		"setxattr.file.package.source_release",
 		"setxattr.file.package.source_version",
 		"setxattr.file.package.version",
 		"setxattr.file.path",
@@ -31767,7 +35347,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.ancestors.file.mount_visible",
 		"signal.target.ancestors.file.name",
 		"signal.target.ancestors.file.name.length",
+		"signal.target.ancestors.file.package.epoch",
 		"signal.target.ancestors.file.package.name",
+		"signal.target.ancestors.file.package.release",
+		"signal.target.ancestors.file.package.source_epoch",
+		"signal.target.ancestors.file.package.source_release",
 		"signal.target.ancestors.file.package.source_version",
 		"signal.target.ancestors.file.package.version",
 		"signal.target.ancestors.file.path",
@@ -31796,7 +35380,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.ancestors.interpreter.file.mount_visible",
 		"signal.target.ancestors.interpreter.file.name",
 		"signal.target.ancestors.interpreter.file.name.length",
+		"signal.target.ancestors.interpreter.file.package.epoch",
 		"signal.target.ancestors.interpreter.file.package.name",
+		"signal.target.ancestors.interpreter.file.package.release",
+		"signal.target.ancestors.interpreter.file.package.source_epoch",
+		"signal.target.ancestors.interpreter.file.package.source_release",
 		"signal.target.ancestors.interpreter.file.package.source_version",
 		"signal.target.ancestors.interpreter.file.package.version",
 		"signal.target.ancestors.interpreter.file.path",
@@ -31857,7 +35445,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.file.mount_visible",
 		"signal.target.file.name",
 		"signal.target.file.name.length",
+		"signal.target.file.package.epoch",
 		"signal.target.file.package.name",
+		"signal.target.file.package.release",
+		"signal.target.file.package.source_epoch",
+		"signal.target.file.package.source_release",
 		"signal.target.file.package.source_version",
 		"signal.target.file.package.version",
 		"signal.target.file.path",
@@ -31886,7 +35478,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.interpreter.file.mount_visible",
 		"signal.target.interpreter.file.name",
 		"signal.target.interpreter.file.name.length",
+		"signal.target.interpreter.file.package.epoch",
 		"signal.target.interpreter.file.package.name",
+		"signal.target.interpreter.file.package.release",
+		"signal.target.interpreter.file.package.source_epoch",
+		"signal.target.interpreter.file.package.source_release",
 		"signal.target.interpreter.file.package.source_version",
 		"signal.target.interpreter.file.package.version",
 		"signal.target.interpreter.file.path",
@@ -31937,7 +35533,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.parent.file.mount_visible",
 		"signal.target.parent.file.name",
 		"signal.target.parent.file.name.length",
+		"signal.target.parent.file.package.epoch",
 		"signal.target.parent.file.package.name",
+		"signal.target.parent.file.package.release",
+		"signal.target.parent.file.package.source_epoch",
+		"signal.target.parent.file.package.source_release",
 		"signal.target.parent.file.package.source_version",
 		"signal.target.parent.file.package.version",
 		"signal.target.parent.file.path",
@@ -31966,7 +35566,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.parent.interpreter.file.mount_visible",
 		"signal.target.parent.interpreter.file.name",
 		"signal.target.parent.interpreter.file.name.length",
+		"signal.target.parent.interpreter.file.package.epoch",
 		"signal.target.parent.interpreter.file.package.name",
+		"signal.target.parent.interpreter.file.package.release",
+		"signal.target.parent.interpreter.file.package.source_epoch",
+		"signal.target.parent.interpreter.file.package.source_release",
 		"signal.target.parent.interpreter.file.package.source_version",
 		"signal.target.parent.interpreter.file.package.version",
 		"signal.target.parent.interpreter.file.path",
@@ -32011,7 +35615,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"splice.file.mount_visible",
 		"splice.file.name",
 		"splice.file.name.length",
+		"splice.file.package.epoch",
 		"splice.file.package.name",
+		"splice.file.package.release",
+		"splice.file.package.source_epoch",
+		"splice.file.package.source_release",
 		"splice.file.package.source_version",
 		"splice.file.package.version",
 		"splice.file.path",
@@ -32045,7 +35653,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"unlink.file.mount_visible",
 		"unlink.file.name",
 		"unlink.file.name.length",
+		"unlink.file.package.epoch",
 		"unlink.file.package.name",
+		"unlink.file.package.release",
+		"unlink.file.package.source_epoch",
+		"unlink.file.package.source_release",
 		"unlink.file.package.source_version",
 		"unlink.file.package.version",
 		"unlink.file.path",
@@ -32075,7 +35687,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"utimes.file.mount_visible",
 		"utimes.file.name",
 		"utimes.file.name.length",
+		"utimes.file.package.epoch",
 		"utimes.file.package.name",
+		"utimes.file.package.release",
+		"utimes.file.package.source_epoch",
+		"utimes.file.package.source_release",
 		"utimes.file.package.source_version",
 		"utimes.file.package.version",
 		"utimes.file.path",
@@ -32177,7 +35793,15 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "cgroup_write", reflect.String, "string", nil
 	case "cgroup_write.file.name.length":
 		return "cgroup_write", reflect.Int, "int", nil
+	case "cgroup_write.file.package.epoch":
+		return "cgroup_write", reflect.Int, "int", nil
 	case "cgroup_write.file.package.name":
+		return "cgroup_write", reflect.String, "string", nil
+	case "cgroup_write.file.package.release":
+		return "cgroup_write", reflect.String, "string", nil
+	case "cgroup_write.file.package.source_epoch":
+		return "cgroup_write", reflect.Int, "int", nil
+	case "cgroup_write.file.package.source_release":
 		return "cgroup_write", reflect.String, "string", nil
 	case "cgroup_write.file.package.source_version":
 		return "cgroup_write", reflect.String, "string", nil
@@ -32225,7 +35849,15 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "chdir", reflect.String, "string", nil
 	case "chdir.file.name.length":
 		return "chdir", reflect.Int, "int", nil
+	case "chdir.file.package.epoch":
+		return "chdir", reflect.Int, "int", nil
 	case "chdir.file.package.name":
+		return "chdir", reflect.String, "string", nil
+	case "chdir.file.package.release":
+		return "chdir", reflect.String, "string", nil
+	case "chdir.file.package.source_epoch":
+		return "chdir", reflect.Int, "int", nil
+	case "chdir.file.package.source_release":
 		return "chdir", reflect.String, "string", nil
 	case "chdir.file.package.source_version":
 		return "chdir", reflect.String, "string", nil
@@ -32279,7 +35911,15 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "chmod", reflect.String, "string", nil
 	case "chmod.file.name.length":
 		return "chmod", reflect.Int, "int", nil
+	case "chmod.file.package.epoch":
+		return "chmod", reflect.Int, "int", nil
 	case "chmod.file.package.name":
+		return "chmod", reflect.String, "string", nil
+	case "chmod.file.package.release":
+		return "chmod", reflect.String, "string", nil
+	case "chmod.file.package.source_epoch":
+		return "chmod", reflect.Int, "int", nil
+	case "chmod.file.package.source_release":
 		return "chmod", reflect.String, "string", nil
 	case "chmod.file.package.source_version":
 		return "chmod", reflect.String, "string", nil
@@ -32339,7 +35979,15 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "chown", reflect.String, "string", nil
 	case "chown.file.name.length":
 		return "chown", reflect.Int, "int", nil
+	case "chown.file.package.epoch":
+		return "chown", reflect.Int, "int", nil
 	case "chown.file.package.name":
+		return "chown", reflect.String, "string", nil
+	case "chown.file.package.release":
+		return "chown", reflect.String, "string", nil
+	case "chown.file.package.source_epoch":
+		return "chown", reflect.Int, "int", nil
+	case "chown.file.package.source_release":
 		return "chown", reflect.String, "string", nil
 	case "chown.file.package.source_version":
 		return "chown", reflect.String, "string", nil
@@ -32511,7 +36159,15 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "exec", reflect.String, "string", nil
 	case "exec.file.name.length":
 		return "exec", reflect.Int, "int", nil
+	case "exec.file.package.epoch":
+		return "exec", reflect.Int, "int", nil
 	case "exec.file.package.name":
+		return "exec", reflect.String, "string", nil
+	case "exec.file.package.release":
+		return "exec", reflect.String, "string", nil
+	case "exec.file.package.source_epoch":
+		return "exec", reflect.Int, "int", nil
+	case "exec.file.package.source_release":
 		return "exec", reflect.String, "string", nil
 	case "exec.file.package.source_version":
 		return "exec", reflect.String, "string", nil
@@ -32569,7 +36225,15 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "exec", reflect.String, "string", nil
 	case "exec.interpreter.file.name.length":
 		return "exec", reflect.Int, "int", nil
+	case "exec.interpreter.file.package.epoch":
+		return "exec", reflect.Int, "int", nil
 	case "exec.interpreter.file.package.name":
+		return "exec", reflect.String, "string", nil
+	case "exec.interpreter.file.package.release":
+		return "exec", reflect.String, "string", nil
+	case "exec.interpreter.file.package.source_epoch":
+		return "exec", reflect.Int, "int", nil
+	case "exec.interpreter.file.package.source_release":
 		return "exec", reflect.String, "string", nil
 	case "exec.interpreter.file.package.source_version":
 		return "exec", reflect.String, "string", nil
@@ -32695,7 +36359,15 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "exit", reflect.String, "string", nil
 	case "exit.file.name.length":
 		return "exit", reflect.Int, "int", nil
+	case "exit.file.package.epoch":
+		return "exit", reflect.Int, "int", nil
 	case "exit.file.package.name":
+		return "exit", reflect.String, "string", nil
+	case "exit.file.package.release":
+		return "exit", reflect.String, "string", nil
+	case "exit.file.package.source_epoch":
+		return "exit", reflect.Int, "int", nil
+	case "exit.file.package.source_release":
 		return "exit", reflect.String, "string", nil
 	case "exit.file.package.source_version":
 		return "exit", reflect.String, "string", nil
@@ -32753,7 +36425,15 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "exit", reflect.String, "string", nil
 	case "exit.interpreter.file.name.length":
 		return "exit", reflect.Int, "int", nil
+	case "exit.interpreter.file.package.epoch":
+		return "exit", reflect.Int, "int", nil
 	case "exit.interpreter.file.package.name":
+		return "exit", reflect.String, "string", nil
+	case "exit.interpreter.file.package.release":
+		return "exit", reflect.String, "string", nil
+	case "exit.interpreter.file.package.source_epoch":
+		return "exit", reflect.Int, "int", nil
+	case "exit.interpreter.file.package.source_release":
 		return "exit", reflect.String, "string", nil
 	case "exit.interpreter.file.package.source_version":
 		return "exit", reflect.String, "string", nil
@@ -32841,7 +36521,15 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "link", reflect.String, "string", nil
 	case "link.file.destination.name.length":
 		return "link", reflect.Int, "int", nil
+	case "link.file.destination.package.epoch":
+		return "link", reflect.Int, "int", nil
 	case "link.file.destination.package.name":
+		return "link", reflect.String, "string", nil
+	case "link.file.destination.package.release":
+		return "link", reflect.String, "string", nil
+	case "link.file.destination.package.source_epoch":
+		return "link", reflect.Int, "int", nil
+	case "link.file.destination.package.source_release":
 		return "link", reflect.String, "string", nil
 	case "link.file.destination.package.source_version":
 		return "link", reflect.String, "string", nil
@@ -32885,7 +36573,15 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "link", reflect.String, "string", nil
 	case "link.file.name.length":
 		return "link", reflect.Int, "int", nil
+	case "link.file.package.epoch":
+		return "link", reflect.Int, "int", nil
 	case "link.file.package.name":
+		return "link", reflect.String, "string", nil
+	case "link.file.package.release":
+		return "link", reflect.String, "string", nil
+	case "link.file.package.source_epoch":
+		return "link", reflect.Int, "int", nil
+	case "link.file.package.source_release":
 		return "link", reflect.String, "string", nil
 	case "link.file.package.source_version":
 		return "link", reflect.String, "string", nil
@@ -32943,7 +36639,15 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "load_module", reflect.String, "string", nil
 	case "load_module.file.name.length":
 		return "load_module", reflect.Int, "int", nil
+	case "load_module.file.package.epoch":
+		return "load_module", reflect.Int, "int", nil
 	case "load_module.file.package.name":
+		return "load_module", reflect.String, "string", nil
+	case "load_module.file.package.release":
+		return "load_module", reflect.String, "string", nil
+	case "load_module.file.package.source_epoch":
+		return "load_module", reflect.Int, "int", nil
+	case "load_module.file.package.source_release":
 		return "load_module", reflect.String, "string", nil
 	case "load_module.file.package.source_version":
 		return "load_module", reflect.String, "string", nil
@@ -32999,7 +36703,15 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "mkdir", reflect.String, "string", nil
 	case "mkdir.file.name.length":
 		return "mkdir", reflect.Int, "int", nil
+	case "mkdir.file.package.epoch":
+		return "mkdir", reflect.Int, "int", nil
 	case "mkdir.file.package.name":
+		return "mkdir", reflect.String, "string", nil
+	case "mkdir.file.package.release":
+		return "mkdir", reflect.String, "string", nil
+	case "mkdir.file.package.source_epoch":
+		return "mkdir", reflect.Int, "int", nil
+	case "mkdir.file.package.source_release":
 		return "mkdir", reflect.String, "string", nil
 	case "mkdir.file.package.source_version":
 		return "mkdir", reflect.String, "string", nil
@@ -33051,7 +36763,15 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "mmap", reflect.String, "string", nil
 	case "mmap.file.name.length":
 		return "mmap", reflect.Int, "int", nil
+	case "mmap.file.package.epoch":
+		return "mmap", reflect.Int, "int", nil
 	case "mmap.file.package.name":
+		return "mmap", reflect.String, "string", nil
+	case "mmap.file.package.release":
+		return "mmap", reflect.String, "string", nil
+	case "mmap.file.package.source_epoch":
+		return "mmap", reflect.Int, "int", nil
+	case "mmap.file.package.source_release":
 		return "mmap", reflect.String, "string", nil
 	case "mmap.file.package.source_version":
 		return "mmap", reflect.String, "string", nil
@@ -33209,7 +36929,15 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "open", reflect.String, "string", nil
 	case "open.file.name.length":
 		return "open", reflect.Int, "int", nil
+	case "open.file.package.epoch":
+		return "open", reflect.Int, "int", nil
 	case "open.file.package.name":
+		return "open", reflect.String, "string", nil
+	case "open.file.package.release":
+		return "open", reflect.String, "string", nil
+	case "open.file.package.source_epoch":
+		return "open", reflect.Int, "int", nil
+	case "open.file.package.source_release":
 		return "open", reflect.String, "string", nil
 	case "open.file.package.source_version":
 		return "open", reflect.String, "string", nil
@@ -33351,7 +37079,15 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.String, "string", nil
 	case "process.ancestors.file.name.length":
 		return "", reflect.Int, "int", nil
+	case "process.ancestors.file.package.epoch":
+		return "", reflect.Int, "int", nil
 	case "process.ancestors.file.package.name":
+		return "", reflect.String, "string", nil
+	case "process.ancestors.file.package.release":
+		return "", reflect.String, "string", nil
+	case "process.ancestors.file.package.source_epoch":
+		return "", reflect.Int, "int", nil
+	case "process.ancestors.file.package.source_release":
 		return "", reflect.String, "string", nil
 	case "process.ancestors.file.package.source_version":
 		return "", reflect.String, "string", nil
@@ -33409,7 +37145,15 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.String, "string", nil
 	case "process.ancestors.interpreter.file.name.length":
 		return "", reflect.Int, "int", nil
+	case "process.ancestors.interpreter.file.package.epoch":
+		return "", reflect.Int, "int", nil
 	case "process.ancestors.interpreter.file.package.name":
+		return "", reflect.String, "string", nil
+	case "process.ancestors.interpreter.file.package.release":
+		return "", reflect.String, "string", nil
+	case "process.ancestors.interpreter.file.package.source_epoch":
+		return "", reflect.Int, "int", nil
+	case "process.ancestors.interpreter.file.package.source_release":
 		return "", reflect.String, "string", nil
 	case "process.ancestors.interpreter.file.package.source_version":
 		return "", reflect.String, "string", nil
@@ -33531,7 +37275,15 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.String, "string", nil
 	case "process.file.name.length":
 		return "", reflect.Int, "int", nil
+	case "process.file.package.epoch":
+		return "", reflect.Int, "int", nil
 	case "process.file.package.name":
+		return "", reflect.String, "string", nil
+	case "process.file.package.release":
+		return "", reflect.String, "string", nil
+	case "process.file.package.source_epoch":
+		return "", reflect.Int, "int", nil
+	case "process.file.package.source_release":
 		return "", reflect.String, "string", nil
 	case "process.file.package.source_version":
 		return "", reflect.String, "string", nil
@@ -33589,7 +37341,15 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.String, "string", nil
 	case "process.interpreter.file.name.length":
 		return "", reflect.Int, "int", nil
+	case "process.interpreter.file.package.epoch":
+		return "", reflect.Int, "int", nil
 	case "process.interpreter.file.package.name":
+		return "", reflect.String, "string", nil
+	case "process.interpreter.file.package.release":
+		return "", reflect.String, "string", nil
+	case "process.interpreter.file.package.source_epoch":
+		return "", reflect.Int, "int", nil
+	case "process.interpreter.file.package.source_release":
 		return "", reflect.String, "string", nil
 	case "process.interpreter.file.package.source_version":
 		return "", reflect.String, "string", nil
@@ -33691,7 +37451,15 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.String, "string", nil
 	case "process.parent.file.name.length":
 		return "", reflect.Int, "int", nil
+	case "process.parent.file.package.epoch":
+		return "", reflect.Int, "int", nil
 	case "process.parent.file.package.name":
+		return "", reflect.String, "string", nil
+	case "process.parent.file.package.release":
+		return "", reflect.String, "string", nil
+	case "process.parent.file.package.source_epoch":
+		return "", reflect.Int, "int", nil
+	case "process.parent.file.package.source_release":
 		return "", reflect.String, "string", nil
 	case "process.parent.file.package.source_version":
 		return "", reflect.String, "string", nil
@@ -33749,7 +37517,15 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.String, "string", nil
 	case "process.parent.interpreter.file.name.length":
 		return "", reflect.Int, "int", nil
+	case "process.parent.interpreter.file.package.epoch":
+		return "", reflect.Int, "int", nil
 	case "process.parent.interpreter.file.package.name":
+		return "", reflect.String, "string", nil
+	case "process.parent.interpreter.file.package.release":
+		return "", reflect.String, "string", nil
+	case "process.parent.interpreter.file.package.source_epoch":
+		return "", reflect.Int, "int", nil
+	case "process.parent.interpreter.file.package.source_release":
 		return "", reflect.String, "string", nil
 	case "process.parent.interpreter.file.package.source_version":
 		return "", reflect.String, "string", nil
@@ -33891,7 +37667,15 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "ptrace", reflect.String, "string", nil
 	case "ptrace.tracee.ancestors.file.name.length":
 		return "ptrace", reflect.Int, "int", nil
+	case "ptrace.tracee.ancestors.file.package.epoch":
+		return "ptrace", reflect.Int, "int", nil
 	case "ptrace.tracee.ancestors.file.package.name":
+		return "ptrace", reflect.String, "string", nil
+	case "ptrace.tracee.ancestors.file.package.release":
+		return "ptrace", reflect.String, "string", nil
+	case "ptrace.tracee.ancestors.file.package.source_epoch":
+		return "ptrace", reflect.Int, "int", nil
+	case "ptrace.tracee.ancestors.file.package.source_release":
 		return "ptrace", reflect.String, "string", nil
 	case "ptrace.tracee.ancestors.file.package.source_version":
 		return "ptrace", reflect.String, "string", nil
@@ -33949,7 +37733,15 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "ptrace", reflect.String, "string", nil
 	case "ptrace.tracee.ancestors.interpreter.file.name.length":
 		return "ptrace", reflect.Int, "int", nil
+	case "ptrace.tracee.ancestors.interpreter.file.package.epoch":
+		return "ptrace", reflect.Int, "int", nil
 	case "ptrace.tracee.ancestors.interpreter.file.package.name":
+		return "ptrace", reflect.String, "string", nil
+	case "ptrace.tracee.ancestors.interpreter.file.package.release":
+		return "ptrace", reflect.String, "string", nil
+	case "ptrace.tracee.ancestors.interpreter.file.package.source_epoch":
+		return "ptrace", reflect.Int, "int", nil
+	case "ptrace.tracee.ancestors.interpreter.file.package.source_release":
 		return "ptrace", reflect.String, "string", nil
 	case "ptrace.tracee.ancestors.interpreter.file.package.source_version":
 		return "ptrace", reflect.String, "string", nil
@@ -34071,7 +37863,15 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "ptrace", reflect.String, "string", nil
 	case "ptrace.tracee.file.name.length":
 		return "ptrace", reflect.Int, "int", nil
+	case "ptrace.tracee.file.package.epoch":
+		return "ptrace", reflect.Int, "int", nil
 	case "ptrace.tracee.file.package.name":
+		return "ptrace", reflect.String, "string", nil
+	case "ptrace.tracee.file.package.release":
+		return "ptrace", reflect.String, "string", nil
+	case "ptrace.tracee.file.package.source_epoch":
+		return "ptrace", reflect.Int, "int", nil
+	case "ptrace.tracee.file.package.source_release":
 		return "ptrace", reflect.String, "string", nil
 	case "ptrace.tracee.file.package.source_version":
 		return "ptrace", reflect.String, "string", nil
@@ -34129,7 +37929,15 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "ptrace", reflect.String, "string", nil
 	case "ptrace.tracee.interpreter.file.name.length":
 		return "ptrace", reflect.Int, "int", nil
+	case "ptrace.tracee.interpreter.file.package.epoch":
+		return "ptrace", reflect.Int, "int", nil
 	case "ptrace.tracee.interpreter.file.package.name":
+		return "ptrace", reflect.String, "string", nil
+	case "ptrace.tracee.interpreter.file.package.release":
+		return "ptrace", reflect.String, "string", nil
+	case "ptrace.tracee.interpreter.file.package.source_epoch":
+		return "ptrace", reflect.Int, "int", nil
+	case "ptrace.tracee.interpreter.file.package.source_release":
 		return "ptrace", reflect.String, "string", nil
 	case "ptrace.tracee.interpreter.file.package.source_version":
 		return "ptrace", reflect.String, "string", nil
@@ -34231,7 +38039,15 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "ptrace", reflect.String, "string", nil
 	case "ptrace.tracee.parent.file.name.length":
 		return "ptrace", reflect.Int, "int", nil
+	case "ptrace.tracee.parent.file.package.epoch":
+		return "ptrace", reflect.Int, "int", nil
 	case "ptrace.tracee.parent.file.package.name":
+		return "ptrace", reflect.String, "string", nil
+	case "ptrace.tracee.parent.file.package.release":
+		return "ptrace", reflect.String, "string", nil
+	case "ptrace.tracee.parent.file.package.source_epoch":
+		return "ptrace", reflect.Int, "int", nil
+	case "ptrace.tracee.parent.file.package.source_release":
 		return "ptrace", reflect.String, "string", nil
 	case "ptrace.tracee.parent.file.package.source_version":
 		return "ptrace", reflect.String, "string", nil
@@ -34289,7 +38105,15 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "ptrace", reflect.String, "string", nil
 	case "ptrace.tracee.parent.interpreter.file.name.length":
 		return "ptrace", reflect.Int, "int", nil
+	case "ptrace.tracee.parent.interpreter.file.package.epoch":
+		return "ptrace", reflect.Int, "int", nil
 	case "ptrace.tracee.parent.interpreter.file.package.name":
+		return "ptrace", reflect.String, "string", nil
+	case "ptrace.tracee.parent.interpreter.file.package.release":
+		return "ptrace", reflect.String, "string", nil
+	case "ptrace.tracee.parent.interpreter.file.package.source_epoch":
+		return "ptrace", reflect.Int, "int", nil
+	case "ptrace.tracee.parent.interpreter.file.package.source_release":
 		return "ptrace", reflect.String, "string", nil
 	case "ptrace.tracee.parent.interpreter.file.package.source_version":
 		return "ptrace", reflect.String, "string", nil
@@ -34381,7 +38205,15 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "removexattr", reflect.String, "string", nil
 	case "removexattr.file.name.length":
 		return "removexattr", reflect.Int, "int", nil
+	case "removexattr.file.package.epoch":
+		return "removexattr", reflect.Int, "int", nil
 	case "removexattr.file.package.name":
+		return "removexattr", reflect.String, "string", nil
+	case "removexattr.file.package.release":
+		return "removexattr", reflect.String, "string", nil
+	case "removexattr.file.package.source_epoch":
+		return "removexattr", reflect.Int, "int", nil
+	case "removexattr.file.package.source_release":
 		return "removexattr", reflect.String, "string", nil
 	case "removexattr.file.package.source_version":
 		return "removexattr", reflect.String, "string", nil
@@ -34431,7 +38263,15 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "rename", reflect.String, "string", nil
 	case "rename.file.destination.name.length":
 		return "rename", reflect.Int, "int", nil
+	case "rename.file.destination.package.epoch":
+		return "rename", reflect.Int, "int", nil
 	case "rename.file.destination.package.name":
+		return "rename", reflect.String, "string", nil
+	case "rename.file.destination.package.release":
+		return "rename", reflect.String, "string", nil
+	case "rename.file.destination.package.source_epoch":
+		return "rename", reflect.Int, "int", nil
+	case "rename.file.destination.package.source_release":
 		return "rename", reflect.String, "string", nil
 	case "rename.file.destination.package.source_version":
 		return "rename", reflect.String, "string", nil
@@ -34475,7 +38315,15 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "rename", reflect.String, "string", nil
 	case "rename.file.name.length":
 		return "rename", reflect.Int, "int", nil
+	case "rename.file.package.epoch":
+		return "rename", reflect.Int, "int", nil
 	case "rename.file.package.name":
+		return "rename", reflect.String, "string", nil
+	case "rename.file.package.release":
+		return "rename", reflect.String, "string", nil
+	case "rename.file.package.source_epoch":
+		return "rename", reflect.Int, "int", nil
+	case "rename.file.package.source_release":
 		return "rename", reflect.String, "string", nil
 	case "rename.file.package.source_version":
 		return "rename", reflect.String, "string", nil
@@ -34527,7 +38375,15 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "rmdir", reflect.String, "string", nil
 	case "rmdir.file.name.length":
 		return "rmdir", reflect.Int, "int", nil
+	case "rmdir.file.package.epoch":
+		return "rmdir", reflect.Int, "int", nil
 	case "rmdir.file.package.name":
+		return "rmdir", reflect.String, "string", nil
+	case "rmdir.file.package.release":
+		return "rmdir", reflect.String, "string", nil
+	case "rmdir.file.package.source_epoch":
+		return "rmdir", reflect.Int, "int", nil
+	case "rmdir.file.package.source_release":
 		return "rmdir", reflect.String, "string", nil
 	case "rmdir.file.package.source_version":
 		return "rmdir", reflect.String, "string", nil
@@ -34655,7 +38511,15 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setrlimit", reflect.String, "string", nil
 	case "setrlimit.target.ancestors.file.name.length":
 		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.ancestors.file.package.epoch":
+		return "setrlimit", reflect.Int, "int", nil
 	case "setrlimit.target.ancestors.file.package.name":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.ancestors.file.package.release":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.ancestors.file.package.source_epoch":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.ancestors.file.package.source_release":
 		return "setrlimit", reflect.String, "string", nil
 	case "setrlimit.target.ancestors.file.package.source_version":
 		return "setrlimit", reflect.String, "string", nil
@@ -34713,7 +38577,15 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setrlimit", reflect.String, "string", nil
 	case "setrlimit.target.ancestors.interpreter.file.name.length":
 		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.ancestors.interpreter.file.package.epoch":
+		return "setrlimit", reflect.Int, "int", nil
 	case "setrlimit.target.ancestors.interpreter.file.package.name":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.ancestors.interpreter.file.package.release":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.ancestors.interpreter.file.package.source_epoch":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.ancestors.interpreter.file.package.source_release":
 		return "setrlimit", reflect.String, "string", nil
 	case "setrlimit.target.ancestors.interpreter.file.package.source_version":
 		return "setrlimit", reflect.String, "string", nil
@@ -34835,7 +38707,15 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setrlimit", reflect.String, "string", nil
 	case "setrlimit.target.file.name.length":
 		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.file.package.epoch":
+		return "setrlimit", reflect.Int, "int", nil
 	case "setrlimit.target.file.package.name":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.file.package.release":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.file.package.source_epoch":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.file.package.source_release":
 		return "setrlimit", reflect.String, "string", nil
 	case "setrlimit.target.file.package.source_version":
 		return "setrlimit", reflect.String, "string", nil
@@ -34893,7 +38773,15 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setrlimit", reflect.String, "string", nil
 	case "setrlimit.target.interpreter.file.name.length":
 		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.interpreter.file.package.epoch":
+		return "setrlimit", reflect.Int, "int", nil
 	case "setrlimit.target.interpreter.file.package.name":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.interpreter.file.package.release":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.interpreter.file.package.source_epoch":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.interpreter.file.package.source_release":
 		return "setrlimit", reflect.String, "string", nil
 	case "setrlimit.target.interpreter.file.package.source_version":
 		return "setrlimit", reflect.String, "string", nil
@@ -34995,7 +38883,15 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setrlimit", reflect.String, "string", nil
 	case "setrlimit.target.parent.file.name.length":
 		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.parent.file.package.epoch":
+		return "setrlimit", reflect.Int, "int", nil
 	case "setrlimit.target.parent.file.package.name":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.parent.file.package.release":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.parent.file.package.source_epoch":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.parent.file.package.source_release":
 		return "setrlimit", reflect.String, "string", nil
 	case "setrlimit.target.parent.file.package.source_version":
 		return "setrlimit", reflect.String, "string", nil
@@ -35053,7 +38949,15 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setrlimit", reflect.String, "string", nil
 	case "setrlimit.target.parent.interpreter.file.name.length":
 		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.parent.interpreter.file.package.epoch":
+		return "setrlimit", reflect.Int, "int", nil
 	case "setrlimit.target.parent.interpreter.file.package.name":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.parent.interpreter.file.package.release":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.parent.interpreter.file.package.source_epoch":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.parent.interpreter.file.package.source_release":
 		return "setrlimit", reflect.String, "string", nil
 	case "setrlimit.target.parent.interpreter.file.package.source_version":
 		return "setrlimit", reflect.String, "string", nil
@@ -35179,7 +39083,15 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setxattr", reflect.String, "string", nil
 	case "setxattr.file.name.length":
 		return "setxattr", reflect.Int, "int", nil
+	case "setxattr.file.package.epoch":
+		return "setxattr", reflect.Int, "int", nil
 	case "setxattr.file.package.name":
+		return "setxattr", reflect.String, "string", nil
+	case "setxattr.file.package.release":
+		return "setxattr", reflect.String, "string", nil
+	case "setxattr.file.package.source_epoch":
+		return "setxattr", reflect.Int, "int", nil
+	case "setxattr.file.package.source_release":
 		return "setxattr", reflect.String, "string", nil
 	case "setxattr.file.package.source_version":
 		return "setxattr", reflect.String, "string", nil
@@ -35281,7 +39193,15 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "signal", reflect.String, "string", nil
 	case "signal.target.ancestors.file.name.length":
 		return "signal", reflect.Int, "int", nil
+	case "signal.target.ancestors.file.package.epoch":
+		return "signal", reflect.Int, "int", nil
 	case "signal.target.ancestors.file.package.name":
+		return "signal", reflect.String, "string", nil
+	case "signal.target.ancestors.file.package.release":
+		return "signal", reflect.String, "string", nil
+	case "signal.target.ancestors.file.package.source_epoch":
+		return "signal", reflect.Int, "int", nil
+	case "signal.target.ancestors.file.package.source_release":
 		return "signal", reflect.String, "string", nil
 	case "signal.target.ancestors.file.package.source_version":
 		return "signal", reflect.String, "string", nil
@@ -35339,7 +39259,15 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "signal", reflect.String, "string", nil
 	case "signal.target.ancestors.interpreter.file.name.length":
 		return "signal", reflect.Int, "int", nil
+	case "signal.target.ancestors.interpreter.file.package.epoch":
+		return "signal", reflect.Int, "int", nil
 	case "signal.target.ancestors.interpreter.file.package.name":
+		return "signal", reflect.String, "string", nil
+	case "signal.target.ancestors.interpreter.file.package.release":
+		return "signal", reflect.String, "string", nil
+	case "signal.target.ancestors.interpreter.file.package.source_epoch":
+		return "signal", reflect.Int, "int", nil
+	case "signal.target.ancestors.interpreter.file.package.source_release":
 		return "signal", reflect.String, "string", nil
 	case "signal.target.ancestors.interpreter.file.package.source_version":
 		return "signal", reflect.String, "string", nil
@@ -35461,7 +39389,15 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "signal", reflect.String, "string", nil
 	case "signal.target.file.name.length":
 		return "signal", reflect.Int, "int", nil
+	case "signal.target.file.package.epoch":
+		return "signal", reflect.Int, "int", nil
 	case "signal.target.file.package.name":
+		return "signal", reflect.String, "string", nil
+	case "signal.target.file.package.release":
+		return "signal", reflect.String, "string", nil
+	case "signal.target.file.package.source_epoch":
+		return "signal", reflect.Int, "int", nil
+	case "signal.target.file.package.source_release":
 		return "signal", reflect.String, "string", nil
 	case "signal.target.file.package.source_version":
 		return "signal", reflect.String, "string", nil
@@ -35519,7 +39455,15 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "signal", reflect.String, "string", nil
 	case "signal.target.interpreter.file.name.length":
 		return "signal", reflect.Int, "int", nil
+	case "signal.target.interpreter.file.package.epoch":
+		return "signal", reflect.Int, "int", nil
 	case "signal.target.interpreter.file.package.name":
+		return "signal", reflect.String, "string", nil
+	case "signal.target.interpreter.file.package.release":
+		return "signal", reflect.String, "string", nil
+	case "signal.target.interpreter.file.package.source_epoch":
+		return "signal", reflect.Int, "int", nil
+	case "signal.target.interpreter.file.package.source_release":
 		return "signal", reflect.String, "string", nil
 	case "signal.target.interpreter.file.package.source_version":
 		return "signal", reflect.String, "string", nil
@@ -35621,7 +39565,15 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "signal", reflect.String, "string", nil
 	case "signal.target.parent.file.name.length":
 		return "signal", reflect.Int, "int", nil
+	case "signal.target.parent.file.package.epoch":
+		return "signal", reflect.Int, "int", nil
 	case "signal.target.parent.file.package.name":
+		return "signal", reflect.String, "string", nil
+	case "signal.target.parent.file.package.release":
+		return "signal", reflect.String, "string", nil
+	case "signal.target.parent.file.package.source_epoch":
+		return "signal", reflect.Int, "int", nil
+	case "signal.target.parent.file.package.source_release":
 		return "signal", reflect.String, "string", nil
 	case "signal.target.parent.file.package.source_version":
 		return "signal", reflect.String, "string", nil
@@ -35679,7 +39631,15 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "signal", reflect.String, "string", nil
 	case "signal.target.parent.interpreter.file.name.length":
 		return "signal", reflect.Int, "int", nil
+	case "signal.target.parent.interpreter.file.package.epoch":
+		return "signal", reflect.Int, "int", nil
 	case "signal.target.parent.interpreter.file.package.name":
+		return "signal", reflect.String, "string", nil
+	case "signal.target.parent.interpreter.file.package.release":
+		return "signal", reflect.String, "string", nil
+	case "signal.target.parent.interpreter.file.package.source_epoch":
+		return "signal", reflect.Int, "int", nil
+	case "signal.target.parent.interpreter.file.package.source_release":
 		return "signal", reflect.String, "string", nil
 	case "signal.target.parent.interpreter.file.package.source_version":
 		return "signal", reflect.String, "string", nil
@@ -35769,7 +39729,15 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "splice", reflect.String, "string", nil
 	case "splice.file.name.length":
 		return "splice", reflect.Int, "int", nil
+	case "splice.file.package.epoch":
+		return "splice", reflect.Int, "int", nil
 	case "splice.file.package.name":
+		return "splice", reflect.String, "string", nil
+	case "splice.file.package.release":
+		return "splice", reflect.String, "string", nil
+	case "splice.file.package.source_epoch":
+		return "splice", reflect.Int, "int", nil
+	case "splice.file.package.source_release":
 		return "splice", reflect.String, "string", nil
 	case "splice.file.package.source_version":
 		return "splice", reflect.String, "string", nil
@@ -35837,7 +39805,15 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "unlink", reflect.String, "string", nil
 	case "unlink.file.name.length":
 		return "unlink", reflect.Int, "int", nil
+	case "unlink.file.package.epoch":
+		return "unlink", reflect.Int, "int", nil
 	case "unlink.file.package.name":
+		return "unlink", reflect.String, "string", nil
+	case "unlink.file.package.release":
+		return "unlink", reflect.String, "string", nil
+	case "unlink.file.package.source_epoch":
+		return "unlink", reflect.Int, "int", nil
+	case "unlink.file.package.source_release":
 		return "unlink", reflect.String, "string", nil
 	case "unlink.file.package.source_version":
 		return "unlink", reflect.String, "string", nil
@@ -35897,7 +39873,15 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "utimes", reflect.String, "string", nil
 	case "utimes.file.name.length":
 		return "utimes", reflect.Int, "int", nil
+	case "utimes.file.package.epoch":
+		return "utimes", reflect.Int, "int", nil
 	case "utimes.file.package.name":
+		return "utimes", reflect.String, "string", nil
+	case "utimes.file.package.release":
+		return "utimes", reflect.String, "string", nil
+	case "utimes.file.package.source_epoch":
+		return "utimes", reflect.Int, "int", nil
+	case "utimes.file.package.source_release":
 		return "utimes", reflect.String, "string", nil
 	case "utimes.file.package.source_version":
 		return "utimes", reflect.String, "string", nil
@@ -36050,8 +40034,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("cgroup_write.file.name", &ev.CgroupWrite.File.BasenameStr, value)
 	case "cgroup_write.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "cgroup_write.file.name.length"}
+	case "cgroup_write.file.package.epoch":
+		return ev.setIntFieldValue("cgroup_write.file.package.epoch", &ev.CgroupWrite.File.PkgEpoch, value)
 	case "cgroup_write.file.package.name":
 		return ev.setStringFieldValue("cgroup_write.file.package.name", &ev.CgroupWrite.File.PkgName, value)
+	case "cgroup_write.file.package.release":
+		return ev.setStringFieldValue("cgroup_write.file.package.release", &ev.CgroupWrite.File.PkgRelease, value)
+	case "cgroup_write.file.package.source_epoch":
+		return ev.setIntFieldValue("cgroup_write.file.package.source_epoch", &ev.CgroupWrite.File.PkgSrcEpoch, value)
+	case "cgroup_write.file.package.source_release":
+		return ev.setStringFieldValue("cgroup_write.file.package.source_release", &ev.CgroupWrite.File.PkgSrcRelease, value)
 	case "cgroup_write.file.package.source_version":
 		return ev.setStringFieldValue("cgroup_write.file.package.source_version", &ev.CgroupWrite.File.PkgSrcVersion, value)
 	case "cgroup_write.file.package.version":
@@ -36098,8 +40090,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("chdir.file.name", &ev.Chdir.File.BasenameStr, value)
 	case "chdir.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "chdir.file.name.length"}
+	case "chdir.file.package.epoch":
+		return ev.setIntFieldValue("chdir.file.package.epoch", &ev.Chdir.File.PkgEpoch, value)
 	case "chdir.file.package.name":
 		return ev.setStringFieldValue("chdir.file.package.name", &ev.Chdir.File.PkgName, value)
+	case "chdir.file.package.release":
+		return ev.setStringFieldValue("chdir.file.package.release", &ev.Chdir.File.PkgRelease, value)
+	case "chdir.file.package.source_epoch":
+		return ev.setIntFieldValue("chdir.file.package.source_epoch", &ev.Chdir.File.PkgSrcEpoch, value)
+	case "chdir.file.package.source_release":
+		return ev.setStringFieldValue("chdir.file.package.source_release", &ev.Chdir.File.PkgSrcRelease, value)
 	case "chdir.file.package.source_version":
 		return ev.setStringFieldValue("chdir.file.package.source_version", &ev.Chdir.File.PkgSrcVersion, value)
 	case "chdir.file.package.version":
@@ -36152,8 +40152,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("chmod.file.name", &ev.Chmod.File.BasenameStr, value)
 	case "chmod.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "chmod.file.name.length"}
+	case "chmod.file.package.epoch":
+		return ev.setIntFieldValue("chmod.file.package.epoch", &ev.Chmod.File.PkgEpoch, value)
 	case "chmod.file.package.name":
 		return ev.setStringFieldValue("chmod.file.package.name", &ev.Chmod.File.PkgName, value)
+	case "chmod.file.package.release":
+		return ev.setStringFieldValue("chmod.file.package.release", &ev.Chmod.File.PkgRelease, value)
+	case "chmod.file.package.source_epoch":
+		return ev.setIntFieldValue("chmod.file.package.source_epoch", &ev.Chmod.File.PkgSrcEpoch, value)
+	case "chmod.file.package.source_release":
+		return ev.setStringFieldValue("chmod.file.package.source_release", &ev.Chmod.File.PkgSrcRelease, value)
 	case "chmod.file.package.source_version":
 		return ev.setStringFieldValue("chmod.file.package.source_version", &ev.Chmod.File.PkgSrcVersion, value)
 	case "chmod.file.package.version":
@@ -36212,8 +40220,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("chown.file.name", &ev.Chown.File.BasenameStr, value)
 	case "chown.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "chown.file.name.length"}
+	case "chown.file.package.epoch":
+		return ev.setIntFieldValue("chown.file.package.epoch", &ev.Chown.File.PkgEpoch, value)
 	case "chown.file.package.name":
 		return ev.setStringFieldValue("chown.file.package.name", &ev.Chown.File.PkgName, value)
+	case "chown.file.package.release":
+		return ev.setStringFieldValue("chown.file.package.release", &ev.Chown.File.PkgRelease, value)
+	case "chown.file.package.source_epoch":
+		return ev.setIntFieldValue("chown.file.package.source_epoch", &ev.Chown.File.PkgSrcEpoch, value)
+	case "chown.file.package.source_release":
+		return ev.setStringFieldValue("chown.file.package.source_release", &ev.Chown.File.PkgSrcRelease, value)
 	case "chown.file.package.source_version":
 		return ev.setStringFieldValue("chown.file.package.source_version", &ev.Chown.File.PkgSrcVersion, value)
 	case "chown.file.package.version":
@@ -36416,8 +40432,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("exec.file.name", &ev.Exec.Process.FileEvent.BasenameStr, value)
 	case "exec.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "exec.file.name.length"}
+	case "exec.file.package.epoch":
+		return ev.setIntFieldValue("exec.file.package.epoch", &ev.Exec.Process.FileEvent.PkgEpoch, value)
 	case "exec.file.package.name":
 		return ev.setStringFieldValue("exec.file.package.name", &ev.Exec.Process.FileEvent.PkgName, value)
+	case "exec.file.package.release":
+		return ev.setStringFieldValue("exec.file.package.release", &ev.Exec.Process.FileEvent.PkgRelease, value)
+	case "exec.file.package.source_epoch":
+		return ev.setIntFieldValue("exec.file.package.source_epoch", &ev.Exec.Process.FileEvent.PkgSrcEpoch, value)
+	case "exec.file.package.source_release":
+		return ev.setStringFieldValue("exec.file.package.source_release", &ev.Exec.Process.FileEvent.PkgSrcRelease, value)
 	case "exec.file.package.source_version":
 		return ev.setStringFieldValue("exec.file.package.source_version", &ev.Exec.Process.FileEvent.PkgSrcVersion, value)
 	case "exec.file.package.version":
@@ -36530,12 +40554,36 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("exec.interpreter.file.name", &ev.Exec.Process.LinuxBinprm.FileEvent.BasenameStr, value)
 	case "exec.interpreter.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "exec.interpreter.file.name.length"}
+	case "exec.interpreter.file.package.epoch":
+		cont, err := SetInterpreterFields(&ev.Exec.Process.LinuxBinprm, "file.package.epoch", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setIntFieldValue("exec.interpreter.file.package.epoch", &ev.Exec.Process.LinuxBinprm.FileEvent.PkgEpoch, value)
 	case "exec.interpreter.file.package.name":
 		cont, err := SetInterpreterFields(&ev.Exec.Process.LinuxBinprm, "file.package.name", value)
 		if err != nil || !cont {
 			return err
 		}
 		return ev.setStringFieldValue("exec.interpreter.file.package.name", &ev.Exec.Process.LinuxBinprm.FileEvent.PkgName, value)
+	case "exec.interpreter.file.package.release":
+		cont, err := SetInterpreterFields(&ev.Exec.Process.LinuxBinprm, "file.package.release", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("exec.interpreter.file.package.release", &ev.Exec.Process.LinuxBinprm.FileEvent.PkgRelease, value)
+	case "exec.interpreter.file.package.source_epoch":
+		cont, err := SetInterpreterFields(&ev.Exec.Process.LinuxBinprm, "file.package.source_epoch", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setIntFieldValue("exec.interpreter.file.package.source_epoch", &ev.Exec.Process.LinuxBinprm.FileEvent.PkgSrcEpoch, value)
+	case "exec.interpreter.file.package.source_release":
+		cont, err := SetInterpreterFields(&ev.Exec.Process.LinuxBinprm, "file.package.source_release", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("exec.interpreter.file.package.source_release", &ev.Exec.Process.LinuxBinprm.FileEvent.PkgSrcRelease, value)
 	case "exec.interpreter.file.package.source_version":
 		cont, err := SetInterpreterFields(&ev.Exec.Process.LinuxBinprm, "file.package.source_version", value)
 		if err != nil || !cont {
@@ -36814,11 +40862,31 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Exit.Process = &Process{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "exit.file.name.length"}
+	case "exit.file.package.epoch":
+		if ev.Exit.Process == nil {
+			ev.Exit.Process = &Process{}
+		}
+		return ev.setIntFieldValue("exit.file.package.epoch", &ev.Exit.Process.FileEvent.PkgEpoch, value)
 	case "exit.file.package.name":
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
 		}
 		return ev.setStringFieldValue("exit.file.package.name", &ev.Exit.Process.FileEvent.PkgName, value)
+	case "exit.file.package.release":
+		if ev.Exit.Process == nil {
+			ev.Exit.Process = &Process{}
+		}
+		return ev.setStringFieldValue("exit.file.package.release", &ev.Exit.Process.FileEvent.PkgRelease, value)
+	case "exit.file.package.source_epoch":
+		if ev.Exit.Process == nil {
+			ev.Exit.Process = &Process{}
+		}
+		return ev.setIntFieldValue("exit.file.package.source_epoch", &ev.Exit.Process.FileEvent.PkgSrcEpoch, value)
+	case "exit.file.package.source_release":
+		if ev.Exit.Process == nil {
+			ev.Exit.Process = &Process{}
+		}
+		return ev.setStringFieldValue("exit.file.package.source_release", &ev.Exit.Process.FileEvent.PkgSrcRelease, value)
 	case "exit.file.package.source_version":
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
@@ -37015,6 +41083,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Exit.Process = &Process{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "exit.interpreter.file.name.length"}
+	case "exit.interpreter.file.package.epoch":
+		if ev.Exit.Process == nil {
+			ev.Exit.Process = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Exit.Process.LinuxBinprm, "file.package.epoch", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setIntFieldValue("exit.interpreter.file.package.epoch", &ev.Exit.Process.LinuxBinprm.FileEvent.PkgEpoch, value)
 	case "exit.interpreter.file.package.name":
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
@@ -37024,6 +41101,33 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return err
 		}
 		return ev.setStringFieldValue("exit.interpreter.file.package.name", &ev.Exit.Process.LinuxBinprm.FileEvent.PkgName, value)
+	case "exit.interpreter.file.package.release":
+		if ev.Exit.Process == nil {
+			ev.Exit.Process = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Exit.Process.LinuxBinprm, "file.package.release", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("exit.interpreter.file.package.release", &ev.Exit.Process.LinuxBinprm.FileEvent.PkgRelease, value)
+	case "exit.interpreter.file.package.source_epoch":
+		if ev.Exit.Process == nil {
+			ev.Exit.Process = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Exit.Process.LinuxBinprm, "file.package.source_epoch", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setIntFieldValue("exit.interpreter.file.package.source_epoch", &ev.Exit.Process.LinuxBinprm.FileEvent.PkgSrcEpoch, value)
+	case "exit.interpreter.file.package.source_release":
+		if ev.Exit.Process == nil {
+			ev.Exit.Process = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Exit.Process.LinuxBinprm, "file.package.source_release", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("exit.interpreter.file.package.source_release", &ev.Exit.Process.LinuxBinprm.FileEvent.PkgSrcRelease, value)
 	case "exit.interpreter.file.package.source_version":
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
@@ -37191,8 +41295,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("link.file.destination.name", &ev.Link.Target.BasenameStr, value)
 	case "link.file.destination.name.length":
 		return &eval.ErrFieldReadOnly{Field: "link.file.destination.name.length"}
+	case "link.file.destination.package.epoch":
+		return ev.setIntFieldValue("link.file.destination.package.epoch", &ev.Link.Target.PkgEpoch, value)
 	case "link.file.destination.package.name":
 		return ev.setStringFieldValue("link.file.destination.package.name", &ev.Link.Target.PkgName, value)
+	case "link.file.destination.package.release":
+		return ev.setStringFieldValue("link.file.destination.package.release", &ev.Link.Target.PkgRelease, value)
+	case "link.file.destination.package.source_epoch":
+		return ev.setIntFieldValue("link.file.destination.package.source_epoch", &ev.Link.Target.PkgSrcEpoch, value)
+	case "link.file.destination.package.source_release":
+		return ev.setStringFieldValue("link.file.destination.package.source_release", &ev.Link.Target.PkgSrcRelease, value)
 	case "link.file.destination.package.source_version":
 		return ev.setStringFieldValue("link.file.destination.package.source_version", &ev.Link.Target.PkgSrcVersion, value)
 	case "link.file.destination.package.version":
@@ -37235,8 +41347,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("link.file.name", &ev.Link.Source.BasenameStr, value)
 	case "link.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "link.file.name.length"}
+	case "link.file.package.epoch":
+		return ev.setIntFieldValue("link.file.package.epoch", &ev.Link.Source.PkgEpoch, value)
 	case "link.file.package.name":
 		return ev.setStringFieldValue("link.file.package.name", &ev.Link.Source.PkgName, value)
+	case "link.file.package.release":
+		return ev.setStringFieldValue("link.file.package.release", &ev.Link.Source.PkgRelease, value)
+	case "link.file.package.source_epoch":
+		return ev.setIntFieldValue("link.file.package.source_epoch", &ev.Link.Source.PkgSrcEpoch, value)
+	case "link.file.package.source_release":
+		return ev.setStringFieldValue("link.file.package.source_release", &ev.Link.Source.PkgSrcRelease, value)
 	case "link.file.package.source_version":
 		return ev.setStringFieldValue("link.file.package.source_version", &ev.Link.Source.PkgSrcVersion, value)
 	case "link.file.package.version":
@@ -37293,8 +41413,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("load_module.file.name", &ev.LoadModule.File.BasenameStr, value)
 	case "load_module.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "load_module.file.name.length"}
+	case "load_module.file.package.epoch":
+		return ev.setIntFieldValue("load_module.file.package.epoch", &ev.LoadModule.File.PkgEpoch, value)
 	case "load_module.file.package.name":
 		return ev.setStringFieldValue("load_module.file.package.name", &ev.LoadModule.File.PkgName, value)
+	case "load_module.file.package.release":
+		return ev.setStringFieldValue("load_module.file.package.release", &ev.LoadModule.File.PkgRelease, value)
+	case "load_module.file.package.source_epoch":
+		return ev.setIntFieldValue("load_module.file.package.source_epoch", &ev.LoadModule.File.PkgSrcEpoch, value)
+	case "load_module.file.package.source_release":
+		return ev.setStringFieldValue("load_module.file.package.source_release", &ev.LoadModule.File.PkgSrcRelease, value)
 	case "load_module.file.package.source_version":
 		return ev.setStringFieldValue("load_module.file.package.source_version", &ev.LoadModule.File.PkgSrcVersion, value)
 	case "load_module.file.package.version":
@@ -37349,8 +41477,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("mkdir.file.name", &ev.Mkdir.File.BasenameStr, value)
 	case "mkdir.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "mkdir.file.name.length"}
+	case "mkdir.file.package.epoch":
+		return ev.setIntFieldValue("mkdir.file.package.epoch", &ev.Mkdir.File.PkgEpoch, value)
 	case "mkdir.file.package.name":
 		return ev.setStringFieldValue("mkdir.file.package.name", &ev.Mkdir.File.PkgName, value)
+	case "mkdir.file.package.release":
+		return ev.setStringFieldValue("mkdir.file.package.release", &ev.Mkdir.File.PkgRelease, value)
+	case "mkdir.file.package.source_epoch":
+		return ev.setIntFieldValue("mkdir.file.package.source_epoch", &ev.Mkdir.File.PkgSrcEpoch, value)
+	case "mkdir.file.package.source_release":
+		return ev.setStringFieldValue("mkdir.file.package.source_release", &ev.Mkdir.File.PkgSrcRelease, value)
 	case "mkdir.file.package.source_version":
 		return ev.setStringFieldValue("mkdir.file.package.source_version", &ev.Mkdir.File.PkgSrcVersion, value)
 	case "mkdir.file.package.version":
@@ -37401,8 +41537,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("mmap.file.name", &ev.MMap.File.BasenameStr, value)
 	case "mmap.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "mmap.file.name.length"}
+	case "mmap.file.package.epoch":
+		return ev.setIntFieldValue("mmap.file.package.epoch", &ev.MMap.File.PkgEpoch, value)
 	case "mmap.file.package.name":
 		return ev.setStringFieldValue("mmap.file.package.name", &ev.MMap.File.PkgName, value)
+	case "mmap.file.package.release":
+		return ev.setStringFieldValue("mmap.file.package.release", &ev.MMap.File.PkgRelease, value)
+	case "mmap.file.package.source_epoch":
+		return ev.setIntFieldValue("mmap.file.package.source_epoch", &ev.MMap.File.PkgSrcEpoch, value)
+	case "mmap.file.package.source_release":
+		return ev.setStringFieldValue("mmap.file.package.source_release", &ev.MMap.File.PkgSrcRelease, value)
 	case "mmap.file.package.source_version":
 		return ev.setStringFieldValue("mmap.file.package.source_version", &ev.MMap.File.PkgSrcVersion, value)
 	case "mmap.file.package.version":
@@ -37618,8 +41762,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("open.file.name", &ev.Open.File.BasenameStr, value)
 	case "open.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "open.file.name.length"}
+	case "open.file.package.epoch":
+		return ev.setIntFieldValue("open.file.package.epoch", &ev.Open.File.PkgEpoch, value)
 	case "open.file.package.name":
 		return ev.setStringFieldValue("open.file.package.name", &ev.Open.File.PkgName, value)
+	case "open.file.package.release":
+		return ev.setStringFieldValue("open.file.package.release", &ev.Open.File.PkgRelease, value)
+	case "open.file.package.source_epoch":
+		return ev.setIntFieldValue("open.file.package.source_epoch", &ev.Open.File.PkgSrcEpoch, value)
+	case "open.file.package.source_release":
+		return ev.setStringFieldValue("open.file.package.source_release", &ev.Open.File.PkgSrcRelease, value)
 	case "open.file.package.source_version":
 		return ev.setStringFieldValue("open.file.package.source_version", &ev.Open.File.PkgSrcVersion, value)
 	case "open.file.package.version":
@@ -37780,8 +41932,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("process.ancestors.file.name", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.BasenameStr, value)
 	case "process.ancestors.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "process.ancestors.file.name.length"}
+	case "process.ancestors.file.package.epoch":
+		return ev.setIntFieldValue("process.ancestors.file.package.epoch", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.PkgEpoch, value)
 	case "process.ancestors.file.package.name":
 		return ev.setStringFieldValue("process.ancestors.file.package.name", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.PkgName, value)
+	case "process.ancestors.file.package.release":
+		return ev.setStringFieldValue("process.ancestors.file.package.release", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.PkgRelease, value)
+	case "process.ancestors.file.package.source_epoch":
+		return ev.setIntFieldValue("process.ancestors.file.package.source_epoch", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.PkgSrcEpoch, value)
+	case "process.ancestors.file.package.source_release":
+		return ev.setStringFieldValue("process.ancestors.file.package.source_release", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.PkgSrcRelease, value)
 	case "process.ancestors.file.package.source_version":
 		return ev.setStringFieldValue("process.ancestors.file.package.source_version", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.PkgSrcVersion, value)
 	case "process.ancestors.file.package.version":
@@ -37894,12 +42054,36 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("process.ancestors.interpreter.file.name", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.BasenameStr, value)
 	case "process.ancestors.interpreter.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "process.ancestors.interpreter.file.name.length"}
+	case "process.ancestors.interpreter.file.package.epoch":
+		cont, err := SetInterpreterFields(&ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm, "file.package.epoch", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setIntFieldValue("process.ancestors.interpreter.file.package.epoch", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgEpoch, value)
 	case "process.ancestors.interpreter.file.package.name":
 		cont, err := SetInterpreterFields(&ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm, "file.package.name", value)
 		if err != nil || !cont {
 			return err
 		}
 		return ev.setStringFieldValue("process.ancestors.interpreter.file.package.name", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgName, value)
+	case "process.ancestors.interpreter.file.package.release":
+		cont, err := SetInterpreterFields(&ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm, "file.package.release", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("process.ancestors.interpreter.file.package.release", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgRelease, value)
+	case "process.ancestors.interpreter.file.package.source_epoch":
+		cont, err := SetInterpreterFields(&ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm, "file.package.source_epoch", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setIntFieldValue("process.ancestors.interpreter.file.package.source_epoch", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgSrcEpoch, value)
+	case "process.ancestors.interpreter.file.package.source_release":
+		cont, err := SetInterpreterFields(&ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm, "file.package.source_release", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("process.ancestors.interpreter.file.package.source_release", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgSrcRelease, value)
 	case "process.ancestors.interpreter.file.package.source_version":
 		cont, err := SetInterpreterFields(&ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm, "file.package.source_version", value)
 		if err != nil || !cont {
@@ -38054,8 +42238,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("process.file.name", &ev.BaseEvent.ProcessContext.Process.FileEvent.BasenameStr, value)
 	case "process.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "process.file.name.length"}
+	case "process.file.package.epoch":
+		return ev.setIntFieldValue("process.file.package.epoch", &ev.BaseEvent.ProcessContext.Process.FileEvent.PkgEpoch, value)
 	case "process.file.package.name":
 		return ev.setStringFieldValue("process.file.package.name", &ev.BaseEvent.ProcessContext.Process.FileEvent.PkgName, value)
+	case "process.file.package.release":
+		return ev.setStringFieldValue("process.file.package.release", &ev.BaseEvent.ProcessContext.Process.FileEvent.PkgRelease, value)
+	case "process.file.package.source_epoch":
+		return ev.setIntFieldValue("process.file.package.source_epoch", &ev.BaseEvent.ProcessContext.Process.FileEvent.PkgSrcEpoch, value)
+	case "process.file.package.source_release":
+		return ev.setStringFieldValue("process.file.package.source_release", &ev.BaseEvent.ProcessContext.Process.FileEvent.PkgSrcRelease, value)
 	case "process.file.package.source_version":
 		return ev.setStringFieldValue("process.file.package.source_version", &ev.BaseEvent.ProcessContext.Process.FileEvent.PkgSrcVersion, value)
 	case "process.file.package.version":
@@ -38168,12 +42360,36 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("process.interpreter.file.name", &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.BasenameStr, value)
 	case "process.interpreter.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "process.interpreter.file.name.length"}
+	case "process.interpreter.file.package.epoch":
+		cont, err := SetInterpreterFields(&ev.BaseEvent.ProcessContext.Process.LinuxBinprm, "file.package.epoch", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setIntFieldValue("process.interpreter.file.package.epoch", &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.PkgEpoch, value)
 	case "process.interpreter.file.package.name":
 		cont, err := SetInterpreterFields(&ev.BaseEvent.ProcessContext.Process.LinuxBinprm, "file.package.name", value)
 		if err != nil || !cont {
 			return err
 		}
 		return ev.setStringFieldValue("process.interpreter.file.package.name", &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.PkgName, value)
+	case "process.interpreter.file.package.release":
+		cont, err := SetInterpreterFields(&ev.BaseEvent.ProcessContext.Process.LinuxBinprm, "file.package.release", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("process.interpreter.file.package.release", &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.PkgRelease, value)
+	case "process.interpreter.file.package.source_epoch":
+		cont, err := SetInterpreterFields(&ev.BaseEvent.ProcessContext.Process.LinuxBinprm, "file.package.source_epoch", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setIntFieldValue("process.interpreter.file.package.source_epoch", &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.PkgSrcEpoch, value)
+	case "process.interpreter.file.package.source_release":
+		cont, err := SetInterpreterFields(&ev.BaseEvent.ProcessContext.Process.LinuxBinprm, "file.package.source_release", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("process.interpreter.file.package.source_release", &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.PkgSrcRelease, value)
 	case "process.interpreter.file.package.source_version":
 		cont, err := SetInterpreterFields(&ev.BaseEvent.ProcessContext.Process.LinuxBinprm, "file.package.source_version", value)
 		if err != nil || !cont {
@@ -38308,8 +42524,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("process.parent.file.name", &ev.BaseEvent.ProcessContext.Parent.FileEvent.BasenameStr, value)
 	case "process.parent.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "process.parent.file.name.length"}
+	case "process.parent.file.package.epoch":
+		return ev.setIntFieldValue("process.parent.file.package.epoch", &ev.BaseEvent.ProcessContext.Parent.FileEvent.PkgEpoch, value)
 	case "process.parent.file.package.name":
 		return ev.setStringFieldValue("process.parent.file.package.name", &ev.BaseEvent.ProcessContext.Parent.FileEvent.PkgName, value)
+	case "process.parent.file.package.release":
+		return ev.setStringFieldValue("process.parent.file.package.release", &ev.BaseEvent.ProcessContext.Parent.FileEvent.PkgRelease, value)
+	case "process.parent.file.package.source_epoch":
+		return ev.setIntFieldValue("process.parent.file.package.source_epoch", &ev.BaseEvent.ProcessContext.Parent.FileEvent.PkgSrcEpoch, value)
+	case "process.parent.file.package.source_release":
+		return ev.setStringFieldValue("process.parent.file.package.source_release", &ev.BaseEvent.ProcessContext.Parent.FileEvent.PkgSrcRelease, value)
 	case "process.parent.file.package.source_version":
 		return ev.setStringFieldValue("process.parent.file.package.source_version", &ev.BaseEvent.ProcessContext.Parent.FileEvent.PkgSrcVersion, value)
 	case "process.parent.file.package.version":
@@ -38422,12 +42646,36 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("process.parent.interpreter.file.name", &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.BasenameStr, value)
 	case "process.parent.interpreter.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "process.parent.interpreter.file.name.length"}
+	case "process.parent.interpreter.file.package.epoch":
+		cont, err := SetInterpreterFields(&ev.BaseEvent.ProcessContext.Parent.LinuxBinprm, "file.package.epoch", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setIntFieldValue("process.parent.interpreter.file.package.epoch", &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.PkgEpoch, value)
 	case "process.parent.interpreter.file.package.name":
 		cont, err := SetInterpreterFields(&ev.BaseEvent.ProcessContext.Parent.LinuxBinprm, "file.package.name", value)
 		if err != nil || !cont {
 			return err
 		}
 		return ev.setStringFieldValue("process.parent.interpreter.file.package.name", &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.PkgName, value)
+	case "process.parent.interpreter.file.package.release":
+		cont, err := SetInterpreterFields(&ev.BaseEvent.ProcessContext.Parent.LinuxBinprm, "file.package.release", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("process.parent.interpreter.file.package.release", &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.PkgRelease, value)
+	case "process.parent.interpreter.file.package.source_epoch":
+		cont, err := SetInterpreterFields(&ev.BaseEvent.ProcessContext.Parent.LinuxBinprm, "file.package.source_epoch", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setIntFieldValue("process.parent.interpreter.file.package.source_epoch", &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.PkgSrcEpoch, value)
+	case "process.parent.interpreter.file.package.source_release":
+		cont, err := SetInterpreterFields(&ev.BaseEvent.ProcessContext.Parent.LinuxBinprm, "file.package.source_release", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("process.parent.interpreter.file.package.source_release", &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.PkgSrcRelease, value)
 	case "process.parent.interpreter.file.package.source_version":
 		cont, err := SetInterpreterFields(&ev.BaseEvent.ProcessContext.Parent.LinuxBinprm, "file.package.source_version", value)
 		if err != nil || !cont {
@@ -38842,6 +43090,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "ptrace.tracee.ancestors.file.name.length"}
+	case "ptrace.tracee.ancestors.file.package.epoch":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Ancestor == nil {
+			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setIntFieldValue("ptrace.tracee.ancestors.file.package.epoch", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.PkgEpoch, value)
 	case "ptrace.tracee.ancestors.file.package.name":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -38850,6 +43106,30 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
 		return ev.setStringFieldValue("ptrace.tracee.ancestors.file.package.name", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.PkgName, value)
+	case "ptrace.tracee.ancestors.file.package.release":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Ancestor == nil {
+			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setStringFieldValue("ptrace.tracee.ancestors.file.package.release", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.PkgRelease, value)
+	case "ptrace.tracee.ancestors.file.package.source_epoch":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Ancestor == nil {
+			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setIntFieldValue("ptrace.tracee.ancestors.file.package.source_epoch", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.PkgSrcEpoch, value)
+	case "ptrace.tracee.ancestors.file.package.source_release":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Ancestor == nil {
+			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setStringFieldValue("ptrace.tracee.ancestors.file.package.source_release", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.PkgSrcRelease, value)
 	case "ptrace.tracee.ancestors.file.package.source_version":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -39130,6 +43410,18 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "ptrace.tracee.ancestors.interpreter.file.name.length"}
+	case "ptrace.tracee.ancestors.interpreter.file.package.epoch":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Ancestor == nil {
+			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		cont, err := SetInterpreterFields(&ev.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm, "file.package.epoch", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setIntFieldValue("ptrace.tracee.ancestors.interpreter.file.package.epoch", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgEpoch, value)
 	case "ptrace.tracee.ancestors.interpreter.file.package.name":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -39142,6 +43434,42 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return err
 		}
 		return ev.setStringFieldValue("ptrace.tracee.ancestors.interpreter.file.package.name", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgName, value)
+	case "ptrace.tracee.ancestors.interpreter.file.package.release":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Ancestor == nil {
+			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		cont, err := SetInterpreterFields(&ev.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm, "file.package.release", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("ptrace.tracee.ancestors.interpreter.file.package.release", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgRelease, value)
+	case "ptrace.tracee.ancestors.interpreter.file.package.source_epoch":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Ancestor == nil {
+			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		cont, err := SetInterpreterFields(&ev.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm, "file.package.source_epoch", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setIntFieldValue("ptrace.tracee.ancestors.interpreter.file.package.source_epoch", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgSrcEpoch, value)
+	case "ptrace.tracee.ancestors.interpreter.file.package.source_release":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Ancestor == nil {
+			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		cont, err := SetInterpreterFields(&ev.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm, "file.package.source_release", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("ptrace.tracee.ancestors.interpreter.file.package.source_release", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgSrcRelease, value)
 	case "ptrace.tracee.ancestors.interpreter.file.package.source_version":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -39536,11 +43864,31 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.PTrace.Tracee = &ProcessContext{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "ptrace.tracee.file.name.length"}
+	case "ptrace.tracee.file.package.epoch":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		return ev.setIntFieldValue("ptrace.tracee.file.package.epoch", &ev.PTrace.Tracee.Process.FileEvent.PkgEpoch, value)
 	case "ptrace.tracee.file.package.name":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
 		}
 		return ev.setStringFieldValue("ptrace.tracee.file.package.name", &ev.PTrace.Tracee.Process.FileEvent.PkgName, value)
+	case "ptrace.tracee.file.package.release":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		return ev.setStringFieldValue("ptrace.tracee.file.package.release", &ev.PTrace.Tracee.Process.FileEvent.PkgRelease, value)
+	case "ptrace.tracee.file.package.source_epoch":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		return ev.setIntFieldValue("ptrace.tracee.file.package.source_epoch", &ev.PTrace.Tracee.Process.FileEvent.PkgSrcEpoch, value)
+	case "ptrace.tracee.file.package.source_release":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		return ev.setStringFieldValue("ptrace.tracee.file.package.source_release", &ev.PTrace.Tracee.Process.FileEvent.PkgSrcRelease, value)
 	case "ptrace.tracee.file.package.source_version":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -39737,6 +44085,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.PTrace.Tracee = &ProcessContext{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "ptrace.tracee.interpreter.file.name.length"}
+	case "ptrace.tracee.interpreter.file.package.epoch":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		cont, err := SetInterpreterFields(&ev.PTrace.Tracee.Process.LinuxBinprm, "file.package.epoch", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setIntFieldValue("ptrace.tracee.interpreter.file.package.epoch", &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.PkgEpoch, value)
 	case "ptrace.tracee.interpreter.file.package.name":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -39746,6 +44103,33 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return err
 		}
 		return ev.setStringFieldValue("ptrace.tracee.interpreter.file.package.name", &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.PkgName, value)
+	case "ptrace.tracee.interpreter.file.package.release":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		cont, err := SetInterpreterFields(&ev.PTrace.Tracee.Process.LinuxBinprm, "file.package.release", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("ptrace.tracee.interpreter.file.package.release", &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.PkgRelease, value)
+	case "ptrace.tracee.interpreter.file.package.source_epoch":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		cont, err := SetInterpreterFields(&ev.PTrace.Tracee.Process.LinuxBinprm, "file.package.source_epoch", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setIntFieldValue("ptrace.tracee.interpreter.file.package.source_epoch", &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.PkgSrcEpoch, value)
+	case "ptrace.tracee.interpreter.file.package.source_release":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		cont, err := SetInterpreterFields(&ev.PTrace.Tracee.Process.LinuxBinprm, "file.package.source_release", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("ptrace.tracee.interpreter.file.package.source_release", &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.PkgSrcRelease, value)
 	case "ptrace.tracee.interpreter.file.package.source_version":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -40150,6 +44534,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "ptrace.tracee.parent.file.name.length"}
+	case "ptrace.tracee.parent.file.package.epoch":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Parent == nil {
+			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		return ev.setIntFieldValue("ptrace.tracee.parent.file.package.epoch", &ev.PTrace.Tracee.Parent.FileEvent.PkgEpoch, value)
 	case "ptrace.tracee.parent.file.package.name":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -40158,6 +44550,30 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
 		return ev.setStringFieldValue("ptrace.tracee.parent.file.package.name", &ev.PTrace.Tracee.Parent.FileEvent.PkgName, value)
+	case "ptrace.tracee.parent.file.package.release":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Parent == nil {
+			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		return ev.setStringFieldValue("ptrace.tracee.parent.file.package.release", &ev.PTrace.Tracee.Parent.FileEvent.PkgRelease, value)
+	case "ptrace.tracee.parent.file.package.source_epoch":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Parent == nil {
+			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		return ev.setIntFieldValue("ptrace.tracee.parent.file.package.source_epoch", &ev.PTrace.Tracee.Parent.FileEvent.PkgSrcEpoch, value)
+	case "ptrace.tracee.parent.file.package.source_release":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Parent == nil {
+			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		return ev.setStringFieldValue("ptrace.tracee.parent.file.package.source_release", &ev.PTrace.Tracee.Parent.FileEvent.PkgSrcRelease, value)
 	case "ptrace.tracee.parent.file.package.source_version":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -40438,6 +44854,18 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "ptrace.tracee.parent.interpreter.file.name.length"}
+	case "ptrace.tracee.parent.interpreter.file.package.epoch":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Parent == nil {
+			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.PTrace.Tracee.Parent.LinuxBinprm, "file.package.epoch", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setIntFieldValue("ptrace.tracee.parent.interpreter.file.package.epoch", &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.PkgEpoch, value)
 	case "ptrace.tracee.parent.interpreter.file.package.name":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -40450,6 +44878,42 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return err
 		}
 		return ev.setStringFieldValue("ptrace.tracee.parent.interpreter.file.package.name", &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.PkgName, value)
+	case "ptrace.tracee.parent.interpreter.file.package.release":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Parent == nil {
+			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.PTrace.Tracee.Parent.LinuxBinprm, "file.package.release", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("ptrace.tracee.parent.interpreter.file.package.release", &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.PkgRelease, value)
+	case "ptrace.tracee.parent.interpreter.file.package.source_epoch":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Parent == nil {
+			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.PTrace.Tracee.Parent.LinuxBinprm, "file.package.source_epoch", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setIntFieldValue("ptrace.tracee.parent.interpreter.file.package.source_epoch", &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.PkgSrcEpoch, value)
+	case "ptrace.tracee.parent.interpreter.file.package.source_release":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Parent == nil {
+			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.PTrace.Tracee.Parent.LinuxBinprm, "file.package.source_release", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("ptrace.tracee.parent.interpreter.file.package.source_release", &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.PkgSrcRelease, value)
 	case "ptrace.tracee.parent.interpreter.file.package.source_version":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -40705,8 +45169,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("removexattr.file.name", &ev.RemoveXAttr.File.BasenameStr, value)
 	case "removexattr.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "removexattr.file.name.length"}
+	case "removexattr.file.package.epoch":
+		return ev.setIntFieldValue("removexattr.file.package.epoch", &ev.RemoveXAttr.File.PkgEpoch, value)
 	case "removexattr.file.package.name":
 		return ev.setStringFieldValue("removexattr.file.package.name", &ev.RemoveXAttr.File.PkgName, value)
+	case "removexattr.file.package.release":
+		return ev.setStringFieldValue("removexattr.file.package.release", &ev.RemoveXAttr.File.PkgRelease, value)
+	case "removexattr.file.package.source_epoch":
+		return ev.setIntFieldValue("removexattr.file.package.source_epoch", &ev.RemoveXAttr.File.PkgSrcEpoch, value)
+	case "removexattr.file.package.source_release":
+		return ev.setStringFieldValue("removexattr.file.package.source_release", &ev.RemoveXAttr.File.PkgSrcRelease, value)
 	case "removexattr.file.package.source_version":
 		return ev.setStringFieldValue("removexattr.file.package.source_version", &ev.RemoveXAttr.File.PkgSrcVersion, value)
 	case "removexattr.file.package.version":
@@ -40755,8 +45227,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("rename.file.destination.name", &ev.Rename.New.BasenameStr, value)
 	case "rename.file.destination.name.length":
 		return &eval.ErrFieldReadOnly{Field: "rename.file.destination.name.length"}
+	case "rename.file.destination.package.epoch":
+		return ev.setIntFieldValue("rename.file.destination.package.epoch", &ev.Rename.New.PkgEpoch, value)
 	case "rename.file.destination.package.name":
 		return ev.setStringFieldValue("rename.file.destination.package.name", &ev.Rename.New.PkgName, value)
+	case "rename.file.destination.package.release":
+		return ev.setStringFieldValue("rename.file.destination.package.release", &ev.Rename.New.PkgRelease, value)
+	case "rename.file.destination.package.source_epoch":
+		return ev.setIntFieldValue("rename.file.destination.package.source_epoch", &ev.Rename.New.PkgSrcEpoch, value)
+	case "rename.file.destination.package.source_release":
+		return ev.setStringFieldValue("rename.file.destination.package.source_release", &ev.Rename.New.PkgSrcRelease, value)
 	case "rename.file.destination.package.source_version":
 		return ev.setStringFieldValue("rename.file.destination.package.source_version", &ev.Rename.New.PkgSrcVersion, value)
 	case "rename.file.destination.package.version":
@@ -40799,8 +45279,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("rename.file.name", &ev.Rename.Old.BasenameStr, value)
 	case "rename.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "rename.file.name.length"}
+	case "rename.file.package.epoch":
+		return ev.setIntFieldValue("rename.file.package.epoch", &ev.Rename.Old.PkgEpoch, value)
 	case "rename.file.package.name":
 		return ev.setStringFieldValue("rename.file.package.name", &ev.Rename.Old.PkgName, value)
+	case "rename.file.package.release":
+		return ev.setStringFieldValue("rename.file.package.release", &ev.Rename.Old.PkgRelease, value)
+	case "rename.file.package.source_epoch":
+		return ev.setIntFieldValue("rename.file.package.source_epoch", &ev.Rename.Old.PkgSrcEpoch, value)
+	case "rename.file.package.source_release":
+		return ev.setStringFieldValue("rename.file.package.source_release", &ev.Rename.Old.PkgSrcRelease, value)
 	case "rename.file.package.source_version":
 		return ev.setStringFieldValue("rename.file.package.source_version", &ev.Rename.Old.PkgSrcVersion, value)
 	case "rename.file.package.version":
@@ -40851,8 +45339,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("rmdir.file.name", &ev.Rmdir.File.BasenameStr, value)
 	case "rmdir.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "rmdir.file.name.length"}
+	case "rmdir.file.package.epoch":
+		return ev.setIntFieldValue("rmdir.file.package.epoch", &ev.Rmdir.File.PkgEpoch, value)
 	case "rmdir.file.package.name":
 		return ev.setStringFieldValue("rmdir.file.package.name", &ev.Rmdir.File.PkgName, value)
+	case "rmdir.file.package.release":
+		return ev.setStringFieldValue("rmdir.file.package.release", &ev.Rmdir.File.PkgRelease, value)
+	case "rmdir.file.package.source_epoch":
+		return ev.setIntFieldValue("rmdir.file.package.source_epoch", &ev.Rmdir.File.PkgSrcEpoch, value)
+	case "rmdir.file.package.source_release":
+		return ev.setStringFieldValue("rmdir.file.package.source_release", &ev.Rmdir.File.PkgSrcRelease, value)
 	case "rmdir.file.package.source_version":
 		return ev.setStringFieldValue("rmdir.file.package.source_version", &ev.Rmdir.File.PkgSrcVersion, value)
 	case "rmdir.file.package.version":
@@ -41229,6 +45725,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "setrlimit.target.ancestors.file.name.length"}
+	case "setrlimit.target.ancestors.file.package.epoch":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setIntFieldValue("setrlimit.target.ancestors.file.package.epoch", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.FileEvent.PkgEpoch, value)
 	case "setrlimit.target.ancestors.file.package.name":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -41237,6 +45741,30 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
 		}
 		return ev.setStringFieldValue("setrlimit.target.ancestors.file.package.name", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.FileEvent.PkgName, value)
+	case "setrlimit.target.ancestors.file.package.release":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setStringFieldValue("setrlimit.target.ancestors.file.package.release", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.FileEvent.PkgRelease, value)
+	case "setrlimit.target.ancestors.file.package.source_epoch":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setIntFieldValue("setrlimit.target.ancestors.file.package.source_epoch", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.FileEvent.PkgSrcEpoch, value)
+	case "setrlimit.target.ancestors.file.package.source_release":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setStringFieldValue("setrlimit.target.ancestors.file.package.source_release", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.FileEvent.PkgSrcRelease, value)
 	case "setrlimit.target.ancestors.file.package.source_version":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -41517,6 +46045,18 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "setrlimit.target.ancestors.interpreter.file.name.length"}
+	case "setrlimit.target.ancestors.interpreter.file.package.epoch":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm, "file.package.epoch", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setIntFieldValue("setrlimit.target.ancestors.interpreter.file.package.epoch", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgEpoch, value)
 	case "setrlimit.target.ancestors.interpreter.file.package.name":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -41529,6 +46069,42 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return err
 		}
 		return ev.setStringFieldValue("setrlimit.target.ancestors.interpreter.file.package.name", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgName, value)
+	case "setrlimit.target.ancestors.interpreter.file.package.release":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm, "file.package.release", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("setrlimit.target.ancestors.interpreter.file.package.release", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgRelease, value)
+	case "setrlimit.target.ancestors.interpreter.file.package.source_epoch":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm, "file.package.source_epoch", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setIntFieldValue("setrlimit.target.ancestors.interpreter.file.package.source_epoch", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgSrcEpoch, value)
+	case "setrlimit.target.ancestors.interpreter.file.package.source_release":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm, "file.package.source_release", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("setrlimit.target.ancestors.interpreter.file.package.source_release", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgSrcRelease, value)
 	case "setrlimit.target.ancestors.interpreter.file.package.source_version":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -41923,11 +46499,31 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target = &ProcessContext{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "setrlimit.target.file.name.length"}
+	case "setrlimit.target.file.package.epoch":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		return ev.setIntFieldValue("setrlimit.target.file.package.epoch", &ev.Setrlimit.Target.Process.FileEvent.PkgEpoch, value)
 	case "setrlimit.target.file.package.name":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
 		}
 		return ev.setStringFieldValue("setrlimit.target.file.package.name", &ev.Setrlimit.Target.Process.FileEvent.PkgName, value)
+	case "setrlimit.target.file.package.release":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		return ev.setStringFieldValue("setrlimit.target.file.package.release", &ev.Setrlimit.Target.Process.FileEvent.PkgRelease, value)
+	case "setrlimit.target.file.package.source_epoch":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		return ev.setIntFieldValue("setrlimit.target.file.package.source_epoch", &ev.Setrlimit.Target.Process.FileEvent.PkgSrcEpoch, value)
+	case "setrlimit.target.file.package.source_release":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		return ev.setStringFieldValue("setrlimit.target.file.package.source_release", &ev.Setrlimit.Target.Process.FileEvent.PkgSrcRelease, value)
 	case "setrlimit.target.file.package.source_version":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -42124,6 +46720,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target = &ProcessContext{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "setrlimit.target.interpreter.file.name.length"}
+	case "setrlimit.target.interpreter.file.package.epoch":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Process.LinuxBinprm, "file.package.epoch", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setIntFieldValue("setrlimit.target.interpreter.file.package.epoch", &ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent.PkgEpoch, value)
 	case "setrlimit.target.interpreter.file.package.name":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -42133,6 +46738,33 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return err
 		}
 		return ev.setStringFieldValue("setrlimit.target.interpreter.file.package.name", &ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent.PkgName, value)
+	case "setrlimit.target.interpreter.file.package.release":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Process.LinuxBinprm, "file.package.release", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("setrlimit.target.interpreter.file.package.release", &ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent.PkgRelease, value)
+	case "setrlimit.target.interpreter.file.package.source_epoch":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Process.LinuxBinprm, "file.package.source_epoch", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setIntFieldValue("setrlimit.target.interpreter.file.package.source_epoch", &ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent.PkgSrcEpoch, value)
+	case "setrlimit.target.interpreter.file.package.source_release":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Process.LinuxBinprm, "file.package.source_release", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("setrlimit.target.interpreter.file.package.source_release", &ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent.PkgSrcRelease, value)
 	case "setrlimit.target.interpreter.file.package.source_version":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -42537,6 +47169,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target.Parent = &Process{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "setrlimit.target.parent.file.name.length"}
+	case "setrlimit.target.parent.file.package.epoch":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		return ev.setIntFieldValue("setrlimit.target.parent.file.package.epoch", &ev.Setrlimit.Target.Parent.FileEvent.PkgEpoch, value)
 	case "setrlimit.target.parent.file.package.name":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -42545,6 +47185,30 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target.Parent = &Process{}
 		}
 		return ev.setStringFieldValue("setrlimit.target.parent.file.package.name", &ev.Setrlimit.Target.Parent.FileEvent.PkgName, value)
+	case "setrlimit.target.parent.file.package.release":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		return ev.setStringFieldValue("setrlimit.target.parent.file.package.release", &ev.Setrlimit.Target.Parent.FileEvent.PkgRelease, value)
+	case "setrlimit.target.parent.file.package.source_epoch":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		return ev.setIntFieldValue("setrlimit.target.parent.file.package.source_epoch", &ev.Setrlimit.Target.Parent.FileEvent.PkgSrcEpoch, value)
+	case "setrlimit.target.parent.file.package.source_release":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		return ev.setStringFieldValue("setrlimit.target.parent.file.package.source_release", &ev.Setrlimit.Target.Parent.FileEvent.PkgSrcRelease, value)
 	case "setrlimit.target.parent.file.package.source_version":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -42825,6 +47489,18 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target.Parent = &Process{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "setrlimit.target.parent.interpreter.file.name.length"}
+	case "setrlimit.target.parent.interpreter.file.package.epoch":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Parent.LinuxBinprm, "file.package.epoch", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setIntFieldValue("setrlimit.target.parent.interpreter.file.package.epoch", &ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent.PkgEpoch, value)
 	case "setrlimit.target.parent.interpreter.file.package.name":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -42837,6 +47513,42 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return err
 		}
 		return ev.setStringFieldValue("setrlimit.target.parent.interpreter.file.package.name", &ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent.PkgName, value)
+	case "setrlimit.target.parent.interpreter.file.package.release":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Parent.LinuxBinprm, "file.package.release", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("setrlimit.target.parent.interpreter.file.package.release", &ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent.PkgRelease, value)
+	case "setrlimit.target.parent.interpreter.file.package.source_epoch":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Parent.LinuxBinprm, "file.package.source_epoch", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setIntFieldValue("setrlimit.target.parent.interpreter.file.package.source_epoch", &ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent.PkgSrcEpoch, value)
+	case "setrlimit.target.parent.interpreter.file.package.source_release":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Parent.LinuxBinprm, "file.package.source_release", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("setrlimit.target.parent.interpreter.file.package.source_release", &ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent.PkgSrcRelease, value)
 	case "setrlimit.target.parent.interpreter.file.package.source_version":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -43136,8 +47848,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("setxattr.file.name", &ev.SetXAttr.File.BasenameStr, value)
 	case "setxattr.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "setxattr.file.name.length"}
+	case "setxattr.file.package.epoch":
+		return ev.setIntFieldValue("setxattr.file.package.epoch", &ev.SetXAttr.File.PkgEpoch, value)
 	case "setxattr.file.package.name":
 		return ev.setStringFieldValue("setxattr.file.package.name", &ev.SetXAttr.File.PkgName, value)
+	case "setxattr.file.package.release":
+		return ev.setStringFieldValue("setxattr.file.package.release", &ev.SetXAttr.File.PkgRelease, value)
+	case "setxattr.file.package.source_epoch":
+		return ev.setIntFieldValue("setxattr.file.package.source_epoch", &ev.SetXAttr.File.PkgSrcEpoch, value)
+	case "setxattr.file.package.source_release":
+		return ev.setStringFieldValue("setxattr.file.package.source_release", &ev.SetXAttr.File.PkgSrcRelease, value)
 	case "setxattr.file.package.source_version":
 		return ev.setStringFieldValue("setxattr.file.package.source_version", &ev.SetXAttr.File.PkgSrcVersion, value)
 	case "setxattr.file.package.version":
@@ -43488,6 +48208,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "signal.target.ancestors.file.name.length"}
+	case "signal.target.ancestors.file.package.epoch":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Ancestor == nil {
+			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setIntFieldValue("signal.target.ancestors.file.package.epoch", &ev.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.PkgEpoch, value)
 	case "signal.target.ancestors.file.package.name":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -43496,6 +48224,30 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
 		return ev.setStringFieldValue("signal.target.ancestors.file.package.name", &ev.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.PkgName, value)
+	case "signal.target.ancestors.file.package.release":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Ancestor == nil {
+			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setStringFieldValue("signal.target.ancestors.file.package.release", &ev.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.PkgRelease, value)
+	case "signal.target.ancestors.file.package.source_epoch":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Ancestor == nil {
+			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setIntFieldValue("signal.target.ancestors.file.package.source_epoch", &ev.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.PkgSrcEpoch, value)
+	case "signal.target.ancestors.file.package.source_release":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Ancestor == nil {
+			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setStringFieldValue("signal.target.ancestors.file.package.source_release", &ev.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.PkgSrcRelease, value)
 	case "signal.target.ancestors.file.package.source_version":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -43776,6 +48528,18 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "signal.target.ancestors.interpreter.file.name.length"}
+	case "signal.target.ancestors.interpreter.file.package.epoch":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Ancestor == nil {
+			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		cont, err := SetInterpreterFields(&ev.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm, "file.package.epoch", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setIntFieldValue("signal.target.ancestors.interpreter.file.package.epoch", &ev.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgEpoch, value)
 	case "signal.target.ancestors.interpreter.file.package.name":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -43788,6 +48552,42 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return err
 		}
 		return ev.setStringFieldValue("signal.target.ancestors.interpreter.file.package.name", &ev.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgName, value)
+	case "signal.target.ancestors.interpreter.file.package.release":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Ancestor == nil {
+			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		cont, err := SetInterpreterFields(&ev.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm, "file.package.release", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("signal.target.ancestors.interpreter.file.package.release", &ev.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgRelease, value)
+	case "signal.target.ancestors.interpreter.file.package.source_epoch":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Ancestor == nil {
+			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		cont, err := SetInterpreterFields(&ev.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm, "file.package.source_epoch", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setIntFieldValue("signal.target.ancestors.interpreter.file.package.source_epoch", &ev.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgSrcEpoch, value)
+	case "signal.target.ancestors.interpreter.file.package.source_release":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Ancestor == nil {
+			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		cont, err := SetInterpreterFields(&ev.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm, "file.package.source_release", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("signal.target.ancestors.interpreter.file.package.source_release", &ev.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgSrcRelease, value)
 	case "signal.target.ancestors.interpreter.file.package.source_version":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -44182,11 +48982,31 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target = &ProcessContext{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "signal.target.file.name.length"}
+	case "signal.target.file.package.epoch":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		return ev.setIntFieldValue("signal.target.file.package.epoch", &ev.Signal.Target.Process.FileEvent.PkgEpoch, value)
 	case "signal.target.file.package.name":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
 		}
 		return ev.setStringFieldValue("signal.target.file.package.name", &ev.Signal.Target.Process.FileEvent.PkgName, value)
+	case "signal.target.file.package.release":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		return ev.setStringFieldValue("signal.target.file.package.release", &ev.Signal.Target.Process.FileEvent.PkgRelease, value)
+	case "signal.target.file.package.source_epoch":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		return ev.setIntFieldValue("signal.target.file.package.source_epoch", &ev.Signal.Target.Process.FileEvent.PkgSrcEpoch, value)
+	case "signal.target.file.package.source_release":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		return ev.setStringFieldValue("signal.target.file.package.source_release", &ev.Signal.Target.Process.FileEvent.PkgSrcRelease, value)
 	case "signal.target.file.package.source_version":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -44383,6 +49203,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target = &ProcessContext{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "signal.target.interpreter.file.name.length"}
+	case "signal.target.interpreter.file.package.epoch":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		cont, err := SetInterpreterFields(&ev.Signal.Target.Process.LinuxBinprm, "file.package.epoch", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setIntFieldValue("signal.target.interpreter.file.package.epoch", &ev.Signal.Target.Process.LinuxBinprm.FileEvent.PkgEpoch, value)
 	case "signal.target.interpreter.file.package.name":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -44392,6 +49221,33 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return err
 		}
 		return ev.setStringFieldValue("signal.target.interpreter.file.package.name", &ev.Signal.Target.Process.LinuxBinprm.FileEvent.PkgName, value)
+	case "signal.target.interpreter.file.package.release":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		cont, err := SetInterpreterFields(&ev.Signal.Target.Process.LinuxBinprm, "file.package.release", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("signal.target.interpreter.file.package.release", &ev.Signal.Target.Process.LinuxBinprm.FileEvent.PkgRelease, value)
+	case "signal.target.interpreter.file.package.source_epoch":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		cont, err := SetInterpreterFields(&ev.Signal.Target.Process.LinuxBinprm, "file.package.source_epoch", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setIntFieldValue("signal.target.interpreter.file.package.source_epoch", &ev.Signal.Target.Process.LinuxBinprm.FileEvent.PkgSrcEpoch, value)
+	case "signal.target.interpreter.file.package.source_release":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		cont, err := SetInterpreterFields(&ev.Signal.Target.Process.LinuxBinprm, "file.package.source_release", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("signal.target.interpreter.file.package.source_release", &ev.Signal.Target.Process.LinuxBinprm.FileEvent.PkgSrcRelease, value)
 	case "signal.target.interpreter.file.package.source_version":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -44796,6 +49652,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target.Parent = &Process{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "signal.target.parent.file.name.length"}
+	case "signal.target.parent.file.package.epoch":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Parent == nil {
+			ev.Signal.Target.Parent = &Process{}
+		}
+		return ev.setIntFieldValue("signal.target.parent.file.package.epoch", &ev.Signal.Target.Parent.FileEvent.PkgEpoch, value)
 	case "signal.target.parent.file.package.name":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -44804,6 +49668,30 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target.Parent = &Process{}
 		}
 		return ev.setStringFieldValue("signal.target.parent.file.package.name", &ev.Signal.Target.Parent.FileEvent.PkgName, value)
+	case "signal.target.parent.file.package.release":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Parent == nil {
+			ev.Signal.Target.Parent = &Process{}
+		}
+		return ev.setStringFieldValue("signal.target.parent.file.package.release", &ev.Signal.Target.Parent.FileEvent.PkgRelease, value)
+	case "signal.target.parent.file.package.source_epoch":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Parent == nil {
+			ev.Signal.Target.Parent = &Process{}
+		}
+		return ev.setIntFieldValue("signal.target.parent.file.package.source_epoch", &ev.Signal.Target.Parent.FileEvent.PkgSrcEpoch, value)
+	case "signal.target.parent.file.package.source_release":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Parent == nil {
+			ev.Signal.Target.Parent = &Process{}
+		}
+		return ev.setStringFieldValue("signal.target.parent.file.package.source_release", &ev.Signal.Target.Parent.FileEvent.PkgSrcRelease, value)
 	case "signal.target.parent.file.package.source_version":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -45084,6 +49972,18 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target.Parent = &Process{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "signal.target.parent.interpreter.file.name.length"}
+	case "signal.target.parent.interpreter.file.package.epoch":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Parent == nil {
+			ev.Signal.Target.Parent = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Signal.Target.Parent.LinuxBinprm, "file.package.epoch", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setIntFieldValue("signal.target.parent.interpreter.file.package.epoch", &ev.Signal.Target.Parent.LinuxBinprm.FileEvent.PkgEpoch, value)
 	case "signal.target.parent.interpreter.file.package.name":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -45096,6 +49996,42 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return err
 		}
 		return ev.setStringFieldValue("signal.target.parent.interpreter.file.package.name", &ev.Signal.Target.Parent.LinuxBinprm.FileEvent.PkgName, value)
+	case "signal.target.parent.interpreter.file.package.release":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Parent == nil {
+			ev.Signal.Target.Parent = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Signal.Target.Parent.LinuxBinprm, "file.package.release", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("signal.target.parent.interpreter.file.package.release", &ev.Signal.Target.Parent.LinuxBinprm.FileEvent.PkgRelease, value)
+	case "signal.target.parent.interpreter.file.package.source_epoch":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Parent == nil {
+			ev.Signal.Target.Parent = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Signal.Target.Parent.LinuxBinprm, "file.package.source_epoch", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setIntFieldValue("signal.target.parent.interpreter.file.package.source_epoch", &ev.Signal.Target.Parent.LinuxBinprm.FileEvent.PkgSrcEpoch, value)
+	case "signal.target.parent.interpreter.file.package.source_release":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Parent == nil {
+			ev.Signal.Target.Parent = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Signal.Target.Parent.LinuxBinprm, "file.package.source_release", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("signal.target.parent.interpreter.file.package.source_release", &ev.Signal.Target.Parent.LinuxBinprm.FileEvent.PkgSrcRelease, value)
 	case "signal.target.parent.interpreter.file.package.source_version":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -45349,8 +50285,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("splice.file.name", &ev.Splice.File.BasenameStr, value)
 	case "splice.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "splice.file.name.length"}
+	case "splice.file.package.epoch":
+		return ev.setIntFieldValue("splice.file.package.epoch", &ev.Splice.File.PkgEpoch, value)
 	case "splice.file.package.name":
 		return ev.setStringFieldValue("splice.file.package.name", &ev.Splice.File.PkgName, value)
+	case "splice.file.package.release":
+		return ev.setStringFieldValue("splice.file.package.release", &ev.Splice.File.PkgRelease, value)
+	case "splice.file.package.source_epoch":
+		return ev.setIntFieldValue("splice.file.package.source_epoch", &ev.Splice.File.PkgSrcEpoch, value)
+	case "splice.file.package.source_release":
+		return ev.setStringFieldValue("splice.file.package.source_release", &ev.Splice.File.PkgSrcRelease, value)
 	case "splice.file.package.source_version":
 		return ev.setStringFieldValue("splice.file.package.source_version", &ev.Splice.File.PkgSrcVersion, value)
 	case "splice.file.package.version":
@@ -45417,8 +50361,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("unlink.file.name", &ev.Unlink.File.BasenameStr, value)
 	case "unlink.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "unlink.file.name.length"}
+	case "unlink.file.package.epoch":
+		return ev.setIntFieldValue("unlink.file.package.epoch", &ev.Unlink.File.PkgEpoch, value)
 	case "unlink.file.package.name":
 		return ev.setStringFieldValue("unlink.file.package.name", &ev.Unlink.File.PkgName, value)
+	case "unlink.file.package.release":
+		return ev.setStringFieldValue("unlink.file.package.release", &ev.Unlink.File.PkgRelease, value)
+	case "unlink.file.package.source_epoch":
+		return ev.setIntFieldValue("unlink.file.package.source_epoch", &ev.Unlink.File.PkgSrcEpoch, value)
+	case "unlink.file.package.source_release":
+		return ev.setStringFieldValue("unlink.file.package.source_release", &ev.Unlink.File.PkgSrcRelease, value)
 	case "unlink.file.package.source_version":
 		return ev.setStringFieldValue("unlink.file.package.source_version", &ev.Unlink.File.PkgSrcVersion, value)
 	case "unlink.file.package.version":
@@ -45477,8 +50429,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("utimes.file.name", &ev.Utimes.File.BasenameStr, value)
 	case "utimes.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "utimes.file.name.length"}
+	case "utimes.file.package.epoch":
+		return ev.setIntFieldValue("utimes.file.package.epoch", &ev.Utimes.File.PkgEpoch, value)
 	case "utimes.file.package.name":
 		return ev.setStringFieldValue("utimes.file.package.name", &ev.Utimes.File.PkgName, value)
+	case "utimes.file.package.release":
+		return ev.setStringFieldValue("utimes.file.package.release", &ev.Utimes.File.PkgRelease, value)
+	case "utimes.file.package.source_epoch":
+		return ev.setIntFieldValue("utimes.file.package.source_epoch", &ev.Utimes.File.PkgSrcEpoch, value)
+	case "utimes.file.package.source_release":
+		return ev.setStringFieldValue("utimes.file.package.source_release", &ev.Utimes.File.PkgSrcRelease, value)
 	case "utimes.file.package.source_version":
 		return ev.setStringFieldValue("utimes.file.package.source_version", &ev.Utimes.File.PkgSrcVersion, value)
 	case "utimes.file.package.version":

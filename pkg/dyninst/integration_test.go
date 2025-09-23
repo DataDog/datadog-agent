@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"math"
 	"os"
 	"path"
@@ -58,6 +59,7 @@ func TestDyninst(t *testing.T) {
 	var integrationTestPrograms = map[string]struct{}{
 		"simple": {},
 		"sample": {},
+		"fault":  {},
 	}
 
 	sem := dyninsttest.MakeSemaphore()
@@ -257,6 +259,7 @@ func testDyninst(
 
 	decoder, err := decode.NewDecoder(
 		sink.irp, (*decode.GoTypeNameResolver)(gotypeTable),
+		time.Now(),
 	)
 	require.NoError(t, err)
 
@@ -273,13 +276,13 @@ func testDyninst(
 			Event:       ev,
 			ServiceName: service,
 		}
-		var decodeOut bytes.Buffer
-		probe, err := decoder.Decode(event, cachingSymbolicator, &decodeOut)
+		decodeOut := []byte{}
+		decodeOut, probe, err := decoder.Decode(event, cachingSymbolicator, decodeOut)
 		require.NoError(t, err)
 		if os.Getenv("DEBUG") != "" {
-			t.Logf("Output: %s", decodeOut.String())
+			t.Logf("Output: %s", string(decodeOut))
 		}
-		redacted := redactJSON(t, "", decodeOut.Bytes(), defaultRedactors)
+		redacted := redactJSON(t, "", decodeOut, defaultRedactors)
 		if os.Getenv("DEBUG") != "" {
 			t.Logf("Sorted and redacted: %s", redacted)
 		}
@@ -340,25 +343,41 @@ func runIntegrationTestSuite(
 			t.Parallel()
 			bin := testprogs.MustGetBinary(t, service, cfg)
 			for _, debug := range []bool{false, true} {
-				runTest := func(t *testing.T, probeSlice []ir.ProbeDefinition) {
+				runTest := func(t *testing.T, probeSlice []ir.ProbeDefinition) map[string][]json.RawMessage {
 					t.Parallel()
 					actual := testDyninst(
 						t, service, bin, probeSlice, rewrite, expectedOutput,
 						debug, sem,
 					)
 					if t.Failed() {
-						return
+						return nil
 					}
 					outputs.Lock()
 					defer outputs.Unlock()
 					outputs.byTest[t.Name()] = actual
+					return actual
 				}
 				t.Run(fmt.Sprintf("debug=%t", debug), func(t *testing.T) {
 					if debug && testing.Short() {
 						t.Skip("skipping debug with short")
 					}
 					t.Parallel()
-					t.Run("all-probes", func(t *testing.T) { runTest(t, probes) })
+					t.Run("all-probes", func(t *testing.T) {
+						got := runTest(t, probes)
+						if got == nil || rewrite || debug {
+							return
+						}
+						// Ensure that we don't have any unexpected probes on
+						// disk.
+						unexpectedProbes := slices.DeleteFunc(
+							slices.Collect(maps.Keys(expectedOutput)),
+							func(id string) bool { _, ok := got[id]; return ok },
+						)
+						require.Empty(
+							t, unexpectedProbes,
+							"output has probes that are not expected",
+						)
+					})
 					for i := range probes {
 						probeID := probes[i].GetID()
 						t.Run(probeID, func(t *testing.T) {
