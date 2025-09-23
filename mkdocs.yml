@@ -104,7 +104,7 @@ nav:
   - Images:
     - Developer environment: reference/images/dev.md
     - Builders: reference/images/builders.md
-  - Buildable targets:
+  - Agent buildables:
     - Agent components: reference/builds/components.md
 
 watch:

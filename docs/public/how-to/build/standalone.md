@@ -44,22 +44,26 @@ The set of features enabled by default (i.e. with no flag) depends on the build 
 If you want to replicate the same configuration of the Agent as the one distributed in system packages, you need to use this default set of features - so **no flag needs to be passed**.
 ///
 
-??? tip "Determining the default set of features"
-    The default set of features is determined by the [`get_default_build_tags` method](https://github.com/DataDog/datadog-agent/blob/main/tasks/build_tags.py#L394).
+/// details | Determining the default set of features
+    open: False
+    type: tip
 
-    There is a command you can use to print out the default build tags for your build context:
-    ```bash
-    dda inv print-default-build-tags
-    ```
+The default set of features is determined by the [`get_default_build_tags` method](https://github.com/DataDog/datadog-agent/blob/main/tasks/build_tags.py#L394).
 
-    You can give more info about your build context using the `-b`, `-f` and `-p` flags:
-    ```bash
-    dda inv print-default-build-tags -b otel-agent -p windows
-    > otlp,zlib,zstd
-    dda inv print-default-build-tags -f fips
-    > bundle_installer,consul,datadog.no_waf,ec2,etcd,fargateprocess,goexperiment.systemcrypto,grpcnotrace,jmx,kubeapiserver,kubelet,ncm,oracle,orchestrator,otlp,python,requirefips,trivy_no_javadb,zk,zlib,zstd
-    ```
-    Run `dda inv print-default-build-tags --help` for more details.
+There is a command you can use to print out the default build tags for your build context:
+```bash
+dda inv print-default-build-tags
+```
+
+You can give more info about your build context using the `-b`, `-f` and `-p` flags:
+```bash
+dda inv print-default-build-tags -b otel-agent -p windows
+> otlp,zlib,zstd
+dda inv print-default-build-tags -f fips
+> bundle_installer,consul,datadog.no_waf,ec2,etcd,fargateprocess,goexperiment.systemcrypto,grpcnotrace,jmx,kubeapiserver,kubelet,ncm,oracle,orchestrator,otlp,python,requirefips,trivy_no_javadb,zk,zlib,zstd
+```
+Run `dda inv print-default-build-tags --help` for more details.
+///
 
 /// example
 To include the `zstd`, `etcd` and `python` features:
@@ -100,17 +104,21 @@ dda inv agent.build --bundle process-agent --bundle security-agent
 ```
 ///
 
-??? info "Under the hood"
-    Making a bundle - combining functionality from multiple binaries - just corresponds to building an agent binary including the source code from the others.
+// details | Under the hood
+    open: False
+    type: info
 
-    Like other features, this is accomplished through Go build constraints. Under the hood, building with a `--bundle` argument simply corresponds to including a special agent "feature".
-    > Those special features are named in a predictable pattern: `bundle_<binary name>`, ex: `bundle_process_agent`.
+Making a bundle - combining functionality from multiple binaries - just corresponds to building an agent binary including the source code from the others.
 
-    Thus, the following two commands are equivalent:
-    ```bash
-    dda inv agent.build --bundle process-agent --bundle security-agent
-    dda inv agent.build --build-include=bundle_process_agent,bundle_security_agent
-    ```
+Like other features, this is accomplished through Go build constraints. Under the hood, building with a `--bundle` argument simply corresponds to including a special agent "feature".
+> Those special features are named in a predictable pattern: `bundle_<binary name>`, ex: `bundle_process_agent`.
+
+Thus, the two following commands are equivalent:
+```bash
+dda inv agent.build --bundle process-agent --bundle security-agent
+dda inv agent.build --build-include=bundle_process_agent,bundle_security_agent
+```
+///
 
 ### Using an agent bundle
 
