@@ -60,8 +60,8 @@ func (ic *inventorychecksImpl) getJMXChecksMetadata() (jmxMetadata map[string][]
 				scrubbedInstanceYaml, err := scrubber.ScrubYaml(instanceYaml)
 				if err != nil {
 					ic.log.Warnf("could not scrub JMX instance config for %s: %v", jmxName, err)
-					// Return early if scrubbing fails to avoid sending unscrubbed data
-					return
+					// Continue to next instance if scrubbing fails in order to avoid sending unscrubbed data
+					continue
 				}
 
 				if instance["name"] != nil {
