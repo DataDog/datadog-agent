@@ -17,15 +17,33 @@ import (
 // key.
 func FromConfig(cfg config.Reader) common.Compressor {
 	kind := cfg.GetString("serializer_compressor_kind")
-	var level int
 
 	switch kind {
 	case common.ZstdKind:
-		level = cfg.GetInt("serializer_zstd_compressor_level")
+		level := cfg.GetInt("serializer_zstd_compressor_level")
+		strategy := cfg.GetInt("serializer_zstd_strategy")
+		chain := cfg.GetInt("serializer_zstd_chain")
+		window := cfg.GetInt("serializer_zstd_window")
+		hash := cfg.GetInt("serializer_zstd_hash")
+		searchlog := cfg.GetInt("serializer_zstd_searchlog")
+		minmatch := cfg.GetInt("serializer_zstd_minmatch")
+		numworkers := cfg.GetInt("serializer_zstd_numworkers")
+
+		return NewTunedCompressor(
+			kind,
+			level,
+			strategy,
+			chain,
+			window,
+			hash,
+			searchlog,
+			minmatch,
+			numworkers,
+		)
 	case common.GzipKind:
 		// There is no configuration option for gzip compression level when set via this method.
-		level = 6
+		return NewCompressor(kind, 6)
+	default:
+		return NewCompressor(kind, 0)
 	}
-
-	return NewCompressor(kind, level)
 }
