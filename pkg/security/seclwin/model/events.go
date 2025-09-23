@@ -313,12 +313,12 @@ func (t EventType) String() string {
 		return "capabilities"
 	case PrCtlEventType:
 		return "prctl"
-	case FileMoveMountEventType:
-		return "move_mount"
 	case FileFsmountEventType:
 		return "fsmount"
 	case FileOpenTreeEventType:
 		return "open_tree"
+	case FileMoveMountEventType:
+		return "move_mount"
 	default:
 		return "unknown"
 	}
