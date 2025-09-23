@@ -37,6 +37,7 @@ import (
 	com_datadoghq_mongodb "github.com/DataDog/datadog-agent/pkg/privateactionrunner/private-bundles/com/datadoghq/mongodb"
 	com_datadoghq_postgresql "github.com/DataDog/datadog-agent/pkg/privateactionrunner/private-bundles/com/datadoghq/postgresql"
 	com_datadoghq_script "github.com/DataDog/datadog-agent/pkg/privateactionrunner/private-bundles/com/datadoghq/script"
+	com_datadoghq_temporal "github.com/DataDog/datadog-agent/pkg/privateactionrunner/private-bundles/com/datadoghq/temporal"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
@@ -78,6 +79,7 @@ func NewRegistry(_ *config.Config) *Registry {
 			"com.datadoghq.mongodb":                    com_datadoghq_mongodb.NewMongoDB(),
 			"com.datadoghq.postgresql":                 com_datadoghq_postgresql.NewPostgreSQL(),
 			"com.datadoghq.script":                     com_datadoghq_script.NewScript(),
+			"com.datadoghq.temporal":                   com_datadoghq_temporal.NewTemporal(),
 		},
 	}
 }

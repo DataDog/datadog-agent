@@ -1,0 +1,68 @@
+package com_datadoghq_temporal
+
+import (
+	"context"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	v112 "go.temporal.io/api/workflow/v1"
+	workflowService "go.temporal.io/api/workflowservice/v1"
+
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+)
+
+type ListWorkflowsHandler struct{}
+
+func NewListWorkflowsHandler() *ListWorkflowsHandler {
+	return &ListWorkflowsHandler{}
+}
+
+type ListWorkflowsInputs struct {
+	Query     string `json:"query,omitempty"`
+	Namespace string `json:"namespace,omitempty"`
+}
+
+type ListWorkflowsOutputs struct {
+	Workflows []*v112.WorkflowExecutionInfo `json:"workflows"`
+}
+
+func (h *ListWorkflowsHandler) Run(
+	ctx context.Context,
+	task *types.Task,
+	credentials interface{},
+) (interface{}, error) {
+	inputs, err := types.ExtractInputs[ListWorkflowsInputs](task)
+	if err != nil {
+		return nil, err
+	}
+
+	namespace := inputs.Namespace
+	if inputs.Namespace == "" {
+		namespace = "default"
+	}
+	temporalClient, err := newTemporalClient(ctx, credentials, namespace)
+	if err != nil {
+		return nil, err
+	}
+	defer temporalClient.Close()
+
+	request := &workflowService.ListWorkflowExecutionsRequest{
+		Namespace: namespace,
+		Query:     inputs.Query,
+	}
+
+	workflows, err := temporalClient.ListWorkflow(ctx, request)
+	if err != nil {
+		log.Warn("Unable to list workflows.")
+		return nil, err
+	}
+
+	workflowsExecutions := []*v112.WorkflowExecutionInfo{}
+
+	if workflows != nil {
+		workflowsExecutions = workflows.Executions
+	}
+
+	return &ListWorkflowsOutputs{
+		Workflows: workflowsExecutions,
+	}, nil
+}
