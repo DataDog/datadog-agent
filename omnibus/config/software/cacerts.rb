@@ -48,6 +48,6 @@ build do
     command "bazelisk run -- //deps/cacerts:install --destdir='#{install_dir}/embedded'", \
       cwd: "#{Omnibus::Config.project_root()}/.."
     # For debugging. Keep until we delete this file
-    command "ls -lR #{install_dir}/embedded", live_stream: true
+    command "ls -lR #{install_dir}/embedded 1>&2"
   end
 end
