@@ -47,15 +47,10 @@ func (s *dpkgScanner) ListPackages(_ context.Context, root *os.Root) ([]sbomtype
 
 	pkgsWithFiles := make([]sbomtypes.PackageWithInstalledFiles, 0, len(pkgs))
 	for _, pkg := range pkgs {
-		pkg := sbomtypes.PackageWithInstalledFiles{
-			Package: sbomtypes.Package{
-				Name:       pkg.Name,
-				Version:    pkg.Version,
-				SrcVersion: pkg.SrcVersion,
-			},
+		pkgsWithFiles = append(pkgsWithFiles, sbomtypes.PackageWithInstalledFiles{
+			Package:        pkg,
 			InstalledFiles: installedFiles[pkg.Name],
-		}
-		pkgsWithFiles = append(pkgsWithFiles, pkg)
+		})
 	}
 
 	return pkgsWithFiles, nil

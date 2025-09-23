@@ -1563,7 +1563,7 @@ func (p *WindowsProbe) GetEventTags(_ containerutils.ContainerID) []string {
 }
 
 func (p *WindowsProbe) zeroEvent() *model.Event {
-	p.event.Zero()
+	probeEventZeroer(p.event)
 	p.event.FieldHandlers = p.fieldHandlers
 	return p.event
 }
