@@ -54,35 +54,36 @@ func (s *MacroStore) Contains(id string) bool {
 	return s.Get(id) != nil
 }
 
-// VariableStore represents a store of SECL variables
-type VariableStore struct {
-	Variables map[string]SECLVariable
-}
+// // VariableStore represents a store of SECL variables
+// type VariableStore struct {
+// 	Variables map[string]SECLVariable
+// }
 
-// Add adds a variable
-func (s *VariableStore) Add(name string, variable SECLVariable) *VariableStore {
-	if s.Variables == nil {
-		s.Variables = make(map[string]SECLVariable)
-	}
-	s.Variables[name] = variable
-	return s
-}
+// // Add adds a variable
+// func (s *VariableStore) Add(name string, variable SECLVariable) *VariableStore {
+// 	if s.Variables == nil {
+// 		s.Variables = make(map[string]SECLVariable)
+// 	}
+// 	s.Variables[name] = variable
+// 	return s
+// }
 
-// Get returns the variable
-func (s *VariableStore) Get(name string) SECLVariable {
-	if s == nil || s.Variables == nil {
-		return nil
-	}
-	return s.Variables[name]
-}
+// // Get returns the variable
+// func (s *VariableStore) Get(name string) SECLVariable {
+// 	if s == nil || s.Variables == nil {
+// 		return nil
+// 	}
+// 	return s.Variables[name]
+// }
 
 // Opts are the options to be passed to the evaluator
 type Opts struct {
-	LegacyFields  map[Field]Field
-	Constants     map[string]interface{}
-	VariableStore *VariableStore
-	MacroStore    *MacroStore
-	Telemetry     *Telemetry
+	LegacyFields map[Field]Field
+	Constants    map[string]interface{}
+	// VariableStore *VariableStore
+	MacroStore *MacroStore
+	Telemetry  *Telemetry
+	NewStore   *Store
 }
 
 // WithConstants set constants
@@ -92,20 +93,21 @@ func (o *Opts) WithConstants(constants map[string]interface{}) *Opts {
 }
 
 // WithVariables set variables
-func (o *Opts) WithVariables(variables map[string]SECLVariable) *Opts {
-	if o.VariableStore == nil {
-		o.VariableStore = &VariableStore{}
+func (o *Opts) WithVariables(variables map[string]StaticVariable) *Opts {
+	if o.NewStore == nil {
+		o.NewStore = NewStore()
 	}
 
 	for n, v := range variables {
-		o.VariableStore.Add(n, v)
+		o.NewStore.AddStaticVariable(VariableName(n), v)
 	}
+
 	return o
 }
 
 // WithVariableStore set the variable store
-func (o *Opts) WithVariableStore(store *VariableStore) *Opts {
-	o.VariableStore = store
+func (o *Opts) WithVariableStore(store *Store) *Opts {
+	o.NewStore = store
 	return o
 }
 
@@ -131,11 +133,11 @@ func (o *Opts) AddMacro(macro *Macro) *Opts {
 }
 
 // AddVariable add a variable
-func (o *Opts) AddVariable(name string, variable SECLVariable) *Opts {
-	if o.VariableStore == nil {
-		o.VariableStore = &VariableStore{}
+func (o *Opts) AddVariable(name string, variable StaticVariable) *Opts {
+	if o.NewStore == nil {
+		o.NewStore = NewStore()
 	}
-	o.VariableStore.Add(name, variable)
+	o.NewStore.AddStaticVariable(VariableName(name), variable)
 	return o
 }
 

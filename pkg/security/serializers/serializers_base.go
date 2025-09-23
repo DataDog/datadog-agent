@@ -10,7 +10,6 @@ package serializers
 import (
 	"fmt"
 	"slices"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/rules/bundled"
@@ -434,14 +433,14 @@ func NewBaseEventSerializer(event *model.Event, rule *rules.Rule) *BaseEventSeri
 	s := &BaseEventSerializer{
 		EventContextSerializer: EventContextSerializer{
 			Name:        eventType.String(),
-			Variables:   newVariablesContext(event, rule, ""),
+			Variables:   newVariablesContext(event, rule, eval.GlobalScoperType),
 			RuleContext: newRuleContext(event, rule),
 		},
 		ProcessContextSerializer: newProcessContextSerializer(pc, event),
 		Date:                     utils.NewEasyjsonTime(event.ResolveEventTime()),
 	}
 	if s.ProcessContextSerializer != nil {
-		s.ProcessContextSerializer.Variables = newVariablesContext(event, rule, "process.")
+		s.ProcessContextSerializer.Variables = newVariablesContext(event, rule, eval.ProcessScoperType)
 	}
 
 	if event.IsAnomalyDetectionEvent() && len(event.Rules) > 0 {
@@ -505,59 +504,101 @@ func newRuleContext(e *model.Event, rule *rules.Rule) RuleContext {
 	return ruleContext
 }
 
-func newVariablesContext(e *model.Event, rule *rules.Rule, prefix string) (variables Variables) {
-	if rule != nil && rule.Opts.VariableStore != nil {
-		store := rule.Opts.VariableStore
-		for name, variable := range store.Variables {
-			// do not serialize hardcoded variables like process.pid
-			if _, found := model.SECLVariables[name]; found {
+func newVariablesContext(e *model.Event, rule *rules.Rule, scope eval.InternalScoperType) (variables Variables) {
+	if rule != nil && rule.Opts.NewStore != nil {
+		store := rule.Opts.NewStore
+		for definition := range store.GetDefinitions(&eval.GetOpts{ScoperType: scope}) {
+			if slices.Contains(bundled.InternalVariables[:], definition.GetName(true)) {
 				continue
 			}
 
-			if slices.Contains(bundled.InternalVariables[:], name) {
+			if definition.IsPrivate() {
 				continue
 			}
 
-			if (prefix != "" && !strings.HasPrefix(name, prefix)) ||
-				(prefix == "" && strings.Contains(name, ".")) {
+			instance, err := definition.GetInstance(eval.NewContext(e))
+			if err != nil || instance == nil {
 				continue
 			}
-
-			// Skip private variables
-			if variable.GetVariableOpts().Private {
-				continue
+			if variables == nil {
+				variables = Variables{}
 			}
-
-			evaluator := variable.GetEvaluator()
-			if evaluator, ok := evaluator.(eval.Evaluator); ok {
-				value := evaluator.Eval(eval.NewContext(e))
-				if variables == nil {
-					variables = Variables{}
-				}
-				if value != nil {
-					trimmedName := strings.TrimPrefix(name, prefix)
-					switch value := value.(type) {
-					case []string:
-						scrubbedValues := make([]string, 0, len(value))
-						for _, elem := range value {
-							if scrubbed, err := scrubber.ScrubString(elem); err == nil {
-								scrubbedValues = append(scrubbedValues, scrubbed)
-							}
-						}
-						variables[trimmedName] = scrubbedValues
-					case string:
-						if scrubbed, err := scrubber.ScrubString(value); err == nil {
-							variables[trimmedName] = scrubbed
-						}
-					default:
-						variables[trimmedName] = value
+			name := definition.GetName(false)
+			value := instance.GetValue()
+			switch value := value.(type) {
+			case []string:
+				scrubbedValues := make([]string, 0, len(value))
+				for _, elem := range value {
+					if scrubbed, err := scrubber.ScrubString(elem); err == nil {
+						scrubbedValues = append(scrubbedValues, scrubbed)
 					}
 				}
+				variables[name] = scrubbedValues
+			case string:
+				if scrubbed, err := scrubber.ScrubString(value); err == nil {
+					variables[name] = scrubbed
+				}
+			default:
+				variables[name] = value
 			}
 		}
 	}
 	return variables
 }
+
+// func newVariablesContext(e *model.Event, rule *rules.Rule, prefix string) (variables Variables) {
+// 	if rule != nil && rule.Opts.VariableStore != nil {
+// 		store := rule.Opts.VariableStore
+// 		for name, variable := range store.Variables {
+// 			// do not serialize hardcoded variables like process.pid
+// 			if _, found := model.SECLVariables[name]; found {
+// 				continue
+// 			}
+
+// 			if slices.Contains(bundled.InternalVariables[:], name) {
+// 				continue
+// 			}
+
+// 			if (prefix != "" && !strings.HasPrefix(name, prefix)) ||
+// 				(prefix == "" && strings.Contains(name, ".")) {
+// 				continue
+// 			}
+
+// 			// Skip private variables
+// 			if variable.GetVariableOpts().Private {
+// 				continue
+// 			}
+
+// 			evaluator := variable.GetEvaluator()
+// 			if evaluator, ok := evaluator.(eval.Evaluator); ok {
+// 				value := evaluator.Eval(eval.NewContext(e))
+// 				if variables == nil {
+// 					variables = Variables{}
+// 				}
+// 				if value != nil {
+// 					trimmedName := strings.TrimPrefix(name, prefix)
+// 					switch value := value.(type) {
+// 					case []string:
+// 						scrubbedValues := make([]string, 0, len(value))
+// 						for _, elem := range value {
+// 							if scrubbed, err := scrubber.ScrubString(elem); err == nil {
+// 								scrubbedValues = append(scrubbedValues, scrubbed)
+// 							}
+// 						}
+// 						variables[trimmedName] = scrubbedValues
+// 					case string:
+// 						if scrubbed, err := scrubber.ScrubString(value); err == nil {
+// 							variables[trimmedName] = scrubbed
+// 						}
+// 					default:
+// 						variables[trimmedName] = value
+// 					}
+// 				}
+// 			}
+// 		}
+// 	}
+// 	return variables
+// }
 
 // EventStringerWrapper an event stringer wrapper
 type EventStringerWrapper struct {
