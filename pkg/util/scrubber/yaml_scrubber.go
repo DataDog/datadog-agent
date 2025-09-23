@@ -128,10 +128,11 @@ func (c *Scrubber) ScrubYaml(input []byte) ([]byte, error) {
 		encoder.SetIndent(2)
 		if err := encoder.Encode(&data); err != nil {
 			fmt.Fprintf(os.Stderr, "error scrubbing YAML, falling back on text scrubber: %s\n", err)
-		} else {
-			input = buffer.Bytes()
+			return c.ScrubBytes(input)
 		}
+		input = buffer.Bytes()
 		encoder.Close()
+		return input, nil
 	}
 	return c.ScrubBytes(input)
 }
