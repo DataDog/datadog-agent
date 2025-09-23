@@ -19,10 +19,10 @@ static __always_inline int http_responding(http_transaction_t *http) {
 
 static __always_inline void http_begin_request(http_transaction_t *http, http_method_t method, char *buffer) {
     http->request_method = method;
-    http->request_started = bpf_ktime_get_ns();
     http->response_last_seen = 0;
     http->response_status_code = 0;
     bpf_memcpy(&http->request_fragment, buffer, HTTP_BUFFER_SIZE);
+    http->request_started = bpf_ktime_get_ns();
     log_debug("http_begin_request: htx=%p method=%d start=%llx", http, http->request_method, http->request_started);
 }
 
