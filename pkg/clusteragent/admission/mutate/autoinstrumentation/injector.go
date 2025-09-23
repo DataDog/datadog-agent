@@ -200,7 +200,6 @@ func injectorWithImageTag(tag string, imageResolver ImageResolver) injectorOptio
 		}
 		log.Debugf("No resolved image found for %s/apm-inject:%s, falling back to tag-based image", i.registry, tag)
 		i.image = fmt.Sprintf("%s/apm-inject:%s", i.registry, tag)
-		// ERIKA: Probably can leave this blank since it's redundant for mutable tags?
 		i.canonicalVersion = ""
 	}
 }

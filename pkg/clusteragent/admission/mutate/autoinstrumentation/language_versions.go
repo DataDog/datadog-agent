@@ -177,7 +177,7 @@ type libInfo struct {
 	tag              string
 }
 
-func (i libInfo) podMutator(v version, opts libRequirementOptions, imageResolver ImageResolver) podMutator {
+func (i *libInfo) podMutator(v version, opts libRequirementOptions, imageResolver ImageResolver) podMutator {
 	return podMutatorFunc(func(pod *corev1.Pod) error {
 		reqs, ok := i.libRequirement(v, imageResolver)
 		if !ok {
@@ -190,8 +190,6 @@ func (i libInfo) podMutator(v version, opts libRequirementOptions, imageResolver
 		reqs.libRequirementOptions = opts
 		if i.canonicalVersion != "" {
 			mutatecommon.AddAnnotation(pod, fmt.Sprintf("admission.datadoghq.com/%s-canonical-version", i.lang), i.canonicalVersion)
-		} else {
-			mutatecommon.AddAnnotation(pod, fmt.Sprintf("admission.datadoghq.com/%s-canonical-version", i.lang), i.tag)
 		}
 
 		if err := reqs.injectPod(pod, i.ctrName); err != nil {
@@ -204,7 +202,7 @@ func (i libInfo) podMutator(v version, opts libRequirementOptions, imageResolver
 
 // initContainers is which initContainers we are injecting
 // into the pod that runs for this language.
-func (i libInfo) initContainers(v version, resolver ImageResolver) []initContainer {
+func (i *libInfo) initContainers(v version, resolver ImageResolver) []initContainer {
 	var (
 		args, command []string
 		mounts        []corev1.VolumeMount
@@ -260,7 +258,7 @@ func (i libInfo) initContainers(v version, resolver ImageResolver) []initContain
 	}
 }
 
-func (i libInfo) volumeMount(v version) volumeMount {
+func (i *libInfo) volumeMount(v version) volumeMount {
 	if v.usesInjector() {
 		return v2VolumeMountLibrary
 	}
@@ -268,7 +266,7 @@ func (i libInfo) volumeMount(v version) volumeMount {
 	return v1VolumeMount
 }
 
-func (i libInfo) envVars(v version) []envVar {
+func (i *libInfo) envVars(v version) []envVar {
 	if v.usesInjector() {
 		return nil
 	}
@@ -339,7 +337,7 @@ func (i libInfo) envVars(v version) []envVar {
 	}
 }
 
-func (i libInfo) libRequirement(v version, resolver ImageResolver) (libRequirement, bool) {
+func (i *libInfo) libRequirement(v version, resolver ImageResolver) (libRequirement, bool) {
 	if !i.lang.isSupported() {
 		return libRequirement{}, false
 	}
