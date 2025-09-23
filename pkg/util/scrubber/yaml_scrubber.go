@@ -80,8 +80,8 @@ func walk(data *interface{}, callback scrubCallback) {
 	}
 }
 
-// Borrowed from comp/core/secrets/utils
 // IsEnc returns true is the string match the 'ENC[...]' format
+// Borrowed from comp/core/secrets/utils
 func IsEnc(str string) (bool, string) {
 	// trimming space and tabs
 	str = strings.Trim(str, " 	")
