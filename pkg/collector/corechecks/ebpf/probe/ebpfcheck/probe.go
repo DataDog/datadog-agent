@@ -15,6 +15,8 @@ import (
 	"hash/fnv"
 	"io"
 	"math/rand"
+	"os"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -601,7 +603,7 @@ func (k *Probe) readSingleMap(mapid ebpf.MapID) (*model.EBPFMapStats, error) {
 			return nil, err
 		}
 	case ebpf.Hash, ebpf.LRUHash, ebpf.PerCPUHash, ebpf.LRUCPUHash, ebpf.HashOfMaps:
-		baseMapStats.MaxSize, baseMapStats.RSS = hashMapMemoryUsage(info, uint64(k.nrcpus))
+		baseMapStats.MaxSize, baseMapStats.RSS = hashMapMemoryUsage(mp.FD(), info, uint64(k.nrcpus))
 		if module != "unknown" {
 			// hashMapNumberOfEntries might allocate memory, so we only do it if we have a module name, as
 			// unknown modules get discarded anyway (only RSS is used for total counts)
@@ -704,12 +706,23 @@ func isLRU(typ ebpf.MapType) bool {
 	return false
 }
 
-func hashMapMemoryUsage(info *ebpf.MapInfo, nrCPUS uint64) (max uint64, rss uint64) {
+func hashMapMemoryUsage(fd int, info *ebpf.MapInfo, nrCPUS uint64) (max uint64, rss uint64) {
+	prealloc := (info.Flags & unix.BPF_F_NO_PREALLOC) == 0
+
+	// memory usage is hard to approximate for non-preallocated maps, so we need to read it from fdinfo.
+	// support for precise memory footprint counting has been introduced since kernel 6.4+
+	if !prealloc && preciseMapMemUsageSupported() {
+		usage := readPreciseMapMemUsageFromFdInfo(fd)
+		if usage != 0 {
+			return usage, usage
+		}
+	}
+
+	// as a fallback we approximate memory usage by mimic-ing the kernel's logic
 	valueSize := uint64(roundUpPow2(info.ValueSize, 8))
 	keySize := uint64(roundUpPow2(info.KeySize, 8))
 	perCPU := isPerCPU(info.Type)
 	lru := isLRU(info.Type)
-	//prealloc := (info.Flags & unix.BPF_F_NO_PREALLOC) == 0
 	hasExtraElems := !perCPU && !lru
 
 	nBuckets := uint64(roundUpNearestPow2(info.MaxEntries))
@@ -717,9 +730,6 @@ func hashMapMemoryUsage(info *ebpf.MapInfo, nrCPUS uint64) (max uint64, rss uint
 	usage += sizeOfBucket * nBuckets
 	// could we get the size of the locks more directly with BTF?
 	usage += sizeOfInt * nrCPUS * hashtabMapLockCount
-
-	// TODO proper support of non-preallocated maps, will require coordination with eBPF to read size (if possible)
-	//if prealloc {
 
 	numEntries := uint64(info.MaxEntries)
 	if hasExtraElems {
@@ -739,11 +749,6 @@ func hashMapMemoryUsage(info *ebpf.MapInfo, nrCPUS uint64) (max uint64, rss uint
 	} else if !lru {
 		usage += sizeOfPointer * nrCPUS
 	}
-
-	//
-	//} else { // !prealloc
-	//
-	//}
 
 	return usage, usage
 }
@@ -1191,4 +1196,41 @@ func hashMapNumberOfEntriesWithHelper(mp *ebpf.Map, mapid ebpf.MapID, mphCache *
 	}
 
 	return int64(res), nil
+}
+
+// https://lwn.net/ml/linux-mm/20230202014158.19616-6-laoar.shao@gmail.com/
+// https://github.com/torvalds/linux/commit/304849a27b341cf22d5c15096144cc8c1b69e0c0
+func preciseMapMemUsageSupported() bool {
+	kv, err := kernel.HostVersion()
+	if err != nil {
+		return false
+	}
+
+	return kv >= kernel.VersionCode(6, 4, 0)
+}
+
+// https://elixir.bootlin.com/linux/v6.4/source/kernel/bpf/syscall.c#L804
+func readPreciseMapMemUsageFromFdInfo(fd int) uint64 {
+	fdInfo, err := os.ReadFile(fmt.Sprintf("/proc/self/fdinfo/%d", fd))
+	if err != nil {
+		return 0
+	}
+
+	for _, line := range strings.SplitN(string(fdInfo), "\n", 10) {
+		if !strings.HasPrefix(line, "memlock:") {
+			continue
+		}
+
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+
+		memUsage, err := strconv.ParseUint(fields[1], 10, 64)
+		if err == nil {
+			return memUsage
+		}
+	}
+
+	return 0
 }
