@@ -34,7 +34,7 @@ require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/DataDog/agent-payload/v5 v5.0.165
 	github.com/DataDog/appsec-internal-go v1.14.0
-	github.com/DataDog/datadog-agent/comp/api/api/def v0.68.3
+	github.com/DataDog/datadog-agent/comp/api/api/def v0.70.0
 	github.com/DataDog/datadog-agent/comp/core/config v0.71.0-rc.1
 	github.com/DataDog/datadog-agent/comp/core/configsync v0.64.0
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.71.0-rc.1
@@ -49,7 +49,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/log/impl v0.61.0
 	github.com/DataDog/datadog-agent/comp/core/log/impl-trace v0.59.0
 	github.com/DataDog/datadog-agent/comp/core/log/mock v0.70.0
-	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.71.0-rc.1
+	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.72.0-devel.0.20250908171439-89bb030fb558
 	github.com/DataDog/datadog-agent/comp/core/secrets/fx v0.70.0-rc.6
 	github.com/DataDog/datadog-agent/comp/core/secrets/mock v0.71.0-devel.0.20250902202452-61c2536752eb
 	github.com/DataDog/datadog-agent/comp/core/status v0.71.0-rc.1
@@ -109,8 +109,8 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.71.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/errors v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/fips v0.71.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/fleet/installer v0.64.0
-	github.com/DataDog/datadog-agent/pkg/gohai v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/fleet/installer v0.70.0
+	github.com/DataDog/datadog-agent/pkg/gohai v0.69.4
 	github.com/DataDog/datadog-agent/pkg/logs/client v0.64.0-rc.12
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic v0.64.0-rc.12
 	github.com/DataDog/datadog-agent/pkg/logs/message v0.64.0-rc.12
@@ -142,7 +142,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/template v0.71.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/trace v0.71.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/backoff v0.71.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/cache v0.61.0
+	github.com/DataDog/datadog-agent/pkg/util/cache v0.69.4
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/common v0.71.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/compression v0.71.0-rc.1
@@ -153,11 +153,12 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/flavor v0.71.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.71.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/grpc v0.60.0
+	github.com/DataDog/datadog-agent/pkg/util/hostinfo v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.71.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/http v0.71.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/json v0.71.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/log v0.71.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.62.2
+	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.70.0
 	github.com/DataDog/datadog-agent/pkg/util/option v0.71.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/otel v0.64.0
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.71.0-rc.1
@@ -169,7 +170,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/system v0.71.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/testutil v0.71.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/utilizationtracker v0.0.0
-	github.com/DataDog/datadog-agent/pkg/util/uuid v0.59.0
+	github.com/DataDog/datadog-agent/pkg/util/uuid v0.69.4
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.71.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/version v0.71.0-rc.1
 	github.com/DataDog/datadog-go/v5 v5.6.0
@@ -186,7 +187,7 @@ require (
 	github.com/DataDog/viper v1.14.1-0.20250612143030-1b15c8822ed4
 	// TODO: pin to a WPA released version once there is a release that includes the apis module
 	github.com/DataDog/watermarkpodautoscaler/apis v0.0.0-20250108152814-82e58d0231d1
-	github.com/DataDog/zstd v1.5.6
+	github.com/DataDog/zstd v1.5.7
 	github.com/Masterminds/semver v1.5.0
 	github.com/Masterminds/semver/v3 v3.4.0
 	github.com/Masterminds/sprig/v3 v3.3.0
@@ -275,7 +276,7 @@ require (
 	github.com/iceber/iouring-go v0.0.0-20230403020409-002cfd2e2a90
 	github.com/imdario/mergo v0.3.16
 	github.com/invopop/jsonschema v0.12.0
-	github.com/itchyny/gojq v0.12.17
+	github.com/itchyny/gojq v0.12.17 // indirect
 	github.com/jackc/pgx/v5 v5.6.0
 	github.com/jellydator/ttlcache/v3 v3.4.0
 	github.com/jmoiron/sqlx v1.4.0
@@ -954,6 +955,13 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.5.0 // indirect
 )
 
+require (
+	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def v0.0.0
+	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/impl v0.0.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/jsonquery v0.0.0-00010101000000-000000000000
+)
+
 require go.opentelemetry.io/ebpf-profiler v0.0.202536
 
 require (
@@ -1023,6 +1031,9 @@ replace github.com/stretchr/testify => github.com/stretchr/testify v1.10.0
 
 replace (
 	github.com/DataDog/datadog-agent/comp/api/api/def => ./comp/api/api/def
+	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def => ./comp/core/agenttelemetry/def
+	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx => ./comp/core/agenttelemetry/fx
+	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/impl => ./comp/core/agenttelemetry/impl
 	github.com/DataDog/datadog-agent/comp/core/config => ./comp/core/config
 	github.com/DataDog/datadog-agent/comp/core/configsync => ./comp/core/configsync
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ./comp/core/flare/builder
@@ -1157,9 +1168,11 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/flavor => ./pkg/util/flavor
 	github.com/DataDog/datadog-agent/pkg/util/fxutil => ./pkg/util/fxutil
 	github.com/DataDog/datadog-agent/pkg/util/grpc => ./pkg/util/grpc
+	github.com/DataDog/datadog-agent/pkg/util/hostinfo => ./pkg/util/hostinfo
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ./pkg/util/hostname/validate
 	github.com/DataDog/datadog-agent/pkg/util/http => ./pkg/util/http
 	github.com/DataDog/datadog-agent/pkg/util/json => ./pkg/util/json
+	github.com/DataDog/datadog-agent/pkg/util/jsonquery => ./pkg/util/jsonquery
 	github.com/DataDog/datadog-agent/pkg/util/log => ./pkg/util/log
 	github.com/DataDog/datadog-agent/pkg/util/log/setup => ./pkg/util/log/setup
 	github.com/DataDog/datadog-agent/pkg/util/option => ./pkg/util/option
