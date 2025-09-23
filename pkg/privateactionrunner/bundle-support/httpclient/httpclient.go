@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+// Package httpclient provides a HTTP client that can be used to make HTTP requests
 package httpclient
 
 import (
@@ -17,19 +18,23 @@ const (
 	minTLSVersion          = tls.VersionTLS12
 )
 
-type RunnerHttpClient struct{}
+// RunnerHTTPClient is a client that can be used to make HTTP requests
+type RunnerHTTPClient struct{}
 
-type RunnerHttpClientConfig struct {
+// RunnerHTTPClientConfig is a configuration for the RunnerHTTPClient
+type RunnerHTTPClientConfig struct {
 	MaxRedirect        int
-	Transport          *RunnerHttpTransportConfig
+	Transport          *RunnerHTTPTransportConfig
 	AllowIMDSEndpoints bool
 }
 
-type RunnerHttpTransportConfig struct {
+// RunnerHTTPTransportConfig is a configuration for the RunnerHTTPClient transport
+type RunnerHTTPTransportConfig struct {
 	InsecureSkipVerify bool
 }
 
-func NewRunnerHttpClient(clientConfig *RunnerHttpClientConfig) (*http.Client, error) {
+// NewRunnerHTTPClient creates a new RunnerHTTPClient
+func NewRunnerHTTPClient(clientConfig *RunnerHTTPClientConfig) (*http.Client, error) {
 	transport := &http.Transport{
 		TLSClientConfig: &tls.Config{
 			MinVersion: minTLSVersion,
@@ -47,7 +52,7 @@ func NewRunnerHttpClient(clientConfig *RunnerHttpClientConfig) (*http.Client, er
 		Transport: transport,
 	}
 	if clientConfig.MaxRedirect != 0 {
-		client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		client.CheckRedirect = func(_ *http.Request, via []*http.Request) error {
 			if len(via) >= clientConfig.MaxRedirect {
 				return fmt.Errorf("stopped after %d redirects", clientConfig.MaxRedirect)
 			}

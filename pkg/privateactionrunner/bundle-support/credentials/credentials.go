@@ -3,8 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+// Package credentials provides a way to convert credentials to a map of tokens
 package credentials
 
+// ToTokensMap converts credentials to a map of tokens
 func ToTokensMap(_ interface{}) (map[string]string, error) {
 	return nil, nil // TODO
 }
