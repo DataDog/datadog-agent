@@ -87,13 +87,12 @@ type dependencies struct {
 }
 
 type collector struct {
-	id                     string
-	store                  workloadmeta.Component
-	catalog                workloadmeta.AgentType
-	containerdClient       cutil.ContainerdItf
-	filterPausedContainers workloadfilter.FilterBundle
-	eventsChan             <-chan *containerdevents.Envelope
-	errorsChan             <-chan error
+	id               string
+	store            workloadmeta.Component
+	catalog          workloadmeta.AgentType
+	containerdClient cutil.ContainerdItf
+	eventsChan       <-chan *containerdevents.Envelope
+	errorsChan       <-chan error
 
 	// Container exit info (mainly exit code and exit timestamp) are attached to the corresponding task events.
 	// contToExitInfo caches the exit info of a task to enrich the container deletion event when it's received later.
@@ -110,19 +109,21 @@ type collector struct {
 
 	// SBOM Scanning
 	sbomScanner *scanner.Scanner //nolint: unused
+
+	filterPausedContainers workloadfilter.FilterBundle
+	filterSBOMContainers   workloadfilter.FilterBundle
 }
 
 // NewCollector returns a new containerd collector provider and an error
 func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
-	filterPausedContainers := deps.FilterStore.GetContainerPausedFilters()
-
 	return workloadmeta.CollectorProvider{
 		Collector: &collector{
 			id:                     collectorID,
 			catalog:                workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
 			contToExitInfo:         make(map[string]*exitInfo),
 			knownImages:            newKnownImages(),
-			filterPausedContainers: filterPausedContainers,
+			filterPausedContainers: deps.FilterStore.GetContainerPausedFilters(),
+			filterSBOMContainers:   deps.FilterStore.GetContainerSBOMFilters(),
 		},
 	}, nil
 }

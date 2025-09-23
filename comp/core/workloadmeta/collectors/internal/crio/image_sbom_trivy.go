@@ -12,13 +12,13 @@ import (
 	"fmt"
 	"os"
 
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/sbomutil"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/crio"
 	"github.com/DataDog/datadog-agent/pkg/sbom/scanner"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	crioutil "github.com/DataDog/datadog-agent/pkg/util/crio"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -53,18 +53,13 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 		return fmt.Errorf("failed to retrieve scanner result channel")
 	}
 
-	containerImageFilter, err := collectors.NewSBOMContainerFilter()
-	if err != nil {
-		return fmt.Errorf("failed to create container filter: %w", err)
-	}
-
-	go c.handleImageEvents(ctx, imgEventsCh, containerImageFilter)
+	go c.handleImageEvents(ctx, imgEventsCh, c.sbomFilter)
 	go c.startScanResultHandler(ctx, resultChan)
 	return nil
 }
 
 // handleImageEvents listens for container image metadata events, triggering SBOM generation for new images.
-func (c *collector) handleImageEvents(ctx context.Context, imgEventsCh <-chan workloadmeta.EventBundle, filter *containers.Filter) {
+func (c *collector) handleImageEvents(ctx context.Context, imgEventsCh <-chan workloadmeta.EventBundle, filter workloadfilter.FilterBundle) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -80,12 +75,13 @@ func (c *collector) handleImageEvents(ctx context.Context, imgEventsCh <-chan wo
 }
 
 // handleEventBundle handles ContainerImageMetadata set events for which no SBOM generation attempt was done.
-func (c *collector) handleEventBundle(eventBundle workloadmeta.EventBundle, containerImageFilter *containers.Filter) {
+func (c *collector) handleEventBundle(eventBundle workloadmeta.EventBundle, containerImageFilter workloadfilter.FilterBundle) {
 	eventBundle.Acknowledge()
 	for _, event := range eventBundle.Events {
 		image := event.Entity.(*workloadmeta.ContainerImageMetadata)
 
-		if containerImageFilter != nil && containerImageFilter.IsExcluded(nil, "", image.Name, "") {
+		filterableContainer := workloadfilter.CreateContainerImage(image.Name)
+		if containerImageFilter != nil && containerImageFilter.IsExcluded(filterableContainer) {
 			continue
 		}
 

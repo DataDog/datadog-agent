@@ -76,16 +76,18 @@ type collector struct {
 	// SBOM Scanning
 	sbomScanner *scanner.Scanner //nolint: unused
 
-	filterBundle workloadfilter.FilterBundle
+	filterPausedContainers workloadfilter.FilterBundle
+	filterSBOMContainers   workloadfilter.FilterBundle
 }
 
 // NewCollector returns a new docker collector provider and an error
 func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
 		Collector: &collector{
-			id:           collectorID,
-			catalog:      workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
-			filterBundle: deps.FilterStore.GetContainerPausedFilters(),
+			id:                     collectorID,
+			catalog:                workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
+			filterPausedContainers: deps.FilterStore.GetContainerPausedFilters(),
+			filterSBOMContainers:   deps.FilterStore.GetContainerSBOMFilters(),
 		},
 	}, nil
 }
@@ -112,7 +114,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 		return err
 	}
 
-	c.containerEventsCh, c.imageEventsCh, err = c.dockerUtil.SubscribeToEvents(componentName, c.filterBundle)
+	c.containerEventsCh, c.imageEventsCh, err = c.dockerUtil.SubscribeToEvents(componentName, c.filterPausedContainers)
 	if err != nil {
 		return err
 	}
@@ -122,7 +124,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 		return err
 	}
 
-	err = c.generateEventsFromContainerList(ctx, c.filterBundle)
+	err = c.generateEventsFromContainerList(ctx, c.filterPausedContainers)
 	if err != nil {
 		return err
 	}
