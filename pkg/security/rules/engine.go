@@ -411,8 +411,10 @@ func (e *RuleEngine) newSECLVariableEventPreparator() *seclVariableEventPreparat
 	}
 }
 
+var eventZeroer = model.NewEventZeroer()
+
 func (p *seclVariableEventPreparator) get(f func(event *model.Event)) *eval.Context {
-	p.event.Zero()
+	eventZeroer(p.event)
 	f(p.event)
 	return p.ctxPool.Get(p.event)
 }

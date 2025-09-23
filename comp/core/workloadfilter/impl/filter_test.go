@@ -886,3 +886,125 @@ func TestPodFiltering(t *testing.T) {
 		})
 	}
 }
+
+func TestProcessFiltering(t *testing.T) {
+	tests := []struct {
+		name             string
+		disallowPatterns []string
+		comm             string
+		cmdline          []string
+		filters          [][]workloadfilter.ProcessFilter
+		expected         workloadfilter.Result
+	}{
+		{
+			name:             "empty filters, empty process",
+			disallowPatterns: []string{},
+			filters:          [][]workloadfilter.ProcessFilter{},
+			expected:         workloadfilter.Unknown,
+		},
+		{
+			name:             "process excluded by cmdline pattern",
+			disallowPatterns: []string{"java.*", "systemd", "/usr/bin/.*"},
+			cmdline:          []string{"java", "-server", "-Xmx2g"},
+			filters:          [][]workloadfilter.ProcessFilter{{workloadfilter.LegacyProcessExcludeList}},
+			expected:         workloadfilter.Excluded,
+		},
+		{
+			name:             "process excluded by systemd pattern in cmdline",
+			disallowPatterns: []string{"java.*", "systemd", "/usr/bin/.*"},
+			cmdline:          []string{"systemd", "--user"},
+			filters:          [][]workloadfilter.ProcessFilter{{workloadfilter.LegacyProcessExcludeList}},
+			expected:         workloadfilter.Excluded,
+		},
+		{
+			name:             "process excluded by /usr/bin pattern in cmdline",
+			disallowPatterns: []string{"java.*", "systemd", "/usr/bin/.*"},
+			cmdline:          []string{"/usr/bin/python3", "script.py"},
+			filters:          [][]workloadfilter.ProcessFilter{{workloadfilter.LegacyProcessExcludeList}},
+			expected:         workloadfilter.Excluded,
+		},
+		{
+			name:             "process not excluded",
+			disallowPatterns: []string{"java.*", "systemd", "/usr/bin/.*"},
+			cmdline:          []string{"nginx", "-g", "daemon off;"},
+			filters:          [][]workloadfilter.ProcessFilter{{workloadfilter.LegacyProcessExcludeList}},
+			expected:         workloadfilter.Unknown,
+		},
+		{
+			name:             "pattern spanning multiple arguments - python script",
+			disallowPatterns: []string{"python.*script", "java.*-jar.*app", "node.*server"},
+			cmdline:          []string{"python3", "manage.py", "runserver", "script.py"},
+			filters:          [][]workloadfilter.ProcessFilter{{workloadfilter.LegacyProcessExcludeList}},
+			expected:         workloadfilter.Excluded,
+		},
+		{
+			name:             "pattern spanning multiple arguments - java jar app",
+			disallowPatterns: []string{"python.*script", "java.*-jar.*app", "node.*server"},
+			cmdline:          []string{"java", "-Xmx2g", "-jar", "myapp.jar", "--port", "8080"},
+			filters:          [][]workloadfilter.ProcessFilter{{workloadfilter.LegacyProcessExcludeList}},
+			expected:         workloadfilter.Excluded,
+		},
+		{
+			name:             "no patterns match",
+			disallowPatterns: []string{"python.*script", "java.*-jar.*app", "node.*server"},
+			cmdline:          []string{"nginx", "-g", "daemon off;"},
+			filters:          [][]workloadfilter.ProcessFilter{{workloadfilter.LegacyProcessExcludeList}},
+			expected:         workloadfilter.Unknown,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockConfig := configmock.New(t)
+			if len(tt.disallowPatterns) > 0 {
+				mockConfig.SetWithoutSource("process_config.blacklist_patterns", tt.disallowPatterns)
+			}
+			f := newFilterStoreObject(t, mockConfig)
+
+			var process *workloadfilter.Process
+			if tt.name == "empty filters, empty process" {
+				process = &workloadfilter.Process{}
+			} else {
+				process = workloadmetafilter.CreateProcess(
+					&workloadmeta.Process{
+						Comm:    tt.comm,
+						Cmdline: tt.cmdline,
+					},
+				)
+			}
+
+			filterBundle := f.GetProcessFilters(tt.filters)
+			res := filterBundle.GetResult(process)
+			assert.Equal(t, tt.expected, res)
+		})
+	}
+}
+
+func TestProcessFilterInitializationError(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("process_config.blacklist_patterns", []string{
+		"valid_pattern",
+		"[invalid_regex",
+	})
+	f := newFilterStoreObject(t, mockConfig)
+
+	t.Run("Invalid regex patterns cause initialization errors", func(t *testing.T) {
+		filters := f.GetProcessFilters([][]workloadfilter.ProcessFilter{{workloadfilter.LegacyProcessExcludeList}})
+		errs := filters.GetErrors()
+		assert.NotEmpty(t, errs, "Expected initialization errors for invalid regex patterns")
+
+		errStrings := make([]string, len(errs))
+		for i, err := range errs {
+			errStrings[i] = err.Error()
+		}
+
+		hasRegexError := false
+		for _, errStr := range errStrings {
+			if strings.Contains(errStr, "invalid_regex") || strings.Contains(errStr, "error parsing regexp") {
+				hasRegexError = true
+				break
+			}
+		}
+		assert.True(t, hasRegexError, "Expected error message to contain regex-related error. Got errors: %v", errStrings)
+	})
+}

@@ -94,12 +94,14 @@ type Event struct {
 	ChangePermission ChangePermissionEvent `field:"change_permission" event:"change_permission" ` // [7.55] [Registry] A permission change was made
 }
 
-var eventZero = Event{BaseEvent: BaseEvent{ContainerContext: &ContainerContext{}, Os: runtime.GOOS}}
+// NewEventZeroer returns a function that can be used to zero an Event
+func NewEventZeroer() func(*Event) {
+	var eventZero = Event{BaseEvent: BaseEvent{ContainerContext: &ContainerContext{}, Os: runtime.GOOS}}
 
-// Zero the event
-func (e *Event) Zero() {
-	*e = eventZero
-	*e.BaseEvent.ContainerContext = containerContextZero
+	return func(e *Event) {
+		*e = eventZero
+		*e.BaseEvent.ContainerContext = containerContextZero
+	}
 }
 
 // FileEvent is the common file event type

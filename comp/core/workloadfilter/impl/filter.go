@@ -13,7 +13,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/catalog"
-	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/program"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 )
@@ -141,6 +141,9 @@ func newFilter(cfg config.Component, logger log.Component, telemetry coretelemet
 	filter.registerFactory(workloadfilter.PodType, int(workloadfilter.PodADAnnotations), genericADProgramFactory)
 	filter.registerFactory(workloadfilter.PodType, int(workloadfilter.PodADAnnotationsMetrics), genericADMetricsProgramFactory)
 
+	// Process Filters
+	filter.registerFactory(workloadfilter.ProcessType, int(workloadfilter.LegacyProcessExcludeList), catalog.LegacyProcessExcludeProgram)
+
 	return filter, nil
 }
 
@@ -192,6 +195,10 @@ func (f *workloadfilterStore) GetServiceFilters(serviceFilters [][]workloadfilte
 // GetEndpointFilters returns the filter bundle for the given endpoint filters
 func (f *workloadfilterStore) GetEndpointFilters(endpointFilters [][]workloadfilter.EndpointFilter) workloadfilter.FilterBundle {
 	return getFilterBundle(f, workloadfilter.EndpointType, endpointFilters)
+}
+
+func (f *workloadfilterStore) GetProcessFilters(processFilters [][]workloadfilter.ProcessFilter) workloadfilter.FilterBundle {
+	return getFilterBundle(f, workloadfilter.ProcessType, processFilters)
 }
 
 // getFilterBundle constructs a filter bundle for a given resource type and filters.

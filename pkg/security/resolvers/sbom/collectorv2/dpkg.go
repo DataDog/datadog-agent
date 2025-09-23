@@ -87,6 +87,12 @@ func (s *dpkgScanner) listInstalledPkgs(root *os.Root) ([]sbomtypes.Package, err
 		}
 
 		for _, statusFile := range statusFiles {
+			// on distroless images, there are some md5sums files in the status.d directory
+			// ignore them
+			if strings.HasSuffix(statusFile.Name(), md5sumsSuffix) {
+				continue
+			}
+
 			fullPath := filepath.Join(statusDPath, statusFile.Name())
 			pkg, err := s.parseStatusFile(root, fullPath)
 			if err != nil {

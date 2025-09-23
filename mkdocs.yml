@@ -55,6 +55,7 @@ nav:
 - How-to:
   - Build:
     - Standalone agents: how-to/build/standalone.md
+    - Distribution packages: how-to/build/distributions.md
   - Test:
     - Unit tests: how-to/test/unit.md
     - Static analysis: how-to/test/static-analysis.md

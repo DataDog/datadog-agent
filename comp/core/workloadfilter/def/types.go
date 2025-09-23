@@ -61,6 +61,7 @@ const (
 	ServiceType   ResourceType = "service"
 	EndpointType  ResourceType = "endpoint"
 	ImageType     ResourceType = "image"
+	ProcessType   ResourceType = "process"
 )
 
 //
@@ -227,6 +228,40 @@ func (e *Endpoint) Serialize() any {
 func (e *Endpoint) Type() ResourceType {
 	return EndpointType
 }
+
+//
+// Process Definition
+//
+
+// Process represents a filterable process object.
+type Process struct {
+	*typedef.FilterProcess
+}
+
+var _ Filterable = &Process{}
+
+// GetAnnotations returns the annotations of the process.
+func (p *Process) GetAnnotations() map[string]string {
+	return nil
+}
+
+// Serialize converts the Process object to a filterable object.
+func (p *Process) Serialize() any {
+	return p.FilterProcess
+}
+
+// Type returns the resource type of the process.
+func (p *Process) Type() ResourceType {
+	return ProcessType
+}
+
+// ProcessFilter defines the type of process filter.
+type ProcessFilter int
+
+// Defined Process filter kinds.
+const (
+	LegacyProcessExcludeList ProcessFilter = iota
+)
 
 // EndpointFilter defines the type of endpoint filter.
 type EndpointFilter int

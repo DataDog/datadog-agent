@@ -157,14 +157,17 @@ type Event struct {
 	UnshareMountNS   UnshareMountNSEvent   `field:"-"`
 }
 
-var eventZero = Event{CGroupContext: &CGroupContext{}, BaseEvent: BaseEvent{ContainerContext: &ContainerContext{}, Os: runtime.GOOS}}
 var cgroupContextZero CGroupContext
 
-// Zero the event
-func (e *Event) Zero() {
-	*e = eventZero
-	*e.BaseEvent.ContainerContext = containerContextZero
-	*e.CGroupContext = cgroupContextZero
+// NewEventZeroer returns a function that can be used to zero an Event
+func NewEventZeroer() func(*Event) {
+	var eventZero = Event{CGroupContext: &CGroupContext{}, BaseEvent: BaseEvent{ContainerContext: &ContainerContext{}, Os: runtime.GOOS}}
+
+	return func(e *Event) {
+		*e = eventZero
+		*e.BaseEvent.ContainerContext = containerContextZero
+		*e.CGroupContext = cgroupContextZero
+	}
 }
 
 // CGroupContext holds the cgroup context of an event
@@ -510,6 +513,7 @@ type ArgsEnvsEvent struct {
 // Mount represents a mountpoint (used by MountEvent, FsmountEvent and UnshareMountNSEvent)
 type Mount struct {
 	MountID        uint32   `field:"-"`
+	MountIDUnique  uint64   `field:"-"`
 	Device         uint32   `field:"-"`
 	ParentPathKey  PathKey  `field:"-"`
 	Children       []uint32 `field:"-"`
