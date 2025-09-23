@@ -111,13 +111,13 @@ func Test_ParseProfileFromFile(t *testing.T) {
 		name            string
 		definitionType  Definition[any]
 		profileFile     string
-		expectedProfile *NCMYamlProfile
+		expectedProfile *NCMProfileRaw
 		expectedErrMsg  string
 	}{
 		{
 			name:        "read NCM yaml profile successful",
 			profileFile: absPath,
-			expectedProfile: &NCMYamlProfile{
+			expectedProfile: &NCMProfileRaw{
 				Commands: []Commands{
 					{CommandType: Running, Values: []string{"show running-config"}},
 					{CommandType: Startup, Values: []string{"show startup-config"}},
@@ -128,7 +128,7 @@ func Test_ParseProfileFromFile(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			deviceProfile, err := ParseProfileFromFile[*NCMYamlProfile](tt.profileFile)
+			deviceProfile, err := ParseProfileFromFile[*NCMProfileRaw](tt.profileFile)
 			if tt.expectedErrMsg != "" {
 				assert.ErrorContains(t, err, tt.expectedErrMsg)
 			}
@@ -138,11 +138,11 @@ func Test_ParseProfileFromFile(t *testing.T) {
 }
 
 func Test_ParseNCMProfileFromFile(t *testing.T) {
-	mockConfig := configmock.New(t)
-	defaultTestConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "conf.d"))
-	mockConfig.SetWithoutSource("confd_path", defaultTestConfdPath)
+	SetConfdPathAndCleanProfiles()
+	basePath, _ := filepath.Abs(filepath.Join("..", "test", "conf.d", "networkconfigmanagement.d", "default_profiles"))
+	p1 := filepath.Join(basePath, "p1.json")
+	p2 := filepath.Join(basePath, "p2.yaml")
 
-	absPath, _ := filepath.Abs(filepath.Join(defaultTestConfdPath, "networkconfigmanagement.d", "default_profiles", "p2.yaml"))
 	tests := []struct {
 		name                  string
 		profileFile           string
@@ -150,8 +150,19 @@ func Test_ParseNCMProfileFromFile(t *testing.T) {
 		expectedErrMsg        string
 	}{
 		{
-			name:        "read NCM profile successful",
-			profileFile: absPath,
+			name:        "read NCM json profile successful",
+			profileFile: p1,
+			expectedDeviceProfile: &NCMProfile{
+				Commands: map[CommandType][]string{
+					Running: {"show running-config"},
+					Startup: {"show startup-config"},
+					Version: {"show version"},
+				},
+			},
+		},
+		{
+			name:        "read NCM YAML profile successful",
+			profileFile: p2,
 			expectedDeviceProfile: &NCMProfile{
 				Commands: map[CommandType][]string{
 					Running: {"show running-config"},

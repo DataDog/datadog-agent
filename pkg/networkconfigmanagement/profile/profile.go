@@ -9,6 +9,7 @@
 package profile
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -33,8 +34,8 @@ const (
 
 // Commands is a sub-section within `DeviceProfile` that details the specific commands needed to do an intended action
 type Commands struct {
-	CommandType CommandType `yaml:"type"`
-	Values      []string    `yaml:"values"`
+	CommandType CommandType `json:"type" yaml:"type"`
+	Values      []string    `json:"values" yaml:"values"`
 }
 
 // Map represents the mapping profile name to profiles from the loaded directory
@@ -48,7 +49,7 @@ type Definition[T any] interface {
 
 // BaseProfile struct with common fields
 type BaseProfile struct {
-	Name string `yaml:"name"`
+	Name string `json:"name" yaml:"name"`
 }
 
 // GetName retrieves the name of the profile
@@ -57,10 +58,10 @@ func (p *BaseProfile) GetName() string { return p.Name }
 // SetName will set the name for the profile
 func (p *BaseProfile) SetName(name string) { p.Name = name }
 
-// NCMYamlProfile represents the exact profile to unmarshal from the YAML file
-type NCMYamlProfile struct {
+// NCMProfileRaw represents the exact profile to unmarshal from the YAML or JSON file
+type NCMProfileRaw struct {
 	BaseProfile
-	Commands []Commands `yaml:"commands"`
+	Commands []Commands `json:"commands" yaml:"commands"`
 }
 
 // NCMProfile represents the profile with transformed variables such as the commands map for easy access to commands
@@ -77,9 +78,18 @@ func ParseProfileFromFile[T Definition[T]](filePath string) (T, error) {
 		return profile, fmt.Errorf("unable to read file %q: %w", filePath, err)
 	}
 
+	if json.Valid(buf) {
+		// if successfully unmarshalled, return early
+		if err = json.Unmarshal(buf, &profile); err == nil {
+			return profile, nil
+		}
+		log.Warnf("unable to parse JSON profile from file %q: %v", filePath, err)
+	}
+	// try to unmarshal as YAML next
 	err = yaml.Unmarshal(buf, &profile)
+	// err out in this case, not parseable as JSON and YAML
 	if err != nil {
-		return profile, fmt.Errorf("parse error in file %q: %w", filePath, err)
+		return profile, fmt.Errorf("unable to parse JSON or YAML; parse error in file %q: %w", filePath, err)
 	}
 	return profile, nil
 }
@@ -87,13 +97,13 @@ func ParseProfileFromFile[T Definition[T]](filePath string) (T, error) {
 // ParseNCMProfileFromFile does extra work to unmarshal the YAML, transforming the list of commands into a map
 func ParseNCMProfileFromFile(filePath string) (*NCMProfile, error) {
 	path := resolveNCMProfileDefinitionPath(filePath)
-	ncmYamlProfile, err := ParseProfileFromFile[*NCMYamlProfile](path)
+	ncmRawProfile, err := ParseProfileFromFile[*NCMProfileRaw](path)
 	if err != nil {
 		return nil, err
 	}
 	var np NCMProfile
 	np.Commands = make(map[CommandType][]string)
-	for _, cmd := range ncmYamlProfile.Commands {
+	for _, cmd := range ncmRawProfile.Commands {
 		np.Commands[cmd.CommandType] = cmd.Values
 	}
 	return &np, nil
@@ -161,19 +171,19 @@ func resolveNCMProfileDefinitionPath(definitionFile string) string {
 	return filepath.Join(getNCMProfileConfdRoot(defaultProfilesFolder), definitionFile)
 }
 
-// SetConfdPathAndCleanProfiles is used for testing only
+// SetConfdPathAndCleanProfiles is used for testing only (taken from SNMP profile helper utils)
 func SetConfdPathAndCleanProfiles() {
 	file, _ := filepath.Abs(filepath.Join(".", "test", "conf.d"))
 	if !pathExists(file) {
 		file, _ = filepath.Abs(filepath.Join("..", "test", "conf.d"))
 	}
 	if !pathExists(file) {
-		file, _ = filepath.Abs(filepath.Join(".", "internal", "test", "conf.d"))
+		file, _ = filepath.Abs(filepath.Join("..", "..", "..", "networkconfigmanagement", "test", "conf.d"))
 	}
 	pkgconfigsetup.Datadog().SetWithoutSource("confd_path", file)
 }
 
-// pathExists returns true if the given path exists
+// pathExists returns true if the given path exists (taken from SNMP profile helper utils)
 func pathExists(path string) bool {
 	_, err := os.Stat(path)
 	return !os.IsNotExist(err)
