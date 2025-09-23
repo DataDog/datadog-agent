@@ -693,6 +693,7 @@ require (
 	go.opentelemetry.io/collector/otelcol v0.135.0
 	go.opentelemetry.io/collector/processor v1.41.0
 	go.opentelemetry.io/collector/service v0.135.0
+	go.temporal.io/api v1.51.0
 	go.temporal.io/sdk v1.36.0
 	go4.org/intern v0.0.0-20230525184215-6c62f75575cb
 	go4.org/mem v0.0.0-20220726221520-4f986261bf13
@@ -765,7 +766,6 @@ require (
 	go.opentelemetry.io/collector/config/configmiddleware v1.41.0 // indirect
 	go.opentelemetry.io/collector/extension/extensionmiddleware v0.135.0 // indirect
 	go.starlark.net v0.0.0-20231101134539-556fd59b42f6 // indirect
-	go.temporal.io/api v1.51.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/telemetry v0.0.0-20250807160809-1a19826ec488 // indirect
