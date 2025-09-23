@@ -9,8 +9,6 @@
 package mock
 
 import (
-	"testing"
-
 	publishermetadatacache "github.com/DataDog/datadog-agent/comp/publishermetadatacache/def"
 	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 )
@@ -21,7 +19,7 @@ type MockPublisherMetadataCache struct {
 }
 
 // Mock returns a mock for publishermetadatacache component.
-func Mock(t *testing.T) publishermetadatacache.Component {
+func Mock() publishermetadatacache.Component {
 	return &MockPublisherMetadataCache{
 		GetFunc: func(publisherName string, event evtapi.EventRecordHandle) (evtapi.EventPublisherMetadataHandle, error) {
 			return evtapi.EventPublisherMetadataHandle(12345), nil
