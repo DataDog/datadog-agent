@@ -11,7 +11,7 @@ filegroup(
         "@sqlite3",
         "@xz",
         "@xz//:lzma",
-        "@zlib//:z",
+        "@zlib//:libz_so",
     ],
     visibility = ["//visibility:private"],
 )

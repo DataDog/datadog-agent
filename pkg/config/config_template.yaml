@@ -858,7 +858,6 @@ api_key:
 
 ## @param secret_backend_type - string - optional
 ## @env DD_SECRET_BACKEND_TYPE - string - optional
-## This feature is in preview.
 ##
 ## `secret_backend_type` is the type of backend where secrets are stored.
 ## Supported backends are: "aws.secrets", "aws.ssm", "azure.keyvault", "hashicorp.vault",
@@ -871,7 +870,6 @@ api_key:
 
 ## @param secret_backend_config - map - optional
 ## @env DD_SECRET_BACKEND_CONFIG - map - optional
-## This feature is in preview.
 ##
 ## The section contains configuration required by `secret_backend_type` to resolve secrets.
 ## The necessary configuration depends upon which type is used.
