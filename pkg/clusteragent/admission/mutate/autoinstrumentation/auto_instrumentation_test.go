@@ -3711,3 +3711,181 @@ func languageSetOf(languages ...string) languagemodels.LanguageSet {
 	}
 	return set
 }
+func TestSeparateRequestsAndLimits(t *testing.T) {
+	tests := []struct {
+		name        string
+		requestsCPU string
+		requestsMem string
+		limitsCPU   string
+		limitsMem   string
+		wantErr     bool
+		errMsg      string
+	}{
+		{
+			name:        "separate requests and limits",
+			requestsCPU: "25m",
+			requestsMem: "50Mi",
+			limitsCPU:   "500m",
+			limitsMem:   "1Gi",
+			wantErr:     false,
+		},
+		{
+			name:        "limits less than requests should fail",
+			requestsCPU: "500m",
+			requestsMem: "1Gi",
+			limitsCPU:   "25m",
+			limitsMem:   "50Mi",
+			wantErr:     true,
+			errMsg:      "limit",
+		},
+		{
+			name:        "only requests set",
+			requestsCPU: "100m",
+			requestsMem: "128Mi",
+			wantErr:     false,
+		},
+		{
+			name:      "only limits set",
+			limitsCPU: "500m",
+			limitsMem: "512Mi",
+			wantErr:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockConfig := configmock.New(t)
+			
+			if tt.requestsCPU != "" {
+				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.init_requests.cpu", tt.requestsCPU)
+			}
+			if tt.requestsMem != "" {
+				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.init_requests.memory", tt.requestsMem)
+			}
+			if tt.limitsCPU != "" {
+				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.init_limits.cpu", tt.limitsCPU)
+			}
+			if tt.limitsMem != "" {
+				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.init_limits.memory", tt.limitsMem)
+			}
+
+			_, err := initDefaultResources(mockConfig)
+			if tt.wantErr {
+				require.Error(t, err)
+				if tt.errMsg != "" {
+					require.Contains(t, err.Error(), tt.errMsg)
+				}
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+func TestSeparateRequestsAndLimitsIntegration(t *testing.T) {
+	tests := []struct {
+		name        string
+		requestsCPU string
+		requestsMem string
+		limitsCPU   string
+		limitsMem   string
+		wantReqCPU  string
+		wantReqMem  string
+		wantLimCPU  string
+		wantLimMem  string
+	}{
+		{
+			name:        "separate requests and limits",
+			requestsCPU: "25m",
+			requestsMem: "50Mi",
+			limitsCPU:   "500m",
+			limitsMem:   "1Gi",
+			wantReqCPU:  "25m",
+			wantReqMem:  "50Mi",
+			wantLimCPU:  "500m",
+			wantLimMem:  "1Gi",
+		},
+		{
+			name:        "only requests set - limits should be empty",
+			requestsCPU: "100m",
+			requestsMem: "128Mi",
+			wantReqCPU:  "100m",
+			wantReqMem:  "128Mi",
+			wantLimCPU:  "0",
+			wantLimMem:  "0",
+		},
+		{
+			name:       "only limits set - requests should be empty",
+			limitsCPU:  "500m",
+			limitsMem:  "512Mi",
+			wantReqCPU: "0",
+			wantReqMem: "0",
+			wantLimCPU: "500m",
+			wantLimMem: "512Mi",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			wmeta := fxutil.Test[workloadmeta.Component](t,
+				core.MockBundle(),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+			)
+			imageResolver := NewImageResolver(nil, configmock.New(t))
+			
+			mockConfig := configmock.New(t)
+			
+			if tt.requestsCPU != "" {
+				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.init_requests.cpu", tt.requestsCPU)
+			}
+			if tt.requestsMem != "" {
+				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.init_requests.memory", tt.requestsMem)
+			}
+			if tt.limitsCPU != "" {
+				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.init_limits.cpu", tt.limitsCPU)
+			}
+			if tt.limitsMem != "" {
+				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.init_limits.memory", tt.limitsMem)
+			}
+
+			config, err := NewConfig(mockConfig)
+			require.NoError(t, err)
+
+			mutator, err := NewNamespaceMutator(config, wmeta, imageResolver)
+			require.NoError(t, err)
+
+			pod := common.FakePod("test-pod")
+			lang := java
+			c := lang.libInfo("", "").initContainers(config.version, imageResolver)[0]
+			requirements, injectionDecision := initContainerResourceRequirements(pod, config.defaultResourceRequirements)
+			require.False(t, injectionDecision.skipInjection)
+
+			c.Mutators = mutator.core.newInitContainerMutators(requirements, pod.Namespace)
+			initialInitContainerCount := len(pod.Spec.InitContainers)
+			err = c.mutatePod(pod)
+			require.NoError(t, err)
+			require.Len(t, pod.Spec.InitContainers, initialInitContainerCount+1)
+
+			initContainer := pod.Spec.InitContainers[initialInitContainerCount]
+			
+			// Check CPU requests
+			actualReqCPU := initContainer.Resources.Requests[corev1.ResourceCPU]
+			expectedReqCPU := resource.MustParse(tt.wantReqCPU)
+			require.Zero(t, expectedReqCPU.Cmp(actualReqCPU), "expected CPU request: %s, actual: %s", expectedReqCPU.String(), actualReqCPU.String())
+			
+			// Check CPU limits
+			actualLimCPU := initContainer.Resources.Limits[corev1.ResourceCPU]
+			expectedLimCPU := resource.MustParse(tt.wantLimCPU)
+			require.Zero(t, expectedLimCPU.Cmp(actualLimCPU), "expected CPU limit: %s, actual: %s", expectedLimCPU.String(), actualLimCPU.String())
+			
+			// Check Memory requests
+			actualReqMem := initContainer.Resources.Requests[corev1.ResourceMemory]
+			expectedReqMem := resource.MustParse(tt.wantReqMem)
+			require.Zero(t, expectedReqMem.Cmp(actualReqMem), "expected memory request: %s, actual: %s", expectedReqMem.String(), actualReqMem.String())
+			
+			// Check Memory limits
+			actualLimMem := initContainer.Resources.Limits[corev1.ResourceMemory]
+			expectedLimMem := resource.MustParse(tt.wantLimMem)
+			require.Zero(t, expectedLimMem.Cmp(actualLimMem), "expected memory limit: %s, actual: %s", expectedLimMem.String(), actualLimMem.String())
+		})
+	}
+}
