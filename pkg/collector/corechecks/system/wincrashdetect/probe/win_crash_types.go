@@ -59,4 +59,5 @@ type WinCrashStatus struct {
 	BugCheckArg2 string `json:"bugcheckarg2"`
 	BugCheckArg3 string `json:"bugcheckarg3"`
 	BugCheckArg4 string `json:"bugcheckarg4"`
+	Callstack    string `json:"callstack"`
 }

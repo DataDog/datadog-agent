@@ -120,6 +120,7 @@ func TestInitData(t *testing.T) {
 		"runtime_security_config.activity_dump.enabled":        true,
 		"runtime_security_config.remote_configuration.enabled": true,
 		"network_config.enabled":                               true,
+		"traceroute.enabled":                                   true,
 		"service_monitoring_config.enable_http_monitoring":     true,
 		"service_monitoring_config.tls.native.enabled":         true,
 		"service_monitoring_config.enabled":                    true,
@@ -219,6 +220,7 @@ func TestInitData(t *testing.T) {
 		"feature_networks_enabled":                     true,
 		"feature_networks_http_enabled":                true,
 		"feature_networks_https_enabled":               true,
+		"feature_traceroute_enabled":                   true,
 		"feature_usm_enabled":                          true,
 		"feature_usm_kafka_enabled":                    true,
 		"feature_usm_postgres_enabled":                 true,
@@ -497,6 +499,7 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 	assert.False(t, ia.data["feature_networks_enabled"].(bool))
 	assert.True(t, ia.data["feature_networks_http_enabled"].(bool))
 	assert.True(t, ia.data["feature_networks_https_enabled"].(bool))
+	assert.False(t, ia.data["feature_traceroute_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_kafka_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_postgres_enabled"].(bool))
@@ -554,6 +557,7 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 	assert.False(t, ia.data["feature_networks_enabled"].(bool))
 	assert.False(t, ia.data["feature_networks_http_enabled"].(bool))
 	assert.False(t, ia.data["feature_networks_https_enabled"].(bool))
+	assert.False(t, ia.data["feature_traceroute_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_kafka_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_postgres_enabled"].(bool))
@@ -603,6 +607,9 @@ network_config:
   enable_protocol_classification: true
   enable_gateway_lookup: true
   enable_root_netns: true
+
+traceroute:
+  enabled: true
 
 service_monitoring_config:
   http:
@@ -661,6 +668,7 @@ gpu_monitoring:
 	assert.True(t, ia.data["feature_networks_enabled"].(bool))
 	assert.True(t, ia.data["feature_networks_http_enabled"].(bool))
 	assert.True(t, ia.data["feature_networks_https_enabled"].(bool))
+	assert.True(t, ia.data["feature_traceroute_enabled"].(bool))
 	assert.True(t, ia.data["feature_usm_enabled"].(bool))
 	assert.True(t, ia.data["feature_usm_kafka_enabled"].(bool))
 	assert.True(t, ia.data["feature_usm_postgres_enabled"].(bool))

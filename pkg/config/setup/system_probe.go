@@ -264,6 +264,9 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_fentry"), false)
 
+	// TLS cert collection
+	cfg.BindEnvAndSetDefault(join(netNS, "enable_cert_collection"), false)
+
 	// windows config
 	cfg.BindEnvAndSetDefault(join(spNS, "windows.enable_monotonic_count"), false)
 
