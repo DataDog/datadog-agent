@@ -258,7 +258,7 @@ func (p *Process) Type() ResourceType {
 // ProcessFilter defines the type of process filter.
 type ProcessFilter int
 
-// Defined Process filter kinds
+// Defined Process filter kinds.
 const (
 	LegacyProcessExcludeList ProcessFilter = iota
 )
