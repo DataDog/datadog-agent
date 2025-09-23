@@ -189,7 +189,7 @@ func (i *libInfo) podMutator(v version, opts libRequirementOptions, imageResolve
 
 		reqs.libRequirementOptions = opts
 		if i.canonicalVersion != "" {
-			mutatecommon.AddAnnotation(pod, fmt.Sprintf("admission.datadoghq.com/%s-canonical-version", i.lang), i.canonicalVersion)
+			mutatecommon.AddAnnotation(pod, fmt.Sprintf("internal.apm.datadoghq.com/%s-canonical-version", i.lang), i.canonicalVersion)
 		}
 
 		if err := reqs.injectPod(pod, i.ctrName); err != nil {
