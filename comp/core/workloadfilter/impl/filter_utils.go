@@ -211,7 +211,10 @@ func (pf *filterSelection) computeContainerPausedFilters(cfg config.Component) [
 }
 
 // computeContainerSBOMFilters computes container SBOM filters (migrated from def/utils.go)
-func (pf *filterSelection) computeContainerSBOMFilters(_ config.Component) [][]workloadfilter.ContainerFilter {
+func (pf *filterSelection) computeContainerSBOMFilters(cfg config.Component) [][]workloadfilter.ContainerFilter {
+	if cfg.GetBool("sbom.container_image.exclude_pause_container") {
+		return [][]workloadfilter.ContainerFilter{{workloadfilter.LegacyContainerSBOM, workloadfilter.ContainerPaused}}
+	}
 	return [][]workloadfilter.ContainerFilter{{workloadfilter.LegacyContainerSBOM}}
 }
 

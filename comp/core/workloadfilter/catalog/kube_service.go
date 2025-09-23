@@ -21,13 +21,13 @@ func LegacyServiceMetricsProgram(config config.Component, logger log.Component) 
 	includeProgram, includeErr := createProgramFromOldFilters(config.GetStringSlice("container_include_metrics"), workloadfilter.ServiceType)
 	if includeErr != nil {
 		initErrors = append(initErrors, includeErr)
-		logger.Warnf("Error creating include program for %s: %v", programName, includeErr)
+		logger.Warnf("error creating include program for %s: %v", programName, includeErr)
 	}
 
 	excludeProgram, excludeErr := createProgramFromOldFilters(config.GetStringSlice("container_exclude_metrics"), workloadfilter.ServiceType)
 	if excludeErr != nil {
 		initErrors = append(initErrors, excludeErr)
-		logger.Warnf("Error creating exclude program for %s: %v", programName, excludeErr)
+		logger.Warnf("error creating exclude program for %s: %v", programName, excludeErr)
 	}
 
 	return program.CELProgram{
@@ -57,13 +57,13 @@ func LegacyServiceGlobalProgram(config config.Component, logger log.Component) p
 	includeProgram, includeErr := createProgramFromOldFilters(includeList, workloadfilter.ServiceType)
 	if includeErr != nil {
 		initErrors = append(initErrors, includeErr)
-		logger.Warnf("Error creating include program for %s: %v", programName, includeErr)
+		logger.Warnf("error creating include program for %s: %v", programName, includeErr)
 	}
 
 	excludeProgram, excludeErr := createProgramFromOldFilters(excludeList, workloadfilter.ServiceType)
 	if excludeErr != nil {
 		initErrors = append(initErrors, excludeErr)
-		logger.Warnf("Error creating exclude program for %s: %v", programName, excludeErr)
+		logger.Warnf("error creating exclude program for %s: %v", programName, excludeErr)
 	}
 
 	return program.CELProgram{

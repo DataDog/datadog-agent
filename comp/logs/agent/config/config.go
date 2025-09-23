@@ -179,7 +179,12 @@ func ValidateFingerprintConfig(config *types.FingerprintConfig) error {
 	}
 
 	if err := config.FingerprintStrategy.Validate(); err != nil {
-		return fmt.Errorf("fingerprintStrategy must be one of: line_checksum, byte_checksum, got: %s", config.FingerprintStrategy)
+		return fmt.Errorf("fingerprintStrategy must be one of: line_checksum, byte_checksum, disabled. Got: %s", config.FingerprintStrategy)
+	}
+
+	// Skip validation if fingerprinting is disabled
+	if config.FingerprintStrategy == types.FingerprintStrategyDisabled {
+		return nil
 	}
 
 	// Validate Count (must be positive if set)
