@@ -24,18 +24,18 @@ import (
 
 // Provider provides the metrics related to data collected from the `/metrics/probes` Kubelet endpoint
 type Provider struct {
-	filterStore workloadfilter.Component
-	store       workloadmeta.Component
-	tagger      tagger.Component
+	store           workloadmeta.Component
+	tagger          tagger.Component
+	containerFilter workloadfilter.FilterBundle
 	prometheus.Provider
 }
 
 // NewProvider returns a metrics prometheus kubelet provider and an error
 func NewProvider(filterStore workloadfilter.Component, config *common.KubeletConfig, store workloadmeta.Component, tagger tagger.Component) (*Provider, error) {
 	provider := &Provider{
-		filterStore: filterStore,
-		store:       store,
-		tagger:      tagger,
+		store:           store,
+		tagger:          tagger,
+		containerFilter: filterStore.GetContainerSharedMetricFilters(),
 	}
 
 	transformers := prometheus.Transformers{
@@ -85,7 +85,7 @@ func (p *Provider) proberProbeTotal(metricFam *prom.MetricFamily, sender sender.
 			continue
 		}
 
-		cID, _ := common.GetContainerID(p.store, metric.Metric, p.filterStore)
+		cID, _ := common.GetContainerID(p.store, metric.Metric, p.containerFilter)
 		if cID == "" {
 			continue
 		}

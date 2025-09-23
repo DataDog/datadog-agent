@@ -107,7 +107,6 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 	var versionResolver func(servicePath string) string
 	if config.RuntimeSecurity.SBOMResolverEnabled && sbomResolver != nil {
 		versionResolver = func(servicePath string) string {
-
 			if pkg := sbomResolver.ResolvePackage("", &model.FileEvent{PathnameStr: servicePath}); pkg != nil {
 				return pkg.Version
 			}
@@ -141,7 +140,7 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 	if opts.PathResolutionEnabled {
 		// Force the use of redemption for now, as it seems that the kernel reference counter on mounts used to remove mounts is not working properly.
 		// This means that we can remove mount entries that are still in use.
-		mountResolver, err = mount.NewResolver(statsdClient, cgroupsResolver, mount.ResolverOpts{UseProcFS: true})
+		mountResolver, err = mount.NewResolver(statsdClient, cgroupsResolver, dentryResolver, mount.ResolverOpts{UseProcFS: true})
 		if err != nil {
 			return nil, err
 		}
