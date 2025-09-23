@@ -38,11 +38,12 @@ func Module() fxutil.Module {
 type provides struct {
 	fx.Out
 
-	Comp         settings.Component
-	FullEndpoint api.AgentEndpointProvider
-	ListEndpoint api.AgentEndpointProvider
-	GetEndpoint  api.AgentEndpointProvider
-	SetEndpoint  api.AgentEndpointProvider
+	Comp                        settings.Component
+	FullEndpoint                api.AgentEndpointProvider
+	FullEndpointWithoutDefaults api.AgentEndpointProvider
+	ListEndpoint                api.AgentEndpointProvider
+	GetEndpoint                 api.AgentEndpointProvider
+	SetEndpoint                 api.AgentEndpointProvider
 }
 
 type dependencies struct {
@@ -88,7 +89,8 @@ func (s *settingsRegistry) SetRuntimeSetting(setting string, value interface{}, 
 	return s.settings[setting].Set(s.config, value, source)
 }
 
-func (s *settingsRegistry) GetFullConfig(namespaces ...string) http.HandlerFunc {
+// Extract the common logic into a private helper function
+func (s *settingsRegistry) getFullConfigHandler(includeDefaults bool, namespaces ...string) http.HandlerFunc {
 	requiresUniqueNs := len(namespaces) == 1 && namespaces[0] != ""
 	requiresAllNamespaces := len(namespaces) == 0
 
@@ -103,7 +105,14 @@ func (s *settingsRegistry) GetFullConfig(namespaces ...string) http.HandlerFunc 
 	}
 	return func(w http.ResponseWriter, _ *http.Request) {
 		nsSettings := map[string]interface{}{}
-		allSettings := s.config.AllSettings()
+
+		var allSettings map[string]interface{}
+		if includeDefaults {
+			allSettings = s.config.AllSettings()
+		} else {
+			allSettings = s.config.AllSettingsWithoutDefault()
+		}
+
 		if !requiresAllNamespaces {
 			for ns := range uniqueNamespaces {
 				if val, ok := allSettings[ns]; ok {
@@ -140,6 +149,14 @@ func (s *settingsRegistry) GetFullConfig(namespaces ...string) http.HandlerFunc 
 
 		_, _ = w.Write(scrubbed)
 	}
+}
+
+func (s *settingsRegistry) GetFullConfig(namespaces ...string) http.HandlerFunc {
+	return s.getFullConfigHandler(true, namespaces...)
+}
+
+func (s *settingsRegistry) GetFullConfigWithoutDefaults(namespaces ...string) http.HandlerFunc {
+	return s.getFullConfigHandler(false, namespaces...)
 }
 
 func (s *settingsRegistry) GetFullConfigBySource() http.HandlerFunc {
@@ -247,10 +264,11 @@ func newSettings(deps dependencies) provides {
 		config:   deps.Params.Config,
 	}
 	return provides{
-		Comp:         s,
-		FullEndpoint: api.NewAgentEndpointProvider(s.GetFullConfig(deps.Params.Namespaces...), "/config", "GET"),
-		ListEndpoint: api.NewAgentEndpointProvider(s.ListConfigurable, "/config/list-runtime", "GET"),
-		GetEndpoint:  api.NewAgentEndpointProvider(s.GetValue, "/config/{setting}", "GET"),
-		SetEndpoint:  api.NewAgentEndpointProvider(s.SetValue, "/config/{setting}", "POST"),
+		Comp:                        s,
+		FullEndpoint:                api.NewAgentEndpointProvider(s.GetFullConfig(deps.Params.Namespaces...), "/config", "GET"),
+		FullEndpointWithoutDefaults: api.NewAgentEndpointProvider(s.GetFullConfigWithoutDefaults(deps.Params.Namespaces...), "/config/without-defaults", "GET"),
+		ListEndpoint:                api.NewAgentEndpointProvider(s.ListConfigurable, "/config/list-runtime", "GET"),
+		GetEndpoint:                 api.NewAgentEndpointProvider(s.GetValue, "/config/{setting}", "GET"),
+		SetEndpoint:                 api.NewAgentEndpointProvider(s.SetValue, "/config/{setting}", "POST"),
 	}
 }
