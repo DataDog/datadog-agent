@@ -48,7 +48,7 @@ type CloudRunProxy struct {
 }
 
 // RunCloudRunProxy starts the Cloud Run proxy HTTP server
-func RunCloudRunProxy(logConfig *serverlessLog.Config) error {
+func RunCloudRunProxy(_ *serverlessLog.Config) error {
 	// Use DD_HEALTH_PORT or default to 443
 	proxyPort := "443"
 	if port := os.Getenv("DD_HEALTH_PORT"); port != "" {
@@ -128,7 +128,6 @@ func (p *CloudRunProxy) handleRequest(w http.ResponseWriter, r *http.Request) {
 		}
 		r.Body.Close()
 
-		
 		// Parse Pub/Sub message and extract trace context
 		var pubsubMsg PubSubMessage
 		if err := json.Unmarshal(body, &pubsubMsg); err == nil {
@@ -286,7 +285,9 @@ func (p *CloudRunProxy) forwardRequest(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	w.WriteHeader(resp.StatusCode)
-	io.Copy(w, resp.Body)
+	if _, err := io.Copy(w, resp.Body); err != nil {
+		log.Errorf("Cloud Run proxy: error copying response body: %v", err)
+	}
 
 	log.Debugf("Cloud Run proxy: forwarded request completed with status %d", resp.StatusCode)
 }
