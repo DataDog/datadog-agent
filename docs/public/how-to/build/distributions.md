@@ -175,4 +175,50 @@ When running the build command, you might want to skip the signing step by addin
 
 ## Building for Windows
 
-This can only be done in a containerized environment. Please see [the relevant folder in `datadog-agent-buildimages`](https://github.com/DataDog/datadog-agent-buildimages/tree/main/windows) for more details and instructions.
+/// warning
+This can only be done in a containerized environment.
+Please see [the relevant folder in `datadog-agent-buildimages`](https://github.com/DataDog/datadog-agent-buildimages/tree/main/windows) for more details on the images to use.
+
+/// details | Image naming scheme
+    open: False
+    type: info
+
+As of the writing of this doc, the relevant images follow this naming pattern: `registry.ddbuild.io/datadog-agent-buildimages/windows_ltsc{$YEAR}_${ARCH}${SUFFIX}:${TAG}`
+
+- `YEAR` is either `2022` or `2025`
+- `ARCH` can only be `x64` at this time
+- `SUFFIX` can be either empty or `_test_only`, which refers to images used by CI in PR builds.
+- The `TAG` follows the usual convention, i.e. `v{gitlab pipeline id}-{short commit sha}`
+
+/// example
+`registry.ddbuild.io/ci/datadog-agent-buildimages/windows_ltsc2025_x64:v77240728-510448c3`
+///
+///
+///
+
+First, mount / clone a checkout of the `datadog-agent` repo inside the container.
+
+The recommended way to do this while developing manually is to bind-mount your host's checkout of the repo into the container.On the host, while inside the `datadog-agent` repo:
+```powershell
+docker run -v "$(Get-Location):c:\mnt" <image>
+```
+
+You can then invoke one of the windows build scripts, available in `tasks/winbuildscripts`:
+
+- `Build-AgentPackages.ps1` is used for building the "main" Agent msi package
+- `Build-OmnibusTarge.ps1` is used for building all other Agent packages via Omnibus
+- `Build-InstallerPackages.ps1` is used for building the `.exe` installer for the Agent.
+
+These scripts read a few environment variables, notably (non-exhaustive !):
+
+- `OMNIBUS_TARGET` - usually set to `main`
+- `MAJOR_VERSION` - `7` is the latest
+- `TARGET_ARCH` - only `x64` is supported at the moment
+
+/// example
+```powershell
+docker run -v "$(Get-Location):c:\mnt" -e OMNIBUS_TARGET=main -e MAJOR_VERSION=7 -e TARGET_ARCH=x64 registry.ddbuild.io/ci/datadog-agent-buildimages/windows_ltsc2025_x64:v77240728-510448c3 powershell -C "c:\mnt\tasks\winbuildscripts\Build-AgentPackages.ps1 -BuildOutOfSource 1 -InstallDeps 1 -CheckGoVersion 1"
+```
+///
+
+If the build succeeds, the build artifacts can be found under `omnibus\pkg` in the repo.
