@@ -16,14 +16,12 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
 	serverlessLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
 // PubSubMessage represents a Pub/Sub message structure
@@ -49,11 +47,15 @@ type CloudRunProxy struct {
 
 // RunCloudRunProxy starts the Cloud Run proxy HTTP server
 func RunCloudRunProxy(_ *serverlessLog.Config) error {
+	fmt.Printf("CLOUDRUN_PROXY: Starting Cloud Run proxy...\n")
+
 	// Use DD_HEALTH_PORT or default to 443
 	proxyPort := "443"
 	if port := os.Getenv("DD_HEALTH_PORT"); port != "" {
 		proxyPort = port
 	}
+
+	fmt.Printf("CLOUDRUN_PROXY: Using port %s\n", proxyPort)
 
 	// Create HTTP server with optimized client
 	mux := http.NewServeMux()
@@ -80,8 +82,10 @@ func RunCloudRunProxy(_ *serverlessLog.Config) error {
 
 	// Start server in goroutine
 	go func() {
+		fmt.Printf("CLOUDRUN_PROXY: Starting HTTP server on port %s\n", proxyPort)
 		log.Infof("Starting Cloud Run proxy server on port %s, forwarding to localhost:8080", proxyPort)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			fmt.Printf("CLOUDRUN_PROXY: Server error: %v\n", err)
 			log.Errorf("Cloud Run proxy server error: %v", err)
 		}
 	}()
@@ -111,38 +115,55 @@ func RunCloudRunProxy(_ *serverlessLog.Config) error {
 
 // handleRequest processes incoming HTTP requests with optimized Pub/Sub detection and processing
 func (p *CloudRunProxy) handleRequest(w http.ResponseWriter, r *http.Request) {
+	fmt.Printf("CLOUDRUN_PROXY: Received request - Method: %s, URL: %s\n", r.Method, r.URL.String())
+	fmt.Printf("CLOUDRUN_PROXY: Headers: %+v\n", r.Header)
+
 	// Inline Pub/Sub detection for better performance
 	contentType := r.Header.Get("Content-Type")
 	userAgent := r.Header.Get("User-Agent")
 	isPubSub := contentType == "application/json" && strings.Contains(userAgent, "APIs-Google")
 
+	fmt.Printf("CLOUDRUN_PROXY: Content-Type: %s, User-Agent: %s\n", contentType, userAgent)
+	fmt.Printf("CLOUDRUN_PROXY: Is Pub/Sub request: %v\n", isPubSub)
+
 	if isPubSub {
+		fmt.Printf("CLOUDRUN_PROXY: Processing Pub/Sub request to %s\n", r.URL.Path)
 		log.Debugf("Cloud Run proxy: received Pub/Sub request to %s", r.URL.Path)
 
 		// Read and parse Pub/Sub message
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
+			fmt.Printf("CLOUDRUN_PROXY: Error reading request body: %v\n", err)
 			log.Errorf("Cloud Run proxy: error reading request body: %v", err)
 			w.WriteHeader(http.StatusBadGateway)
 			return
 		}
 		r.Body.Close()
 
+		fmt.Printf("CLOUDRUN_PROXY: Request body length: %d bytes\n", len(body))
+		fmt.Printf("CLOUDRUN_PROXY: Request body preview: %s\n", string(body[:min(len(body), 500)]))
+
 		// Parse Pub/Sub message and extract trace context
 		var pubsubMsg PubSubMessage
 		if err := json.Unmarshal(body, &pubsubMsg); err == nil {
+			fmt.Printf("CLOUDRUN_PROXY: Successfully parsed Pub/Sub message\n")
+			fmt.Printf("CLOUDRUN_PROXY: Message attributes: %+v\n", pubsubMsg.Message.Attributes)
 			log.Debugf("Cloud Run proxy: detected Pub/Sub message with %s", pubsubMsg.Message)
 			// Process trace context and create synthetic spans
 			p.processTraceContextAndSpansFromAttrs(r, pubsubMsg.Message.Attributes)
+		} else {
+			fmt.Printf("CLOUDRUN_PROXY: Failed to parse Pub/Sub message: %v\n", err)
 		}
 
 		// Recreate the request body for forwarding
 		r.Body = io.NopCloser(strings.NewReader(string(body)))
 	} else {
+		fmt.Printf("CLOUDRUN_PROXY: Forwarding non-Pub/Sub request to %s\n", r.URL.Path)
 		log.Debugf("Cloud Run proxy: forwarding non-Pub/Sub request to %s", r.URL.Path)
 	}
 
 	// Forward request to target service
+	fmt.Printf("CLOUDRUN_PROXY: Forwarding request to main container\n")
 	p.forwardRequest(w, r)
 }
 
@@ -152,84 +173,75 @@ func (p *CloudRunProxy) processTraceContextAndSpansFromAttrs(r *http.Request, at
 		return
 	}
 
-	// Extract parent span ID (Datadog format first, then W3C)
-	var parentSpanID uint64
-	if datadogParentID := attrs["x-datadog-parent-id"]; datadogParentID != "" {
-		if id, err := strconv.ParseUint(datadogParentID, 10, 64); err == nil {
-			parentSpanID = id
+	// Log the attributes for debugging
+	fmt.Printf("Pub/Sub message attributes: %+v\n", attrs)
+
+	// Inject trace context headers efficiently - prioritize Google Cloud trace context
+	if googTraceParent := attrs["googclient_traceparent"]; googTraceParent != "" {
+		r.Header.Set("traceparent", googTraceParent)
+	}
+	if googTraceState := attrs["googclient_tracestate"]; googTraceState != "" {
+		r.Header.Set("tracestate", googTraceState)
+	}
+	if cloudTraceContext := attrs["x-cloud-trace-context"]; cloudTraceContext != "" {
+		r.Header.Set("x-cloud-trace-context", cloudTraceContext)
+	}
+
+	// Fallback to standard trace context if Google Cloud context not available
+	if r.Header.Get("traceparent") == "" {
+		if traceParent := attrs["traceparent"]; traceParent != "" {
+			r.Header.Set("traceparent", traceParent)
 		}
-	} else if traceParent := attrs["traceparent"]; traceParent != "" {
-		if parts := strings.Split(traceParent, "-"); len(parts) >= 2 {
-			if id, err := strconv.ParseUint(parts[1], 16, 64); err == nil {
-				parentSpanID = id
+	}
+	if r.Header.Get("tracestate") == "" {
+		if traceState := attrs["tracestate"]; traceState != "" {
+			r.Header.Set("tracestate", traceState)
+		}
+	}
+
+	// Extract and inject Datadog trace context from tracestate
+	if tracestate := r.Header.Get("tracestate"); tracestate != "" {
+		// Parse Datadog trace context from tracestate: dd=t.tid:TRACE_ID;s:SAMPLING;p:PARENT_ID
+		if strings.Contains(tracestate, "dd=") {
+			ddPart := strings.Split(tracestate, "dd=")[1]
+			if strings.Contains(ddPart, ";") {
+				ddPart = strings.Split(ddPart, ";")[0]
+			}
+			if strings.Contains(ddPart, "t.tid:") {
+				ddTraceID := strings.Split(ddPart, "t.tid:")[1]
+				r.Header.Set("x-datadog-trace-id", ddTraceID)
+			}
+			if strings.Contains(tracestate, "p:") {
+				ddParentID := strings.Split(strings.Split(tracestate, "p:")[1], ";")[0]
+				if strings.Contains(ddParentID, " ") {
+					ddParentID = strings.Split(ddParentID, " ")[0]
+				}
+				r.Header.Set("x-datadog-parent-id", ddParentID)
+			}
+			if strings.Contains(tracestate, "s:") {
+				ddSampling := strings.Split(strings.Split(tracestate, "s:")[1], ";")[0]
+				if strings.Contains(ddSampling, " ") {
+					ddSampling = strings.Split(ddSampling, " ")[0]
+				}
+				r.Header.Set("x-datadog-sampling-priority", ddSampling)
 			}
 		}
 	}
 
-	// Create Pub/Sub synthetic span
-	var pubsubSpan tracer.Span
-	if parentSpanID > 0 {
-		pubsubSpan = tracer.StartSpan("pubsub.message.delivery", tracer.WithSpanID(parentSpanID))
-	} else {
-		pubsubSpan = tracer.StartSpan("pubsub.message.delivery")
-	}
-
-	// Set Pub/Sub span tags efficiently
-	pubsubSpan.SetTag("service.name", "google.pubsub")
-	pubsubSpan.SetTag("service", "google.pubsub")
-	pubsubSpan.SetTag("resource.name", attrs["subscription"])
-	pubsubSpan.SetTag("operation.name", "pubsub.message.delivery")
-	pubsubSpan.SetTag("message_id", attrs["messageId"])
-	pubsubSpan.SetTag("subscription", attrs["subscription"])
-	pubsubSpan.SetTag("component", "pubsub_infrastructure")
-	pubsubSpan.SetTag("span.kind", "consumer")
-	pubsubSpan.SetTag("cloud.provider", "gcp")
-	pubsubSpan.SetTag("cloud.service", "pubsub")
-	pubsubSpan.SetTag("messaging.system", "pubsub")
-	pubsubSpan.SetTag("messaging.operation", "receive")
-	pubsubSpan.Finish()
-
-	// Create Datadog processing span if we have trace context
-	if parentSpanID > 0 {
-		ddSpan := tracer.StartSpan("datadog.trace.processing", tracer.WithSpanID(parentSpanID))
-		ddSpan.SetTag("service.name", "datadog.agent")
-		ddSpan.SetTag("service", "datadog.agent")
-		ddSpan.SetTag("resource.name", "cloudrun.proxy")
-		ddSpan.SetTag("operation.name", "datadog.trace.processing")
-		ddSpan.SetTag("message_id", attrs["messageId"])
-		ddSpan.SetTag("subscription", attrs["subscription"])
-		ddSpan.SetTag("processing_type", "trace_context_extraction")
-		ddSpan.SetTag("component", "cloudrun_proxy")
-		ddSpan.SetTag("span.kind", "internal")
-		ddSpan.SetTag("datadog.processing.step", "trace_context_injection")
-		ddSpan.SetTag("cloud.provider", "gcp")
-		ddSpan.SetTag("cloud.service", "cloud_run")
-		ddSpan.Finish()
-	}
-
-	// Inject trace context headers efficiently
-	if traceParent := attrs["traceparent"]; traceParent != "" {
-		r.Header.Set("traceparent", traceParent)
-	}
-	if traceState := attrs["tracestate"]; traceState != "" {
-		r.Header.Set("tracestate", traceState)
-	}
-	if datadogTraceID := attrs["x-datadog-trace-id"]; datadogTraceID != "" {
+	// Fallback to direct Datadog headers if available
+	if datadogTraceID := attrs["x-datadog-trace-id"]; datadogTraceID != "" && r.Header.Get("x-datadog-trace-id") == "" {
 		r.Header.Set("x-datadog-trace-id", datadogTraceID)
 	}
-	if datadogParentID := attrs["x-datadog-parent-id"]; datadogParentID != "" {
+	if datadogParentID := attrs["x-datadog-parent-id"]; datadogParentID != "" && r.Header.Get("x-datadog-parent-id") == "" {
 		r.Header.Set("x-datadog-parent-id", datadogParentID)
 	}
-	if datadogSamplingPriority := attrs["x-datadog-sampling-priority"]; datadogSamplingPriority != "" {
+	if datadogSamplingPriority := attrs["x-datadog-sampling-priority"]; datadogSamplingPriority != "" && r.Header.Get("x-datadog-sampling-priority") == "" {
 		r.Header.Set("x-datadog-sampling-priority", datadogSamplingPriority)
-	} else {
+	} else if r.Header.Get("x-datadog-sampling-priority") == "" {
 		r.Header.Set("x-datadog-sampling-priority", "1") // Default to sampled
 	}
 	if datadogOrigin := attrs["x-datadog-origin"]; datadogOrigin != "" {
 		r.Header.Set("x-datadog-origin", datadogOrigin)
-	}
-	if cloudTraceContext := attrs["x-cloud-trace-context"]; cloudTraceContext != "" {
-		r.Header.Set("x-cloud-trace-context", cloudTraceContext)
 	}
 
 	// Create W3C traceparent from Datadog headers if needed
@@ -248,6 +260,8 @@ func (p *CloudRunProxy) forwardRequest(w http.ResponseWriter, r *http.Request) {
 		targetURL += "?" + r.URL.RawQuery
 	}
 
+	fmt.Printf("CLOUDRUN_PROXY: Forwarding request to %s\n", targetURL)
+	fmt.Printf("CLOUDRUN_PROXY: Request headers being forwarded: %+v\n", r.Header)
 	log.Debugf("Cloud Run proxy: forwarding request to %s", targetURL)
 
 	// Create new request to target
@@ -266,8 +280,10 @@ func (p *CloudRunProxy) forwardRequest(w http.ResponseWriter, r *http.Request) {
 	req.Host = "localhost:8080"
 
 	// Make request to target service
+	fmt.Printf("CLOUDRUN_PROXY: Making request to target service\n")
 	resp, err := p.client.Do(req)
 	if err != nil {
+		fmt.Printf("CLOUDRUN_PROXY: Error forwarding request: %v\n", err)
 		log.Errorf("Cloud Run proxy: error forwarding request: %v", err)
 		if errors.Is(err, context.DeadlineExceeded) {
 			w.WriteHeader(http.StatusGatewayTimeout)
@@ -278,6 +294,9 @@ func (p *CloudRunProxy) forwardRequest(w http.ResponseWriter, r *http.Request) {
 	}
 	defer resp.Body.Close()
 
+	fmt.Printf("CLOUDRUN_PROXY: Received response with status %d\n", resp.StatusCode)
+	fmt.Printf("CLOUDRUN_PROXY: Response headers: %+v\n", resp.Header)
+
 	// Copy response headers and body efficiently
 	for key, values := range resp.Header {
 		for _, value := range values {
@@ -286,8 +305,10 @@ func (p *CloudRunProxy) forwardRequest(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(resp.StatusCode)
 	if _, err := io.Copy(w, resp.Body); err != nil {
+		fmt.Printf("CLOUDRUN_PROXY: Error copying response body: %v\n", err)
 		log.Errorf("Cloud Run proxy: error copying response body: %v", err)
 	}
 
+	fmt.Printf("CLOUDRUN_PROXY: Request forwarding completed successfully\n")
 	log.Debugf("Cloud Run proxy: forwarded request completed with status %d", resp.StatusCode)
 }
