@@ -117,7 +117,7 @@ agent_win_oci:
   variables:
     OCI_PRODUCT: "datadog-agent"
     WIN_SOURCE_TYPE: "msi"
-    WIN_ARTIFACT_PATTERN: "datadog-agent-*x86_64.msi"
+    WIN_ARTIFACT_PATTERN: "datadog-agent-[0-9]*-x86_64.msi"
 
 agent_oci:
   extends: .package_oci
