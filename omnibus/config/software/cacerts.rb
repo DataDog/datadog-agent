@@ -41,8 +41,8 @@ build do
     mkdir "#{python_3_embedded}"
     mkdir "#{python_3_embedded}/ssl"
     mkdir "#{python_3_embedded}/ssl/cacerts"
-    copy "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/deps/cacerts/cacert.pem '#{python_3_embedded}/ssl'"
-    copy "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/deps/cacerts/cacert.pem '#{python_3_embedded}/cacerts/ssl'"
+    copy "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/deps/cacerts/cacert.pem" "#{python_3_embedded}/ssl"
+    copy "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/deps/cacerts/cacert.pem" "#{python_3_embedded}/cacerts/ssl"
     command "dir #{python_3_embedded}/ssl"
   else
     command "cd #{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent && bazelisk run -- //deps/cacerts:install --destdir='#{install_dir}/embedded'"
