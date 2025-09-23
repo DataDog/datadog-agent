@@ -10,8 +10,6 @@ customer's machine.
 """
 
 load("@rules_license//rules:license.bzl", "license")
-load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
 load("@rules_shell//shell:sh_test.bzl", "sh_test")
 
 package(
@@ -55,33 +53,5 @@ sh_test(
     # platform anyway.
     target_compatible_with = [
         "@platforms//os:linux",
-    ],
-)
-
-# Omnibus glue rules: The rest of this file is temporary until we no longer
-# have Omnibus as the high level controller for the build.
-# These are used only from /omnibus/config/software/cacerts.rb
-
-pkg_files(
-    name = "ssl",
-    srcs = [
-        ":cacert.pem",
-    ],
-    prefix = "ssl",
-)
-
-pkg_files(
-    name = "ssl_certs",
-    srcs = [
-        ":cacert.pem",
-    ],
-    prefix = "ssl/cacerts",
-)
-
-pkg_install(
-    name = "install",
-    srcs = [
-        ":ssl",
-        ":ssl_certs",
     ],
 )
