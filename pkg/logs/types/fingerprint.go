@@ -34,7 +34,7 @@ func (f *Fingerprint) Equals(other *Fingerprint) bool {
 }
 
 // ValidFingerprint returns true if the fingerprint is valid (non-zero value and non-nil config)
-func (f *Fingerprint) ValidFingerprint() bool {
+func (f *Fingerprint) IsValidFingerprint() bool {
 	return f.Value != InvalidFingerprintValue && f.Config != nil
 }
 
