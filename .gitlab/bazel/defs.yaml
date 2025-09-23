@@ -25,9 +25,9 @@
 
 .bazel:ext:windows:
   extends: .windows_docker_default
-  timeout: 15m
-  allow_failure: true
+  parallel: 30
   retry: 0
+  timeout: 20m
   variables:
     GIT_DEPTH: 2
   script:
