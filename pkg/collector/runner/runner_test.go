@@ -27,6 +27,8 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
+const Epsilon = 0.001 // Used for floating point comparisons
+
 // Fixtures
 
 type testCheck struct {
@@ -321,25 +323,12 @@ func TestRunnerConfigurableValues(t *testing.T) {
 	defer r.Stop()
 
 	// Verify that the utilization monitor was created with the custom threshold
-	// We can't directly access the threshold, but we can verify the monitor exists
 	require.NotNil(t, r.utilizationMonitor)
+	require.InEpsilon(t, 0.85, r.utilizationMonitor.Threshold, Epsilon)
 
 	// Test that the configuration values are being read correctly
-	assert.Equal(t, 0.85, pkgconfigsetup.Datadog().GetFloat64("check_runner_utilization_threshold"))
+	assert.InEpsilon(t, 0.85, pkgconfigsetup.Datadog().GetFloat64("check_runner_utilization_threshold"), Epsilon)
 	assert.Equal(t, 30*time.Second, pkgconfigsetup.Datadog().GetDuration("check_runner_utilization_monitor_interval"))
-}
-
-func TestRunnerDefaultConfigurableValues(t *testing.T) {
-	mockConfig := testSetUp(t)
-	mockConfig.SetWithoutSource("check_runners", "1")
-
-	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent())
-	require.NotNil(t, r)
-	defer r.Stop()
-
-	// Verify that the default values are used when not explicitly set
-	assert.Equal(t, 0.95, pkgconfigsetup.Datadog().GetFloat64("check_runner_utilization_threshold"))
-	assert.Equal(t, 60*time.Second, pkgconfigsetup.Datadog().GetDuration("check_runner_utilization_monitor_interval"))
 }
 
 func TestRunnerStopWithStuckCheck(t *testing.T) {

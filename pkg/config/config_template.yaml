@@ -789,6 +789,13 @@ api_key:
 #
 # check_runner_utilization_monitor_interval: 60s
 
+## @param check_runner_utilization_warning_cooldown - duration - optional - default: 10m
+## @env DD_CHECK_RUNNER_UTILIZATION_WARNING_COOLDOWN - duration - optional - default: 10m
+## The cooldown period between warning log messages about workers being over the utilization
+## threshold. This prevents log spam when workers are consistently over-utilized.
+#
+# check_runner_utilization_warning_cooldown: 10m
+
 ## @param enable_metadata_collection - boolean - optional - default: true
 ## @env DD_ENABLE_METADATA_COLLECTION - boolean - optional - default: true
 ## Metadata collection should always be enabled, except if you are running several

@@ -52,6 +52,7 @@ type Runner struct {
 	scheduler           *scheduler.Scheduler          // Scheduler runner operates on
 	schedulerLock       sync.RWMutex                  // Lock around operations on the scheduler
 	utilizationMonitor  *worker.UtilizationMonitor    // Monitor in charge of checking the worker utilization
+	lastWarningTime     time.Time                     // Last time a utilization warning was logged
 }
 
 // NewRunner takes the number of desired goroutines processing incoming checks.
@@ -302,7 +303,14 @@ func (r *Runner) logWorkerUtilization() {
 	log.Debugf("Average worker utilization: %v", averageUtilization)
 
 	if len(overview.WorkersOverThreshold) > 0 {
-		log.Warnf("Workers over utilization threshold: %v", overview.WorkersOverThreshold)
+		cooldown := pkgconfigsetup.Datadog().GetDuration("check_runner_utilization_warning_cooldown")
+		now := time.Now()
+
+		// Only log warning if enough time has passed since the last warning
+		if now.Sub(r.lastWarningTime) >= cooldown {
+			log.Warnf("Workers over utilization threshold: %v", overview.WorkersOverThreshold)
+			r.lastWarningTime = now
+		}
 	}
 }
 
