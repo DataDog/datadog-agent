@@ -8,7 +8,6 @@ package telemetry
 
 import (
 	"sort"
-	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/utils"
@@ -28,10 +27,6 @@ const CollectorTypeNetworkPathCollector NetworkPathCollectorType = "network_path
 
 // SubmitNetworkPathTelemetry submits Network Path related telemetry
 func SubmitNetworkPathTelemetry(sender metricsender.MetricSender, path payload.NetworkPath, checkDuration time.Duration, checkInterval time.Duration, tags []string) {
-	destPortTag := "unspecified"
-	if path.Destination.Port > 0 {
-		destPortTag = strconv.Itoa(int(path.Destination.Port))
-	}
 	var pathSource NetworkPathCollectorType
 	if path.Origin == payload.PathOriginNetworkTraffic {
 		pathSource = CollectorTypeNetworkPathCollector
@@ -42,9 +37,6 @@ func SubmitNetworkPathTelemetry(sender metricsender.MetricSender, path payload.N
 		"collector:" + string(pathSource),
 		"origin:" + string(path.Origin),
 		"protocol:" + string(path.Protocol),
-		"destination_ip:" + path.Destination.IPAddress,
-		"destination_hostname:" + path.Destination.Hostname,
-		"destination_port:" + destPortTag,
 	}...)
 
 	sort.Strings(newTags)
@@ -56,12 +48,4 @@ func SubmitNetworkPathTelemetry(sender metricsender.MetricSender, path payload.N
 	}
 
 	sender.Gauge("datadog.network_path.path.monitored", float64(1), newTags)
-	if len(path.Hops) > 0 {
-		lastHop := path.Hops[len(path.Hops)-1]
-		if lastHop.Reachable {
-			sender.Gauge("datadog.network_path.path.hops", float64(len(path.Hops)), newTags)
-		}
-		sender.Gauge("datadog.network_path.path.reachable", float64(utils.BoolToFloat64(lastHop.Reachable)), newTags)
-		sender.Gauge("datadog.network_path.path.unreachable", float64(utils.BoolToFloat64(!lastHop.Reachable)), newTags)
-	}
 }

@@ -8,6 +8,7 @@ package nodetreemodel
 
 import (
 	"bytes"
+	"encoding/json"
 	"maps"
 	"os"
 	"path/filepath"
@@ -19,9 +20,10 @@ import (
 
 	"gopkg.in/yaml.v2"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/viperconfig"
-	"github.com/stretchr/testify/assert"
 )
 
 func constructBothConfigs(content string, dynamicSchema bool, setupFunc func(model.Setup)) (model.BuildableConfig, model.BuildableConfig) {
@@ -59,7 +61,7 @@ func TestCompareGetInt(t *testing.T) {
 	assert.Equal(t, 345, ntmConf.GetInt("port"))
 
 	viperConf, ntmConf = constructBothConfigs(dataYaml, false, func(cfg model.Setup) {
-		cfg.SetKnown("port")
+		cfg.SetKnown("port") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	})
 	assert.Equal(t, 345, viperConf.GetInt("port"))
 	assert.Equal(t, 345, ntmConf.GetInt("port"))
@@ -72,7 +74,7 @@ func TestCompareIsSet(t *testing.T) {
 	assert.Equal(t, true, ntmConf.IsSet("port"))
 
 	viperConf, ntmConf = constructBothConfigs(dataYaml, false, func(cfg model.Setup) {
-		cfg.SetKnown("port")
+		cfg.SetKnown("port") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	})
 	assert.Equal(t, true, viperConf.IsSet("port"))
 	assert.Equal(t, true, ntmConf.IsSet("port"))
@@ -88,7 +90,7 @@ func TestCompareIsSet(t *testing.T) {
 
 	t.Setenv("TEST_PORT", "789")
 	viperConf, ntmConf = constructBothConfigs(dataYaml, false, func(cfg model.Setup) {
-		cfg.BindEnv("port", "TEST_PORT")
+		cfg.BindEnv("port", "TEST_PORT") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	})
 	assert.Equal(t, 789, viperConf.GetInt("port"))
 	assert.Equal(t, 789, ntmConf.GetInt("port"))
@@ -97,7 +99,7 @@ func TestCompareIsSet(t *testing.T) {
 
 	t.Setenv("TEST_PORT", "")
 	viperConf, ntmConf = constructBothConfigs(dataYaml, false, func(cfg model.Setup) {
-		cfg.BindEnv("port", "TEST_PORT")
+		cfg.BindEnv("port", "TEST_PORT") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	})
 	assert.Equal(t, 0, viperConf.GetInt("port"))
 	assert.Equal(t, 0, ntmConf.GetInt("port"))
@@ -139,9 +141,9 @@ func TestCompareGetEnvVars(t *testing.T) {
 
 	t.Run("With BindEnv", func(t *testing.T) {
 		viperConf, ntmConf := constructBothConfigs(dataYaml, false, func(cfg model.Setup) {
-			cfg.BindEnv("port", "TEST_PORT")
-			cfg.BindEnv("host", "TEST_HOST")
-			cfg.BindEnv("log.level", "TEST_LOG_LEVEL")
+			cfg.BindEnv("port", "TEST_PORT")           //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+			cfg.BindEnv("host", "TEST_HOST")           //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+			cfg.BindEnv("log.level", "TEST_LOG_LEVEL") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 		})
 
 		viperEnvVars := viperConf.GetEnvVars()
@@ -169,7 +171,7 @@ func TestCompareGetEnvVars(t *testing.T) {
 	t.Run("With EnvPrefix", func(t *testing.T) {
 		viperConf, ntmConf := constructBothConfigs(dataYaml, false, func(cfg model.Setup) {
 			cfg.SetEnvPrefix("MYAPP")
-			cfg.BindEnv("port") // No explicit name — will use prefix
+			cfg.BindEnv("port") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' // No explicit name — will use prefix
 		})
 
 		expected := "MYAPP_PORT"
@@ -181,7 +183,7 @@ func TestCompareGetEnvVars(t *testing.T) {
 	t.Run("With EnvKeyReplacer", func(t *testing.T) {
 		viperConf, ntmConf := constructBothConfigs(dataYaml, false, func(cfg model.Setup) {
 			cfg.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
-			cfg.BindEnv("log.level")
+			cfg.BindEnv("log.level") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 		})
 
 		expected := "DD_LOG_LEVEL" // Default prefix is "DD" for viper and ntm when initializing the config
@@ -194,7 +196,7 @@ func TestCompareGetEnvVars(t *testing.T) {
 		viperConf, ntmConf := constructBothConfigs(dataYaml, false, func(cfg model.Setup) {
 			cfg.SetEnvPrefix("MYAPP")
 			cfg.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
-			cfg.BindEnv("db.connection.url")
+			cfg.BindEnv("db.connection.url") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 		})
 
 		expected := "MYAPP_DB_CONNECTION_URL"
@@ -205,9 +207,9 @@ func TestCompareGetEnvVars(t *testing.T) {
 
 	t.Run("Adding an unknown setting in the yaml", func(t *testing.T) {
 		viperConf, ntmConf := constructBothConfigs(dataYaml, false, func(cfg model.Setup) {
-			cfg.SetKnown("PORT")
+			cfg.SetKnown("PORT") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 			cfg.SetDefault("HOST", "localhost")
-			cfg.BindEnv("log_level")
+			cfg.BindEnv("log_level") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 		})
 
 		viperEnvVars := viperConf.GetEnvVars()
@@ -225,8 +227,8 @@ func TestCompareGetEnvVars(t *testing.T) {
 func TestCompareGetKnownKeysLowercased(t *testing.T) {
 	t.Run("Includes SetKnown keys", func(t *testing.T) {
 		viperConf, ntmConf := constructBothConfigs("", false, func(cfg model.Setup) {
-			cfg.SetKnown("PORT")
-			cfg.SetKnown("host")
+			cfg.SetKnown("PORT") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+			cfg.SetKnown("host") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 		})
 
 		wantKeys := []string{"port", "host"}
@@ -248,7 +250,7 @@ func TestCompareGetKnownKeysLowercased(t *testing.T) {
 	t.Run("Includes environment bindings", func(t *testing.T) {
 		t.Setenv("TEST_LOG_LEVEL", "debug")
 		viperConf, ntmConf := constructBothConfigs("", false, func(cfg model.Setup) {
-			cfg.BindEnv("log.level", "TEST_LOG_LEVEL")
+			cfg.BindEnv("log.level", "TEST_LOG_LEVEL") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 		})
 
 		wantKeys := []string{"log", "log.level"}
@@ -259,9 +261,9 @@ func TestCompareGetKnownKeysLowercased(t *testing.T) {
 	t.Run("Combined known/default/env", func(t *testing.T) {
 		t.Setenv("TEST_LOG_LEVEL", "debug")
 		viperConf, ntmConf := constructBothConfigs("", false, func(cfg model.Setup) {
-			cfg.SetKnown("PORT")
+			cfg.SetKnown("PORT") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 			cfg.SetDefault("TIMEOUT", 30)
-			cfg.BindEnv("log.level", "TEST_LOG_LEVEL")
+			cfg.BindEnv("log.level", "TEST_LOG_LEVEL") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 		})
 
 		wantKeys := []string{"port", "timeout", "log", "log.level"}
@@ -276,7 +278,7 @@ customKey1: 8080
 customKey2: unused
 `
 		viperConf, ntmConf := constructBothConfigs(yamlData, true, func(cfg model.Setup) {
-			cfg.SetKnown("port") // unrelated known key
+			cfg.SetKnown("port") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' // unrelated known key
 		})
 
 		// Expected to not include customKey if it’s unknown
@@ -293,7 +295,7 @@ customKey2: unused
 port: 8080
 `
 		viperConf, ntmConf := constructBothConfigs(dataYaml, true, func(cfg model.Setup) {
-			cfg.SetKnown("port")
+			cfg.SetKnown("port") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 		})
 		viperConf.SetWithoutSource("unknown_key.unknown_subkey", "true")
 		ntmConf.SetWithoutSource("unknown_key.unknown_subkey", "true")
@@ -314,9 +316,9 @@ log:
   level: info
 `
 		viperConf, ntmConf := constructBothConfigs(dataYaml, true, func(cfg model.Setup) {
-			cfg.SetKnown("port")
-			cfg.SetKnown("host")
-			cfg.SetKnown("log.level")
+			cfg.SetKnown("port")      //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+			cfg.SetKnown("host")      //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+			cfg.SetKnown("log.level") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 		})
 
 		wantKeys := []string{"port", "host", "log.level"}
@@ -341,9 +343,9 @@ log:
 
 		dataYaml := `port: 8080`
 		viperConf, ntmConf := constructBothConfigs(dataYaml, false, func(cfg model.Setup) {
-			cfg.SetKnown("port")
+			cfg.SetKnown("port") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 			cfg.SetDefault("HOST", "localhost")
-			cfg.BindEnv("api_key", "TEST_API_KEY")
+			cfg.BindEnv("api_key", "TEST_API_KEY") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 		})
 
 		wantKeys := []string{"port", "host", "api_key"}
@@ -360,8 +362,8 @@ customKey2: unused
 `
 
 		viperConf, ntmConf := constructBothConfigs(dataYaml, true, func(cfg model.Setup) {
-			cfg.SetKnown("port")
-			cfg.SetKnown("host")
+			cfg.SetKnown("port") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+			cfg.SetKnown("host") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 		})
 
 		wantKeys := []string{"port", "host", "customkey1", "customkey2"}
@@ -374,7 +376,7 @@ customKey2: unused
 port: 8080
 `
 		viperConf, ntmConf := constructBothConfigs(dataYaml, true, func(cfg model.Setup) {
-			cfg.SetKnown("port")
+			cfg.SetKnown("port") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 		})
 		viperConf.SetWithoutSource("unknown_key.unknown_subkey", "true")
 		ntmConf.SetWithoutSource("unknown_key.unknown_subkey", "true")
@@ -394,9 +396,9 @@ apm_config:
 	t.Setenv("DD_RUNTIME_SECURITY_CONFIG_ENDPOINTS_DD_URL", "https://example.com/endpoint/")
 
 	viperConf, ntmConf := constructBothConfigs(dataYaml, true, func(cfg model.Setup) {
-		cfg.SetKnown("apm_config.telemetry.dd_url")
-		cfg.SetKnown("database_monitoring.samples.dd_url")
-		cfg.SetKnown("runtime_security_config.endpoints.dd_url")
+		cfg.SetKnown("apm_config.telemetry.dd_url")              //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+		cfg.SetKnown("database_monitoring.samples.dd_url")       //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+		cfg.SetKnown("runtime_security_config.endpoints.dd_url") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 		cfg.SetDefault("apm_config.telemetry.dd_url", "")
 		cfg.SetDefault("database_monitoring.samples.dd_url", "")
 		cfg.BindEnvAndSetDefault("runtime_security_config.endpoints.dd_url", "", "DD_RUNTIME_SECURITY_CONFIG_ENDPOINTS_DD_URL")
@@ -470,8 +472,8 @@ func TestReadConfigReset(t *testing.T) {
 	overrideYAML := `host: localhost`
 
 	viperConf, ntmConf := constructBothConfigs(initialYAML, true, func(cfg model.Setup) {
-		cfg.SetKnown("port")
-		cfg.SetKnown("host")
+		cfg.SetKnown("port") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+		cfg.SetKnown("host") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	})
 
 	assert.Equal(t, 1234, viperConf.GetInt("port"))
@@ -545,4 +547,29 @@ func TestReadInConfigResetsPreviousConfig(t *testing.T) {
 	// "host" should now be available
 	assert.Equal(t, "localhost", viperConf.GetString("host"))
 	assert.Equal(t, "localhost", ntmConf.GetString("host"))
+}
+
+func TestCompareEnvVarsSubfields(t *testing.T) {
+	t.Run("Subsettings are merged with env vars", func(t *testing.T) {
+		data, _ := json.Marshal(map[string]string{"a": "apple"})
+		t.Setenv("TEST_MY_FEATURE_INFO_TARGETS", string(data))
+
+		configData := `
+my_feature:
+  info:
+    enabled: true
+`
+		viperConf, ntmConf := constructBothConfigs(configData, false, func(cfg model.Setup) {
+			cfg.BindEnvAndSetDefault("my_feature.info.name", "feat")
+			cfg.BindEnvAndSetDefault("my_feature.info.enabled", false)
+			cfg.BindEnvAndSetDefault("my_feature.info.version", "v2")
+			cfg.BindEnv("my_feature.info.targets", "TEST_MY_FEATURE_INFO_TARGETS") //nolint: forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+		})
+
+		fields := viperConf.GetSubfields("my_feature.info")
+		assert.Equal(t, []string{"enabled", "name", "targets", "version"}, fields)
+
+		fields = ntmConf.GetSubfields("my_feature.info")
+		assert.Equal(t, []string{"enabled", "name", "targets", "version"}, fields)
+	})
 }

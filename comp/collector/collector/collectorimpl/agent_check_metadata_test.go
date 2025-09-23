@@ -14,9 +14,11 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
-	"github.com/DataDog/datadog-agent/comp/core"
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -36,7 +38,11 @@ func TestExternalHostTags(t *testing.T) {
 	externalhost.SetExternalTags(host2, sourceType, tags2)
 
 	c := newCollector(fxutil.Test[dependencies](t,
-		core.MockBundle(),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component {
+			return config.NewMockWithOverrides(t, map[string]interface{}{"check_cancel_timeout": 500 * time.Millisecond})
+		}),
+		hostnameimpl.MockModule(),
 		demultiplexerimpl.MockModule(),
 		haagentmock.Module(),
 		fx.Provide(func() option.Option[agenttelemetry.Component] {
@@ -45,9 +51,7 @@ func TestExternalHostTags(t *testing.T) {
 		fx.Provide(func() option.Option[serializer.MetricSerializer] {
 			return option.None[serializer.MetricSerializer]()
 		}),
-		fx.Replace(config.MockParams{
-			Overrides: map[string]interface{}{"check_cancel_timeout": 500 * time.Millisecond},
-		})))
+	))
 
 	pl := c.GetPayload(context.Background())
 	hpl := pl.ExternalhostTags

@@ -93,11 +93,12 @@ var (
 
 // Provider provides the metrics related to data collected from the `/metrics` Kubelet endpoint
 type Provider struct {
-	filterStore workloadfilter.Component
-	store       workloadmeta.Component
-	podUtils    *common.PodUtils
-	tagger      tagger.Component
-	firstRun    bool
+	podFilter       workloadfilter.FilterBundle
+	containerFilter workloadfilter.FilterBundle
+	store           workloadmeta.Component
+	podUtils        *common.PodUtils
+	tagger          tagger.Component
+	firstRun        bool
 	prometheus.Provider
 }
 
@@ -116,11 +117,12 @@ func NewProvider(filterStore workloadfilter.Component, config *common.KubeletCon
 	}
 
 	provider := &Provider{
-		filterStore: filterStore,
-		store:       store,
-		podUtils:    podUtils,
-		tagger:      tagger,
-		firstRun:    true,
+		podFilter:       filterStore.GetPodSharedMetricFilters(),
+		containerFilter: filterStore.GetContainerSharedMetricFilters(),
+		store:           store,
+		podUtils:        podUtils,
+		tagger:          tagger,
+		firstRun:        true,
 	}
 
 	transformers := prometheus.Transformers{
@@ -181,8 +183,7 @@ func (p *Provider) appendPodTagsToVolumeMetrics(metricFam *prom.MetricFamily, se
 		pvcName := metric.Metric["persistentvolumeclaim"]
 		namespace := metric.Metric["namespace"]
 		filterablePod := workloadmetafilter.CreatePod(&workloadmeta.KubernetesPod{EntityMeta: workloadmeta.EntityMeta{Namespace: string(namespace)}})
-		selectedFilters := workloadfilter.GetPodSharedMetricFilters()
-		if pvcName == "" || namespace == "" || p.filterStore.IsPodExcluded(filterablePod, selectedFilters) {
+		if pvcName == "" || namespace == "" || p.podFilter.IsExcluded(filterablePod) {
 			continue
 		}
 
@@ -197,7 +198,7 @@ func (p *Provider) appendPodTagsToVolumeMetrics(metricFam *prom.MetricFamily, se
 func (p *Provider) kubeletContainerLogFilesystemUsedBytes(metricFam *prom.MetricFamily, sender sender.Sender) {
 	metricName := common.KubeletMetricsPrefix + "kubelet.container.log_filesystem.used_bytes"
 	for _, metric := range metricFam.Samples {
-		cID, err := common.GetContainerID(p.store, metric.Metric, p.filterStore)
+		cID, err := common.GetContainerID(p.store, metric.Metric, p.containerFilter)
 
 		if err == common.ErrContainerExcluded {
 			log.Debugf("Skipping excluded container: %s/%s/%s:%s", metric.Metric["namespace"], metric.Metric["pod"], metric.Metric["container"], cID)

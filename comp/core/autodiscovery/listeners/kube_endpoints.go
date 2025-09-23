@@ -335,14 +335,9 @@ func processEndpoints(kep *v1.Endpoints, tags []string, filterStore workloadfilt
 	metricsExcluded := false
 	globalExcluded := false
 	if filterStore != nil {
-		metricsExcluded = filterStore.IsEndpointExcluded(
-			workloadfilter.CreateEndpoint(kep.Name, kep.Namespace, kep.GetAnnotations()),
-			[][]workloadfilter.EndpointFilter{{workloadfilter.EndpointADAnnotations, workloadfilter.EndpointADAnnotationsMetrics}, {workloadfilter.LegacyEndpointMetrics}},
-		)
-		globalExcluded = filterStore.IsEndpointExcluded(
-			workloadfilter.CreateEndpoint(kep.Name, kep.Namespace, kep.GetAnnotations()),
-			[][]workloadfilter.EndpointFilter{{workloadfilter.EndpointADAnnotations}, {workloadfilter.LegacyEndpointGlobal}},
-		)
+		filterableEndpoint := workloadfilter.CreateEndpoint(kep.Name, kep.Namespace, kep.GetAnnotations())
+		metricsExcluded = filterStore.GetEndpointAutodiscoveryFilters(workloadfilter.MetricsFilter).IsExcluded(filterableEndpoint)
+		globalExcluded = filterStore.GetEndpointAutodiscoveryFilters(workloadfilter.GlobalFilter).IsExcluded(filterableEndpoint)
 	}
 
 	for i := range kep.Subsets {

@@ -192,6 +192,12 @@ static __attribute__((always_inline)) u64 get_imds_ip() {
     return imds_ip;
 };
 
+static __attribute__((always_inline)) u64 get_capabilities_monitoring_period() {
+    u64 capabilities_monitoring_period = 5000000000; // 5 seconds in nanoseconds
+    LOAD_CONSTANT("capabilities_monitoring_period", capabilities_monitoring_period);
+    return capabilities_monitoring_period;
+};
+
 #define CGROUP_MANAGER_UNDEFINED 0
 #define CGROUP_MANAGER_DOCKER 1
 #define CGROUP_MANAGER_CRIO 2
@@ -248,6 +254,7 @@ static __attribute__((always_inline)) u64 is_network_flow_monitor_enabled() {
 #define SYSCTL_OLD_VALUE_TRUNCATED (1 << 1)
 #define SYSCTL_NEW_VALUE_TRUNCATED (1 << 2)
 #define MAX_BPF_FILTER_SIZE (511 * sizeof(struct sock_filter))
+#define MAX_PRCTL_NAME_LEN 255
 
 
 static __attribute__((always_inline)) u64 has_tracing_helpers_in_cgroup_sysctl() {

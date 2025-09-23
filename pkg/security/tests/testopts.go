@@ -55,9 +55,10 @@ type testOpts struct {
 	disableRuntimeSecurity                     bool
 	enableSBOM                                 bool
 	enableHostSBOM                             bool
+	sbomUseV2Collector                         bool
 	preStartCallback                           func(test *testModule)
 	tagger                                     tags.Tagger
-	snapshotRuleMatchHandler                   func(*testModule, *model.Event, *rules.Rule)
+	ruleMatchHandler                           func(*testModule, *model.Event, *rules.Rule)
 	enableFIM                                  bool // only valid on windows
 	networkIngressEnabled                      bool
 	networkRawPacketEnabled                    bool
@@ -76,6 +77,8 @@ type testOpts struct {
 	enableSelfTests                            bool
 	networkFlowMonitorEnabled                  bool
 	dnsPort                                    uint16
+	traceSystemdCgroups                        bool
+	capabilitiesMonitoringEnabled              bool
 }
 
 type dynamicTestOpts struct {

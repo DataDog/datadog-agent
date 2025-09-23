@@ -333,6 +333,36 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 		event.Bind.AddrFamily = syscallMsg.Bind.AddressFamily
 		event.Bind.Protocol = syscallMsg.Bind.Protocol
 		event.Bind.Retval = syscallMsg.Retval
+	case ebpfless.SyscallTypeSetsockopt:
+		event.Type = uint32(model.SetSockOptEventType)
+		event.SetSockOpt.SocketFamily = syscallMsg.Setsockopt.SocketFamily
+		event.SetSockOpt.SocketProtocol = syscallMsg.Setsockopt.SocketProtocol
+		event.SetSockOpt.SocketType = syscallMsg.Setsockopt.SocketType
+		event.SetSockOpt.Level = syscallMsg.Setsockopt.Level
+		event.SetSockOpt.OptName = syscallMsg.Setsockopt.OptName
+		event.SetSockOpt.RawFilter = syscallMsg.Setsockopt.Filter
+		event.SetSockOpt.FilterLen = syscallMsg.Setsockopt.FilterLen
+		event.SetSockOpt.SizeToRead = uint32(syscallMsg.Setsockopt.FilterLen)
+	case ebpfless.SyscallTypeSetrlimit:
+		event.Type = uint32(model.SetrlimitEventType)
+		event.Setrlimit.Resource = syscallMsg.Setrlimit.Resource
+		event.Setrlimit.RlimCur = syscallMsg.Setrlimit.CurLimit
+		event.Setrlimit.RlimMax = syscallMsg.Setrlimit.MaxLimit
+		event.Setrlimit.TargetPid = syscallMsg.Setrlimit.Pid
+
+		// resolve target process context
+		var pce *model.ProcessCacheEntry
+		if event.Setrlimit.TargetPid > 0 {
+			pce = p.Resolvers.ProcessResolver.Resolve(process.CacheResolverKey{Pid: event.Setrlimit.TargetPid, NSID: cl.nsID})
+		}
+		if pce == nil {
+			pce = model.NewPlaceholderProcessCacheEntry(event.Setrlimit.TargetPid, event.Setrlimit.TargetPid, false)
+		}
+		event.Setrlimit.Target = &pce.ProcessContext
+	case ebpfless.SyscallTypePrctl:
+		event.Type = uint32(model.PrCtlEventType)
+		event.PrCtl.Option = syscallMsg.Prctl.Option
+		event.PrCtl.NewName = syscallMsg.Prctl.NewName
 	}
 
 	// container context
@@ -666,7 +696,7 @@ func (p *EBPFLessProbe) GetEventTags(containerID containerutils.ContainerID) []s
 }
 
 func (p *EBPFLessProbe) zeroEvent() *model.Event {
-	p.event.Zero()
+	probeEventZeroer(p.event)
 	p.event.FieldHandlers = p.fieldHandlers
 	p.event.Origin = EBPFLessOrigin
 	return p.event

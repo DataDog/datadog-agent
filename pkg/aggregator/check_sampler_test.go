@@ -12,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/quantile"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -22,13 +21,14 @@ import (
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	"github.com/DataDog/datadog-agent/pkg/util/quantile"
 )
 
 func generateContextKey(sample metrics.MetricSampleContext) ckey.ContextKey {
 	k := ckey.NewKeyGenerator()
 	tb := tagset.NewHashingTagsAccumulator()
 	taggerComponent := nooptagger.NewComponent()
-	sample.GetTags(tb, tb, taggerComponent.EnrichTags)
+	sample.GetTags(tb, tb, taggerComponent)
 	return k.Generate(sample.GetName(), sample.GetHost(), tb)
 }
 

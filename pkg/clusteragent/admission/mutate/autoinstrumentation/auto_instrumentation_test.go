@@ -56,10 +56,52 @@ var (
 		ruby:   "registry/dd-lib-ruby-init:" + defaultLibraries["ruby"],
 		php:    "registry/dd-lib-php-init:" + defaultLibraries["php"],
 	}
+
+	imageResolver = newNoOpImageResolver()
 )
 
 func defaultLibInfo(l language) libInfo {
-	return libInfo{lang: l, image: defaultLibImageVersions[l]}
+	return libInfo{
+		lang:       l,
+		image:      defaultLibImageVersions[l],
+		registry:   "registry",
+		repository: fmt.Sprintf("dd-lib-%s-init", l),
+		tag:        defaultLibraries[string(l)],
+		ctrName:    "",
+	}
+}
+
+func defaultLibInfoWithVersion(l language, version string) libInfo {
+	return libInfo{
+		lang:       l,
+		image:      fmt.Sprintf("registry/dd-lib-%s-init:%s", l, version),
+		registry:   "registry",
+		repository: fmt.Sprintf("dd-lib-%s-init", l),
+		tag:        version,
+		ctrName:    "",
+	}
+}
+
+func defaultLibInfoWithRegsitryVersion(l language, version string, registry string) libInfo {
+	return libInfo{
+		lang:       l,
+		image:      fmt.Sprintf("%s/dd-lib-%s-init:%s", registry, l, version),
+		registry:   registry,
+		repository: fmt.Sprintf("dd-lib-%s-init", l),
+		tag:        version,
+		ctrName:    "",
+	}
+}
+
+func defaultLibInfoWithContainerVersion(l language, version string, containerName string) libInfo {
+	return libInfo{
+		lang:       l,
+		image:      fmt.Sprintf("registry/dd-lib-%s-init:%s", l, version),
+		registry:   "registry",
+		repository: fmt.Sprintf("dd-lib-%s-init", l),
+		tag:        version,
+		ctrName:    containerName,
+	}
 }
 
 func defaultLibrariesFor(languages ...string) map[string]string {
@@ -413,7 +455,7 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 				tt.expectedInstallType = "k8s_single_step"
 			}
 
-			mutator, err := NewNamespaceMutator(config, wmeta)
+			mutator, err := NewNamespaceMutator(config, wmeta, imageResolver)
 			require.NoError(t, err)
 
 			err = mutator.core.injectTracers(tt.pod, tt.libInfo)
@@ -548,7 +590,7 @@ func TestMutatorCoreNewInjector(t *testing.T) {
 	)
 	config, err := NewConfig(mockConfig)
 	require.NoError(t, err)
-	m, err := NewNamespaceMutator(config, wmeta)
+	m, err := NewNamespaceMutator(config, wmeta, imageResolver)
 	require.NoError(t, err)
 	core := m.core
 
@@ -599,10 +641,7 @@ func TestExtractLibInfo(t *testing.T) {
 			pod:               common.FakePodWithAnnotation("admission.datadoghq.com/java-lib.version", "v1"),
 			containerRegistry: "registry",
 			expectedLibsToInject: []libInfo{
-				{
-					lang:  "java",
-					image: "registry/dd-lib-java-init:v1",
-				},
+				defaultLibInfoWithVersion(java, "v1"),
 			},
 		},
 		{
@@ -610,10 +649,7 @@ func TestExtractLibInfo(t *testing.T) {
 			pod:               common.FakePodWithAnnotation("admission.datadoghq.com/java-lib.version", "default"),
 			containerRegistry: "registry",
 			expectedLibsToInject: []libInfo{
-				{
-					lang:  "java",
-					image: "registry/dd-lib-java-init:v1",
-				},
+				defaultLibInfoWithVersion(java, "v1"),
 			},
 		},
 		{
@@ -621,10 +657,7 @@ func TestExtractLibInfo(t *testing.T) {
 			pod:               common.FakePodWithAnnotation("admission.datadoghq.com/java-lib.version", "v1"),
 			containerRegistry: "",
 			expectedLibsToInject: []libInfo{
-				{
-					lang:  "java",
-					image: fmt.Sprintf("%s/dd-lib-java-init:v1", commonRegistry),
-				},
+				defaultLibInfoWithRegsitryVersion(java, "v1", commonRegistry),
 			},
 		},
 		{
@@ -632,10 +665,7 @@ func TestExtractLibInfo(t *testing.T) {
 			pod:               common.FakePodWithAnnotation("admission.datadoghq.com/js-lib.version", "v1"),
 			containerRegistry: "registry",
 			expectedLibsToInject: []libInfo{
-				{
-					lang:  "js",
-					image: "registry/dd-lib-js-init:v1",
-				},
+				defaultLibInfoWithVersion(js, "v1"),
 			},
 		},
 		{
@@ -644,7 +674,7 @@ func TestExtractLibInfo(t *testing.T) {
 			containerRegistry:   "registry",
 			expectedPodEligible: pointer.Ptr(true),
 			expectedLibsToInject: []libInfo{
-				python.libInfo("", "registry/dd-lib-python-init:v1"),
+				defaultLibInfoWithVersion(python, "v1"),
 			},
 		},
 		{
@@ -653,7 +683,7 @@ func TestExtractLibInfo(t *testing.T) {
 			containerRegistry:   "registry",
 			expectedPodEligible: pointer.Ptr(false),
 			expectedLibsToInject: []libInfo{
-				python.libInfo("", "registry/dd-lib-python-init:v1"),
+				defaultLibInfoWithVersion(python, "v1"),
 			},
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false)
@@ -685,14 +715,8 @@ func TestExtractLibInfo(t *testing.T) {
 			},
 			containerRegistry: "registry",
 			expectedLibsToInject: []libInfo{
-				{
-					lang:  "java",
-					image: "registry/dd-lib-java-init:v1",
-				},
-				{
-					lang:  "js",
-					image: "registry/dd-lib-js-init:v1",
-				},
+				defaultLibInfoWithVersion(java, "v1"),
+				defaultLibInfoWithVersion(js, "v1"),
 			},
 		},
 		{
@@ -717,16 +741,8 @@ func TestExtractLibInfo(t *testing.T) {
 			},
 			containerRegistry: "registry",
 			expectedLibsToInject: []libInfo{
-				{
-					ctrName: "java-app",
-					lang:    "java",
-					image:   "registry/dd-lib-java-init:v1",
-				},
-				{
-					ctrName: "node-app",
-					lang:    "js",
-					image:   "registry/dd-lib-js-init:v1",
-				},
+				defaultLibInfoWithContainerVersion(java, "v1", "java-app"),
+				defaultLibInfoWithContainerVersion(js, "v1", "node-app"),
 			},
 		},
 		{
@@ -734,10 +750,7 @@ func TestExtractLibInfo(t *testing.T) {
 			pod:               common.FakePodWithAnnotation("admission.datadoghq.com/ruby-lib.version", "v1"),
 			containerRegistry: "registry",
 			expectedLibsToInject: []libInfo{
-				{
-					lang:  "ruby",
-					image: "registry/dd-lib-ruby-init:v1",
-				},
+				defaultLibInfoWithVersion(ruby, "v1"),
 			},
 		},
 		{
@@ -846,10 +859,7 @@ func TestExtractLibInfo(t *testing.T) {
 			},
 			containerRegistry: "registry",
 			expectedLibsToInject: []libInfo{
-				{
-					lang:  "java",
-					image: "registry/dd-lib-java-init:v1",
-				},
+				defaultLibInfoWithVersion(java, "v1"),
 			},
 		},
 		{
@@ -871,10 +881,7 @@ func TestExtractLibInfo(t *testing.T) {
 			pod:               common.FakePodWithNamespaceAndLabel("ns", "", ""),
 			containerRegistry: "registry",
 			expectedLibsToInject: []libInfo{
-				{
-					lang:  "java",
-					image: "registry/dd-lib-java-init:v1.20.0",
-				},
+				defaultLibInfoWithVersion(java, "v1.20.0"),
 			},
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
@@ -898,14 +905,8 @@ func TestExtractLibInfo(t *testing.T) {
 			pod:               common.FakePodWithNamespaceAndLabel("ns", "", ""),
 			containerRegistry: "registry",
 			expectedLibsToInject: []libInfo{
-				{
-					lang:  "java",
-					image: "registry/dd-lib-java-init:v1.20.0",
-				},
-				{
-					lang:  "python",
-					image: "registry/dd-lib-python-init:v1.19.0",
-				},
+				defaultLibInfoWithVersion(java, "v1.20.0"),
+				defaultLibInfoWithVersion(python, "v1.19.0"),
 			},
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
@@ -917,10 +918,7 @@ func TestExtractLibInfo(t *testing.T) {
 			pod:               common.FakePodWithAnnotation("admission.datadoghq.com/java-lib.version", "v1"),
 			containerRegistry: "registry",
 			expectedLibsToInject: []libInfo{
-				{
-					lang:  "java",
-					image: "registry/dd-lib-java-init:v1",
-				},
+				defaultLibInfoWithVersion(java, "v1"),
 			},
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
@@ -1001,10 +999,7 @@ func TestExtractLibInfo(t *testing.T) {
 			pod:               common.FakePodWithAnnotation("admission.datadoghq.com/php-lib.version", "v1"),
 			containerRegistry: "registry",
 			expectedLibsToInject: []libInfo{
-				{
-					lang:  "php",
-					image: "registry/dd-lib-php-init:v1",
-				},
+				defaultLibInfoWithVersion(php, "v1"),
 			},
 		},
 	}
@@ -1034,7 +1029,7 @@ func TestExtractLibInfo(t *testing.T) {
 
 			config, err := NewConfig(mockConfig)
 			require.NoError(t, err)
-			mutator, err := NewNamespaceMutator(config, wmeta)
+			mutator, err := NewNamespaceMutator(config, wmeta, imageResolver)
 			require.NoError(t, err)
 
 			if tt.expectedPodEligible != nil {
@@ -1757,10 +1752,10 @@ func TestInjectLibInitContainer(t *testing.T) {
 			// N.B. this is a bit hacky but consistent.
 			config.initSecurityContext = tt.secCtx
 
-			mutator, err := NewNamespaceMutator(config, wmeta)
+			mutator, err := NewNamespaceMutator(config, wmeta, imageResolver)
 			require.NoError(t, err)
 
-			c := tt.lang.libInfo("", tt.image).initContainers(config.version)[0]
+			c := tt.lang.libInfo("", tt.image).initContainers(config.version, imageResolver)[0]
 			requirements, injectionDecision := initContainerResourceRequirements(tt.pod, config.defaultResourceRequirements)
 			require.Equal(t, tt.wantSkipInjection, injectionDecision.skipInjection)
 			require.Equal(t, tt.resourceRequireAnnotation, injectionDecision.message)
@@ -3684,7 +3679,7 @@ func TestShouldInject(t *testing.T) {
 
 			config, err := NewConfig(mockConfig)
 			require.NoError(t, err)
-			mutator, err := NewNamespaceMutator(config, wmeta)
+			mutator, err := NewNamespaceMutator(config, wmeta, imageResolver)
 			require.NoError(t, err)
 			require.Equal(t, tt.want, mutator.isPodEligible(tt.pod), "expected webhook.isPodEligible() to be %t", tt.want)
 		})
@@ -3697,7 +3692,7 @@ func maybeWebhook(wmeta workloadmeta.Component, ddConfig config.Component) (*Web
 		return nil, err
 	}
 
-	mutator, err := NewNamespaceMutator(config, wmeta)
+	mutator, err := NewNamespaceMutator(config, wmeta, imageResolver)
 	if err != nil {
 		return nil, err
 	}

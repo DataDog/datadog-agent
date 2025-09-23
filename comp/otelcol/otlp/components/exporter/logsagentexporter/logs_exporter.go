@@ -13,14 +13,15 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
+	logsmapping "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/logs"
 	"github.com/DataDog/datadog-agent/pkg/util/otel"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
-	"go.uber.org/zap"
 
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
-	logsmapping "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/pdata/plog"
+	"go.uber.org/zap"
 )
 
 // Exporter defines fields for the logs agent exporter
@@ -30,6 +31,7 @@ type Exporter struct {
 	logSource        *sources.LogSource
 	translator       *logsmapping.Translator
 	gatewaysUsage    otel.GatewayUsage
+	reporter         *inframetadata.Reporter
 	cfg              *Config
 }
 
@@ -80,6 +82,16 @@ func (e *Exporter) ConsumeLogs(ctx context.Context, ld plog.Logs) (err error) {
 			}
 		}
 	}()
+
+	if e.cfg.HostMetadata.Enabled && e.reporter != nil {
+		// Consume resources for host metadata
+		for i := 0; i < ld.ResourceLogs().Len(); i++ {
+			res := ld.ResourceLogs().At(i).Resource()
+			if err := e.reporter.ConsumeResource(res); err != nil {
+				e.set.Logger.Warn("failed to consume resource for host metadata", zap.Error(err), zap.Any("resource", res))
+			}
+		}
+	}
 
 	payloads := e.translator.MapLogs(ctx, ld, e.gatewaysUsage.GetHostFromAttributesHandler())
 	for _, ddLog := range payloads {

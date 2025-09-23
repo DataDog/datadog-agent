@@ -31,12 +31,8 @@ build do
             mkdir cf_bin_root_bin
             mkdir "#{cf_bin_root_bin}/agent"
 
-            copy "#{cf_source_root}/agent/agent.exe", "#{cf_bin_root_bin}"
             copy "#{dsd_source_root}/agent/dogstatsd.exe", "#{cf_bin_root_bin}/agent"
-            copy "#{cf_source_root}/agent/process-agent.exe", "#{cf_bin_root_bin}/agent"
             copy "#{cf_source_root}/agent/trace-agent.exe", "#{cf_bin_root_bin}/agent"
-
-            delete "#{install_dir}/bin/agent/agent.exe"
         end
     end
 end
