@@ -16,10 +16,18 @@ import (
 	"go.uber.org/atomic"
 
 	nfconfig "github.com/DataDog/datadog-agent/comp/netflow/config"
+	"github.com/DataDog/datadog-agent/comp/netflow/flowaggregator"
 )
 
 func TestStatusProvider(t *testing.T) {
+	// Create a minimal FlowAggregator with the required atomic counters
+	flowAgg := &flowaggregator.FlowAggregator{
+		ReceivedFlowCount: atomic.NewUint64(2090),
+		FlushedFlowCount:  atomic.NewUint64(471),
+	}
+
 	server := &Server{
+		FlowAgg: flowAgg,
 		listeners: []*netflowListener{
 			{
 				flowState: nil,
@@ -88,6 +96,12 @@ func TestStatusProvider(t *testing.T) {
   Namespace: bar
   Error: boom
   ---------
+
+  === FlowAggregator Details ===
+  Flows Received: 2090
+  Flows Flushed: 471
+  Flows Dropped: 0
+  Aggregation Ratio: 4.4374
 `
 
 			// We replace windows line break by linux so the tests pass on every OS
@@ -126,6 +140,14 @@ func TestStatusProvider(t *testing.T) {
         <br>Namespace: bar
         <br>Error: boom
         <br>
+        <br>
+        <br>
+        <br>
+        <span class="stat_subtitle">FlowAggregator Details</span>
+        Flows Received: 2090
+        <br>Flows Flushed: 471
+        <br>Flows Dropped: 0
+        <br>Aggregation Ratio: 4.4374
         <br>
     </span>
   </div>`

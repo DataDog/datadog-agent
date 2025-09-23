@@ -33,6 +33,14 @@
         <br>
         {{- end }}
         {{- end }}
+        <br>
+        <br>
+        <span class="stat_subtitle">FlowAggregator Details</span>
+        Flows Received: {{.FlowAggregatorDetails.Received}}
+        <br>Flows Flushed: {{.FlowAggregatorDetails.Flushed}}
+        <br>Flows Dropped: {{.FlowAggregatorDetails.Dropped}}
+        <br>Aggregation Ratio: {{printf "%.4f" .FlowAggregatorDetails.AggregationRatio}}
+        <br>
     </span>
   </div>
 {{- end -}}
