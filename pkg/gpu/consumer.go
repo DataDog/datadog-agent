@@ -102,7 +102,19 @@ func (c *cudaEventConsumer) Start() {
 	}
 	health := health.RegisterLiveness(consts.GpuConsumerHealthName)
 	processMonitor := monitor.GetProcessMonitor()
-	cleanupExit := processMonitor.SubscribeExit(c.handleProcessExit)
+
+	// Send events to the main event loop asynchronously, so that all process handling is done in the same goroutine.
+	// That way we avoid race conditions between the process monitor and the event consumer.
+	processExitChannel := make(chan uint32, 100)
+	cleanupExit := processMonitor.SubscribeExit(func(pid uint32) {
+		select {
+		case processExitChannel <- pid:
+		default:
+			// If the channel is full, we don't want to block the main event
+			// loop, so we just drop the event. The process exit will be caught
+			// later with the full process scan.
+		}
+	})
 
 	c.wg.Add(1)
 	go func() {
@@ -115,6 +127,7 @@ func (c *cudaEventConsumer) Start() {
 			if err != nil {
 				log.Warnf("error de-registering health check: %s", err)
 			}
+			close(processExitChannel)
 			c.wg.Done()
 			log.Trace("CUDA event consumer stopped")
 			c.running.Store(false)
@@ -130,6 +143,11 @@ func (c *cudaEventConsumer) Start() {
 			case <-processSync.C:
 				c.checkClosedProcesses()
 				c.sysCtx.cleanOld()
+			case pid, ok := <-processExitChannel:
+				if !ok {
+					return
+				}
+				c.handleProcessExit(pid)
 			case batchData, ok := <-dataChannel:
 				if !ok {
 					return
@@ -243,6 +261,8 @@ func (c *cudaEventConsumer) handleGlobalEvent(header *gpuebpf.CudaEventHeader, d
 	}
 }
 
+// handleProcessExit is called when a process exits. It marks all streams for that process as ended. Should only be called
+// from the main event loop.
 func (c *cudaEventConsumer) handleProcessExit(pid uint32) {
 	c.streamHandlers.markProcessStreamsAsEnded(pid)
 }
