@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/compression/impl-noop"
 )
 
-func TestPayloadBuilderV3(t *testing.T) {
+func TestPayloadsBuilderV3(t *testing.T) {
 	r := assert.New(t)
 	const ts = 1756737057.1
 	tags := tagset.NewCompositeTags([]string{"foo", "bar"}, []string{"ook", "eek"})
@@ -150,7 +150,7 @@ func BenchmarkPaylodsBuilderV3(b *testing.B) {
 	}
 }
 
-func TestPayloadBuilderV3_Split(t *testing.T) {
+func TestPayloadBuildersV3_Split(t *testing.T) {
 	r := assert.New(t)
 	const ts = 1756737057.1
 	tags := tagset.NewCompositeTags([]string{"foo", "bar"}, []string{"ook", "eek"})
@@ -203,7 +203,7 @@ func TestPayloadBuilderV3_Split(t *testing.T) {
 	r.NotContains("foo", payloads[2].GetContent())
 }
 
-func TestPayloadBuilderV3_SplitTooBig(t *testing.T) {
+func TestPayloadsBuilderV3_SplitTooBig(t *testing.T) {
 	// Test that payload contains all necessary data info after an item was dropped.
 
 	r := assert.New(t)
@@ -238,7 +238,7 @@ func TestPayloadBuilderV3_SplitTooBig(t *testing.T) {
 	r.Contains(string(payloads[0].GetContent()), "foo")
 }
 
-func TestPayloadBuilderV3_pointsLimit(t *testing.T) {
+func TestPayloadsBuilderV3_PointsLimit(t *testing.T) {
 	r := assert.New(t)
 	const ts = 1756737057.1
 
