@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/cloudprovider"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -74,9 +75,20 @@ func newDispatcher(tagger tagger.Component) *dispatcher {
 		d.extraTags = append(d.extraTags, tags.KubeClusterName+":"+clusterTagValue)
 	}
 
-	clusterIDTagValue, _ := clustername.GetClusterID()
+	clusterIDTagValue, err := clustername.GetClusterID()
+	if err != nil {
+		log.Errorf("Failed to get cluster ID: %v", err)
+	}
 	if clusterIDTagValue != "" {
 		d.extraTags = append(d.extraTags, tags.OrchClusterID+":"+clusterIDTagValue)
+	}
+
+	providerName, err := cloudprovider.GetName()
+	if err != nil {
+		log.Errorf("Failed to get node cloud provider name: %v", err)
+	}
+	if providerName != "" {
+		d.extraTags = append(d.extraTags, tags.KubeCloudProvider+":"+providerName)
 	}
 
 	excludedChecks := pkgconfigsetup.Datadog().GetStringSlice("cluster_checks.exclude_checks")
