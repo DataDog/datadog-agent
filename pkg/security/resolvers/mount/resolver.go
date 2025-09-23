@@ -162,13 +162,13 @@ func newMountFromStatmount(sm *Statmount) *model.Mount {
 
 // HasListMount returns true if the kernel has the listmount() syscall, false otherwise
 func (mr *Resolver) HasListMount() bool {
-	_, _, errno := unix.Syscall(SysListmount, 0, 0, 0)
+	_, _, errno := unix.Syscall(unix.SYS_LISTMOUNT, 0, 0, 0)
 	return errno != unix.ENOSYS
 }
 
 // SyncCacheFromListMount Snapshots the current mountpoints using the listmount api
 func (mr *Resolver) SyncCacheFromListMount() error {
-	mounts, err := GetAll("/proc")
+	mounts, err := GetAll(kernel.ProcFSRoot())
 	if err != nil {
 		return fmt.Errorf("error synchronizing cache: %v", err)
 	}
