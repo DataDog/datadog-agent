@@ -589,7 +589,7 @@ type DNSEvent struct {
 
 // FailedDNSEvent represents a DNS packet that was failed to be decoded (inbound or outbound)
 type FailedDNSEvent struct {
-	Payload []byte `field:"-"` // SECLDoc[payload] Definition:`Payload represents the payload that failed to get decoded`
+	Payload []byte `field:"-"`
 }
 
 // DNSResponse represents a DNS response event

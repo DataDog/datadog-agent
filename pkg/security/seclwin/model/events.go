@@ -176,8 +176,6 @@ const (
 	DeleteRegistryKeyEventType
 	// ChangePermissionEventType event
 	ChangePermissionEventType
-	// FailedDNSEventType Failed DNS
-	FailedDNSEventType
 
 	// MaxAllEventType is used internally to get the maximum number of events.
 	MaxAllEventType
@@ -323,6 +321,8 @@ func (t EventType) String() string {
 		return "fsmount"
 	case FileOpenTreeEventType:
 		return "open_tree"
+	case FileMoveMountEventType:
+		return "move_mount"
 	default:
 		return "unknown"
 	}
