@@ -397,7 +397,7 @@ func (s *packageAgentSuite) TestRunPath() {
 	err = yaml.Unmarshal([]byte(rawConfig), &config)
 	assert.NoError(s.T(), err)
 	runPath, ok := config["run_path"].(string)
-	assert.True(s.T(), ok, "run_path not found in runtime config")
+	assert.True(s.T(), ok, "run_path not found in runtime config: %v", config)
 	assert.True(s.T(), strings.HasPrefix(runPath, "/opt/datadog-packages/datadog-agent/"), "run_path is not in the expected location: %s", runPath)
 }
 
