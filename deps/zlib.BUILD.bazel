@@ -154,10 +154,7 @@ pkg_files(
 
 pkg_files(
     name = "hdr_files",
-    srcs = [
-        "zconf.h",
-        "zlib.h",
-    ],
+    srcs = _ZLIB_PUBLIC_HEADERS,
     prefix = "include",
 )
 
@@ -172,7 +169,6 @@ pkg_install(
 
 # buildifier: disable=no-effect
 """
-TODO: Add pkg install to copy to /lib
 TODO: Syntheizes license file up to licenses.csv
 TODO: patch source: "zlib-windows-relocate.patch", env: env
 
