@@ -192,9 +192,11 @@ func (cg *CGroupContext) Merge(cg2 *CGroupContext) {
 	}
 }
 
-// Hash returns a unique key for the entity
-func (cg *CGroupContext) Hash() string {
-	return string(cg.CGroupID)
+// Key returns a unique key for the entity
+func (cg *CGroupContext) Key() (string, bool) {
+	fmt.Printf("]>]]>]]>]]>]]> scoping CGroupContext: %s\n", string(cg.CGroupID))
+	cgrpID := string(cg.CGroupID)
+	return cgrpID, cgrpID != ""
 }
 
 // ParentScope returns the parent entity scope
@@ -398,9 +400,9 @@ func SetAncestorFields(pce *ProcessCacheEntry, subField string, _ interface{}) (
 	return true, nil
 }
 
-// Hash returns a unique key for the entity
-func (pc *ProcessCacheEntry) Hash() string {
-	return fmt.Sprintf("%d/%s", pc.Pid, pc.Comm)
+// Key returns a unique key for the entity
+func (pc *ProcessCacheEntry) Key() (string, bool) {
+	return fmt.Sprintf("%d/%s", pc.Pid, pc.Comm), true
 }
 
 // ParentScope returns the parent entity scope
