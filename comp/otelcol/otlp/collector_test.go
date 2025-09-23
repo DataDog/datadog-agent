@@ -14,6 +14,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/otelcol"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
@@ -22,6 +23,7 @@ import (
 	pkgconfigmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
 func TestGetComponents(t *testing.T) {
@@ -122,4 +124,116 @@ func TestRecoverPanic(t *testing.T) {
 		panicTest("this is a test")
 	})
 	assert.EqualError(t, pipelineError.Load(), "OTLP pipeline had a panic: this is a test")
+}
+
+// TestGetComponentsIoTOptimization tests that IoT agent builds exclude unnecessary components
+func TestGetComponentsIoTOptimization(t *testing.T) {
+	// Note: Since flavor.GetFlavor() is global state, this test verifies the current
+	// behavior rather than mocking different flavors. The actual optimization logic
+	// is tested through component presence/absence verification.
+
+	// Test component creation to verify optimization logic works
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	logsChannel := make(chan *message.Message, 1)
+
+	// Test the component creation
+	factories, err := getComponents(
+		serializermock.NewMetricSerializer(t),
+		logsChannel,
+		fakeTagger,
+		hostnameimpl.NewHostnameService(),
+		nil, // telemetry
+	)
+	require.NoError(t, err)
+
+	// Verify that essential components are always present regardless of flavor
+	assert.Contains(t, factories.Receivers, component.MustNewType("otlp"), "OTLP receiver should always be present")
+	assert.Contains(t, factories.Processors, component.MustNewType("batch"), "Batch processor should always be present")
+	assert.Contains(t, factories.Exporters, component.MustNewType("serializer"), "Serializer exporter should always be present")
+	assert.Contains(t, factories.Exporters, component.MustNewType("otlp"), "OTLP exporter should always be present")
+
+	// Test current flavor behavior
+	currentFlavor := flavor.GetFlavor()
+	isCurrentlyIoT := currentFlavor == flavor.IotAgent
+
+	// Verify debug exporter behavior based on current flavor
+	_, hasDebugExporter := factories.Exporters[component.MustNewType("debug")]
+	if isCurrentlyIoT {
+		assert.False(t, hasDebugExporter, "IoT agent should not have debug exporter")
+		assert.Empty(t, factories.Extensions, "IoT agent should have empty extensions")
+	} else {
+		assert.True(t, hasDebugExporter, "Standard agent should have debug exporter")
+		// Extensions might be empty if no extension factories are registered, so we don't assert on this
+	}
+
+	// Verify infraattributes processor behavior
+	_, hasInfraAttributes := factories.Processors[component.MustNewType("infraattributes")]
+	if isCurrentlyIoT {
+		assert.False(t, hasInfraAttributes, "IoT agent should not have infraattributes processor by default")
+	} else {
+		assert.True(t, hasInfraAttributes, "Standard agent should have infraattributes processor when tagger is available")
+	}
+}
+
+// TestGetComponentsWithoutTagger tests component creation when tagger is nil
+func TestGetComponentsWithoutTagger(t *testing.T) {
+
+	factories, err := getComponents(
+		serializermock.NewMetricSerializer(t),
+		make(chan *message.Message, 1),
+		nil, // No tagger
+		hostnameimpl.NewHostnameService(),
+		nil, // telemetry
+	)
+	require.NoError(t, err)
+
+	// Should not have infraattributes processor when tagger is nil
+	_, hasInfraAttributes := factories.Processors[component.MustNewType("infraattributes")]
+	assert.False(t, hasInfraAttributes, "Should not have infraattributes processor without tagger")
+
+	// Should still have batch processor
+	_, hasBatch := factories.Processors[component.MustNewType("batch")]
+	assert.True(t, hasBatch, "Should always have batch processor")
+}
+
+// TestGetComponentsWithoutTelemetry tests component creation when telemetry is nil
+func TestGetComponentsWithoutTelemetry(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+
+	factories, err := getComponents(
+		serializermock.NewMetricSerializer(t),
+		make(chan *message.Message, 1),
+		fakeTagger,
+		hostnameimpl.NewHostnameService(),
+		nil, // No telemetry
+	)
+	require.NoError(t, err)
+
+	// Should succeed without telemetry component
+	assert.NotNil(t, factories)
+	assert.NotEmpty(t, factories.Exporters)
+	assert.NotEmpty(t, factories.Processors)
+	assert.NotEmpty(t, factories.Receivers)
+}
+
+// TestGetComponentsWithoutLogsChannel tests that logs exporter is conditional
+func TestGetComponentsWithoutLogsChannel(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+
+	factories, err := getComponents(
+		serializermock.NewMetricSerializer(t),
+		nil, // No logs channel
+		fakeTagger,
+		hostnameimpl.NewHostnameService(),
+		nil, // telemetry
+	)
+	require.NoError(t, err)
+
+	// Should not have logsagent exporter when channel is nil
+	_, hasLogsAgent := factories.Exporters[component.MustNewType("logsagent")]
+	assert.False(t, hasLogsAgent, "Should not have logsagent exporter without logs channel")
+
+	// Should still have other exporters
+	_, hasSerializer := factories.Exporters[component.MustNewType("serializer")]
+	assert.True(t, hasSerializer, "Should have serializer exporter")
 }

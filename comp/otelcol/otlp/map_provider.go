@@ -23,7 +23,7 @@ func buildKey(keys ...string) string {
 }
 
 func buildTracesMap(cfg PipelineConfig) (*confmap.Conf, error) {
-	baseMap, err := configutils.NewMapFromYAMLString(defaultTracesConfig)
+	baseMap, err := configutils.NewMapFromYAMLString(getTracesConfig())
 	if err != nil {
 		return nil, err
 	}
@@ -38,7 +38,7 @@ func buildTracesMap(cfg PipelineConfig) (*confmap.Conf, error) {
 }
 
 func buildMetricsMap(cfg PipelineConfig) (*confmap.Conf, error) {
-	baseMap, err := configutils.NewMapFromYAMLString(defaultMetricsConfig)
+	baseMap, err := configutils.NewMapFromYAMLString(getMetricsConfig())
 	if err != nil {
 		return nil, err
 	}
@@ -53,7 +53,7 @@ func buildMetricsMap(cfg PipelineConfig) (*confmap.Conf, error) {
 }
 
 func buildLogsMap(_ PipelineConfig) (*confmap.Conf, error) {
-	baseMap, err := configutils.NewMapFromYAMLString(defaultLogsConfig)
+	baseMap, err := configutils.NewMapFromYAMLString(getLogsConfig())
 	if err != nil {
 		return nil, err
 	}
