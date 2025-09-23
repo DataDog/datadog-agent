@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Fixed the search (Cmd+F) functionality in the settings page.
+    Fixed the search (Cmd+F) functionality in the settings page of the GUI.
