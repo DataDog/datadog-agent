@@ -72,6 +72,8 @@ func (w *sysProbeClientWrapper) GetCheck(module types.ModuleName) ([]software.En
 // This struct holds the state and dependencies needed to collect and manage
 // software inventory data from the Windows system.
 type softwareInventory struct {
+	// true if the component was enabled in the configuration
+	enabled bool
 	// log provides logging capabilities for the component
 	log log.Component
 	// sysProbeClient is used to communicate with the System Probe for data collection
@@ -139,13 +141,14 @@ func newWithClient(reqs Requires, client sysProbeClient) (Provides, error) {
 	}
 
 	is := &softwareInventory{
+		enabled:		reqs.Config.GetBool("software_inventory.enabled"),
 		log:            reqs.Log,
 		sysProbeClient: client,
 		hostname:       hname,
 		eventPlatform:  reqs.EventPlatform,
 	}
 
-	if !reqs.Config.GetBool("software_inventory.enabled") {
+	if !is.enabled {
 		return Provides{
 			Comp: is,
 		}, nil
@@ -278,7 +281,11 @@ func (is *softwareInventory) FlareProvider() flaretypes.Provider {
 		func(fb flaretypes.FlareBuilder) error {
 			payload := is.getPayload()
 			if payload == nil {
-				return nil
+				msg := "Software inventory data collection failed or returned no results"
+				if !is.enabled {
+					msg = "Software Inventory component is not enabled"
+				}
+				return fb.AddFile(flareFileName, []byte(msg))
 			}
 			return fb.AddFileFromFunc(flareFileName, payload.MarshalJSON)
 		})

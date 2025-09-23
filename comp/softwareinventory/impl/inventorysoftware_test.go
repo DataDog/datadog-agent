@@ -7,6 +7,7 @@ package softwareinventoryimpl
 
 import (
 	"encoding/json"
+	"fmt"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/stretchr/testify/require"
 	"net/http"
@@ -22,36 +23,46 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func newSoftwareInventory(t *testing.T, enabled bool, mockData []software.Entry) (*softwareInventory, *mockSysProbeClient) {
-	sp := &mockSysProbeClient{}
+type testFixture struct {
+	t *testing.T
+	sysProbeClient *mockSysProbeClient
+	reqs Requires
+}
 
+func newFixtureWithData(t *testing.T, enabled bool, mockData []software.Entry) *testFixture {
+	sp := &mockSysProbeClient{}
 	sp.On("GetCheck", sysconfig.SoftwareInventoryModule).Return(mockData, nil)
 
-	// Create dependencies manually for the test
 	logComp := logmock.New(t)
 	hostnameComp := &mockHostname{}
 
 	configComp := config.NewMock(t)
 	configComp.SetWithoutSource("software_inventory.enabled", enabled)
 
-	// Create the Requires struct manually
-	reqs := Requires{
-		Log:        logComp,
-		Config:     configComp,
-		Serializer: serializermock.NewMetricSerializer(t),
-		Hostname:   hostnameComp,
-		Lc:         compdef.NewTestLifecycle(t),
+	return &testFixture {
+		t: t,
+		sysProbeClient: sp,
+		reqs: Requires{
+			Log:        logComp,
+			Config:     configComp,
+			Serializer: serializermock.NewMetricSerializer(t),
+			Hostname:   hostnameComp,
+			Lc:         compdef.NewTestLifecycle(t),
+		},
 	}
+}
 
-	// Call the constructor directly with the mock client
-	provides, err := newWithClient(reqs, sp)
-	require.NoError(t, err)
+// gets system under test
+func (tf *testFixture) sut() *softwareInventory {
+	provides, err := newWithClient(tf.reqs, tf.sysProbeClient)
+	require.NoError(tf.t, err)
 
-	return provides.Comp.(*softwareInventory), sp
+	return provides.Comp.(*softwareInventory)
 }
 
 func TestFlareProviderOutputDisabled(t *testing.T) {
-	is, _ := newSoftwareInventory(t, false, []software.Entry{{DisplayName: "TestApp"}})
+	f := newFixtureWithData(t, false, []software.Entry{{DisplayName: "TestApp"}})
+	is := f.sut()
 
 	flareProvider := is.FlareProvider()
 	assert.NotNil(t, flareProvider)
@@ -64,11 +75,34 @@ func TestFlareProviderOutputDisabled(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Verify that the file does not exist since the module is disabled.
-	mockBuilder.AssertNoFileExists(flareFileName)
+	mockBuilder.AssertFileExists(flareFileName)
+	mockBuilder.AssertFileContent("Software Inventory component is not enabled", flareFileName)
+}
+
+func TestFlareProviderOutputFailed(t *testing.T) {
+	f := newFixtureWithData(t, true, []software.Entry{{DisplayName: "TestApp"}})
+	f.sysProbeClient = &mockSysProbeClient{}
+	f.sysProbeClient.On("GetCheck", sysconfig.SoftwareInventoryModule).Return(nil, fmt.Errorf("error"))
+	is := f.sut()
+
+	flareProvider := is.FlareProvider()
+	assert.NotNil(t, flareProvider)
+	assert.NotNil(t, flareProvider.FlareFiller)
+	assert.NotNil(t, flareProvider.FlareFiller.Callback)
+
+	// Create a mock FlareBuilder to test the callback
+	mockBuilder := helpers.NewFlareBuilderMock(t, false)
+	err := flareProvider.FlareFiller.Callback(mockBuilder)
+	assert.NoError(t, err)
+
+	// Verify that the file does not exist since the module is disabled.
+	mockBuilder.AssertFileExists(flareFileName)
+	mockBuilder.AssertFileContent("Software inventory data collection failed or returned no results", flareFileName)
 }
 
 func TestFlareProviderOutput(t *testing.T) {
-	is, _ := newSoftwareInventory(t, true, []software.Entry{{DisplayName: "TestApp"}})
+	f := newFixtureWithData(t, true, []software.Entry{{DisplayName: "TestApp"}})
+	is := f.sut()
 
 	flareProvider := is.FlareProvider()
 	assert.NotNil(t, flareProvider)
@@ -85,7 +119,8 @@ func TestFlareProviderOutput(t *testing.T) {
 }
 
 func TestWritePayloadAsJSON(t *testing.T) {
-	is, _ := newSoftwareInventory(t, true, []software.Entry{{DisplayName: "TestApp"}})
+	f := newFixtureWithData(t, true, []software.Entry{{DisplayName: "TestApp"}})
+	is := f.sut()
 
 	w := httptest.NewRecorder()
 	is.writePayloadAsJSON(w, nil)
@@ -98,7 +133,8 @@ func TestWritePayloadAsJSON(t *testing.T) {
 }
 
 func TestGetPayload(t *testing.T) {
-	is, _ := newSoftwareInventory(t, true, []software.Entry{{DisplayName: "TestApp", ProductCode: "test"}})
+	f := newFixtureWithData(t, true, []software.Entry{{DisplayName: "TestApp", ProductCode: "test"}})
+	is := f.sut()
 
 	payload := is.getPayload()
 	assert.NotNil(t, payload)
@@ -109,7 +145,8 @@ func TestGetPayload(t *testing.T) {
 	assert.Equal(t, "TestApp", p.Metadata.Software[0].DisplayName)
 
 	// Test error case
-	is, _ = newSoftwareInventory(t, true, []software.Entry{})
+	f = newFixtureWithData(t, true, []software.Entry{})
+	is = f.sut()
 
 	payload = is.getPayload()
 	assert.NotNil(t, payload)
