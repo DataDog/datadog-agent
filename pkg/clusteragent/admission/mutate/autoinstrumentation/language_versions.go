@@ -14,6 +14,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
+	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -167,12 +168,13 @@ func (l language) defaultLibVersion() string {
 }
 
 type libInfo struct {
-	ctrName    string // empty means all containers
-	lang       language
-	image      string
-	registry   string
-	repository string
-	tag        string
+	ctrName          string // empty means all containers
+	lang             language
+	image            string
+	canonicalVersion string
+	registry         string
+	repository       string
+	tag              string
 }
 
 func (i libInfo) podMutator(v version, opts libRequirementOptions, imageResolver ImageResolver) podMutator {
@@ -186,6 +188,11 @@ func (i libInfo) podMutator(v version, opts libRequirementOptions, imageResolver
 		}
 
 		reqs.libRequirementOptions = opts
+		if i.canonicalVersion != "" {
+			mutatecommon.AddAnnotation(pod, fmt.Sprintf("admission.datadoghq.com/%s-canonical-version", i.lang), i.canonicalVersion)
+		} else {
+			mutatecommon.AddAnnotation(pod, fmt.Sprintf("admission.datadoghq.com/%s-canonical-version", i.lang), i.tag)
+		}
 
 		if err := reqs.injectPod(pod, i.ctrName); err != nil {
 			return err
@@ -231,8 +238,12 @@ func (i libInfo) initContainers(v version, resolver ImageResolver) []initContain
 	if resolver != nil {
 		log.Debugf("Resolving image %s/%s:%s", i.registry, i.repository, i.tag)
 		image, ok := resolver.Resolve(i.registry, i.repository, i.tag)
+
 		if ok {
 			i.image = image.FullImageRef
+			i.canonicalVersion = image.CanonicalVersion
+		} else {
+			i.canonicalVersion = ""
 		}
 	}
 

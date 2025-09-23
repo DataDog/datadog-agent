@@ -14,6 +14,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
+	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -73,12 +74,13 @@ var volumeMountETCDPreloadAppContainer = etcVolume.mount(corev1.VolumeMount{
 })
 
 type injector struct {
-	image      string
-	registry   string
-	debug      bool
-	injected   bool
-	injectTime time.Time
-	opts       libRequirementOptions
+	image            string
+	canonicalVersion string
+	registry         string
+	debug            bool
+	injected         bool
+	injectTime       time.Time
+	opts             libRequirementOptions
 }
 
 func (i *injector) initContainer() initContainer {
@@ -193,10 +195,13 @@ func injectorWithImageTag(tag string, imageResolver ImageResolver) injectorOptio
 		if resolvedImage, ok := imageResolver.Resolve(i.registry, "apm-inject", tag); ok {
 			log.Debugf("Resolved image for %s/apm-inject:%s: %s", i.registry, tag, resolvedImage.FullImageRef)
 			i.image = resolvedImage.FullImageRef
+			i.canonicalVersion = resolvedImage.CanonicalVersion
 			return
 		}
 		log.Debugf("No resolved image found for %s/apm-inject:%s, falling back to tag-based image", i.registry, tag)
 		i.image = fmt.Sprintf("%s/apm-inject:%s", i.registry, tag)
+		// ERIKA: Probably can leave this blank since it's redundant for mutable tags?
+		i.canonicalVersion = ""
 	}
 }
 
@@ -235,6 +240,10 @@ func (i *injector) podMutator(v version) podMutator {
 
 		if !v.usesInjector() {
 			return nil
+		}
+
+		if i.canonicalVersion != "" {
+			mutatecommon.AddAnnotation(pod, "admission.datadoghq.com/injector-canonical-version", i.canonicalVersion)
 		}
 
 		if err := i.requirements().injectPod(pod, ""); err != nil {
