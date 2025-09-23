@@ -23,8 +23,9 @@ type Conf struct {
 }
 
 const (
-	loggerNameInit    = "SERVERLESS_INIT"
-	loggerNameSidecar = "SERVERLESS_SIDECAR"
+	loggerNameInit          = "SERVERLESS_INIT"
+	loggerNameSidecar       = "SERVERLESS_SIDECAR"
+	loggerNameCloudRunProxy = "CLOUDRUN_PROXY"
 )
 
 // DetectMode detects the mode in which the serverless agent should run
@@ -36,6 +37,20 @@ func DetectMode() Conf {
 		"DD_HOSTNAME":                          "none",
 		"DD_APM_ENABLED":                       "true",
 		"DD_TRACE_ENABLED":                     "true",
+	}
+
+	// Check if Cloud Run proxy mode is enabled
+	if os.Getenv("DD_CLOUDRUN_PROXY_ENABLED") == "true" {
+		log.Infof("Cloud Run proxy mode enabled, launching proxy server")
+		envToSet["DD_LOGS_ENABLED"] = "true"
+		envToSet["DD_APM_NON_LOCAL_TRAFFIC"] = "true"
+		envToSet["DD_DOGSTATSD_NON_LOCAL_TRAFFIC"] = "true"
+		return Conf{
+			LoggerName:     loggerNameCloudRunProxy,
+			Runner:         RunCloudRunProxy,
+			TagVersionMode: "_dd.datadog_cloudrun_proxy_version",
+			EnvDefaults:    envToSet,
+		}
 	}
 
 	if len(os.Args) == 1 {
