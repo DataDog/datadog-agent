@@ -267,6 +267,12 @@ func (api *API) EvtClose(h windows.Handle) {
 		delete(api.subscriptions, sub.handle)
 		return
 	}
+	// is handle a publisher metadata?
+	publisher, err := api.getPublisherMetadataByHandle(evtapi.EventPublisherMetadataHandle(h))
+	if err == nil {
+		delete(api.publisherHandles, publisher.handle)
+		return
+	}
 }
 
 // EvtRenderEventXml is a fake of EvtRender with EvtRenderEventXml
@@ -450,12 +456,23 @@ func (api *API) EvtRenderEventValues(_ evtapi.EventRenderContextHandle, _ evtapi
 }
 
 // EvtOpenPublisherMetadata fake
-// not implemented.
 // https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtopenpublishermetadata
 func (api *API) EvtOpenPublisherMetadata(
-	_ string,
-	_ string) (evtapi.EventPublisherMetadataHandle, error) {
-	return evtapi.EventPublisherMetadataHandle(0), fmt.Errorf("not implemented")
+	PublisherID string,
+	LogFilePath string) (evtapi.EventPublisherMetadataHandle, error) {
+
+	publisher := &publisherMetadata{
+		publisherID: PublisherID,
+		properties:  make(map[uint]string),
+		isValid:     true, // Start as valid
+	}
+
+	// Only need to set guid for now
+	publisher.properties[evtapi.EvtPublisherMetadataPublisherGuid] = "12345678"
+
+	api.addPublisherMetadata(publisher)
+
+	return publisher.handle, nil
 }
 
 // EvtFormatMessage fake
@@ -468,6 +485,30 @@ func (api *API) EvtFormatMessage(
 	_ evtapi.EvtVariantValues,
 	_ uint) (string, error) {
 	return "", fmt.Errorf("not implemented")
+}
+
+// EvtGetPublisherMetadataProperty fake
+// https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtgetpublishermetadataproperty
+func (api *API) EvtGetPublisherMetadataProperty(
+	PublisherMetadata evtapi.EventPublisherMetadataHandle,
+	PropertyID uint) (string, error) {
+
+	publisher, err := api.getPublisherMetadataByHandle(PublisherMetadata)
+	if err != nil {
+		return "", err
+	}
+
+	// Check if handle is valid (for testing invalid handle scenarios)
+	if !publisher.isValid {
+		return "", fmt.Errorf("invalid handle")
+	}
+
+	property, ok := publisher.properties[PropertyID]
+	if !ok {
+		return "", fmt.Errorf("Property ID %d not found for publisher %s", PropertyID, publisher.publisherID)
+	}
+
+	return property, nil
 }
 
 // EvtOpenSession fake
