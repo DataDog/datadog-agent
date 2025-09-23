@@ -340,3 +340,33 @@ func TestNewAPIKeyAndAuthPatterns(t *testing.T) {
 		})
 	}
 }
+
+func TestScrubbingENC(t *testing.T) {
+	t.Run("basic ENC handler preserved", func(t *testing.T) {
+		result, err := ScrubYamlString(`api_key: ENC[my_secret]`)
+		require.NoError(t, err)
+		require.YAMLEq(t, `api_key: ENC[my_secret]`, result)
+	})
+
+	t.Run("ENC with whitespace preserved", func(t *testing.T) {
+		result, err := ScrubYamlString(`api_key: "  ENC[key]	"`)
+		require.NoError(t, err)
+		require.YAMLEq(t, `api_key: "  ENC[key]	"`, result)
+	})
+
+	t.Run("empty ENC handler preserved", func(t *testing.T) {
+		result, err := ScrubYamlString(`api_key: ENC[]`)
+		require.NoError(t, err)
+		require.YAMLEq(t, `api_key: ENC[]`, result)
+	})
+
+	t.Run("invalid ENC formats scrubbed", func(t *testing.T) {
+		result, err := ScrubYamlString(`api_key: ENC[incomplete
+password: ENC
+token: [not_enc]`)
+		require.NoError(t, err)
+		require.YAMLEq(t, `api_key: "********"
+password: "********"
+token: "********"`, result)
+	})
+}

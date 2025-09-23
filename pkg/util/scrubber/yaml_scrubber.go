@@ -12,6 +12,8 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/DataDog/datadog-agent/comp/core/secrets/utils"
 )
 
 type scrubCallback = func(string, interface{}) (bool, interface{})
@@ -83,6 +85,13 @@ func walk(data *interface{}, callback scrubCallback) {
 // ScrubDataObj scrubs credentials from the data interface by recursively walking over all the nodes
 func (c *Scrubber) ScrubDataObj(data *interface{}) {
 	walk(data, func(key string, value interface{}) (bool, interface{}) {
+
+		if str, ok := value.(string); ok {
+			if isEnc, _ := utils.IsEnc(str); isEnc {
+				return false, ""
+			}
+		}
+
 		for _, replacer := range c.singleLineReplacers {
 			if replacer.YAMLKeyRegex == nil {
 				continue
