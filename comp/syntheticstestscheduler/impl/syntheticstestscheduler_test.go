@@ -28,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
-	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	utillog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/golang/mock/gomock"
@@ -51,7 +50,7 @@ func Test_SyntheticsTestScheduler_StartAndStop(t *testing.T) {
 		syntheticsSchedulerEnabled: true,
 	}
 	ctx, cancel := context.WithCancel(context.TODO())
-	scheduler, err := newSyntheticsTestScheduler(configs, nil, l, nil, time.Now, cancel)
+	scheduler := newSyntheticsTestScheduler(configs, nil, l, nil, time.Now, cancel)
 	assert.Nil(t, err)
 	assert.False(t, scheduler.running)
 
@@ -324,8 +323,7 @@ func Test_SyntheticsTestScheduler_OnConfigUpdate(t *testing.T) {
 				return now
 			}
 
-			scheduler, err := newSyntheticsTestScheduler(configs, nil, l, nil, timeNowFn, nil)
-			assert.Nil(t, err)
+			scheduler := newSyntheticsTestScheduler(configs, nil, l, nil, timeNowFn, nil)
 			assert.False(t, scheduler.running)
 			applied := map[string]state.ApplyStatus{}
 			applyFunc := func(id string, status state.ApplyStatus) {
@@ -352,10 +350,6 @@ func Test_SyntheticsTestScheduler_OnConfigUpdate(t *testing.T) {
 
 			assert.Equal(t, expectedApplied, applied)
 
-			// Verify cache
-			cache, err := persistentcache.Read(cacheKey)
-			assert.Nil(t, err)
-
 			cfg := map[string]*runningTestState{}
 			for _, v := range tt.updateJSON {
 				var newUpdate common.SyntheticsTestConfig
@@ -369,7 +363,7 @@ func Test_SyntheticsTestScheduler_OnConfigUpdate(t *testing.T) {
 			}
 			val, err := json.Marshal(cfg)
 			assert.Nil(t, err)
-			assert.Equal(t, string(val), cache)
+			assert.Equal(t, string(val), scheduler.state.tests)
 		})
 	}
 }
@@ -440,8 +434,7 @@ func Test_SyntheticsTestScheduler_Processing(t *testing.T) {
 			mockEpForwarder := eventplatformimpl.NewMockEventPlatformForwarder(ctrl)
 
 			ctx, cancel := context.WithCancel(context.TODO())
-			scheduler, err := newSyntheticsTestScheduler(configs, mockEpForwarder, l, &mockHostname{}, timeNowFn, cancel)
-			assert.Nil(t, err)
+			scheduler := newSyntheticsTestScheduler(configs, mockEpForwarder, l, &mockHostname{}, timeNowFn, cancel)
 			assert.False(t, scheduler.running)
 
 			configs := map[string]state.RawConfig{}

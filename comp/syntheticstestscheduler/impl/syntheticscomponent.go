@@ -57,16 +57,13 @@ func NewComponent(reqs Requires) (Provides, error) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	scheduler, err := newSyntheticsTestScheduler(
+	scheduler := newSyntheticsTestScheduler(
 		configs,
 		epForwarder,
 		reqs.Logger,
 		reqs.HostnameService,
 		time.Now,
 		cancel)
-	if err != nil {
-		return Provides{}, err
-	}
 
 	var rcListener rctypes.ListenerProvider
 	rcListener.ListenerProvider = rctypes.RCListener{

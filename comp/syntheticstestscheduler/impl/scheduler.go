@@ -21,11 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/syntheticstestscheduler/common"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
-	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
-
-const cacheKey = "synthetics-tests-scheduler"
 
 // syntheticsTestScheduler is responsible for scheduling and executing synthetics tests.
 type syntheticsTestScheduler struct {
@@ -50,7 +47,7 @@ type syntheticsTestScheduler struct {
 }
 
 // newSyntheticsTestScheduler creates a scheduler and initializes its state.
-func newSyntheticsTestScheduler(configs *schedulerConfigs, forwarder eventplatform.Forwarder, logger log.Component, hostNameService hostname.Component, timeFunc func() time.Time, cancel context.CancelFunc) (*syntheticsTestScheduler, error) {
+func newSyntheticsTestScheduler(configs *schedulerConfigs, forwarder eventplatform.Forwarder, logger log.Component, hostNameService hostname.Component, timeFunc func() time.Time, cancel context.CancelFunc) *syntheticsTestScheduler {
 	scheduler := &syntheticsTestScheduler{
 		epForwarder:                  forwarder,
 		log:                          logger,
@@ -73,10 +70,7 @@ func newSyntheticsTestScheduler(configs *schedulerConfigs, forwarder eventplatfo
 	scheduler.ticker = time.NewTicker(scheduler.flushInterval)
 	scheduler.tickerC = scheduler.ticker.C
 
-	if err := scheduler.loadConfigsFromCache(); err != nil {
-		return nil, err
-	}
-	return scheduler, nil
+	return scheduler
 }
 
 // runningTestState represents in-memory runtime data for a scheduled test.
@@ -114,18 +108,11 @@ func (s *syntheticsTestScheduler) onConfigUpdate(updates map[string]state.RawCon
 		applyStateCallback(configPath, state.ApplyStatus{State: state.ApplyStateAcknowledged})
 	}
 
-	if err := s.updateRunningState(newConfig); err != nil {
-		s.log.Warnf("unable to persist synthetics test config: %v", err)
-		// TODO: what path should I provide if it is global to the config
-		applyStateCallback("TODO", state.ApplyStatus{
-			State: state.ApplyStateError,
-			Error: "unable to persist synthetics test config",
-		})
-	}
+	s.updateRunningState(newConfig)
 }
 
 // updateRunningState synchronizes in-memory runtime state with a new configuration.
-func (s *syntheticsTestScheduler) updateRunningState(newConfig map[string]common.SyntheticsTestConfig) error {
+func (s *syntheticsTestScheduler) updateRunningState(newConfig map[string]common.SyntheticsTestConfig) {
 	s.state.mu.Lock()
 	defer s.state.mu.Unlock()
 
@@ -150,40 +137,6 @@ func (s *syntheticsTestScheduler) updateRunningState(newConfig map[string]common
 			delete(s.state.tests, pubID)
 		}
 	}
-
-	return s.persistState()
-}
-
-// persistState writes the state to persistent cache.
-func (s *syntheticsTestScheduler) persistState() error {
-	cacheValue, err := json.Marshal(s.state.tests)
-	if err != nil {
-		return err
-	}
-	if err := persistentcache.Write(cacheKey, string(cacheValue)); err != nil {
-		return s.log.Errorf("couldn't write cache: %s", err)
-	}
-	return nil
-}
-
-// loadConfigsFromCache reads scheduler config from persistent cache and initializes state.
-func (s *syntheticsTestScheduler) loadConfigsFromCache() error {
-	s.state.mu.Lock()
-	defer s.state.mu.Unlock()
-	cacheValue, err := persistentcache.Read(cacheKey)
-	if err != nil {
-		return s.log.Errorf("couldn't read from cache: %s", err)
-	}
-	if len(cacheValue) == 0 {
-		return nil
-	}
-
-	var cfg map[string]*runningTestState
-	if err := json.Unmarshal([]byte(cacheValue), &cfg); err != nil {
-		return err
-	}
-	s.state.tests = cfg
-	return nil
 }
 
 // start launches flush loop and workers.
