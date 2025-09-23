@@ -35,6 +35,7 @@ import (
 	com_datadoghq_kubernetes_core "github.com/DataDog/datadog-agent/pkg/privateactionrunner/private-bundles/com/datadoghq/kubernetes/core"
 	com_datadoghq_kubernetes_customresources "github.com/DataDog/datadog-agent/pkg/privateactionrunner/private-bundles/com/datadoghq/kubernetes/customresources"
 	com_datadoghq_mongodb "github.com/DataDog/datadog-agent/pkg/privateactionrunner/private-bundles/com/datadoghq/mongodb"
+	com_datadoghq_postgresql "github.com/DataDog/datadog-agent/pkg/privateactionrunner/private-bundles/com/datadoghq/postgresql"
 	com_datadoghq_script "github.com/DataDog/datadog-agent/pkg/privateactionrunner/private-bundles/com/datadoghq/script"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
@@ -74,8 +75,9 @@ func NewRegistry(_ *config.Config) *Registry {
 			"com.datadoghq.kubernetes.batch":           com_datadoghq_kubernetes_batch.NewKubernetesBatch(),
 			"com.datadoghq.kubernetes.core":            com_datadoghq_kubernetes_core.NewKubernetesCore(),
 			"com.datadoghq.kubernetes.customresources": com_datadoghq_kubernetes_customresources.NewKubernetesCustomResources(),
-			"com.datadoghq.script":                     com_datadoghq_script.NewScript(),
 			"com.datadoghq.mongodb":                    com_datadoghq_mongodb.NewMongoDB(),
+			"com.datadoghq.postgresql":                 com_datadoghq_postgresql.NewPostgreSQL(),
+			"com.datadoghq.script":                     com_datadoghq_script.NewScript(),
 		},
 	}
 }

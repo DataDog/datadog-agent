@@ -416,7 +416,7 @@ require (
 	k8s.io/component-base v0.32.1
 	mellium.im/sasl v0.3.2 // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.31.0 // indirect
-	sigs.k8s.io/controller-runtime v0.20.4 // indirect
+	sigs.k8s.io/controller-runtime v0.20.4
 	sigs.k8s.io/json v0.0.0-20241010143419-9aa6b5e7a4b3 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.5.0 // indirect
 	sigs.k8s.io/yaml v1.6.0
@@ -494,7 +494,7 @@ require (
 	github.com/prometheus/common/assets v0.2.0 // indirect
 	github.com/prometheus/exporter-toolkit v0.14.0 // indirect
 	github.com/shurcooL/httpfs v0.0.0-20230704072500-f1e31cf0ba5c // indirect
-	go.mongodb.org/mongo-driver v1.14.0 // indirect
+	go.mongodb.org/mongo-driver v1.14.0
 	go.opentelemetry.io/collector/processor/processorhelper v0.135.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace v0.61.0 // indirect
 	go.uber.org/goleak v1.3.0 // indirect
@@ -656,6 +656,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/version v0.71.0-rc.1
 	github.com/DataDog/go-libddwaf/v4 v4.3.0
 	github.com/DataDog/go-sqllexer v0.1.6
+	github.com/Masterminds/squirrel v1.5.4
 	github.com/aquasecurity/trivy v0.49.2-0.20240227072422-e1ea02c7b80d
 	github.com/aws/aws-sdk-go-v2/service/kms v1.44.2
 	github.com/aws/aws-sdk-go-v2/service/rds v1.103.3
@@ -726,6 +727,7 @@ require (
 )
 
 require (
+	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/impl v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/utils v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata v0.71.0-rc.1 // indirect
@@ -733,15 +735,36 @@ require (
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics v0.71.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/rum v0.72.0-devel.0.20250907091827-dbb380833b5f // indirect
 	github.com/DataDog/go-libddwaf/v3 v3.5.4 // indirect
+	github.com/MakeNowJust/heredoc v1.0.0 // indirect
+	github.com/chai2010/gettext-go v1.0.2 // indirect
+	github.com/exponent-io/jsonpath v0.0.0-20151013193312-d6023ce2651d // indirect
+	github.com/fatih/camelcase v1.0.0 // indirect
+	github.com/go-errors/errors v1.4.2 // indirect
+	github.com/google/btree v1.1.3 // indirect
+	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
+	github.com/gregjones/httpcache v0.0.0-20180305231024-9cad4c3443a7 // indirect
+	github.com/lann/builder v0.0.0-20180802200727-47ae307949d0 // indirect
+	github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0 // indirect
+	github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de // indirect
+	github.com/mitchellh/go-wordwrap v1.0.1 // indirect
 	github.com/moby/sys/atomicwriter v0.1.0 // indirect
+	github.com/moby/term v0.5.2 // indirect
+	github.com/monochromegane/go-gitignore v0.0.0-20200626010858-205db1a8cc00 // indirect
+	github.com/montanaflynn/stats v0.7.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector v0.135.0 // indirect
+	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
+	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/vektah/gqlparser/v2 v2.5.30 // indirect
+	github.com/xlab/treeprint v1.2.0 // indirect
 	github.com/zorkian/go-datadog-api v2.30.0+incompatible // indirect
 	go.opentelemetry.io/collector/config/configmiddleware v1.41.0 // indirect
 	go.opentelemetry.io/collector/extension/extensionmiddleware v0.135.0 // indirect
+	go.starlark.net v0.0.0-20231101134539-556fd59b42f6 // indirect
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/telemetry v0.0.0-20250807160809-1a19826ec488 // indirect
+	sigs.k8s.io/kustomize/api v0.17.2 // indirect
+	sigs.k8s.io/kustomize/kyaml v0.17.1 // indirect
 )
 
 require (
