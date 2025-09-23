@@ -150,12 +150,14 @@ func newPayloadsBuilderV3WithConfig(
 	maxUncompressedSize := config.GetInt("serializer_max_series_uncompressed_payload_size")
 	maxPointsPerPayload := config.GetInt("serializer_max_series_points_per_payload")
 	splitTagsets := config.GetBool("serializer_split_tagsets")
+	borrowKeys := config.GetBool("serializer_borrow_keys")
 
 	return newPayloadsBuilderV3(
 		maxCompressedSize,
 		maxUncompressedSize,
 		maxPointsPerPayload,
 		splitTagsets,
+		borrowKeys,
 		compression,
 	)
 }
@@ -165,6 +167,7 @@ func newPayloadsBuilderV3(
 	maxUncompressedSize int,
 	maxPointsPerPayload int,
 	splitTagsets bool,
+	borrowKeys bool,
 	compression compression.Component,
 ) (*payloadsBuilderV3, error) {
 	payloadHeaderSize := fieldHeaderLen(payloadFieldMetricData, maxUncompressedSize)
@@ -194,7 +197,7 @@ func newPayloadsBuilderV3(
 		compression: compression,
 		compressor:  compressor,
 		txn:         txn,
-		dict:        newDictionaryBuilder(txn, splitTagsets),
+		dict:        newDictionaryBuilder(txn, splitTagsets, borrowKeys),
 
 		splitTagsets:        splitTagsets,
 		maxPointsPerPayload: maxPointsPerPayload,
@@ -510,6 +513,7 @@ type dictionaryBuilder struct {
 	tagsIndex    map[any]int64
 	tagsBuffer   []int64
 	splitTagsets bool
+	borrowKeys   bool
 
 	resourcesLastID int64
 	resourcesIndex  map[any]int64
@@ -520,7 +524,7 @@ type dictionaryBuilder struct {
 	}
 }
 
-func newDictionaryBuilder(txn *stream.ColumnTransaction, splitTagsets bool) *dictionaryBuilder {
+func newDictionaryBuilder(txn *stream.ColumnTransaction, splitTagsets bool, borrowKeys bool) *dictionaryBuilder {
 	return &dictionaryBuilder{
 		txn: txn,
 
@@ -536,6 +540,7 @@ func newDictionaryBuilder(txn *stream.ColumnTransaction, splitTagsets bool) *dic
 		resourcesIndex: make(map[any]int64),
 
 		splitTagsets: splitTagsets,
+		borrowKeys:   borrowKeys,
 	}
 }
 
@@ -568,9 +573,18 @@ func (db *dictionaryBuilder) internTagsBuffer() int64 {
 	slices.Sort(db.tagsBuffer)
 	deltaEncode(db.tagsBuffer)
 
-	key := sliceToArray(db.tagsBuffer)
+	var key any
+	if db.borrowKeys {
+		key = unsafeSliceAsArray(db.tagsBuffer)
+	} else {
+		key = sliceToArray(db.tagsBuffer)
+	}
 	if i, ok := db.tagsIndex[key]; ok {
 		return i
+	}
+
+	if db.borrowKeys {
+		key = sliceToArray(db.tagsBuffer)
 	}
 
 	db.tagsLastID++
@@ -616,10 +630,19 @@ func (db *dictionaryBuilder) internResources(res []metrics.Resource) int64 {
 		return 0
 	}
 
-	key := sliceToArray(res)
+	var key any
+	if db.borrowKeys {
+		key = unsafeSliceAsArray(res)
+	} else {
+		key = sliceToArray(res)
+	}
 
 	if id, ok := db.resourcesIndex[key]; ok {
 		return id
+	}
+
+	if db.borrowKeys {
+		key = sliceToArray(res)
 	}
 
 	db.resourcesLastID++
@@ -653,6 +676,23 @@ func sliceToArray[T any](target []T) any {
 	val := reflect.NewAt(ty, unsafe.Pointer(&target[0]))
 	// return any(*val)
 	return val.Elem().Interface()
+}
+
+type unsafeEface struct {
+	ty   unsafe.Pointer
+	data unsafe.Pointer
+}
+
+// unsafeSliceAsArray casts slice to an array of equal length.
+func unsafeSliceAsArray[T any](target []T) any {
+	ty := reflect.ArrayOf(len(target), reflect.TypeFor[T]())
+
+	val := unsafeEface{
+		ty:   reflect.ValueOf(ty).UnsafePointer(),
+		data: unsafe.Pointer(&target[0]),
+	}
+
+	return *(*any)(unsafe.Pointer(&val))
 }
 
 func (db *dictionaryBuilder) internSourceTypeName(stn string) int64 {
