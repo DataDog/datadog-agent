@@ -43,11 +43,11 @@ build do
     command "bazelisk run -- //deps/cacerts:install --destdir='#{python_3_embedded}'", \
       cwd: "#{Omnibus::Config.project_root()}/.."
     # For debugging. Keep until we delete this file
-    command "dir #{python_3_embedded}/embedded/ssl", live_stream: true
+    command "dir #{python_3_embedded}/embedded/ssl", :live_stream => true
   else
     command "bazelisk run -- //deps/cacerts:install --destdir='#{install_dir}/embedded'", \
       cwd: "#{Omnibus::Config.project_root()}/.."
     # For debugging. Keep until we delete this file
-    command "ls -lR #{install_dir}/embedded 1>&2"
+    command "ls -lR #{install_dir}/embedded", :live_stream => true
   end
 end
