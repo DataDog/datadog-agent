@@ -251,15 +251,9 @@ func processService(ksvc *v1.Service, filterStore workloadfilter.Component) *Kub
 		entity: apiserver.EntityForService(ksvc),
 	}
 
-	svc.metricsExcluded = filterStore.IsServiceExcluded(
-		workloadfilter.CreateService(ksvc.Name, ksvc.Namespace, ksvc.GetAnnotations()),
-		[][]workloadfilter.ServiceFilter{{workloadfilter.ServiceADAnnotations, workloadfilter.ServiceADAnnotationsMetrics}, {workloadfilter.LegacyServiceMetrics}},
-	)
-
-	svc.globalExcluded = filterStore.IsServiceExcluded(
-		workloadfilter.CreateService(ksvc.Name, ksvc.Namespace, ksvc.GetAnnotations()),
-		[][]workloadfilter.ServiceFilter{{workloadfilter.ServiceADAnnotations}, {workloadfilter.LegacyServiceGlobal}},
-	)
+	filterableService := workloadfilter.CreateService(ksvc.Name, ksvc.Namespace, ksvc.GetAnnotations())
+	svc.metricsExcluded = filterStore.GetServiceAutodiscoveryFilters(workloadfilter.MetricsFilter).IsExcluded(filterableService)
+	svc.globalExcluded = filterStore.GetServiceAutodiscoveryFilters(workloadfilter.GlobalFilter).IsExcluded(filterableService)
 
 	// Service tags
 	svc.tags = []string{

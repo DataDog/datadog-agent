@@ -28,13 +28,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 const (
-	collectorID         = "kubelet"
-	componentName       = "workloadmeta-kubelet"
-	expireFreq          = 15 * time.Second
-	dockerImageIDPrefix = "docker-pullable://"
+	collectorID             = "kubelet"
+	componentName           = "workloadmeta-kubelet"
+	expireFreq              = 15 * time.Second
+	kubeletConfigExpireFreq = 20 * time.Minute // It's unlikely that the kubelet config would change frequently
+	dockerImageIDPrefix     = "docker-pullable://"
 )
 
 type dependencies struct {
@@ -53,6 +55,9 @@ type collector struct {
 	kubeUtil             kubelet.KubeUtilInterface
 	lastSeenPodUIDs      map[string]time.Time
 	lastSeenContainerIDs map[string]time.Time
+
+	// These fields are used to pull the kubelet config
+	kubeletConfigLastExpire time.Time
 
 	// usePodWatcher indicates whether to use the pod watcher for collecting
 	// pods. The new implementation queries the Kubelet directly instead. This
@@ -115,17 +120,63 @@ func (c *collector) Pull(ctx context.Context) error {
 	return c.pullFromKubelet(ctx)
 }
 
+func (c *collector) pullKubeletConfig(ctx context.Context) (workloadmeta.CollectorEvent, error) {
+	_, config, err := c.kubeUtil.GetConfig(ctx)
+	if err != nil {
+		return workloadmeta.CollectorEvent{}, err
+	}
+
+	wmetaConfigDocument := workloadmeta.KubeletConfigDocument{
+		KubeletConfig: workloadmeta.KubeletConfigSpec{
+			CPUManagerPolicy: config.KubeletConfig.CPUManagerPolicy,
+		},
+	}
+
+	return workloadmeta.CollectorEvent{
+		Type:   workloadmeta.EventTypeSet,
+		Source: workloadmeta.SourceNodeOrchestrator,
+		Entity: &workloadmeta.Kubelet{
+			EntityID: workloadmeta.EntityID{
+				ID:   workloadmeta.KubeletID,
+				Kind: workloadmeta.KindKubelet,
+			},
+			EntityMeta: workloadmeta.EntityMeta{
+				Name: workloadmeta.KubeletName,
+			},
+			ConfigDocument: wmetaConfigDocument,
+		},
+	}, nil
+}
+
 func (c *collector) pullFromKubelet(ctx context.Context) error {
-	podList, err := c.kubeUtil.GetLocalPodList(ctx)
+	events := []workloadmeta.CollectorEvent{}
+
+	podList, err := c.kubeUtil.GetLocalPodListWithMetadata(ctx)
 	if err != nil {
 		return err
 	}
 
-	events := parsePods(podList, c.collectEphemeralContainers)
+	// Pull the kubelet config every kubeletConfigExpireFreq
+	// This needs to be before the pod list
+	if time.Since(c.kubeletConfigLastExpire) > kubeletConfigExpireFreq {
+		configEvent, err := c.pullKubeletConfig(ctx)
+		if err == nil {
+			events = append(events, configEvent)
+			// only update last expiry if the config was successfully retrieved
+			c.kubeletConfigLastExpire = time.Now()
+		}
+	}
+
+	if podList == nil {
+		c.store.Notify(events)
+		return nil
+	}
+
+	events = append(events, parsePods(podList.Items, c.collectEphemeralContainers)...)
 
 	// Mark return pods and containers as seen now
 	now := time.Now()
-	for _, pod := range podList {
+	for _, pod := range podList.Items {
 		if pod.Metadata.UID != "" {
 			c.lastSeenPodUIDs[pod.Metadata.UID] = now
 		}
@@ -138,6 +189,9 @@ func (c *collector) pullFromKubelet(ctx context.Context) error {
 
 	expireEvents := c.eventsForExpiredEntities(now)
 	events = append(events, expireEvents...)
+
+	// Report expired pod count. This is needed by the Kubelet check
+	events = append(events, eventForKubeletMetrics(podList.ExpiredCount))
 
 	c.store.Notify(events)
 
@@ -294,6 +348,7 @@ func parsePods(pods []*kubelet.Pod, collectEphemeralContainers bool) []workloadm
 
 		var podEphemeralContainers []workloadmeta.OrchestratorContainer
 		var ephemeralContainerEvents []workloadmeta.CollectorEvent
+		var ephemeralContainerStatuses []workloadmeta.KubernetesContainerStatus
 		if collectEphemeralContainers {
 			podEphemeralContainers, ephemeralContainerEvents = parsePodContainers(
 				pod,
@@ -301,6 +356,8 @@ func parsePods(pods []*kubelet.Pod, collectEphemeralContainers bool) []workloadm
 				pod.Status.EphemeralContainers,
 				&podID,
 			)
+
+			ephemeralContainerStatuses = convertContainerStatuses(pod.Status.EphemeralContainers)
 		}
 
 		GPUVendors := getGPUVendorsFromContainers(initContainerEvents, containerEvents)
@@ -346,12 +403,14 @@ func parsePods(pods []*kubelet.Pod, collectEphemeralContainers bool) []workloadm
 			RuntimeClass:               RuntimeClassName,
 			SecurityContext:            PodSecurityContext,
 			CreationTimestamp:          podMeta.CreationTimestamp,
+			DeletionTimestamp:          podMeta.DeletionTimestamp,
 			StartTime:                  startTime,
 			NodeName:                   pod.Spec.NodeName,
 			HostIP:                     pod.Status.HostIP,
 			HostNetwork:                pod.Spec.HostNetwork,
 			InitContainerStatuses:      convertContainerStatuses(pod.Status.InitContainers),
 			ContainerStatuses:          convertContainerStatuses(pod.Status.Containers),
+			EphemeralContainerStatuses: ephemeralContainerStatuses,
 			Conditions:                 convertConditions(pod.Status.Conditions),
 			Volumes:                    convertVolumes(pod.Spec.Volumes),
 			Tolerations:                convertTolerations(pod.Spec.Tolerations),
@@ -655,6 +714,13 @@ func extractResources(spec *kubelet.ContainerSpec) workloadmeta.ContainerResourc
 		resources.MemoryLimit = kubernetes.FormatMemoryRequests(memoryLimit)
 	}
 
+	// Check if the CPU Requested is a whole core or cores
+	if cpuReq, found := spec.Resources.Requests[kubelet.ResourceCPU]; found {
+		if cpuReq.MilliValue()%1000 == 0 {
+			resources.RequestedWholeCores = pointer.Ptr(true)
+		}
+	}
+
 	// extract GPU resource info from the possible GPU sources
 	uniqueGPUVendor := make(map[string]struct{})
 	for resourceName := range spec.Resources.Requests {
@@ -669,6 +735,16 @@ func extractResources(spec *kubelet.ContainerSpec) workloadmeta.ContainerResourc
 		gpuVendorList = append(gpuVendorList, GPUVendor)
 	}
 	resources.GPUVendorList = gpuVendorList
+
+	resources.RawRequests = make(map[string]string)
+	for resourceName, quantity := range spec.Resources.Requests {
+		resources.RawRequests[string(resourceName)] = quantity.String()
+	}
+
+	resources.RawLimits = make(map[string]string)
+	for resourceName, quantity := range spec.Resources.Limits {
+		resources.RawLimits[string(resourceName)] = quantity.String()
+	}
 
 	return resources
 }
@@ -746,6 +822,7 @@ func convertConditions(conditions []kubelet.Conditions) []workloadmeta.Kubernete
 		result[i] = workloadmeta.KubernetesPodCondition{
 			Type:   condition.Type,
 			Status: condition.Status,
+			Reason: condition.Reason,
 		}
 	}
 
@@ -836,4 +913,19 @@ func parseExpires(expiredIDs []string) []workloadmeta.CollectorEvent {
 	}
 
 	return events
+}
+
+func eventForKubeletMetrics(expiredPodCount int) workloadmeta.CollectorEvent {
+	kubeletMetrics := &workloadmeta.KubeletMetrics{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubeletMetrics,
+			ID:   "kubelet-metrics",
+		},
+		ExpiredPodCount: expiredPodCount,
+	}
+
+	return workloadmeta.CollectorEvent{
+		Type:   workloadmeta.EventTypeSet,
+		Entity: kubeletMetrics,
+	}
 }

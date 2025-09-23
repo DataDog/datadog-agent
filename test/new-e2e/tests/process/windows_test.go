@@ -13,16 +13,14 @@ import (
 	"time"
 
 	agentmodel "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
@@ -174,7 +172,7 @@ func assertProcessCheck(t *testing.T, env *environments.Host, withIOStats bool, 
 
 		assertProcessCollectedNew(c, payloads, withIOStats, processName)
 
-		procs := filterProcessPayloadsByName(payloads, processName)
+		procs := FilterProcessPayloadsByName(payloads, processName)
 		require.NotEmpty(t, procs, "'%s' process not found in payloads: \n%+v", processName, payloads)
 		assertProcessCommandLineArgs(c, procs, processCMDArgs)
 	}, 2*time.Minute, 10*time.Second)
@@ -241,7 +239,6 @@ func (s *windowsTestSuite) TestUnprotectedProcessCheckIO() {
 }
 
 func (s *windowsTestSuite) TestManualProcessCheck() {
-	flake.Mark(s.T())
 	// test can be flaky due to missing CPU stats when cpu usage is extremely low (json output omits 0 values), so we want to re-run a full scan to ensure we have CPU stats
 	s.Env().RemoteHost.MustExecute("Start-MpScan -ScanType FullScan -AsJob")
 	check := s.Env().RemoteHost.

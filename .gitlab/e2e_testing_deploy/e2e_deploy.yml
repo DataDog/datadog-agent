@@ -42,7 +42,7 @@
 .deploy_deb_testing-a7:
   stage: e2e_deploy
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
   before_script:
@@ -105,7 +105,7 @@ deploy_deb_testing-a7_arm64:
 .deploy_rpm_testing-a7:
   stage: e2e_deploy
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
   before_script:
@@ -159,7 +159,7 @@ deploy_suse_rpm_testing_x64-a7:
     - when: on_success
   stage: e2e_deploy
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   needs:
     [
       "installer_suse_rpm-amd64",
@@ -189,7 +189,7 @@ deploy_suse_rpm_testing_arm64-a7:
     - !reference [.manual]
   stage: e2e_deploy
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   needs: ["installer_suse_rpm-arm64", "agent_suse-arm64-a7", "agent_suse-arm64-a7-fips", "lint_linux-arm64", "ddot_suse_rpm-arm64"]
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
@@ -210,10 +210,10 @@ deploy_windows_testing-a7:
     - when: on_success
   stage: e2e_deploy
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   retry: 2
   needs:
-    ["lint_windows-x64", "windows_msi_and_bosh_zip_x64-a7", "windows-installer-amd64"]
+    ["lint_windows-x64", "windows_msi_and_bosh_zip_x64-a7"]
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR/pipeline-$CI_PIPELINE_ID
   script:
@@ -222,7 +222,6 @@ deploy_windows_testing-a7:
       --exclude "*"
       --include "datadog-agent-7.*.msi"
       --include "datadog-agent-upgrade-test-7.*.msi"
-      --include "datadog-installer-*-1-x86_64.msi"
       --include "datadog-installer-*-1-x86_64.exe"
       $OMNIBUS_PACKAGE_DIR/pipeline-$CI_PIPELINE_ID s3://$WIN_S3_BUCKET/$WINDOWS_TESTING_S3_BUCKET
       --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
@@ -235,7 +234,7 @@ deploy_windows_testing-a7-fips:
     - when: on_success
   stage: e2e_deploy
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   retry: 2
   needs:
     ["lint_windows-x64", "windows_msi_and_bosh_zip_x64-a7-fips"]
@@ -257,7 +256,7 @@ export_testing_public_key:
   needs: []
   stage: e2e_deploy
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   script:
     - *setup_signing
     - /usr/bin/gpg-vault export-public-key $GPG_TEST_KEY_ID > gpg-testing-public-key.asc
@@ -265,3 +264,48 @@ export_testing_public_key:
     paths:
       - gpg-testing-public-key.asc
     expire_in: 1 day
+
+.deploy_dmg_testing-a7:
+  rules:
+     - !reference [.on_macos_gui_change]
+     - !reference [.on_packaging_change]
+     - !reference [.on_main_or_release_branch]
+     - !reference [.on_all_builds]
+     - !reference [.manual]
+  stage: e2e_deploy
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
+  tags: ["arch:amd64", "specific:true"]
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR
+  script:
+    - |
+      echo "Listing all datadog-agent-7.*.dmg files in $OMNIBUS_PACKAGE_DIR:"
+      ls -la "$OMNIBUS_PACKAGE_DIR"/datadog-agent-7.*.dmg 2>/dev/null || echo "No datadog-agent-7.*.dmg files found"
+      
+      count=$(ls -1 "$OMNIBUS_PACKAGE_DIR"/datadog-agent-7.*.dmg 2>/dev/null | wc -l || true)
+      if [ "$count" -eq 0 ]; then
+        echo "No DMG found in $OMNIBUS_PACKAGE_DIR matching datadog-agent-7.*.dmg" >&2
+        exit 1
+      fi
+      if [ "$count" -gt 1 ]; then
+        echo "Multiple DMGs found for datadog-agent-7.*.dmg pattern:" >&2
+        ls -1 "$OMNIBUS_PACKAGE_DIR"/datadog-agent-7.*.dmg >&2
+        exit 1
+      fi
+      dmg_src=$(ls -1 "$OMNIBUS_PACKAGE_DIR"/datadog-agent-7.*.dmg 2>/dev/null)
+      echo "Found single DMG file: $dmg_src"
+      $S3_CP_CMD --acl public-read "$dmg_src" "s3://$MACOS_S3_BUCKET/ci/datadog-agent/pipeline-$CI_PIPELINE_ID-$ARCH/datadog-agent-7-latest.dmg"
+
+
+deploy_dmg_testing-a7_arm64:
+  extends: .deploy_dmg_testing-a7
+  needs: ["agent_dmg-arm64-a7"]
+  variables:
+    ARCH: "arm64"
+
+
+deploy_dmg_testing-a7_x64:
+  extends: .deploy_dmg_testing-a7
+  needs: ["agent_dmg-x64-a7"]
+  variables:
+    ARCH: "x64"

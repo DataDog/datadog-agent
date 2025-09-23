@@ -17,7 +17,6 @@ import (
 	"net/http"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
-	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	settingsComponent "github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 )
@@ -87,11 +86,11 @@ type httpsClient struct {
 }
 
 func (c *httpsClient) DoGet(url string) (body []byte, e error) {
-	return c.c.Get(url, ipchttp.WithLeaveConnectionOpen)
+	return c.c.Get(url, c.clientOptions...)
 }
 
 func (c *httpsClient) DoPost(url string, contentType string, body io.Reader) (resp []byte, e error) {
-	return c.c.Post(url, contentType, body, ipchttp.WithLeaveConnectionOpen)
+	return c.c.Post(url, contentType, body, c.clientOptions...)
 }
 
 type runtimeSettingsClient struct {
@@ -102,18 +101,21 @@ type runtimeSettingsClient struct {
 
 // NewHTTPClient returns a client setup to interact with the standard runtime settings HTTP API
 func NewHTTPClient(c *http.Client, baseURL string, targetProcessName string, clientOptions ClientOptions) settings.Client {
-
-	innerClient := &httpClient{c, clientOptions}
-
-	return &runtimeSettingsClient{innerClient, baseURL, targetProcessName}
+	return &runtimeSettingsClient{
+		c:                 &httpClient{c, clientOptions},
+		baseURL:           baseURL,
+		targetProcessName: targetProcessName,
+	}
 }
 
-// NewHTTPSClient returns a client setup to interact with the standard runtime settings HTTPS API, taking advantage of the auth component
-func NewHTTPSClient(c ipc.HTTPClient, baseURL string, targetProcessName string, clientOptions ...ipc.RequestOption) settings.Client {
-
-	innerClient := &httpsClient{c, clientOptions}
-
-	return &runtimeSettingsClient{innerClient, baseURL, targetProcessName}
+// NewSecureClient returns a client setup to interact with the standard runtime settings HTTPS API, taking advantage of the ipc component
+// The authentication with the server will be handle automatically and transparently
+func NewSecureClient(c ipc.HTTPClient, baseURL string, targetProcessName string, clientOptions ...ipc.RequestOption) settings.Client {
+	return &runtimeSettingsClient{
+		c:                 &httpsClient{c, clientOptions},
+		baseURL:           baseURL,
+		targetProcessName: targetProcessName,
+	}
 }
 
 func (rc *runtimeSettingsClient) doGet(url string, formatError bool) (string, error) {
@@ -130,7 +132,7 @@ func (rc *runtimeSettingsClient) doGet(url string, formatError bool) (string, er
 			return "", errors.New(e)
 		}
 		if formatError {
-			return "", fmt.Errorf("Could not reach %s: %v \nMake sure the %s is running before requesting the runtime configuration and contact support if you continue having issues", rc.targetProcessName, err, rc.targetProcessName)
+			return "", fmt.Errorf("Could not reach %s: %w \nMake sure the %s is running before requesting the runtime configuration and contact support if you continue having issues", rc.targetProcessName, err, rc.targetProcessName)
 		}
 		return "", err
 	}
@@ -139,6 +141,14 @@ func (rc *runtimeSettingsClient) doGet(url string, formatError bool) (string, er
 
 func (rc *runtimeSettingsClient) FullConfig() (string, error) {
 	r, err := rc.doGet(rc.baseURL, true)
+	if err != nil {
+		return "", err
+	}
+	return string(r), nil
+}
+
+func (rc *runtimeSettingsClient) FullConfigWithoutDefaults() (string, error) {
+	r, err := rc.doGet(fmt.Sprintf("%s/without-defaults", rc.baseURL), true)
 	if err != nil {
 		return "", err
 	}

@@ -7,7 +7,9 @@ package traceroute
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"time"
 
@@ -17,13 +19,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func getTraceroute(client *http.Client, clientID string, host string, port uint16, protocol payload.Protocol, tcpMethod payload.TCPMethod, tcpSynParisTracerouteMode bool, maxTTL uint8, timeout time.Duration) ([]byte, error) {
+func getTraceroute(client *http.Client, clientID string, host string, port uint16, protocol payload.Protocol, tcpMethod payload.TCPMethod, tcpSynParisTracerouteMode bool, reverseDNS bool, maxTTL uint8, timeout time.Duration) ([]byte, error) {
 	httpTimeout := timeout*time.Duration(maxTTL) + 10*time.Second // allow extra time for the system probe communication overhead, calculate full timeout for TCP traceroute
 	log.Tracef("Network Path traceroute HTTP request timeout: %s", httpTimeout)
 	ctx, cancel := context.WithTimeout(context.Background(), httpTimeout)
 	defer cancel()
 
-	url := sysprobeclient.ModuleURL(sysconfig.TracerouteModule, fmt.Sprintf("/traceroute/%s?client_id=%s&port=%d&max_ttl=%d&timeout=%d&protocol=%s&tcp_method=%s&tcp_syn_paris_traceroute_mode=%t", host, clientID, port, maxTTL, timeout, protocol, tcpMethod, tcpSynParisTracerouteMode))
+	url := sysprobeclient.ModuleURL(sysconfig.TracerouteModule, fmt.Sprintf("/traceroute/%s?client_id=%s&port=%d&max_ttl=%d&timeout=%d&protocol=%s&tcp_method=%s&tcp_syn_paris_traceroute_mode=%t&reverse_dns=%t", host, clientID, port, maxTTL, timeout, protocol, tcpMethod, tcpSynParisTracerouteMode, reverseDNS))
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, err
@@ -32,6 +34,10 @@ func getTraceroute(client *http.Client, clientID string, host string, port uint1
 	req.Header.Set("Accept", "application/json")
 	resp, err := client.Do(req)
 	if err != nil {
+		var opErr *net.OpError
+		if errors.As(err, &opErr) && opErr.Op == "dial" {
+			return nil, fmt.Errorf("%w, please check that the traceroute module is enabled in the system-probe.yaml config file and that system-probe is running", err)
+		}
 		return nil, err
 	}
 	defer resp.Body.Close()
@@ -42,6 +48,8 @@ func getTraceroute(client *http.Client, clientID string, host string, port uint1
 			return nil, fmt.Errorf("traceroute request failed: url: %s, status code: %d", req.URL, resp.StatusCode)
 		}
 		return nil, fmt.Errorf("traceroute request failed: url: %s, status code: %d, error: %s", req.URL, resp.StatusCode, string(body))
+	} else if resp.StatusCode == http.StatusNotFound {
+		return nil, fmt.Errorf("traceroute request failed: url: %s, status code: %d, please check that the traceroute module is enabled in the system-probe.yaml config file", req.URL, resp.StatusCode)
 	} else if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("traceroute request failed: url: %s, status code: %d", req.URL, resp.StatusCode)
 	}

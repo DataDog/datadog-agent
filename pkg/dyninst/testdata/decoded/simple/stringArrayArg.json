@@ -6,7 +6,7 @@
       "name": "",
       "method": "main.stringArrayArg",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {
@@ -18,7 +18,7 @@
           {
             "function": "main.stringArrayArg",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 67
+            "lineNumber": 69
           },
           {
             "function": "main.main",

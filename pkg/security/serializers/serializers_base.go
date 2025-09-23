@@ -133,7 +133,9 @@ type NetworkContextSerializer struct {
 	// size is the size in bytes of the network event
 	Size uint32 `json:"size"`
 	// network_direction indicates if the packet was captured on ingress or egress
-	NetworkDirection string `json:"network_direction"`
+	NetworkDirection string `json:"network_direction,omitempty"`
+	// type is the type of the protocol of the network event
+	Type string `json:"type,omitempty"`
 }
 
 // AWSSecurityCredentialsSerializer serializes the security credentials from an AWS IMDS request
@@ -449,7 +451,7 @@ func NewBaseEventSerializer(event *model.Event, rule *rules.Rule) *BaseEventSeri
 		}
 	}
 
-	s.Category = string(model.GetEventTypeCategoryUserFacing(eventType.String()))
+	s.Category = model.GetEventTypeCategory(eventType.String()).String()
 
 	switch eventType {
 	case model.ExitEventType:
@@ -476,8 +478,27 @@ func newRuleContext(e *model.Event, rule *rules.Rule) RuleContext {
 		subExpr := MatchingSubExpr{
 			Offset: valuePos.Offset,
 			Length: valuePos.Length,
-			Value:  fmt.Sprintf("%v", valuePos.Value),
 			Field:  valuePos.Field,
+		}
+
+		value := valuePos.Value
+		switch value := value.(type) {
+		case []string:
+			scrubbedValues := make([]string, 0, len(value))
+			for _, elem := range value {
+				if scrubbed, err := scrubber.ScrubString(elem); err == nil {
+					scrubbedValues = append(scrubbedValues, scrubbed)
+				}
+			}
+			subExpr.Value = fmt.Sprintf("%v", scrubbedValues)
+		case string:
+			scrubbed, err := scrubber.ScrubString(value)
+			if err != nil {
+				continue
+			}
+			subExpr.Value = scrubbed
+		default:
+			subExpr.Value = fmt.Sprintf("%v", value)
 		}
 		ruleContext.MatchingSubExprs = append(ruleContext.MatchingSubExprs, subExpr)
 	}

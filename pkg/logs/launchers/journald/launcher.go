@@ -5,7 +5,7 @@
 
 //go:build systemd
 
-//nolint:revive // TODO(AML) Fix revive linter
+// Package journald provides journald-based log launchers (no-op for non-systemd builds)
 package journald
 
 import (
@@ -29,12 +29,12 @@ import (
 // SDJournalFactory is a JournalFactory implementation that produces sdjournal instances
 type SDJournalFactory struct{}
 
-//nolint:revive // TODO(AML) Fix revive linter
+// NewJournal creates a new sdjournal instance
 func (s *SDJournalFactory) NewJournal() (tailer.Journal, error) {
 	return sdjournal.NewJournal()
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
+// NewJournalFromPath creates a new sdjournal instance from the supplied path
 func (s *SDJournalFactory) NewJournalFromPath(path string) (tailer.Journal, error) {
 	return sdjournal.NewJournalFromDir(path)
 }
@@ -68,9 +68,7 @@ func NewLauncherWithFactory(journalFactory tailer.JournalFactory, fc *flareContr
 }
 
 // Start starts the launcher.
-//
-//nolint:revive // TODO(AML) Fix revive linter
-func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry, tracker *tailers.TailerTracker) {
+func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry, _ *tailers.TailerTracker) {
 	l.sources = sourceProvider.GetAddedForType(config.JournaldType)
 	l.pipelineProvider = pipelineProvider
 	l.registry = registry
