@@ -8,5 +8,5 @@
 ---
 features:
   - |
-    Print service details in the agent configcheck verbose command output.
+    Print service details in the Agent configcheck verbose command output.
 

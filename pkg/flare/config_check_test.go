@@ -51,8 +51,8 @@ func TestPrintConfigCheck(t *testing.T) {
 				Instances:     []integration.Data{integration.Data("{unresolved:sad}")},
 			},
 		},
-		Services: map[string]integration.ServiceResponse{
-			"svc1": {
+		Services: []integration.ServiceResponse{
+			{
 				ServiceID:      "svc1",
 				ADIdentifiers:  []string{"test-ad-identifier"},
 				Hosts:          map[string]string{"host1": "192.168.1.1"},

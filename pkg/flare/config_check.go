@@ -8,6 +8,7 @@ package flare
 import (
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 
 	"github.com/fatih/color"
@@ -168,8 +169,12 @@ func PrintClusterCheckConfig(w io.Writer, c integration.Config, checkName string
 }
 
 func printServiceDetails(w io.Writer, cr integration.ConfigCheckResponse) {
-	for svcID, service := range cr.Services {
-		fmt.Fprintf(w, "\n%s: %s\n", color.BlueString("Service ID"), color.YellowString(svcID))
+	slices.SortFunc(cr.Services, func(a, b integration.ServiceResponse) int {
+		return strings.Compare(a.ServiceID, b.ServiceID)
+	})
+
+	for _, service := range cr.Services {
+		fmt.Fprintf(w, "\n%s: %s\n", color.BlueString("Service ID"), color.YellowString(service.ServiceID))
 		fmt.Fprintf(w, "ADIdentifiers:\n")
 		for _, id := range service.ADIdentifiers {
 			fmt.Fprintf(w, "- %s\n", id)

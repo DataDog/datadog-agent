@@ -28,9 +28,9 @@ type ServiceResponse struct {
 
 // ConfigCheckResponse holds the config check response
 type ConfigCheckResponse struct {
-	Configs         []ConfigResponse           `json:"configs"`
-	ResolveWarnings map[string][]string        `json:"resolve_warnings"`
-	ConfigErrors    map[string]string          `json:"config_errors"`
-	Unresolved      map[string]Config          `json:"unresolved"`
-	Services        map[string]ServiceResponse `json:"services,omitempty"`
+	Configs         []ConfigResponse    `json:"configs"`
+	ResolveWarnings map[string][]string `json:"resolve_warnings"`
+	ConfigErrors    map[string]string   `json:"config_errors"`
+	Unresolved      map[string]Config   `json:"unresolved"`
+	Services        []ServiceResponse   `json:"services,omitempty"`
 }

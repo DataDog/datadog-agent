@@ -572,24 +572,18 @@ func (ac *AutoConfig) getUnresolvedConfigs() map[string]integration.Config {
 }
 
 // getActiveServices returns all active services and their metadata.
-func (ac *AutoConfig) getActiveServices() map[string]integration.ServiceResponse {
+func (ac *AutoConfig) getActiveServices() []integration.ServiceResponse {
 	activeSvc := ac.cfgMgr.getActiveServices()
-	serviceResp := make(map[string]integration.ServiceResponse, len(activeSvc))
-	for _, svc := range activeSvc {
-		svcID := svc.GetServiceID()
-
+	serviceResp := make([]integration.ServiceResponse, 0, len(activeSvc))
+	for svcID, svc := range activeSvc {
 		hosts, err := svc.GetHosts()
 		if err != nil {
-			ac.logs.Debugf("showing empty hosts because not supported for service %s: %v", svcID, err)
 			hosts = make(map[string]string)
 		}
 
 		containerPorts, err := svc.GetPorts()
 		ports := make([]string, 0)
-
-		if err != nil {
-			ac.logs.Debugf("showing empty ports because not supported for service %s: %v", svcID, err)
-		} else {
+		if err == nil {
 			ports = slices.Map(containerPorts, func(port listeners.ContainerPort) string {
 				return strconv.Itoa(port.Port)
 			})
@@ -597,17 +591,15 @@ func (ac *AutoConfig) getActiveServices() map[string]integration.ServiceResponse
 
 		pid, err := svc.GetPid()
 		if err != nil {
-			ac.logs.Debugf("showing empty pid because not supported for service %s: %v", svcID, err)
 			pid = 0
 		}
 
 		hostname, err := svc.GetHostname()
 		if err != nil {
-			ac.logs.Debugf("showing empty hostname because not supported for service %s: %v", svcID, err)
 			hostname = ""
 		}
 
-		serviceResp[svcID] = integration.ServiceResponse{
+		serviceResp = append(serviceResp, integration.ServiceResponse{
 			ServiceID:      svcID,
 			ADIdentifiers:  svc.GetADIdentifiers(),
 			Hosts:          hosts,
@@ -617,7 +609,7 @@ func (ac *AutoConfig) getActiveServices() map[string]integration.ServiceResponse
 			IsReady:        svc.IsReady(),
 			FiltersLogs:    svc.HasFilter(workloadfilter.LogsFilter),
 			FiltersMetrics: svc.HasFilter(workloadfilter.MetricsFilter),
-		}
+		})
 	}
 	return serviceResp
 }
