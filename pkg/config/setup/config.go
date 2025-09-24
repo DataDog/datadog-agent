@@ -1893,8 +1893,8 @@ func podman(config pkgconfigmodel.Setup) {
 func privateactionrunner(config pkgconfigmodel.Setup) {
 	// Private Action Runner
 	config.BindEnvAndSetDefault("privateactionrunner.enabled", false)
-	config.BindEnv("privateactionrunner.private_key")
-	config.BindEnv("privateactionrunner.urn")
+	config.BindEnvAndSetDefault("privateactionrunner.private_key", "")
+	config.BindEnvAndSetDefault("privateactionrunner.urn", "")
 	config.BindEnvAndSetDefault("privateactionrunner.allowlist", "")
 	config.BindEnvAndSetDefault("privateactionrunner.allow_imds_endpoint", false)
 	config.BindEnvAndSetDefault("privateactionrunner.modes", "")
