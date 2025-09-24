@@ -38,7 +38,7 @@ const (
 )
 
 // Skip starting the DDOT service during post-install while E2E focuses on install-only validation.
-// Set to false for full E2E validation
+// Set to false for full E2E validation (including service start)
 const skipDDOTServiceStart = false
 
 // preInstallDatadogAgentDDOT performs pre-installation steps for DDOT on Windows
@@ -63,7 +63,7 @@ func postInstallDatadogAgentDdot(ctx HookContext) (err error) {
 	if err = windowssvc.NewWinServiceManager().RestartAgentServices(ctx.Context); err != nil {
 		return fmt.Errorf("failed to restart agent services: %w", err)
 	}
-	// 4) Ensure DDOT service exists/updated (no args -> service mode), then start it
+	// 4) Ensure DDOT service exists/updated, then start it (best-effort)
 	if err = ensureDDOTService(); err != nil {
 		return fmt.Errorf("failed to install ddot service: %w", err)
 	}
@@ -72,11 +72,22 @@ func postInstallDatadogAgentDdot(ctx HookContext) (err error) {
 		log.Warnf("DDOT: skipping service start due to skipDDOTServiceStart=%t", skipDDOTServiceStart)
 		return nil
 	}
+	// Start DDOT only when core Agent is running and credentials exist
+	if !isServiceRunning(coreAgentService) {
+		log.Warnf("DDOT: skipping service start (core Agent not running)")
+		return nil
+	}
+	if ak := readAPIKeyFromDatadogYAML(); ak == "" {
+		log.Warnf("DDOT: skipping service start (no API key configured)")
+		return nil
+	}
 	if err = startServiceIfExists(otelServiceName); err != nil {
-		return fmt.Errorf("failed to start ddot service: %w", err)
+		log.Warnf("DDOT: failed to start service: %v", err)
+		return nil
 	}
 	if err = waitForServiceRunning(otelServiceName, 30*time.Second); err != nil {
-		return fmt.Errorf("ddot service did not reach Running state: %w", err)
+		log.Warnf("DDOT: service %q did not reach Running state: %s", otelServiceName, err)
+		return nil
 	}
 	return nil
 }
@@ -109,6 +120,44 @@ func waitForServiceRunning(name string, timeout time.Duration) error {
 		}
 		time.Sleep(500 * time.Millisecond)
 	}
+}
+
+// isServiceRunning returns true if the Windows service is in the Running state
+func isServiceRunning(name string) bool {
+	m, err := mgr.Connect()
+	if err != nil {
+		return false
+	}
+	defer m.Disconnect()
+
+	s, err := m.OpenService(name)
+	if err != nil {
+		return false
+	}
+	defer s.Close()
+
+	st, err := s.Query()
+	if err != nil {
+		return false
+	}
+	return st.State == svc.Running
+}
+
+// readAPIKeyFromDatadogYAML reads the api_key from ProgramData datadog.yaml, returns empty string if unset/unknown
+func readAPIKeyFromDatadogYAML() string {
+	ddYaml := filepath.Join(paths.DatadogDataDir, "datadog.yaml")
+	data, err := os.ReadFile(ddYaml)
+	if err != nil {
+		return ""
+	}
+	var cfg map[string]any
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return ""
+	}
+	if v, ok := cfg["api_key"].(string); ok {
+		return v
+	}
+	return ""
 }
 
 // preRemoveDatadogAgentDdot performs pre-removal steps for the DDOT package on Windows
