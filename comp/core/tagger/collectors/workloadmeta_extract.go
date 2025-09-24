@@ -128,8 +128,7 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 		switch ev.Type {
 		case workloadmeta.EventTypeSet:
 
-			if entityID.Kind == workloadmeta.KindKubeletMetrics ||
-				entityID.Kind == workloadmeta.KindKubelet {
+			if entityID.Kind == workloadmeta.KindKubelet {
 				// No tags. Ignore
 				continue
 			}
