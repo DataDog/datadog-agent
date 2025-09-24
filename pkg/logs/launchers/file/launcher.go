@@ -267,7 +267,7 @@ func (s *Launcher) scan() {
 				continue
 			}
 			// Only skip files with true invalid fingerprints (errors), but allow tailing with insufficient data
-			if fingerprint != nil && !fingerprint.IsValidFingerprint() && !fingerprint.IsInsufficientData() { // ? 
+			if fingerprint != nil && !fingerprint.IsValidFingerprint() && !fingerprint.IsInsufficientData() { // ?
 				log.Debugf("Skipping file %s due to invalid fingerprint (error case)", file.Path)
 				if hasOldInfo {
 					s.oldInfoMap[scanKey] = oldInfo
@@ -362,7 +362,7 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 				continue
 			}
 			// Only skip files with true invalid fingerprints (errors), but allow tailing with insufficient data
-			if fingerprint != nil && (!fingerprint.IsValidFingerprint() || !fingerprint.IsInsufficientData()) { // ? demorgans law 
+			if fingerprint != nil && !fingerprint.IsValidFingerprint() && !fingerprint.IsInsufficientData() {
 				log.Debugf("Skipping file %s due to invalid fingerprint (error case)", file.Path)
 				continue
 			}
@@ -512,7 +512,7 @@ func (s *Launcher) rotateTailerWithoutRestart(oldTailer *tailer.Tailer, file *ta
 			InfoRegistry: oldInfoRegistry,
 			Pattern:      oldRegexPattern,
 		}
-		s.oldInfoMap[file.Path] = regexAndRegistry
+		s.oldInfoMap[file.GetScanKey()] = regexAndRegistry
 	}
 
 	s.rotatedTailers = append(s.rotatedTailers, oldTailer)
