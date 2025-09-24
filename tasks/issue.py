@@ -60,6 +60,7 @@ def ask_reviews(_, pr_id):
     if any(label.name == 'ask-review' for label in pr.get_labels()):
         actor = ask_review_actor(pr)
         reviewers = [f"@datadog/{team.slug}" for team in pr.requested_teams]
+        print(f"Reviewers: {reviewers}")
 
         from slack_sdk import WebClient
 
