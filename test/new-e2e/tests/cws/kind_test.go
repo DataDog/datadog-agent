@@ -6,12 +6,14 @@
 package cws
 
 import (
+	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
@@ -63,10 +65,13 @@ type kindSuite struct {
 }
 
 func TestKindSuite(t *testing.T) {
-	osDesc, err := platforms.BuildOSDescriptor(fmt.Sprintf("%s/%s/%s", osPlatform, osArch, osVersion))
-	if err != nil {
-		t.Fatalf("failed to build os descriptor: %v", err)
-	}
+	platformJSON := map[string]map[string]map[string]string{}
+	err := json.Unmarshal(platforms.Content, &platformJSON)
+	require.NoErrorf(t, err, "failed to umarshall platform file: %v", err)
+
+	ami := platformJSON[osPlatform][osArch][osVersion]
+	require.NotEmpty(t, ami, "No image found for %s %s %s", osPlatform, osArch, osVersion)
+	osDesc := platforms.BuildOSDescriptor(osPlatform, osArch, osVersion)
 
 	ddHostname := fmt.Sprintf("%s-%s", k8sHostnamePrefix, uuid.NewString()[:4])
 	values := fmt.Sprintf(valuesFmt, ddHostname)
@@ -75,7 +80,7 @@ func TestKindSuite(t *testing.T) {
 		e2e.WithProvisioner(
 			awskubernetes.KindProvisioner(
 				awskubernetes.WithEC2VMOptions(
-					ec2.WithOS(osDesc),
+					ec2.WithAMI(ami, osDesc, osDesc.Architecture),
 				),
 				awskubernetes.WithoutFakeIntake(),
 				awskubernetes.WithAgentOptions(
