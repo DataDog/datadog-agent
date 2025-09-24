@@ -22,6 +22,16 @@ import (
 	"time"
 )
 
+// Purpose of the test:
+// If any of the DNS packets fails to be decoded, creates the `failed_dns` event to indicate that it happened
+// The cases are:
+// - Request
+// - Full response
+// - Short response
+//
+// Notice: Not all invalid DNS packets emit an event, as they might get filtered in the kernel side before
+// getting to userspace (for example, an inbound packet with the request flag will get filtered before processing)
+
 func getPayloadBytes(customEvent *events.CustomEvent) (string, error) {
 	b, err := customEvent.MarshalJSON()
 	if err != nil {
@@ -45,7 +55,7 @@ func getPayloadBytes(customEvent *events.CustomEvent) (string, error) {
 	return fmt.Sprintf("%x", decoded), nil
 }
 
-func TestFailedDNS(t *testing.T) {
+func TestFailedDNSFullResponse(t *testing.T) {
 	SkipIfNotAvailable(t)
 	checkNetworkCompatibility(t)
 
