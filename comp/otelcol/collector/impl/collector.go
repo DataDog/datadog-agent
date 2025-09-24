@@ -277,7 +277,6 @@ func (c *collectorImpl) start(ctx context.Context) error {
 
 func (c *collectorImpl) stop(context.Context) error {
 	c.col.Shutdown()
-	c.log.Info("Collector shut down")
 	return nil
 }
 
