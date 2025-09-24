@@ -370,25 +370,47 @@ password: "********"
 token: "********"`, result)
 	})
 
-	// 	t.Run("ENC in nested structure", func(t *testing.T) {
-	// 		result, err := ScrubYamlString(`database:
-	//   password: ENC[db_pass]
-	//   host: localhost`)
-	// 		require.NoError(t, err)
-	// 		require.YAMLEq(t, `database:
-	//   password: ENC[db_pass]
-	//   host: localhost`, result)
-	// 	})
+	t.Run("ENC in nested structure", func(t *testing.T) {
+		input := interface{}(map[string]interface{}{
+			"database": map[string]interface{}{
+				"password": "ENC[db_pass]",
+				"token":    "plain_token",
+			},
+		})
+		expected := interface{}(map[string]interface{}{
+			"database": map[string]interface{}{
+				"password": "ENC[db_pass]",
+				"token":    "********",
+			},
+		})
+		ScrubDataObj(&input)
+		assert.Equal(t, expected, input)
+	})
 
-	//		t.Run("ENC in array", func(t *testing.T) {
-	//			result, err := ScrubYamlString(`secrets:
-	//	  - password: ENC[secret1]
-	//	  - password: plain_secret`)
-	//			require.NoError(t, err)
-	//			require.YAMLEq(t, `secrets:
-	//	  - password: ENC[secret1]
-	//	  - password: "********"`, result)
-	//		})
+	t.Run("ENC in array", func(t *testing.T) {
+		input := interface{}(map[string]interface{}{
+			"secrets": []interface{}{
+				map[string]interface{}{
+					"password": "ENC[secret1]",
+				},
+				map[string]interface{}{
+					"password": "plain_secret",
+				},
+			},
+		})
+		expected := interface{}(map[string]interface{}{
+			"secrets": []interface{}{
+				map[string]interface{}{
+					"password": "ENC[secret1]",
+				},
+				map[string]interface{}{
+					"password": "********",
+				},
+			},
+		})
+		ScrubDataObj(&input)
+		assert.Equal(t, expected, input)
+	})
 }
 
 func TestComplexYAMLWithNewKeys(t *testing.T) {
