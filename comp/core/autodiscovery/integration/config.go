@@ -62,6 +62,9 @@ type Config struct {
 	// LogsConfig is the logs config in YAML or JSON (logs-agent only)
 	LogsConfig Data `json:"logs"` // (include in digest: true)
 
+	// DiscoveryConfig contains discovery information for autodiscovery
+	DiscoveryConfig Data `json:"discovery"` // (include in digest: false)
+
 	// ADIdentifiers is the list of AutoDiscovery identifiers for this
 	// integration.  If either ADIdentifiers or AdvancedADIdentifiers are
 	// present, then this config is a template and will be resolved when a
@@ -145,6 +148,11 @@ type KubeNamespacedName struct {
 	Namespace string `yaml:"namespace"`
 }
 
+// DiscoveryConfig contains discovery information for autodiscovery
+type DiscoveryConfig struct {
+	LogSource string `yaml:"log_source,omitempty"`
+}
+
 // IsEmpty returns true if the KubeNamespacedName is empty
 func (k KubeNamespacedName) IsEmpty() bool {
 	return k.Name == "" && k.Namespace == ""
@@ -165,6 +173,7 @@ func (c *Config) String() string {
 	var initConfig interface{}
 	var instances []interface{}
 	var logsConfig interface{}
+	var discoveryConfig interface{}
 
 	rawConfig["check_name"] = c.Name
 
@@ -180,6 +189,9 @@ func (c *Config) String() string {
 
 	yaml.Unmarshal(c.LogsConfig, &logsConfig) //nolint:errcheck
 	rawConfig["logs_config"] = logsConfig
+
+	yaml.Unmarshal(c.DiscoveryConfig, &discoveryConfig) //nolint:errcheck
+	rawConfig["discovery"] = discoveryConfig
 
 	buffer, err := yaml.Marshal(&rawConfig)
 	if err != nil {
@@ -464,6 +476,7 @@ func (c *Config) Dump(multiline bool) string {
 	fmt.Fprintf(&b, ws("InitConfig: %s,"), dataField(c.InitConfig))
 	fmt.Fprintf(&b, ws("MetricConfig: %s,"), dataField(c.MetricConfig))
 	fmt.Fprintf(&b, ws("LogsConfig: %s,"), dataField(c.LogsConfig))
+	fmt.Fprintf(&b, ws("DiscoveryConfig: %s,"), dataField(c.DiscoveryConfig))
 	fmt.Fprintf(&b, ws("ADIdentifiers: %#v,"), c.ADIdentifiers)
 	fmt.Fprintf(&b, ws("AdvancedADIdentifiers: %#v,"), c.AdvancedADIdentifiers)
 	fmt.Fprintf(&b, ws("Provider: %#v,"), c.Provider)
