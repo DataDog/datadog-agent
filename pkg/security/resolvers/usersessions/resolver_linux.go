@@ -153,14 +153,6 @@ func parseSSHLogLine(line string, ctx *model.UserSessionContext) {
 		Service   string
 		Remaining string
 	}
-	type SSHLogLineAlternative struct {
-		Month     string
-		Day       string
-		Hour      string
-		Hostname  string
-		Service   string
-		Remaining string
-	}
 	type SSHParsedLine struct {
 		AuthentificationMethod string
 		User                   string
@@ -255,7 +247,7 @@ func resolveFromJournalctl(ctx *model.UserSessionContext) {
 	return
 }
 
-// Resolve the ssh user session from the auth log
+// ResolveSSHUserSession resolves the ssh user session from the auth log
 func ResolveSSHUserSession(ctx *model.UserSessionContext) {
 
 	f, err := os.OpenFile("/var/log/auth.log", os.O_RDONLY, 0644)
