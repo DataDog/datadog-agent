@@ -37,6 +37,7 @@ var (
 	procMsiSourceListForceResExW  = msi.NewProc("MsiSourceListForceResolutionExW")
 	procMsiEnumProductsExW        = msi.NewProc("MsiEnumProductsExW")
 	procMsiGetProductInfoW        = msi.NewProc("MsiGetProductInfoW")
+	procMsiEnumFeaturesW          = msi.NewProc("MsiEnumFeaturesW")
 )
 
 // MsiSourceListAddSourceEx adds or reorders the set of sources of a patch or product in a specified context.
@@ -114,6 +115,19 @@ func MsiGetProductInfo(productCode *uint16, propName *uint16, buf *uint16, bufLe
 	return windows.Errno(ret)
 }
 
+// MsiEnumFeatures enumerates the published features for a given product.
+//
+// https://learn.microsoft.com/en-us/windows/win32/api/msi/nf-msi-msienumfeaturesw
+func MsiEnumFeatures(productCode *uint16, index uint32, featureBuf *uint16, parentBuf *uint16) windows.Errno {
+	ret, _, _ := procMsiEnumFeaturesW.Call(
+		uintptr(unsafe.Pointer(productCode)),
+		uintptr(index),
+		uintptr(unsafe.Pointer(featureBuf)),
+		uintptr(unsafe.Pointer(parentBuf)),
+	)
+	return windows.Errno(ret)
+}
+
 // EnumerateMsiProducts enumerates all the products in the specified context.
 // It calls the processor function for each product found to get product information.
 func EnumerateMsiProducts(dwContext uint32, processor func(productCode []uint16, context uint32, userSID string) error) error {
@@ -151,7 +165,7 @@ func EnumerateMsiProducts(dwContext uint32, processor func(productCode []uint16,
 }
 
 // GetProp fetches a property from the MSI database.
-func GetProp(propName string, productCode []uint16) (string, error) {
+func GetMsiProductInfo(propName string, productCode []uint16) (string, error) {
 	bufLen := uint32(windows.MAX_PATH)
 	ret := windows.ERROR_MORE_DATA
 	for errors.Is(ret, windows.ERROR_MORE_DATA) {

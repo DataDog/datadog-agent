@@ -94,7 +94,7 @@ func (mc *mSICollector) Collect() ([]*Entry, []*Warning, error) {
 func getMsiProductInfo(productCode []uint16, propertiesToFetch []string) (*Entry, error) {
 	properties := make(map[string]string)
 	for _, propName := range propertiesToFetch {
-		propValue, err := winutil.GetProp(propName, productCode)
+		propValue, err := winutil.GetMsiProductInfo(propName, productCode)
 		if err == nil {
 			if propName == msiVersionString {
 				// Split by dots, trim leading zeros from each part, rejoin
