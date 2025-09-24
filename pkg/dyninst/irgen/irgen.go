@@ -41,7 +41,6 @@ import (
 	pkgerrors "github.com/pkg/errors"
 	"golang.org/x/time/rate"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/dwarf/dwarfutil"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dwarf/loclist"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/gotype"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
@@ -2135,7 +2134,7 @@ func computeLocations(
 	// BUG: We shouldn't pass subprogramRanges below; we should take into
 	// consideration the ranges of the current block, not necessarily the ranges
 	// of the subprogram.
-	locations, err := dwarfutil.ProcessLocations(
+	locations, err := loclist.ProcessLocations(
 		locField, unit, loclistReader, subprogramRanges, typ.GetByteSize(), pointerSize)
 	if err != nil {
 		if loclistErrorLogLimiter.Allow() {

@@ -205,8 +205,8 @@ func run() (retErr error) {
 	}
 
 	opt := symdb.ExtractOptions{
-		Scope:                   scope,
-		IncludeInlinedFunctions: !*stream,
+		Scope:                                  scope,
+		AccumulateInlineInfoAcrossCompileUnits: !*stream,
 	}
 
 	var up *uploader.SymDBUploader

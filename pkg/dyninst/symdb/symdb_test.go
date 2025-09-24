@@ -38,8 +38,8 @@ func TestSymDB(t *testing.T) {
 				binaryPath,
 				object.NewInMemoryLoader(),
 				symdb.ExtractOptions{
-					Scope:                   symdb.ExtractScopeAllSymbols,
-					IncludeInlinedFunctions: true,
+					Scope:                                  symdb.ExtractScopeAllSymbols,
+					AccumulateInlineInfoAcrossCompileUnits: true,
 				})
 			require.NoError(t, err, "failed to extract symbols from %s", binaryPath)
 			require.NotEmpty(t, symbols.Packages)
@@ -88,8 +88,8 @@ func TestSymDBSnapshot(t *testing.T) {
 								binaryPath,
 								object.NewInMemoryLoader(),
 								symdb.ExtractOptions{
-									Scope:                   symdb.ExtractScopeMainModuleOnly,
-									IncludeInlinedFunctions: !streaming,
+									Scope:                                  symdb.ExtractScopeMainModuleOnly,
+									AccumulateInlineInfoAcrossCompileUnits: !streaming,
 								})
 							require.NoError(t, err, "failed to extract symbols from %s", binaryPath)
 							require.NotEmpty(t, symbols.Packages)
