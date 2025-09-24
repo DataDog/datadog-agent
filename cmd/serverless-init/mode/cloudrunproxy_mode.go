@@ -50,7 +50,7 @@ func RunCloudRunProxy(_ *serverlessLog.Config) error {
 	fmt.Printf("CLOUDRUN_PROXY: Starting Cloud Run proxy...\n")
 
 	// Use DD_HEALTH_PORT or default to 443
-	proxyPort := "443"
+	proxyPort := "8080"
 	if port := os.Getenv("DD_HEALTH_PORT"); port != "" {
 		proxyPort = port
 	}
@@ -83,7 +83,7 @@ func RunCloudRunProxy(_ *serverlessLog.Config) error {
 	// Start server in goroutine
 	go func() {
 		fmt.Printf("CLOUDRUN_PROXY: Starting HTTP server on port %s\n", proxyPort)
-		log.Infof("Starting Cloud Run proxy server on port %s, forwarding to localhost:8080", proxyPort)
+		log.Infof("Starting Cloud Run proxy server on port %s, forwarding to localhost:8081", proxyPort)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			fmt.Printf("CLOUDRUN_PROXY: Server error: %v\n", err)
 			log.Errorf("Cloud Run proxy server error: %v", err)
@@ -255,7 +255,7 @@ func (p *CloudRunProxy) processTraceContextAndSpansFromAttrs(r *http.Request, at
 // forwardRequest forwards the request to the target Cloud Run service with optimized error handling
 func (p *CloudRunProxy) forwardRequest(w http.ResponseWriter, r *http.Request) {
 	// Build target URL efficiently
-	targetURL := "http://localhost:8080" + r.URL.Path
+	targetURL := "http://localhost:8081" + r.URL.Path
 	if r.URL.RawQuery != "" {
 		targetURL += "?" + r.URL.RawQuery
 	}
@@ -277,7 +277,7 @@ func (p *CloudRunProxy) forwardRequest(w http.ResponseWriter, r *http.Request) {
 	for key, values := range r.Header {
 		req.Header[key] = values
 	}
-	req.Host = "localhost:8080"
+	req.Host = "localhost:8081"
 
 	// Make request to target service
 	fmt.Printf("CLOUDRUN_PROXY: Making request to target service\n")

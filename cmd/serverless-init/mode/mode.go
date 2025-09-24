@@ -47,7 +47,7 @@ func DetectMode() Conf {
 		envToSet["DD_DOGSTATSD_NON_LOCAL_TRAFFIC"] = "true"
 		return Conf{
 			LoggerName:     loggerNameCloudRunProxy,
-			Runner:         RunCloudRunProxy,
+			Runner:         loggerNameSidecar,
 			TagVersionMode: "_dd.datadog_cloudrun_proxy_version",
 			EnvDefaults:    envToSet,
 		}
