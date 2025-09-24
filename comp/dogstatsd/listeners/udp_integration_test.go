@@ -27,9 +27,9 @@ func TestStartStopUDPListener(t *testing.T) {
 	telemetryStore := NewTelemetryStore(nil, deps.Telemetry)
 	packetsTelemetryStore := packets.NewTelemetryStore(nil, deps.Telemetry)
 	s, err := NewUDPListener(nil, newPacketPoolManagerUDP(deps.Config, packetsTelemetryStore), deps.Config, nil, telemetryStore, packetsTelemetryStore)
-	require.NotNil(t, s)
 
 	assert.NoError(t, err)
+	require.NotNil(t, s)
 
 	s.Listen()
 	// Local port should be unavailable
