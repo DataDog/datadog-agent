@@ -1180,17 +1180,17 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		return
 	case model.ShortDNSResponseEventType:
 		if p.config.Probe.DNSResolutionEnabled {
-			if err := p.dnsLayer.DecodeFromBytes(data[offset:], gopacket.NilDecodeFeedback); err != nil {
-				seclog.Warnf("failed to decode the short DNS response: %s", err)
-				event.Error = model.ErrFailedDnsPacketDecoding
-				event.FailedDNS = model.FailedDNSEvent{
-					Payload: append([]byte(nil), data[offset:]...),
-				}
-			} else {
+			if err := p.dnsLayer.DecodeFromBytes(data[offset:], gopacket.NilDecodeFeedback); err == nil {
 				p.addToDNSResolver(p.dnsLayer)
+				return
+			}
+
+			seclog.Warnf("failed to decode the short DNS response: %s", err)
+			event.Error = model.ErrFailedDnsPacketDecoding
+			event.FailedDNS = model.FailedDNSEvent{
+				Payload: append([]byte(nil), data[offset:]...),
 			}
 		}
-		return
 	}
 
 	read, err = p.unmarshalContexts(data[offset:], event)
@@ -1540,12 +1540,11 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			} else if errors.Is(err, model.ErrDNSNamePointerNotSupported) {
 				seclog.Tracef("failed to decode DNS request: %s (offset %d, len %d, data %s)", err, offset, len(data), string(data[offset:]))
 				return
-			} else {
-				seclog.Warnf("failed to decode DNS request: %s", err)
-				event.Error = model.ErrFailedDnsPacketDecoding
-				event.FailedDNS = model.FailedDNSEvent{
-					Payload: append([]byte(nil), data[offset:]...),
-				}
+			}
+			seclog.Warnf("failed to decode DNS request: %s", err)
+			event.Error = model.ErrFailedDnsPacketDecoding
+			event.FailedDNS = model.FailedDNSEvent{
+				Payload: append([]byte(nil), data[offset:]...),
 			}
 		}
 
