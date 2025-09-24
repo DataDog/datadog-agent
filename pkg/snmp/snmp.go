@@ -86,6 +86,8 @@ type Config struct {
 	InterfaceConfigs map[string][]snmpintegration.InterfaceConfig `mapstructure:"interface_configs"`
 
 	PingConfig snmpintegration.PingConfig `mapstructure:"ping"`
+	UseRemoteConfigProfilesConfig *bool `mapstructure:"use_remote_config_profiles"`
+	UseRemoteConfigProfiles       bool
 
 	// Legacy
 	NetworkLegacy      string `mapstructure:"network"`
@@ -229,6 +231,12 @@ func NewListenerConfig() (ListenerConfig, error) {
 			if config.Authentications[authIndex].Retries == 0 {
 				config.Authentications[authIndex].Retries = defaultRetries
 			}
+		}
+
+		if config.UseRemoteConfigProfilesConfig != nil {
+			config.UseRemoteConfigProfiles = *config.UseRemoteConfigProfilesConfig
+		} else {
+			config.UseRemoteConfigProfiles = snmpConfig.UseRemoteConfigProfiles
 		}
 	}
 	return snmpConfig, nil
