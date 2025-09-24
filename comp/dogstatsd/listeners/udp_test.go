@@ -8,7 +8,6 @@ package listeners
 
 import (
 	"errors"
-	"fmt"
 	"net"
 	"slices"
 	"testing"
