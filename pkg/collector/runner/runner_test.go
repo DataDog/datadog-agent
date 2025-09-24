@@ -316,6 +316,7 @@ func TestRunnerConfigurableValues(t *testing.T) {
 	// Test custom utilization threshold
 	mockConfig.SetWithoutSource("check_runner_utilization_threshold", 0.85)
 	mockConfig.SetWithoutSource("check_runner_utilization_monitor_interval", "30s")
+	mockConfig.SetWithoutSource("check_runner_utilization_warning_cooldown", "5m")
 	mockConfig.SetWithoutSource("check_runners", "1")
 
 	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent())
@@ -326,9 +327,39 @@ func TestRunnerConfigurableValues(t *testing.T) {
 	require.NotNil(t, r.utilizationMonitor)
 	require.InEpsilon(t, 0.85, r.utilizationMonitor.Threshold, Epsilon)
 
+	// Verify that the log limiter was created
+	require.NotNil(t, r.utilizationLogLimit)
+
 	// Test that the configuration values are being read correctly
 	assert.InEpsilon(t, 0.85, pkgconfigsetup.Datadog().GetFloat64("check_runner_utilization_threshold"), Epsilon)
 	assert.Equal(t, 30*time.Second, pkgconfigsetup.Datadog().GetDuration("check_runner_utilization_monitor_interval"))
+	assert.Equal(t, 5*time.Minute, pkgconfigsetup.Datadog().GetDuration("check_runner_utilization_warning_cooldown"))
+}
+
+func TestRunnerDefaultConfigurableValues(t *testing.T) {
+	mockConfig := testSetUp(t)
+	mockConfig.SetWithoutSource("check_runners", "1")
+
+	// Set default values for the mock config
+	mockConfig.SetWithoutSource("check_runner_utilization_threshold", 0.95)
+	mockConfig.SetWithoutSource("check_runner_utilization_monitor_interval", "60s")
+	mockConfig.SetWithoutSource("check_runner_utilization_warning_cooldown", "10m")
+
+	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent())
+	require.NotNil(t, r)
+	defer r.Stop()
+
+	// Verify that the utilization monitor was created with default values
+	require.NotNil(t, r.utilizationMonitor)
+	require.InEpsilon(t, 0.95, r.utilizationMonitor.Threshold, Epsilon)
+
+	// Verify that the log limiter was created
+	require.NotNil(t, r.utilizationLogLimit)
+
+	// Test that the default configuration values are being read correctly
+	assert.InEpsilon(t, 0.95, pkgconfigsetup.Datadog().GetFloat64("check_runner_utilization_threshold"), Epsilon)
+	assert.Equal(t, 60*time.Second, pkgconfigsetup.Datadog().GetDuration("check_runner_utilization_monitor_interval"))
+	assert.Equal(t, 10*time.Minute, pkgconfigsetup.Datadog().GetDuration("check_runner_utilization_warning_cooldown"))
 }
 
 func TestRunnerStopWithStuckCheck(t *testing.T) {
