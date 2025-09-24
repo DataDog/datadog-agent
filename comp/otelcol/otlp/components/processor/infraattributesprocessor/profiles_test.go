@@ -21,7 +21,6 @@ import (
 
 func TestInfraAttributesProfileProcessor(t *testing.T) {
 	cfg := &Config{
-		Profiles:              ProfileInfraAttributes{},
 		Cardinality:           types.LowCardinality,
 		AllowHostnameOverride: true,
 	}
