@@ -51,9 +51,10 @@ type cudaEventConsumer struct {
 }
 
 type cudaEventConsumerTelemetry struct {
-	events             telemetry.Counter
-	eventErrors        telemetry.Counter
-	eventCounterByType map[gpuebpf.CudaEventType]telemetry.SimpleCounter
+	events              telemetry.Counter
+	eventErrors         telemetry.Counter
+	eventCounterByType  map[gpuebpf.CudaEventType]telemetry.SimpleCounter
+	droppedProcessExits telemetry.Counter
 }
 
 // newCudaEventConsumer creates a new CUDA event consumer.
@@ -82,9 +83,10 @@ func newCudaEventConsumerTelemetry(tm telemetry.Component) *cudaEventConsumerTel
 	}
 
 	return &cudaEventConsumerTelemetry{
-		events:             events,
-		eventErrors:        tm.NewCounter(subsystem, "events__errors", []string{"event_type", "error"}, "Number of CUDA events that couldn't be processed due to an error"),
-		eventCounterByType: eventCounterByType,
+		events:              events,
+		eventErrors:         tm.NewCounter(subsystem, "events__errors", []string{"event_type", "error"}, "Number of CUDA events that couldn't be processed due to an error"),
+		eventCounterByType:  eventCounterByType,
+		droppedProcessExits: tm.NewCounter(subsystem, "dropped_process_exits", nil, "Number of process exits events that were dropped"),
 	}
 }
 
@@ -115,7 +117,8 @@ func (c *cudaEventConsumer) Start() {
 		default:
 			// If the channel is full, we don't want to block the main event
 			// loop, so we just drop the event. The process exit will be caught
-			// later with the full process scan.
+			// later with the full process scan. We increase a telemetry metric to track this.
+			c.telemetry.droppedProcessExits.Inc()
 		}
 	})
 
