@@ -75,7 +75,7 @@ func (a *AppService) Init() error {
 }
 
 // Shutdown emits the shutdown metric for AppService
-func (a *AppService) Shutdown(agent serverlessMetrics.ServerlessMetricAgent) {
+func (a *AppService) Shutdown(agent serverlessMetrics.ServerlessMetricAgent, _ error) {
 	metric.Add(fmt.Sprintf("%s.enhanced.shutdown", appServicePrefix), 1.0, a.GetSource(), agent)
 }
 

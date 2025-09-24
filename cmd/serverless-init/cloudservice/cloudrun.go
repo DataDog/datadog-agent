@@ -154,7 +154,7 @@ func (c *CloudRun) Init() error {
 }
 
 // Shutdown emits the shutdown metric for CloudRun
-func (c *CloudRun) Shutdown(agent serverlessMetrics.ServerlessMetricAgent) {
+func (c *CloudRun) Shutdown(agent serverlessMetrics.ServerlessMetricAgent, _ error) {
 	metric.Add(fmt.Sprintf("%s.enhanced.shutdown", cloudRunPrefix), 1.0, c.GetSource(), agent)
 }
 

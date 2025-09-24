@@ -10,6 +10,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/exitcode"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/metric"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
@@ -102,12 +103,14 @@ func (c *CloudRunJobs) Init() error {
 }
 
 // Shutdown submits the task duration and shutdown metrics for CloudRunJobs
-func (c *CloudRunJobs) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent) {
+func (c *CloudRunJobs) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, runErr error) {
 	durationMetricName := fmt.Sprintf("%s.enhanced.task.duration", cloudRunJobsPrefix)
 	duration := float64(time.Since(c.startTime).Milliseconds())
 	metric.Add(durationMetricName, duration, c.GetSource(), metricAgent)
 
 	shutdownMetricName := fmt.Sprintf("%s.enhanced.task.ended", cloudRunJobsPrefix)
+	exitCode := exitcode.From(runErr)
+	// TODO pass exit code as tag on metric
 	metric.Add(shutdownMetricName, 1.0, c.GetSource(), metricAgent)
 }
 

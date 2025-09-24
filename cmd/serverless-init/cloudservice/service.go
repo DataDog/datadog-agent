@@ -34,7 +34,7 @@ type CloudService interface {
 	Init() error
 
 	// Shutdown cleans up the CloudService and allows emitting shutdown metrics
-	Shutdown(agent serverlessMetrics.ServerlessMetricAgent)
+	Shutdown(agent serverlessMetrics.ServerlessMetricAgent, runErr error)
 
 	// GetStartMetricName returns the metric name for start events
 	GetStartMetricName() string
@@ -79,7 +79,7 @@ func (l *LocalService) Init() error {
 }
 
 // Shutdown emits the shutdown metric for LocalService
-func (l *LocalService) Shutdown(agent serverlessMetrics.ServerlessMetricAgent) {
+func (l *LocalService) Shutdown(agent serverlessMetrics.ServerlessMetricAgent, _ error) {
 	metric.Add(fmt.Sprintf("%s.enhanced.shutdown", defaultPrefix), 1.0, l.GetSource(), agent)
 }
 

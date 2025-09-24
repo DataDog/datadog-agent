@@ -112,7 +112,7 @@ func run(_ secrets.Component, _ autodiscovery.Component, _ healthprobeDef.Compon
 
 	// Defers are LIFO
 	defer lastFlush(logConfig.FlushTimeout, metricAgent, traceAgent, logsAgent)
-	defer cloudService.Shutdown(*metricAgent)
+	defer cloudService.Shutdown(*metricAgent, err)
 
 	return err
 }
