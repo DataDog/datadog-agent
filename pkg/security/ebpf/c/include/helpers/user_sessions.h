@@ -71,7 +71,6 @@ int __attribute__((always_inline)) register_ssh_user_session(char *user) {
 
     // if we're here, either the existing session ID matches or there is no session ID yet. Either way, persist the
     // provided data.
-    bpf_printk("Registering SSH session ID: %llu", ssh_session_id);
     pid_cache_entry->user_session_id = ssh_session_id;
     bpf_map_update_elem(&user_sessions, &key, &session, BPF_ANY);
     return 0;
