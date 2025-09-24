@@ -5072,505 +5072,6 @@
       ]
     },
     {
-      "name": "pam",
-      "definition": "A pam event was captured",
-      "type": "Process",
-      "from_agent_version": "7.71",
-      "experimental": false,
-      "properties": [
-        {
-          "name": "pam.args",
-          "definition": "Arguments of the process (as a string, excluding argv0)",
-          "property_doc_link": "common-process-args-doc"
-        },
-        {
-          "name": "pam.args_flags",
-          "definition": "Flags in the process arguments",
-          "property_doc_link": "common-process-args_flags-doc"
-        },
-        {
-          "name": "pam.args_options",
-          "definition": "Argument of the process as options",
-          "property_doc_link": "common-process-args_options-doc"
-        },
-        {
-          "name": "pam.args_truncated",
-          "definition": "Indicator of arguments truncation",
-          "property_doc_link": "common-process-args_truncated-doc"
-        },
-        {
-          "name": "pam.argv",
-          "definition": "Arguments of the process (as an array, excluding argv0)",
-          "property_doc_link": "common-process-argv-doc"
-        },
-        {
-          "name": "pam.argv0",
-          "definition": "First argument of the process",
-          "property_doc_link": "common-process-argv0-doc"
-        },
-        {
-          "name": "pam.auid",
-          "definition": "Login UID of the process",
-          "property_doc_link": "common-credentials-auid-doc"
-        },
-        {
-          "name": "pam.cap_effective",
-          "definition": "Effective capability set of the process",
-          "property_doc_link": "common-credentials-cap_effective-doc"
-        },
-        {
-          "name": "pam.cap_permitted",
-          "definition": "Permitted capability set of the process",
-          "property_doc_link": "common-credentials-cap_permitted-doc"
-        },
-        {
-          "name": "pam.caps_attempted",
-          "definition": "Bitmask of the capabilities that the process attempted to use",
-          "property_doc_link": "common-process-caps_attempted-doc"
-        },
-        {
-          "name": "pam.caps_used",
-          "definition": "Bitmask of the capabilities that the process successfully used",
-          "property_doc_link": "common-process-caps_used-doc"
-        },
-        {
-          "name": "pam.cgroup.file.inode",
-          "definition": "Inode of the file",
-          "property_doc_link": "common-pathkey-inode-doc"
-        },
-        {
-          "name": "pam.cgroup.file.mount_id",
-          "definition": "Mount ID of the file",
-          "property_doc_link": "common-pathkey-mount_id-doc"
-        },
-        {
-          "name": "pam.cgroup.id",
-          "definition": "ID of the cgroup",
-          "property_doc_link": "common-cgroupcontext-id-doc"
-        },
-        {
-          "name": "pam.cgroup.version",
-          "definition": "[Experimental] Version of the cgroup API",
-          "property_doc_link": "common-cgroupcontext-version-doc"
-        },
-        {
-          "name": "pam.comm",
-          "definition": "Comm attribute of the process",
-          "property_doc_link": "common-process-comm-doc"
-        },
-        {
-          "name": "pam.container.id",
-          "definition": "Container ID",
-          "property_doc_link": "common-process-container-id-doc"
-        },
-        {
-          "name": "pam.created_at",
-          "definition": "Timestamp of the creation of the process",
-          "property_doc_link": "common-process-created_at-doc"
-        },
-        {
-          "name": "pam.egid",
-          "definition": "Effective GID of the process",
-          "property_doc_link": "common-credentials-egid-doc"
-        },
-        {
-          "name": "pam.egroup",
-          "definition": "Effective group of the process",
-          "property_doc_link": "common-credentials-egroup-doc"
-        },
-        {
-          "name": "pam.envp",
-          "definition": "Environment variables of the process",
-          "property_doc_link": "common-process-envp-doc"
-        },
-        {
-          "name": "pam.envs",
-          "definition": "Environment variable names of the process",
-          "property_doc_link": "common-process-envs-doc"
-        },
-        {
-          "name": "pam.envs_truncated",
-          "definition": "Indicator of environment variables truncation",
-          "property_doc_link": "common-process-envs_truncated-doc"
-        },
-        {
-          "name": "pam.euid",
-          "definition": "Effective UID of the process",
-          "property_doc_link": "common-credentials-euid-doc"
-        },
-        {
-          "name": "pam.euser",
-          "definition": "Effective user of the process",
-          "property_doc_link": "common-credentials-euser-doc"
-        },
-        {
-          "name": "pam.file.change_time",
-          "definition": "Change time (ctime) of the file",
-          "property_doc_link": "common-filefields-change_time-doc"
-        },
-        {
-          "name": "pam.file.extension",
-          "definition": "File's extension",
-          "property_doc_link": "common-fileevent-extension-doc"
-        },
-        {
-          "name": "pam.file.filesystem",
-          "definition": "File's filesystem",
-          "property_doc_link": "common-fileevent-filesystem-doc"
-        },
-        {
-          "name": "pam.file.gid",
-          "definition": "GID of the file's owner",
-          "property_doc_link": "common-filefields-gid-doc"
-        },
-        {
-          "name": "pam.file.group",
-          "definition": "Group of the file's owner",
-          "property_doc_link": "common-filefields-group-doc"
-        },
-        {
-          "name": "pam.file.hashes",
-          "definition": "[Experimental] List of cryptographic hashes computed for this file",
-          "property_doc_link": "common-fileevent-hashes-doc"
-        },
-        {
-          "name": "pam.file.in_upper_layer",
-          "definition": "Indicator of the file layer, for example, in an OverlayFS",
-          "property_doc_link": "common-filefields-in_upper_layer-doc"
-        },
-        {
-          "name": "pam.file.inode",
-          "definition": "Inode of the file",
-          "property_doc_link": "common-pathkey-inode-doc"
-        },
-        {
-          "name": "pam.file.mode",
-          "definition": "Mode of the file",
-          "property_doc_link": "common-filefields-mode-doc"
-        },
-        {
-          "name": "pam.file.modification_time",
-          "definition": "Modification time (mtime) of the file",
-          "property_doc_link": "common-filefields-modification_time-doc"
-        },
-        {
-          "name": "pam.file.mount_detached",
-          "definition": "Indicates whether the file's mount is detached from the VFS",
-          "property_doc_link": "common-fileevent-mount_detached-doc"
-        },
-        {
-          "name": "pam.file.mount_id",
-          "definition": "Mount ID of the file",
-          "property_doc_link": "common-pathkey-mount_id-doc"
-        },
-        {
-          "name": "pam.file.mount_visible",
-          "definition": "Indicates whether the file's mount is visible in the VFS",
-          "property_doc_link": "common-fileevent-mount_visible-doc"
-        },
-        {
-          "name": "pam.file.name",
-          "definition": "File's basename",
-          "property_doc_link": "common-fileevent-name-doc"
-        },
-        {
-          "name": "pam.file.name.length",
-          "definition": "Length of the corresponding element",
-          "property_doc_link": "common-string-length-doc"
-        },
-        {
-          "name": "pam.file.package.name",
-          "definition": "[Experimental] Name of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-name-doc"
-        },
-        {
-          "name": "pam.file.package.source_version",
-          "definition": "[Experimental] Full version of the source package of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-source_version-doc"
-        },
-        {
-          "name": "pam.file.package.version",
-          "definition": "[Experimental] Full version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-version-doc"
-        },
-        {
-          "name": "pam.file.path",
-          "definition": "File's path",
-          "property_doc_link": "common-fileevent-path-doc"
-        },
-        {
-          "name": "pam.file.path.length",
-          "definition": "Length of the corresponding element",
-          "property_doc_link": "common-string-length-doc"
-        },
-        {
-          "name": "pam.file.rights",
-          "definition": "Rights of the file",
-          "property_doc_link": "common-filefields-rights-doc"
-        },
-        {
-          "name": "pam.file.uid",
-          "definition": "UID of the file's owner",
-          "property_doc_link": "common-filefields-uid-doc"
-        },
-        {
-          "name": "pam.file.user",
-          "definition": "User of the file's owner",
-          "property_doc_link": "common-filefields-user-doc"
-        },
-        {
-          "name": "pam.fsgid",
-          "definition": "FileSystem-gid of the process",
-          "property_doc_link": "common-credentials-fsgid-doc"
-        },
-        {
-          "name": "pam.fsgroup",
-          "definition": "FileSystem-group of the process",
-          "property_doc_link": "common-credentials-fsgroup-doc"
-        },
-        {
-          "name": "pam.fsuid",
-          "definition": "FileSystem-uid of the process",
-          "property_doc_link": "common-credentials-fsuid-doc"
-        },
-        {
-          "name": "pam.fsuser",
-          "definition": "FileSystem-user of the process",
-          "property_doc_link": "common-credentials-fsuser-doc"
-        },
-        {
-          "name": "pam.gid",
-          "definition": "GID of the process",
-          "property_doc_link": "common-credentials-gid-doc"
-        },
-        {
-          "name": "pam.group",
-          "definition": "Group of the process",
-          "property_doc_link": "common-credentials-group-doc"
-        },
-        {
-          "name": "pam.host_ip",
-          "definition": "IP address of the host",
-          "property_doc_link": "pam-host_ip-doc"
-        },
-        {
-          "name": "pam.hostname",
-          "definition": "Hostname",
-          "property_doc_link": "pam-hostname-doc"
-        },
-        {
-          "name": "pam.interpreter.file.change_time",
-          "definition": "Change time (ctime) of the file",
-          "property_doc_link": "common-filefields-change_time-doc"
-        },
-        {
-          "name": "pam.interpreter.file.extension",
-          "definition": "File's extension",
-          "property_doc_link": "common-fileevent-extension-doc"
-        },
-        {
-          "name": "pam.interpreter.file.filesystem",
-          "definition": "File's filesystem",
-          "property_doc_link": "common-fileevent-filesystem-doc"
-        },
-        {
-          "name": "pam.interpreter.file.gid",
-          "definition": "GID of the file's owner",
-          "property_doc_link": "common-filefields-gid-doc"
-        },
-        {
-          "name": "pam.interpreter.file.group",
-          "definition": "Group of the file's owner",
-          "property_doc_link": "common-filefields-group-doc"
-        },
-        {
-          "name": "pam.interpreter.file.hashes",
-          "definition": "[Experimental] List of cryptographic hashes computed for this file",
-          "property_doc_link": "common-fileevent-hashes-doc"
-        },
-        {
-          "name": "pam.interpreter.file.in_upper_layer",
-          "definition": "Indicator of the file layer, for example, in an OverlayFS",
-          "property_doc_link": "common-filefields-in_upper_layer-doc"
-        },
-        {
-          "name": "pam.interpreter.file.inode",
-          "definition": "Inode of the file",
-          "property_doc_link": "common-pathkey-inode-doc"
-        },
-        {
-          "name": "pam.interpreter.file.mode",
-          "definition": "Mode of the file",
-          "property_doc_link": "common-filefields-mode-doc"
-        },
-        {
-          "name": "pam.interpreter.file.modification_time",
-          "definition": "Modification time (mtime) of the file",
-          "property_doc_link": "common-filefields-modification_time-doc"
-        },
-        {
-          "name": "pam.interpreter.file.mount_detached",
-          "definition": "Indicates whether the file's mount is detached from the VFS",
-          "property_doc_link": "common-fileevent-mount_detached-doc"
-        },
-        {
-          "name": "pam.interpreter.file.mount_id",
-          "definition": "Mount ID of the file",
-          "property_doc_link": "common-pathkey-mount_id-doc"
-        },
-        {
-          "name": "pam.interpreter.file.mount_visible",
-          "definition": "Indicates whether the file's mount is visible in the VFS",
-          "property_doc_link": "common-fileevent-mount_visible-doc"
-        },
-        {
-          "name": "pam.interpreter.file.name",
-          "definition": "File's basename",
-          "property_doc_link": "common-fileevent-name-doc"
-        },
-        {
-          "name": "pam.interpreter.file.name.length",
-          "definition": "Length of the corresponding element",
-          "property_doc_link": "common-string-length-doc"
-        },
-        {
-          "name": "pam.interpreter.file.package.name",
-          "definition": "[Experimental] Name of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-name-doc"
-        },
-        {
-          "name": "pam.interpreter.file.package.source_version",
-          "definition": "[Experimental] Full version of the source package of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-source_version-doc"
-        },
-        {
-          "name": "pam.interpreter.file.package.version",
-          "definition": "[Experimental] Full version of the package that provided this file",
-          "property_doc_link": "common-fileevent-package-version-doc"
-        },
-        {
-          "name": "pam.interpreter.file.path",
-          "definition": "File's path",
-          "property_doc_link": "common-fileevent-path-doc"
-        },
-        {
-          "name": "pam.interpreter.file.path.length",
-          "definition": "Length of the corresponding element",
-          "property_doc_link": "common-string-length-doc"
-        },
-        {
-          "name": "pam.interpreter.file.rights",
-          "definition": "Rights of the file",
-          "property_doc_link": "common-filefields-rights-doc"
-        },
-        {
-          "name": "pam.interpreter.file.uid",
-          "definition": "UID of the file's owner",
-          "property_doc_link": "common-filefields-uid-doc"
-        },
-        {
-          "name": "pam.interpreter.file.user",
-          "definition": "User of the file's owner",
-          "property_doc_link": "common-filefields-user-doc"
-        },
-        {
-          "name": "pam.is_exec",
-          "definition": "Indicates whether the process entry is from a new binary execution",
-          "property_doc_link": "common-process-is_exec-doc"
-        },
-        {
-          "name": "pam.is_kworker",
-          "definition": "Indicates whether the process is a kworker",
-          "property_doc_link": "common-pidcontext-is_kworker-doc"
-        },
-        {
-          "name": "pam.is_thread",
-          "definition": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)",
-          "property_doc_link": "common-process-is_thread-doc"
-        },
-        {
-          "name": "pam.pid",
-          "definition": "Process ID of the process (also called thread group ID)",
-          "property_doc_link": "common-pidcontext-pid-doc"
-        },
-        {
-          "name": "pam.ppid",
-          "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
-        },
-        {
-          "name": "pam.retval",
-          "definition": "Return value of the syscall",
-          "property_doc_link": "common-syscallevent-retval-doc"
-        },
-        {
-          "name": "pam.service",
-          "definition": "Authentication service name",
-          "property_doc_link": "pam-service-doc"
-        },
-        {
-          "name": "pam.tid",
-          "definition": "Thread ID of the thread",
-          "property_doc_link": "common-pidcontext-tid-doc"
-        },
-        {
-          "name": "pam.tty_name",
-          "definition": "Name of the TTY associated with the process",
-          "property_doc_link": "common-process-tty_name-doc"
-        },
-        {
-          "name": "pam.uid",
-          "definition": "UID of the process",
-          "property_doc_link": "common-credentials-uid-doc"
-        },
-        {
-          "name": "pam.user",
-          "definition": "User name",
-          "property_doc_link": "pam-user-doc"
-        },
-        {
-          "name": "pam.user_session.k8s_groups",
-          "definition": "Kubernetes groups of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
-        },
-        {
-          "name": "pam.user_session.k8s_uid",
-          "definition": "Kubernetes UID of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
-        },
-        {
-          "name": "pam.user_session.k8s_username",
-          "definition": "Kubernetes username of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
-        },
-        {
-          "name": "pam.user_session.ssh_auth_method",
-          "definition": "SSH authentication method used by the user (password, publickey)",
-          "property_doc_link": "common-usersessioncontext-ssh_auth_method-doc"
-        },
-        {
-          "name": "pam.user_session.ssh_host_ip",
-          "definition": "SSH client IP of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-ssh_host_ip-doc"
-        },
-        {
-          "name": "pam.user_session.ssh_port",
-          "definition": "SSH port of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-ssh_port-doc"
-        },
-        {
-          "name": "pam.user_session.ssh_public_key",
-          "definition": "SSH public key used for authentication (if applicable)",
-          "property_doc_link": "common-usersessioncontext-ssh_public_key-doc"
-        },
-        {
-          "name": "pam.user_session.ssh_username",
-          "definition": "SSH username of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-ssh_username-doc"
-        }
-      ]
-    },
-    {
       "name": "prctl",
       "definition": "A prctl command was executed",
       "type": "Process",
@@ -11773,7 +11274,6 @@
       "prefixes": [
         "exec",
         "exit",
-        "pam",
         "process",
         "process.ancestors",
         "process.parent",
@@ -11808,7 +11308,6 @@
       "prefixes": [
         "exec",
         "exit",
-        "pam",
         "process",
         "process.ancestors",
         "process.parent",
@@ -11839,7 +11338,6 @@
       "prefixes": [
         "exec",
         "exit",
-        "pam",
         "process",
         "process.ancestors",
         "process.parent",
@@ -11870,7 +11368,6 @@
       "prefixes": [
         "exec",
         "exit",
-        "pam",
         "process",
         "process.ancestors",
         "process.parent",
@@ -11896,7 +11393,6 @@
       "prefixes": [
         "exec",
         "exit",
-        "pam",
         "process",
         "process.ancestors",
         "process.parent",
@@ -11927,7 +11423,6 @@
       "prefixes": [
         "exec",
         "exit",
-        "pam",
         "process",
         "process.ancestors",
         "process.parent",
@@ -11953,7 +11448,6 @@
       "prefixes": [
         "exec",
         "exit",
-        "pam",
         "process",
         "process.ancestors",
         "process.parent",
@@ -11979,7 +11473,6 @@
       "prefixes": [
         "exec",
         "exit",
-        "pam",
         "process",
         "process.ancestors",
         "process.parent",
@@ -12005,7 +11498,6 @@
       "prefixes": [
         "exec",
         "exit",
-        "pam",
         "process",
         "process.ancestors",
         "process.parent",
@@ -12031,7 +11523,6 @@
       "prefixes": [
         "exec",
         "exit",
-        "pam",
         "process",
         "process.ancestors",
         "process.parent",
@@ -12057,7 +11548,6 @@
       "prefixes": [
         "exec",
         "exit",
-        "pam",
         "process",
         "process.ancestors",
         "process.parent",
@@ -12095,8 +11585,6 @@
         "mkdir.file",
         "mmap.file",
         "open.file",
-        "pam.file",
-        "pam.interpreter.file",
         "process.ancestors.file",
         "process.ancestors.interpreter.file",
         "process.file",
@@ -12142,7 +11630,6 @@
       "prefixes": [
         "exec",
         "exit",
-        "pam",
         "process",
         "process.ancestors",
         "process.parent",
@@ -12168,7 +11655,6 @@
       "prefixes": [
         "exec",
         "exit",
-        "pam",
         "process",
         "process.ancestors",
         "process.parent",
@@ -12194,7 +11680,6 @@
       "prefixes": [
         "exec",
         "exit",
-        "pam",
         "process",
         "process.ancestors",
         "process.parent",
@@ -12233,7 +11718,6 @@
       "prefixes": [
         "exec",
         "exit",
-        "pam",
         "process",
         "process.ancestors",
         "process.parent",
@@ -12259,7 +11743,6 @@
       "prefixes": [
         "exec",
         "exit",
-        "pam",
         "process",
         "process.ancestors",
         "process.parent",
@@ -12285,7 +11768,6 @@
       "prefixes": [
         "exec",
         "exit",
-        "pam",
         "process",
         "process.ancestors",
         "process.parent",
@@ -12311,7 +11793,6 @@
       "prefixes": [
         "exec",
         "exit",
-        "pam",
         "process",
         "process.ancestors",
         "process.parent",
@@ -12337,7 +11818,6 @@
       "prefixes": [
         "exec",
         "exit",
-        "pam",
         "process",
         "process.ancestors",
         "process.parent",
@@ -12363,7 +11843,6 @@
       "prefixes": [
         "exec",
         "exit",
-        "pam",
         "process",
         "process.ancestors",
         "process.parent",
@@ -12389,7 +11868,6 @@
       "prefixes": [
         "exec",
         "exit",
-        "pam",
         "process",
         "process.ancestors",
         "process.parent",
@@ -12427,8 +11905,6 @@
         "mkdir.file",
         "mmap.file",
         "open.file",
-        "pam.file",
-        "pam.interpreter.file",
         "process.ancestors.file",
         "process.ancestors.interpreter.file",
         "process.file",
@@ -12512,8 +11988,6 @@
         "mkdir.file",
         "mmap.file",
         "open.file",
-        "pam.file",
-        "pam.interpreter.file",
         "process.ancestors.file",
         "process.ancestors.interpreter.file",
         "process.file",
@@ -12559,7 +12033,6 @@
       "prefixes": [
         "exec",
         "exit",
-        "pam",
         "process",
         "process.ancestors",
         "process.parent",
@@ -12585,7 +12058,6 @@
       "prefixes": [
         "exec",
         "exit",
-        "pam",
         "process",
         "process.ancestors",
         "process.parent",
@@ -12611,7 +12083,6 @@
       "prefixes": [
         "exec",
         "exit",
-        "pam",
         "process",
         "process.ancestors",
         "process.parent",
@@ -12637,7 +12108,6 @@
       "prefixes": [
         "exec",
         "exit",
-        "pam",
         "process",
         "process.ancestors",
         "process.parent",
@@ -12663,7 +12133,6 @@
       "prefixes": [
         "exec",
         "exit",
-        "pam",
         "process",
         "process.ancestors",
         "process.parent",
@@ -12701,8 +12170,6 @@
         "mkdir.file",
         "mmap.file",
         "open.file",
-        "pam.file",
-        "pam.interpreter.file",
         "process.ancestors.file",
         "process.ancestors.interpreter.file",
         "process.file",
@@ -12748,7 +12215,6 @@
       "prefixes": [
         "exec",
         "exit",
-        "pam",
         "process",
         "process.ancestors",
         "process.parent",
@@ -12786,8 +12252,6 @@
         "mkdir.file",
         "mmap.file",
         "open.file",
-        "pam.file",
-        "pam.interpreter.file",
         "process.ancestors.file",
         "process.ancestors.interpreter.file",
         "process.file",
@@ -12845,8 +12309,6 @@
         "mkdir.file",
         "mmap.file",
         "open.file",
-        "pam.file",
-        "pam.interpreter.file",
         "process.ancestors.file",
         "process.ancestors.interpreter.file",
         "process.file",
@@ -12893,7 +12355,6 @@
         "cgroup",
         "exec.cgroup",
         "exit.cgroup",
-        "pam.cgroup",
         "process.ancestors.cgroup",
         "process.cgroup",
         "process.parent.cgroup",
@@ -12945,8 +12406,6 @@
         "mkdir.file",
         "mmap.file",
         "open.file",
-        "pam.file",
-        "pam.interpreter.file",
         "process.ancestors.file",
         "process.ancestors.interpreter.file",
         "process.file",
@@ -13007,9 +12466,6 @@
         "mkdir.file",
         "mmap.file",
         "open.file",
-        "pam.cgroup.file",
-        "pam.file",
-        "pam.interpreter.file",
         "process.ancestors.cgroup.file",
         "process.ancestors.file",
         "process.ancestors.interpreter.file",
@@ -13087,7 +12543,6 @@
       "prefixes": [
         "exec",
         "exit",
-        "pam",
         "process",
         "process.ancestors",
         "process.parent",
@@ -13113,7 +12568,6 @@
       "prefixes": [
         "exec",
         "exit",
-        "pam",
         "process",
         "process.ancestors",
         "process.parent",
@@ -13159,7 +12613,6 @@
       "prefixes": [
         "exec",
         "exit",
-        "pam",
         "process",
         "process.ancestors",
         "process.parent",
@@ -13185,7 +12638,6 @@
       "prefixes": [
         "exec.user_session",
         "exit.user_session",
-        "pam.user_session",
         "process.ancestors.user_session",
         "process.parent.user_session",
         "process.user_session",
@@ -13211,7 +12663,6 @@
       "prefixes": [
         "exec.user_session",
         "exit.user_session",
-        "pam.user_session",
         "process.ancestors.user_session",
         "process.parent.user_session",
         "process.user_session",
@@ -13237,7 +12688,6 @@
       "prefixes": [
         "exec.user_session",
         "exit.user_session",
-        "pam.user_session",
         "process.ancestors.user_session",
         "process.parent.user_session",
         "process.user_session",
@@ -13317,10 +12767,6 @@
         "network_flow_monitor.flows",
         "open.file.name",
         "open.file.path",
-        "pam.file.name",
-        "pam.file.path",
-        "pam.interpreter.file.name",
-        "pam.interpreter.file.path",
         "process.ancestors",
         "process.ancestors.file.name",
         "process.ancestors.file.path",
@@ -13414,8 +12860,6 @@
         "mkdir.file",
         "mmap.file",
         "open.file",
-        "pam.file",
-        "pam.interpreter.file",
         "process.ancestors.file",
         "process.ancestors.interpreter.file",
         "process.file",
@@ -13473,8 +12917,6 @@
         "mkdir.file",
         "mmap.file",
         "open.file",
-        "pam.file",
-        "pam.interpreter.file",
         "process.ancestors.file",
         "process.ancestors.interpreter.file",
         "process.file",
@@ -13532,8 +12974,6 @@
         "mkdir.file",
         "mmap.file",
         "open.file",
-        "pam.file",
-        "pam.interpreter.file",
         "process.ancestors.file",
         "process.ancestors.interpreter.file",
         "process.file",
@@ -13594,9 +13034,6 @@
         "mkdir.file",
         "mmap.file",
         "open.file",
-        "pam.cgroup.file",
-        "pam.file",
-        "pam.interpreter.file",
         "process.ancestors.cgroup.file",
         "process.ancestors.file",
         "process.ancestors.interpreter.file",
@@ -13666,8 +13103,6 @@
         "mkdir.file",
         "mmap.file",
         "open.file",
-        "pam.file",
-        "pam.interpreter.file",
         "process.ancestors.file",
         "process.ancestors.interpreter.file",
         "process.file",
@@ -13725,8 +13160,6 @@
         "mkdir.file",
         "mmap.file",
         "open.file",
-        "pam.file",
-        "pam.interpreter.file",
         "process.ancestors.file",
         "process.ancestors.interpreter.file",
         "process.file",
@@ -13859,8 +13292,6 @@
         "mkdir.file",
         "mmap.file",
         "open.file",
-        "pam.file",
-        "pam.interpreter.file",
         "process.ancestors.file",
         "process.ancestors.interpreter.file",
         "process.file",
@@ -14089,8 +13520,6 @@
         "mkdir.file",
         "mmap.file",
         "open.file",
-        "pam.file",
-        "pam.interpreter.file",
         "process.ancestors.file",
         "process.ancestors.interpreter.file",
         "process.file",
@@ -14148,8 +13577,6 @@
         "mkdir.file",
         "mmap.file",
         "open.file",
-        "pam.file",
-        "pam.interpreter.file",
         "process.ancestors.file",
         "process.ancestors.interpreter.file",
         "process.file",
@@ -14220,8 +13647,6 @@
         "mkdir.file",
         "mmap.file",
         "open.file",
-        "pam.file",
-        "pam.interpreter.file",
         "process.ancestors.file",
         "process.ancestors.interpreter.file",
         "process.file",
@@ -14276,7 +13701,6 @@
       "prefixes": [
         "exec",
         "exit",
-        "pam",
         "process",
         "process.ancestors",
         "process.parent",
@@ -14322,7 +13746,6 @@
       "prefixes": [
         "exec",
         "exit",
-        "pam",
         "process",
         "process.ancestors",
         "process.parent",
@@ -14360,7 +13783,6 @@
         "mount",
         "mprotect",
         "open",
-        "pam",
         "prctl",
         "ptrace",
         "removexattr",
@@ -14399,8 +13821,6 @@
         "mkdir.file",
         "mmap.file",
         "open.file",
-        "pam.file",
-        "pam.interpreter.file",
         "process.ancestors.file",
         "process.ancestors.interpreter.file",
         "process.file",
@@ -14459,7 +13879,6 @@
       "prefixes": [
         "exec.user_session",
         "exit.user_session",
-        "pam.user_session",
         "process.ancestors.user_session",
         "process.parent.user_session",
         "process.user_session",
@@ -14485,7 +13904,6 @@
       "prefixes": [
         "exec.user_session",
         "exit.user_session",
-        "pam.user_session",
         "process.ancestors.user_session",
         "process.parent.user_session",
         "process.user_session",
@@ -14511,7 +13929,6 @@
       "prefixes": [
         "exec.user_session",
         "exit.user_session",
-        "pam.user_session",
         "process.ancestors.user_session",
         "process.parent.user_session",
         "process.user_session",
@@ -14537,7 +13954,6 @@
       "prefixes": [
         "exec.user_session",
         "exit.user_session",
-        "pam.user_session",
         "process.ancestors.user_session",
         "process.parent.user_session",
         "process.user_session",
@@ -14563,7 +13979,6 @@
       "prefixes": [
         "exec.user_session",
         "exit.user_session",
-        "pam.user_session",
         "process.ancestors.user_session",
         "process.parent.user_session",
         "process.user_session",
@@ -14589,7 +14004,6 @@
       "prefixes": [
         "exec",
         "exit",
-        "pam",
         "process",
         "process.ancestors",
         "process.parent",
@@ -14615,7 +14029,6 @@
       "prefixes": [
         "exec",
         "exit",
-        "pam",
         "process",
         "process.ancestors",
         "process.parent",
@@ -14654,7 +14067,6 @@
       "prefixes": [
         "exec",
         "exit",
-        "pam",
         "process",
         "process.ancestors",
         "process.parent",
@@ -14692,8 +14104,6 @@
         "mkdir.file",
         "mmap.file",
         "open.file",
-        "pam.file",
-        "pam.interpreter.file",
         "process.ancestors.file",
         "process.ancestors.interpreter.file",
         "process.file",
@@ -14781,8 +14191,6 @@
         "mkdir.file",
         "mmap.file",
         "open.file",
-        "pam.file",
-        "pam.interpreter.file",
         "process.ancestors.file",
         "process.ancestors.interpreter.file",
         "process.file",
@@ -14829,7 +14237,6 @@
         "cgroup",
         "exec.cgroup",
         "exit.cgroup",
-        "pam.cgroup",
         "process.ancestors.cgroup",
         "process.cgroup",
         "process.parent.cgroup",
@@ -16066,54 +15473,6 @@
       "definition": "TLS version",
       "prefixes": [
         "packet.tls"
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
-      "name": "pam.host_ip",
-      "link": "pam-host_ip-doc",
-      "type": "string",
-      "definition": "IP address of the host",
-      "prefixes": [
-        "pam"
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
-      "name": "pam.hostname",
-      "link": "pam-hostname-doc",
-      "type": "string",
-      "definition": "Hostname",
-      "prefixes": [
-        "pam"
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
-      "name": "pam.service",
-      "link": "pam-service-doc",
-      "type": "string",
-      "definition": "Authentication service name",
-      "prefixes": [
-        "pam"
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
-      "name": "pam.user",
-      "link": "pam-user-doc",
-      "type": "string",
-      "definition": "User name",
-      "prefixes": [
-        "pam"
       ],
       "constants": "",
       "constants_link": "",

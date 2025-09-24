@@ -155,9 +155,6 @@ type Event struct {
 	NetDevice        NetDeviceEvent        `field:"-"`
 	VethPair         VethPairEvent         `field:"-"`
 	UnshareMountNS   UnshareMountNSEvent   `field:"-"`
-
-	//user events
-	Pam PamEvent `field:"pam" event:"pam"` // [7.71] [Process] A pam event was captured
 }
 
 var cgroupContextZero CGroupContext
@@ -1049,14 +1046,4 @@ type PrCtlEvent struct {
 	Option          int    `field:"option"`            // SECLDoc[option] Definition:`prctl option`
 	NewName         string `field:"new_name"`          // SECLDoc[new_name] Definition:`New name of the process`
 	IsNameTruncated bool   `field:"is_name_truncated"` // SECLDoc[is_name_truncated] Definition:`Indicates that the name field is truncated`
-}
-
-// PamEvent represents a pam event
-type PamEvent struct {
-	SyscallEvent
-	*Process
-	Service  string `field:"service"`  // SECLDoc[service] Definition:`Authentication service name`
-	User     string `field:"user"`     // SECLDoc[user] Definition:`User name`
-	Hostname string `field:"hostname"` // SECLDoc[hostname] Definition:`Hostname`
-	HostIP   string `field:"host_ip"`  // SECLDoc[host_ip] Definition:`IP address of the host`
 }

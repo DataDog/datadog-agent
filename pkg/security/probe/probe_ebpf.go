@@ -1697,11 +1697,6 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		if event.PrCtl.IsNameTruncated {
 			p.MetricNameTruncated.Add(1)
 		}
-	case model.PamEventType:
-		if _, err = event.Pam.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode pam event: %s (offset %d, len %d)", err, offset, len(data))
-			return
-		}
 	}
 
 	// send related events
