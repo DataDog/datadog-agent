@@ -101,21 +101,19 @@ func (c *CloudRunJobs) Init() error {
 	return nil
 }
 
-// Shutdown submits the task duration metric for CloudRunJobs
+// Shutdown submits the task duration and shutdown metrics for CloudRunJobs
 func (c *CloudRunJobs) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent) {
-	metricName := fmt.Sprintf("%s.enhanced.task.duration", cloudRunJobsPrefix)
+	durationMetricName := fmt.Sprintf("%s.enhanced.task.duration", cloudRunJobsPrefix)
 	duration := float64(time.Since(c.startTime).Milliseconds())
-	metric.Add(metricName, duration, c.GetSource(), metricAgent)
+	metric.Add(durationMetricName, duration, c.GetSource(), metricAgent)
+
+	shutdownMetricName := fmt.Sprintf("%s.enhanced.task.ended", cloudRunJobsPrefix)
+	metric.Add(shutdownMetricName, 1.0, c.GetSource(), metricAgent)
 }
 
 // GetStartMetricName returns the metric name for container start events
 func (c *CloudRunJobs) GetStartMetricName() string {
 	return fmt.Sprintf("%s.enhanced.task.started", cloudRunJobsPrefix)
-}
-
-// GetShutdownMetricName returns the metric name for container shutdown events
-func (c *CloudRunJobs) GetShutdownMetricName() string {
-	return fmt.Sprintf("%s.enhanced.task.ended", cloudRunJobsPrefix)
 }
 
 // ShouldForceFlushAllOnForceFlushToSerializer is true for cloud run jobs.
