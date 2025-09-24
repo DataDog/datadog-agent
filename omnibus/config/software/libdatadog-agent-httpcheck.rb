@@ -57,26 +57,16 @@ build do
       'windows' => 'dll'
     }
     
-    current_platform = case node['platform']
-                      when 'ubuntu', 'debian', 'centos', 'rhel', 'fedora', 'suse', 'opensuse'
-                        'linux'
-                      when 'mac_os_x'
-                        'mac'
-                      when 'windows'
-                        'windows'
-                      else
-                        'unknown'
-                      end
+    if linux?
+      lib_path = "#{install_dir}/embedded/lib/#{name}.so"
+    elsif mac?
+      lib_path = "#{install_dir}/embedded/lib/#{name}.dylib"
+    elsif windows?
+      lib_path = "#{install_dir}/embedded/lib/#{name}.dll"
+    end
     
-    if current_platform != 'unknown'
-      ext = library_extensions[current_platform]
-      lib_path = "#{install_dir}/embedded/lib/#{name}.#{ext}"
-      
-      unless File.exist?(lib_path)
-        raise "Failed to install library: #{lib_path} not found after build"
-      end
-      
-      puts "Successfully installed #{name} at: #{lib_path}"
+    if not File.exist?(lib_path)
+      raise "Failed to install library: #{lib_path} not found after build"
     end
   end
 end
