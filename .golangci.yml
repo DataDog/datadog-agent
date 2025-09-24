@@ -449,6 +449,7 @@ linters:
     - gosimple                  # Linter for Go source code that specializes in simplifying code.
     - gocheckcompilerdirectives # Checks Go compiler directives syntax
     - pkgconfigusage            # Linter for checking usage of pkgconfig inside components folder
+    - fxutiltest                # Linter for checking fxutil.OneShot functions have corresponding tests
     - forbidigo                 # prevent usage of unwanted/deprecated symbol in the code base
 
 linters-settings:
@@ -626,13 +627,14 @@ linters-settings:
       - p: ^setup.SetSystemProbe.*$
         pkg: ^github.com/DataDog/datadog-agent/pkg/config/setup$
         msg: use pkg/config/mock instead for tests or the config component
-      - p: RevertFinishedBackToBuilder
-        msg: RevertFinishedBackToBuilder is typically not needed, so using it is discouraged. Only existing OTel usage is allowed.
     analyze-types: true
   custom:
     pkgconfigusage:
       type: "module"
       description: "Check usage of pkgconfig in components folder"
+    fxutiltest:
+      type: "module"
+      description: "Check that fxutil.OneShot functions have corresponding tests"
 
 run:
   allow-parallel-runners: true
