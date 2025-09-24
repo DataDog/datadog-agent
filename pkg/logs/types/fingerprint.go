@@ -40,7 +40,7 @@ func (f *Fingerprint) IsValidFingerprint() bool {
 
 // IsInsufficientData returns true if the fingerprint indicates insufficient data (should continue tailing)
 func (f *Fingerprint) IsInsufficientData() bool {
-	return f.Value == InsufficientDataFingerprintValue
+	return f.Value == InsufficientDataFingerprintValue && f.Config != nil
 }
 
 // FingerprintConfig defines the options for the fingerprint configuration.

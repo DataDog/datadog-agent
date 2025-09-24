@@ -89,3 +89,125 @@ func TestPosition(t *testing.T) {
 	assert.Equal(t, int64(0), offset)
 	assert.Equal(t, io.SeekEnd, whence)
 }
+
+// TestPositionFingerprintRotation tests position logic when fingerprints don't align (rotation scenario)
+func TestPositionFingerprintRotation(t *testing.T) {
+	registry := auditorMock.NewMockRegistry()
+
+	fingerprintConfig := &types.FingerprintConfig{
+		MaxBytes:            2048,
+		Count:               1,
+		CountToSkip:         0,
+		FingerprintStrategy: types.FingerprintStrategyDisabled, // Simplify for testing
+	}
+
+	// Create a mock fingerprinter
+	mockFingerprinter := file.NewFingerprinter(*fingerprintConfig)
+
+	// Test when there's a stored offset but no fingerprint logic to worry about
+	identifier := "file:/path/to/rotated.log"
+	registry.SetOffset(identifier, "1000") // Had read 1000 bytes from original file
+
+	// Test with End mode - should use stored offset since fingerprinting is disabled
+	offset, whence, err := Position(registry, identifier, config.End, *mockFingerprinter)
+	assert.Nil(t, err)
+	assert.Equal(t, int64(1000), offset)
+	assert.Equal(t, io.SeekStart, whence)
+
+	// Test with Beginning mode
+	offset, whence, err = Position(registry, identifier, config.Beginning, *mockFingerprinter)
+	assert.Nil(t, err)
+	// Should still use stored offset
+	assert.Equal(t, int64(1000), offset)
+	assert.Equal(t, io.SeekStart, whence)
+}
+
+// When fingerprints don't align (rotation detected), should start from beginning
+func TestPositionFingerprintMismatch(t *testing.T) {
+	registry := auditorMock.NewMockRegistry()
+
+	fingerprintConfig := &types.FingerprintConfig{
+		MaxBytes:            2048,
+		Count:               1,
+		CountToSkip:         0,
+		FingerprintStrategy: types.FingerprintStrategyByteChecksum, // Enable fingerprinting
+	}
+
+	mockFingerprinter := file.NewFingerprinter(*fingerprintConfig)
+
+	// 1. File has stored offset (was being tailed)
+	// 2. File was rotated (fingerprint computation will fail/differ)
+	identifier := "file:/nonexistent/path.log" // Will cause fingerprint computation to fail
+	registry.SetOffset(identifier, "500")
+
+	// Set a previous fingerprint to simulate rotation scenario
+	prevFingerprint := &types.Fingerprint{
+		Value:  67890,
+		Config: fingerprintConfig,
+	}
+	registry.SetFingerprint(prevFingerprint)
+
+	offset, whence, _ := Position(registry, identifier, config.End, *mockFingerprinter)
+
+	// Fingerprints don't align and there's an offset, should start from beginning (rotation handling)
+	assert.Equal(t, int64(0), offset, "Should start from offset 0")
+	assert.Equal(t, io.SeekStart, whence, "Should seek to start (beginning) when rotation detected")
+
+	// Test with Beginning mode too - should also work
+	offset, whence, _ = Position(registry, identifier, config.Beginning, *mockFingerprinter)
+	assert.Equal(t, int64(0), offset)
+	assert.Equal(t, io.SeekStart, whence)
+}
+
+// TestPositionFingerprintMatch tests position logic when fingerprints DO match (no rotation)
+func TestPositionFingerprintMatch(t *testing.T) {
+	registry := auditorMock.NewMockRegistry()
+
+	fingerprintConfig := &types.FingerprintConfig{
+		MaxBytes:            2048,
+		Count:               1,
+		CountToSkip:         0,
+		FingerprintStrategy: types.FingerprintStrategyDisabled, // Disable fingerprinting
+	}
+
+	mockFingerprinter := file.NewFingerprinter(*fingerprintConfig)
+
+	// When fingerprinting is disabled, fingerprintsAlign should be true
+	identifier := "file:/any/path.log"
+	registry.SetOffset(identifier, "1500")
+
+	offset, whence, err := Position(registry, identifier, config.End, *mockFingerprinter)
+	assert.Nil(t, err)
+
+	// Should use stored offset since fingerprints "align"
+	assert.Equal(t, int64(1500), offset)
+	assert.Equal(t, io.SeekStart, whence)
+}
+
+// TestPositionNoStoredOffset tests behavior when there's no stored offset
+func TestPositionNoStoredOffset(t *testing.T) {
+	registry := auditorMock.NewMockRegistry()
+
+	fingerprintConfig := &types.FingerprintConfig{
+		MaxBytes:            2048,
+		Count:               1,
+		CountToSkip:         0,
+		FingerprintStrategy: types.FingerprintStrategyByteChecksum,
+	}
+
+	mockFingerprinter := file.NewFingerprinter(*fingerprintConfig)
+
+	// No stored offset for this identifier
+	identifier := "file:/new/file.log"
+
+	// Test different modes when no offset is stored
+	offset, whence, err := Position(registry, identifier, config.End, *mockFingerprinter)
+	assert.Nil(t, err)
+	assert.Equal(t, int64(0), offset)
+	assert.Equal(t, io.SeekEnd, whence)
+
+	offset, whence, err = Position(registry, identifier, config.Beginning, *mockFingerprinter)
+	assert.Nil(t, err)
+	assert.Equal(t, int64(0), offset)
+	assert.Equal(t, io.SeekStart, whence)
+}
