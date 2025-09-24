@@ -50,10 +50,12 @@ type HostArtifactClient interface {
 }
 
 type sshExecutor struct {
-	client  *ssh.Client
-	context common.Context
+	client     *ssh.Client
+	privileged *ssh.Client
+	context    common.Context
 
 	username             string
+	privilegedUsername   string
 	host                 string
 	privateKey           []byte
 	privateKeyPassphrase []byte
@@ -93,9 +95,17 @@ func NewHost(context common.Context, hostOutput remote.HostOutput) (*Host, error
 		}
 	}
 
+	var privilegedUsername string
+	if hostOutput.OSFamily == oscomp.WindowsFamily {
+		privilegedUsername = "Administrator"
+	} else {
+		privilegedUsername = "root"
+	}
+
 	sshExecutor := &sshExecutor{
 		context:              context,
 		username:             hostOutput.Username,
+		privilegedUsername:   privilegedUsername,
 		host:                 fmt.Sprintf("%s:%d", hostOutput.Address, hostOutput.Port),
 		privateKey:           privateSSHKey,
 		privateKeyPassphrase: []byte(privateKeyPassword),
@@ -124,12 +134,22 @@ func (h *sshExecutor) Reconnect() error {
 	if h.client != nil {
 		_ = h.client.Close()
 	}
+	if h.privileged != nil {
+		_ = h.privileged.Close()
+	}
 	return backoff.Retry(func() error {
 		client, err := getSSHClient(h.username, h.host, h.privateKey, h.privateKeyPassphrase)
 		if err != nil {
 			return err
 		}
 		h.client = client
+
+		privileged, err := getSSHClient(h.privilegedUsername, h.host, h.privateKey, h.privateKeyPassphrase)
+		if err != nil {
+			h.context.T().Logf("Unable to create privileged SSH connection: %v", err)
+			// Ignore this error for now, since SSH connection as root are not enable on some providers
+		}
+		h.privileged = privileged
 		return nil
 	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(sshRetryInterval), sshMaxRetries))
 }
@@ -273,11 +293,9 @@ func (h *Host) GetFolder(srcFolder string, dstFolder string) error {
 	return downloadFolder(sftpClient, srcFolder, dstFolder)
 }
 
-// ReadFile reads the content of the file, return bytes read and error if any
-func (h *Host) ReadFile(path string) ([]byte, error) {
-	h.context.T().Logf("Reading file at %s", path)
+func (h *Host) readFileWithClient(sftpClient *sftp.Client, path string) ([]byte, error) {
+	h.context.T().Logf("Reading file with client at %s", path)
 	path = h.convertPathSeparator(path)
-	sftpClient := h.getSFTPClient()
 	defer sftpClient.Close()
 
 	f, err := sftpClient.Open(path)
@@ -292,6 +310,18 @@ func (h *Host) ReadFile(path string) ([]byte, error) {
 	}
 
 	return content.Bytes(), nil
+}
+
+// ReadFile reads the content of the file, return bytes read and error if any
+func (h *Host) ReadFile(path string) ([]byte, error) {
+	h.context.T().Logf("Reading file at %s", path)
+	return h.readFileWithClient(h.getSFTPClient(), path)
+}
+
+// ReadFilePrivileged reads the content of the file with a privileged user, return bytes read and error if any
+func (h *Host) ReadFilePrivileged(path string) ([]byte, error) {
+	h.context.T().Logf("Reading file at %s", path)
+	return h.readFileWithClient(h.getSFTPPrivilegedClient(), path)
 }
 
 // WriteFile write content to the file and returns the number of bytes written and error if any
@@ -501,6 +531,23 @@ func (h *Host) getSFTPClient() *sftp.Client {
 		err = h.Reconnect()
 		require.NoError(h.context.T(), err)
 		sftpClient, err = sftp.NewClient(h.client, sftp.UseConcurrentWrites(true))
+		require.NoError(h.context.T(), err)
+	}
+	return sftpClient
+}
+
+func (h *Host) getSFTPPrivilegedClient() *sftp.Client {
+	if h.privileged == nil {
+		// Some cloud provider don't provide SSH connection as root (GCP) required for these file operations
+		h.context.T().Logf("Can't SFTP files without a privileged SSH connection")
+		h.context.T().Fail()
+		return nil
+	}
+	sftpClient, err := sftp.NewClient(h.privileged, sftp.UseConcurrentWrites(true))
+	if err != nil {
+		err = h.Reconnect()
+		require.NoError(h.context.T(), err)
+		sftpClient, err = sftp.NewClient(h.privileged, sftp.UseConcurrentWrites(true))
 		require.NoError(h.context.T(), err)
 	}
 	return sftpClient
