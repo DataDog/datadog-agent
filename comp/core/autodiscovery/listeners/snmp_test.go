@@ -203,6 +203,7 @@ func TestExtraConfig(t *testing.T) {
 			Timeout:  &sixPtr,
 			Count:    &threePtr,
 		},
+		UseRemoteConfigProfiles: true,
 	}
 
 	svc := SNMPService{
@@ -303,6 +304,10 @@ func TestExtraConfig(t *testing.T) {
 	info, err = svc.GetExtraConfig("ping")
 	assert.Equal(t, nil, err)
 	assert.Equal(t, `{"linux":{"use_raw_socket":true},"enabled":true,"interval":5,"timeout":6,"count":3}`, info)
+
+	info, err = svc.GetExtraConfig("use_remote_config_profiles")
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "true", info)
 
 	svc = SNMPService{
 		adIdentifier: "snmp",
