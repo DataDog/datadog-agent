@@ -164,7 +164,7 @@ func EnumerateMsiProducts(dwContext uint32, processor func(productCode []uint16,
 	return nil
 }
 
-// GetProp fetches a property from the MSI database.
+// GetMsiProductInfo fetches a property from the MSI database.
 func GetMsiProductInfo(propName string, productCode []uint16) (string, error) {
 	bufLen := uint32(windows.MAX_PATH)
 	ret := windows.ERROR_MORE_DATA
