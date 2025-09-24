@@ -136,8 +136,8 @@ type Service struct {
 	// DDService is the value from DD_SERVICE environment variable
 	DDService string
 
-	// APMInstrumentation indicates the APM instrumentation status
-	APMInstrumentation string
+	// APMInstrumented indicates if the service is instrumented with APM
+	APMInstrumented bool
 }
 
 // DeepCopy creates a deep copy of Stats

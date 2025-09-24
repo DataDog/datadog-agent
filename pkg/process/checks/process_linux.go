@@ -229,6 +229,6 @@ func formatServiceDiscovery(service *procutil.Service) *model.ServiceDiscovery {
 		DdServiceName:            ddServiceName,
 		AdditionalGeneratedNames: additionalGeneratedNames,
 		TracerMetadata:           tracerMetadata,
-		ApmInstrumented:          service.APMInstrumented,
+		ApmInstrumentation:       service.APMInstrumented,
 	}
 }
