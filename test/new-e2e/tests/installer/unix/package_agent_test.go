@@ -477,7 +477,7 @@ func (s *packageAgentSuite) TestNoWorldWritableFiles() {
 
 	state := s.host.State()
 	for path, file := range state.FS {
-		if !strings.HasPrefix(path, "/opt/datadog") {
+		if !strings.HasPrefix(path, "/opt/datadog") || file.IsSymlink {
 			continue
 		}
 		if file.Perms&002 != 0 {
