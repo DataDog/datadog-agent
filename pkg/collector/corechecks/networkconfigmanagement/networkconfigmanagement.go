@@ -10,6 +10,7 @@ package networkconfigmanagement
 
 import (
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
@@ -172,18 +173,25 @@ func newCheck(agentConfig config.Component) check.Check {
 // FindMatchingProfile supports testing profiles until one is found with a successful command for the device
 func (c *Check) FindMatchingProfile() (*profile.NCMProfile, error) {
 	for profName, prof := range c.checkContext.ProfileMap {
-		session, err := c.remoteClient.NewSession()
-		if err != nil {
-			return nil, fmt.Errorf("unable to connect to remote device %s: %s", c.checkContext.Device.IPAddress, err)
+		if slices.Contains(c.checkContext.ProfileCache.GetTriedProfiles(), profName) {
+			continue
 		}
 		commands, err := prof.GetCommandValues(profile.Version)
 		if err != nil {
-			return nil, err
+			log.Warnf("unable to get command values for profile %s: %s", profName, err)
+			continue
 		}
 		for _, cmd := range commands {
-			output, err := session.CombinedOutput(cmd)
+			session, err := c.remoteClient.NewSession()
 			if err != nil {
-				return nil, err
+				log.Warnf("unable to connect to remote device %s: %s", c.checkContext.Device.IPAddress, err)
+				continue
+			}
+			output, err := session.CombinedOutput(cmd)
+			session.Close()
+			if err != nil {
+				log.Warnf("error running command %s on remote device %s: %s", cmd, c.checkContext.Device.IPAddress, err)
+				continue
 			}
 			// TODO: Validate the output
 			if len(output) > 0 {

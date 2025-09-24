@@ -46,6 +46,7 @@ func newMockRemoteClient() *MockRemoteClient {
 			OutputMap: map[string]string{
 				"show running-config": "interface GigabitEthernet0/1\n ip address 192.168.1.1 255.255.255.0",
 				"show startup-config": "interface GigabitEthernet0/1\n ip address 192.168.1.1 255.255.255.0",
+				"show version":        "Cisco Device Version 1.0",
 			},
 		},
 		RunningConfig: "interface GigabitEthernet0/1\n ip address 192.168.1.1 255.255.255.0",
@@ -300,4 +301,65 @@ func TestCheck_Run_ConfigRetrievalFailure(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "command execution failed")
 	assert.True(t, mockClient.Closed, "Remote client should be closed even on failure")
+}
+
+func TestCheck_FindMatchingProfile(t *testing.T) {
+	check := createTestCheck(t)
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+
+	// Configure the check
+	profile.SetConfdPathAndCleanProfiles()
+	err := check.Configure(senderManager, integration.FakeConfigHash, validConfig, []byte{}, "test")
+	require.NoError(t, err)
+
+	// mock the time
+	mockClock := clock.NewMock()
+	mockClock.Set(time.Date(2025, 8, 1, 10, 20, 0, 0, time.UTC))
+	check.clock = mockClock
+
+	// Set up mock remote client
+	mockClient := newMockRemoteClient()
+	check.remoteClient = mockClient
+
+	// Run the profile matching function
+	// Expected that the `_base` profile will fail and still continue to the next one (p2)
+	actual, err := check.FindMatchingProfile()
+	assert.NoError(t, err)
+
+	expected := &profile.NCMProfile{
+		BaseProfile: profile.BaseProfile{
+			Name: "p2",
+		},
+		Commands: map[profile.CommandType][]string{
+			profile.Running: {"show running-config"},
+			profile.Startup: {"show startup-config"},
+			profile.Version: {"show version"},
+		},
+	}
+	assert.Equal(t, expected, actual)
+}
+
+func TestCheck_FindMatchingProfile_Error(t *testing.T) {
+	check := createTestCheck(t)
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+
+	// Configure the check
+	profile.SetConfdPathAndCleanProfiles()
+	err := check.Configure(senderManager, integration.FakeConfigHash, validConfig, []byte{}, "test")
+	require.NoError(t, err)
+
+	// mock the time
+	mockClock := clock.NewMock()
+	mockClock.Set(time.Date(2025, 8, 1, 10, 20, 0, 0, time.UTC))
+	check.clock = mockClock
+
+	// Set up mock remote client, remove the version command for the test to fail
+	mockClient := newMockRemoteClient()
+	check.remoteClient = mockClient
+	delete(mockClient.Session.OutputMap, "show version")
+
+	// Run the profile matching function
+	_, err = check.FindMatchingProfile()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "unable to find matching profile for device")
 }
