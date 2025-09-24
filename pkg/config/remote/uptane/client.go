@@ -623,6 +623,5 @@ func configMetasUpdateSummary(metas *pbgo.ConfigMetas) string {
 
 // GetTransactionalStoreMetadata returns metadata that creates the underlying boltDB instance
 func (c *Client) GetTransactionalStoreMetadata() (*Metadata, error) {
-	fmt.Println("CALLING REAL ONE")
 	return c.transactionalStore.getTSMetadata()
 }
