@@ -661,7 +661,11 @@ func (m *Manager) evictUnusedNodes() {
 	defer m.profilesLock.Unlock()
 
 	for selector, profile := range m.profiles {
-		if profile == nil || profile.ActivityTree == nil {
+		if profile == nil {
+			continue
+		}
+		profile.Lock()
+		if profile.ActivityTree == nil {
 			continue
 		}
 
@@ -670,6 +674,7 @@ func (m *Manager) evictUnusedNodes() {
 			totalEvicted += evicted
 			seclog.Debugf("evicted %d unused nodes from profile [%s] ", evicted, selector.String())
 		}
+		profile.Unlock()
 	}
 
 	if totalEvicted > 0 {

@@ -60,8 +60,8 @@ var ActivityDumpGraphTemplate = `digraph {
 
 // ToGraph convert the dump to a graph
 func (p *Profile) ToGraph() utils.Graph {
-	p.m.Lock()
-	defer p.m.Unlock()
+	p.Lock()
+	defer p.Unlock()
 
 	var resolver *process.EBPFResolver
 	return p.ActivityTree.PrepareGraphData(p.Metadata.Name, p.getSelectorStr(), resolver)
