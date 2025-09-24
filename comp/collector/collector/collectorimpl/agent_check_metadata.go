@@ -9,8 +9,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
@@ -107,7 +105,7 @@ func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
 			log.Warnf("Error formatting loader error from check %s: %v", check, err)
 		}
 		status := []interface{}{
-			check, check, "initialization", "ERROR", string(jsonErrs),
+			check, check, "initialization", "ERROR", string(jsonErrs), []string{},
 		}
 		payload.AgentChecks = append(payload.AgentChecks, status)
 	}
@@ -115,7 +113,7 @@ func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
 	configErrors := autodiscoveryimpl.GetConfigErrors()
 	for check, e := range configErrors {
 		status := []interface{}{
-			check, check, "initialization", "ERROR", e,
+			check, check, "initialization", "ERROR", e, []string{},
 		}
 		payload.AgentChecks = append(payload.AgentChecks, status)
 	}
@@ -123,7 +121,7 @@ func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
 	jmxStartupError := jmxStatus.GetStartupError()
 	if jmxStartupError.LastError != "" {
 		status := []interface{}{
-			"jmx", "jmx", "initialization", "ERROR", jmxStartupError.LastError,
+			"jmx", "jmx", "initialization", "ERROR", jmxStartupError.LastError, []string{},
 		}
 		payload.AgentChecks = append(payload.AgentChecks, status)
 	}
@@ -169,7 +167,9 @@ func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
 					if !ok {
 						checkID = checkName
 					} else {
-						tags = instanceConfByName[checkID]
+						if tags, ok = instanceConfByName[checkID]; !ok {
+							tags = []string{}
+						}
 						checkID = fmt.Sprintf("%s:%s", checkName, checkID)
 					}
 					checkError, ok := check["message"].(string)
@@ -206,75 +206,30 @@ func (c *collectorImpl) collectMetadata(ctx context.Context) time.Duration {
 	return defaultInterval
 }
 
-type kv struct{ k, v string }
-
-func extractTags(node *yaml.Node) []kv {
-	if node == nil {
-		return nil
-	}
-
-	if node.Kind == yaml.ScalarNode {
-		return []kv{{v: node.Value}}
-	}
-
-	if node.Kind != yaml.SequenceNode {
-		return nil
-	}
-
-	out := make([]kv, 0, len(node.Content))
-	for _, item := range node.Content {
-		switch item.Kind {
-		case yaml.ScalarNode:
-			out = append(out, kv{v: item.Value})
-		case yaml.MappingNode:
-			// Typical item is a one-key map; support multiple just in case.
-			for i := 0; i+1 < len(item.Content); i += 2 {
-				k := item.Content[i]
-				v := item.Content[i+1]
-				out = append(out, kv{k: k.Value, v: v.Value})
-			}
-		}
-	}
-	return out
-}
-
-// collectTags is a fast-path extractor assuming `tags` is at the root of the YAML.
-// It decodes only the root-level `tags` field and returns as soon as it's found.
 func collectTags(config string) ([]string, error) {
 	if config == "" {
-		return nil, nil
+		return []string{}, nil
 	}
 
-	dec := yaml.NewDecoder(strings.NewReader(config))
-	var doc yaml.Node
-	if err := dec.Decode(&doc); err != nil {
-		if err == io.EOF {
-			return nil, nil
+	var instanceconfig map[interface{}]interface{}
+	unmarshalErr := yaml.Unmarshal([]byte(config), &instanceconfig)
+	if unmarshalErr != nil {
+		return []string{}, unmarshalErr
+	}
+
+	if tagsNode, ok := instanceconfig["tags"]; ok {
+		if tags, ok := tagsNode.(string); ok {
+			return []string{tags}, nil
 		}
-		return nil, err
-	}
-	if len(doc.Content) == 0 {
-		return nil, nil
-	}
-	root := doc.Content[0]
-	if root.Kind != yaml.MappingNode {
-		return nil, nil
-	}
-
-	for i := 0; i+1 < len(root.Content); i += 2 {
-		k := root.Content[i]
-		v := root.Content[i+1]
-		if k.Kind == yaml.ScalarNode && k.Value == "tags" {
-			group := extractTags(v)
-			if len(group) == 0 {
-				return nil, nil
-			}
-			out := make([]string, 0, len(group))
-			for _, kv := range group {
-				out = append(out, fmt.Sprintf("%s%s", kv.k, kv.v))
+		if tags, ok := tagsNode.([]interface{}); ok {
+			out := make([]string, 0, len(tags))
+			for _, tag := range tags {
+				out = append(out, tag.(string))
 			}
 			return out, nil
 		}
 	}
-	return nil, nil
+
+	return []string{}, nil
+
 }

@@ -102,7 +102,7 @@ tags: "foo:bar"
 		{
 			name:   "empty",
 			config: ``,
-			want:   nil,
+			want:   []string{},
 		},
 		{
 			name: "below root",
@@ -111,7 +111,7 @@ max_returned_metrics: 50000
 level: 
   tags: "foo:bar"
 `,
-			want: nil,
+			want: []string{},
 		},
 	}
 
