@@ -225,16 +225,19 @@ func (ra *remoteAgentRegistry) RegisterRemoteAgent(registration *remoteagentregi
 	// We already have an entry for this remote agent, so check if we need to update the gRPC client, and then update
 	// the other bits.
 	if entry.apiEndpoint != registration.APIEndpoint {
-		entry.apiEndpoint = registration.APIEndpoint
+		// The API endpoint has changed, so we need to create a new client and restart the config stream.
+		// To do that, we'll just remove the old entry and create a new one.
+		delete(ra.agentMap, agentID)
 
-		client, err := newRemoteAgentClient(registration)
+		newEntry, err := newRemoteAgentDetails(registration)
 		if err != nil {
 			ra.telemetryStore.remoteAgentUpdatedError.Inc(sanatizeString(registration.DisplayName))
 			return 0, err
 		}
-		entry.client = client
-	}
 
+		ra.agentMap[agentID] = newEntry
+		entry = newEntry
+	}
 	entry.displayName = registration.DisplayName
 	entry.sanatizedDisplayName = sanatizeString(registration.DisplayName)
 	entry.lastSeen = time.Now()
@@ -623,29 +626,6 @@ func newRemoteAgentClient(registration *remoteagentregistry.RegistrationData) (p
 	}
 
 	return pb.NewRemoteAgentClient(conn), nil
-}
-
-type remoteAgentDetails struct {
-	lastSeen             time.Time
-	displayName          string
-	sanatizedDisplayName string
-	apiEndpoint          string
-	client               pb.RemoteAgentClient
-}
-
-func newRemoteAgentDetails(registration *remoteagentregistry.RegistrationData) (*remoteAgentDetails, error) {
-	client, err := newRemoteAgentClient(registration)
-	if err != nil {
-		return nil, err
-	}
-
-	return &remoteAgentDetails{
-		displayName:          registration.DisplayName,
-		sanatizedDisplayName: sanatizeString(registration.DisplayName),
-		apiEndpoint:          registration.APIEndpoint,
-		client:               client,
-		lastSeen:             time.Now(),
-	}, nil
 }
 
 func sanatizeString(s string) string {

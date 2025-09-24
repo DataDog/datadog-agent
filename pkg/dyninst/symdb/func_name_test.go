@@ -120,6 +120,25 @@ func TestParseFuncName(t *testing.T) {
 				failureReason: parseFuncNameFailureReasonMapInit,
 			},
 		},
+		{"import path with dot", "gopkg.in/square/go-jose%2ev2.newBuffer",
+			parseFuncNameResult{
+				funcName: funcName{
+					Package: "gopkg.in/square/go-jose.v2",
+					Type:    "",
+					Name:    "newBuffer",
+				},
+			},
+		},
+		{"range iterator function", "github.com/redis/rueidis/internal/cmds.HmsetFieldValue.FieldValueIter-range1",
+			// Taken from: https://github.com/redis/rueidis/blob/f05dbebcb0216e4ef09a712b3b5e9a2e2d8df786/internal/cmds/iter.go#L11
+			parseFuncNameResult{
+				funcName: funcName{
+					Package: "github.com/redis/rueidis/internal/cmds",
+					Type:    "",
+					Name:    "HmsetFieldValue.FieldValueIter-range1",
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.testName, func(t *testing.T) {

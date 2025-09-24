@@ -18,7 +18,7 @@ NON_RELEASING_TEAMS = {
     'serverless',
     'agent-platform',
     'agent-release-management',
-    'container-ecosystems',
+    'agent-onboarding',
     'apm-trace-storage',
     '@iglendd',  # Not a team but he's in the codeowners file
     'sdlc-security',
@@ -250,7 +250,7 @@ def list_not_closed_qa_cards(version):
     password = os.environ['ATLASSIAN_PASSWORD']
     from atlassian import Jira
 
-    jira = Jira(url="https://datadoghq.atlassian.net", username=username, password=password)
-    jql = f'labels in (ddqa) and labels not in (test_ignore) and labels in ({version}-qa)  and status not in ((Done, DONE, "Won\'t Fix", "WON\'T FIX", "In Progress", "Testing/Review", "In review", "✅ Done", "won\'t do", Duplicate, Closed, "NOT DOING", not-do, canceled, QA)) order by created desc'
-    response = jira.jql(jql)
+    jira = Jira(url="https://datadoghq.atlassian.net", username=username, password=password, cloud=True)
+    jql = f'labels in (ddqa) and labels not in (test_ignore) and labels in ({version}-qa) and status not in ((Done, DONE, "Won\'t Fix", "WON\'T FIX", "In Progress", "Testing/Review", "In review", "✅ Done", "won\'t do", Duplicate, Closed, "NOT DOING", not-do, canceled, QA)) order by created desc'
+    response = jira.enhanced_jql(jql)
     return response['issues']

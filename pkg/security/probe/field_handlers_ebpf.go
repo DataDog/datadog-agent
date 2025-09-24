@@ -22,13 +22,13 @@ import (
 
 	"golang.org/x/net/bpf"
 
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/security/utils/lru/simplelru"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/args"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -39,7 +39,11 @@ type EBPFFieldHandlers struct {
 	*BaseFieldHandlers
 	resolvers *resolvers.EBPFResolvers
 	onDemand  *OnDemandProbesManager
+
+	cgroupIDcache *simplelru.LRU[containerutils.CGroupID, containerutils.ContainerID]
 }
+
+const cgroupIDCacheSize = 256
 
 // NewEBPFFieldHandlers returns a new EBPFFieldHandlers
 func NewEBPFFieldHandlers(config *config.Config, resolvers *resolvers.EBPFResolvers, hostname string, onDemand *OnDemandProbesManager) (*EBPFFieldHandlers, error) {
@@ -48,10 +52,16 @@ func NewEBPFFieldHandlers(config *config.Config, resolvers *resolvers.EBPFResolv
 		return nil, err
 	}
 
+	cgroupIDcache, err := simplelru.NewLRU[containerutils.CGroupID, containerutils.ContainerID](cgroupIDCacheSize, nil)
+	if err != nil {
+		return nil, err
+	}
+
 	return &EBPFFieldHandlers{
 		BaseFieldHandlers: bfh,
 		resolvers:         resolvers,
 		onDemand:          onDemand,
+		cgroupIDcache:     cgroupIDcache,
 	}, nil
 }
 
@@ -208,43 +218,34 @@ func (fh *EBPFFieldHandlers) ResolveMountRootPath(ev *model.Event, e *model.Moun
 	return e.MountRootPath
 }
 
+func (fh *EBPFFieldHandlers) containerIDFromCgroupID(cgroupID containerutils.CGroupID) containerutils.ContainerID {
+	if containerID, ok := fh.cgroupIDcache.Get(cgroupID); ok {
+		return containerID
+	}
+
+	cid := containerutils.FindContainerID(cgroupID)
+	fh.cgroupIDcache.Add(cgroupID, cid)
+	return cid
+}
+
 // ResolveContainerContext queries the cgroup resolver to retrieve the ContainerContext of the event
 func (fh *EBPFFieldHandlers) ResolveContainerContext(ev *model.Event) (*model.ContainerContext, bool) {
-	if ev.ContainerContext.ContainerID != "" && !ev.ContainerContext.Resolved {
-		if containerContext, _ := fh.resolvers.CGroupResolver.GetWorkload(ev.ContainerContext.ContainerID); containerContext != nil {
-			if containerContext.CGroupFlags.IsContainer() {
-				ev.ContainerContext = &containerContext.ContainerContext
-			}
+	if ev.ContainerContext.Resolved {
+		return ev.ContainerContext, ev.ContainerContext.Resolved
+	}
 
+	if ev.ContainerContext.ContainerID == "" {
+		ev.ContainerContext.ContainerID = fh.containerIDFromCgroupID(ev.CGroupContext.CGroupID)
+	}
+
+	if ev.ContainerContext.ContainerID != "" {
+		if containerContext, _ := fh.resolvers.CGroupResolver.GetWorkload(ev.ContainerContext.ContainerID); containerContext != nil {
+			ev.ContainerContext = &containerContext.ContainerContext
 			ev.ContainerContext.Resolved = true
 		}
 	}
+
 	return ev.ContainerContext, ev.ContainerContext.Resolved
-}
-
-// ResolveContainerRuntime retrieves the container runtime managing the container
-func (fh *EBPFFieldHandlers) ResolveContainerRuntime(ev *model.Event, _ *model.ContainerContext) string {
-	if ev.CGroupContext.CGroupFlags != 0 && ev.ContainerContext.ContainerID != "" {
-		return getContainerRuntime(ev.CGroupContext.CGroupFlags)
-	}
-
-	return ""
-}
-
-// getContainerRuntime returns the container runtime managing the cgroup
-func getContainerRuntime(flags containerutils.CGroupFlags) string {
-	switch flags.GetCGroupManager() {
-	case containerutils.CGroupManagerCRI:
-		return string(workloadmeta.ContainerRuntimeContainerd)
-	case containerutils.CGroupManagerCRIO:
-		return string(workloadmeta.ContainerRuntimeCRIO)
-	case containerutils.CGroupManagerDocker:
-		return string(workloadmeta.ContainerRuntimeDocker)
-	case containerutils.CGroupManagerPodman:
-		return string(workloadmeta.ContainerRuntimePodman)
-	default:
-		return ""
-	}
 }
 
 // ResolveRights resolves the rights of a file
@@ -466,7 +467,11 @@ func (fh *EBPFFieldHandlers) resolveSBOMFields(ev *model.Event, f *model.FileEve
 	if pkg := fh.resolvers.SBOMResolver.ResolvePackage(ev.ContainerContext.ContainerID, f); pkg != nil {
 		f.PkgName = pkg.Name
 		f.PkgVersion = pkg.Version
+		f.PkgEpoch = pkg.Epoch
+		f.PkgRelease = pkg.Release
 		f.PkgSrcVersion = pkg.SrcVersion
+		f.PkgSrcEpoch = pkg.SrcEpoch
+		f.PkgSrcRelease = pkg.SrcRelease
 	}
 }
 
@@ -486,12 +491,44 @@ func (fh *EBPFFieldHandlers) ResolvePackageVersion(ev *model.Event, f *model.Fil
 	return f.PkgVersion
 }
 
+// ResolvePackageEpoch resolves the epoch of the package providing this file
+func (fh *EBPFFieldHandlers) ResolvePackageEpoch(ev *model.Event, f *model.FileEvent) int {
+	if f.PkgEpoch == 0 {
+		fh.resolveSBOMFields(ev, f)
+	}
+	return f.PkgEpoch
+}
+
+// ResolvePackageRelease resolves the release of the package providing this file
+func (fh *EBPFFieldHandlers) ResolvePackageRelease(ev *model.Event, f *model.FileEvent) string {
+	if f.PkgRelease == "" {
+		fh.resolveSBOMFields(ev, f)
+	}
+	return f.PkgRelease
+}
+
 // ResolvePackageSourceVersion resolves the version of the source package of the package providing this file
 func (fh *EBPFFieldHandlers) ResolvePackageSourceVersion(ev *model.Event, f *model.FileEvent) string {
 	if f.PkgSrcVersion == "" {
 		fh.resolveSBOMFields(ev, f)
 	}
 	return f.PkgSrcVersion
+}
+
+// ResolvePackageSourceEpoch resolves the epoch of the source package of the package providing this file
+func (fh *EBPFFieldHandlers) ResolvePackageSourceEpoch(ev *model.Event, f *model.FileEvent) int {
+	if f.PkgSrcEpoch == 0 {
+		fh.resolveSBOMFields(ev, f)
+	}
+	return f.PkgSrcEpoch
+}
+
+// ResolvePackageSourceRelease resolves the release of the source package of the package providing this file
+func (fh *EBPFFieldHandlers) ResolvePackageSourceRelease(ev *model.Event, f *model.FileEvent) string {
+	if f.PkgSrcRelease == "" {
+		fh.resolveSBOMFields(ev, f)
+	}
+	return f.PkgSrcRelease
 }
 
 // ResolveModuleArgv resolves the unscrubbed args of the module as an array. Use with caution.
@@ -530,31 +567,20 @@ func (fh *EBPFFieldHandlers) ResolveHashes(eventType model.EventType, process *m
 }
 
 // ResolveCGroupID resolves the cgroup ID of the event
-func (fh *EBPFFieldHandlers) ResolveCGroupID(ev *model.Event, e *model.CGroupContext) string {
-	if len(e.CGroupID) == 0 {
+func (fh *EBPFFieldHandlers) ResolveCGroupID(ev *model.Event, cont *model.CGroupContext) string {
+	if len(cont.CGroupID) == 0 {
 		if entry, _ := fh.ResolveProcessCacheEntry(ev, nil); entry != nil {
 			if entry.CGroup.CGroupID != "" && entry.CGroup.CGroupID != "/" {
 				return string(entry.CGroup.CGroupID)
 			}
 
-			if cgroupContext, _, err := fh.resolvers.ResolveCGroupContext(e.CGroupFile, e.CGroupFlags); err == nil {
+			if cgroupContext, _, err := fh.resolvers.ResolveCGroupContext(cont.CGroupFile); err == nil {
 				ev.CGroupContext = cgroupContext
 			}
 		}
 	}
 
-	return string(e.CGroupID)
-}
-
-// ResolveCGroupManager resolves the manager of the cgroup
-func (fh *EBPFFieldHandlers) ResolveCGroupManager(ev *model.Event, _ *model.CGroupContext) string {
-	if entry, _ := fh.ResolveProcessCacheEntry(ev, nil); entry != nil {
-		if manager := entry.CGroup.CGroupFlags.GetCGroupManager(); manager != 0 {
-			return manager.String()
-		}
-	}
-
-	return ""
+	return string(cont.CGroupID)
 }
 
 // ResolveCGroupVersion resolves the version of the cgroup API
@@ -573,11 +599,7 @@ func (fh *EBPFFieldHandlers) ResolveCGroupVersion(ev *model.Event, e *model.CGro
 func (fh *EBPFFieldHandlers) ResolveContainerID(ev *model.Event, e *model.ContainerContext) string {
 	if len(e.ContainerID) == 0 {
 		if entry, _ := fh.ResolveProcessCacheEntry(ev, nil); entry != nil {
-			if entry.CGroup.CGroupFlags.IsContainer() {
-				e.ContainerID = containerutils.ContainerID(entry.ContainerID)
-			} else {
-				e.ContainerID = ""
-			}
+			e.ContainerID = containerutils.ContainerID(entry.ContainerID)
 			return string(e.ContainerID)
 		}
 	}
@@ -993,4 +1015,22 @@ func (fh *EBPFFieldHandlers) ResolveSetSockOptUsedImmediates(_ *model.Event, e *
 	}
 	e.UsedImmediates = kValues
 	return e.UsedImmediates
+}
+
+// ResolveCapabilitiesAttempted resolves the accumulated attempted capabilities of a capabilities event
+func (fh *EBPFFieldHandlers) ResolveCapabilitiesAttempted(evt *model.Event, ce *model.CapabilitiesEvent) int {
+	attemptedCapabilities := int(ce.Attempted)
+	if pce, resolved := fh.ResolveProcessCacheEntry(evt, nil); resolved && pce != nil {
+		attemptedCapabilities |= int(pce.CapsAttempted)
+	}
+	return attemptedCapabilities
+}
+
+// ResolveCapabilitiesUsed resolves the accumulated used capabilities of a capabilities event
+func (fh *EBPFFieldHandlers) ResolveCapabilitiesUsed(evt *model.Event, ce *model.CapabilitiesEvent) int {
+	usedCapabilities := int(ce.Used)
+	if pce, resolved := fh.ResolveProcessCacheEntry(evt, nil); resolved && pce != nil {
+		usedCapabilities |= int(pce.CapsUsed)
+	}
+	return usedCapabilities
 }

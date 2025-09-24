@@ -1,1 +1,9 @@
-{}
+{
+  "Metrics": {
+    "Sketches": null,
+    "TimeSeries": null
+  },
+  "Hosts": {
+    "": {}
+  }
+}

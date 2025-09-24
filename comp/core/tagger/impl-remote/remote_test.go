@@ -126,8 +126,10 @@ func TestNewComponentWithOverride(t *testing.T) {
 			Log:    logmock.New(t),
 			Params: tagger.RemoteParams{
 				RemoteTarget: func(config.Component) (string, error) { return server.URL, nil },
-				OverrideTLSConfig: &tls.Config{
-					InsecureSkipVerify: true,
+				OverrideTLSConfigGetter: func() (*tls.Config, error) {
+					return &tls.Config{
+						InsecureSkipVerify: true,
+					}, nil
 				},
 				OverrideAuthTokenGetter: func(_ configmodel.Reader) (string, error) {
 					time.Sleep(2 * time.Second)
@@ -151,8 +153,10 @@ func TestNewComponentWithOverride(t *testing.T) {
 			Log:    logmock.New(t),
 			Params: tagger.RemoteParams{
 				RemoteTarget: func(config.Component) (string, error) { return server.URL, nil },
-				OverrideTLSConfig: &tls.Config{
-					InsecureSkipVerify: true,
+				OverrideTLSConfigGetter: func() (*tls.Config, error) {
+					return &tls.Config{
+						InsecureSkipVerify: true,
+					}, nil
 				},
 				OverrideAuthTokenGetter: func(_ configmodel.Reader) (string, error) {
 					return "", fmt.Errorf("auth token getter always fails")

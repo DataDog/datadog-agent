@@ -10,21 +10,29 @@ import (
 	"fmt"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/cachedfetch"
 	ec2internal "github.com/DataDog/datadog-agent/pkg/util/ec2/internal"
 )
 
+var accountIDFetcher = cachedfetch.Fetcher{
+	Name: "AWS Account ID",
+	Attempt: func(ctx context.Context) (interface{}, error) {
+		if !pkgconfigsetup.IsCloudProviderEnabled(CloudProviderName, pkgconfigsetup.Datadog()) {
+			return "", fmt.Errorf("cloud provider is disabled by configuration")
+		}
+
+		ec2id, err := GetInstanceIdentity(ctx)
+		if err != nil {
+			return "", err
+		}
+
+		return ec2id.AccountID, nil
+	},
+}
+
 // GetAccountID returns the account ID of the current AWS instance
 func GetAccountID(ctx context.Context) (string, error) {
-	if !pkgconfigsetup.IsCloudProviderEnabled(CloudProviderName, pkgconfigsetup.Datadog()) {
-		return "", fmt.Errorf("cloud provider is disabled by configuration")
-	}
-
-	ec2id, err := GetInstanceIdentity(ctx)
-	if err != nil {
-		return "", err
-	}
-
-	return ec2id.AccountID, nil
+	return accountIDFetcher.FetchString(ctx)
 }
 
 // EC2Identity holds the instances identity document

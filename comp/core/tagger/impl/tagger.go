@@ -16,7 +16,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/http"
+	"slices"
 	"sync"
 	"time"
 
@@ -40,6 +42,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
@@ -370,7 +373,7 @@ func (t *localTagger) EnrichTags(tb tagset.TagsAccumulator, originInfo taggertyp
 	if originInfo.LocalData.ContainerID == "" {
 		var inodeResolutionError error
 		originInfo.LocalData.ContainerID, inodeResolutionError = t.generateContainerIDFromInode(originInfo.LocalData, metrics.GetProvider(option.New(t.workloadStore)).GetMetaCollector())
-		if inodeResolutionError != nil {
+		if inodeResolutionError != nil && pkglog.ShouldLog(pkglog.TraceLvl) {
 			t.log.Tracef("Failed to resolve container ID from inode %d: %v", originInfo.LocalData.Inode, inodeResolutionError)
 		}
 	}
@@ -435,7 +438,9 @@ func (t *localTagger) EnrichTags(tb tagset.TagsAccumulator, originInfo taggertyp
 		if !originFromClient.Empty() {
 			if err := t.AccumulateTagsFor(originFromClient, cardinality, tb); err != nil {
 				t.tlmUDPOriginDetectionError.Inc()
-				t.log.Tracef("Cannot get tags for entity %s: %s", originFromClient, err)
+				if pkglog.ShouldLog(pkglog.TraceLvl) {
+					t.log.Tracef("Cannot get tags for entity %s: %s", originFromClient, err)
+				}
 			}
 		}
 	default:
@@ -447,40 +452,60 @@ func (t *localTagger) EnrichTags(tb tagset.TagsAccumulator, originInfo taggertyp
 			return
 		}
 
+		var containerIDsFrom = make(map[string]string)
+
 		// Tag using Local Data
 		if originInfo.ContainerIDFromSocket != packets.NoOrigin && len(originInfo.ContainerIDFromSocket) > containerIDFromSocketCutIndex {
 			containerID := originInfo.ContainerIDFromSocket[containerIDFromSocketCutIndex:]
+			containerIDsFrom["ContainerIDFromSocket"] = containerID
 			originFromClient := types.NewEntityID(types.ContainerID, containerID)
 			if err := t.AccumulateTagsFor(originFromClient, cardinality, tb); err != nil {
 				t.log.Errorf("%s", err.Error())
 			}
 		}
 
-		if err := t.AccumulateTagsFor(types.NewEntityID(types.ContainerID, originInfo.LocalData.ContainerID), cardinality, tb); err != nil {
+		if originInfo.LocalData.ContainerID != "" {
+			containerIDsFrom["ContainerIDFromLocalData"] = originInfo.LocalData.ContainerID
+		}
+		if err := t.AccumulateTagsFor(types.NewEntityID(types.ContainerID, originInfo.LocalData.ContainerID), cardinality, tb); err != nil && pkglog.ShouldLog(pkglog.TraceLvl) {
 			t.log.Tracef("Cannot get tags for entity %s: %s", originInfo.LocalData.ContainerID, err)
 		}
 
-		if err := t.AccumulateTagsFor(types.NewEntityID(types.KubernetesPodUID, originInfo.LocalData.PodUID), cardinality, tb); err != nil {
+		if err := t.AccumulateTagsFor(types.NewEntityID(types.KubernetesPodUID, originInfo.LocalData.PodUID), cardinality, tb); err != nil && pkglog.ShouldLog(pkglog.TraceLvl) {
 			t.log.Tracef("Cannot get tags for entity %s: %s", originInfo.LocalData.PodUID, err)
 		}
 
 		// Accumulate tags for pod UID
 		if originInfo.ExternalData.PodUID != "" {
-			if err := t.AccumulateTagsFor(types.NewEntityID(types.KubernetesPodUID, originInfo.ExternalData.PodUID), cardinality, tb); err != nil {
+			if err := t.AccumulateTagsFor(types.NewEntityID(types.KubernetesPodUID, originInfo.ExternalData.PodUID), cardinality, tb); err != nil && pkglog.ShouldLog(pkglog.TraceLvl) {
 				t.log.Tracef("Cannot get tags for entity %s: %s", originInfo.ExternalData.PodUID, err)
 			}
 		}
 
 		// Generate container ID from External Data
 		generatedContainerID, err := t.generateContainerIDFromExternalData(originInfo.ExternalData, metrics.GetProvider(option.New(t.workloadStore)).GetMetaCollector())
-		if err != nil {
+		if err != nil && pkglog.ShouldLog(pkglog.TraceLvl) {
 			t.log.Tracef("Failed to generate container ID from %v: %s", originInfo.ExternalData, err)
 		}
-
-		// Accumulate tags for generated container ID
 		if generatedContainerID != "" {
-			if err := t.AccumulateTagsFor(types.NewEntityID(types.ContainerID, generatedContainerID), cardinality, tb); err != nil {
-				t.log.Tracef("Cannot get tags for entity %s: %s", generatedContainerID, err)
+			containerIDsFrom["ContainerIDFromExternalData"] = generatedContainerID
+		}
+
+		containerIDs := slices.Collect(maps.Values(containerIDsFrom))
+		// Check for container ID mismatch
+		// Do not use external data if there is a mismatch between the different resolutions
+		if len(containerIDs) > 1 &&
+			slices.ContainsFunc(containerIDs[1:], func(id string) bool { return id != containerIDs[0] }) {
+			t.telemetryStore.OriginInfoContainerIDMismatch.Inc()
+			t.log.Warnf("Container ID mismatch detected: %v", containerIDsFrom)
+		} else {
+			// Accumulate tags for generated container ID
+			// TODO (CONTP): investigate refactoring tag enrichment to return
+			// once higher priority containerID successfully resolves and adds tags
+			if generatedContainerID != "" {
+				if err := t.AccumulateTagsFor(types.NewEntityID(types.ContainerID, generatedContainerID), cardinality, tb); err != nil && pkglog.ShouldLog(pkglog.TraceLvl) {
+					t.log.Tracef("Cannot get tags for entity %s: %s", generatedContainerID, err)
+				}
 			}
 		}
 	}
@@ -510,7 +535,7 @@ func taggerCardinality(cardinality string,
 	}
 
 	taggerCardinality, err := types.StringToTagCardinality(cardinality)
-	if err != nil {
+	if err != nil && pkglog.ShouldLog(pkglog.TraceLvl) {
 		l.Tracef("Couldn't convert cardinality tag: %v", err)
 		return defaultCardinality
 	}

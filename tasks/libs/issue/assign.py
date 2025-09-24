@@ -92,7 +92,7 @@ def simple_match(word):
         "agent-configuration": ['inventory', 'gohai'],
         "fleet": ['fleet', 'fleet-automation'],
         "opentelemetry": ['otel', 'opentelemetry'],
-        "windows-agent": ['windows', 'sys32', 'powershell'],
+        "windows-products": ['windows', 'sys32', 'powershell'],
         "networks": ['tcp', 'udp', 'socket', 'network'],
         "serverless": ['serverless'],
         "integrations": ['integration', 'python', 'checks'],

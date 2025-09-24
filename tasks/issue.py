@@ -8,7 +8,12 @@ from tasks.libs.ciproviders.github_api import GithubAPI, ask_review_actor
 from tasks.libs.issue.assign import assign_with_model, assign_with_rules
 from tasks.libs.issue.model.actions import fetch_data_and_train_model
 from tasks.libs.owners.parsing import search_owners
-from tasks.libs.pipeline.notifications import GITHUB_SLACK_MAP, GITHUB_SLACK_REVIEW_MAP, HELP_SLACK_CHANNEL
+from tasks.libs.pipeline.notifications import (
+    DEFAULT_SLACK_CHANNEL,
+    GITHUB_SLACK_MAP,
+    GITHUB_SLACK_REVIEW_MAP,
+    HELP_SLACK_CHANNEL,
+)
 
 
 @task
@@ -55,6 +60,7 @@ def ask_reviews(_, pr_id):
     if any(label.name == 'ask-review' for label in pr.get_labels()):
         actor = ask_review_actor(pr)
         reviewers = [f"@datadog/{team.slug}" for team in pr.requested_teams]
+        print(f"Reviewers: {reviewers}")
 
         from slack_sdk import WebClient
 
@@ -64,19 +70,21 @@ def ask_reviews(_, pr_id):
         for reviewer in reviewers:
             channel = next(
                 (chan for team, chan in GITHUB_SLACK_REVIEW_MAP.items() if team.casefold() == reviewer.casefold()),
-                HELP_SLACK_CHANNEL,
+                DEFAULT_SLACK_CHANNEL,
             )
             stop_updating = ""
-            if pr.user.login == "renovate[bot]" and pr.title.startswith("chore(deps): update integrations-core"):
+            if (pr.user.login == "renovate[bot]" or pr.user.login == "mend[bot]") and pr.title.startswith(
+                "chore(deps): update integrations-core"
+            ):
                 stop_updating = "Add the `stop-updating` label before trying to merge this PR, to prevent it from being updated by Renovate.\n"
             message = f'Hello :{random.choice(waves)}:!\n*{actor}* is asking review for PR <{pr.html_url}/s|{pr.title}>.\nCould you please have a look?\n{stop_updating}Thanks in advance!\n'
-            if channel == HELP_SLACK_CHANNEL:
+            if channel == DEFAULT_SLACK_CHANNEL:
                 message = f'Hello :{random.choice(waves)}:!\nA review channel is missing for {reviewer}, can you please ask them to update `github_slack_review_map.yaml` and transfer them this review <{pr.html_url}/s|{pr.title}>?\n Thanks in advance!'
             try:
                 client.chat_postMessage(channel=channel, text=message)
             except Exception as e:
                 message = f"An error occurred while sending a review message from {actor} for PR <{pr.html_url}/s|{pr.title}> to channel {channel}. Error: {e}"
-                client.chat_postMessage(channel='#agent-devx-ops', text=message)
+                client.chat_postMessage(channel=DEFAULT_SLACK_CHANNEL, text=message)
 
 
 @task

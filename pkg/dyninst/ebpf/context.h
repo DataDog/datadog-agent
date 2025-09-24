@@ -5,6 +5,7 @@
 #include "types.h"
 #include "queue.h"
 #include "scratch.h"
+#include "chased_pointers_trie.h"
 
 typedef uint32_t type_t;
 
@@ -33,13 +34,6 @@ typedef struct pointers_queue_item {
 
 DEFINE_QUEUE(pointers, pointers_queue_item_t, 128);
 
-#define MAX_CHASED_POINTERS 128
-typedef struct chased_pointers {
-  uint32_t n;
-  target_ptr_t ptrs[MAX_CHASED_POINTERS];
-  type_t types[MAX_CHASED_POINTERS];
-} chased_pointers_t;
-
 #define ENQUEUE_STACK_DEPTH 32
 typedef struct stack_machine {
   // Initialized on every entry point.
@@ -55,11 +49,14 @@ typedef struct stack_machine {
   uint32_t data_stack_pointer;
 
   pointers_queue_t pointers_queue;
-  chased_pointers_t chased;
+  chased_pointers_trie_t chased;
   // Remaining pointer chasing limit, given currently processed data item.
   // Maybe 0, in which case data might still be processed (i.e. interface type rewrite),
   // but no further pointers will be chased.
   uint32_t pointer_chasing_ttl;
+
+  uint32_t collection_size_limit;
+  uint32_t string_size_limit;
 
   // Offset of currently visited context object, or zero.
   buf_offset_t go_context_offset;
@@ -90,7 +87,7 @@ struct {
   __type(value, stack_machine_t);
 } stack_machine_buf SEC(".maps");
 
-static stack_machine_t* stack_machine_ctx_load(uint32_t pointer_chasing_limit) {
+static stack_machine_t* stack_machine_ctx_load(const probe_params_t* probe_params) {
   const unsigned long zero = 0;
   stack_machine_t* stack_machine =
       (stack_machine_t*)bpf_map_lookup_elem(&stack_machine_buf, &zero);
@@ -99,8 +96,11 @@ static stack_machine_t* stack_machine_ctx_load(uint32_t pointer_chasing_limit) {
   }
   stack_machine->pc_stack_pointer = 0;
   stack_machine->data_stack_pointer = 0;
-  stack_machine->chased.n = 0;
-  stack_machine->pointer_chasing_ttl = pointer_chasing_limit;
+  chased_pointers_trie_init(&stack_machine->chased);
+  stack_machine->pointer_chasing_ttl = probe_params->pointer_chasing_limit;
+  stack_machine->collection_size_limit = probe_params->collection_size_limit;
+  stack_machine->string_size_limit = probe_params->string_size_limit;
+  stack_machine->pointers_queue.len = 0;
   return stack_machine;
 }
 

@@ -14,20 +14,20 @@ import (
 )
 
 // LegacyEndpointsMetricsProgram creates a program for filtering endpoints metrics
-func LegacyEndpointsMetricsProgram(config config.Component, logger log.Component) program.CELProgram {
+func LegacyEndpointsMetricsProgram(config config.Component, logger log.Component) program.FilterProgram {
 	programName := "LegacyEndpointsMetricsProgram"
 	var initErrors []error
 
 	includeProgram, includeErr := createProgramFromOldFilters(config.GetStringSlice("container_include_metrics"), workloadfilter.EndpointType)
 	if includeErr != nil {
 		initErrors = append(initErrors, includeErr)
-		logger.Warnf("Error creating include program for %s: %v", programName, includeErr)
+		logger.Warnf("error creating include program for %s: %v", programName, includeErr)
 	}
 
 	excludeProgram, excludeErr := createProgramFromOldFilters(config.GetStringSlice("container_exclude_metrics"), workloadfilter.EndpointType)
 	if excludeErr != nil {
 		initErrors = append(initErrors, excludeErr)
-		logger.Warnf("Error creating exclude program for %s: %v", programName, excludeErr)
+		logger.Warnf("error creating exclude program for %s: %v", programName, excludeErr)
 	}
 
 	return program.CELProgram{
@@ -39,7 +39,7 @@ func LegacyEndpointsMetricsProgram(config config.Component, logger log.Component
 }
 
 // LegacyEndpointsGlobalProgram creates a program for filtering endpoints globally
-func LegacyEndpointsGlobalProgram(config config.Component, logger log.Component) program.CELProgram {
+func LegacyEndpointsGlobalProgram(config config.Component, logger log.Component) program.FilterProgram {
 	programName := "LegacyEndpointsGlobalProgram"
 	var initErrors []error
 
@@ -57,62 +57,18 @@ func LegacyEndpointsGlobalProgram(config config.Component, logger log.Component)
 	includeProgram, includeErr := createProgramFromOldFilters(includeList, workloadfilter.EndpointType)
 	if includeErr != nil {
 		initErrors = append(initErrors, includeErr)
-		logger.Warnf("Error creating include program for %s: %v", programName, includeErr)
+		logger.Warnf("error creating include program for %s: %v", programName, includeErr)
 	}
 
 	excludeProgram, excludeErr := createProgramFromOldFilters(excludeList, workloadfilter.EndpointType)
 	if excludeErr != nil {
 		initErrors = append(initErrors, excludeErr)
-		logger.Warnf("Error creating exclude program for %s: %v", programName, excludeErr)
+		logger.Warnf("error creating exclude program for %s: %v", programName, excludeErr)
 	}
 
 	return program.CELProgram{
 		Name:                 programName,
 		Include:              includeProgram,
-		Exclude:              excludeProgram,
-		InitializationErrors: initErrors,
-	}
-}
-
-// EndpointsADAnnotationsProgram creates a program for filtering endpoints based on AD annotations
-func EndpointsADAnnotationsProgram(_ config.Component, logger log.Component) program.CELProgram {
-	programName := "EndpointsADAnnotationsProgram"
-
-	var initErrors []error
-	// Use 'in' operator to safely check if annotation exists before accessing it
-	excludeFilter := `(("ad.datadoghq.com/exclude") in endpoint.annotations && 
-		 endpoint.annotations["ad.datadoghq.com/exclude"] in ["1", "t", "T", "true", "TRUE", "True"])`
-
-	excludeProgram, err := createCELProgram(excludeFilter, workloadfilter.EndpointType)
-	if err != nil {
-		initErrors = append(initErrors, err)
-		logger.Warnf("Error creating CEL filtering program for %s: %v", programName, err)
-	}
-
-	return program.CELProgram{
-		Name:                 programName,
-		Exclude:              excludeProgram,
-		InitializationErrors: initErrors,
-	}
-}
-
-// EndpointsADAnnotationsMetricsProgram creates a program for filtering endpoints metrics based on AD annotations
-func EndpointsADAnnotationsMetricsProgram(_ config.Component, logger log.Component) program.CELProgram {
-	programName := "EndpointsADAnnotationsMetricsProgram"
-
-	var initErrors []error
-	// Use 'in' operator to safely check if annotation exists before accessing it
-	excludeFilter := `(("ad.datadoghq.com/metrics_exclude") in endpoint.annotations && 
-		 endpoint.annotations["ad.datadoghq.com/metrics_exclude"] in ["1", "t", "T", "true", "TRUE", "True"])`
-
-	excludeProgram, err := createCELProgram(excludeFilter, workloadfilter.EndpointType)
-	if err != nil {
-		initErrors = append(initErrors, err)
-		logger.Warnf("Error creating CEL filtering program for %s: %v", programName, err)
-	}
-
-	return program.CELProgram{
-		Name:                 programName,
 		Exclude:              excludeProgram,
 		InitializationErrors: initErrors,
 	}

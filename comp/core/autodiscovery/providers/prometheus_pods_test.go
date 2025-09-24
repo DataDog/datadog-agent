@@ -34,7 +34,7 @@ func TestStream(t *testing.T) {
 	testContainerName := "container-name"
 
 	wmeta := newMockWorkloadMeta(t)
-	providerInterface, err := NewPrometheusPodsConfigProvider(nil, wmeta, nil)
+	providerInterface, err := NewPrometheusPodsConfigProvider(nil, wmeta, nil, nil)
 	require.NoError(t, err)
 
 	provider, ok := providerInterface.(*PrometheusPodsConfigProvider)
@@ -140,7 +140,7 @@ func TestStream_NoAnnotations(t *testing.T) {
 	testContainerName := "container-name"
 
 	wmeta := newMockWorkloadMeta(t)
-	providerInterface, err := NewPrometheusPodsConfigProvider(nil, wmeta, nil)
+	providerInterface, err := NewPrometheusPodsConfigProvider(nil, wmeta, nil, nil)
 	require.NoError(t, err)
 
 	provider, ok := providerInterface.(*PrometheusPodsConfigProvider)
@@ -383,7 +383,7 @@ func TestGetConfigErrors(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			wmeta := newMockWorkloadMeta(t)
-			providerInterface, err := NewPrometheusPodsConfigProvider(nil, wmeta, nil)
+			providerInterface, err := NewPrometheusPodsConfigProvider(nil, wmeta, nil, nil)
 			require.NoError(t, err)
 
 			provider, ok := providerInterface.(*PrometheusPodsConfigProvider)
@@ -412,7 +412,7 @@ func newMockWorkloadMeta(t *testing.T) workloadmetamock.Mock {
 		t,
 		fx.Options(
 			fx.Provide(func() log.Component { return logmock.New(t) }),
-			config.MockModule(),
+			fx.Provide(func() config.Component { return config.NewMock(t) }),
 			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		),
 	)

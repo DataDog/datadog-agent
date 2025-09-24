@@ -12,7 +12,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/fx"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -22,7 +21,6 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 const (
@@ -31,20 +29,11 @@ const (
 	barSource       = "bar"
 )
 
-type testDependencies struct {
-	fx.In
-	Config config.Component
-}
-
 func newWorkloadmetaObject(t *testing.T) *workloadmeta {
-	testDeps := fxutil.Test[testDependencies](t, fx.Options(
-		config.MockModule(),
-	))
-
 	deps := Dependencies{
 		Lc:     compdef.NewTestLifecycle(t),
 		Log:    logmock.New(t),
-		Config: testDeps.Config,
+		Config: config.NewMock(t),
 		Params: wmdef.NewParams(),
 	}
 
@@ -1193,6 +1182,108 @@ func TestGetKubernetesPodByName(t *testing.T) {
 			assert.Equal(t, test.want.pod, pod)
 			if test.want.err != nil {
 				assert.Error(t, err, test.want.err.Error())
+			}
+		})
+	}
+}
+
+func TestListKubernetesPods(t *testing.T) {
+	pod1 := &wmdef.KubernetesPod{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindKubernetesPod,
+			ID:   "123",
+		},
+	}
+	pod2 := &wmdef.KubernetesPod{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindKubernetesPod,
+			ID:   "456",
+		},
+	}
+
+	tests := []struct {
+		name      string
+		preEvents []wmdef.CollectorEvent
+		expected  []*wmdef.KubernetesPod
+	}{
+		{
+			name: "some pods stored",
+			preEvents: []wmdef.CollectorEvent{
+				{
+					Type:   wmdef.EventTypeSet,
+					Source: fooSource,
+					Entity: pod1,
+				},
+				{
+					Type:   wmdef.EventTypeSet,
+					Source: fooSource,
+					Entity: pod2,
+				},
+			},
+			expected: []*wmdef.KubernetesPod{pod1, pod2},
+		},
+		{
+			name:      "no pods stored",
+			preEvents: nil,
+			expected:  []*wmdef.KubernetesPod{},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			wmeta := newWorkloadmetaObject(t)
+			wmeta.handleEvents(test.preEvents)
+
+			assert.ElementsMatch(t, test.expected, wmeta.ListKubernetesPods())
+		})
+	}
+}
+
+func TestGetKubeletMetrics(t *testing.T) {
+	testKubeletMetrics := &wmdef.KubeletMetrics{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindKubeletMetrics,
+			ID:   "kubelet-metrics",
+		},
+		ExpiredPodCount: 10,
+	}
+
+	tests := []struct {
+		name       string
+		preEvents  []wmdef.CollectorEvent
+		expected   *wmdef.KubeletMetrics
+		expectsErr bool
+	}{
+		{
+			name: "kubelet metrics stored",
+			preEvents: []wmdef.CollectorEvent{
+				{
+					Type:   wmdef.EventTypeSet,
+					Source: fooSource,
+					Entity: testKubeletMetrics,
+				},
+			},
+			expected:   testKubeletMetrics,
+			expectsErr: false,
+		},
+		{
+			name:       "no kubelet metrics stored",
+			preEvents:  nil,
+			expectsErr: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			wmeta := newWorkloadmetaObject(t)
+			wmeta.handleEvents(test.preEvents)
+
+			kubeletMetrics, err := wmeta.GetKubeletMetrics()
+			if test.expectsErr {
+				assert.Error(t, err, errors.NewNotFound(string(wmdef.KindKubeletMetrics)).Error())
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, test.expected, kubeletMetrics)
 			}
 		})
 	}

@@ -80,7 +80,7 @@ struct syscall_cache_t {
             u64 rlim_max;
             u32 pid;
             struct process_context_t target_process;
-            struct container_context_t target_container;
+            struct cgroup_context_t target_cgroup;
         } setrlimit;
 
         struct {
@@ -143,6 +143,7 @@ struct syscall_cache_t {
             struct args_envs_parsing_context_t args_envs_ctx;
             struct span_context_t span_context;
             struct linux_binprm_t linux_binprm;
+            u32 is_through_symlink;
         } exec;
 
         struct {
@@ -269,6 +270,12 @@ struct syscall_cache_t {
             u32 truncated;
             struct sock_fprog *fprog;
         } setsockopt;
+        struct {
+            int option;
+            int name_size_to_send;
+            u32 name_truncated;
+            char name[MAX_PRCTL_NAME_LEN];
+        } prctl;
     };
 };
 

@@ -16,7 +16,7 @@ import (
 )
 
 // CloudRunJobsOrigin origin tag value
-const CloudRunJobsOrigin = "cloudrun"
+const CloudRunJobsOrigin = "cloudrunjobs"
 
 const (
 	cloudRunJobNameEnvVar     = "CLOUD_RUN_JOB"
@@ -45,6 +45,7 @@ type CloudRunJobs struct {
 // GetTags returns a map of gcp-related tags for Cloud Run Jobs.
 func (c *CloudRunJobs) GetTags() map[string]string {
 	tags := metadataHelperFunc(GetDefaultConfig(), false)
+	tags["origin"] = CloudRunJobsOrigin
 	tags["_dd.origin"] = CloudRunJobsOrigin
 
 	jobNameVal := os.Getenv(cloudRunJobNameEnvVar)
@@ -55,6 +56,7 @@ func (c *CloudRunJobs) GetTags() map[string]string {
 
 	if jobNameVal != "" {
 		tags[cloudRunJobNamespace+jobNameTag] = jobNameVal
+		tags[jobNameTag] = jobNameVal
 	}
 
 	if executionNameVal != "" {
@@ -75,6 +77,12 @@ func (c *CloudRunJobs) GetTags() map[string]string {
 
 	tags[cloudRunJobNamespace+resourceNameTag] = fmt.Sprintf("projects/%s/locations/%s/jobs/%s", tags["project_id"], tags["location"], jobNameVal)
 	return tags
+}
+
+// GetDefaultLogsSource returns the default logs source if `DD_SOURCE` is not set
+func (c *CloudRunJobs) GetDefaultLogsSource() string {
+	// Use the default log pipeline for Cloud Run.
+	return CloudRunOrigin
 }
 
 // GetOrigin returns the `origin` attribute type for the given cloud service.
@@ -108,6 +116,11 @@ func (c *CloudRunJobs) GetStartMetricName() string {
 // GetShutdownMetricName returns the metric name for container shutdown events
 func (c *CloudRunJobs) GetShutdownMetricName() string {
 	return fmt.Sprintf("%s.enhanced.task.ended", cloudRunJobsPrefix)
+}
+
+// ShouldForceFlushAllOnForceFlushToSerializer is true for cloud run jobs.
+func (c *CloudRunJobs) ShouldForceFlushAllOnForceFlushToSerializer() bool {
+	return true
 }
 
 func isCloudRunJob() bool {

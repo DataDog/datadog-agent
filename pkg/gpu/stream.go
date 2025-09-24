@@ -11,37 +11,35 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/gpu/cuda"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
 	lru "github.com/DataDog/datadog-agent/pkg/security/utils/lru/simplelru"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
 // noSmVersion is used when the SM version is not available
 const noSmVersion uint32 = 0
 
-// streamLimits contains configurable limits for a stream
-type streamLimits struct {
-	maxKernelLaunches int
-	maxAllocEvents    int
-}
-
 // StreamHandler is responsible for receiving events from a single CUDA stream and generating
 // kernel spans and memory allocations from them.
 type StreamHandler struct {
-	metadata         streamMetadata
-	kernelLaunches   []enrichedKernelLaunch
-	memAllocEvents   *lru.LRU[uint64, gpuebpf.CudaMemEvent] // holds the memory allocations for the stream, will evict the oldest allocation if the cache is full
-	kernelSpans      []*kernelSpan
-	allocations      []*memoryAllocation
-	ended            bool // A marker to indicate that the stream has ended, and this handler should be flushed
-	sysCtx           *systemContext
-	limits           streamLimits
-	telemetry        *streamTelemetry // shared telemetry objects for stream-specific telemetry
-	lastEventKtimeNs uint64           // The kernel-time timestamp of the last event processed by this handler
+	metadata           streamMetadata
+	kernelLaunches     []*enrichedKernelLaunch
+	memAllocEvents     *lru.LRU[uint64, gpuebpf.CudaMemEvent] // holds the memory allocations for the stream, will evict the oldest allocation if the cache is full
+	pendingKernelSpans chan *kernelSpan                       // holds already finalized kernel spans that still need to be collected
+	pendingMemorySpans chan *memorySpan                       // holds already finalized memory allocations that still need to be collected
+	ended              bool                                   // A marker to indicate that the stream has ended, and this handler should be flushed
+	sysCtx             *systemContext
+	config             config.StreamConfig
+	telemetry          *streamTelemetry // shared telemetry objects for stream-specific telemetry
+	lastEventKtimeNs   uint64           // The kernel-time timestamp of the last event processed by this handler
 }
 
 // streamMetadata contains metadata about a CUDA stream
@@ -63,10 +61,20 @@ type streamMetadata struct {
 	smVersion uint32
 }
 
-// streamData contains kernel spans and allocations for a stream
-type streamData struct {
-	spans       []*kernelSpan
-	allocations []*memoryAllocation
+// streamSpans contains kernel spans and allocations for a stream
+type streamSpans struct {
+	kernels     []*kernelSpan
+	allocations []*memorySpan
+}
+
+// releaseSpans releases the spans back to the pool
+func (s *streamSpans) releaseSpans() {
+	for _, kernel := range s.kernels {
+		memPools.kernelSpanPool.Put(kernel)
+	}
+	for _, allocation := range s.allocations {
+		memPools.memorySpanPool.Put(allocation)
+	}
 }
 
 type memAllocType int
@@ -88,8 +96,8 @@ const (
 	memAllocTypeCount
 )
 
-// memoryAllocation represents a memory allocation event
-type memoryAllocation struct {
+// memorySpan represents a memory allocation event
+type memorySpan struct {
 	// Start is the kernel-time timestamp of the allocation event
 	startKtime uint64
 
@@ -136,6 +144,25 @@ type enrichedKernelLaunch struct {
 
 var errFatbinParsingDisabled = errors.New("fatbin parsing is disabled")
 
+// memoryPools is a struct that contains the pools for commonly allocated
+// objects, to avoid constant reallocation in high throughput pipelines.
+type memoryPools struct {
+	enrichedKernelLaunchPool ddsync.Pool[enrichedKernelLaunch]
+	kernelSpanPool           ddsync.Pool[kernelSpan]
+	memorySpanPool           ddsync.Pool[memorySpan]
+	initOnce                 sync.Once
+}
+
+var memPools memoryPools
+
+func (m *memoryPools) ensureInit(tm telemetry.Component) {
+	m.initOnce.Do(func() {
+		m.enrichedKernelLaunchPool = ddsync.NewDefaultTypedPoolWithTelemetry[enrichedKernelLaunch](tm, "gpu", "enrichedKernelLaunch")
+		m.kernelSpanPool = ddsync.NewDefaultTypedPoolWithTelemetry[kernelSpan](tm, "gpu", "kernelSpan")
+		m.memorySpanPool = ddsync.NewDefaultTypedPoolWithTelemetry[memorySpan](tm, "gpu", "memorySpan")
+	})
+}
+
 // getKernelData attempts to get the kernel data from the kernel cache.
 // If the kernel is not processed yet, it will return errKernelNotProcessedYet, retry later in that case.
 // If fatbin parsing is disabled, it will return errFatbinParsingDisabled.
@@ -154,19 +181,22 @@ func (e *enrichedKernelLaunch) getKernelData() (*cuda.CubinKernel, error) {
 	return e.kernel, e.err
 }
 
-func newStreamHandler(metadata streamMetadata, sysCtx *systemContext, limits streamLimits, telemetry *streamTelemetry) (*StreamHandler, error) {
+func newStreamHandler(metadata streamMetadata, sysCtx *systemContext, config config.StreamConfig, telemetry *streamTelemetry) (*StreamHandler, error) {
 	sh := &StreamHandler{
 		sysCtx:    sysCtx,
 		metadata:  metadata,
-		limits:    limits,
+		config:    config,
 		telemetry: telemetry,
 	}
 
 	var err error
-	sh.memAllocEvents, err = lru.NewLRU[uint64, gpuebpf.CudaMemEvent](limits.maxAllocEvents, nil)
+	sh.memAllocEvents, err = lru.NewLRU[uint64, gpuebpf.CudaMemEvent](config.MaxMemAllocEvents, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create memAllocEvents cache: %w", err)
 	}
+
+	sh.pendingKernelSpans = make(chan *kernelSpan, config.MaxPendingKernelSpans)
+	sh.pendingMemorySpans = make(chan *memorySpan, config.MaxPendingMemorySpans)
 
 	return sh, nil
 }
@@ -174,10 +204,11 @@ func newStreamHandler(metadata streamMetadata, sysCtx *systemContext, limits str
 func (sh *StreamHandler) handleKernelLaunch(event *gpuebpf.CudaKernelLaunch) {
 	sh.lastEventKtimeNs = event.Header.Ktime_ns
 
-	enrichedLaunch := &enrichedKernelLaunch{
-		CudaKernelLaunch: *event, // Copy events, as the memory can be overwritten in the ring buffer after the function returns
-		stream:           sh,
-	}
+	enrichedLaunch := memPools.enrichedKernelLaunchPool.Get()
+	enrichedLaunch.CudaKernelLaunch = *event // Copy events, as the memory can be overwritten in the ring buffer after the function returns
+	enrichedLaunch.stream = sh
+	enrichedLaunch.kernel = nil
+	enrichedLaunch.err = nil
 
 	// Trigger the background kernel data loading, we don't care about the result here
 	_, err := enrichedLaunch.getKernelData()
@@ -187,13 +218,26 @@ func (sh *StreamHandler) handleKernelLaunch(event *gpuebpf.CudaKernelLaunch) {
 		}
 	}
 
-	sh.kernelLaunches = append(sh.kernelLaunches, *enrichedLaunch)
+	sh.kernelLaunches = append(sh.kernelLaunches, enrichedLaunch)
 
 	// If we've reached the kernel launch limit, trigger a sync. This stops us from just collecting
 	// kernel launches and not generating any spans if for some reason we are missing sync events.
-	if len(sh.kernelLaunches) >= sh.limits.maxKernelLaunches {
+	if len(sh.kernelLaunches) >= sh.config.MaxKernelLaunches {
 		sh.markSynchronization(event.Header.Ktime_ns + 1) // sync "happens" after the launch, not the same time. If the time is the same, the last kernel launch is not included in the span
 		sh.telemetry.forcedSyncOnKernelLaunch.Inc()
+	}
+}
+
+// trySendToChannel attempts to send an item to a channel in a non-blocking way, if the channel is full
+// it will increment the rejectedSpans telemetry counter
+func trySendSpan[T any](sh *StreamHandler, ch chan *T, item *T, pool ddsync.Pool[T]) {
+	select {
+	case ch <- item:
+		return
+	default:
+		pool.Put(item)
+		sh.telemetry.rejectedSpans.Inc()
+		return
 	}
 }
 
@@ -218,15 +262,14 @@ func (sh *StreamHandler) handleMemEvent(event *gpuebpf.CudaMemEvent) {
 		return
 	}
 
-	data := memoryAllocation{
-		startKtime: alloc.Header.Ktime_ns,
-		endKtime:   event.Header.Ktime_ns,
-		size:       alloc.Size,
-		allocType:  globalMemAlloc,
-		isLeaked:   false,
-	}
+	data := memPools.memorySpanPool.Get()
+	data.startKtime = alloc.Header.Ktime_ns
+	data.endKtime = event.Header.Ktime_ns
+	data.size = alloc.Size
+	data.allocType = globalMemAlloc
+	data.isLeaked = false
 
-	sh.allocations = append(sh.allocations, &data)
+	trySendSpan(sh, sh.pendingMemorySpans, data, memPools.memorySpanPool)
 	sh.memAllocEvents.Remove(event.Addr)
 }
 
@@ -236,13 +279,17 @@ func (sh *StreamHandler) markSynchronization(ts uint64) {
 		return
 	}
 
-	sh.kernelSpans = append(sh.kernelSpans, span)
-	sh.allocations = append(sh.allocations, getAssociatedAllocations(span)...)
+	trySendSpan(sh, sh.pendingKernelSpans, span, memPools.kernelSpanPool)
+	for _, alloc := range getAssociatedAllocations(span) {
+		trySendSpan(sh, sh.pendingMemorySpans, alloc, memPools.memorySpanPool)
+	}
 
-	remainingLaunches := []enrichedKernelLaunch{}
+	remainingLaunches := []*enrichedKernelLaunch{}
 	for _, launch := range sh.kernelLaunches {
 		if launch.Header.Ktime_ns >= ts {
 			remainingLaunches = append(remainingLaunches, launch)
+		} else {
+			memPools.enrichedKernelLaunchPool.Put(launch)
 		}
 	}
 	sh.kernelLaunches = remainingLaunches
@@ -256,11 +303,19 @@ func (sh *StreamHandler) handleSync(event *gpuebpf.CudaSync) {
 }
 
 func (sh *StreamHandler) getCurrentKernelSpan(maxTime uint64) *kernelSpan {
-	span := kernelSpan{
-		startKtime:     math.MaxUint64,
-		endKtime:       maxTime,
-		numKernels:     0,
-		avgMemoryUsage: make(map[memAllocType]uint64),
+	span := memPools.kernelSpanPool.Get()
+	span.startKtime = math.MaxUint64
+	span.endKtime = maxTime
+	span.numKernels = 0
+	span.avgThreadCount = 0
+
+	// Reset the memory usage map
+	for allocType := range span.avgMemoryUsage {
+		span.avgMemoryUsage[allocType] = 0
+	}
+
+	if span.avgMemoryUsage == nil {
+		span.avgMemoryUsage = make(map[memAllocType]uint64)
 	}
 
 	for _, launch := range sh.kernelLaunches {
@@ -300,43 +355,63 @@ func (sh *StreamHandler) getCurrentKernelSpan(maxTime uint64) *kernelSpan {
 		span.avgMemoryUsage[allocType] /= uint64(span.numKernels)
 	}
 
-	return &span
+	return span
 }
 
-func getAssociatedAllocations(span *kernelSpan) []*memoryAllocation {
+func getAssociatedAllocations(span *kernelSpan) []*memorySpan {
 	if span == nil {
 		return nil
 	}
 
-	allocations := make([]*memoryAllocation, 0, len(span.avgMemoryUsage))
+	allocations := make([]*memorySpan, 0, len(span.avgMemoryUsage))
 	for allocType, size := range span.avgMemoryUsage {
-		allocations = append(allocations, &memoryAllocation{
-			startKtime: span.startKtime,
-			endKtime:   span.endKtime,
-			size:       size,
-			isLeaked:   false,
-			allocType:  allocType,
-		})
+		if size == 0 {
+			continue
+		}
+
+		alloc := memPools.memorySpanPool.Get()
+		alloc.startKtime = span.startKtime
+		alloc.endKtime = span.endKtime
+		alloc.size = size
+		alloc.isLeaked = false
+		alloc.allocType = allocType
+		allocations = append(allocations, alloc)
 	}
 
 	return allocations
 }
 
+func consumeChannel[T any](ch chan T, count int) []T {
+	items := make([]T, 0, count)
+
+	for len(items) < count {
+		select {
+		case item := <-ch:
+			items = append(items, item)
+		default:
+			// We shouldn't actually hit this, as we should stop consuming the
+			// channel when the count is reached and nothing else is consuming
+			// from the channel, but break just in case to avoid a deadlock
+			return items
+		}
+	}
+
+	return items
+}
+
 // getPastData returns all the events that have finished (kernel spans with synchronizations/allocations that have been freed)
-// If flush is true, the data will be cleared from the handler
-func (sh *StreamHandler) getPastData(flush bool) *streamData {
-	if len(sh.kernelSpans) == 0 && len(sh.allocations) == 0 {
+// The data will always be cleared from the handler as it consumes from channels
+func (sh *StreamHandler) getPastData() *streamSpans {
+	kernelCount := len(sh.pendingKernelSpans)
+	allocationCount := len(sh.pendingMemorySpans)
+
+	if kernelCount == 0 && allocationCount == 0 {
 		return nil
 	}
 
-	data := &streamData{
-		spans:       sh.kernelSpans,
-		allocations: sh.allocations,
-	}
-
-	if flush {
-		sh.kernelSpans = nil
-		sh.allocations = nil
+	data := &streamSpans{
+		kernels:     consumeChannel(sh.pendingKernelSpans, kernelCount),
+		allocations: consumeChannel(sh.pendingMemorySpans, allocationCount),
 	}
 
 	return data
@@ -344,26 +419,26 @@ func (sh *StreamHandler) getPastData(flush bool) *streamData {
 
 // getCurrentData returns the current state of the stream (kernels that are still running, and allocations that haven't been freed)
 // as this data needs to be treated differently from past/finished data.
-func (sh *StreamHandler) getCurrentData(now uint64) *streamData {
+func (sh *StreamHandler) getCurrentData(now uint64) *streamSpans {
 	if len(sh.kernelLaunches) == 0 && sh.memAllocEvents.Len() == 0 {
 		return nil
 	}
 
-	data := &streamData{}
+	data := &streamSpans{}
 	span := sh.getCurrentKernelSpan(now)
 	if span != nil {
-		data.spans = append(data.spans, span)
+		data.kernels = append(data.kernels, span)
 		data.allocations = append(data.allocations, getAssociatedAllocations(span)...)
 	}
 
 	for alloc := range sh.memAllocEvents.ValuesIter() {
-		data.allocations = append(data.allocations, &memoryAllocation{
-			startKtime: alloc.Header.Ktime_ns,
-			endKtime:   0,
-			size:       alloc.Size,
-			isLeaked:   false,
-			allocType:  globalMemAlloc,
-		})
+		span := memPools.memorySpanPool.Get()
+		span.startKtime = alloc.Header.Ktime_ns
+		span.endKtime = 0
+		span.size = alloc.Size
+		span.allocType = globalMemAlloc
+		span.isLeaked = false
+		data.allocations = append(data.allocations, span)
 	}
 
 	return data
@@ -382,14 +457,13 @@ func (sh *StreamHandler) markEnd() error {
 
 	// Close all allocations. Treat them as leaks, as they weren't freed properly
 	for alloc := range sh.memAllocEvents.ValuesIter() {
-		data := memoryAllocation{
-			startKtime: alloc.Header.Ktime_ns,
-			endKtime:   uint64(nowTs),
-			size:       alloc.Size,
-			isLeaked:   true,
-			allocType:  globalMemAlloc,
-		}
-		sh.allocations = append(sh.allocations, &data)
+		data := memPools.memorySpanPool.Get()
+		data.startKtime = alloc.Header.Ktime_ns
+		data.endKtime = uint64(nowTs)
+		data.size = alloc.Size
+		data.allocType = globalMemAlloc
+		data.isLeaked = true
+		trySendSpan(sh, sh.pendingMemorySpans, data, memPools.memorySpanPool)
 	}
 
 	sh.sysCtx.removeProcess(int(sh.metadata.pid))

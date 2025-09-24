@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
@@ -50,12 +51,11 @@ var (
 	}
 	packagesTestsWithSkippedFlavors = []packageTestsWithSkippedFlavors{
 		{t: testAgent},
+		{t: testDDOT, skippedInstallationMethods: []InstallMethodOption{InstallMethodAnsible}},
 		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9, e2eos.FedoraDefault, e2eos.AmazonLinux2}, skippedInstallationMethods: []InstallMethodOption{InstallMethodAnsible}},
-		{t: testUpgradeScenario, skippedInstallationMethods: []InstallMethodOption{InstallMethodAnsible}},
+		{t: testUpgradeScenario},
 	}
 )
-
-const latestPython2AnsibleVersion = "5.10.0"
 
 func shouldSkipFlavor(flavors []e2eos.Descriptor, flavor e2eos.Descriptor) bool {
 	for _, f := range flavors {
@@ -103,6 +103,9 @@ func TestPackages(t *testing.T) {
 			// TODO: remove once ansible+suse is fully supported
 			if flavor.Flavor == e2eos.Suse && method == InstallMethodAnsible {
 				continue
+			}
+			if flavor.Flavor == e2eos.Suse {
+				flake.Mark(t) // #incident-43183
 			}
 
 			suite := test.t(flavor, flavor.Architecture, method)
@@ -246,7 +249,7 @@ func (s *packageBaseSuite) RunInstallScript(params ...string) {
 			ansiblePrefix = s.installAnsible(s.os)
 			if (s.os.Flavor == e2eos.AmazonLinux && s.os.Version == e2eos.AmazonLinux2.Version) ||
 				(s.os.Flavor == e2eos.CentOS && s.os.Version == e2eos.CentOS7.Version) {
-				_, err = s.Env().RemoteHost.Execute(fmt.Sprintf("%sansible-galaxy collection install -vvv datadog.dd:==%s", ansiblePrefix, latestPython2AnsibleVersion))
+				s.T().Skip("Ansible doesn't install support Python2 anymore")
 			} else {
 				_, err = s.Env().RemoteHost.Execute(fmt.Sprintf("%sansible-galaxy collection install -vvv datadog.dd", ansiblePrefix))
 			}
@@ -288,7 +291,7 @@ func envForceVersion(pkg, version string) string {
 
 func (s *packageBaseSuite) Purge() {
 	// Reset the systemctl failed counter, best effort as they may not be loaded
-	for _, service := range []string{agentUnit, agentUnitXP, traceUnit, traceUnitXP, processUnit, processUnitXP, probeUnit, probeUnitXP, securityUnit, securityUnitXP} {
+	for _, service := range []string{agentUnit, agentUnitXP, traceUnit, traceUnitXP, processUnit, processUnitXP, probeUnit, probeUnitXP, securityUnit, securityUnitXP, ddotUnit, ddotUnitXP} {
 		s.Env().RemoteHost.Execute(fmt.Sprintf("sudo systemctl reset-failed %s", service))
 	}
 
@@ -371,6 +374,13 @@ func (s *packageBaseSuite) writeAnsiblePlaybook(env map[string]string, params ..
     datadog_site: "datadoghq.com"
 `
 
+	aptDefaultKeysOverrideTemplate := `
+    datadog_apt_default_keys:
+      # XXX key name must be kept in sync with "datadog_apt_key_current_name" in the role
+      - key: "DATADOG_APT_KEY_CURRENT"
+        value: https://%s/DATADOG_APT_KEY_CURRENT.public
+`
+
 	defaultRepoEnv := map[string]string{
 		// APT
 		"TESTING_APT_KEY":          "/usr/share/keyrings/datadog-archive-keyring.gpg",
@@ -413,6 +423,10 @@ func (s *packageBaseSuite) writeAnsiblePlaybook(env map[string]string, params ..
 		case "DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT":
 			playbookStringSuffix += fmt.Sprintf("    datadog_apm_inject_version: %s\n", value)
 			environments = append(environments, fmt.Sprintf("%s: \"%s\"", key, value))
+		case "TESTING_KEYS_URL":
+			playbookStringSuffix += fmt.Sprintf(aptDefaultKeysOverrideTemplate, value)
+			playbookStringSuffix += fmt.Sprintf("    datadog_yum_gpgkey_current: https://%s/DATADOG_RPM_KEY_CURRENT.public\n", value)
+			playbookStringSuffix += fmt.Sprintf("    datadog_zypper_gpgkey_current: https://%s/DATADOG_RPM_KEY_CURRENT.public\n", value)
 		default:
 			environments = append(environments, fmt.Sprintf("%s: \"%s\"", key, value))
 		}

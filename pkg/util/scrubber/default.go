@@ -131,7 +131,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 		[]string{"pass", "pwd"},
 		[]byte(`$1 "********"`),
 	)
-	yamlPasswordReplacer.LastUpdated = defaultVersion
+	yamlPasswordReplacer.LastUpdated = parseVersion("7.70.2")
 	passwordReplacer := Replacer{
 		// this regex has three parts:
 		// * key: case-insensitive, optionally quoted (pass | password | pswd | pwd), not anchored to match on args like --mysql_password= etc.
@@ -149,7 +149,23 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 		[]string{"token"},
 		[]byte(`$1 "********"`),
 	)
-	tokenReplacer.LastUpdated = defaultVersion
+	tokenReplacer.LastUpdated = parseVersion("7.70.2")
+
+	secretReplacer := matchYAMLKey(
+		`(token_secret|consumer_secret)`,
+		[]string{"token_secret", "consumer_secret"},
+		[]byte(`$1 "********"`),
+	)
+	secretReplacer.LastUpdated = parseVersion("7.70.0") // https://github.com/DataDog/datadog-agent/pull/40345
+
+	// OAuth credentials scrubbers for continuous_ai_netsuite and similar integrations
+	consumerKeyAndTokenIDReplacer := matchYAMLKey(
+		`(consumer_key|token_id)`,
+		[]string{"consumer_key", "token_id"},
+		[]byte(`$1 "********"`),
+	)
+	consumerKeyAndTokenIDReplacer.LastUpdated = parseVersion("7.70.0") // https://github.com/DataDog/datadog-agent/pull/40345
+
 	snmpReplacer := matchYAMLKey(
 		`(community_string|auth[Kk]ey|priv[Kk]ey|community|authentication_key|privacy_key|Authorization|authorization)`,
 		[]string{"community_string", "authKey", "authkey", "privKey", "privkey", "community", "authentication_key", "privacy_key", "Authorization", "authorization"},
@@ -178,7 +194,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	// The following replacers works on YAML object only
 
 	apiKeyYaml := matchYAMLOnly(
-		`api_key`,
+		`api[-_]?key`,
 		func(data interface{}) interface{} {
 			if apiKey, ok := data.(string); ok {
 				apiKey := strings.TrimSpace(apiKey)
@@ -195,7 +211,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	apiKeyYaml.LastUpdated = parseVersion("7.44.0") // https://github.com/DataDog/datadog-agent/pull/15707
 
 	appKeyYaml := matchYAMLOnly(
-		`ap(?:p|plication)_?key`,
+		`ap(?:p|plication)[-_]?key`,
 		func(data interface{}) interface{} {
 			if appKey, ok := data.(string); ok {
 				appKey := strings.TrimSpace(appKey)
@@ -211,10 +227,59 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	)
 	appKeyYaml.LastUpdated = parseVersion("7.44.0") // https://github.com/DataDog/datadog-agent/pull/15707
 
+	// HTTP header-style API keys with "key" suffix
+	httpHeaderKeyReplacer := matchYAMLKeyPrefixSuffix(
+		`x-`,
+		`key`,
+		[]string{"x-api-key", "x-dreamfactory-api-key", "x-functions-key", "x-lz-api-key", "x-octopus-apikey", "x-pm-partner-key", "x-rapidapi-key", "x-sungard-idp-api-key", "x-vtex-api-appkey", "x-seel-api-key", "x-goog-api-key", "x-sonar-passcode"},
+		[]byte(`$1 "********"`),
+	)
+	httpHeaderKeyReplacer.LastUpdated = parseVersion("7.70.2")
+
+	// HTTP header-style API keys with "token" suffix
+	httpHeaderTokenReplacer := matchYAMLKeyPrefixSuffix(
+		`x-`,
+		`token`,
+		[]string{"x-auth-token", "x-rundeck-auth-token", "x-consul-token", "x-datadog-monitor-token", "x-vault-token", "x-vtex-api-apptoken", "x-static-token"},
+		[]byte(`$1 "********"`),
+	)
+	httpHeaderTokenReplacer.LastUpdated = parseVersion("7.70.2")
+
+	// HTTP header-style API keys with "auth" suffix
+	httpHeaderAuthReplacer := matchYAMLKeyPrefixSuffix(
+		`x-`,
+		`auth`,
+		[]string{"x-auth", "x-stratum-auth"},
+		[]byte(`$1 "********"`),
+	)
+	httpHeaderAuthReplacer.LastUpdated = parseVersion("7.70.2")
+
+	// HTTP header-style API keys with "secret" suffix
+	httpHeaderSecretReplacer := matchYAMLKeyPrefixSuffix(
+		`x-`,
+		`secret`,
+		[]string{"x-api-secret", "x-ibm-client-secret", "x-chalk-client-secret"},
+		[]byte(`$1 "********"`),
+	)
+	httpHeaderSecretReplacer.LastUpdated = parseVersion("7.70.2")
+
+	// Exact key matches for specific API keys and auth tokens
+	exactKeyReplacer := matchYAMLKey(
+		`(auth-tenantid|authority|cainzapp-api-key|cms-svc-api-key|lodauth|sec-websocket-key|statuskey|cookie|private-token|kong-admin-token|accesstoken|session_token)`,
+		[]string{"auth-tenantid", "authority", "cainzapp-api-key", "cms-svc-api-key", "lodauth", "sec-websocket-key", "statuskey", "cookie", "private-token", "kong-admin-token", "accesstoken", "session_token"},
+		[]byte(`$1 "********"`),
+	)
+	exactKeyReplacer.LastUpdated = parseVersion("7.70.2")
+
 	scrubber.AddReplacer(SingleLine, hintedAPIKeyReplacer)
 	scrubber.AddReplacer(SingleLine, hintedAPPKeyReplacer)
 	scrubber.AddReplacer(SingleLine, hintedBearerReplacer)
 	scrubber.AddReplacer(SingleLine, hintedBearerInvalidReplacer)
+	scrubber.AddReplacer(SingleLine, httpHeaderKeyReplacer)
+	scrubber.AddReplacer(SingleLine, httpHeaderTokenReplacer)
+	scrubber.AddReplacer(SingleLine, httpHeaderAuthReplacer)
+	scrubber.AddReplacer(SingleLine, httpHeaderSecretReplacer)
+	scrubber.AddReplacer(SingleLine, exactKeyReplacer)
 	scrubber.AddReplacer(SingleLine, apiKeyReplacerYAML)
 	scrubber.AddReplacer(SingleLine, apiKeyReplacer)
 	scrubber.AddReplacer(SingleLine, appKeyReplacerYAML)
@@ -224,6 +289,8 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	scrubber.AddReplacer(SingleLine, yamlPasswordReplacer)
 	scrubber.AddReplacer(SingleLine, passwordReplacer)
 	scrubber.AddReplacer(SingleLine, tokenReplacer)
+	scrubber.AddReplacer(SingleLine, consumerKeyAndTokenIDReplacer)
+	scrubber.AddReplacer(SingleLine, secretReplacer)
 	scrubber.AddReplacer(SingleLine, snmpReplacer)
 
 	scrubber.AddReplacer(SingleLine, apiKeyYaml)
@@ -244,7 +311,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 
 func matchYAMLKeyPart(part string, hints []string, repl []byte) Replacer {
 	return Replacer{
-		Regex:        regexp.MustCompile(fmt.Sprintf(`(\s*(\w|_)*%s(\w|_)*\s*:).+`, part)),
+		Regex:        regexp.MustCompile(fmt.Sprintf(`(\s*(\w|_|-)*%s(\w|_|-)*\s*:).+`, part)),
 		YAMLKeyRegex: regexp.MustCompile(part),
 		Hints:        hints,
 		Repl:         repl,
@@ -262,8 +329,17 @@ func matchYAMLKey(key string, hints []string, repl []byte) Replacer {
 
 func matchYAMLKeyEnding(ending string, hints []string, repl []byte) Replacer {
 	return Replacer{
-		Regex:        regexp.MustCompile(fmt.Sprintf(`(^\s*(\w|_)*%s\s*:).+`, ending)),
+		Regex:        regexp.MustCompile(fmt.Sprintf(`(^\s*(\w|_|-)*%s\s*:).+`, ending)),
 		YAMLKeyRegex: regexp.MustCompile(fmt.Sprintf(`^.*%s$`, ending)),
+		Hints:        hints,
+		Repl:         repl,
+	}
+}
+
+func matchYAMLKeyPrefixSuffix(prefix, suffix string, hints []string, repl []byte) Replacer {
+	return Replacer{
+		Regex:        regexp.MustCompile(fmt.Sprintf(`(\s*%s(\w|_|-)*%s\s*:).+`, prefix, suffix)),
+		YAMLKeyRegex: regexp.MustCompile(fmt.Sprintf(`^%s.*%s$`, prefix, suffix)),
 		Hints:        hints,
 		Repl:         repl,
 	}

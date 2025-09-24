@@ -40,6 +40,45 @@ type Program struct {
 	MaxTypeID TypeID
 	// Issues is a list of probes that could not be created.
 	Issues []ProbeIssue
+	// GoModuledataInfo is used to resolve types from interfaces.
+	GoModuledataInfo GoModuledataInfo
+	// CommonTypes store references to common types.
+	CommonTypes CommonTypes
+}
+
+// GoModuledataInfo is information about the runtime-internal structure used to
+// translate type pointer addresses to Go runtime type IDs. This information is
+// used in the generated program to resolve type information for interface
+// values.
+type GoModuledataInfo struct {
+	// FirstModuledataAddr is the virtual memory address of the firstmoduledata
+	// variable.
+	//
+	// See https://github.com/golang/go/blob/5a56d884/src/runtime/symtab.go#L483
+	FirstModuledataAddr uint64
+	// TypesOffset is the offset in the runtime.moduledata type of
+	// the types field.
+	//
+	// See https://github.com/golang/go/blob/5a56d884/src/runtime/symtab.go#L414
+	TypesOffset uint32
+}
+
+// CommonTypes stores references to common types.
+type CommonTypes struct {
+	// G corresponds to runtime.g, non-nil
+	G *StructureType
+	// M corresponds to runtime.m, non-nil
+	M *StructureType
+}
+
+// InlinePCRanges represent the pc ranges for a single instance of an inlined subprogram.
+// Ranges correspond to the inlined instance itself. RootRanges correspond to the pc ranges
+// of a subprogram at the root of the tree formed by inlined subroutines. E.g. if this is a
+// subprogram A, that has been inlined into subprogram B, and subprogram B has been inlined
+// to a subprogram C, and C is not inlined, then these are pc ranges of C.
+type InlinePCRanges struct {
+	Ranges     []PCRange
+	RootRanges []PCRange
 }
 
 // Subprogram represents a function or method in the program.
@@ -51,11 +90,11 @@ type Subprogram struct {
 	// OutOfLinePCRanges are the ranges of PC values that will be probed for the
 	// out-of-line-instances of the subprogram. These are sorted by start PC.
 	// Some functions may be inlined only in certain callers, in which case
-	// both OutOfLinePCRanges and InlinePCRanges will be non-empty.
+	// both OutOfLinePCRanges and InlinedPCRanges will be non-empty.
 	OutOfLinePCRanges []PCRange
 	// InlinePCRanges are the ranges of PC values that will be probed for the
 	// inlined instances of the subprogram. These are sorted by start PC.
-	InlinePCRanges [][]PCRange
+	InlinePCRanges []InlinePCRanges
 	// Variables are the variables that are used in the subprogram.
 	Variables []*Variable
 }

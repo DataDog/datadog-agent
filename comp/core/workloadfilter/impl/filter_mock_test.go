@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/mock"
+	workloadmetafilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/workloadmeta"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -57,7 +58,7 @@ func TestNewMock_UsesMockConfig(t *testing.T) {
 	provides := NewMock(req)
 
 	// Does not exclude by default
-	container := workloadfilter.CreateContainer(
+	container := workloadmetafilter.CreateContainer(
 		&workloadmeta.Container{
 			EntityMeta: workloadmeta.EntityMeta{
 				Name: "included-container",
@@ -65,11 +66,12 @@ func TestNewMock_UsesMockConfig(t *testing.T) {
 		},
 		nil,
 	)
-	res := provides.Comp.IsContainerExcluded(container, [][]workloadfilter.ContainerFilter{{workloadfilter.LegacyContainerGlobal}})
+	filterBundle := provides.Comp.GetContainerFilters([][]workloadfilter.ContainerFilter{{workloadfilter.LegacyContainerGlobal}})
+	res := filterBundle.IsExcluded(container)
 	assert.Equal(t, false, res, "Container should be included based on mock config")
 
 	// Verify that the mock config is used
-	container = workloadfilter.CreateContainer(
+	container = workloadmetafilter.CreateContainer(
 		&workloadmeta.Container{
 			EntityMeta: workloadmeta.EntityMeta{
 				Name: "excluded-container",
@@ -77,6 +79,6 @@ func TestNewMock_UsesMockConfig(t *testing.T) {
 		},
 		nil,
 	)
-	res = provides.Comp.IsContainerExcluded(container, [][]workloadfilter.ContainerFilter{{workloadfilter.LegacyContainerGlobal}})
+	res = filterBundle.IsExcluded(container)
 	assert.Equal(t, true, res, "Container should be excluded based on mock config")
 }

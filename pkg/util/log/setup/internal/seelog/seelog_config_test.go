@@ -32,7 +32,6 @@ func TestSeelogConfig(t *testing.T) {
 		syslogRFC    bool
 
 		syslogURI string
-		usetTLS   bool
 
 		logfile  string
 		maxsize  uint
@@ -64,7 +63,6 @@ func TestSeelogConfig(t *testing.T) {
 			commonFormat:          "%CustomSyslogHeader(20,false) CORE | %LEVEL | (%ShortFilePath:%Line in %FuncShort) | %ExtraTextContext%Msg%n",
 			syslogRFC:             false,
 			syslogURI:             "udp://localhost:514",
-			usetTLS:               false,
 			consoleLoggingEnabled: true,
 		},
 		{
@@ -88,7 +86,6 @@ func TestSeelogConfig(t *testing.T) {
 			jsonFormat:            `{"agent":"CORE","time":"%Date(2006-01-02 15:04:05 MST)","level":"%LEVEL","file":"%ShortFilePath","line":"%Line","func":"%FuncShort","msg":%QuoteMsg%ExtraJSONContext}%n`,
 			syslogRFC:             true,
 			syslogURI:             "udp://localhost:514",
-			usetTLS:               true,
 			logfile:               "/var/log/datadog/agent.log",
 			maxsize:               100,
 			maxrolls:              10,
@@ -113,7 +110,6 @@ func TestSeelogConfig(t *testing.T) {
 			logfile:               `"'<a&b>'"`,
 			consoleLoggingEnabled: true,
 			syslogRFC:             true,
-			usetTLS:               true,
 			maxsize:               100,
 			maxrolls:              10,
 		},
@@ -122,7 +118,7 @@ func TestSeelogConfig(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.testName, func(t *testing.T) {
 			config := NewSeelogConfig(tc.loggerName, tc.logLevel, tc.format, tc.jsonFormat, tc.commonFormat, tc.syslogRFC)
-			config.ConfigureSyslog(tc.syslogURI, tc.usetTLS)
+			config.ConfigureSyslog(tc.syslogURI)
 			config.EnableFileLogging(tc.logfile, tc.maxsize, tc.maxrolls)
 			config.EnableConsoleLog(tc.consoleLoggingEnabled)
 

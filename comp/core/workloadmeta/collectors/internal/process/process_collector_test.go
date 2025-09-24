@@ -16,156 +16,42 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
-	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/benbjohnson/clock"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
+	"github.com/DataDog/datadog-agent/pkg/errors"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil/mocks"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers/mocks"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 type collectorTest struct {
 	collector             *collector
 	probe                 *mocks.Probe
-	mockConfig            config.Mock
 	mockSystemProbeConfig sysprobeconfig.Mock
 	mockClock             *clock.Mock
 	mockStore             workloadmetamock.Mock
 	mockContainerProvider *proccontainers.MockContainerProvider
 }
 
-func setUpCollectorTest(t *testing.T, configOverrides map[string]interface{}, sysProbeConfigOverrides map[string]interface{}, wlmConfigOverrides map[string]interface{}) collectorTest {
-	// mock workloadmeta store
-	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-		core.MockBundle(),
-		fx.Replace(config.MockParams{Overrides: wlmConfigOverrides}),
-		workloadmetafxmock.MockModule(workloadmeta.Params{
-			AgentType: workloadmeta.NodeAgent,
-		}),
-	))
-
-	// mock container provider for container data
-	mockCtrl := gomock.NewController(t)
-	mockContainerProvider := proccontainers.NewMockContainerProvider(mockCtrl)
-
-	mockClock := clock.NewMock()
-	mockProbe := mocks.NewProbe(t)
-
-	// mock config
-	mockConfig := fxutil.Test[config.Component](t, fx.Options(
-		config.MockModule(),
-		fx.Replace(config.MockParams{Overrides: configOverrides}),
-	))
-
-	// mock language detection system probe config
-	mockSystemProbeConfig := fxutil.Test[sysprobeconfig.Component](t, fx.Options(
-		sysprobeconfigimpl.MockModule(),
-		fx.Replace(config.MockParams{Overrides: sysProbeConfigOverrides}),
-	))
-	processCollector := newProcessCollector(collectorID, workloadmeta.NodeAgent, mockClock, mockProbe, mockConfig, mockSystemProbeConfig)
-	processCollector.sysProbeClient = &http.Client{}
-
-	return collectorTest{&processCollector, mockProbe, mockConfig, mockSystemProbeConfig, mockClock, mockStore, mockContainerProvider}
-}
-
-func createTestPythonProcess(pid int32, createTime int64) *procutil.Process {
-	proc := &procutil.Process{
-		Pid:     pid,
-		Ppid:    6,
-		NsPid:   2,
-		Name:    "some name",
-		Cwd:     "some_directory/path",
-		Exe:     "test",
-		Comm:    "",
-		Cmdline: []string{"python3", "--version"},
-		Uids:    []int32{1, 2, 3, 4},
-		Gids:    []int32{1, 2, 3, 4, 5},
-		Stats: &procutil.Stats{
-			CreateTime: createTime,
-		},
-	}
-	return proc
-}
-
-func createTestJavaProcess(pid int32, createTime int64) *procutil.Process {
-	proc := &procutil.Process{
-		Pid:     pid,
-		Ppid:    9,
-		NsPid:   3,
-		Name:    "some name 2",
-		Cwd:     "some_directory/path/path2",
-		Exe:     "exe",
-		Comm:    "hello",
-		Cmdline: []string{"java", "-c", "org.elasticsearch.bootstrap.Elasticsearch"},
-		Uids:    []int32{1},
-		Gids:    []int32{1, 2},
-		Stats: &procutil.Stats{
-			CreateTime: createTime,
-		},
-	}
-
-	return proc
-}
-
-func createTestUnknownProcess(pid int32, createTime int64) *procutil.Process {
-	proc := &procutil.Process{
-		Pid:     pid,
-		Ppid:    3,
-		NsPid:   8,
-		Name:    "some name 3",
-		Cwd:     "some_directory/path/path3",
-		Exe:     "",
-		Comm:    "?",
-		Cmdline: []string{"something_unknown", "-p", "8080"},
-		Uids:    []int32{50, 1},
-		Gids:    []int32{20, 30},
-		Stats: &procutil.Stats{
-			CreateTime: createTime,
-		},
-	}
-
-	return proc
-}
-
-func workloadmetaProcess(proc *procutil.Process, language *languagemodels.Language, owner *workloadmeta.EntityID) *workloadmeta.Process {
-	// setting ContainerID since it is existing behaviour, but will be eventually removed once we only use the Owner field
-	cid := ""
-	if owner != nil {
-		cid = owner.ID
-	}
-	wlmProc := &workloadmeta.Process{
-		EntityID: workloadmeta.EntityID{
-			Kind: workloadmeta.KindProcess,
-			ID:   strconv.Itoa(int(proc.Pid)),
-		},
-		Pid:          proc.Pid,
-		Ppid:         proc.Ppid,
-		NsPid:        proc.NsPid,
-		Name:         proc.Name,
-		Cwd:          proc.Cwd,
-		Exe:          proc.Exe,
-		Comm:         proc.Comm,
-		Cmdline:      proc.Cmdline,
-		Uids:         proc.Uids,
-		Gids:         proc.Gids,
-		CreationTime: time.UnixMilli(proc.Stats.CreateTime).UTC(),
-		Language:     language,
-		ContainerID:  cid,
-		Owner:        owner,
-	}
-	return wlmProc
+func (c collectorTest) cleanup() {
+	// when service discovery is enabled, we need to reset the global telemetry registry
+	// since the start function registers a new gauge every time that errors
+	telemetry.GetCompatComponent().Reset()
 }
 
 // TestBasicCreatedProcessesCollection tests the collector capturing new processes without language + container data
@@ -213,16 +99,19 @@ func TestBasicCreatedProcessesCollection(t *testing.T) {
 		},
 	} {
 		t.Run(tc.description, func(t *testing.T) {
-			c := setUpCollectorTest(t, nil, nil, nil)
+			cfg := config.NewMock(t)
+			cfg.SetWithoutSource("process_config.process_collection.enabled", true)
+			cfg.SetWithoutSource("process_config.process_collection.use_wlm", true)
+			cfg.SetWithoutSource("process_config.intervals.process", 10)
+
+			c := setUpCollectorTest(t, cfg, nil, nil)
+			defer c.cleanup()
 			ctx, cancel := context.WithCancel(context.TODO())
 			defer cancel()
 
-			// TODO: we should use Start() instead of 3 lines below when configuration is sorted as Start() is currently
-			// by default disabled
-			c.collector.containerProvider = c.mockContainerProvider
-			c.collector.store = c.mockStore
-			go c.collector.collectProcesses(ctx, c.collector.clock.Ticker(collectionInterval))
-			go c.collector.stream(ctx)
+			// start execution
+			err := c.collector.Start(ctx, c.mockStore)
+			assert.NoError(t, err)
 
 			c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(tc.processesToCollect, nil).Times(1)
 			c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(nil).Times(1)
@@ -244,10 +133,6 @@ func TestBasicCreatedProcessesCollection(t *testing.T) {
 // TestCreatedProcessesCollectionWithLanguages tests the collector capturing new processes with language data
 func TestCreatedProcessesCollectionWithLanguages(t *testing.T) {
 	collectionInterval := time.Second * 10
-	configEnableLanguageDetection := map[string]interface{}{
-		"language_detection.enabled": true,
-	}
-
 	creationTime1 := time.Now().Unix()
 	pid1 := int32(1234)
 	proc1 := createTestPythonProcess(pid1, creationTime1)
@@ -262,13 +147,11 @@ func TestCreatedProcessesCollectionWithLanguages(t *testing.T) {
 
 	for _, tc := range []struct {
 		description        string
-		configOverrides    map[string]interface{}
 		processesToCollect map[int32]*procutil.Process
 		expectedProcesses  map[int32]*workloadmeta.Process
 	}{
 		{
-			description:     "single new python process",
-			configOverrides: configEnableLanguageDetection,
+			description: "single new python process",
 			processesToCollect: map[int32]*procutil.Process{
 				proc1.Pid: proc1,
 			},
@@ -279,8 +162,7 @@ func TestCreatedProcessesCollectionWithLanguages(t *testing.T) {
 			},
 		},
 		{
-			description:     "multiple new processes",
-			configOverrides: configEnableLanguageDetection,
+			description: "multiple new processes",
 			processesToCollect: map[int32]*procutil.Process{
 				proc1.Pid: proc1,
 				proc2.Pid: proc2,
@@ -300,16 +182,20 @@ func TestCreatedProcessesCollectionWithLanguages(t *testing.T) {
 		},
 	} {
 		t.Run(tc.description, func(t *testing.T) {
-			c := setUpCollectorTest(t, tc.configOverrides, nil, nil)
+			cfg := config.NewMock(t)
+			cfg.SetWithoutSource("process_config.process_collection.enabled", true)
+			cfg.SetWithoutSource("process_config.process_collection.use_wlm", true)
+			cfg.SetWithoutSource("process_config.intervals.process", 10)
+			cfg.SetWithoutSource("language_detection.enabled", true)
+
+			c := setUpCollectorTest(t, cfg, nil, nil)
+			defer c.cleanup()
 			ctx, cancel := context.WithCancel(context.TODO())
 			defer cancel()
 
-			// TODO: we should use Start() instead of 3 lines below when configuration is sorted as Start() is currently
-			// by default disabled
-			c.collector.containerProvider = c.mockContainerProvider
-			c.collector.store = c.mockStore
-			go c.collector.collectProcesses(ctx, c.collector.clock.Ticker(collectionInterval))
-			go c.collector.stream(ctx)
+			// start execution
+			err := c.collector.Start(ctx, c.mockStore)
+			assert.NoError(t, err)
 
 			c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(tc.processesToCollect, nil).Times(1)
 			c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(nil).Times(1)
@@ -409,24 +295,25 @@ func TestCreatedProcessesCollectionWithContainers(t *testing.T) {
 		},
 	} {
 		t.Run(tc.description, func(t *testing.T) {
-			c := setUpCollectorTest(t, nil, nil, nil)
+			cfg := config.NewMock(t)
+			cfg.SetWithoutSource("process_config.process_collection.enabled", true)
+			cfg.SetWithoutSource("process_config.process_collection.use_wlm", true)
+			cfg.SetWithoutSource("process_config.intervals.process", 10)
+
+			c := setUpCollectorTest(t, cfg, nil, nil)
+			defer c.cleanup()
 			ctx, cancel := context.WithCancel(context.TODO())
 			defer cancel()
 
-			// TODO: we should use Start() instead of 3 lines below when configuration is sorted as Start() is currently
-			// by default disabled
-			c.collector.containerProvider = c.mockContainerProvider
-			c.collector.store = c.mockStore
-			go c.collector.collectProcesses(ctx, c.collector.clock.Ticker(collectionInterval))
-			go c.collector.stream(ctx)
+			// start execution
+			err := c.collector.Start(ctx, c.mockStore)
+			assert.NoError(t, err)
 
 			c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(tc.processesToCollect, nil).Times(1)
-
 			c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(tc.pidToCidToCollect).Times(1)
 
 			// update clock to trigger processing
 			c.mockClock.Add(collectionInterval)
-
 			assert.EventuallyWithT(t, func(cT *assert.CollectT) {
 				for pid, expectedProc := range tc.expectedProcesses {
 					actualProc, err := c.mockStore.GetProcess(pid)
@@ -441,9 +328,6 @@ func TestCreatedProcessesCollectionWithContainers(t *testing.T) {
 // TestCreatedProcessesCollection tests the collector capturing lifecycle of a process (creation, deletion) with all types of data
 func TestProcessLifecycleCollection(t *testing.T) {
 	collectionInterval := time.Second * 10
-	configEnableLanguageDetection := map[string]interface{}{
-		"language_detection.enabled": true,
-	}
 	creationTime1 := time.Now().Unix()
 	pid1 := int32(1234)
 	proc1 := createTestPythonProcess(pid1, creationTime1)
@@ -461,7 +345,6 @@ func TestProcessLifecycleCollection(t *testing.T) {
 
 	for _, tc := range []struct {
 		description              string
-		configOverrides          map[string]interface{}
 		processesToCollectA      map[int32]*procutil.Process
 		pidToCidToCollectA       map[int]string
 		processesToCollectB      map[int32]*procutil.Process
@@ -470,8 +353,7 @@ func TestProcessLifecycleCollection(t *testing.T) {
 		expectedLiveProcesses    []*workloadmeta.Process
 	}{
 		{
-			description:     "2 new processes and 1 finishes",
-			configOverrides: configEnableLanguageDetection,
+			description: "2 new processes and 1 finishes",
 			processesToCollectA: map[int32]*procutil.Process{
 				proc1.Pid: proc1,
 				proc2.Pid: proc2,
@@ -493,8 +375,7 @@ func TestProcessLifecycleCollection(t *testing.T) {
 			},
 		},
 		{
-			description:     "2 new processes and 2 finishes",
-			configOverrides: configEnableLanguageDetection,
+			description: "2 new processes and 2 finishes",
 			processesToCollectA: map[int32]*procutil.Process{
 				proc1.Pid: proc1,
 				proc2.Pid: proc2,
@@ -507,8 +388,7 @@ func TestProcessLifecycleCollection(t *testing.T) {
 			},
 		},
 		{
-			description:     "2 new processes, 2 finish, but 2 new processes with the same pid",
-			configOverrides: configEnableLanguageDetection,
+			description: "2 new processes, 2 finish, but 2 new processes with the same pid",
 			processesToCollectA: map[int32]*procutil.Process{
 				proc1.Pid: proc1,
 				proc2.Pid: proc2,
@@ -534,8 +414,7 @@ func TestProcessLifecycleCollection(t *testing.T) {
 			},
 		},
 		{
-			description:     "2 new processes with containers, 2 finish, but 2 new processes with the same pid diff container",
-			configOverrides: configEnableLanguageDetection,
+			description: "2 new processes with containers, 2 finish, but 2 new processes with the same pid diff container",
 			processesToCollectA: map[int32]*procutil.Process{
 				proc1.Pid: proc1,
 				proc2.Pid: proc2,
@@ -577,16 +456,20 @@ func TestProcessLifecycleCollection(t *testing.T) {
 		},
 	} {
 		t.Run(tc.description, func(t *testing.T) {
-			c := setUpCollectorTest(t, tc.configOverrides, nil, nil)
+			cfg := config.NewMock(t)
+			cfg.SetWithoutSource("process_config.process_collection.enabled", true)
+			cfg.SetWithoutSource("process_config.process_collection.use_wlm", true)
+			cfg.SetWithoutSource("process_config.intervals.process", 10)
+			cfg.SetWithoutSource("language_detection.enabled", true)
+
+			c := setUpCollectorTest(t, cfg, nil, nil)
+			defer c.cleanup()
 			ctx, cancel := context.WithCancel(context.TODO())
 			defer cancel()
 
-			// TODO: we should use Start() instead of 3 lines below when configuration is sorted as Start() is currently
-			// by default disabled
-			c.collector.containerProvider = c.mockContainerProvider
-			c.collector.store = c.mockStore
-			go c.collector.collectProcesses(ctx, c.collector.clock.Ticker(collectionInterval))
-			go c.collector.stream(ctx)
+			// start execution
+			err := c.collector.Start(ctx, c.mockStore)
+			assert.NoError(t, err)
 
 			c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(tc.processesToCollectA, nil).Times(1)
 			c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(tc.pidToCidToCollectA).Times(1)
@@ -624,4 +507,263 @@ func TestProcessLifecycleCollection(t *testing.T) {
 			}, time.Second, time.Millisecond*100)
 		})
 	}
+}
+
+func TestStartConfiguration(t *testing.T) {
+	for _, tc := range []struct {
+		description        string
+		configOverrides    map[string]interface{}
+		sysConfigOverrides map[string]interface{}
+		expectedError      error
+	}{
+		{
+			description: "everything enabled correctly",
+			configOverrides: map[string]interface{}{
+				"process_config.process_collection.enabled": true,
+				"process_config.process_collection.use_wlm": true,
+			},
+			sysConfigOverrides: map[string]interface{}{
+				"discovery.enabled": true,
+			},
+			expectedError: nil,
+		},
+		{
+			description: "only process collection enabled",
+			configOverrides: map[string]interface{}{
+				"process_config.process_collection.enabled": true,
+				"process_config.process_collection.use_wlm": true,
+			},
+			sysConfigOverrides: map[string]interface{}{
+				"discovery.enabled": false,
+			},
+			expectedError: nil,
+		},
+		{
+			description: "only service discovery enabled",
+			configOverrides: map[string]interface{}{
+				"process_config.process_collection.enabled": false,
+				"process_config.process_collection.use_wlm": true,
+			},
+			sysConfigOverrides: map[string]interface{}{
+				"discovery.enabled": true,
+			},
+			expectedError: nil,
+		},
+		{
+			description: "only service discovery enabled but use_wlm gate disabled",
+			configOverrides: map[string]interface{}{
+				"process_config.process_collection.enabled": false,
+				"process_config.process_collection.use_wlm": false,
+			},
+			sysConfigOverrides: map[string]interface{}{
+				"discovery.enabled": true,
+			},
+			expectedError: errors.NewDisabled(componentName, "wlm process collection disabled"),
+		},
+		{
+			description: "only process collection enabled but use_wlm gate disabled",
+			configOverrides: map[string]interface{}{
+				"process_config.process_collection.enabled": true,
+				"process_config.process_collection.use_wlm": false,
+			},
+			sysConfigOverrides: map[string]interface{}{
+				"discovery.enabled": false,
+			},
+			expectedError: errors.NewDisabled(componentName, "wlm process collection disabled"),
+		},
+
+		{
+			description: "everything enabled but use_wlm gate disabled",
+			configOverrides: map[string]interface{}{
+				"process_config.process_collection.enabled": true,
+				"process_config.process_collection.use_wlm": false,
+			},
+			sysConfigOverrides: map[string]interface{}{
+				"discovery.enabled": true,
+			},
+			expectedError: errors.NewDisabled(componentName, "wlm process collection disabled"),
+		},
+		{
+			description: "use_wlm gate_enabled but process collection and service discovery not enabled",
+			configOverrides: map[string]interface{}{
+				"process_config.process_collection.enabled": false,
+				"process_config.process_collection.use_wlm": true,
+			},
+			sysConfigOverrides: map[string]interface{}{
+				"discovery.enabled": false,
+			},
+			expectedError: errors.NewDisabled(componentName, "wlm process collection and service discovery are disabled"),
+		},
+	} {
+		t.Run(tc.description, func(t *testing.T) {
+			cfg := config.NewMock(t)
+			for k, v := range tc.configOverrides {
+				cfg.SetWithoutSource(k, v)
+			}
+
+			c := setUpCollectorTest(t, cfg, tc.sysConfigOverrides, nil)
+			defer c.cleanup()
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			err := c.collector.Start(ctx, c.mockStore)
+			assert.Equal(t, tc.expectedError, err)
+		})
+	}
+}
+
+func TestProcessCollectorIntervalConfig(t *testing.T) {
+	for _, tc := range []struct {
+		description      string
+		intervalProcess  int
+		expectedInterval time.Duration
+	}{
+		{
+			description:      "unconfigured defaults",
+			expectedInterval: 10 * time.Second,
+		},
+		{
+			description:      "shorter than default config",
+			intervalProcess:  5,
+			expectedInterval: 5 * time.Second,
+		},
+		{
+			description:      "longer than default config but shorter than service discovery interval",
+			intervalProcess:  30,
+			expectedInterval: 30 * time.Second,
+		},
+		{
+			description:      "longer than service discovery interval fallback to max interval",
+			intervalProcess:  61,
+			expectedInterval: 60 * time.Second,
+		},
+	} {
+		t.Run(tc.description, func(t *testing.T) {
+			cfg := config.NewMock(t)
+			if tc.intervalProcess != 0 {
+				cfg.SetWithoutSource("process_config.intervals.process", tc.intervalProcess)
+			}
+
+			c := setUpCollectorTest(t, cfg, nil, nil)
+			actualInterval := c.collector.processCollectionIntervalConfig()
+			assert.Equal(t, tc.expectedInterval, actualInterval)
+		})
+	}
+}
+
+func setUpCollectorTest(t *testing.T, cfg config.Component, sysProbeConfigOverrides map[string]interface{}, wlmConfigOverrides map[string]interface{}) collectorTest {
+	// mock workloadmeta store
+	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
+		fx.Provide(func(t testing.TB) config.Component { return config.NewMockWithOverrides(t, wlmConfigOverrides) }),
+		workloadmetafxmock.MockModule(workloadmeta.Params{
+			AgentType: workloadmeta.NodeAgent,
+		}),
+	))
+
+	// mock container provider for container data
+	mockCtrl := gomock.NewController(t)
+	mockContainerProvider := proccontainers.NewMockContainerProvider(mockCtrl)
+
+	mockClock := clock.NewMock()
+	mockProbe := mocks.NewProbe(t)
+
+	// mock language detection system probe config
+	mockSystemProbeConfig := fxutil.Test[sysprobeconfig.Component](t, fx.Options(
+		sysprobeconfigimpl.MockModule(),
+		fx.Replace(sysprobeconfigimpl.MockParams{Overrides: sysProbeConfigOverrides}),
+	))
+	processCollector := newProcessCollector(collectorID, workloadmeta.NodeAgent, mockClock, mockProbe, cfg, mockSystemProbeConfig)
+	processCollector.sysProbeClient = &http.Client{}
+	processCollector.containerProvider = mockContainerProvider
+
+	return collectorTest{&processCollector, mockProbe, mockSystemProbeConfig, mockClock, mockStore, mockContainerProvider}
+}
+
+func createTestPythonProcess(pid int32, createTime int64) *procutil.Process {
+	proc := &procutil.Process{
+		Pid:     pid,
+		Ppid:    6,
+		NsPid:   2,
+		Name:    "some name",
+		Cwd:     "some_directory/path",
+		Exe:     "test",
+		Comm:    "",
+		Cmdline: []string{"python3", "--version"},
+		Uids:    []int32{1, 2, 3, 4},
+		Gids:    []int32{1, 2, 3, 4, 5},
+		Stats: &procutil.Stats{
+			CreateTime: createTime,
+		},
+	}
+	return proc
+}
+
+func createTestJavaProcess(pid int32, createTime int64) *procutil.Process {
+	proc := &procutil.Process{
+		Pid:     pid,
+		Ppid:    9,
+		NsPid:   3,
+		Name:    "some name 2",
+		Cwd:     "some_directory/path/path2",
+		Exe:     "exe",
+		Comm:    "hello",
+		Cmdline: []string{"java", "-c", "org.elasticsearch.bootstrap.Elasticsearch"},
+		Uids:    []int32{1},
+		Gids:    []int32{1, 2},
+		Stats: &procutil.Stats{
+			CreateTime: createTime,
+		},
+	}
+
+	return proc
+}
+
+func createTestUnknownProcess(pid int32, createTime int64) *procutil.Process {
+	proc := &procutil.Process{
+		Pid:     pid,
+		Ppid:    3,
+		NsPid:   8,
+		Name:    "some name 3",
+		Cwd:     "some_directory/path/path3",
+		Exe:     "",
+		Comm:    "?",
+		Cmdline: []string{"something_unknown", "-p", "8080"},
+		Uids:    []int32{50, 1},
+		Gids:    []int32{20, 30},
+		Stats: &procutil.Stats{
+			CreateTime: createTime,
+		},
+	}
+
+	return proc
+}
+
+func workloadmetaProcess(proc *procutil.Process, language *languagemodels.Language, owner *workloadmeta.EntityID) *workloadmeta.Process {
+	// setting ContainerID since it is existing behaviour, but will be eventually removed once we only use the Owner field
+	cid := ""
+	if owner != nil {
+		cid = owner.ID
+	}
+	wlmProc := &workloadmeta.Process{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindProcess,
+			ID:   strconv.Itoa(int(proc.Pid)),
+		},
+		Pid:          proc.Pid,
+		Ppid:         proc.Ppid,
+		NsPid:        proc.NsPid,
+		Name:         proc.Name,
+		Cwd:          proc.Cwd,
+		Exe:          proc.Exe,
+		Comm:         proc.Comm,
+		Cmdline:      proc.Cmdline,
+		Uids:         proc.Uids,
+		Gids:         proc.Gids,
+		CreationTime: time.UnixMilli(proc.Stats.CreateTime).UTC(),
+		Language:     language,
+		ContainerID:  cid,
+		Owner:        owner,
+	}
+	return wlmProc
 }

@@ -53,6 +53,9 @@
         },
         "log": {
           "$ref": "#/$defs/LogDefinition"
+        },
+        "network_filter": {
+          "$ref": "#/$defs/NetworkFilterDefinition"
         }
       },
       "additionalProperties": false,
@@ -99,7 +102,11 @@
       "description": "CoreDumpDefinition describes the 'coredump' action"
     },
     "HashDefinition": {
-      "properties": {},
+      "properties": {
+        "field": {
+          "type": "string"
+        }
+      },
       "additionalProperties": false,
       "type": "object",
       "description": "HashDefinition describes the 'hash' section of a rule action"
@@ -208,6 +215,26 @@
         "id"
       ],
       "description": "MacroDefinition holds the definition of a macro"
+    },
+    "NetworkFilterDefinition": {
+      "properties": {
+        "filter": {
+          "type": "string"
+        },
+        "policy": {
+          "type": "string"
+        },
+        "scope": {
+          "type": "string",
+          "enum": [
+            "process",
+            "cgroup"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "NetworkFilterDefinition describes the 'network_filter' section of a rule action"
     },
     "OverrideOptions": {
       "properties": {
@@ -331,6 +358,12 @@
             "field"
           ],
           "title": "SetWithField"
+        },
+        {
+          "required": [
+            "expression"
+          ],
+          "title": "SetWithExpression"
         }
       ],
       "properties": {
@@ -422,6 +455,9 @@
   },
   "properties": {
     "version": {
+      "type": "string"
+    },
+    "replace_policy_id": {
       "type": "string"
     },
     "macros": {

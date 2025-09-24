@@ -10,7 +10,6 @@ package dyninst_test
 import (
 	"context"
 	"errors"
-	"io"
 	"net/http/httptest"
 	"net/url"
 	"runtime"
@@ -26,8 +25,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/decode"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/module"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcscrape"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symbol"
@@ -54,13 +55,15 @@ func TestDecoderErrorHandling(t *testing.T) {
 	require.NotEqual(t, -1, idx)
 	cfg := cfgs[idx]
 
-	sampleServicePath := testprogs.MustGetBinary(t, "rc_tester", cfg)
+	const binaryName = "rc_tester"
+
+	sampleServicePath := testprogs.MustGetBinary(t, binaryName, cfg)
 	_, sampleServicePID, serverPort, err := startSampleService(t, sampleServiceConfig{
 		binaryPath: sampleServicePath,
 		tmpDir:     tmpDir,
 	})
 	require.NoError(t, err)
-	probes := testprogs.MustGetProbeDefinitions(t, "rc_tester")
+	probes := testprogs.MustGetProbeDefinitions(t, binaryName)
 
 	loader, err := loader.NewLoader()
 	require.NoError(t, err)
@@ -71,14 +74,19 @@ func TestDecoderErrorHandling(t *testing.T) {
 	diagURL, err := url.Parse(backendServer.URL + "/diags")
 	require.NoError(t, err)
 
+	symdbURL, err := url.Parse("http://dummy-symdb-url")
+	require.NoError(t, err)
 	c := module.NewController(
 		actuator,
 		uploader.NewLogsUploaderFactory(uploader.WithURL(logsURL)),
 		uploader.NewDiagnosticsUploader(uploader.WithURL(diagURL)),
+		symdbURL,
+		object.NewInMemoryLoader(),
 		scraper,
 		&failOnceDecoderFactory{
 			underlying: module.DefaultDecoderFactory{},
 		},
+		irgen.NewGenerator(),
 	)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -177,8 +185,9 @@ type failOnceDecoderFactory struct {
 
 func (f *failOnceDecoderFactory) NewDecoder(
 	program *ir.Program,
+	executable procmon.Executable,
 ) (module.Decoder, error) {
-	decoder, err := f.underlying.NewDecoder(program)
+	decoder, err := f.underlying.NewDecoder(program, executable)
 	if err != nil {
 		return nil, err
 	}
@@ -196,11 +205,11 @@ type failOnceDecoder struct {
 }
 
 func (d *failOnceDecoder) Decode(
-	event decode.Event, symbolicator symbol.Symbolicator, out io.Writer,
-) (ir.ProbeDefinition, error) {
-	probe, err := d.underlying.Decode(event, symbolicator, out)
+	event decode.Event, symbolicator symbol.Symbolicator, out []byte,
+) ([]byte, ir.ProbeDefinition, error) {
+	out, probe, err := d.underlying.Decode(event, symbolicator, out)
 	if err == nil && d.failed.CompareAndSwap(false, true) {
 		err = errors.New("boom")
 	}
-	return probe, err
+	return out, probe, err
 }

@@ -19,6 +19,7 @@ import (
 	"k8s.io/kube-state-metrics/v2/pkg/allowdenylist"
 	"k8s.io/kube-state-metrics/v2/pkg/options"
 
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -698,11 +699,52 @@ func TestProcessMetrics(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:   "customresource info metric",
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper()},
+			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
+				"kube_customresource_metric_info": {
+					{
+						Type: "info",
+						Name: "kube_customresource_metric_info",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{
+									"namespace": "default",
+									"name":      "example1",
+									"attribute": "value",
+								},
+								Val: 1,
+							},
+						},
+					},
+				},
+			},
+			metricsToGet:       []ksmstore.DDMetricsFam{},
+			metricTransformers: defaultMetricTransformers(),
+			expected: []metricsExpected{
+				{
+					name: "kubernetes_state_customresource.metric_info",
+					val:  1,
+					tags: []string{
+						"kube_namespace:default",
+						"name:example1",
+						"attribute:value",
+					},
+					hostname: "",
+				},
+			},
+		},
 	}
 	for _, test := range tests {
-		kubeStateMetricsCheck := newKSMCheck(core.NewCheckBase(CheckName), test.config)
+		fakeTagger := taggerfxmock.SetupFakeTagger(t)
+		kubeStateMetricsCheck := newKSMCheck(core.NewCheckBase(CheckName), test.config, fakeTagger, nil)
 		mocked := mocksender.NewMockSender(kubeStateMetricsCheck.ID())
 		mocked.SetupAcceptAll()
+
+		if _, ok := test.metricsToProcess["kube_customresource_metric_info"]; ok {
+			kubeStateMetricsCheck.metricNamesMapper["kube_customresource_metric_info"] = "customresource.metric_info"
+		}
 
 		kubeStateMetricsCheck.metricTransformers = test.metricTransformers
 		kubeStateMetricsCheck.processLabelJoins()
@@ -896,7 +938,8 @@ func TestProcessTelemetry(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		kubeStateMetricsSCheck := newKSMCheck(core.NewCheckBase(CheckName), test.config)
+		fakeTagger := taggerfxmock.SetupFakeTagger(t)
+		kubeStateMetricsSCheck := newKSMCheck(core.NewCheckBase(CheckName), test.config, fakeTagger, nil)
 		kubeStateMetricsSCheck.processTelemetry(test.metrics)
 		t.Run(test.name, func(t *testing.T) {
 			assert.Equal(t, test.expected.getTotal(), kubeStateMetricsSCheck.telemetry.getTotal())
@@ -954,7 +997,8 @@ func TestSendTelemetry(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		kubeStateMetricsSCheck := newKSMCheck(core.NewCheckBase(CheckName), test.config)
+		fakeTagger := taggerfxmock.SetupFakeTagger(t)
+		kubeStateMetricsSCheck := newKSMCheck(core.NewCheckBase(CheckName), test.config, fakeTagger, nil)
 		mocked := mocksender.NewMockSender(kubeStateMetricsSCheck.ID())
 		mocked.SetupAcceptAll()
 
@@ -1265,7 +1309,8 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			kubeStateMetricsSCheck := newKSMCheck(core.NewCheckBase(CheckName), tt.config)
+			fakeTagger := taggerfxmock.SetupFakeTagger(t)
+			kubeStateMetricsSCheck := newKSMCheck(core.NewCheckBase(CheckName), tt.config, fakeTagger, nil)
 			kubeStateMetricsSCheck.clusterNameRFC1123 = tt.args.clusterName
 			labelJoiner := newLabelJoiner(tt.config.labelJoins)
 			for _, metricFam := range tt.args.metricsToGet {
@@ -1436,50 +1481,74 @@ func TestKSMCheck_mergeLabelsOrAnnotationAsTags(t *testing.T) {
 		conf                    map[string]map[string]string
 		extra                   map[string]map[string]string
 		shouldTransformResource bool
+		isNodeAgent             bool
 		expected                map[string]map[string]string
 	}{
 		{
-			name:     "nominal",
-			conf:     make(map[string]map[string]string),
-			extra:    defaultAnnotationsAsTags(),
-			expected: defaultAnnotationsAsTags(),
+			name:        "nominal",
+			conf:        make(map[string]map[string]string),
+			extra:       defaultAnnotationsAsTags(),
+			isNodeAgent: false,
+			expected:    defaultAnnotationsAsTags(),
 		},
 		{
-			name:     "nil conf",
-			conf:     nil,
-			extra:    defaultAnnotationsAsTags(),
-			expected: defaultAnnotationsAsTags(),
+			name:        "nil conf",
+			conf:        nil,
+			extra:       defaultAnnotationsAsTags(),
+			isNodeAgent: false,
+			expected:    defaultAnnotationsAsTags(),
 		},
 		{
-			name:     "collision",
-			conf:     map[string]map[string]string{"pod": {"common_key": "in_val"}},
-			extra:    map[string]map[string]string{"pod": {"common_key": "extra_val", "foo": "bar"}},
-			expected: map[string]map[string]string{"pod": {"common_key": "in_val", "foo": "bar"}},
+			name:        "collision",
+			conf:        map[string]map[string]string{"pod": {"common_key": "in_val"}},
+			extra:       map[string]map[string]string{"pod": {"common_key": "extra_val", "foo": "bar"}},
+			isNodeAgent: false,
+			expected:    map[string]map[string]string{"pod": {"common_key": "in_val", "foo": "bar"}},
 		},
 		{
-			name:     "no collision",
-			conf:     map[string]map[string]string{"pod": {"common_key": "in_val"}},
-			extra:    map[string]map[string]string{"deployment": {"common_key": "extra_val", "foo": "bar"}},
-			expected: map[string]map[string]string{"pod": {"common_key": "in_val"}, "deployment": {"common_key": "extra_val", "foo": "bar"}},
+			name:        "no collision",
+			conf:        map[string]map[string]string{"pod": {"common_key": "in_val"}},
+			extra:       map[string]map[string]string{"deployment": {"common_key": "extra_val", "foo": "bar"}},
+			isNodeAgent: false,
+			expected:    map[string]map[string]string{"pod": {"common_key": "in_val"}, "deployment": {"common_key": "extra_val", "foo": "bar"}},
 		},
 		{
-			name:     "nil extra",
-			conf:     map[string]map[string]string{"pod": {"common_key": "in_val"}},
-			extra:    nil,
-			expected: map[string]map[string]string{"pod": {"common_key": "in_val"}},
+			name:        "nil extra",
+			conf:        map[string]map[string]string{"pod": {"common_key": "in_val"}},
+			extra:       nil,
+			isNodeAgent: false,
+			expected:    map[string]map[string]string{"pod": {"common_key": "in_val"}},
 		},
 		{
-			name:     "conf nil values",
-			conf:     map[string]map[string]string{"job": nil, "deployment": nil, "statefulset": nil, "daemonset": nil},
-			extra:    defaultAnnotationsAsTags(),
-			expected: defaultAnnotationsAsTags(),
+			name:        "conf nil values",
+			conf:        map[string]map[string]string{"job": nil, "deployment": nil, "statefulset": nil, "daemonset": nil},
+			extra:       defaultAnnotationsAsTags(),
+			isNodeAgent: false,
+			expected:    defaultAnnotationsAsTags(),
 		},
 		{
 			name:                    "resource annotations as tags",
 			conf:                    map[string]map[string]string{"pod": {"common_key": "in_val"}, "deployment": {"foo": "bar"}},
 			extra:                   map[string]map[string]string{"endpoints": {"foo": "bar"}, "daemonsets.apps": {"fizz": "buzz"}, "pods": {"common_key": "some_val", "another_key": "another_value"}, "deployments.apps": {"foo": "another_bar", "fizz": "buzz"}},
 			shouldTransformResource: true,
+			isNodeAgent:             false,
 			expected:                map[string]map[string]string{"pod": {"common_key": "in_val", "another_key": "another_value"}, "endpoint": {"foo": "bar"}, "daemonset": {"fizz": "buzz"}, "deployment": {"foo": "bar", "fizz": "buzz"}},
+		},
+		{
+			name:                    "node agent skips resource transformation",
+			conf:                    map[string]map[string]string{"pod": {"common_key": "in_val"}},
+			extra:                   map[string]map[string]string{"endpoints": {"foo": "bar"}, "daemonsets.apps": {"fizz": "buzz"}, "pods": {"another_key": "another_value"}},
+			shouldTransformResource: true,
+			isNodeAgent:             true,
+			expected:                map[string]map[string]string{"pod": {"common_key": "in_val"}, "endpoints": {"foo": "bar"}, "daemonsets.apps": {"fizz": "buzz"}, "pods": {"another_key": "another_value"}},
+		},
+		{
+			name:                    "node agent with shouldTransformResource false",
+			conf:                    map[string]map[string]string{"pod": {"common_key": "in_val"}},
+			extra:                   map[string]map[string]string{"endpoints": {"foo": "bar"}, "daemonsets.apps": {"fizz": "buzz"}},
+			shouldTransformResource: false,
+			isNodeAgent:             true,
+			expected:                map[string]map[string]string{"pod": {"common_key": "in_val"}, "endpoints": {"foo": "bar"}, "daemonsets.apps": {"fizz": "buzz"}},
 		},
 	}
 
@@ -1507,7 +1576,7 @@ func TestKSMCheck_mergeLabelsOrAnnotationAsTags(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			annotationsAsTags := mergeLabelsOrAnnotationAsTags(tt.extra, tt.conf, tt.shouldTransformResource)
+			annotationsAsTags := mergeLabelsOrAnnotationAsTags(tt.extra, tt.conf, tt.shouldTransformResource, tt.isNodeAgent)
 			assert.Truef(t, reflect.DeepEqual(tt.expected, annotationsAsTags), "expected %v, found %v", tt.expected, annotationsAsTags)
 		})
 	}
@@ -1533,7 +1602,8 @@ var metadataMetrics = []string{
 }
 
 func TestMetadataMetricsRegex(t *testing.T) {
-	check := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{})
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	check := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{}, fakeTagger, nil)
 	for _, m := range metadataMetrics {
 		assert.True(t, check.metadataMetricsRegex.MatchString(m))
 	}

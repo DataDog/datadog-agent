@@ -1774,6 +1774,41 @@ func TestRuleAgentConstraint(t *testing.T) {
 	}
 }
 
+func TestActionHashField(t *testing.T) {
+	entries := []struct {
+		name        string
+		expr        string
+		field       string
+		errExpected bool
+	}{
+		{"valid", `open.file.path == "/tmp/test"`, "open.file", false},
+		{"wrong field", `open.file.path == "/tmp/test"`, "open.file.path", true},
+		{"incompatible field", `open.file.path == "/tmp/test"`, "chmod.file", true},
+		{"wrong and incompatible", `open.file.path == "/tmp/test"`, "chmod.file.path", true},
+		{"common field", `open.file.path == "/tmp/test"`, "process.file", false},
+	}
+
+	for _, entry := range entries {
+		t.Run(entry.name, func(t *testing.T) {
+			testPolicy := &PolicyDef{
+				Rules: []*RuleDefinition{{
+					ID:         "test_rule",
+					Expression: entry.expr,
+					Actions: []*ActionDefinition{{
+						Hash: &HashDefinition{
+							Field: entry.field,
+						},
+					}},
+				}},
+			}
+
+			if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); (err != nil) != entry.errExpected {
+				t.Errorf("expected error: %v, got: %v", entry.errExpected, err)
+			}
+		})
+	}
+}
+
 func TestActionSetVariableInvalid(t *testing.T) {
 	t.Run("both-field-and-value", func(t *testing.T) {
 		testPolicy := &PolicyDef{
@@ -2088,7 +2123,7 @@ func TestLoadPolicy(t *testing.T) {
 			},
 			want: nil,
 			wantErr: func(t assert.TestingT, err error, _ ...interface{}) bool {
-				return assert.EqualError(t, err, ErrPolicyLoad{Name: "myLocal.policy", Source: PolicyProviderTypeRC, Err: fmt.Errorf(`EOF`)}.Error())
+				return assert.Error(t, err, &ErrPolicyLoad{Name: "myLocal.policy", Source: PolicyProviderTypeRC, Err: fmt.Errorf(`EOF`)})
 			},
 		},
 		{
@@ -2104,7 +2139,7 @@ func TestLoadPolicy(t *testing.T) {
 			},
 			want: nil,
 			wantErr: func(t assert.TestingT, err error, _ ...interface{}) bool {
-				return assert.EqualError(t, err, ErrPolicyLoad{Name: "myLocal.policy", Source: PolicyProviderTypeRC, Err: fmt.Errorf(`EOF`)}.Error())
+				return assert.Error(t, err, &ErrPolicyLoad{Name: "myLocal.policy", Source: PolicyProviderTypeRC, Err: fmt.Errorf(`EOF`)})
 			},
 		},
 		{
@@ -2144,7 +2179,7 @@ broken
 			},
 			want: nil,
 			wantErr: func(t assert.TestingT, err error, _ ...interface{}) bool {
-				return assert.ErrorContains(t, err, ErrPolicyLoad{Name: "myLocal.policy", Source: PolicyProviderTypeRC, Err: fmt.Errorf(`yaml: unmarshal error`)}.Error())
+				return assert.ErrorContains(t, err, (&ErrPolicyLoad{Name: "myLocal.policy", Source: PolicyProviderTypeRC, Err: fmt.Errorf(`yaml: unmarshal error`)}).Error())
 			},
 		},
 		{

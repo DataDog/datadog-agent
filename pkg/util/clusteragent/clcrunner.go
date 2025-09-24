@@ -6,7 +6,6 @@
 package clusteragent
 
 import (
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -15,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
+	pkgapiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -68,14 +68,19 @@ func (c *CLCRunnerClient) init() {
 	c.clcRunnerAPIRequestHeaders = http.Header{}
 	c.clcRunnerAPIRequestHeaders.Set(authorizationHeaderKey, fmt.Sprintf("Bearer %s", authToken))
 
+	// Set TLS config
+	crossNodeClientTLSConfig, err := pkgapiutil.GetCrossNodeClientTLSConfig()
+	if err != nil {
+		c.initErr = fmt.Errorf("failed to get cross-node client TLS config: %w", err)
+		return
+	}
+
 	// Set http client
 	c.clcRunnerAPIClient = &http.Client{
 		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
-			},
+			TLSClientConfig: crossNodeClientTLSConfig,
 		},
-	} // TODO IPC: get certificates right then remove this option
+	}
 	c.clcRunnerAPIClient.Timeout = 2 * time.Second
 
 	// Set http port used by the CLC Runners
