@@ -4,7 +4,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.testMapMassive",
+      "method": "main.testSingleUint32",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -16,19 +16,19 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.testMapMassive",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/maps.go",
-            "lineNumber": 54
+            "function": "main.testSingleUint32",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/basics.go",
+            "lineNumber": 55
           },
           {
-            "function": "main.executeMapFuncs",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/maps.go",
-            "lineNumber": 158
+            "function": "main.executeBasicFuncs",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/basics.go",
+            "lineNumber": 84
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 47
+            "lineNumber": 27
           },
           {
             "function": "runtime.main",
@@ -42,19 +42,17 @@
           }
         ],
         "probe": {
-          "id": "testMapMassive",
+          "id": "testSingleUint32",
           "location": {
-            "method": "main.testMapMassive"
+            "method": "main.testSingleUint32"
           }
         },
         "captures": {
           "entry": {
             "arguments": {
-              "redactMyEntries": {
-                "type": "map[string][]main.structWithMap",
-                "size": "150",
-                "entries": "[redacted-entries]",
-                "notCapturedReason": "pruned"
+              "x": {
+                "type": "uint32",
+                "value": "32"
               }
             }
           }
