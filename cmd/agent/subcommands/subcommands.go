@@ -8,6 +8,7 @@ package subcommands
 
 import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
+	cmdagenthealthrecommendation "github.com/DataDog/datadog-agent/cmd/agent/subcommands/agent-health-recommendation"
 	cmdanalyzelogs "github.com/DataDog/datadog-agent/cmd/agent/subcommands/analyzelogs"
 	cmdcheck "github.com/DataDog/datadog-agent/cmd/agent/subcommands/check"
 	cmdconfig "github.com/DataDog/datadog-agent/cmd/agent/subcommands/config"
@@ -45,6 +46,7 @@ import (
 // with the current build flags.
 func AgentSubcommands() []command.SubcommandFactory {
 	return []command.SubcommandFactory{
+		cmdagenthealthrecommendation.Commands,
 		cmdcheck.Commands,
 		cmdconfigcheck.Commands,
 		cmdconfig.Commands,
