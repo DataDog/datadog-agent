@@ -110,8 +110,7 @@ func (c *CloudRunJobs) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAg
 
 	shutdownMetricName := fmt.Sprintf("%s.enhanced.task.ended", cloudRunJobsPrefix)
 	exitCode := exitcode.From(runErr)
-	// TODO pass exit code as tag on metric
-	metric.Add(shutdownMetricName, 1.0, c.GetSource(), metricAgent)
+	metric.Add(shutdownMetricName, 1.0, c.GetSource(), metricAgent, fmt.Sprintf("exit_code:%d", exitCode))
 }
 
 // GetStartMetricName returns the metric name for container start events
