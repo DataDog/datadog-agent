@@ -352,6 +352,7 @@ func newMatchedRulesSerializer(r *model.MatchedRule) MatchedRuleSerializer {
 	return mrs
 }
 
+// nolint: deadcode, unusedf
 func newFailedDNSEventSerializer(d *model.FailedDNSEvent) *FailedDNSEventSerializer {
 	return &FailedDNSEventSerializer{
 		Payload: base64.StdEncoding.EncodeToString(d.Payload),

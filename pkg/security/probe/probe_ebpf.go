@@ -1186,9 +1186,9 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			}
 
 			seclog.Warnf("failed to decode the short DNS response: %s", err)
-			event.Error = model.ErrFailedDnsPacketDecoding
+			event.Error = model.ErrFailedDNSPacketDecoding
 			event.FailedDNS = model.FailedDNSEvent{
-				Payload: append([]byte(nil), data[offset:]...),
+				Payload: trimRightZeros(data[offset:]),
 			}
 		}
 	}
@@ -1542,9 +1542,9 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 				return
 			}
 			seclog.Warnf("failed to decode DNS request: %s", err)
-			event.Error = model.ErrFailedDnsPacketDecoding
+			event.Error = model.ErrFailedDNSPacketDecoding
 			event.FailedDNS = model.FailedDNSEvent{
-				Payload: append([]byte(nil), data[offset:]...),
+				Payload: trimRightZeros(data[offset:]),
 			}
 		}
 
@@ -1558,8 +1558,10 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 
 			if err := p.dnsLayer.DecodeFromBytes(data[offset:], gopacket.NilDecodeFeedback); err != nil {
 				seclog.Warnf("failed to decode the full DNS response: %s", err)
-				event.Error = model.ErrFailedDnsPacketDecoding
-				event.FailedDNS.Payload = append([]byte(nil), data[offset:]...)
+				event.Error = model.ErrFailedDNSPacketDecoding
+				event.FailedDNS = model.FailedDNSEvent{
+					Payload: trimRightZeros(data[offset:]),
+				}
 			} else {
 				p.addToDNSResolver(p.dnsLayer)
 				event.Type = uint32(model.DNSEventType) // remap to regular DNS event type
@@ -3374,4 +3376,12 @@ func (p *EBPFProbe) addToDNSResolver(dnsLayer *layers.DNS) {
 			}
 		}
 	}
+}
+
+func trimRightZeros(b []byte) []byte {
+	i := len(b) - 1
+	for i >= 0 && b[i] == 0 {
+		i--
+	}
+	return b[:i+1]
 }
