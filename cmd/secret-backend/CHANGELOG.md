@@ -1,8 +1,16 @@
 # CHANGELOG - datadog-secret-backend
 
+## 1.3.0 / 2025-09-23
+
+* Bump aws-sdk-go-v2, multiple packages (config, ssm, secretsmanager)
+* Update hashicorp/vault/api to 1.21.0
+* Bumped azure-sdk-for-go/sdk/azidentity to 1.12.0
+* Fixing the release job by not disabling the GC write-barrier
+* Enable k8s authentication with Hashicorp Vault
+
 ## 1.2.0 / 2025-09-04
 
-* Bump aws-sdk-go-v2, multiple packages (secretsmanager, config, ssm, secretsmanager, rts)
+* Bump aws-sdk-go-v2, multiple packages (config, ssm, secretsmanager, rts)
 * Bump Azure/go-autorest and azcore
 * Either get clientID from stdin, or env var, otherwise try default identity
 * Update Hashicorp Vault to 1.20.3
