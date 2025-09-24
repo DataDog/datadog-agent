@@ -14,7 +14,6 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
-	"github.com/DataDog/datadog-agent/pkg/status/jmx"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
