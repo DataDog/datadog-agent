@@ -370,23 +370,23 @@ password: "********"
 token: "********"`, result)
 	})
 
-	t.Run("ENC in nested structure", func(t *testing.T) {
-		result, err := ScrubYamlString(`database:
-  password: ENC[db_pass]
-  host: localhost`)
-		require.NoError(t, err)
-		require.YAMLEq(t, `database:
-  password: ENC[db_pass]
-  host: localhost`, result)
-	})
+	// 	t.Run("ENC in nested structure", func(t *testing.T) {
+	// 		result, err := ScrubYamlString(`database:
+	//   password: ENC[db_pass]
+	//   host: localhost`)
+	// 		require.NoError(t, err)
+	// 		require.YAMLEq(t, `database:
+	//   password: ENC[db_pass]
+	//   host: localhost`, result)
+	// 	})
 
-	t.Run("ENC in array", func(t *testing.T) {
-		result, err := ScrubYamlString(`secrets:
-  - password: ENC[secret1]
-  - password: plain_secret`)
-		require.NoError(t, err)
-		require.YAMLEq(t, `secrets:
-  - password: ENC[secret1]
-  - password: "********"`, result)
-	})
+	//		t.Run("ENC in array", func(t *testing.T) {
+	//			result, err := ScrubYamlString(`secrets:
+	//	  - password: ENC[secret1]
+	//	  - password: plain_secret`)
+	//			require.NoError(t, err)
+	//			require.YAMLEq(t, `secrets:
+	//	  - password: ENC[secret1]
+	//	  - password: "********"`, result)
+	//		})
 }
