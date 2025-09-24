@@ -12,6 +12,8 @@ import (
 	"fmt"
 	"testing"
 
+	publishermetadatacache "github.com/DataDog/datadog-agent/comp/publishermetadatacache/def"
+	publishermetadatacacheimpl "github.com/DataDog/datadog-agent/comp/publishermetadatacache/impl"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 
 	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
@@ -154,7 +156,7 @@ func BenchmarkTestGetEventHandles(b *testing.B) {
 	}
 }
 
-func formatEventMessage(api evtapi.API, event *evtapi.EventRecord) (string, error) {
+func formatEventMessage(api evtapi.API, cache publishermetadatacache.Component, event *evtapi.EventRecord) (string, error) {
 	// Create render context for the System values
 	c, err := api.EvtCreateRenderContext(nil, evtapi.EvtRenderContextSystem)
 	if err != nil {
@@ -176,11 +178,11 @@ func formatEventMessage(api evtapi.API, event *evtapi.EventRecord) (string, erro
 	}
 
 	// Format Message
-	pm, err := api.EvtOpenPublisherMetadata(provider, "")
+	pm, err := cache.Get(provider, event.EventRecordHandle)
+
 	if err != nil {
-		return "", fmt.Errorf("failed to open provider metadata: %w", err)
+		return "", fmt.Errorf("failed to get provider metadata from cache: %w", err)
 	}
-	defer evtapi.EvtClosePublisherMetadata(api, pm)
 
 	message, err := api.EvtFormatMessage(pm, event.EventRecordHandle, 0, nil, evtapi.EvtFormatMessageEvent)
 	if err != nil {
@@ -251,6 +253,8 @@ func BenchmarkTestFormatEventMessage(b *testing.B) {
 				err := ti.GenerateEvents(eventSource, v)
 				require.NoError(b, err)
 				b.ResetTimer()
+				cache := publishermetadatacacheimpl.NewTestCache(ti.API(), 50)
+
 				for i := 0; i < b.N; i++ {
 					sub, err := startSubscription(b, ti, channel,
 						WithStartAtOldestRecord(),
@@ -259,7 +263,7 @@ func BenchmarkTestFormatEventMessage(b *testing.B) {
 					events, err := getEventHandles(b, ti, sub, v)
 					require.NoError(b, err)
 					for _, event := range events {
-						_, err := formatEventMessage(ti.API(), event)
+						_, err := formatEventMessage(ti.API(), cache, event)
 						require.NoError(b, err)
 						evtapi.EvtCloseRecord(ti.API(), event.EventRecordHandle)
 					}

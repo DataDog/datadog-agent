@@ -138,3 +138,12 @@ func (c *publisherMetadataCache) stop() error {
 	}
 	return nil
 }
+
+// NewTestCache creates a new publishermetadatacache for testing purposes
+func NewTestCache(api evtapi.API, maxCacheSize int) *publisherMetadataCache {
+	return &publisherMetadataCache{
+		cache:        make(map[string]cacheItem),
+		evtapi:       api,
+		maxCacheSize: maxCacheSize,
+	}
+}
