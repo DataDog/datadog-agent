@@ -476,14 +476,12 @@ func (s *packageAgentSuite) TestNoWorldWritableFiles() {
 	defer s.Purge()
 
 	state := s.host.State()
-	for _, file := range state.FS {
-		if !strings.HasPrefix(file.Name, "/opt/datadog") {
-			s.T().Logf("file outside %v", file)
+	for path, file := range state.FS {
+		if !strings.HasPrefix(path, "/opt/datadog") {
 			continue
 		}
-		s.T().Logf("file %v", file)
 		if file.Perms&002 != 0 {
-			s.T().Fatalf("file %v is world writable", file)
+			s.T().Fatalf("file %v is world writable", path)
 		}
 	}
 }
