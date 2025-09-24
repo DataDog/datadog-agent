@@ -37,7 +37,7 @@ func NewJSONAggregator(tagCompleteJSON bool, maxContentSize int) *JSONAggregator
 // If the message is not a JSON message, it will be returned as is, and any buffered messages will be flushed (unmodified).
 func (r *JSONAggregator) Process(msg *message.Message) []*message.Message {
 	r.messageBuf = append(r.messageBuf, msg)
-	r.currentSize += len(msg.GetContent())
+	r.currentSize += msg.RawDataLen
 
 	// Flush if we've exceeded the max size
 	if r.currentSize > r.maxContentSize {
