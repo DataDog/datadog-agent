@@ -267,7 +267,8 @@ func (s *Launcher) scan() {
 				continue
 			}
 			// Only skip files with true invalid fingerprints (errors), but allow tailing with insufficient data
-			if fingerprint != nil && !fingerprint.IsValidFingerprint() && !fingerprint.IsInsufficientData() {
+			if fingerprint != nil && !fingerprint.IsValidFingerprint() && !fingerprint.IsInsufficientData() { // ? 
+				log.Debugf("Skipping file %s due to invalid fingerprint (error case)", file.Path)
 				if hasOldInfo {
 					s.oldInfoMap[scanKey] = oldInfo
 				}
@@ -361,7 +362,8 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 				continue
 			}
 			// Only skip files with true invalid fingerprints (errors), but allow tailing with insufficient data
-			if fingerprint != nil && !fingerprint.IsValidFingerprint() && !fingerprint.IsInsufficientData() {
+			if fingerprint != nil && (!fingerprint.IsValidFingerprint() || !fingerprint.IsInsufficientData()) { // ? demorgans law 
+				log.Debugf("Skipping file %s due to invalid fingerprint (error case)", file.Path)
 				continue
 			}
 			// Allow tailing with invalid fingerprints of type: insufficient data
