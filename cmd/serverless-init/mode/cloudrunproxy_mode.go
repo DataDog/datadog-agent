@@ -90,13 +90,13 @@ func RunCloudRunProxy(_ *serverlessLog.Config) error {
 		}
 	}()
 
-	// Handle shutdown signals
+	// Handle shutdown signals (sidecar functionality)
 	stopCh := make(chan struct{})
 	go func() {
 		signalCh := make(chan os.Signal, 1)
 		signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM)
-		<-signalCh
-		log.Info("Shutting down Cloud Run proxy server...")
+		signo := <-signalCh
+		log.Infof("Received signal '%s', shutting down Cloud Run proxy server...", signo)
 		stopCh <- struct{}{}
 	}()
 

@@ -23,9 +23,8 @@ type Conf struct {
 }
 
 const (
-	loggerNameInit          = "SERVERLESS_INIT"
-	loggerNameSidecar       = "SERVERLESS_SIDECAR"
-	loggerNameCloudRunProxy = "CLOUDRUN_PROXY"
+	loggerNameInit    = "SERVERLESS_INIT"
+	loggerNameSidecar = "SERVERLESS_SIDECAR"
 )
 
 // DetectMode detects the mode in which the serverless agent should run
@@ -46,9 +45,9 @@ func DetectMode() Conf {
 		envToSet["DD_APM_NON_LOCAL_TRAFFIC"] = "true"
 		envToSet["DD_DOGSTATSD_NON_LOCAL_TRAFFIC"] = "true"
 		return Conf{
-			LoggerName:     loggerNameCloudRunProxy,
-			Runner:         loggerNameSidecar,
-			TagVersionMode: "_dd.datadog_cloudrun_proxy_version",
+			LoggerName:     loggerNameSidecar,
+			Runner:         RunCloudRunProxy,
+			TagVersionMode: "_dd.datadog_sidecar_version",
 			EnvDefaults:    envToSet,
 		}
 	}
