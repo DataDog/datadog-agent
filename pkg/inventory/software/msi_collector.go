@@ -8,10 +8,11 @@
 package software
 
 import (
-	"errors"
 	"fmt"
+
 	"golang.org/x/sys/windows"
-	"runtime"
+
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
 // MSI property names from Windows Installer API
@@ -64,68 +65,36 @@ type mSICollector struct{}
 // The ARPSYSTEMCOMPONENT=1 flag only hides the product from Add/Remove Programs,
 // but does not prevent the creation of registry entries.
 func (mc *mSICollector) Collect() ([]*Entry, []*Warning, error) {
-	// When making multiple calls to MsiEnumProducts to enumerate all the products, each call should be made from the same thread.
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-
-	var index uint32
 	var warnings []*Warning
 	var entries []*Entry
-	for {
-		var productCodeBuf [39]uint16
-		var context uint32
-		var sidBuf [256]uint16
-		sidLen := uint32(len(sidBuf))
 
-		ret := msiEnumProductsEx(index, &productCodeBuf[0], &context, &sidBuf[0], &sidLen)
-
-		if errors.Is(ret, windows.ERROR_NO_MORE_ITEMS) {
-			break
-		}
-		if !errors.Is(ret, windows.ERROR_SUCCESS) {
-			return entries, warnings, fmt.Errorf("error enumerating products at index %d: %d", index, ret)
-		}
-
-		msiProductCode := windows.UTF16ToString(productCodeBuf[:])
-		entry, err := getMsiProductInfo(productCodeBuf[:], msiPropertiesToFetch)
+	err := winutil.EnumerateMsiProducts(winutil.MSIINSTALLCONTEXT_ALL, func(productCode []uint16, context uint32, userSID string) error {
+		msiProductCode := windows.UTF16ToString(productCode[:])
+		entry, err := getMsiProductInfo(productCode, msiPropertiesToFetch)
 		if err != nil {
 			// Add warning and continue processing other entries
 			warnings = append(warnings, warnf("error getting product info for %s: %v", msiProductCode, err))
-			index++
-			continue
+			return nil
 		}
 
-		if context == MSIINSTALLCONTEXT_USERMANAGED || context == MSIINSTALLCONTEXT_USERUNMANAGED {
-			entry.UserSID = windows.UTF16ToString(sidBuf[:sidLen])
+		if context == winutil.MSIINSTALLCONTEXT_USERMANAGED || context == winutil.MSIINSTALLCONTEXT_USERUNMANAGED {
+			entry.UserSID = userSID
 		}
 		entry.ProductCode = msiProductCode
 		entries = append(entries, entry)
-		index++
+		return nil
+	})
+	if err != nil {
+		return entries, warnings, err
 	}
+
 	return entries, warnings, nil
 }
 
 func getMsiProductInfo(productCode []uint16, propertiesToFetch []string) (*Entry, error) {
-	// Helper to fetch a property
-	getProp := func(propName string) (string, error) {
-		bufLen := uint32(windows.MAX_PATH)
-		ret := windows.ERROR_MORE_DATA
-		for errors.Is(ret, windows.ERROR_MORE_DATA) {
-			buf := make([]uint16, bufLen)
-			ret = msiGetProductInfo(propName, &productCode[0], &buf[0], &bufLen)
-			if errors.Is(ret, windows.ERROR_SUCCESS) {
-				return windows.UTF16ToString(buf[:bufLen]), nil
-			}
-			// If the buffer passed in is too small, the count returned does not include the terminating null character.
-			// If the error was not ERROR_MORE_DATA we'll just exit the loop.
-			bufLen++
-		}
-		return "", fmt.Errorf("unexpected return from msiGetProductInfo for %s: %w", propName, ret)
-	}
-
 	properties := make(map[string]string)
 	for _, propName := range propertiesToFetch {
-		propValue, err := getProp(propName)
+		propValue, err := winutil.GetMsiProductInfo(propName, productCode)
 		if err == nil {
 			if propName == msiVersionString {
 				// Split by dots, trim leading zeros from each part, rejoin
