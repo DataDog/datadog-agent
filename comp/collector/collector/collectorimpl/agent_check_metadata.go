@@ -74,7 +74,7 @@ func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
 	checkStats := expvars.GetCheckStats()
 	for _, stats := range checkStats {
 		for _, s := range stats {
-			var integrationTags []string
+			integrationTags := []string{}
 			if check, found := c.get(s.CheckID); found {
 				var err error
 				integrationTags, err = collectTags(check.InstanceConfig())
