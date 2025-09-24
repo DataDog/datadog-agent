@@ -27,10 +27,41 @@ func GetStatusInfo() map[string]interface{} {
 
 // PopulateStatus populates stats with collector information
 func PopulateStatus(stats map[string]interface{}) {
-	runnerStatsJSON := []byte(expvar.Get("runner").String())
-	runnerStats := make(map[string]interface{})
-	_ = json.Unmarshal(runnerStatsJSON, &runnerStats)
-	stats["runnerStats"] = runnerStats
+	runnerVar := expvar.Get("runner")
+	if runnerVar != nil {
+		runnerStatsJSON := []byte(runnerVar.String())
+		runnerStats := make(map[string]interface{})
+		_ = json.Unmarshal(runnerStatsJSON, &runnerStats)
+		stats["runnerStats"] = runnerStats
+
+		// Extract worker utilization data if available
+		if workersData, ok := runnerStats["Workers"]; ok {
+			workerStats := workersData.(map[string]interface{})
+
+			// Calculate average utilization
+			if instancesData, ok := workerStats["Instances"]; ok {
+				instances := instancesData.(map[string]interface{})
+				totalUtilization := 0.0
+				workerCount := 0
+
+				for _, workerData := range instances {
+					if worker, ok := workerData.(map[string]interface{}); ok {
+						if util, ok := worker["Utilization"].(float64); ok {
+							totalUtilization += util
+							workerCount++
+						}
+					}
+				}
+
+				if workerCount > 0 {
+					avgUtilization := totalUtilization / float64(workerCount)
+					workerStats["AverageUtilization"] = avgUtilization
+				}
+			}
+
+			stats["workerStats"] = workerStats
+		}
+	}
 
 	if expvar.Get("autoconfig") != nil {
 		autoConfigStatsJSON := []byte(expvar.Get("autoconfig").String())

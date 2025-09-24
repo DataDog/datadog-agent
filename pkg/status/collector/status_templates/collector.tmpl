@@ -81,6 +81,27 @@
   {{- end }}
 {{- end }}
 
+{{- with .workerStats }}
+  Worker Utilization
+  ==================
+  {{- if .Count }}
+    Total Workers: {{.Count}}
+    {{- if .AverageUtilization }}
+    Average Utilization: {{percent .AverageUtilization}}%
+    {{- end }}
+    {{- if .Instances }}
+
+    Individual Workers:
+      {{- range $workerName, $workerData := .Instances }}
+      {{$workerName}}: {{percent $workerData.Utilization}}%
+      {{- end }}
+    {{- end }}
+  {{- else }}
+    No worker utilization data available
+  {{- end }}
+
+{{- end }}
+
 {{- with .pyLoaderStats }}
   {{- if .Py3Warnings }}
   Python 3 Linter Warnings
