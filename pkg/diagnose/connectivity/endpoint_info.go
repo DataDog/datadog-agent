@@ -63,8 +63,8 @@ func buildSketchPayload() *gogen.SketchPayload {
 		Metadata: &gogen.Metadata{
 			Origin: &gogen.Origin{
 				OriginProduct:  10,
-				OriginCategory: 10,
-				OriginService:  10,
+				OriginCategory: 0,
+				OriginService:  0,
 			},
 		},
 	}
