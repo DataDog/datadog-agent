@@ -165,6 +165,7 @@ func (suite *ProviderTestSuite) SetupTest() {
 	wmeta := fxutil.Test[workloadmeta.Component](suite.T(), fx.Options(
 		core.MockBundle(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+		workloadfilterfxmock.MockModule(),
 		// GetCatalog() returns all collectors but only the kubelet one will
 		// be active, thanks to the SetFeatures call above
 		wmcatalog.GetCatalog(),
