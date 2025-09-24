@@ -9,6 +9,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -104,5 +105,31 @@ func TestMRFFailoverAPM(t *testing.T) {
 		assert.False(t, cfg.MRFFailoverAPM())
 		cfg.MRFFailoverAPMRC = nil
 		assert.True(t, cfg.MRFFailoverAPM())
+	})
+}
+
+func TestSQLObfuscationMode(t *testing.T) {
+	t.Run("normalize_only", func(t *testing.T) {
+		cfg := New()
+		cfg.SQLObfuscationMode = "normalize_only"
+		assert.Equal(t, obfuscate.NormalizeOnly, obfuscationMode(cfg, false))
+	})
+	t.Run("obfuscate_only", func(t *testing.T) {
+		cfg := New()
+		cfg.SQLObfuscationMode = "obfuscate_only"
+		assert.Equal(t, obfuscate.ObfuscateOnly, obfuscationMode(cfg, false))
+	})
+	t.Run("obfuscate_and_normalize", func(t *testing.T) {
+		cfg := New()
+		cfg.SQLObfuscationMode = "obfuscate_and_normalize"
+		assert.Equal(t, obfuscate.ObfuscateAndNormalize, obfuscationMode(cfg, false))
+	})
+	t.Run("empty", func(t *testing.T) {
+		cfg := New()
+		assert.Equal(t, obfuscate.ObfuscationMode(""), obfuscationMode(cfg, false))
+	})
+	t.Run("sqlexer", func(t *testing.T) {
+		cfg := New()
+		assert.Equal(t, obfuscate.ObfuscateOnly, obfuscationMode(cfg, true))
 	})
 }

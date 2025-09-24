@@ -28,7 +28,7 @@ type vmSuiteWithFileOperations struct {
 
 // TestVMSuiteWithFileOperations runs tests for the VM interface to ensure its implementation is correct.
 func TestVMSuiteWithFileOperations(t *testing.T) {
-	suiteParams := []e2e.SuiteOption{e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault))))}
+	suiteParams := []e2e.SuiteOption{e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault))))}
 	e2e.Run(t, &vmSuiteWithFileOperations{}, suiteParams...)
 }
 
