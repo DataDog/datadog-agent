@@ -1,4 +1,0 @@
-instances:
-  - name: "http check"
-    min_collection_interval: 15
-    url: "datadog.com"
