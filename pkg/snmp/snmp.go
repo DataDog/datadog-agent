@@ -76,6 +76,8 @@ type Config struct {
 	CollectTopology             bool
 	CollectVPNConfig            *bool `mapstructure:"collect_vpn"`
 	CollectVPN                  bool
+	UseDeviceIDAsHostnameConfig *bool `mapstructure:"use_device_id_as_hostname"`
+	UseDeviceIDAsHostname       bool
 	Namespace                   string   `mapstructure:"namespace"`
 	Tags                        []string `mapstructure:"tags"`
 	MinCollectionInterval       uint     `mapstructure:"min_collection_interval"`
@@ -84,9 +86,6 @@ type Config struct {
 	InterfaceConfigs map[string][]snmpintegration.InterfaceConfig `mapstructure:"interface_configs"`
 
 	PingConfig snmpintegration.PingConfig `mapstructure:"ping"`
-
-	UseRemoteConfigProfilesConfig *bool `mapstructure:"use_remote_config_profiles"`
-	UseRemoteConfigProfiles       bool
 
 	// Legacy
 	NetworkLegacy      string `mapstructure:"network"`
@@ -175,6 +174,12 @@ func NewListenerConfig() (ListenerConfig, error) {
 			config.CollectVPN = snmpConfig.CollectVPN
 		}
 
+		if config.UseDeviceIDAsHostnameConfig != nil {
+			config.UseDeviceIDAsHostname = *config.UseDeviceIDAsHostnameConfig
+		} else {
+			config.UseDeviceIDAsHostname = snmpConfig.UseDeviceISAsHostname
+		}
+
 		if config.Loader == "" {
 			config.Loader = snmpConfig.Loader
 		}
@@ -224,12 +229,6 @@ func NewListenerConfig() (ListenerConfig, error) {
 			if config.Authentications[authIndex].Retries == 0 {
 				config.Authentications[authIndex].Retries = defaultRetries
 			}
-		}
-
-		if config.UseRemoteConfigProfilesConfig != nil {
-			config.UseRemoteConfigProfiles = *config.UseRemoteConfigProfilesConfig
-		} else {
-			config.UseRemoteConfigProfiles = snmpConfig.UseRemoteConfigProfiles
 		}
 	}
 	return snmpConfig, nil
