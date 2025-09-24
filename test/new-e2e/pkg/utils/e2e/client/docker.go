@@ -14,7 +14,10 @@ import (
 
 	"github.com/DataDog/test-infra-definitions/components/docker"
 	"github.com/docker/cli/cli/connhelper"
+	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/image"
+	"github.com/docker/docker/api/types/system"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/stretchr/testify/require"
@@ -147,4 +150,54 @@ func (docker *Docker) getContainerIDsByName() (map[string]string, error) {
 		}
 	}
 	return containersMap, nil
+}
+
+// PullImage pulls an image.
+func (docker *Docker) PullImage(img string) error {
+	reader, err := docker.client.ImagePull(context.Background(), img, image.PullOptions{})
+	if err != nil {
+		return err
+	}
+
+	return reader.Close()
+}
+
+// RunContainer runs a container with the given configuration.
+func (docker *Docker) RunContainer(containerName string, config *container.Config) (string, error) {
+	resp, err := docker.client.ContainerCreate(context.Background(), config, nil, nil, nil, containerName)
+	if err != nil {
+		return "", err
+	}
+
+	if err := docker.client.ContainerStart(context.Background(), resp.ID, container.StartOptions{}); err != nil {
+		return "", err
+	}
+
+	return resp.ID, nil
+}
+
+// StopContainer stops a container.
+func (docker *Docker) StopContainer(containerID string) error {
+	if err := docker.client.ContainerStop(context.Background(), containerID, container.StopOptions{}); err != nil {
+		return err
+	}
+	return nil
+}
+
+// RemoveContainer removes a container.
+func (docker *Docker) RemoveContainer(containerID string) error {
+	if err := docker.client.ContainerRemove(context.Background(), containerID, container.RemoveOptions{Force: true}); err != nil {
+		return err
+	}
+	return nil
+}
+
+// Info returns the information about the docker daemon.
+func (docker *Docker) Info() (system.Info, error) {
+	return docker.client.Info(context.Background())
+}
+
+// Version returns the version of the docker daemon.
+func (docker *Docker) Version() (types.Version, error) {
+	return docker.client.ServerVersion(context.Background())
 }
