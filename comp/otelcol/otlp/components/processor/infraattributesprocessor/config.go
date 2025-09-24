@@ -13,9 +13,10 @@ import (
 
 // Config defines configuration for processor.
 type Config struct {
-	Metrics MetricInfraAttributes `mapstructure:"metrics"`
-	Logs    LogInfraAttributes    `mapstructure:"logs"`
-	Traces  TraceInfraAttributes  `mapstructure:"traces"`
+	Metrics  MetricInfraAttributes  `mapstructure:"metrics"`
+	Logs     LogInfraAttributes     `mapstructure:"logs"`
+	Traces   TraceInfraAttributes   `mapstructure:"traces"`
+	Profiles ProfileInfraAttributes `mapstructure:"profiles"`
 
 	Cardinality           types.TagCardinality `mapstructure:"cardinality"`
 	AllowHostnameOverride bool                 `mapstructure:"allow_hostname_override"`
@@ -34,6 +35,11 @@ type TraceInfraAttributes struct {
 // LogInfraAttributes - configuration for logs.
 type LogInfraAttributes struct {
 	LogInfraAttributes []string `mapstructure:"log"`
+}
+
+// ProfileInfraAttributes - configuration for profiles.
+type ProfileInfraAttributes struct {
+	ProfileInfraAttributes []string `mapstructure:"profile"`
 }
 
 var _ component.Config = (*Config)(nil)
