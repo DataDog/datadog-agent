@@ -8,49 +8,17 @@
 package software
 
 import (
-	"golang.org/x/sys/windows"
 	"syscall"
 	"unsafe"
+
+	"golang.org/x/sys/windows"
 )
 
 var (
-	msi                = windows.NewLazySystemDLL("msi.dll")
-	msiGetProductInfoW = msi.NewProc("MsiGetProductInfoW")
-	// For detecting per-user installations
-	procMsiEnumProductsExW = msi.NewProc("MsiEnumProductsExW")
-	advapi32               = windows.NewLazySystemDLL("advapi32.dll")
-	procRegLoadKey         = advapi32.NewProc("RegLoadKeyW")
-	procRegUnLoadKey       = advapi32.NewProc("RegUnLoadKeyW")
+	advapi32         = windows.NewLazySystemDLL("advapi32.dll")
+	procRegLoadKey   = advapi32.NewProc("RegLoadKeyW")
+	procRegUnLoadKey = advapi32.NewProc("RegUnLoadKeyW")
 )
-
-func msiEnumProductsEx(index uint32, productCodeBuf *uint16, context *uint32, sidBuf *uint16, sidLen *uint32) windows.Errno {
-	ret, _, _ := procMsiEnumProductsExW.Call(
-		0, // szProductCode = NULL
-		0, // szUserSid = NULL
-		uintptr(MSIINSTALLCONTEXT_ALL),
-		uintptr(index),
-		uintptr(unsafe.Pointer(productCodeBuf)),
-		uintptr(unsafe.Pointer(context)),
-		uintptr(unsafe.Pointer(sidBuf)),
-		uintptr(unsafe.Pointer(sidLen)),
-	)
-	return windows.Errno(ret)
-}
-
-func msiGetProductInfo(propName string, productCode *uint16, buf *uint16, bufLen *uint32) windows.Errno {
-	propNamePtr, err := syscall.UTF16FromString(propName)
-	if err != nil {
-		// EINVAL is the only error returned from UTF16FromString
-		return syscall.EINVAL
-	}
-	ret, _, _ := msiGetProductInfoW.Call(
-		uintptr(unsafe.Pointer(productCode)),
-		uintptr(unsafe.Pointer(&propNamePtr[0])),
-		uintptr(unsafe.Pointer(buf)),
-		uintptr(unsafe.Pointer(bufLen)),
-	)
-	return windows.Errno(ret)
-}
 
 // regLoadKey loads a registry hive file into HKU\temp.
 // This is a low-level function that calls RegLoadKey via syscall.
