@@ -1,6 +1,6 @@
 .new-e2e_ubuntu_a7_x86_64:
   variables:
-    E2E_DESCRIPTORS: "ubuntu/x86_64/14-04,ubuntu/x86_64/16-04,ubuntu/x86_64/18-04,ubuntu/x86_64/20-04,ubuntu/x86_64/22-04,ubuntu/x86_64/24-04"
+    E2E_DESCRIPTORS: "ubuntu/x86_64/16-04,ubuntu/x86_64/18-04,ubuntu/x86_64/20-04,ubuntu/x86_64/22-04,ubuntu/x86_64/24-04"
     E2E_CWS_SUPPORTED_DESCRIPTORS: "ubuntu/x86_64/18-04,ubuntu/x86_64/20-04,ubuntu/x86_64/22-04"
     E2E_BRANCH_DESCRIPTORS: "ubuntu/x86_64/24-04"
   needs:
