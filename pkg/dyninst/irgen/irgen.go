@@ -1191,7 +1191,7 @@ func completeSwissMapHeaderType(tc *typeCatalog, st *ir.StructureType) error {
 		TypeCommon: ir.TypeCommon{
 			ID:               tc.idAlloc.next(),
 			Name:             fmt.Sprintf("[]%s.array", groupType.GetName()),
-			DynamicSizeClass: ir.DynamicSizeSlice,
+			DynamicSizeClass: ir.DynamicSizeHashmap,
 			ByteSize:         groupType.GetByteSize(),
 		},
 		Element: groupType,
