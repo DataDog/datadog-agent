@@ -575,16 +575,4 @@ struct prctl_event_t {
     char name[MAX_PRCTL_NAME_LEN];
 };
 
-struct pam_event_t {
-    struct kevent_t event;
-    struct process_context_t process;
-    struct span_context_t span;
-    struct cgroup_context_t cgroup;
-    struct syscall_t syscall;
-    char service[32];
-    char user[32];
-    char hostIP[16];
-    
-};
-
 #endif
