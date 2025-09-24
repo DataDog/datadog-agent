@@ -1755,7 +1755,8 @@ func TestInjectLibInitContainer(t *testing.T) {
 			mutator, err := NewNamespaceMutator(config, wmeta, imageResolver)
 			require.NoError(t, err)
 
-			c := tt.lang.libInfo("", tt.image).initContainers(config.version, imageResolver)[0]
+			libInfo := tt.lang.libInfo("", tt.image)
+			c := libInfo.initContainers(config.version, imageResolver)[0]
 			requirements, injectionDecision := initContainerResourceRequirements(tt.pod, config.defaultResourceRequirements)
 			require.Equal(t, tt.wantSkipInjection, injectionDecision.skipInjection)
 			require.Equal(t, tt.resourceRequireAnnotation, injectionDecision.message)
