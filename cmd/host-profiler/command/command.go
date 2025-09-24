@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package command contains the top-level Cobra command for the host profiler.
 package command
 
 import (
@@ -15,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/cli/subcommands/version"
 )
 
-// MakeCommand makes the top-level Cobra command for this app.
+// MakeRootCommand makes the top-level Cobra command for this app.
 func MakeRootCommand() *cobra.Command {
 	hostProfiler := &cobra.Command{
 		Use:   "host-profiler [command]",

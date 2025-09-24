@@ -11,7 +11,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
+	"github.com/DataDog/datadog-agent/cmd/host-profiler/globalparams"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -19,7 +19,7 @@ import (
 func TestFxRun(t *testing.T) {
 	fxutil.TestRun(t, func() error {
 		params := &cliParams{
-			GlobalParams: &subcommands.GlobalParams{},
+			GlobalParams: &globalparams.GlobalParams{},
 		}
 		return runHostProfilerCommand(context.Background(), params)
 	})

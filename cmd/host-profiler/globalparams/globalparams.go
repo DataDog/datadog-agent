@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package globalparams contains the global CLI parameters for the host profiler.
 package globalparams
 
 // GlobalParams contains the values of host profiler global Cobra flags.
