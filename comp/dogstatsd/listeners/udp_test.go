@@ -153,7 +153,7 @@ func TestUDPReceive(t *testing.T) {
 
 // Reproducer for https://github.com/DataDog/datadog-agent/issues/6803
 func TestNewUDPListenerWhenBusyWithSoRcvBufSet(t *testing.T) {
-	address, _ := net.ResolveUDPAddr("udp", fmt.Sprintf("127.0.0.1:0"))
+	address, _ := net.ResolveUDPAddr("udp", "127.0.0.1:0")
 	conn, err := net.ListenUDP("udp", address)
 	assert.NotNil(t, conn)
 	assert.Nil(t, err)
