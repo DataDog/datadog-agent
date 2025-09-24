@@ -39,4 +39,10 @@ if command -v datadog-installer >/dev/null 2>&1 && datadog-installer is-installe
     datadog-installer remove datadog-agent || printf "[ WARNING ]\tFailed to remove datadog-agent installed by the installer\n"
 fi
 
+# Old version of the install scripts created a __pycache__ directory in the python-scripts directory
+# Remove it to avoid any issues with the new package.
+if [ -d "${INSTALL_DIR}/python-scripts/__pycache__" ]; then
+    rm -rf "${INSTALL_DIR}/python-scripts/__pycache__" || true
+fi
+
 exit 0
