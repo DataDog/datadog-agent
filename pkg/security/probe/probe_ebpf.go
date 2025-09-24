@@ -121,7 +121,6 @@ type EBPFProbe struct {
 	kernelVersion  *kernel.Version
 
 	// internals
-	event          *model.Event
 	dnsLayer       *layers.DNS
 	monitors       *EBPFMonitors
 	profileManager *securityprofile.Manager
@@ -1044,13 +1043,6 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 	return true
 }
 
-func (p *EBPFProbe) zeroEvent() *model.Event {
-	probeEventZeroer(p.event)
-	p.event.FieldHandlers = p.fieldHandlers
-	p.event.Origin = EBPFOrigin
-	return p.event
-}
-
 func (p *EBPFProbe) resolveCGroup(pid uint32, cgroupPathKey model.PathKey, newEntryCb func(entry *model.ProcessCacheEntry, err error)) (*model.CGroupContext, error) {
 	cgroupContext, _, err := p.Resolvers.ResolveCGroupContext(cgroupPathKey)
 	if err != nil {
@@ -1073,7 +1065,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 
 	var (
 		offset        = 0
-		event         = p.zeroEvent()
+		event         = p.NewEvent()
 		dataLen       = uint64(len(data))
 		relatedEvents []*model.Event
 		newEntryCb    = func(entry *model.ProcessCacheEntry, err error) {
@@ -2439,7 +2431,9 @@ func (p *EBPFProbe) OnNewRuleSetLoaded(rs *rules.RuleSet) {
 
 // NewEvent returns a new event
 func (p *EBPFProbe) NewEvent() *model.Event {
-	return newEBPFEvent(p.fieldHandlers)
+	ev := newEBPFEvent(p.fieldHandlers)
+	ev.Origin = EBPFOrigin
+	return ev
 }
 
 // GetFieldHandlers returns the field handlers
@@ -2916,11 +2910,6 @@ func NewEBPFProbe(probe *Probe, config *config.Config, ipc ipc.Component, opts O
 			return nil, err
 		}
 	}
-
-	p.event = p.NewEvent()
-
-	// be sure to zero the probe event before everything else
-	p.zeroEvent()
 
 	return p, nil
 }
