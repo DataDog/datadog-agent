@@ -37,34 +37,10 @@ func (m *UtilizationMonitor) GetWorkerUtilization(workerName string) (float64, e
 	// Retrieve the worker instance data from expvars (needs several expvar lookups)
 	// Race conditions are possible here since expvar is global state
 
-	// Runner map
-	runnerExpvar := expvar.Get(expvars.RunnerExpvarKey)
-	if runnerExpvar == nil {
-		return 0.0, fmt.Errorf("runner not found in expvars")
-	}
-	runnerMap, ok := runnerExpvar.(*expvar.Map)
-	if !ok {
-		return 0.0, fmt.Errorf("runner expvar is not a map")
-	}
-
-	// Workers map
-	workersExpvar := runnerMap.Get(expvars.WorkersExpvarKey)
-	if workersExpvar == nil {
-		return 0.0, fmt.Errorf("runner.Workers not found in expvars")
-	}
-	workersMap, ok := workersExpvar.(*expvar.Map)
-	if !ok {
-		return 0.0, fmt.Errorf("runner.Workers expvar is not a map")
-	}
-
-	// Instances map
-	instancesExpvar := workersMap.Get(expvars.InstancesExpvarKey)
-	if instancesExpvar == nil {
-		return 0.0, fmt.Errorf("runner.Workers.Instances not found in expvars")
-	}
-	instancesMap, ok := instancesExpvar.(*expvar.Map)
-	if !ok {
-		return 0.0, fmt.Errorf("runner.Workers.Instances expvar is not a map")
+	// Get instances map using the new getter function
+	instancesMap := expvars.GetWorkerInstances()
+	if instancesMap == nil {
+		return 0.0, fmt.Errorf("worker instances not found in expvars")
 	}
 
 	// Look for the specific worker
@@ -85,35 +61,10 @@ func (m *UtilizationMonitor) GetAllWorkerUtilizations() (map[string]float64, err
 	// Retrieve the worker instance data from expvars (needs several expvar lookups)
 	// Race conditions are possible here since expvar is global state
 
-	// Runner map
-	runnerExpvar := expvar.Get(expvars.RunnerExpvarKey)
-	if runnerExpvar == nil {
-		return nil, fmt.Errorf("runner not found in expvars")
-	}
-	runnerMap, ok := runnerExpvar.(*expvar.Map)
-	if !ok {
-		return nil, fmt.Errorf("runner expvar is not a map")
-	}
-
-	// Workers map
-	workersExpvar := runnerMap.Get(expvars.WorkersExpvarKey)
-	if workersExpvar == nil {
-		return nil, fmt.Errorf("runner.Workers not found in expvars")
-	}
-	workersMap, ok := workersExpvar.(*expvar.Map)
-	if !ok {
-		return nil, fmt.Errorf("runner.Workers expvar is not a map")
-	}
-
-	// Instances map
-	instancesExpvar := workersMap.Get(expvars.InstancesExpvarKey)
-	if instancesExpvar == nil {
-		return nil, fmt.Errorf("runner.Workers.Instances not found in expvars")
-	}
-
-	instancesMap, ok := instancesExpvar.(*expvar.Map)
-	if !ok {
-		return nil, fmt.Errorf("runner.Workers.Instances expvar is not a map")
+	// Get instances map using the new getter function
+	instancesMap := expvars.GetWorkerInstances()
+	if instancesMap == nil {
+		return nil, fmt.Errorf("worker instances not found in expvars")
 	}
 
 	// Add all data to the return map

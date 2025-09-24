@@ -12,10 +12,10 @@ import (
 )
 
 const (
-	// WorkersExpvarKey - Top-level key for this expvar
-	WorkersExpvarKey = "Workers"
-	// InstancesExpvarKey - Nested key for the instances expvar
-	InstancesExpvarKey = "Instances"
+	// workersExpvarKey - Top-level key for this expvar
+	workersExpvarKey = "Workers"
+	// instancesExpvarKey - Nested key for the instances expvar
+	instancesExpvarKey = "Instances"
 
 	countExpvarKey = "Count"
 )
@@ -45,9 +45,9 @@ func newWorkersExpvar(parent *expvar.Map) {
 
 	workersStats = &expvar.Map{}
 	workersStats.Add(countExpvarKey, 0)
-	workersStats.Set(InstancesExpvarKey, workerInstancesStats)
+	workersStats.Set(instancesExpvarKey, workerInstancesStats)
 
-	parent.Set(WorkersExpvarKey, workersStats)
+	parent.Set(workersExpvarKey, workersStats)
 }
 
 func resetWorkersExpvar(parent *expvar.Map) {
@@ -90,4 +90,22 @@ func GetWorkerCount() int {
 	}
 
 	return int(count.(*expvar.Int).Value())
+}
+
+// GetWorkers returns the workers expvar Map from the runner
+func GetWorkers() *expvar.Map {
+	runner := GetRunner()
+	if runner == nil {
+		return nil
+	}
+	return runner.Get(workersExpvarKey).(*expvar.Map)
+}
+
+// GetWorkerInstances returns the worker instances expvar Map
+func GetWorkerInstances() *expvar.Map {
+	workers := GetWorkers()
+	if workers == nil {
+		return nil
+	}
+	return workers.Get(instancesExpvarKey).(*expvar.Map)
 }

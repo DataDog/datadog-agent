@@ -21,8 +21,8 @@ import (
 )
 
 const (
-	// RunnerExpvarKey - the top-level key for the runner expvars
-	RunnerExpvarKey = "runner"
+	// runnerExpvarKey - the top-level key for the runner expvars
+	runnerExpvarKey = "runner"
 
 	// Nested keys
 	checksExpvarKey        = "Checks"
@@ -48,7 +48,7 @@ type expCheckStats struct {
 func init() {
 	runningChecksStats = &expvar.Map{}
 
-	runnerStats = expvar.NewMap(RunnerExpvarKey)
+	runnerStats = expvar.NewMap(runnerExpvarKey)
 	runnerStats.Set(checksExpvarKey, expvar.Func(expCheckStatsFunc))
 	runnerStats.Set(runningExpvarKey, runningChecksStats)
 
@@ -256,4 +256,9 @@ func GetErrorsCount() int64 {
 		return 0
 	}
 	return count.(*expvar.Int).Value()
+}
+
+// GetRunner returns the runner expvar Map
+func GetRunner() *expvar.Map {
+	return expvar.Get(runnerExpvarKey).(*expvar.Map)
 }
