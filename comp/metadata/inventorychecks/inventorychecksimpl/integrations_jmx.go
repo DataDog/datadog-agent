@@ -54,7 +54,7 @@ func (ic *inventorychecksImpl) getJMXChecksMetadata() (jmxMetadata map[string][]
 			if err != nil {
 				ic.log.Warnf("could not scrub JMX init_config for %s: %v", jmxName, err)
 				// Return early if scrubbing fails to avoid sending unscrubbed data
-				return
+				continue
 			}
 
 			instances := jmxIntegration["instances"].([]integration.JSONMap)
