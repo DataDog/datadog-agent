@@ -32,7 +32,7 @@ func TestMergeToEmpty(t *testing.T) {
 
 	dst := newInnerNode(nil)
 
-	err = dst.Merge(src)
+	merged, err := dst.Merge(src)
 	require.NoError(t, err)
 
 	expected := &innerNode{
@@ -51,7 +51,7 @@ func TestMergeToEmpty(t *testing.T) {
 			},
 		},
 	}
-	assert.Equal(t, expected, dst)
+	assert.Equal(t, expected, merged)
 }
 
 func TestMergeTwoTree(t *testing.T) {
@@ -88,7 +88,7 @@ func TestMergeTwoTree(t *testing.T) {
 	overwrite, ok := node.(InnerNode)
 	require.True(t, ok)
 
-	err = base.Merge(overwrite)
+	merged, err := base.Merge(overwrite)
 	require.NoError(t, err)
 
 	expected := &innerNode{
@@ -109,7 +109,7 @@ func TestMergeTwoTree(t *testing.T) {
 			},
 		},
 	}
-	assert.Equal(t, expected, base)
+	assert.Equal(t, expected, merged)
 }
 
 func TestMergeErrorLeafToNode(t *testing.T) {
@@ -132,10 +132,10 @@ func TestMergeErrorLeafToNode(t *testing.T) {
 	require.True(t, ok)
 
 	// checking leaf to node
-	err = base.Merge(overwrite)
+	_, err = base.Merge(overwrite)
 	require.NoError(t, err)
 
 	// checking node to leaf
-	err = overwrite.Merge(base)
+	_, err = overwrite.Merge(base)
 	require.NoError(t, err)
 }
