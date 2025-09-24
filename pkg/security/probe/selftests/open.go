@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
 // OpenSelfTest defines an open self test
@@ -51,6 +52,9 @@ func (o *OpenSelfTest) GenerateEvent(ctx context.Context) error {
 
 // HandleEvent handles self test events
 func (o *OpenSelfTest) HandleEvent(event selfTestEvent) {
+	if event.RuleID == o.ruleID && o.filename != event.Filepath {
+		seclog.Errorf("Open SelfTest event received with different filepaths: %s VS %s", o.filename, event.Filepath)
+	}
 	o.isSuccess = event.RuleID == o.ruleID && o.filename == event.Filepath
 }
 
