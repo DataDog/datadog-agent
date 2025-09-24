@@ -149,7 +149,15 @@ func (r *Resolver) ResolveUserSession(id uint64) *model.UserSessionContext {
 func parseSSHLogLine(line string, ctx *model.UserSessionContext) {
 	type SSHLogLine struct {
 		Date      string
-		Username  string
+		Hostname  string
+		Service   string
+		Remaining string
+	}
+	type SSHLogLineAlternative struct {
+		Month     string
+		Day       string
+		Hour      string
+		Hostname  string
 		Service   string
 		Remaining string
 	}
@@ -164,11 +172,25 @@ func parseSSHLogLine(line string, ctx *model.UserSessionContext) {
 
 	// separate the line into words
 	words := strings.Split(line, " ")
-	sshLogLine := SSHLogLine{
-		Date:      words[0],
-		Username:  words[1],
-		Service:   words[2],
-		Remaining: strings.Join(words[3:], " "),
+	sshLogLine := SSHLogLine{}
+	switch {
+	case strings.HasPrefix(words[2], "sshd"):
+		sshLogLine = SSHLogLine{
+			Date:      words[0],
+			Hostname:  words[1],
+			Service:   words[2],
+			Remaining: strings.Join(words[3:], " "),
+		}
+	case strings.HasPrefix(words[4], "sshd"):
+		sshLogLine = SSHLogLine{
+			Date:      words[2],
+			Hostname:  words[3],
+			Service:   words[4],
+			Remaining: strings.Join(words[5:], " "),
+		}
+	default:
+		fmt.Print("Error parsing SSH log line\n")
+		return
 	}
 	fmt.Printf("SSH log line: %s\n", line)
 	// if the first word starts with "sshd" and the second word is the username, then print the line
