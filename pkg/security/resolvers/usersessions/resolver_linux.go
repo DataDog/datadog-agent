@@ -181,7 +181,6 @@ func parseSSHLogLine(line string, ctx *model.UserSessionContext) {
 			Remaining: strings.Join(words[5:], " "),
 		}
 	default:
-		fmt.Print("Error parsing SSH log line\n")
 		return
 	}
 	fmt.Printf("SSH log line: %s\n", line)
@@ -249,26 +248,26 @@ func resolveFromJournalctl(ctx *model.UserSessionContext) {
 
 // ResolveSSHUserSession resolves the ssh user session from the auth log
 func ResolveSSHUserSession(ctx *model.UserSessionContext) {
-
-	f, err := os.OpenFile("/var/log/auth.log", os.O_RDONLY, 0644)
-	if err == nil {
-		fmt.Print("Found /var/log/auth.log\n")
-	}
+	// Artificially test where we use that
+	// f, err := os.OpenFile("/var/log/auth.log", os.O_RDONLY, 0644)
+	// if err == nil {
+	// 	fmt.Print("Found /var/log/auth.log\n")
+	// }
+	// if err != nil {
+	// Fallback for Red Hat / CentOS / Fedora
+	f, err := os.OpenFile("/var/log/secure", os.O_RDONLY, 0644)
 	if err != nil {
-		// Fallback for Red Hat / CentOS / Fedora
-		f, err = os.OpenFile("/var/log/secure", os.O_RDONLY, 0644)
+		// Last Fallback for openSUSE
+		f, err = os.OpenFile("/var/log/messages", os.O_RDONLY, 0644)
 		if err != nil {
-			// Last Fallback for openSUSE
-			f, err = os.OpenFile("/var/log/messages", os.O_RDONLY, 0644)
-			if err != nil {
-				fmt.Printf("Can't find any log file")
-				resolveFromJournalctl(ctx)
-				return
-			}
-			fmt.Print("Found /var/log/messages\n")
+			fmt.Printf("Can't find any log file")
+			resolveFromJournalctl(ctx)
+			return
 		}
-		fmt.Print("Found /var/log/secure\n")
+		fmt.Print("Found /var/log/messages\n")
 	}
+	fmt.Print("Found /var/log/secure\n")
+
 	defer f.Close()
 
 	sc := bufio.NewScanner(f)
