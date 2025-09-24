@@ -16,6 +16,7 @@ import (
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -483,5 +484,11 @@ func newContainerListener(t *testing.T, tagger tagger.Component) (*ContainerList
 	wlm := newTestWorkloadmetaListener(t)
 	filterStore := workloadfilterfxmock.SetupMockFilter(t)
 
-	return &ContainerListener{workloadmetaListener: wlm, filterStore: filterStore, tagger: tagger}, wlm
+	return &ContainerListener{
+		workloadmetaListener: wlm,
+		globalFilter:         filterStore.GetContainerAutodiscoveryFilters(workloadfilter.GlobalFilter),
+		metricsFilter:        filterStore.GetContainerAutodiscoveryFilters(workloadfilter.MetricsFilter),
+		logsFilter:           filterStore.GetContainerAutodiscoveryFilters(workloadfilter.LogsFilter),
+		tagger:               tagger,
+	}, wlm
 }
