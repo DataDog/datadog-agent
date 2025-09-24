@@ -161,10 +161,22 @@ func ResolveSSHUserSession(ctx *model.UserSessionContext) {
 	}
 
 	f, err := os.OpenFile("/var/log/auth.log", os.O_RDONLY, 0644)
-
+	if err == nil {
+		fmt.Print("Found /var/log/auth.log\n")
+	}
 	if err != nil {
-		fmt.Printf("Fail while opening /var/log/auth.log: %v\n", err)
-		os.Exit(1)
+		// Fallback for Red Hat / CentOS / Fedora
+		f, err = os.OpenFile("/var/log/secure", os.O_RDONLY, 0644)
+		if err != nil {
+			// Last Fallback for openSUSE
+			f, err = os.OpenFile("/var/log/messages", os.O_RDONLY, 0644)
+			if err != nil {
+				fmt.Errorf("Can't find any log file")
+				return
+			}
+			fmt.Print("Found /var/log/messages\n")
+		}
+		fmt.Print("Found /var/log/secure\n")
 	}
 	defer f.Close()
 
@@ -196,6 +208,8 @@ func ResolveSSHUserSession(ctx *model.UserSessionContext) {
 				Remaining:              strings.Join(sshWords[9:], " "),
 			}
 			if sshParsedLine.User == ctx.SSHUsername {
+				// Here it should be the good line to parse. If we have multiple connexion with same username, attributes will be overwritten until last line (last one)
+				// TODO: Maybe add a check on the date and time ( + eventually correlated to edit time of the file ?)
 				ctx.SSHClientIP = sshParsedLine.IP
 				fmt.Printf("SSH Client IP: %s\n", sshParsedLine.IP)
 				if port, err := strconv.Atoi(sshParsedLine.Port); err == nil {
