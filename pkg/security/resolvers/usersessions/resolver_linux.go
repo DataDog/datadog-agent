@@ -144,6 +144,7 @@ func (r *Resolver) ResolveUserSession(id uint64) *model.UserSessionContext {
 	return ctx
 }
 
+// Resolve the ssh user session from the auth log
 func ResolveSSHUserSession(ctx *model.UserSessionContext) {
 	type SSHLogLine struct {
 		Date      string

@@ -13,9 +13,9 @@ __attribute__((always_inline)) int handle_pam_start(struct pt_regs *ctx)
     char service_name[3];
     bpf_probe_read(service_name, 3, (void *)service);
     // Register SSH User session 
-    if (bpf_strncmp(service_name,3 ,"ssh") == 0) {
-        register_ssh_user_session((char *) user);
-    }    
+    if (service_name[0] == 's' && service_name[1] == 's' && service_name[2] == 'h') {
+        register_ssh_user_session((char *)user);
+    }
     return 0;
 }
 
