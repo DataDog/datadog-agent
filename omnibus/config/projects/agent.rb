@@ -236,6 +236,8 @@ if do_build
     dependency 'datadog-security-agent-policies'
   end
 
+  dependency 'libdatadog-agent-httpcheck'
+
   # this dependency puts few files out of the omnibus install dir and move them
   # in the final destination. This way such files will be listed in the packages
   # manifest and owned by the package manager. This is the only point in the build
