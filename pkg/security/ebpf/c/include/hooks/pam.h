@@ -4,6 +4,7 @@
 #include "constants/syscall_macro.h"
 #include "constants/fentry_macro.h"
 #include "helpers/syscalls.h"
+#include "helpers/user_sessions.h"
 
 __attribute__((always_inline)) int handle_pam_start(struct pt_regs *ctx)
 {
