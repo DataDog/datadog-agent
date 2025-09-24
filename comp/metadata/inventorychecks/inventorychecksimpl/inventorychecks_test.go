@@ -132,53 +132,9 @@ func TestGetPayload(t *testing.T) {
 			},
 		}
 
-		checksResult := []map[string]interface{}{
-			{
-				"check_name": "check1",
-				"check_id":   "check1_instance1",
-				"status":     "ERROR",
-				"error":      "Error: No such file or directory",
-			},
-			{
-				"check_name": "check1",
-				"check_id":   "check1_instance2",
-				"status":     "WARNING",
-				"error":      []string{"Error: No such file or directory"},
-			},
-			{
-				"check_name": "check2",
-				"check_id":   checkid.ID("check2_instance1"),
-				"status":     "OK",
-				"error":      "",
-			},
-		}
-
-		expectedCheckResults := map[string][]metadata{
-			"check1": {
-				{
-					"config.id": "check1_instance1",
-					"status":    "ERROR",
-					"errors":    []string{"Error: No such file or directory"},
-				},
-				{
-					"config.id": "check1_instance2",
-					"status":    "WARNING",
-					"errors":    []string{"Error: No such file or directory"},
-				},
-			},
-			"check2": {
-				{
-					"config.id": "check2_instance1",
-					"status":    "OK",
-					"errors":    []string{},
-				},
-			},
-		}
-
 		mockColl := fxutil.Test[collector.Component](t,
 			fx.Replace(collectorimpl.MockParams{
-				ChecksInfo:   cInfo,
-				ChecksResult: checksResult,
+				ChecksInfo: cInfo,
 			}),
 			collectorimpl.MockModule(),
 			core.MockBundle(),
@@ -281,10 +237,6 @@ func TestGetPayload(t *testing.T) {
 
 			// Check that metadata linked to non-existing check were deleted
 			assert.NotContains(t, "non_running_checkid", ic.data)
-
-			assert.Len(t, p.CheckResults, 2)
-			assert.Equal(t, expectedCheckResults["check1"], p.CheckResults["check1"])
-			assert.Equal(t, expectedCheckResults["check2"], p.CheckResults["check2"])
 
 			// Check the log sources part of the metadata
 			if invChecksCfgEnabled {

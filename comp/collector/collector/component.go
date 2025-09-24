@@ -44,8 +44,6 @@ type Component interface {
 	ReloadAllCheckInstances(name string, newInstances []check.Check) ([]checkid.ID, error)
 	// AddEventReceiver adds a callback to the collector to be called each time a check is added or removed.
 	AddEventReceiver(cb EventReceiver)
-	// GetChecksResults returns the result from the last run of the check.
-	GetChecksResults() []map[string]interface{}
 }
 
 // NoneModule return a None optional type for Component.
