@@ -5,11 +5,6 @@ description "Pre-compiled shared library check"
 default_version "1.0.0"
 
 # Source path - points to the directory containing your pre-compiled library
-# This assumes you have a directory structure like:
-# omnibus/files/#{name}/
-# ├── #{name}.so      (Linux)
-# ├── #{name}.dylib   (macOS)
-# ├── #{name}.dll     (Windows)
 source path: "#{project.files_path}/#{name}"
 
 # Always build since we're just copying pre-compiled files
@@ -25,40 +20,34 @@ build do
   # Platform-specific file copying
   if linux?
     # Copy Linux shared library (.so files)
-    # Handle versioned libraries if they exist
-    if File.exist?("#{project_dir}/#{name}.so")
-      copy "#{name}.so*", "#{install_dir}/embedded/lib/"
+    if File.exist?("#{project.files_path}/#{name}/#{name}.so")
+      copy "#{name}.so", "#{install_dir}/embedded/lib/"
+      # Set proper permissions
+      command "chmod 755 #{install_dir}/embedded/lib/#{name}.so"
     else
-      raise "Linux shared library #{name}.so not found in #{project_dir}"
+      raise "Linux shared library #{name}.so not found in #{project.files_path}/#{name}"
     end
-    
-    # Set proper permissions
-    command "chmod 755 #{install_dir}/embedded/lib/#{name}.so*"
-    end
-  end
-
-  if mac?
+  elsif mac?
     # Copy macOS dynamic library (.dylib files)
-    if File.exist?("#{project_dir}/#{name}.dylib")
+    if File.exist?("#{project.files_path}/#{name}/#{name}.dylib")
       copy "#{name}.dylib", "#{install_dir}/embedded/lib/"
+      # Set proper permissions
+      command "chmod 755 #{install_dir}/embedded/lib/#{name}.dylib"
+      # Update install name for the embedded path (important for macOS)
+      command "install_name_tool -id #{install_dir}/embedded/lib/#{name}.dylib #{install_dir}/embedded/lib/#{name}.dylib"
     else
-      raise "macOS dynamic library #{name}.dylib not found in #{project_dir}"
+      raise "macOS dynamic library #{name}.dylib not found in #{project.files_path}/#{name}"
     end
-    
-    # Set proper permissions
-    command "chmod 755 #{install_dir}/embedded/lib/#{name}.dylib"
-    
-    # Update install name for the embedded path (important for macOS)
-    command "install_name_tool -id #{install_dir}/embedded/lib/#{name}.dylib #{install_dir}/embedded/lib/#{name}.dylib"
-  end
-
-  if windows?
+  elsif windows?
     # Copy Windows DLL and import library
-    if File.exist?("#{project_dir}/#{name}.dll")
+    if File.exist?("#{project.files_path}/#{name}/#{name}.dll")
       copy "#{name}.dll", "#{install_dir}/embedded/lib/"
+      # Set proper permissions
+      command "chmod 755 #{install_dir}/embedded/lib/#{name}.dll"
     else
-      raise "Windows DLL #{name}.dll not found in #{project_dir}"
+      raise "Windows DLL #{name}.dll not found in #{project.files_path}/#{name}"
     end
+  end
 
   # Verify the library was copied correctly
   block do
