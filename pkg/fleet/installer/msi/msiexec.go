@@ -444,6 +444,8 @@ func (m *Msiexec) Run(ctx context.Context) error {
 						isLogEmpty = logFileInfo.Size() == 0
 					}
 					span.SetTag("is_log_empty", isLogEmpty)
+					// collect product codes and features for the Datadog Agent
+					setProductCodeTags(span)
 				}
 			}
 			span.Finish(err)
@@ -594,4 +596,35 @@ func formatPropertyArg(key, value string) string {
 	// https://learn.microsoft.com/en-us/windows/win32/msi/command-line-options
 	escaped := strings.ReplaceAll(value, `"`, `""`)
 	return fmt.Sprintf(`%s="%s"`, key, escaped)
+}
+
+func setProductCodeTags(span *telemetry.Span) {
+	// Get all product codes associated with "Datadog Agent" display name
+	products, err := FindAllProductCodes("Datadog Agent")
+	if err != nil {
+		span.SetTag("installer.msi.product_codes", fmt.Sprintf("error getting product codes: %v", err))
+	} else {
+		productCodes := []string{}
+		features := []string{}
+		for _, product := range products {
+			productCodes = append(productCodes, product.Code)
+			if len(product.Features) > 0 {
+				features = append(features, "{"+strings.Join(product.Features, ",")+"}")
+			} else {
+				features = append(features, "{}")
+			}
+		}
+		span.SetTag("installer.msi.product_codes", strings.Join(productCodes, ";"))
+		span.SetTag("installer.msi.features", strings.Join(features, ";"))
+	}
+	uninstallProducts, err := FindUninstallProductCodes("Datadog Agent")
+	if err != nil {
+		span.SetTag("installer.uninstall_product_codes", fmt.Sprintf("error getting uninstall product codes: %v", err))
+	} else {
+		uninstallProductCodes := []string{}
+		for _, product := range uninstallProducts {
+			uninstallProductCodes = append(uninstallProductCodes, product.Code)
+		}
+		span.SetTag("installer.uninstall_product_codes", strings.Join(uninstallProductCodes, ";"))
+	}
 }

@@ -207,6 +207,8 @@ func (sh *StreamHandler) handleKernelLaunch(event *gpuebpf.CudaKernelLaunch) {
 	enrichedLaunch := memPools.enrichedKernelLaunchPool.Get()
 	enrichedLaunch.CudaKernelLaunch = *event // Copy events, as the memory can be overwritten in the ring buffer after the function returns
 	enrichedLaunch.stream = sh
+	enrichedLaunch.kernel = nil
+	enrichedLaunch.err = nil
 
 	// Trigger the background kernel data loading, we don't care about the result here
 	_, err := enrichedLaunch.getKernelData()
@@ -305,6 +307,7 @@ func (sh *StreamHandler) getCurrentKernelSpan(maxTime uint64) *kernelSpan {
 	span.startKtime = math.MaxUint64
 	span.endKtime = maxTime
 	span.numKernels = 0
+	span.avgThreadCount = 0
 
 	// Reset the memory usage map
 	for allocType := range span.avgMemoryUsage {

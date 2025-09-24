@@ -16,4 +16,4 @@ concurrency:
 jobs:
   test:
     uses: ./.github/workflows/test-devcontainer.yml
-    if: github.actor == 'renovate[bot]'
+    if: github.actor == 'renovate[bot]' || github.actor == 'mend[bot]'
