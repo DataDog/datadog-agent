@@ -389,8 +389,8 @@ token: "********"`, result)
 	//	  - password: ENC[secret1]
 	//	  - password: "********"`, result)
 	//		})
-} 
- 
+}
+
 func TestComplexYAMLWithNewKeys(t *testing.T) {
 	testCases := []struct {
 		name     string
