@@ -1,9 +1,15 @@
 Main module: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs
 Package: main
+	Function: PointerChainArg (main.PointerChainArg) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [112:113]
+		Arg: ptr: *****int (declared at line 0, available: [113-113])
+	Function: PointerSmallChainArg (main.PointerSmallChainArg) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [116:117]
+		Arg: ptr: **int (declared at line 0, available: [117-117])
 	Function: bigMapArg (main.bigMapArg) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [104:110]
 		Arg: m: map[string]main.bigStruct (declared at line 104, available: [104-110])
 	Function: funcArg (main.funcArg) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [82:84]
 		Arg: f: func(int) (declared at line 82, available: [82-83])
+	Function: inlined (main.inlined) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [77:79]
+		Arg: x: int (declared at line 0, available: [77-78])
 	Function: intArg (main.intArg) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [44:46]
 		Arg: x: int (declared at line 44, available: [44-45])
 	Function: intArrayArg (main.intArrayArg) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [59:61]
