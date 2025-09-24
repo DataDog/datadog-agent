@@ -586,9 +586,14 @@ fruit:
 
 	t.Setenv("DD_FRUIT_CHERRY_SEED_NUM", "5")
 	viperConf, ntmConf := constructBothConfigs(configData, false, func(cfg model.Setup) {
-		cfg.BindEnvAndSetDefault("fruit.apple.core.seeds", 2) // default wins over invalid file
-		cfg.BindEnv("fruit.banana.peel.color")                // file only (missing default)
-		cfg.BindEnv("fruit.cherry.seed.num")                  // env wins over file
+		// default wins over invalid file
+		cfg.BindEnvAndSetDefault("fruit.apple.core.seeds", 2)
+
+		// file only (missing default)
+		cfg.BindEnv("fruit.banana.peel.color") //nolint:forbidigo // legit usage, testing compatibility with viper
+
+		// env wins over file
+		cfg.BindEnv("fruit.cherry.seed.num") //nolint:forbidigo // legit usage, testing compatibility with viper
 	})
 
 	expectAppleMap := map[string]interface{}{

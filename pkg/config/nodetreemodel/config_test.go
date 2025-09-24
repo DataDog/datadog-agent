@@ -1603,9 +1603,12 @@ fruit:
     12
 `
 	cfg := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
-	cfg.BindEnvAndSetDefault("fruit.apple.core.seeds", 2) // file wins over default
-	cfg.BindEnv("fruit.banana.peel.color")                // file only (missing default)
-	cfg.BindEnv("fruit.cherry.seed.num")                  // env wins over file
+	// default wins over invalid file
+	cfg.BindEnvAndSetDefault("fruit.apple.core.seeds", 2)
+	// file only (missing default)
+	cfg.BindEnv("fruit.banana.peel.color") //nolint:forbidigo // legit usage, testing compatibility with viper
+	// env wins over file
+	cfg.BindEnv("fruit.cherry.seed.num") //nolint:forbidigo // legit usage, testing compatibility with viper
 	t.Setenv("TEST_FRUIT_CHERRY_SEED_NUM", "1")
 	cfg.BuildSchema()
 

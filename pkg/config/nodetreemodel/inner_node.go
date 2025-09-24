@@ -159,8 +159,7 @@ func setNodeAtPath(n *innerNode, fields []string, value interface{}, source mode
 			} else if leafNode, ok := child.(LeafNode); ok {
 				// If we find a leaf, simply replace its value, and return nil for
 				// the first return value because no node was created
-				leafNode.ReplaceValue(value)
-				return nil, nil
+				return nil, leafNode.ReplaceValue(value)
 			}
 		}
 	}
