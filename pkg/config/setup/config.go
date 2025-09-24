@@ -1168,7 +1168,7 @@ func agent(config pkgconfigmodel.Setup) {
 
 	// Agent
 	// Don't set a default on 'site' to allow detecting with viper whether it's set in config
-	config.BindEnv("site")                          //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnv("site") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.BindEnvAndSetDefault("convert_dd_site_fqdn.enabled", true)
 	config.BindEnv("dd_url", "DD_DD_URL", "DD_URL") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.BindEnvAndSetDefault("app_key", "")
