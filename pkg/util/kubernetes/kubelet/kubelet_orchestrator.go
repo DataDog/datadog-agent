@@ -56,7 +56,7 @@ func (ku *KubeUtil) GetRawLocalPodList(ctx context.Context) ([]*v1.Pod, error) {
 
 	// transform []v1.Pod in []*v1.Pod
 	pods := make([]*v1.Pod, len(podList.Items))
-	for i := 0; i < len(pods); i++ {
+	for i := range pods {
 		pods[i] = &podList.Items[i]
 	}
 
