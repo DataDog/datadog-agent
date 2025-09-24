@@ -124,6 +124,7 @@
 /.gitlab/source_test/notify.yml                      @DataDog/agent-devx
 /.gitlab/source_test/slack.yml                       @DataDog/agent-devx
 /.gitlab/source_test/tooling_unit_tests.yml          @DataDog/agent-devx
+/.gitlab/source_test/kmt_tasks.yml                   @DataDog/ebpf-platform
 
 /.gitlab/binary_build/cluster_agent_cloudfoundry.yml @DataDog/agent-integrations @DataDog/agent-build
 /.gitlab/binary_build/cluster_agent.yml              @DataDog/container-integrations @DataDog/agent-build
