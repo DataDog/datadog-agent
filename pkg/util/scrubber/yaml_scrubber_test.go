@@ -135,15 +135,7 @@ func TestConfigScrubbedYaml(t *testing.T) {
 	trimmedOutput := strings.TrimSpace(strings.ReplaceAll(string(outputConfData), "\r\n", "\n"))
 	trimmedCleaned := strings.TrimSpace(strings.ReplaceAll(string(cleaned), "\r\n", "\n"))
 
-	// convert all single quotes to double quotes for consistent comparison
-	normalizeQuotes := func(s string) string {
-		return strings.ReplaceAll(s, "'********'", `"********"`)
-	}
-
-	expectedNormalized := normalizeQuotes(trimmedOutput)
-	actualNormalized := normalizeQuotes(trimmedCleaned)
-
-	assert.Equal(t, expectedNormalized, actualNormalized)
+	assert.Equal(t, trimmedOutput, trimmedCleaned)
 }
 
 func TestEmptyYaml(t *testing.T) {
