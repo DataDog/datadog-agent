@@ -18,6 +18,7 @@ import (
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
@@ -33,7 +34,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/dmi"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -86,12 +86,13 @@ type hostMetadata struct {
 	Interfaces  string `json:"interfaces"`
 
 	// from the agent itself
-	AgentVersion           string `json:"agent_version"`
-	CloudProvider          string `json:"cloud_provider"`
-	CloudProviderSource    string `json:"cloud_provider_source"`
-	CloudProviderAccountID string `json:"cloud_provider_account_id"`
-	CloudProviderHostID    string `json:"cloud_provider_host_id"`
-	OsVersion              string `json:"os_version"`
+	AgentVersion             string `json:"agent_version"`
+	CloudProvider            string `json:"cloud_provider"`
+	CloudProviderSource      string `json:"cloud_provider_source"`
+	CloudProviderAccountID   string `json:"cloud_provider_account_id"`
+	CloudProviderHostID      string `json:"cloud_provider_host_id"`
+	CanonicalCloudResourceID string `json:"ccrid"`
+	OsVersion                string `json:"os_version"`
 
 	// from file system
 	HypervisorGuestUUID string `json:"hypervisor_guest_uuid"`
@@ -140,6 +141,7 @@ type dependencies struct {
 	Log        log.Component
 	Config     config.Component
 	Serializer serializer.MetricSerializer
+	Hostname   hostnameinterface.Component
 }
 
 type provides struct {
@@ -152,7 +154,7 @@ type provides struct {
 }
 
 func newInventoryHostProvider(deps dependencies) provides {
-	hname, _ := hostname.Get(context.Background())
+	hname, _ := deps.Hostname.Get(context.Background())
 	ih := &invHost{
 		conf:     deps.Config,
 		log:      deps.Log,
@@ -265,6 +267,7 @@ func (ih *invHost) fillData() {
 
 	ih.data.CloudProviderSource = cloudproviders.GetSource(cloudProvider)
 	ih.data.CloudProviderHostID = cloudproviders.GetHostID(context.Background(), cloudProvider)
+	ih.data.CanonicalCloudResourceID = cloudproviders.GetHostCCRID(context.Background(), cloudProvider)
 	ih.data.OsVersion = osVersionGet()
 
 	gpgcheck, repoGPGCheck := pkgSigningGet(ih.log)

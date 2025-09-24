@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"strconv"
 
 	"github.com/spf13/cobra"
@@ -21,7 +22,6 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -49,7 +49,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(debugRuntime,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams:         config.NewAgentParams("", config.WithConfigMissingOK(true)),
+					ConfigParams:         config.NewAgentParams(""),
 					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.ConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					LogParams:            log.ForOneShot("SYS-PROBE", "off", false),
 				}),
@@ -74,10 +74,17 @@ func debugRuntime(sysprobeconfig sysprobeconfig.Component, cliParams *cliParams)
 	}
 
 	// TODO rather than allowing arbitrary query params, use cobra flags
-	r, err := util.DoGet(client, path, util.CloseConnection)
+	r, err := client.Get(path)
+	if err != nil {
+		return err
+	}
+
+	body, err := io.ReadAll(r.Body)
+	r.Body.Close()
+
 	if err != nil {
 		var errMap = make(map[string]string)
-		_ = json.Unmarshal(r, &errMap)
+		_ = json.Unmarshal(body, &errMap)
 		// If the error has been marshalled into a json object, check it and return it properly
 		if e, found := errMap["error"]; found {
 			return errors.New(e)
@@ -86,9 +93,9 @@ func debugRuntime(sysprobeconfig sysprobeconfig.Component, cliParams *cliParams)
 		return fmt.Errorf("Could not reach system-probe: %s\nMake sure system-probe is running before running this command and contact support if you continue having issues", err)
 	}
 
-	s, err := strconv.Unquote(string(r))
+	s, err := strconv.Unquote(string(body))
 	if err != nil {
-		fmt.Println(string(r))
+		fmt.Println(string(body))
 		return nil
 	}
 	fmt.Println(s)

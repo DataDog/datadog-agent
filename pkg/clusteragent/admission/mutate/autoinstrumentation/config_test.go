@@ -404,6 +404,7 @@ func TestTargetEnvVar(t *testing.T) {
 }
 
 func TestGetPinnedLibraries(t *testing.T) {
+
 	tests := []struct {
 		name          string
 		libVersions   map[string]string
@@ -489,7 +490,7 @@ func TestGetPinnedLibraries(t *testing.T) {
 			name: "default libs (major versions)",
 			libVersions: map[string]string{
 				"java":   "v1",
-				"python": "v2",
+				"python": "v3",
 				"js":     "v5",
 				"dotnet": "v3",
 				"ruby":   "v2",
@@ -512,7 +513,7 @@ func TestGetPinnedLibraries(t *testing.T) {
 			name: "default libs (major versions mismatch)",
 			libVersions: map[string]string{
 				"java":   "v1",
-				"python": "v2",
+				"python": "v3",
 				"js":     "v3",
 				"dotnet": "v3",
 				"ruby":   "v2",
@@ -522,7 +523,7 @@ func TestGetPinnedLibraries(t *testing.T) {
 				libs: []libInfo{
 					defaultLibInfo(java),
 					defaultLibInfo(python),
-					js.libInfo("", "registry/dd-lib-js-init:v3"),
+					defaultLibInfoWithVersion(js, "v3"),
 					defaultLibInfo(dotnet),
 					defaultLibInfo(ruby),
 				},

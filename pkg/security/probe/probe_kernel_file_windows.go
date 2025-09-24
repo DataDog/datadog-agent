@@ -173,7 +173,12 @@ func (wp *WindowsProbe) _parseCreateArgs(e *etw.DDEventRecord) (*createArgs, err
 	// invalidate the path resolver entry and other cache entries
 	wp.discardedFileHandles.Remove(fileObjectPointer(ca.fileObject))
 
-	ca.userFileName = wp.mustConvertDrivePath(ca.fileName)
+	userFileName, err := wp.mustConvertDrivePath(ca.fileName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert drive path: %w", err)
+	}
+
+	ca.userFileName = userFileName
 
 	// lru is thread safe, has its own locking
 	fc := fileCache{
@@ -670,7 +675,12 @@ func (wp *WindowsProbe) parseDeletePathArgs(e *etw.DDEventRecord) (*deletePathAr
 		dpa.infoClass = data.GetUint32(36)
 		dpa.filePath, _, _, _ = data.ParseUnicodeString(40)
 	}
-	dpa.userFilePath = wp.mustConvertDrivePath(dpa.filePath)
+
+	userFilePath, err := wp.mustConvertDrivePath(dpa.filePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert drive path: %w", err)
+	}
+	dpa.userFilePath = userFilePath
 
 	if _, ok := wp.discardedFileHandles.Get(fileObjectPointer(dpa.fileObject)); ok {
 		return nil, errDiscardedPath
@@ -750,7 +760,12 @@ func (wp *WindowsProbe) parseNameCreateArgs(e *etw.DDEventRecord) (*nameCreateAr
 	default:
 		return nil, fmt.Errorf("unknown version number %v", e.EventHeader.EventDescriptor.Version)
 	}
-	ca.userFileName = wp.mustConvertDrivePath(ca.fileName)
+
+	userFileName, err := wp.mustConvertDrivePath(ca.fileName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert drive path: %w", err)
+	}
+	ca.userFileName = userFileName
 
 	return ca, nil
 }
@@ -802,13 +817,17 @@ func (wp *WindowsProbe) convertDrivePath(devicefilename string) (string, error) 
 	return "", fmt.Errorf("Unable to parse path %v", devicefilename)
 }
 
-func (wp *WindowsProbe) mustConvertDrivePath(devicefilename string) string {
+func (wp *WindowsProbe) mustConvertDrivePath(devicefilename string) (string, error) {
+	if devicefilename == "\\FI_UNKNOWN" {
+		return "", fmt.Errorf("unknown device filename")
+	}
+
 	userPath, err := wp.convertDrivePath(devicefilename)
 	if err != nil {
-		seclog.Errorf("failed to convert drive path: %v", err)
-		return devicefilename
+		seclog.Debugf("failed to convert drive path: %v", err)
+		return devicefilename, nil
 	}
-	return userPath
+	return userPath, nil
 }
 
 func (wp *WindowsProbe) isPathAccepted(fileObject fileObjectPointer, fileName string, userFileName string) bool {

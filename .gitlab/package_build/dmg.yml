@@ -1,10 +1,16 @@
 ---
 .macos_setup_python:
-  # Selecting the current Python version
-  - !reference [.select_python_env_commands]
-  # List Python and Go existing environments and their disk space
-  - !reference [.list_python_versions_commands]
   - !reference [.install_python_dependencies]
+
+.macos_setup_go:
+  - echo Setting up Go
+  - mkdir -p ~/go
+  - export GO_VERSION="$(cat .go-version)"
+  - eval "$(gimme $GO_VERSION)"
+  - export PATH="$PATH:$GOROOT/bin"
+  - echo Go version should be $GO_VERSION
+  - go version
+  - dda inv check-go-version
 
 .macos_setup_cache:
   # Clean up previous builds
@@ -15,9 +21,8 @@
     export GOMODCACHE=~/gomodcache
     mkdir -p $GOMODCACHE
 
-agent_dmg-x64-a7:
+.agent_dmg:
   stage: package_build
-  tags: ["macos:ventura-amd64", "specific:true"]
   needs: ["go_mod_tidy_check"]
   rules:
      - !reference [.on_macos_gui_change]
@@ -36,7 +41,7 @@ agent_dmg-x64-a7:
     INTEGRATION_WHEELS_CACHE_BUCKET: dd-agent-omnibus
     INTEGRATION_WHEELS_SKIP_CACHE_UPLOAD: true
     S3_OMNIBUS_CACHE_BUCKET: dd-ci-datadog-agent-omnibus-cache-build-stable
-    NOTARIZATION_TIMEOUT: 30m
+    NOTARIZATION_TIMEOUT: 15m
     NOTARIZATION_ATTEMPTS: 3
     NOTARIZATION_WAIT_TIME: 15s
   timeout: 2h
@@ -45,6 +50,7 @@ agent_dmg-x64-a7:
   before_script:
     # Since there is no virtualization on the macOS runners, we need to unmount the Agent dmg volume to avoid conflicts
     - sudo umount /Volumes/Agent || true
+    - rm -rf "$OMNIBUS_GIT_CACHE_DIR" || true
   after_script:
     # Destroy the keychain used to sign packages
     - |
@@ -56,6 +62,17 @@ agent_dmg-x64-a7:
     - set -eo pipefail
     - !reference [.vault_login]
     - !reference [.macos_setup_python]
+    - !reference [.macos_setup_go]
+    # List Python and Go existing environments and their disk space
+    - !reference [.macos_runner_maintenance]
     - !reference [.macos_setup_cache]
     - bash .gitlab/package_build/build_agent_dmg.sh
     - !reference [.upload_sbom_artifacts]
+
+agent_dmg-x64-a7:
+  extends: .agent_dmg
+  tags: ["macos:ventura-amd64", "specific:true"]
+
+agent_dmg-arm64-a7:
+  extends: .agent_dmg
+  tags: ["macos:ventura-arm64", "specific:true"]

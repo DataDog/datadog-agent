@@ -18,48 +18,48 @@ import (
 // ScalingValues represents the scaling values (horizontal and vertical) for a target
 type ScalingValues struct {
 	// HorizontalError refers to an error encountered by Datadog while computing the horizontal scaling values
-	HorizontalError error
-	Horizontal      *HorizontalScalingValues
+	HorizontalError error                    `json:"-"`
+	Horizontal      *HorizontalScalingValues `json:"horizontal"`
 
 	// VerticalError refers to an error encountered by Datadog while computing the vertical scaling values
-	VerticalError error
-	Vertical      *VerticalScalingValues
+	VerticalError error                  `json:"-"`
+	Vertical      *VerticalScalingValues `json:"vertical"`
 
 	// Error refers to a general error encountered by Datadog while computing the scaling values
-	Error error
+	Error error `json:"-"`
 }
 
 // HorizontalScalingValues holds the horizontal scaling values for a target
 type HorizontalScalingValues struct {
 	// Source is the source of the value
-	Source datadoghqcommon.DatadogPodAutoscalerValueSource
+	Source datadoghqcommon.DatadogPodAutoscalerValueSource `json:"source"`
 
 	// Timestamp is the time at which the data was generated
-	Timestamp time.Time
+	Timestamp time.Time `json:"timestamp"`
 
 	// Replicas is the desired number of replicas for the target
-	Replicas int32
+	Replicas int32 `json:"replicas"`
 }
 
 // VerticalScalingValues holds the vertical scaling values for a target
 type VerticalScalingValues struct {
 	// Source is the source of the value
-	Source datadoghqcommon.DatadogPodAutoscalerValueSource
+	Source datadoghqcommon.DatadogPodAutoscalerValueSource `json:"source"`
 
 	// Timestamp is the time at which the data was generated
-	Timestamp time.Time
+	Timestamp time.Time `json:"timestamp"`
 
 	// ResourcesHash is the hash of containerResources
-	ResourcesHash string
+	ResourcesHash string `json:"resources_hash"`
 
 	// ContainerResources holds the resources for a container
-	ContainerResources []datadoghqcommon.DatadogPodAutoscalerContainerResources
+	ContainerResources []datadoghqcommon.DatadogPodAutoscalerContainerResources `json:"container_resources"`
 }
 
 // RecommenderConfiguration holds the configuration for a custom recommender
 type RecommenderConfiguration struct {
-	Endpoint string
-	Settings map[string]any
+	Endpoint string         `json:"endpoint"`
+	Settings map[string]any `json:"settings"`
 }
 
 // SumCPUMemoryRequests sums the CPU and memory requests of all containers

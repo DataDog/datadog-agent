@@ -9,6 +9,7 @@
 package tests
 
 import (
+	"context"
 	"fmt"
 	"os/exec"
 	"strconv"
@@ -41,8 +42,12 @@ var dockerImageLibrary = map[string][]string{
 		"public.ecr.aws/docker/library/centos:7",
 	},
 	"alpine": {
-		"alpine",
-		"public.ecr.aws/docker/library/alpine:latest",
+		"alpine:3.18.2",
+		"public.ecr.aws/docker/library/alpine:3.18.2", // before changing the version make sure that the new version behaves as previously (hardlink vs symlink)
+	},
+	"busybox": {
+		"busybox:1.36.1",
+		"public.ecr.aws/docker/library/busybox:1.36.1", // before changing the version make sure that the new version behaves as previously (hardlink vs symlink)
 	},
 }
 
@@ -87,6 +92,10 @@ type dockerCmdWrapper struct {
 }
 
 func (d *dockerCmdWrapper) Command(bin string, args []string, envs []string) *exec.Cmd {
+	return d.CommandContext(context.TODO(), bin, args, envs)
+}
+
+func (d *dockerCmdWrapper) CommandContext(ctx context.Context, bin string, args []string, envs []string) *exec.Cmd {
 	dockerArgs := []string{"exec"}
 	for _, env := range envs {
 		dockerArgs = append(dockerArgs, "-e"+env)
@@ -94,7 +103,7 @@ func (d *dockerCmdWrapper) Command(bin string, args []string, envs []string) *ex
 	dockerArgs = append(dockerArgs, d.containerName, bin)
 	dockerArgs = append(dockerArgs, args...)
 
-	cmd := exec.Command(d.executable, dockerArgs...)
+	cmd := exec.CommandContext(ctx, d.executable, dockerArgs...)
 	cmd.Env = envs
 
 	return cmd
@@ -153,15 +162,19 @@ func (d *dockerCmdWrapper) Type() wrapperType {
 
 func (d *dockerCmdWrapper) selectImageFromLibrary(kind string) error {
 	var err error
+	var output []byte
 	for _, entry := range dockerImageLibrary[kind] {
 		cmd := exec.Command(d.executable, "pull", entry)
-		err = cmd.Run()
+		output, err = cmd.CombinedOutput()
 		if err == nil {
 			d.image = entry
 			break
 		}
 	}
-	return err
+	if err != nil {
+		return fmt.Errorf("%w, cmd output:\n%s", err, string(output))
+	}
+	return nil
 }
 
 func newDockerCmdWrapper(mountSrc, mountDest string, kind string, runtimeCommand string) (*dockerCmdWrapper, error) {
@@ -176,9 +189,9 @@ func newDockerCmdWrapper(mountSrc, mountDest string, kind string, runtimeCommand
 
 	// check docker is available
 	cmd := exec.Command(executable, "version")
-	output, err := cmd.Output()
+	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w, cmd output:\n%s", err, string(output))
 	}
 
 	for _, line := range strings.Split(strings.ToLower(string(output)), "\n") {

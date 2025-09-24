@@ -12,6 +12,7 @@ import (
 	"os"
 	"path"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -109,7 +110,8 @@ func populateConfig(config config.Component) map[string]string {
 	conf["confd_path"] = config.GetString("confd_path")
 	conf["additional_checksd"] = config.GetString("additional_checksd")
 
-	conf["fips_enabled"] = config.GetString("fips.enabled")
+	isFipsAgent, _ := fips.Enabled()
+	conf["fips_proxy_enabled"] = strconv.FormatBool(config.GetBool("fips.enabled") && !isFipsAgent)
 	conf["fips_local_address"] = config.GetString("fips.local_address")
 	conf["fips_port_range_start"] = config.GetString("fips.port_range_start")
 

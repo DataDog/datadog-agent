@@ -14,6 +14,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
 	installer "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
@@ -143,7 +145,7 @@ func (b *baseInstaller) prepareEnvVars(params Params) map[string]string {
 // Handles local file URLs by copying the script to the remote host.
 func (d *DatadogInstallScript) prepareScript(params Params) (string, error) {
 	if params.installerScript == "" {
-		params.installerScript = fmt.Sprintf("https://installtesting.datad0g.com/pipeline-%s/scripts/Install-Datadog.ps1", d.env.Environment.PipelineID())
+		params.installerScript = fmt.Sprintf("https://s3.amazonaws.com/installtesting.datad0g.com/pipeline-%s/scripts/Install-Datadog.ps1", d.env.Environment.PipelineID())
 	}
 
 	// Handle local script URL
@@ -183,6 +185,11 @@ func (d *DatadogInstallScript) Run(opts ...Option) (string, error) {
 	// Prepare environment variables
 	envVars := d.baseInstaller.prepareEnvVars(params)
 	if installerPath != "" {
+		// skip code signature verification if it's disabled in the profile (for local testing)
+		verify, _ := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.VerifyCodeSignature, true)
+		if !verify {
+			envVars["DD_SKIP_CODE_SIGNING_CHECK"] = "true"
+		}
 		envVars["DD_INSTALLER_URL"] = installerPath
 	}
 
@@ -247,12 +254,12 @@ func (d *DatadogInstallExe) Run(opts ...Option) (string, error) {
 	// Build the PowerShell command
 	var cmd string
 	if strings.HasPrefix(params.installerURL, "file://") {
-		cmd = fmt.Sprintf(`& "%s" setup --flavor default`, installerPath)
+		cmd = fmt.Sprintf(`& "%s"`, installerPath)
 	} else {
 		cmd = fmt.Sprintf(`[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072;
 			$tempFile = [System.IO.Path]::GetTempFileName() + ".exe";
 			(New-Object System.Net.WebClient).DownloadFile("%s", $tempFile);
-			& $tempFile setup --flavor default`, installerPath)
+			& $tempFile`, installerPath)
 	}
 
 	return d.env.RemoteHost.Execute(cmd, client.WithEnvVariables(envVars))

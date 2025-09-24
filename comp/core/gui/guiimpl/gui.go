@@ -26,11 +26,10 @@ import (
 	"go.uber.org/fx"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
-	"github.com/DataDog/datadog-agent/comp/collector/collector"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	guicomp "github.com/DataDog/datadog-agent/comp/core/gui"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
@@ -75,13 +74,12 @@ type Payload struct {
 type dependencies struct {
 	fx.In
 
-	Log       log.Component
-	Config    config.Component
-	Flare     flare.Component
-	Status    status.Component
-	Collector collector.Component
-	Ac        autodiscovery.Component
-	Lc        fx.Lifecycle
+	Log      log.Component
+	Config   config.Component
+	Flare    flare.Component
+	Status   status.Component
+	Lc       fx.Lifecycle
+	Hostname hostnameinterface.Component
 }
 
 type provides struct {
@@ -141,9 +139,9 @@ func newGui(deps dependencies) provides {
 	securedRouter := publicRouter.PathPrefix("/").Subrouter()
 	// Set up handlers for the API
 	agentRouter := securedRouter.PathPrefix("/agent").Subrouter().StrictSlash(true)
-	agentHandler(agentRouter, deps.Flare, deps.Status, deps.Config, g.startTimestamp)
+	agentHandler(agentRouter, deps.Flare, deps.Status, deps.Config, deps.Hostname, g.startTimestamp)
 	checkRouter := securedRouter.PathPrefix("/checks").Subrouter().StrictSlash(true)
-	checkHandler(checkRouter, deps.Collector, deps.Ac)
+	checkHandler(checkRouter)
 
 	// Check token on every securedRouter endpoints
 	securedRouter.Use(g.authMiddleware)
@@ -277,7 +275,13 @@ func (g *gui) getAccessToken(w http.ResponseWriter, r *http.Request) {
 	accessToken := g.auth.GenerateAccessToken()
 
 	// set the accessToken as a cookie and redirect the user to root page
-	http.SetCookie(w, &http.Cookie{Name: "accessToken", Value: accessToken, Path: "/", HttpOnly: true})
+	http.SetCookie(w, &http.Cookie{
+		Name:     "accessToken",
+		Value:    accessToken,
+		Path:     "/",
+		HttpOnly: true,
+		MaxAge:   31536000, // 1 year
+	})
 	http.Redirect(w, r, "/", http.StatusFound)
 }
 

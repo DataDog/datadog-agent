@@ -21,11 +21,12 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadmetafilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/workloadmeta"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/prometheus"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	prom "github.com/DataDog/datadog-agent/pkg/util/prometheus"
@@ -73,7 +74,7 @@ type processCache struct {
 
 // Provider provides the metrics related to data collected from the `/metrics/cadvisor` Kubelet endpoint
 type Provider struct {
-	filter         *containers.Filter
+	filterStore    workloadfilter.Component
 	store          workloadmeta.Component
 	tagger         tagger.Component
 	podUtils       *common.PodUtils
@@ -84,14 +85,14 @@ type Provider struct {
 }
 
 // NewProvider creates and returns a new Provider, configured based on the values passed in.
-func NewProvider(filter *containers.Filter, config *common.KubeletConfig, store workloadmeta.Component, podUtils *common.PodUtils, tagger tagger.Component) (*Provider, error) {
+func NewProvider(filterStore workloadfilter.Component, config *common.KubeletConfig, store workloadmeta.Component, podUtils *common.PodUtils, tagger tagger.Component) (*Provider, error) {
 	// clone instance configuration so we can set our default metrics
 	cadvisorConfig := *config
 
 	cadvisorConfig.IgnoreMetrics = ignoreMetrics
 
 	provider := &Provider{
-		filter:         filter,
+		filterStore:    filterStore,
 		store:          store,
 		tagger:         tagger,
 		podUtils:       podUtils,
@@ -166,6 +167,8 @@ func (p *Provider) processContainerMetric(metricType, metricName string, metricF
 		} else {
 			cID, _ := kubelet.KubeContainerIDToTaggerEntityID(containerID)
 			tags, _ = p.tagger.Tag(cID, types.HighCardinality)
+
+			tags = common.AppendKubeStaticCPUsTag(p.store, pod.QOSClass, cID, tags)
 		}
 
 		if len(tags) == 0 {
@@ -202,8 +205,9 @@ func (p *Provider) processPodRate(metricName string, metricFam *prom.MetricFamil
 		if pod == nil {
 			continue
 		}
-		namespace := pod.Namespace
-		if p.filter.IsExcluded(pod.Annotations, "", "", namespace) {
+		filterablePod := workloadmetafilter.CreatePod(pod)
+		selectedFilters := p.filterStore.GetPodSharedMetricFilters()
+		if p.filterStore.IsPodExcluded(filterablePod, selectedFilters) {
 			continue
 		}
 		if strings.Contains(metricName, ".network.") && p.podUtils.IsHostNetworkedPod(podUID) {
@@ -353,7 +357,7 @@ func (p *Provider) getEntityIDIfContainerMetric(labels model.Metric) string {
 			// Return the pod UID so that we can collect metrics from it later on.
 			return p.getPodUID(labels)
 		}
-		cID, _ := common.GetContainerID(p.store, labels, p.filter)
+		cID, _ := common.GetContainerID(p.store, labels, p.filterStore)
 		return types.NewEntityID(types.ContainerID, cID).String()
 	}
 	return ""
@@ -380,7 +384,9 @@ func (p *Provider) getPodByMetricLabel(labels model.Metric) *workloadmeta.Kubern
 		podName = labels["pod_name"]
 	}
 	if pod, err := p.store.GetKubernetesPodByName(string(podName), string(namespace)); err == nil {
-		if !p.filter.IsExcluded(pod.EntityMeta.Annotations, "", "", pod.Namespace) {
+		filterablePod := workloadmetafilter.CreatePod(pod)
+		selectedFilters := p.filterStore.GetPodSharedMetricFilters()
+		if !p.filterStore.IsPodExcluded(filterablePod, selectedFilters) {
 			return pod
 		}
 	}

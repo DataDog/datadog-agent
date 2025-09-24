@@ -39,8 +39,14 @@ func (c *cgroupV2) GetMemoryStats(stats *MemoryStats) error {
 			stats.RSS = &intVal
 		case "anon_thp":
 			stats.RSSHuge = &intVal
+		case "shmem":
+			stats.Shmem = &intVal
 		case "file_mapped":
-			stats.MappedFile = &intVal
+			stats.FileMapped = &intVal
+		case "file_dirty":
+			stats.FileDirty = &intVal
+		case "file_writeback":
+			stats.FileWriteback = &intVal
 		case "pgfault":
 			stats.Pgfault = &intVal
 		case "pgmajfault":
@@ -57,8 +63,17 @@ func (c *cgroupV2) GetMemoryStats(stats *MemoryStats) error {
 			stats.Unevictable = &intVal
 		case "kernel_stack":
 			kernelStack = &intVal
+		case "workingset_refault_anon":
+			stats.RefaultAnon = &intVal
+		case "workingset_refault_file":
+			stats.RefaultFile = &intVal
 		case "slab":
 			slab = &intVal
+			// Requires Kernel >= 5.18
+		case "kernel":
+			stats.KernelMemory = &intVal
+		case "pagetables":
+			stats.PageTables = &intVal
 		}
 
 		return nil
@@ -66,7 +81,7 @@ func (c *cgroupV2) GetMemoryStats(stats *MemoryStats) error {
 		reportError(err)
 	}
 
-	if kernelStack != nil && slab != nil {
+	if stats.KernelMemory == nil && kernelStack != nil && slab != nil {
 		stats.KernelMemory = pointer.Ptr(*kernelStack + *slab)
 	}
 
@@ -94,6 +109,7 @@ func (c *cgroupV2) GetMemoryStats(stats *MemoryStats) error {
 	}
 	nilIfZero(&stats.Limit)
 
+	// Requires Kernel >= 5.19
 	if err := parseSingleUnsignedStat(c.fr, c.pathFor("memory.peak"), &stats.Peak); err != nil {
 		reportError(err)
 	}

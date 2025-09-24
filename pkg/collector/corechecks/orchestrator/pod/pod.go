@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/benbjohnson/clock"
 	"go.uber.org/atomic"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -24,7 +25,8 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
+	utilTypes "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
@@ -34,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // CheckName is the name of the check
@@ -49,15 +52,16 @@ func nextGroupID() int32 {
 // Check doesn't need additional fields
 type Check struct {
 	core.CheckBase
-	hostName   string
-	clusterID  string
-	sender     sender.Sender
-	processor  *processors.Processor
-	config     *oconfig.OrchestratorConfig
-	systemInfo *model.SystemInfo
-	store      workloadmeta.Component
-	cfg        config.Component
-	tagger     tagger.Component
+	hostName     string
+	clusterID    string
+	sender       sender.Sender
+	processor    *processors.Processor
+	config       *oconfig.OrchestratorConfig
+	systemInfo   *model.SystemInfo
+	store        workloadmeta.Component
+	cfg          config.Component
+	tagger       tagger.Component
+	agentVersion *model.AgentVersion
 }
 
 // Factory creates a new check factory
@@ -130,6 +134,18 @@ func (c *Check) Configure(
 		log.Warnf("Failed to collect system info: %s", err)
 	}
 
+	agentVersion, err := version.Agent()
+	if err != nil {
+		log.Warnf("Failed to get agent version: %s", err)
+	}
+	c.agentVersion = &model.AgentVersion{
+		Major:  agentVersion.Major,
+		Minor:  agentVersion.Minor,
+		Patch:  agentVersion.Patch,
+		Pre:    agentVersion.Pre,
+		Commit: agentVersion.Commit,
+	}
+
 	return nil
 }
 
@@ -154,19 +170,27 @@ func (c *Check) Run() error {
 	}
 
 	groupID := nextGroupID()
+	metadataAsTags := utils.GetMetadataAsTags(c.cfg)
+	resourceType := utilTypes.GetResourceType(utilTypes.PodName, utilTypes.PodVersion)
+	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
+	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
 	ctx := &processors.K8sProcessorContext{
 		BaseProcessorContext: processors.BaseProcessorContext{
 			Cfg:              c.config,
+			Clock:            clock.New(),
 			MsgGroupID:       groupID,
 			NodeType:         orchestrator.K8sPod,
 			ClusterID:        c.clusterID,
 			ManifestProducer: true,
 			Kind:             kubernetes.PodKind,
 			APIVersion:       "v1",
-			ExtraTags:        util.ImmutableTagsJoin(c.config.ExtraTags, []string{"kube_api_version:v1"}),
+			CollectorTags:    []string{"kube_api_version:v1"},
+			AgentVersion:     c.agentVersion,
 		},
-		HostName:   c.hostName,
-		SystemInfo: c.systemInfo,
+		HostName:          c.hostName,
+		SystemInfo:        c.systemInfo,
+		LabelsAsTags:      labelsAsTags,
+		AnnotationsAsTags: annotationsAsTags,
 	}
 
 	processResult, listed, processed := c.processor.Process(ctx, podList)

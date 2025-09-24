@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(AML) Fix revive linter
 package file
 
 import (
@@ -44,4 +43,9 @@ func (t *File) GetScanKey() string {
 		return fmt.Sprintf("%s/%s", t.Path, t.Source.Config().Identifier)
 	}
 	return t.Path
+}
+
+// Identifier returns a unique identifier for this file
+func (t *File) Identifier() string {
+	return fmt.Sprintf("file:%s", t.Path)
 }

@@ -3,7 +3,7 @@ erratic: false
 
 target:
   name: datadog-agent
-  cpu_allotment: 8
+  cpu_allotment: 4
   memory_allotment: 1g
 
   environment:

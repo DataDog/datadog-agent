@@ -38,7 +38,7 @@ func (v *windowsSecretSuite) TestAgentSecretExecDoesNotExist() {
 		output := v.Env().Agent.Client.Secret()
 		assert.Contains(t, output, "=== Checking executable permissions ===")
 		assert.Contains(t, output, "Executable path: /does/not/exist")
-		assert.Contains(t, output, "Executable permissions: error: secretBackendCommand '/does/not/exist' does not exist")
+		assert.Contains(t, output, "Executable permissions: error: the executable does not have the correct permissions")
 		assert.Regexp(t, "Number of secrets .+: 0", output)
 	}, 30*time.Second, 2*time.Second)
 }
@@ -50,7 +50,7 @@ func (v *windowsSecretSuite) TestAgentSecretChecksExecutablePermissions() {
 		output := v.Env().Agent.Client.Secret()
 		assert.Contains(t, output, "=== Checking executable permissions ===")
 		assert.Contains(t, output, "Executable path: C:\\Windows\\system32\\cmd.exe")
-		assert.Regexp(t, "Executable permissions: error: invalid executable 'C:\\\\Windows\\\\system32\\\\cmd.exe': other users/groups than LOCAL_SYSTEM, .+ have rights on it", output)
+		assert.Regexp(t, "Executable permissions: error: the executable does not have the correct permissions", output)
 		assert.Regexp(t, "Number of secrets .+: 0", output)
 	}, 30*time.Second, 2*time.Second)
 }
@@ -87,7 +87,7 @@ host_aliases:
 	ddagentRegex := `Access : .+\\ddagentuser Allow  ReadAndExecute`
 	assert.Regexp(v.T(), ddagentRegex, output)
 	assert.Regexp(v.T(), "Number of secrets .+: 1", output)
-	assert.Contains(v.T(), output, "- 'alias_secret':\r\n\tused in 'datadog.yaml' configuration in entry 'host_aliases")
+	assert.Regexp(v.T(), `- 'alias_secret':\r?\n\s+used in 'datadog\.yaml' configuration in entry 'host_aliases/0'`, output)
 	// assert we don't output the resolved secret
 	assert.NotContains(v.T(), output, "a_super_secret_string")
 }

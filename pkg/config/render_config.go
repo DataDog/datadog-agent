@@ -22,7 +22,6 @@ type context struct {
 	Common                           bool
 	Agent                            bool
 	Python                           bool // Sub-option of Agent
-	BothPythonPresent                bool // Sub-option of Agent - Python
 	Metadata                         bool
 	InternalProfiling                bool
 	Dogstatsd                        bool
@@ -60,6 +59,7 @@ type context struct {
 	OTLP                             bool
 	APMInjection                     bool
 	NetworkPath                      bool
+	ApplicationMonitoring            bool
 }
 
 func mkContext(buildType string) context {
@@ -97,9 +97,6 @@ func mkContext(buildType string) context {
 
 	switch buildType {
 	case "agent-py3":
-		return agentContext
-	case "agent-py2py3":
-		agentContext.BothPythonPresent = true
 		return agentContext
 	case "iot-agent":
 		return context{
@@ -163,6 +160,11 @@ func mkContext(buildType string) context {
 		return context{
 			OS:           runtime.GOOS,
 			APMInjection: true,
+		}
+	case "application-monitoring":
+		return context{
+			OS:                    runtime.GOOS,
+			ApplicationMonitoring: true,
 		}
 	}
 

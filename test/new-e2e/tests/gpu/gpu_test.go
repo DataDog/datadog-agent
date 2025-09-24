@@ -19,6 +19,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/test-infra-definitions/components/os"
+
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/fakeintake/client"
@@ -38,9 +40,48 @@ type gpuBaseSuite[Env any] struct {
 	caps                     suiteCapabilities
 	agentRestartsAtSuiteInit map[agentComponent]int
 	provisioner              provisioners.Provisioner
+	systemData               systemData
 }
 
 const vectorAddDockerImg = "ghcr.io/datadog/apps-cuda-basic"
+
+const (
+	gpuSystemUbuntu2204          systemName = "ubuntu2204"
+	gpuSystemUbuntu1804Driver430 systemName = "ubuntu1804-430"
+	gpuSystemUbuntu1804Driver510 systemName = "ubuntu1804-510"
+	defaultGpuSystem             systemName = gpuSystemUbuntu2204
+
+	cuda12DockerImage    = "669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/nvidia/cuda:12.6.3-base-ubuntu22.04"
+	pytorch19DockerImage = "669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/pytorch/pytorch:1.9.0-cuda10.2-cudnn7-runtime"
+)
+
+// gpuSystems is a map of AMIs for different Ubuntu versions
+var gpuSystems = map[systemName]systemData{
+	gpuSystemUbuntu2204: {
+		ami:                          "ami-03ee78da2beb5b622",
+		os:                           os.Ubuntu2204,
+		cudaSanityCheckImage:         cuda12DockerImage,
+		hasEcrCredentialsHelper:      false, // needs to be installed from the repos
+		hasAllNVMLCriticalAPIs:       true,  // 22.04 has all the critical APIs
+		supportsSystemProbeComponent: true,
+	},
+	gpuSystemUbuntu1804Driver430: {
+		ami:                          "ami-0cd4aa4912d788419",
+		cudaSanityCheckImage:         pytorch19DockerImage, // We don't have base CUDA 10 images from NVIDIA, so we use the PyTorch image
+		os:                           os.Ubuntu2004,        // We don't have explicit support for Ubuntu 18.04, but this descriptor is not super-strict
+		hasEcrCredentialsHelper:      true,                 // already installed in the AMI, as it's not present in the 18.04 repos
+		hasAllNVMLCriticalAPIs:       false,                // DeviceGetNumGpuCores is missing for this version of the driver,
+		supportsSystemProbeComponent: false,
+	},
+	gpuSystemUbuntu1804Driver510: {
+		ami:                          "ami-0cbf114f88ec230fe",
+		cudaSanityCheckImage:         pytorch19DockerImage, // We don't have base CUDA 10 images from NVIDIA, so we use the PyTorch image
+		os:                           os.Ubuntu2004,        // We don't have explicit support for Ubuntu 18.04, but this descriptor is not super-strict
+		hasEcrCredentialsHelper:      true,                 // already installed in the AMI, as it's not present in the 18.04 repos
+		hasAllNVMLCriticalAPIs:       true,                 // 510 driver has all the critical APIs
+		supportsSystemProbeComponent: false,
+	},
+}
 
 func dockerImageName() string {
 	return fmt.Sprintf("%s:%s", vectorAddDockerImg, *imageTag)
@@ -61,7 +102,23 @@ type gpuHostSuite struct {
 
 // TestGPUHostSuite runs tests for the VM interface to ensure its implementation is correct.
 // Not to be run in parallel, as some tests wait until the checks are available.
-func TestGPUHostSuite(t *testing.T) {
+func TestGPUHostSuiteUbuntu2204(t *testing.T) {
+	runGpuHostSuite(t, gpuSystemUbuntu2204)
+}
+
+// TestGPUHostSuiteUbuntu1804Driver430 runs tests for the VM interface
+// on Ubuntu 18.04 with an older driver version. The GPU check should not
+// work here as it doesn't have all the critical APIs, but we can check that
+// the agent does not crash.
+func TestGPUHostSuiteUbuntu1804Driver430(t *testing.T) {
+	runGpuHostSuite(t, gpuSystemUbuntu1804Driver430)
+}
+
+func TestGPUHostSuiteUbuntu1804Driver510(t *testing.T) {
+	runGpuHostSuite(t, gpuSystemUbuntu1804Driver510)
+}
+
+func runGpuHostSuite(t *testing.T, gpuSystem systemName) {
 	// incident-33572. Pulumi seems to sometimes fail to create the stack with an error
 	// we are not able to debug from the logs. We mark the test as flaky in that case only.
 	flake.MarkOnLog(t, "error: an unhandled error occurred: waiting for RPCs:")
@@ -70,6 +127,12 @@ func TestGPUHostSuite(t *testing.T) {
 	flake.MarkOnLog(t, "Unable to acquire the dpkg frontend lock (/var/lib/dpkg/lock-frontend), is another process using it?")
 
 	provParams := getDefaultProvisionerParams()
+
+	systemData, ok := gpuSystems[gpuSystem]
+	if !ok {
+		t.Fatalf("invalid system name: %s", gpuSystem)
+	}
+	provParams.systemData = systemData
 
 	// Append our vectorAdd image for testing
 	provParams.dockerImages = append(provParams.dockerImages, dockerImageName())
@@ -81,7 +144,12 @@ func TestGPUHostSuite(t *testing.T) {
 		suiteParams = append(suiteParams, e2e.WithDevMode())
 	}
 
-	suite := &gpuHostSuite{}
+	suite := &gpuHostSuite{
+		gpuBaseSuite: gpuBaseSuite[environments.Host]{
+			provisioner: provisioner,
+			systemData:  systemData,
+		},
+	}
 
 	e2e.Run(t, suite, suiteParams...)
 }
@@ -96,9 +164,16 @@ type gpuK8sSuite struct {
 	gpuBaseSuite[environments.Kubernetes]
 }
 
-// TestGPUK8sSuite runs tests for the VM interface to ensure its implementation is correct.
+// TestGPUK8sSuiteUbuntu2204 runs tests for the VM interface to ensure its implementation is correct.
 // Not to be run in parallel, as some tests wait until the checks are available.
-func TestGPUK8sSuite(t *testing.T) {
+func TestGPUK8sSuiteUbuntu2204(t *testing.T) {
+	runGpuK8sSuite(t, gpuSystemUbuntu2204)
+}
+
+// Note: The Kind cluster cannot be setup on Ubuntu 18.04, so we don't test for k8s setup
+// on that system.
+
+func runGpuK8sSuite(t *testing.T, gpuSystem systemName) {
 	// incident-33572. Pulumi seems to sometimes fail to create the stack with an error
 	// we are not able to debug from the logs. We mark the test as flaky in that case only.
 	flake.MarkOnLog(t, "error: an unhandled error occurred: waiting for RPCs:")
@@ -114,6 +189,12 @@ func TestGPUK8sSuite(t *testing.T) {
 	flake.MarkOnLog(t, "rate limit")
 	provParams := getDefaultProvisionerParams()
 
+	systemData, ok := gpuSystems[gpuSystem]
+	if !ok {
+		t.Fatalf("invalid system name: %s", gpuSystem)
+	}
+	provParams.systemData = systemData
+
 	// Append our vectorAdd image for testing
 	provParams.dockerImages = append(provParams.dockerImages, dockerImageName())
 
@@ -127,6 +208,7 @@ func TestGPUK8sSuite(t *testing.T) {
 	suite := &gpuK8sSuite{
 		gpuBaseSuite: gpuBaseSuite[environments.Kubernetes]{
 			provisioner: provisioner,
+			systemData:  systemData,
 		},
 	}
 
@@ -204,6 +286,10 @@ func (v *gpuBaseSuite[Env]) runCudaDockerWorkload() string {
 }
 
 func (v *gpuBaseSuite[Env]) TestGPUCheckIsEnabled() {
+	if !v.systemData.hasAllNVMLCriticalAPIs {
+		v.T().Skip("skipping test as system does not have all the critical NVML APIs")
+	}
+
 	// Note that the GPU check should be enabled by autodiscovery, so it can take some time to be enabled
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		statusOutput := v.caps.Agent().Status(agentclient.WithArgs([]string{"collector", "--json"}))
@@ -226,6 +312,14 @@ func (v *gpuBaseSuite[Env]) TestGPUCheckIsEnabled() {
 }
 
 func (v *gpuBaseSuite[Env]) TestGPUSysprobeEndpointIsResponding() {
+	if !v.systemData.hasAllNVMLCriticalAPIs {
+		v.T().Skip("skipping test as system does not have all the critical NVML APIs")
+	}
+
+	if !v.systemData.supportsSystemProbeComponent {
+		v.T().Skip("skipping test as system does not support the system-probe component")
+	}
+
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		out, err := v.caps.QuerySysprobe("gpu/check")
 		assert.NoError(c, err)
@@ -234,6 +328,10 @@ func (v *gpuBaseSuite[Env]) TestGPUSysprobeEndpointIsResponding() {
 }
 
 func (v *gpuBaseSuite[Env]) TestLimitMetricsAreReported() {
+	if !v.systemData.hasAllNVMLCriticalAPIs {
+		v.T().Skip("skipping test as system does not have all the critical NVML APIs")
+	}
+
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		metricNames := []string{"gpu.core.limit", "gpu.memory.limit"}
 		for _, metricName := range metricNames {
@@ -245,13 +343,24 @@ func (v *gpuBaseSuite[Env]) TestLimitMetricsAreReported() {
 }
 
 func (v *gpuBaseSuite[Env]) TestVectorAddProgramDetected() {
-	flake.Mark(v.T())
+	if !v.systemData.hasAllNVMLCriticalAPIs {
+		v.T().Skip("skipping test as system does not have all the critical NVML APIs")
+	}
+
+	if !v.systemData.supportsSystemProbeComponent {
+		v.T().Skip("skipping test as system does not support the system-probe component")
+	}
+
+	// Docker access to GPUs is flaky sometimes. We haven't been able to reproduce why this happens, but it
+	// seems it's always the same error code.
+	flake.MarkOnLog(v.T(), "error code no CUDA-capable device is detected")
+	flake.MarkOnLog(v.T(), "error code CUDA-capable device(s) is/are busy or unavailable")
 	_ = v.runCudaDockerWorkload()
 
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		// We are not including "gpu.memory", as that represents the "current
 		// memory usage" and that might be zero at the time it's checked
-		metricNames := []string{"gpu.core.usage"}
+		metricNames := []string{"gpu.process.core.usage"}
 
 		var usageMetricTags []string
 		for _, metricName := range metricNames {
@@ -259,7 +368,7 @@ func (v *gpuBaseSuite[Env]) TestVectorAddProgramDetected() {
 			assert.NoError(c, err)
 			assert.Greater(c, len(metrics), 0, "no '%s' with value higher than 0 yet", metricName)
 
-			if metricName == "gpu.core.usage" && len(metrics) > 0 {
+			if metricName == "gpu.process.core.usage" && len(metrics) > 0 {
 				usageMetricTags = metrics[0].Tags
 			}
 		}
@@ -274,6 +383,10 @@ func (v *gpuBaseSuite[Env]) TestVectorAddProgramDetected() {
 }
 
 func (v *gpuBaseSuite[Env]) TestNvmlMetricsPresent() {
+	if !v.systemData.hasAllNVMLCriticalAPIs {
+		v.T().Skip("skipping test as system does not have all the critical NVML APIs")
+	}
+
 	// Nvml metrics are always being collected
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		// Not all NVML metrics are supported in all devices. We check for some basic ones
@@ -304,6 +417,10 @@ func (v *gpuBaseSuite[Env]) TestNvmlMetricsPresent() {
 }
 
 func (v *gpuBaseSuite[Env]) TestWorkloadmetaHasGPUs() {
+	if !v.systemData.hasAllNVMLCriticalAPIs {
+		v.T().Skip("skipping test as system does not have all the critical NVML APIs")
+	}
+
 	var out string
 	// Wait until our collector has ran and we have GPUs in the workloadmeta. We don't have exact control on the timing of execution
 	v.EventuallyWithT(func(c *assert.CollectT) {

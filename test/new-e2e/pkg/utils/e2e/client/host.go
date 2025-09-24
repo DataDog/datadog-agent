@@ -260,23 +260,17 @@ func (h *Host) GetFile(src string, dst string) error {
 	dst = h.convertPathSeparator(dst)
 	sftpClient := h.getSFTPClient()
 	defer sftpClient.Close()
+	return downloadFile(sftpClient, src, dst)
+}
 
-	// remote
-	fsrc, err := sftpClient.Open(src)
-	if err != nil {
-		return err
-	}
-	defer fsrc.Close()
-
-	// local
-	fdst, err := os.Create(dst)
-	if err != nil {
-		return err
-	}
-	defer fdst.Close()
-
-	_, err = fsrc.WriteTo(fdst)
-	return err
+// GetFolder create a sftp session and copy a folder from the remote host through SSH
+func (h *Host) GetFolder(srcFolder string, dstFolder string) error {
+	h.context.T().Logf("Copying folder from remote %s to local %s", srcFolder, dstFolder)
+	srcFolder = h.convertPathSeparator(srcFolder)
+	dstFolder = h.convertPathSeparator(dstFolder)
+	sftpClient := h.getSFTPClient()
+	defer sftpClient.Close()
+	return downloadFolder(sftpClient, srcFolder, dstFolder)
 }
 
 // ReadFile reads the content of the file, return bytes read and error if any
@@ -416,7 +410,11 @@ func (h *Host) DialPort(port uint16) (net.Conn, error) {
 func (h *Host) GetTmpFolder() (string, error) {
 	switch osFamily := h.osFamily; osFamily {
 	case oscomp.WindowsFamily:
-		return h.Execute("echo %TEMP%")
+		out, err := h.Execute("echo $env:TEMP")
+		if err != nil {
+			return out, err
+		}
+		return strings.TrimSpace(out), nil
 	case oscomp.LinuxFamily:
 		return "/tmp", nil
 	default:
@@ -424,9 +422,27 @@ func (h *Host) GetTmpFolder() (string, error) {
 	}
 }
 
+// GetAgentConfigFolder returns the agent config folder path for the host
+func (h *Host) GetAgentConfigFolder() (string, error) {
+	switch h.osFamily {
+	case oscomp.WindowsFamily:
+		out, err := h.Execute("echo $env:PROGRAMDATA")
+		if err != nil {
+			return out, err
+		}
+		return fmt.Sprintf("%s\\Datadog", strings.TrimSpace(out)), nil
+	case oscomp.LinuxFamily:
+		return "/etc/datadog-agent", nil
+	case oscomp.MacOSFamily:
+		return "/opt/datadog-agent/etc", nil
+	default:
+		return "", errors.ErrUnsupported
+	}
+}
+
 // GetLogsFolder returns the logs folder path for the host
 func (h *Host) GetLogsFolder() (string, error) {
-	switch osFamily := h.osFamily; osFamily {
+	switch h.osFamily {
 	case oscomp.WindowsFamily:
 		return `C:\ProgramData\Datadog\logs`, nil
 	case oscomp.LinuxFamily:
@@ -435,6 +451,16 @@ func (h *Host) GetLogsFolder() (string, error) {
 		return "/opt/datadog-agent/logs", nil
 	default:
 		return "", errors.ErrUnsupported
+	}
+}
+
+// JoinPath joins the path elements with the correct separator for the host
+func (h *Host) JoinPath(path ...string) string {
+	switch h.osFamily {
+	case oscomp.WindowsFamily:
+		return strings.Join(path, "\\")
+	default:
+		return strings.Join(path, "/")
 	}
 }
 

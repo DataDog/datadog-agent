@@ -7,6 +7,7 @@ package tcp
 
 import (
 	"context"
+	"errors"
 	"net"
 	"strconv"
 	"testing"
@@ -16,6 +17,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/mock"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -39,7 +42,7 @@ func TestDestinationHA(t *testing.T) {
 // TestConnecitivityDiagnoseNoBlock ensures the connectivity diagnose doesn't
 // block
 func TestConnecitivityDiagnoseNoBlock(t *testing.T) {
-	endpoint := config.NewEndpoint("00000000", "", "host", 0, true)
+	endpoint := config.NewEndpoint("00000000", "", "host", 0, config.EmptyPathPrefix, true)
 	done := make(chan struct{})
 
 	go func() {
@@ -73,7 +76,7 @@ func TestConnectivityDiagnoseOperationSuccess(t *testing.T) {
 	portInt, err := strconv.Atoi(port)
 	assert.Nil(t, err)
 
-	testSuccessEndpoint := config.NewEndpoint("api-key", "", host, portInt, false)
+	testSuccessEndpoint := config.NewEndpoint("api-key", "", host, portInt, config.EmptyPathPrefix, false)
 	connManager := NewConnectionManager(testSuccessEndpoint, statusinterface.NewNoopStatusProvider())
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
@@ -101,7 +104,7 @@ func TestConnectivityDiagnoseOperationFail(t *testing.T) {
 	portInt, err := strconv.Atoi(port)
 	assert.Nil(t, err)
 
-	testFailEndpointWrongAddress := config.NewEndpoint("api-key", "", "failhost", portInt, false)
+	testFailEndpointWrongAddress := config.NewEndpoint("api-key", "", "failhost", portInt, config.EmptyPathPrefix, false)
 	connManager := NewConnectionManager(testFailEndpointWrongAddress, statusinterface.NewNoopStatusProvider())
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
@@ -109,11 +112,43 @@ func TestConnectivityDiagnoseOperationFail(t *testing.T) {
 	_, err = connManager.NewConnection(ctx)
 	assert.NotNil(t, err)
 
-	testFailEndpointWrongPort := config.NewEndpoint("api-key", "", host, portInt+1, false)
+	testFailEndpointWrongPort := config.NewEndpoint("api-key", "", host, portInt+1, config.EmptyPathPrefix, false)
 	connManager = NewConnectionManager(testFailEndpointWrongPort, statusinterface.NewNoopStatusProvider())
 	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
 	_, err = connManager.NewConnection(ctx)
 	assert.NotNil(t, err)
+}
+
+type mockConn struct {
+	net.TCPConn
+}
+
+func (c *mockConn) Write(_ []byte) (n int, err error) {
+	return 0, errors.New("write error")
+}
+
+func (c *mockConn) Close() (err error) {
+	return nil
+}
+
+// TestNoRetryAndWriteError ensures that a write error successfully exits the send loop when
+// retry is disabled.
+func TestNoRetryAndWriteError(t *testing.T) {
+	endpoint := config.NewEndpoint("api-key", "", "localhost", 0, config.EmptyPathPrefix, false)
+
+	dest := NewDestination(endpoint, false, client.NewDestinationsContext(), false, statusinterface.NewStatusProviderMock())
+	output := make(chan *message.Payload, 1)
+	dest.conn = &mockConn{}
+
+	// Connection resets prompted a panic on earlier code versions, make sure that wasn't reintroduced.
+	dest.connCreationTime = time.Now().Add(-2 * time.Second)
+	endpoint.ConnectionResetInterval = time.Second
+
+	dest.sendAndRetry(message.NewPayload([]*message.MessageMetadata{}, []byte("test"), "source", 1), output, nil)
+	drops := metrics.DestinationLogsDropped.Get(endpoint.Host)
+	assert.Equal(t, "1", drops.String())
+	assert.Empty(t, output)
+	assert.Nil(t, dest.conn)
 }

@@ -15,8 +15,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
-	"sync/atomic"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
@@ -88,13 +86,11 @@ var GPUMonitoring = &module.Factory{
 // GPUMonitoringModule is a module for GPU monitoring
 type GPUMonitoringModule struct {
 	*gpu.Probe
-	lastCheck atomic.Int64
 }
 
 // Register registers the GPU monitoring module
 func (t *GPUMonitoringModule) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/check", func(w http.ResponseWriter, _ *http.Request) {
-		t.lastCheck.Store(time.Now().Unix())
 		stats, err := t.Probe.GetAndFlush()
 		if err != nil {
 			log.Errorf("Error getting GPU stats: %v", err)
@@ -115,11 +111,9 @@ func (t *GPUMonitoringModule) Register(httpMux *module.Router) error {
 	return nil
 }
 
-// GetStats returns the last check time
+// GetStats returns the debug stats for the GPU monitoring module
 func (t *GPUMonitoringModule) GetStats() map[string]interface{} {
-	return map[string]interface{}{
-		"last_check": t.lastCheck.Load(),
-	}
+	return t.Probe.GetDebugStats()
 }
 
 func (t *GPUMonitoringModule) collectEventsHandler(w http.ResponseWriter, r *http.Request) {

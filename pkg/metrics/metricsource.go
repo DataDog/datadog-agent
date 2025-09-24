@@ -63,6 +63,8 @@ const (
 	MetricSourceCloudFoundry
 	MetricSourceJenkins
 	MetricSourceGPU
+	MetricSourceWlan
+	MetricSourceWindowsCertificateStore
 
 	// Python Checks
 	MetricSourceZenohRouter
@@ -316,6 +318,17 @@ const (
 	MetricSourceSilverstripeCMS
 	MetricSourceAnecdote
 	MetricSourceSonatypeNexus
+	MetricSourceAltairPBSPro
+	MetricSourceFalco
+	MetricSourceKrakenD
+	MetricSourceKuma
+	MetricSourceLiteLLM
+	MetricSourceLustre
+	MetricSourceProxmox
+	MetricSourceResilience4j
+	MetricSourceSupabase
+	MetricSourceKeda
+	MetricSourceDuckdb
 
 	// OpenTelemetry Collector receivers
 	MetricSourceOpenTelemetryCollectorUnknown
@@ -957,6 +970,28 @@ func (ms MetricSource) String() string {
 		return "celery"
 	case MetricSourceInfiniband:
 		return "infiniband"
+	case MetricSourceAltairPBSPro:
+		return "altair_pbs_pro"
+	case MetricSourceFalco:
+		return "falco"
+	case MetricSourceKrakenD:
+		return "krakend"
+	case MetricSourceKuma:
+		return "kuma"
+	case MetricSourceLiteLLM:
+		return "lite_llm"
+	case MetricSourceLustre:
+		return "lustre"
+	case MetricSourceProxmox:
+		return "proxmox"
+	case MetricSourceResilience4j:
+		return "resilience4j"
+	case MetricSourceSupabase:
+		return "supabase"
+	case MetricSourceKeda:
+		return "keda"
+	case MetricSourceDuckdb:
+		return "duckdb"
 	case MetricSourceOpenTelemetryCollectorUnknown:
 		return "opentelemetry_collector_unknown"
 	case MetricSourceOpenTelemetryCollectorDockerstatsReceiver:
@@ -1069,6 +1104,10 @@ func (ms MetricSource) String() string {
 		return "google_cloud_run_enhanced"
 	case MetricSourceGoogleCloudRunRuntime:
 		return "google_cloud_run_runtime"
+	case MetricSourceWlan:
+		return "wlan"
+	case MetricSourceWindowsCertificateStore:
+		return "windows_certificate"
 	default:
 		return "<unknown>"
 	}
@@ -1623,6 +1662,22 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceQuarkus
 	case "velero":
 		return MetricSourceVelero
+	case "altair_pbs_pro":
+		return MetricSourceAltairPBSPro
+	case "falco":
+		return MetricSourceFalco
+	case "krakend":
+		return MetricSourceKrakenD
+	case "kuma":
+		return MetricSourceKuma
+	case "lite_llm":
+		return MetricSourceLiteLLM
+	case "lustre":
+		return MetricSourceLustre
+	case "proxmox":
+		return MetricSourceProxmox
+	case "resilience4j":
+		return MetricSourceResilience4j
 	case "opentelemetry_collector_unknown":
 		return MetricSourceOpenTelemetryCollectorUnknown
 	case "opentelemetry_collector_dockerstatsreceiver":
@@ -1709,6 +1764,10 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceOpenTelemetryCollectorChronyReceiver
 	case "opentelemetry_collector_couchdbreceiver":
 		return MetricSourceOpenTelemetryCollectorCouchdbReceiver
+	case "wlan":
+		return MetricSourceWlan
+	case "windows_certificate":
+		return MetricSourceWindowsCertificateStore
 	default:
 		return MetricSourceUnknown
 	}

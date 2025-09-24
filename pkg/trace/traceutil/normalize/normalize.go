@@ -39,6 +39,20 @@ var (
 	ErrInvalid = errors.New("invalid")
 )
 
+var isAlphaLookup = [256]bool{}
+var isAlphaNumLookup = [256]bool{}
+var isValidASCIIStartCharLookup = [256]bool{}
+var isValidASCIITagCharLookup = [256]bool{}
+
+func init() {
+	for i := 0; i < 256; i++ {
+		isAlphaLookup[i] = isAlpha(byte(i))
+		isAlphaNumLookup[i] = isAlphaNum(byte(i))
+		isValidASCIIStartCharLookup[i] = isValidASCIIStartChar(byte(i))
+		isValidASCIITagCharLookup[i] = isValidASCIITagChar(byte(i))
+	}
+}
+
 // NormalizeName normalizes a span name and returns an error describing the reason
 // (if any) why the name was modified.
 //
@@ -270,6 +284,22 @@ func isAlphaNum(b byte) bool {
 	return isAlpha(b) || (b >= '0' && b <= '9')
 }
 
+func isValidNormalizedMetricName(name string) bool {
+	if name == "" {
+		return false
+	}
+	if !isAlphaLookup[name[0]] {
+		return false
+	}
+	for j := 1; j < len(name); j++ {
+		b := name[j]
+		if !(isAlphaNumLookup[b] || (b == '.' && !(name[j-1] == '_')) || (b == '_' && !(name[j-1] == '_'))) {
+			return false
+		}
+	}
+	return true
+}
+
 // normMetricNameParse normalizes metric names with a parser instead of using
 // garbage-creating string replacement routines.
 func normMetricNameParse(name string) (string, bool) {
@@ -282,7 +312,7 @@ func normMetricNameParse(name string) (string, bool) {
 	res := resa[:0]
 
 	// skip non-alphabetic characters
-	for ; i < len(name) && !isAlpha(name[i]); i++ {
+	for ; i < len(name) && !isAlphaLookup[name[i]]; i++ {
 		continue
 	}
 
@@ -291,9 +321,17 @@ func normMetricNameParse(name string) (string, bool) {
 		return "", false
 	}
 
+	if isValidNormalizedMetricName(name[i:]) {
+		normalized := name[i:]
+		if normalized[len(normalized)-1] == '_' {
+			normalized = normalized[:len(normalized)-1]
+		}
+		return normalized, true
+	}
+
 	for ; i < len(name); i++ {
 		switch {
-		case isAlphaNum(name[i]):
+		case isAlphaNumLookup[name[i]]:
 			res = append(res, name[i])
 			ptr++
 		case name[i] == '.':
@@ -334,7 +372,7 @@ func isNormalizedASCIITag(tag string, checkValidStartChar bool) bool {
 	}
 	i := 0
 	if checkValidStartChar {
-		if !isValidASCIIStartChar(tag[0]) {
+		if !isValidASCIIStartCharLookup[tag[0]] {
 			return false
 		}
 		i++
@@ -342,13 +380,13 @@ func isNormalizedASCIITag(tag string, checkValidStartChar bool) bool {
 	for ; i < len(tag); i++ {
 		b := tag[i]
 		// TODO: Attempt to optimize this check using SIMD/vectorization.
-		if isValidASCIITagChar(b) {
+		if isValidASCIITagCharLookup[b] {
 			continue
 		}
 		if b == '_' {
 			// an underscore is only okay if followed by a valid non-underscore character
 			i++
-			if i == len(tag) || !isValidASCIITagChar(tag[i]) {
+			if i == len(tag) || !isValidASCIITagCharLookup[tag[i]] {
 				return false
 			}
 		} else {

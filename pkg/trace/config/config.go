@@ -15,10 +15,9 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
-
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
+	ddattributes "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
@@ -80,7 +79,7 @@ type OTLP struct {
 	ProbabilisticSampling float64
 
 	// AttributesTranslator specifies an OTLP to Datadog attributes translator.
-	AttributesTranslator *attributes.Translator `mapstructure:"-"`
+	AttributesTranslator *ddattributes.Translator `mapstructure:"-"`
 
 	// IgnoreMissingDatadogFields specifies whether we should recompute DD span fields if the corresponding "datadog."
 	// namespaced span attributes are missing. If it is false (default), we will use the incoming "datadog." namespaced
@@ -173,15 +172,35 @@ func (o *ObfuscationConfig) Export(conf *AgentConfig) obfuscate.Config {
 		Valkey:               o.Valkey,
 		Memcached:            o.Memcached,
 		CreditCard:           o.CreditCards,
-		Logger:               new(debugLogger),
+		FullLogger:           new(logger),
 		Cache:                o.Cache,
 	}
 }
 
-type debugLogger struct{}
+type logger struct{}
 
-func (debugLogger) Debugf(format string, params ...interface{}) {
+func (logger) Tracef(format string, params ...interface{}) {
+	log.Tracef(format, params...)
+}
+
+func (logger) Debugf(format string, params ...interface{}) {
 	log.Debugf(format, params...)
+}
+
+func (logger) Infof(format string, params ...interface{}) {
+	log.Infof(format, params...)
+}
+
+func (logger) Warnf(format string, params ...interface{}) {
+	log.Warnf(format, params...)
+}
+
+func (logger) Errorf(format string, params ...interface{}) {
+	log.Errorf(format, params...)
+}
+
+func (logger) Criticalf(format string, params ...interface{}) {
+	log.Criticalf(format, params...)
 }
 
 // Enablable can represent any option that has an "enabled" boolean sub-field.
@@ -246,6 +265,8 @@ type ProfilingProxyConfig struct {
 	DDURL string
 	// AdditionalEndpoints ...
 	AdditionalEndpoints map[string][]string
+	// ReceiverTimeout is the timeout in seconds for profile upload requests
+	ReceiverTimeout int
 }
 
 // EVPProxy contains the settings for the EVPProxy proxy.
@@ -398,6 +419,8 @@ type AgentConfig struct {
 	HTTPClientFunc func() *http.Client `json:"-"`
 	// HTTP Transport used in writer connections. If nil, default transport values will be used.
 	HTTPTransportFunc func() *http.Transport `json:"-"`
+	// ClientStatsFlushInterval specifies the frequency at which the client stats aggregator will flush its buffer.
+	ClientStatsFlushInterval time.Duration
 
 	// internal telemetry
 	StatsdEnabled  bool
@@ -474,8 +497,8 @@ type AgentConfig struct {
 	// DebuggerProxy contains the settings for the Live Debugger proxy.
 	DebuggerProxy DebuggerProxyConfig
 
-	// DebuggerDiagnosticsProxy contains the settings for the Live Debugger diagnostics proxy.
-	DebuggerDiagnosticsProxy DebuggerProxyConfig
+	// DebuggerIntakeProxy contains the settings for the Live Debugger intake proxy.
+	DebuggerIntakeProxy DebuggerProxyConfig
 
 	// SymDBProxy contains the settings for the Symbol Database proxy.
 	SymDBProxy SymDBProxyConfig
@@ -490,6 +513,8 @@ type AgentConfig struct {
 
 	// RemoteConfigClient retrieves sampling updates from the remote config backend
 	RemoteConfigClient RemoteClient `json:"-"`
+	// MRFRemoteConfigClient retrieves MRF updates from the remote config DC.
+	MRFRemoteConfigClient RemoteClient `json:"-"`
 
 	// ContainerTags ...
 	ContainerTags func(cid string) ([]string, error) `json:"-"`
@@ -509,17 +534,21 @@ type AgentConfig struct {
 	// Lambda function name
 	LambdaFunctionName string
 
-	// Azure container apps tags, in the form of a comma-separated list of
+	// Azure serverless apps tags, in the form of a comma-separated list of
 	// key-value pairs, starting with a comma
-	AzureContainerAppTags string
+	AzureServerlessTags string
 
-	// GetAgentAuthToken retrieves an auth token to communicate with other agent processes
-	// Function will be nil if in an environment without an auth token
-	GetAgentAuthToken func() string `json:"-"`
+	// AuthToken is the auth token for the agent
+	AuthToken string `json:"-"`
 
-	// IsMRFEnabled determines whether Multi-Region Failover is enabled. It is based on the core config's
-	// `multi_region_failover.enabled` and `multi_region_failover.failover_apm` settings.
-	IsMRFEnabled func() bool `json:"-"`
+	// IPC TLS client config
+	IPCTLSClientConfig *tls.Config `json:"-"`
+
+	// IPC TLS server config
+	IPCTLSServerConfig *tls.Config `json:"-"`
+
+	MRFFailoverAPMDefault bool
+	MRFFailoverAPMRC      *bool // failover_apm set by remoteconfig. `nil` if not configured
 }
 
 // RemoteClient client is used to APM Sampling Updates from a remote source.
@@ -575,10 +604,11 @@ func New() *AgentConfig {
 		PipeSecurityDescriptor: "D:AI(A;;GA;;;WD)",
 		GUIPort:                "5002",
 
-		StatsWriter:             new(WriterConfig),
-		TraceWriter:             new(WriterConfig),
-		ConnectionResetInterval: 0, // disabled
-		MaxSenderRetries:        4,
+		StatsWriter:              new(WriterConfig),
+		TraceWriter:              new(WriterConfig),
+		ConnectionResetInterval:  0, // disabled
+		MaxSenderRetries:         4,
+		ClientStatsFlushInterval: 2 * time.Second, // bucket duration (2s)
 
 		StatsdHost:    "localhost",
 		StatsdPort:    8125,
@@ -710,6 +740,14 @@ func (c *AgentConfig) AllFeatures() []string {
 		feats = append(feats, feat)
 	}
 	return feats
+}
+
+// MRFFailoverAPM determines whether APM data should be failed over to the secondary (MRF) DC.
+func (c *AgentConfig) MRFFailoverAPM() bool {
+	if c.MRFFailoverAPMRC != nil {
+		return *c.MRFFailoverAPMRC
+	}
+	return c.MRFFailoverAPMDefault
 }
 
 // ConfiguredPeerTags returns the set of peer tags that should be used

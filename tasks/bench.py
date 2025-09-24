@@ -7,6 +7,7 @@ import os
 from invoke import task
 
 from tasks.build_tags import get_default_build_tags
+from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import REPO_PATH, bin_name
 
 # constants
@@ -20,14 +21,13 @@ def build_kubernetes_state(ctx):
     """
     build_tags = get_default_build_tags(build="test")  # pass all the build flags
 
-    cmd = "go build -mod={go_mod} -tags \"{build_tags}\" -o {bin_name} {REPO_PATH}/test/benchmarks/kubernetes_state"
-    args = {
-        "go_mod": "readonly",
-        "build_tags": " ".join(build_tags),
-        "bin_name": os.path.join(BENCHMARKS_BIN_PATH, bin_name("kubernetes_state")),
-        "REPO_PATH": REPO_PATH,
-    }
-    ctx.run(cmd.format(**args))
+    go_build(
+        ctx,
+        f"{REPO_PATH}/test/benchmarks/kubernetes_state",
+        mod="readonly",
+        build_tags=build_tags,
+        bin_path=os.path.join(BENCHMARKS_BIN_PATH, bin_name("kubernetes_state")),
+    )
 
 
 @task(pre=[build_kubernetes_state])

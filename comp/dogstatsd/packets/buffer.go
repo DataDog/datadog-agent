@@ -8,6 +8,8 @@ package packets
 import (
 	"sync"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Buffer is a buffer of packets that will automatically flush to the given
@@ -19,6 +21,7 @@ type Buffer struct {
 	bufferSize     uint
 	outputChannel  chan Packets
 	closeChannel   chan struct{}
+	doneChannel    chan struct{}
 	m              sync.Mutex
 	telemetryStore *TelemetryStore
 }
@@ -32,6 +35,7 @@ func NewBuffer(bufferSize uint, flushTimer time.Duration, outputChannel chan Pac
 		outputChannel:  outputChannel,
 		packets:        make(Packets, 0, bufferSize),
 		closeChannel:   make(chan struct{}),
+		doneChannel:    make(chan struct{}),
 		telemetryStore: telemetryStore,
 	}
 	go pb.flushLoop()
@@ -47,6 +51,10 @@ func (pb *Buffer) flushLoop() {
 			pb.telemetryStore.tlmBufferFlushedTimer.Inc(pb.listenerID)
 			pb.m.Unlock()
 		case <-pb.closeChannel:
+			pb.m.Lock()
+			pb.flush()
+			pb.m.Unlock()
+			close(pb.doneChannel)
 			return
 		}
 	}
@@ -70,13 +78,6 @@ func (pb *Buffer) Append(packet *Packet) {
 	}
 }
 
-// Flush offers a thread-safe method to force a flush of the appended packets
-func (pb *Buffer) Flush() {
-	pb.m.Lock()
-	pb.flush()
-	pb.m.Unlock()
-}
-
 func (pb *Buffer) flush() {
 	if len(pb.packets) > 0 {
 		t1 := time.Now()
@@ -97,6 +98,13 @@ func (pb *Buffer) flush() {
 // Close closes the packet buffer
 func (pb *Buffer) Close() {
 	close(pb.closeChannel)
+
+	select {
+	case <-pb.doneChannel:
+	case <-time.After(time.Second):
+		log.Debug("Timeout flushing the dogstatsd buffer on stop")
+	}
+
 	if pb.listenerID != "" {
 		pb.telemetryStore.tlmBufferSize.Delete(pb.listenerID)
 		pb.telemetryStore.tlmChannelSize.Delete(pb.listenerID)

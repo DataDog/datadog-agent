@@ -8,7 +8,13 @@ package payload
 
 // Via has info about the routing decision for a flow
 type Via struct {
-	Subnet Subnet `json:"subnet,omitempty"`
+	Subnet    Subnet    `json:"subnet,omitempty"`
+	Interface Interface `json:"interface,omitempty"`
+}
+
+// Interface has information about a network interface
+type Interface struct {
+	HardwareAddr string `json:"hardware_addr,omitempty"`
 }
 
 // Subnet stores info about a subnet

@@ -14,6 +14,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
@@ -72,9 +73,10 @@ func TestProcessAgentComponent(t *testing.T) {
 				statsd.MockModule(),
 				Module(),
 				fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
-				config.MockModule(),
+				fx.Provide(func(t testing.TB) config.Component { return config.NewMock(t) }),
 				fx.Provide(func(t testing.TB) tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 				sysprobeconfigimpl.MockModule(),
+				hostnameimpl.MockModule(),
 			}
 
 			if tc.checksEnabled {

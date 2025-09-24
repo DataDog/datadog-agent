@@ -10,7 +10,24 @@ generator:
       method:
         post:
           maximum_prebuild_cache_size_bytes: "512 MiB"
-          variant: "opentelemetry_logs"
+          variant:
+            opentelemetry_logs:
+              contexts:
+                total_contexts:
+                  constant: 1000
+              trace_cardinality:
+                constant: 10
+              body_size:
+                inclusive:
+                  min: 128
+                  max: 512
+              severity_weights:
+                trace: 10
+                debug: 10
+                info: 10
+                warn: 10
+                error: 10
+                fatal: 10
 
 blackhole:
   - http:

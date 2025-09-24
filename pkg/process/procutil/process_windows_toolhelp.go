@@ -136,7 +136,7 @@ func (p *windowsToolhelpProbe) ProcessesByPID(_ time.Time, collectStats bool) (m
 			p.cachedProcesses[pid] = cp
 		} else {
 			var err error
-			if cp.procHandle, err = OpenProcessHandle(int32(pe32.Th32ProcessID)); err != nil {
+			if cp.procHandle, _, err = OpenProcessHandle(int32(pe32.Th32ProcessID)); err != nil {
 				log.Debugf("Could not reopen process handle for pid %v %v", pid, err)
 				continue
 			}
@@ -231,7 +231,8 @@ type cachedProcess struct {
 }
 
 func (cp *cachedProcess) fillFromProcEntry(pe32 *w32.PROCESSENTRY32) (err error) {
-	cp.procHandle, err = OpenProcessHandle(int32(pe32.Th32ProcessID))
+	var isProtected bool
+	cp.procHandle, isProtected, err = OpenProcessHandle(int32(pe32.Th32ProcessID))
 	if err != nil {
 		return err
 	}
@@ -240,14 +241,18 @@ func (cp *cachedProcess) fillFromProcEntry(pe32 *w32.PROCESSENTRY32) (err error)
 	if usererr != nil {
 		log.Debugf("Couldn't get process username %v %v", pe32.Th32ProcessID, err)
 	}
-	var cmderr error
 	cp.executablePath = winutil.ConvertWindowsString16(pe32.SzExeFile[:])
-	commandParams, cmderr := winutil.GetCommandParamsForProcess(cp.procHandle, false)
-	if cmderr != nil {
-		log.Debugf("Error retrieving full command line %v", cmderr)
-		cp.commandLine = cp.executablePath
-	} else {
-		cp.commandLine = commandParams.CmdLine
+	cp.commandLine = cp.executablePath
+
+	// we cannot read the command line if the process is protected
+	if !isProtected {
+		commandParams, cmderr := winutil.GetCommandParamsForProcess(cp.procHandle, false)
+		if cmderr != nil {
+			log.Debugf("Error retrieving full command line %v", cmderr)
+		}
+		if commandParams != nil {
+			cp.commandLine = commandParams.CmdLine
+		}
 	}
 
 	cp.parsedArgs = ParseCmdLineArgs(cp.commandLine)

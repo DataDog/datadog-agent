@@ -18,12 +18,14 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"google.golang.org/grpc"
 
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
+	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -217,7 +219,7 @@ func (m *EventMonitor) GetStats() map[string]interface{} {
 }
 
 // NewEventMonitor instantiates an event monitoring system-probe module
-func NewEventMonitor(config *config.Config, secconfig *secconfig.Config, opts Opts) (*EventMonitor, error) {
+func NewEventMonitor(config *config.Config, secconfig *secconfig.Config, ipc ipc.Component, opts Opts) (*EventMonitor, error) {
 	if opts.StatsdClient == nil {
 		opts.StatsdClient = &statsd.NoOpClient{}
 	}
@@ -226,18 +228,21 @@ func NewEventMonitor(config *config.Config, secconfig *secconfig.Config, opts Op
 		opts.ProbeOpts.StatsdClient = opts.StatsdClient
 	}
 
-	probe, err := probe.NewProbe(secconfig, opts.ProbeOpts)
+	probe, err := probe.NewProbe(secconfig, ipc, opts.ProbeOpts)
 	if err != nil {
 		return nil, err
 	}
 
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
+	// Add gRPC metrics interceptors
+	grpcOpts := grpcutil.ServerOptionsWithMetrics()
+
 	return &EventMonitor{
 		Config:       config,
 		Probe:        probe,
 		StatsdClient: opts.StatsdClient,
-		GRPCServer:   grpc.NewServer(),
+		GRPCServer:   grpc.NewServer(grpcOpts...),
 
 		ctx:           ctx,
 		cancelFnc:     cancelFnc,

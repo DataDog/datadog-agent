@@ -197,7 +197,7 @@ func (ire InterpreterResolutionError) Error() string {
 		" Python's 'multiprocessing' library may fail to work.", ire.Err)
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
+//nolint:revive
 const PythonWinExeBasename = "python.exe"
 
 var (
@@ -218,8 +218,7 @@ var (
 	// by `sys.path`. It's empty if the interpreter was not initialized.
 	PythonPath = ""
 
-	//nolint:revive // TODO(AML) Fix revive linter
-	rtloader *C.rtloader_t = nil
+	rtloader *C.rtloader_t
 
 	expvarPyInit  *expvar.Map
 	pyInitLock    sync.RWMutex
@@ -253,9 +252,9 @@ func addExpvarPythonInitErrors(msg string) error {
 	return errors.New(msg)
 }
 
-func sendTelemetry(pythonVersion string) {
+func sendTelemetry() {
 	tags := []string{
-		fmt.Sprintf("python_version:%s", pythonVersion),
+		"python_version:3",
 	}
 	if agentVersion, err := version.Agent(); err == nil {
 		tags = append(tags,
@@ -361,9 +360,8 @@ func resolvePythonExecPath(ignoreErrors bool) (string, error) {
 	return filepath.Join(PythonHome, "bin", interpreterBasename), nil
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
+// Initialize initializes the Python interpreter
 func Initialize(paths ...string) error {
-	pythonVersion := pkgconfigsetup.Datadog().GetString("python_version")
 	allowPathHeuristicsFailure := pkgconfigsetup.Datadog().GetBool("allow_python_path_heuristics_failure")
 
 	// Memory related RTLoader-global initialization
@@ -384,24 +382,19 @@ func Initialize(paths ...string) error {
 	}
 	log.Debugf("Using '%s' as Python interpreter path", pythonBinPath)
 
-	//nolint:revive // TODO(AML) Fix revive linter
-	var pyErr *C.char = nil
+	var pyErr *C.char
 
 	csPythonHome := TrackedCString(PythonHome)
 	defer C._free(unsafe.Pointer(csPythonHome))
 	csPythonExecPath := TrackedCString(pythonBinPath)
 	defer C._free(unsafe.Pointer(csPythonExecPath))
 
-	if pythonVersion == "3" {
-		log.Infof("Initializing rtloader with Python 3 %s", PythonHome)
-		rtloader = C.make3(csPythonHome, csPythonExecPath, &pyErr)
-	} else {
-		return addExpvarPythonInitErrors(fmt.Sprintf("unsuported version of python: %s", pythonVersion))
-	}
+	log.Infof("Initializing rtloader with Python 3 %s", PythonHome)
+	rtloader = C.make3(csPythonHome, csPythonExecPath, &pyErr)
 
 	if rtloader == nil {
 		err := addExpvarPythonInitErrors(
-			fmt.Sprintf("could not load runtime python for version %s: %s", pythonVersion, C.GoString(pyErr)),
+			fmt.Sprintf("could not load runtime python for version 3: %s", C.GoString(pyErr)),
 		)
 		if pyErr != nil {
 			// pyErr tracked when created in rtloader
@@ -471,7 +464,7 @@ func Initialize(paths ...string) error {
 		log.Errorf("Could not query python information: %s", C.GoString(C.get_error(rtloader)))
 	}
 
-	sendTelemetry(pythonVersion)
+	sendTelemetry()
 
 	return nil
 }

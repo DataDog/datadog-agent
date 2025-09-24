@@ -77,15 +77,12 @@ func (sm *subscriptionManager) Subscribe(id string, filter *types.Filter, events
 	return subscriber, nil
 }
 
-// unsubscribe ends a subscription to entity events and closes its channel. It
-// is not thread-safe, and callers should take care of synchronization.
-func (sm *subscriptionManager) Unsubscribe(subscriptionID string) {
-	sm.Lock()
-	defer sm.Unlock()
-
+// unsubscribe ends a subscription to entity events and closes its channel.
+// This method is not thread-safe.
+func (sm *subscriptionManager) unsubscribe(subscriptionID string) {
 	sub, found := sm.subscribers[subscriptionID]
 	if !found {
-		log.Debugf("subscriber with %q is already unsubscribed", sub.id)
+		log.Debugf("subscriber with %q is already unsubscribed", subscriptionID)
 		return
 	}
 
@@ -112,6 +109,13 @@ func (sm *subscriptionManager) Unsubscribe(subscriptionID string) {
 	sm.telemetryStore.Subscribers.Dec()
 }
 
+// Unsubscribe is a thread-safe implementation of unsubscribe
+func (sm *subscriptionManager) Unsubscribe(subscriptionID string) {
+	sm.Lock()
+	defer sm.Unlock()
+	sm.unsubscribe(subscriptionID)
+}
+
 // Notify sends a slice of EntityEvents to all registered subscribers at their
 // chosen cardinality.
 func (sm *subscriptionManager) Notify(events []types.EntityEvent) {
@@ -132,8 +136,8 @@ func (sm *subscriptionManager) Notify(events []types.EntityEvent) {
 			for _, subscriber := range subscribers {
 
 				if len(subscriber.ch) >= bufferSize {
-					log.Info("channel full, canceling subscription")
-					sm.Unsubscribe(subscriber.id)
+					log.Errorf("subscriber with id %q has a channel full, canceling subscription", subscriber.id)
+					sm.unsubscribe(subscriber.id)
 					continue
 				}
 				subIDToEvents[subscriber.id] = append(subIDToEvents[subscriber.id], event)

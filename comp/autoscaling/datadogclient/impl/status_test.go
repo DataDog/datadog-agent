@@ -25,20 +25,21 @@ import (
 func TestStatusProvider(t *testing.T) {
 	dc := fxutil.Test[datadogclient.Component](t,
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
-		config.MockModule(),
-		fx.Replace(config.MockParams{Overrides: map[string]interface{}{
-			"api_key":                           "apikey123",
-			"app_key":                           "appkey456",
-			"external_metrics_provider.enabled": true,
-			metricsRedundantEndpointConfig: []endpoint{
-				{
-					"api.datadoghq.eu",
-					"https://api.datadoghq.eu",
-					"12345",
-					"67890",
+		fx.Provide(func() config.Component {
+			return config.NewMockWithOverrides(t, map[string]interface{}{
+				"api_key":                           "apikey123",
+				"app_key":                           "appkey456",
+				"external_metrics_provider.enabled": true,
+				metricsRedundantEndpointConfig: []endpoint{
+					{
+						"api.datadoghq.eu",
+						"https://api.datadoghq.eu.",
+						"12345",
+						"67890",
+					},
 				},
-			},
-		}}),
+			})
+		}),
 		fxutil.ProvideComponentConstructor(
 			NewComponent,
 		),
@@ -68,10 +69,10 @@ func TestStatusProvider(t *testing.T) {
 
 			assert.NoError(t, err)
 			expectedTextOutput := `
-  - URL: https://api.datadoghq.com  [Unknown]
+  - URL: https://api.datadoghq.com.  [Unknown]
     Last failure: Never
     Last Success: Never
-  - URL: https://api.datadoghq.eu  [Unknown]
+  - URL: https://api.datadoghq.eu.  [Unknown]
     Last failure: Never
     Last Success: Never
 `

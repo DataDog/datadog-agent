@@ -13,6 +13,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
@@ -136,8 +137,9 @@ func getTestInventoryHost(t *testing.T) *invHost {
 		fxutil.Test[dependencies](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
-			config.MockModule(),
+			fx.Provide(func() config.Component { return config.NewMock(t) }),
 			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
+			hostnameimpl.MockModule(),
 		),
 	)
 	return p.Comp.(*invHost)
@@ -172,6 +174,7 @@ func TestGetPayload(t *testing.T) {
 		CloudProviderAccountID:       "some_host_id",
 		CloudProviderSource:          "test_source",
 		CloudProviderHostID:          "test_id_1234",
+		CanonicalCloudResourceID:     "",
 		OsVersion:                    "testOS",
 		HypervisorGuestUUID:          "hypervisorUUID",
 		DmiProductUUID:               "dmiUUID",
@@ -199,6 +202,7 @@ func TestGetPayloadError(t *testing.T) {
 		CloudProviderAccountID:       "some_host_id",
 		CloudProviderSource:          "test_source",
 		CloudProviderHostID:          "test_id_1234",
+		CanonicalCloudResourceID:     "",
 		OsVersion:                    "testOS",
 		LinuxPackageSigningEnabled:   true,
 		RPMGlobalRepoGPGCheckEnabled: false,

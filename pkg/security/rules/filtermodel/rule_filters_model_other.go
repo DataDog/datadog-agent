@@ -12,23 +12,27 @@ import (
 	"os"
 	"runtime"
 
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
 // RuleFilterEvent represents a rule filtering event
 type RuleFilterEvent struct {
 	cfg RuleFilterEventConfig
+	ipc ipc.Component
 }
 
 // RuleFilterModel represents a rule fitlering model
 type RuleFilterModel struct {
 	cfg RuleFilterEventConfig
+	ipc ipc.Component
 }
 
 // NewRuleFilterModel returns a new rule filtering model
-func NewRuleFilterModel(cfg RuleFilterEventConfig) (*RuleFilterModel, error) {
+func NewRuleFilterModel(cfg RuleFilterEventConfig, ipc ipc.Component) (*RuleFilterModel, error) {
 	return &RuleFilterModel{
 		cfg: cfg,
+		ipc: ipc,
 	}, nil
 }
 
@@ -36,6 +40,7 @@ func NewRuleFilterModel(cfg RuleFilterEventConfig) (*RuleFilterModel, error) {
 func (m *RuleFilterModel) NewEvent() eval.Event {
 	return &RuleFilterEvent{
 		cfg: m.cfg,
+		ipc: m.ipc,
 	}
 }
 
@@ -78,7 +83,7 @@ func (m *RuleFilterModel) GetEvaluator(field eval.Field, _ eval.RegisterID, _ in
 		}, nil
 	case "hostname":
 		return &eval.StringEvaluator{
-			Value: getHostname(),
+			Value: getHostname(m.ipc),
 			Field: field,
 		}, nil
 	}
@@ -107,7 +112,7 @@ func (e *RuleFilterEvent) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "origin":
 		return e.cfg.Origin, nil
 	case "hostname":
-		return getHostname(), nil
+		return getHostname(e.ipc), nil
 	}
 
 	return nil, &eval.ErrFieldNotFound{Field: field}

@@ -26,6 +26,7 @@
 #include "rmdir.h"
 #include "selinux.h"
 #include "setattr.h"
+#include "setsockopt.h"
 #include "setxattr.h"
 #include "signal.h"
 #include "splice.h"
@@ -35,10 +36,14 @@
 #include "utimes.h"
 #include "on_demand.h"
 #include "chdir.h"
+#include "setrlimit.h"
+#include "caps.h"
+#include "prctl.h"
 
 #include "network/accept.h"
 #include "network/bind.h"
 #include "network/connect.h"
+#include "network/socket.h"
 
 #ifndef DO_NOT_USE_TC
 #include "network/dns.h"

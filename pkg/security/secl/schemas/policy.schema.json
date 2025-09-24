@@ -53,6 +53,9 @@
         },
         "log": {
           "$ref": "#/$defs/LogDefinition"
+        },
+        "network_filter": {
+          "$ref": "#/$defs/NetworkFilterDefinition"
         }
       },
       "additionalProperties": false,
@@ -99,32 +102,14 @@
       "description": "CoreDumpDefinition describes the 'coredump' action"
     },
     "HashDefinition": {
-      "properties": {},
-      "additionalProperties": false,
-      "type": "object",
-      "description": "HashDefinition describes the 'hash' section of a rule action"
-    },
-    "HookPointArg": {
       "properties": {
-        "n": {
-          "type": "integer",
-          "description": "Zero-based argument index"
-        },
-        "kind": {
-          "type": "string",
-          "enum": [
-            "uint",
-            "null-terminated-string"
-          ]
+        "field": {
+          "type": "string"
         }
       },
       "additionalProperties": false,
       "type": "object",
-      "required": [
-        "n",
-        "kind"
-      ],
-      "description": "HookPointArg represents the definition of a hook point argument"
+      "description": "HashDefinition describes the 'hash' section of a rule action"
     },
     "KillDefinition": {
       "properties": {
@@ -231,27 +216,25 @@
       ],
       "description": "MacroDefinition holds the definition of a macro"
     },
-    "OnDemandHookPoint": {
+    "NetworkFilterDefinition": {
       "properties": {
-        "name": {
+        "filter": {
           "type": "string"
         },
-        "syscall": {
-          "type": "boolean"
+        "policy": {
+          "type": "string"
         },
-        "args": {
-          "items": {
-            "$ref": "#/$defs/HookPointArg"
-          },
-          "type": "array"
+        "scope": {
+          "type": "string",
+          "enum": [
+            "process",
+            "cgroup"
+          ]
         }
       },
       "additionalProperties": false,
       "type": "object",
-      "required": [
-        "name"
-      ],
-      "description": "OnDemandHookPoint represents a hook point definition"
+      "description": "NetworkFilterDefinition describes the 'network_filter' section of a rule action"
     },
     "OverrideOptions": {
       "properties": {
@@ -375,6 +358,12 @@
             "field"
           ],
           "title": "SetWithField"
+        },
+        {
+          "required": [
+            "expression"
+          ],
+          "title": "SetWithExpression"
         }
       ],
       "properties": {
@@ -430,6 +419,9 @@
             "cgroup"
           ]
         },
+        "scope_field": {
+          "type": "string"
+        },
         "size": {
           "type": "integer"
         },
@@ -445,6 +437,12 @@
               "description": "Duration in nanoseconds"
             }
           ]
+        },
+        "private": {
+          "type": "boolean"
+        },
+        "inherited": {
+          "type": "boolean"
         }
       },
       "additionalProperties": false,
@@ -459,6 +457,9 @@
     "version": {
       "type": "string"
     },
+    "replace_policy_id": {
+      "type": "string"
+    },
     "macros": {
       "items": {
         "$ref": "#/$defs/MacroDefinition"
@@ -468,12 +469,6 @@
     "rules": {
       "items": {
         "$ref": "#/$defs/RuleDefinition"
-      },
-      "type": "array"
-    },
-    "hooks": {
-      "items": {
-        "$ref": "#/$defs/OnDemandHookPoint"
       },
       "type": "array"
     }

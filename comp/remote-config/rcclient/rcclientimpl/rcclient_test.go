@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
-	"github.com/DataDog/datadog-agent/pkg/api/security"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
@@ -177,8 +176,8 @@ func TestAgentConfigCallback(t *testing.T) {
 	structRC.client, _ = client.NewUnverifiedGRPCClient(
 		ipcAddress,
 		pkgconfigsetup.GetIPCPort(),
-		func() (string, error) { return ipcComp.GetAuthToken(), nil }, // TODO IPC: GRPC client will be provided by the IPC component
-		ipcComp.GetTLSClientConfig,
+		ipcComp.GetAuthToken(),
+		ipcComp.GetTLSClientConfig(),
 		client.WithAgent("test-agent", "9.99.9"),
 		client.WithProducts(state.ProductAgentConfig),
 		client.WithPollInterval(time.Hour),
@@ -279,8 +278,10 @@ func TestAgentMRFConfigCallback(t *testing.T) {
 	assert.NoError(t, err)
 
 	structRC.client, _ = client.NewUnverifiedGRPCClient(
-		ipcAddress, pkgconfigsetup.GetIPCPort(), func() (string, error) { return security.FetchAuthToken(cfg) },
-		ipcComp.GetTLSClientConfig,
+		ipcAddress,
+		pkgconfigsetup.GetIPCPort(),
+		ipcComp.GetAuthToken(),
+		ipcComp.GetTLSClientConfig(),
 		client.WithAgent("test-agent", "9.99.9"),
 		client.WithProducts(state.ProductAgentConfig),
 		client.WithPollInterval(time.Hour),

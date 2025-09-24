@@ -50,6 +50,7 @@ func (t *kernelTelemetry) update(tel *RawKernelTelemetry) {
 		t.pathSizeBucket[bucketIndex].Add(int64(telemetryDelta.Topic_name_size_buckets[bucketIndex]))
 	}
 	t.produceNoRequiredAcks.Add(int64(telemetryDelta.Produce_no_required_acks))
+
 	// Create a deep copy of the 'tel' parameter to prevent changes from the outer scope affecting the last state
 	t.telemetryLastState = *tel
 }

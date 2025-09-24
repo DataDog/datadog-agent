@@ -9,7 +9,6 @@
 package probe
 
 import (
-	"encoding/binary"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
@@ -44,8 +43,4 @@ func (o *Opts) normalize() {
 	if o.DNSPort == 0 {
 		o.DNSPort = 53
 	}
-
-	b := make([]byte, 2)
-	binary.LittleEndian.PutUint16(b, o.DNSPort)
-	o.DNSPort = binary.BigEndian.Uint16(b)
 }

@@ -20,6 +20,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
 
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	ec2internal "github.com/DataDog/datadog-agent/pkg/util/ec2/internal"
@@ -31,8 +32,10 @@ var (
 	tagsCacheKey = cache.BuildAgentKey("ec2", "GetTags")
 	infoCacheKey = cache.BuildAgentKey("ec2", "GetInstanceInfo")
 
-	// This is used in ec2_tags.go which is behind the 'ec2' build flag
-	imdsTags = "/tags/instance" //nolint:unused
+	imdsTags = "/tags/instance"
+
+	// for testing purposes
+	fetchContainerInstanceARN = getContainerInstanceARN
 )
 
 func isTagExcluded(tag string) bool {
@@ -82,6 +85,19 @@ func GetInstanceInfo(ctx context.Context) ([]string, error) {
 	getAndSet("accountId", "aws_account")
 	getAndSet("imageId", "image")
 	getAndSet("availabilityZone", "availability-zone")
+
+	// Add container instance ARN when running on ECS EC2
+	if env.IsFeaturePresent(env.ECSEC2) {
+		const ciaTagName = "container_instance_arn"
+		if !isTagExcluded(ciaTagName) {
+			arn, err := fetchContainerInstanceARN(ctx)
+			if err != nil || arn == "" {
+				log.Debugf("could not fetch container instance ARN: %v", err)
+			} else {
+				tags = append(tags, fmt.Sprintf("%s:%s", ciaTagName, arn))
+			}
+		}
+	}
 
 	// save tags to the cache in case we exceed quotas later
 	cache.Cache.Set(infoCacheKey, tags, cache.NoExpiration)

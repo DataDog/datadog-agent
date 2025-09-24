@@ -12,22 +12,27 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	databricksInjectorVersion   = "0.35.0-1"
-	databricksJavaTracerVersion = "1.48.0-1"
-	databricksAgentVersion      = "7.63.3-1"
+	databricksInjectorVersion   = "0.43.1-1"
+	databricksJavaTracerVersion = "1.51.1-1"
+	databricksAgentVersion      = "7.68.2-1"
+	fetchTimeoutDuration        = 5 * time.Second
+	gpuIntegrationRestartDelay  = 60 * time.Second
+	restartLogFile              = "/var/log/datadog-gpu-restart"
 )
 
 var (
 	jobNameRegex       = regexp.MustCompile(`[,\']+`)
 	clusterNameRegex   = regexp.MustCompile(`[^a-zA-Z0-9_:.-]+`)
 	workspaceNameRegex = regexp.MustCompile(`[^a-zA-Z0-9_:.-]+`)
-	driverLogs         = []common.IntegrationConfigLogs{
+	driverLogs         = []config.IntegrationConfigLogs{
 		{
 			Type:                   "file",
 			Path:                   "/databricks/driver/logs/*.log",
@@ -50,7 +55,7 @@ var (
 			AutoMultiLineDetection: true,
 		},
 	}
-	workerLogs = []common.IntegrationConfigLogs{
+	workerLogs = []config.IntegrationConfigLogs{
 		{
 			Type:                   "file",
 			Path:                   "/databricks/spark/work/*/*/*.log",
@@ -73,21 +78,14 @@ var (
 			AutoMultiLineDetection: true,
 		},
 	}
-	tracerEnvConfigDatabricks = []common.InjectTracerConfigEnvVar{
-		{
-			Key:   "DD_DATA_JOBS_ENABLED",
-			Value: "true",
-		},
-		{
-			Key:   "DD_INTEGRATIONS_ENABLED",
-			Value: "false",
-		},
+	tracerConfigDatabricks = config.APMConfigurationDefault{
+		DataJobsEnabled:     config.BoolToPtr(true),
+		IntegrationsEnabled: config.BoolToPtr(false),
 	}
 )
 
 // SetupDatabricks sets up the Databricks environment
 func SetupDatabricks(s *common.Setup) error {
-	s.Packages.InstallInstaller()
 	s.Packages.Install(common.DatadogAgentPackage, databricksAgentVersion)
 	s.Packages.Install(common.DatadogAPMInjectPackage, databricksInjectorVersion)
 	s.Packages.Install(common.DatadogAPMLibraryJavaPackage, databricksJavaTracerVersion)
@@ -104,13 +102,11 @@ func SetupDatabricks(s *common.Setup) error {
 
 	if os.Getenv("DD_TRACE_DEBUG") == "true" {
 		s.Out.WriteString("Enabling Datadog Java Tracer DEBUG logs on DD_TRACE_DEBUG=true\n")
-		debugLogs := common.InjectTracerConfigEnvVar{
-			Key:   "DD_TRACE_DEBUG",
-			Value: "true",
-		}
-		tracerEnvConfigEmr = append(tracerEnvConfigDatabricks, debugLogs)
+		tracerConfigDatabricks.TraceDebug = config.BoolToPtr(true)
 	}
-	s.Config.InjectTracerYAML.AdditionalEnvironmentVariables = tracerEnvConfigDatabricks
+	s.Config.ApplicationMonitoringYAML = &config.ApplicationMonitoringConfig{
+		Default: tracerConfigDatabricks,
+	}
 
 	setupCommonHostTags(s)
 	installMethod := "manual"
@@ -118,6 +114,10 @@ func SetupDatabricks(s *common.Setup) error {
 		installMethod = "managed"
 	}
 	s.Span.SetTag("install_method", installMethod)
+
+	if os.Getenv("DD_GPU_MONITORING_ENABLED") == "true" {
+		setupGPUIntegration(s)
+	}
 
 	switch os.Getenv("DB_IS_DRIVER") {
 	case "TRUE":
@@ -135,6 +135,8 @@ func setupCommonHostTags(s *common.Setup) {
 	setIfExists(s, "DB_DRIVER_IP", "spark_host_ip", nil)
 	setIfExists(s, "DB_INSTANCE_TYPE", "databricks_instance_type", nil)
 	setClearIfExists(s, "DB_IS_JOB_CLUSTER", "databricks_is_job_cluster", nil)
+	setClearIfExists(s, "DATABRICKS_RUNTIME_VERSION", "databricks_runtime", nil)
+	setClearIfExists(s, "SPARK_SCALA_VERSION", "scala_version", nil)
 	setIfExists(s, "DD_JOB_NAME", "job_name", func(v string) string {
 		return jobNameRegex.ReplaceAllString(v, "_")
 	})
@@ -161,8 +163,18 @@ func setupCommonHostTags(s *common.Setup) {
 	if ok {
 		setHostTag(s, "jobid", jobID)
 		setHostTag(s, "runid", runID)
+		setHostTag(s, "dd.internal.resource:databricks_job", jobID)
 	}
 	setHostTag(s, "data_workload_monitoring_trial", "true")
+
+	// Set databricks_cluster resource tag based on whether we're on a job cluster
+	isJobCluster, _ := os.LookupEnv("DB_IS_JOB_CLUSTER")
+	if isJobCluster == "TRUE" && ok {
+		setHostTag(s, "dd.internal.resource:databricks_cluster", jobID)
+	} else {
+		setIfExists(s, "DB_CLUSTER_ID", "dd.internal.resource:databricks_cluster", nil)
+	}
+
 	addCustomHostTags(s)
 }
 
@@ -220,11 +232,34 @@ func setClearHostTag(s *common.Setup, tagKey, value string) {
 	s.Span.SetTag("host_tag_value."+tagKey, value)
 }
 
+// setupGPUIntegration configures GPU monitoring integration
+func setupGPUIntegration(s *common.Setup) {
+	s.Out.WriteString("Setting up GPU monitoring based on env variable GPU_MONITORING_ENABLED=true\n")
+
+	s.Config.DatadogYAML.CollectGPUTags = true
+	s.Config.DatadogYAML.GPUCheck.Enabled = true
+	s.Config.DatadogYAML.EnableNvmlDetection = true
+
+	if s.Config.SystemProbeYAML == nil {
+		s.Config.SystemProbeYAML = &config.SystemProbeConfig{}
+	}
+	s.Config.SystemProbeYAML.GPUMonitoringConfig = config.GPUMonitoringConfig{
+		Enabled: true,
+	}
+
+	s.Span.SetTag("host_tag_set.gpu_monitoring_enabled", "true")
+
+	// Agent must be restarted after NVML initialization, which occurs after init script execution
+	s.DelayedAgentRestartConfig.Scheduled = true
+	s.DelayedAgentRestartConfig.Delay = gpuIntegrationRestartDelay
+	s.DelayedAgentRestartConfig.LogFile = restartLogFile
+}
+
 func setupDatabricksDriver(s *common.Setup) {
 	s.Out.WriteString("Setting up Spark integration config on the Driver\n")
 	setClearHostTag(s, "spark_node", "driver")
 
-	var sparkIntegration common.IntegrationConfig
+	var sparkIntegration config.IntegrationConfig
 	if os.Getenv("DRIVER_LOGS_ENABLED") == "true" {
 		s.Config.DatadogYAML.LogsEnabled = true
 		sparkIntegration.Logs = driverLogs
@@ -232,7 +267,7 @@ func setupDatabricksDriver(s *common.Setup) {
 	}
 	if os.Getenv("DB_DRIVER_IP") != "" {
 		sparkIntegration.Instances = []any{
-			common.IntegrationConfigInstanceSpark{
+			config.IntegrationConfigInstanceSpark{
 				SparkURL:         "http://" + os.Getenv("DB_DRIVER_IP") + ":40001",
 				SparkClusterMode: "spark_driver_mode",
 				ClusterName:      os.Getenv("DB_CLUSTER_NAME"),
@@ -247,15 +282,25 @@ func setupDatabricksDriver(s *common.Setup) {
 
 func setupDatabricksWorker(s *common.Setup) {
 	setClearHostTag(s, "spark_node", "worker")
+	var sparkIntegration config.IntegrationConfig
 
 	if os.Getenv("WORKER_LOGS_ENABLED") == "true" {
-		var sparkIntegration common.IntegrationConfig
 		s.Config.DatadogYAML.LogsEnabled = true
 		sparkIntegration.Logs = workerLogs
 		s.Span.SetTag("host_tag_set.worker_logs_enabled", "true")
-		s.Config.IntegrationConfigs["spark.d/databricks.yaml"] = sparkIntegration
 	}
-
+	if os.Getenv("DB_DRIVER_IP") != "" && os.Getenv("DD_EXECUTORS_SPARK_INTEGRATION") == "true" {
+		sparkIntegration.Instances = []any{
+			config.IntegrationConfigInstanceSpark{
+				SparkURL:         "http://" + os.Getenv("DB_DRIVER_IP") + ":40001",
+				SparkClusterMode: "spark_driver_mode",
+				ClusterName:      os.Getenv("DB_CLUSTER_NAME"),
+				StreamingMetrics: true,
+			},
+		}
+		s.Span.SetTag("host_tag_set.worker_spark_enabled", "true")
+	}
+	s.Config.IntegrationConfigs["spark.d/databricks.yaml"] = sparkIntegration
 }
 
 func addCustomHostTags(s *common.Setup) {
@@ -284,8 +329,8 @@ func addCustomHostTags(s *common.Setup) {
 	s.Span.SetTag("host_tag_set.dd_extra_tags", len(extraTagsArray))
 }
 
-func parseLogProcessingRules(input string) ([]common.LogProcessingRule, error) {
-	var rules []common.LogProcessingRule
+func parseLogProcessingRules(input string) ([]config.LogProcessingRule, error) {
+	var rules []config.LogProcessingRule
 	// single quote are invalid for string in json
 	jsonInput := strings.ReplaceAll(input, `'`, `"`)
 	err := json.Unmarshal([]byte(jsonInput), &rules)
@@ -302,9 +347,10 @@ func loadLogProcessingRules(s *common.Setup) {
 			log.Warnf("Failed to parse log processing rules: %v", err)
 			s.Out.WriteString(fmt.Sprintf("Invalid log processing rules: %v\n", err))
 		} else {
-			logsConfig := common.LogsConfig{ProcessingRules: processingRules}
+			logsConfig := config.LogsConfig{ProcessingRules: processingRules}
 			s.Config.DatadogYAML.LogsConfig = logsConfig
 			s.Out.WriteString(fmt.Sprintf("Loaded %d log processing rule(s) from DD_LOGS_CONFIG_PROCESSING_RULES\n", len(processingRules)))
+			s.Span.SetTag("host_tag_set.log_rules", len(processingRules))
 		}
 	}
 }

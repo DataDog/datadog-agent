@@ -7,11 +7,16 @@
 package systrayimpl
 
 import (
+	"context"
 	"fmt"
 	"net"
+	"time"
 
-	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
+	"golang.org/x/sys/windows/svc"
+
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
 func onConfigure(s *systrayImpl) {
@@ -24,6 +29,16 @@ func onConfigure(s *systrayImpl) {
 }
 
 func doConfigure(s *systrayImpl) error {
+	// Start the agent service if it's not running
+	onStart(s)
+
+	// If the agent service was not already running, wait for it to be running
+	ctx, cancel := context.WithTimeout(context.Background(), winutil.DefaultServiceCommandTimeout*time.Second)
+	defer cancel()
+
+	if err := winutil.WaitForState(ctx, common.ServiceName, svc.Running); err != nil {
+		return fmt.Errorf("agent service failed to start within timeout: %v", err)
+	}
 
 	guiPort := s.config.GetString("GUI_port")
 	if guiPort == "-1" {
@@ -38,7 +53,7 @@ func doConfigure(s *systrayImpl) error {
 		return fmt.Errorf("GUI server host is not a local address: %s", err)
 	}
 
-	endpoint, err := apiutil.NewIPCEndpoint(s.config, "/agent/gui/intent")
+	endpoint, err := s.client.NewIPCEndpoint("/agent/gui/intent")
 	if err != nil {
 		return err
 	}

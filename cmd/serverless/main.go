@@ -16,6 +16,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/hostname"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggernoop "github.com/DataDog/datadog-agent/comp/core/tagger/fx-noop"
 	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -81,6 +83,7 @@ func main() {
 		runAgent,
 		taggernoop.Module(),
 		logscompressionfx.Module(),
+		hostnameimpl.Module(),
 	)
 
 	if err != nil {
@@ -89,7 +92,7 @@ func main() {
 	}
 }
 
-func runAgent(tagger tagger.Component, compression logscompression.Component) {
+func runAgent(tagger tagger.Component, compression logscompression.Component, hostname hostname.Component) {
 
 	startTime := time.Now()
 
@@ -129,7 +132,7 @@ func runAgent(tagger tagger.Component, compression logscompression.Component) {
 
 	go startTraceAgent(&wg, lambdaSpanChan, coldStartSpanId, serverlessDaemon, tagger, rcService)
 	go startOtlpAgent(&wg, metricAgent, serverlessDaemon, tagger)
-	go startTelemetryCollection(&wg, serverlessID, logChannel, serverlessDaemon, tagger, compression)
+	go startTelemetryCollection(&wg, serverlessID, logChannel, serverlessDaemon, tagger, compression, hostname)
 
 	// start appsec
 	appsecProxyProcessor := startAppSec(serverlessDaemon)
@@ -220,7 +223,7 @@ func startMetricAgent(serverlessDaemon *daemon.Daemon, logChannel chan *logConfi
 		SketchesBucketOffset: time.Second * 10,
 		Tagger:               tagger,
 	}
-	metricAgent.Start(daemon.FlushTimeout, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{})
+	metricAgent.Start(daemon.FlushTimeout, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{}, false)
 	serverlessDaemon.SetStatsdServer(metricAgent)
 	serverlessDaemon.SetupLogCollectionHandler(logsAPICollectionRoute, logChannel, pkgconfigsetup.Datadog().GetBool("serverless.logs_enabled"), pkgconfigsetup.Datadog().GetBool("enhanced_metrics"), lambdaInitMetricChan)
 	return metricAgent
@@ -302,7 +305,7 @@ func startAppSec(serverlessDaemon *daemon.Daemon) *httpsec.ProxyLifecycleProcess
 	return appsecProxyProcessor
 }
 
-func startTelemetryCollection(wg *sync.WaitGroup, serverlessID registration.ID, logChannel chan *logConfig.ChannelMessage, serverlessDaemon *daemon.Daemon, tagger tagger.Component, compression logscompression.Component) {
+func startTelemetryCollection(wg *sync.WaitGroup, serverlessID registration.ID, logChannel chan *logConfig.ChannelMessage, serverlessDaemon *daemon.Daemon, tagger tagger.Component, compression logscompression.Component, hostname hostname.Component) {
 	defer wg.Done()
 	if os.Getenv(daemon.LocalTestEnvVar) == "true" || os.Getenv(daemon.LocalTestEnvVar) == "1" {
 		log.Debug("Running in local test mode. Telemetry collection HTTP route won't be enabled")
@@ -326,7 +329,7 @@ func startTelemetryCollection(wg *sync.WaitGroup, serverlessID registration.ID, 
 	if logRegistrationError != nil {
 		log.Error("Can't subscribe to logs:", logRegistrationError)
 	} else {
-		logsAgent, err := serverlessLogs.SetupLogAgent(logChannel, "AWS Logs", "lambda", tagger, compression)
+		logsAgent, err := serverlessLogs.SetupLogAgent(logChannel, "AWS Logs", "lambda", tagger, compression, hostname)
 		if err != nil {
 			log.Errorf("Error setting up the logs agent: %s", err)
 		}
@@ -354,6 +357,8 @@ func startTraceAgent(wg *sync.WaitGroup, lambdaSpanChan chan *pb.Span, coldStart
 		LambdaSpanChan:  lambdaSpanChan,
 		ColdStartSpanID: coldStartSpanId,
 		RCService:       rcService,
+		// We have not yet wired up FunctionTags for the lambda go agent.
+		FunctionTags: "",
 	})
 	serverlessDaemon.SetTraceAgent(traceAgent)
 }
@@ -391,9 +396,10 @@ func setupApiKey() bool {
 }
 
 func loadConfig() {
-	pkgconfigsetup.Datadog().SetConfigFile(datadogConfigPath)
+	ddcfg := pkgconfigsetup.GlobalConfigBuilder()
+	ddcfg.SetConfigFile(datadogConfigPath)
 	// Load datadog.yaml file into the config, so that metricAgent can pick these configurations
-	if _, err := pkgconfigsetup.LoadWithoutSecret(pkgconfigsetup.Datadog(), nil); err != nil {
+	if _, err := pkgconfigsetup.LoadWithoutSecret(ddcfg, nil); err != nil {
 		log.Errorf("Error happened when loading configuration from datadog.yaml for metric agent: %s", err)
 	}
 }

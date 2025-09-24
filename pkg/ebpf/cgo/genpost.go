@@ -56,6 +56,7 @@ func processFile(rdr io.Reader, out io.Writer) error {
 		"Topic_name",
 		"Trigger_comm",
 		"Victim_comm",
+		"Devices",
 	}
 
 	// Convert []int8 to []byte in multiple generated fields from the kernel, to simplify

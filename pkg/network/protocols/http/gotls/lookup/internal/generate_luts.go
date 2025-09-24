@@ -46,9 +46,12 @@ var (
 		bininspect.StructOffsetTLSConn,
 		bininspect.StructOffsetTCPConn,
 		bininspect.StructOffsetNetConnFd,
-		bininspect.StructOffsetNetFdPfd,
-		bininspect.StructOffsetPollFdSysfd,
 		bininspect.StructOffsetLimitListenerConnNetConn,
+		bininspect.StructOffsetFamilyInNetFD,
+		bininspect.StructOffsetLaddrInNetFD,
+		bininspect.StructOffsetRaddrInNetFD,
+		bininspect.StructOffsetPortInTCPAddr,
+		bininspect.StructOffsetIPInTCPAddr,
 	}
 )
 
@@ -192,30 +195,57 @@ func run(
 				},
 			},
 			{
-				Name:            "GetNetFD_PFDOffset",
-				OutputType:      "uint64",
-				OutputZeroValue: "0",
-				DocComment:      `GetNetFD_PFDOffset gets the offset of the "pfd" field in the "net.netFD" struct`,
-				ExtractValue: func(r interface{}) interface{} {
-					return (r).(*bininspect.Result).StructOffsets[bininspect.StructOffsetNetFdPfd]
-				},
-			},
-			{
-				Name:            "GetFD_SysfdOffset",
-				OutputType:      "uint64",
-				OutputZeroValue: "0",
-				DocComment:      `GetFD_SysfdOffset gets the offset of the "Sysfd" field in the "internal/poll.FD" struct`,
-				ExtractValue: func(r interface{}) interface{} {
-					return (r).(*bininspect.Result).StructOffsets[bininspect.StructOffsetPollFdSysfd]
-				},
-			},
-			{
 				Name:            "GetLimitListenerConn_NetConnOffset",
 				OutputType:      "uint64",
 				OutputZeroValue: "0",
 				DocComment:      `GetLimitListenerConn_NetConnOffset gets the offset of the "net.Conn" field in the "netutil/limitListenerConn" struct`,
 				ExtractValue: func(r interface{}) interface{} {
 					return (r).(*bininspect.Result).StructOffsets[bininspect.StructOffsetLimitListenerConnNetConn]
+				},
+			},
+			{
+				Name:            "GetNetFD_FamilyInNetFDOffset",
+				OutputType:      "uint64",
+				OutputZeroValue: "0",
+				DocComment:      `GetNetFD_FamilyInOffset gets the offset of the "family" field in the "net.netFD" struct`,
+				ExtractValue: func(r interface{}) interface{} {
+					return (r).(*bininspect.Result).StructOffsets[bininspect.StructOffsetFamilyInNetFD]
+				},
+			},
+			{
+				Name:            "GetNetFD_LaddrInNetFDOffset",
+				OutputType:      "uint64",
+				OutputZeroValue: "0",
+				DocComment:      `GetNetFD_LaddrInNetFDOffset gets the offset of the "laddr" field in the "net.netFD" struct`,
+				ExtractValue: func(r interface{}) interface{} {
+					return (r).(*bininspect.Result).StructOffsets[bininspect.StructOffsetLaddrInNetFD]
+				},
+			},
+			{
+				Name:            "GetNetFD_RaddrInNetFDOffset",
+				OutputType:      "uint64",
+				OutputZeroValue: "0",
+				DocComment:      `GetNetFD_RaddrInNetFDOffset gets the offset of the "raddr" field in the "net.netFD" struct`,
+				ExtractValue: func(r interface{}) interface{} {
+					return (r).(*bininspect.Result).StructOffsets[bininspect.StructOffsetRaddrInNetFD]
+				},
+			},
+			{
+				Name:            "GetTCPAddr_PortInTCPAddrOffset",
+				OutputType:      "uint64",
+				OutputZeroValue: "0",
+				DocComment:      `GetTCPAddr_PortInTCPAddrOffset gets the offset of the "Port" field in the "net.TCPAddr" struct`,
+				ExtractValue: func(r interface{}) interface{} {
+					return (r).(*bininspect.Result).StructOffsets[bininspect.StructOffsetPortInTCPAddr]
+				},
+			},
+			{
+				Name:            "GetTCPAddr_IPInTCPAddrOffset",
+				OutputType:      "uint64",
+				OutputZeroValue: "0",
+				DocComment:      `GetTCPAddr_IPInTCPAddrOffset gets the offset of the "IP" field in the "net.TCPAddr" struct`,
+				ExtractValue: func(r interface{}) interface{} {
+					return (r).(*bininspect.Result).StructOffsets[bininspect.StructOffsetIPInTCPAddr]
 				},
 			},
 		},

@@ -156,6 +156,10 @@ func (v *baseStatusSuite) testDefaultInstallStatus(processAgentContain, processA
 			shouldContain:   []string{"no checks"},
 		},
 		{
+			name:            "Fleet Automation",
+			shouldBePresent: true,
+		},
+		{
 			name:            "Logs Agent",
 			shouldBePresent: true,
 			shouldContain:   []string{"Logs Agent is not running"},
@@ -199,6 +203,10 @@ func (v *baseStatusSuite) testDefaultInstallStatus(processAgentContain, processA
 			// XXX: this test is expected to fail until 7.48 as a known status render errors has been fixed in #18123
 			name:            "Status render errors",
 			shouldBePresent: false,
+		},
+		{
+			name:            "SSI",
+			shouldBePresent: true,
 		},
 	}
 

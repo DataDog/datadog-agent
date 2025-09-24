@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/intern"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -123,7 +124,7 @@ type RequestStat struct {
 	StaticTags uint64
 
 	// Dynamic tags (if attached)
-	DynamicTags []string
+	DynamicTags common.StringSet
 }
 
 func (r *RequestStat) initSketch() error {
@@ -152,11 +153,6 @@ func NewRequestStats() *RequestStats {
 	return &RequestStats{
 		Data: make(map[uint16]*RequestStat),
 	}
-}
-
-// isValid checks is the status code is in the range of valid HTTP responses.
-func (r *RequestStats) isValid(status uint16) bool {
-	return status >= 100 && status < 600
 }
 
 // CombineWith merges the data in 2 RequestStats objects
@@ -198,13 +194,14 @@ func (r *RequestStats) CombineWith(newStats *RequestStats) {
 				log.Debugf("error merging http transactions: %v", err)
 			}
 		}
+		stats.StaticTags |= newRequests.StaticTags
 		stats.Count += newRequests.Count
 	}
 }
 
 // AddRequest takes information about a HTTP transaction and adds it to the request stats
-func (r *RequestStats) AddRequest(statusCode uint16, latency float64, staticTags uint64, dynamicTags []string) {
-	if !r.isValid(statusCode) {
+func (r *RequestStats) AddRequest(statusCode uint16, latency float64, staticTags uint64, dynamicTags common.StringSet) {
+	if !isValidStatusCode(statusCode) {
 		return
 	}
 
@@ -216,7 +213,12 @@ func (r *RequestStats) AddRequest(statusCode uint16, latency float64, staticTags
 
 	stats.StaticTags |= staticTags
 	if len(dynamicTags) != 0 {
-		stats.DynamicTags = append(stats.DynamicTags, dynamicTags...)
+		if stats.DynamicTags == nil {
+			stats.DynamicTags = common.NewStringSet()
+		}
+		for tag := range dynamicTags {
+			stats.DynamicTags.Add(tag)
+		}
 	}
 
 	stats.Count++
@@ -260,4 +262,9 @@ func (r *RequestStats) Close() {
 			stats.close()
 		}
 	}
+}
+
+// isValidStatusCode checks if the status code is in the range of valid HTTP responses
+func isValidStatusCode(statusCode uint16) bool {
+	return statusCode >= 100 && statusCode < 600
 }

@@ -8,12 +8,15 @@
 package http
 
 import (
+	"regexp"
+	"slices"
 	"strconv"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -40,13 +43,29 @@ type StatKeeper struct {
 func NewStatkeeper(c *config.Config, telemetry *Telemetry, incompleteBuffer IncompleteBuffer) *StatKeeper {
 	var quantizer *URLQuantizer
 	// For now we're only enabling path quantization for HTTP/1 traffic
-	if c.EnableUSMQuantization && telemetry.protocol == "http" {
+	if c.EnableUSMQuantization {
 		quantizer = NewURLQuantizer()
 	}
 
 	var connectionAggregator *utils.ConnectionAggregator
 	if c.EnableUSMConnectionRollup {
 		connectionAggregator = utils.NewConnectionAggregator()
+	}
+
+	if len(c.HTTPReplaceRules) > 0 {
+		// Sort rules, and place drop rules first
+		slices.SortStableFunc(c.HTTPReplaceRules, func(a, b *config.ReplaceRule) int {
+			if a.Repl == "" && b.Repl == "" {
+				return 0
+			}
+			if a.Repl == "" {
+				return -1
+			}
+			if b.Repl == "" {
+				return 1
+			}
+			return 0
+		})
 	}
 
 	return &StatKeeper{
@@ -108,6 +127,12 @@ func (h *StatKeeper) GetAndResetAllStats() (stats map[Key]*RequestStats) {
 func (h *StatKeeper) Close() {
 }
 
+var (
+	// grpcPattern is a regex pattern to match gRPC paths by the pattern of `/<package>.<service>/<url>`
+	// Note - <service> can contain dots by itself. For instance `/google.pubsub.v2.PublisherService/CreateTopic`
+	grpcPattern = regexp.MustCompile(`^/([^./]+(\.[^./]+)*?)\.([^./]+(\.[^./]+)*?)/([^./]+?)$`)
+)
+
 func (h *StatKeeper) add(tx Transaction) {
 	rawPath, fullPath := tx.Path(h.buffer)
 	if rawPath == nil {
@@ -118,7 +143,10 @@ func (h *StatKeeper) add(tx Transaction) {
 	// Quantize HTTP path
 	// (eg. this turns /orders/123/view` into `/orders/*/view`)
 	if h.quantizer != nil {
-		rawPath = h.quantizer.Quantize(rawPath)
+		// Quantize the endpoint if and only if, it is not a gRPC captured by HTTP2 monitoring
+		if tx.Method() != MethodPost || !grpcPattern.Match(rawPath) {
+			rawPath = h.quantizer.Quantize(rawPath)
+		}
 	}
 
 	path, rejected := h.processHTTPPath(tx, rawPath)
@@ -143,6 +171,16 @@ func (h *StatKeeper) add(tx Transaction) {
 		return
 	}
 
+	// Validate HTTP status code
+	statusCode := tx.StatusCode()
+	if !isValidStatusCode(statusCode) {
+		h.telemetry.invalidStatusCode.Add(1)
+		if h.oversizedLogLimit.ShouldLog() {
+			log.Warnf("invalid status code: %s", tx.String())
+		}
+		return
+	}
+
 	key := NewKeyWithConnection(tx.ConnTuple(), path, fullPath, tx.Method())
 	if h.connectionAggregator != nil {
 		key.ConnectionKey = h.connectionAggregator.RollupKey(key.ConnectionKey)
@@ -159,7 +197,11 @@ func (h *StatKeeper) add(tx Transaction) {
 		h.stats[key] = stats
 	}
 
-	stats.AddRequest(tx.StatusCode(), latency, tx.StaticTags(), tx.DynamicTags())
+	dynamicTagsSet := common.StringSet(nil)
+	if dynamicTags := tx.DynamicTags(); len(dynamicTags) > 0 {
+		dynamicTagsSet = common.NewStringSet(dynamicTags...)
+	}
+	stats.AddRequest(tx.StatusCode(), latency, tx.StaticTags(), dynamicTagsSet)
 }
 
 func pathIsMalformed(fullPath []byte) bool {

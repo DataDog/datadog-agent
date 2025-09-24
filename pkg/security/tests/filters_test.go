@@ -9,8 +9,11 @@
 package tests
 
 import (
+	"context"
 	"fmt"
+	"net"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"syscall"
@@ -21,6 +24,7 @@ import (
 	"github.com/avast/retry-go/v4"
 	"github.com/cilium/ebpf"
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
@@ -96,6 +100,7 @@ func TestFilterOpenBasenameApprover(t *testing.T) {
 	// stats
 	err = retry.Do(func() error {
 		test.eventMonitor.SendStats()
+		defer test.statsdClient.Flush()
 		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":approver_type:basename"); count == 0 {
 			return fmt.Errorf("expected metrics not found: %+v", test.statsdClient.GetByPrefix(metrics.MetricEventApproved))
 		}
@@ -372,6 +377,7 @@ func runAUIDTest(t *testing.T, test *testModule, goSyscallTester string, eventTy
 	// stats
 	err = retry.Do(func() error {
 		test.eventMonitor.SendStats()
+		defer test.statsdClient.Flush()
 		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":approver_type:auid"); count == 0 {
 			return fmt.Errorf("expected metrics not found: %+v", test.statsdClient.GetByPrefix(metrics.MetricEventApproved))
 		}
@@ -416,15 +422,15 @@ func TestFilterOpenAUIDEqualApprover(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_equal_1",
-			Expression: `open.file.path =~ "/tmp/test-auid" && process.auid == 1005`,
+			Expression: `open.file.path =~ "/tmp/test-a*" && process.auid == 1005`,
 		},
 		{
 			ID:         "test_equal_2",
-			Expression: `open.file.path =~ "/tmp/test-auid" && process.auid == 0`,
+			Expression: `open.file.path =~ "/tmp/test-a*" && process.auid == 0`,
 		},
 		{
 			ID:         "test_equal_3",
-			Expression: `open.file.path =~ "/tmp/test-auid" && process.auid == AUDIT_AUID_UNSET`,
+			Expression: `open.file.path =~ "/tmp/test-a*" && process.auid == AUDIT_AUID_UNSET`,
 		},
 	}
 
@@ -466,7 +472,7 @@ func TestFilterOpenAUIDLesserApprover(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_range_lesser",
-			Expression: `open.file.path =~ "/tmp/test-auid" && process.auid < 500`,
+			Expression: `open.file.path =~ "/tmp/test-a*" && process.auid < 500`,
 		},
 	}
 
@@ -498,7 +504,7 @@ func TestFilterOpenAUIDGreaterApprover(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_range_greater",
-			Expression: `open.file.path =~ "/tmp/test-auid" && process.auid > 1000`,
+			Expression: `open.file.path =~ "/tmp/test-a*" && process.auid > 1000`,
 		},
 	}
 
@@ -530,7 +536,7 @@ func TestFilterOpenAUIDNotEqualUnsetApprover(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_equal_4",
-			Expression: `open.file.path =~ "/tmp/test-auid" && process.auid != AUDIT_AUID_UNSET`,
+			Expression: `open.file.path =~ "/tmp/test-a*" && process.auid != AUDIT_AUID_UNSET`,
 		},
 	}
 
@@ -562,7 +568,7 @@ func TestFilterUnlinkAUIDEqualApprover(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_equal_1",
-			Expression: `unlink.file.path =~ "/tmp/test-auid" && process.auid == 1009`,
+			Expression: `unlink.file.path =~ "/tmp/test-a*" && process.auid == 1009`,
 		},
 	}
 
@@ -868,6 +874,7 @@ func TestFilterOpenFlagsApprover(t *testing.T) {
 	// stats
 	err = retry.Do(func() error {
 		test.eventMonitor.SendStats()
+		defer test.statsdClient.Flush()
 		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":approver_type:flag"); count == 0 {
 			return fmt.Errorf("expected metrics not found: %+v", test.statsdClient.GetByPrefix(metrics.MetricEventApproved))
 		}
@@ -892,6 +899,7 @@ func TestFilterOpenFlagsApprover(t *testing.T) {
 
 	err = retry.Do(func() error {
 		test.eventMonitor.SendStats()
+		defer test.statsdClient.Flush()
 		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":approver_type:flag"); count == 0 {
 			return fmt.Errorf("expected metrics not found: %+v", test.statsdClient.GetByPrefix(metrics.MetricEventApproved))
 		}
@@ -913,6 +921,81 @@ func TestFilterOpenFlagsApprover(t *testing.T) {
 	}, testFile); err == nil {
 		t.Fatal("shouldn't get an event")
 	}
+}
+
+func TestFilterInUpperLayerApprover(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+
+	checkDockerCompatibility(t, "this test requires docker to use overlayfs", func(docker *dockerInfo) bool {
+		return docker.Info["Storage Driver"] != "overlay2"
+	})
+
+	rule := &rules.RuleDefinition{
+		ID:         "test_rule",
+		Expression: `open.file.in_upper_layer`,
+	}
+
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	wrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "busybox", "")
+	if err != nil {
+		t.Fatalf("failed to start docker wrapper: %v", err)
+	}
+
+	wrapper.Run(t, "cat", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		if err := waitForOpenProbeEvent(test, func() error {
+			cmd := cmdFunc("/bin/cat", []string{"/etc/nsswitch.conf"}, nil)
+			if out, err := cmd.CombinedOutput(); err != nil {
+				return fmt.Errorf("%s: %w", out, err)
+			}
+			return nil
+		}, "/etc/nsswitch.conf"); err == nil {
+			t.Fatal("shouldn't get an event")
+		}
+	})
+
+	// stats
+	err = retry.Do(func() error {
+		test.eventMonitor.SendStats()
+		defer test.statsdClient.Flush()
+		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":approver_type:in_upper_layer"); count != 0 {
+			return fmt.Errorf("unexpected metrics found: %+v", test.statsdClient.GetByPrefix(metrics.MetricEventApproved))
+		}
+
+		return nil
+	}, retry.Delay(1*time.Second), retry.Attempts(5), retry.DelayType(retry.FixedDelay))
+	assert.NoError(t, err)
+
+	wrapper.Run(t, "truncate", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		if err := waitForOpenProbeEvent(test, func() error {
+			cmd := cmdFunc("/bin/truncate", []string{"-s", "0", "/etc/nsswitch.conf"}, nil)
+			if out, err := cmd.CombinedOutput(); err != nil {
+				return fmt.Errorf("%s: %w", out, err)
+			}
+			return nil
+		}, "/etc/nsswitch.conf"); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	err = retry.Do(func() error {
+		test.eventMonitor.SendStats()
+		defer test.statsdClient.Flush()
+		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":approver_type:in_upper_layer"); count == 0 {
+			return fmt.Errorf("expected metrics not found: %+v", test.statsdClient.GetByPrefix(metrics.MetricEventApproved))
+		}
+
+		return nil
+	}, retry.Delay(1*time.Second), retry.Attempts(5), retry.DelayType(retry.FixedDelay))
+	assert.NoError(t, err)
 }
 
 func TestFilterDiscarderRetention(t *testing.T) {
@@ -1126,5 +1209,70 @@ func TestFilterRuntimeDiscarded(t *testing.T) {
 
 	if err == nil {
 		t.Errorf("shouldn't get an event")
+	}
+}
+
+func TestFilterConnectAddrFamily(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_connect",
+			Expression: `connect.addr.port == 4241`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	socketPath, _, err := test.Path("test-afunix.sock")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(socketPath)
+
+	listener, err := net.Listen("unix", socketPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+
+	go listener.Accept()
+
+	err = test.GetProbeEvent(func() error {
+		return runSyscallTesterFunc(
+			context.Background(),
+			t,
+			syscallTester,
+			"connect",
+			"AF_UNIX",
+			socketPath,
+			"tcp",
+			"4241",
+		)
+	}, func(event *model.Event) bool {
+		addressFamilyIntf, err := event.GetFieldValue("connect.addr.family")
+		if !assert.NoError(t, err) {
+			return false
+		}
+		addressFamily, ok := addressFamilyIntf.(int)
+		if !assert.True(t, ok) {
+			return false
+		}
+		assert.Containsf(t, []int{unix.AF_INET, unix.AF_INET6}, addressFamily, "should not get a connect event with address family other than AF_INET or AF_INET6")
+		return false
+	}, 2*time.Second, model.ConnectEventType)
+	if err != nil {
+		if _, ok := err.(ErrTimeout); !ok {
+			t.Fatal(err)
+		}
 	}
 }

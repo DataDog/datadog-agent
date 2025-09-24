@@ -19,7 +19,7 @@ func UnixStat(path string) (syscall.Stat_t, error) {
 	var stat syscall.Stat_t
 	var err error
 	for {
-		err := syscall.Stat(path, &stat)
+		err = syscall.Stat(path, &stat)
 		if err != syscall.EINTR {
 			break
 		}

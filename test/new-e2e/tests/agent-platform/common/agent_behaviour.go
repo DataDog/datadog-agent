@@ -9,6 +9,7 @@ package common
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -72,6 +73,15 @@ func CheckAgentBehaviour(t *testing.T, client *TestClient) {
 
 		// API Key is invalid we should not check for the following error
 		statusOutput = strings.ReplaceAll(statusOutput, "[ERROR] API Key is invalid", "API Key is invalid")
+
+		// Ignore errors specifically due to NTP flakiness.
+		if strings.Contains(statusOutput, "Error: failed to get clock offset from any ntp host") {
+			// The triggering error will look something like this:
+			//   Instance ID: ntp:4c427a42a70bbf8 [ERROR]
+			re := regexp.MustCompile(`Instance\sID[:]\sntp[:][a-z0-9]+\s\[ERROR\]`)
+			statusOutput = re.ReplaceAllString(statusOutput, "Instance ID: ntp [ignored]")
+		}
+
 		require.NotContains(tt, statusOutput, "ERROR")
 	})
 }
@@ -212,7 +222,7 @@ const (
 	ExpectedPythonVersion2 = "2.7.18"
 	// ExpectedPythonVersion3 is the expected python 3 version
 	// Bump this version when the version in omnibus/config/software/python3.rb changes
-	ExpectedPythonVersion3 = "3.12.9"
+	ExpectedPythonVersion3 = "3.12.11"
 )
 
 // SetAgentPythonMajorVersion set the python major version in the agent config and restarts the agent

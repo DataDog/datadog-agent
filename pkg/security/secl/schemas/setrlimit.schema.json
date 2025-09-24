@@ -1,0 +1,48 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "setrlimit.schema.json",
+    "type": "object",
+    "allOf": [
+        {
+            "$ref": "event.schema.json"
+        },
+        {
+            "$ref": "usr.schema.json"
+        },
+        {
+            "$ref": "process_context.schema.json"
+        },
+        {
+            "date": {
+                "$ref": "datetime.schema.json"
+            }
+        },
+        {
+            "properties": {
+                "setrlimit": {
+                    "type": "object",
+                    "required": [
+                        "resource"
+                    ],
+                    "properties": {
+                        "resource": {
+                            "type": "integer"
+                        },
+                        "rlim_cur": {
+                            "type": "integer"
+                        },
+                        "rlim_max": {
+                            "type": "integer"
+                        },
+                        "retval": {
+                            "type": "integer"
+                        }
+                    }
+                }
+            },
+            "required": [
+                "setrlimit"
+            ]
+        }
+    ]
+} 

@@ -6,6 +6,17 @@
 // Package tags contains the list of tags that are added by the tagger
 package tags
 
+// *************************************************************************************
+// *                               ⚠️ IMPORTANT WARNING ⚠️
+// *
+// *  When adding, modifying, or removing ANY tag constant in this file, you MUST
+// *  also update the corresponding public documentation at the following locations:
+// *
+// *  # Kubernetes: https://docs.datadoghq.com/containers/kubernetes/tag
+// *  # ECS:        https://docs.datadoghq.com/containers/amazon_ecs/tags/
+// *  # Docker:     https://docs.datadoghq.com/containers/docker/tags/
+// *************************************************************************************
+
 const (
 	// STANDARD TAGS
 
@@ -94,6 +105,9 @@ const (
 	KubeAppManagedBy = "kube_app_managed_by"
 	// KubeAutoscalerKind is the tag reflecting if a pod is managed by an Autoscaler
 	KubeAutoscalerKind = "kube_autoscaler_kind"
+	// KubeStaticCPUsTag is the tag that describes a container's cpu management
+	// which is either true (dedicated CPUs) or false
+	KubeStaticCPUsTag = "kube_static_cpus"
 
 	// GPU related tags
 
@@ -105,12 +119,13 @@ const (
 	// comp/core/workloadmeta/def/types.go:GPU.Device for more detail on this
 	// field.
 	KubeGPUDevice = "gpu_device"
-
 	// KubeGPUUUID is the tag for the Kubernetes Resource GPU UUID
 	KubeGPUUUID = "gpu_uuid"
-
 	// GPUDriverVersion is the tag for the GPU driver version
 	GPUDriverVersion = "gpu_driver_version"
+
+	// KubeArgoRollout is the tag for the Argo Rollout name
+	KubeArgoRollout = "kube_argo_rollout"
 
 	// OpenshiftDeploymentConfig is the tag for the OpenShift deployment config name
 	OpenshiftDeploymentConfig = "oshift_deployment_config"
@@ -131,8 +146,12 @@ const (
 	EcsContainerName = "ecs_container_name"
 	// EcsClusterName is the tag for the ECS cluster name
 	EcsClusterName = "ecs_cluster_name"
+	// EcsClusterARN is the tag for the ECS cluster ARN (Amazon Resource Name)
+	EcsClusterARN = "cluster_arn"
 	// EcsServiceName is the tag for the ECS service name
 	EcsServiceName = "ecs_service"
+	// EcsServiceARN is the tag for the ECS service ARN (Amazon Resource Name)
+	EcsServiceARN = "service_arn"
 	// AwsAccount is the tag for ECS account id
 	AwsAccount = "aws_account"
 
@@ -188,6 +207,8 @@ const (
 	TaskARN = "task_arn"
 	// MesosTask is the tag for the Mesos task
 	MesosTask = "mesos_task"
+	// TaskDefinitionARN is the tag for the task definition ARN (Amazon Resource Name)
+	TaskDefinitionARN = "task_definition_arn"
 
 	// HIGH CARDINALITY
 

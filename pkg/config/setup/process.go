@@ -57,10 +57,10 @@ const (
 	DefaultProcessEntityStreamPort = 6262
 
 	// DefaultProcessEndpoint is the default endpoint for the process agent to send payloads to
-	DefaultProcessEndpoint = "https://process.datadoghq.com"
+	DefaultProcessEndpoint = "https://process.datadoghq.com."
 
 	// DefaultProcessEventsEndpoint is the default endpoint for the process agent to send event payloads to
-	DefaultProcessEventsEndpoint = "https://process-events.datadoghq.com"
+	DefaultProcessEventsEndpoint = "https://process-events.datadoghq.com."
 
 	// DefaultProcessEventStoreMaxItems is the default maximum amount of events that can be stored in the Event Store
 	DefaultProcessEventStoreMaxItems = 200
@@ -115,6 +115,7 @@ func setupProcesses(config pkgconfigmodel.Setup) {
 	procBindEnv(config, "process_config.enabled")
 	procBindEnvAndSetDefault(config, "process_config.container_collection.enabled", true)
 	procBindEnvAndSetDefault(config, "process_config.process_collection.enabled", false)
+	procBindEnvAndSetDefault(config, "process_config.process_collection.use_wlm", runtime.GOOS == "linux")
 
 	// This allows for the process check to run in the core agent but is for linux only
 	procBindEnvAndSetDefault(config, "process_config.run_in_core_agent.enabled", runtime.GOOS == "linux")

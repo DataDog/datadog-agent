@@ -1,0 +1,9 @@
+---
+enhancements:
+  - |
+    Updated Windows container image labels to align with Linux image labels for better OCI compliance.
+    Added standard Open Container Initiative (OCI) labels including image source, revision, and version information.
+
+fixes:
+  - |
+    Fixed Windows container image metadata to properly include build timestamps and version information. 

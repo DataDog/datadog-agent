@@ -287,6 +287,7 @@ func (m *Manager) unloadProfileMap(profile *profile.Profile) {
 	// remove kernel space filters
 	if err := m.securityProfileSyscallsMap.Delete(profile.GetProfileCookie()); err != nil {
 		seclog.Errorf("couldn't remove syscalls filter: %v", err)
+		return
 	}
 
 	// TODO: delete all kernel space programs
@@ -295,11 +296,11 @@ func (m *Manager) unloadProfileMap(profile *profile.Profile) {
 
 // linkProfile (thread unsafe) updates the kernel space mapping between a workload and its profile
 func (m *Manager) linkProfileMap(profile *profile.Profile, workload *tags.Workload) {
-	if err := m.securityProfileMap.Put([]byte(workload.ContainerID), profile.GetProfileCookie()); err != nil {
-		seclog.Errorf("couldn't link workload %s (selector: %s) with profile %s (check map size limit ?): %v", workload.ContainerID, workload.Selector.String(), profile.Metadata.Name, err)
+	if err := m.securityProfileMap.Put(workload.CGroupFile.Inode, profile.GetProfileCookie()); err != nil {
+		seclog.Errorf("couldn't link workload %s (selector: %s, key: %v) with profile %s (check map size limit ?): %v", workload.ContainerID, workload.Selector.String(), workload.CGroupFile, profile.Metadata.Name, err)
 		return
 	}
-	seclog.Infof("workload %s (selector: %s) successfully linked to profile %s", workload.ContainerID, workload.Selector.String(), profile.Metadata.Name)
+	seclog.Infof("workload %s (selector: %s, key: %v) successfully linked to profile %s", workload.ContainerID, workload.Selector.String(), workload.CGroupFile, profile.Metadata.Name)
 }
 
 // linkProfile applies a profile to the provided workload
@@ -330,10 +331,11 @@ func (m *Manager) unlinkProfileMap(profile *profile.Profile, workload *tags.Work
 		return
 	}
 
-	if err := m.securityProfileMap.Delete([]byte(workload.ContainerID)); err != nil {
-		seclog.Errorf("couldn't unlink workload %s (selector: %s) with profile %s: %v", workload.ContainerID, workload.Selector.String(), profile.Metadata.Name, err)
+	if err := m.securityProfileMap.Delete(workload.CGroupFile.Inode); err != nil {
+		seclog.Errorf("couldn't unlink workload %s (selector: %s, key: %v) with profile %s: %v", workload.ContainerID, workload.Selector.String(), workload.CGroupFile, profile.Metadata.Name, err)
+		return
 	}
-	seclog.Infof("workload %s (selector: %s) successfully unlinked from profile %s", workload.ContainerID, workload.Selector.String(), profile.Metadata.Name)
+	seclog.Infof("workload %s (selector: %s, key: %v) successfully unlinked from profile %s", workload.ContainerID, workload.Selector.String(), workload.CGroupFile, profile.Metadata.Name)
 }
 
 // unlinkProfile removes the link between a workload and a profile
@@ -361,6 +363,16 @@ func (m *Manager) onWorkloadSelectorResolvedEvent(workload *tags.Workload) {
 
 	if workload.Deleted.Load() {
 		// this workload was deleted before we had time to apply its profile, ignore
+		return
+	}
+
+	// TODO: remove this check once we start handling profiles for non-containerized workloads
+	if workload.ContainerContext.ContainerID == "" {
+		return
+	}
+
+	containerName, imageName, podNamespace := utils.GetContainerFilterTags(workload.Tags)
+	if m.containerFilters != nil && m.containerFilters.IsExcluded(nil, containerName, imageName, podNamespace) {
 		return
 	}
 
@@ -442,6 +454,18 @@ func (m *Manager) onWorkloadDeletedEvent(workload *tags.Workload) {
 
 	// check if the profile should be deleted
 	m.shouldDeleteProfile(p)
+}
+
+// onWorkloadEvent handles workload events in order to ensure proper sequencing
+func (m *Manager) onWorkloadEvent(event *WorkloadEvent) {
+	switch event.Type {
+	case WorkloadEventResolved:
+		m.onWorkloadSelectorResolvedEvent(event.Workload)
+	case WorkloadEventDeleted:
+		m.onWorkloadDeletedEvent(event.Workload)
+	default:
+		seclog.Warnf("Unknown workload event type: %d", event.Type)
+	}
 }
 
 func (m *Manager) shouldDeleteProfile(p *profile.Profile) {

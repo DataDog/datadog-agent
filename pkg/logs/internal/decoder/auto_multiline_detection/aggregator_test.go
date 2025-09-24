@@ -9,7 +9,6 @@ package automultilinedetection
 import (
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -44,7 +43,7 @@ func assertTrailingMultiline(t *testing.T, m *message.Message, content string) {
 
 func TestNoAggregate(t *testing.T) {
 	outputChan, outputFn := makeHandler()
-	ag := NewAggregator(outputFn, 100, time.Duration(1*time.Second), false, false, status.NewInfoRegistry())
+	ag := NewAggregator(outputFn, 100, false, false, status.NewInfoRegistry())
 
 	ag.Aggregate(newMessage("1"), noAggregate)
 	ag.Aggregate(newMessage("2"), noAggregate)
@@ -58,7 +57,7 @@ func TestNoAggregate(t *testing.T) {
 func TestNoAggregateEndsGroup(t *testing.T) {
 
 	outputChan, outputFn := makeHandler()
-	ag := NewAggregator(outputFn, 100, time.Duration(1*time.Second), false, false, status.NewInfoRegistry())
+	ag := NewAggregator(outputFn, 100, false, false, status.NewInfoRegistry())
 
 	ag.Aggregate(newMessage("1"), startGroup)
 	ag.Aggregate(newMessage("2"), startGroup)
@@ -71,7 +70,7 @@ func TestNoAggregateEndsGroup(t *testing.T) {
 
 func TestAggregateGroups(t *testing.T) {
 	outputChan, outputFn := makeHandler()
-	ag := NewAggregator(outputFn, 100, time.Duration(1*time.Second), false, false, status.NewInfoRegistry())
+	ag := NewAggregator(outputFn, 100, false, false, status.NewInfoRegistry())
 
 	// Aggregated log
 	ag.Aggregate(newMessage("1"), startGroup)
@@ -91,7 +90,7 @@ func TestAggregateGroups(t *testing.T) {
 
 func TestAggregateDoesntStartGroup(t *testing.T) {
 	outputChan, outputFn := makeHandler()
-	ag := NewAggregator(outputFn, 100, time.Duration(1*time.Second), false, false, status.NewInfoRegistry())
+	ag := NewAggregator(outputFn, 100, false, false, status.NewInfoRegistry())
 
 	ag.Aggregate(newMessage("1"), aggregate)
 	ag.Aggregate(newMessage("2"), aggregate)
@@ -104,7 +103,7 @@ func TestAggregateDoesntStartGroup(t *testing.T) {
 
 func TestForceFlush(t *testing.T) {
 	outputChan, outputFn := makeHandler()
-	ag := NewAggregator(outputFn, 100, time.Duration(1*time.Second), false, false, status.NewInfoRegistry())
+	ag := NewAggregator(outputFn, 100, false, false, status.NewInfoRegistry())
 
 	ag.Aggregate(newMessage("1"), startGroup)
 	ag.Aggregate(newMessage("2"), aggregate)
@@ -114,26 +113,9 @@ func TestForceFlush(t *testing.T) {
 	assertMessageContent(t, <-outputChan, "1\\n2\\n3")
 }
 
-func TestAggregationTimer(t *testing.T) {
-	outputChan, outputFn := makeHandler()
-	ag := NewAggregator(outputFn, 100, time.Duration(1*time.Second), false, false, status.NewInfoRegistry())
-
-	assert.Nil(t, ag.FlushChan())
-	ag.Aggregate(newMessage("1"), startGroup)
-	assert.NotNil(t, ag.FlushChan())
-
-	ag.Aggregate(newMessage("2"), startGroup)
-	assert.NotNil(t, ag.FlushChan())
-
-	ag.Flush()
-
-	assertMessageContent(t, <-outputChan, "1")
-	assertMessageContent(t, <-outputChan, "2")
-}
-
 func TestTagTruncatedLogs(t *testing.T) {
 	outputChan, outputFn := makeHandler()
-	ag := NewAggregator(outputFn, 10, time.Duration(1*time.Second), true, false, status.NewInfoRegistry())
+	ag := NewAggregator(outputFn, 10, true, false, status.NewInfoRegistry())
 
 	// First 3 should be tagged as single line logs since they are too big to aggregate no matter what the label is.
 	ag.Aggregate(newMessage("1234567890"), startGroup)
@@ -181,7 +163,7 @@ func TestTagTruncatedLogs(t *testing.T) {
 
 func TestSingleGroupIsTruncatedAsMultilineLog(t *testing.T) {
 	outputChan, outputFn := makeHandler()
-	ag := NewAggregator(outputFn, 5, time.Duration(1*time.Second), true, false, status.NewInfoRegistry())
+	ag := NewAggregator(outputFn, 5, true, false, status.NewInfoRegistry())
 
 	ag.Aggregate(newMessage("123"), startGroup)
 	ag.Aggregate(newMessage("456"), aggregate)
@@ -199,7 +181,7 @@ func TestSingleGroupIsTruncatedAsMultilineLog(t *testing.T) {
 
 func TestSingleLineTruncatedLogIsTaggedSingleLine(t *testing.T) {
 	outputChan, outputFn := makeHandler()
-	ag := NewAggregator(outputFn, 5, time.Duration(1*time.Second), true, false, status.NewInfoRegistry())
+	ag := NewAggregator(outputFn, 5, true, false, status.NewInfoRegistry())
 
 	ag.Aggregate(newMessage("12345"), startGroup) // Exactly the size of the max message size - simulates truncation in the framer
 	ag.Aggregate(newMessage("456"), aggregate)
@@ -217,7 +199,7 @@ func TestSingleLineTruncatedLogIsTaggedSingleLine(t *testing.T) {
 
 func TestTagMultiLineLogs(t *testing.T) {
 	outputChan, outputFn := makeHandler()
-	ag := NewAggregator(outputFn, 10, time.Duration(1*time.Second), false, true, status.NewInfoRegistry())
+	ag := NewAggregator(outputFn, 10, false, true, status.NewInfoRegistry())
 
 	ag.Aggregate(newMessage("12345"), startGroup)
 	ag.Aggregate(newMessage("6789"), aggregate)
@@ -245,7 +227,7 @@ func TestTagMultiLineLogs(t *testing.T) {
 
 func TestSingleLineTooLongTruncation(t *testing.T) {
 	outputChan, outputFn := makeHandler()
-	ag := NewAggregator(outputFn, 5, time.Duration(1*time.Second), false, true, status.NewInfoRegistry())
+	ag := NewAggregator(outputFn, 5, false, true, status.NewInfoRegistry())
 
 	// Multi line log where each message is too large except the last one
 	ag.Aggregate(newMessage("123"), startGroup)

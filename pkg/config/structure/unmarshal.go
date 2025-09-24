@@ -7,6 +7,7 @@
 package structure
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"reflect"
@@ -25,6 +26,7 @@ import (
 // features allowed for handling edge-cases
 type featureSet struct {
 	allowSquash        bool
+	stringUnmarshal    bool
 	convertEmptyStrNil bool
 	convertArrayToMap  bool
 	errorUnused        bool
@@ -42,6 +44,11 @@ var EnableSquash UnmarshalKeyOption = func(fs *featureSet) {
 // ErrorUnused allows UnmarshalKey to return an error if there are unused keys in the config.
 var ErrorUnused UnmarshalKeyOption = func(fs *featureSet) {
 	fs.errorUnused = true
+}
+
+// EnableStringUnmarshal allows UnmarshalKey to handle stringified json and Unmarshal it
+var EnableStringUnmarshal UnmarshalKeyOption = func(fs *featureSet) {
+	fs.stringUnmarshal = true
 }
 
 // ConvertEmptyStringToNil allows UnmarshalKey to implicitly convert empty strings into nil slices
@@ -94,6 +101,18 @@ func UnmarshalKey(cfg model.Reader, key string, target interface{}, opts ...Unma
 		o(fs)
 	}
 
+	if fs.stringUnmarshal {
+		rawval := cfg.Get(key)
+		if rawval == nil {
+			return nil
+		}
+		if str, ok := rawval.(string); ok {
+			if str == "" {
+				return nil
+			}
+			return json.Unmarshal([]byte(str), &target)
+		}
+	}
 	decodeHooks := []func(c *mapstructure.DecoderConfig){}
 	if fs.convertArrayToMap {
 		decodeHooks = append(decodeHooks, legacyConvertArrayToMap)
@@ -115,11 +134,31 @@ func unmarshalKeyReflection(cfg model.Reader, key string, target interface{}, op
 	if rawval == nil {
 		return nil
 	}
+
+	if fs.stringUnmarshal {
+		if str, ok := rawval.(string); ok {
+			if str == "" {
+				return nil
+			}
+			return json.Unmarshal([]byte(str), &target)
+		}
+	}
+
 	input, err := nodetreemodel.NewNodeTree(rawval, cfg.GetSource(key))
 	if err != nil {
 		return err
 	}
+
 	outValue := reflect.ValueOf(target)
+	// Resolve pointers 2 times. This is needed because callers often do this:
+	//
+	// mystruct := &MyStruct{}
+	// err := structure.UnmarshalKey(config, "my_key", &mystruct)
+	//
+	// It would take highly unusual code to have more indirection than this.
+	if outValue.Kind() == reflect.Pointer {
+		outValue = reflect.Indirect(outValue)
+	}
 	if outValue.Kind() == reflect.Pointer {
 		outValue = reflect.Indirect(outValue)
 	}
@@ -204,6 +243,7 @@ func copyStruct(target reflect.Value, input nodetreemodel.Node, currPath []strin
 			usedFields[fieldKey] = struct{}{}
 			continue
 		}
+
 		child, err := input.GetChild(fieldKey)
 		if err == nodetreemodel.ErrNotFound {
 			continue
@@ -217,7 +257,6 @@ func copyStruct(target reflect.Value, input nodetreemodel.Node, currPath []strin
 		}
 		usedFields[fieldKey] = struct{}{}
 	}
-
 	if fs.errorUnused {
 		inner, ok := input.(nodetreemodel.InnerNode)
 		if !ok {
@@ -292,7 +331,13 @@ func copyMap(target reflect.Value, input nodetreemodel.Node, currPath []string, 
 			} else if bval, err := cast.ToBoolE(scalar.Get()); vtype == reflect.TypeOf(true) && err == nil {
 				results.SetMapIndex(reflect.ValueOf(mkey), reflect.ValueOf(bval))
 			} else {
-				return fmt.Errorf("only map[string]string and map[string]bool supported currently")
+				elem := reflect.New(vtype).Elem()
+				nextPath := append(currPath, mkey)
+				err := copyAny(elem, child, nextPath, fs)
+				if err != nil {
+					return err
+				}
+				results.SetMapIndex(reflect.ValueOf(mkey), elem)
 			}
 		}
 	}
@@ -304,37 +349,59 @@ func copyLeaf(target reflect.Value, input nodetreemodel.LeafNode, _ *featureSet)
 	if input == nil {
 		return fmt.Errorf("input value is not a scalar")
 	}
+
+	// If types already match, just copy directly
+	inVal := input.Get()
+	if inVal != nil && target.Type() == reflect.ValueOf(inVal).Type() {
+		target.Set(reflect.ValueOf(inVal))
+		return nil
+	}
+
 	switch target.Kind() {
 	case reflect.Bool:
-		v, err := cast.ToBoolE(input.Get())
+		v, err := cast.ToBoolE(inVal)
 		if err != nil {
-			return fmt.Errorf("could not convert %#v to bool", input.Get())
+			return fmt.Errorf("could not convert %#v to bool", inVal)
 		}
 		target.SetBool(v)
 		return nil
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		v, err := cast.ToIntE(input.Get())
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32:
+		v, err := cast.ToIntE(inVal)
 		if err != nil {
 			return err
 		}
 		target.SetInt(int64(v))
 		return nil
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		v, err := cast.ToIntE(input.Get())
+	case reflect.Int64:
+		v, err := cast.ToInt64E(inVal)
+		if err != nil {
+			return err
+		}
+		target.SetInt(int64(v))
+		return nil
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32:
+		v, err := cast.ToUintE(inVal)
+		if err != nil {
+			return err
+		}
+		target.SetUint(uint64(v))
+		return nil
+	case reflect.Uint64:
+		v, err := cast.ToUint64E(inVal)
 		if err != nil {
 			return err
 		}
 		target.SetUint(uint64(v))
 		return nil
 	case reflect.Float32, reflect.Float64:
-		v, err := cast.ToFloat64E(input.Get())
+		v, err := cast.ToFloat64E(inVal)
 		if err != nil {
 			return err
 		}
 		target.SetFloat(float64(v))
 		return nil
 	case reflect.String:
-		v, err := cast.ToStringE(input.Get())
+		v, err := cast.ToStringE(inVal)
 		if err != nil {
 			return err
 		}
@@ -376,6 +443,12 @@ func copyAny(target reflect.Value, input nodetreemodel.Node, currPath []string, 
 	if isScalarKind(target) {
 		if leaf, ok := input.(nodetreemodel.LeafNode); ok {
 			return copyLeaf(target, leaf, fs)
+		}
+		if inner, ok := input.(nodetreemodel.InnerNode); ok {
+			// An empty inner node is treated like a nil value, nothing to copy
+			if len(inner.ChildrenKeys()) == 0 {
+				return nil
+			}
 		}
 		return fmt.Errorf("at %v: scalar required, but input is not a leaf: %v of %T", currPath, input, input)
 	} else if target.Kind() == reflect.Map {

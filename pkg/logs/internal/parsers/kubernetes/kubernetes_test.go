@@ -62,9 +62,28 @@ func TestKubernetesParserShouldFailWithInvalidInput(t *testing.T) {
 	assert.Equal(t, message.StatusInfo, msg.Status)
 	assert.Equal(t, "", msg.ParsingExtra.Timestamp)
 
-	// Missing timestamp but with 3 spaces, the message is valid
-	// FIXME: We might want to handle that
+	// Missing timestamp - should now fail with invalid timestamp error
 	logMessage.SetContent([]byte("stdout F foo bar"))
 	_, err = New().Parse(logMessage)
-	assert.Nil(t, err)
+	assert.NotNil(t, err)
+	assert.Equal(t, "invalid timestamp format", err.Error())
+}
+
+func TestKubernetesParserShouldRejectInvalidTimestamp(t *testing.T) {
+	// When first component is not a valid timestamp, the parser must reject it
+	// because container/tailer.go uses ParsingExtra.Timestamp as an offset for
+	// resuming log tailing. Invalid timestamps would cause tailer failures.
+	logMessage := message.NewMessage([]byte("stdout F foo bar"), nil, "", 0)
+	msg, err := New().Parse(logMessage)
+
+	// Verify parser rejects invalid timestamp to prevent downstream failures
+	assert.NotNil(t, err)
+	assert.Equal(t, "invalid timestamp format", err.Error())
+	assert.Equal(t, logMessage.GetContent(), msg.GetContent())
+
+	// Test another malformed timestamp case
+	logMessage.SetContent([]byte("2018-invalid-timestamp stdout F message"))
+	_, err = New().Parse(logMessage)
+	assert.NotNil(t, err)
+	assert.Equal(t, "invalid timestamp format", err.Error())
 }

@@ -33,6 +33,17 @@ type ContainerContextSerializer struct {
 	Variables Variables `json:"variables,omitempty"`
 }
 
+// CGroupContextSerializer serializes a cgroup context to JSON
+// easyjson:json
+type CGroupContextSerializer struct {
+	// CGroup ID
+	ID string `json:"id,omitempty"`
+	// CGroup manager
+	Manager string `json:"manager,omitempty"`
+	// Variables values
+	Variables Variables `json:"variables,omitempty"`
+}
+
 // Variables serializes the variable values
 // easyjson:json
 type Variables map[string]interface{}
@@ -122,7 +133,9 @@ type NetworkContextSerializer struct {
 	// size is the size in bytes of the network event
 	Size uint32 `json:"size"`
 	// network_direction indicates if the packet was captured on ingress or egress
-	NetworkDirection string `json:"network_direction"`
+	NetworkDirection string `json:"network_direction,omitempty"`
+	// type is the type of the protocol of the network event
+	Type string `json:"type,omitempty"`
 }
 
 // AWSSecurityCredentialsSerializer serializes the security credentials from an AWS IMDS request
@@ -219,6 +232,7 @@ type MatchingSubExpr struct {
 	Offset int    `json:"offset"`
 	Length int    `json:"length"`
 	Value  string `json:"value"`
+	Field  string `json:"field,omitempty"`
 }
 
 // RuleContext serializes rule context to JSON
@@ -252,6 +266,7 @@ type RawPacketSerializer struct {
 	*NetworkContextSerializer
 
 	TLSContext *TLSContextSerializer `json:"tls,omitempty"`
+	Dropped    *bool                 `json:"dropped,omitempty"`
 }
 
 // NetworkStatsSerializer defines a new network stats serializer
@@ -436,12 +451,12 @@ func NewBaseEventSerializer(event *model.Event, rule *rules.Rule) *BaseEventSeri
 		}
 	}
 
-	s.Category = model.GetEventTypeCategory(eventType.String())
+	s.Category = string(model.GetEventTypeCategoryUserFacing(eventType.String()))
 
 	switch eventType {
 	case model.ExitEventType:
 		s.FileEventSerializer = &FileEventSerializer{
-			FileSerializer: *newFileSerializer(&event.ProcessContext.Process.FileEvent, event),
+			FileSerializer: *newFileSerializer(&event.ProcessContext.Process.FileEvent, event, 0, nil),
 		}
 		s.ExitEventSerializer = newExitEventSerializer(event)
 		s.EventContextSerializer.Outcome = serializeOutcome(0)
@@ -464,6 +479,7 @@ func newRuleContext(e *model.Event, rule *rules.Rule) RuleContext {
 			Offset: valuePos.Offset,
 			Length: valuePos.Length,
 			Value:  fmt.Sprintf("%v", valuePos.Value),
+			Field:  valuePos.Field,
 		}
 		ruleContext.MatchingSubExprs = append(ruleContext.MatchingSubExprs, subExpr)
 	}
@@ -474,6 +490,7 @@ func newVariablesContext(e *model.Event, rule *rules.Rule, prefix string) (varia
 	if rule != nil && rule.Opts.VariableStore != nil {
 		store := rule.Opts.VariableStore
 		for name, variable := range store.Variables {
+			// do not serialize hardcoded variables like process.pid
 			if _, found := model.SECLVariables[name]; found {
 				continue
 			}
@@ -484,6 +501,11 @@ func newVariablesContext(e *model.Event, rule *rules.Rule, prefix string) (varia
 
 			if (prefix != "" && !strings.HasPrefix(name, prefix)) ||
 				(prefix == "" && strings.Contains(name, ".")) {
+				continue
+			}
+
+			// Skip private variables
+			if variable.GetVariableOpts().Private {
 				continue
 			}
 

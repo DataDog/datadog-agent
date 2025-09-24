@@ -1,8 +1,3 @@
-/lib/systemd/system/datadog-agent-security.service
-/lib/systemd/system/datadog-agent-process.service
-/lib/systemd/system/datadog-agent.service
-/lib/systemd/system/datadog-agent-trace.service
-/lib/systemd/system/datadog-agent-sysprobe.service
 /etc/init.d/datadog-agent-process
 /etc/init.d/datadog-agent-security
 /etc/init.d/datadog-agent

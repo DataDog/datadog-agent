@@ -19,16 +19,17 @@ import (
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	clusteragent "github.com/DataDog/datadog-agent/comp/metadata/clusteragent/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	as "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -66,6 +67,7 @@ type Requires struct {
 	Log        log.Component
 	Config     config.Component
 	Serializer serializer.MetricSerializer
+	Hostname   hostnameinterface.Component
 }
 
 type datadogclusteragent struct {
@@ -86,7 +88,7 @@ type Provides struct {
 
 // NewComponent creates a new securityagent metadata Component
 func NewComponent(deps Requires) Provides {
-	hname, err := hostname.Get(context.Background())
+	hname, err := deps.Hostname.Get(context.Background())
 	if err != nil {
 		hname = ""
 	}
@@ -210,6 +212,14 @@ func (dca *datadogclusteragent) getMetadata() map[string]interface{} {
 			dca.metadata["is_leader"] = leaderEngine.IsLeader()
 		}
 	}
+
+	// Add cluster check runner and node agent counts
+	// Import "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
+	if clcRunnerCount, nodeAgentCount, err := clusterchecks.GetNodeTypeCounts(); err == nil {
+		dca.metadata["cluster_check_runner_count"] = clcRunnerCount
+		dca.metadata["cluster_check_node_agent_count"] = nodeAgentCount
+	}
+
 	//Sending dca configuration can be disabled using `inventories_configuration_enabled`.
 	//By default, it is true and enabled.
 	if !dca.conf.GetBool("inventories_configuration_enabled") {

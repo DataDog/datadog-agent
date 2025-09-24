@@ -25,6 +25,7 @@ const (
 	envAPIKey                = "DD_API_KEY"
 	envSite                  = "DD_SITE"
 	envRemoteUpdates         = "DD_REMOTE_UPDATES"
+	envOTelCollectorEnabled  = "DD_OTELCOLLECTOR_ENABLED"
 	envMirror                = "DD_INSTALLER_MIRROR"
 	envRegistryURL           = "DD_INSTALLER_REGISTRY_URL"
 	envRegistryAuth          = "DD_INSTALLER_REGISTRY_AUTH"
@@ -36,22 +37,16 @@ const (
 	envAgentMajorVersion     = "DD_AGENT_MAJOR_VERSION"
 	envAgentMinorVersion     = "DD_AGENT_MINOR_VERSION"
 	envApmLanguages          = "DD_APM_INSTRUMENTATION_LANGUAGES"
-	envAgentUserName         = "DD_AGENT_USER_NAME"
-	// envAgentUserNameCompat provides compatibility with the original MSI parameter name
-	envAgentUserNameCompat = "DDAGENTUSER_NAME"
-	envAgentUserPassword   = "DD_AGENT_USER_PASSWORD"
-	// envAgentUserPasswordCompat provides compatibility with the original MSI parameter name
-	envAgentUserPasswordCompat = "DDAGENTUSER_PASSWORD"
-	envTags                    = "DD_TAGS"
-	envExtraTags               = "DD_EXTRA_TAGS"
-	envHostname                = "DD_HOSTNAME"
-	envDDHTTPProxy             = "DD_PROXY_HTTP"
-	envHTTPProxy               = "HTTP_PROXY"
-	envDDHTTPSProxy            = "DD_PROXY_HTTPS"
-	envHTTPSProxy              = "HTTPS_PROXY"
-	envDDNoProxy               = "DD_PROXY_NO_PROXY"
-	envNoProxy                 = "NO_PROXY"
-	envIsFromDaemon            = "DD_INSTALLER_FROM_DAEMON"
+	envTags                  = "DD_TAGS"
+	envExtraTags             = "DD_EXTRA_TAGS"
+	envHostname              = "DD_HOSTNAME"
+	envDDHTTPProxy           = "DD_PROXY_HTTP"
+	envHTTPProxy             = "HTTP_PROXY"
+	envDDHTTPSProxy          = "DD_PROXY_HTTPS"
+	envHTTPSProxy            = "HTTPS_PROXY"
+	envDDNoProxy             = "DD_PROXY_NO_PROXY"
+	envNoProxy               = "NO_PROXY"
+	envIsFromDaemon          = "DD_INSTALLER_FROM_DAEMON"
 
 	// install script
 	envApmInstrumentationEnabled = "DD_APM_INSTRUMENTATION_ENABLED"
@@ -66,11 +61,24 @@ const (
 	envAppsecScaEnabled          = "DD_APPSEC_SCA_ENABLED"
 )
 
+// Windows MSI options
+const (
+	envAgentUserName = "DD_AGENT_USER_NAME"
+	// envAgentUserNameCompat provides compatibility with the original MSI parameter name
+	envAgentUserNameCompat = "DDAGENTUSER_NAME"
+	envAgentUserPassword   = "DD_AGENT_USER_PASSWORD"
+	// envAgentUserPasswordCompat provides compatibility with the original MSI parameter name
+	envAgentUserPasswordCompat  = "DDAGENTUSER_PASSWORD"
+	envProjectLocation          = "DD_PROJECTLOCATION"
+	envApplicationDataDirectory = "DD_APPLICATIONDATADIRECTORY"
+)
+
 var defaultEnv = Env{
-	APIKey:        "",
-	Site:          "datadoghq.com",
-	RemoteUpdates: false,
-	Mirror:        "",
+	APIKey:               "",
+	Site:                 "datadoghq.com",
+	RemoteUpdates:        false,
+	OTelCollectorEnabled: false,
+	Mirror:               "",
 
 	RegistryOverride:            "",
 	RegistryAuthOverride:        "",
@@ -115,6 +123,14 @@ const (
 	APMInstrumentationNotSet = "not_set"
 )
 
+// MsiParamsEnv contains the environment variables for options that are passed to the MSI.
+type MsiParamsEnv struct {
+	AgentUserName            string
+	AgentUserPassword        string
+	ProjectLocation          string
+	ApplicationDataDirectory string
+}
+
 // InstallScriptEnv contains the environment variables for the install script.
 type InstallScriptEnv struct {
 	// SSI
@@ -134,9 +150,10 @@ type InstallScriptEnv struct {
 
 // Env contains the configuration for the installer.
 type Env struct {
-	APIKey        string
-	Site          string
-	RemoteUpdates bool
+	APIKey               string
+	Site                 string
+	RemoteUpdates        bool
+	OTelCollectorEnabled bool
 
 	Mirror                      string
 	RegistryOverride            string
@@ -155,8 +172,8 @@ type Env struct {
 
 	AgentMajorVersion string
 	AgentMinorVersion string
-	AgentUserName     string // windows only
-	AgentUserPassword string // windows only
+
+	MsiParams MsiParamsEnv // windows only
 
 	InstallScript InstallScriptEnv
 
@@ -205,9 +222,10 @@ func FromEnv() *Env {
 	}
 
 	return &Env{
-		APIKey:        getEnvOrDefault(envAPIKey, defaultEnv.APIKey),
-		Site:          getEnvOrDefault(envSite, defaultEnv.Site),
-		RemoteUpdates: strings.ToLower(os.Getenv(envRemoteUpdates)) == "true",
+		APIKey:               getEnvOrDefault(envAPIKey, defaultEnv.APIKey),
+		Site:                 getEnvOrDefault(envSite, defaultEnv.Site),
+		RemoteUpdates:        strings.ToLower(os.Getenv(envRemoteUpdates)) == "true",
+		OTelCollectorEnabled: strings.ToLower(os.Getenv(envOTelCollectorEnabled)) == "true",
 
 		Mirror:                      getEnvOrDefault(envMirror, defaultEnv.Mirror),
 		RegistryOverride:            getEnvOrDefault(envRegistryURL, defaultEnv.RegistryOverride),
@@ -226,8 +244,13 @@ func FromEnv() *Env {
 
 		AgentMajorVersion: os.Getenv(envAgentMajorVersion),
 		AgentMinorVersion: os.Getenv(envAgentMinorVersion),
-		AgentUserName:     getEnvOrDefault(envAgentUserName, os.Getenv(envAgentUserNameCompat)),
-		AgentUserPassword: getEnvOrDefault(envAgentUserPassword, os.Getenv(envAgentUserPasswordCompat)),
+
+		MsiParams: MsiParamsEnv{
+			AgentUserName:            getEnvOrDefault(envAgentUserName, os.Getenv(envAgentUserNameCompat)),
+			AgentUserPassword:        getEnvOrDefault(envAgentUserPassword, os.Getenv(envAgentUserPasswordCompat)),
+			ProjectLocation:          getEnvOrDefault(envProjectLocation, ""),
+			ApplicationDataDirectory: getEnvOrDefault(envApplicationDataDirectory, ""),
+		},
 
 		InstallScript: InstallScriptEnv{
 			APMInstrumentationEnabled: getEnvOrDefault(envApmInstrumentationEnabled, APMInstrumentationNotSet),
@@ -286,6 +309,15 @@ func (e *InstallScriptEnv) ToEnv(env []string) []string {
 	return env
 }
 
+// ToEnv returns a slice of environment variables from the MsiParamsEnv struct.
+func (e *MsiParamsEnv) ToEnv(env []string) []string {
+	env = appendStringEnv(env, envAgentUserName, e.AgentUserName, "")
+	env = appendStringEnv(env, envAgentUserPassword, e.AgentUserPassword, "")
+	env = appendStringEnv(env, envProjectLocation, e.ProjectLocation, "")
+	env = appendStringEnv(env, envApplicationDataDirectory, e.ApplicationDataDirectory, "")
+	return env
+}
+
 // ToEnv returns a slice of environment variables from the Env struct.
 func (e *Env) ToEnv() []string {
 	var env []string
@@ -294,11 +326,15 @@ func (e *Env) ToEnv() []string {
 	if e.RemoteUpdates {
 		env = append(env, envRemoteUpdates+"=true")
 	}
+	if e.OTelCollectorEnabled {
+		env = append(env, envOTelCollectorEnabled+"=true")
+	}
 	env = appendStringEnv(env, envMirror, e.Mirror, "")
 	env = appendStringEnv(env, envRegistryURL, e.RegistryOverride, "")
 	env = appendStringEnv(env, envRegistryAuth, e.RegistryAuthOverride, "")
 	env = appendStringEnv(env, envRegistryUsername, e.RegistryUsername, "")
 	env = appendStringEnv(env, envRegistryPassword, e.RegistryPassword, "")
+	env = e.MsiParams.ToEnv(env)
 	env = e.InstallScript.ToEnv(env)
 	if len(e.ApmLibraries) > 0 {
 		libraries := []string{}
@@ -334,6 +370,7 @@ func (e *Env) ToEnv() []string {
 	env = append(env, overridesByNameToEnv(envRegistryPassword, e.RegistryPasswordByImage)...)
 	env = append(env, overridesByNameToEnv(envDefaultPackageInstall, e.DefaultPackagesInstallOverride)...)
 	env = append(env, overridesByNameToEnv(envDefaultPackageVersion, e.DefaultPackagesVersionOverride)...)
+
 	return env
 }
 

@@ -39,11 +39,11 @@ func registerUSMEndpoints(nt *networkTracer, httpMux *module.Router) {
 		}
 		defer cleanup()
 
-		utils.WriteAsJSON(w, kafkadebugging.Kafka(cs.Kafka), utils.GetPrettyPrintFromQueryParams(req))
+		utils.WriteAsJSON(w, kafkadebugging.Kafka(cs.USMData.Kafka), utils.GetPrettyPrintFromQueryParams(req))
 	})
 
 	httpMux.HandleFunc("/debug/postgres_monitoring", func(w http.ResponseWriter, req *http.Request) {
-		if !coreconfig.SystemProbe().GetBool("service_monitoring_config.enable_postgres_monitoring") {
+		if !coreconfig.SystemProbe().GetBool("service_monitoring_config.postgres.enabled") {
 			writeDisabledProtocolMessage("postgres", w)
 			return
 		}
@@ -56,11 +56,11 @@ func registerUSMEndpoints(nt *networkTracer, httpMux *module.Router) {
 		}
 		defer cleanup()
 
-		utils.WriteAsJSON(w, postgresdebugging.Postgres(cs.Postgres), utils.GetPrettyPrintFromQueryParams(req))
+		utils.WriteAsJSON(w, postgresdebugging.Postgres(cs.USMData.Postgres), utils.GetPrettyPrintFromQueryParams(req))
 	})
 
 	httpMux.HandleFunc("/debug/redis_monitoring", func(w http.ResponseWriter, req *http.Request) {
-		if !coreconfig.SystemProbe().GetBool("service_monitoring_config.enable_redis_monitoring") {
+		if !coreconfig.SystemProbe().GetBool("service_monitoring_config.redis.enabled") {
 			writeDisabledProtocolMessage("redis", w)
 			return
 		}
@@ -73,7 +73,7 @@ func registerUSMEndpoints(nt *networkTracer, httpMux *module.Router) {
 		}
 		defer cleanup()
 
-		utils.WriteAsJSON(w, redisdebugging.Redis(cs.Redis), utils.GetPrettyPrintFromQueryParams(req))
+		utils.WriteAsJSON(w, redisdebugging.Redis(cs.USMData.Redis), utils.GetPrettyPrintFromQueryParams(req))
 	})
 
 	httpMux.HandleFunc("/debug/http2_monitoring", func(w http.ResponseWriter, req *http.Request) {
@@ -90,7 +90,7 @@ func registerUSMEndpoints(nt *networkTracer, httpMux *module.Router) {
 		}
 		defer cleanup()
 
-		utils.WriteAsJSON(w, httpdebugging.HTTP(cs.HTTP2, cs.DNS), utils.GetPrettyPrintFromQueryParams(req))
+		utils.WriteAsJSON(w, httpdebugging.HTTP(cs.USMData.HTTP2, cs.DNS), utils.GetPrettyPrintFromQueryParams(req))
 	})
 
 	httpMux.HandleFunc("/debug/usm/traced_programs", usm.GetTracedProgramsEndpoint(usmconsts.USMModuleName))

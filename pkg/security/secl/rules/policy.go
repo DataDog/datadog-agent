@@ -9,6 +9,7 @@ package rules
 import (
 	"fmt"
 	"io"
+	"iter"
 	"reflect"
 	"slices"
 
@@ -46,17 +47,41 @@ func (m *PolicyMacro) MergeWith(m2 *PolicyMacro) error {
 
 // PolicyRule represents a rule loaded from a policy
 type PolicyRule struct {
-	Def        *RuleDefinition
-	Actions    []*Action
-	Accepted   bool
-	Error      error
+	Def      *RuleDefinition
+	Actions  []*Action
+	Accepted bool
+	Error    error
+	// FilterType is used to keep track of the type of filter that caused the rule to be filtered out
+	FilterType FilterType
 	Policy     PolicyInfo
 	ModifiedBy []PolicyInfo
 	UsedBy     []PolicyInfo
 }
 
+// Policies returns an iterator over the policies that this rule is part of.
+func (r *PolicyRule) Policies(includeInternalPolicies bool) iter.Seq[*PolicyInfo] {
+	return func(yield func(*PolicyInfo) bool) {
+		if !r.Policy.IsInternal || includeInternalPolicies {
+			if !yield(&r.Policy) {
+				return
+			}
+		}
+		for _, policy := range r.UsedBy {
+			if !policy.IsInternal || includeInternalPolicies {
+				if !yield(&policy) {
+					return
+				}
+			}
+		}
+	}
+}
+
 func (r *PolicyRule) isAccepted() bool {
 	return r.Accepted && r.Error == nil
+}
+
+func (r *PolicyRule) isFiltered() bool {
+	return !r.Accepted && r.Error == nil
 }
 
 func applyOverride(rd1, rd2 *PolicyRule) {
@@ -112,7 +137,7 @@ func applyOverride(rd1, rd2 *PolicyRule) {
 }
 
 // MergeWith merges rule r2 into r
-func (r *PolicyRule) MergeWith(r2 *PolicyRule) error {
+func (r *PolicyRule) MergeWith(r2 *PolicyRule) {
 	switch r2.Def.Combine {
 	case OverridePolicy:
 		if !r2.Def.Disabled {
@@ -120,7 +145,7 @@ func (r *PolicyRule) MergeWith(r2 *PolicyRule) error {
 		}
 	default:
 		if r.Def.Disabled == r2.Def.Disabled {
-			return nil
+			return
 		}
 	}
 
@@ -135,8 +160,6 @@ func (r *PolicyRule) MergeWith(r2 *PolicyRule) error {
 	}
 
 	r.ModifiedBy = append(r.ModifiedBy, r2.Policy)
-
-	return nil
 }
 
 // PolicyType represents the type of a policy
@@ -163,6 +186,8 @@ type PolicyInfo struct {
 	Type PolicyType
 	// Version is the version of the policy, this field is copied from the policy definition
 	Version string
+	// ReplacePolicyID is the ID that this policy should replace
+	ReplacePolicyID string
 	// IsInternal is true if the policy is internal
 	IsInternal bool
 }
@@ -181,8 +206,7 @@ type Policy struct {
 	// multiple macros can have the same ID but different filters (e.g. agent version)
 	macros map[MacroID][]*PolicyMacro
 	// multiple rules can have the same ID but different filters (e.g. agent version)
-	rules              map[RuleID][]*PolicyRule
-	onDemandHookPoints []OnDemandHookPoint
+	rules map[RuleID][]*PolicyRule
 }
 
 // GetAcceptedMacros returns the list of accepted macros that are part of the policy
@@ -209,6 +233,19 @@ func (p *Policy) GetAcceptedRules() []*PolicyRule {
 		}
 	}
 	return acceptedRules
+}
+
+// GetFilteredRules returns the list of filtered rules that are part of the policy
+func (p *Policy) GetFilteredRules() []*PolicyRule {
+	var filteredRules []*PolicyRule
+	for _, rules := range p.rules {
+		for _, rule := range rules {
+			if rule.isFiltered() {
+				filteredRules = append(filteredRules, rule)
+			}
+		}
+	}
+	return filteredRules
 }
 
 // SetInternalCallbackAction adds an internal callback action for the given rule IDs
@@ -276,6 +313,7 @@ RULES:
 			}
 
 			if !rule.Accepted {
+				rule.FilterType = filter.GetType()
 				continue RULES
 			}
 		}
@@ -304,8 +342,6 @@ RULES:
 		}
 	}
 
-	p.onDemandHookPoints = p.Def.OnDemandHookPoints
-
 	return errs.ErrorOrNil()
 }
 
@@ -313,6 +349,7 @@ RULES:
 func LoadPolicyFromDefinition(info *PolicyInfo, def *PolicyDef, macroFilters []MacroFilter, ruleFilters []RuleFilter) (*Policy, error) {
 	if def != nil && def.Version != "" {
 		info.Version = def.Version
+		info.ReplacePolicyID = def.ReplacePolicyID
 	}
 
 	p := &Policy{
@@ -330,7 +367,7 @@ func LoadPolicy(info *PolicyInfo, reader io.Reader, macroFilters []MacroFilter, 
 	def := PolicyDef{}
 	decoder := yaml.NewDecoder(reader)
 	if err := decoder.Decode(&def); err != nil {
-		return nil, &ErrPolicyLoad{Name: info.Name, Err: err}
+		return nil, &ErrPolicyLoad{Name: info.Name, Source: info.Source, Err: err}
 	}
 
 	return LoadPolicyFromDefinition(info, &def, macroFilters, ruleFilters)

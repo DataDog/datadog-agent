@@ -22,7 +22,7 @@ func TestSecretBackendWithMultipleEndpoints(t *testing.T) {
 	conf := mock.NewFromFile(t, "./tests/datadog_secrets.yaml")
 
 	expectedKeysPerDomain := map[string][]APIKeys{
-		"https://app.datadoghq.com": {
+		"https://app.datadoghq.com.": {
 			NewAPIKeys("api_key", "someapikey"),
 			NewAPIKeys("additional_endpoints", "someotherapikey"),
 		},
@@ -37,10 +37,10 @@ func TestGetMultipleEndpointsDefault(t *testing.T) {
 api_key: fakeapikey
 
 additional_endpoints:
-  "https://app.datadoghq.com":
+  "https://app.datadoghq.com.":
   - fakeapikey2
   - fakeapikey3
-  "https://foo.datadoghq.com":
+  "https://foo.datadoghq.com.":
   - someapikey
 `
 
@@ -49,10 +49,10 @@ additional_endpoints:
 	multipleEndpoints, err := GetMultipleEndpoints(testConfig)
 
 	expectedMultipleEndpoints := map[string][]APIKeys{
-		"https://foo.datadoghq.com": {
+		"https://foo.datadoghq.com.": {
 			NewAPIKeys("additional_endpoints", "someapikey"),
 		},
-		"https://app.datadoghq.com": {
+		"https://app.datadoghq.com.": {
 			NewAPIKeys("api_key", "fakeapikey"),
 			NewAPIKeys("additional_endpoints", "fakeapikey2", "fakeapikey3"),
 		},
@@ -95,17 +95,17 @@ additional_endpoints:
 
 func TestGetMultipleEndpointsEnvVar(t *testing.T) {
 	t.Setenv("DD_API_KEY", "fakeapikey")
-	t.Setenv("DD_ADDITIONAL_ENDPOINTS", "{\"https://foo.datadoghq.com\": [\"someapikey\"]}")
+	t.Setenv("DD_ADDITIONAL_ENDPOINTS", "{\"https://foo.datadoghq.com.\": [\"someapikey\"]}")
 
 	testConfig := mock.New(t)
 
 	multipleEndpoints, err := GetMultipleEndpoints(testConfig)
 
 	expectedMultipleEndpoints := map[string][]APIKeys{
-		"https://foo.datadoghq.com": {
+		"https://foo.datadoghq.com.": {
 			NewAPIKeys("additional_endpoints", "someapikey"),
 		},
-		"https://app.datadoghq.com": {
+		"https://app.datadoghq.com.": {
 			NewAPIKeys("api_key", "fakeapikey"),
 		},
 	}
@@ -120,10 +120,10 @@ site: datadoghq.eu
 api_key: fakeapikey
 
 additional_endpoints:
-  "https://app.datadoghq.com":
+  "https://app.datadoghq.com.":
   - fakeapikey2
   - fakeapikey3
-  "https://foo.datadoghq.com":
+  "https://foo.datadoghq.com.":
   - someapikey
 `
 
@@ -132,13 +132,13 @@ additional_endpoints:
 	multipleEndpoints, err := GetMultipleEndpoints(testConfig)
 
 	expectedMultipleEndpoints := map[string][]APIKeys{
-		"https://app.datadoghq.eu": {
+		"https://app.datadoghq.eu.": {
 			NewAPIKeys("api_key", "fakeapikey"),
 		},
-		"https://foo.datadoghq.com": {
+		"https://foo.datadoghq.com.": {
 			NewAPIKeys("additional_endpoints", "someapikey"),
 		},
-		"https://app.datadoghq.com": {
+		"https://app.datadoghq.com.": {
 			NewAPIKeys("additional_endpoints", "fakeapikey2", "fakeapikey3"),
 		},
 	}
@@ -242,14 +242,14 @@ func TestSiteEnvVar(t *testing.T) {
 	externalAgentURL := GetMainEndpoint(testConfig, "https://external-agent.", "external_config.external_agent_dd_url")
 
 	expectedMultipleEndpoints := map[string][]APIKeys{
-		"https://app.datadoghq.eu": {
+		"https://app.datadoghq.eu.": {
 			NewAPIKeys("api_key", "fakeapikey"),
 		},
 	}
 
 	assert.NoError(t, err)
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
-	assert.Equal(t, "https://external-agent.datadoghq.eu", externalAgentURL)
+	assert.Equal(t, "https://external-agent.datadoghq.eu.", externalAgentURL)
 }
 
 func TestDefaultSite(t *testing.T) {
@@ -262,14 +262,14 @@ api_key: fakeapikey
 	externalAgentURL := GetMainEndpoint(testConfig, "https://external-agent.", "external_config.external_agent_dd_url")
 
 	expectedMultipleEndpoints := map[string][]APIKeys{
-		"https://app.datadoghq.com": {
+		"https://app.datadoghq.com.": {
 			NewAPIKeys("api_key", "fakeapikey"),
 		},
 	}
 
 	assert.NoError(t, err)
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
-	assert.Equal(t, "https://external-agent.datadoghq.com", externalAgentURL)
+	assert.Equal(t, "https://external-agent.datadoghq.com.", externalAgentURL)
 }
 
 func TestSite(t *testing.T) {
@@ -283,14 +283,14 @@ api_key: fakeapikey
 	externalAgentURL := GetMainEndpoint(testConfig, "https://external-agent.", "external_config.external_agent_dd_url")
 
 	expectedMultipleEndpoints := map[string][]APIKeys{
-		"https://app.datadoghq.eu": {
+		"https://app.datadoghq.eu.": {
 			NewAPIKeys("api_key", "fakeapikey"),
 		},
 	}
 
 	assert.NoError(t, err)
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
-	assert.Equal(t, "https://external-agent.datadoghq.eu", externalAgentURL)
+	assert.Equal(t, "https://external-agent.datadoghq.eu.", externalAgentURL)
 }
 
 func TestDDURLEnvVar(t *testing.T) {
@@ -471,6 +471,16 @@ func TestAddAgentVersionToDomain(t *testing.T) {
 			"app.myproxy.com",
 			false,
 		},
+		{ // MRF
+			"https://app.mrf.datadoghq.com",
+			".mrf.datadoghq.com",
+			true,
+		},
+		{ // Trailing dot
+			"https://app.datadoghq.com.",
+			".datadoghq.com.",
+			true,
+		},
 	}
 
 	for _, testCase := range versionURLTests {
@@ -487,4 +497,78 @@ func TestAddAgentVersionToDomain(t *testing.T) {
 			assert.Equal(t, "https://"+testCase.expectedURL, flareURL)
 		}
 	}
+}
+
+func TestGetMultipleEndpointsPreaggregationSameURL(t *testing.T) {
+	datadogYaml := `
+dd_url: "https://app.datadoghq.com"
+api_key: fakeapikey
+
+preaggregation:
+  enabled: true
+  dd_url: "https://app.datadoghq.com"
+  api_key: preaggr_key
+`
+
+	testConfig := mock.NewFromYAML(t, datadogYaml)
+
+	_, err := GetMultipleEndpoints(testConfig)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "preaggregation.dd_url must not match primary URL")
+}
+
+func TestGetMultipleEndpointsPreaggregationSameURLAdditionalEndpoint(t *testing.T) {
+	datadogYaml := `
+dd_url: "https://app.datadoghq.com"
+api_key: fakeapikey
+
+additional_endpoints:
+  "https://foo.datadoghq.com":
+  - fakeapikey
+
+preaggregation:
+  enabled: true
+  dd_url: "https://foo.datadoghq.com"
+  api_key: preaggr_key
+`
+
+	testConfig := mock.NewFromYAML(t, datadogYaml)
+
+	_, err := GetMultipleEndpoints(testConfig)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "preaggregation.dd_url must not match any additional endpoints")
+}
+
+func TestGetMultipleEndpointsPreaggregationNoURL(t *testing.T) {
+	datadogYaml := `
+dd_url: "https://app.datadoghq.com"
+api_key: fakeapikey
+
+preaggregation:
+  enabled: true
+  api_key: preaggr_key
+`
+
+	testConfig := mock.NewFromYAML(t, datadogYaml)
+
+	_, err := GetMultipleEndpoints(testConfig)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "preaggregation.dd_url is required when preaggregation.enabled is true")
+}
+
+func TestGetMultipleEndpointsPreaggregationNoAPIKey(t *testing.T) {
+	datadogYaml := `
+dd_url: "https://app.datadoghq.com"
+api_key: fakeapikey
+
+preaggregation:
+  enabled: true
+  dd_url: "https://telemetry-intake.datadoghq.com"
+`
+
+	testConfig := mock.NewFromYAML(t, datadogYaml)
+
+	_, err := GetMultipleEndpoints(testConfig)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "preaggregation.api_key is required when preaggregation.enabled is true")
 }

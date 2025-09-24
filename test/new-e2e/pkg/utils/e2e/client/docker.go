@@ -6,9 +6,13 @@
 package client
 
 import (
+	"archive/tar"
 	"bytes"
 	"context"
 	"fmt"
+	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -117,7 +121,7 @@ func (docker *Docker) ExecuteCommandStdoutStdErr(containerName string, commands 
 		return "", "", fmt.Errorf("error when running command %v on container %v:\n   exit code: %d\n   stdout: %v\n   stderr: %v", commands, containerName, execInspectResp.ExitCode, stdout, stderr)
 	}
 
-	return stdout, stderr, err
+	return stdout, suppressGoCoverWarning(stderr), err
 }
 
 // ListContainers returns a list of container names.
@@ -147,4 +151,45 @@ func (docker *Docker) getContainerIDsByName() (map[string]string, error) {
 		}
 	}
 	return containersMap, nil
+}
+
+// DownloadFile downloads a file from the container to the local filesystem.
+func (docker *Docker) DownloadFile(containerName, containerPath, localPath string) error {
+	docker.t.Logf("Downloading file from container %s:%s to local path %s", containerName, containerPath, localPath)
+
+	ctx := context.Background()
+	reader, _, err := docker.client.CopyFromContainer(ctx, containerName, containerPath)
+	if err != nil {
+		return fmt.Errorf("failed to copy from container %s:%s: %w", containerName, containerPath, err)
+	}
+	defer reader.Close()
+
+	tarReader := tar.NewReader(reader)
+	header, err := tarReader.Next()
+	if err != nil {
+		return fmt.Errorf("failed to read tar header: %w", err)
+	}
+
+	if header.Typeflag == tar.TypeDir {
+		return fmt.Errorf("container path %s is a directory, not a file", containerPath)
+	}
+
+	localDir := filepath.Dir(localPath)
+	if err := os.MkdirAll(localDir, 0755); err != nil {
+		return fmt.Errorf("failed to create local directory %s: %w", localDir, err)
+	}
+
+	outFile, err := os.Create(localPath)
+	if err != nil {
+		return fmt.Errorf("failed to create local file %s: %w", localPath, err)
+	}
+	defer outFile.Close()
+
+	_, err = io.Copy(outFile, tarReader)
+	if err != nil {
+		return fmt.Errorf("failed to write file contents: %w", err)
+	}
+
+	docker.t.Logf("Successfully downloaded file to %s", localPath)
+	return nil
 }

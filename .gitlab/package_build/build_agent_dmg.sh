@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 set -eo pipefail
 
@@ -9,12 +9,10 @@ else
 fi
 
 # --- Setup environment ---
-unset OMNIBUS_GIT_CACHE_DIR
 unset OMNIBUS_BASE_DIR
-WORKDIR="/tmp"
-export INSTALL_DIR="$WORKDIR/datadog-agent-build/bin"
-export CONFIG_DIR="$WORKDIR/datadog-agent-build/config"
-export OMNIBUS_DIR="$WORKDIR/omnibus_build"
+export INSTALL_DIR="$TMPDIR/datadog-agent-build/bin"
+export CONFIG_DIR="$TMPDIR/datadog-agent-build/config"
+export OMNIBUS_DIR="$TMPDIR/omnibus_build"
 export OMNIBUS_PACKAGE_DIR="$PWD"/omnibus/pkg
 
 rm -rf "$INSTALL_DIR" "$CONFIG_DIR" "$OMNIBUS_DIR"
@@ -25,30 +23,20 @@ if [ -n "$INTEGRATIONS_CORE_REF" ]; then
     export INTEGRATIONS_CORE_VERSION="$INTEGRATIONS_CORE_REF"
 fi
 
-# --- Setup Go ---
-echo Setting up Go
-mkdir -p ~/go
-export GO_VERSION="$(cat .go-version)"
-eval "$(gimme $GO_VERSION)"
-export PATH="$PATH:$GOROOT/bin"
-echo Go version should be $GO_VERSION
-go version
-dda inv check-go-version
-
 # --- Setup signing ---
 if [ "$SIGN" = true ]; then
     # Add certificates to temporary keychain
     echo "Setting up signing secrets"
 
-    KEYCHAIN_PWD=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_KEYCHAIN_PWD password) || exit $?; export KEYCHAIN_PWD
-    CODESIGNING_CERT_BASE64=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_APPLE_APPLICATION_SIGNING certificate) || exit $?; export CODESIGNING_CERT_BASE64
-    CODESIGNING_CERT_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_APPLE_APPLICATION_SIGNING passphrase) || exit $?; export CODESIGNING_CERT_PASSPHRASE
-    INSTALLER_CERT_BASE64=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_APPLE_INSTALLER_SIGNING certificate) || exit $?; export INSTALLER_CERT_BASE64
-    INSTALLER_CERT_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_APPLE_INSTALLER_SIGNING passphrase) || exit $?; export INSTALLER_CERT_PASSPHRASE
+    KEYCHAIN_PWD=$("$CI_PROJECT_DIR/tools/ci/fetch_secret.sh" "$MACOS_KEYCHAIN_PWD" password) || exit $?; export KEYCHAIN_PWD
+    CODESIGNING_CERT_BASE64=$("$CI_PROJECT_DIR/tools/ci/fetch_secret.sh" "$MACOS_APPLE_APPLICATION_SIGNING" certificate) || exit $?; export CODESIGNING_CERT_BASE64
+    CODESIGNING_CERT_PASSPHRASE=$("$CI_PROJECT_DIR/tools/ci/fetch_secret.sh" "$MACOS_APPLE_APPLICATION_SIGNING" passphrase) || exit $?; export CODESIGNING_CERT_PASSPHRASE
+    INSTALLER_CERT_BASE64=$("$CI_PROJECT_DIR/tools/ci/fetch_secret.sh" "$MACOS_APPLE_INSTALLER_SIGNING" certificate) || exit $?; export INSTALLER_CERT_BASE64
+    INSTALLER_CERT_PASSPHRASE=$("$CI_PROJECT_DIR/tools/ci/fetch_secret.sh" "$MACOS_APPLE_INSTALLER_SIGNING" passphrase) || exit $?; export INSTALLER_CERT_PASSPHRASE
 
-    NOTARIZATION_PWD=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_APPLE_DEVELOPER_ACCOUNT notarization-password) || exit $?; export NOTARIZATION_PWD
-    TEAM_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_APPLE_DEVELOPER_ACCOUNT team-id) || exit $?; export TEAM_ID
-    APPLE_ACCOUNT=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_APPLE_DEVELOPER_ACCOUNT user) || exit $?; export APPLE_ACCOUNT
+    NOTARIZATION_PWD=$("$CI_PROJECT_DIR/tools/ci/fetch_secret.sh" "$MACOS_APPLE_DEVELOPER_ACCOUNT" notarization-password) || exit $?; export NOTARIZATION_PWD
+    TEAM_ID=$("$CI_PROJECT_DIR/tools/ci/fetch_secret.sh" "$MACOS_APPLE_DEVELOPER_ACCOUNT" team-id) || exit $?; export TEAM_ID
+    APPLE_ACCOUNT=$("$CI_PROJECT_DIR/tools/ci/fetch_secret.sh" "$MACOS_APPLE_DEVELOPER_ACCOUNT" user) || exit $?; export APPLE_ACCOUNT
 
     # Create temporary build keychain
     security create-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN_NAME"
@@ -105,6 +93,33 @@ if [ "$SIGN" = "true" ]; then
 else
     dda inv -- -e omnibus.build --skip-sign --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR" --base-dir "$OMNIBUS_DIR" || exit 1
 fi
+
+#TODO(regis): consider moving the following check to `DataDog/omnibus-ruby` to benefit other OSes
+declare -i dangling=0
+real_install=$(readlink -f "$INSTALL_DIR")
+while read -r link; do
+    target=$(readlink "$link")
+    if [ ! -e "$link" ]; then
+        dangling+=1
+        echo >&2 "Dangling symlink: $link -❌> $target (must resolve to an existing target)"
+        continue
+    fi
+    real_target=$(readlink -f "$link")
+    if [[ ! $real_target = $real_install/* ]]; then
+        dangling+=1
+        echo >&2 "Outbound symlink: $link -❌> $target (must resolve inside install prefix)"
+        continue
+    fi
+    if [[ $target = /* ]]; then
+        dangling+=1
+        echo >&2 "Absolute symlink: $link -❌> $target (must be relative to symlink's directory)"
+        continue
+    fi
+done < <(find "$INSTALL_DIR" -type l)
+if [ $dangling -gt 0 ]; then
+    exit $dangling
+fi
+
 echo Built packages using omnibus
 
 # --- Notarization ---
@@ -121,23 +136,27 @@ if [ "$SIGN" = true ]; then
 
     # Send package for notarization; retrieve REQUEST_UUID
     echo "Sending notarization request."
-
-    # Apply timeout / retry
-    for attempt in $(seq 1 $NOTARIZATION_ATTEMPTS); do
-    RESULT=$(timeout "$NOTARIZATION_TIMEOUT" xcrun notarytool submit --apple-id "$APPLE_ACCOUNT" --team-id "$TEAM_ID" --password "$NOTARIZATION_PWD" "$LATEST_DMG" --wait) || EXIT_CODE=$?
-    echo "Results: $RESULT"
-    SUBMISSION_ID=$(echo "$RESULT" | awk '$1 == "id:"{print $2; exit}')
-    echo "Submission ID: $SUBMISSION_ID"
-    echo "Submission logs:"
-    xcrun notarytool log --apple-id "$APPLE_ACCOUNT" --team-id "$TEAM_ID" --password "$NOTARIZATION_PWD" "$SUBMISSION_ID"
-    if [ -n "$EXIT_CODE" ]; then
-        echo "Notarization attempt #$attempt/$NOTARIZATION_ATTEMPTS failed, retrying in $NOTARIZATION_WAIT_TIME"
-        sleep "$NOTARIZATION_WAIT_TIME"
-    else
-        echo "Successfully notarized the package"
-        break
-    fi
-    done
+    export NOTARIZATION_TIMEOUT
+    export LATEST_DMG
+    # shellcheck disable=SC2016
+    ./tools/ci/retry.sh -n "$NOTARIZATION_ATTEMPTS" bash -c '
+        set -euo pipefail
+        EXIT_CODE=0
+        RESULT=$(xcrun notarytool submit --timeout "$NOTARIZATION_TIMEOUT" --apple-id "$APPLE_ACCOUNT" --team-id "$TEAM_ID" --password "$NOTARIZATION_PWD" "$LATEST_DMG" --wait) || EXIT_CODE=$?
+        echo "Results: $RESULT"
+        SUBMISSION_ID="$(echo "$RESULT" | awk "\$1 == \"id:\"{print \$2; exit}")"
+        echo "Submission ID: $SUBMISSION_ID"
+        # Wait for logs to be available
+        sleep 1
+        echo "Submission logs:"
+        # Always show logs even if notarization fails to have more context
+        STATUS=$(xcrun notarytool log --apple-id "$APPLE_ACCOUNT" --team-id "$TEAM_ID" --password "$NOTARIZATION_PWD" "$SUBMISSION_ID" | tee /dev/stderr | jq --raw-output .status)
+        if [ "$STATUS" != Accepted ]; then
+            echo "Submission was not accepted, got: ${STATUS}"
+            exit 1
+        fi
+        exit "$EXIT_CODE"
+    '
     echo -e "\e[0Ksection_end:`date +%s`:notarization\r\e[0K"
 fi
 

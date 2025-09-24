@@ -17,7 +17,6 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/dynamic"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
@@ -44,7 +43,7 @@ type TargetMutator struct {
 
 // NewTargetMutator creates a new mutator for target based workload selection. We convert the targets to a more
 // efficient internal format for quick lookups.
-func NewTargetMutator(config *Config, wmeta workloadmeta.Component) (*TargetMutator, error) {
+func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolver ImageResolver) (*TargetMutator, error) {
 	// Determine default disabled namespaces.
 	defaultDisabled := mutatecommon.DefaultDisabledNamespaces()
 
@@ -135,7 +134,7 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component) (*TargetMuta
 
 	// Create the core mutator. This is a bit gross.
 	// The target mutator is also the filter which we are passing in.
-	core := newMutatorCore(config, wmeta, m)
+	core := newMutatorCore(config, wmeta, m, imageResolver)
 	m.core = core
 
 	return m, nil
@@ -331,15 +330,13 @@ func (m *TargetMutator) getMatchingTarget(pod *corev1.Pod) *targetInternal {
 func (t targetInternal) matchesNamespaceSelector(namespace string) (bool, error) {
 	// If we are using the namespace selector, check if the namespace matches the selector.
 	if t.useNamespaceSelector {
-		// Get the namespace metadata.
-		id := util.GenerateKubeMetadataEntityID("", "namespaces", "", namespace)
-		ns, err := t.wmeta.GetKubernetesMetadata(id)
+		nsLabels, err := getNamespaceLabels(t.wmeta, namespace)
 		if err != nil {
-			return false, fmt.Errorf("could not get kubernetes namespace to match against for %s: %w", namespace, err)
+			return false, fmt.Errorf("could not get labels to match: %w", err)
 		}
 
 		// Check if the namespace labels match the selector.
-		return t.nameSpaceSelector.Matches(labels.Set(ns.EntityMeta.Labels)), nil
+		return t.nameSpaceSelector.Matches(labels.Set(nsLabels)), nil
 	}
 
 	// If there are no match names, we match all namespaces.

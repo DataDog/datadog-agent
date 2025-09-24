@@ -6,7 +6,6 @@
 package configresolver
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"reflect"
@@ -17,8 +16,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
+	filter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	mockconfig "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
+
 	// we need some valid check in the catalog to run tests
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system"
 )
@@ -44,17 +44,17 @@ func (s *dummyService) GetServiceID() string {
 }
 
 // GetADIdentifiers returns dummy identifiers
-func (s *dummyService) GetADIdentifiers(context.Context) ([]string, error) {
-	return s.ADIdentifiers, nil
+func (s *dummyService) GetADIdentifiers() []string {
+	return s.ADIdentifiers
 }
 
 // GetHosts returns dummy hosts
-func (s *dummyService) GetHosts(context.Context) (map[string]string, error) {
+func (s *dummyService) GetHosts() (map[string]string, error) {
 	return s.Hosts, nil
 }
 
 // GetPorts returns dummy ports
-func (s *dummyService) GetPorts(context.Context) ([]listeners.ContainerPort, error) {
+func (s *dummyService) GetPorts() ([]listeners.ContainerPort, error) {
 	return s.Ports, nil
 }
 
@@ -69,24 +69,22 @@ func (s *dummyService) GetTagsWithCardinality(_ string) ([]string, error) {
 }
 
 // GetPid return a dummy pid
-func (s *dummyService) GetPid(context.Context) (int, error) {
+func (s *dummyService) GetPid() (int, error) {
 	return s.Pid, nil
 }
 
 // GetHostname return a dummy hostname
-func (s *dummyService) GetHostname(context.Context) (string, error) {
+func (s *dummyService) GetHostname() (string, error) {
 	return s.Hostname, nil
 }
 
 // IsReady returns if the service is ready
-func (s *dummyService) IsReady(context.Context) bool {
+func (s *dummyService) IsReady() bool {
 	return true
 }
 
 // HasFilter returns false
-//
-//nolint:revive // TODO(AML) Fix revive linter
-func (s *dummyService) HasFilter(_ containers.FilterType) bool {
+func (s *dummyService) HasFilter(_ filter.Scope) bool {
 	return false
 }
 

@@ -5,6 +5,7 @@
 
 //go:build kubelet || docker
 
+// Package container provides container-related log tailers
 package container
 
 import (
@@ -25,6 +26,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 
 	"github.com/stretchr/testify/assert"
+
+	auditorMock "github.com/DataDog/datadog-agent/comp/logs/auditor/mock"
 )
 
 const testReadTimeout = 10 * time.Millisecond
@@ -99,6 +102,7 @@ func NewTestTailer(reader io.ReadCloser, unsafeReader io.ReadCloser, cancelFunc 
 		erroredContainerID: make(chan string, 1),
 		reader:             newSafeReader(),
 		readerCancelFunc:   cancelFunc,
+		registry:           auditorMock.NewMockRegistry(),
 	}
 	tailer.reader.setUnsafeReader(reader)
 

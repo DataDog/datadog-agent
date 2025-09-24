@@ -130,8 +130,11 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 }
 
 // makePathtest extracts pathtest information using a single connection and the connection check's reverse dns map
-func makePathtest(conn *model.Connection, dns map[string]*model.DNSEntry) common.Pathtest {
+func (s *npCollectorImpl) makePathtest(conn *model.Connection, dns map[string]*model.DNSEntry) common.Pathtest {
 	protocol := convertProtocol(conn.GetType())
+	if s.collectorConfigs.icmpMode.ShouldUseICMP(protocol) {
+		protocol = payload.ProtocolICMP
+	}
 
 	rDNSEntry := dns[conn.Raddr.GetIp()]
 	var reverseDNSHostname string
@@ -140,8 +143,8 @@ func makePathtest(conn *model.Connection, dns map[string]*model.DNSEntry) common
 	}
 
 	var remotePort uint16
-	// UDP traces should not be done to the active port
-	if protocol != payload.ProtocolUDP {
+	// only TCP traces can be done to the active port
+	if protocol == payload.ProtocolTCP {
 		remotePort = uint16(conn.Raddr.GetPort())
 	}
 
@@ -262,7 +265,7 @@ func (s *npCollectorImpl) ScheduleConns(conns []*model.Connection, dns map[strin
 			s.logger.Tracef("Skipped connection: addr=%s, protocol=%s", conn.Raddr, protocol)
 			continue
 		}
-		pathtest := makePathtest(conn, dns)
+		pathtest := s.makePathtest(conn, dns)
 
 		err := s.scheduleOne(&pathtest)
 		if err != nil {
@@ -343,12 +346,13 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 	s.logger.Debugf("Run Traceroute for ptest: %+v", ptest)
 
 	cfg := config.Config{
-		DestHostname: ptest.Pathtest.Hostname,
-		DestPort:     ptest.Pathtest.Port,
-		MaxTTL:       uint8(s.collectorConfigs.maxTTL),
-		Timeout:      s.collectorConfigs.timeout,
-		Protocol:     ptest.Pathtest.Protocol,
-		TCPMethod:    s.collectorConfigs.tcpMethod,
+		DestHostname:              ptest.Pathtest.Hostname,
+		DestPort:                  ptest.Pathtest.Port,
+		MaxTTL:                    uint8(s.collectorConfigs.maxTTL),
+		Timeout:                   s.collectorConfigs.timeout,
+		Protocol:                  ptest.Pathtest.Protocol,
+		TCPMethod:                 s.collectorConfigs.tcpMethod,
+		TCPSynParisTracerouteMode: s.collectorConfigs.tcpSynParisTracerouteMode,
 	}
 
 	path, err := s.runTraceroute(cfg, s.telemetrycomp)

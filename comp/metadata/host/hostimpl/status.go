@@ -14,8 +14,8 @@ import (
 	"io"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 )
 
@@ -24,7 +24,8 @@ var templatesFS embed.FS
 
 // StatusProvider implements the status provider interface
 type StatusProvider struct {
-	Config config.Component
+	Config   config.Component
+	Hostname hostnameinterface.Component
 }
 
 // Name returns the name
@@ -51,7 +52,7 @@ func (p StatusProvider) populateStatus(stats map[string]interface{}) {
 	json.Unmarshal(hostnameStatsJSON, &hostnameStats) //nolint:errcheck
 	stats["hostnameStats"] = hostnameStats
 
-	payload := utils.GetFromCache(context.TODO(), p.Config)
+	payload := utils.GetFromCache(context.TODO(), p.Config, p.Hostname)
 	metadataStats := make(map[string]interface{})
 	payloadBytes, _ := json.Marshal(payload)
 

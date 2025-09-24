@@ -85,7 +85,7 @@ end
 
 if ENV.has_key?('FORCED_PACKAGE_COMPRESSION_LEVEL')
   COMPRESSION_LEVEL = ENV['FORCED_PACKAGE_COMPRESSION_LEVEL'].to_i
-elsif ENV.has_key?("DEPLOY_AGENT") && ENV["DEPLOY_AGENT"] == "true" && ENV.has_key?("BUCKET_BRANCH") && ENV['BUCKET_BRANCH'] != "nightly"
+elsif ENV.has_key?("DEPLOY_AGENT") && ENV["DEPLOY_AGENT"] == "true"
   COMPRESSION_LEVEL = 9
 else
   COMPRESSION_LEVEL = 5
@@ -229,6 +229,9 @@ end
 
 exclude '\.git*'
 exclude 'bundler\/git'
+
+# Exclude headers that are not needed in the final package
+exclude "embedded/include"
 
 if linux_target? or windows_target?
   strip_build windows_target? || !do_package

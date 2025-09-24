@@ -5,7 +5,6 @@
 //
 //go:build clusterchecks
 
-//nolint:revive // TODO(PLINT) Fix revive linter
 package providers
 
 import (
@@ -18,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
@@ -34,7 +34,7 @@ type CloudFoundryConfigProvider struct {
 }
 
 // NewCloudFoundryConfigProvider instantiates a new CloudFoundryConfigProvider from given config
-func NewCloudFoundryConfigProvider(*pkgconfigsetup.ConfigurationProviders, *telemetry.Store) (ConfigProvider, error) {
+func NewCloudFoundryConfigProvider(*pkgconfigsetup.ConfigurationProviders, *telemetry.Store) (types.ConfigProvider, error) {
 	cfp := CloudFoundryConfigProvider{
 		lastCollected: time.Now(),
 	}
@@ -52,16 +52,12 @@ func (cf CloudFoundryConfigProvider) String() string {
 }
 
 // IsUpToDate returns true if the last collection time was later than last BBS Cache refresh time
-//
-//nolint:revive // TODO(PLINT) Fix revive linter
-func (cf CloudFoundryConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
+func (cf CloudFoundryConfigProvider) IsUpToDate(_ context.Context) (bool, error) {
 	return cf.lastCollected.After(cf.bbsCache.LastUpdated()), nil
 }
 
 // Collect collects AD config templates from all relevant BBS API information
-//
-//nolint:revive // TODO(PLINT) Fix revive linter
-func (cf CloudFoundryConfigProvider) Collect(ctx context.Context) ([]integration.Config, error) {
+func (cf CloudFoundryConfigProvider) Collect(_ context.Context) ([]integration.Config, error) {
 	log.Debug("Collecting configs via the CloudFoundryProvider")
 	cf.lastCollected = time.Now()
 	allActualLRPs, desiredLRPs := cf.bbsCache.GetAllLRPs()
@@ -220,6 +216,6 @@ func (cf CloudFoundryConfigProvider) renderExtractedConfigs(configs []integratio
 }
 
 // GetConfigErrors is not implemented for the CloudFoundryConfigProvider
-func (cf CloudFoundryConfigProvider) GetConfigErrors() map[string]ErrorMsgSet {
-	return make(map[string]ErrorMsgSet)
+func (cf CloudFoundryConfigProvider) GetConfigErrors() map[string]types.ErrorMsgSet {
+	return make(map[string]types.ErrorMsgSet)
 }

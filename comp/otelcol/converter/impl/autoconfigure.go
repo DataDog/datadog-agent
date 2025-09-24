@@ -7,6 +7,7 @@
 package converterimpl
 
 import (
+	"slices"
 	"strings"
 
 	"go.opentelemetry.io/collector/confmap"
@@ -23,24 +24,35 @@ type component struct {
 	Config       any
 }
 
+// Applies selected feature changes
 func (c *ddConverter) enhanceConfig(conf *confmap.Conf) {
-	// extensions
+	var enabledFeatures []string
+
+	// If not specified, assume all features are enabled (ocb tests will not have coreConfig)
+	if c.coreConfig != nil {
+		enabledFeatures = c.coreConfig.GetStringSlice("otelcollector.converter.features")
+	} else {
+		enabledFeatures = []string{"infraattributes", "prometheus", "pprof", "zpages", "health_check", "ddflare"}
+	}
+
+	// extensions (pprof, zpages, health_check, ddflare)
 	for _, extension := range extensions {
-		if extensionIsInServicePipeline(conf, extension) {
+		if !slices.Contains(enabledFeatures, extension.Name) || extensionIsInServicePipeline(conf, extension) {
 			continue
 		}
+
 		addComponentToConfig(conf, extension)
 		addExtensionToPipeline(conf, extension)
 	}
 
 	// infra attributes processor
-	addProcessorToPipelinesWithDDExporter(conf, infraAttributesProcessor)
-
+	if slices.Contains(enabledFeatures, "infraattributes") {
+		addProcessorToPipelinesWithDDExporter(conf, infraAttributesProcessor)
+	}
 	// prometheus receiver
-	addPrometheusReceiver(conf, prometheusReceiver)
-
-	// datadog connector
-	changeDefaultConfigsForDatadogConnector(conf)
+	if slices.Contains(enabledFeatures, "prometheus") {
+		addPrometheusReceiver(conf, findInternalMetricsAddress(conf))
+	}
 
 	// add datadog agent sourced config
 	addCoreAgentConfig(conf, c.coreConfig)
@@ -119,4 +131,29 @@ func addComponentToPipeline(conf *confmap.Conf, comp component, pipelineName str
 	}
 
 	*conf = *confmap.NewFromStringMap(stringMapConf)
+}
+
+// findComps finds and returns the matching components and their configs in a string conf map.
+// Component can be receivers, processors, connectors or exporters.
+func findComps(stringMapConf map[string]any, compName string, compType string) map[string]map[string]any {
+	comps, ok := stringMapConf[compType]
+	if !ok {
+		return nil
+	}
+	compsMap, ok := comps.(map[string]any)
+	if !ok {
+		return nil
+	}
+	cfgsByRecv := make(map[string]map[string]any)
+	for name, cfg := range compsMap {
+		if componentName(name) != compName {
+			continue
+		}
+		cfgMap, ok := cfg.(map[string]any)
+		if !ok {
+			cfgMap = nil // some components like debug exporter can leave configs empty and use defaults
+		}
+		cfgsByRecv[name] = cfgMap
+	}
+	return cfgsByRecv
 }

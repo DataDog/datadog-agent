@@ -7,8 +7,6 @@ receivers:
         endpoint: 0.0.0.0:4318
 exporters:
   datadog:
-    traces:
-      span_name_as_resource_name: true
     metrics:
       resource_attributes_as_tags: true
     hostname: "otelcol-docker"
@@ -20,7 +18,6 @@ connectors:
   # Use datadog connector to compute stats for pre-sampled traces
   datadog/connector:
     traces:
-      span_name_as_resource_name: true
       compute_stats_by_span_kind: true
       compute_top_level_by_span_kind: true
       peer_tags_aggregation: true

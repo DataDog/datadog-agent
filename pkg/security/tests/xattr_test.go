@@ -9,11 +9,14 @@
 package tests
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"syscall"
 	"testing"
 	"unsafe"
 
+	"github.com/iceber/iouring-go"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
@@ -25,7 +28,7 @@ func TestSetXAttr(t *testing.T) {
 	SkipIfNotAvailable(t)
 
 	rule := &rules.RuleDefinition{
-		ID:         "test_rule",
+		ID:         "test_rule_xattr",
 		Expression: `((setxattr.file.path == "{{.Root}}/test-setxattr" && setxattr.file.uid == 98 && setxattr.file.gid == 99) || setxattr.file.path == "{{.Root}}/test-setxattr-link") && setxattr.file.destination.namespace == "user" && setxattr.file.destination.name == "user.test_xattr"`,
 	}
 
@@ -150,6 +153,128 @@ func TestSetXAttr(t *testing.T) {
 			assert.Equal(t, value.(bool), false)
 		})
 	})
+
+	t.Run("io_uring-fsetxattr", func(t *testing.T) {
+		SkipIfNotAvailable(t)
+
+		testFile, _, err := test.CreateWithOptions("test-setxattr", 98, 99, fileMode)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer syscall.Rmdir(testFile)
+
+		iour, err := iouring.New(1)
+		if err != nil {
+			if errors.Is(err, unix.ENOTSUP) {
+				t.Fatal(err)
+			}
+			t.Skip("io_uring not supported")
+		}
+		defer iour.Close()
+
+		fd, err := unix.Open(testFile, unix.O_CREAT, uint32(fileMode))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer unix.Close(fd)
+
+		prepRequest, err := iouring.Fsetxattr(int32(fd), "user.test_xattr", "foo", 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		ch := make(chan iouring.Result, 1)
+
+		test.WaitSignal(t, func() error {
+			if _, err = iour.SubmitRequest(prepRequest, ch); err != nil {
+				return err
+			}
+
+			result := <-ch
+			t.Logf("Got result from io-uring !")
+			ret, err := result.ReturnInt()
+			if err != nil {
+				if err == syscall.EBADF || err == syscall.EINVAL {
+					return ErrSkipTest{"fsetxattr not supported by io_uring"}
+				}
+				return err
+			}
+
+			if ret < 0 {
+				return fmt.Errorf("failed to set extended attribute with io_uring: %d", ret)
+			}
+
+			t.Logf("Successfully set extended attribute ! %d", ret)
+			return nil
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_rule_xattr")
+			assert.Equal(t, getInode(t, testFile), event.SetXAttr.File.Inode, "wrong inode")
+			assertRights(t, uint16(event.SetXAttr.File.Mode), expectedMode)
+			assertNearTime(t, event.SetXAttr.File.MTime)
+			assertNearTime(t, event.SetXAttr.File.CTime)
+
+			value, _ := event.GetFieldValue("event.async")
+			assert.Equal(t, value.(bool), true)
+		})
+	})
+
+	t.Run("io_uring-setxattr", func(t *testing.T) {
+		SkipIfNotAvailable(t)
+
+		testFile, _, err := test.CreateWithOptions("test-setxattr", 98, 99, fileMode)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer syscall.Rmdir(testFile)
+
+		iour, err := iouring.New(1)
+		if err != nil {
+			if errors.Is(err, unix.ENOTSUP) {
+				t.Fatal(err)
+			}
+			t.Skip("io_uring not supported")
+		}
+		defer iour.Close()
+
+		prepRequest, err := iouring.Setxattr(testFile, "user.test_xattr", "foo", 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		ch := make(chan iouring.Result, 1)
+
+		test.WaitSignal(t, func() error {
+			if _, err = iour.SubmitRequest(prepRequest, ch); err != nil {
+				return err
+			}
+
+			result := <-ch
+			t.Logf("Got result from io-uring !")
+			ret, err := result.ReturnInt()
+			if err != nil {
+				if err == syscall.EBADF || err == syscall.EINVAL {
+					return ErrSkipTest{"fsetxattr not supported by io_uring"}
+				}
+				return err
+			}
+
+			if ret < 0 {
+				return fmt.Errorf("failed to set extended attribute with io_uring: %d", ret)
+			}
+
+			t.Logf("Successfully set extended attribute ! %d", ret)
+			return nil
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_rule_xattr")
+			assert.Equal(t, getInode(t, testFile), event.SetXAttr.File.Inode, "wrong inode")
+			assertRights(t, uint16(event.SetXAttr.File.Mode), expectedMode)
+			assertNearTime(t, event.SetXAttr.File.MTime)
+			assertNearTime(t, event.SetXAttr.File.CTime)
+
+			value, _ := event.GetFieldValue("event.async")
+			assert.Equal(t, value.(bool), true)
+		})
+	})
 }
 
 func TestRemoveXAttr(t *testing.T) {
@@ -157,7 +282,7 @@ func TestRemoveXAttr(t *testing.T) {
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
-			ID:         "test_rule",
+			ID:         "test_rule_xattr",
 			Expression: `((removexattr.file.path == "{{.Root}}/test-removexattr" && removexattr.file.uid == 98 && removexattr.file.gid == 99) || removexattr.file.path == "{{.Root}}/test-removexattr-link") && removexattr.file.destination.namespace == "user" && removexattr.file.destination.name == "user.test_xattr" `,
 		},
 	}

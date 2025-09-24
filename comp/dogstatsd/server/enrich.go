@@ -15,6 +15,8 @@ import (
 	metricsevent "github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
 var (
@@ -23,14 +25,18 @@ var (
 	//nolint:revive // TODO(AML) Fix revive linter
 	CardinalityTagPrefix = constants.CardinalityTagPrefix
 	jmxCheckNamePrefix   = "dd.internal.jmx_check_name:"
+
+	tlmFilteredPoints = telemetry.NewSimpleCounter("dogstatsd", "listener_filtered_points", "How many points were filtered out")
 )
 
 // enrichConfig contains static parameters used in various enrichment
 // procedures for metrics, events and service checks.
 type enrichConfig struct {
+	// TODO(remy): this metric prefix / prefix filter list
+	// is independent from the metric names filter list, that's
+	// confusing and should be merged in the same implemnetation instead.
 	metricPrefix              string
 	metricPrefixBlacklist     []string
-	metricBlocklist           blocklist
 	defaultHostname           string
 	entityIDPrecedenceEnabled bool
 	serverlessMode            bool
@@ -129,7 +135,7 @@ func tsToFloatForSamples(ts time.Time) float64 {
 	return float64(ts.Unix())
 }
 
-func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSample, origin string, processID uint32, listenerID string, conf enrichConfig) []metrics.MetricSample {
+func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSample, origin string, processID uint32, listenerID string, conf enrichConfig, filterList *utilstrings.Matcher) []metrics.MetricSample {
 	metricName := ddSample.name
 	tags, hostnameFromTags, extractedOrigin, metricSource := extractTagsMetadata(ddSample.tags, origin, processID, ddSample.localData, ddSample.externalData, ddSample.cardinality, conf)
 
@@ -137,7 +143,8 @@ func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSam
 		metricName = conf.metricPrefix + metricName
 	}
 
-	if conf.metricBlocklist.test(metricName) {
+	if filterList != nil && filterList.Test(metricName) {
+		tlmFilteredPoints.Inc()
 		return []metrics.MetricSample{}
 	}
 

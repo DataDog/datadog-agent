@@ -63,6 +63,29 @@ update_stack:
     set_protocol(stack, proto);
 }
 
+/*
+ * Processes decrypted TLS traffic and dispatches it to appropriate protocol handlers.
+ * 
+ * This function is called by various TLS hookpoints (OpenSSL, GnuTLS, GoTLS, JavaTLS)
+ * to process decrypted TLS payloads. It manages the protocol stack for each connection,
+ * classifies the decrypted payload if the application protocol is not yet known, and
+ * dispatches the traffic to the appropriate protocol handler via tail calls.
+ * 
+ * The function first creates or retrieves a protocol stack for the connection. If the
+ * application protocol is unknown, it attempts to classify the payload. For Kafka traffic,
+ * an additional classification step may be performed via a tail call if Kafka monitoring
+ * is enabled.
+ * 
+ * For each supported protocol, the function performs a tail call to a dedicated handler:
+ * - HTTP: PROG_HTTP
+ * - HTTP2: PROG_HTTP2_HANDLE_FIRST_FRAME
+ * - Kafka: PROG_KAFKA
+ * - PostgreSQL: PROG_POSTGRES
+ * - Redis: PROG_REDIS
+ * 
+ * The function takes the BPF program context, connection metadata (tuple), a pointer to
+ * the decrypted payload and its length, and connection metadata tags as input.
+ */
 static __always_inline void tls_process(struct pt_regs *ctx, conn_tuple_t *t, void *buffer_ptr, size_t len, __u64 tags) {
     conn_tuple_t final_tuple = {0};
     conn_tuple_t normalized_tuple = *t;
@@ -92,6 +115,15 @@ static __always_inline void tls_process(struct pt_regs *ctx, conn_tuple_t *t, vo
         protocol = get_protocol_from_stack(stack, LAYER_APPLICATION);
         // Could have a maybe_is_kafka() function to do an initial check here based on the
         // fragment buffer without the tail call.
+
+        /*
+         * Special handling for Kafka:
+         * Unlike other protocols that can be classified directly, Kafka requires additional context
+         * and more complex pattern matching that can't be done in the main classifier. We use a
+         * tail call to a dedicated Kafka classifier that can perform the full protocol analysis.
+         * This is only done if Kafka monitoring is enabled and the protocol is still unknown after
+         * the initial classification attempt.
+         */
         if (is_kafka_monitoring_enabled() && protocol == PROTOCOL_UNKNOWN) {
             tls_dispatcher_arguments_t *args = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
             if (args == NULL) {
@@ -123,6 +155,10 @@ static __always_inline void tls_process(struct pt_regs *ctx, conn_tuple_t *t, vo
         break;
     case PROTOCOL_POSTGRES:
         prog = PROG_POSTGRES;
+        final_tuple = normalized_tuple;
+        break;
+    case PROTOCOL_REDIS:
+        prog = PROG_REDIS;
         final_tuple = normalized_tuple;
         break;
     default:
@@ -213,6 +249,10 @@ static __always_inline void tls_finish(struct pt_regs *ctx, conn_tuple_t *t, boo
         prog = PROG_POSTGRES_TERMINATION;
         final_tuple = normalized_tuple;
         break;
+    case PROTOCOL_REDIS:
+        prog = PROG_REDIS_TERMINATION;
+        final_tuple = normalized_tuple;
+        break;
     default:
         return;
     }
@@ -287,6 +327,7 @@ static __always_inline void map_ssl_ctx_to_sock(struct sock *skp) {
     // copy map value to stack. required for older kernels
     void *ssl_ctx = *ssl_ctx_map_val;
     bpf_map_update_with_telemetry(ssl_sock_by_ctx, &ssl_ctx, &ssl_sock, BPF_ANY);
+    bpf_map_update_with_telemetry(ssl_ctx_by_tuple, &ssl_sock.tup, &ssl_ctx, BPF_ANY);
 }
 
 /**

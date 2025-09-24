@@ -39,6 +39,9 @@ const (
 	recoveryInterval      = 2
 
 	maxMessageSize = 1024 * 1024 * 110 // 110MB, current backend limit
+
+	// number of update failed update attempts before reporting an error log
+	consecutiveFailuresThreshold = 5
 )
 
 // ConfigFetcher defines the interface that an agent client uses to get config updates
@@ -101,47 +104,41 @@ type Options struct {
 
 var defaultOptions = Options{pollInterval: 5 * time.Second}
 
-// TokenFetcher defines the callback used to fetch a token
-type TokenFetcher func() (string, error)
-
-// TLSClientConfigFetcher defines the callback used to fetch the IPC TLS Client configuration
-type TLSClientConfigFetcher func() *tls.Config
-
 // agentGRPCConfigFetcher defines how to retrieve config updates over a
 // datadog-agent's secure GRPC client
 type agentGRPCConfigFetcher struct {
-	authTokenFetcher func() (string, error)
-	fetchConfigs     fetchConfigs
+	authToken    string
+	fetchConfigs fetchConfigs
 }
 
 // NewAgentGRPCConfigFetcher returns a gRPC config fetcher using the secure agent client
-func NewAgentGRPCConfigFetcher(ipcAddress string, cmdPort string, authTokenFetcher TokenFetcher, tlsFetcher TLSClientConfigFetcher) (ConfigFetcher, error) {
-	c, err := newAgentGRPCClient(ipcAddress, cmdPort, tlsFetcher)
+func NewAgentGRPCConfigFetcher(ipcAddress string, cmdPort string, authToken string, tlsConfig *tls.Config) (ConfigFetcher, error) {
+	c, err := newAgentGRPCClient(ipcAddress, cmdPort, tlsConfig)
 	if err != nil {
 		return nil, err
 	}
 
 	return &agentGRPCConfigFetcher{
-		authTokenFetcher: authTokenFetcher,
-		fetchConfigs:     c.ClientGetConfigs,
+		authToken:    authToken,
+		fetchConfigs: c.ClientGetConfigs,
 	}, nil
 }
 
 // NewMRFAgentGRPCConfigFetcher returns a gRPC config fetcher using the secure agent MRF client
-func NewMRFAgentGRPCConfigFetcher(ipcAddress string, cmdPort string, authTokenFetcher TokenFetcher, tlsFetcher TLSClientConfigFetcher) (ConfigFetcher, error) {
-	c, err := newAgentGRPCClient(ipcAddress, cmdPort, tlsFetcher)
+func NewMRFAgentGRPCConfigFetcher(ipcAddress string, cmdPort string, authToken string, tlsConfig *tls.Config) (ConfigFetcher, error) {
+	c, err := newAgentGRPCClient(ipcAddress, cmdPort, tlsConfig)
 	if err != nil {
 		return nil, err
 	}
 
 	return &agentGRPCConfigFetcher{
-		authTokenFetcher: authTokenFetcher,
-		fetchConfigs:     c.ClientGetConfigsHA,
+		authToken:    authToken,
+		fetchConfigs: c.ClientGetConfigsHA,
 	}, nil
 }
 
-func newAgentGRPCClient(ipcAddress string, cmdPort string, tlsFetcher TLSClientConfigFetcher) (pbgo.AgentSecureClient, error) {
-	c, err := ddgrpc.GetDDAgentSecureClient(context.Background(), ipcAddress, cmdPort, tlsFetcher, grpc.WithDefaultCallOptions(
+func newAgentGRPCClient(ipcAddress string, cmdPort string, tlsConfig *tls.Config) (pbgo.AgentSecureClient, error) {
+	c, err := ddgrpc.GetDDAgentSecureClient(context.Background(), ipcAddress, cmdPort, tlsConfig, grpc.WithDefaultCallOptions(
 		grpc.MaxCallRecvMsgSize(maxMessageSize),
 	))
 	if err != nil {
@@ -152,16 +149,8 @@ func newAgentGRPCClient(ipcAddress string, cmdPort string, tlsFetcher TLSClientC
 
 // ClientGetConfigs implements the ConfigFetcher interface for agentGRPCConfigFetcher
 func (g *agentGRPCConfigFetcher) ClientGetConfigs(ctx context.Context, request *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
-	// When communicating with the core service via grpc, the auth token is handled
-	// by the core-agent, which runs independently. It's not guaranteed it starts before us,
-	// or that if it restarts that the auth token remains the same. Thus we need to do this every request.
-	token, err := g.authTokenFetcher()
-	if err != nil {
-		return nil, errors.Wrap(err, "could not acquire agent auth token")
-	}
-
 	md := metadata.MD{
-		"authorization": []string{fmt.Sprintf("Bearer %s", token)},
+		"authorization": []string{fmt.Sprintf("Bearer %s", g.authToken)},
 	}
 
 	ctx = metadata.NewOutgoingContext(ctx, md)
@@ -175,8 +164,8 @@ func NewClient(updater ConfigFetcher, opts ...func(o *Options)) (*Client, error)
 }
 
 // NewGRPCClient creates a new client that retrieves updates over the datadog-agent's secure GRPC client
-func NewGRPCClient(ipcAddress string, cmdPort string, authTokenFetcher TokenFetcher, tlsFetcher TLSClientConfigFetcher, opts ...func(o *Options)) (*Client, error) {
-	grpcClient, err := NewAgentGRPCConfigFetcher(ipcAddress, cmdPort, authTokenFetcher, tlsFetcher)
+func NewGRPCClient(ipcAddress string, cmdPort string, authToken string, tlsConfig *tls.Config, opts ...func(o *Options)) (*Client, error) {
+	grpcClient, err := NewAgentGRPCConfigFetcher(ipcAddress, cmdPort, authToken, tlsConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -185,8 +174,8 @@ func NewGRPCClient(ipcAddress string, cmdPort string, authTokenFetcher TokenFetc
 }
 
 // NewUnverifiedMRFGRPCClient creates a new client that does not perform any TUF verification and gets failover configs via gRPC
-func NewUnverifiedMRFGRPCClient(ipcAddress string, cmdPort string, authTokenFetcher TokenFetcher, tlsFetcher TLSClientConfigFetcher, opts ...func(o *Options)) (*Client, error) {
-	grpcClient, err := NewMRFAgentGRPCConfigFetcher(ipcAddress, cmdPort, authTokenFetcher, tlsFetcher)
+func NewUnverifiedMRFGRPCClient(ipcAddress string, cmdPort string, authToken string, tlsConfig *tls.Config, opts ...func(o *Options)) (*Client, error) {
+	grpcClient, err := NewMRFAgentGRPCConfigFetcher(ipcAddress, cmdPort, authToken, tlsConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -196,8 +185,8 @@ func NewUnverifiedMRFGRPCClient(ipcAddress string, cmdPort string, authTokenFetc
 }
 
 // NewUnverifiedGRPCClient creates a new client that does not perform any TUF verification
-func NewUnverifiedGRPCClient(ipcAddress string, cmdPort string, authTokenFetcher TokenFetcher, tlsFetcher TLSClientConfigFetcher, opts ...func(o *Options)) (*Client, error) {
-	grpcClient, err := NewAgentGRPCConfigFetcher(ipcAddress, cmdPort, authTokenFetcher, tlsFetcher)
+func NewUnverifiedGRPCClient(ipcAddress string, cmdPort string, authToken string, tlsConfig *tls.Config, opts ...func(o *Options)) (*Client, error) {
+	grpcClient, err := NewAgentGRPCConfigFetcher(ipcAddress, cmdPort, authToken, tlsConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -385,41 +374,18 @@ func (c *Client) startFn() {
 // structure in startFn.
 func (c *Client) pollLoop() {
 	successfulFirstRun := false
-	// First run
-	err := c.update()
-	if err != nil {
-		if status.Code(err) == codes.Unimplemented {
-			// Remote Configuration is disabled as the server isn't initialized
-			//
-			// As this is not a transient error (that would be codes.Unavailable),
-			// stop the client: it shouldn't keep contacting a server that doesn't
-			// exist.
-			log.Debugf("remote configuration isn't enabled, disabling client")
-			return
-		}
-
-		// As some clients may start before the core-agent server is up, we log the first error
-		// as an Info log as the race is expected. If the error persists, we log with error logs
-		log.Infof("retrying the first update of remote-config state (%v)", err)
-	} else {
-		successfulFirstRun = true
-	}
-
+	consecutiveFailures := 0
 	logLimit := log.NewLogLimit(5, time.Minute)
+	interval := 0 * time.Second
+
 	for {
-		interval := c.pollInterval + c.backoffPolicy.GetBackoffDuration(c.backoffErrorCount)
-		if !successfulFirstRun && interval > time.Second {
-			// If we never managed to contact the RC service, we want to retry faster (max every second)
-			// to get a first state as soon as possible.
-			// Some products may not start correctly without a first state.
-			interval = time.Second
-		}
 		select {
 		case <-c.ctx.Done():
 			return
 		case <-time.After(interval):
 			err := c.update()
 			if err != nil {
+				consecutiveFailures++
 				if status.Code(err) == codes.Unimplemented {
 					// Remote Configuration is disabled as the server isn't initialized
 					//
@@ -434,7 +400,12 @@ func (c *Client) pollLoop() {
 					// As some clients may start before the core-agent server is up, we log the first error
 					// as an Info log as the race is expected. If the error persists, we log with error logs
 					if logLimit.ShouldLog() {
-						log.Infof("retrying the first update of remote-config state (%v)", err)
+						message := "retrying the first update of remote-config state (%v), consecutive failures: %d"
+						if consecutiveFailures >= consecutiveFailuresThreshold {
+							log.Errorf(message, err, consecutiveFailures)
+						} else {
+							log.Infof(message, err, consecutiveFailures)
+						}
 					}
 				} else {
 					c.m.Lock()
@@ -447,9 +418,10 @@ func (c *Client) pollLoop() {
 
 					c.lastUpdateError = err
 					c.backoffErrorCount = c.backoffPolicy.IncError(c.backoffErrorCount)
-					log.Errorf("could not update remote-config state: %v", c.lastUpdateError)
+					log.Errorf("could not update remote-config state:%v; consecutive failures:%d", c.lastUpdateError, consecutiveFailures)
 				}
 			} else {
+				log.Debugf("update successful: successful_first_run:%t, consecutive failures:%d", successfulFirstRun, consecutiveFailures)
 				if c.lastUpdateError != nil {
 					c.m.Lock()
 					for _, productListeners := range c.listeners {
@@ -460,10 +432,25 @@ func (c *Client) pollLoop() {
 					c.m.Unlock()
 				}
 
-				c.lastUpdateError = nil
+				// record and report that the first update was successful
+				if !successfulFirstRun {
+					log.Infof("first update successful after %d attempts", consecutiveFailures)
+				}
 				successfulFirstRun = true
+				consecutiveFailures = 0
+
+				c.lastUpdateError = nil
 				c.backoffErrorCount = c.backoffPolicy.DecError(c.backoffErrorCount)
 			}
+		}
+
+		// adjust poll interval
+		interval = c.pollInterval + c.backoffPolicy.GetBackoffDuration(c.backoffErrorCount)
+		if !successfulFirstRun && interval > time.Second {
+			// If we never managed to contact the RC service, we want to retry faster (max every second)
+			// to get a first state as soon as possible.
+			// Some products may not start correctly without a first state.
+			interval = time.Second
 		}
 	}
 }

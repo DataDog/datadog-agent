@@ -6,7 +6,6 @@
 package config
 
 import (
-	"encoding/json"
 	"strings"
 	"time"
 
@@ -131,11 +130,6 @@ func (l *LogsConfigKeys) compressionKind() string {
 	}
 
 	if compressionKind == ZstdCompressionKind || compressionKind == GzipCompressionKind {
-		pipelineName := "Main logs agent pipeline"
-		if !strings.Contains(l.prefix, "logs_config") {
-			pipelineName = "Pipeline " + l.prefix
-		}
-		log.Debugf("%s is using compression: %s", pipelineName, compressionKind)
 		return compressionKind
 	}
 
@@ -146,12 +140,16 @@ func (l *LogsConfigKeys) compressionKind() string {
 func (l *LogsConfigKeys) compressionLevel() int {
 	if l.compressionKind() == ZstdCompressionKind {
 		level := l.getConfig().GetInt(l.getConfigKey("zstd_compression_level"))
-		log.Debugf("Pipeline %s is using zstd compression level: %d", l.prefix, level)
+		if strings.HasPrefix(l.prefix, "logs_config.") {
+			log.Debugf("Logs pipeline is using compression zstd at level: %d", level)
+		}
 		return level
 	}
 
 	level := l.getConfig().GetInt(l.getConfigKey("compression_level"))
-	log.Debugf("Pipeline %s is using compression level: %d", l.prefix, level)
+	if strings.HasPrefix(l.prefix, "logs_config.") {
+		log.Debugf("Logs pipeline is using compression gzip atlevel: %d", level)
+	}
 	return level
 }
 
@@ -182,17 +180,8 @@ func (l *LogsConfigKeys) connectionResetInterval() time.Duration {
 
 func (l *LogsConfigKeys) getAdditionalEndpoints() ([]unmarshalEndpoint, string) {
 	var endpoints []unmarshalEndpoint
-	var err error
 	configKey := l.getConfigKey("additional_endpoints")
-	raw := l.getConfig().Get(configKey)
-	if raw == nil {
-		return nil, ""
-	}
-	if s, ok := raw.(string); ok && s != "" {
-		err = json.Unmarshal([]byte(s), &endpoints)
-	} else {
-		err = structure.UnmarshalKey(l.getConfig(), configKey, &endpoints, structure.EnableSquash)
-	}
+	err := structure.UnmarshalKey(l.getConfig(), configKey, &endpoints, structure.EnableStringUnmarshal, structure.EnableSquash)
 	if err != nil {
 		log.Warnf("Could not parse additional_endpoints for logs: %v", err)
 	}

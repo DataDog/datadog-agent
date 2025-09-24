@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	jmxStatus "github.com/DataDog/datadog-agent/pkg/status/jmx"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -55,9 +54,9 @@ func (p *Payload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error) {
 
 // GetPayload builds a payload of all the agentchecks metadata
 func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
-	hostnameData, _ := hostname.Get(ctx)
+	hostnameData, _ := c.hostname.Get(ctx)
 
-	meta := hostMetadataUtils.GetMetaFromCache(ctx, c.config)
+	meta := hostMetadataUtils.GetMetaFromCache(ctx, c.config, c.hostname)
 	meta.Hostname = hostnameData
 
 	cp := hostMetadataUtils.GetCommonPayload(hostnameData, c.config)
@@ -116,6 +115,43 @@ func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
 		payload.AgentChecks = append(payload.AgentChecks, status)
 	}
 
+	stats := map[string]interface{}{}
+	jmxStatus.PopulateStatus(stats)
+	if _, ok := stats["JMXStatus"]; ok {
+		if status, ok := stats["JMXStatus"].(jmxStatus.Status); ok {
+			for checkName, checksRaw := range status.ChecksStatus.InitializedChecks {
+				checks, ok := checksRaw.([]interface{})
+				if !ok {
+					continue
+				}
+				for _, checkRaw := range checks {
+					check, ok := checkRaw.(map[string]interface{})
+					// The default check status is OK, so if there is no status, it means the check is OK
+					if !ok {
+						continue
+					}
+					checkStatus, ok := check["status"].(string)
+					if !ok {
+						checkStatus = "OK"
+					}
+					checkID, ok := check["instance_name"].(string)
+					if !ok {
+						checkID = checkName
+					} else {
+						checkID = fmt.Sprintf("%s:%s", checkName, checkID)
+					}
+					checkError, ok := check["message"].(string)
+					if !ok {
+						checkError = ""
+					}
+					status := []interface{}{
+						checkName, checkName, checkID, checkStatus, checkError,
+					}
+					payload.AgentChecks = append(payload.AgentChecks, status)
+				}
+			}
+		}
+	}
 	return payload
 }
 

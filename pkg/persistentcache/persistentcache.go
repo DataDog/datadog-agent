@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2019-present Datadog, Inc.
 
-//nolint:revive // TODO(AML) Fix revive linter
+// Package persistentcache provides a disk-based cache.
 package persistentcache
 
 import (
@@ -62,4 +62,27 @@ func Read(key string) (string, error) {
 		return "", err
 	}
 	return string(content), nil
+}
+
+// Exists returns whether the cache exists.
+func Exists(key string) bool {
+	path, err := getFileForKey(key)
+	if err != nil {
+		return false
+	}
+	_, err = os.Stat(path)
+	return !os.IsNotExist(err)
+}
+
+// Rename renames a cache file.
+func Rename(oldKey, newKey string) error {
+	oldPath, err := getFileForKey(oldKey)
+	if err != nil {
+		return err
+	}
+	newPath, err := getFileForKey(newKey)
+	if err != nil {
+		return err
+	}
+	return os.Rename(oldPath, newPath)
 }

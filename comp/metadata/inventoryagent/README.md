@@ -43,6 +43,7 @@ The payload is a JSON dict with the following fields
   - `config_proxy_http` - **string**: the configuration value `proxy.http` (scrubbed)
   - `config_proxy_https` - **string**: the configuration value `proxy.https` (scrubbed)
   - `config_eks_fargate` - **bool**: the configuration value `eks_fargate`
+  - `diagnostics` - **dict of string to JSON type**: the result of series of connectivity checks performed on the agent including description, error and metadata
   - `install_method_tool` - **string**: the name of the tool used to install the agent (ie, Chef, Ansible, ...).
   - `install_method_tool_version` - **string**: the tool version used to install the agent (ie: Chef version, Ansible
     version, ...). This defaults to `"undefined"` when not installed through a tool (like when installed with apt, source
@@ -81,7 +82,7 @@ The payload is a JSON dict with the following fields
   - `feature_usm_enabled` - **bool**: True if Universal Service Monitoring is enabled (see: `service_monitoring_config.enabled` config option in `system-probe.yaml`)
   - `feature_usm_http2_enabled` - **bool**: True if HTTP2 monitoring is enabled for Universal Service Monitoring (see: `service_monitoring_config.enable_http2_monitoring` config option in `system-probe.yaml`).
   - `feature_usm_kafka_enabled` - **bool**: True if Kafka monitoring is enabled for Universal Service Monitoring (see: `service_monitoring_config.enable_kafka_monitoring` config option in `system-probe.yaml`)
-  - `feature_usm_postgres_enabled` - **bool**: True if Postgres monitoring is enabled for Universal Service Monitoring (see: `service_monitoring_config.enable_postgres_monitoring` config option in `system-probe.yaml`)
+  - `feature_usm_postgres_enabled` - **bool**: True if Postgres monitoring is enabled for Universal Service Monitoring (see: `service_monitoring_config.postgres.enabled` config option in `system-probe.yaml`)
   - `feature_usm_redis_enabled` - **bool**: True if Redis monitoring is enabled for Universal Service Monitoring (see: `service_monitoring_config.enable_redis_monitoring` config option in `system-probe.yaml`)
   - `feature_usm_go_tls_enabled` - **bool**: True if HTTPS monitoring through GoTLS is enabled for Universal Service Monitoring (see: `service_monitoring_config.tls.go.enabled` config option in `system-probe.yaml`).
   - `feature_discovery_enabled` - **bool**: True if discovery module is enabled (see: `discovery.enabled` config option).
@@ -102,6 +103,7 @@ The payload is a JSON dict with the following fields
   - `feature_cws_security_profiles_enabled` - **bool**: True if Security Profiles is enabled for Cloud Workload Security (see: `runtime_security_config.activity_dump.enabled` config option).
   - `feature_usm_istio_enabled` - **bool**: True if Istio is enabled for Universal Service Monitoring (see: `service_monitoring_config.tls.istio.enabled` config option).
   - `feature_windows_crash_detection_enabled` - **bool**: True if Windows Crash Detection is enabled (see: `windows_crash_detection.enabled` config option).
+  - `feature_auto_instrumentation_enabled` - **bool**: True if APM Auto-Instrumentation is installed and enabled.
   - `full_configuration` - **string**: the current Agent configuration scrubbed, including all the defaults, as a YAML
     string.
   - `provided_configuration` - **string**: the current Agent configuration (scrubbed), without the defaults, as a YAML
@@ -125,6 +127,9 @@ The payload is a JSON dict with the following fields
   - `ecs_fargate_cluster_name` - **string**: if the Agent runs in ECS Fargate, contains the Agent's cluster name. Else, is empty.
   - `fleet_policies_applied` -- **array of string**: The Fleet Policies that have been applied to the agent, if any. Is empty if no policy is applied.
   - `config_id` -- **string**: the Fleet Config ID, the configuration value `config_id`.
+  - `auto_instrumentation_modes` -- **array of string**: The injection types enabled for APM Auto-Instrumentation.
+  - `infrastructure_mode` -- **string**: The monitoring mode the agent is configured in, each mode offers different
+    amount of feature (default is `full`, other potential values are `end_user_device` or `basic`).
 
 ("scrubbed" indicates that secrets are removed from the field value just as they are in logs)
 
@@ -162,8 +167,8 @@ Here an example of an inventory payload:
         "install_method_tool_version": "",
         "logs_transport": "HTTP",
         "full_configuration": "<entire yaml configuration for the agent>",
-        "provided_configuration": "api_key: \"***************************aaaaa\"\ncheck_runners: 4\ncontainerd_namespace: []\ncontainerd_namespaces: []\npython_version: \"3\"\ntracemalloc_debug: false\nlog_level: \"warn\"",
-        "file_configuration": "check_runners: 4\ncontainerd_namespace: []\ncontainerd_namespaces: []\npython_version: \"3\"\ntracemalloc_debug: false",
+        "provided_configuration": "api_key: \"***************************aaaaa\"\ncheck_runners: 4\ncontainerd_namespace: []\ncontainerd_namespaces: []tracemalloc_debug: false\nlog_level: \"warn\"",
+        "file_configuration": "check_runners: 4\ncontainerd_namespace: []\ncontainerd_namespaces: []tracemalloc_debug: false",
         "agent_runtime_configuration": "runtime_block_profile_rate: 5000",
         "environment_variable_configuration": "api_key: \"***************************aaaaa\"",
         "remote_configuration": "log_level: \"debug\"",

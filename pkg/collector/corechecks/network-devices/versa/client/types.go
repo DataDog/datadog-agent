@@ -6,13 +6,21 @@
 // Package client implements a Versa API client
 package client
 
+import "fmt"
+
 // Content encapsulates the content types of the Versa API
 type Content interface {
 	[]Appliance |
 		int | // for row counts
 		[]TenantConfig |
 		OrganizationListResponse |
-		DirectorStatus
+		ApplianceListResponse |
+		DirectorStatus |
+		AnalyticsMetricsResponse |
+		InterfaceListResponse |
+		InterfaceMetricsResponse |
+		InterfaceMetricsCollection |
+		[]InterfaceMetricsCollection
 }
 
 // DirectorStatus /versa/ncs-services/vnms/dashboard/vdStatus
@@ -35,6 +43,7 @@ type DirectorHAConfig struct {
 	DesignatedMaster               bool     `json:"designatedMaster"`
 	StartupMode                    string   `json:"startupMode"`
 	MyVnfManagementIPs             []string `json:"myVnfManagementIps"`
+	MyAddress                      string   `json:"myAddress"`
 	VDSBInterfaces                 []string `json:"vdsbinterfaces"`
 	StartupModeHA                  bool     `json:"startupModeHA"`
 	MyNcsHaSetAsMaster             bool     `json:"myNcsHaSetAsMaster"`
@@ -290,6 +299,12 @@ type OrganizationListResponse struct {
 	Organizations []Organization `json:"organizations"`
 }
 
+// ApplianceListResponse represents the response from /vnms/appliance/appliance
+type ApplianceListResponse struct {
+	TotalCount int         `json:"totalCount"`
+	Appliances []Appliance `json:"appliances"`
+}
+
 // Organization encapsulates metadata for a Versa organization
 type Organization struct {
 	UUID                    string   `json:"uuid"`
@@ -306,4 +321,224 @@ type Organization struct {
 	ProviderOrg             bool     `json:"providerOrg"`
 	Depth                   int      `json:"depth"`
 	PushCaConfig            bool     `json:"pushCaConfig"`
+}
+
+// AnalyticsMetricsResponse /versa/analytics/v1.0.0/data/provider/tenants/<tenantName>/features/<feature>
+// with query parameters
+type AnalyticsMetricsResponse struct {
+	QTime                int             `json:"qTime"`
+	SEcho                int             `json:"sEcho"`
+	ITotalDisplayRecords int             `json:"iTotalDisplayRecords"`
+	ITotalRecords        int             `json:"iTotalRecords"`
+	AaData               [][]interface{} `json:"aaData"`
+}
+
+// SLAMetrics represents the columns to parse from the SLAMetricsResponse interface/API call
+type SLAMetrics struct {
+	// TODO: utilize this ordered list of fields for AaData
+	DrillKey            string
+	LocalSite           string
+	RemoteSite          string
+	LocalAccessCircuit  string
+	RemoteAccessCircuit string
+	ForwardingClass     string
+	Delay               float64
+	FwdDelayVar         float64
+	RevDelayVar         float64
+	FwdLossRatio        float64
+	RevLossRatio        float64
+	PDULossRatio        float64
+}
+
+// IPAddress returns the first management IP address of the director
+// or an error if no management IPs are found
+func (d *DirectorStatus) IPAddress() (string, error) {
+	if d.HAConfig.MyAddress != "" {
+		return d.HAConfig.MyAddress, nil
+	}
+	if len(d.HAConfig.MyVnfManagementIPs) == 0 {
+		return "", fmt.Errorf("no management IPs found for director")
+	}
+	return d.HAConfig.MyVnfManagementIPs[0], nil
+}
+
+// Interface encapsulates metadata for a Versa interface
+type Interface struct {
+	DeviceName    string `json:"deviceName"`
+	TenantName    string `json:"tenantName"`
+	Name          string `json:"name"`
+	Type          string `json:"type"`
+	MAC           string `json:"mac"`
+	IfOperStatus  string `json:"ifOperStatus"`
+	IfAdminStatus string `json:"ifAdminStatus"`
+	VRF           string `json:"vrf"`
+	IPAddress     string `json:"ipAddress"`
+	Key           string `json:"key"`
+	AdminUp       bool   `json:"adminUp"`
+	OperUp        bool   `json:"operUp"`
+}
+
+// InterfaceListResponse encapsulates the response structure for interface API calls
+type InterfaceListResponse struct {
+	List InterfaceList `json:"List"`
+}
+
+// InterfaceList encapsulates the "value" list containing the interfaces
+type InterfaceList struct {
+	Value []Interface `json:"value"`
+}
+
+// InterfaceMetricsResponse represents the response from the pageable interfaces API
+type InterfaceMetricsResponse struct {
+	QueryID    string                     `json:"query-id"`
+	Collection InterfaceMetricsCollection `json:"collection"`
+}
+
+// InterfaceMetricsCollection represents the collection wrapper in the pageable interfaces response
+type InterfaceMetricsCollection struct {
+	Interfaces []InterfaceMetrics `json:"interfaces"`
+}
+
+// InterfaceMetrics represents interface metrics data from the pageable interfaces API
+type InterfaceMetrics struct {
+	Interface string `json:"interface"`
+	HostInf   string `json:"host-inf"`
+	VRF       string `json:"vrf"`
+	RxPackets string `json:"rx-packets"`
+	RxErrors  string `json:"rx-errors"`
+	RxBytes   string `json:"rx-bytes"`
+	RxBps     string `json:"rx-bps"`
+	RxPps     string `json:"rx-pps"`
+	TxPackets string `json:"tx-packets"`
+	TxErrors  string `json:"tx-errors"`
+	TxBytes   string `json:"tx-bytes"`
+	TxBps     string `json:"tx-bps"`
+	TxPps     string `json:"tx-pps"`
+}
+
+// LinkUsageMetrics represents the columns to parse from the LinkExtendedMetricsResponse
+type LinkUsageMetrics struct {
+	DrillKey          string
+	Site              string
+	AccessCircuit     string
+	UplinkBandwidth   string
+	DownlinkBandwidth string
+	Type              string
+	Media             string
+	IP                string
+	ISP               string
+	VolumeTx          float64
+	VolumeRx          float64
+	BandwidthTx       float64
+	BandwidthRx       float64
+}
+
+// SiteMetrics represents the columns to parse from the Site metrics response
+type SiteMetrics struct {
+	Site           string
+	Address        string
+	Latitude       string
+	Longitude      string
+	LocationSource string
+	VolumeTx       float64
+	VolumeRx       float64
+	BandwidthTx    float64
+	BandwidthRx    float64
+	Availability   float64
+}
+
+// LinkStatusMetrics represents the columns to parse from the LinkStatusMetricsResponse
+type LinkStatusMetrics struct {
+	DrillKey      string
+	Site          string
+	AccessCircuit string
+	Availability  float64
+}
+
+// ApplicationsByApplianceMetrics represents the columns to parse from the ApplicationsByApplianceMetricsResponse
+type ApplicationsByApplianceMetrics struct {
+	DrillKey    string
+	Site        string
+	AppID       string
+	Sessions    float64
+	VolumeTx    float64
+	VolumeRx    float64
+	BandwidthTx float64
+	BandwidthRx float64
+	Bandwidth   float64
+}
+
+// TopUserMetrics represents the columns to parse from the TopUserMetricsResponse
+type TopUserMetrics struct {
+	DrillKey    string
+	Site        string
+	User        string
+	Sessions    float64
+	VolumeTx    float64
+	VolumeRx    float64
+	BandwidthTx float64
+	BandwidthRx float64
+	Bandwidth   float64
+}
+
+// TunnelMetrics represents the columns to parse from the TunnelMetricsResponse
+type TunnelMetrics struct {
+	DrillKey    string
+	Appliance   string
+	LocalIP     string
+	RemoteIP    string
+	VpnProfName string
+	VolumeRx    float64
+	VolumeTx    float64
+}
+
+// QoSMetrics represents the columns to parse from the QoS (Class of Service) metrics response
+type QoSMetrics struct {
+	DrillKey             string
+	LocalSiteName        string
+	RemoteSiteName       string
+	BestEffortTx         float64
+	BestEffortTxDrop     float64
+	ExpeditedForwardTx   float64
+	ExpeditedForwardDrop float64
+	AssuredForwardTx     float64
+	AssuredForwardDrop   float64
+	NetworkControlTx     float64
+	NetworkControlDrop   float64
+	BestEffortBandwidth  float64
+	ExpeditedForwardBW   float64
+	AssuredForwardBW     float64
+	NetworkControlBW     float64
+	VolumeTx             float64
+	TotalDrop            float64
+	PercentDrop          float64
+	Bandwidth            float64
+}
+
+// DIAMetrics represents the columns to parse from the DIA (Direct Internet Access) metrics response
+type DIAMetrics struct {
+	DrillKey      string
+	Site          string
+	AccessCircuit string
+	IP            string
+	VolumeTx      float64
+	VolumeRx      float64
+	BandwidthTx   float64
+	BandwidthRx   float64
+}
+
+// AnalyticsInterfaceMetrics represents the columns to parse from the Analytics Interface metrics response
+type AnalyticsInterfaceMetrics struct {
+	DrillKey    string
+	Site        string
+	AccessCkt   string
+	Interface   string
+	RxUtil      float64
+	TxUtil      float64
+	VolumeRx    float64
+	VolumeTx    float64
+	Volume      float64
+	BandwidthRx float64
+	BandwidthTx float64
+	Bandwidth   float64
 }

@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Add `cluster_arn`, `service_arn`, and `task_arn` tags to the ECS tasks.

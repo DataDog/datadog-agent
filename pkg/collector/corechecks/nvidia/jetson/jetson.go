@@ -138,7 +138,7 @@ func (c *JetsonCheck) Run() error {
 		switch err := err.(type) {
 		case *exec.ExitError:
 			if len(tegrastatsOutput) <= 0 {
-				return fmt.Errorf("tegrastats did not produce any output: %s", err)
+				return fmt.Errorf("tegrastats did not produce any output: %s. Stderr: %s", err, string(err.Stderr))
 			}
 			// We kill the process, so ExitError is expected - as long as
 			// we got our output.

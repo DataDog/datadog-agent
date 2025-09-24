@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(AML) Fix revive linter
+// Package metrics provides telemetry metrics for the logs agent
 package metrics
 
 import (
@@ -48,9 +48,9 @@ var (
 		[]string{"source"}, "Total number of bytes sent before encoding if any")
 	// RetryCount is the total number of times we have retried payloads that failed to send
 	RetryCount = expvar.Int{}
-	// TlmRetryCountis the total number of times we have retried payloads that failed to send
+	// TlmRetryCount is the total number of times we have retried payloads that failed to send
 	TlmRetryCount = telemetry.NewCounter("logs", "retry_count",
-		nil, "Total number of retried paylaods")
+		nil, "Total number of retried payloads")
 	// RetryTimeSpent is the total time spent retrying payloads that failed to send
 	RetryTimeSpent = expvar.Int{}
 	// EncodedBytesSent is the total number of sent bytes after encoding if any
@@ -70,17 +70,16 @@ var (
 		nil, "Histogram of http sender latency in ms", []float64{10, 25, 50, 75, 100, 250, 500, 1000, 10000})
 	// DestinationExpVars a map of sender utilization metrics for each http destination
 	DestinationExpVars = expvar.Map{}
-	// TODO: Add LogsCollected for the total number of collected logs.
-	//nolint:revive // TODO(AML) Fix revive linter
-	DestinationHttpRespByStatusAndUrl = expvar.Map{}
-	//nolint:revive // TODO(AML) Fix revive linter
-	TlmDestinationHttpRespByStatusAndUrl = telemetry.NewCounter("logs", "destination_http_resp", []string{"status_code", "url"}, "Count of http responses by status code and destination url")
+	// DestinationHTTPRespByStatusAndURL tracks HTTP responses by status code and destination URL
+	DestinationHTTPRespByStatusAndURL = expvar.Map{}
+	// TlmDestinationHTTPRespByStatusAndURL tracks HTTP responses by status code and destination URL
+	TlmDestinationHTTPRespByStatusAndURL = telemetry.NewCounter("logs", "destination_http_resp", []string{"status_code", "url"}, "Count of http responses by status code and destination url")
 
 	// TlmAutoMultilineAggregatorFlush Count of each line flushed from the auto multiline aggregator.
 	TlmAutoMultilineAggregatorFlush = telemetry.NewCounter("logs", "auto_multi_line_aggregator_flush", []string{"truncated", "line_type"}, "Count of each line flushed from the auto multiline aggregator")
 
-	// TlmLogsDiscardedFromSDSBuffer how many messages were dropped when waiting for an SDS configuration because the buffer is full
-	TlmLogsDiscardedFromSDSBuffer = telemetry.NewCounter("logs", "sds__dropped_from_buffer", nil, "Count of messages dropped from the buffer while waiting for an SDS configuration")
+	// TlmAutoMultilineJSONAggregatorFlush Count of each line flushed from the auto multiline JSON aggregator.
+	TlmAutoMultilineJSONAggregatorFlush = telemetry.NewCounter("logs", "auto_multi_line_json_aggregator_flush", []string{"is_valid"}, "Count of each line flushed from the auto multiline JSON aggregator")
 
 	// TlmUtilizationRatio is the utilization ratio of a component.
 	// Utilization ratio is calculated as the ratio of time spent in use to the total time.
@@ -97,6 +96,10 @@ var (
 	TlmDestVirtualLatency = telemetry.NewGauge("logs_destination", "virtual_latency", []string{"instance"}, "Gauge of the destination's average latency")
 	// TlmDestWorkerResets tracks the count of times the destination worker pool resets the worker count after encountering a retryable error.
 	TlmDestWorkerResets = telemetry.NewCounter("logs_destination", "destination_worker_resets", []string{"instance"}, "Count of times the destination worker pool resets the worker count")
+	// LogsTruncated is the number of logs truncated by the Agent
+	LogsTruncated = expvar.Int{}
+	// TlmTruncatedCount tracks the count of times a log is truncated
+	TlmTruncatedCount = telemetry.NewCounter("logs", "truncated", []string{"service", "source"}, "Count the number of times a log is truncated")
 )
 
 func init() {
@@ -113,4 +116,5 @@ func init() {
 	LogsExpvars.Set("BytesMissed", &BytesMissed)
 	LogsExpvars.Set("SenderLatency", &SenderLatency)
 	LogsExpvars.Set("HttpDestinationStats", &DestinationExpVars)
+	LogsExpvars.Set("LogsTruncated", &LogsTruncated)
 }

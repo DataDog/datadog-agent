@@ -14,12 +14,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/shirou/gopsutil/v4/cpu"
+	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
@@ -44,6 +42,7 @@ func TestBasicProcessMessages(t *testing.T) {
 		makeContainer("foo"),
 		makeContainer("bar"),
 	}
+	now := time.Now()
 	lastRun := time.Now().Add(-5 * time.Second)
 	syst1, syst2 := cpu.TimesStat{}, cpu.TimesStat{}
 	sysInfo := &model.SystemInfo{}
@@ -125,7 +124,7 @@ func TestBasicProcessMessages(t *testing.T) {
 			useWindowsServiceName := true
 			useImprovedAlgorithm := false
 			ex := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
-			procs := fmtProcesses(procutil.NewDefaultDataScrubber(), disallowList, tc.processes, tc.processes, tc.pidToCid, syst2, syst1, lastRun, nil, false, ex, nil)
+			procs := fmtProcesses(procutil.NewDefaultDataScrubber(), disallowList, tc.processes, tc.processes, tc.pidToCid, syst2, syst1, lastRun, nil, false, ex, nil, now)
 			messages, totalProcs, totalContainers := createProcCtrMessages(hostInfo, procs, tc.containers, tc.maxSize, maxBatchBytes, int32(i), "nid", 0)
 
 			assert.Equal(t, tc.expectedChunks, len(messages))
@@ -231,6 +230,7 @@ func TestContainerProcessChunking(t *testing.T) {
 			procs, ctrs, pidToCid := generateCtrProcs(tc.ctrProcs)
 			procsByPid := procsToHash(procs)
 
+			now := time.Now()
 			lastRun := time.Now().Add(-5 * time.Second)
 			syst1, syst2 := cpu.TimesStat{}, cpu.TimesStat{}
 			sysInfo := &model.SystemInfo{}
@@ -239,7 +239,7 @@ func TestContainerProcessChunking(t *testing.T) {
 			useWindowsServiceName := true
 			useImprovedAlgorithm := false
 			ex := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
-			processes := fmtProcesses(procutil.NewDefaultDataScrubber(), nil, procsByPid, procsByPid, pidToCid, syst2, syst1, lastRun, nil, false, ex, nil)
+			processes := fmtProcesses(procutil.NewDefaultDataScrubber(), nil, procsByPid, procsByPid, pidToCid, syst2, syst1, lastRun, nil, false, ex, nil, now)
 			messages, totalProcs, totalContainers := createProcCtrMessages(hostInfo, processes, ctrs, tc.maxSize, maxBatchBytes, int32(i), "nid", 0)
 
 			assert.Equal(t, tc.expectedProcCount, totalProcs)
@@ -376,13 +376,13 @@ func TestFormatCPUTimes(t *testing.T) {
 		})
 	}
 }
-
 func TestProcessGPUTagging(t *testing.T) {
 	p := []*procutil.Process{
 		makeProcess(1, "git clone google.com"),
 		makeProcess(2, "mine-bitcoins -all -x"),
 		makeProcess(3, "foo --version"),
 	}
+	now := time.Now()
 	lastRun := time.Now().Add(-5 * time.Second)
 	syst1, syst2 := cpu.TimesStat{}, cpu.TimesStat{}
 	for _, tc := range []struct {
@@ -419,52 +419,13 @@ func TestProcessGPUTagging(t *testing.T) {
 			useWindowsServiceName := true
 			useImprovedAlgorithm := false
 			ex := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
-			procs := fmtProcesses(procutil.NewDefaultDataScrubber(), nil, tc.processes, tc.processes, nil, syst2, syst1, lastRun, nil, false, ex, tc.pidToGPUTags)
+			procs := fmtProcesses(procutil.NewDefaultDataScrubber(), nil, tc.processes, tc.processes, nil, syst2, syst1, lastRun, nil, false, ex, tc.pidToGPUTags, now)
 
 			assert.Len(t, procs, 1)
 			assert.Equal(t, tc.expectedProcs, len(procs[""]))
 			for _, proc := range procs[""] {
 				assert.Equal(t, proc.Tags, tc.pidToGPUTags[proc.Pid])
 			}
-		})
-	}
-}
-
-func TestProcessIsECSFargatePidModeSetToTaskLinux(t *testing.T) {
-	for _, tc := range []struct {
-		description string
-		containers  []*model.Container
-		expected    bool
-	}{
-		{
-			description: "ecs linux fargate pidMode not set to task",
-			containers: []*model.Container{
-				{
-					Tags: []string{
-						fmt.Sprintf("%s:%s", tags.EcsContainerName, "other container"),
-						fmt.Sprintf("%s:%s", tags.ContainerName, "aws-fargate-pause"),
-						fmt.Sprintf("%s:%s", tags.ImageName, "aws-fargate-pause"),
-					},
-				},
-			},
-			expected: false,
-		},
-		{
-			description: "ecs linux fargate pidMode set to task",
-			containers: []*model.Container{
-				{
-					Tags: []string{
-						fmt.Sprintf("%s:%s", tags.EcsContainerName, "aws-fargate-pause"),
-						fmt.Sprintf("%s:%s", tags.ContainerName, "some container name"),
-						fmt.Sprintf("%s:%s", tags.ImageName, "some image name"),
-					},
-				},
-			},
-			expected: true,
-		},
-	} {
-		t.Run(tc.description, func(t *testing.T) {
-			assert.Equal(t, tc.expected, isECSFargatePidModeSetToTask(tc.containers))
 		})
 	}
 }

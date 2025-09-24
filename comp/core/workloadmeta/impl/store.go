@@ -288,6 +288,39 @@ func (w *workloadmeta) ListProcessesWithFilter(filter wmdef.EntityFilterFunc[*wm
 	return processes
 }
 
+// GetContainerForProcess implements Store#GetContainerForProcess
+func (w *workloadmeta) GetContainerForProcess(processID string) (*wmdef.Container, error) {
+	w.storeMut.RLock()
+	defer w.storeMut.RUnlock()
+
+	processEntities, ok := w.store[wmdef.KindProcess]
+	if !ok {
+		return nil, errors.NewNotFound(string(wmdef.KindProcess))
+	}
+
+	processEntity, ok := processEntities[processID]
+	if !ok {
+		return nil, errors.NewNotFound(processID)
+	}
+
+	process := processEntity.cached.(*wmdef.Process)
+	if process.Owner == nil || process.Owner.Kind != wmdef.KindContainer {
+		return nil, errors.NewNotFound(processID)
+	}
+
+	containerEntities, ok := w.store[wmdef.KindContainer]
+	if !ok {
+		return nil, errors.NewNotFound(process.Owner.ID)
+	}
+
+	container, ok := containerEntities[process.Owner.ID]
+	if !ok {
+		return nil, errors.NewNotFound(process.Owner.ID)
+	}
+
+	return container.cached.(*wmdef.Container), nil
+}
+
 // GetKubernetesPodForContainer implements Store#GetKubernetesPodForContainer
 func (w *workloadmeta) GetKubernetesPodForContainer(containerID string) (*wmdef.KubernetesPod, error) {
 	w.storeMut.RLock()
@@ -411,6 +444,16 @@ func (w *workloadmeta) GetGPU(id string) (*wmdef.GPU, error) {
 	}
 
 	return entity.(*wmdef.GPU), nil
+}
+
+// GetKubelet implements Store#GetKubelet.
+func (w *workloadmeta) GetKubelet() (*wmdef.Kubelet, error) {
+	entity, err := w.getEntityByKind(wmdef.KindKubelet, wmdef.KubeletID)
+	if err != nil {
+		return nil, err
+	}
+
+	return entity.(*wmdef.Kubelet), nil
 }
 
 // ListGPUs implements Store#ListGPUs.

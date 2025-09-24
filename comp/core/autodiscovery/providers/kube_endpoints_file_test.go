@@ -22,21 +22,21 @@ func TestBuildConfigStore(t *testing.T) {
 	tpl1 := &integration.Config{
 		Name: "check1",
 		AdvancedADIdentifiers: []integration.AdvancedADIdentifier{{
-			KubeEndpoints: kubeNsName("ep-ns1", "ep-name1"),
+			KubeEndpoints: kubeEndpointIdentifier("ep-ns1", "ep-name1", ""),
 		}},
 	}
 
 	tpl2 := &integration.Config{
 		Name: "check2",
 		AdvancedADIdentifiers: []integration.AdvancedADIdentifier{{
-			KubeEndpoints: kubeNsName("ep-ns2", "ep-name2"),
+			KubeEndpoints: kubeEndpointIdentifier("ep-ns2", "ep-name2", ""),
 		}},
 	}
 
 	tpl3 := &integration.Config{
 		Name: "check3",
 		AdvancedADIdentifiers: []integration.AdvancedADIdentifier{{
-			KubeEndpoints: kubeNsName("ep-ns3", "ep-name3"),
+			KubeEndpoints: kubeEndpointIdentifier("ep-ns3", "ep-name3", ""),
 			KubeService:   kubeNsName("svc-ns", "svc-name"),
 		}},
 	}
@@ -66,11 +66,13 @@ func TestBuildConfigStore(t *testing.T) {
 					templates:     []integration.Config{*tpl1},
 					ep:            nil,
 					shouldCollect: false,
+					resolveMode:   kubeEndpointResolveAuto,
 				},
 				"ep-ns2/ep-name2": {
 					templates:     []integration.Config{*tpl2},
 					ep:            nil,
 					shouldCollect: false,
+					resolveMode:   kubeEndpointResolveAuto,
 				},
 			},
 		},
@@ -82,6 +84,7 @@ func TestBuildConfigStore(t *testing.T) {
 					templates:     []integration.Config{*tpl3},
 					ep:            nil,
 					shouldCollect: false,
+					resolveMode:   kubeEndpointResolveAuto,
 				},
 			},
 		},
@@ -100,7 +103,7 @@ func TestStoreInsertEp(t *testing.T) {
 	tpl := integration.Config{
 		Name: "check1",
 		AdvancedADIdentifiers: []integration.AdvancedADIdentifier{{
-			KubeEndpoints: kubeNsName("ep-ns1", "ep-name1"),
+			KubeEndpoints: kubeEndpointIdentifier("ep-ns1", "ep-name1", ""),
 		}},
 	}
 
@@ -144,14 +147,14 @@ func TestStoreGenerateConfigs(t *testing.T) {
 	tpl1 := integration.Config{
 		Name: "check1",
 		AdvancedADIdentifiers: []integration.AdvancedADIdentifier{{
-			KubeEndpoints: kubeNsName("ep-ns1", "ep-name1"),
+			KubeEndpoints: kubeEndpointIdentifier("ep-ns1", "ep-name1", ""),
 		}},
 	}
 
 	tpl2 := integration.Config{
 		Name: "check2",
 		AdvancedADIdentifiers: []integration.AdvancedADIdentifier{{
-			KubeEndpoints: kubeNsName("ep-ns2", "ep-name2"),
+			KubeEndpoints: kubeEndpointIdentifier("ep-ns2", "ep-name2", ""),
 		}},
 	}
 
@@ -214,5 +217,74 @@ func TestStoreGenerateConfigs(t *testing.T) {
 
 			assert.EqualValues(t, tt.want, s.generateConfigs())
 		})
+	}
+}
+
+func TestEndpointChecksFromTemplateWithResolveMode(t *testing.T) {
+	tpl := integration.Config{
+		Name: "http_check",
+		Instances: []integration.Data{
+			integration.Data(`{"name": "test", "url": "http://%%host%%"}`),
+		},
+	}
+
+	node1, node2 := "node1", "node2"
+	ep := &v1.Endpoints{
+		ObjectMeta: metav1.ObjectMeta{Name: "ep1", Namespace: "ns1"},
+		Subsets: []v1.EndpointSubset{
+			{
+				Addresses: []v1.EndpointAddress{
+					{IP: "10.0.0.1", NodeName: &node1, TargetRef: &v1.ObjectReference{UID: types.UID("pod-1"), Kind: "Pod"}},
+					{IP: "10.0.0.2", NodeName: &node2, TargetRef: &v1.ObjectReference{UID: types.UID("pod-2"), Kind: "Pod"}},
+				},
+			},
+		},
+	}
+
+	tests := []struct {
+		name               string
+		resolveMode        endpointResolveMode
+		expectedNodeNames  []string
+		expectedServiceIDs []string
+	}{
+		{
+			name:               "Auto mode",
+			resolveMode:        "auto",
+			expectedNodeNames:  []string{"node1", "node2"},
+			expectedServiceIDs: []string{"kube_endpoint_uid://ns1/ep1/10.0.0.1", "kube_endpoint_uid://ns1/ep1/10.0.0.2"},
+		},
+		{
+			name:               "IP mode",
+			resolveMode:        "ip",
+			expectedNodeNames:  []string{"", ""},
+			expectedServiceIDs: []string{"kube_endpoint_uid://ns1/ep1/10.0.0.1", "kube_endpoint_uid://ns1/ep1/10.0.0.2"},
+		},
+		{
+			name:               "Unknown mode",
+			resolveMode:        "unknown",
+			expectedNodeNames:  []string{"node1", "node2"},
+			expectedServiceIDs: []string{"kube_endpoint_uid://ns1/ep1/10.0.0.1", "kube_endpoint_uid://ns1/ep1/10.0.0.2"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			configs := endpointChecksFromTemplate(tpl, ep, tt.resolveMode)
+			assert.Len(t, configs, len(tt.expectedNodeNames))
+			for i := range configs {
+				assert.Equal(t, tt.expectedNodeNames[i], configs[i].NodeName)
+				assert.Equal(t, tt.expectedServiceIDs[i], configs[i].ServiceID)
+			}
+		})
+	}
+}
+
+func kubeEndpointIdentifier(ns string, name string, resolve string) integration.KubeEndpointsIdentifier {
+	return integration.KubeEndpointsIdentifier{
+		KubeNamespacedName: integration.KubeNamespacedName{
+			Name:      name,
+			Namespace: ns,
+		},
+		Resolve: resolve,
 	}
 }
