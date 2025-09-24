@@ -92,7 +92,7 @@ type diskInstanceConfig struct {
 	Timeout                uint16            `yaml:"timeout"`
 	ProcMountInfoPath      string            `yaml:"proc_mountinfo_path"`
 	ResolveRootDevice      bool              `yaml:"resolve_root_device"`
-	TagByPhysicalDisk      bool              `yaml:"tag_by_physical_disk"`
+	TagByPhysicalStorage   bool              `yaml:"tag_by_physical_storage"`
 	CollectPhysicalMetrics bool              `yaml:"collect_physical_metrics"`
 }
 
@@ -484,8 +484,8 @@ func (c *Check) processPartitions(sender sender.Sender, partitions []gopsutil_di
 		}
 		if usage := c.getPartitionUsage(partition); usage != nil {
 			tags := c.getPartitionTags(partition)
-			if c.instanceConfig.TagByPhysicalDisk {
-				tags = append(tags, fmt.Sprintf("is_physical_disk:%t", isPhysicalDisk))
+			if c.instanceConfig.TagByPhysicalStorage {
+				tags = append(tags, fmt.Sprintf("is_physical_storage:%t", isPhysicalDisk))
 			}
 			c.sendPartitionMetrics(sender, usage, tags)
 			if isPhysicalDisk && c.instanceConfig.CollectPhysicalMetrics {
@@ -795,7 +795,7 @@ func newCheck() check.Check {
 			ProcMountInfoPath: "/proc/self/mounts",
 			// Match psutil reporting '/dev/root' from /proc/self/mounts by default
 			ResolveRootDevice:      false,
-			TagByPhysicalDisk:      false,
+			TagByPhysicalStorage:   false,
 			CollectPhysicalMetrics: false,
 		},
 		includedDevices:     []regexp.Regexp{},
