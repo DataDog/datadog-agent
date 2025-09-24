@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 
@@ -36,9 +37,9 @@ const (
 	coreAgentService = "datadogagent"
 )
 
-// TEMPORARY: skip starting the DDOT service during post-install while E2E focuses on install-only validation.
-// Remove this flag (or set to false) once otel service is fully implemented and integrated.
-const skipDDOTServiceStart = true
+// Skip starting the DDOT service during post-install while E2E focuses on install-only validation.
+// Set to false for full E2E validation
+const skipDDOTServiceStart = false
 
 // preInstallDatadogAgentDDOT performs pre-installation steps for DDOT on Windows
 func preInstallDatadogAgentDDOT(_ HookContext) error {
@@ -74,7 +75,40 @@ func postInstallDatadogAgentDdot(ctx HookContext) (err error) {
 	if err = startServiceIfExists(otelServiceName); err != nil {
 		return fmt.Errorf("failed to start ddot service: %w", err)
 	}
+	if err = waitForServiceRunning(otelServiceName, 30*time.Second); err != nil {
+		return fmt.Errorf("ddot service did not reach Running state: %w", err)
+	}
 	return nil
+}
+
+// waitForServiceRunning waits until the given Windows service reaches the Running state or times out
+func waitForServiceRunning(name string, timeout time.Duration) error {
+	m, err := mgr.Connect()
+	if err != nil {
+		return err
+	}
+	defer m.Disconnect()
+
+	s, err := m.OpenService(name)
+	if err != nil {
+		return fmt.Errorf("service %q not found: %w", name, err)
+	}
+	defer s.Close()
+
+	deadline := time.Now().Add(timeout)
+	for {
+		status, err := s.Query()
+		if err != nil {
+			return err
+		}
+		if status.State == svc.Running {
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("timeout waiting for service %q to be Running (last state=%d)", name, status.State)
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
 }
 
 // preRemoveDatadogAgentDdot performs pre-removal steps for the DDOT package on Windows
@@ -82,9 +116,13 @@ func postInstallDatadogAgentDdot(ctx HookContext) (err error) {
 func preRemoveDatadogAgentDdot(ctx HookContext) error {
 	_ = stopServiceIfExists(otelServiceName)
 	_ = deleteServiceIfExists(otelServiceName)
+
+	// Best effort remove otel-agent.exe from the package’s stable path
+	bin := filepath.Join(paths.PackagesPath, agentDDOTPackage, "stable", "embedded", "bin", "otel-agent.exe")
+	_ = os.Remove(bin)
+
 	if !ctx.Upgrade {
-		// Remove config and revert datadog.yaml changes
-		_ = os.Remove(filepath.Join(paths.DatadogDataDir, "otel-config.yaml"))
+		// Preserve otel-config.yaml; only disable the feature in datadog.yaml
 		if err := disableOtelCollectorConfigWindows(); err != nil {
 			log.Warnf("failed to disable otelcollector in datadog.yaml: %s", err)
 		}
@@ -109,6 +147,10 @@ func writeOTelConfigWindows() error {
 		}
 	}
 	out := filepath.Join(paths.DatadogDataDir, "otel-config.yaml")
+	// If otel config already exists, preserve it
+	if _, err := os.Stat(out); err == nil {
+		return nil
+	}
 
 	data, err := os.ReadFile(ddYaml)
 	if err != nil {
