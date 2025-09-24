@@ -170,6 +170,7 @@ func parseSSHLogLine(line string, ctx *model.UserSessionContext) {
 		Service:   words[2],
 		Remaining: strings.Join(words[3:], " "),
 	}
+	fmt.Printf("SSH log line: %s\n", line)
 	// if the first word starts with "sshd" and the second word is the username, then print the line
 	if strings.HasPrefix(sshLogLine.Service, "sshd") && strings.HasPrefix(sshLogLine.Remaining, "Accepted") {
 		// One example of line is Accepted publickey for lima from 192.168.5.2 port 38835 ssh2: ED25519 SHA256:J3I5W45pnQtan5u0m27HWzyqAMZfTbG+nRet/pzzylU
