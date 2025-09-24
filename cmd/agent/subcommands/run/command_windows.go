@@ -76,6 +76,7 @@ import (
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	processAgent "github.com/DataDog/datadog-agent/comp/process/agent"
+	publishermetadatacachefx "github.com/DataDog/datadog-agent/comp/publishermetadatacache/fx"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
@@ -251,6 +252,7 @@ func getPlatformModules() fx.Option {
 		etwimpl.Module,
 		comptraceconfig.Module(),
 		softwareinventoryfx.Module(),
+		publishermetadatacachefx.Module(),
 		fx.Replace(comptraceconfig.Params{
 			FailIfAPIKeyMissing: false,
 		}),
