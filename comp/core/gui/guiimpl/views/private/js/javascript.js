@@ -80,7 +80,8 @@ function attachEditor(addTo, data) {
     lineWrapping: true,
     lineNumbers: true,
     value: data,
-    mode:  "yaml"
+    mode:  "yaml",
+    viewportMargin: Infinity,
   });
   // Map tabs to spaces (yaml doesn't allow tab characters)
   codeMirror.setOption("extraKeys", {
