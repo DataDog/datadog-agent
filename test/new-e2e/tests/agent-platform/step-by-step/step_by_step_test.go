@@ -29,7 +29,7 @@ import (
 )
 
 var (
-	osDescriptors             = flag.String("osdescriptors", "", "platform/arch/os version (debian-11)")
+	osDescriptors             = flag.String("osdescriptors", "", "platform/arch/os version (debian/x86_64/11)")
 	cwsSupportedOsDescriptors = flag.String("cws-supported-osdescriptors", "", "list of os where CWS is supported")
 	flavorName                = flag.String("flavor", "datadog-agent", "package flavor to install")
 	majorVersion              = flag.String("major-version", "7", "major version to test (6, 7)")

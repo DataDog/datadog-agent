@@ -29,7 +29,7 @@ import (
 )
 
 var (
-	osDescriptors = flag.String("osdescriptors", "", "platform/arch/os version (debian-11)")
+	osDescriptors = flag.String("osdescriptors", "", "platform/arch/os version (debian/x86_64/11)")
 	majorVersion  = flag.String("major-version", "7", "major version to test (6, 7)")
 )
 

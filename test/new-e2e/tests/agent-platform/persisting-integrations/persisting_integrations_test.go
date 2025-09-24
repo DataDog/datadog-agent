@@ -31,7 +31,7 @@ import (
 )
 
 var (
-	osDescriptors   = flag.String("osdescriptors", "", "platform/arch/os version (debian-11)")
+	osDescriptors   = flag.String("osdescriptors", "", "platform/arch/os version (debian/x86_64/11)")
 	flavorName      = flag.String("flavor", "datadog-agent", "package flavor to install")
 	srcAgentVersion = flag.String("src-agent-version", "7", "start agent version")
 )

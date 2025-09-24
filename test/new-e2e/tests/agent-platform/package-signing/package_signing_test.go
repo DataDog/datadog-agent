@@ -22,7 +22,7 @@ import (
 )
 
 var (
-	osDescriptors = flag.String("osdescriptors", "", "platform/arch/os version (debian-11)")
+	osDescriptors = flag.String("osdescriptors", "", "platform/arch/os version (debian/x86_64/11)")
 )
 
 type packageSigningTestSuite struct {
