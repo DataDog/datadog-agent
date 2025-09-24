@@ -44,13 +44,13 @@ func multiVMEnvProvisioner() provisioners.PulumiEnvRunFunc[multiVMEnv] {
 			return err
 		}
 
-		agentHost, err := ec2.NewVM(awsEnv, "agenthost", ec2.WithOS(os.WindowsServerDefault))
+		agentHost, err := ec2.NewVM(awsEnv, "agenthost", ec2.WithOS(os.WindowsDefault))
 		if err != nil {
 			return err
 		}
 		agentHost.Export(ctx, &env.AgentHost.HostOutput)
 
-		certificateHost, err := ec2.NewVM(awsEnv, "certificatehost", ec2.WithOS(os.WindowsServerDefault))
+		certificateHost, err := ec2.NewVM(awsEnv, "certificatehost", ec2.WithOS(os.WindowsDefault))
 		if err != nil {
 			return err
 		}

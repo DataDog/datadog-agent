@@ -13,15 +13,14 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/DataDog/test-infra-definitions/common/utils"
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps"
-	"github.com/DataDog/test-infra-definitions/components/docker"
-	"github.com/DataDog/test-infra-definitions/resources/aws"
-
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
+	"github.com/DataDog/test-infra-definitions/common/utils"
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps"
+	"github.com/DataDog/test-infra-definitions/components/docker"
+	"github.com/DataDog/test-infra-definitions/resources/aws"
 
 	infraos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
@@ -148,7 +147,7 @@ func multiVMEnvProvisioner() provisioners.PulumiEnvRunFunc[multiVMEnv] {
 			return err
 		}
 
-		windowsVM, err := ec2.NewVM(awsEnv, "WindowsVM", ec2.WithOS(infraos.WindowsServerDefault))
+		windowsVM, err := ec2.NewVM(awsEnv, "WindowsVM", ec2.WithOS(infraos.WindowsDefault))
 		if err != nil {
 			return err
 		}
