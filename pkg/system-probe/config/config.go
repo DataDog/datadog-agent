@@ -43,6 +43,7 @@ const (
 	DiscoveryModule              types.ModuleName = "discovery"
 	GPUMonitoringModule          types.ModuleName = "gpu"
 	SoftwareInventoryModule      types.ModuleName = "software_inventory"
+	PrivilegedLogsModule         types.ModuleName = "privileged_logs"
 )
 
 // New creates a config object for system-probe. It assumes no configuration has been loaded as this point.
@@ -171,6 +172,9 @@ func load() (*types.Config, error) {
 	}
 	if gpuEnabled {
 		c.EnabledModules[GPUMonitoringModule] = struct{}{}
+	}
+	if cfg.GetBool(privilegedLogsNS("enabled")) {
+		c.EnabledModules[PrivilegedLogsModule] = struct{}{}
 	}
 
 	if cfg.GetBool(wcdNS("enabled")) {
