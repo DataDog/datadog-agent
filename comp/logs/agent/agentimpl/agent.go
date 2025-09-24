@@ -85,7 +85,7 @@ type dependencies struct {
 	SchedulerProviders     []schedulers.Scheduler `group:"log-agent-scheduler"`
 	Tagger                 tagger.Component
 	Compression            logscompression.Component
-	PublisherMetadataCache publishermetadatacache.Component `optional:"true"`
+	PublisherMetadataCache publishermetadatacache.Component
 }
 
 type provides struct {
