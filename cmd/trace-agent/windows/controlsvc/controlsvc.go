@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build windows
-// +build windows
 
 // Package controlsvc contains shared code for controlling the Windows agent service.
 package controlsvc

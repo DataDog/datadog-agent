@@ -49,7 +49,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var loclistErrorLogLimiter = rate.NewLimiter(rate.Every(1*time.Minute), 1)
+var loclistErrorLogLimiter = rate.NewLimiter(rate.Every(10*time.Minute), 10)
+var invalidGoRuntimeTypeLogLimiter = rate.NewLimiter(rate.Every(10*time.Minute), 10)
 
 // TODO: This code creates a lot of allocations, but we could greatly reduce
 // the number of distinct allocations by using a batched allocation scheme.
@@ -201,13 +202,29 @@ func generateIR(
 		return nil, err
 	}
 
-	typeCatalog := newTypeCatalog(
-		d, ptrSize, cfg.maxDynamicTypeSize, cfg.maxHashBucketsSize,
-	)
+	typeCatalog := newTypeCatalog(d, ptrSize)
+	var commonTypes ir.CommonTypes
 	for _, offset := range processed.interestingTypes {
-		if _, err := typeCatalog.addType(offset); err != nil {
+		t, err := typeCatalog.addType(offset)
+		if err != nil {
 			return nil, fmt.Errorf("failed to add type at offset %#x: %w", offset, err)
 		}
+		ok := true
+		switch t.GetName() {
+		case "runtime.g":
+			commonTypes.G, ok = t.(*ir.StructureType)
+		case "runtime.m":
+			commonTypes.M, ok = t.(*ir.StructureType)
+		}
+		if !ok {
+			return nil, fmt.Errorf("expected structure type for %q, got %T", t.GetName(), t)
+		}
+	}
+	if commonTypes.G == nil {
+		return nil, fmt.Errorf("runtime.g not found")
+	}
+	if commonTypes.M == nil {
+		return nil, fmt.Errorf("runtime.m not found")
 	}
 
 	// Materialize before creating probes so IR subprograms and vars exist.
@@ -234,7 +251,22 @@ func generateIR(
 	for tid := range typeIndex.allGoTypes() {
 		goType, err := typeTab.ParseGoType(tid)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse go type: %w", err)
+			if !invalidGoRuntimeTypeLogLimiter.Allow() {
+				continue
+			}
+			// We've seen situations where the GoRuntimeType values are bogus.
+			// That shouldn't prevent us from generating IR.
+			dwarfOffset, offsetOk := typeIndex.resolveDwarfOffset(tid)
+			irTypeID, idOk := typeCatalog.typesByDwarfType[dwarfOffset]
+			var typeName string
+			if t, ok := typeCatalog.typesByID[irTypeID]; offsetOk && idOk && ok {
+				typeName = t.GetName()
+			}
+			log.Warnf(
+				"invalid go runtime type id for %q (%d) (dwarf offset: %#x): %v",
+				typeName, irTypeID, dwarfOffset, err,
+			)
+			continue
 		}
 		methodBuf, err = goType.Methods(methodBuf[:0])
 		if err != nil {
@@ -310,6 +342,7 @@ func generateIR(
 		MaxTypeID:        typeCatalog.idAlloc.alloc,
 		Issues:           issues,
 		GoModuledataInfo: processed.goModuledataInfo,
+		CommonTypes:      commonTypes,
 	}, nil
 }
 
@@ -394,6 +427,32 @@ func expandTypesWithBudgets(
 	processedBest := make(map[ir.TypeID]uint32)
 
 	q := newTypeQueue()
+
+	// Initialize the type queue with all types with a depth budget of 0 to make
+	// sure we properly explore every type. In general there's an invariant that
+	// every non-placeholder type be explored, and this ensures that.
+	for id, t := range tc.typesByID {
+		if _, ok := t.(*pointeePlaceholderType); ok {
+			continue
+		}
+		q.pos[id] = uint32(len(q.items))
+		q.items = append(q.items, typeQueueEntry{id: id, remaining: 0})
+	}
+
+	// Update the budgets from the subprogram variables to that of the
+	// corresponding subprogram.
+	for _, sp := range subprograms {
+		budget := budgets[sp.ID]
+		for _, v := range sp.Variables {
+			pos := q.pos[v.Type.GetID()]
+			item := &q.items[pos]
+			item.remaining = max(item.remaining, budget)
+		}
+	}
+
+	// Initialize the heap now that everything has been updated.
+	heap.Init(q)
+
 	// push enqueues (or improves) only if strictly better than any
 	// already processed or enqueued remaining budget.
 	push := func(t ir.Type, remaining uint32) {
@@ -410,17 +469,6 @@ func expandTypesWithBudgets(
 			return
 		}
 		q.push(typeQueueEntry{id: id, remaining: remaining})
-	}
-
-	// Seed from all parameter variables of all subprograms.
-	for _, sp := range subprograms {
-		budget := budgets[sp.ID]
-		for _, v := range sp.Variables {
-			if !v.IsParameter || v.IsReturn || v.Type == nil {
-				continue
-			}
-			push(v.Type, budget)
-		}
 	}
 
 	// Local helper to complete a just-added type ID.
@@ -624,8 +672,12 @@ func materializePending(
 			if parseLocs {
 				ranges = p.outOfLinePCRanges
 			}
+			isParameter := die.Tag == dwarf.TagFormalParameter
+			if !isParameter {
+				continue
+			}
 			v, err := processVariable(
-				p.unit, die, die.Tag == dwarf.TagFormalParameter,
+				p.unit, die, isParameter,
 				parseLocs, ranges,
 				loclistReader, pointerSize, tc,
 			)
@@ -644,6 +696,10 @@ func materializePending(
 				ranges = inl.inlinedPCRanges.Ranges
 			}
 			for _, inlVar := range inl.variables {
+				isParameter := inlVar.Tag == dwarf.TagFormalParameter
+				if !isParameter {
+					continue
+				}
 				abstractOrigin, ok, err := maybeGetAttr[dwarf.Offset](
 					inlVar, dwarf.AttrAbstractOrigin,
 				)
@@ -663,9 +719,10 @@ func materializePending(
 						baseVar.Locations = append(baseVar.Locations, locs...)
 					}
 				} else {
+
 					// Fully defined var in the inlined instance.
 					v, err := processVariable(
-						p.unit, inlVar, inlVar.Tag == dwarf.TagFormalParameter,
+						p.unit, inlVar, isParameter,
 						true /* parseLocations */, ranges,
 						loclistReader, pointerSize, tc,
 					)
@@ -1036,18 +1093,20 @@ func completeGoMapType(tc *typeCatalog, t *ir.GoMapType) error {
 	}
 }
 
-func field(st *ir.StructureType, name string) (*ir.Field, error) {
+func field(tc *typeCatalog, st *ir.StructureType, name string) (*ir.Field, error) {
 	offset := slices.IndexFunc(st.RawFields, func(f ir.Field) bool {
 		return f.Name == name
 	})
 	if offset == -1 {
 		return nil, fmt.Errorf("type %q has no %s field", st.Name, name)
 	}
+	f := &st.RawFields[offset]
+	f.Type = tc.typesByID[f.Type.GetID()]
 	return &st.RawFields[offset], nil
 }
 
-func fieldType[T ir.Type](st *ir.StructureType, name string) (T, error) {
-	f, err := field(st, name)
+func fieldType[T ir.Type](tc *typeCatalog, st *ir.StructureType, name string) (T, error) {
+	f, err := field(tc, st, name)
 	if err != nil {
 		return *new(T), err
 	}
@@ -1068,6 +1127,7 @@ func resolvePointeeType[T ir.Type](tc *typeCatalog, t ir.Type) (T, error) {
 	if !ok {
 		return *new(T), fmt.Errorf("type %q is not a pointer type, got %T", t.GetName(), t)
 	}
+	ptrType.Pointee = tc.typesByID[ptrType.Pointee.GetID()]
 	if ppt, ok := ptrType.Pointee.(*pointeePlaceholderType); ok {
 		pointee, err := tc.addType(ppt.offset)
 		if err != nil {
@@ -1078,8 +1138,8 @@ func resolvePointeeType[T ir.Type](tc *typeCatalog, t ir.Type) (T, error) {
 	pointee, ok := ptrType.Pointee.(T)
 	if !ok {
 		return *new(T), fmt.Errorf(
-			"pointee type %q is not a %T, got %T",
-			ptrType.Pointee.GetName(), new(T), ptrType.Pointee,
+			"pointee type %d %q of %d (%q) is not a %T, got %T",
+			ptrType.ID, ptrType.Pointee.GetName(), ptrType.ID, ptrType.Name, new(T), ptrType.Pointee,
 		)
 	}
 	return pointee, nil
@@ -1090,7 +1150,7 @@ func completeSwissMapHeaderType(tc *typeCatalog, st *ir.StructureType) error {
 	var groupReferenceType *ir.StructureType
 	var groupType *ir.StructureType
 	{
-		dirPtrType, err := fieldType[*ir.PointerType](st, "dirPtr")
+		dirPtrType, err := fieldType[*ir.PointerType](tc, st, "dirPtr")
 		if err != nil {
 			return err
 		}
@@ -1102,11 +1162,11 @@ func completeSwissMapHeaderType(tc *typeCatalog, st *ir.StructureType) error {
 		if err != nil {
 			return err
 		}
-		groupReferenceType, err = fieldType[*ir.StructureType](tableType, "groups")
+		groupReferenceType, err = fieldType[*ir.StructureType](tc, tableType, "groups")
 		if err != nil {
 			return err
 		}
-		groupPtrType, err := fieldType[*ir.PointerType](groupReferenceType, "data")
+		groupPtrType, err := fieldType[*ir.PointerType](tc, groupReferenceType, "data")
 		if err != nil {
 			return err
 		}
@@ -1118,9 +1178,10 @@ func completeSwissMapHeaderType(tc *typeCatalog, st *ir.StructureType) error {
 
 	tablePtrSliceDataType := &ir.GoSliceDataType{
 		TypeCommon: ir.TypeCommon{
-			ID:       tc.idAlloc.next(),
-			Name:     fmt.Sprintf("[]%s.array", tablePtrType.GetName()),
-			ByteSize: tc.maxHashBucketsSize,
+			ID:               tc.idAlloc.next(),
+			Name:             fmt.Sprintf("[]%s.array", tablePtrType.GetName()),
+			DynamicSizeClass: ir.DynamicSizeHashmap,
+			ByteSize:         tablePtrType.GetByteSize(),
 		},
 		Element: tablePtrType,
 	}
@@ -1128,9 +1189,10 @@ func completeSwissMapHeaderType(tc *typeCatalog, st *ir.StructureType) error {
 
 	groupSliceType := &ir.GoSliceDataType{
 		TypeCommon: ir.TypeCommon{
-			ID:       tc.idAlloc.next(),
-			Name:     fmt.Sprintf("[]%s.array", groupType.GetName()),
-			ByteSize: uint32(tc.maxDynamicTypeSize),
+			ID:               tc.idAlloc.next(),
+			Name:             fmt.Sprintf("[]%s.array", groupType.GetName()),
+			DynamicSizeClass: ir.DynamicSizeSlice,
+			ByteSize:         groupType.GetByteSize(),
 		},
 		Element: groupType,
 	}
@@ -1153,7 +1215,7 @@ func completeSwissMapHeaderType(tc *typeCatalog, st *ir.StructureType) error {
 }
 
 func completeHMapHeaderType(tc *typeCatalog, st *ir.StructureType) error {
-	bucketsField, err := field(st, "buckets")
+	bucketsField, err := field(tc, st, "buckets")
 	if err != nil {
 		return err
 	}
@@ -1161,12 +1223,12 @@ func completeHMapHeaderType(tc *typeCatalog, st *ir.StructureType) error {
 	if err != nil {
 		return err
 	}
-	keysArrayType, err := fieldType[*ir.ArrayType](bucketsStructType, "keys")
+	keysArrayType, err := fieldType[*ir.ArrayType](tc, bucketsStructType, "keys")
 	if err != nil {
 		return err
 	}
 	keyType := keysArrayType.Element
-	valuesArrayType, err := fieldType[*ir.ArrayType](bucketsStructType, "values")
+	valuesArrayType, err := fieldType[*ir.ArrayType](tc, bucketsStructType, "values")
 	if err != nil {
 		return err
 	}
@@ -1178,9 +1240,10 @@ func completeHMapHeaderType(tc *typeCatalog, st *ir.StructureType) error {
 	}
 	bucketsSliceDataType := &ir.GoSliceDataType{
 		TypeCommon: ir.TypeCommon{
-			ID:       tc.idAlloc.next(),
-			Name:     fmt.Sprintf("[]%s.array", bucketsType.GetName()),
-			ByteSize: tc.maxDynamicTypeSize,
+			ID:               tc.idAlloc.next(),
+			Name:             fmt.Sprintf("[]%s.array", bucketsType.GetName()),
+			DynamicSizeClass: ir.DynamicSizeHashmap,
+			ByteSize:         bucketsType.GetByteSize(),
 		},
 		Element: bucketsType,
 	}
@@ -1196,15 +1259,16 @@ func completeHMapHeaderType(tc *typeCatalog, st *ir.StructureType) error {
 }
 
 func completeGoStringType(tc *typeCatalog, st *ir.StructureType) error {
-	strField, err := field(st, "str")
+	strField, err := field(tc, st, "str")
 	if err != nil {
 		return err
 	}
 	strDataType := &ir.GoStringDataType{
 		TypeCommon: ir.TypeCommon{
-			ID:       tc.idAlloc.next(),
-			Name:     fmt.Sprintf("%s.str", st.Name),
-			ByteSize: tc.maxDynamicTypeSize,
+			ID:               tc.idAlloc.next(),
+			Name:             fmt.Sprintf("%s.str", st.Name),
+			DynamicSizeClass: ir.DynamicSizeString,
+			ByteSize:         1,
 		},
 	}
 	tc.typesByID[strDataType.ID] = strDataType
@@ -1227,7 +1291,7 @@ func completeGoStringType(tc *typeCatalog, st *ir.StructureType) error {
 }
 
 func completeGoSliceType(tc *typeCatalog, st *ir.StructureType) error {
-	arrayField, err := field(st, "array")
+	arrayField, err := field(tc, st, "array")
 	if err != nil {
 		return err
 	}
@@ -1237,9 +1301,10 @@ func completeGoSliceType(tc *typeCatalog, st *ir.StructureType) error {
 	}
 	arrayDataType := &ir.GoSliceDataType{
 		TypeCommon: ir.TypeCommon{
-			ID:       tc.idAlloc.next(),
-			Name:     fmt.Sprintf("%s.array", st.Name),
-			ByteSize: tc.maxDynamicTypeSize,
+			ID:               tc.idAlloc.next(),
+			Name:             fmt.Sprintf("%s.array", st.Name),
+			DynamicSizeClass: ir.DynamicSizeSlice,
+			ByteSize:         elementType.GetByteSize(),
 		},
 		Element: elementType,
 	}
@@ -1519,11 +1584,18 @@ func (v *unitChildVisitor) push(
 			}
 		}
 
-		nameWithoutStar := name
-		if entry.Tag == dwarf.TagPointerType {
-			nameWithoutStar = name[1:]
+		interesting := false
+		if entry.Tag != dwarf.TagTypedef && (name == "runtime.g" || name == "runtime.m") {
+			interesting = true
 		}
-		if primitiveTypeNameRegexp.MatchString(nameWithoutStar) {
+		if !interesting {
+			nameWithoutStar := name
+			if entry.Tag == dwarf.TagPointerType {
+				nameWithoutStar = name[1:]
+			}
+			interesting = primitiveTypeNameRegexp.MatchString(nameWithoutStar)
+		}
+		if interesting {
 			v.root.interestingTypes = append(v.root.interestingTypes, entry.Offset)
 		}
 		return nil, nil

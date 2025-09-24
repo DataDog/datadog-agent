@@ -222,6 +222,15 @@ func (hr *horizontalController) computeScaleAction(
 	// Now that we have applied all modifications to targetDesiredReplicas, we can compute the scale direction
 	scaleDirection := common.GetScaleDirection(currentDesiredReplicas, targetDesiredReplicas)
 
+	// Check if we are in fallback mode and scaling direction is disabled
+	if scaleDirection != common.NoScale && source == datadoghqcommon.DatadogPodAutoscalerLocalValueSource {
+		if autoscalerInternal.Spec().Fallback != nil && !isFallbackScalingDirectionEnabled(autoscalerInternal.Spec().Fallback.Horizontal.Direction, scaleDirection) {
+			limitReason = fmt.Sprintf("scaling disabled as fallback in the scaling direction (%s) is disabled", scaleDirection)
+			log.Debugf("Scaling limited for autoscaler id: %s, scale direction: %s, limit reason: %s", autoscalerInternal.ID(), scaleDirection, limitReason)
+			return nil, 0, errors.New(limitReason)
+		}
+	}
+
 	// If we need to scale, we apply scaling rules if any
 	if scaleDirection != common.NoScale {
 		// Applying scaling rules if any
@@ -264,6 +273,24 @@ func (hr *horizontalController) computeScaleAction(
 	return horizontalAction, evalAfter, nil
 }
 
+func isFallbackScalingDirectionEnabled(fallbackEnabledDirection datadoghq.DatadogPodAutoscalerFallbackDirection, scaleDirection common.ScaleDirection) bool {
+	if fallbackEnabledDirection == "" {
+		// Default to ScaleUp if not set
+		fallbackEnabledDirection = datadoghq.DatadogPodAutoscalerFallbackDirectionScaleUp
+	}
+
+	if fallbackEnabledDirection == datadoghq.DatadogPodAutoscalerFallbackDirectionAll {
+		return true
+	}
+	if scaleDirection == common.ScaleDown && fallbackEnabledDirection == datadoghq.DatadogPodAutoscalerFallbackDirectionScaleDown {
+		return true
+	}
+	if scaleDirection == common.ScaleUp && fallbackEnabledDirection == datadoghq.DatadogPodAutoscalerFallbackDirectionScaleUp {
+		return true
+	}
+	return false
+}
+
 func isScalingAllowed(autoscalerSpec *datadoghq.DatadogPodAutoscalerSpec, source datadoghqcommon.DatadogPodAutoscalerValueSource, direction common.ScaleDirection) (bool, string) {
 	// If we don't have spec, we cannot take decisions, should not happen.
 	if autoscalerSpec == nil {
@@ -302,25 +329,25 @@ func isScalingAllowed(autoscalerSpec *datadoghq.DatadogPodAutoscalerSpec, source
 	return true, ""
 }
 
-func stabilizeRecommendations(currentTime time.Time, recHist []model.HorizontalScalingValues, currentReplicas int32, targetDesiredReplicas int32, stabilizationWindowScaleUpSeconds int32, stabilizationWindowScaleDownSeconds int32) (int32, string) {
+func stabilizeRecommendations(currentTime time.Time, recHist []datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation, currentReplicas int32, targetDesiredReplicas int32, stabilizationWindowScaleUpSeconds int32, stabilizationWindowScaleDownSeconds int32) (int32, string) {
 	limitReason := ""
 
 	upRecommendation := targetDesiredReplicas
-	upCutoff := currentTime.Add(-time.Duration(stabilizationWindowScaleUpSeconds) * time.Second)
+	upCutoff := metav1.NewTime(currentTime.Add(-time.Duration(stabilizationWindowScaleUpSeconds) * time.Second))
 
 	downRecommendation := targetDesiredReplicas
-	downCutoff := currentTime.Add(-time.Duration(stabilizationWindowScaleDownSeconds) * time.Second)
+	downCutoff := metav1.NewTime(currentTime.Add(-time.Duration(stabilizationWindowScaleDownSeconds) * time.Second))
 
 	for _, a := range slices.Backward(recHist) {
-		if a.Timestamp.After(upCutoff) {
+		if a.GeneratedAt.Time.After(upCutoff.Time) {
 			upRecommendation = min(upRecommendation, a.Replicas)
 		}
 
-		if a.Timestamp.After(downCutoff) {
+		if a.GeneratedAt.Time.After(downCutoff.Time) {
 			downRecommendation = max(downRecommendation, a.Replicas)
 		}
 
-		if a.Timestamp.Before(upCutoff) && a.Timestamp.Before(downCutoff) {
+		if a.GeneratedAt.Time.Before(upCutoff.Time) && a.GeneratedAt.Time.Before(downCutoff.Time) {
 			break
 		}
 	}

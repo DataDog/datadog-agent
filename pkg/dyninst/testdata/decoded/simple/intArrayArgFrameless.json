@@ -6,7 +6,7 @@
       "name": "",
       "method": "main.stringArrayArgFrameless",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {
@@ -18,7 +18,7 @@
           {
             "function": "main.stringArrayArgFrameless",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 73
+            "lineNumber": 75
           },
           {
             "function": "main.main",

@@ -42,8 +42,8 @@ func NewTeeConfig(baseline, compare model.BuildableConfig) model.BuildableConfig
 // current config, instead of treating it as sealed
 // NOTE: Only used by OTel, no new uses please!
 func (t *teeConfig) RevertFinishedBackToBuilder() model.BuildableConfig {
-	t.baseline.RevertFinishedBackToBuilder()
-	t.compare.RevertFinishedBackToBuilder()
+	t.baseline.RevertFinishedBackToBuilder() //nolint:forbidigo // legitimate use within interface implementation
+	t.compare.RevertFinishedBackToBuilder()  //nolint:forbidigo // legitimate use within interface implementation
 	return t
 }
 
@@ -87,8 +87,8 @@ func (t *teeConfig) UnsetForSource(key string, source model.Source) {
 
 // SetKnown adds a key to the set of known valid config keys
 func (t *teeConfig) SetKnown(key string) {
-	t.baseline.SetKnown(key)
-	t.compare.SetKnown(key)
+	t.baseline.SetKnown(key) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	t.compare.SetKnown(key)  //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 }
 
 // IsKnown returns whether a key is known
@@ -345,8 +345,8 @@ func (t *teeConfig) SetEnvPrefix(in string) {
 
 // BindEnv wraps Viper for concurrent access, and adds tracking of the configurable env vars
 func (t *teeConfig) BindEnv(key string, envvars ...string) {
-	t.baseline.BindEnv(key, envvars...)
-	t.compare.BindEnv(key, envvars...)
+	t.baseline.BindEnv(key, envvars...) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	t.compare.BindEnv(key, envvars...)  //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 }
 
 // SetEnvKeyReplacer wraps Viper for concurrent access
@@ -496,6 +496,14 @@ func (t *teeConfig) ConfigFileUsed() string {
 	t.compareResult("", "ConfigFileUsed", base, compare)
 	return base
 
+}
+
+// GetSubfields returns the subfields from viper
+func (t *teeConfig) GetSubfields(key string) []string {
+	base := t.baseline.GetSubfields(key)
+	compare := t.compare.GetSubfields(key)
+	t.compareResult("", "GetSubfields", base, compare)
+	return base
 }
 
 // GetEnvVars implements the Config interface

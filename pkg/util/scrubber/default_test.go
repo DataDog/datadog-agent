@@ -832,3 +832,131 @@ log_level: info
 
 	assert.Equal(t, cleanedConfigFile, cleanedString)
 }
+
+func TestNewHTTPHeaderAndExactKeys(t *testing.T) {
+	// Test HTTP header-style API keys with "key" suffix
+	assertClean(t,
+		`x-api-key: abc123def456`,
+		`x-api-key: "********"`)
+	assertClean(t,
+		`x-dreamfactory-api-key: secret123`,
+		`x-dreamfactory-api-key: "********"`)
+	assertClean(t,
+		`x-functions-key: mykey456`,
+		`x-functions-key: "********"`)
+	assertClean(t,
+		`x-lz-api-key: lzkey789`,
+		`x-lz-api-key: "********"`)
+	assertClean(t,
+		`x-octopus-apikey: octopuskey`,
+		`x-octopus-apikey: "********"`)
+	assertClean(t,
+		`x-pm-partner-key: partnerkey123`,
+		`x-pm-partner-key: "********"`)
+	assertClean(t,
+		`x-rapidapi-key: rapidkey456`,
+		`x-rapidapi-key: "********"`)
+	assertClean(t,
+		`x-sungard-idp-api-key: sungardkey`,
+		`x-sungard-idp-api-key: "********"`)
+	assertClean(t,
+		`x-vtex-api-appkey: vtexkey789`,
+		`x-vtex-api-appkey: "********"`)
+	assertClean(t,
+		`x-seel-api-key: seelkey123`,
+		`x-seel-api-key: "********"`)
+	assertClean(t,
+		`x-goog-api-key: googlekey456`,
+		`x-goog-api-key: "********"`)
+	assertClean(t,
+		`x-sonar-passcode: sonarpass789`,
+		`x-sonar-passcode: "********"`)
+
+	// Test HTTP header-style API keys with "token" suffix
+	assertClean(t,
+		`x-auth-token: authtoken123`,
+		`x-auth-token: "********"`)
+	assertClean(t,
+		`x-rundeck-auth-token: rundecktoken`,
+		`x-rundeck-auth-token: "********"`)
+	assertClean(t,
+		`x-consul-token: consultoken123`,
+		`x-consul-token: "********"`)
+	assertClean(t,
+		`x-datadog-monitor-token: ddmonitortoken`,
+		`x-datadog-monitor-token: "********"`)
+	assertClean(t,
+		`x-vault-token: vaulttoken456`,
+		`x-vault-token: "********"`)
+	assertClean(t,
+		`x-vtex-api-apptoken: vtexapptoken`,
+		`x-vtex-api-apptoken: "********"`)
+	assertClean(t,
+		`x-static-token: statictoken789`,
+		`x-static-token: "********"`)
+
+	// Test HTTP header-style API keys with "auth" suffix
+	assertClean(t,
+		`x-auth: authvalue123`,
+		`x-auth: "********"`)
+	assertClean(t,
+		`x-stratum-auth: stratumauth`,
+		`x-stratum-auth: "********"`)
+
+	// Test HTTP header-style API keys with "secret" suffix
+	assertClean(t,
+		`x-api-secret: apisecret123`,
+		`x-api-secret: "********"`)
+	assertClean(t,
+		`x-ibm-client-secret: ibmsecret456`,
+		`x-ibm-client-secret: "********"`)
+	assertClean(t,
+		`x-chalk-client-secret: chalksecret789`,
+		`x-chalk-client-secret: "********"`)
+
+	// Test exact key matches
+	assertClean(t,
+		`auth-tenantid: tenant123`,
+		`auth-tenantid: "********"`)
+	assertClean(t,
+		`authority: auth123`,
+		`authority: "********"`)
+	assertClean(t,
+		`cainzapp-api-key: cainzkey456`,
+		`cainzapp-api-key: "********"`)
+	assertClean(t,
+		`cms-svc-api-key: cmskey789`,
+		`cms-svc-api-key: "********"`)
+	assertClean(t,
+		`lodauth: lodauth123`,
+		`lodauth: "********"`)
+	assertClean(t,
+		`sec-websocket-key: websocketkey`,
+		`sec-websocket-key: "********"`)
+	assertClean(t,
+		`statuskey: status123`,
+		`statuskey: "********"`)
+	assertClean(t,
+		`cookie: cookievalue123`,
+		`cookie: "********"`)
+	assertClean(t,
+		`private-token: privatetoken456`,
+		`private-token: "********"`)
+	assertClean(t,
+		`kong-admin-token: kongadmintoken`,
+		`kong-admin-token: "********"`)
+	assertClean(t,
+		`accesstoken: accesstoken789`,
+		`accesstoken: "********"`)
+	assertClean(t,
+		`session_token: sessiontoken123`,
+		`session_token: "********"`)
+
+	// Test that non-matching keys are not scrubbed
+	assertClean(t,
+		`regular_key: should_not_be_scrubbed`,
+		`regular_key: should_not_be_scrubbed`)
+	assertClean(t,
+		`some-other-key: also_not_scrubbed`,
+		`some-other-key: also_not_scrubbed`)
+}
