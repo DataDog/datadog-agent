@@ -30,7 +30,7 @@ type configRefreshWindowsSuite struct {
 
 func TestConfigRefreshWindowsSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &configRefreshWindowsSuite{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)))))
+	e2e.Run(t, &configRefreshWindowsSuite{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)))))
 }
 
 func (v *configRefreshWindowsSuite) TestConfigRefresh() {
@@ -67,7 +67,7 @@ func (v *configRefreshWindowsSuite) TestConfigRefresh() {
 
 	// start the agent with that configuration
 	v.UpdateEnv(awshost.Provisioner(
-		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
+		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
 		awshost.WithAgentOptions(agentOptions...),
 		awshost.WithAgentClientOptions(
 			agentclientparams.WithAuthTokenPath(authTokenFilePath),
