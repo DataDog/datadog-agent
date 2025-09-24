@@ -171,7 +171,7 @@ func ResolveSSHUserSession(ctx *model.UserSessionContext) {
 			// Last Fallback for openSUSE
 			f, err = os.OpenFile("/var/log/messages", os.O_RDONLY, 0644)
 			if err != nil {
-				fmt.Errorf("Can't find any log file")
+				fmt.Printf("Can't find any log file")
 				return
 			}
 			fmt.Print("Found /var/log/messages\n")
