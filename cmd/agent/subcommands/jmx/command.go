@@ -40,6 +40,7 @@ import (
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	dualTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-dual"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -281,6 +282,7 @@ func disableCmdPort() {
 // with the Console reporter
 func runJmxCommandConsole(config config.Component,
 	cliParams *cliParams,
+	filterStore workloadfilter.Component,
 	wmeta workloadmeta.Component,
 	ac autodiscovery.Component,
 	diagnoseSendermanager diagnosesendermanager.Component,
@@ -307,7 +309,7 @@ func runJmxCommandConsole(config config.Component,
 
 	// Create the CheckScheduler, but do not attach it to
 	// AutoDiscovery.
-	pkgcollector.InitCheckScheduler(collector, senderManager, logReceiver, tagger)
+	pkgcollector.InitCheckScheduler(collector, senderManager, logReceiver, tagger, filterStore)
 
 	// if cliSelectedChecks is empty, then we want to fetch all check configs;
 	// otherwise, we fetch only the matching cehck configs.
