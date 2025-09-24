@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux && trivy
+//go:build linux
 
 // Package collectorv2 holds sbom related files
 package collectorv2
@@ -18,11 +18,13 @@ import (
 	"net/textproto"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
+	debVersion "github.com/knqyf263/go-deb-version"
+
+	sbomtypes "github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom/types"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
-	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
-	"github.com/aquasecurity/trivy/pkg/types"
 )
 
 type dpkgScanner struct {
@@ -32,28 +34,26 @@ func (s *dpkgScanner) Name() string {
 	return "dpkg"
 }
 
-func (s *dpkgScanner) ListPackages(_ context.Context, root *os.Root) (types.Result, error) {
+func (s *dpkgScanner) ListPackages(_ context.Context, root *os.Root) ([]sbomtypes.PackageWithInstalledFiles, error) {
 	pkgs, err := s.listInstalledPkgs(root)
 	if err != nil {
-		return types.Result{}, err
+		return nil, err
 	}
 
 	installedFiles, err := s.listInstalledFiles(root)
 	if err != nil {
-		return types.Result{}, err
+		return nil, err
 	}
 
-	pkgsWithFiles := make([]ftypes.Package, 0, len(pkgs))
+	pkgsWithFiles := make([]sbomtypes.PackageWithInstalledFiles, 0, len(pkgs))
 	for _, pkg := range pkgs {
-		if files, ok := installedFiles[pkg.Name]; ok {
-			pkg.InstalledFiles = files
-		}
-		pkgsWithFiles = append(pkgsWithFiles, pkg)
+		pkgsWithFiles = append(pkgsWithFiles, sbomtypes.PackageWithInstalledFiles{
+			Package:        pkg,
+			InstalledFiles: installedFiles[pkg.Name],
+		})
 	}
 
-	return types.Result{
-		Packages: pkgsWithFiles,
-	}, nil
+	return pkgsWithFiles, nil
 }
 
 const statusPath = "var/lib/dpkg/status"
@@ -62,7 +62,7 @@ const infoPath = "var/lib/dpkg/info/"
 const readDirBatchSize = 32
 const md5sumsSuffix = ".md5sums"
 
-func (s *dpkgScanner) listInstalledPkgs(root *os.Root) ([]ftypes.Package, error) {
+func (s *dpkgScanner) listInstalledPkgs(root *os.Root) ([]sbomtypes.Package, error) {
 	pkgs, err := s.parseStatusFile(root, statusPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse dpkg status file (%s): %w", statusPath, err)
@@ -87,6 +87,12 @@ func (s *dpkgScanner) listInstalledPkgs(root *os.Root) ([]ftypes.Package, error)
 		}
 
 		for _, statusFile := range statusFiles {
+			// on distroless images, there are some md5sums files in the status.d directory
+			// ignore them
+			if strings.HasSuffix(statusFile.Name(), md5sumsSuffix) {
+				continue
+			}
+
 			fullPath := filepath.Join(statusDPath, statusFile.Name())
 			pkg, err := s.parseStatusFile(root, fullPath)
 			if err != nil {
@@ -168,7 +174,7 @@ func (s *dpkgScanner) parseInfoFile(root *os.Root, path string) ([]string, error
 
 		return nil, fmt.Errorf("failed to open dpkg info file (%s): %w", path, err)
 	}
-	defer f.Close() // TODO(paulcacheux): defer in a loop
+	defer f.Close()
 
 	var installedFiles []string
 
@@ -187,7 +193,9 @@ func (s *dpkgScanner) parseInfoFile(root *os.Root, path string) ([]string, error
 	return installedFiles, nil
 }
 
-func (s *dpkgScanner) parseStatusFile(root *os.Root, path string) ([]ftypes.Package, error) {
+var dpkgSrcCaptureRegexp = regexp.MustCompile(`([^\s]*)(?: \((.*)\))?`)
+
+func (s *dpkgScanner) parseStatusFile(root *os.Root, path string) ([]sbomtypes.Package, error) {
 	f, err := root.Open(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -197,7 +205,7 @@ func (s *dpkgScanner) parseStatusFile(root *os.Root, path string) ([]ftypes.Pack
 	}
 	defer f.Close()
 
-	var pkgs []ftypes.Package
+	var pkgs []sbomtypes.Package
 
 	scanner := newDPKGStatusScanner(f)
 	for scanner.Scan() {
@@ -211,14 +219,41 @@ func (s *dpkgScanner) parseStatusFile(root *os.Root, path string) ([]ftypes.Pack
 			continue
 		}
 
-		pkg := ftypes.Package{
+		pkg := sbomtypes.Package{
 			Name:    header.Get("Package"),
 			Version: header.Get("Version"),
 		}
 		if pkg.Name == "" || pkg.Version == "" {
 			continue
 		}
-		pkg.SrcVersion = pkg.Version // TODO(paulcacheux): parse source
+
+		if src := header.Get("Source"); src != "" {
+			matches := dpkgSrcCaptureRegexp.FindStringSubmatch(src)
+			if matches != nil {
+				// name would be in matches[1], but we don't use it for now
+				pkg.SrcVersion = strings.TrimSpace(matches[2])
+			}
+		}
+
+		if pkg.SrcVersion == "" {
+			pkg.SrcVersion = pkg.Version
+		}
+
+		if v, err := debVersion.NewVersion(pkg.Version); err != nil {
+			seclog.Warnf("failed to parse dpkg package version, filepath=%s, package=%s, version=%s: %v", path, pkg.Name, pkg.Version, err)
+		} else {
+			pkg.Version = v.Version()
+			pkg.Epoch = v.Epoch()
+			pkg.Release = v.Revision()
+		}
+
+		if v, err := debVersion.NewVersion(pkg.SrcVersion); err != nil {
+			seclog.Warnf("failed to parse dpkg package source version, filepath=%s, package=%s, version=%s: %v", path, pkg.Name, pkg.SrcVersion, err)
+		} else {
+			pkg.SrcVersion = v.Version()
+			pkg.SrcEpoch = v.Epoch()
+			pkg.SrcRelease = v.Revision()
+		}
 
 		pkgs = append(pkgs, pkg)
 	}

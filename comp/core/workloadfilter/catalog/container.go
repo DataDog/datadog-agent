@@ -22,13 +22,13 @@ func LegacyContainerMetricsProgram(config config.Component, logger log.Component
 	includeProgram, includeErr := createProgramFromOldFilters(config.GetStringSlice("container_include_metrics"), workloadfilter.ContainerType)
 	if includeErr != nil {
 		initErrors = append(initErrors, includeErr)
-		logger.Warnf("Error creating include program for %s: %v", programName, includeErr)
+		logger.Warnf("error creating include program for %s: %v", programName, includeErr)
 	}
 
 	excludeProgram, excludeErr := createProgramFromOldFilters(config.GetStringSlice("container_exclude_metrics"), workloadfilter.ContainerType)
 	if excludeErr != nil {
 		initErrors = append(initErrors, excludeErr)
-		logger.Warnf("Error creating exclude program for %s: %v", programName, excludeErr)
+		logger.Warnf("error creating exclude program for %s: %v", programName, excludeErr)
 	}
 
 	return program.CELProgram{
@@ -47,13 +47,13 @@ func LegacyContainerLogsProgram(config config.Component, logger log.Component) p
 	includeProgram, includeErr := createProgramFromOldFilters(config.GetStringSlice("container_include_logs"), workloadfilter.ContainerType)
 	if includeErr != nil {
 		initErrors = append(initErrors, includeErr)
-		logger.Warnf("Error creating include program for %s: %v", programName, includeErr)
+		logger.Warnf("error creating include program for %s: %v", programName, includeErr)
 	}
 
 	excludeProgram, excludeErr := createProgramFromOldFilters(config.GetStringSlice("container_exclude_logs"), workloadfilter.ContainerType)
 	if excludeErr != nil {
 		initErrors = append(initErrors, excludeErr)
-		logger.Warnf("Error creating exclude program for %s: %v", programName, excludeErr)
+		logger.Warnf("error creating exclude program for %s: %v", programName, excludeErr)
 	}
 
 	return program.CELProgram{
@@ -72,7 +72,7 @@ func LegacyContainerACExcludeProgram(config config.Component, logger log.Compone
 	excludeProgram, excludeErr := createProgramFromOldFilters(config.GetStringSlice("ac_exclude"), workloadfilter.ContainerType)
 	if excludeErr != nil {
 		initErrors = append(initErrors, excludeErr)
-		logger.Warnf("Error creating exclude program for %s: %v", programName, excludeErr)
+		logger.Warnf("error creating exclude program for %s: %v", programName, excludeErr)
 	}
 
 	return program.CELProgram{
@@ -90,7 +90,7 @@ func LegacyContainerACIncludeProgram(config config.Component, logger log.Compone
 	includeProgram, includeErr := createProgramFromOldFilters(config.GetStringSlice("ac_include"), workloadfilter.ContainerType)
 	if includeErr != nil {
 		initErrors = append(initErrors, includeErr)
-		logger.Warnf("Error creating include program for %s: %v", programName, includeErr)
+		logger.Warnf("error creating include program for %s: %v", programName, includeErr)
 	}
 
 	return program.CELProgram{
@@ -108,13 +108,13 @@ func LegacyContainerGlobalProgram(config config.Component, logger log.Component)
 	includeProgram, includeErr := createProgramFromOldFilters(config.GetStringSlice("container_include"), workloadfilter.ContainerType)
 	if includeErr != nil {
 		initErrors = append(initErrors, includeErr)
-		logger.Warnf("Error creating include program for %s: %v", programName, includeErr)
+		logger.Warnf("error creating include program for %s: %v", programName, includeErr)
 	}
 
 	excludeProgram, excludeErr := createProgramFromOldFilters(config.GetStringSlice("container_exclude"), workloadfilter.ContainerType)
 	if excludeErr != nil {
 		initErrors = append(initErrors, excludeErr)
-		logger.Warnf("Error creating exclude program for %s: %v", programName, excludeErr)
+		logger.Warnf("error creating exclude program for %s: %v", programName, excludeErr)
 	}
 
 	return program.CELProgram{
@@ -130,27 +130,16 @@ func LegacyContainerSBOMProgram(config config.Component, logger log.Component) p
 	programName := "LegacyContainerSBOMProgram"
 	var initErrors []error
 
-	if !config.GetBool("sbom.enabled") && !config.GetBool("sbom.container_image.enabled") && !config.GetBool("sbom.container.enabled") {
-		return program.CELProgram{
-			Name: programName,
-		}
-	}
-
-	excludeList := config.GetStringSlice("sbom.container_image.container_exclude")
-	if config.GetBool("sbom.container_image.exclude_pause_container") {
-		excludeList = append(excludeList, containers.GetPauseContainerExcludeList()...)
-	}
-
 	includeProgram, includeErr := createProgramFromOldFilters(config.GetStringSlice("sbom.container_image.container_include"), workloadfilter.ContainerType)
 	if includeErr != nil {
 		initErrors = append(initErrors, includeErr)
-		logger.Warnf("Error creating include program for %s: %v", programName, includeErr)
+		logger.Warnf("error creating include program for %s: %v", programName, includeErr)
 	}
 
-	excludeProgram, excludeErr := createProgramFromOldFilters(excludeList, workloadfilter.ContainerType)
+	excludeProgram, excludeErr := createProgramFromOldFilters(config.GetStringSlice("sbom.container_image.container_exclude"), workloadfilter.ContainerType)
 	if excludeErr != nil {
 		initErrors = append(initErrors, excludeErr)
-		logger.Warnf("Error creating exclude program for %s: %v", programName, excludeErr)
+		logger.Warnf("error creating exclude program for %s: %v", programName, excludeErr)
 	}
 
 	return program.CELProgram{
@@ -162,18 +151,14 @@ func LegacyContainerSBOMProgram(config config.Component, logger log.Component) p
 }
 
 // ContainerPausedProgram creates a program for filtering paused containers
-func ContainerPausedProgram(config config.Component, logger log.Component) program.FilterProgram {
+func ContainerPausedProgram(_ config.Component, logger log.Component) program.FilterProgram {
 	programName := "ContainerPausedProgram"
 	var initErrors []error
-	var excludeList []string
-	if config.GetBool("exclude_pause_container") {
-		excludeList = containers.GetPauseContainerExcludeList()
-	}
 
-	excludeProgram, excludeErr := createProgramFromOldFilters(excludeList, workloadfilter.ContainerType)
+	excludeProgram, excludeErr := createProgramFromOldFilters(containers.GetPauseContainerExcludeList(), workloadfilter.ContainerType)
 	if excludeErr != nil {
 		initErrors = append(initErrors, excludeErr)
-		logger.Warnf("Error creating exclude program for %s: %v", programName, excludeErr)
+		logger.Warnf("error creating exclude program for %s: %v", programName, excludeErr)
 	}
 
 	return program.CELProgram{

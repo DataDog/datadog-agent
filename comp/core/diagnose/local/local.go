@@ -111,7 +111,7 @@ func getLocalIntegrationConfigs(senderManager diagnosesendermanager.Component,
 	if !ok {
 		return nil, fmt.Errorf("Workload Meta is not available")
 	}
-	common.LoadComponents(secretResolver, wmetaInstance, ac, config.GetString("confd_path"))
+	common.LoadComponents(secretResolver, wmetaInstance, tagger, ac, config.GetString("confd_path"))
 	ac.LoadAndRun(context.Background())
 
 	// Create the CheckScheduler, but do not attach it to AutoDiscovery.
