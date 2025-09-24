@@ -34,7 +34,6 @@ build do
       # Set proper permissions
       command "chmod 755 #{install_dir}/embedded/lib/#{name}.dylib"
       # Update install name for the embedded path (important for macOS)
-      command "install_name_tool -id #{install_dir}/embedded/lib/#{name}.dylib #{install_dir}/embedded/lib/#{name}.dylib"
     else
       raise "macOS dynamic library #{name}.dylib not found in #{project.files_path}/#{name}"
     end
