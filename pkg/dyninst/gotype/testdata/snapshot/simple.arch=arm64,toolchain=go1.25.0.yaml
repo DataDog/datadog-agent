@@ -1,10 +1,22 @@
-- offset: "0x0001e6c0"
+- offset: "0x00011ec0"
+  size: 8
+  kind: struct
+  nameEntry: main.aStructNotUsedAsAnArgument
+  name: main.aStructNotUsedAsAnArgument
+  pkg: main
+  ptrToThis: "0x00006d80"
+  struct:
+    fields:
+    - name: a
+      type: int
+      offset: 0
+- offset: "0x0001f1c0"
   size: 184
   kind: struct
   nameEntry: main.bigStruct
   name: main.bigStruct
   pkg: main
-  ptrToThis: "0x00006c80"
+  ptrToThis: "0x00006dc0"
   struct:
     fields:
     - name: Field1 (exported)
