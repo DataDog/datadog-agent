@@ -50,10 +50,12 @@ type HostArtifactClient interface {
 }
 
 type sshExecutor struct {
-	client  *ssh.Client
-	context common.Context
+	client     *ssh.Client
+	privileged *ssh.Client
+	context    common.Context
 
 	username             string
+	privilegedUsername   string
 	host                 string
 	privateKey           []byte
 	privateKeyPassphrase []byte
@@ -93,9 +95,17 @@ func NewHost(context common.Context, hostOutput remote.HostOutput) (*Host, error
 		}
 	}
 
+	var privilegedUsername string
+	if hostOutput.OSFamily == oscomp.WindowsFamily {
+		privilegedUsername = "Administrator"
+	} else {
+		privilegedUsername = "root"
+	}
+
 	sshExecutor := &sshExecutor{
 		context:              context,
 		username:             hostOutput.Username,
+		privilegedUsername:   privilegedUsername,
 		host:                 fmt.Sprintf("%s:%d", hostOutput.Address, hostOutput.Port),
 		privateKey:           privateSSHKey,
 		privateKeyPassphrase: []byte(privateKeyPassword),
@@ -124,12 +134,21 @@ func (h *sshExecutor) Reconnect() error {
 	if h.client != nil {
 		_ = h.client.Close()
 	}
+	if h.privileged != nil {
+		_ = h.privileged.Close()
+	}
 	return backoff.Retry(func() error {
 		client, err := getSSHClient(h.username, h.host, h.privateKey, h.privateKeyPassphrase)
 		if err != nil {
 			return err
 		}
 		h.client = client
+
+		privileged, err := getSSHClient(h.privilegedUsername, h.host, h.privateKey, h.privateKeyPassphrase)
+		if err != nil {
+			return err
+		}
+		h.privileged = privileged
 		return nil
 	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(sshRetryInterval), sshMaxRetries))
 }
@@ -496,11 +515,11 @@ func (h *Host) appendWithSftp(path string, content []byte) (int64, error) {
 }
 
 func (h *Host) getSFTPClient() *sftp.Client {
-	sftpClient, err := sftp.NewClient(h.client, sftp.UseConcurrentWrites(true))
+	sftpClient, err := sftp.NewClient(h.privileged, sftp.UseConcurrentWrites(true))
 	if err != nil {
 		err = h.Reconnect()
 		require.NoError(h.context.T(), err)
-		sftpClient, err = sftp.NewClient(h.client, sftp.UseConcurrentWrites(true))
+		sftpClient, err = sftp.NewClient(h.privileged, sftp.UseConcurrentWrites(true))
 		require.NoError(h.context.T(), err)
 	}
 	return sftpClient
