@@ -9,7 +9,8 @@ init_config:
   #
   use_remote_config_profiles: "%%extra_use_remote_config_profiles%%"
 instances:
-  - ## @param ip_address - string - optional
+  -
+    ## @param ip_address - string - optional
     ## The IP address of the device to monitor.
     #
     ip_address: "%%host%%"
