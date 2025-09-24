@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"expvar"
 	"io"
+	"sort"
 
 	"github.com/DataDog/datadog-agent/comp/core/status"
 )
@@ -38,17 +39,31 @@ func PopulateStatus(stats map[string]interface{}) {
 		if workersData, ok := runnerStats["Workers"]; ok {
 			workerStats := workersData.(map[string]interface{})
 
-			// Calculate average utilization
+			// Calculate average utilization and sort workers by utilization
 			if instancesData, ok := workerStats["Instances"]; ok {
 				instances := instancesData.(map[string]interface{})
 				totalUtilization := 0.0
 				workerCount := 0
 
-				for _, workerData := range instances {
+				// Create a slice to hold worker data for sorting
+				type workerInfo struct {
+					Name        string
+					Utilization float64
+					Data        map[string]interface{}
+				}
+				var workers []workerInfo
+
+				// Tally up utilization and populate the workers slice
+				for workerName, workerData := range instances {
 					if worker, ok := workerData.(map[string]interface{}); ok {
 						if util, ok := worker["Utilization"].(float64); ok {
 							totalUtilization += util
 							workerCount++
+							workers = append(workers, workerInfo{
+								Name:        workerName,
+								Utilization: util,
+								Data:        worker,
+							})
 						}
 					}
 				}
@@ -56,6 +71,33 @@ func PopulateStatus(stats map[string]interface{}) {
 				if workerCount > 0 {
 					avgUtilization := totalUtilization / float64(workerCount)
 					workerStats["AverageUtilization"] = avgUtilization
+
+					// Sort workers by utilization in descending order
+					sort.Slice(workers, func(i, j int) bool {
+						return workers[i].Utilization > workers[j].Utilization
+					})
+
+					// Keep only top 25 workers
+					maxWorkers := 25
+					if len(workers) > maxWorkers {
+						workers = workers[:maxWorkers]
+					}
+
+					// Create a slice of top workers to preserve sorted order
+					topWorkers := make([]struct {
+						Name        string
+						Utilization float64
+					}, 0, len(workers))
+					for _, worker := range workers {
+						topWorkers = append(topWorkers, struct {
+							Name        string
+							Utilization float64
+						}{
+							Name:        worker.Name,
+							Utilization: worker.Utilization,
+						})
+					}
+					workerStats["TopWorkers"] = topWorkers
 				}
 			}
 
