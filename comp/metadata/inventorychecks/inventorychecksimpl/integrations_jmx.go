@@ -14,8 +14,8 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
-	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/status/jmx"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 )
@@ -90,8 +90,8 @@ func (ic *inventorychecksImpl) getJMXChecksMetadata() (jmxMetadata map[string][]
 				}
 
 				metadataEntry := metadata{
-					"init_config":     string(initConfigYaml),
-					"instance":        string(instanceYaml),
+					"init_config":     string(scrubbedInitConfigYaml),
+					"instance":        string(scrubbedInstanceYaml),
 					"config.provider": provider,
 					"config.hash":     configHash,
 					"config.source":   source,
