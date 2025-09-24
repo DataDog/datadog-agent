@@ -8,9 +8,8 @@
 package python
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	typedef "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def/proto"
 )
 
 /*
@@ -20,16 +19,14 @@ import (
 */
 import "C"
 
-var filter *containers.Filter
-
 // IsContainerExcluded returns whether a container should be excluded,
 // based on it's name, image name and namespace. Exclusion patterns are configured
 // via the global options (ac_include/ac_exclude/exclude_pause_container)
 //
 //export IsContainerExcluded
 func IsContainerExcluded(name, image, namespace *C.char) C.int {
-	// If init failed, fallback to False
-	if filter == nil {
+	checkContext, err := getCheckContext()
+	if err != nil {
 		return 0
 	}
 
@@ -40,16 +37,25 @@ func IsContainerExcluded(name, image, namespace *C.char) C.int {
 		goNs = C.GoString(namespace)
 	}
 
-	if filter.IsExcluded(nil, goName, goImg, goNs) {
+	filterablePod := &workloadfilter.Pod{
+		FilterPod: &typedef.FilterPod{
+			Id:          "",
+			Name:        "",
+			Namespace:   goNs,
+			Annotations: map[string]string{},
+		},
+	}
+	filterableContainer := &workloadfilter.Container{
+		FilterContainer: &typedef.FilterContainer{
+			Id:    "",
+			Name:  goName,
+			Image: goImg,
+		},
+		Owner: filterablePod,
+	}
+
+	if checkContext.filter.IsExcluded(filterableContainer) {
 		return 1
 	}
 	return 0
-}
-
-// Separated to unit testing
-func initContainerFilter() {
-	var err error
-	if filter, err = containers.GetSharedMetricFilter(); err != nil {
-		log.Errorf("Error initializing container filtering: %s", err)
-	}
 }
