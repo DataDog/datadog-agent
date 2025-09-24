@@ -10,10 +10,10 @@ import (
 	"fmt"
 	"time"
 
+	privatebundles "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/credentials"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
-	privatebundles "github.com/DataDog/datadog-agent/pkg/privateactionrunner/private-bundles"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/remoteconfig"
 	taskverifier "github.com/DataDog/datadog-agent/pkg/privateactionrunner/task-verifier"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
