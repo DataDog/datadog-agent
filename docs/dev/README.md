@@ -29,5 +29,5 @@ This guide will help you to develop and contribute code to the project.
 [memory]: agent_memory.md
 [caveats]: caveats.md
 [contributing]: ../public/guidelines/contributing.md
-[agent-omnibus]: agent_omnibus.md
+[agent-omnibus]: ../public/how-to/build/distributions.md
 [tools]: tools.md

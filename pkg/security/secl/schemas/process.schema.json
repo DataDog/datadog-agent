@@ -176,7 +176,8 @@
                         "event",
                         "unshare",
                         "fsmount",
-                        "open_tree"
+                        "open_tree",
+                        "listmount"
                     ]
                 }
             },
