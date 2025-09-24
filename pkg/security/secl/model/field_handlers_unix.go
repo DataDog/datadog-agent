@@ -287,10 +287,16 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveK8SUsername(ev, &ev.BaseEvent.ProcessContext.Parent.UserSession)
 	}
 	if ev.BaseEvent.ProcessContext.HasParent() {
-		_ = ev.FieldHandlers.ResolveSSHHostIP(ev, &ev.BaseEvent.ProcessContext.Parent.UserSession)
+		_ = ev.FieldHandlers.ResolveSSHAuthMethod(ev, &ev.BaseEvent.ProcessContext.Parent.UserSession)
 	}
 	if ev.BaseEvent.ProcessContext.HasParent() {
-		_ = ev.FieldHandlers.ResolveSSHHostname(ev, &ev.BaseEvent.ProcessContext.Parent.UserSession)
+		_ = ev.FieldHandlers.ResolveSSHClientIP(ev, &ev.BaseEvent.ProcessContext.Parent.UserSession)
+	}
+	if ev.BaseEvent.ProcessContext.HasParent() {
+		_ = ev.FieldHandlers.ResolveSSHPort(ev, &ev.BaseEvent.ProcessContext.Parent.UserSession)
+	}
+	if ev.BaseEvent.ProcessContext.HasParent() {
+		_ = ev.FieldHandlers.ResolveSSHPublicKey(ev, &ev.BaseEvent.ProcessContext.Parent.UserSession)
 	}
 	if ev.BaseEvent.ProcessContext.HasParent() {
 		_ = ev.FieldHandlers.ResolveSSHUsername(ev, &ev.BaseEvent.ProcessContext.Parent.UserSession)
@@ -298,8 +304,10 @@ func (ev *Event) resolveFields(forADs bool) {
 	_ = ev.FieldHandlers.ResolveK8SGroups(ev, &ev.BaseEvent.ProcessContext.Process.UserSession)
 	_ = ev.FieldHandlers.ResolveK8SUID(ev, &ev.BaseEvent.ProcessContext.Process.UserSession)
 	_ = ev.FieldHandlers.ResolveK8SUsername(ev, &ev.BaseEvent.ProcessContext.Process.UserSession)
-	_ = ev.FieldHandlers.ResolveSSHHostIP(ev, &ev.BaseEvent.ProcessContext.Process.UserSession)
-	_ = ev.FieldHandlers.ResolveSSHHostname(ev, &ev.BaseEvent.ProcessContext.Process.UserSession)
+	_ = ev.FieldHandlers.ResolveSSHAuthMethod(ev, &ev.BaseEvent.ProcessContext.Process.UserSession)
+	_ = ev.FieldHandlers.ResolveSSHClientIP(ev, &ev.BaseEvent.ProcessContext.Process.UserSession)
+	_ = ev.FieldHandlers.ResolveSSHPort(ev, &ev.BaseEvent.ProcessContext.Process.UserSession)
+	_ = ev.FieldHandlers.ResolveSSHPublicKey(ev, &ev.BaseEvent.ProcessContext.Process.UserSession)
 	_ = ev.FieldHandlers.ResolveSSHUsername(ev, &ev.BaseEvent.ProcessContext.Process.UserSession)
 	// resolve event specific fields
 	switch eventType {
@@ -518,8 +526,10 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveK8SUID(ev, &ev.Exec.Process.UserSession)
 		_ = ev.FieldHandlers.ResolveK8SGroups(ev, &ev.Exec.Process.UserSession)
 		_ = ev.FieldHandlers.ResolveSSHUsername(ev, &ev.Exec.Process.UserSession)
-		_ = ev.FieldHandlers.ResolveSSHHostIP(ev, &ev.Exec.Process.UserSession)
-		_ = ev.FieldHandlers.ResolveSSHHostname(ev, &ev.Exec.Process.UserSession)
+		_ = ev.FieldHandlers.ResolveSSHPort(ev, &ev.Exec.Process.UserSession)
+		_ = ev.FieldHandlers.ResolveSSHClientIP(ev, &ev.Exec.Process.UserSession)
+		_ = ev.FieldHandlers.ResolveSSHAuthMethod(ev, &ev.Exec.Process.UserSession)
+		_ = ev.FieldHandlers.ResolveSSHPublicKey(ev, &ev.Exec.Process.UserSession)
 		_ = ev.FieldHandlers.ResolveProcessArgv0(ev, ev.Exec.Process)
 		if !forADs {
 			_ = ev.FieldHandlers.ResolveProcessArgs(ev, ev.Exec.Process)
@@ -656,8 +666,10 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveK8SUID(ev, &ev.Exit.Process.UserSession)
 		_ = ev.FieldHandlers.ResolveK8SGroups(ev, &ev.Exit.Process.UserSession)
 		_ = ev.FieldHandlers.ResolveSSHUsername(ev, &ev.Exit.Process.UserSession)
-		_ = ev.FieldHandlers.ResolveSSHHostIP(ev, &ev.Exit.Process.UserSession)
-		_ = ev.FieldHandlers.ResolveSSHHostname(ev, &ev.Exit.Process.UserSession)
+		_ = ev.FieldHandlers.ResolveSSHPort(ev, &ev.Exit.Process.UserSession)
+		_ = ev.FieldHandlers.ResolveSSHClientIP(ev, &ev.Exit.Process.UserSession)
+		_ = ev.FieldHandlers.ResolveSSHAuthMethod(ev, &ev.Exit.Process.UserSession)
+		_ = ev.FieldHandlers.ResolveSSHPublicKey(ev, &ev.Exit.Process.UserSession)
 		_ = ev.FieldHandlers.ResolveProcessArgv0(ev, ev.Exit.Process)
 		if !forADs {
 			_ = ev.FieldHandlers.ResolveProcessArgs(ev, ev.Exit.Process)
@@ -912,8 +924,10 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveK8SUID(ev, &ev.Pam.Process.UserSession)
 		_ = ev.FieldHandlers.ResolveK8SGroups(ev, &ev.Pam.Process.UserSession)
 		_ = ev.FieldHandlers.ResolveSSHUsername(ev, &ev.Pam.Process.UserSession)
-		_ = ev.FieldHandlers.ResolveSSHHostIP(ev, &ev.Pam.Process.UserSession)
-		_ = ev.FieldHandlers.ResolveSSHHostname(ev, &ev.Pam.Process.UserSession)
+		_ = ev.FieldHandlers.ResolveSSHPort(ev, &ev.Pam.Process.UserSession)
+		_ = ev.FieldHandlers.ResolveSSHClientIP(ev, &ev.Pam.Process.UserSession)
+		_ = ev.FieldHandlers.ResolveSSHAuthMethod(ev, &ev.Pam.Process.UserSession)
+		_ = ev.FieldHandlers.ResolveSSHPublicKey(ev, &ev.Pam.Process.UserSession)
 		_ = ev.FieldHandlers.ResolveProcessArgv0(ev, ev.Pam.Process)
 		if !forADs {
 			_ = ev.FieldHandlers.ResolveProcessArgs(ev, ev.Pam.Process)
@@ -1024,8 +1038,10 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveK8SUID(ev, &ev.PTrace.Tracee.Process.UserSession)
 		_ = ev.FieldHandlers.ResolveK8SGroups(ev, &ev.PTrace.Tracee.Process.UserSession)
 		_ = ev.FieldHandlers.ResolveSSHUsername(ev, &ev.PTrace.Tracee.Process.UserSession)
-		_ = ev.FieldHandlers.ResolveSSHHostIP(ev, &ev.PTrace.Tracee.Process.UserSession)
-		_ = ev.FieldHandlers.ResolveSSHHostname(ev, &ev.PTrace.Tracee.Process.UserSession)
+		_ = ev.FieldHandlers.ResolveSSHPort(ev, &ev.PTrace.Tracee.Process.UserSession)
+		_ = ev.FieldHandlers.ResolveSSHClientIP(ev, &ev.PTrace.Tracee.Process.UserSession)
+		_ = ev.FieldHandlers.ResolveSSHAuthMethod(ev, &ev.PTrace.Tracee.Process.UserSession)
+		_ = ev.FieldHandlers.ResolveSSHPublicKey(ev, &ev.PTrace.Tracee.Process.UserSession)
 		_ = ev.FieldHandlers.ResolveProcessArgv0(ev, &ev.PTrace.Tracee.Process)
 		if !forADs {
 			_ = ev.FieldHandlers.ResolveProcessArgs(ev, &ev.PTrace.Tracee.Process)
@@ -1151,10 +1167,16 @@ func (ev *Event) resolveFields(forADs bool) {
 			_ = ev.FieldHandlers.ResolveSSHUsername(ev, &ev.PTrace.Tracee.Parent.UserSession)
 		}
 		if ev.PTrace.Tracee.HasParent() {
-			_ = ev.FieldHandlers.ResolveSSHHostIP(ev, &ev.PTrace.Tracee.Parent.UserSession)
+			_ = ev.FieldHandlers.ResolveSSHPort(ev, &ev.PTrace.Tracee.Parent.UserSession)
 		}
 		if ev.PTrace.Tracee.HasParent() {
-			_ = ev.FieldHandlers.ResolveSSHHostname(ev, &ev.PTrace.Tracee.Parent.UserSession)
+			_ = ev.FieldHandlers.ResolveSSHClientIP(ev, &ev.PTrace.Tracee.Parent.UserSession)
+		}
+		if ev.PTrace.Tracee.HasParent() {
+			_ = ev.FieldHandlers.ResolveSSHAuthMethod(ev, &ev.PTrace.Tracee.Parent.UserSession)
+		}
+		if ev.PTrace.Tracee.HasParent() {
+			_ = ev.FieldHandlers.ResolveSSHPublicKey(ev, &ev.PTrace.Tracee.Parent.UserSession)
 		}
 		if ev.PTrace.Tracee.HasParent() {
 			_ = ev.FieldHandlers.ResolveProcessArgv0(ev, ev.PTrace.Tracee.Parent)
@@ -1367,8 +1389,10 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveK8SUID(ev, &ev.Setrlimit.Target.Process.UserSession)
 		_ = ev.FieldHandlers.ResolveK8SGroups(ev, &ev.Setrlimit.Target.Process.UserSession)
 		_ = ev.FieldHandlers.ResolveSSHUsername(ev, &ev.Setrlimit.Target.Process.UserSession)
-		_ = ev.FieldHandlers.ResolveSSHHostIP(ev, &ev.Setrlimit.Target.Process.UserSession)
-		_ = ev.FieldHandlers.ResolveSSHHostname(ev, &ev.Setrlimit.Target.Process.UserSession)
+		_ = ev.FieldHandlers.ResolveSSHPort(ev, &ev.Setrlimit.Target.Process.UserSession)
+		_ = ev.FieldHandlers.ResolveSSHClientIP(ev, &ev.Setrlimit.Target.Process.UserSession)
+		_ = ev.FieldHandlers.ResolveSSHAuthMethod(ev, &ev.Setrlimit.Target.Process.UserSession)
+		_ = ev.FieldHandlers.ResolveSSHPublicKey(ev, &ev.Setrlimit.Target.Process.UserSession)
 		_ = ev.FieldHandlers.ResolveProcessArgv0(ev, &ev.Setrlimit.Target.Process)
 		if !forADs {
 			_ = ev.FieldHandlers.ResolveProcessArgs(ev, &ev.Setrlimit.Target.Process)
@@ -1494,10 +1518,16 @@ func (ev *Event) resolveFields(forADs bool) {
 			_ = ev.FieldHandlers.ResolveSSHUsername(ev, &ev.Setrlimit.Target.Parent.UserSession)
 		}
 		if ev.Setrlimit.Target.HasParent() {
-			_ = ev.FieldHandlers.ResolveSSHHostIP(ev, &ev.Setrlimit.Target.Parent.UserSession)
+			_ = ev.FieldHandlers.ResolveSSHPort(ev, &ev.Setrlimit.Target.Parent.UserSession)
 		}
 		if ev.Setrlimit.Target.HasParent() {
-			_ = ev.FieldHandlers.ResolveSSHHostname(ev, &ev.Setrlimit.Target.Parent.UserSession)
+			_ = ev.FieldHandlers.ResolveSSHClientIP(ev, &ev.Setrlimit.Target.Parent.UserSession)
+		}
+		if ev.Setrlimit.Target.HasParent() {
+			_ = ev.FieldHandlers.ResolveSSHAuthMethod(ev, &ev.Setrlimit.Target.Parent.UserSession)
+		}
+		if ev.Setrlimit.Target.HasParent() {
+			_ = ev.FieldHandlers.ResolveSSHPublicKey(ev, &ev.Setrlimit.Target.Parent.UserSession)
 		}
 		if ev.Setrlimit.Target.HasParent() {
 			_ = ev.FieldHandlers.ResolveProcessArgv0(ev, ev.Setrlimit.Target.Parent)
@@ -1650,8 +1680,10 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveK8SUID(ev, &ev.Signal.Target.Process.UserSession)
 		_ = ev.FieldHandlers.ResolveK8SGroups(ev, &ev.Signal.Target.Process.UserSession)
 		_ = ev.FieldHandlers.ResolveSSHUsername(ev, &ev.Signal.Target.Process.UserSession)
-		_ = ev.FieldHandlers.ResolveSSHHostIP(ev, &ev.Signal.Target.Process.UserSession)
-		_ = ev.FieldHandlers.ResolveSSHHostname(ev, &ev.Signal.Target.Process.UserSession)
+		_ = ev.FieldHandlers.ResolveSSHPort(ev, &ev.Signal.Target.Process.UserSession)
+		_ = ev.FieldHandlers.ResolveSSHClientIP(ev, &ev.Signal.Target.Process.UserSession)
+		_ = ev.FieldHandlers.ResolveSSHAuthMethod(ev, &ev.Signal.Target.Process.UserSession)
+		_ = ev.FieldHandlers.ResolveSSHPublicKey(ev, &ev.Signal.Target.Process.UserSession)
 		_ = ev.FieldHandlers.ResolveProcessArgv0(ev, &ev.Signal.Target.Process)
 		if !forADs {
 			_ = ev.FieldHandlers.ResolveProcessArgs(ev, &ev.Signal.Target.Process)
@@ -1777,10 +1809,16 @@ func (ev *Event) resolveFields(forADs bool) {
 			_ = ev.FieldHandlers.ResolveSSHUsername(ev, &ev.Signal.Target.Parent.UserSession)
 		}
 		if ev.Signal.Target.HasParent() {
-			_ = ev.FieldHandlers.ResolveSSHHostIP(ev, &ev.Signal.Target.Parent.UserSession)
+			_ = ev.FieldHandlers.ResolveSSHPort(ev, &ev.Signal.Target.Parent.UserSession)
 		}
 		if ev.Signal.Target.HasParent() {
-			_ = ev.FieldHandlers.ResolveSSHHostname(ev, &ev.Signal.Target.Parent.UserSession)
+			_ = ev.FieldHandlers.ResolveSSHClientIP(ev, &ev.Signal.Target.Parent.UserSession)
+		}
+		if ev.Signal.Target.HasParent() {
+			_ = ev.FieldHandlers.ResolveSSHAuthMethod(ev, &ev.Signal.Target.Parent.UserSession)
+		}
+		if ev.Signal.Target.HasParent() {
+			_ = ev.FieldHandlers.ResolveSSHPublicKey(ev, &ev.Signal.Target.Parent.UserSession)
 		}
 		if ev.Signal.Target.HasParent() {
 			_ = ev.FieldHandlers.ResolveProcessArgv0(ev, ev.Signal.Target.Parent)
@@ -1956,8 +1994,10 @@ type FieldHandlers interface {
 	ResolveProcessIsThread(ev *Event, e *Process) bool
 	ResolveRights(ev *Event, e *FileFields) int
 	ResolveSELinuxBoolName(ev *Event, e *SELinuxEvent) string
-	ResolveSSHHostIP(ev *Event, e *UserSessionContext) string
-	ResolveSSHHostname(ev *Event, e *UserSessionContext) string
+	ResolveSSHAuthMethod(ev *Event, e *UserSessionContext) int
+	ResolveSSHClientIP(ev *Event, e *UserSessionContext) string
+	ResolveSSHPort(ev *Event, e *UserSessionContext) int
+	ResolveSSHPublicKey(ev *Event, e *UserSessionContext) string
 	ResolveSSHUsername(ev *Event, e *UserSessionContext) string
 	ResolveService(ev *Event, e *BaseEvent) string
 	ResolveSetSockOptFilterHash(ev *Event, e *SetSockOptEvent) string
@@ -2209,11 +2249,17 @@ func (dfh *FakeFieldHandlers) ResolveRights(ev *Event, e *FileFields) int { retu
 func (dfh *FakeFieldHandlers) ResolveSELinuxBoolName(ev *Event, e *SELinuxEvent) string {
 	return string(e.BoolName)
 }
-func (dfh *FakeFieldHandlers) ResolveSSHHostIP(ev *Event, e *UserSessionContext) string {
-	return string(e.SSHHostIP)
+func (dfh *FakeFieldHandlers) ResolveSSHAuthMethod(ev *Event, e *UserSessionContext) int {
+	return int(e.SSHAuthMethod)
 }
-func (dfh *FakeFieldHandlers) ResolveSSHHostname(ev *Event, e *UserSessionContext) string {
-	return string(e.SSHHostname)
+func (dfh *FakeFieldHandlers) ResolveSSHClientIP(ev *Event, e *UserSessionContext) string {
+	return string(e.SSHClientIP)
+}
+func (dfh *FakeFieldHandlers) ResolveSSHPort(ev *Event, e *UserSessionContext) int {
+	return int(e.SSHPort)
+}
+func (dfh *FakeFieldHandlers) ResolveSSHPublicKey(ev *Event, e *UserSessionContext) string {
+	return string(e.SSHPublicKey)
 }
 func (dfh *FakeFieldHandlers) ResolveSSHUsername(ev *Event, e *UserSessionContext) string {
 	return string(e.SSHUsername)

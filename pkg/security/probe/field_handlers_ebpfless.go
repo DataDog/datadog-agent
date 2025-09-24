@@ -623,15 +623,24 @@ func (fh *EBPFLessFieldHandlers) ResolveCapabilitiesUsed(_ *model.Event, _ *mode
 
 // ResolveSSHUsername resolves the ssh username of the event
 func (fh *EBPFLessFieldHandlers) ResolveSSHUsername(_ *model.Event, _ *model.UserSessionContext) string {
-	return "" // EBPFLess mode does not support ssh usage reporting, so we return ""
+	return "" // EBPFLess mode does not support ssh usage reporting, so we return 0
 }
 
 // ResolveSSHHostIP resolves the ssh username of the event
-func (fh *EBPFLessFieldHandlers) ResolveSSHHostIP(_ *model.Event, _ *model.UserSessionContext) string {
-	return "" // EBPFLess mode does not support ssh usage reporting, so we return ""
+func (fh *EBPFLessFieldHandlers) ResolveSSHClientIP(_ *model.Event, _ *model.UserSessionContext) string {
+	return "" // EBPFLess mode does not support ssh usage reporting, so we return 0
 }
 
-// ResolveSSHHostname resolves the ssh hostname of the event
-func (fh *EBPFLessFieldHandlers) ResolveSSHHostname(_ *model.Event, _ *model.UserSessionContext) string {
-	return "" // EBPFLess mode does not support ssh usage reporting, so we return ""
+// ResolveSSHAuthMethod resolves the ssh auth method of the event
+func (fh *EBPFLessFieldHandlers) ResolveSSHAuthMethod(_ *model.Event, _ *model.UserSessionContext) int {
+	return 0 // EBPFLess mode does not support ssh usage reporting, so we return 0
+}
+
+// ResolveSSHHostname resolves the public key of the event
+func (fh *EBPFLessFieldHandlers) ResolveSSHPublicKey(_ *model.Event, _ *model.UserSessionContext) string {
+	return "" // EBPFLess mode does not support ssh usage reporting, so we return 0
+}
+
+func (fh *EBPFLessFieldHandlers) ResolveSSHPort(_ *model.Event, _ *model.UserSessionContext) int {
+	return 0 // EBPFLess mode does not support ssh usage reporting, so we return 0
 }

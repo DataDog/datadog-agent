@@ -191,7 +191,14 @@ func getPamProbes() []*manager.Probe {
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
-				EBPFFuncName: "rethook_pam_start",
+				EBPFFuncName: "hook_pam_end",
+			},
+			BinaryPath: libPamPath,
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_pam_authenticate",
 			},
 			BinaryPath: libPamPath,
 		},

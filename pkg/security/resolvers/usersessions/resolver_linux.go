@@ -9,8 +9,11 @@
 package usersessions
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
+	"os"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -100,7 +103,6 @@ func (r *Resolver) ResolveUserSession(id uint64) *model.UserSessionContext {
 		ID:     id,
 		Cursor: 1,
 	}
-	fmt.Print("CHECK2\n")
 
 	value := UserSessionData{}
 	err := r.userSessionsMap.Lookup(&key, &value)
@@ -108,7 +110,6 @@ func (r *Resolver) ResolveUserSession(id uint64) *model.UserSessionContext {
 		key.Cursor++
 		err = r.userSessionsMap.Lookup(&key, &value)
 	}
-	fmt.Print("LOOKUP\n")
 	if key.Cursor == 1 && err != nil {
 		// the session doesn't exist, leave now
 		return nil
@@ -127,14 +128,96 @@ func (r *Resolver) ResolveUserSession(id uint64) *model.UserSessionContext {
 		}
 	}
 	if value.SessionType == 2 {
-		fmt.Printf("SSH session: %s %s\n", value.RawData[0:32], value.RawData[32:64])
-		ctx.SSHUsername = strings.TrimRight(string(value.RawData[0:32]), "\x00")
-		ctx.SSHHostIP = strings.TrimRight(string(value.RawData[32:48]), "\x00")
-		fmt.Printf("SSH session: %s %s\n", ctx.SSHUsername, ctx.SSHHostIP)
+		lenData := len(value.RawData)
+		if lenData < 0 {
+			fmt.Print("empty ssh session data\n")
+			return nil
+		}
+		fmt.Printf("SSH session: %s\n", value.RawData)
+		ctx.SSHUsername = string(value.RawData)
+		ResolveSSHUserSession(ctx)
 	}
 	ctx.Resolved = true
 
 	// cache resolved context
 	r.userSessions.Add(id, ctx)
 	return ctx
+}
+
+func ResolveSSHUserSession(ctx *model.UserSessionContext) {
+	type SSHLogLine struct {
+		Date      string
+		Username  string
+		Service   string
+		Remaining string
+	}
+	type SSHParsedLine struct {
+		AuthentificationMethod string
+		User                   string
+		IP                     string
+		Port                   string
+		SSHVersion             string
+		Remaining              string
+	}
+
+	f, err := os.OpenFile("/var/log/auth.log", os.O_RDONLY, 0644)
+
+	if err != nil {
+		fmt.Printf("Fail while opening /var/log/auth.log: %v\n", err)
+		os.Exit(1)
+	}
+	defer f.Close()
+
+	sc := bufio.NewScanner(f)
+	for sc.Scan() {
+		line := sc.Text()
+		// separate the line into words
+		words := strings.Split(line, " ")
+		sshLogLine := SSHLogLine{
+			Date:      words[0],
+			Username:  words[1],
+			Service:   words[2],
+			Remaining: strings.Join(words[3:], " "),
+		}
+		// if the first word starts with "sshd" and the second word is the username, then print the line
+		if strings.HasPrefix(sshLogLine.Service, "sshd") && strings.HasPrefix(sshLogLine.Remaining, "Accepted") {
+			// One example of line is Accepted publickey for lima from 192.168.5.2 port 38835 ssh2: ED25519 SHA256:J3I5W45pnQtan5u0m27HWzyqAMZfTbG+nRet/pzzylU
+			// Get the infos like that : Accepted *** for lima from *** port *** ssh2: ED25519 SHA256:***
+			sshWords := strings.Split(sshLogLine.Remaining, " ")
+			if len(sshWords) < 9 {
+				continue
+			}
+			sshParsedLine := SSHParsedLine{
+				AuthentificationMethod: sshWords[1],
+				User:                   sshWords[3],
+				IP:                     sshWords[5],
+				Port:                   sshWords[7],
+				SSHVersion:             sshWords[8],
+				Remaining:              strings.Join(sshWords[9:], " "),
+			}
+			if sshParsedLine.User == ctx.SSHUsername {
+				ctx.SSHClientIP = sshParsedLine.IP
+				fmt.Printf("SSH Client IP: %s\n", sshParsedLine.IP)
+				if port, err := strconv.Atoi(sshParsedLine.Port); err == nil {
+					ctx.SSHPort = port
+					fmt.Printf("SSH Port: %d\n", port)
+				}
+				switch sshParsedLine.AuthentificationMethod {
+				case "publickey":
+					ctx.SSHAuthMethod = 1
+					// Here Parse the Public Key which can be ED25519 SHA256:J3I5W45pnQtan5u0m27HWzyqAMZfTbG+nRet/pzzylU
+					sshParsedLine.Remaining = strings.Split(sshParsedLine.Remaining, ":")[1]
+					ctx.SSHPublicKey = sshParsedLine.Remaining
+					fmt.Printf("SSH Public Key: %s\n", sshParsedLine.Remaining)
+				case "password":
+					ctx.SSHAuthMethod = 2
+					fmt.Printf("SSH Auth Method: %d\n", ctx.SSHAuthMethod)
+				case "keyboard-interactive":
+					ctx.SSHAuthMethod = 3
+				default:
+					ctx.SSHAuthMethod = 0
+				}
+			}
+		}
+	}
 }
