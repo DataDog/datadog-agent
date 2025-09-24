@@ -364,7 +364,7 @@ func TestFormatServiceDiscovery(t *testing.T) {
 						ServiceName: "service_name2",
 					},
 				},
-				DDService:          "dd_service_name",
+				DDService:       "dd_service_name",
 				APMInstrumented: true,
 			},
 			expectedService: &model.ServiceDiscovery{
@@ -457,8 +457,8 @@ func wlmProcessWithServiceDiscovery(pid int32, spaceSeparatedCmdline string, cre
 				ServiceName: "some-tracer-service",
 			},
 		},
-		DDService:          "dd service name",
-		TCPPorts:           []uint16{6400, 5200},
+		DDService:       "dd service name",
+		TCPPorts:        []uint16{6400, 5200},
 		APMInstrumented: true,
 	}
 	return proc

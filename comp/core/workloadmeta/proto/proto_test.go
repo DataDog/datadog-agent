@@ -653,9 +653,9 @@ func TestConversions(t *testing.T) {
 								ServiceName: "test_service",
 							},
 						},
-						DdService:          "dd_test_service",
-						TcpPorts:           []int32{8080, 9090},
-						UdpPorts:           []int32{53},
+						DdService:       "dd_test_service",
+						TcpPorts:        []int32{8080, 9090},
+						UdpPorts:        []int32{53},
 						ApmInstrumented: true,
 						Ust: &pb.UST{
 							Service: "test_service",
